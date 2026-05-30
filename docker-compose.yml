@@ -1,0 +1,29 @@
+version: '3.8'
+
+services:
+  ahram_core:
+    build: .
+    container_name: ahram_core_app
+    restart: always
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+    env_file:
+      - .env
+    depends_on:
+      - mongo_db
+
+  mongo_db:
+    image: mongo:6.0
+    container_name: ahram_mongodb
+    restart: always
+    ports:
+      - "27017:27017"
+    volumes:
+      - ahram_mongo_data:/data/db
+    # 🟢 تفعيل الـ Replica Set إجبارياً لكي تعمل الـ (Transactions الذرية)
+    command: ["--replSet", "rs0", "--bind_ip_all"]
+
+volumes:
+  ahram_mongo_data:

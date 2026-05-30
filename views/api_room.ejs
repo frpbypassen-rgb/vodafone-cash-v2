@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>غرفة عمليات الـ API | شركة الأهرام</title>
+    
+    <script>
+        const savedTheme = localStorage.getItem('ahram_theme') || 'dark';
+        document.documentElement.setAttribute('data-theme', savedTheme);
+    </script>
+
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.rtl.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800;900&family=JetBrains+Mono:wght@700&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+
+    <style>
+        body { background-color: #0f172a; color: #f8fafc; font-family: 'Tajawal', sans-serif; margin: 0; }
+        .api-card { background-color: #1e293b; border: 1px solid #334155; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); margin-bottom: 20px;}
+        .api-card-header { border-bottom: 1px solid #334155; padding: 15px 20px; font-weight: bold; }
+        .stat-box { border: 1px solid #334155; border-radius: 10px; padding: 20px; text-align: center; background: #1e293b; height: 100%;}
+        .form-control, .form-select, .input-group-text { background-color: #0f172a; border: 1px solid #334155; color: #e2e8f0; font-family: monospace; }
+        .form-control:focus, .form-select:focus { background-color: #0f172a; color: #fff; border-color: #3b82f6; box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2); }
+        .table-dark-custom { background-color: transparent; color: #e2e8f0; }
+        .table-dark-custom th { border-bottom: 1px solid #334155; color: #94a3b8; font-weight: 500; }
+        .table-dark-custom td { border-bottom: 1px solid #334155; vertical-align: middle; }
+        .table-hover tbody tr:hover { background-color: rgba(255, 255, 255, 0.03); color: white;}
+        .text-emerald { color: #10b981; }
+        .text-rose { color: #f43f5e; }
+        .text-sky { color: #0ea5e9; }
+        .main-content { padding: 20px; }
+        
+        /* 🟢 تنسيق زر الـ API */
+        .btn-api-log { display: inline-flex; align-items: center; justify-content: center; padding: 6px 12px; border-radius: 8px; font-size: 0.85rem; font-weight: bold; transition: 0.2s; background: rgba(16, 185, 129, 0.1); color: #10b981; border: 1px solid rgba(16, 185, 129, 0.3); cursor: pointer; text-decoration: none; }
+        .btn-api-log:hover { background: #10b981; color: white; transform: translateY(-2px); }
+    </style>
+</head>
+<body>
+
+<%- include('partials/sidebar', { activePage: 'executors' }) %>
+
+<div class="main-content">
+    <div class="container-fluid py-2" dir="rtl">
+        
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <div>
+                <h3 class="fw-bold mb-1"><i class="fa-solid fa-network-wired text-success me-2"></i> غرفة عمليات الـ API (الربط الآلي)</h3>
+                <p class="text-muted mb-0">مراقبة اتصال السيرفر مع شركة: <span class="text-sky fw-bold"><%= bot.name %></span></p>
+            </div>
+            <a href="/executors" class="btn btn-outline-light rounded-pill px-4"><i class="fa-solid fa-arrow-right me-2"></i> عودة لإدارة التنفيذ</a>
+        </div>
+
+        <div class="row g-3 mb-4">
+            <div class="col-md-4">
+                <div class="stat-box">
+                    <p class="text-muted mb-2">عمليات مرفوضة (من الشركة)</p>
+                    <h2 class="text-rose fw-bold mb-0"><%= stats.failedCount %></h2>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="stat-box">
+                    <p class="text-muted mb-2">عمليات ناجحة</p>
+                    <h2 class="text-sky fw-bold mb-0"><%= stats.successCount %></h2>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="stat-box">
+                    <p class="text-muted mb-2">الرصيد / العهدة المتاحة للـ API</p>
+                    <h2 class="text-emerald fw-bold mb-0"><%= bot.balance.toFixed(2) %> <span class="fs-6">EGP</span></h2>
+                </div>
+            </div>
+        </div>
+
+        <div class="row g-4 mb-4">
+            <div class="col-lg-6">
+                <div class="api-card h-100">
+                    <div class="api-card-header text-info d-flex justify-content-between align-items-center">
+                        <span><i class="fa-solid fa-link me-2"></i> إعدادات نقطة الاتصال (Endpoint)</span>
+                    </div>
+                    <div class="card-body p-4">
+                        <div class="mb-3">
+                            <label class="form-label text-muted small">رابط الطلب (POST URL)</label>
+                            <input type="text" class="form-control text-emerald" value="<%= bot.apiUrl || 'https://zaynpay.com' %>" readonly>
+                        </div>
+                        <div class="mb-4">
+                            <label class="form-label text-muted small">مفتاح المصادقة (Secret Token)</label>
+                            <input type="text" class="form-control text-rose" value="Bearer <%= bot.apiToken || 'AutoLogin' %>" readonly>
+                        </div>
+                        
+                        <form action="/executor/<%= bot._id %>/toggle-status" method="POST">
+                            <button type="submit" class="btn btn-<%= bot.status === 'active' ? 'danger' : 'success' %> w-100 fw-bold py-2 mb-4">
+                                <i class="fa-solid fa-<%= bot.status === 'active' ? 'stop' : 'play' %> me-2"></i> 
+                                <%= bot.status === 'active' ? 'إيقاف إرسال الطلبات للشركة' : 'تفعيل إرسال الطلبات للشركة' %>
+                            </button>
+                        </form>
+
+                        <div class="border-top border-secondary pt-3 mt-2">
+                            <label class="form-label text-warning small fw-bold"><i class="fa-solid fa-radar me-1"></i> ربط بسجل العمليات (Audit Trail Bot)</label>
+                            <form action="/executor/<%= bot._id %>/link-manager" method="POST">
+                                <div class="input-group">
+                                    <select name="parentBotId" class="form-select border-warning">
+                                        <option value="none">-- غير مربوط بأي سجل --</option>
+                                        <% managerBots.forEach(mBot => { %>
+                                            <option value="<%= mBot._id %>" <%= bot.parentBotId && bot.parentBotId._id && bot.parentBotId._id.toString() === mBot._id.toString() ? 'selected' : '' %>>
+                                                <%= mBot.name %>
+                                            </option>
+                                        <% }) %>
+                                    </select>
+                                    <button type="submit" class="btn btn-warning fw-bold text-dark">ربط السجل</button>
+                                </div>
+                                <small class="text-muted mt-1 d-block" style="font-size: 0.8rem;">اختر البوت الذي سيستقبل إشعارات بدء ونجاح وفشل عمليات الـ API.</small>
+                            </form>
+                        </div>
+
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-lg-6">
+                <div class="api-card h-100">
+                    <div class="api-card-header text-warning d-flex justify-content-between align-items-center">
+                        <span><i class="fa-solid fa-coins me-2"></i> إدارة العهدة الرقمية</span>
+                    </div>
+                    <div class="card-body p-4">
+                        <form action="/executor/<%= bot._id %>/settle" method="POST">
+                            <div class="mb-3">
+                                <label class="form-label text-muted small">إيداع / خصم المبلغ (EGP)</label>
+                                <input type="number" step="0.01" name="amount" class="form-control form-control-lg text-center fw-bold fs-3" placeholder="0.00" required>
+                                <div class="form-text text-info mt-2"><i class="fa-solid fa-circle-info"></i> اكتب الرقم بالموجب لزيادة العهدة، وبالسالب (-) للخصم.</div>
+                            </div>
+                            <div class="mb-4">
+                                <label class="form-label text-muted small">المرجع (ملاحظة)</label>
+                                <input type="text" name="notes" class="form-control" placeholder="مثال: تم إيداع عهدة جديدة لشركة كذا...">
+                            </div>
+                            <button type="submit" class="btn btn-warning w-100 fw-bold text-dark py-2 fs-5">
+                                <i class="fa-solid fa-bolt me-2"></i> تنفيذ تسوية الرصيد
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="api-card">
+            <div class="api-card-header text-primary d-flex justify-content-between align-items-center">
+                <span><i class="fa-solid fa-terminal me-2"></i> سجل التخاطب مع السيرفر (API Logs)</span>
+                <span class="badge bg-primary rounded-pill">أحدث 100 حركة</span>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover table-dark-custom text-center mb-0">
+                        <thead>
+                            <tr>
+                                <th class="py-3">الوقت</th>
+                                <th class="py-3">رقم عمليتنا</th>
+                                <th class="py-3">رقم المستفيد</th>
+                                <th class="py-3">المبلغ (EGP)</th>
+                                <th class="py-3">السجل التفصيلي / الملاحظة</th>
+                                <th class="py-3">الحالة</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <% if(transactions.length === 0) { %>
+                                <tr><td colspan="6" class="py-5 text-muted">لا يوجد سجل عمليات حتى الآن.</td></tr>
+                            <% } %>
+                            <% transactions.forEach(tx => { %>
+                                <tr>
+                                    <td class="text-muted small"><%= new Date(tx.updatedAt).toLocaleString('en-GB') %></td>
+                                    <td class="fw-bold text-light"><%= tx.customId || tx._id.toString().slice(-6) %></td>
+                                    <td class="font-monospace text-warning"><%= tx.vodafoneNumber || 'تسديد حساب' %></td>
+                                    <td class="fw-bold fs-5"><%= tx.amount %></td>
+                                    <td>
+                                        <% if (tx.notes && tx.notes.includes('--- سجل الـ API (Terminal Log) ---')) { %>
+                                            <button onclick="showApiLog(this)" data-log="<%= encodeURIComponent(tx.notes) %>" class="btn-api-log">
+                                                <i class="fa-solid fa-terminal me-2"></i> عرض السجل
+                                            </button>
+                                        <% } else { %>
+                                            <span class="text-muted small text-wrap" style="max-width: 150px; display: inline-block;">
+                                                <%= tx.notes || '---' %>
+                                            </span>
+                                        <% } %>
+                                    </td>
+                                    <td>
+                                        <% if(tx.status === 'completed') { %> <span class="badge border border-success text-success bg-transparent px-3 py-2"><i class="fa-solid fa-check me-1"></i> نجاح (200 OK)</span>
+                                        <% } else if(tx.status === 'deposit') { %> <span class="badge border border-info text-info bg-transparent px-3 py-2"><i class="fa-solid fa-arrow-down me-1"></i> إيداع عهدة</span>
+                                        <% } else if(tx.status === 'deduction') { %> <span class="badge border border-danger text-danger bg-transparent px-3 py-2"><i class="fa-solid fa-arrow-up me-1"></i> سحب عهدة</span>
+                                        <% } else { %> <span class="badge border border-warning text-warning bg-transparent px-3 py-2"><i class="fa-solid fa-triangle-exclamation me-1"></i> خطأ استجابة</span> <% } %>
+                                    </td>
+                                </tr>
+                            <% }) %>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+    </div>
+</div>
+
+<script>
+    function toggleSidebar() { 
+        document.querySelector('.sidebar').classList.toggle('active');
+        document.querySelector('.sidebar-overlay').classList.toggle('active'); 
+    }
+
+    // 🟢 دالة عرض نافذة السجل المنبثقة (Terminal View)
+    function showApiLog(btn) {
+        const rawNotes = decodeURIComponent(btn.getAttribute('data-log'));
+        const logMarker = '--- سجل الـ API (Terminal Log) ---';
+        let logContent = rawNotes;
+        if(rawNotes.includes(logMarker)) {
+            logContent = rawNotes.split(logMarker)[1].trim();
+        }
+        
+        Swal.fire({
+            title: '<div style="color:#10b981; font-family:monospace; font-size:1.2rem; display:flex; align-items:center; gap:10px; justify-content:center;"><i class="fa-solid fa-terminal"></i> سجل التخاطب مع السيرفر</div>',
+            html: `<div style="background:#0f172a; color:#a5b4fc; padding:15px; border-radius:8px; text-align:left; direction:ltr; font-family:'JetBrains Mono', monospace; font-size:0.85rem; white-space:pre-wrap; max-height:400px; overflow-y:auto; border:1px solid #334155; box-shadow:inset 0 2px 4px rgba(0,0,0,0.5);">${logContent}</div>`,
+            background: '#1e293b',
+            color: '#fff',
+            confirmButtonColor: '#3b82f6',
+            confirmButtonText: 'إغلاق الشاشة',
+            width: '600px',
+            customClass: { popup: 'border border-secondary rounded-4' }
+        });
+    }
+</script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <title>تقرير المعاملات الشامل</title>
+    <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;700;900&display=swap" rel="stylesheet">
+    <style>
+        @page { size: A4 portrait; margin: 15mm; }
+        body { font-family: 'Tajawal', sans-serif; background: #fff; color: #333; margin: 0; padding: 0; font-size: 12px; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+        
+        .header { text-align: center; border-bottom: 3px solid #001a4d; padding-bottom: 15px; margin-bottom: 20px; }
+        .header h2 { color: #001a4d; margin: 0 0 5px 0; font-size: 24px; font-weight: 800; }
+        .header p { margin: 0; font-weight: bold; color: #555; font-size: 14px; }
+        
+        /* 🟢 تنسيق الملخص المالي في ملف الـ PDF */
+        .summary-box { display: flex; justify-content: space-between; align-items: center; margin-bottom: 25px; background: #f8f9fa; border-radius: 10px; border: 2px solid #001a4d; overflow: hidden; page-break-inside: avoid; }
+        .summary-item { text-align: center; flex: 1; padding: 12px 5px; border-left: 1px solid #ccc; }
+        .summary-item:last-child { border-left: none; }
+        .summary-item h4 { margin: 0 0 8px 0; color: #001a4d; font-size: 12px; font-weight: bold; }
+        .summary-item p { margin: 0; font-weight: 800; font-size: 16px; font-family: monospace;}
+        
+        table { width: 100%; border-collapse: collapse; margin-bottom: 20px; font-size: 11px; }
+        th, td { border: 1px solid #ccc; padding: 8px; text-align: center; }
+        th { background-color: #001a4d; color: #fff; font-weight: bold; }
+        tbody tr:nth-child(even) { background-color: #f9f9f9; }
+        .st-badge { padding: 4px 8px; border-radius: 4px; font-weight: bold; display: inline-block; font-size: 10px; }
+        .st-completed { background-color: #d1e7dd; color: #0f5132; border: 1px solid #badbcc; }
+        .st-deposit { background-color: #cff4fc; color: #055160; border: 1px solid #b6effb; }
+        .st-deduction { background-color: #f8d7da; color: #842029; border: 1px solid #f5c2c7; }
+        .text-success { color: #198754 !important; }
+        .text-danger { color: #dc3545 !important; }
+        code { font-family: monospace; font-size: 12px; color: #000; font-weight: bold;}
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h2>شركة الأهرام للخدمات الرقمية</h2>
+        <p>كشف الحساب المالي المعتمد للجهة: <%= (typeof transactions !== 'undefined' && transactions.length > 0) ? ((transactions[0].companyName && transactions[0].companyName !== 'عميل فردي') ? transactions[0].companyName : (transactions[0].employeeName || targetName)) : targetName %></p>
+        <p>الفترة: <%= (typeof bulkDateLabel !== 'undefined' && bulkDateLabel) ? bulkDateLabel : ((typeof fromDate !== 'undefined' && fromDate && typeof toDate !== 'undefined' && toDate) ? `من ${fromDate} إلى ${toDate}` : 'تقرير شامل ومفتوح') %></p>
+    </div>
+    
+    <% if (typeof totals !== 'undefined') { %>
+    <div class="summary-box">
+        <div class="summary-item">
+            <h4>الرصيد السابق</h4>
+            <p style="color: #6c757d;"><%= (typeof openingBalance !== 'undefined') ? openingBalance.toFixed(2) : '0.00' %></p>
+        </div>
+        <div class="summary-item">
+            <h4>إجمالي الإيداعات</h4>
+            <p style="color: #0d6efd;"><%= totals.depositsEGP.toFixed(2) %></p>
+        </div>
+        <div class="summary-item">
+            <h4>مسحوب (خصومات)</h4>
+            <p class="text-danger"><%= totals.deductionsEGP.toFixed(2) %></p>
+        </div>
+        <div class="summary-item">
+            <h4>إجمالي التحويلات</h4>
+            <p class="text-success"><%= (typeof type !== 'undefined' && (type==='client' || type==='user')) ? totals.transfersLYD.toFixed(2) + ' LYD' : totals.transfersEGP.toFixed(2) + ' EGP' %></p>
+        </div>
+        <div class="summary-item" style="background: #fffef0;">
+            <h4>الرصيد الختامي</h4>
+            <p style="color: #d4af37;"><%= (typeof closingBalance !== 'undefined') ? closingBalance.toFixed(2) : '0.00' %></p>
+        </div>
+    </div>
+    <% } %>
+
+    <h3 style="font-size:14px; color:#001a4d; margin-bottom:10px; border-bottom:1px dashed #ccc; padding-bottom:5px;">تفاصيل العمليات (<%= typeof transactions !== 'undefined' ? transactions.length : 0 %> عملية):</h3>
+    
+    <table>
+        <thead>
+            <tr>
+                <th style="width: 10%;">رقم العملية</th>
+                <th style="width: 15%;">المبلغ (EGP)</th>
+                <th style="width: 25%;">الرقم / الحساب</th>
+                <% if (typeof type !== 'undefined' && type !== 'executor') { %> 
+                    <th style="width: 15%;">التكلفة (LYD)</th> 
+                <% } %>
+                <th style="width: 20%;">البيان / الملاحظة</th>
+                <th style="width: 15%;">التاريخ والوقت</th>
+            </tr>
+        </thead>
+        <tbody>
+            <% if (typeof transactions === 'undefined' || transactions.length === 0) { %>
+                <tr><td colspan="<%= (typeof type !== 'undefined' && type !== 'executor') ? 6 : 5 %>">لا توجد عمليات في هذه الفترة.</td></tr>
+            <% } else { %>
+            <% transactions.forEach(tx => { %>
+            <tr>
+                <td class="text-muted">#<%= tx.customId || tx._id.toString().slice(-6) %></td>
+                <td class="text-<%= tx.status === 'deduction' ? 'danger' : 'success' %> fw-bold"><%= tx.amount.toFixed(2) %></td>
+                <td dir="ltr">
+                    <% if (tx.status === 'deposit') { %>
+                        <b>إيداع نقدي</b>
+                    <% } else if (tx.status === 'deduction') { %>
+                        <b>خصم مديونية</b>
+                    <% } else { %>
+                        <code><%= tx.vodafoneNumber || tx.accountNumber || '---' %></code>
+                    <% } %>
+                </td>
+                
+                <% if (typeof type !== 'undefined' && type !== 'executor') { %> 
+                    <td class="text-danger fw-bold"><%= tx.costLYD ? tx.costLYD.toFixed(2) : '---' %></td>
+                <% } %>
+                
+                <td style="font-size: 10px; color: #555;"><%= tx.notes || ((tx.status === 'deposit') ? 'تسديد من الإدارة' : (tx.status === 'deduction' ? 'خصم وتعديل رصيد' : '---')) %></td>
+                <td style="font-size: 10px;">
+                    <%= tx.createdAt.toLocaleTimeString('en-GB', {hour:'2-digit', minute:'2-digit'}) %><br>
+                    <span style="color: #666;"><%= tx.createdAt.toLocaleDateString('en-GB') %></span>
+                </td>
+            </tr>
+            <% }) %>
+            <% } %>
+        </tbody>
+    </table>
+
+    <div style="text-align: center; margin-top: 30px; font-size: 10px; color: #777; font-weight:bold;">
+        تم استخراج هذا التقرير إلكترونياً من نظام الأهرام للخدمات الرقمية بتاريخ: <%= new Date().toLocaleString('ar-EG') %>
+    </div>
+    <script>
+        window.onload = function() { setTimeout(() => { window.print(); window.close(); }, 800); }
+    </script>
+</body>
+</html>

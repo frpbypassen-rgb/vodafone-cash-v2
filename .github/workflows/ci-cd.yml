@@ -1,0 +1,37 @@
+name: Ahram Enterprise CI/CD Pipeline
+
+on:
+  push:
+    branches: [ "main", "master" ]
+  pull_request:
+    branches: [ "main", "master" ]
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    
+    strategy:
+      matrix:
+        node-version: [18.x, 20.x] # اختبار توافق الكود مع أحدث إصدارات Node.js
+
+    steps:
+    - name: Checkout Code
+      uses: actions/checkout@v3
+
+    - name: Use Node.js ${{ matrix.node-version }}
+      uses: actions/setup-node@v3
+      with:
+        node-version: ${{ matrix.node-version }}
+        cache: 'npm'
+
+    - name: Install Dependencies (Production & Dev)
+      run: npm ci
+
+    - name: Run Security Audit
+      run: npm audit --audit-level=high
+
+    - name: Run Unit Tests (Financial Ledger)
+      run: npm test
+
+    - name: Build Docker Image (Dry Run)
+      run: docker build -t ahram-core-api:latest .

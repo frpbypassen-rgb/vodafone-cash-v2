@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>حسابات التنفيذ | الأهرام</title>
+    
+    <script>
+        const savedTheme = localStorage.getItem('ahram_theme') || 'dark';
+        document.documentElement.setAttribute('data-theme', savedTheme);
+    </script>
+
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.rtl.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800;900&family=JetBrains+Mono:wght@700&display=swap" rel="stylesheet">
+    
+    <style>
+        /* =========================================
+           ✨ 3D Modern Cards - التصميم ثلاثي الأبعاد
+           ========================================= */
+        .card-3d-wrapper {
+            perspective: 1000px;
+            height: 100%;
+        }
+
+        .bot-card-3d {
+            background: var(--card-bg);
+            border-radius: 24px;
+            padding: 25px;
+            transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            height: 100%;
+            position: relative;
+            overflow: hidden;
+            border: 1px solid var(--border-glass);
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.05);
+            z-index: 1;
+        }
+
+        /* توهج خلفي (Glass Glow) */
+        .bot-card-3d::before {
+            content: '';
+            position: absolute;
+            top: -50%;
+            right: -50%;
+            width: 200%;
+            height: 200%;
+            background: radial-gradient(circle, rgba(255,255,255,0.05) 0%, transparent 60%);
+            transform: rotate(45deg);
+            pointer-events: none;
+            z-index: -1;
+        }
+
+        [data-theme="dark"] .bot-card-3d {
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
+        }
+
+        /* 🚀 تأثير الرفع والدوران (Tilt) */
+        .bot-card-3d:hover {
+            transform: translateY(-10px) rotateX(2deg) rotateY(-2deg);
+            box-shadow: 0 25px 50px rgba(0, 0, 0, 0.15);
+        }
+
+        [data-theme="dark"] .bot-card-3d:hover {
+            box-shadow: 0 25px 50px rgba(0, 0, 0, 0.6), inset 0 0 0 1px rgba(255, 255, 255, 0.1);
+        }
+
+        /* 🌟 الأيقونة المتوهجة */
+        .bot-icon-3d {
+            width: 65px;
+            height: 65px;
+            border-radius: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 30px;
+            color: white;
+            box-shadow: 0 10px 20px rgba(0, 0, 0, 0.2);
+            position: relative;
+        }
+
+        .bot-icon-3d::after {
+            content: '';
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            border-radius: inherit;
+            background: inherit;
+            filter: blur(12px);
+            z-index: -1;
+            opacity: 0.6;
+            transition: 0.3s;
+        }
+
+        .bot-card-3d:hover .bot-icon-3d::after {
+            filter: blur(18px);
+            opacity: 0.9;
+        }
+
+        .manager-bot-icon { background: linear-gradient(135deg, #3b82f6, #2563eb); }
+        .normal-bot-icon { background: linear-gradient(135deg, #10b981, #059669); }
+
+        /* 💰 مربع الرصيد العميق */
+        .balance-box {
+            background: var(--input-bg);
+            border-radius: 20px;
+            padding: 20px;
+            margin: 25px 0;
+            border: 1px solid var(--border-glass);
+            position: relative;
+            overflow: hidden;
+            box-shadow: inset 0 4px 10px rgba(0,0,0,0.02);
+        }
+
+        [data-theme="dark"] .balance-box {
+            box-shadow: inset 0 4px 10px rgba(0,0,0,0.2);
+        }
+
+        .balance-box::after {
+            content: '\f0d6';
+            font-family: 'Font Awesome 6 Free';
+            font-weight: 900;
+            position: absolute;
+            left: -15px;
+            bottom: -20px;
+            font-size: 90px;
+            opacity: 0.04;
+            transform: rotate(-15deg);
+            color: var(--text-main);
+            pointer-events: none;
+        }
+
+        .mono-num { font-family: 'JetBrains Mono', monospace; font-size: 2.2rem; font-weight: 900; line-height: 1; }
+
+        /* 🔘 الزر التفاعلي */
+        .btn-3d {
+            background: var(--input-bg);
+            border: 1px solid var(--border-glass);
+            color: var(--text-main);
+            border-radius: 16px;
+            padding: 14px;
+            font-weight: 800;
+            transition: all 0.3s;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.02);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            text-decoration: none;
+        }
+
+        .btn-3d:hover {
+            background: var(--brand-primary);
+            color: white;
+            transform: translateY(-3px);
+            box-shadow: 0 10px 25px rgba(0, 26, 77, 0.3);
+            border-color: var(--brand-primary);
+        }
+
+        [data-theme="dark"] .btn-3d:hover {
+            background: var(--brand-gold);
+            color: black;
+            border-color: var(--brand-gold);
+            box-shadow: 0 10px 25px rgba(212, 175, 55, 0.3);
+        }
+    </style>
+</head>
+<body>
+
+<button class="mobile-nav-toggle" onclick="toggleSidebar()"><i class="fa-solid fa-bars"></i></button>
+<div class="sidebar-overlay" onclick="toggleSidebar()"></div>
+
+<%- include('partials/sidebar', { activePage: 'executors' }) %>
+
+<div class="main-content">
+    <div class="container-fluid">
+        <div class="admin-nav mb-4">
+            <h3 class="fw-bold m-0 text-dark"><i class="fa-solid fa-network-wired text-primary me-2"></i> وكلاء وبوتات التنفيذ (الكاشير)</h3>
+            <a href="/settings/bots" class="btn btn-primary fw-bold shadow-sm rounded-pill px-4"><i class="fa-solid fa-plus me-1"></i> إضافة بوت جديد</a>
+        </div>
+
+        <div class="row g-4 mt-2 pb-5">
+            <% if (bots.length === 0) { %>
+                <div class="col-12 text-center py-5">
+                    <i class="fa-solid fa-robot fa-4x text-muted opacity-25 mb-3"></i>
+                    <h5 class="text-muted fw-bold">لا يوجد أي بوتات تنفيذ مسجلة حتى الآن.</h5>
+                </div>
+            <% } %>
+            
+            <% bots.forEach(bot => { %>
+                <div class="col-xl-4 col-md-6">
+                    <div class="card-3d-wrapper">
+                        <div class="bot-card-3d" style="border-top: 5px solid <%= bot.isManagerBot ? '#3b82f6' : '#10b981' %>;">
+                            
+                            <div>
+                                <div class="d-flex justify-content-between align-items-start mb-3">
+                                    <div class="d-flex align-items-center gap-3">
+                                        <div class="bot-icon-3d <%= bot.isManagerBot ? 'manager-bot-icon' : 'normal-bot-icon' %>">
+                                            <i class="fa-solid <%= bot.isManagerBot ? 'fa-building' : 'fa-robot' %>"></i>
+                                        </div>
+                                        <div>
+                                            <h5 class="fw-bold m-0 text-dark mb-1"><%= bot.name %></h5>
+                                            <span class="badge <%= bot.status === 'active' ? 'bg-success text-success border-success' : 'bg-danger text-danger border-danger' %> bg-opacity-10 border rounded-pill px-3 py-1 mt-1" style="font-size:0.75rem;">
+                                                <i class="fa-solid <%= bot.status === 'active' ? 'fa-check-circle' : 'fa-ban' %> me-1"></i><%= bot.status === 'active' ? 'مفعل ونشط' : 'متوقف' %>
+                                            </span>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="balance-box text-center">
+                                    <div class="text-muted small fw-bold mb-2"><i class="fa-solid fa-wallet me-1 opacity-50"></i> الرصيد / المديونية الحالية</div>
+                                    <div class="mono-num <%= bot.balance < 0 ? 'text-danger' : 'text-success' %>" dir="ltr">
+                                        <%= bot.balance.toFixed(2) %> <span class="fs-6 text-muted">EGP</span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div>
+                                <div class="d-flex justify-content-between align-items-center p-3 rounded-4 mb-3 border" style="background: rgba(0,0,0,0.02);">
+                                    <span class="fw-bold small text-muted"><i class="fa-solid fa-check-double me-1 opacity-50"></i> إجمالي العمليات المنجزة</span>
+                                    <span class="badge bg-primary fs-6 rounded-pill px-3 shadow-sm"><%= bot.txCount %> طلب</span>
+                                </div>
+                                <a href="/executor/<%= bot._id %>" class="btn-3d w-100">
+                                    <i class="fa-solid fa-folder-open me-2"></i> إدارة التفاصيل والملف المحاسبي
+                                </a>
+                            </div>
+
+                        </div>
+                    </div>
+                </div>
+            <% }) %>
+        </div>
+    </div>
+</div>
+
+<script>
+    function toggleSidebar() { 
+        document.querySelector('.sidebar').classList.toggle('active');
+        document.querySelector('.sidebar-overlay').classList.toggle('active'); 
+    }
+</script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

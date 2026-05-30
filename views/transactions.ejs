@@ -1,0 +1,721 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>سجل العمليات | الأهرام</title>
+    
+    <script>
+        const savedTheme = localStorage.getItem('ahram_theme') || 'light';
+        document.documentElement.setAttribute('data-theme', savedTheme);
+    </script>
+
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.rtl.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800;900&family=JetBrains+Mono:wght@700;800&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+
+    <style>
+        .summary-box { border-radius: 20px; padding: 20px; display: flex; justify-content: space-between; align-items: center; height: 100%; position: relative; overflow: hidden;}
+        .summary-box::after { content: ''; position: absolute; right: 0; top: 0; width: 6px; height: 100%; }
+        .box-success::after { background: #10b981; } .box-primary::after { background: #3b82f6; } .box-danger::after { background: #ef4444; }
+        .summary-val { font-family: 'JetBrains Mono', monospace; font-size: 1.8rem; font-weight: 900; line-height: 1;}
+        .summary-icon { font-size: 2.5rem; opacity: 0.15; }
+
+        .btn-action-sm { width: 35px; height: 35px; display: inline-flex; align-items: center; justify-content: center; border-radius: 10px; font-size: 0.9rem; transition: 0.2s; border: 1px solid transparent; background: rgba(0,0,0,0.05); color: var(--text-main); text-decoration: none;}
+        [data-theme="dark"] .btn-action-sm { background: rgba(255,255,255,0.05); }
+        .btn-action-sm:hover { transform: translateY(-2px); }
+        .btn-action-sm.edit:hover { background: var(--brand-gold); color: black; border-color: var(--brand-gold); }
+        .btn-action-sm.send:hover { background: #3b82f6; color: white; border-color: #3b82f6; }
+        .btn-action-sm.del:hover { background: #ef4444; color: white; border-color: #ef4444; }
+        
+        /* 🟢 تنسيق زر الـ API الجديد */
+        .btn-action-sm.api-log { color: #10b981; background: rgba(16, 185, 129, 0.1); border-color: rgba(16, 185, 129, 0.2);}
+        .btn-action-sm.api-log:hover { background: #10b981; color: white; border-color: #10b981; }
+
+        .badge-st { padding: 6px 12px; border-radius: 8px; font-size: 0.75rem; font-weight: 800; display: inline-flex; align-items: center; gap: 6px; border: 1px solid transparent; }
+        .st-done { background: rgba(16, 185, 129, 0.1); color: #10b981; border-color: rgba(16, 185, 129, 0.2);}
+        .st-wait { background: rgba(245, 158, 11, 0.1); color: #d97706; border-color: rgba(245, 158, 11, 0.2);} [data-theme="dark"] .st-wait { color: var(--brand-gold);}
+        .st-proc { background: rgba(14, 165, 233, 0.1); color: #0ea5e9; border-color: rgba(14, 165, 233, 0.2);}
+        .st-work { background: rgba(59, 130, 246, 0.1); color: #3b82f6; border-color: rgba(59, 130, 246, 0.2);}
+        .st-dep  { background: rgba(139, 92, 246, 0.1); color: #8b5cf6; border-color: rgba(139, 92, 246, 0.2);}
+        .st-fail { background: rgba(239, 68, 68, 0.1); color: #ef4444; border-color: rgba(239, 68, 68, 0.2);}
+
+        .clickable-id { font-family: 'JetBrains Mono', monospace; font-weight: 900; color: var(--brand-primary); text-decoration: none; border-bottom: 2px dashed rgba(0,0,0,0.2); cursor: pointer; transition: 0.2s;}
+        [data-theme="dark"] .clickable-id { color: var(--brand-gold); border-bottom-color: rgba(255,255,255,0.2);}
+        .clickable-id:hover { opacity: 0.7; }
+
+        .pagination .page-link { background: var(--input-bg); color: var(--text-main); border: 1px solid var(--border-glass); border-radius: 12px; margin: 0 4px; font-weight: 700; transition: 0.2s;}
+        .pagination .active .page-link { background: var(--brand-primary); color: white; border-color: var(--brand-primary); }
+        [data-theme="dark"] .pagination .active .page-link { background: var(--brand-gold); color: black; border-color: var(--brand-gold);}
+
+        .timeline-box { position: relative; padding-right: 30px; border-right: 2px solid var(--border-glass); margin-top: 15px;}
+        .timeline-item { position: relative; padding-bottom: 25px; text-align: right; }
+        .timeline-item::after { content: ''; position: absolute; right: -36px; top: 5px; width: 10px; height: 10px; background: var(--brand-gold); border-radius: 50%; box-shadow: 0 0 0 4px var(--card-bg), 0 0 0 6px rgba(212, 175, 55, 0.2); }
+        .data-line { display: flex; justify-content: space-between; border-bottom: 1px dashed var(--border-glass); padding: 12px 0; font-size: 0.9rem; }
+    </style>
+</head>
+<body>
+
+<button class="mobile-nav-toggle" onclick="toggleSidebar()"><i class="fa-solid fa-bars"></i></button>
+<div class="sidebar-overlay" onclick="toggleSidebar()"></div>
+
+<%- include('partials/sidebar', { activePage: 'transactions' }) %>
+
+<div class="main-content">
+    <div class="container-fluid">
+        
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h3 class="fw-bold m-0" style="color: var(--text-main);"><i class="fa-solid fa-server text-primary me-2"></i> السجل المركزي والمراقبة <span class="spinner-grow spinner-grow-sm text-success ms-2 opacity-50" title="تحديث تلقائي"></span></h3>
+        </div>
+
+        <div class="row g-3 mb-4">
+            <div class="col-md-4">
+                <div class="data-card summary-box box-success m-0">
+                    <div>
+                        <h6 class="fw-bold text-muted mb-2">إجمالي التحويلات (مكتملة)</h6>
+                        <div class="summary-val text-success mb-1"><%= totals.transfersEGP.toFixed(2) %> <small class="fs-6">EGP</small></div>
+                        <div class="text-danger fw-bold small mono-num"><%= totals.transfersLYD.toFixed(2) %> LYD</div>
+                    </div>
+                    <div class="summary-icon text-success"><i class="fa-solid fa-money-bill-transfer"></i></div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="data-card summary-box box-primary m-0">
+                    <div>
+                        <h6 class="fw-bold text-muted mb-2">إجمالي الإيداعات (المسدد)</h6>
+                        <div class="summary-val" style="color: #3b82f6;"><%= totals.depositsEGP.toFixed(2) %> <small class="fs-6">EGP</small></div>
+                    </div>
+                    <div class="summary-icon text-primary"><i class="fa-solid fa-hand-holding-dollar"></i></div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="data-card summary-box box-danger m-0">
+                    <div>
+                        <h6 class="fw-bold text-muted mb-2">مسحوب (خصومات)</h6>
+                        <div class="summary-val text-danger"><%= totals.deductionsEGP.toFixed(2) %> <small class="fs-6">EGP</small></div>
+                    </div>
+                    <div class="summary-icon text-danger"><i class="fa-solid fa-arrow-trend-down"></i></div>
+                </div>
+            </div>
+        </div>
+
+        <div class="data-card border-0 mb-4 p-4">
+            <form method="GET" action="/transactions" class="row g-3 align-items-end">
+                <div class="col-md-3">
+                    <label class="form-label fw-bold small text-muted">البحث الشامل</label>
+                    <div class="input-group">
+                        <span class="input-group-text"><i class="fa-solid fa-magnifying-glass"></i></span>
+                        <input type="text" id="searchInput" name="search" class="form-control border-start-0 ps-0 mono-num fs-6" placeholder="الرقم، الحساب..." value="<%= typeof search !== 'undefined' ? search : '' %>">
+                    </div>
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label fw-bold small text-muted">حالة العملية</label>
+                    <select id="statusFilter" name="status" class="form-select fw-bold">
+                        <option value="">الجميع</option>
+                        <option value="pending" <%= typeof statusFilter !== 'undefined' && statusFilter === 'pending' ? 'selected' : '' %>>⏳ معلق</option>
+                        <option value="processing" <%= typeof statusFilter !== 'undefined' && statusFilter === 'processing' ? 'selected' : '' %>>⚙️ توجيه للمنفذ</option>
+                        <option value="accepted" <%= typeof statusFilter !== 'undefined' && statusFilter === 'accepted' ? 'selected' : '' %>>👤 قيد العمل</option>
+                        <option value="completed" <%= typeof statusFilter !== 'undefined' && statusFilter === 'completed' ? 'selected' : '' %>>✅ مكتمل</option>
+                        <option value="deposit_pending" <%= typeof statusFilter !== 'undefined' && statusFilter === 'deposit_pending' ? 'selected' : '' %>>🖐️ طلب إيداع</option>
+                        <option value="deposit" <%= typeof statusFilter !== 'undefined' && statusFilter === 'deposit' ? 'selected' : '' %>>💰 إيداع (سداد)</option>
+                        <option value="deduction" <%= typeof statusFilter !== 'undefined' && statusFilter === 'deduction' ? 'selected' : '' %>>📉 خصم رصيد</option>
+                        <option value="rejected" <%= typeof statusFilter !== 'undefined' && statusFilter === 'rejected' ? 'selected' : '' %>>❌ ملغي</option>
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label fw-bold small text-muted">من تاريخ</label>
+                    <input type="date" id="fromDateInput" name="fromDate" class="form-control fw-bold" value="<%= typeof fromDate !== 'undefined' ? fromDate : '' %>">
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label fw-bold small text-muted">إلى تاريخ</label>
+                    <input type="date" id="toDateInput" name="toDate" class="form-control fw-bold" value="<%= typeof toDate !== 'undefined' ? toDate : '' %>">
+                </div>
+                <div class="col-md-3 d-flex gap-2">
+                    <button type="submit" class="btn btn-primary fw-bold px-4 flex-fill"><i class="fa-solid fa-filter me-1"></i> عرض</button>
+                    <a href="/transactions" class="btn btn-light fw-bold"><i class="fa-solid fa-rotate-left"></i></a>
+                    <button type="button" class="btn fw-bold" style="background: var(--brand-gold); color: #000;" onclick="printReport()"><i class="fa-solid fa-print"></i></button>
+                </div>
+            </form>
+        </div>
+
+        <div class="data-card border-0 p-0 overflow-hidden">
+            <div class="table-responsive border-0 m-0">
+                <table class="table text-center align-middle m-0" id="transactionsTable">
+                    <thead class="table-light">
+                        <tr>
+                            <th>رقم العملية</th>
+                            <th>الجهة/العميل</th>
+                            <th>المبلغ ج.م</th>
+                            <th>الرقم/الحساب</th>
+                            <th>التكلفة/سعر الصرف</th>
+                            <th>بوت التنفيذ</th>
+                            <th>الملاحظة</th>
+                            <th>الحالة</th>
+                            <th>اجراء</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <% if (transactions.length === 0) { %>
+                            <tr><td colspan="9" class="py-5 text-muted fw-bold border-0 fs-5"><i class="fa-solid fa-folder-open fs-1 d-block mb-3 opacity-25"></i> لا توجد عمليات مطابقة.</td></tr>
+                        <% } %>
+                        <% transactions.forEach(tx => { %>
+                            <tr style="<%= tx.status === 'deposit_pending' ? 'background: rgba(245, 158, 11, 0.05);' : (tx.status === 'deposit' ? 'background: rgba(16, 185, 129, 0.05);' : (tx.status === 'deduction' ? 'background: rgba(239, 68, 68, 0.05);' : '')) %>">
+                            
+                            <td>
+                                <a class="clickable-id mono-num fs-6" data-tx='<%- JSON.stringify(tx).replace(/'/g, "&#39;") %>' onclick="viewTransactionDetails(this)">
+                                    #<%= tx.customId || tx._id.toString().slice(-6) %>
+                                </a>
+                            </td>
+
+                            <td class="fw-bold text-dark">
+                                <% if (tx.companyName && tx.companyName !== 'عميل فردي') { %>
+                                    <div title="الطالب: <%= tx.employeeName %>"><i class="fa-solid fa-building text-muted me-1 small"></i> <%= tx.companyName %></div>
+                                    <div class="text-muted small mt-1"><i class="fa-solid fa-user-pen opacity-50 me-1"></i> <%= tx.employeeName %></div>
+                                <% } else { %>
+                                    <div><i class="fa-solid fa-user text-muted me-1 small"></i> <%= tx.employeeName || 'غير معروف' %></div>
+                                <% } %>
+                            </td>
+
+                            <td class="text-<%= tx.status === 'deduction' ? 'danger' : 'success' %> fw-bold mono-num fs-5"><%= tx.amount.toFixed(2) %></td>
+
+                            <td>
+                                <div class="mono-num text-dark fw-bold fs-6" dir="ltr"><%= tx.vodafoneNumber || tx.accountNumber || '---' %></div>
+                                <div class="mt-1">
+                                    <% let numStr = tx.vodafoneNumber || tx.accountNumber || ''; %>
+                                    <% if(tx.transferType === 'post_account') { %> <span class="badge bg-warning text-dark opacity-75"><i class="fa-solid fa-envelope"></i> بريد</span>
+                                    <% } else if(tx.transferType === 'post_card') { %> <span class="badge bg-info text-dark opacity-75"><i class="fa-solid fa-id-card"></i> بطاقة</span>
+                                    <% } else if(tx.status === 'deposit' || tx.status === 'deduction') { %> <span class="badge bg-secondary opacity-75"><i class="fa-solid fa-money-bill-wave"></i> تسوية</span>
+                                    <% } else { %> 
+                                        <div class="fw-bold small mt-1">
+                                            <% if(numStr.startsWith('010')) { %> <span style="color: #dc3545;">فودافون</span>
+                                            <% } else if(numStr.startsWith('011')) { %> <span style="color: #198754;">اتصالات</span>
+                                            <% } else if(numStr.startsWith('012')) { %> <span style="color: #fd7e14;">اورانج</span>
+                                            <% } else if(numStr.startsWith('015')) { %> <span style="color: #0dcaf0;">وي</span>
+                                            <% } else { %> <span class="badge bg-danger opacity-75"><i class="fa-solid fa-mobile-screen"></i> كاش</span> <% } %>
+                                        </div>
+                                    <% } %>
+                                </div>
+                            </td>
+
+                            <td>
+                                <% if(tx.status === 'deposit' || tx.status === 'deduction') { %> 
+                                    <span class="text-muted">---</span>
+                                <% } else { %> 
+                                    <div class="text-danger fw-bold mono-num fs-6"><%= tx.costLYD ? tx.costLYD.toFixed(2) + ' LYD' : '---' %></div>
+                                    <div class="text-warning fw-bold mono-num small mt-1" style="color: var(--brand-gold) !important;" title="سعر الصرف"><i class="fa-solid fa-percent opacity-50 me-1"></i><%= tx.exchangeRate ? Number(tx.exchangeRate).toFixed(2) : (tx.costLYD ? (tx.amount / tx.costLYD).toFixed(2) : '---') %></div>
+                                <% } %>
+                            </td>
+
+                            <td>
+                                <% if(tx.status === 'deposit' || tx.status === 'deduction') { %> 
+                                    <span class="text-muted">---</span>
+                                <% } else { %>
+                                    <div class="fw-bold text-primary small"><i class="fa-solid fa-robot me-1 opacity-50"></i> <%= typeof allBotsMap !== 'undefined' && tx.executorBotId ? allBotsMap[tx.executorBotId] : (tx.executorBotName || 'غير محدد') %></div>
+                                    <div class="text-muted small mt-1"><i class="fa-solid fa-user-gear me-1 opacity-50"></i> <%= tx.executorName || 'غير محدد' %></div>
+                                <% } %>
+                            </td>
+
+                            <td class="small text-wrap" style="max-width: 150px; line-height: 1.4;">
+                                <div class="fw-bold text-dark mb-1">
+                                    <% 
+                                        let displayNote = tx.notes || '---';
+                                        if (displayNote.includes('--- سجل الـ API')) {
+                                            displayNote = displayNote.split('--- سجل الـ API')[0].trim();
+                                        }
+                                    %>
+                                    <%= displayNote %>
+                                </div>
+                                <div class="text-muted mono-num" style="font-size: 0.75rem;">
+                                    <i class="fa-regular fa-clock me-1"></i> <%= tx.createdAt.toLocaleTimeString('en-US', {hour:'2-digit', minute:'2-digit'}) %><br>
+                                    <span class="opacity-75"><%= tx.createdAt.toLocaleDateString('en-GB') %></span>
+                                </div>
+                            </td>
+
+                            <td>
+                                <% if(tx.status === 'completed') { %> <span class="badge-st st-done"><i class="fa-solid fa-check"></i> مكتمل</span>
+                                <% } else if(tx.status === 'pending') { %> <span class="badge-st st-wait"><i class="fa-solid fa-pause"></i> معلق</span>
+                                <% } else if(tx.status === 'processing') { %> <span class="badge-st st-proc"><i class="fa-solid fa-spinner fa-spin"></i> توجيه</span>
+                                <% } else if(tx.status === 'accepted') { %> <span class="badge-st st-work"><i class="fa-solid fa-user-gear"></i> قيد العمل</span>
+                                <% } else if(tx.status === 'deposit_pending') { %> <span class="badge-st st-wait"><i class="fa-solid fa-hand"></i> طلب إيداع</span>
+                                <% } else if(tx.status === 'deposit') { %> <span class="badge-st st-done"><i class="fa-solid fa-arrow-down"></i> إيداع</span>
+                                <% } else if(tx.status === 'deduction') { %> <span class="badge-st" style="background: rgba(108,117,125,0.1); color:#6c757d;"><i class="fa-solid fa-arrow-up"></i> خصم</span>
+                                <% } else { %> <span class="badge-st st-fail"><i class="fa-solid fa-ban"></i> ملغي</span> <% } %>
+                            </td>
+
+                            <td>
+                                <div class="d-flex align-items-center justify-content-center gap-2">
+                                    <% if (tx.status === 'deposit_pending') { %>
+                                        <button class="btn btn-sm btn-success fw-bold rounded-3" onclick="showAcceptDepositModal('<%= tx._id %>')"><i class="fa-solid fa-check"></i> قبول</button>
+                                        <form action="/transaction/<%= tx._id %>/reject-deposit-web" method="POST" class="m-0" onsubmit="return promptRejectDeposit(this)">
+                                            <input type="hidden" name="reason" class="reject-reason-input">
+                                            <button type="submit" class="btn btn-sm btn-danger fw-bold rounded-3"><i class="fa-solid fa-xmark"></i> رفض</button>
+                                        </form>
+                                    <% } else { %>
+                                        
+                                        <% if(tx.status === 'pending') { %>
+                                            <div class="dropdown">
+                                                <button class="btn btn-sm btn-primary fw-bold rounded-3 dropdown-toggle" type="button" data-bs-toggle="dropdown">توجيه</button>
+                                                <ul class="dropdown-menu border-0 shadow-lg" style="border-radius: 12px; min-width: 180px;">
+                                                    <li class="px-3 py-2 text-muted small fw-bold border-bottom mb-1">اختر البوت:</li>
+                                                    <% if(typeof executorBots !== 'undefined' && executorBots.length > 0) { %>
+                                                        <% executorBots.forEach(bot => { %>
+                                                            <li>
+                                                                <form action="/transaction/<%= tx._id %>/assign-executor" method="POST" class="m-0 p-0">
+                                                                    <input type="hidden" name="executorBotId" value="<%= bot._id %>">
+                                                                    <button type="submit" class="dropdown-item py-2 fw-bold text-dark d-flex align-items-center"><i class="fa-solid fa-robot text-primary me-2"></i> <%= bot.name %></button>
+                                                                </form>
+                                                            </li>
+                                                        <% }) %>
+                                                    <% } %>
+                                                </ul>
+                                            </div>
+                                        <% } else if(tx.status === 'processing' || tx.status === 'accepted') { %>
+                                            <form action="/transaction/<%= tx._id %>/pull-task" method="POST" class="mb-0" onsubmit="return confirm('تأكيد سحب المهمة؟')">
+                                                <button class="btn btn-sm btn-warning fw-bold rounded-3 text-dark px-3" title="سحب للإدارة">سحب</button>
+                                            </form>
+                                            <form action="/transaction/<%= tx._id %>/emergency-alert" method="POST" class="mb-0" onsubmit="return confirmEmergencyAlert(this);">
+                                                <input type="hidden" name="alertMessage" class="alert-message-input">
+                                                <button type="submit" class="btn btn-sm btn-danger fw-bold rounded-3 px-3 ms-1" title="إطلاق إنذار أحمر">إنذار</button>
+                                            </form>
+                                        <% } %>
+                                        
+                                        <% if(['pending', 'processing', 'accepted', 'completed', 'deposit', 'deduction', 'rejected'].includes(tx.status)) { %>
+                                             
+                                            <% if (tx.notes && tx.notes.includes('--- سجل الـ API')) { %>
+                                                <button class="btn-action-sm api-log" data-log="<%= encodeURIComponent(tx.notes) %>" onclick="showApiLog(this)" title="سجل Terminal للـ API"><i class="fa-solid fa-terminal"></i></button>
+                                            <% } %>
+
+                                            <% if (tx.status === 'completed' && (tx.proofImage || (tx.proofImages && tx.proofImages.length > 0))) { %>
+                                                <form action="/transaction/<%= tx._id %>/resend-proof" method="POST" class="m-0" onsubmit="return confirm('إعادة إرسال الإيصال للعميل؟')">
+                                                    <button type="submit" class="btn-action-sm send" title="إعادة الإرسال"><i class="fa-solid fa-paper-plane"></i></button>
+                                                </form>
+                                            <% } %>
+                                            <button class="btn-action-sm edit" onclick="openEditTxModal('<%= tx._id %>', '<%= tx.amount %>', '<%= tx.createdAt.toISOString() %>')" title="تعديل"><i class="fa-solid fa-pen"></i></button>
+                                            <% if(tx.status !== 'deposit' && tx.status !== 'deduction') { %>
+                                                <button class="btn-action-sm edit" onclick="openEditRateModal('<%= tx._id %>', '<%= tx.exchangeRate ? Number(tx.exchangeRate).toFixed(2) : (tx.costLYD ? (tx.amount / tx.costLYD).toFixed(2) : 0) %>')" title="تعديل الصرف"><i class="fa-solid fa-percent"></i></button>
+                                            <% } %>
+                                        <% } %>
+
+                                        <form action="/transaction/<%= tx._id %>/global-cancel" method="POST" class="m-0" onsubmit="return confirm('تأكيد الحذف نهائياً وإرجاع الأرصدة؟')">
+                                            <button class="btn-action-sm del" title="حذف نهائي"><i class="fa-solid fa-trash"></i></button>
+                                        </form>
+                                    <% } %>
+                                </div>
+                            </td>
+                        </tr>
+                        <% }) %>
+                    </tbody>
+                </table>
+            </div>
+
+            <% if (typeof totalPages !== 'undefined' && totalPages > 1) { %>
+                <nav class="mt-4 pt-3 pb-3">
+                    <ul class="pagination justify-content-center mb-0">
+                        <li class="page-item <%= currentPage === 1 ? 'disabled' : '' %>">
+                            <a class="page-link shadow-sm" href="?page=<%= currentPage - 1 %>&search=<%= search %>&status=<%= statusFilter %>&fromDate=<%= fromDate %>&toDate=<%= toDate %>"><i class="fa-solid fa-angle-right"></i></a>
+                        </li>
+                        <% let startPage = Math.max(1, currentPage - 2); let endPage = Math.min(totalPages, currentPage + 2); for(let i = startPage; i <= endPage; i++) { %>
+                            <li class="page-item <%= currentPage === i ? 'active' : '' %>">
+                                <a class="page-link shadow-sm" href="?page=<%= i %>&search=<%= search %>&status=<%= statusFilter %>&fromDate=<%= fromDate %>&toDate=<%= toDate %>"><%= i %></a>
+                            </li>
+                        <% } %>
+                        <li class="page-item <%= currentPage === totalPages ? 'disabled' : '' %>">
+                            <a class="page-link shadow-sm" href="?page=<%= currentPage + 1 %>&search=<%= search %>&status=<%= statusFilter %>&fromDate=<%= fromDate %>&toDate=<%= toDate %>"><i class="fa-solid fa-angle-left"></i></a>
+                        </li>
+                    </ul>
+                </nav>
+            <% } %>
+
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="txModal" tabindex="-1">
+    <div class="modal-dialog modal-xl modal-dialog-centered">
+        <div class="modal-content border-0">
+            <div class="modal-header border-0 pb-0 justify-content-center position-relative">
+                <button type="button" class="btn-close position-absolute" style="left:20px; filter:invert(0.5);" data-bs-dismiss="modal"></button>
+                <h5 class="fw-bold m-0 text-center text-primary"><i class="fa-solid fa-receipt me-2"></i> تـفـاصـيـل الـعـمـلـيـة الـشـامـلـة</h5>
+                <button class="btn btn-warning btn-sm fw-bold shadow-sm position-absolute" style="right:20px; border-radius: 8px; color: #000;" onclick="printInvoice()">
+                    <i class="fa-solid fa-print me-1"></i> الفاتورة
+                </button>
+            </div>
+            <div class="modal-body p-4">
+                <div class="row g-4">
+                    <div class="col-md-7">
+                        <div class="info-panel">
+                            <div class="panel-title"><i class="fa-solid fa-file-invoice-dollar ms-2"></i> بيانات الطلب والجهة</div>
+                            
+                            <div class="data-line"><span class="data-val" id="m_entity"></span><span class="data-label">الجهة/الشركة:</span></div>
+                            <div class="data-line"><span class="data-val" id="m_requester"></span><span class="data-label">الموظف الطالب:</span></div>
+                            
+                            <div class="data-line">
+                                <span class="data-val text-primary d-flex flex-column align-items-end gap-1">
+                                    <div class="d-flex align-items-center gap-2">
+                                        <button id="m_bot_edit_btn" class="btn btn-sm btn-outline-warning py-0 px-2 fw-bold" style="display:none; font-size: 0.7rem; border-radius: 6px;" onclick="document.getElementById('m_bot_edit_form').style.display='block'; this.style.display='none';"><i class="fa-solid fa-right-left"></i> نقل</button>
+                                        <span id="m_bot_name_text" class="fw-bold"></span>
+                                    </div>
+                                    <div id="m_bot_edit_form" style="display:none; margin-top: 5px;">
+                                        <form id="changeBotForm" method="POST" onsubmit="return confirm('سيتم نقل العملية وتعديل أرصدة البوتات والوكلاء محاسبياً. هل أنت متأكد؟')">
+                                            <div class="input-group input-group-sm">
+                                                <button type="submit" class="btn btn-success border-0 px-2"><i class="fa-solid fa-check"></i></button>
+                                                <select name="newBotId" class="form-select border-0 fw-bold text-end" style="font-size: 0.75rem;" required>
+                                                    <option value="">- اختر بوت -</option>
+                                                    <% if(typeof executorBots !== 'undefined') { %>
+                                                        <% executorBots.forEach(bot => { %><option value="<%= bot._id %>"><%= bot.name %></option><% }) %>
+                                                    <% } %>
+                                                </select>
+                                            </div>
+                                        </form>
+                                    </div>
+                                </span>
+                                <span class="data-label">بوت التنفيذ:</span>
+                            </div>
+
+                            <div class="data-line"><span class="data-val fw-bold" id="m_type"></span><span class="data-label">نوع التحويل:</span></div>
+                            <div class="data-line"><span class="data-val mono-num fs-6" id="m_phone" style="direction: ltr;"></span><span class="data-label">الرقم/الحساب:</span></div>
+                            <div class="data-line"><span class="data-val text-success mono-num fs-5" id="m_egp"></span><span class="data-label">المبلغ (EGP):</span></div>
+                            <div class="data-line"><span class="data-val mono-num text-warning" id="m_rate"></span><span class="data-label">سعر الصرف:</span></div>
+                            <div class="data-line"><span class="data-val text-danger mono-num fs-5" id="m_lyd"></span><span class="data-label">الإجمالي (LYD):</span></div>
+                             
+                            <div class="col-12" id="m_account_name_box" style="display:none; margin-top: 15px;">
+                                <div class="p-3" style="background-color: rgba(245, 158, 11, 0.1); border-right: 4px solid #f59e0b; border-radius: 8px;">
+                                    <div class="fw-bold mb-2 text-warning"><i class="fa-solid fa-address-card me-2"></i> بيانات مستلم البريد:</div>
+                                    <div id="m_account_name" class="fw-bold" style="line-height: 1.8; font-size: 0.95rem;"></div>
+                                </div>
+                            </div>
+                            
+                            <div class="mt-4 pt-3 border-top">
+                                <span class="panel-title text-muted mb-2"><i class="fa-solid fa-comment-dots ms-2"></i> ملاحظات العملية:</span>
+                                <div id="m_note" class="fw-bold small" style="white-space: pre-line; line-height: 1.6;">لا توجد ملاحظات إضافية.</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-lg-5">
+                        <div class="info-panel">
+                            <div class="panel-title text-danger"><i class="fa-solid fa-microchip ms-2"></i> تتبع دورة حياة التنفيذ</div>
+                            <div class="timeline-box">
+                                <div class="timeline-item"><span class="data-label">وقت إنشاء الطلب:</span><span class="data-val small mono-num text-muted" id="m_t_created"></span></div>
+                                <div class="timeline-item"><span class="data-label">الموظف المنفذ:</span><span class="data-val text-primary" id="m_t_executor"></span></div>
+                                <div class="timeline-item"><span class="data-label">وقت القبول:</span><span class="data-val small mono-num text-muted" id="m_t_accepted"></span></div>
+                                <div class="timeline-item"><span class="data-label">وقت الإكمال النهائي:</span><span class="data-val small text-success mono-num" id="m_t_completed"></span></div>
+                                <div class="timeline-item" style="padding:0;"><span class="data-label">حالة العملية:</span><div id="m_t_status"></div></div>
+                            </div>
+                        </div>
+                        
+                        <div class="mt-4 text-center fw-bold mb-3 text-primary"><i class="fa-solid fa-camera-retro me-2"></i> إثباتات التنفيذ (Screenshots)</div>
+                        <div class="position-relative p-2 border rounded-4" id="m_proof_container" style="background: rgba(0,0,0,0.02); min-height: 200px; display: flex; align-items: center; justify-content: center; flex-direction: column;">
+                            <div class="text-muted text-center"><i class="fa-solid fa-image fs-1 d-block mb-2 opacity-25"></i> جاري التحميل...</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="editTxModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0">
+            <form id="editTxForm" method="POST">
+                <div class="modal-header border-0 pb-0 pt-4 px-4">
+                    <h5 class="modal-title fw-bold text-warning"><i class="fa-solid fa-pen-to-square me-2"></i> تعديل بيانات العملية</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" style="filter: invert(0.5);"></button>
+                </div>
+                <div class="modal-body p-4">
+                    <div class="alert alert-warning small fw-bold border-0 bg-warning bg-opacity-10 text-warning">
+                        <i class="fa-solid fa-triangle-exclamation me-1"></i> تنبيه: تعديل المبلغ سيقوم بإعادة احتساب المديونية وتعديل التاريخ سيغير موقعه في الكشوفات.
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold text-muted small">المبلغ الصحيح للعملية (EGP):</label>
+                        <input type="number" name="newAmount" id="newAmountInput" class="form-control form-control-lg text-center fs-3 mono-num" style="color: #10b981 !important;" required step="0.01">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold text-muted small">التاريخ والوقت الصحيح للعملية:</label>
+                        <input type="datetime-local" name="newDate" id="newDateInput" class="form-control form-control-lg text-center fw-bold mono-num text-primary" required>
+                    </div>
+                </div>
+                <div class="modal-footer border-0 p-4 pt-0">
+                    <button type="submit" class="btn btn-warning w-100 fw-bold py-3 rounded-3 fs-5 text-dark">حفظ وتسوية البيانات</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="editRateModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0">
+            <form id="editRateForm" method="POST">
+                <div class="modal-header border-0 pb-0 pt-4 px-4">
+                    <h5 class="modal-title fw-bold text-warning"><i class="fa-solid fa-money-bill-transfer me-2"></i> تعديل سعر صرف العملية</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" style="filter: invert(0.5);"></button>
+                </div>
+                <div class="modal-body p-4">
+                    <div class="alert alert-info small fw-bold border-0 bg-info bg-opacity-10 text-info">
+                        <i class="fa-solid fa-circle-info me-1"></i> سيتم إعادة احتساب التكلفة بالدينار الليبي وتحديث رصيد العميل بشكل تلقائي.
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold text-muted small">سعر الصرف الجديد (مثال 6.45):</label>
+                        <input type="number" step="any" name="newRate" id="newRateInput" class="form-control form-control-lg text-center fs-3 mono-num text-warning" required>
+                    </div>
+                </div>
+                <div class="modal-footer border-0 p-4 pt-0">
+                    <button type="submit" class="btn btn-primary w-100 fw-bold py-3 rounded-3 fs-5">حفظ وتسوية الرصيد</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="acceptDepositModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow-lg">
+            <div class="modal-header bg-success text-white border-0 p-4">
+                <h5 class="modal-title fw-bold m-0">قبول إيداع نقدي ✅</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body p-4 text-center">
+                <label class="form-label fw-bold text-muted small mb-3">صورة إيصال الخزينة (إجباري)</label>
+                <div class="p-4 border rounded-4 mb-4" style="border: 2px dashed #10b981 !important; background: rgba(16, 185, 129, 0.05); cursor: pointer;" onclick="document.getElementById('depositProofInput').click()">
+                    <i class="fa-solid fa-image fs-1 text-success mb-2"></i>
+                    <h6 class="fw-bold m-0 text-dark">اضغط لرفع الإيصال</h6>
+                    <input type="file" id="depositProofInput" class="d-none" accept="image/*">
+                </div>
+                <button id="btnFinishDepositAccept" class="btn btn-success w-100 fw-bold py-3 fs-5 rounded-4 border-0 shadow-sm">تأكيد وموافقة</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script id="botsMapData" type="application/json">
+    <%- JSON.stringify(typeof allBotsMap !== 'undefined' ? allBotsMap : {}) %>
+</script>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+    function toggleSidebar() { document.querySelector('.sidebar').classList.toggle('active'); document.querySelector('.sidebar-overlay').classList.toggle('active'); }
+
+    const botsMapElement = document.getElementById('botsMapData');
+    const allBotsMap = botsMapElement && botsMapElement.textContent.trim() ? JSON.parse(botsMapElement.textContent) : {};
+
+    // 🟢 دالة عرض نافذة السجل المنبثقة (مُحدثة لتقرأ الجملة الجديدة والقديمة معاً)
+    function showApiLog(btn) {
+        const rawNotes = decodeURIComponent(btn.getAttribute('data-log'));
+        let logContent = rawNotes;
+        
+        // التحقق من الصيغة القديمة والصيغة الجديدة
+        if (rawNotes.includes('--- سجل الـ API (Terminal Log) ---')) {
+            logContent = rawNotes.split('--- سجل الـ API (Terminal Log) ---')[1].trim();
+        } else if (rawNotes.includes('--- سجل الـ API ---')) {
+            logContent = rawNotes.split('--- سجل الـ API ---')[1].trim();
+        } else if (rawNotes.includes('--- سجل الـ API')) {
+            logContent = rawNotes.split('--- سجل الـ API')[1].trim();
+        }
+        
+        Swal.fire({
+            title: '<div style="color:#10b981; font-family:monospace; font-size:1.2rem; display:flex; align-items:center; gap:10px; justify-content:center;"><i class="fa-solid fa-terminal"></i> سجل التخاطب مع السيرفر</div>',
+            html: `<div style="background:#0f172a; color:#a5b4fc; padding:15px; border-radius:8px; text-align:left; direction:ltr; font-family:'JetBrains Mono', monospace; font-size:0.85rem; white-space:pre-wrap; max-height:400px; overflow-y:auto; border:1px solid #334155; box-shadow:inset 0 2px 4px rgba(0,0,0,0.5);">${logContent}</div>`,
+            background: '#1e293b',
+            color: '#fff',
+            confirmButtonColor: '#3b82f6',
+            confirmButtonText: 'إغلاق الشاشة',
+            width: '600px',
+            customClass: { popup: 'border border-secondary rounded-4' }
+        });
+    }
+
+    function openEditTxModal(txId, currentAmount, currentIsoDate) {
+        document.getElementById('editTxForm').action = '/transaction/' + txId + '/edit-data';
+        document.getElementById('newAmountInput').value = currentAmount;
+        if (currentIsoDate) {
+            const dateObj = new Date(currentIsoDate);
+            const tzOffset = dateObj.getTimezoneOffset() * 60000; 
+            document.getElementById('newDateInput').value = (new Date(dateObj - tzOffset)).toISOString().slice(0, 16);
+        }
+        new bootstrap.Modal(document.getElementById('editTxModal')).show();
+    }
+
+    function openEditRateModal(txId, currentRate) {
+        document.getElementById('editRateForm').action = '/transaction/' + txId + '/edit-rate';
+        document.getElementById('newRateInput').value = (currentRate && currentRate !== '0') ? currentRate : '';
+        new bootstrap.Modal(document.getElementById('editRateModal')).show();
+    }
+
+    function viewTransactionDetails(el) {
+        const tx = JSON.parse(el.getAttribute('data-tx'));
+        window.currentTxToPrint = tx; 
+        const f = (d) => d ? new Date(d).toLocaleString('en-GB').replace(',', '') : '---';
+        const entityName = (tx.companyName && tx.companyName !== 'عميل فردي') ? tx.companyName : (tx.employeeName || 'عميل فردي');
+        
+        document.getElementById('m_entity').innerText = entityName;
+        document.getElementById('m_requester').innerText = tx.employeeName || '---';
+        document.getElementById('m_bot_name_text').innerText = tx.executorBotName || (tx.executorBotId ? allBotsMap[tx.executorBotId] : 'غير محدد');
+        
+        const editBtn = document.getElementById('m_bot_edit_btn');
+        const editForm = document.getElementById('m_bot_edit_form'); 
+        editForm.style.display = 'none'; 
+        if (tx.status === 'completed' && tx.executorBotId) { editBtn.style.display = 'inline-block';
+        document.getElementById('changeBotForm').action = '/transaction/' + tx._id + '/change-bot'; } else { editBtn.style.display = 'none';
+        }
+
+        let typeHtml = '';
+        if(tx.transferType === 'post_account') typeHtml = '<span class="badge-st st-wait"><i class="fa-solid fa-envelope"></i> حساب بريد</span>';
+        else if(tx.transferType === 'post_card') typeHtml = '<span class="badge-st st-proc"><i class="fa-solid fa-id-card"></i> بطاقة عميل</span>';
+        else if(tx.status === 'deposit' || tx.status === 'deduction') typeHtml = '<span class="badge-st" style="background: rgba(100,116,139,0.1); color:#64748b;"><i class="fa-solid fa-money-bill-wave"></i> تسوية مالية</span>';
+        else typeHtml = '<span class="badge-st st-fail"><i class="fa-solid fa-mobile-screen"></i> فودافون كاش</span>';
+        document.getElementById('m_type').innerHTML = typeHtml;
+
+        document.getElementById('m_phone').innerText = tx.vodafoneNumber || tx.accountNumber || '---';
+        const accBox = document.getElementById('m_account_name_box');
+        if(tx.accountName && tx.transferType !== 'vodafone') { document.getElementById('m_account_name').innerHTML = tx.accountName.replace(/\n/g, '<br>'); accBox.style.display = 'block';
+        } else { accBox.style.display = 'none'; }
+
+        document.getElementById('m_egp').innerText = tx.amount.toFixed(2) + ' EGP';
+        document.getElementById('m_rate').innerText = tx.exchangeRate ? Number(tx.exchangeRate).toFixed(2) : (tx.costLYD ? (tx.amount / tx.costLYD).toFixed(2) : '---');
+        document.getElementById('m_lyd').innerText = (tx.costLYD ? tx.costLYD.toFixed(2) : '---') + ' LYD';
+        
+        // 🟢 تنظيف الملاحظات من لوج الـ API 
+        let displayNote = tx.notes || 'لا توجد ملاحظات إضافية.';
+        if (displayNote.includes('--- سجل الـ API')) {
+            displayNote = displayNote.split('--- سجل الـ API')[0].trim();
+        }
+        document.getElementById('m_note').innerText = displayNote;
+        
+        document.getElementById('m_t_created').innerText = f(tx.createdAt);
+        document.getElementById('m_t_executor').innerText = tx.executorName || 'قيد الانتظار';
+        document.getElementById('m_t_accepted').innerText = tx.status !== 'pending' ? f(tx.updatedAt) : '---';
+        document.getElementById('m_t_completed').innerText = tx.status === 'completed' ? f(tx.updatedAt) : '---';
+        
+        let b = ''; const s = tx.status;
+        if(s === 'completed') b = '<span class="badge-st st-done"><i class="fa-solid fa-circle-check"></i> مكتمل</span>';
+        else if(s === 'pending') b = '<span class="badge-st st-wait"><i class="fa-solid fa-circle-pause"></i> معلق</span>';
+        else if(s === 'processing') b = '<span class="badge-st st-proc"><i class="fa-solid fa-spinner fa-spin"></i> توجيه</span>';
+        else if(s === 'accepted') b = '<span class="badge-st" style="background: rgba(139, 92, 246, 0.1); color: #8b5cf6;"><i class="fa-solid fa-user-check"></i> قيد العمل</span>';
+        else if(s === 'deposit_pending') b = '<span class="badge bg-warning text-dark px-3 py-2"><i class="fa-solid fa-hand-holding-dollar"></i> طلب إيداع</span>';
+        else if(s === 'deposit') b = '<span class="badge-st st-done"><i class="fa-solid fa-arrow-down"></i> إيداع</span>';
+        else if(s === 'deduction') b = '<span class="badge-st st-fail"><i class="fa-solid fa-arrow-up"></i> خصم</span>';
+        else b = '<span class="badge-st st-fail"><i class="fa-solid fa-ban"></i> ملغي</span>';
+        document.getElementById('m_t_status').innerHTML = b;
+
+        const container = document.getElementById('m_proof_container');
+        if(container) {
+            let proofs = [];
+            if (tx.proofImages && tx.proofImages.length > 0) proofs = tx.proofImages;
+            else if (tx.proofImage && tx.proofImage.trim() !== '') proofs = [tx.proofImage];
+            
+            if (proofs.length > 0) {
+                if (proofs.length === 1) {
+                    container.innerHTML = `<img src="/proxy/image/${tx._id}/0" style="display:block; border-radius: 12px; max-height: 500px; max-width: 100%; margin: 0 auto; object-fit: contain;">`;
+                } else {
+                    let indicators = '';
+                    let items = '';
+                    proofs.forEach((p, i) => {
+                        indicators += `<button type="button" data-bs-target="#proofCarousel" data-bs-slide-to="${i}" class="${i===0?'active':''}" style="background-color: var(--brand-primary);"></button>`;
+                        items += `<div class="carousel-item ${i===0?'active':''}"><img src="/proxy/image/${tx._id}/${i}" class="d-block w-100" style="border-radius: 12px; max-height: 500px; object-fit: contain; margin: 0 auto;"></div>`;
+                    });
+                    container.innerHTML = `
+                        <div id="proofCarousel" class="carousel slide" data-bs-ride="carousel" style="width: 100%; background: rgba(0,0,0,0.5); border-radius: 12px; overflow:hidden;">
+                            <div class="carousel-indicators" style="bottom: 10px;">${indicators}</div>
+                            <div class="carousel-inner">${items}</div>
+                            <button class="carousel-control-prev" type="button" data-bs-target="#proofCarousel" data-bs-slide="prev" style="width: 10%; background: rgba(0,0,0,0.3);"><span class="carousel-control-prev-icon" aria-hidden="true"></span></button>
+                            <button class="carousel-control-next" type="button" data-bs-target="#proofCarousel" data-bs-slide="next" style="width: 10%; background: rgba(0,0,0,0.3);"><span class="carousel-control-next-icon" aria-hidden="true"></span></button>
+                        </div>`;
+                }
+            } else {
+                container.innerHTML = '<div class="text-muted text-center"><i class="fa-solid fa-image fs-1 d-block mb-2 opacity-25"></i> لم يتم إرفاق إثبات تنفيذ بعد</div>';
+            }
+        }
+        new bootstrap.Modal(document.getElementById('txModal')).show();
+    }
+
+    function printInvoice() {
+        if (!window.currentTxToPrint) return;
+        const tx = window.currentTxToPrint;
+        const f = (d) => d ? new Date(d).toLocaleString('ar-EG', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }) : '---';
+        const entityName = (tx.companyName && tx.companyName !== 'عميل فردي') ? tx.companyName : (tx.employeeName || 'عميل فردي');
+        let typeLabel = 'محفظة كاش'; 
+        let numStrP = tx.vodafoneNumber || tx.accountNumber || '';
+        if(tx.transferType === 'post_account') typeLabel = 'حساب بريد';
+        else if(tx.transferType === 'post_card') typeLabel = 'بطاقة عميل'; 
+        else if(tx.status === 'deposit' || tx.status === 'deduction') typeLabel = 'تسوية مالية';
+        else if(numStrP.startsWith('010')) typeLabel = 'فودافون كاش';
+        else if(numStrP.startsWith('011')) typeLabel = 'اتصالات كاش';
+        else if(numStrP.startsWith('012')) typeLabel = 'اورانج كاش';
+        else if(numStrP.startsWith('015')) typeLabel = 'وي باي';
+
+        const statusMap = { 'completed': 'مكتمل ✅', 'pending': 'معلق ⏳', 'processing': 'قيد التوجيه ⚙️', 'accepted': 'قيد العمل 👤', 'deposit': 'إيداع 💰', 'deduction': 'خصم 📉', 'rejected': 'ملغي ❌', 'deposit_pending': 'طلب إيداع 🖐️' };
+        const statusText = statusMap[tx.status] || tx.status;
+        const rate = tx.exchangeRate ? Number(tx.exchangeRate).toFixed(2) : (tx.costLYD ? (tx.amount / tx.costLYD).toFixed(2) : '---');
+        const costLYD = tx.costLYD ? tx.costLYD.toFixed(2) : '---';
+        const accountNameHtml = tx.accountName ? `<tr><th>اسم المستلم:</th><td>${tx.accountName}</td></tr>` : '';
+        const printWindow = window.open('', '_blank');
+        printWindow.document.write(`
+            <html lang="ar" dir="rtl"><head><title>فاتورة ${tx.customId || tx._id}</title><link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;700;800&display=swap" rel="stylesheet"><style> * { box-sizing: border-box; } @page { size: A4; margin: 10mm; } body { font-family: 'Tajawal', sans-serif; background: #fff; color: #333; margin: 0; padding: 0; font-size: 14px; -webkit-print-color-adjust: exact; print-color-adjust: exact; } .invoice-box { width: 100%; padding: 10px; border-top: 10px solid #001a4d; } .header { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #eee; padding-bottom: 10px; margin-bottom: 15px; } .header .logo-text { color: #001a4d; font-size: 26px; font-weight: 800; margin: 0 0 5px 0; } 
+            .header .sub-text { color: #dc3545; font-size: 13px; font-weight: 700; margin: 0; } .invoice-info table { width: 100%; font-size: 13px; text-align: left;} .invoice-info td { padding: 4px 8px; font-weight: 700; color: #444; } .invoice-info .highlight { color: #001a4d; background: #f8f9fa; border-radius: 4px; } .title-bar { background-color: #f8f9fa; padding: 6px 15px; border-right: 5px solid #d4af37; font-size: 15px; font-weight: 800; color: #001a4d; margin-bottom: 15px; page-break-after: avoid; } .content-table { width: 100%; border-collapse: collapse; margin-bottom: 20px; font-size: 14px; page-break-inside: avoid; } .content-table th, .content-table td { border: 1px solid #ddd; padding: 8px 15px; text-align: right; } .content-table th { background-color: #f8f9fa; color: #001a4d; font-weight: 800; width: 30%; } .content-table td { font-weight: 700; color: #222; } .totals-container { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; page-break-inside: avoid; } .qr-placeholder { width: 90px; height: 90px; border: 2px dashed #ccc; display: flex; align-items: center; justify-content: center; color: #aaa; font-weight: bold; border-radius: 8px; font-size: 12px; text-align: center; } .totals { width: 75%; border-collapse: collapse; } .totals th, .totals td { border: 2px solid #001a4d; padding: 8px; text-align: center; } .totals th { background-color: #001a4d; color: #fff; font-weight: 800; font-size: 14px; } .totals td { font-weight: 800; font-size: 17px; background: #fafafa; } .totals .lyd { color: #dc3545; } .totals .egp { color: #198754; } .footer { text-align: center; color: #666; border-top: 1px dashed #ccc; padding-top: 15px; font-size: 12px; font-weight: 700; margin-top: 20px; page-break-inside: avoid; }</style></head>
+            <body><div class="invoice-box"><div class="header"><div><h1 class="logo-text">شركة الأهرام</h1><p class="sub-text">لخدمات التحويلات المالية الذكية</p></div><div class="invoice-info"><table><tr><td>رقم الفاتورة:</td><td class="highlight" dir="ltr">#${tx.customId || tx._id.slice(-6)}</td></tr><tr><td>تاريخ الإصدار:</td><td class="highlight" dir="ltr">${f(tx.createdAt)}</td></tr><tr><td>حالة العملية:</td><td class="highlight" style="color:#198754;">${statusText}</td></tr></table></div></div><div class="title-bar">تفاصيل الجهة والمستفيد</div><table class="content-table"><tr><th>الجهة / العميل:</th><td>${entityName}</td></tr><tr><th>رقم الهاتف / الحساب:</th><td dir="ltr" style="text-align: right; letter-spacing: 1px;">${tx.vodafoneNumber || tx.accountNumber || '---'}</td></tr>${accountNameHtml}<tr><th>نوع التحويل:</th><td>${typeLabel}</td></tr><tr><th>الموظف المنفذ:</th><td>${tx.executorName || '---'}</td></tr><tr><th>ملاحظات إضافية:</th><td style="color:#666; font-size: 13px;">${tx.notes || 'لا توجد ملاحظات.'}</td></tr></table><div class="title-bar">تفاصيل المبالغ والتكلفة</div><div class="totals-container"><div class="qr-placeholder">QR Code<br>للتوثيق</div><table class="totals"><tr><th>سعر الصرف المعتمد</th><th>المبلغ المحول (مصري)</th><th>التكلفة (ليبي)</th></tr><tr><td>${rate}</td><td class="egp">${tx.amount.toFixed(2)} EGP</td><td class="lyd">${costLYD} LYD</td></tr></table></div><div class="footer">نقدر ثقتكم في خدماتنا.. شكراً لاختياركم شركة الأهرام 🚀<br><span style="font-weight: 400; color:#999; margin-top:5px; display:inline-block;">هذه الفاتورة تم إصدارها إلكترونياً ولا تحتاج إلى ختم أو توقيع.</span></div></div><script>window.onload = function() { setTimeout(function() { window.print(); window.close(); }, 500); }<\/script></body></html>
+        `);
+        printWindow.document.close();
+    }
+
+    function printReport() {
+        const fromD = document.getElementById('fromDateInput').value || '';
+        const toD = document.getElementById('toDateInput').value || ''; 
+        const status = document.getElementById('statusFilter').value || ''; 
+        const search = document.getElementById('searchInput').value || '';
+        window.open(`/transactions/print?` + new URLSearchParams({ fromDate: fromD, toDate: toD, status: status, search: search }).toString(), '_blank');
+    }
+
+    function confirmEmergencyAlert(form) {
+        const msg = prompt("🚨 رسالة الإنذار للمنفذ:", "تنبيه عاجل! يرجى التنفيذ فوراً!");
+        if (msg === null) return false; 
+        form.querySelector('.alert-message-input').value = msg; 
+        return true;
+    }
+
+    function promptRejectDeposit(form) {
+        const reason = prompt("❌ سبب رفض طلب الإيداع:");
+        if (!reason) return false; 
+        form.querySelector('.reject-reason-input').value = reason; 
+        return true;
+    }
+
+    let currentDepTxId = null;
+    function showAcceptDepositModal(id) { 
+        currentDepTxId = id; 
+        document.getElementById('depositProofInput').value = ''; 
+        new bootstrap.Modal(document.getElementById('acceptDepositModal')).show();
+    }
+
+    document.getElementById('btnFinishDepositAccept').onclick = async function() {
+        const file = document.getElementById('depositProofInput').files[0];
+        if(!file) return Swal.fire('خطأ','يرجى اختيار الإيصال','error');
+        const btn = this; 
+        btn.disabled = true; 
+        btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> جاري الرفع...';
+        const reader = new FileReader();
+        reader.onload = async function() {
+            const res = await fetch('/transaction/' + currentDepTxId + '/accept-deposit-web', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ imageBase64: reader.result }) });
+            if((await res.json()).success) window.location.reload(); 
+            else { 
+                Swal.fire('خطأ', 'فشل الرفع', 'error'); 
+                btn.disabled = false; 
+                btn.innerHTML = 'تأكيد وموافقة';
+            }
+        }; 
+        reader.readAsDataURL(file);
+    };
+
+    setInterval(() => {
+        const isModalOpen = document.querySelector('.modal.show'); const isDropdownOpen = document.querySelector('.dropdown-menu.show'); 
+        if (isModalOpen || isDropdownOpen) return;
+        fetch(window.location.href).then(res => res.text()).then(htmlText => {
+            const doc = new DOMParser().parseFromString(htmlText, 'text/html');
+            const newTbody = doc.querySelector('tbody'); if (newTbody) document.querySelector('tbody').innerHTML = newTbody.innerHTML;
+            const newPagination = doc.querySelector('.pagination'); const currentPagination = document.querySelector('.pagination'); if (newPagination && currentPagination) currentPagination.innerHTML = newPagination.innerHTML;
+        }).catch(()=>{});
+    }, 5000);
+</script>
+</body>
+</html>

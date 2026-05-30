@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>تفاصيل بوت التنفيذ | الأهرام</title>
+    
+    <script>
+        const savedTheme = localStorage.getItem('ahram_theme') || 'dark';
+        document.documentElement.setAttribute('data-theme', savedTheme);
+    </script>
+
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.rtl.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800;900&family=JetBrains+Mono:wght@700&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+
+    <style>
+        :root {
+            --glass-bg: rgba(255, 255, 255, 0.9);
+            --glass-border: rgba(0, 0, 0, 0.08);
+            --shadow-3d: 0 10px 30px rgba(0, 0, 0, 0.04);
+            --text-main: #1e293b;
+            --text-muted: #64748b;
+            --input-bg: #f8fafc;
+            --brand-primary: #10b981;
+        }
+
+        [data-theme="dark"] {
+            --glass-bg: rgba(30, 41, 59, 0.7);
+            --glass-border: rgba(255, 255, 255, 0.1);
+            --shadow-3d: 0 10px 30px rgba(0, 0, 0, 0.3);
+            --text-main: #f8fafc;
+            --text-muted: #94a3b8;
+            --input-bg: rgba(0, 0, 0, 0.2);
+            --brand-primary: #10b981;
+        }
+
+        .glass-card {
+            background: var(--glass-bg); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
+            border: 1px solid var(--glass-border); border-radius: 20px; padding: 25px;
+            box-shadow: var(--shadow-3d); transition: 0.3s; position: relative; overflow: hidden;
+        }
+
+        .glass-card::before {
+            content: ''; position: absolute; top: -50%; right: -50%; width: 200%; height: 200%;
+            background: radial-gradient(circle, rgba(255,255,255,0.03) 0%, transparent 60%);
+            transform: rotate(45deg); pointer-events: none; z-index: 0;
+        }
+
+        .profile-icon {
+            width: 75px; height: 75px; border-radius: 20px;
+            display: flex; align-items: center; justify-content: center; font-size: 2.2rem;
+            color: white; box-shadow: 0 10px 20px rgba(0,0,0,0.15); position: relative; z-index: 1; margin-bottom: 15px;
+        }
+
+        .info-box {
+            background: var(--input-bg); border-radius: 14px; padding: 15px;
+            border: 1px solid var(--glass-border); margin-bottom: 15px; position: relative; z-index: 1;
+            display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap;
+        }
+        
+        .control-card-3d {
+            transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            transform-style: preserve-3d; border-radius: 16px !important; padding: 15px !important;
+        }
+        .control-card-3d:hover {
+            transform: translateY(-4px); box-shadow: 0 15px 25px rgba(0,0,0,0.08) !important;
+        }
+        [data-theme="dark"] .control-card-3d:hover { box-shadow: 0 15px 25px rgba(0,0,0,0.4) !important; }
+        
+        .btn-3d-hover { transition: all 0.2s; }
+        .btn-3d-hover:hover { transform: translateY(-2px); filter: brightness(1.1); box-shadow: 0 6px 12px rgba(0,0,0,0.15); }
+        .btn-3d-hover:active { transform: translateY(1px); }
+
+        .mono-num { font-family: 'JetBrains Mono', monospace; font-weight: 800;}
+        .form-control, .form-select { background: var(--input-bg); color: var(--text-main); border: 1px solid var(--glass-border); font-weight: bold; border-radius: 10px; }
+        .form-control:focus, .form-select:focus { background: transparent; border-color: var(--brand-primary); box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.2); color: var(--text-main); }
+        
+        .unified-height { min-height: 42px; display: flex; align-items: center; }
+
+        /* 🔘 Switch */
+        .switch-container { display: flex; align-items: center; justify-content: space-between; background: var(--input-bg); border-radius: 14px; padding: 15px; border: 1px solid var(--glass-border); }
+        .cyber-switch { position: relative; width: 60px; height: 30px; background: #475569; border-radius: 30px; cursor: pointer; transition: 0.4s; box-shadow: inset 0 2px 5px rgba(0,0,0,0.3); }
+        .cyber-switch::before { content: ''; position: absolute; top: 3px; left: 3px; width: 24px; height: 24px; background: white; border-radius: 50%; transition: 0.4s; box-shadow: 0 2px 5px rgba(0,0,0,0.2); }
+        .cyber-switch.active { background: #10b981; box-shadow: inset 0 2px 5px rgba(0,0,0,0.2), 0 0 10px rgba(16, 185, 129, 0.4); }
+        .cyber-switch.active::before { transform: translateX(30px); }
+    </style>
+</head>
+<body>
+
+<%- include('partials/sidebar', { activePage: 'executors' }) %>
+
+<div class="main-content">
+    <div class="container-fluid">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h3 class="fw-bold m-0" style="color: var(--text-main);"><i class="fa-solid fa-robot text-primary me-2"></i> لوحة التحكم في البوت والوكالة</h3>
+            <a href="/executors" class="btn btn-secondary fw-bold rounded-pill shadow-sm px-4 btn-3d-hover"><i class="fa-solid fa-arrow-right me-2"></i> عودة للقائمة</a>
+        </div>
+
+        <div class="row g-4 mb-4">
+            <div class="col-xl-4 col-lg-5">
+                <div class="glass-card h-100" style="border-top: 5px solid <%= bot.isManagerBot ? '#3b82f6' : '#10b981' %>;">
+                    <div class="profile-icon mx-auto" style="background: linear-gradient(135deg, <%= bot.isManagerBot ? '#3b82f6, #1e40af' : '#10b981, #047857' %>);">
+                        <i class="fa-solid <%= bot.isManagerBot ? 'fa-building' : 'fa-user-astronaut' %>"></i>
+                    </div>
+                    <h4 class="fw-bold text-center mb-1" style="color: var(--text-main);"><%= bot.name %></h4>
+                    <p class="text-center text-muted fw-bold mb-3 small"><%= bot.isManagerBot ? 'وكالة إدارية (لا تنفذ مباشر)' : 'طاقم تنفيذ (كاشير)' %></p>
+
+                    <div class="info-box d-block text-center border-0 shadow-sm py-3" style="background: rgba(16, 185, 129, 0.05); border-right: 4px solid #10b981 !important;">
+                        <span class="d-block small text-muted fw-bold mb-1"><i class="fa-solid fa-wallet me-1"></i> الرصيد الحالي (EGP)</span>
+                        <h2 class="m-0 fw-900 mono-num <%= bot.balance < 0 ? 'text-danger' : 'text-success' %>" dir="ltr"><%= bot.balance.toFixed(2) %></h2>
+                    </div>
+
+                    <% if(!bot.isManagerBot) { %>
+                    <div class="info-box py-2 px-3">
+                        <span class="small text-muted fw-bold"><i class="fa-solid fa-link me-1"></i> الوكالة التابع لها</span>
+                        <span class="fw-bold text-primary small"><%= bot.parentBotId ? bot.parentBotId.name : 'مستقل (يُحاسب مباشرة)' %></span>
+                    </div>
+                    <% } %>
+
+                    <div class="switch-container mt-2">
+                        <div>
+                            <h6 class="fw-bold m-0 mb-1 small" style="color: var(--text-main);">حالة استقبال الطلبات</h6>
+                            <small id="statusText" class="<%= bot.status === 'active' ? 'text-success' : 'text-danger' %> fw-bold" style="font-size: 0.7rem;">
+                                <%= bot.status === 'active' ? '🟢 يعمل ويستقبل الطلبات' : '🔴 متوقف عن العمل' %>
+                            </small>
+                        </div>
+                        <form id="toggleForm" action="/executor/<%= bot._id %>/toggle-status" method="POST" class="m-0">
+                            <div id="cyberSwitch" class="cyber-switch <%= bot.status === 'active' ? 'active' : '' %>" onclick="confirmToggle()"></div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-xl-8 col-lg-7">
+                <div class="glass-card h-100 border-start border-4" style="border-left-color: #f59e0b;">
+                    <div class="d-flex align-items-center mb-3 pb-2 border-bottom" style="border-color: var(--glass-border) !important;">
+                        <i class="fa-solid fa-gears text-warning fs-4 me-2"></i>
+                        <h5 class="fw-bold m-0" style="color: var(--text-main);">التحكم المحاسبي وإدارة الربط</h5>
+                    </div>
+                    
+                    <div class="row g-3">
+                        <div class="col-12">
+                            <div class="info-box border-0 m-0 shadow-sm control-card-3d d-block" style="background: rgba(245, 158, 11, 0.05); border-right: 4px solid #f59e0b !important;">
+                                <label class="form-label fw-bold text-dark small mb-2"><i class="fa-solid fa-money-bill-transfer text-warning me-1"></i> تسوية الرصيد (موجب للإيداع / سالب للخصم)</label>
+                                <form action="/executor/<%= bot._id %>/settle" method="POST" class="row g-2 align-items-center">
+                                    <div class="col-md-4">
+                                        <div class="input-group shadow-sm">
+                                            <input type="number" step="any" name="amount" class="form-control mono-num fw-bold text-center unified-height border-0" placeholder="المبلغ..." required>
+                                            <span class="input-group-text border-0 fw-bold px-2" style="background: #fcd34d; color:#000;">EGP</span>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-5">
+                                        <div class="input-group shadow-sm">
+                                            <span class="input-group-text border-0 bg-light text-muted px-2"><i class="fa-solid fa-pen"></i></span>
+                                            <input type="text" name="notes" class="form-control fw-bold unified-height border-0" placeholder="ملاحظة للتسوية...">
+                                        </div>
+                                    </div>
+                                    <div class="col-md-3">
+                                        <button type="submit" class="btn btn-warning w-100 fw-bold text-dark btn-3d-hover unified-height justify-content-center shadow-sm"><i class="fa-solid fa-floppy-disk me-1"></i> تنفيذ</button>
+                                    </div>
+                                </form>
+                            </div>
+                        </div>
+
+                        <% if(!bot.isManagerBot) { %>
+                        <div class="col-12">
+                            <div class="info-box border-0 m-0 shadow-sm d-block control-card-3d" style="background: rgba(14, 165, 233, 0.05); border-right: 4px solid #0ea5e9 !important;">
+                                <label class="form-label fw-bold text-dark small mb-2"><i class="fa-solid fa-link text-info me-1"></i> ربط بوكالة إدارية مركزية</label>
+                                <form action="/executor/<%= bot._id %>/link-manager" method="POST" class="row g-2 align-items-center">
+                                    <div class="col-md-9">
+                                        <select name="parentBotId" class="form-select fw-bold text-center unified-height border-0 shadow-sm">
+                                            <option value="none">-- فك الارتباط (جعله مستقلاً) --</option>
+                                            <% managerBots.forEach(m => { %>
+                                                <option value="<%= m._id %>" <%= (bot.parentBotId && bot.parentBotId._id.toString() === m._id.toString()) ? 'selected' : '' %>><%= m.name %></option>
+                                            <% }) %>
+                                        </select>
+                                    </div>
+                                    <div class="col-md-3">
+                                        <button type="submit" class="btn btn-info text-white w-100 fw-bold btn-3d-hover unified-height justify-content-center shadow-sm">تنفيذ الربط</button>
+                                    </div>
+                                </form>
+                            </div>
+                        </div>
+                        <% } %>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <h5 class="fw-bold mb-3" style="color: var(--text-main);"><i class="fa-solid fa-clock-rotate-left text-primary me-2"></i> آخر 100 عملية للطاقم</h5>
+        <div class="glass-card p-0 overflow-hidden">
+            <div class="table-responsive m-0 border-0">
+                <table class="table text-center align-middle m-0 table-hover">
+                    <thead class="table-light">
+                        <tr><th>الرقم</th><th>المبلغ (EGP)</th><th>البيان / الحساب</th><th>الملاحظة</th><th>الوقت</th><th>الحالة</th></tr>
+                    </thead>
+                    <tbody>
+                        <% if(transactions.length === 0) { %>
+                            <tr><td colspan="6" class="py-4 text-muted fw-bold border-0"><i class="fa-solid fa-folder-open fs-2 d-block mb-2 opacity-25"></i>لا توجد عمليات.</td></tr>
+                        <% } %>
+                        <% transactions.forEach(tx => { %>
+                            <tr style="<%= tx.status === 'deposit' ? 'background: rgba(16, 185, 129, 0.05);' : (tx.status === 'deduction' ? 'background: rgba(239, 68, 68, 0.05);' : '') %>">
+                                <td class="fw-bold text-muted small mono-num">#<%= tx.customId || tx._id.toString().slice(-6) %></td>
+                                <td class="fw-bold mono-num fs-6 <%= tx.status === 'deduction' ? 'text-danger' : 'text-success' %>"><%= tx.amount.toFixed(2) %></td>
+                                <td class="fw-bold text-dark small" dir="ltr"><%= tx.status === 'deposit' ? 'إيداع نقدي' : (tx.status === 'deduction' ? 'خصم مديونية' : (tx.vodafoneNumber || '---')) %></td>
+                                <td class="small text-muted text-wrap" style="max-width: 200px;"><%= tx.notes || '---' %></td>
+                                <td class="small mono-num opacity-75" dir="ltr"><%= new Date(tx.updatedAt).toLocaleString('en-GB') %></td>
+                                <td>
+                                    <% if(tx.status === 'completed') { %><span class="badge bg-success">منفذ</span>
+                                    <% } else if(tx.status === 'deposit') { %><span class="badge bg-primary">إيداع</span>
+                                    <% } else if(tx.status === 'deduction') { %><span class="badge bg-danger">خصم</span>
+                                    <% } else { %><span class="badge bg-warning text-dark">معلق</span><% } %>
+                                </td>
+                            </tr>
+                        <% }) %>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+    </div>
+</div>
+
+<script>
+    function toggleSidebar() { 
+        document.querySelector('.sidebar').classList.toggle('active');
+        document.querySelector('.sidebar-overlay').classList.toggle('active'); 
+    }
+
+    function confirmToggle() {
+        const switchEl = document.getElementById('cyberSwitch');
+        const isCurrentlyActive = switchEl.classList.contains('active');
+        const actionText = isCurrentlyActive ? 'إيقاف وتعطيل' : 'تشغيل وتفعيل';
+        const actionColor = isCurrentlyActive ? '#ef4444' : '#10b981';
+
+        Swal.fire({
+            title: `تأكيد ${actionText} البوت؟`,
+            text: isCurrentlyActive ? "لن يستقبل البوت أي عمليات وسيتم إرسال إشعار للمنفذين بتوقف عملهم." : "سيعود البوت للعمل واستقبال العمليات وسيتم إشعار المنفذين.",
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: actionColor,
+            cancelButtonColor: '#64748b',
+            confirmButtonText: `نعم، ${actionText}`,
+            cancelButtonText: 'تراجع',
+            customClass: { popup: 'rounded-4 bg-glass' }
+        }).then((result) => {
+            if (result.isConfirmed) {
+                switchEl.classList.toggle('active');
+                document.getElementById('statusText').innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> جاري...';
+                document.getElementById('toggleForm').submit();
+            }
+        });
+    }
+</script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

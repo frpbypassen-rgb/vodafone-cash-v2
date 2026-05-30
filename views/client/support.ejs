@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>الدعم الفني | الأهرام</title>
+    
+    <script>
+        const savedTheme = localStorage.getItem('ahram_theme') || 'dark';
+        document.documentElement.setAttribute('data-theme', savedTheme);
+    </script>
+
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.rtl.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800;900&display=swap" rel="stylesheet">
+    
+    <style>
+        :root {
+            --bg-deep: #f8fafc;
+            --bg-card: #ffffff;
+            --bg-glass: rgba(255, 255, 255, 0.95);
+            --brand-primary: #001a4d;
+            --brand-gold: #d4af37;
+            --text-main: #1e293b;
+            --text-muted: #64748b;
+            --border-glass: rgba(0, 26, 77, 0.08);
+            --shadow-lg: 0 10px 40px -10px rgba(0, 26, 77, 0.08);
+        }
+
+        [data-theme="dark"] {
+            --bg-deep: #0f172a;
+            --bg-card: rgba(30, 41, 59, 0.7);
+            --bg-glass: rgba(15, 23, 42, 0.85);
+            --brand-primary: #3b82f6;
+            --brand-gold: #fbbf24;
+            --text-main: #f8fafc;
+            --text-muted: #94a3b8;
+            --border-glass: rgba(255, 255, 255, 0.1);
+            --shadow-lg: 0 10px 40px -10px rgba(0, 0, 0, 0.5);
+        }
+
+        body { font-family: 'Tajawal', sans-serif; background: var(--bg-deep); height: 100vh; display: flex; flex-direction: column; color: var(--text-main); transition: 0.3s; background-image: radial-gradient(circle at 50% 0%, rgba(212, 175, 55, 0.03) 0%, transparent 50%);}
+        
+        .glass-nav { background: var(--bg-glass); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); border-bottom: 1px solid var(--border-glass); padding: 15px 0; box-shadow: var(--shadow-lg);}
+        .nav-btn { background: rgba(0,0,0,0.03); border: 1px solid var(--border-glass); color: var(--text-main); padding: 8px 20px; border-radius: 50px; font-weight: 800; text-decoration: none; transition: 0.3s; display: inline-flex; align-items: center; gap: 8px; }
+        .nav-btn:hover { background: var(--brand-primary); color: white; border-color: var(--brand-primary); transform: translateY(-2px);}
+        [data-theme="dark"] .nav-btn { background: rgba(255,255,255,0.03); }
+
+        .chat-container { flex: 1; display: flex; flex-direction: column; background: var(--bg-card); backdrop-filter: blur(12px); border: 1px solid var(--border-glass); border-radius: 24px; overflow: hidden; margin: 20px auto; width: 100%; max-width: 800px; box-shadow: var(--shadow-lg); max-height: 85vh; transition: 0.3s;}
+        .chat-header { background: rgba(0,0,0,0.02); border-bottom: 1px solid var(--border-glass); padding: 15px 20px; display: flex; align-items: center; justify-content: space-between; }
+        [data-theme="dark"] .chat-header { background: rgba(0,0,0,0.2); }
+        
+        .chat-messages { flex: 1; padding: 20px; overflow-y: auto; display: flex; flex-direction: column; gap: 15px; }
+        .msg-bubble { max-width: 80%; padding: 12px 18px; border-radius: 16px; position: relative; font-weight: 600; font-size: 1rem; line-height: 1.5; box-shadow: 0 4px 10px rgba(0,0,0,0.05); }
+        
+        .msg-user { background: linear-gradient(135deg, rgba(212, 175, 55, 0.15), rgba(212, 175, 55, 0.05)); border: 1px solid rgba(212, 175, 55, 0.3); align-self: flex-start; border-top-right-radius: 4px; color: var(--text-main); }
+        .msg-admin { background: linear-gradient(135deg, rgba(14, 165, 233, 0.15), rgba(14, 165, 233, 0.05)); border: 1px solid rgba(14, 165, 233, 0.3); align-self: flex-end; border-top-left-radius: 4px; color: var(--text-main); }
+        [data-theme="dark"] .msg-admin { background: linear-gradient(135deg, rgba(251, 191, 36, 0.15), rgba(251, 191, 36, 0.05)); border-color: rgba(251, 191, 36, 0.3); }
+
+        .msg-time { font-size: 0.75rem; color: var(--text-muted); display: block; text-align: right; margin-top: 5px; font-family: monospace; opacity: 0.7;}
+        
+        .chat-input-area { background: rgba(0,0,0,0.02); padding: 15px 20px; display: flex; gap: 10px; align-items: center; border-top: 1px solid var(--border-glass); transition: 0.3s;}
+        [data-theme="dark"] .chat-input-area { background: rgba(0,0,0,0.2); }
+        
+        .chat-input { flex: 1; background: rgba(0,0,0,0.05); border: 1px solid var(--border-glass); color: var(--text-main); padding: 15px 20px; border-radius: 50px; outline: none; font-weight: bold; transition: 0.3s; }
+        [data-theme="dark"] .chat-input { background: rgba(255,255,255,0.05); }
+        .chat-input:focus { border-color: var(--brand-primary); box-shadow: 0 0 0 3px rgba(0, 26, 77, 0.1); background: transparent; }
+        [data-theme="dark"] .chat-input:focus { border-color: var(--brand-gold); box-shadow: 0 0 0 3px rgba(212, 175, 55, 0.1); }
+        .chat-input::placeholder { color: var(--text-muted); }
+        
+        .send-btn { background: var(--brand-primary); color: white; border: none; width: 55px; height: 55px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 1.2rem; transition: 0.3s; box-shadow: 0 5px 15px rgba(0, 26, 77, 0.2); }
+        [data-theme="dark"] .send-btn { background: var(--brand-gold); color: black; box-shadow: 0 5px 15px rgba(212, 175, 55, 0.3); }
+        .send-btn:hover { filter: brightness(1.2); transform: scale(1.05); }
+        
+        .attach-btn { background: rgba(0,0,0,0.05); color: var(--text-muted); border: 1px solid var(--border-glass); width: 55px; height: 55px; border-radius: 50%; display: flex; align-items: center; justify-content: center; transition: 0.3s; cursor: pointer;}
+        [data-theme="dark"] .attach-btn { background: rgba(255,255,255,0.05); }
+        .attach-btn:hover { background: var(--brand-primary); color: white; border-color: var(--brand-primary); }
+        [data-theme="dark"] .attach-btn:hover { background: var(--brand-gold); color: black; border-color: var(--brand-gold); }
+
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.2); border-radius: 10px; }
+        [data-theme="dark"] ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); }
+    </style>
+</head>
+<body>
+    <nav class="glass-nav">
+        <div class="container d-flex justify-content-between align-items-center">
+            <h4 class="m-0 fw-bold" style="color: var(--text-main);"><i class="fa-solid fa-headset me-2" style="color: var(--brand-gold);"></i> الدعم الفني</h4>
+            <a href="/client/dashboard" class="nav-btn"><i class="fa-solid fa-arrow-left me-1"></i> رجوع للوحة</a>
+        </div>
+    </nav>
+
+    <div class="container d-flex flex-column px-2" style="flex: 1;">
+        <div id="imagePreviewContainer" class="p-3 border-bottom d-none" style="background: rgba(0,0,0,0.05); border-color: var(--border-glass) !important; border-radius: 20px 20px 0 0; display: flex; align-items: center; gap: 15px; margin: 20px auto 0; width: 100%; max-width: 800px;">
+            <img id="imagePreview" src="" style="height: 60px; border-radius: 8px; border: 1px solid var(--border-glass);">
+            <span class="text-primary fw-bold small">الصورة جاهزة للإرسال...</span>
+            <button class="btn btn-sm btn-danger rounded-circle ms-auto" onclick="clearImage()" style="width:30px; height:30px;"><i class="fa-solid fa-xmark"></i></button>
+        </div>
+        
+        <div class="chat-container m-0 mt-2 mx-auto">
+            <div class="chat-header">
+                <div class="d-flex align-items-center gap-3">
+                    <div class="rounded-circle d-flex justify-content-center align-items-center" style="width: 50px; height: 50px; background: rgba(212, 175, 55, 0.1); border: 1px solid var(--brand-gold);">
+                        <i class="fa-solid fa-user-shield fs-4" style="color: var(--brand-gold);"></i>
+                    </div>
+                    <div>
+                        <h5 class="m-0 fw-bold" style="color: var(--text-main);">فريق الدعم الفني</h5>
+                        <small class="fw-bold opacity-75" style="color: var(--brand-primary);">جاهزون لمساعدتك</small>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="chat-messages" id="chatBox">
+                <div class="text-center w-100 mt-5"><i class="fa-solid fa-circle-notch fa-spin fa-2x text-muted opacity-50"></i></div>
+            </div>
+            
+            <form id="chatForm" class="chat-input-area">
+                <input type="file" id="imageInput" class="d-none" accept="image/*">
+                <div class="attach-btn" onclick="document.getElementById('imageInput').click()"><i class="fa-solid fa-image fs-5"></i></div>
+                <input type="text" id="msgInput" class="chat-input" placeholder="اكتب استفسارك هنا..." autocomplete="off">
+                <button type="submit" class="send-btn" id="sendBtn"><i class="fa-solid fa-paper-plane"></i></button>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        const chatBox = document.getElementById('chatBox');
+        const chatForm = document.getElementById('chatForm');
+        const msgInput = document.getElementById('msgInput');
+        const sendBtn = document.getElementById('sendBtn');
+        const imageInput = document.getElementById('imageInput');
+        const previewContainer = document.getElementById('imagePreviewContainer');
+        const previewImg = document.getElementById('imagePreview');
+        let selectedBase64 = null;
+
+        function compressImage(file, callback) {
+            const reader = new FileReader();
+            reader.onload = function(event) {
+                const img = new Image();
+                img.onload = function() {
+                    const canvas = document.createElement('canvas');
+                    const MAX_WIDTH = 800; const MAX_HEIGHT = 800;
+                    let width = img.width; let height = img.height;
+                    if (width > height) { if (width > MAX_WIDTH) { height *= MAX_WIDTH / width; width = MAX_WIDTH; } } 
+                    else { if (height > MAX_HEIGHT) { width *= MAX_HEIGHT / height; height = MAX_HEIGHT; } }
+                    canvas.width = width; canvas.height = height;
+                    const ctx = canvas.getContext('2d'); ctx.drawImage(img, 0, 0, width, height);
+                    callback(canvas.toDataURL('image/jpeg', 0.6));
+                }
+                img.src = event.target.result;
+            }
+            reader.readAsDataURL(file);
+        }
+
+        imageInput.onchange = (e) => { const file = e.target.files[0]; if (file) compressImage(file, (b64) => { selectedBase64 = b64; previewImg.src = b64; previewContainer.classList.remove('d-none'); }); };
+        function clearImage() { selectedBase64 = null; imageInput.value = ''; previewContainer.classList.add('d-none'); }
+
+        const loadMessages = async () => {
+            try {
+                const res = await fetch('/client/api/support/messages');
+                const data = await res.json();
+                if(data.success) renderMessages(data.messages);
+            } catch(e) {}
+        };
+
+        const renderMessages = (messages) => {
+            if(messages.length === 0) {
+                chatBox.innerHTML = '<div class="text-center w-100 mt-5"><div style="background: rgba(0,0,0,0.05); border: 1px dashed var(--border-glass); padding: 15px; border-radius: 15px; display: inline-block; font-weight: bold; color: var(--text-muted);">أرسل رسالة لفتح تذكرة دعم فني جديدة 👋</div></div>';
+                return;
+            }
+            chatBox.innerHTML = '';
+            messages.forEach(msg => {
+                const isUser = msg.sender === 'user';
+                const time = new Date(msg.createdAt).toLocaleTimeString('en-GB', {hour:'2-digit', minute:'2-digit'});
+                const imgHtml = msg.imageUrl ? `<img src="${msg.imageUrl}" class="img-fluid rounded mb-2 d-block shadow-sm" style="max-height: 200px; border: 1px solid var(--border-glass); cursor: pointer;" onclick="window.open('${msg.imageUrl}')">` : '';
+                chatBox.innerHTML += `
+                    <div class="msg-bubble ${isUser ? 'msg-user' : 'msg-admin'}">
+                        ${!isUser ? `<div class="fw-bold mb-1" style="font-size: 0.75rem; color: var(--brand-primary);"><i class="fa-solid fa-shield-halved me-1"></i> ${msg.senderName}</div>` : ''}
+                        ${imgHtml}
+                        <div>${msg.text || ''}</div>
+                        <span class="msg-time">${time}</span>
+                    </div>`;
+            });
+            chatBox.scrollTop = chatBox.scrollHeight;
+        };
+
+        chatForm.onsubmit = async (e) => {
+            e.preventDefault();
+            const text = msgInput.value.trim();
+            if(!text && !selectedBase64) return;
+            
+            const b64 = selectedBase64; msgInput.value = ''; clearImage();
+            sendBtn.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin"></i>';
+            
+            try { await fetch('/client/api/support/messages', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ text, imageBase64: b64 }) }); await loadMessages(); } catch(e) {}
+            sendBtn.innerHTML = '<i class="fa-solid fa-paper-plane"></i>';
+        };
+
+        setInterval(loadMessages, 3000); loadMessages();
+    </script>
+</body>
+</html>

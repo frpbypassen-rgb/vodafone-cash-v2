@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>إدارة الموظفين | الأهرام</title>
+    
+    <script>
+        const savedTheme = localStorage.getItem('ahram_theme') || 'dark';
+        document.documentElement.setAttribute('data-theme', savedTheme);
+    </script>
+
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.rtl.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800;900&family=JetBrains+Mono:wght@700&display=swap" rel="stylesheet">
+    
+    <style>
+        :root {
+            --glass-bg: rgba(255, 255, 255, 0.9);
+            --glass-border: rgba(0, 0, 0, 0.08);
+            --shadow-3d: 0 10px 30px rgba(0, 0, 0, 0.04);
+            --text-main: #1e293b;
+            --text-muted: #64748b;
+            --input-bg: #f8fafc;
+        }
+
+        [data-theme="dark"] {
+            --glass-bg: rgba(30, 41, 59, 0.7);
+            --glass-border: rgba(255, 255, 255, 0.1);
+            --shadow-3d: 0 10px 30px rgba(0, 0, 0, 0.3);
+            --text-main: #f8fafc;
+            --text-muted: #94a3b8;
+            --input-bg: rgba(0, 0, 0, 0.2);
+        }
+
+        /* 🚀 حاوية التجميع (Group Container) */
+        .group-container {
+            background: var(--glass-bg);
+            border: 1px solid var(--glass-border);
+            border-radius: 24px;
+            padding: 25px;
+            margin-bottom: 30px;
+            box-shadow: 0 8px 25px rgba(0,0,0,0.02);
+            backdrop-filter: blur(15px);
+        }
+        [data-theme="dark"] .group-container { box-shadow: 0 8px 25px rgba(0,0,0,0.2); }
+
+        .group-header {
+            display: flex; align-items: center; justify-content: space-between;
+            border-bottom: 2px dashed var(--glass-border);
+            padding-bottom: 15px; margin-bottom: 25px;
+        }
+
+        /* 🚀 3D Cards Styling */
+        .card-3d-wrapper { perspective: 1000px; height: 100%; }
+        
+        .emp-card-3d {
+            background: var(--input-bg); border-radius: 20px; padding: 20px;
+            transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            display: flex; flex-direction: column; height: 100%;
+            border: 1px solid var(--glass-border); box-shadow: var(--shadow-3d);
+            position: relative; overflow: hidden; z-index: 1;
+        }
+
+        .emp-card-3d:hover {
+            transform: translateY(-8px) rotateX(2deg) rotateY(-2deg);
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.15);
+        }
+        [data-theme="dark"] .emp-card-3d:hover { box-shadow: 0 20px 40px rgba(0, 0, 0, 0.5), inset 0 0 0 1px rgba(255, 255, 255, 0.1); }
+
+        .emp-icon {
+            width: 55px; height: 55px; border-radius: 16px;
+            display: flex; align-items: center; justify-content: center; font-size: 1.8rem;
+            color: white; box-shadow: 0 8px 15px rgba(0,0,0,0.15); position: relative;
+        }
+        .emp-icon::after {
+            content: ''; position: absolute; width: 100%; height: 100%;
+            border-radius: inherit; background: inherit; filter: blur(10px); z-index: -1; opacity: 0.6;
+        }
+
+        .info-box {
+            background: var(--card-bg); border-radius: 12px; padding: 10px 15px;
+            border: 1px solid var(--glass-border); margin-bottom: 12px;
+            display: flex; align-items: center; justify-content: space-between;
+        }
+
+        .mono-num { font-family: 'JetBrains Mono', monospace; font-weight: 800; font-size: 0.95rem; }
+
+        .btn-3d {
+            background: var(--card-bg); border: 1px solid var(--glass-border);
+            color: var(--text-main); border-radius: 14px; padding: 10px;
+            font-weight: 800; transition: all 0.3s;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.02);
+            display: flex; align-items: center; justify-content: center; width: 100%; border: none;
+        }
+        .btn-3d:hover { transform: translateY(-3px); box-shadow: 0 8px 20px rgba(0,0,0,0.15); color: white; }
+        .btn-3d:active { transform: translateY(1px); }
+
+        /* Tabs Styling */
+        .nav-pills { background: var(--card-bg); padding: 8px; border-radius: 20px; border: 1px solid var(--glass-border); box-shadow: var(--shadow-3d); display: inline-flex; }
+        .nav-pills .nav-link { color: var(--text-muted); border-radius: 14px; font-weight: 800; transition: 0.3s; padding: 10px 25px; }
+        .nav-pills .nav-link.active { background-color: var(--brand-primary); color: white !important; transform: translateY(-2px); box-shadow: 0 5px 15px rgba(0, 26, 77, 0.2); }
+        [data-theme="dark"] .nav-pills .nav-link.active { background-color: var(--brand-gold); color: black !important; box-shadow: 0 5px 15px rgba(212, 175, 55, 0.2); }
+
+        /* ألوان الأيقونات */
+        .icon-manager { background: linear-gradient(135deg, #3b82f6, #1e40af); }
+        .icon-cashier { background: linear-gradient(135deg, #10b981, #047857); }
+        .icon-c-manager { background: linear-gradient(135deg, #8b5cf6, #6d28d9); }
+        .icon-c-staff { background: linear-gradient(135deg, #f59e0b, #b45309); }
+    </style>
+</head>
+<body>
+
+<button class="mobile-nav-toggle" onclick="toggleSidebar()"><i class="fa-solid fa-bars"></i></button>
+<div class="sidebar-overlay" onclick="toggleSidebar()"></div>
+
+<%- include('partials/sidebar', { activePage: 'employees' }) %>
+
+<div class="main-content">
+    <div class="container-fluid">
+        <div class="d-flex justify-content-between align-items-center flex-wrap gap-3 mb-4">
+            <h3 class="fw-bold m-0" style="color: var(--text-main);"><i class="fa-solid fa-id-badge text-primary me-2"></i> إدارة الموظفين والطواقم</h3>
+            
+            <ul class="nav nav-pills" role="tablist">
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link active" data-bs-toggle="pill" data-bs-target="#executors-tab" type="button"><i class="fa-solid fa-gears me-1"></i> موظفو التنفيذ</button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" data-bs-toggle="pill" data-bs-target="#clients-tab" type="button"><i class="fa-solid fa-building-user me-1"></i> موظفو الشركات</button>
+                </li>
+            </ul>
+        </div>
+
+        <div class="tab-content mt-4">
+            <div class="tab-pane fade show active" id="executors-tab">
+                <% if(execEmployees.length === 0) { %>
+                    <div class="col-12 text-center py-5">
+                        <i class="fa-solid fa-users-slash fa-4x text-muted opacity-25 mb-3"></i>
+                        <h5 class="text-muted fw-bold">لا يوجد موظفي تنفيذ مسجلين.</h5>
+                    </div>
+                <% } else { 
+                    // 💡 كود الفرز وتجميع الموظفين حسب البوت
+                    const groupedExecutors = {};
+                    execEmployees.forEach(emp => {
+                        const botId = emp.botId ? emp.botId.toString() : 'unassigned';
+                        if(!groupedExecutors[botId]) groupedExecutors[botId] = [];
+                        groupedExecutors[botId].push(emp);
+                    });
+                %>
+                    
+                    <% Object.keys(groupedExecutors).forEach(botId => { 
+                        const botName = botId === 'unassigned' ? 'موظفين غير محددين (بدون بوت)' : (executorBotsMap[botId] || 'بوت محذوف');
+                        const employeesInBot = groupedExecutors[botId];
+                    %>
+                        <div class="group-container" style="border-right: 5px solid #10b981;">
+                            <div class="group-header">
+                                <div class="d-flex align-items-center gap-2">
+                                    <div class="rounded-circle d-flex align-items-center justify-content-center shadow-sm" style="width: 45px; height: 45px; background: rgba(16, 185, 129, 0.1); color: #10b981; font-size: 1.2rem;">
+                                        <i class="fa-solid fa-network-wired"></i>
+                                    </div>
+                                    <div>
+                                        <h4 class="fw-bold m-0" style="color: var(--text-main);"><%= botName %></h4>
+                                        <span class="small text-muted fw-bold">طاقم تنفيذ / كاشير</span>
+                                    </div>
+                                </div>
+                                <span class="badge bg-success bg-opacity-10 text-success border border-success rounded-pill px-3 py-2 fs-6"><i class="fa-solid fa-users me-1"></i> <%= employeesInBot.length %> موظف</span>
+                            </div>
+
+                            <div class="row g-4">
+                                <% employeesInBot.forEach(e => { %>
+                                    <div class="col-xl-3 col-lg-4 col-md-6">
+                                        <div class="card-3d-wrapper">
+                                            <div class="emp-card-3d" style="border-top: 4px solid <%= e.role === 'manager' ? '#3b82f6' : '#10b981' %>;">
+                                                
+                                                <div class="d-flex align-items-center gap-3 mb-4">
+                                                    <div class="emp-icon <%= e.role === 'manager' ? 'icon-manager' : 'icon-cashier' %>">
+                                                        <i class="fa-solid <%= e.role === 'manager' ? 'fa-user-tie' : 'fa-user-astronaut' %>"></i>
+                                                    </div>
+                                                    <div style="width: calc(100% - 70px);">
+                                                        <h6 class="fw-bold m-0 text-dark mb-1 text-truncate" title="<%= e.name %>"><%= e.name %></h6>
+                                                        <span class="badge <%= e.status === 'active' ? 'bg-success' : (e.status === 'pending' ? 'bg-warning text-dark' : 'bg-danger') %> bg-opacity-10 border text-<%= e.status === 'active' ? 'success' : (e.status === 'pending' ? 'warning' : 'danger') %> rounded-pill" style="font-size: 0.7rem;">
+                                                            <i class="fa-solid <%= e.status === 'active' ? 'fa-check' : (e.status === 'pending' ? 'fa-clock' : 'fa-ban') %> me-1"></i><%= e.status === 'active' ? 'حساب نشط' : (e.status === 'pending' ? 'مراجعة' : 'محظور') %>
+                                                        </span>
+                                                    </div>
+                                                </div>
+
+                                                <div class="info-box">
+                                                    <span class="small text-muted fw-bold"><i class="fa-solid fa-phone me-1"></i> الهاتف</span>
+                                                    <span class="fw-bold text-dark mono-num" dir="ltr"><%= e.phone %></span>
+                                                </div>
+
+                                                <div class="info-box">
+                                                    <span class="small text-muted fw-bold"><i class="fa-solid fa-sitemap me-1"></i> المنصب</span>
+                                                    <span class="badge <%= e.role === 'manager' ? 'bg-primary' : 'bg-secondary' %> rounded-pill px-2"><%= e.role === 'manager' ? 'مدير نظام' : 'منفذ / كاشير' %></span>
+                                                </div>
+
+                                                <div class="mt-auto pt-2">
+                                                    <form action="/employees/executor/<%= e._id %>/toggle" method="POST" class="m-0" onsubmit="return confirm('تأكيد تعديل حالة الموظف؟');">
+                                                        <button type="submit" class="btn-3d text-white" style="background: <%= e.status === 'active' ? '#ef4444' : '#10b981' %>; border: none;">
+                                                            <i class="fa-solid <%= e.status === 'active' ? 'fa-ban' : 'fa-power-off' %> me-2"></i> <%= e.status === 'active' ? 'إيقاف وحظر الموظف' : 'تنشيط الحساب' %>
+                                                        </button>
+                                                    </form>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                <% }) %>
+                            </div>
+                        </div>
+                    <% }) %>
+                <% } %>
+            </div>
+
+            <div class="tab-pane fade" id="clients-tab">
+                <% if(clientEmployees.length === 0) { %>
+                    <div class="col-12 text-center py-5">
+                        <i class="fa-solid fa-building-circle-xmark fa-4x text-muted opacity-25 mb-3"></i>
+                        <h5 class="text-muted fw-bold">لا يوجد موظفي شركات مسجلين.</h5>
+                    </div>
+                <% } else { 
+                    // 💡 كود الفرز وتجميع موظفي الشركات
+                    const groupedClients = {};
+                    clientEmployees.forEach(emp => {
+                        const compId = emp.clientBotId ? emp.clientBotId.toString() : 'unassigned';
+                        if(!groupedClients[compId]) groupedClients[compId] = [];
+                        groupedClients[compId].push(emp);
+                    });
+                %>
+                    <% Object.keys(groupedClients).forEach(compId => { 
+                        const compName = compId === 'unassigned' ? 'موظفين غير محددين (بدون شركة)' : (clientBotsMap[compId] || 'شركة محذوفة');
+                        const employeesInComp = groupedClients[compId];
+                    %>
+                        <div class="group-container" style="border-right: 5px solid #8b5cf6;">
+                            <div class="group-header">
+                                <div class="d-flex align-items-center gap-2">
+                                    <div class="rounded-circle d-flex align-items-center justify-content-center shadow-sm" style="width: 45px; height: 45px; background: rgba(139, 92, 246, 0.1); color: #8b5cf6; font-size: 1.2rem;">
+                                        <i class="fa-solid fa-building"></i>
+                                    </div>
+                                    <div>
+                                        <h4 class="fw-bold m-0" style="color: var(--text-main);"><%= compName %></h4>
+                                        <span class="small text-muted fw-bold">شركة / وكيل معتمد</span>
+                                    </div>
+                                </div>
+                                <span class="badge bg-primary bg-opacity-10 text-primary border border-primary rounded-pill px-3 py-2 fs-6" style="color: #8b5cf6 !important; border-color: #8b5cf6 !important;"><i class="fa-solid fa-users me-1"></i> <%= employeesInComp.length %> موظف</span>
+                            </div>
+
+                            <div class="row g-4">
+                                <% employeesInComp.forEach(e => { %>
+                                    <div class="col-xl-3 col-lg-4 col-md-6">
+                                        <div class="card-3d-wrapper">
+                                            <div class="emp-card-3d" style="border-top: 4px solid <%= e.role === 'manager' ? '#8b5cf6' : '#f59e0b' %>;">
+                                                
+                                                <div class="d-flex align-items-center gap-3 mb-4">
+                                                    <div class="emp-icon <%= e.role === 'manager' ? 'icon-c-manager' : 'icon-c-staff' %>">
+                                                        <i class="fa-solid <%= e.role === 'manager' ? 'fa-user-tie' : 'fa-user-tag' %>"></i>
+                                                    </div>
+                                                    <div style="width: calc(100% - 70px);">
+                                                        <h6 class="fw-bold m-0 text-dark mb-1 text-truncate" title="<%= e.name %>"><%= e.name %></h6>
+                                                        <span class="badge <%= e.status === 'active' ? 'bg-success' : (e.status === 'pending' ? 'bg-warning text-dark' : 'bg-danger') %> bg-opacity-10 border text-<%= e.status === 'active' ? 'success' : (e.status === 'pending' ? 'warning' : 'danger') %> rounded-pill" style="font-size: 0.7rem;">
+                                                            <i class="fa-solid <%= e.status === 'active' ? 'fa-check' : (e.status === 'pending' ? 'fa-clock' : 'fa-ban') %> me-1"></i><%= e.status === 'active' ? 'حساب نشط' : (e.status === 'pending' ? 'مراجعة' : 'محظور') %>
+                                                        </span>
+                                                    </div>
+                                                </div>
+
+                                                <div class="info-box">
+                                                    <span class="small text-muted fw-bold"><i class="fa-solid fa-phone me-1"></i> الهاتف</span>
+                                                    <span class="fw-bold text-dark mono-num" dir="ltr"><%= e.phone %></span>
+                                                </div>
+
+                                                <div class="info-box">
+                                                    <span class="small text-muted fw-bold"><i class="fa-solid fa-briefcase me-1"></i> الصلاحية</span>
+                                                    <span class="badge <%= e.role === 'manager' ? 'bg-dark' : 'bg-secondary' %> rounded-pill px-2"><%= e.role === 'manager' ? 'مدير حساب' : 'موظف / طالب' %></span>
+                                                </div>
+
+                                                <div class="mt-auto pt-2">
+                                                    <form action="/employees/client/<%= e._id %>/toggle" method="POST" class="m-0" onsubmit="return confirm('تأكيد تعديل حالة الموظف؟');">
+                                                        <button type="submit" class="btn-3d text-white" style="background: <%= e.status === 'active' ? '#ef4444' : '#10b981' %>; border: none;">
+                                                            <i class="fa-solid <%= e.status === 'active' ? 'fa-ban' : 'fa-power-off' %> me-2"></i> <%= e.status === 'active' ? 'إيقاف وحظر الموظف' : 'تنشيط الحساب' %>
+                                                        </button>
+                                                    </form>
+                                                </div>
+
+                                            </div>
+                                        </div>
+                                    </div>
+                                <% }) %>
+                            </div>
+                        </div>
+                    <% }) %>
+                <% } %>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    function toggleSidebar() { 
+        document.querySelector('.sidebar').classList.toggle('active');
+        document.querySelector('.sidebar-overlay').classList.toggle('active'); 
+    }
+</script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

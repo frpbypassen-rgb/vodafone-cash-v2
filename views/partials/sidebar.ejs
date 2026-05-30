@@ -1,0 +1,250 @@
+<script>
+    // تفعيل الوضع المحفوظ فوراً لمنع الوميض الأبيض عند تحديث الصفحة
+    (function() {
+        const savedTheme = localStorage.getItem('ahram_theme') || 'dark';
+        document.documentElement.setAttribute('data-theme', savedTheme);
+        document.documentElement.setAttribute('data-bs-theme', savedTheme);
+    })();
+</script>
+
+<style>
+    /* =======================================================
+       🌟 المحرك البصري الموحد (Global Theme Normalizer)
+       ======================================================= */
+    :root {
+        /* 🎨 ألوان الهوية الأساسية الثابتة */
+        --brand-primary: #001a4d;
+        --brand-dark: #000c24;
+        --brand-gold: #d4af37;
+        --brand-gold-dark: #b5952f;
+        --sidebar-width: 260px;
+
+        /* ☀️ المتغيرات (الوضع النهاري - Light Mode) */
+        --bg-body: #f4f7fa;
+        --card-bg: #ffffff;
+        --input-bg: #f8fafc;
+        --border-glass: #e2e8f0;
+        --text-main: #1e293b;
+        --text-muted: #64748b;
+        --shadow-soft: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+    }
+
+    [data-theme="dark"] {
+        /* 🌙 المتغيرات (الوضع الليلي - Dark Mode) */
+        --brand-primary: #3b82f6; 
+        --brand-gold: #fbbf24;
+        --bg-body: #0f172a;
+        --card-bg: #1e293b;
+        --input-bg: #0f172a;
+        --border-glass: #334155;
+        --text-main: #f8fafc;
+        --text-muted: #94a3b8;
+        --shadow-soft: 0 4px 15px rgba(0, 0, 0, 0.3);
+    }
+
+    /* 🛡️ التوحيد الإجباري للألوان عبر جميع صفحات لوحة الإدارة */
+    body { background-color: var(--bg-body) !important; color: var(--text-main) !important; transition: background-color 0.3s, color 0.3s; }
+    .main-content { background-color: var(--bg-body) !important; transition: background-color 0.3s; }
+    
+    /* إصلاح الكروت والخلفيات المفقودة */
+    .bg-white, .bg-light, .data-card, .stat-card, .card, .info-panel, .top-header, .user-time-widget, .close-box, .excel-preview, .modal-content, .dropdown-menu { 
+        background-color: var(--card-bg) !important; 
+        color: var(--text-main) !important; 
+        border-color: var(--border-glass) !important; 
+    }
+    
+    /* توحيد النصوص وحمايتها */
+    .text-dark { color: var(--text-main) !important; }
+    .text-muted { color: var(--text-muted) !important; }
+    h1, h2, h3, h4, h5, h6 { color: var(--text-main) !important; }
+
+    /* 🛑 درع الحماية لمنع اختفاء النصوص البيضاء في الوضع النهاري (مثل رسائل التحميل) */
+    [data-theme="light"] .modal-content .text-white:not(.btn):not(.badge),
+    [data-theme="light"] .data-card .text-white:not(.btn):not(.badge):not(.ex-head):not(.close-box *) {
+        color: var(--text-main) !important;
+    }
+    [data-theme="dark"] .text-white { color: #ffffff !important; }
+    
+    /* إصلاح الجداول في جميع الشاشات */
+    .table { color: var(--text-main) !important; border-color: var(--border-glass) !important; }
+    .table-light, .table thead th { background-color: var(--bg-body) !important; color: var(--text-muted) !important; border-color: var(--border-glass) !important; }
+    [data-theme="dark"] .table-light, [data-theme="dark"] .table thead th { color: var(--brand-gold) !important; }
+    .table td { border-color: var(--border-glass) !important; background-color: var(--card-bg) !important; color: var(--text-main) !important; }
+    
+    /* إصلاح الحقول (Inputs) والقوائم المنسدلة */
+    .form-control, .form-select { background-color: var(--input-bg) !important; color: var(--text-main) !important; border-color: var(--border-glass) !important; }
+    .form-control:focus, .form-select:focus { border-color: var(--brand-gold) !important; background-color: var(--card-bg) !important; box-shadow: 0 0 0 3px rgba(212, 175, 55, 0.1) !important; color: var(--text-main) !important; }
+    .input-group-text { background-color: var(--bg-body) !important; color: var(--text-muted) !important; border-color: var(--border-glass) !important; }
+    
+    /* إصلاح الحدود (Borders) لتكون شفافة وأنيقة */
+    .border, .border-bottom, .border-top, .border-end, .border-start { border-color: var(--border-glass) !important; }
+    .dropdown-item { color: var(--text-main) !important; }
+    .dropdown-item:hover { background-color: var(--bg-body) !important; }
+    
+    /* إصلاح الأزرار الثانوية (الرمادية/الفاتحة) */
+    .btn-light, .btn-outline-secondary { background-color: var(--input-bg) !important; color: var(--text-main) !important; border-color: var(--border-glass) !important; }
+    .btn-light:hover, .btn-outline-secondary:hover { background-color: var(--border-glass) !important; }
+    .btn-outline-dark { color: var(--text-main) !important; border-color: var(--border-glass) !important; }
+    
+    /* التنبيهات (Alerts) تتبدل بذكاء حسب المظهر */
+    [data-theme="dark"] .alert-warning { background-color: rgba(255, 193, 7, 0.1) !important; border-color: rgba(255, 193, 7, 0.3) !important; color: #fbbf24 !important; }
+    [data-theme="dark"] .alert-info { background-color: rgba(13, 202, 240, 0.1) !important; border-color: rgba(13, 202, 240, 0.3) !important; color: #6ea8fe !important; }
+    [data-theme="dark"] .alert-success { background-color: rgba(25, 135, 84, 0.1) !important; border-color: rgba(25, 135, 84, 0.3) !important; color: #34d399 !important; }
+    [data-theme="dark"] .alert-danger { background-color: rgba(220, 53, 69, 0.1) !important; border-color: rgba(220, 53, 69, 0.3) !important; color: #f87171 !important; }
+
+    /* =======================================================
+       🛸 حاوية القائمة الجانبية (Sidebar Customization)
+       ======================================================= */
+    .sidebar { 
+        background: linear-gradient(180deg, var(--brand-primary) 0%, var(--brand-dark) 100%) !important; 
+        min-height: 100vh; position: fixed; right: 0; top: 0; width: var(--sidebar-width); 
+        z-index: 1050; box-shadow: -5px 0 25px rgba(0,0,0,0.15); border-left: 2px solid rgba(212, 175, 55, 0.2);
+        transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1); 
+    }
+    [data-theme="dark"] .sidebar { 
+        background: linear-gradient(180deg, #0f172a 0%, #020617 100%) !important; border-left-color: rgba(255,255,255,0.05); 
+    }
+
+    .sidebar-user { text-align: center; padding: 25px 15px; border-bottom: 1px solid rgba(212, 175, 55, 0.15); }
+    .sidebar-user .avatar { width: 60px; height: 60px; background: rgba(255,255,255,0.05); border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 10px; border: 2px solid var(--brand-gold); color: var(--brand-gold); font-size: 1.5rem; box-shadow: 0 0 15px rgba(212, 175, 55, 0.2); }
+    .sidebar-user h5 { color: #ffffff !important; } /* حماية اسم المدير دائماً باللون الأبيض */
+    
+    .sidebar-menu { display: flex; flex-direction: column; padding: 10px 15px; max-height: calc(100vh - 160px); overflow-y: auto; }
+    .sidebar-menu::-webkit-scrollbar { width: 4px; }
+    .sidebar-menu::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 10px; }
+    
+    .sidebar-menu a { color: #a8b2c1; text-decoration: none; padding: 12px 18px; display: flex; align-items: center; margin: 3px 0; border-radius: 12px; transition: all 0.2s ease; font-size: 0.95rem; font-weight: 700; border: 1px solid transparent; }
+    .sidebar-menu a i { width: 25px; font-size: 1.1rem; margin-left: 8px; text-align: center; }
+    .sidebar-menu a:hover { background: rgba(255,255,255,0.05); color: #fff; transform: translateX(-4px); }
+    .sidebar-menu a:hover i { color: var(--brand-gold); }
+    .sidebar-menu a.active { background: linear-gradient(90deg, var(--brand-gold), var(--brand-gold-dark)); color: white !important; box-shadow: 0 4px 15px rgba(212, 175, 55, 0.3); border: none; }
+    .sidebar-menu a.active i { color: #fff; }
+
+    /* 📱 زر الهامبرغر العائم للهواتف والتابلت */
+    .mobile-nav-toggle { 
+        display: none; position: fixed; top: 15px; right: 15px; z-index: 1060; 
+        background: var(--brand-primary); color: white; border: 1px solid rgba(212, 175, 55, 0.3); 
+        padding: 10px 16px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.2); cursor: pointer; transition: 0.2s;
+    }
+    .mobile-nav-toggle:hover { transform: scale(1.05); }
+    [data-theme="dark"] .mobile-nav-toggle { background: #1e293b; color: #fbbf24; border-color: rgba(251, 191, 36, 0.3); }
+
+    .sidebar-overlay { 
+        display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; 
+        background: rgba(0, 0, 0, 0.5); z-index: 1040; backdrop-filter: blur(4px); opacity: 0; transition: opacity 0.3s ease;
+    }
+    .sidebar-overlay.active { opacity: 1; display: block; }
+
+    .main-content { margin-right: var(--sidebar-width) !important; padding: 30px; transition: margin 0.3s ease-in-out; }
+
+    @media (max-width: 991px) {
+        .sidebar { transform: translateX(100%); width: 270px; }
+        .sidebar.active { transform: translateX(0); box-shadow: -10px 0 30px rgba(0,0,0,0.5); }
+        .mobile-nav-toggle { display: block; }
+        .main-content { margin-right: 0 !important; padding: 80px 15px 25px 15px !important; }
+    }
+
+    @media print {
+        .sidebar, .mobile-nav-toggle, .sidebar-overlay { display: none !important; }
+        .main-content { margin-right: 0 !important; padding: 0 !important; }
+    }
+</style>
+
+<button class="mobile-nav-toggle no-print" onclick="toggleSidebar()"><i class="fa-solid fa-bars"></i></button>
+<div class="sidebar-overlay no-print" id="sidebarOverlay" onclick="toggleSidebar()"></div>
+
+<div class="sidebar" id="sidebarMenu">
+    <div class="sidebar-user">
+        <div class="avatar"><i class="fa-solid fa-user-shield"></i></div>
+        <h5 class="fw-bold mb-1"><%= typeof adminName !== 'undefined' ? adminName : 'مدير النظام' %></h5>
+        <span class="badge small" style="background-color: rgba(25, 135, 84, 0.2); color: #20c997; border: 1px solid #198754;"><i class="fa-solid fa-circle fa-fade me-1" style="font-size: 0.5rem;"></i> متصل الآن</span>
+    </div>
+    
+    <div class="sidebar-menu mt-3">
+        <a href="/" class="<%= typeof activePage !== 'undefined' && activePage === 'dashboard' ? 'active' : '' %>">
+            <i class="fa-solid fa-chart-pie"></i> لوحة القيادة
+        </a>
+        <a href="/transactions" class="<%= typeof activePage !== 'undefined' && activePage === 'transactions' ? 'active' : '' %>">
+            <i class="fa-solid fa-list-check"></i> سجل العمليات المباشر
+        </a>
+        <a href="/support" class="<%= typeof activePage !== 'undefined' && activePage === 'support' ? 'active' : '' %> d-flex justify-content-between align-items-center">
+            <span><i class="fa-solid fa-headset"></i> الدعم الفني</span>
+            <span class="badge bg-danger rounded-pill shadow-sm" id="sidebarSupportBadge" style="display: none;">0</span>
+        </a>
+        <a href="/admin-reports" class="<%= typeof activePage !== 'undefined' && activePage === 'admin_reports' ? 'active' : '' %>">
+            <i class="fa-solid fa-file-invoice-dollar"></i> التقارير التفصيلية
+        </a>
+        <a href="/store-manager" class="<%= typeof activePage !== 'undefined' && activePage === 'store_manager' ? 'active' : '' %>">
+            <i class="fa-solid fa-store"></i> إدارة متجر الكروت
+        </a>
+        <a href="/executors" class="<%= typeof activePage !== 'undefined' && activePage === 'executors' ? 'active' : '' %>">
+            <i class="fa-solid fa-robot"></i> وكلاء وبوتات التنفيذ
+        </a>
+        <a href="/clients" class="<%= typeof activePage !== 'undefined' && activePage === 'clients' ? 'active' : '' %>">
+            <i class="fa-solid fa-users"></i> العملاء والشركات
+        </a>
+        <a href="/employees" class="<%= typeof activePage !== 'undefined' && activePage === 'employees' ? 'active' : '' %>">
+            <i class="fa-solid fa-id-badge"></i> إدارة الموظفين
+        </a>
+        <a href="/broadcast" class="<%= typeof activePage !== 'undefined' && activePage === 'broadcast' ? 'active' : '' %>">
+            <i class="fa-solid fa-bullhorn"></i> الإشعارات والبث
+        </a>
+        <a href="/closing" class="<%= typeof activePage !== 'undefined' && activePage === 'closing' ? 'active' : '' %>">
+            <i class="fa-solid fa-box-archive"></i> التقفيل والأرشيف
+        </a>
+        <a href="/settings" class="<%= typeof activePage !== 'undefined' && activePage === 'settings' ? 'active' : '' %>">
+            <i class="fa-solid fa-gear"></i> إعدادات المنظومة
+        </a>
+        
+        <div class="mt-4 pt-3 border-top px-2" style="border-color: rgba(255,255,255,0.1) !important;">
+            <a href="javascript:void(0)" onclick="toggleGlobalTheme()" style="background: rgba(212, 175, 55, 0.1); border: 1px dashed #d4af37; color: #d4af37;">
+                <i id="sidebarThemeIcon" class="fa-solid fa-moon"></i> <span id="sidebarThemeText">التبديل للوضع الليلي</span>
+            </a>
+            <a href="/logout" class="fw-bold mt-2" style="color: #ff6b6b; background: rgba(220,53,69,0.05); border: 1px dashed rgba(220,53,69,0.3);">
+                <i class="fa-solid fa-power-off me-2"></i> تسجيل الخروج
+            </a>
+        </div>
+    </div>
+</div>
+
+<script>
+    function toggleSidebar() {
+        const sidebar = document.getElementById('sidebarMenu');
+        const overlay = document.getElementById('sidebarOverlay');
+        if(sidebar && overlay) {
+            sidebar.classList.toggle('active');
+            overlay.classList.toggle('active');
+        }
+    }
+
+    function toggleGlobalTheme() {
+        const html = document.documentElement;
+        const currentTheme = html.getAttribute('data-theme');
+        const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+        html.setAttribute('data-theme', newTheme);
+        localStorage.setItem('ahram_theme', newTheme);
+        updateSidebarThemeIcon(newTheme);
+
+        if (typeof Chart !== 'undefined' && window.myChart) {
+            const color = newTheme === 'dark' ? '#94a3b8' : '#6c757d';
+            Chart.defaults.color = color;
+            if(window.myChart.options.scales.x) window.myChart.options.scales.x.ticks.color = color;
+            if(window.myChart.options.scales.y) window.myChart.options.scales.y.ticks.color = color;
+            window.myChart.update();
+        }
+    }
+
+    function updateSidebarThemeIcon(theme) {
+        const icon = document.getElementById('sidebarThemeIcon');
+        const text = document.getElementById('sidebarThemeText');
+        if (icon && text) {
+            icon.className = theme === 'dark' ? 'fa-solid fa-sun' : 'fa-solid fa-moon';
+            text.innerText = theme === 'dark' ? ' التبديل للوضع النهاري' : ' التبديل للوضع الليلي';
+        }
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+        const savedTheme = localStorage.getItem('ahram_theme') || 'light';
+        updateSidebarThemeIcon(savedTheme);
+    });
+</script>

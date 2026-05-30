@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <link rel="manifest" href="/manifest.json">
+    <meta name="theme-color" content="#001a4d">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>تسجيل الدخول | بوابة العملاء</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.rtl.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800&display=swap" rel="stylesheet">
+    <style>
+        :root { --brand-black: #0a0a0a; --brand-gold: #d4af37; --brand-dark: #1a1a1a; }
+        body { font-family: 'Tajawal', sans-serif; background: radial-gradient(circle at center, #2a2a2a 0%, var(--brand-black) 100%); min-height: 100vh; display: flex; align-items: center; justify-content: center; margin: 0; overflow: hidden; }
+        .bg-glow { position: absolute; width: 400px; height: 400px; background: radial-gradient(circle, rgba(212, 175, 55, 0.15) 0%, transparent 70%); top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 0; pointer-events: none; }
+        .login-card { background: #ffffff; width: 100%; max-width: 420px; margin: 20px; border-radius: 24px; padding: 40px; box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5), inset 0 0 20px rgba(212, 175, 55, 0.05); position: relative; z-index: 1; border-bottom: 6px solid var(--brand-gold); }
+        .logo-container { text-align: center; margin-bottom: 25px; display: flex; justify-content: center; align-items: center; }
+        .logo-engraved { width: 100%; max-width: 280px; height: auto; mix-blend-mode: multiply; filter: contrast(1.15) saturate(1.1); }
+        .login-title { text-align: center; font-weight: 800; color: var(--brand-dark); margin-bottom: 30px; font-size: 1.4rem; position: relative; }
+        .login-title::after { content: ''; display: block; width: 50px; height: 3px; background: var(--brand-gold); margin: 10px auto 0; border-radius: 2px; }
+        .form-floating > .form-control { border: 2px solid #e0e0e0; border-radius: 12px; background-color: #fafafa; font-weight: 600; color: var(--brand-dark); transition: all 0.3s ease; }
+        .form-floating > .form-control:focus { border-color: var(--brand-gold); box-shadow: 0 0 0 4px rgba(212, 175, 55, 0.15); background-color: #fff; }
+        .form-floating > label { color: #888; font-weight: 600; padding-right: 1.5rem; }
+        .input-icon { position: absolute; top: 50%; left: 15px; transform: translateY(-50%); color: #aaa; font-size: 1.2rem; z-index: 5; transition: 0.3s; }
+        .form-control:focus + .input-icon { color: var(--brand-gold); }
+        .btn-gold { background: linear-gradient(90deg, var(--brand-gold) 0%, #b5952f 100%); color: #fff; font-weight: 800; font-size: 1.1rem; border: none; border-radius: 12px; padding: 14px; width: 100%; margin-top: 20px; box-shadow: 0 8px 20px rgba(212, 175, 55, 0.3); transition: all 0.3s ease; text-shadow: 1px 1px 2px rgba(0,0,0,0.2); }
+        .btn-gold:hover { transform: translateY(-3px); box-shadow: 0 12px 25px rgba(212, 175, 55, 0.4); color: #fff; }
+        .custom-alert { background-color: #fff3cd; border-right: 4px solid #ffc107; color: #856404; border-radius: 8px; padding: 12px 15px; font-weight: 700; font-size: 0.9rem; display: flex; align-items: center; gap: 10px; border-left: none; border-top: none; border-bottom: none; }
+        .footer-text { text-align: center; margin-top: 25px; font-size: 0.85rem; color: #888; font-weight: 600; }
+        .footer-text i { color: var(--brand-gold); }
+    </style>
+</head>
+<body>
+    <div class="bg-glow"></div>
+    <div class="login-card">
+        <div class="logo-container">
+            <img src="/images/logo.jpeg" alt="شعار الشركة" class="logo-engraved" onerror="this.onerror=null; this.src='/images/logo.jpg';">
+        </div>
+        <h4 class="login-title">بوابة العملاء والوكلاء</h4>
+        <% if (typeof error !== 'undefined' && error) { %>
+            <div class="alert custom-alert mb-4" role="alert"><i class="fa-solid fa-triangle-exclamation fs-5"></i><div><%= error %></div></div>
+        <% } %>
+        <form action="/client/login" method="POST">
+            <div class="form-floating mb-3 position-relative">
+                <input type="text" class="form-control ps-5" id="usernameInput" name="username" placeholder="اسم المستخدم" required autocomplete="off" dir="ltr">
+                <label for="usernameInput">اسم المستخدم (Username)</label>
+                <i class="fa-solid fa-user input-icon"></i>
+            </div>
+            <div class="form-floating mb-4 position-relative">
+                <input type="password" class="form-control ps-5" id="passwordInput" name="password" placeholder="كلمة المرور" required dir="ltr">
+                <label for="passwordInput">كلمة المرور (Password)</label>
+                <i class="fa-solid fa-lock input-icon"></i>
+            </div>
+            <button type="submit" class="btn-gold"><i class="fa-solid fa-arrow-right-to-bracket me-2"></i> تحقق ودخول</button>
+        </form>
+        <div class="footer-text">جميع الحقوق محفوظة <i class="fa-solid fa-gem"></i> شركة الأهرام للتقنية</div>
+    </div>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

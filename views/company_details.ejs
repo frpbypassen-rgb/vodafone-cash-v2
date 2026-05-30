@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>تفاصيل الشركة | شركة الأهرام</title>
+    
+    <script>
+        const savedTheme = localStorage.getItem('ahram_theme') || 'dark';
+        document.documentElement.setAttribute('data-theme', savedTheme);
+    </script>
+
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.rtl.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800;900&family=JetBrains+Mono:wght@700&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+
+    <style>
+        :root {
+            --glass-bg: rgba(255, 255, 255, 0.9);
+            --glass-border: rgba(0, 0, 0, 0.08);
+            --shadow-3d: 0 10px 30px rgba(0, 0, 0, 0.04);
+            --text-main: #1e293b;
+            --text-muted: #64748b;
+            --input-bg: #f8fafc;
+            --brand-primary: #8b5cf6;
+        }
+
+        [data-theme="dark"] {
+            --glass-bg: rgba(30, 41, 59, 0.7);
+            --glass-border: rgba(255, 255, 255, 0.1);
+            --shadow-3d: 0 10px 30px rgba(0, 0, 0, 0.3);
+            --text-main: #f8fafc;
+            --text-muted: #94a3b8;
+            --input-bg: rgba(0, 0, 0, 0.2);
+            --brand-primary: #a855f7;
+        }
+
+        .glass-card {
+            background: var(--glass-bg); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
+            border: 1px solid var(--glass-border); border-radius: 20px; padding: 25px;
+            box-shadow: var(--shadow-3d); transition: 0.3s; position: relative; overflow: hidden;
+        }
+
+        .glass-card::before {
+            content: ''; position: absolute; top: -50%; right: -50%; width: 200%; height: 200%;
+            background: radial-gradient(circle, rgba(255,255,255,0.03) 0%, transparent 60%);
+            transform: rotate(45deg); pointer-events: none; z-index: 0;
+        }
+
+        .profile-icon {
+            width: 75px; height: 75px; border-radius: 20px;
+            display: flex; align-items: center; justify-content: center; font-size: 2.2rem;
+            color: white; box-shadow: 0 10px 20px rgba(0,0,0,0.15); position: relative; z-index: 1; margin-bottom: 15px;
+        }
+
+        .info-box {
+            background: var(--input-bg); border-radius: 14px; padding: 15px;
+            border: 1px solid var(--glass-border); margin-bottom: 15px; position: relative; z-index: 1;
+            display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap;
+        }
+        
+        .control-card-3d {
+            transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            transform-style: preserve-3d; border-radius: 16px !important;
+            padding: 15px !important;
+        }
+        .control-card-3d:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 15px 25px rgba(0,0,0,0.08) !important;
+        }
+        [data-theme="dark"] .control-card-3d:hover { box-shadow: 0 15px 25px rgba(0,0,0,0.4) !important; }
+        
+        .btn-3d-hover { transition: all 0.2s; }
+        .btn-3d-hover:hover { transform: translateY(-2px); filter: brightness(1.1); box-shadow: 0 6px 12px rgba(0,0,0,0.15); }
+        .btn-3d-hover:active { transform: translateY(1px); }
+
+        .mono-num { font-family: 'JetBrains Mono', monospace; font-weight: 800;}
+        .form-control, .form-select { background: var(--input-bg); color: var(--text-main); border: 1px solid var(--glass-border); font-weight: bold; border-radius: 10px; }
+        .form-control:focus, .form-select:focus { background: transparent; border-color: var(--brand-primary); box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.2); color: var(--text-main); }
+        
+        /* توحيد الارتفاعات */
+        .unified-height { min-height: 42px; display: flex; align-items: center; }
+    </style>
+</head>
+<body>
+
+<%- include('partials/sidebar', { activePage: 'clients' }) %>
+
+<div class="main-content">
+    <div class="container-fluid">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h3 class="fw-bold m-0" style="color: var(--text-main);"><i class="fa-solid fa-building text-primary me-2"></i> بيانات الشركة (الوكيل)</h3>
+            <a href="/clients" class="btn btn-secondary fw-bold rounded-pill shadow-sm px-4 btn-3d-hover"><i class="fa-solid fa-arrow-right me-2"></i> عودة للقائمة</a>
+        </div>
+
+        <div class="row g-4 mb-4">
+            <div class="col-xl-4 col-lg-5">
+                <div class="glass-card h-100" style="border-top: 5px solid #8b5cf6;">
+                    <div class="profile-icon mx-auto" style="background: linear-gradient(135deg, #8b5cf6, #6d28d9);">
+                        <i class="fa-solid fa-building"></i>
+                    </div>
+                    <h4 class="fw-bold text-center mb-1" style="color: var(--text-main);"><%= company.name %></h4>
+                    <p class="text-center text-muted fw-bold mb-3 small">وكالة / شركة مسجلة في النظام</p>
+
+                    <div class="info-box d-block text-center border-0 shadow-sm py-3" style="background: rgba(139, 92, 246, 0.05); border-right: 4px solid #8b5cf6 !important;">
+                        <span class="d-block small text-muted fw-bold mb-1"><i class="fa-solid fa-wallet me-1"></i> الرصيد الحالي (LYD)</span>
+                        <h2 class="m-0 fw-900 mono-num <%= company.balance < 0 ? 'text-danger' : 'text-success' %>" dir="ltr"><%= company.balance.toFixed(2) %></h2>
+                    </div>
+
+                    <div class="info-box py-2 px-3">
+                        <span class="small text-muted fw-bold"><i class="fa-solid fa-phone me-1"></i> الهاتف</span>
+                        <span class="fw-bold text-dark mono-num" dir="ltr"><%= company.phone %></span>
+                    </div>
+
+                    <div class="info-box py-2 px-3">
+                        <span class="small text-muted fw-bold"><i class="fa-solid fa-key me-1"></i> توكن البوت</span>
+                        <span class="fw-bold text-dark mono-num small" dir="ltr" style="filter: blur(3px); transition: 0.3s; cursor: pointer;" onmouseover="this.style.filter='none'" onmouseout="this.style.filter='blur(3px)'"><%= company.token %></span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-xl-8 col-lg-7">
+                <div class="glass-card h-100 border-start border-4" style="border-left-color: #f59e0b;">
+                    <div class="d-flex align-items-center mb-3 pb-2 border-bottom" style="border-color: var(--glass-border) !important;">
+                        <i class="fa-solid fa-gears text-warning fs-4 me-2"></i>
+                        <h5 class="fw-bold m-0" style="color: var(--text-main);">التحكم المحاسبي والإداري</h5>
+                    </div>
+                    
+                    <div class="row g-3">
+                        <div class="col-12">
+                            <div class="info-box border-0 m-0 shadow-sm control-card-3d d-block" style="background: rgba(245, 158, 11, 0.05); border-right: 4px solid #f59e0b !important;">
+                                <label class="form-label fw-bold text-dark small mb-2"><i class="fa-solid fa-money-bill-transfer text-warning me-1"></i> تسوية الرصيد (موجب للإيداع / سالب للخصم)</label>
+                                <form action="/company/<%= company._id %>/add-balance" method="POST" class="row g-2 align-items-center">
+                                    <div class="col-md-4">
+                                        <div class="input-group shadow-sm">
+                                            <input type="number" step="any" name="amount" class="form-control mono-num fw-bold text-center unified-height border-0" placeholder="المبلغ..." required>
+                                            <span class="input-group-text border-0 fw-bold px-2" style="background: #fcd34d; color:#000;">LYD</span>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-5">
+                                        <div class="input-group shadow-sm">
+                                            <span class="input-group-text border-0 bg-light text-muted px-2"><i class="fa-solid fa-pen"></i></span>
+                                            <input type="text" name="notes" class="form-control fw-bold unified-height border-0" placeholder="ملاحظة للتسوية...">
+                                        </div>
+                                    </div>
+                                    <div class="col-md-3">
+                                        <button type="submit" class="btn btn-warning w-100 fw-bold text-dark btn-3d-hover unified-height justify-content-center shadow-sm"><i class="fa-solid fa-floppy-disk me-1"></i> تنفيذ</button>
+                                    </div>
+                                </form>
+                            </div>
+                        </div>
+
+                        <div class="col-md-6">
+                            <div class="info-box border-0 m-0 shadow-sm d-block control-card-3d" style="background: rgba(239, 68, 68, 0.05); border-right: 4px solid #ef4444 !important;">
+                                <label class="form-label fw-bold text-dark small mb-2"><i class="fa-solid fa-hand-holding-dollar text-danger me-1"></i> حد السحب المكشوف</label>
+                                <form action="/company/<%= company._id %>/update-limit" method="POST" class="row g-2 align-items-center">
+                                    <div class="col-8">
+                                        <input type="number" step="any" name="creditLimit" class="form-control text-center fw-bold mono-num unified-height border-0 shadow-sm" value="<%= company.creditLimit || 0 %>" placeholder="المبلغ" required>
+                                    </div>
+                                    <div class="col-4">
+                                        <button type="submit" class="btn btn-danger w-100 fw-bold btn-3d-hover unified-height justify-content-center shadow-sm">تحديث</button>
+                                    </div>
+                                </form>
+                            </div>
+                        </div>
+                        
+                        <div class="col-md-6">
+                            <div class="info-box border-0 m-0 shadow-sm d-block control-card-3d" style="background: rgba(14, 165, 233, 0.05); border-right: 4px solid #0ea5e9 !important;">
+                                <label class="form-label fw-bold text-dark small mb-2"><i class="fa-solid fa-layer-group text-info me-1"></i> مستوى التسعير</label>
+                                <form action="/company/<%= company._id %>/change-level" method="POST" class="row g-2 align-items-center">
+                                    <div class="col-8">
+                                        <select name="tier" class="form-select fw-bold text-center unified-height border-0 shadow-sm">
+                                            <option value="1" <%= company.tier === 1 ? 'selected' : '' %>>مستوى 1 (أساسي)</option>
+                                            <option value="2" <%= company.tier === 2 ? 'selected' : '' %>>مستوى 2 (متوسط)</option>
+                                            <option value="3" <%= company.tier === 3 ? 'selected' : '' %>>مستوى 3 (VIP)</option>
+                                        </select>
+                                    </div>
+                                    <div class="col-4">
+                                        <button type="submit" class="btn btn-info text-white w-100 fw-bold btn-3d-hover unified-height justify-content-center shadow-sm">تغيير</button>
+                                    </div>
+                                </form>
+                            </div>
+                        </div>
+
+                        <!-- 🟢 الإضافة الجديدة: مربع تخصيص سعر الصرف بتصميم متوافق 100% -->
+                        <div class="col-12">
+                            <div class="info-box border-0 m-0 shadow-sm d-block control-card-3d" style="background: rgba(139, 92, 246, 0.05); border-right: 4px solid var(--brand-primary) !important;">
+                                <label class="form-label fw-bold text-dark small mb-2"><i class="fa-solid fa-exchange-alt me-1" style="color: var(--brand-primary)"></i> تخصيص سعر الصرف للشركة (للربط الآلي API)</label>
+                                <form action="/company/<%= company._id %>/update-rate" method="POST" class="row g-2 align-items-center">
+                                    <div class="col-8">
+                                        <input type="number" step="0.001" name="exchangeRate" class="form-control text-center fw-bold mono-num unified-height border-0 shadow-sm" value="<%= company.exchangeRate || '' %>" placeholder="مثال: 6.10" required>
+                                    </div>
+                                    <div class="col-4">
+                                        <button type="submit" class="btn text-white w-100 fw-bold btn-3d-hover unified-height justify-content-center shadow-sm" style="background: var(--brand-primary);">حفظ السعر</button>
+                                    </div>
+                                </form>
+                            </div>
+                        </div>
+
+                        <div class="col-12 mt-1">
+                            <form action="/company/<%= company._id %>/toggle-status" method="POST" class="m-0" onsubmit="return confirm('تأكيد تعديل حالة الشركة؟');">
+                                <button type="submit" class="btn btn-<%= company.status === 'active' ? 'danger' : 'success' %> w-100 fw-bold unified-height justify-content-center rounded-3 shadow-sm btn-3d-hover d-flex align-items-center gap-2">
+                                    <i class="fa-solid fa-power-off"></i> <span><%= company.status === 'active' ? 'إيقاف وحظر الشركة نهائياً' : 'تنشيط وإعادة تشغيل البوت' %></span>
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <h5 class="fw-bold mb-3" style="color: var(--text-main);"><i class="fa-solid fa-clock-rotate-left text-primary me-2"></i> آخر 50 عملية للشركة</h5>
+        <div class="glass-card p-0 overflow-hidden">
+            <div class="table-responsive m-0 border-0">
+                <table class="table text-center align-middle m-0 table-hover">
+                    <thead class="table-light">
+                        <tr><th>الرقم</th><th>المبلغ (EGP)</th><th>التكلفة (LYD)</th><th>البيان / الحساب</th><th>الملاحظة</th><th>الوقت</th><th>الحالة</th></tr>
+                    </thead>
+                    <tbody>
+                        <% if(transactions.length === 0) { %>
+                            <tr><td colspan="7" class="py-4 text-muted fw-bold border-0"><i class="fa-solid fa-folder-open fs-2 d-block mb-2 opacity-25"></i>لا توجد عمليات.</td></tr>
+                        <% } %>
+                        <% transactions.forEach(tx => { %>
+                            <tr style="<%= tx.status === 'deposit' ? 'background: rgba(16, 185, 129, 0.05);' : (tx.status === 'deduction' ? 'background: rgba(239, 68, 68, 0.05);' : '') %>">
+                                <td class="fw-bold text-muted small mono-num">#<%= tx.customId || tx._id.toString().slice(-6) %></td>
+                                <td class="fw-bold mono-num fs-6 <%= tx.status === 'deposit' ? 'text-success' : 'text-primary' %>"><%= tx.amount.toFixed(2) %></td>
+                                <td class="fw-bold text-danger mono-num fs-6"><%= tx.costLYD ? tx.costLYD.toFixed(2) : '---' %></td>
+                                <td class="fw-bold text-dark small" dir="ltr"><%= tx.status === 'deposit' ? 'إيداع نقدي' : (tx.status === 'deduction' ? 'خصم مديونية' : (tx.vodafoneNumber || '---')) %></td>
+                                <td class="small text-muted text-wrap" style="max-width: 200px;"><%= tx.notes || '---' %></td>
+                                <td class="small mono-num opacity-75" dir="ltr"><%= new Date(tx.updatedAt).toLocaleString('en-GB') %></td>
+                                <td>
+                                    <% if(tx.status === 'completed') { %><span class="badge bg-success">منفذ</span>
+                                    <% } else if(tx.status === 'deposit') { %><span class="badge bg-primary">إيداع</span>
+                                    <% } else if(tx.status === 'deduction') { %><span class="badge bg-danger">خصم</span>
+                                    <% } else if(tx.status === 'rejected' || tx.status === 'cancelled_by_admin') { %><span class="badge bg-secondary">ملغي</span>
+                                    <% } else { %><span class="badge bg-warning text-dark">معلق</span><% } %>
+                                </td>
+                            </tr>
+                        <% }) %>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+    </div>
+</div>
+
+<script>
+    function toggleSidebar() { 
+        document.querySelector('.sidebar').classList.toggle('active');
+        document.querySelector('.sidebar-overlay').classList.toggle('active'); 
+    }
+</script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

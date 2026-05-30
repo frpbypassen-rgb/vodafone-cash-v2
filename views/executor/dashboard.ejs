@@ -1,0 +1,649 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>منصة التنفيذ | الأهرام</title>
+    
+    <script>
+        const savedTheme = localStorage.getItem('ahram_theme') || 'dark';
+        document.documentElement.setAttribute('data-theme', savedTheme);
+        document.documentElement.setAttribute('data-bs-theme', savedTheme);
+    </script>
+
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.rtl.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800;900&family=JetBrains+Mono:wght@700&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    
+    <style>
+        /* 🎨 المتغيرات (الوضع النهاري) */
+        :root { 
+            --bg-body: #f1f5f9;
+            --glass-bg: rgba(255, 255, 255, 0.9);
+            --glass-border: rgba(0, 0, 0, 0.08);
+            --text-main: #0f172a;
+            --text-muted: #64748b;
+            --accent-gold: #d4af37;
+            --accent-blue: #0ea5e9;
+            --accent-green: #10b981;
+            --accent-red: #ef4444;
+            --shadow-glass: 0 8px 32px 0 rgba(31, 38, 135, 0.05);
+            --card-hover: translateY(-5px);
+        }
+
+        /* 🌙 المتغيرات (الوضع الليلي) */
+        [data-theme="dark"] {
+            --bg-body: #0f172a;
+            --glass-bg: rgba(30, 41, 59, 0.85);
+            --glass-border: rgba(255, 255, 255, 0.08);
+            --text-main: #f8fafc;
+            --text-muted: #94a3b8;
+            --shadow-glass: 0 8px 32px 0 rgba(0, 0, 0, 0.3);
+            --accent-gold: #fbbf24;
+            --accent-blue: #3b82f6;
+        }
+
+        body { background-color: var(--bg-body); color: var(--text-main); font-family: 'Tajawal', sans-serif; transition: 0.3s; padding-bottom: 80px; overflow-x: hidden; }
+
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: var(--text-muted); border-radius: 10px; }
+
+        /* 🛸 Navbar Glassmorphism */
+        .navbar-glass {
+            background: var(--glass-bg); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
+            border-bottom: 1px solid var(--glass-border); padding: 15px 20px; position: sticky; top: 0; z-index: 1000; box-shadow: var(--shadow-glass);
+            display: flex; justify-content: space-between; align-items: center; gap: 15px; margin-bottom: 30px; transition: 0.3s;
+        }
+
+        .executor-info { display: flex; align-items: center; gap: 12px; }
+        .executor-avatar { width: 45px; height: 45px; border-radius: 12px; background: rgba(212, 175, 55, 0.1); color: var(--accent-gold); display: flex; align-items: center; justify-content: center; font-size: 1.5rem; border: 1px solid rgba(212, 175, 55, 0.3); }
+        .executor-name { font-weight: 900; font-size: 1.1rem; margin: 0; color: var(--text-main); letter-spacing: -0.5px;}
+        .executor-role { font-size: 0.75rem; color: var(--text-muted); font-weight: 700; }
+
+        .nav-actions { display: flex; gap: 8px; align-items: center; }
+        .nav-btn { background: transparent; border: 1px solid var(--glass-border); color: var(--text-main); padding: 8px 16px; border-radius: 10px; font-weight: 700; text-decoration: none; transition: 0.3s; display: inline-flex; align-items: center; justify-content: center; gap: 6px; font-size: 0.9rem; }
+        .nav-btn:hover { background: var(--glass-border); transform: translateY(-2px); }
+        .btn-deposit { background: rgba(212, 175, 55, 0.1); color: var(--accent-gold); border-color: rgba(212, 175, 55, 0.3); }
+        .btn-deposit:hover { background: var(--accent-gold); color: #000; }
+        .btn-logout { background: rgba(239, 68, 68, 0.1); color: var(--accent-red); border-color: rgba(239, 68, 68, 0.3); }
+        .btn-logout:hover { background: var(--accent-red); color: white; }
+        .btn-theme { padding: 8px 12px; border-radius: 50%; color: var(--accent-gold); }
+        
+        /* 📡 Radar Animation */
+        .radar-box { display: flex; align-items: center; gap: 10px; }
+        .pulse-dot { width: 12px; height: 12px; background-color: var(--accent-green); border-radius: 50%; position: relative; }
+        .pulse-dot::after { content: ''; position: absolute; width: 100%; height: 100%; top: 0; left: 0; background-color: var(--accent-green); border-radius: 50%; animation: radarPulse 1.5s infinite; z-index: -1; }
+        @keyframes radarPulse { 0% { transform: scale(1); opacity: 0.8; } 100% { transform: scale(3); opacity: 0; } }
+
+        /* ⚡ Task Cards */
+        .task-card { background: var(--glass-bg); backdrop-filter: blur(12px); border: 1px solid var(--glass-border); border-radius: 20px; padding: 20px; transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1); box-shadow: var(--shadow-glass); height: 100%; display: flex; flex-direction: column; position: relative; overflow: hidden; }
+        
+        .task-card::before { content: ''; position: absolute; top: 0; right: 0; width: 5px; height: 100%; background: var(--accent-gold); transition: 0.3s; }
+        .task-card:hover { transform: var(--card-hover); box-shadow: 0 15px 35px rgba(0,0,0,0.1); border-color: var(--accent-gold); }
+        [data-theme="dark"] .task-card:hover { box-shadow: 0 15px 35px rgba(0,0,0,0.4); border-color: rgba(255,255,255,0.15); }
+        
+        [data-theme="dark"] .task-mine { background: linear-gradient(145deg, rgba(16, 185, 129, 0.08) 0%, var(--glass-bg) 100%); border-color: rgba(16, 185, 129, 0.3); }
+        [data-theme="light"] .task-mine { background: linear-gradient(145deg, rgba(16, 185, 129, 0.05) 0%, #ffffff 100%); border-color: rgba(16, 185, 129, 0.3); }
+        .task-mine::before { background: var(--accent-green); box-shadow: 0 0 15px var(--accent-green); }
+        
+        .task-locked { opacity: 0.65; filter: grayscale(40%); }
+        .task-locked::before { background: var(--text-muted); }
+
+        .task-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 15px; border-bottom: 1px dashed var(--glass-border); padding-bottom: 10px; }
+        .task-id { font-size: 1.1rem; font-weight: 900; color: var(--text-muted); font-family: 'JetBrains Mono', monospace;}
+        .cyber-badge { padding: 4px 10px; border-radius: 8px; font-size: 0.75rem; font-weight: 800; display: inline-flex; align-items: center; gap: 4px; }
+        
+        .badge-pending { background: rgba(212, 175, 55, 0.1); color: var(--accent-gold); border: 1px solid rgba(212, 175, 55, 0.2); }
+        .badge-mine { background: rgba(16, 185, 129, 0.1); color: var(--accent-green); border: 1px solid rgba(16, 185, 129, 0.2); }
+        .badge-locked { background: rgba(100, 116, 139, 0.1); color: #64748b; border: 1px solid rgba(100, 116, 139, 0.2); }
+
+        .data-label { font-size: 0.8rem; color: var(--text-muted); font-weight: 700; margin-bottom: 5px; display: block; }
+        
+        .copy-box { background: rgba(0,0,0,0.03); border: 1px solid var(--glass-border); padding: 10px 15px; border-radius: 12px; cursor: pointer; transition: 0.2s; display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; }
+        [data-theme="dark"] .copy-box { background: rgba(255,255,255,0.03); }
+        .copy-box:hover { border-color: var(--accent-blue); background: rgba(14, 165, 233, 0.1); }
+        .copy-box:active { transform: scale(0.97); }
+        
+        .copy-val { font-size: 1.2rem; font-weight: 900; color: var(--text-main); font-family: 'JetBrains Mono', Tahoma, sans-serif; letter-spacing: 1px; word-break: break-all;}
+        .copy-val.amount { color: var(--accent-green); font-size: 1.5rem; text-shadow: 0 0 10px rgba(16, 185, 129, 0.1); }
+        .copy-icon { color: var(--text-muted); font-size: 1rem; transition: 0.2s;}
+        .copy-box:hover .copy-icon { color: var(--accent-blue); }
+
+        .tx-notes { background: rgba(212, 175, 55, 0.05); border-right: 3px solid var(--accent-gold); padding: 8px 10px; border-radius: 8px; font-size: 0.8rem; font-weight: 700; color: var(--text-main); margin-bottom: 15px; line-height: 1.4; }
+        .tx-beneficiary { background: rgba(14, 165, 233, 0.05); border-right: 3px solid var(--accent-blue); padding: 8px 10px; border-radius: 8px; font-size: 0.8rem; font-weight: 700; color: var(--text-main); margin-bottom: 15px; line-height: 1.4; }
+
+        /* 🔘 منطقة الأزرار السفلية */
+        .action-zone { margin-top: auto; padding-top: 15px; border-top: 1px dashed var(--glass-border); display: flex; flex-direction: column; gap: 8px; }
+        
+        .btn-cyber-main { background: linear-gradient(45deg, #10b981, #059669); color: white; border: none; padding: 12px; border-radius: 12px; font-weight: 800; font-size: 1rem; transition: 0.3s; display: flex; align-items: center; justify-content: center; gap: 8px; box-shadow: 0 4px 10px rgba(16, 185, 129, 0.3); cursor: pointer; width: 100%; }
+        .btn-cyber-main:hover { transform: translateY(-2px); box-shadow: 0 6px 15px rgba(16, 185, 129, 0.4); filter: brightness(1.1); color: white;}
+
+        .horizontal-actions { display: flex; flex-direction: row; gap: 8px; width: 100%; }
+        
+        .btn-cyber-sub { flex: 1; padding: 10px 5px; border-radius: 10px; font-weight: 800; font-size: 0.85rem; background: rgba(0,0,0,0.03); border: 1px solid var(--glass-border); color: var(--text-main); transition: 0.2s; display: flex; align-items: center; justify-content: center; gap: 5px; cursor: pointer; white-space: nowrap; overflow: hidden; }
+        [data-theme="dark"] .btn-cyber-sub { background: rgba(255,255,255,0.03); }
+        
+        .btn-cyber-sub.btn-warning-neon:hover { background: rgba(245, 158, 11, 0.1); border-color: rgba(245, 158, 11, 0.3); color: #d97706; }
+        [data-theme="dark"] .btn-cyber-sub.btn-warning-neon:hover { color: #fcd34d; border-color: rgba(251, 191, 36, 0.4); }
+
+        .btn-cyber-sub.btn-info-neon:hover { background: rgba(14, 165, 233, 0.1); border-color: rgba(14, 165, 233, 0.3); color: #0284c7; }
+        [data-theme="dark"] .btn-cyber-sub.btn-info-neon:hover { color: #7dd3fc; border-color: rgba(56, 189, 248, 0.4); }
+
+        .btn-cyber-sub.btn-danger-neon:hover { background: rgba(239, 68, 68, 0.1); border-color: rgba(239, 68, 68, 0.3); color: #dc2626; }
+        [data-theme="dark"] .btn-cyber-sub.btn-danger-neon:hover { color: #fca5a5; border-color: rgba(248, 113, 113, 0.4); }
+
+        .btn-accept-start { background: linear-gradient(45deg, #0ea5e9, #2563eb); color: white; width: 100%; padding: 12px; border-radius: 12px; font-weight: 800; border: none; box-shadow: 0 4px 10px rgba(14, 165, 233, 0.3); transition: 0.3s; }
+        .btn-accept-start:hover { transform: translateY(-2px); box-shadow: 0 6px 15px rgba(14, 165, 233, 0.4); color: white;}
+
+        /* 📱 شاشات الهواتف الذكية */
+        @media (max-width: 768px) {
+            .navbar-glass { flex-direction: column; gap: 15px; padding: 15px; border-radius: 0 0 20px 20px;}
+            .executor-info { width: 100%; justify-content: center; }
+            .nav-actions { width: 100%; justify-content: center; flex-wrap: wrap; gap: 8px;}
+            .nav-btn { flex: 1 1 calc(33% - 8px); padding: 8px 5px; font-size: 0.8rem; }
+            .task-card { padding: 15px; border-radius: 16px; }
+            .copy-val { font-size: 1.1rem; }
+            .copy-val.amount { font-size: 1.3rem; }
+            .copy-box { padding: 8px 12px; }
+            .btn-text-hide { display: none; }
+            .btn-cyber-sub { padding: 10px; font-size: 1rem;} 
+        }
+
+        @media (min-width: 769px) {
+            .btn-text-hide { display: inline; }
+        }
+
+        /* 🚨 نظام الطوارئ الشامل والمودال */
+        #emergencyOverlay { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(220, 38, 38, 0.95); z-index: 999999; display: none; flex-direction: column; justify-content: center; align-items: center; text-align: center; backdrop-filter: blur(15px); animation: redAlert 1s infinite alternate; }
+        @keyframes redAlert { 0% { background: rgba(220, 38, 38, 0.95); } 100% { background: rgba(153, 27, 27, 0.98); } }
+        .shake-icon { font-size: 7rem; color: white; margin-bottom: 20px; animation: shake 0.5s infinite; filter: drop-shadow(0 0 20px rgba(255,255,255,0.8));}
+        @keyframes shake { 0%, 100% { transform: translateX(0) rotate(0); } 25% { transform: translateX(-15px) rotate(-15deg); } 75% { transform: translateX(15px) rotate(15deg); } }
+
+        .modal-content { background: var(--glass-bg); backdrop-filter: blur(20px); border: 1px solid var(--glass-border); border-radius: 24px; color: var(--text-main); box-shadow: var(--shadow-glass);}
+        .modal-header { border-bottom: 1px dashed var(--glass-border); }
+        .form-control { background: rgba(0,0,0,0.05); border: 1px solid var(--glass-border); color: var(--text-main); border-radius: 12px; padding: 12px; font-weight: bold;}
+        [data-theme="dark"] .form-control { background: rgba(255,255,255,0.05); }
+        .form-control:focus { background: transparent; border-color: var(--accent-blue); box-shadow: 0 0 0 3px rgba(14, 165, 233, 0.1); color: var(--text-main); }
+        
+        .drop-zone { border: 2px dashed rgba(16, 185, 129, 0.4); border-radius: 16px; padding: 25px; text-align: center; cursor: pointer; transition: 0.3s; background: rgba(16, 185, 129, 0.05); }
+        .drop-zone:hover { border-color: var(--accent-green); background: rgba(16, 185, 129, 0.1); }
+        .preview-badge-remove { position: absolute; top: -5px; left: -5px; width: 22px; height: 22px; background: var(--accent-red); color: white; border-radius: 50%; display: flex; align-items: center; justify-content: center; border: none; cursor: pointer; box-shadow: 0 4px 10px rgba(239, 68, 68, 0.4); z-index: 10; font-size: 10px;}
+
+        /* SweetAlert */
+        .swal2-popup { background: var(--glass-bg) !important; backdrop-filter: blur(15px); color: var(--text-main) !important; border: 1px solid var(--glass-border); border-radius: 20px !important; }
+        .swal2-title, .swal2-html-container { color: var(--text-main) !important; }
+        .swal2-input, .swal2-textarea { background: rgba(0,0,0,0.05) !important; color: var(--text-main) !important; border-color: var(--glass-border) !important; border-radius: 10px !important;}
+        [data-theme="dark"] .swal2-input, [data-theme="dark"] .swal2-textarea { background: rgba(255,255,255,0.05) !important; }
+    </style>
+</head>
+<body>
+
+<div id="emergencyOverlay">
+    <i class="fa-solid fa-radiation shake-icon"></i>
+    <h1 class="text-white fw-900 mb-3 px-3" style="font-size: 2.5rem; text-shadow: 0 4px 10px rgba(0,0,0,0.5);">🚨 إنذار طارئ! 🚨</h1>
+    <h4 id="emergencyMessage" class="text-white fw-bold mb-5 px-4" style="line-height: 1.8; max-width: 700px; text-shadow: 0 2px 5px rgba(0,0,0,0.5);">يوجد طلب متأخر يجب سحبه فوراً!</h4>
+    <button onclick="dismissEmergency(event)" class="btn btn-light fw-900 px-5 py-4 fs-3 text-danger shadow-lg" style="border-radius: 50px; border: 4px solid white; transition: 0.2s;">
+        <i class="fa-solid fa-volume-xmark me-3"></i> إيقـاف الإنـذار 🔇
+    </button>
+</div>
+
+<script>const myTelegramId = '<%= emp.telegramId %>';</script>
+
+<nav class="navbar-glass">
+    <div class="executor-info">
+        <div class="executor-avatar"><i class="fa-solid fa-user-astronaut"></i></div>
+        <div>
+            <h4 class="executor-name"><%= emp.name %></h4>
+            <span class="executor-role"><i class="fa-solid fa-network-wired me-1"></i> غرفة العمليات: <%= emp.botId.name %></span>
+        </div>
+    </div>
+    <div class="nav-actions">
+        <button class="nav-btn btn-theme shadow-sm" onclick="toggleTheme()" title="المظهر"><i class="fa-solid fa-moon" id="themeIcon"></i></button>
+        <button onclick="requestDeposit()" class="nav-btn btn-deposit"><i class="fa-solid fa-hand-holding-dollar me-1"></i> <span class="d-none d-sm-inline">عهدة</span></button>
+        <a href="/executor-portal/dashboard" class="nav-btn active"><i class="fa-solid fa-satellite-dish me-1"></i> <span class="d-none d-sm-inline">الرادار</span></a>
+        <a href="/executor-portal/reports" class="nav-btn"><i class="fa-solid fa-file-invoice me-1"></i> <span class="d-none d-sm-inline">السجل</span></a>
+        <a href="/executor-portal/support" class="nav-btn"><i class="fa-solid fa-headset me-1 text-info"></i> <span class="d-none d-sm-inline">الإدارة</span></a>
+        <a href="/executor-portal/logout" class="nav-btn btn-logout"><i class="fa-solid fa-power-off"></i></a>
+    </div>
+</nav>
+
+<div class="container-fluid px-3 px-md-4 mt-2 mb-5">
+    <div class="radar-box mb-4 px-2">
+        <div class="pulse-dot"></div>
+        <h4 class="fw-bold m-0" style="color: var(--text-main);">الرادار <span class="fs-6 fw-normal text-muted ms-1">(نظام الطابور)</span></h4>
+    </div>
+    
+    <div id="tasksList" class="row g-3 g-xl-4"></div>
+</div>
+
+<div class="modal fade" id="uploadModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered px-2">
+        <div class="modal-content">
+            <div class="modal-header border-0 pb-0 pt-4 px-4">
+                <h5 class="modal-title fw-bold" style="color: var(--accent-green);"><i class="fa-solid fa-cloud-arrow-up me-2"></i> توثيق وإنهاء العملية</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" onclick="resetUploadModal()" style="filter: invert(0.5);"></button>
+            </div>
+            <div class="modal-body p-4">
+                <div id="dropZone" class="drop-zone mb-3">
+                    <i class="fa-solid fa-images fs-2 mb-2" style="color: var(--accent-green); filter: drop-shadow(0 0 10px rgba(16,185,129,0.3));"></i>
+                    <h6 class="mb-1 fw-bold">اضغط أو الصق الصورة (Paste)</h6>
+                    <p class="text-muted small m-0" style="font-size: 0.75rem;">يمكنك إرفاق صور متعددة</p>
+                    <input type="file" id="proofInput" class="d-none" accept="image/*" multiple>
+                </div>
+                
+                <div id="previewsGrid" class="row g-2 mb-3"></div>
+
+                <div class="mb-4">
+                    <label class="data-label mb-2"><i class="fa-solid fa-mobile-screen me-1"></i> رقم هاتف المُرسل (اختياري)</label>
+                    <input type="number" id="senderPhoneInput" class="form-control fw-bold text-center val-phone" placeholder="010..." dir="ltr">
+                </div>
+                
+                <button id="btnFinish" class="btn-cyber-main w-100 m-0">
+                    <i class="fa-solid fa-check-double me-2"></i> تأكيد التنفيذ والإرسال <kbd class="ms-2 bg-dark bg-opacity-25 border-0 text-white px-2 py-1 rounded" style="font-size: 0.75rem; font-family: sans-serif;">Enter ↵</kbd>
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<audio id="sirenSound" src="https://assets.mixkit.co/active_storage/sfx/991/991-preview.mp3" loop preload="auto"></audio>
+<audio id="alertSound" src="https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3" preload="auto"></audio>
+
+<script>
+    // 🌓 Theme Logic
+    function toggleTheme() {
+        const html = document.documentElement;
+        const currentTheme = html.getAttribute('data-theme');
+        const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+        html.setAttribute('data-theme', newTheme);
+        html.setAttribute('data-bs-theme', newTheme);
+        localStorage.setItem('ahram_theme', newTheme);
+        document.getElementById('themeIcon').className = newTheme === 'dark' ? 'fa-solid fa-sun text-warning' : 'fa-solid fa-moon text-dark';
+    }
+    document.addEventListener('DOMContentLoaded', () => {
+        const theme = localStorage.getItem('ahram_theme') || 'dark';
+        document.getElementById('themeIcon').className = theme === 'dark' ? 'fa-solid fa-sun text-warning' : 'fa-solid fa-moon text-dark';
+    });
+
+    let activeTasksIds = [];
+    let currentCompletingId = null; 
+    let currentEmergencyId = null; 
+    let selectedFilesArray = [];
+    let lastTasksHash = '';
+    // 🚀 ذاكرة ذكية تمنع إعادة عرض أي إنذار تم إيقافه محلياً
+    let dismissedAlertsIds = new Set();
+    
+    // 📤 Upload Logic
+    const dropZone = document.getElementById('dropZone'); const proofInput = document.getElementById('proofInput'); const previewsGrid = document.getElementById('previewsGrid');
+    dropZone.onclick = () => proofInput.click();
+    dropZone.ondragover = (e) => { e.preventDefault(); dropZone.style.borderColor = 'var(--accent-green)'; dropZone.style.background = 'rgba(16, 185, 129, 0.1)'; };
+    dropZone.ondragleave = (e) => { e.preventDefault(); dropZone.style.borderColor = 'rgba(16, 185, 129, 0.4)'; dropZone.style.background = 'rgba(16, 185, 129, 0.05)'; };
+    dropZone.ondrop = (e) => { e.preventDefault(); dropZone.style.borderColor = 'rgba(16, 185, 129, 0.4)'; dropZone.style.background = 'rgba(16, 185, 129, 0.05)'; if (e.dataTransfer.files.length) handleIncomingFiles(e.dataTransfer.files); };
+    proofInput.onchange = (e) => { if (e.target.files.length) handleIncomingFiles(e.target.files); };
+    window.addEventListener('paste', e => {
+        if(document.getElementById('uploadModal').classList.contains('show')) {
+            const items = (e.clipboardData || e.originalEvent.clipboardData).items; let pastedFiles = [];
+            for (let index in items) { const item = items[index]; if (item.kind === 'file' && item.type.startsWith('image/')) pastedFiles.push(item.getAsFile()); }
+            if(pastedFiles.length > 0) handleIncomingFiles(pastedFiles);
+        }
+    });
+
+    // ⌨️ دعم الضغط على زر Enter لتأكيد الإرسال
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Enter') {
+            if (document.body.classList.contains('swal2-shown')) return; 
+            const uploadModal = document.getElementById('uploadModal');
+            if (uploadModal && uploadModal.classList.contains('show')) {
+                e.preventDefault(); 
+                const btnFinish = document.getElementById('btnFinish');
+                if (btnFinish && !btnFinish.disabled) {
+                    if (selectedFilesArray.length > 0) {
+                        btnFinish.click();
+                    } else {
+                        Swal.fire({
+                            title: 'تنبيه', text: 'يجب إرفاق صورة إثبات واحدة على الأقل قبل التأكيد', icon: 'warning', customClass: { popup: 'swal2-popup' }
+                        });
+                    }
+                }
+            }
+        }
+    });
+
+    function handleIncomingFiles(files) {
+        for (let i = 0; i < files.length; i++) {
+            if (!files[i].type.startsWith('image/')) { Swal.fire('خطأ', 'يرجى اختيار صور فقط.', 'error'); continue; }
+            selectedFilesArray.push(files[i]);
+        }
+        renderImagesGrid();
+    }
+    
+    function renderImagesGrid() {
+        previewsGrid.innerHTML = '';
+        if (selectedFilesArray.length === 0) return;
+        selectedFilesArray.forEach((file, index) => {
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                const gridCol = document.createElement('div'); gridCol.className = 'col-4 position-relative mb-2';
+                gridCol.innerHTML = `
+                    <div class="position-relative rounded-3 overflow-hidden shadow-sm" style="height: 80px; border: 1px solid var(--glass-border);">
+                        <img src="${e.target.result}" style="width: 100%; height: 100%; object-fit: cover;">
+                        <button type="button" onclick="removeImageFromList(${index})" class="preview-badge-remove"><i class="fa-solid fa-xmark"></i></button>
+                    </div>`;
+                previewsGrid.appendChild(gridCol);
+            };
+            reader.readAsDataURL(file);
+        });
+    }
+
+    function removeImageFromList(index) { selectedFilesArray.splice(index, 1); renderImagesGrid(); }
+    function resetUploadModal() { selectedFilesArray = []; proofInput.value = ''; previewsGrid.innerHTML = ''; document.getElementById('senderPhoneInput').value = ''; }
+
+    function compressSingleImagePromise(file) {
+        return new Promise((resolve) => {
+            const reader = new FileReader();
+            reader.onload = function(event) {
+                const img = new Image();
+                img.onload = function() {
+                    const canvas = document.createElement('canvas'); const MAX_WIDTH = 1200; const MAX_HEIGHT = 1600;
+                    let width = img.width; let height = img.height;
+                    if (width > height) { if (width > MAX_WIDTH) { height *= MAX_WIDTH / width; width = MAX_WIDTH; } } 
+                    else { if (height > MAX_HEIGHT) { width *= MAX_HEIGHT / height; height = MAX_HEIGHT; } }
+                    canvas.width = width; canvas.height = height; const ctx = canvas.getContext('2d'); ctx.drawImage(img, 0, 0, width, height);
+                    resolve(canvas.toDataURL('image/jpeg', 0.6));
+                }
+                img.src = event.target.result;
+            }
+            reader.readAsDataURL(file);
+        });
+    }
+
+    // 📋 النسخ الذكي
+    function copyText(text, element) {
+        if (!text || text === '---') return;
+        if (navigator.clipboard && window.isSecureContext) navigator.clipboard.writeText(text);
+        else { let t = document.createElement("textarea"); t.value = text; t.style.position = "fixed"; t.style.left = "-9999px"; document.body.appendChild(t); t.focus(); t.select(); try { document.execCommand('copy'); } catch (err) {} t.remove(); }
+        
+        const originalHtml = element.innerHTML;
+        element.style.borderColor = "var(--accent-green)";
+        element.style.background = "rgba(16, 185, 129, 0.1)";
+        element.innerHTML = '<b class="val-phone text-success m-auto"><i class="fa-solid fa-check"></i> نُسخ!</b>';
+        setTimeout(() => { element.innerHTML = originalHtml; element.style.borderColor = ""; element.style.background = ""; }, 1000);
+    }
+
+    // 📡 جلب البيانات وفرز الكروت الديناميكي (Smart Sorting FIFO)
+    async function refreshTasks() {
+        try {
+            const res = await fetch('/executor-portal/api/live-tasks');
+            const data = await res.json();
+            
+            // 🚨 الطوارئ الذكية: تحديد إذا كان الموظف مشغولاً أم لا
+            const amIBusy = data.tasks.some(t => t.operatorId === myTelegramId && t.status === 'accepted');
+            let targetAlert = null;
+            if (data.alerts && data.alerts.length > 0) {
+                targetAlert = data.alerts.find(a => {
+                    if (dismissedAlertsIds.has(a._id)) return false;
+                    if (amIBusy) return a.operatorId === myTelegramId;
+                    else return a.status === 'processing';
+                });
+            }
+
+            if (targetAlert) {
+                if (currentEmergencyId !== targetAlert._id) {
+                    currentEmergencyId = targetAlert._id;
+                    document.getElementById('emergencyMessage').innerHTML = `الطلب رقم: <code style="color:var(--accent-gold);">${targetAlert.customId}</code><br><br>${targetAlert.emergencyAlert}`;
+                    document.getElementById('emergencyOverlay').style.display = 'flex';
+                    const siren = document.getElementById('sirenSound');
+                    siren.volume = 1.0;
+                    const playPromise = siren.play();
+                    if (playPromise !== undefined) {
+                        playPromise.catch(error => { console.warn("المتصفح منع تشغيل الصوت تلقائياً."); });
+                    }
+                }
+            } else {
+                document.getElementById('emergencyOverlay').style.display = 'none';
+                document.getElementById('sirenSound').pause(); 
+                document.getElementById('sirenSound').currentTime = 0; 
+                currentEmergencyId = null;
+            }
+
+            // 💰 تنبيهات الإيداع
+            if (data.depAlerts && data.depAlerts.length > 0) {
+                for (const alertTx of data.depAlerts) {
+                    const alertData = alertTx.executorWebAlert;
+                    await Swal.fire({ title: alertData.type === 'success' ? 'إشعار إيداع' : 'تم الرفض', html: `<div class="fw-bold text-${alertData.type === 'success' ? 'success' : 'danger'}">${alertData.text}</div>`, icon: alertData.type, confirmButtonText: 'حسناً', confirmButtonColor: '#10b981' });
+                    await fetch('/executor-portal/api/clear-dep-alert/' + alertTx._id, { method: 'POST' });
+                }
+            }
+
+            const container = document.getElementById('tasksList');
+            const newTasks = data.tasks.filter(t => !activeTasksIds.includes(t._id));
+            if (newTasks.length > 0 && !currentEmergencyId) document.getElementById('alertSound').play().catch(()=>{});
+            activeTasksIds = data.tasks.map(t => t._id);
+            
+            // 🔒 فحص الـ Hash لمنع إعادة الرسم والوميض
+            const currentTasksHash = JSON.stringify(data.tasks);
+            if (currentTasksHash !== lastTasksHash) {
+                lastTasksHash = currentTasksHash;
+                
+                // 🚀 الفرز الذكي (Smart Sorting FIFO) - نظام الطابور المطور
+                let myTasks = [];
+                let pendingTasks = [];
+                let othersTasks = [];
+
+                data.tasks.forEach(t => {
+                    if (t.operatorId === myTelegramId && t.status === 'accepted') myTasks.push(t); 
+                    else if (t.status === 'processing') pendingTasks.push(t); 
+                    else othersTasks.push(t); 
+                });
+                
+                const smartSortedTasks = [...myTasks, ...pendingTasks, ...othersTasks];
+                let html = '';
+                
+                smartSortedTasks.forEach(t => {
+                    const isMine = t.operatorId === myTelegramId;
+                    const acceptedByOther = t.status === 'accepted' && !isMine;
+
+                    let cardClass = isMine ? 'task-mine' : (acceptedByOther ? 'task-locked' : 'task-pending');
+                    let badgeClass = isMine ? 'badge-mine' : (acceptedByOther ? 'badge-locked' : 'badge-pending');
+                    let badgeText = isMine ? '<i class="fa-solid fa-bolt me-1"></i> معك' : (acceptedByOther ? '<i class="fa-solid fa-lock me-1"></i> لزميل' : '<i class="fa-solid fa-circle-dot fa-fade me-1"></i> متاح');
+
+                    let typeLabel = t.transferType === 'post_account' ? '<i class="fa-solid fa-envelope text-warning"></i> بريد' : 
+                                   (t.transferType === 'post_card' ? '<i class="fa-solid fa-id-card text-info"></i> بطاقة' : '<i class="fa-solid fa-mobile-screen text-danger"></i> كاش');
+
+                    // 🟢 استخلاص وإخفاء سجل الـ API
+                    let displayNote = t.notes || '';
+                    let hasApiLog = false;
+                    let rawLog = '';
+                    
+                    if (displayNote.includes('--- سجل الـ API (Terminal Log) ---')) {
+                        hasApiLog = true; rawLog = encodeURIComponent(displayNote);
+                        displayNote = displayNote.split('--- سجل الـ API (Terminal Log) ---')[0].trim();
+                    } else if (displayNote.includes('--- سجل الـ API ---')) {
+                        hasApiLog = true; rawLog = encodeURIComponent(displayNote);
+                        displayNote = displayNote.split('--- سجل الـ API ---')[0].trim();
+                    } else if (displayNote.includes('--- سجل الـ API')) {
+                        hasApiLog = true; rawLog = encodeURIComponent(displayNote);
+                        displayNote = displayNote.split('--- سجل الـ API')[0].trim();
+                    }
+
+                    html += `
+                        <div class="col-12 col-md-6 col-lg-4 col-xl-3">
+                            <div class="task-card ${cardClass}">
+                                <div>
+                                    <div class="task-header">
+                                        <span class="cyber-badge ${badgeClass}">${badgeText}</span>
+                                        <span class="task-id">#${t.customId}</span>
+                                    </div>
+                                    
+                                    <div class="mb-3 d-flex justify-content-between align-items-center p-2 rounded-3" style="background: rgba(128,128,128,0.05); border: 1px solid var(--glass-border);">
+                                        <span class="data-label m-0"><i class="fa-solid fa-stopwatch text-warning me-1"></i> وقت الانتظار:</span>
+                                        <span class="fw-bold fs-5 live-timer" data-time="${t.createdAt}" style="color: var(--text-main); font-family: monospace;">0s</span>
+                                    </div>
+
+                                    <div class="mb-2">
+                                        <span class="data-label">${typeLabel} الرقم / الحساب:</span>
+                                        <div class="copy-box" onclick="copyText('${t.vodafoneNumber || t.accountNumber}', this)">
+                                            <span class="copy-val" dir="ltr">${t.vodafoneNumber || t.accountNumber || '---'}</span>
+                                            <i class="fa-regular fa-copy copy-icon"></i>
+                                        </div>
+                                    </div>
+
+                                    <div class="mb-3">
+                                        <span class="data-label">المبلغ المطلوب (EGP):</span>
+                                        <div class="copy-box" onclick="copyText('${t.amount}', this)" style="border-color: rgba(16, 185, 129, 0.3);">
+                                            <span class="copy-val amount">${t.amount}</span>
+                                            <i class="fa-solid fa-sack-dollar copy-icon" style="color: var(--accent-green);"></i>
+                                        </div>
+                                    </div>
+
+                                    ${displayNote ? `<div class="tx-notes"><i class="fa-solid fa-comment-dots me-1 opacity-50"></i> ${displayNote}</div>` : ''}
+                                    ${t.accountName && t.transferType !== 'vodafone' ? `<div class="tx-beneficiary"><i class="fa-solid fa-user me-1 opacity-50"></i> ${t.accountName.replace(/\n/g, '<br>')}</div>` : ''}
+                                </div>
+                                
+                                <div class="action-zone border-0">
+                                    ${hasApiLog ? `<button data-log="${rawLog}" onclick="showApiLogBtn(this)" class="btn-cyber-main mb-2" style="background: linear-gradient(45deg, #0f172a, #1e293b); color: #10b981; border: 1px solid rgba(16, 185, 129, 0.4);"><i class="fa-solid fa-terminal"></i> سجل السيرفر (API)</button>` : ''}
+                                    ${acceptedByOther ? `<div class="p-2 rounded-3 text-center fw-bold text-muted border w-100 small" style="background: rgba(0,0,0,0.05);"><i class="fa-solid fa-user-gear me-1"></i> يُنفذ بواسطة: ${t.executorName}</div>` : 
+                                      isMine ? `
+                                         <button onclick="openUpload('${t._id}')" class="btn-cyber-main mb-1"><i class="fa-solid fa-cloud-arrow-up"></i> إرفاق وإنهاء</button>
+                                         <div class="horizontal-actions">
+                                            <button onclick="editAmount('${t._id}')" class="btn-cyber-sub btn-warning-neon" title="تعديل المبلغ"><i class="fa-solid fa-pen-to-square"></i> <span class="btn-text-hide ms-1">تعديل</span></button>
+                                            <button onclick="returnTask('${t._id}')" class="btn-cyber-sub btn-info-neon" title="إرجاع الطلب للإدارة"><i class="fa-solid fa-reply"></i> <span class="btn-text-hide ms-1">إرجاع</span></button>
+                                            <button onclick="cancelTask('${t._id}')" class="btn-cyber-sub btn-danger-neon" title="إلغاء لخطأ في الرقم"><i class="fa-solid fa-xmark"></i> <span class="btn-text-hide ms-1">إلغاء</span></button>
+                                         </div>
+                                        ` : `<button onclick="acceptTask('${t._id}')" class="btn-accept-start"><i class="fa-solid fa-bolt me-1"></i> اسحب ونفذ فوراً</button>`
+                                    }
+                                </div>
+                            </div>
+                        </div>`;
+                });
+                container.innerHTML = html || '<div class="col-12"><div class="text-center p-5 fw-bold" style="color: var(--text-muted);"><i class="fa-solid fa-mug-hot fs-1 mb-3 opacity-25"></i><br>الرادار هادئ، أنتظر طلبات جديدة...</div></div>';
+            }
+        } catch(e) {}
+    }
+
+    // ⏱️ تحديث العدادات الزمنية بشكل حي في الشاشة
+    setInterval(() => {
+        document.querySelectorAll('.live-timer').forEach(el => {
+            const createdTime = new Date(el.getAttribute('data-time')).getTime();
+            const diffMs = Date.now() - createdTime;
+            const diffSec = Math.floor(diffMs / 1000);
+            
+            if (diffSec >= 0) {
+                let text = '';
+                if (diffSec < 60) text = `${diffSec} ثانية`;
+                else { const m = Math.floor(diffSec / 60); const s = diffSec % 60; text = `${m} دقيقة و ${s} ث`; }
+                el.innerText = text;
+
+                if (diffSec >= 120) { el.style.color = 'var(--accent-red)'; el.classList.add('fa-fade'); } 
+                else if (diffSec >= 60) { el.style.color = 'var(--accent-gold)'; el.classList.remove('fa-fade'); } 
+                else { el.style.color = 'var(--text-main)'; el.classList.remove('fa-fade'); }
+            }
+        });
+    }, 1000);
+
+    // 🎯 الزر التفاعلي (إيقاف الإنذار)
+    async function dismissEmergency(event) {
+        if (!currentEmergencyId) return;
+        const tempId = currentEmergencyId;
+        dismissedAlertsIds.add(tempId);
+        
+        document.getElementById('sirenSound').pause();
+        document.getElementById('sirenSound').currentTime = 0; 
+        document.getElementById('emergencyOverlay').style.display = 'none'; 
+        currentEmergencyId = null; 
+
+        try { await fetch('/executor-portal/api/clear-alert/' + tempId, { method: 'POST' }); } catch(e) {}
+    }
+
+    async function requestDeposit() {
+        const { value: amount } = await Swal.fire({ title: 'طلب إيداع عهدة', input: 'number', inputPlaceholder: 'المبلغ...', showCancelButton: true, confirmButtonText: 'إرسال', cancelButtonText: 'إلغاء', confirmButtonColor: '#10b981' });
+        if (amount) {
+            Swal.fire({ title: 'جاري الإرسال...', didOpen: () => Swal.showLoading() });
+            try { const res = await fetch('/executor-portal/api/request-deposit', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ amount }) });
+            if ((await res.json()).success) Swal.fire('تم الإرسال', 'الطلب قيد المراجعة في الإدارة', 'success'); } catch(e) {}
+        }
+    }
+
+    async function acceptTask(id) { await fetch('/executor-portal/api/accept-task/' + id, { method: 'POST' }); refreshTasks(); }
+    function openUpload(id) { currentCompletingId = id; resetUploadModal(); new bootstrap.Modal(document.getElementById('uploadModal')).show(); }
+
+    document.getElementById('btnFinish').onclick = async function() {
+        const senderPhone = document.getElementById('senderPhoneInput').value.trim();
+        const btn = this; btn.disabled = true; btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> ضغط وإرسال...';
+        try {
+            const compressedImagesBase64 = [];
+            for (let i = 0; i < selectedFilesArray.length; i++) { compressedImagesBase64.push(await compressSingleImagePromise(selectedFilesArray[i])); }
+            const res = await fetch('/executor-portal/api/complete-task/' + currentCompletingId, {
+                method: 'POST', headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ imageBase64: compressedImagesBase64[0], imagesBase64: compressedImagesBase64, senderPhone: senderPhone })
+            });
+            if((await res.json()).success) window.location.reload(); 
+            else { Swal.fire('خطأ', 'فشل الإرسال', 'error'); btn.disabled = false; btn.innerHTML = '<i class="fa-solid fa-check-double me-2"></i> تأكيد التنفيذ والإرسال <kbd class="ms-2 bg-dark bg-opacity-25 border-0 text-white px-2 py-1 rounded" style="font-size: 0.75rem; font-family: sans-serif;">Enter ↵</kbd>'; }
+        } catch(e) { btn.disabled = false; btn.innerHTML = '<i class="fa-solid fa-check-double me-2"></i> تأكيد التنفيذ والإرسال <kbd class="ms-2 bg-dark bg-opacity-25 border-0 text-white px-2 py-1 rounded" style="font-size: 0.75rem; font-family: sans-serif;">Enter ↵</kbd>'; }
+    };
+
+    async function editAmount(id) {
+        const { value: formValues } = await Swal.fire({
+            title: 'تعديل المبلغ', html: '<input id="swal-amount" type="number" class="form-control mb-3 text-center fw-bold" placeholder="المبلغ الجديد"><textarea id="swal-reason" class="form-control" placeholder="السبب..." rows="2"></textarea>',
+            focusConfirm: false, showCancelButton: true, confirmButtonText: 'تأكيد وحفظ', confirmButtonColor: '#f59e0b',
+            preConfirm: () => {
+                const a = document.getElementById('swal-amount').value; const rn = document.getElementById('swal-reason').value;
+                if (!a || !rn) { Swal.showValidationMessage('مطلوب إدخال البيانات!'); return false; } return [a, rn];
+            }
+        });
+        if (formValues) {
+            const res = await fetch('/executor-portal/api/edit-amount/' + id, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ newAmount: formValues[0], reason: formValues[1] }) });
+            if((await res.json()).success) Swal.fire('تم', 'تم التعديل بنجاح', 'success').then(refreshTasks);
+        }
+    }
+
+    async function cancelTask(id) {
+        const { value: reason } = await Swal.fire({ title: 'إلغاء العملية', input: 'text', inputPlaceholder: 'السبب (سيظهر للعميل)...', showCancelButton: true, confirmButtonText: 'إلغاء نهائي', confirmButtonColor: '#ef4444', cancelButtonText: 'تراجع', inputValidator: (val) => { if (!val) return 'مطلوب السبب!'; } });
+        if (reason) { const res = await fetch('/executor-portal/api/cancel-task/' + id, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ reason }) });
+        if((await res.json()).success) refreshTasks(); }
+    }
+
+    async function returnTask(id) {
+        const { value: reason } = await Swal.fire({ title: 'إرجاع للإدارة', input: 'text', inputPlaceholder: 'السبب...', showCancelButton: true, confirmButtonText: 'إرجاع', confirmButtonColor: '#0ea5e9', cancelButtonText: 'تراجع', inputValidator: (val) => { if (!val) return 'مطلوب السبب!'; } });
+        if (reason) { const res = await fetch('/executor-portal/api/return-task/' + id, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ reason }) });
+        if((await res.json()).success) refreshTasks(); }
+    }
+
+    // 🟢 دالة زر عرض لوج الـ API
+    function showApiLogBtn(btn) {
+        const rawLog = btn.getAttribute('data-log');
+        showApiLogFromText(rawLog);
+    }
+
+    // 🟢 دالة عرض نافذة السجل المنبثقة للـ API
+    function showApiLogFromText(rawNotesEnc) {
+        const rawNotes = decodeURIComponent(rawNotesEnc);
+        let logContent = rawNotes;
+        
+        if (rawNotes.includes('--- سجل الـ API (Terminal Log) ---')) {
+            logContent = rawNotes.split('--- سجل الـ API (Terminal Log) ---')[1].trim();
+        } else if (rawNotes.includes('--- سجل الـ API ---')) {
+            logContent = rawNotes.split('--- سجل الـ API ---')[1].trim();
+        } else if (rawNotes.includes('--- سجل الـ API')) {
+            logContent = rawNotes.split('--- سجل الـ API')[1].trim();
+        }
+        
+        Swal.fire({
+            title: '<div style="color:#10b981; font-family:monospace; font-size:1.2rem; display:flex; align-items:center; gap:10px; justify-content:center;"><i class="fa-solid fa-terminal"></i> سجل التخاطب مع السيرفر</div>',
+            html: `<div style="background:#0f172a; color:#a5b4fc; padding:15px; border-radius:8px; text-align:left; direction:ltr; font-family:'JetBrains Mono', monospace; font-size:0.85rem; white-space:pre-wrap; max-height:400px; overflow-y:auto; border:1px solid #334155; box-shadow:inset 0 2px 4px rgba(0,0,0,0.5);">${logContent}</div>`,
+            background: '#1e293b',
+            color: '#fff',
+            confirmButtonColor: '#3b82f6',
+            confirmButtonText: 'إغلاق الشاشة',
+            width: '600px',
+            customClass: { popup: 'border border-secondary rounded-4' }
+        });
+    }
+
+    setInterval(refreshTasks, 3000); refreshTasks();
+</script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

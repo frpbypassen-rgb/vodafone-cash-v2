@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>إدارة الوكلاء ونقاط البيع | Al-Ahram</title>
+    
+    <script>
+        const savedTheme = localStorage.getItem('ahram_theme') || 'dark';
+        document.documentElement.setAttribute('data-theme', savedTheme);
+        document.documentElement.setAttribute('data-bs-theme', savedTheme);
+    </script>
+
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.rtl.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800;900&family=JetBrains+Mono:wght@700&display=swap" rel="stylesheet">
+    
+    <style>
+        :root { 
+            --brand-primary: #001a4d; --brand-gold: #d4af37; 
+            --bg-body: #f4f7fa; --card-bg: #ffffff;
+            --text-main: #1e293b; --text-muted: #64748b;
+            --border-glass: #e2e8f0; --input-bg: #f8fafc;
+            --shadow-soft: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+            --accent-green: #10b981; --accent-red: #ef4444; --accent-blue: #0ea5e9;
+        }
+        [data-theme="dark"] {
+            --brand-primary: #3b82f6; --brand-gold: #fbbf24; 
+            --bg-body: #0f172a; --card-bg: #1e293b; 
+            --text-main: #f8fafc; --text-muted: #94a3b8;
+            --border-glass: #334155; --input-bg: #0f172a;
+        }
+
+        body { background-color: var(--bg-body); color: var(--text-main); font-family: 'Tajawal', sans-serif; transition: 0.3s; padding-bottom: 50px; overflow-x: hidden; }
+        
+        .navbar-custom { background: var(--card-bg); border-bottom: 1px solid var(--border-glass); padding: 15px 0; position: sticky; top: 0; z-index: 1000; box-shadow: var(--shadow-soft); transition: 0.3s; margin-bottom: 40px;}
+        .logo-img { height: 40px; transition: 0.3s; mix-blend-mode: multiply; filter: contrast(1.2); }
+        [data-theme="dark"] .logo-img { mix-blend-mode: normal; background: white; padding: 2px; border-radius: 8px; }
+        .navbar-brand { color: var(--brand-primary) !important; font-weight: 900; font-size: 1.5rem; margin: 0; letter-spacing: -0.5px;}
+        [data-theme="dark"] .navbar-brand { color: var(--brand-gold) !important; }
+
+        .nav-btn { background: var(--input-bg); border: 1px solid var(--border-glass); color: var(--text-main); padding: 8px 20px; border-radius: 12px; font-weight: 700; text-decoration: none; transition: 0.3s; display: inline-flex; align-items: center; gap: 8px; cursor: pointer; font-size: 0.9rem;}
+        .nav-btn:hover { background: var(--card-bg); color: var(--brand-primary); border-color: var(--brand-primary); transform: translateY(-2px);}
+        [data-theme="dark"] .nav-btn:hover { color: var(--brand-gold); border-color: var(--brand-gold); }
+
+        .data-card { background: var(--card-bg); border-radius: 24px; padding: 25px; box-shadow: var(--shadow-soft); border: 1px solid var(--border-glass); margin-bottom: 25px;}
+        
+        .form-control, .form-select { background-color: var(--input-bg); color: var(--text-main); border: 1px solid var(--border-glass); border-radius: 12px; padding: 12px; font-weight: 700;}
+        .form-control:focus, .form-select:focus { background-color: transparent; border-color: var(--accent-blue); box-shadow: 0 0 0 4px rgba(14, 165, 233, 0.15); color: var(--text-main);}
+        
+        .table-custom { width: 100%; border-collapse: separate; border-spacing: 0 10px; }
+        .table-custom th { border: none; color: var(--text-muted); font-weight: 800; font-size: 0.85rem; padding: 10px 15px; white-space: nowrap; text-align: center;}
+        .table-custom tbody tr { background: var(--card-bg); box-shadow: var(--shadow-soft); transition: 0.2s; }
+        .table-custom tbody tr:hover { transform: scale(1.01); }
+        .table-custom td { border: 1px solid var(--border-glass); border-style: solid none; padding: 18px 15px; vertical-align: middle; font-weight: 700; text-align: center; white-space: nowrap;}
+        .table-custom td:first-child { border-left: 1px solid var(--border-glass); border-top-right-radius: 16px; border-bottom-right-radius: 16px; }
+        .table-custom td:last-child { border-right: 1px solid var(--border-glass); border-top-left-radius: 16px; border-bottom-left-radius: 16px; }
+
+        .btn-action-sm { width: 35px; height: 35px; display: inline-flex; align-items: center; justify-content: center; border-radius: 10px; font-size: 0.9rem; transition: 0.2s; border: none; }
+        .mono-num { font-family: 'JetBrains Mono', monospace; font-size: 1.1rem; }
+    </style>
+</head>
+<body>
+
+    <nav class="navbar-custom">
+        <div class="container d-flex justify-content-between align-items-center">
+            <div class="d-flex align-items-center gap-2">
+                <img src="/images/logo.jpeg" alt="Logo" class="logo-img" onerror="this.onerror=null; this.src='/images/logo.jpg';">
+                <h1 class="navbar-brand d-none d-sm-block">Al-Ahram</h1>
+            </div>
+            <div class="d-flex align-items-center gap-2">
+                <a href="/client/dashboard" class="nav-btn"><i class="fa-solid fa-arrow-left me-1"></i> رجوع للوحة</a>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container">
+        <h3 class="fw-bold mb-4" style="color: var(--text-main);"><i class="fa-solid fa-users-gear" style="color: #8b5cf6;"></i> إدارة الوكلاء ونقاط البيع (B2B)</h3>
+
+        <div class="row g-4">
+            <div class="col-xl-4">
+                <div class="data-card border-start border-4" style="border-color: var(--brand-gold) !important;">
+                    <h5 class="fw-bold mb-4"><i class="fa-solid fa-user-plus me-2" style="color: var(--brand-gold);"></i> إضافة نقطة بيع جديدة</h5>
+                    <form action="/client/sub-accounts/add" method="POST">
+                        <div class="mb-3">
+                            <label class="form-label small fw-bold text-muted mb-1">اسم المحل / الموظف</label>
+                            <input type="text" name="name" class="form-control" placeholder="مثال: سنتر الوفاء" required>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label small fw-bold text-muted mb-1">الهاتف (اختياري)</label>
+                            <input type="text" name="phone" class="form-control mono-num text-start" dir="ltr" placeholder="09X XXX XXXX">
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label small fw-bold text-muted mb-1">اسم المستخدم (للدخول)</label>
+                            <input type="text" name="webUsername" class="form-control mono-num text-start" dir="ltr" placeholder="user_123" required>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label small fw-bold text-muted mb-1">كلمة المرور (Password)</label>
+                            <input type="text" name="webPassword" class="form-control mono-num text-start" dir="ltr" placeholder="***" required>
+                        </div>
+                        
+                        <hr style="border-color: var(--border-glass);">
+                        
+                        <div class="mb-3 p-3 rounded-4" style="background: rgba(14, 165, 233, 0.05); border: 1px dashed rgba(14, 165, 233, 0.3);">
+                            <label class="form-label small fw-bold text-info"><i class="fa-solid fa-percent me-1"></i> هامش الربح للحوالات (يخصم من السعر)</label>
+                            <input type="number" step="0.001" name="customMargin" class="form-control mono-num text-center text-info fs-5" value="0.01" required>
+                            <small class="text-muted d-block mt-1">مثال: إذا كان سعرك 6.37 ووضعت هنا 0.01، سيظهر السعر للوكيل بـ 6.36 والفرق سيكون ربحك.</small>
+                        </div>
+
+                        <div class="mb-4">
+                            <label class="form-label small fw-bold text-danger"><i class="fa-solid fa-credit-card me-1"></i> الحد الائتماني (السلفة المسموحة)</label>
+                            <input type="number" step="any" name="creditLimit" class="form-control mono-num text-center text-danger" value="0">
+                        </div>
+
+                        <button type="submit" class="btn w-100 fw-bold py-3 fs-5" style="background: #8b5cf6; color: white; border-radius: 14px;"><i class="fa-solid fa-user-check me-2"></i> إنشاء الحساب</button>
+                    </form>
+                </div>
+            </div>
+
+            <div class="col-xl-8">
+                <div class="data-card mb-4 text-center" style="border-bottom: 4px solid var(--brand-gold);">
+                    <h6 class="text-muted fw-bold">إجمالي المديونيات المستحقة من الوكلاء (LYD)</h6>
+                    <h1 class="fw-bold m-0" style="color: var(--brand-gold); font-family: monospace;"><%= totalDebt.toFixed(2) %></h1>
+                </div>
+
+                <div class="data-card p-0 overflow-hidden border-0 bg-transparent" style="box-shadow: none;">
+                    <div class="p-4 border-bottom" style="border-color: var(--border-glass) !important; background: var(--input-bg); border-radius: 24px 24px 0 0;">
+                        <h5 class="fw-bold m-0"><i class="fa-solid fa-users me-2 text-primary"></i> قائمة نقاط البيع الخاصة بك</h5>
+                    </div>
+                    <div class="table-responsive bg-transparent border-0 overflow-visible mt-2">
+                        <table class="table-custom text-center">
+                            <thead>
+                                <tr>
+                                    <th>الاسم / الدخول</th>
+                                    <th>الرصيد والحد</th>
+                                    <th>أرباحك المحددة</th>
+                                    <th>تسوية</th>
+                                    <th>الحالة</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <% if(subAccounts.length === 0) { %>
+                                    <tr><td colspan="5" class="py-5 text-center text-muted fw-bold" style="background: var(--card-bg); border-radius: 16px;"><i class="fa-solid fa-users-slash fs-1 d-block mb-3 opacity-25"></i>لا يوجد نقاط بيع مسجلة لديك بعد.</td></tr>
+                                <% } %>
+                                <% subAccounts.forEach(sub => { %>
+                                    <tr>
+                                        <td>
+                                            <div class="fw-bold text-dark mb-1"><i class="fa-solid fa-shop me-1 text-muted"></i> <%= sub.name %></div>
+                                            <div class="small mono-num text-muted text-start d-inline-block" dir="ltr" style="background: var(--input-bg); padding: 2px 8px; border-radius: 6px;">
+                                                U: <%= sub.webUsername %><br>P: <span class="text-danger"><%= sub.webPassword %></span>
+                                            </div>
+                                        </td>
+                                        <td>
+                                            <div class="fw-bold mono-num fs-5" style="color: <%= sub.balance < 0 ? '#ef4444' : '#10b981' %>;"><%= sub.balance.toFixed(2) %></div>
+                                            <div class="small text-danger fw-bold">حد: <%= sub.creditLimit %></div>
+                                        </td>
+                                        <td>
+                                            <div class="small fw-bold text-info"><i class="fa-solid fa-money-bill-transfer"></i> حوالات: -<%= sub.customMargin %></div>
+                                        </td>
+                                        <td>
+                                            <button class="btn btn-sm btn-info text-white rounded-3 fw-bold mb-1" onclick="openFundModal('<%= sub._id %>', '<%= sub.name %>')">تمويل / سحب</button>
+                                        </td>
+                                        <td>
+                                            <form action="/client/sub-accounts/toggle/<%= sub._id %>" method="POST" class="m-0">
+                                                <button type="submit" class="btn btn-sm <%= sub.status === 'active' ? 'btn-success' : 'btn-danger' %> fw-bold" style="border-radius: 8px; width: 80px;">
+                                                    <i class="fa-solid <%= sub.status === 'active' ? 'fa-check' : 'fa-ban' %>"></i> <%= sub.status === 'active' ? 'نشط' : 'محظور' %>
+                                                </button>
+                                            </form>
+                                        </td>
+                                    </tr>
+                                <% }) %>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal fade" id="fundModal" tabindex="-1">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content" style="background: var(--card-bg); border: 1px solid var(--border-glass); border-radius: 24px;">
+                <form action="/client/sub-accounts/settle/id_placeholder" method="POST" id="fundForm">
+                    <div class="modal-header border-0 pb-0 pt-4 px-4">
+                        <h5 class="fw-bold text-primary">إدارة الرصيد الافتراضي</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" style="filter: invert(0.5);"></button>
+                    </div>
+                    <div class="modal-body p-4">
+                        <h6 class="fw-bold text-center mb-4" id="modalSubName"></h6>
+                        
+                        <div class="mb-3">
+                            <label class="small text-muted fw-bold">نوع العملية</label>
+                            <select name="type" class="form-select text-center fw-bold">
+                                <option value="add">➕ تمويل (إضافة رصيد)</option>
+                                <option value="withdraw">➖ سحب (خصم رصيد)</option>
+                            </select>
+                        </div>
+                        <div class="mb-4">
+                            <label class="small text-muted fw-bold">المبلغ (LYD)</label>
+                            <input type="number" step="any" name="amount" class="form-control text-center mono-num fs-4 text-success" required>
+                        </div>
+                        <button type="submit" class="btn btn-primary w-100 py-3 rounded-pill fw-bold fs-5">تنفيذ العملية</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        function openFundModal(id, name) {
+            document.getElementById('fundForm').action = '/client/sub-accounts/settle/' + id;
+            document.getElementById('modalSubName').innerText = name;
+            new bootstrap.Modal(document.getElementById('fundModal')).show();
+        }
+    </script>
+</body>
+</html>

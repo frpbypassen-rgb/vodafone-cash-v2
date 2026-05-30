@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>مركز الدعم الفني | شركة الأهرام</title>
+    <script>
+        const savedTheme = localStorage.getItem('ahram_theme') || 'dark';
+        document.documentElement.setAttribute('data-theme', savedTheme);
+    </script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.rtl.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+
+    <style>
+        .support-container { display: flex; flex: 1; overflow: hidden; height: calc(100vh - 120px); border-radius: 20px;}
+        .tickets-list { width: 35%; border-left: 1px solid var(--border-glass); display: flex; flex-direction: column; background: var(--input-bg); }
+        .chat-area { width: 65%; display: flex; flex-direction: column; background: var(--card-bg); position: relative; }
+        
+        .ticket-item { padding: 15px 20px; border-bottom: 1px solid var(--border-glass); cursor: pointer; transition: 0.2s; display: flex; justify-content: space-between; align-items: center; }
+        .ticket-item:hover { background: rgba(0,0,0,0.02); }
+        [data-theme="dark"] .ticket-item:hover { background: rgba(255,255,255,0.02); }
+        .ticket-item.active { background: var(--input-bg); border-right: 5px solid var(--brand-primary); }
+        [data-theme="dark"] .ticket-item.active { border-right-color: var(--brand-gold); }
+        .ticket-name { font-weight: 800; color: var(--text-main); font-size: 1.05rem; margin-bottom: 3px; }
+        
+        .chat-header { padding: 15px 20px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border-glass); z-index: 10; background: var(--input-bg);}
+        .chat-messages { flex: 1; padding: 20px; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; background-color: var(--card-bg); }
+        .chat-input-area { padding: 15px 20px; display: flex; gap: 10px; align-items: center; border-top: 1px solid var(--border-glass); background: var(--input-bg);}
+        
+        .msg-bubble { max-width: 75%; padding: 10px 15px; border-radius: 12px; position: relative; font-weight: 700; font-size: 0.95rem; }
+        .msg-user { background: var(--input-bg); border: 1px solid var(--border-glass); align-self: flex-start; border-top-right-radius: 0; color: var(--text-main); }
+        .msg-admin { background: rgba(16, 185, 129, 0.1); border: 1px solid rgba(16, 185, 129, 0.2); align-self: flex-end; border-top-left-radius: 0; color: var(--text-main); }
+        .msg-time { font-size: 0.7rem; color: var(--text-muted); display: block; text-align: left; margin-top: 5px; font-family: monospace; }
+        
+        .empty-chat { flex: 1; display: flex; flex-direction: column; justify-content: center; align-items: center; color: var(--text-muted); background: var(--card-bg); }
+
+        @media (max-width: 991px) {
+            .support-container { flex-direction: column; height: auto; }
+            .tickets-list { width: 100%; height: 35vh; border-left: none; border-bottom: 2px solid var(--border-glass); }
+            .chat-area { width: 100%; height: 65vh; }
+        }
+    </style>
+</head>
+<body>
+
+<button class="mobile-nav-toggle" onclick="toggleSidebar()"><i class="fa-solid fa-bars"></i></button>
+<div class="sidebar-overlay" onclick="toggleSidebar()"></div>
+
+<%- include('partials/sidebar', { activePage: 'support' }) %>
+
+<div class="main-content">
+    <div class="admin-nav mb-4">
+        <h3 class="fw-bold m-0 text-dark"><i class="fa-solid fa-headset text-primary me-2"></i> مركز الدعم الفني</h3>
+    </div>
+    
+    <div class="support-container data-card p-0">
+        <div class="tickets-list">
+            <div class="p-3 border-bottom d-flex justify-content-between align-items-center" style="background-color: var(--input-bg);">
+                <span class="fw-bold text-primary"><i class="fa-solid fa-inbox me-1"></i> المحادثات النشطة</span>
+                <button class="btn btn-sm btn-light py-1 shadow-sm border" onclick="loadTickets()"><i class="fa-solid fa-rotate-right"></i></button>
+            </div>
+            <div id="ticketsContainer" style="overflow-y: auto; flex: 1;">
+                <div class="text-center p-4 text-muted"><i class="fa-solid fa-spinner fa-spin fa-2x mb-2"></i><br>جاري التحميل...</div>
+            </div>
+        </div>
+        
+        <div class="chat-area" id="chatArea">
+            <div class="empty-chat">
+                <i class="fa-solid fa-comments fs-1 mb-3 opacity-25" style="font-size: 5rem !important;"></i>
+                <h4 class="fw-bold opacity-50">اختر محادثة من القائمة للبدء</h4>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    let currentTicketId = null;
+    let fetchInterval = null;
+
+    const entityTypeLabels = {
+        'client_user': '<span class="badge bg-primary px-2 py-1"><i class="fa-solid fa-user me-1"></i> عميل فردي</span>',
+        'client_company': '<span class="badge" style="background:#6f42c1;"><i class="fa-solid fa-building me-1"></i> شركة/وكيل</span>',
+        'executor': '<span class="badge bg-dark"><i class="fa-solid fa-robot me-1"></i> طاقم التنفيذ</span>'
+    };
+
+    function toggleSidebar() { document.querySelector('.sidebar').classList.toggle('active'); document.querySelector('.sidebar-overlay').classList.toggle('active'); }
+
+    async function loadTickets() {
+        try {
+            const res = await fetch('/api/support/tickets');
+            const data = await res.json();
+            if(data.success) {
+                const container = document.getElementById('ticketsContainer');
+                if (data.tickets.length === 0) {
+                    container.innerHTML = '<div class="text-center p-5 text-muted fw-bold"><i class="fa-solid fa-box-open fs-1 mb-3 opacity-50"></i><br>لا توجد تذاكر حالياً.</div>';
+                    return;
+                }
+                
+                let html = '';
+                data.tickets.forEach(t => {
+                    const unreadBadge = t.unreadAdmin > 0 ? `<span class="badge bg-danger rounded-pill shadow-sm" style="font-size: 0.8rem;">${t.unreadAdmin}</span>` : '';
+                    let statusIcon = '';
+                    if (t.status === 'closed') statusIcon = '<i class="fa-solid fa-lock text-danger ms-1" title="مغلق"></i>';
+                    else if (t.status === 'answered') statusIcon = '<i class="fa-solid fa-reply-all text-success ms-1" title="تم الرد"></i>';
+                    else statusIcon = '<i class="fa-solid fa-circle text-warning ms-1" style="font-size:10px;" title="بانتظار الرد"></i>';
+                    
+                    html += `
+                        <div class="ticket-item ${currentTicketId === t._id ? 'active' : ''}" onclick="openTicket('${t._id}', '${t.name}', '${t.status}', '${t.entityType}')">
+                            <div>
+                                <div class="ticket-name">${statusIcon} ${t.name}</div>
+                                <div class="mt-1">${entityTypeLabels[t.entityType] || ''} <small class="text-muted fw-bold ms-1" dir="ltr">${t.phone || ''}</small></div>
+                            </div>
+                            <div>${unreadBadge}</div>
+                        </div>
+                    `;
+                });
+                container.innerHTML = html;
+            }
+        } catch(e) {}
+    }
+
+    async function openTicket(id, name, status, type) {
+        currentTicketId = id; loadTickets(); 
+        
+        const chatArea = document.getElementById('chatArea');
+        chatArea.innerHTML = `
+            <div class="chat-header">
+                <div>
+                    <h5 class="fw-bold m-0 text-primary">${name}</h5>
+                    <small class="text-muted fw-bold">رقم التذكرة: <code style="font-family: monospace;">${id.slice(-6)}</code></small>
+                </div>
+                <div>
+                    ${status !== 'closed' ? `<button class="btn btn-danger fw-bold shadow-sm rounded-3" onclick="closeTicket('${id}')"><i class="fa-solid fa-lock me-1"></i> إغلاق التذكرة</button>` : `<span class="badge bg-secondary fs-6 rounded-pill"><i class="fa-solid fa-lock me-1"></i> تذكرة مغلقة</span>`}
+                </div>
+            </div>
+            <div class="chat-messages" id="chatMessages">
+                <div class="text-center w-100 mt-4"><i class="fa-solid fa-spinner fa-spin fa-2x text-muted"></i></div>
+            </div>
+            ${status !== 'closed' ? `
+            <form class="chat-input-area" id="replyForm">
+                <input type="text" id="replyInput" class="form-control form-control-lg fw-bold border-0 shadow-sm px-4" placeholder="اكتب رد الإدارة هنا..." required autocomplete="off" style="border-radius: 50px;">
+                <button type="submit" class="btn btn-primary rounded-circle shadow-sm" style="width: 50px; height: 50px; display: flex; align-items: center; justify-content: center;"><i class="fa-solid fa-paper-plane fs-5"></i></button>
+            </form>` : `
+            <div class="chat-input-area justify-content-center">
+                <span class="text-danger fw-bold"><i class="fa-solid fa-ban me-1"></i> لا يمكن الرد، هذه التذكرة مغلقة.</span>
+            </div>
+            `}
+        `;
+
+        if (fetchInterval) clearInterval(fetchInterval);
+        fetchMessages();
+        fetchInterval = setInterval(fetchMessages, 3000); 
+
+        setTimeout(() => {
+            const form = document.getElementById('replyForm');
+            if(form) {
+                form.onsubmit = async (e) => {
+                    e.preventDefault();
+                    const input = document.getElementById('replyInput');
+                    const text = input.value.trim();
+                    if(!text) return; input.value = '';
+                    
+                    const box = document.getElementById('chatMessages');
+                    const now = new Date().toLocaleTimeString('en-US', {hour:'2-digit', minute:'2-digit'});
+                    box.innerHTML += `<div class="msg-bubble msg-admin"><div class="fw-bold text-success mb-1" style="font-size: 0.75rem;"><i class="fa-solid fa-headset me-1"></i> الإدارة</div>${text}<span class="msg-time opacity-75">${now}</span></div>`;
+                    box.scrollTop = box.scrollHeight;
+
+                    try { await fetch('/api/support/tickets/' + currentTicketId + '/reply', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({text}) }); fetchMessages(); loadTickets(); } catch(err){}
+                };
+            }
+        }, 100);
+    }
+
+    async function fetchMessages() {
+        if(!currentTicketId) return;
+        try {
+            const res = await fetch('/api/support/tickets/' + currentTicketId);
+            const data = await res.json();
+            if(data.success) {
+                const box = document.getElementById('chatMessages');
+                if(!box) return;
+                
+                let html = '';
+                data.ticket.messages.forEach(msg => {
+                    const isAdmin = msg.sender === 'admin';
+                    const time = new Date(msg.createdAt).toLocaleTimeString('en-US', {hour:'2-digit', minute:'2-digit'});
+                    
+                    let imgHtml = '';
+                    if(msg.imageUrl) {
+                        if(msg.imageUrl.startsWith('data:image')) {
+                            imgHtml = `<div class="mb-2"><img src="${msg.imageUrl}" class="img-fluid rounded shadow-sm border" style="max-height: 250px; cursor: pointer;" onclick="window.open('${msg.imageUrl}')"></div>`;
+                        } else {
+                            imgHtml = `<div class="mb-2"><span class="badge bg-secondary p-2"><i class="fa-solid fa-image me-1"></i> صورة من التيليجرام (يرجى مراجعة البوت)</span></div>`;
+                        }
+                    }
+
+                    html += `
+                        <div class="msg-bubble ${isAdmin ? 'msg-admin' : 'msg-user'}">
+                            ${isAdmin ? `<div class="fw-bold text-success mb-1" style="font-size: 0.75rem;"><i class="fa-solid fa-headset me-1"></i> الإدارة</div>` : `<div class="fw-bold text-primary mb-1" style="font-size: 0.75rem;"><i class="fa-solid fa-user me-1"></i> العميل</div>`}
+                            ${imgHtml}
+                            ${msg.text || ''}
+                            <span class="msg-time opacity-75">${time}</span>
+                        </div>
+                    `;
+                });
+                
+                const isScrolledToBottom = box.scrollHeight - box.clientHeight <= box.scrollTop + 50;
+                box.innerHTML = html || '<div class="text-center w-100 text-muted mt-5 fw-bold">لا توجد رسائل في هذه المحادثة حتى الآن.</div>';
+                if (isScrolledToBottom) box.scrollTop = box.scrollHeight;
+            }
+        } catch(e) {}
+    }
+
+    async function closeTicket(id) {
+        Swal.fire({
+            title: 'إغلاق التذكرة؟', text: "لن يتمكن العميل من الرد على هذه المحادثة بعد إغلاقها.", icon: 'warning', showCancelButton: true, confirmButtonColor: '#dc3545', cancelButtonColor: '#6c757d', confirmButtonText: 'نعم، أغلقها!', cancelButtonText: 'تراجع', customClass: {popup: 'rounded-4'}
+        }).then(async (result) => {
+            if (result.isConfirmed) { try { await fetch('/api/support/tickets/' + id + '/close', { method: 'POST' }); openTicket(id, 'مغلقة', 'closed', 'closed'); loadTickets(); } catch(e){} }
+        });
+    }
+
+    setInterval(loadTickets, 5000); loadTickets();
+</script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

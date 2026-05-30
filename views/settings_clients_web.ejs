@@ -1,0 +1,287 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>إدارة الحسابات التجارية | الأهرام</title>
+    <script>
+        const savedTheme = localStorage.getItem('ahram_theme') || 'dark';
+        document.documentElement.setAttribute('data-theme', savedTheme);
+    </script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.rtl.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800;900&family=JetBrains+Mono:wght@700&display=swap" rel="stylesheet">
+    <style>
+        .settings-nav { background: var(--input-bg); border-radius: 16px; padding: 10px; border: 1px solid var(--border-glass); margin-bottom: 25px; overflow-x: auto; white-space: nowrap;}
+        .settings-nav .nav-link { color: var(--text-muted); font-weight: 700; border-radius: 12px; padding: 12px 20px; transition: 0.3s; margin: 0 4px; font-size: 0.9rem;}
+        .settings-nav .nav-link:hover { background: var(--card-bg); color: var(--text-main); }
+        .settings-nav .nav-link.active { background: var(--brand-primary); color: white !important; box-shadow: 0 4px 15px rgba(0, 26, 77, 0.2); }
+        [data-theme="dark"] .settings-nav .nav-link.active { background: var(--brand-gold); color: black !important; }
+        .hide-scrollbar::-webkit-scrollbar { display: none; }
+        .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+        .min-w-fit { min-width: fit-content; }
+        .mono-num { font-family: 'JetBrains Mono', monospace; font-size: 0.95rem;}
+        .btn-action-sm { width: 35px; height: 35px; display: inline-flex; align-items: center; justify-content: center; border-radius: 10px; transition: 0.2s; border: none; }
+    </style>
+</head>
+<body>
+
+<button class="mobile-nav-toggle" onclick="toggleSidebar()"><i class="fa-solid fa-bars"></i></button>
+<div class="sidebar-overlay" onclick="toggleSidebar()"></div>
+
+<%- include('partials/sidebar', { activePage: 'settings' }) %>
+
+<div class="main-content">
+    <div class="container-fluid">
+        <div class="admin-nav mb-4">
+            <h3 class="fw-bold text-dark m-0"><i class="fa-solid fa-gears text-primary me-2"></i> لوحة الإعدادات الشاملة</h3>
+        </div>
+
+        <ul class="nav nav-pills settings-nav d-flex flex-nowrap hide-scrollbar">
+            <li class="nav-item text-center min-w-fit"><a class="nav-link text-nowrap" href="/settings"><i class="fa-solid fa-sliders me-1"></i> العامة والأسعار</a></li>
+            <li class="nav-item text-center min-w-fit"><a class="nav-link text-nowrap" href="/settings/content"><i class="fa-solid fa-comment-dots me-1"></i> رسائل البوت</a></li>
+            <li class="nav-item text-center min-w-fit"><a class="nav-link text-nowrap" href="/settings/bots"><i class="fa-solid fa-robot me-1"></i> إدارة البوتات</a></li>
+            <li class="nav-item text-center min-w-fit"><a class="nav-link text-nowrap" href="/settings/excel"><i class="fa-solid fa-file-excel me-1"></i> تحرير الإكسيل</a></li>
+            <li class="nav-item text-center min-w-fit"><a class="nav-link active text-nowrap" href="/settings/clients-web"><i class="fa-solid fa-globe me-1"></i> ويب العملاء</a></li>
+            <li class="nav-item text-center min-w-fit"><a class="nav-link text-nowrap" href="/settings/executors-web"><i class="fa-solid fa-laptop-code me-1"></i> ويب المنفذين</a></li>
+            <% if (typeof role !== 'undefined' && role === 'master') { %>
+            <li class="nav-item text-center min-w-fit ms-auto"><a class="nav-link text-danger text-nowrap" href="/settings/users"><i class="fa-solid fa-user-shield me-1"></i> المديرين</a></li>
+            <% } %>
+        </ul>
+
+        <% if (query.success) { %><div class="alert alert-success fw-bold rounded-4 shadow-sm border-0"><i class="fa-solid fa-check-circle me-2"></i> تم تنفيذ الإجراء بنجاح!</div><% } %>
+        <% if (query.error) { %><div class="alert alert-danger fw-bold rounded-4 shadow-sm border-0"><i class="fa-solid fa-triangle-exclamation me-2"></i> حدث خطأ أثناء تنفيذ الإجراء.</div><% } %>
+
+        <div class="row g-4">
+            <div class="col-xl-4">
+                <div class="data-card border-start border-primary border-4 p-4 h-100">
+                    <h5 class="fw-bold text-primary mb-3"><i class="fa-solid fa-user-plus me-2"></i> تفعيل حساب ويب للعميل</h5>
+                    <p class="text-muted small mb-4 opacity-75">إعطاء صلاحية الدخول لعميل فردي أو موظف تابع لشركة.</p>
+                    
+                    <form action="/settings/clients-web/add" method="POST">
+                        <div class="mb-3">
+                            <label class="form-label fw-bold small text-muted">نوع الحساب</label>
+                            <select name="accountType" id="typeSelect" class="form-select fw-bold" onchange="toggleType()" required>
+                                <option value="user">👤 عميل فردي</option>
+                                <option value="company">🏢 شركة / وكيل (ربط موظف)</option>
+                            </select>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label fw-bold small text-muted" id="targetLabel">اختر العميل</label>
+                            <select name="accountId" id="userSelect" class="form-select fw-bold" required>
+                                <option value="" disabled selected>-- اختر العميل --</option>
+                                <% users.forEach(u => { %><option value="<%= u._id %>"><%= u.name %> (<%= u.phone %>)</option><% }) %>
+                            </select>
+                            
+                            <select name="accountId" id="companySelect" class="form-select fw-bold" style="display:none;" disabled required onchange="updateEmployeeDropdown()">
+                                <option value="" disabled selected>-- اختر الشركة --</option>
+                                <% companies.forEach(c => { %><option value="<%= c._id %>"><%= c.name %></option><% }) %>
+                            </select>
+                        </div>
+
+                        <div id="companyExtraFields" class="mb-3 p-3 rounded-4 border" style="display: none; background: var(--input-bg);">
+                            <label class="form-label fw-bold small text-primary">الموظف (سيرسل له كود التيليجرام)</label>
+                            <select name="employeeId" id="employeeSelect" class="form-select fw-bold">
+                                <option value="" disabled selected>يرجى اختيار الشركة أولاً...</option>
+                            </select>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label fw-bold small text-muted">اسم المستخدم (للدخول)</label>
+                            <input type="text" name="webUsername" class="form-control mono-num" placeholder="user123" dir="ltr" required>
+                        </div>
+
+                        <div class="mb-4">
+                            <label class="form-label fw-bold small text-muted">كلمة المرور السريـة</label>
+                            <input type="text" name="webPassword" class="form-control mono-num text-danger" placeholder="أدخل كلمة مرور قوية" dir="ltr" required>
+                        </div>
+
+                        <button type="submit" class="btn btn-primary w-100 fw-bold shadow-sm rounded-pill py-3 fs-5">
+                            <i class="fa-solid fa-save me-1"></i> حفظ وتفعيل الحساب
+                        </button>
+                    </form>
+                </div>
+            </div>
+
+            <div class="col-xl-8">
+                <div class="data-card border-start border-secondary border-4 p-0 overflow-hidden h-100">
+                    <div class="p-4 border-bottom" style="background: var(--input-bg);">
+                        <h5 class="fw-bold text-dark m-0"><i class="fa-solid fa-users-gear text-secondary me-2"></i> العملاء الذين يمتلكون حق الدخول</h5>
+                    </div>
+                    
+                    <div class="table-responsive m-0 border-0">
+                        <table class="table text-center align-middle mb-0 table-hover">
+                            <thead class="table-light">
+                                <tr><th>الجهة</th><th>الموظف/الدور</th><th>بيانات الدخول</th><th>الإجراءات</th></tr>
+                            </thead>
+                            <tbody>
+                                <% if(webUsers.length === 0 && webEmployees.length === 0) { %>
+                                    <tr><td colspan="4" class="py-5 text-muted fw-bold border-0 fs-5"><i class="fa-solid fa-globe fs-1 d-block opacity-25 mb-3"></i> لا يوجد حسابات ويب مفعلة.</td></tr>
+                                <% } %>
+
+                                <% webUsers.forEach(u => { %>
+                                    <tr>
+                                        <td><div class="fw-bold text-primary"><i class="fa-solid fa-user me-1 small opacity-50"></i> <%= u.name %></div></td>
+                                        <td><span class="badge bg-secondary px-3 py-1 rounded-pill">عميل (فردي)</span></td>
+                                        <td dir="ltr" style="font-size: 0.85rem;" class="mono-num text-start ps-4">
+                                            <span class="text-muted small">U:</span> <b class="text-dark"><%= u.webUsername %></b><br>
+                                            <span class="text-muted small">P:</span> <code class="text-danger"><%= u.webPassword %></code>
+                                        </td>
+                                        <td>
+                                            <div class="d-flex justify-content-center gap-2">
+                                                <button class="btn btn-sm btn-warning shadow-sm btn-action-sm text-dark fw-bold" onclick="openEditModal('user', '<%= u._id %>', '<%= u.webUsername %>', '<%= u.webPassword %>')" title="تعديل"><i class="fa-solid fa-pen"></i></button>
+                                                
+                                                <form action="/settings/clients-web/toggle" method="POST" class="m-0">
+                                                    <input type="hidden" name="accountType" value="user">
+                                                    <input type="hidden" name="accountId" value="<%= u._id %>">
+                                                    <button type="submit" class="btn btn-sm <%= u.status === 'active' ? 'btn-secondary' : 'btn-success' %> shadow-sm btn-action-sm fw-bold" title="<%= u.status === 'active' ? 'إيقاف الحساب' : 'تفعيل الحساب' %>">
+                                                        <i class="fa-solid <%= u.status === 'active' ? 'fa-ban' : 'fa-check' %>"></i>
+                                                    </button>
+                                                </form>
+
+                                                <form action="/settings/clients-web/delete" method="POST" class="m-0" onsubmit="return confirm('هل أنت متأكد من حذف دخول هذا العميل؟');">
+                                                    <input type="hidden" name="accountType" value="user">
+                                                    <input type="hidden" name="accountId" value="<%= u._id %>">
+                                                    <button type="submit" class="btn btn-sm btn-danger shadow-sm btn-action-sm fw-bold"><i class="fa-solid fa-trash"></i></button>
+                                                </form>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                <% }) %>
+
+                                <% webEmployees.forEach(e => { %>
+                                    <tr>
+                                        <td><div class="fw-bold" style="color: #8b5cf6;"><i class="fa-solid fa-building me-1 small opacity-50"></i> <%= e.companyName %></div></td>
+                                        <td>
+                                            <div class="fw-bold text-dark mb-1" style="font-size: 0.85rem;"><%= e.name %></div>
+                                            <span class="badge <%= e.role === 'accountant' ? 'bg-info text-dark' : 'bg-success' %> px-2 py-1 rounded-pill" style="font-size: 0.7rem;">
+                                                <%= e.role === 'accountant' ? 'محاسب' : 'موظف' %>
+                                            </span>
+                                        </td>
+                                        <td dir="ltr" style="font-size: 0.85rem;" class="mono-num text-start ps-4">
+                                            <span class="text-muted small">U:</span> <b class="text-dark"><%= e.webUsername %></b><br>
+                                            <span class="text-muted small">P:</span> <code class="text-danger"><%= e.webPassword %></code>
+                                        </td>
+                                        <td>
+                                            <div class="d-flex justify-content-center gap-2">
+                                                <button class="btn btn-sm btn-warning shadow-sm btn-action-sm text-dark fw-bold" onclick="openEditModal('employee', '<%= e._id %>', '<%= e.webUsername %>', '<%= e.webPassword %>')" title="تعديل"><i class="fa-solid fa-pen"></i></button>
+                                                
+                                                <form action="/settings/clients-web/toggle" method="POST" class="m-0">
+                                                    <input type="hidden" name="accountType" value="employee">
+                                                    <input type="hidden" name="accountId" value="<%= e._id %>">
+                                                    <button type="submit" class="btn btn-sm <%= e.status === 'active' ? 'btn-secondary' : 'btn-success' %> shadow-sm btn-action-sm fw-bold" title="<%= e.status === 'active' ? 'إيقاف الحساب' : 'تفعيل الحساب' %>">
+                                                        <i class="fa-solid <%= e.status === 'active' ? 'fa-ban' : 'fa-check' %>"></i>
+                                                    </button>
+                                                </form>
+
+                                                <form action="/settings/clients-web/delete" method="POST" class="m-0" onsubmit="return confirm('سحب صلاحية الدخول؟ (لن يُحذف من البوت)');">
+                                                    <input type="hidden" name="accountType" value="employee">
+                                                    <input type="hidden" name="accountId" value="<%= e._id %>">
+                                                    <button type="submit" class="btn btn-sm btn-danger shadow-sm btn-action-sm fw-bold"><i class="fa-solid fa-trash"></i></button>
+                                                </form>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                <% }) %>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="editWebAccountModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content shadow-lg border-0">
+            <form action="/settings/clients-web/edit" method="POST">
+                <div class="modal-header border-0 pb-0 pt-4 px-4 position-relative">
+                    <h5 class="modal-title fw-bold text-warning"><i class="fa-solid fa-pen-to-square me-2"></i> تعديل بيانات الدخول</h5>
+                    <button type="button" class="btn-close position-absolute" data-bs-dismiss="modal" style="left: 20px; filter: invert(0.5);"></button>
+                </div>
+                <div class="modal-body p-4">
+                    <input type="hidden" name="accountType" id="editAccountType">
+                    <input type="hidden" name="accountId" id="editAccountId">
+                    
+                    <div class="mb-3">
+                        <label class="form-label fw-bold text-muted small">اسم المستخدم</label>
+                        <input type="text" name="webUsername" id="editWebUsername" class="form-control text-start fw-bold mono-num text-primary" dir="ltr" required>
+                    </div>
+                    <div class="mb-4">
+                        <label class="form-label fw-bold text-muted small">كلمة المرور السريـة</label>
+                        <input type="text" name="webPassword" id="editWebPassword" class="form-control text-start fw-bold mono-num text-danger" dir="ltr" required>
+                    </div>
+                </div>
+                <div class="modal-footer border-0 p-4 pt-0">
+                    <button type="submit" class="btn btn-warning w-100 fw-bold py-3 fs-5 rounded-3 text-dark">تحديث البيانات</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script id="employeesData" type="application/json">
+    <%- JSON.stringify(typeof allClientEmployees !== 'undefined' ? allClientEmployees : []) %>
+</script>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+    function toggleSidebar() { 
+        document.querySelector('.sidebar').classList.toggle('active');
+        document.querySelector('.sidebar-overlay').classList.toggle('active'); 
+    }
+
+    const empDataElement = document.getElementById('employeesData');
+    const allEmployees = empDataElement && empDataElement.textContent.trim() ? JSON.parse(empDataElement.textContent) : [];
+    
+    function updateEmployeeDropdown() {
+        const companyId = document.getElementById('companySelect').value;
+        const empSelect = document.getElementById('employeeSelect');
+        empSelect.innerHTML = '<option value="" disabled selected>اختر الموظف...</option>';
+
+        if (!companyId) return;
+        
+        const filteredEmps = allEmployees.filter(emp => emp.clientBotId && (emp.clientBotId._id || emp.clientBotId).toString() === companyId.toString());
+        
+        if (filteredEmps.length === 0) {
+            empSelect.innerHTML = '<option value="" disabled selected>لا يوجد موظفين مسجلين لهذه الشركة</option>';
+            empSelect.required = false;
+        } else {
+            empSelect.required = true;
+            filteredEmps.forEach(emp => {
+                const roleLabel = emp.role === 'accountant' ? 'محاسب' : 'موظف';
+                empSelect.innerHTML += `<option value="${emp._id}">${emp.name} (${roleLabel})</option>`;
+            });
+        }
+    }
+
+    function toggleType() {
+        const type = document.getElementById('typeSelect').value;
+        const companyExtra = document.getElementById('companyExtraFields');
+        const targetLabel = document.getElementById('targetLabel');
+
+        if (type === 'user') {
+            targetLabel.innerText = "اختر العميل";
+            document.getElementById('userSelect').style.display = 'block'; document.getElementById('userSelect').disabled = false;
+            document.getElementById('companySelect').style.display = 'none'; document.getElementById('companySelect').disabled = true;
+            companyExtra.style.display = 'none'; document.getElementById('employeeSelect').required = false;
+        } else {
+            targetLabel.innerText = "اختر الشركة";
+            document.getElementById('companySelect').style.display = 'block'; document.getElementById('companySelect').disabled = false;
+            document.getElementById('userSelect').style.display = 'none'; document.getElementById('userSelect').disabled = true;
+            companyExtra.style.display = 'block'; updateEmployeeDropdown();
+        }
+    }
+
+    function openEditModal(type, id, username, password) {
+        document.getElementById('editAccountType').value = type;
+        document.getElementById('editAccountId').value = id;
+        document.getElementById('editWebUsername').value = username;
+        document.getElementById('editWebPassword').value = password;
+        new bootstrap.Modal(document.getElementById('editWebAccountModal')).show();
+    }
+</script>
+</body>
+</html>
