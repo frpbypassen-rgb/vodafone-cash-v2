@@ -1,34 +1,39 @@
 // bots/client/scenes/complaintScene.js
-const { Scenes, Markup, Telegram } = require('telegraf');
-const mongoose = require('mongoose'); // 🟢 تمت إضافة Mongoose لتفادي خطأ الـ ID
-const Transaction = require('../../../models/Transaction');
-const ExecutorBot = require('../../../models/ExecutorBot');
-const Admin = require('../../../models/Admin');
+const { Scenes, Markup } = require('telegraf');
+const axios = require('axios');
+const API_BASE = `http://127.0.0.1:${process.env.PORT || 3000}/api/bot`;
 
 const complaintWizard = new Scenes.WizardScene(
     'COMPLAINT_SCENE',
     // 1️⃣ الخطوة الأولى: عرض آخر 10 عمليات
     async (ctx) => {
-        // تصفير عدادات الأخطاء
         ctx.wizard.state.searchAttempts = 0;
         ctx.wizard.state.reasonAttempts = 0;
 
         const telegramId = ctx.from.id.toString();
-        const txs = await Transaction.find({ userId: telegramId, status: 'completed' }).sort({ updatedAt: -1 }).limit(10);
-        
-        if (txs.length === 0) {
-            await ctx.reply('❌ لا توجد عمليات مكتملة لتقديم شكوى عليها حالياً.');
+        const botData = ctx.wizard.state.botData;
+
+        try {
+            const res = await axios.get(`${API_BASE}/client/transactions/completed?telegramId=${telegramId}`, { headers: { 'x-bot-token': botData.token } });
+            const txs = res.data.txs;
+
+            if (!txs || txs.length === 0) {
+                await ctx.reply('❌ لا توجد عمليات مكتملة لتقديم شكوى عليها حالياً.');
+                return ctx.scene.leave();
+            }
+
+            let msg = '📑 <b>آخر عمليات تحويل خاصة بك:</b>\n\nاختر العملية التي تريد تقديم شكوى بخصوصها:';
+            const buttons = txs.map(t => [Markup.button.callback(`📞 ${t.vodafoneNumber} | 💵 ${t.amount} EGP`, `selectTx_${t._id}`)]);
+            
+            buttons.push([Markup.button.callback('🔍 البحث برقم الحوالة', 'search_tx')]);
+            buttons.push([Markup.button.callback('🔙 رجوع', 'cancel_complaint')]);
+
+            await ctx.reply(msg, { parse_mode: 'HTML', ...Markup.inlineKeyboard(buttons) });
+            return ctx.wizard.next();
+        } catch (e) {
+            ctx.reply('❌ حدث خطأ، يرجى المحاولة لاحقاً.');
             return ctx.scene.leave();
         }
-
-        let msg = '📑 <b>آخر عمليات تحويل خاصة بك:</b>\n\nاختر العملية التي تريد تقديم شكوى بخصوصها:';
-        const buttons = txs.map(t => [Markup.button.callback(`📞 ${t.vodafoneNumber} | 💵 ${t.amount} EGP`, `selectTx_${t._id}`)]);
-        
-        buttons.push([Markup.button.callback('🔍 البحث برقم الحوالة', 'search_tx')]);
-        buttons.push([Markup.button.callback('🔙 رجوع', 'cancel_complaint')]);
-
-        await ctx.reply(msg, { parse_mode: 'HTML', ...Markup.inlineKeyboard(buttons) });
-        return ctx.wizard.next();
     },
     // 2️⃣ الخطوة الثانية: معالجة الاختيار أو طلب رقم الحوالة
     async (ctx) => {
@@ -50,6 +55,8 @@ const complaintWizard = new Scenes.WizardScene(
         try {
             ctx.wizard.state.searchAttempts = ctx.wizard.state.searchAttempts || 0;
             const searchId = ctx.message?.text?.trim();
+            const botData = ctx.wizard.state.botData;
+            const telegramId = ctx.from.id.toString();
 
             if (!searchId) {
                 ctx.wizard.state.searchAttempts += 1;
@@ -61,35 +68,22 @@ const complaintWizard = new Scenes.WizardScene(
                 return;
             }
 
-            // فلترة ذكية لتجنب انهيار قاعدة البيانات
-            let queryOptions = [];
-            queryOptions.push({ customId: searchId }); 
-
-            if (mongoose.Types.ObjectId.isValid(searchId)) {
-                queryOptions.push({ _id: searchId });
-            }
-
-            const tx = await Transaction.findOne({ 
-                $or: queryOptions, 
-                userId: ctx.from.id.toString(),
-                status: 'completed'
-            });
+            const res = await axios.get(`${API_BASE}/client/transactions/search?telegramId=${telegramId}&searchId=${searchId}`, { headers: { 'x-bot-token': botData.token } });
             
-            if (!tx) {
+            if (!res.data.success || !res.data.tx) {
                 ctx.wizard.state.searchAttempts += 1;
                 if (ctx.wizard.state.searchAttempts >= 2) {
                     await ctx.reply('❌ فشل العثور على الحوالة للمرة الثانية.\nتم إلغاء العملية، يرجى مراجعة رقم الطلب والمحاولة لاحقاً من القائمة الرئيسية.');
                     return ctx.scene.leave();
                 }
-                await ctx.reply('❌ <b>لم يتم العثور على حوالة مكتملة بهذا الرقم!</b>\nتأكد من الرقم وأعد المحاولة <b>(تتبقى لك محاولة واحدة)</b>:', { parse_mode: 'HTML' });
+                await ctx.reply('❌ <b>لم يتم العثور على حوالة بهذا الرقم!</b>\nتأكد من الرقم وأعد المحاولة <b>(تتبقى لك محاولة واحدة)</b>:', { parse_mode: 'HTML' });
                 return;
             }
             
-            ctx.wizard.state.searchAttempts = 0; // تصفير العداد لنجاح الخطوة
-            ctx.wizard.state.txId = tx._id;
+            ctx.wizard.state.searchAttempts = 0; 
+            ctx.wizard.state.txId = res.data.tx._id;
             return proceedToReason(ctx);
         } catch (error) {
-            console.error('Search TX Error:', error);
             ctx.reply('❌ حدث خطأ داخلي، يرجى المحاولة لاحقاً.');
             return ctx.scene.leave();
         }
@@ -120,15 +114,11 @@ const complaintWizard = new Scenes.WizardScene(
             return;
         }
 
-        ctx.wizard.state.reasonAttempts = 0; // تصفير العداد
+        ctx.wizard.state.reasonAttempts = 0;
         ctx.wizard.state.complaintReason = ctx.message.text;
         return sendComplaintToAdmin(ctx);
     }
 );
-
-// =====================================
-// 🛠 دوال مساعدة
-// =====================================
 
 const proceedToReason = async (ctx) => {
     await ctx.reply('❓ <b>ما هو سبب الشكوى؟</b>', {
@@ -142,61 +132,18 @@ const proceedToReason = async (ctx) => {
     ctx.wizard.selectStep(3);
 };
 
-// 🚀 إرسال الشكوى لجميع المديرين
 const sendComplaintToAdmin = async (ctx) => {
     try {
         await ctx.reply('⏳ جاري إرسال الشكوى للإدارة، يرجى الانتظار ثوانٍ...');
 
-        const tx = await Transaction.findById(ctx.wizard.state.txId);
-        
-        tx.complaintText = ctx.wizard.state.complaintReason;
-        await tx.save();
+        const txId = ctx.wizard.state.txId;
+        const complaintText = ctx.wizard.state.complaintReason;
+        const botData = ctx.wizard.state.botData;
+        const telegramId = ctx.from.id.toString();
 
-        const adminBotAPI = new Telegram(process.env.ADMIN_BOT_TOKEN);
+        await axios.post(`${API_BASE}/client/complaint`, { txId, telegramId, complaintText }, { headers: { 'x-bot-token': botData.token } });
 
-        const msg = `🚨 <b>شكوى جديدة من عميل!</b>\n\n` +
-                    `👤 <b>المرسل:</b> ${tx.employeeName || 'غير محدد'}\n` +
-                    `📞 <b>المحفظة:</b> <code>${tx.vodafoneNumber}</code>\n` +
-                    `💵 <b>المبلغ:</b> ${tx.amount} EGP\n` +
-                    `🧾 <b>رقم الطلب:</b> <code>${tx.customId || tx._id}</code>\n` +
-                    `⚠️ <b>السبب:</b> ${tx.complaintText}\n` +
-                    `👨‍💻 <b>الأيدي للمنفذ:</b> <code>${tx.operatorId || 'غير معروف'}</code>`;
-
-        const keyboardMarkup = Markup.inlineKeyboard([
-            [Markup.button.callback('🤖 تحويل للمنفذ', `compFwd_${tx._id}`)],
-            [Markup.button.callback('✅ تم حل المشكلة', `compSolved_${tx._id}`)],
-            [Markup.button.callback('❌ إلغاء وخصم القيمة', `compCancel_${tx._id}`)]
-        ]);
-
-        let photoBuffer = null;
-        if (tx.proofImage && tx.executorBotId) {
-            try {
-                const execBotDoc = await ExecutorBot.findById(tx.executorBotId);
-                if (execBotDoc) {
-                    const execAPI = new Telegram(execBotDoc.token);
-                    const fileLink = await execAPI.getFileLink(tx.proofImage);
-                    const response = await fetch(fileLink.href);
-                    const arrayBuffer = await response.arrayBuffer();
-                    photoBuffer = Buffer.from(arrayBuffer);
-                }
-            } catch (fetchErr) { console.error('Failed to fetch image buffer:', fetchErr.message); }
-        }
-
-        const allAdmins = await Admin.find({});
-        const adminIds = new Set(allAdmins.map(a => a.telegramId));
-        if (process.env.ADMIN_TELEGRAM_ID) adminIds.add(process.env.ADMIN_TELEGRAM_ID);
-
-        const sendPromises = Array.from(adminIds).map(targetAdminId => {
-            if (photoBuffer) {
-                return adminBotAPI.sendPhoto(targetAdminId, { source: photoBuffer }, { caption: msg, parse_mode: 'HTML', ...keyboardMarkup });
-            } else {
-                return adminBotAPI.sendMessage(targetAdminId, msg + '\n\n⚠️ *(تعذر جلب صورة الإثبات تلقائياً)*', { parse_mode: 'HTML', ...keyboardMarkup });
-            }
-        });
-
-        await Promise.all(sendPromises);
-        await ctx.reply('✅ تم إرسال شكواك للإدارة بنجاح مع كافة التفاصيل والصور.\nسيتم مراجعتها واتخاذ الإجراء اللازم فوراً.');
-
+        await ctx.reply('✅ تم إرسال شكواك للإدارة بنجاح.\nسيتم مراجعتها واتخاذ الإجراء اللازم فوراً.');
     } catch (error) {
         console.error('Complaint Error:', error);
         await ctx.reply('❌ حدث خطأ داخلي أثناء معالجة الشكوى.');

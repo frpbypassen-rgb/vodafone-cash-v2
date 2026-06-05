@@ -1,0 +1,82 @@
+{
+  "dashboard": {
+    "id": null,
+    "uid": "ahram-pay-overview",
+    "title": "Al-Ahram Pay — System Overview",
+    "tags": ["fintech", "ahram-pay", "production"],
+    "timezone": "Africa/Tripoli",
+    "refresh": "10s",
+    "panels": [
+      {
+        "id": 1,
+        "title": "HTTP Requests / min",
+        "type": "stat",
+        "gridPos": { "h": 4, "w": 6, "x": 0, "y": 0 },
+        "targets": [{ "expr": "rate(http_requests_total[1m])" }]
+      },
+      {
+        "id": 2,
+        "title": "Active Transfers",
+        "type": "gauge",
+        "gridPos": { "h": 4, "w": 6, "x": 6, "y": 0 },
+        "targets": [{ "expr": "active_transfers_count" }]
+      },
+      {
+        "id": 3,
+        "title": "Error Rate",
+        "type": "stat",
+        "gridPos": { "h": 4, "w": 6, "x": 12, "y": 0 },
+        "targets": [{ "expr": "rate(errors_total[5m])" }],
+        "fieldConfig": { "defaults": { "thresholds": { "steps": [
+          {"color": "green", "value": 0},
+          {"color": "yellow", "value": 0.01},
+          {"color": "red", "value": 0.1}
+        ]}}}
+      },
+      {
+        "id": 4,
+        "title": "Process Uptime",
+        "type": "stat",
+        "gridPos": { "h": 4, "w": 6, "x": 18, "y": 0 },
+        "targets": [{ "expr": "process_uptime_seconds / 3600" }],
+        "fieldConfig": { "defaults": { "unit": "h" }}
+      },
+      {
+        "id": 5,
+        "title": "Login Success vs Failure",
+        "type": "timeseries",
+        "gridPos": { "h": 8, "w": 12, "x": 0, "y": 4 },
+        "targets": [
+          { "expr": "rate(login_successes_total[5m])", "legendFormat": "Success" },
+          { "expr": "rate(login_failures_total[5m])", "legendFormat": "Failure" }
+        ]
+      },
+      {
+        "id": 6,
+        "title": "Transfer Activity",
+        "type": "timeseries",
+        "gridPos": { "h": 8, "w": 12, "x": 12, "y": 4 },
+        "targets": [
+          { "expr": "rate(transfers_created_total[5m])", "legendFormat": "Created" },
+          { "expr": "rate(transfers_completed_total[5m])", "legendFormat": "Completed" },
+          { "expr": "rate(transfers_cancelled_total[5m])", "legendFormat": "Cancelled" }
+        ]
+      },
+      {
+        "id": 7,
+        "title": "Memory Usage (RSS)",
+        "type": "timeseries",
+        "gridPos": { "h": 8, "w": 12, "x": 0, "y": 12 },
+        "targets": [{ "expr": "process_memory_rss_bytes / 1024 / 1024", "legendFormat": "RSS (MB)" }],
+        "fieldConfig": { "defaults": { "unit": "decmbytes" }}
+      },
+      {
+        "id": 8,
+        "title": "Response Time (avg ms)",
+        "type": "timeseries",
+        "gridPos": { "h": 8, "w": 12, "x": 12, "y": 12 },
+        "targets": [{ "expr": "http_request_duration_ms_avg", "legendFormat": "{{method}} {{path}}" }]
+      }
+    ]
+  }
+}

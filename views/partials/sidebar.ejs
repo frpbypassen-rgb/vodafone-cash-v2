@@ -171,12 +171,11 @@
             <span><i class="fa-solid fa-headset"></i> الدعم الفني</span>
             <span class="badge bg-danger rounded-pill shadow-sm" id="sidebarSupportBadge" style="display: none;">0</span>
         </a>
-        <a href="/admin-reports" class="<%= typeof activePage !== 'undefined' && activePage === 'admin_reports' ? 'active' : '' %>">
-            <i class="fa-solid fa-file-invoice-dollar"></i> التقارير التفصيلية
+
+        <a href="/audit-log" class="<%= typeof activePage !== 'undefined' && activePage === 'audit_log' ? 'active' : '' %>">
+            <i class="fa-solid fa-shield-halved"></i> سجل التدقيق
         </a>
-        <a href="/store-manager" class="<%= typeof activePage !== 'undefined' && activePage === 'store_manager' ? 'active' : '' %>">
-            <i class="fa-solid fa-store"></i> إدارة متجر الكروت
-        </a>
+
         <a href="/executors" class="<%= typeof activePage !== 'undefined' && activePage === 'executors' ? 'active' : '' %>">
             <i class="fa-solid fa-robot"></i> وكلاء وبوتات التنفيذ
         </a>
@@ -189,9 +188,7 @@
         <a href="/broadcast" class="<%= typeof activePage !== 'undefined' && activePage === 'broadcast' ? 'active' : '' %>">
             <i class="fa-solid fa-bullhorn"></i> الإشعارات والبث
         </a>
-        <a href="/closing" class="<%= typeof activePage !== 'undefined' && activePage === 'closing' ? 'active' : '' %>">
-            <i class="fa-solid fa-box-archive"></i> التقفيل والأرشيف
-        </a>
+
         <a href="/settings" class="<%= typeof activePage !== 'undefined' && activePage === 'settings' ? 'active' : '' %>">
             <i class="fa-solid fa-gear"></i> إعدادات المنظومة
         </a>

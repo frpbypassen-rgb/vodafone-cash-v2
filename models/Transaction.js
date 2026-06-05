@@ -20,11 +20,11 @@ const transactionSchema = new mongoose.Schema({
     vodafoneNumber: { type: String },
     accountNumber: { type: String },
     accountName: { type: String }, 
-    amount: { type: Number, required: true }, 
+    amount: { type: Number, required: true, min: 0 }, // ✅ تحقق: لا قيم سالبة
 
     // 📊 البيانات المالية والمحاسبية 
-    costLYD: { type: Number, default: 0 }, 
-    subAccountCostLYD: { type: Number, default: 0 }, 
+    costLYD: { type: Number, default: 0, min: 0 }, // ✅ تحقق: لا قيم سالبة
+    subAccountCostLYD: { type: Number, default: 0 },
     commission: { type: Number, default: 0 },
     masterProfit: { type: Number, default: 0 }, 
     exchangeRate: { type: Number, default: 0 }, 
@@ -53,7 +53,7 @@ const transactionSchema = new mongoose.Schema({
     executorBotName: { type: String },
     operatorId: { type: String }, 
     executorName: { type: String, default: '---' },
-    executorSenderPhone: { type: String }, // رقم الهاتف الذي نفذ منه الموظف
+    executorSenderPhone: { type: String },
 
     // 🤖 متغيرات نظام الربط الآلي (API)
     isApiReview: { type: Boolean }, 
@@ -71,12 +71,10 @@ const transactionSchema = new mongoose.Schema({
     proofImage: { type: String }, 
     proofImages: [{ type: String }], 
     idCardImage: { type: String }, 
-    resolutionImage: { type: String }, // صورة حل الشكوى
+    resolutionImage: { type: String },
 
-    // 🟢🟢 السر هنا: حفظ رقم رسالة العميل لتتحدث بشكل لايف! 🟢🟢
+    // 📡 تخزين رسائل التليجرام
     clientMessageId: { type: Number }, 
-
-    // 📡 تخزين رسائل التليجرام لسهولة تعديلها أو مسحها لاحقاً
     broadcastMessages: [{ telegramId: String, messageId: Number }],
     adminMessages: [{ telegramId: String, messageId: Number }],
     phoneReqAdminMessages: [{ telegramId: String, messageId: Number }] 
@@ -84,5 +82,16 @@ const transactionSchema = new mongoose.Schema({
 }, { 
     timestamps: true 
 });
+
+// ====================================================
+// 📈 فهارس مركبة لتحسين الأداء — حرجة للاستعلامات المتكررة
+// ====================================================
+transactionSchema.index({ status: 1, createdAt: -1 });          // فلتر الحالة + الترتيب
+transactionSchema.index({ userId: 1, createdAt: -1 });           // معاملات المستخدم الفردي
+transactionSchema.index({ clientBotId: 1, createdAt: -1 });      // معاملات الشركة
+transactionSchema.index({ executorBotId: 1, status: 1 });        // مهام المنفذ
+transactionSchema.index({ status: 1, updatedAt: -1 });           // التقارير والإحصاءات
+transactionSchema.index({ executorBotId: 1, createdAt: -1 });    // رصيد المنفذ
+transactionSchema.index({ managerBotId: 1, status: 1 });         // مهام المدير
 
 module.exports = mongoose.model('Transaction', transactionSchema);

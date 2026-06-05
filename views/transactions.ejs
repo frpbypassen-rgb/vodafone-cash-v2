@@ -297,8 +297,8 @@
                                             <% } %>
                                         <% } %>
 
-                                        <form action="/transaction/<%= tx._id %>/global-cancel" method="POST" class="m-0" onsubmit="return confirm('تأكيد الحذف نهائياً وإرجاع الأرصدة؟')">
-                                            <button class="btn-action-sm del" title="حذف نهائي"><i class="fa-solid fa-trash"></i></button>
+                                        <form action="/transaction/<%= tx._id %>/global-cancel" method="POST" class="m-0" onsubmit="return confirm('تأكيد التراجع عن العملية وإرجاع الأرصدة؟')">
+                                            <button class="btn-action-sm undo" title="تراجع"><i class="fa-solid fa-rotate-left"></i></button>
                                         </form>
                                     <% } %>
                                 </div>

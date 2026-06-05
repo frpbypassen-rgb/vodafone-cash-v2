@@ -3,17 +3,12 @@ const { Telegraf, Markup, session, Scenes, Telegram } = require('telegraf');
 const ExcelJS = require('exceljs');
 const cron = require('node-cron'); 
 
-const User = require('../../models/User');
-const ClientBot = require('../../models/ClientBot');
-const ClientEmployee = require('../../models/ClientEmployee');
-const Transaction = require('../../models/Transaction');
-const Settings = require('../../models/Settings');
-const ExecutorBot = require('../../models/ExecutorBot');
-const Admin = require('../../models/Admin');
+const axios = require('axios');
+const API_BASE = `http://127.0.0.1:${process.env.PORT || 3000}/api/bot`;
 
 const transferWizard = require('./scenes/transferScene');
 const postTransferWizard = require('./scenes/postTransferScene'); 
-const clientRegisterWizard = require('./scenes/clientRegisterScene');
+
 const complaintWizard = require('./scenes/complaintScene');
 const requestSenderPhoneWizard = require('./scenes/requestSenderPhoneScene'); 
 const supportWizard = require('./scenes/supportScene'); // 🟢 تمت الإضافة
@@ -165,99 +160,30 @@ const buildInvoiceSheet = (sheet, name, phone, dateLabel, txs, deposits, current
     row4.getCell(6).border = thickBorder;
 };
 
-const sendSingleEntityReport = async (targetId, type) => {
-    try {
-        const now = new Date();
-        const start = new Date(now); start.setHours(0,0,0,0);
-        const end = new Date(now); end.setHours(23,59,59,999);
-        const dateLabel = start.toLocaleDateString('en-GB');
-        const fileDate = dateLabel.replace(/\//g, '-');
+;
 
-        const targetObj = type === 'USER' ? await User.findById(targetId) : await ClientBot.findById(targetId);
-        if (!targetObj) return;
+;
 
-        const filter = type === 'USER' ? { userId: targetObj.telegramId, clientBotId: null } : { clientBotId: targetObj._id };
-        const txs = await Transaction.find({ ...filter, status: 'completed', updatedAt: { $gte: start, $lte: end } }).sort({ updatedAt: 1 });
-        const deposits = await Transaction.find({ ...filter, status: 'deposit', updatedAt: { $gte: start, $lte: end } });
+;
 
-        if (txs.length === 0 && deposits.length === 0) return;
-
-        const set = await Settings.findOne({}) || await Settings.create({});
-        const wb = new ExcelJS.Workbook();
-        buildInvoiceSheet(wb.addWorksheet('كشف حساب'), targetObj.name, targetObj.phone, dateLabel, txs, deposits, targetObj.balance, set);
-        const buffer = await wb.xlsx.writeBuffer();
-
-        if (type === 'USER') {
-            const mainBotAPI = new Telegram(process.env.CLIENT_BOT_TOKEN);
-            await mainBotAPI.sendDocument(targetObj.telegramId, { source: Buffer.from(buffer), filename: `Invoice_${fileDate}.xlsx` }, { caption: '📊 **كشف حسابك اليومي (تقفيل النظام)**' }).catch(()=>{});
-        } else {
-            const compBotAPI = new Telegram(targetObj.token);
-            const emps = await ClientEmployee.find({ clientBotId: targetObj._id, status: 'active' });
-            for (const emp of emps) {
-                await compBotAPI.sendDocument(emp.telegramId, { source: Buffer.from(buffer), filename: `Company_Invoice_${fileDate}.xlsx` }, { caption: '📊 **كشف الحساب اليومي للشركة (تقفيل النظام)**' }).catch(()=>{});
-            }
-        }
-    } catch (err) { console.error('Error sending single report:', err); }
-};
-
-const checkAndSendDelayedReport = async (telegramId, clientBotId) => {
-    try {
-        const set = await Settings.findOne({});
-        if (set && set.isManualClosed) {
-            if (clientBotId) {
-                const activeTxs = await Transaction.countDocuments({ clientBotId: clientBotId, status: { $in: ['pending', 'processing', 'accepted'] } });
-                if (activeTxs === 0) await sendSingleEntityReport(clientBotId, 'COMPANY');
-            } else {
-                const activeTxs = await Transaction.countDocuments({ userId: telegramId, clientBotId: null, status: { $in: ['pending', 'processing', 'accepted'] } });
-                if (activeTxs === 0) {
-                    const user = await User.findOne({ telegramId });
-                    if (user) await sendSingleEntityReport(user._id, 'USER');
-                }
-            }
-        }
-    } catch (err) { console.error(err); }
-};
-
-const handleManualCloseReports = async () => {
-    const users = await User.find({ status: 'active' });
-    for (const user of users) {
-        const activeTxs = await Transaction.countDocuments({ userId: user.telegramId, clientBotId: null, status: { $in: ['pending', 'processing', 'accepted'] } });
-        if (activeTxs === 0) await sendSingleEntityReport(user._id, 'USER');
-    }
-
-    const companies = await ClientBot.find({ status: 'active' });
-    for (const comp of companies) {
-        const activeTxs = await Transaction.countDocuments({ clientBotId: comp._id, status: { $in: ['pending', 'processing', 'accepted'] } });
-        if (activeTxs === 0) await sendSingleEntityReport(comp._id, 'COMPANY');
-    }
-};
-
-const sendDailyReportsToAll = async () => {
-    const users = await User.find({ status: 'active' });
-    for (const user of users) await sendSingleEntityReport(user._id, 'USER');
-
-    const companies = await ClientBot.find({ status: 'active' });
-    for (const comp of companies) await sendSingleEntityReport(comp._id, 'COMPANY');
-};
+;
 
 const generateClientExcel = async (ctx, botData, type) => {
     const telegramId = ctx.from.id.toString();
     const isMainBot = botData.name === 'البوت الرئيسي';
     let targetName = '', targetPhone = '', entityFilter = {}, currentDbBalance = 0;
     try {
+        const resInfo = await axios.get(`${API_BASE}/client/dashboard?telegramId=${telegramId}`, { headers: { 'x-bot-token': botData.token } });
+        if (!resInfo.data.account || resInfo.data.account.status !== 'active') return ctx.reply('⛔️ حسابك غير مفعل أو غير مصرح لك.');
+        
         if (isMainBot) {
-            const user = await User.findOne({ telegramId });
-            if (!user || user.status !== 'active') return ctx.reply('⛔️ حسابك غير مفعل.');
-            targetName = user.name; targetPhone = user.phone;
+            targetName = resInfo.data.account.name; targetPhone = resInfo.data.account.phone;
             entityFilter = { userId: telegramId, clientBotId: null };
-            currentDbBalance = user.balance;
+            currentDbBalance = resInfo.data.account.balance;
         } else {
-            const emp = await ClientEmployee.findOne({ telegramId, clientBotId: botData._id });
-            if (!emp || emp.status !== 'active') return ctx.reply('⛔️ غير مصرح لك.');
-            const company = await ClientBot.findById(botData._id);
-            targetName = company.name; targetPhone = company.phone;
+            targetName = resInfo.data.company.name; targetPhone = resInfo.data.company.phone;
             entityFilter = { clientBotId: botData._id };
-            currentDbBalance = company.balance;
+            currentDbBalance = resInfo.data.company.balance;
         }
         
         const now = new Date();
@@ -272,12 +198,13 @@ const generateClientExcel = async (ctx, botData, type) => {
             dateLabel = `شهر ${now.getMonth() + 1} - ${now.getFullYear()}`;
         }
 
-        const txs = await Transaction.find({ status: 'completed', ...entityFilter, updatedAt: { $gte: start, $lte: end } }).sort({ updatedAt: 1 });
-        const deposits = await Transaction.find({ status: 'deposit', ...entityFilter, updatedAt: { $gte: start, $lte: end } });
+        const resData = await axios.post(`${API_BASE}/client/report-data`, { entityFilter, start, end }, { headers: { 'x-bot-token': botData.token } });
+        const txs = resData.data.txs.map(t => ({ ...t, updatedAt: new Date(t.updatedAt) }));
+        const deposits = resData.data.deposits;
         
         if (txs.length === 0 && deposits.length === 0) return ctx.reply('✅ لا توجد عمليات مسجلة للتقرير في هذه الفترة.');
         
-        const set = await Settings.findOne({}) || await Settings.create({});
+        const set = resData.data.settings;
         const workbook = new ExcelJS.Workbook();
         buildInvoiceSheet(workbook.addWorksheet('كشف حساب'), targetName, targetPhone, dateLabel, txs, deposits, currentDbBalance, set);
         const buffer = await workbook.xlsx.writeBuffer();
@@ -298,7 +225,7 @@ const launchClientBot = (botData) => {
         const bot = new Telegraf(botData.token);
         
         // 🟢 تمت إضافة المشهد
-        const stage = new Scenes.Stage([transferWizard, postTransferWizard, clientRegisterWizard, complaintWizard, requestSenderPhoneWizard, supportWizard]);
+        const stage = new Scenes.Stage([transferWizard, postTransferWizard, complaintWizard, requestSenderPhoneWizard, supportWizard]);
         bot.use(session());
         bot.use(stage.middleware());
 
@@ -309,6 +236,7 @@ const launchClientBot = (botData) => {
         ]).resize();
 
         bot.command('web', async (ctx) => {
+
             const args = ctx.message.text.split(' ');
             if (args.length !== 3) {
                 return ctx.reply('🌐 <b>لتفعيل حسابك على الموقع الإلكتروني:</b>\n\nأرسل الأمر متبوعاً باسم مستخدم وكلمة مرور، هكذا:\n\n<code>/web username password</code>\n\nمثال:\n<code>/web ahmed123 12345678</code>', { parse_mode: 'HTML' });
@@ -317,88 +245,78 @@ const launchClientBot = (botData) => {
             const username = args[1].toLowerCase().trim();
             const password = args[2].trim();
             const telegramId = ctx.from.id.toString();
-            const isMainBot = botData.name === 'البوت الرئيسي';
 
             try {
-                let account;
-                if (isMainBot) {
-                    account = await User.findOne({ telegramId });
-                } else {
-                    account = await ClientEmployee.findOne({ telegramId, clientBotId: botData._id });
+                const response = await axios.post(`${API_BASE}/client/web-credentials`, { telegramId, username, password }, { headers: { 'x-bot-token': botData.token } });
+                if (response.data.success) {
+                    ctx.reply(`✅ <b>تم تفعيل حسابك على الموقع بنجاح!</b>\n\n👤 اسم المستخدم: <code>${username}</code>\n🔑 كلمة المرور: <code>${password}</code>\n\nيمكنك الآن تسجيل الدخول عبر الرابط الخاص بالموقع.`, { parse_mode: 'HTML' });
                 }
-
-                if (!account) return ctx.reply('⛔️ حسابك غير مسجل في النظام.');
-
-                const userExists = await User.findOne({ webUsername: username });
-                const empExists = await ClientEmployee.findOne({ webUsername: username });
-
-                if ((userExists && userExists.telegramId !== telegramId) || (empExists && empExists.telegramId !== telegramId)) {
-                    return ctx.reply('⚠️ اسم المستخدم هذا محجوز لشخص آخر، يرجى اختيار اسم مختلف.');
-                }
-
-                account.webUsername = username;
-                account.webPassword = password;
-                await account.save();
-
-                ctx.reply(`✅ <b>تم تفعيل حسابك على الموقع بنجاح!</b>\n\n👤 اسم المستخدم: <code>${username}</code>\n🔑 كلمة المرور: <code>${password}</code>\n\nيمكنك الآن تسجيل الدخول عبر الرابط الخاص بالموقع.`, { parse_mode: 'HTML' });
             } catch (e) {
+                if (e.response && e.response.status === 400) return ctx.reply('⚠️ اسم المستخدم هذا محجوز لشخص آخر، يرجى اختيار اسم مختلف.');
+                if (e.response && e.response.status === 404) return ctx.reply('⛔️ حسابك غير مسجل في النظام.');
                 ctx.reply('❌ حدث خطأ أثناء تفعيل الحساب.');
             }
         });
 
-        bot.hears('📞 طلب رقم منفذ الحوالة', (ctx) => ctx.scene.enter('REQUEST_SENDER_PHONE_SCENE'));
-        bot.hears('⚠️ شكاوي العمليات', (ctx) => ctx.scene.enter('COMPLAINT_SCENE'));
+        bot.hears('📞 طلب رقم منفذ الحوالة', (ctx) => ctx.scene.enter('REQUEST_SENDER_PHONE_SCENE', { botData, isMainBot: botData.name === 'البوت الرئيسي' }));
+        bot.hears('⚠️ شكاوي العمليات', (ctx) => ctx.scene.enter('COMPLAINT_SCENE', { botData, isMainBot: botData.name === 'البوت الرئيسي' }));
 
         bot.start(async (ctx) => {
+            const args = ctx.message.text.split(' ');
             const telegramId = ctx.from.id.toString();
-            const isMainBot = botData.name === 'البوت الرئيسي';
-            try {
-                let settings = await Settings.findOne();
-                if (!settings) settings = await Settings.create({});
-                const welcomeMsg = settings.welcomeMessage || 'مرحباً بك في منظومة الأهرام الرقمية للصرافة.';
 
-                if (isMainBot) {
-                    const user = await User.findOne({ telegramId });
-                    if (!user || !user.name || !user.phone) return ctx.scene.enter('CLIENT_REGISTER_SCENE', { botData, isMainBot });
-                    await ctx.reply(`${welcomeMsg}\n\nأهلاً بك مجدداً يا ${user.name} 🚀\n💰 الرصيد الحالي: ${user.balance.toFixed(2)} دينار`, mainKeyboard);
-                } else {
-                    const emp = await ClientEmployee.findOne({ telegramId, clientBotId: botData._id });
-                    if (!emp) return ctx.scene.enter('CLIENT_REGISTER_SCENE', { botData, isMainBot });
-                    const company = await ClientBot.findById(botData._id);
-                    await ctx.reply(`🏢 بوت شركة [ ${company.name} ] 🚀\n\n${welcomeMsg}\n💰 الرصيد الحالي: ${company.balance.toFixed(2)} دينار`, mainKeyboard);
+            // Handle deep linking for account linking
+            if (args.length > 1 && args[1].startsWith('LINK-CLIENT-')) {
+                try {
+                    const res = await axios.post(`${API_BASE}/client/link-telegram`, { token: args[1], telegramId }, { headers: { 'x-bot-token': botData.token } });
+                    if (res.data.success) {
+                        return ctx.reply(`✅ تم ربط حسابك بنجاح! أهلاً بك يا ${res.data.name}.\nاضغط على /start للبدء.`, { parse_mode: 'HTML' });
+                    }
+                } catch (e) {
+                    return ctx.reply('❌ رمز الربط غير صحيح أو منتهي الصلاحية.');
                 }
-            } catch (e) { console.error(e); }
+            }
+
+            try {
+                const response = await axios.get(`${API_BASE}/client/dashboard?telegramId=${telegramId}`, { headers: { 'x-bot-token': botData.token } });
+                const data = response.data;
+                const welcomeMsg = data.settings.welcomeMessage;
+                if (!data.isRegistered) {
+                    return ctx.reply('⛔️ <b>حسابك غير مسجل في البوت.</b>\n\nالرجاء إنشاء حساب أو تسجيل الدخول من <b>الموقع الإلكتروني</b> الخاص بنا عبر الرابط التالي:\n🔗 https://ahram-pay.com/client/login\n\nثم الانتقال إلى لوحة التحكم الخاصة بك والنقر على زر <b>"ربط حساب التليجرام"</b> للمتابعة.', { parse_mode: 'HTML', disable_web_page_preview: true });
+                }
+
+                if (botData.name === 'البوت الرئيسي') {
+                    await ctx.reply(`${welcomeMsg}\n\nأهلاً بك مجدداً يا ${data.account.name} 🚀\n💰 الرصيد الحالي: ${data.account.balance.toFixed(2)} دينار`, mainKeyboard);
+                } else {
+                    await ctx.reply(`🏢 بوت شركة [ ${data.company.name} ] 🚀\n\n${welcomeMsg}\n💰 الرصيد الحالي: ${data.company.balance.toFixed(2)} دينار`, mainKeyboard);
+                }
+            } catch (e) { console.error(e.message); }
         });
 
         bot.hears('🏠 القائمة الرئيسية (ابدأ)', async (ctx) => {
-            if (ctx.scene) await ctx.scene.leave(); 
-            
-            const telegramId = ctx.from.id.toString();
-            const isMainBot = botData.name === 'البوت الرئيسي';
-            try {
-                let settings = await Settings.findOne();
-                if (!settings) settings = await Settings.create({});
-                const welcomeMsg = settings.welcomeMessage || 'مرحباً بك في منظومة الأهرام الرقمية للصرافة.';
 
-                if (isMainBot) {
-                    const user = await User.findOne({ telegramId });
-                    if (!user) return;
-                    await ctx.reply(`🔄 تم تحديث البوت!\n\n${welcomeMsg}\n💰 الرصيد الحالي: ${user.balance.toFixed(2)} دينار`, mainKeyboard);
+            if (ctx.scene) await ctx.scene.leave(); 
+            const telegramId = ctx.from.id.toString();
+            try {
+                const response = await axios.get(`${API_BASE}/client/dashboard?telegramId=${telegramId}`, { headers: { 'x-bot-token': botData.token } });
+                const data = response.data;
+                const welcomeMsg = data.settings.welcomeMessage;
+                if (!data.isRegistered) return;
+                
+                if (botData.name === 'البوت الرئيسي') {
+                    await ctx.reply(`🔄 تم تحديث البوت!\n\n${welcomeMsg}\n💰 الرصيد الحالي: ${data.account.balance.toFixed(2)} دينار`, mainKeyboard);
                 } else {
-                    const company = await ClientBot.findById(botData._id);
-                    await ctx.reply(`🔄 تم تحديث البوت!\n\n🏢 بوت شركة [ ${company.name} ] 🚀\n\n${welcomeMsg}\n💰 الرصيد الحالي: ${company.balance.toFixed(2)} دينار`, mainKeyboard);
+                    await ctx.reply(`🔄 تم تحديث البوت!\n\n🏢 بوت شركة [ ${data.company.name} ] 🚀\n\n${welcomeMsg}\n💰 الرصيد الحالي: ${data.company.balance.toFixed(2)} دينار`, mainKeyboard);
                 }
-            } catch (e) { console.error(e); }
+            } catch (e) { console.error(e.message); }
         });
 
         bot.hears('⏳ العمليات المعلقة', async (ctx) => {
-            const telegramId = ctx.from.id.toString();
-            const isMainBot = botData.name === 'البوت الرئيسي';
-            let filter = isMainBot ? { userId: telegramId, clientBotId: null } : { clientBotId: botData._id };
-            filter.status = { $in: ['pending', 'processing', 'accepted'] };
 
+            const telegramId = ctx.from.id.toString();
             try {
-                const pendingTxs = await Transaction.find(filter).sort({ createdAt: -1 });
+                const response = await axios.get(`${API_BASE}/client/pending-transactions?telegramId=${telegramId}`, { headers: { 'x-bot-token': botData.token } });
+                const pendingTxs = response.data.pendingTxs;
 
                 if (pendingTxs.length === 0) {
                     return ctx.reply('✅ لا توجد لديك أي عمليات معلقة حالياً. جميع طلباتك مكتملة!');
@@ -408,7 +326,7 @@ const launchClientBot = (botData) => {
 
                 for (const tx of pendingTxs) {
                     const statusNames = { 'pending': '⏳ بانتظار المدير', 'processing': '⚙️ قيد المعالجة', 'accepted': '✅ تم القبول (بانتظار التنفيذ)' };
-                    const time = tx.createdAt.toLocaleString('ar-EG');
+                    const time = new Date(tx.createdAt).toLocaleString('ar-EG');
                     
                     let typeLabel = 'فودافون كاش';
                     if(tx.transferType === 'post_account') typeLabel = 'حساب بريد';
@@ -432,91 +350,45 @@ const launchClientBot = (botData) => {
         });
 
         bot.action(/^remindAdmin_(.+)$/, async (ctx) => {
+
             const txId = ctx.match[1];
             try {
-                const tx = await Transaction.findById(txId);
-                if (!tx || ['completed', 'rejected'].includes(tx.status)) {
-                    return ctx.answerCbQuery('⚠️ هذه العملية لم تعد معلقة.');
-                }
-
+                await axios.post(`${API_BASE}/client/remind-admin`, { txId }, { headers: { 'x-bot-token': botData.token } });
                 await ctx.answerCbQuery('🚀 جاري إرسال تذكير للإدارة...');
-
-                const isMainBot = !tx.clientBotId;
-                let clientInfo = '';
-                if (isMainBot) {
-                    const user = await User.findOne({ telegramId: tx.userId });
-                    clientInfo = `👤 <b>العميل الفردي:</b> ${user ? user.name : 'غير معروف'}`;
-                } else {
-                    const company = await ClientBot.findById(tx.clientBotId);
-                    clientInfo = `🏢 <b>الشركة:</b> ${company ? company.name : 'غير معروف'}\n👨‍💻 <b>الموظف:</b> ${tx.employeeName || 'غير مسجل'}`;
-                }
-
-                let executorInfo = '❌ لم يتم التوجيه لمنفذ بعد';
-                if (tx.executorBotId) {
-                    const execBot = await ExecutorBot.findById(tx.executorBotId);
-                    executorInfo = `🤖 <b>البوت المنفذ:</b> ${execBot ? execBot.name : 'غير معروف'}`;
-                }
-
-                let typeLabel = 'فودافون كاش';
-                if(tx.transferType === 'post_account') typeLabel = 'حساب بريد';
-                if(tx.transferType === 'post_card') typeLabel = 'بطاقة عميل';
-
-                const adminReminder = `🔔 <b>تذكير من عميل بطلب معلق! (${typeLabel})</b>\n\n` +
-                                      `🧾 <b>رقم الطلب:</b> <code>${tx.customId || tx._id}</code>\n` +
-                                      `${clientInfo}\n` +
-                                      `📞 <b>الرقم/الحساب:</b> <code>${tx.vodafoneNumber || tx.accountNumber || '---'}</code>\n` +
-                                      `💵 <b>المبلغ:</b> ${tx.amount} EGP\n` +
-                                      `${executorInfo}\n` +
-                                      `━━━━━━━━━━━━━━\n` +
-                                      `⚠️ العميل يطلب استعجال التنفيذ.`;
-
-                const adminBotAPI = new Telegram(process.env.ADMIN_BOT_TOKEN);
-                const admins = await Admin.find({});
-                const adminIds = new Set(admins.map(a => a.telegramId));
-                if (process.env.ADMIN_TELEGRAM_ID) adminIds.add(process.env.ADMIN_TELEGRAM_ID);
-
-                for (const adminId of adminIds) {
-                    await adminBotAPI.sendMessage(adminId, adminReminder, { parse_mode: 'HTML' }).catch(()=>{});
-                }
-
                 await ctx.reply('✅ تم إرسال التذكير بنجاح لجميع مديري المنظومة.');
-
-            } catch (e) { ctx.answerCbQuery('❌ حدث خطأ أثناء التذكير.'); }
+            } catch (e) {
+                if (e.response && e.response.status === 400) return ctx.answerCbQuery('⚠️ هذه العملية لم تعد معلقة.');
+                ctx.answerCbQuery('❌ حدث خطأ أثناء التذكير.');
+            }
         });
 
         bot.hears('👤 حسابي', async (ctx) => {
+
             const telegramId = ctx.from.id.toString();
-            const isMainBot = botData.name === 'البوت الرئيسي';
             try {
-                let name, phone, idDisplay, balance, tier, joinDate, targetId;
+                const response = await axios.get(`${API_BASE}/client/dashboard?telegramId=${telegramId}`, { headers: { 'x-bot-token': botData.token } });
+                const data = response.data;
+                const stats = await axios.get(`${API_BASE}/client/account-info?telegramId=${telegramId}`, { headers: { 'x-bot-token': botData.token } });
                 
-                const set = await Settings.findOne({}) || await Settings.create({});
+                let settings = data.settings || {};
+                let account = data.account;
+                if (!account) return ctx.reply('⛔️ حساب غير مسجل.');
+                
+                let name = account.name;
+                let phone = account.phone;
+                let idDisplay = account.telegramId;
+                let balance = account.balance;
+                let joinDate = new Date(account.createdAt);
+                
+                let isCompany = !!data.company;
+                let tier = isCompany ? (data.company.tier || 1) : (account.tier || 1);
+                if (isCompany) balance = data.company.balance;
+                
+                let currentRate = settings.rateLevel1 || 6.40;
+                if (tier === 2) currentRate = settings.rateLevel2 || 6.45;
+                if (tier === 3) currentRate = settings.rateLevel3 || 6.50;
 
-                if (isMainBot) {
-                    const user = await User.findOne({ telegramId });
-                    if (!user) return;
-                    name = user.name; phone = user.phone; idDisplay = user.telegramId;
-                    balance = user.balance; 
-                    tier = user.tier || 1; joinDate = user.createdAt; targetId = { userId: telegramId, clientBotId: null };
-                } else {
-                    const emp = await ClientEmployee.findOne({ telegramId, clientBotId: botData._id });
-                    if (!emp) return;
-                    const company = await ClientBot.findById(botData._id);
-                    name = emp.name; phone = emp.phone; idDisplay = emp.telegramId;
-                    balance = company.balance; 
-                    tier = company.tier || 1; joinDate = emp.createdAt; targetId = { clientBotId: botData._id };
-                }
-
-                const totalTxs = await Transaction.aggregate([
-                    { $match: { ...targetId, status: 'completed' } },
-                    { $group: { _id: null, total: { $sum: "$costLYD" } } }
-                ]);
-                const totalTransferred = totalTxs.length > 0 ? totalTxs[0].total.toFixed(2) : "0.00";
-
-                let currentRate = set.rateLevel1 || 6.40;
-                if (tier === 2) currentRate = set.rateLevel2 || 6.45;
-                if (tier === 3) currentRate = set.rateLevel3 || 6.50;
-
+                const totalTransferred = stats.data.sumAmount ? stats.data.sumAmount.toFixed(2) : "0.00";
                 const availableFunds = balance.toFixed(2);
                 const joinDateStr = joinDate.toLocaleDateString('en-GB');
 
@@ -532,7 +404,7 @@ const launchClientBot = (botData) => {
                     `💰 <b>الرصيد الحالي:</b> ${availableFunds} دينار\n` +
                     `📤 <b>إجمالي المحول:</b> ${totalTransferred} دينار\n` +
                     `━━━━━━━━━━━━━━\n` +
-                    `🎧 <b>للتواصل والدعم:</b> ${set.supportContact || '@AhramSupport'}\n` +
+                    `🎧 <b>للتواصل والدعم:</b> ${settings.supportContact || '@AhramSupport'}\n` +
                     `✨ <i>شكراً لثقتكم في شركة الأهرام الرقمية</i>`;
 
                 await ctx.reply(cardMessage, { parse_mode: 'HTML' });
@@ -540,31 +412,25 @@ const launchClientBot = (botData) => {
         });
 
         bot.hears('💸 تحويل فودافون كاش (مصر)', async (ctx) => {
+
             const telegramId = ctx.from.id.toString();
-            const isMainBot = botData.name === 'البوت الرئيسي';
-            if (isMainBot) {
-                const user = await User.findOne({ telegramId });
-                if (!user || user.status !== 'active') return ctx.reply('⛔️ حسابك غير مفعل.');
-                ctx.scene.enter('TRANSFER_SCENE', { isMainBot, botData });
-            } else {
-                const emp = await ClientEmployee.findOne({ telegramId, clientBotId: botData._id });
-                if (!emp || emp.status !== 'active') return ctx.reply('⛔️ حسابك غير مفعل.');
-                ctx.scene.enter('TRANSFER_SCENE', { isMainBot, botData });
-            }
+            try {
+                const response = await axios.get(`${API_BASE}/client/dashboard?telegramId=${telegramId}`, { headers: { 'x-bot-token': botData.token } });
+                const account = response.data.account;
+                if (!account || account.status !== 'active') return ctx.reply('⛔️ حسابك غير مفعل.');
+                ctx.scene.enter('TRANSFER_SCENE', { isMainBot: botData.name === 'البوت الرئيسي', botData });
+            } catch (e) { ctx.reply('❌ خطأ في النظام.'); }
         });
 
         bot.hears('📮 تحويل بريد', async (ctx) => {
+
             const telegramId = ctx.from.id.toString();
-            const isMainBot = botData.name === 'البوت الرئيسي';
-            if (isMainBot) {
-                const user = await User.findOne({ telegramId });
-                if (!user || user.status !== 'active') return ctx.reply('⛔️ حسابك غير مفعل.');
-                ctx.scene.enter('POST_TRANSFER_SCENE', { isMainBot, botData });
-            } else {
-                const emp = await ClientEmployee.findOne({ telegramId, clientBotId: botData._id });
-                if (!emp || emp.status !== 'active') return ctx.reply('⛔️ حسابك غير مفعل.');
-                ctx.scene.enter('POST_TRANSFER_SCENE', { isMainBot, botData });
-            }
+            try {
+                const response = await axios.get(`${API_BASE}/client/dashboard?telegramId=${telegramId}`, { headers: { 'x-bot-token': botData.token } });
+                const account = response.data.account;
+                if (!account || account.status !== 'active') return ctx.reply('⛔️ حسابك غير مفعل.');
+                ctx.scene.enter('POST_TRANSFER_SCENE', { isMainBot: botData.name === 'البوت الرئيسي', botData });
+            } catch (e) { ctx.reply('❌ خطأ في النظام.'); }
         });
 
         // 🟢 الاستماع لزر الدعم الفني
@@ -606,12 +472,16 @@ const launchClientBot = (botData) => {
 };
 
 const startAllClientBots = async () => {
+
     try {
         if (process.env.CLIENT_BOT_TOKEN) launchClientBot({ name: 'البوت الرئيسي', token: process.env.CLIENT_BOT_TOKEN });
-        const bots = await ClientBot.find({ status: 'active' });
-        bots.forEach(botData => launchClientBot(botData));
-        cron.schedule('59 23 * * *', () => sendDailyReportsToAll(), { timezone: 'Africa/Tripoli' });
+        try {
+            const response = await axios.get(`${API_BASE}/system/client-bots`);
+            if (response.data.success) {
+                response.data.bots.forEach(botData => launchClientBot(botData));
+            }
+        } catch (e) { console.error('Failed to fetch client bots'); }
     } catch (error) { console.error(error); }
-};
+        };
 
-module.exports = { startAllClientBots, launchClientBot, checkAndSendDelayedReport, handleManualCloseReports };
+module.exports = { startAllClientBots, launchClientBot, buildInvoiceSheet };

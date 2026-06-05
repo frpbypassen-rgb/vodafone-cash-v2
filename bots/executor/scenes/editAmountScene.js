@@ -1,13 +1,6 @@
-// bots/executor/scenes/editAmountScene.js
-const { Scenes, Markup, Telegram } = require('telegraf');
+const { Scenes, Markup } = require('telegraf');
 const axios = require('axios');
-const fs = require('fs');
-const path = require('path');
-const Transaction = require('../../../models/Transaction');
-const ClientBot = require('../../../models/ClientBot');
-const Admin = require('../../../models/Admin');
-const User = require('../../../models/User');
-const { updateClientTracking } = require('../../../services/clientTrackingService');
+const API_BASE = process.env.API_BASE_URL || 'http://localhost:3000/api/bot';
 
 const editPrompt = async (ctx, text, markup = {}) => {
     try {
@@ -28,13 +21,19 @@ const editAmountWizard = new Scenes.WizardScene(
     async (ctx) => {
         ctx.wizard.state.txId = ctx.scene.state.txId;
         ctx.wizard.state.promptMsgId = ctx.scene.state.promptMsgId;
-        const tx = await Transaction.findById(ctx.wizard.state.txId);
-        await editPrompt(ctx, `✏️ <b>تعديل المبلغ (تحويل جزئي)</b>\n\nالمبلغ الأصلي: <b>${tx.amount} EGP</b>\n\nالرجاء إرسال المبلغ الجديد (الذي تم تحويله فعلياً):`, Markup.inlineKeyboard([[Markup.button.callback('🔙 تراجع', 'edit_back')]]));
+        
+        try {
+            const res = await axios.get(`${API_BASE}/executor/transactions/pending`, { headers: { 'x-bot-token': ctx.botToken } });
+            const tx = res.data.txs?.find(t => t._id === ctx.wizard.state.txId);
+            if (!tx) return ctx.scene.leave();
+            ctx.wizard.state.tx = tx;
+            await editPrompt(ctx, `✏️ <b>تعديل المبلغ (تحويل جزئي)</b>\n\nالمبلغ الأصلي: <b>${tx.amount} EGP</b>\n\nالرجاء إرسال المبلغ الجديد (الذي تم تحويله فعلياً):`, Markup.inlineKeyboard([[Markup.button.callback('🔙 تراجع', 'edit_back')]]));
+        } catch(e) { return ctx.scene.leave(); }
         return ctx.wizard.next();
     },
     async (ctx) => {
         if (ctx.callbackQuery?.data === 'edit_back') {
-            const tx = await Transaction.findById(ctx.wizard.state.txId);
+            const tx = ctx.wizard.state.tx;
             const execMsg = `⚙️ <b>أنت الآن تقوم بتنفيذ هذا الطلب!</b>\n\n🧾 <b>رقم الطلب:</b> <code>${tx.customId || tx._id}</code>\n📞 <b>رقم المحفظة:</b> <code>${tx.vodafoneNumber}</code>\n💵 <b>المبلغ المطلوب:</b> ${tx.amount} EGP\n${tx.notes ? `📝 <b>الملاحظة:</b> ${tx.notes}\n` : ''}━━━━━━━━━━━━━━`;
             await editPrompt(ctx, execMsg, Markup.inlineKeyboard([
                 [Markup.button.callback('✅ تم التحويل (إرفاق الإثبات)', `done_task_${tx._id}`)],
@@ -59,7 +58,7 @@ const editAmountWizard = new Scenes.WizardScene(
     },
     async (ctx) => {
         if (ctx.callbackQuery?.data === 'edit_back') {
-            const tx = await Transaction.findById(ctx.wizard.state.txId);
+            const tx = ctx.wizard.state.tx;
             await editPrompt(ctx, `✏️ <b>تعديل المبلغ (تحويل جزئي)</b>\n\nالمبلغ الأصلي: <b>${tx.amount} EGP</b>\n\nالرجاء إرسال المبلغ الجديد (الذي تم تحويله فعلياً):`, Markup.inlineKeyboard([[Markup.button.callback('🔙 تراجع', 'cancel_scene')]]));
             ctx.wizard.selectStep(1);
             return;
@@ -71,73 +70,26 @@ const editAmountWizard = new Scenes.WizardScene(
                 return;
             }
 
-            await editPrompt(ctx, '⏳ <i>جاري معالجة الإثبات وإغلاق الطلب...</i>');
+            await editPrompt(ctx, '⏳ <i>جاري معالجة الإثبات وإغلاق الطلب وإشعار الإدارة...</i>');
             const photoId = ctx.message.photo[ctx.message.photo.length - 1].file_id;
             
             try {
-                const tx = await Transaction.findById(ctx.wizard.state.txId);
-                const oldAmount = tx.amount;
-                const oldLYD = tx.costLYD;
-                const newAmount = ctx.wizard.state.newAmount;
+                const fileLink = await ctx.telegram.getFileLink(photoId);
+                const response = await axios.post(`${API_BASE}/executor/transactions/edit`, {
+                    txId: ctx.wizard.state.txId,
+                    newAmount: ctx.wizard.state.newAmount,
+                    proofImage: fileLink.href,
+                    telegramId: ctx.from.id.toString()
+                }, { headers: { 'x-bot-token': ctx.botToken } });
 
-                let originalNote = tx.notes ? tx.notes.split('\n[')[0].split('\n---')[0].trim() : '';
-                let noteText = originalNote ? `\n📝 <b>ملاحظة العميل:</b> ${originalNote}` : '';
-
-                const newLYD = parseFloat((newAmount / tx.exchangeRate).toFixed(3));
-                const refundLYD = oldLYD - newLYD;
-
-                // 🟢 سحب الصورة وحفظها كملف فعلي
-                let photoBuffer = null;
-                let localImagePath = null;
-                try {
-                    const fileLink = await ctx.telegram.getFileLink(photoId);
-                    const response = await axios.get(fileLink.href, { responseType: 'arraybuffer' });
-                    photoBuffer = Buffer.from(response.data);
-
-                    const uploadDir = path.join(process.cwd(), 'uploads', 'proofs');
-                    if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
-                    const fileName = `proof_${tx._id}_${Date.now()}.jpg`;
-                    fs.writeFileSync(path.join(uploadDir, fileName), photoBuffer);
-                    localImagePath = `/uploads/proofs/${fileName}`;
-                } catch (fetchErr) {}
-
-                tx.amount = newAmount;
-                tx.costLYD = newLYD;
-                tx.proofImage = photoId;
-                tx.proofImages = [photoId];
-                tx.status = 'completed';
-                tx.set('localProofImage', localImagePath, { strict: false }); // 🟢 الحفظ بالهارد ديسك
-                await tx.save();
-
-                if (refundLYD > 0) {
-                    if (tx.clientBotId) await ClientBot.findByIdAndUpdate(tx.clientBotId, { $inc: { balance: refundLYD } });
-                    else await User.findOneAndUpdate({ telegramId: tx.userId }, { $inc: { balance: refundLYD } });
+                if (response.data.success) {
+                    await editPrompt(ctx, `✅ <b>اكتملت العملية بنجاح!</b>\n\nتم تنفيذ الطلب بمبلغ ${ctx.wizard.state.newAmount} واسترجاع الفارق للعميل، وتم الإرسال للإدارة.`, {});
+                } else {
+                    await editPrompt(ctx, '❌ ' + (response.data.message || 'خطأ أثناء الإغلاق'), {});
                 }
-
-                const refundNote = `تم تحويل ${newAmount} جنيه بدلاً من ${oldAmount} جنيه، وإرجاع ${refundLYD.toFixed(2)} دينار لرصيدك.`;
-                await updateClientTracking(tx._id, 'completed_modified', refundNote, photoBuffer);
-
-                const adminAPI = new Telegram(process.env.ADMIN_BOT_TOKEN);
-                const adminMsg = `⚠️ <b>تم تنفيذ حوالة بنجاح (مع تعديل المبلغ)!</b>\n\n` +
-                                 `🧾 <b>رقم الطلب:</b> <code>${tx.customId || tx._id}</code>\n` +
-                                 `📞 <b>الرقم المحول إليه:</b> <code>${tx.vodafoneNumber}</code>\n` +
-                                 `💵 <b>المبلغ الجديد:</b> ${newAmount} EGP (كان ${oldAmount})\n` +
-                                 `💰 <b>تم إرجاع:</b> ${refundLYD.toFixed(2)} LYD للعميل.` + noteText;
-
-                const allAdmins = await Admin.find({});
-                for (const admin of allAdmins) {
-                    try {
-                        if (photoBuffer) {
-                            await adminAPI.sendPhoto(admin.telegramId, { source: photoBuffer }, { caption: adminMsg, parse_mode: 'HTML' });
-                        } else {
-                            await adminAPI.sendMessage(admin.telegramId, adminMsg, { parse_mode: 'HTML' });
-                        }
-                    } catch (adminErr) {}
-                }
-
-                await editPrompt(ctx, `✅ <b>اكتملت العملية بنجاح وتم الرفع!</b>\n\nتم التنفيذ بمبلغ ${newAmount} واسترجاع الفارق للعميل.`, {});
-
-            } catch (e) {}
+            } catch (e) {
+                await editPrompt(ctx, '❌ حدث خطأ فني في الاتصال بالخادم.', {});
+            }
             return ctx.scene.leave();
         }
     }

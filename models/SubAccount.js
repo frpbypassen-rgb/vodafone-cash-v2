@@ -16,11 +16,10 @@ const subAccountSchema = new mongoose.Schema({
     status: { type: String, default: 'active' } 
 }, { timestamps: true });
 
-subAccountSchema.pre('save', async function(next) {
-    if (!this.isModified('webPassword') || !this.webPassword) return next();
-    if (this.webPassword.startsWith('$2')) return next();
+subAccountSchema.pre('save', async function() {
+    if (!this.isModified('webPassword') || !this.webPassword) return;
+    if (this.webPassword.startsWith('$2')) return;
     this.webPassword = await bcrypt.hash(this.webPassword, 12);
-    next();
 });
 
 module.exports = mongoose.model('SubAccount', subAccountSchema);

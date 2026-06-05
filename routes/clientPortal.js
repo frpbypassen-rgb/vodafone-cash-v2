@@ -6,6 +6,7 @@ const router = express.Router();
 const { Telegram } = require('telegraf');
 const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
+const { verifyAndUpgradePassword, escapeRegex, getTodayString } = require('../utils/helpers');
 
 const User = require('../models/User');
 const ClientEmployee = require('../models/ClientEmployee');
@@ -16,14 +17,13 @@ const Admin = require('../models/Admin');
 const ExecutorBot = require('../models/ExecutorBot');
 const SupportTicket = require('../models/SupportTicket'); 
 const Card = require('../models/Card');
-const StoreCategory = require('../models/StoreCategory');
-const StoreProduct = require('../models/StoreProduct');
+
 const SubAccount = require('../models/SubAccount');
 const Counter = require('../models/Counter'); 
 const Ledger = require('../models/Ledger'); // 🟢 استدعاء دفتر الأستاذ
 
-// 🟢 استدعاء المحرك المالي لتسوية نقاط البيع
-const { updateBalanceWithLedger } = require('../services/walletService'); 
+const { updateBalanceWithLedger } = require('../services/walletService');
+const RegistrationRequest = require('../models/RegistrationRequest'); 
 
 const getArgb = (hex) => 'FF' + (hex || '#FFFFFF').replace('#', '').toUpperCase();
 
@@ -134,6 +134,322 @@ router.get('/login', (req, res) => {
     res.render('client/login', { error: null });
 });
 
+// ===============================================
+//   صفحة إنشاء حساب جديد (تسجيل العملاء)
+// ===============================================
+router.get('/register', (req, res) => {
+    if (req.session.isClientLoggedIn) return res.redirect('/client/dashboard');
+    // منع الكاش نهائياً لضمان تحميل التعديلات
+    res.set('Cache-Control', 'no-store, no-cache, must-revalidate, private');
+    res.render('client/register', { 
+        error: null, success: false, refCode: null, 
+        createdUsername: null, createdPassword: null 
+    });
+});
+
+router.post('/register', async (req, res) => {
+    try {
+        const { accountType } = req.body;
+
+        if (!accountType || !['direct', 'company', 'new', 'agent'].includes(accountType)) {
+            return res.render('client/register', { error: 'يرجى اختيار نوع الحساب.', success: false, refCode: null, createdUsername: null, createdPassword: null });
+        }
+
+        // ======= عميل مباشر =======
+        if (accountType === 'direct') {
+            const fullName = req.body.fullName?.trim();
+            const phone = req.body.phone?.trim();
+            const storeName = req.body.storeName?.trim();
+            const address = req.body.address?.trim();
+            let username = req.body.username?.trim();
+            if (username && !username.includes('@')) {
+                username += '@ahram.com';
+            }
+            const password = req.body.password;
+            const passwordConfirm = req.body.passwordConfirm;
+
+            if (!fullName || fullName.split(/\s+/).length < 3) {
+                return res.render('client/register', { error: 'يرجى إدخال الاسم الثلاثي كاملاً (3 كلمات على الأقل).', success: false, refCode: null });
+            }
+            if (!phone || phone.length < 10) {
+                return res.render('client/register', { error: 'يرجى إدخال رقم هاتف صحيح (10 أرقام على الأقل).', success: false, refCode: null });
+            }
+            if (!storeName) {
+                return res.render('client/register', { error: 'يرجى إدخال اسم المتجر.', success: false, refCode: null });
+            }
+            if (!address) {
+                return res.render('client/register', { error: 'يرجى إدخال العنوان.', success: false, refCode: null });
+            }
+            if (!username || !/^[a-zA-Z0-9_]{3,20}@ahram\.com$/.test(username)) {
+                return res.render('client/register', { error: 'اسم المستخدم يجب أن يكون باللغة الإنجليزية وبدون مسافات (من 3 إلى 20 حرف).', success: false, refCode: null });
+            }
+            if (!password || password.length < 6) {
+                return res.render('client/register', { error: 'الرقم السري يجب أن يكون 6 أحرف على الأقل.', success: false, refCode: null });
+            }
+            if (password !== passwordConfirm) {
+                return res.render('client/register', { error: 'الرقم السري غير متطابق.', success: false, refCode: null });
+            }
+
+            const existingRequest = await RegistrationRequest.findOne({ phone, status: 'pending' });
+            if (existingRequest) {
+                return res.render('client/register', { error: `يوجد طلب تسجيل سابق لهذا الرقم برقم مرجعي: ${existingRequest.refCode}. يرجى انتظار المراجعة.`, success: false, refCode: null });
+            }
+            const existingUser = await User.findOne({ 
+                $or: [{ phone }, { username: { $regex: new RegExp(`^${username}$`, 'i') } }] 
+            });
+            if (existingUser) {
+                return res.render('client/register', { error: 'رقم الهاتف أو اسم المستخدم مسجل بالفعل. يرجى اختيار اسم آخر أو تسجيل الدخول.', success: false, refCode: null });
+            }
+
+            const regRequest = await RegistrationRequest.create({
+                accountType, fullName, phone, storeName, address, username, password,
+                ipAddress: req.ip || req.headers['x-forwarded-for'] || 'unknown',
+                userAgent: req.headers['user-agent'] || 'unknown'
+            });
+
+            notifyAdminNewRegistration(regRequest).catch(() => {});
+            return res.render('client/register', { 
+                error: null, 
+                success: true, 
+                refCode: regRequest.refCode,
+                createdUsername: username,
+                createdPassword: password
+            });
+        }
+
+        // ======= عميل جديد =======
+        if (accountType === 'new') {
+            const fullName = req.body.newFullName?.trim();
+            const phone = req.body.newPhone?.trim();
+            const nationality = req.body.nationality;
+            const city = req.body.newCity;
+            const password = req.body.newPassword;
+            const passwordConfirm = req.body.newPasswordConfirm;
+
+            if (!fullName || fullName.split(/\s+/).length < 3) {
+                return res.render('client/register', { error: 'يرجى إدخال الاسم الثلاثي كاملاً (3 كلمات على الأقل).', success: false, refCode: null });
+            }
+            if (!phone || phone.length < 10) {
+                return res.render('client/register', { error: 'يرجى إدخال رقم هاتف صحيح (10 أرقام على الأقل).', success: false, refCode: null });
+            }
+            if (!nationality || !['libyan', 'egyptian'].includes(nationality)) {
+                return res.render('client/register', { error: 'يرجى اختيار الجنسية.', success: false, refCode: null });
+            }
+            if (!city) {
+                return res.render('client/register', { error: 'يرجى اختيار مكان السكن.', success: false, refCode: null });
+            }
+            if (!password || password.length < 6) {
+                return res.render('client/register', { error: 'الرقم السري يجب أن يكون 6 أحرف على الأقل.', success: false, refCode: null });
+            }
+            if (password !== passwordConfirm) {
+                return res.render('client/register', { error: 'الرقم السري غير متطابق.', success: false, refCode: null });
+            }
+
+            const existingRequest = await RegistrationRequest.findOne({ phone, status: 'pending' });
+            if (existingRequest) {
+                return res.render('client/register', { error: `يوجد طلب تسجيل سابق لهذا الرقم برقم مرجعي: ${existingRequest.refCode}. يرجى انتظار المراجعة.`, success: false, refCode: null });
+            }
+            const existingUser = await User.findOne({ phone });
+            if (existingUser) {
+                return res.render('client/register', { error: 'رقم الهاتف مسجل بالفعل. يرجى تسجيل الدخول أو التواصل مع الإدارة.', success: false, refCode: null });
+            }
+
+            const regRequest = await RegistrationRequest.create({
+                accountType, fullName, phone, nationality, city, password,
+                ipAddress: req.ip || req.headers['x-forwarded-for'] || 'unknown',
+                userAgent: req.headers['user-agent'] || 'unknown'
+            });
+
+            notifyAdminNewRegistration(regRequest).catch(() => {});
+            return res.render('client/register', { error: null, success: true, refCode: regRequest.refCode });
+        }
+
+        // ======= وكيل منطقة =======
+        if (accountType === 'agent') {
+            const companyName = req.body.agentCompanyName?.trim();
+            const fullName = req.body.agentFullName?.trim();
+            const phone = req.body.agentPhone?.trim();
+            const address = req.body.agentAddress?.trim();
+            const companyEmail = req.body.agentEmail?.trim();
+            
+            let username = req.body.agentUsername?.trim();
+            if (username && !username.includes('@')) {
+                username += '@ahram.com';
+            }
+            const password = req.body.agentPassword;
+            const passwordConfirm = req.body.agentPasswordConfirm;
+
+            if (!companyName) {
+                return res.render('client/register', { error: 'يرجى إدخال اسم الشركة.', success: false, refCode: null });
+            }
+            if (!fullName || fullName.split(/\s+/).length < 3) {
+                return res.render('client/register', { error: 'يرجى إدخال اسم الوكيل الثلاثي كاملاً.', success: false, refCode: null });
+            }
+            if (!phone || phone.length < 10) {
+                return res.render('client/register', { error: 'يرجى إدخال رقم هاتف صحيح.', success: false, refCode: null });
+            }
+            if (!address) {
+                return res.render('client/register', { error: 'يرجى إدخال العنوان.', success: false, refCode: null });
+            }
+            if (!companyEmail || !/^\S+@\S+\.\S+$/.test(companyEmail)) {
+                return res.render('client/register', { error: 'يرجى إدخال بريد إلكتروني رسمي صحيح.', success: false, refCode: null });
+            }
+            if (!username || !/^[a-zA-Z0-9_]{3,20}@ahram\.com$/.test(username)) {
+                return res.render('client/register', { error: 'اسم المستخدم يجب أن يكون باللغة الإنجليزية وبدون مسافات.', success: false, refCode: null });
+            }
+            if (!password || password.length < 6) {
+                return res.render('client/register', { error: 'الرقم السري يجب أن يكون 6 أحرف على الأقل.', success: false, refCode: null });
+            }
+            if (password !== passwordConfirm) {
+                return res.render('client/register', { error: 'الرقم السري غير متطابق.', success: false, refCode: null });
+            }
+
+            const existingRequest = await RegistrationRequest.findOne({ phone, status: 'pending' });
+            if (existingRequest) {
+                return res.render('client/register', { error: `يوجد طلب تسجيل سابق لهذا الرقم. يرجى انتظار المراجعة.`, success: false, refCode: null });
+            }
+            const existingUser = await User.findOne({ 
+                $or: [{ phone }, { username: { $regex: new RegExp(`^${username}$`, 'i') } }] 
+            });
+            if (existingUser) {
+                return res.render('client/register', { error: 'رقم الهاتف أو اسم المستخدم مسجل بالفعل. يرجى اختيار بيانات أخرى.', success: false, refCode: null });
+            }
+
+            // توليد رقم مخصص للوكيل (8 أرقام)
+            let agentCode;
+            let codeExists = true;
+            while(codeExists) {
+                agentCode = Math.floor(10000000 + Math.random() * 90000000).toString();
+                const checkReq = await RegistrationRequest.findOne({ agentCode });
+                if (!checkReq) codeExists = false;
+            }
+
+            const regRequest = await RegistrationRequest.create({
+                accountType, companyName, fullName, phone, address, companyEmail, username, password, agentCode,
+                ipAddress: req.ip || req.headers['x-forwarded-for'] || 'unknown',
+                userAgent: req.headers['user-agent'] || 'unknown'
+            });
+
+            notifyAdminNewRegistration(regRequest).catch(() => {});
+            return res.render('client/register', { 
+                error: null, 
+                success: true, 
+                refCode: regRequest.refCode,
+                createdUsername: username,
+                createdPassword: password,
+                agentCode: agentCode
+            });
+        }
+
+        // ======= حساب شركة =======
+        if (accountType === 'company') {
+            const companyName = req.body.companyName?.trim();
+            const companyContact = req.body.companyContact?.trim();
+            const companyPhone = req.body.companyPhone?.trim();
+            const companyEmail = req.body.companyEmail?.trim();
+            
+            let username = req.body.username?.trim();
+            if (username && !username.includes('@')) {
+                username += '@ahram.com';
+            }
+            const password = req.body.password;
+            const passwordConfirm = req.body.passwordConfirm;
+
+            if (!companyName) {
+                return res.render('client/register', { error: 'يرجى إدخال اسم الشركة القانوني.', success: false, refCode: null });
+            }
+            if (!companyContact) {
+                return res.render('client/register', { error: 'يرجى إدخال اسم مدير الشركة.', success: false, refCode: null });
+            }
+            if (!companyPhone || companyPhone.length < 10) {
+                return res.render('client/register', { error: 'يرجى إدخال رقم تواصل صحيح للشركة.', success: false, refCode: null });
+            }
+            if (!companyEmail || !/^\S+@\S+\.\S+$/.test(companyEmail)) {
+                return res.render('client/register', { error: 'يرجى إدخال بريد إلكتروني رسمي صحيح.', success: false, refCode: null });
+            }
+            if (!username || !/^[a-zA-Z0-9_]{3,20}@ahram\.com$/.test(username)) {
+                return res.render('client/register', { error: 'اسم المستخدم يجب أن يكون باللغة الإنجليزية وبدون مسافات.', success: false, refCode: null });
+            }
+            if (!password || password.length < 6) {
+                return res.render('client/register', { error: 'الرقم السري يجب أن يكون 6 أحرف على الأقل.', success: false, refCode: null });
+            }
+            if (password !== passwordConfirm) {
+                return res.render('client/register', { error: 'الرقم السري غير متطابق.', success: false, refCode: null });
+            }
+
+            const existingCompanyReq = await RegistrationRequest.findOne({ companyPhone, status: 'pending' });
+            if (existingCompanyReq) {
+                return res.render('client/register', { error: `يوجد طلب تسجيل سابق لهذا الرقم. رقم الطلب: ${existingCompanyReq.refCode}`, success: false, refCode: null });
+            }
+            
+            const existingUser = await User.findOne({ username: { $regex: new RegExp(`^${username}$`, 'i') } });
+            if (existingUser) {
+                return res.render('client/register', { error: 'اسم المستخدم مسجل بالفعل. يرجى اختيار اسم آخر.', success: false, refCode: null });
+            }
+
+            const regRequest = await RegistrationRequest.create({
+                accountType, companyName, companyContact, companyPhone, companyEmail, username, password,
+                ipAddress: req.ip || req.headers['x-forwarded-for'] || 'unknown',
+                userAgent: req.headers['user-agent'] || 'unknown'
+            });
+
+            notifyAdminNewRegistration(regRequest).catch(() => {});
+            return res.render('client/register', { 
+                error: null, 
+                success: true, 
+                refCode: regRequest.refCode,
+                createdUsername: username,
+                createdPassword: password
+            });
+        }
+
+    } catch (e) {
+        console.error('[Register] خطأ:', e.message);
+        res.render('client/register', { error: 'حدث خطأ في النظام. يرجى المحاولة لاحقاً.', success: false, refCode: null, createdUsername: null, createdPassword: null });
+    }
+});
+
+// إشعار الأدمن بطلب تسجيل جديد
+async function notifyAdminNewRegistration(reg) {
+    try {
+        if (!process.env.ADMIN_BOT_TOKEN) return;
+        const adminAPI = new Telegram(process.env.ADMIN_BOT_TOKEN);
+        const typeLabel = reg.accountType === 'direct' ? 'عميل مباشر' : (reg.accountType === 'company' ? 'حساب شركة' : 'عميل جديد');
+        const natLabel = reg.nationality === 'libyan' ? '🇱🇾 ليبي' : (reg.nationality === 'egyptian' ? '🇪🇬 مصري' : '-');
+
+        let msg = `📋 <b>طلب تسجيل جديد!</b>\n\n`;
+        msg += `🔖 <b>رقم الطلب:</b> <code>${reg.refCode}</code>\n`;
+        msg += `📌 <b>النوع:</b> ${typeLabel}\n`;
+
+        if (reg.accountType === 'company') {
+            msg += `🏢 <b>الشركة:</b> ${reg.companyName}\n`;
+            msg += `👤 <b>المسؤول:</b> ${reg.companyContact}\n`;
+            msg += `📞 <b>الهاتف:</b> <code>${reg.companyPhone}</code>\n`;
+        } else if (reg.accountType === 'direct') {
+            msg += `👤 <b>الاسم:</b> ${reg.fullName}\n`;
+            msg += `📞 <b>الهاتف:</b> <code>${reg.phone}</code>\n`;
+            msg += `🏪 <b>المتجر:</b> ${reg.storeName || '-'}\n`;
+            msg += `📍 <b>العنوان:</b> ${reg.address || '-'}\n`;
+        } else {
+            msg += `👤 <b>الاسم:</b> ${reg.fullName}\n`;
+            msg += `📞 <b>الهاتف:</b> <code>${reg.phone}</code>\n`;
+            msg += `🌍 <b>الجنسية:</b> ${natLabel}\n`;
+            msg += `📍 <b>المحافظة:</b> ${reg.city}\n`;
+        }
+
+        msg += `\n⏰ <b>الوقت:</b> ${new Date().toLocaleString('ar-LY', { timeZone: 'Africa/Tripoli' })}`;
+
+        const admins = await Admin.find({});
+        for (const admin of admins) {
+            if (admin.telegramId && !admin.webUsername) {
+                try {
+                    await adminAPI.sendMessage(admin.telegramId, msg, { parse_mode: 'HTML' });
+                } catch (e) { /* تجاهل أخطاء التيليجرام */ }
+            }
+        }
+    } catch (e) { console.error('[Register Notify]', e.message); }
+}
+
 router.post('/login', async (req, res) => {
     try {
         const username = req.body.username?.trim();
@@ -141,19 +457,13 @@ router.post('/login', async (req, res) => {
 
         if (!username || !password) return res.render('client/login', { error: 'يرجى إدخال البيانات.' });
 
-        const safeUsername = username.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        const safeUsername = escapeRegex(username);
         const usernameRegex = new RegExp(`^${safeUsername}$`, 'i');
-        const todayStr = new Date().toLocaleDateString('en-GB', { timeZone: 'Africa/Tripoli' });
+        const todayStr = getTodayString();
 
         const subAcc = await SubAccount.findOne({ webUsername: usernameRegex }).lean();
         if (subAcc) {
-            let isMatch = false;
-            if (subAcc.webPassword && subAcc.webPassword.startsWith('$2')) {
-                isMatch = await bcrypt.compare(password, subAcc.webPassword);
-            } else {
-                isMatch = (password === subAcc.webPassword);
-                if (isMatch) await SubAccount.updateOne({ _id: subAcc._id }, { webPassword: await bcrypt.hash(password, 12) });
-            }
+            const isMatch = await verifyAndUpgradePassword(password, subAcc.webPassword, SubAccount, subAcc._id);
             if (isMatch) {
                 if (subAcc.status !== 'active') return res.render('client/login', { error: 'حسابك معلق من قبل الوكيل الرئيسي.' });
                 req.session.isClientLoggedIn = true; req.session.clientId = subAcc._id; req.session.accountType = 'sub_client';
@@ -163,23 +473,24 @@ router.post('/login', async (req, res) => {
 
         const clientUser = await User.findOne({ $or: [{ webUsername: usernameRegex }, { phone: username }] }).lean();
         if (clientUser) {
-            let isMatch = false;
-            if (clientUser.webPassword && clientUser.webPassword.startsWith('$2')) {
-                isMatch = await bcrypt.compare(password, clientUser.webPassword);
-            } else {
-                isMatch = (password === clientUser.webPassword);
-                if (isMatch) await User.updateOne({ _id: clientUser._id }, { webPassword: await bcrypt.hash(password, 12) });
-            }
+            const isMatch = await verifyAndUpgradePassword(password, clientUser.webPassword, User, clientUser._id);
 
             if (isMatch) {
                 if (clientUser.status !== 'active') return res.render('client/login', { error: 'حسابك معلق حالياً من قبل الإدارة.' });
+                
+                // إذا لم يفعّل التليجرام بعد → دخول مباشر بدون OTP
+                if (!clientUser.telegramId) {
+                    req.session.isClientLoggedIn = true; req.session.clientId = clientUser._id; req.session.accountType = 'user';
+                    return req.session.save(() => res.redirect('/client/dashboard')); 
+                }
+
                 if (clientUser.lastOtpDate === todayStr) {
                     req.session.isClientLoggedIn = true; req.session.clientId = clientUser._id; req.session.accountType = 'user';
                     return req.session.save(() => res.redirect('/client/dashboard')); 
                 }
                 const otp = Math.floor(100000 + Math.random() * 900000).toString();
                 await User.updateOne({ _id: clientUser._id }, { $set: { otpCode: otp, otpExpires: new Date(Date.now() + 5 * 60000) } }, { strict: false });
-                if (process.env.CLIENT_BOT_TOKEN && clientUser.telegramId) {
+                if (process.env.CLIENT_BOT_TOKEN) {
                     const botAPI = new Telegram(process.env.CLIENT_BOT_TOKEN);
                     botAPI.sendMessage(clientUser.telegramId, `🔐 <b>رمز تأكيد الدخول للمنصة:</b>\n\nكود التحقق الخاص بك هو:\n<code>${otp}</code>`, { parse_mode: 'HTML' }).catch(()=>{});
                 }
@@ -190,16 +501,17 @@ router.post('/login', async (req, res) => {
 
         const clientCompany = await ClientEmployee.findOne({ $or: [{ webUsername: usernameRegex }, { phone: username }] }).lean();
         if (clientCompany) {
-            let isMatch = false;
-            if (clientCompany.webPassword && clientCompany.webPassword.startsWith('$2')) {
-                isMatch = await bcrypt.compare(password, clientCompany.webPassword);
-            } else {
-                isMatch = (password === clientCompany.webPassword);
-                if (isMatch) await ClientEmployee.updateOne({ _id: clientCompany._id }, { webPassword: await bcrypt.hash(password, 12) });
-            }
+            const isMatch = await verifyAndUpgradePassword(password, clientCompany.webPassword, ClientEmployee, clientCompany._id);
 
             if (isMatch) {
                 if (clientCompany.status !== 'active') return res.render('client/login', { error: 'حسابك معلق حالياً من قبل الإدارة.' });
+                
+                // إذا لم يفعّل التليجرام بعد → دخول مباشر بدون OTP
+                if (!clientCompany.telegramId) {
+                    req.session.isClientLoggedIn = true; req.session.clientId = clientCompany._id; req.session.accountType = 'company';
+                    return req.session.save(() => res.redirect('/client/dashboard')); 
+                }
+
                 if (clientCompany.lastOtpDate === todayStr) {
                     req.session.isClientLoggedIn = true; req.session.clientId = clientCompany._id; req.session.accountType = 'company';
                     return req.session.save(() => res.redirect('/client/dashboard')); 
@@ -207,7 +519,7 @@ router.post('/login', async (req, res) => {
                 const otp = Math.floor(100000 + Math.random() * 900000).toString();
                 await ClientEmployee.updateOne({ _id: clientCompany._id }, { $set: { otpCode: otp, otpExpires: new Date(Date.now() + 5 * 60000) } }, { strict: false });
                 const company = await ClientBot.findById(clientCompany.clientBotId).lean();
-                if (company && company.token && clientCompany.telegramId) {
+                if (company && company.token) {
                     const compAPI = new Telegram(company.token);
                     compAPI.sendMessage(clientCompany.telegramId, `🔐 <b>رمز تأكيد الدخول للمنصة:</b>\n\nكود التحقق الخاص بك هو:\n<code>${otp}</code>`, { parse_mode: 'HTML' }).catch(()=>{});
                 }
@@ -236,7 +548,7 @@ router.post('/verify', async (req, res) => {
             return res.render('client/verify', { error: 'الرمز غير صحيح أو منتهي الصلاحية.' });
         }
 
-        const todayStr = new Date().toLocaleDateString('en-GB', { timeZone: 'Africa/Tripoli' });
+        const todayStr = getTodayString();
         if (req.session.tempAccountType === 'company') { await ClientEmployee.updateOne({ _id: account._id }, { $set: { lastOtpDate: todayStr }, $unset: { otpCode: 1, otpExpires: 1 } }, { strict: false }); } 
         else { await User.updateOne({ _id: account._id }, { $set: { lastOtpDate: todayStr }, $unset: { otpCode: 1, otpExpires: 1 } }, { strict: false }); }
 
@@ -776,6 +1088,28 @@ router.get('/api/transactions', requireClientAuth, async (req, res) => {
 
         res.json({ success: true, transactions: mappedTransactions, currentRate, availableBalance: account.balance });
     } catch (error) { res.status(500).json({ error: 'Internal Server Error' }); }
+});
+
+router.post('/generate-telegram-token', requireClientAuth, async (req, res) => {
+    try {
+        const crypto = require('crypto');
+        const token = crypto.randomBytes(16).toString('hex');
+        const expires = new Date(Date.now() + 15 * 60 * 1000);
+        
+        let botUsername = process.env.CLIENT_BOT_USERNAME || 'AlAhramPayBot';
+        
+        if (req.session.isMaster) {
+            await User.findByIdAndUpdate(req.session.clientId, { telegramLinkToken: token, telegramLinkExpires: expires });
+        } else {
+            const emp = await ClientEmployee.findByIdAndUpdate(req.session.clientId, { telegramLinkToken: token, telegramLinkExpires: expires }).populate('clientBotId');
+            if (emp && emp.clientBotId && emp.clientBotId.botUsername) {
+                botUsername = emp.clientBotId.botUsername.replace('@', '');
+            }
+        }
+        res.json({ success: true, token, botUsername });
+    } catch (e) {
+        res.status(500).json({ success: false, message: e.message });
+    }
 });
 
 module.exports = router;

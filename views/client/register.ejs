@@ -1,0 +1,632 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <link rel="manifest" href="/manifest.json">
+    <meta name="theme-color" content="#0f172a">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>إنشاء حساب جديد | الأهرام للتقنية</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.rtl.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Tajawal:wght@400;500;700;800;900&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-base: #020617;
+            --bg-card: rgba(15, 23, 42, 0.7);
+            --brand-gold: #fbbf24;
+            --brand-gold-hover: #f59e0b;
+            --text-main: #f8fafc;
+            --text-muted: #94a3b8;
+            --border-glass: rgba(255, 255, 255, 0.08);
+            --input-bg: rgba(2, 6, 23, 0.5);
+            --input-border: rgba(255, 255, 255, 0.1);
+        }
+
+        body {
+            font-family: 'Tajawal', 'Outfit', sans-serif;
+            background-color: var(--bg-base);
+            background-image: 
+                radial-gradient(circle at 15% 50%, rgba(251, 191, 36, 0.05), transparent 25%),
+                radial-gradient(circle at 85% 30%, rgba(56, 189, 248, 0.05), transparent 25%);
+            color: var(--text-main);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow-x: hidden;
+            padding: 2rem 1rem;
+        }
+
+        /* 🌠 Animated Background Orbs */
+        .orb {
+            position: fixed;
+            border-radius: 50%;
+            filter: blur(80px);
+            z-index: -1;
+            animation: float 20s infinite ease-in-out alternate;
+        }
+        .orb-1 {
+            width: 400px; height: 400px;
+            background: rgba(251, 191, 36, 0.15);
+            top: -100px; right: -100px;
+            animation-delay: 0s;
+        }
+        .orb-2 {
+            width: 500px; height: 500px;
+            background: rgba(14, 165, 233, 0.1);
+            bottom: -150px; left: -100px;
+            animation-delay: -5s;
+        }
+        @keyframes float {
+            0% { transform: translate(0, 0) scale(1); }
+            100% { transform: translate(30px, 50px) scale(1.1); }
+        }
+
+        /* 💎 Glassmorphism Card */
+        .register-card {
+            background: var(--bg-card);
+            backdrop-filter: blur(24px);
+            -webkit-backdrop-filter: blur(24px);
+            border: 1px solid var(--border-glass);
+            border-radius: 28px;
+            width: 100%;
+            max-width: 600px;
+            padding: 40px;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.1);
+            position: relative;
+            transform-origin: center;
+            animation: cardEntrance 0.8s cubic-bezier(0.2, 0.8, 0.2, 1);
+        }
+        @keyframes cardEntrance {
+            from { opacity: 0; transform: translateY(40px) scale(0.95); }
+            to { opacity: 1; transform: translateY(0) scale(1); }
+        }
+
+        /* ✨ Glow Line */
+        .register-card::before {
+            content: '';
+            position: absolute;
+            top: 0; left: 50%;
+            transform: translateX(-50%);
+            width: 60%; height: 2px;
+            background: linear-gradient(90deg, transparent, var(--brand-gold), transparent);
+            opacity: 0.7;
+        }
+
+        .logo-container { text-align: center; margin-bottom: 30px; }
+        .logo-container img {
+            max-width: 180px;
+            border-radius: 16px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.3);
+            border: 1px solid var(--border-glass);
+            transition: transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+        .logo-container img:hover { transform: scale(1.05) rotate(-2deg); }
+
+        .page-title {
+            text-align: center; font-weight: 800; color: var(--text-main);
+            margin-bottom: 30px; font-size: 1.8rem; letter-spacing: -0.5px;
+        }
+        .page-title span { color: var(--brand-gold); }
+
+        /* 🔘 Custom Toggle Buttons */
+        .account-type-grid {
+            display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px;
+            margin-bottom: 30px;
+            background: rgba(0,0,0,0.2);
+            padding: 6px;
+            border-radius: 20px;
+            border: 1px solid var(--border-glass);
+        }
+        .account-type-btn {
+            background: transparent;
+            border: none;
+            padding: 16px 8px;
+            border-radius: 14px;
+            color: var(--text-muted);
+            font-weight: 700;
+            display: flex; flex-direction: column; align-items: center; gap: 8px;
+            cursor: pointer;
+            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            position: relative;
+            overflow: hidden;
+        }
+        .account-type-btn i { font-size: 1.5rem; transition: transform 0.3s; }
+        .account-type-btn:hover { color: var(--text-main); }
+        .account-type-btn:hover i { transform: translateY(-2px); }
+        
+        .account-type-btn.active {
+            color: var(--bg-base);
+            background: var(--brand-gold);
+            box-shadow: 0 8px 20px rgba(251, 191, 36, 0.3);
+        }
+        .account-type-btn.active::before {
+            content: ''; position: absolute; top: 0; left: -100%; width: 50%; height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.4), transparent);
+            transform: skewX(-20deg); animation: shine 1.5s infinite;
+        }
+        @keyframes shine { 100% { left: 200%; } }
+
+        /* 📝 Modern Inputs */
+        .form-floating { margin-bottom: 20px; }
+        .form-control, .form-select {
+            background: var(--input-bg);
+            border: 1px solid var(--input-border);
+            border-radius: 16px;
+            color: var(--text-main);
+            font-weight: 600;
+            padding: 1rem 1rem 1rem 3.5rem;
+            height: calc(3.5rem + 8px);
+            transition: all 0.3s ease;
+        }
+        .form-control:focus, .form-select:focus {
+            background: rgba(15, 23, 42, 0.9);
+            border-color: var(--brand-gold);
+            box-shadow: 0 0 0 4px rgba(251, 191, 36, 0.1);
+            color: white;
+        }
+        .form-floating > label {
+            color: var(--text-muted);
+            font-weight: 500;
+            padding: 1rem 1rem 1rem 3.5rem;
+        }
+        .form-floating > .form-control:focus ~ label,
+        .form-floating > .form-control:not(:placeholder-shown) ~ label {
+            color: var(--brand-gold);
+            transform: scale(0.85) translateY(-0.75rem) translateX(1rem);
+        }
+        
+        .input-icon {
+            position: absolute; top: 50%; left: 1.2rem; transform: translateY(-50%);
+            color: var(--text-muted); font-size: 1.2rem; transition: 0.3s;
+            pointer-events: none; z-index: 4;
+        }
+        .form-control:focus ~ .input-icon { color: var(--brand-gold); }
+
+        .domain-suffix {
+            position: absolute; top: 50%; right: 1rem; transform: translateY(-50%);
+            color: var(--text-muted); font-weight: 700; font-size: 1.1rem;
+            pointer-events: none; z-index: 4; letter-spacing: 1px;
+        }
+        /* When using domain-suffix, add padding to input to avoid overlapping text */
+        input.has-domain-suffix { padding-right: 8rem; }
+
+        /* 🇩🇿 Nationality Buttons */
+        .nationality-group { display: flex; gap: 12px; margin-bottom: 20px; }
+        .nationality-btn {
+            flex: 1; display: flex; align-items: center; justify-content: center; gap: 10px;
+            padding: 14px; border-radius: 16px; border: 1px solid var(--input-border);
+            background: var(--input-bg); color: var(--text-muted); font-weight: 700;
+            cursor: pointer; transition: 0.3s;
+        }
+        .nationality-btn:hover { border-color: rgba(255,255,255,0.2); color: white; }
+        .nationality-btn.active {
+            background: rgba(251, 191, 36, 0.1);
+            border-color: var(--brand-gold);
+            color: var(--brand-gold);
+        }
+
+        /* 🔒 Password Strength */
+        .password-strength { height: 4px; background: rgba(255,255,255,0.05); border-radius: 4px; margin-top: 8px; overflow: hidden; }
+        .password-strength .bar { height: 100%; width: 0%; transition: 0.4s ease; border-radius: 4px; }
+        .bar.weak { background: #ef4444; width: 33.33%; }
+        .bar.medium { background: #f59e0b; width: 66.66%; }
+        .bar.strong { background: #10b981; width: 100%; box-shadow: 0 0 10px rgba(16,185,129,0.5); }
+        .password-match { font-size: 0.8rem; font-weight: 600; margin-top: 6px; }
+
+        /* 🚀 Submit Button */
+        .btn-submit {
+            background: linear-gradient(135deg, var(--brand-gold) 0%, #d97706 100%);
+            color: var(--bg-base); font-weight: 800; font-size: 1.15rem;
+            border: none; border-radius: 16px; padding: 16px; width: 100%;
+            margin-top: 20px;
+            transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            display: flex; justify-content: center; align-items: center; gap: 10px;
+        }
+        .btn-submit:hover:not(:disabled) {
+            transform: translateY(-4px);
+            box-shadow: 0 15px 30px rgba(251, 191, 36, 0.4);
+        }
+        .btn-submit:disabled { background: var(--input-bg); color: var(--text-muted); cursor: not-allowed; border: 1px solid var(--input-border); }
+
+        /* 🔗 Links */
+        .login-link {
+            display: inline-flex; align-items: center; gap: 8px;
+            color: var(--text-muted); font-weight: 600; text-decoration: none;
+            margin-top: 25px; transition: 0.3s;
+        }
+        .login-link:hover { color: var(--brand-gold); }
+
+        /* ⚠️ Alerts */
+        .custom-alert {
+            background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.2);
+            color: #fca5a5; border-radius: 16px; padding: 16px; font-weight: 600;
+            display: flex; align-items: center; gap: 12px; margin-bottom: 25px;
+            animation: fadeInDown 0.4s ease;
+        }
+        .custom-alert i { font-size: 1.5rem; color: #ef4444; }
+        .alert-info-custom {
+            background: rgba(56, 189, 248, 0.1); border-color: rgba(56, 189, 248, 0.2); color: #bae6fd;
+        }
+        .alert-info-custom i { color: #38bdf8; }
+
+        /* 🎉 Success State */
+        .success-box { text-align: center; animation: zoomIn 0.5s cubic-bezier(0.2, 0.8, 0.2, 1); }
+        .success-icon {
+            width: 100px; height: 100px; border-radius: 50%;
+            background: rgba(16, 185, 129, 0.1);
+            border: 2px solid #10b981;
+            display: flex; align-items: center; justify-content: center;
+            margin: 0 auto 25px; box-shadow: 0 0 40px rgba(16, 185, 129, 0.3);
+        }
+        .success-icon i { font-size: 3rem; color: #10b981; }
+        .success-ref {
+            display: inline-block; background: rgba(0,0,0,0.3); padding: 12px 24px;
+            border-radius: 12px; border: 1px dashed var(--brand-gold);
+            color: var(--brand-gold); font-size: 1.4rem; font-family: 'Outfit', monospace; font-weight: 700;
+            margin: 20px 0; letter-spacing: 2px;
+        }
+
+        .form-section { display: none; opacity: 0; transform: translateY(10px); transition: 0.4s ease; }
+        .form-section.visible { display: block; opacity: 1; transform: translateY(0); }
+
+        @keyframes fadeInDown { from { opacity: 0; transform: translateY(-20px); } to { opacity: 1; transform: translateY(0); } }
+        @keyframes zoomIn { from { opacity: 0; transform: scale(0.9); } to { opacity: 1; transform: scale(1); } }
+
+        @media (max-width: 576px) {
+            .register-card { padding: 30px 20px; border-radius: 20px; }
+            .account-type-grid { gap: 8px; }
+            .account-type-btn { padding: 12px 4px; }
+            .account-type-btn i { font-size: 1.2rem; }
+            .account-type-btn span { font-size: 0.8rem; }
+            .form-control, .form-select { font-size: 0.95rem; }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="orb orb-1"></div>
+    <div class="orb orb-2"></div>
+
+    <div class="register-card">
+        <div class="logo-container">
+            <img src="/images/logo.jpeg" alt="شعار الأهرام" onerror="this.onerror=null; this.src='/images/logo.jpg';">
+        </div>
+
+        <% if (typeof success !== 'undefined' && success) { %>
+            <!-- 🌟 شاشة النجاح -->
+            <div class="success-box">
+                <div class="success-icon"><i class="fa-solid fa-check"></i></div>
+                <h2 class="page-title mb-2">اكتمل <span>التسجيل!</span></h2>
+                <p class="text-muted" style="font-size: 1.1rem; line-height: 1.6;">
+                    حسابك الآن <strong>قيد المراجعة</strong>.<br>
+                    سوف يتم التواصل معك من خلال الدعم الفني قريباً.
+                </p>
+
+                <% if (typeof createdUsername !== 'undefined' && createdUsername) { %>
+                    <div style="background: rgba(0,0,0,0.2); padding: 15px; border-radius: 12px; margin-top: 15px; text-align: left; border: 1px solid var(--border-glass);">
+                        <div style="color: var(--text-muted); font-size: 0.9rem; margin-bottom: 5px;">اسم المستخدم (Username):</div>
+                        <div style="color: var(--brand-gold); font-weight: 700; font-size: 1.2rem; margin-bottom: 15px; font-family: monospace;" dir="ltr"><%= createdUsername %></div>
+                        
+                        <% if (typeof createdPassword !== 'undefined' && createdPassword) { %>
+                            <div style="color: var(--text-muted); font-size: 0.9rem; margin-bottom: 5px;">كلمة المرور (Password):</div>
+                            <div style="color: #fff; font-weight: 700; font-size: 1.2rem; font-family: monospace; margin-bottom: 15px;" dir="ltr"><%= createdPassword %></div>
+                        <% } %>
+
+                        <% if (typeof agentCode !== 'undefined' && agentCode) { %>
+                            <div style="color: var(--text-muted); font-size: 0.9rem; margin-bottom: 5px; text-align: right;" dir="rtl">الرقم المخصص للوكيل (Agent Code):</div>
+                            <div style="color: #10b981; font-weight: 800; font-size: 1.5rem; font-family: monospace; text-align: center; letter-spacing: 3px; background: rgba(16, 185, 129, 0.1); padding: 10px; border-radius: 8px; border: 1px dashed #10b981;" dir="ltr"><%= agentCode %></div>
+                            <div style="color: var(--text-muted); font-size: 0.8rem; margin-top: 5px; text-align: right;" dir="rtl">أعطِ هذا الرقم للعملاء الجدد لإنشاء حساب تابع لك.</div>
+                        <% } %>
+                    </div>
+                <% } %>
+                <% if (typeof refCode !== 'undefined' && refCode) { %>
+                    <div class="success-ref"><%= refCode %></div>
+                    <div class="text-muted small fw-bold">احتفظ برقم الطلب للمراجعة</div>
+                <% } %>
+                <a href="/client/login" class="btn-submit mt-4 text-decoration-none">
+                    <i class="fa-solid fa-right-to-bracket"></i> العودة لتسجيل الدخول
+                </a>
+            </div>
+        <% } else { %>
+            <!-- ✍️ شاشة التسجيل -->
+            <h2 class="page-title">انضم <span>إلينا</span></h2>
+
+            <% if (typeof error !== 'undefined' && error) { %>
+                <div class="custom-alert">
+                    <i class="fa-solid fa-circle-exclamation"></i>
+                    <div><%= error %></div>
+                </div>
+            <% } %>
+
+            <form action="/client/register" method="POST" id="registerForm" autocomplete="off" novalidate>
+                
+                <div class="account-type-grid">
+                    <button type="button" class="account-type-btn" data-type="direct" onclick="selectAccountType(this, 'direct')">
+                        <i class="fa-solid fa-bolt"></i><span>عميل مباشر</span>
+                    </button>
+                    <button type="button" class="account-type-btn" data-type="company" onclick="selectAccountType(this, 'company')">
+                        <i class="fa-solid fa-building-shield"></i><span>حساب شركة</span>
+                    </button>
+                    <button type="button" class="account-type-btn" data-type="new" onclick="selectAccountType(this, 'new')">
+                        <i class="fa-solid fa-user-astronaut"></i><span>عميل جديد</span>
+                    </button>
+                    <button type="button" class="account-type-btn" data-type="agent" onclick="selectAccountType(this, 'agent')">
+                        <i class="fa-solid fa-map-location-dot"></i><span>وكيل منطقة</span>
+                    </button>
+                </div>
+                <input type="hidden" name="accountType" id="accountTypeInput">
+
+                <!-- 👤 عميل مباشر -->
+                <div class="form-section" id="section-direct">
+                    <div class="form-floating position-relative">
+                        <input type="text" class="form-control" id="directFullName" name="fullName" placeholder="الاسم الثلاثي">
+                        <label for="directFullName">الاسم الثلاثي كاملاً</label>
+                        <i class="fa-solid fa-user input-icon"></i>
+                    </div>
+                    <div class="form-floating position-relative">
+                        <input type="tel" class="form-control" id="directPhone" name="phone" placeholder="رقم الهاتف" dir="ltr">
+                        <label for="directPhone">رقم الهاتف النشط</label>
+                        <i class="fa-solid fa-phone input-icon"></i>
+                    </div>
+                    <div class="form-floating position-relative">
+                        <input type="text" class="form-control" id="directStoreName" name="storeName" placeholder="اسم المتجر">
+                        <label for="directStoreName">اسم الكيان أو المتجر</label>
+                        <i class="fa-solid fa-store input-icon"></i>
+                    </div>
+                    <div class="form-floating position-relative">
+                        <input type="text" class="form-control" id="directAddress" name="address" placeholder="العنوان">
+                        <label for="directAddress">عنوان المقر أو السكن</label>
+                        <i class="fa-solid fa-map-location-dot input-icon"></i>
+                    </div>
+                    <div class="form-floating position-relative">
+                        <input type="text" class="form-control has-domain-suffix" id="directUsername" name="username" placeholder="اسم المستخدم" dir="ltr">
+                        <label for="directUsername">اسم المستخدم (باللغة الإنجليزية)</label>
+                        <i class="fa-solid fa-at input-icon"></i>
+                        <span class="domain-suffix">@ahram.com</span>
+                    </div>
+                    <div class="form-floating position-relative mb-1">
+                        <input type="password" class="form-control" id="directPassword" name="password" placeholder="الرقم السري" dir="ltr">
+                        <label for="directPassword">كلمة المرور القوية</label>
+                        <i class="fa-solid fa-lock input-icon"></i>
+                    </div>
+                    <div class="password-strength mb-3"><div class="bar" id="strengthBar"></div></div>
+                    <div class="form-floating position-relative mb-1">
+                        <input type="password" class="form-control" id="directPasswordConfirm" name="passwordConfirm" placeholder="تأكيد" dir="ltr">
+                        <label for="directPasswordConfirm">تأكيد كلمة المرور</label>
+                        <i class="fa-solid fa-shield-check input-icon"></i>
+                    </div>
+                    <div class="password-match" id="passwordMatchMsg"></div>
+                </div>
+
+                <!-- 🏢 حساب شركة -->
+                <div class="form-section" id="section-company">
+                    <div class="custom-alert alert-info-custom">
+                        <i class="fa-solid fa-handshake-angle"></i>
+                        <div class="small">حسابات الشركات تخضع لبروتوكول خاص وتتطلب موافقة الإدارة.</div>
+                    </div>
+                    <div class="form-floating position-relative">
+                        <input type="text" class="form-control" id="companyName" name="companyName" placeholder="اسم الشركة القانوني">
+                        <label for="companyName">اسم الشركة القانوني</label>
+                        <i class="fa-solid fa-building input-icon"></i>
+                    </div>
+                    <div class="form-floating position-relative">
+                        <input type="text" class="form-control" id="companyContact" name="companyContact" placeholder="اسم مدير الشركة">
+                        <label for="companyContact">اسم مدير الشركة</label>
+                        <i class="fa-solid fa-user-tie input-icon"></i>
+                    </div>
+                    <div class="form-floating position-relative">
+                        <input type="tel" class="form-control" id="companyPhone" name="companyPhone" placeholder="الهاتف" dir="ltr">
+                        <label for="companyPhone">رقم هاتف الشركة (للتواصل مع المدير)</label>
+                        <i class="fa-solid fa-phone-volume input-icon"></i>
+                    </div>
+                    <div class="form-floating position-relative">
+                        <input type="email" class="form-control" id="companyEmail" name="companyEmail" placeholder="الايميل الرسمي للشركة" dir="ltr">
+                        <label for="companyEmail">الايميل الرسمي للشركة</label>
+                        <i class="fa-solid fa-envelope input-icon"></i>
+                    </div>
+                    <div class="form-floating position-relative">
+                        <input type="text" class="form-control has-domain-suffix" id="companyUsername" name="username" placeholder="اسم المستخدم" dir="ltr">
+                        <label for="companyUsername">اسم المستخدم (باللغة الإنجليزية)</label>
+                        <i class="fa-solid fa-at input-icon"></i>
+                        <span class="domain-suffix">@ahram.com</span>
+                    </div>
+                    <div class="form-floating position-relative mb-1">
+                        <input type="password" class="form-control" id="companyPassword" name="password" placeholder="الرقم السري" dir="ltr">
+                        <label for="companyPassword">كلمة المرور القوية</label>
+                        <i class="fa-solid fa-lock input-icon"></i>
+                    </div>
+                    <div class="password-strength mb-3"><div class="bar" id="strengthBarCompany"></div></div>
+                    <div class="form-floating position-relative mb-1">
+                        <input type="password" class="form-control" id="companyPasswordConfirm" name="passwordConfirm" placeholder="تأكيد" dir="ltr">
+                        <label for="companyPasswordConfirm">تأكيد كلمة المرور</label>
+                        <i class="fa-solid fa-shield-check input-icon"></i>
+                    </div>
+                    <div class="password-match" id="passwordMatchMsgCompany"></div>
+                </div>
+
+                <!-- 🌱 عميل جديد -->
+                <div class="form-section" id="section-new">
+                    <div class="form-floating position-relative">
+                        <input type="text" class="form-control" id="newFullName" name="newFullName" placeholder="الاسم">
+                        <label for="newFullName">الاسم الثلاثي</label>
+                        <i class="fa-solid fa-user input-icon"></i>
+                    </div>
+                    <div class="form-floating position-relative">
+                        <input type="tel" class="form-control" id="newPhone" name="newPhone" placeholder="الهاتف" dir="ltr">
+                        <label for="newPhone">رقم الهاتف</label>
+                        <i class="fa-solid fa-phone input-icon"></i>
+                    </div>
+                    
+                    <div class="nationality-group">
+                        <button type="button" class="nationality-btn" data-nat="libyan" onclick="selectNationality(this, 'libyan')">
+                            <span class="fs-4">🇱🇾</span> ليبي
+                        </button>
+                        <button type="button" class="nationality-btn" data-nat="egyptian" onclick="selectNationality(this, 'egyptian')">
+                            <span class="fs-4">🇪🇬</span> مصري
+                        </button>
+                    </div>
+                    <input type="hidden" name="nationality" id="nationalityInput">
+
+                    <div class="form-floating position-relative">
+                        <select class="form-select" id="newCity" name="newCity">
+                            <option value="" disabled selected>حدد المدينة...</option>
+                            <option value="طرابلس">طرابلس</option>
+                            <option value="بنغازي">بنغازي</option>
+                            <option value="مصراتة">مصراتة</option>
+                            <option value="الزاوية">الزاوية</option>
+                            <option value="أخرى">أخرى...</option>
+                        </select>
+                        <label for="newCity">المدينة الإقامة</label>
+                        <i class="fa-solid fa-map-pin input-icon"></i>
+                    </div>
+
+                    <div class="form-floating position-relative mb-1">
+                        <input type="password" class="form-control" id="newPassword" name="newPassword" placeholder="كلمة المرور" dir="ltr">
+                        <label for="newPassword">كلمة المرور</label>
+                        <i class="fa-solid fa-lock input-icon"></i>
+                    </div>
+                    <div class="password-strength mb-3"><div class="bar" id="strengthBarNew"></div></div>
+                    
+                    <div class="form-floating position-relative mb-1">
+                        <input type="password" class="form-control" id="newPasswordConfirm" name="newPasswordConfirm" placeholder="تأكيد" dir="ltr">
+                        <label for="newPasswordConfirm">تأكيد المرور</label>
+                        <i class="fa-solid fa-shield-check input-icon"></i>
+                    </div>
+                    <div class="password-match" id="passwordMatchMsgNew"></div>
+                </div>
+
+                <!-- 🗺️ وكيل منطقة -->
+                <div class="form-section" id="section-agent">
+                    <div class="form-floating position-relative">
+                        <input type="text" class="form-control" id="agentCompanyName" name="agentCompanyName" placeholder="اسم الشركة">
+                        <label for="agentCompanyName">اسم الشركة</label>
+                        <i class="fa-solid fa-building input-icon"></i>
+                    </div>
+                    <div class="form-floating position-relative">
+                        <input type="text" class="form-control" id="agentFullName" name="agentFullName" placeholder="الاسم">
+                        <label for="agentFullName">اسم الوكيل</label>
+                        <i class="fa-solid fa-user-tie input-icon"></i>
+                    </div>
+                    <div class="form-floating position-relative">
+                        <input type="tel" class="form-control" id="agentPhone" name="agentPhone" placeholder="الهاتف" dir="ltr">
+                        <label for="agentPhone">رقم الهاتف</label>
+                        <i class="fa-solid fa-phone input-icon"></i>
+                    </div>
+                    <div class="form-floating position-relative">
+                        <input type="text" class="form-control" id="agentAddress" name="agentAddress" placeholder="العنوان">
+                        <label for="agentAddress">العنوان</label>
+                        <i class="fa-solid fa-map-location-dot input-icon"></i>
+                    </div>
+                    <div class="form-floating position-relative">
+                        <input type="email" class="form-control" id="agentEmail" name="agentEmail" placeholder="البريد الرسمي للوكيل" dir="ltr">
+                        <label for="agentEmail">البريد الرسمي للوكيل</label>
+                        <i class="fa-solid fa-envelope input-icon"></i>
+                    </div>
+                    <div class="form-floating position-relative">
+                        <input type="text" class="form-control has-domain-suffix" id="agentUsername" name="agentUsername" placeholder="اسم المستخدم" dir="ltr">
+                        <label for="agentUsername">اسم المستخدم (باللغة الإنجليزية)</label>
+                        <i class="fa-solid fa-at input-icon"></i>
+                        <span class="domain-suffix">@ahram.com</span>
+                    </div>
+                    <div class="form-floating position-relative mb-1">
+                        <input type="password" class="form-control" id="agentPassword" name="agentPassword" placeholder="كلمة المرور" dir="ltr">
+                        <label for="agentPassword">كلمة المرور</label>
+                        <i class="fa-solid fa-lock input-icon"></i>
+                    </div>
+                    <div class="password-strength mb-3"><div class="bar" id="strengthBarAgent"></div></div>
+                    
+                    <div class="form-floating position-relative mb-1">
+                        <input type="password" class="form-control" id="agentPasswordConfirm" name="agentPasswordConfirm" placeholder="تأكيد" dir="ltr">
+                        <label for="agentPasswordConfirm">تأكيد كلمة المرور</label>
+                        <i class="fa-solid fa-shield-check input-icon"></i>
+                    </div>
+                    <div class="password-match" id="passwordMatchMsgAgent"></div>
+                </div>
+
+                <button type="submit" class="btn-submit" id="submitBtn" disabled>
+                    إرسال طلب التسجيل <i class="fa-solid fa-arrow-left"></i>
+                </button>
+            </form>
+
+            <div class="text-center mt-4">
+                <a href="/client/login" class="login-link">
+                    لديك حساب بالفعل؟ سجل دخولك <i class="fa-solid fa-arrow-left-long"></i>
+                </a>
+            </div>
+        <% } %>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        let selectedType = '';
+
+        function selectAccountType(btn, type) {
+            document.querySelectorAll('.account-type-btn').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            selectedType = type;
+            document.getElementById('accountTypeInput').value = type;
+
+            document.querySelectorAll('.form-section').forEach(s => {
+                s.classList.remove('visible');
+                setTimeout(() => { if(!s.classList.contains('visible')) s.style.display = 'none'; }, 300);
+            });
+
+            const target = document.getElementById('section-' + type);
+            if (target) {
+                target.style.display = 'block';
+                setTimeout(() => target.classList.add('visible'), 50);
+            }
+            document.getElementById('submitBtn').disabled = false;
+        }
+
+        function selectNationality(btn, nat) {
+            document.querySelectorAll('.nationality-btn').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            document.getElementById('nationalityInput').value = nat;
+        }
+
+        // Strength Logic
+        function checkPass(val, barId) {
+            const bar = document.getElementById(barId);
+            if(!val) return bar.className = 'bar', bar.style.width = '0';
+            let score = 0;
+            if(val.length >= 6) score++;
+            if(val.length >= 8 && /[A-Z]/.test(val) && /[0-9]/.test(val)) score++;
+            if(/[^A-Za-z0-9]/.test(val)) score++;
+            
+            bar.className = 'bar';
+            if(score === 1) bar.classList.add('weak');
+            else if(score === 2) bar.classList.add('medium');
+            else if(score >= 3) bar.classList.add('strong');
+        }
+
+        function matchPass(p1, p2, msgId) {
+            const v1 = document.getElementById(p1).value;
+            const v2 = document.getElementById(p2).value;
+            const msg = document.getElementById(msgId);
+            if(!v2) return msg.textContent = '';
+            if(v1 === v2) { msg.textContent = '✅ الكلمتان متطابقتان'; msg.style.color = '#10b981'; }
+            else { msg.textContent = '❌ الكلمتان غير متطابقتين'; msg.style.color = '#ef4444'; }
+        }
+
+        document.getElementById('directPassword')?.addEventListener('input', function(){ checkPass(this.value, 'strengthBar'); matchPass('directPassword', 'directPasswordConfirm', 'passwordMatchMsg'); });
+        document.getElementById('directPasswordConfirm')?.addEventListener('input', () => matchPass('directPassword', 'directPasswordConfirm', 'passwordMatchMsg'));
+        
+        document.getElementById('newPassword')?.addEventListener('input', function(){ checkPass(this.value, 'strengthBarNew'); matchPass('newPassword', 'newPasswordConfirm', 'passwordMatchMsgNew'); });
+        document.getElementById('newPasswordConfirm')?.addEventListener('input', () => matchPass('newPassword', 'newPasswordConfirm', 'passwordMatchMsgNew'));
+
+        document.getElementById('agentPassword')?.addEventListener('input', function(){ checkPass(this.value, 'strengthBarAgent'); matchPass('agentPassword', 'agentPasswordConfirm', 'passwordMatchMsgAgent'); });
+        document.getElementById('agentPasswordConfirm')?.addEventListener('input', () => matchPass('agentPassword', 'agentPasswordConfirm', 'passwordMatchMsgAgent'));
+
+        document.getElementById('companyPassword')?.addEventListener('input', function(){ checkPass(this.value, 'strengthBarCompany'); matchPass('companyPassword', 'companyPasswordConfirm', 'passwordMatchMsgCompany'); });
+        document.getElementById('companyPasswordConfirm')?.addEventListener('input', () => matchPass('companyPassword', 'companyPasswordConfirm', 'passwordMatchMsgCompany'));
+
+        document.getElementById('registerForm')?.addEventListener('submit', function(e) {
+            const btn = document.getElementById('submitBtn');
+            btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> جاري الإرسال...';
+            btn.style.pointerEvents = 'none';
+        });
+    </script>
+</body>
+</html>

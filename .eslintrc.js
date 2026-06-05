@@ -1,0 +1,1 @@
+module.exports = { env: { node: true, es2021: true, browser: true, jest: true }, extends: ['eslint:recommended'], rules: { 'no-undef': 'error', 'no-unused-vars': 'warn', 'no-empty': ['error', { allowEmptyCatch: true }] } }

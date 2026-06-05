@@ -15,7 +15,7 @@ const errorHandler = (err, req, res, next) => {
     }
 
     // إذا كان الطلب من لوحة تحكم الويب
-    res.status(500).send(`
+    res.send(`
         <div style="text-align: center; padding: 50px; font-family: sans-serif; background-color: #f8fafc; height: 100vh;">
             <div style="background: white; padding: 40px; border-radius: 20px; box-shadow: 0 10px 25px rgba(0,0,0,0.05); max-width: 500px; margin: 0 auto;">
                 <h1 style="color: #ef4444; font-size: 50px; margin-bottom: 10px;">⚠️</h1>

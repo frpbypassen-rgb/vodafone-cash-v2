@@ -14,6 +14,9 @@ const settingsSchema = new mongoose.Schema({
     closedMessage: { type: String, default: 'نعتذر، المنظومة مغلقة حالياً. يرجى المحاولة في أوقات العمل الرسمية.' },
     supportContact: { type: String, default: '@AhramSupport' },
 
+    autoRouteEnabled: { type: Boolean, default: false },
+    autoRouteBotId: { type: mongoose.Schema.Types.ObjectId, ref: 'ExecutorBot', default: null },
+
     executorWelcomeMessage: { type: String, default: 'أهلاً بك في لوحة تحكم التنفيذ الخاصة بشركة الأهرام.' },
     executorPendingMessage: { type: String, default: '⏳ حسابك لا يزال قيد المراجعة من قبل الإدارة.' },
     executorBannedMessage: { type: String, default: '⛔️ تم حظر حسابك. يرجى مراجعة الإدارة.' },

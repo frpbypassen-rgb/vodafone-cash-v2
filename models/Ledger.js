@@ -15,5 +15,7 @@ const ledgerSchema = new mongoose.Schema({
 // فهارس (Indexes) لتسريع جلب كشوفات الحسابات المعقدة
 ledgerSchema.index({ entityId: 1, createdAt: -1 });
 ledgerSchema.index({ transactionId: 1 });
+ledgerSchema.index({ entityId: 1, type: 1, createdAt: -1 }); // فلتر نوع العملية + ترتيب زمني
+ledgerSchema.index({ type: 1, createdAt: -1 });               // تقارير نوع محدد
 
 module.exports = mongoose.model('Ledger', ledgerSchema);

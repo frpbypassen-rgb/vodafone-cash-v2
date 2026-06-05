@@ -1,98 +1,36 @@
 // bots/executor/scenes/supportScene.js
-const { Scenes, Markup, Telegram } = require('telegraf');
-const SupportTicket = require('../../../models/SupportTicket');
-const Employee = require('../../../models/Employee');
-const Admin = require('../../../models/Admin');
+const { Scenes, Markup } = require('telegraf');
+const axios = require('axios');
+const API_BASE = process.env.API_BASE_URL || 'http://localhost:3000/api/bot';
 
 const supportWizard = new Scenes.WizardScene(
     'SUPPORT_SCENE',
     async (ctx) => {
-        await ctx.reply(
-            '🎧 <b>الدعم الفني والمساعدة</b>\n\n' +
-            'الرجاء كتابة رسالتك أو استفسارك في رسالة واحدة، وسيقوم فريق الدعم بالرد عليك في أقرب وقت ممكن.\n\n' +
-            '<i>(يمكنك إرسال نص، أو صورة مع توضيح)</i>\n' +
-            'لإلغاء العملية أرسل الغاء ❌',
-            { parse_mode: 'HTML', ...Markup.keyboard([['الغاء ❌']]).resize() }
-        );
+        await ctx.reply('🎧 <b>الدعم الفني</b>\n\nاكتب رسالتك وسنرد عليك في أقرب وقت:', { parse_mode: 'HTML', ...Markup.inlineKeyboard([[Markup.button.callback('🔙 إلغاء', 'cancel_support')]]) });
         return ctx.wizard.next();
     },
     async (ctx) => {
-        const botData = ctx.scene.state.botData;
-        const telegramId = ctx.from.id.toString();
-
-        if (ctx.message && (ctx.message.text === '/cancel' || ctx.message.text === 'الغاء ❌')) {
-            const emp = await Employee.findOne({ telegramId, botId: botData._id });
-            let kbd = [];
-            if (emp && emp.role === 'operator') {
-                kbd = [['🟠 الطلبات المعلقة', '🟡 طلبات قيد التنفيذ'], ['🎧 الدعم الفني وتواصل معنا']];
-            } else {
-                const toggleBtn = botData.status === 'paused' ? '🔴 استئناف عمل البوت' : '🟢 إيقاف مؤقت للبوت';
-                if (botData.isManagerBot) kbd = [[toggleBtn], ['🎧 الدعم الفني وتواصل معنا']];
-                else kbd = [['🟠 الطلبات المعلقة', '🟡 طلبات قيد التنفيذ'], [toggleBtn], ['🎧 الدعم الفني وتواصل معنا']];
-            }
-            await ctx.reply('✅ تم إلغاء الإرسال.', Markup.keyboard(kbd).resize());
+        if (ctx.callbackQuery?.data === 'cancel_support') {
+            await ctx.editMessageText('❌ تم الإلغاء.');
             return ctx.scene.leave();
         }
+        if (!ctx.message?.text) return ctx.reply('⚠️ الرجاء كتابة رسالة نصية:');
 
-        if (!ctx.message || (!ctx.message.text && !ctx.message.photo)) {
-            await ctx.reply('⚠️ الرجاء إرسال رسالة نصية أو صورة توضح مشكلتك.');
-            return;
-        }
-
+        await ctx.reply('⏳ جاري إرسال الرسالة...');
         try {
-            const emp = await Employee.findOne({ telegramId, botId: botData._id });
-            const entityType = 'executor';
-            const entityId = emp._id;
-            const name = emp.name;
-            const phone = emp.phone;
-
-            let text = ctx.message.text || ctx.message.caption || 'تم إرسال صورة بدون نص';
-            let imageUrl = '';
-            if (ctx.message.photo) {
-                imageUrl = ctx.message.photo[ctx.message.photo.length - 1].file_id;
-            }
-
-            let ticket = await SupportTicket.findOne({ telegramId, status: { $ne: 'closed' } });
-
-            if (!ticket) {
-                ticket = new SupportTicket({
-                    entityType, entityId, telegramId, name, phone,
-                    botToken: botData.token, messages: []
-                });
-            }
-
-            ticket.messages.push({ sender: 'user', text: text, imageUrl: imageUrl, createdAt: new Date() });
-            ticket.status = 'open';
-            ticket.unreadAdmin += 1;
-            await ticket.save();
-
-            let kbd = [];
-            if (emp.role === 'operator') {
-                kbd = [['🟠 الطلبات المعلقة', '🟡 طلبات قيد التنفيذ'], ['🎧 الدعم الفني وتواصل معنا']];
+            const response = await axios.post(`${API_BASE}/executor/support/ticket`, {
+                telegramId: ctx.from.id.toString(),
+                message: ctx.message.text,
+                type: 'executor'
+            }, { headers: { 'x-bot-token': ctx.botToken } });
+            
+            if (response.data.success) {
+                await ctx.reply('✅ تم إرسال رسالتك لفريق الدعم الفني.');
             } else {
-                const toggleBtn = botData.status === 'paused' ? '🔴 استئناف عمل البوت' : '🟢 إيقاف مؤقت للبوت';
-                if (botData.isManagerBot) kbd = [[toggleBtn], ['🎧 الدعم الفني وتواصل معنا']];
-                else kbd = [['🟠 الطلبات المعلقة', '🟡 طلبات قيد التنفيذ'], [toggleBtn], ['🎧 الدعم الفني وتواصل معنا']];
+                await ctx.reply('❌ فشل الإرسال.');
             }
-
-            await ctx.reply('✅ <b>تم استلام رسالتك بنجاح!</b>\nسيقوم فريق الدعم بالرد عليك في أقرب وقت.', { 
-                parse_mode: 'HTML',
-                ...Markup.keyboard(kbd).resize()
-            });
-
-            // 🟢 تنبيه الإدارة عبر التيليجرام
-            const adminAPI = new Telegram(process.env.ADMIN_BOT_TOKEN);
-            const admins = await Admin.find({});
-            for (const admin of admins) {
-                await adminAPI.sendMessage(admin.telegramId, `🚨 <b>رسالة دعم فني جديدة! (طاقم التنفيذ)</b>\n\n👤 من: ${name}\n💬 الرسالة: ${text}\n\nيرجى مراجعة لوحة التحكم للرد.`, { parse_mode: 'HTML' }).catch(()=>{});
-            }
-
-            return ctx.scene.leave();
-        } catch (err) {
-            console.error(err);
-            await ctx.reply('❌ حدث خطأ، يرجى المحاولة لاحقاً.');
-            return ctx.scene.leave();
-        }
+        } catch(e) { await ctx.reply('❌ خطأ فني.'); }
+        return ctx.scene.leave();
     }
 );
 module.exports = supportWizard;

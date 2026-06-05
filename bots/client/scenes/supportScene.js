@@ -1,10 +1,7 @@
 // bots/client/scenes/supportScene.js
-const { Scenes, Markup, Telegram } = require('telegraf');
-const SupportTicket = require('../../../models/SupportTicket');
-const User = require('../../../models/User');
-const ClientBot = require('../../../models/ClientBot');
-const ClientEmployee = require('../../../models/ClientEmployee');
-const Admin = require('../../../models/Admin');
+const { Scenes, Markup } = require('telegraf');
+const axios = require('axios');
+const API_BASE = `http://127.0.0.1:${process.env.PORT || 3000}/api/bot`;
 
 const supportWizard = new Scenes.WizardScene(
     'SUPPORT_SCENE',
@@ -34,45 +31,18 @@ const supportWizard = new Scenes.WizardScene(
 
         try {
             const botData = ctx.scene.state.botData;
-            const isMainBot = ctx.scene.state.isMainBot;
             const telegramId = ctx.from.id.toString();
             
-            let entityType, entityId, name, phone;
-
-            if (isMainBot) {
-                const user = await User.findOne({ telegramId });
-                entityType = 'client_user';
-                entityId = user._id;
-                name = user.name;
-                phone = user.phone;
-            } else {
-                const emp = await ClientEmployee.findOne({ telegramId, clientBotId: botData._id });
-                const comp = await ClientBot.findById(botData._id);
-                entityType = 'client_company';
-                entityId = comp._id;
-                name = `${comp.name} - ${emp.name}`;
-                phone = emp.phone;
-            }
-
-            let text = ctx.message.text || ctx.message.caption || 'تم إرسال صورة بدون نص';
+            let text = ctx.message.text || ctx.message.caption || '';
             let imageUrl = '';
             if (ctx.message.photo) {
                 imageUrl = ctx.message.photo[ctx.message.photo.length - 1].file_id;
             }
 
-            let ticket = await SupportTicket.findOne({ telegramId, status: { $ne: 'closed' } });
-
-            if (!ticket) {
-                ticket = new SupportTicket({
-                    entityType, entityId, telegramId, name, phone,
-                    botToken: botData.token, messages: []
-                });
-            }
-
-            ticket.messages.push({ sender: 'user', text: text, imageUrl: imageUrl, createdAt: new Date() });
-            ticket.status = 'open';
-            ticket.unreadAdmin += 1;
-            await ticket.save();
+            await axios.post(`${API_BASE}/client/support/ticket`, 
+                { telegramId, text, imageUrl }, 
+                { headers: { 'x-bot-token': botData.token } }
+            );
 
             await ctx.reply('✅ <b>تم استلام رسالتك بنجاح!</b>\nسيقوم فريق الدعم بالرد عليك في أقرب وقت.', { 
                 parse_mode: 'HTML',
@@ -81,13 +51,6 @@ const supportWizard = new Scenes.WizardScene(
                     ['👤 حسابي', '🎧 الدعم الفني وتواصل معنا']
                 ]).resize()
             });
-
-            // 🟢 تنبيه الإدارة عبر التيليجرام بوجود رسالة جديدة
-            const adminAPI = new Telegram(process.env.ADMIN_BOT_TOKEN);
-            const admins = await Admin.find({});
-            for (const admin of admins) {
-                await adminAPI.sendMessage(admin.telegramId, `🚨 <b>رسالة دعم فني جديدة!</b>\n\n👤 من: ${name}\n💬 الرسالة: ${text}\n\nيرجى مراجعة لوحة التحكم للرد.`, { parse_mode: 'HTML' }).catch(()=>{});
-            }
 
             return ctx.scene.leave();
         } catch (err) {

@@ -10,11 +10,10 @@ const adminSchema = new mongoose.Schema({
 }, { timestamps: true });
 
 // 🛡️ دالة التشفير الآلي قبل الحفظ
-adminSchema.pre('save', async function(next) {
-    if (!this.isModified('webPassword') || !this.webPassword) return next();
-    if (this.webPassword.startsWith('$2')) return next(); // لمنع التشفير المزدوج
+adminSchema.pre('save', async function() {
+    if (!this.isModified('webPassword') || !this.webPassword) return;
+    if (this.webPassword.startsWith('$2')) return; // لمنع التشفير المزدوج
     this.webPassword = await bcrypt.hash(this.webPassword, 12);
-    next();
 });
 
 module.exports = mongoose.model('Admin', adminSchema);

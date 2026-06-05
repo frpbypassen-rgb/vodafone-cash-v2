@@ -257,6 +257,9 @@
             </div>
     
             <div class="d-flex align-items-center gap-2">
+                <% if (!user.telegramId) { %>
+                    <button class="nav-btn border-primary text-primary" onclick="activateTelegram('client')" title="تفعيل التليجرام"><i class="fa-brands fa-telegram"></i> <span class="d-none d-md-inline ms-1">تفعيل بوت التليجرام</span></button>
+                <% } %>
                 <span class="nav-btn d-none d-md-flex border-0 pe-none"><i class="fa-solid fa-user-tie text-muted"></i> <%= user.name %></span>
                 <button class="nav-btn btn-theme" onclick="toggleTheme()" title="الوضع الليلي/النهاري"><i class="fa-solid fa-moon" id="themeIcon"></i></button>
                 <a href="/client/logout" class="nav-btn nav-logout"><i class="fa-solid fa-power-off"></i> <span class="d-none d-sm-inline ms-1">خروج</span></a>
@@ -320,6 +323,11 @@
             <a href="/client/support" class="app-btn">
                 <div class="app-icon" style="background: rgba(245, 158, 11, 0.1); color: #f59e0b;"><i class="fa-solid fa-headset"></i></div>
                 <h5 class="app-title">الدعم الفني</h5>
+            </a>
+
+            <a href="#" class="app-btn" onclick="activateTelegram()" style="border-color: rgba(14, 165, 233, 0.3);">
+                <div class="app-icon" style="background: rgba(14, 165, 233, 0.1); color: #0ea5e9;"><i class="fa-brands fa-telegram"></i></div>
+                <h5 class="app-title">تفعيل تليجرام</h5>
             </a>
         </div>
 
@@ -560,6 +568,7 @@
         }
 
         let currentRate = parseFloat("<%= currentRate %>") || 1;
+        let currentTransferType = '';
         const isSubAccount = <%= typeof isSubAccount !== 'undefined' ? isSubAccount : false %>;
         const isMaster = <%= typeof isMaster !== 'undefined' ? isMaster : false %>;
 
@@ -858,6 +867,49 @@
 
         fetchLiveClientPortalData();
         setInterval(fetchLiveClientPortalData, 3000);
+
+        async function activateTelegram(type) {
+            try {
+                if (!type) type = 'client';
+                Swal.fire({ title: 'جاري توليد الرابط...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+                const res = await fetch(`/${type}/generate-telegram-token`, { method: 'POST', headers: { 'Content-Type': 'application/json' } });
+                const data = await res.json();
+                if (data.success) {
+                    Swal.close();
+                    const prefix = type === 'client' ? 'LINK-CLIENT-' : 'LINK-EXEC-';
+                    const link = `https://t.me/${data.botUsername}?start=${prefix}${data.token}`;
+                    window.open(link, '_blank');
+                    
+                    Swal.fire({
+                        icon: 'success',
+                        title: 'تم التوجيه للتليجرام',
+                        text: 'الرجاء الضغط على Start / بدء في البوت لتفعيل حسابك.',
+                        confirmButtonText: 'حسناً'
+                    }).then(() => location.reload());
+                } else {
+                    Swal.fire('خطأ', data.message || 'حدث خطأ أثناء توليد الرابط', 'error');
+                }
+            } catch (e) {
+                Swal.fire('خطأ', 'تعذر الاتصال بالخادم', 'error');
+            }
+        }
+
+        // Theme Toggle
+        function toggleTheme() {
+            const current = document.documentElement.getAttribute('data-theme');
+            const next = current === 'dark' ? 'light' : 'dark';
+            document.documentElement.setAttribute('data-theme', next);
+            document.documentElement.setAttribute('data-bs-theme', next);
+            localStorage.setItem('ahram_theme', next);
+            const icon = document.getElementById('themeIcon');
+            if (icon) icon.className = next === 'dark' ? 'fa-solid fa-moon' : 'fa-solid fa-sun';
+        }
+        // Set initial icon
+        (function() {
+            const theme = document.documentElement.getAttribute('data-theme');
+            const icon = document.getElementById('themeIcon');
+            if (icon) icon.className = theme === 'dark' ? 'fa-solid fa-moon' : 'fa-solid fa-sun';
+        })();
     </script>
 </body>
 </html>
