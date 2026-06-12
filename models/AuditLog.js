@@ -7,32 +7,6 @@ const auditLogSchema = new mongoose.Schema({
     action: {
         type: String,
         required: true,
-        enum: [
-            'LOGIN_SUCCESS',
-            'LOGIN_FAILED',
-            'LOGOUT',
-            'TOKEN_REFRESH',
-            'TRANSFER_CREATED',
-            'TRANSFER_CANCELLED',
-            'TRANSFER_COMPLETED',
-            'DEPOSIT_CREATED',
-            'DEDUCTION_CREATED',
-            'BALANCE_ADJUSTED',
-            'TASK_ACCEPTED',
-            'ADMIN_ACTION',
-            'SETTINGS_CHANGED',
-            'USER_CREATED',
-            'USER_UPDATED',
-            'USER_BANNED',
-            // 🆕 أحداث أمنية جديدة
-            'ROLE_CHANGED',
-            'ACCOUNT_LOCKED',
-            'ACCOUNT_UNLOCKED',
-            'PASSWORD_CHANGED',
-            'API_KEY_ROTATED',
-            'SYSTEM_STARTUP',
-            'SYSTEM_SHUTDOWN',
-        ],
         index: true
     },
 
@@ -45,19 +19,17 @@ const auditLogSchema = new mongoose.Schema({
 
     // ── من قام بالعملية ──────────────────────────────────────
     performedBy: {
-        type: mongoose.Schema.Types.ObjectId,
-        refPath: 'performedByModel'
+        type: mongoose.Schema.Types.Mixed
     },
     performedByModel: {
         type: String,
-        enum: ['Employee', 'ClientEmployee', 'User', 'Admin', 'System']
+        enum: ['Employee', 'ClientEmployee', 'User', 'SubAccount', 'Admin', 'System']
     },
     performedByName: { type: String }, // نسخة من الاسم لحماية السجل
 
     // ── الجهة المستهدفة بالعملية ─────────────────────────────
     targetId: {
-        type: mongoose.Schema.Types.ObjectId,
-        refPath: 'targetModel'
+        type: mongoose.Schema.Types.Mixed
     },
     targetModel: { type: String },
 
@@ -80,6 +52,19 @@ const auditLogSchema = new mongoose.Schema({
     // ── نتيجة العملية ────────────────────────────────────────
     success: { type: Boolean, default: true },
     errorCode: { type: String }, // في حالة الفشل
+
+    // 🆕 حقول التتبع والتدفق المخصصة
+    result: { type: String, enum: ['ناجح', 'فاشل', 'معلق', 'محظور'], default: 'ناجح' },
+    initiator: { type: String, enum: ['موقع', 'تطبيق'], default: 'موقع' },
+    deviceType: { type: String, enum: ['هاتف', 'كمبيوتر'], default: 'كمبيوتر' },
+    location: {
+        latitude: { type: Number },
+        longitude: { type: Number }
+    },
+
+    // 🆕 تشفير السلسلة المترابطة (Hash Chained Audit Trail)
+    previousHash: { type: String, default: null },
+    hash: { type: String, default: null }
 
 }, {
     timestamps: true,

@@ -18,16 +18,17 @@ const supportTicketSchema = new mongoose.Schema({
             return 'TCK-' + Math.floor(100000 + Math.random() * 900000);
         }
     },
-    entityType: { type: String, enum: ['client_user', 'client_company', 'executor'], required: true },
+    entityType: { type: String, enum: ['client_user', 'client_company', 'executor', 'sub_client'], required: true },
     entityId: { type: mongoose.Schema.Types.ObjectId, required: true }, 
-    telegramId: { type: String, required: true },
+    telegramId: { type: String },
     name: { type: String, required: true },
     phone: { type: String },
     botToken: { type: String }, 
     status: { type: String, enum: ['open', 'answered', 'closed'], default: 'open' },
     unreadUser: { type: Number, default: 0 }, 
     unreadAdmin: { type: Number, default: 1 }, 
-    messages: [supportMessageSchema]
+    messages: [supportMessageSchema],
+    metadata: { type: mongoose.Schema.Types.Mixed, default: {} }
 }, { timestamps: true });
 
 module.exports = mongoose.model('SupportTicket', supportTicketSchema);

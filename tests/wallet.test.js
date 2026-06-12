@@ -1,6 +1,4 @@
 // tests/wallet.test.js
-const { updateBalanceWithLedger } = require('../services/walletService');
-const mongoose = require('mongoose');
 
 // محاكاة قاعدة بيانات MongoDB — تدعم findOneAndUpdate الذري
 jest.mock('mongoose', () => {
@@ -26,7 +24,18 @@ jest.mock('mongoose', () => {
         })
     };
 
+    const MockSchema = jest.fn();
+    MockSchema.prototype.index = jest.fn();
+    MockSchema.Types = {
+        ObjectId: String,
+        Mixed: Object
+    };
+
     return {
+        Schema: MockSchema,
+        Types: {
+            ObjectId: String
+        },
         startSession: jest.fn().mockResolvedValue(mockSession),
         model: jest.fn().mockReturnValue(mockModel),
         _mockSession: mockSession,
@@ -43,6 +52,9 @@ jest.mock('../models/Ledger', () => {
         static create() { return Promise.resolve(true); }
     };
 });
+
+const { updateBalanceWithLedger } = require('../services/walletService');
+const mongoose = require('mongoose');
 
 describe('Financial Engine (Double Entry Ledger) Tests', () => {
 

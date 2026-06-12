@@ -2,11 +2,10 @@ const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
 
 const adminSchema = new mongoose.Schema({
-    telegramId: { type: String, unique: true, sparse: true },
     name: { type: String, default: 'بدون اسم' },
     role: { type: String, default: 'admin' }, 
-    webUsername: { type: String, unique: true, sparse: true },
-    webPassword: { type: String }
+    webUsername: { type: String, unique: true, required: true },
+    webPassword: { type: String, required: true }
 }, { timestamps: true });
 
 // 🛡️ دالة التشفير الآلي قبل الحفظ

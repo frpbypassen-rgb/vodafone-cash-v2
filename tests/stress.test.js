@@ -5,9 +5,6 @@
 // بدون الحاجة لتشغيل السيرفر أو قاعدة بيانات فعلية
 // ====================================================
 
-const { updateBalanceWithLedger } = require('../services/walletService');
-const mongoose = require('mongoose');
-
 // ────────────────────────────────────────────────────────────
 // 🔧 محاكاة MongoDB مع دعم التزامن (Thread-Safe Mock)
 // ────────────────────────────────────────────────────────────
@@ -43,7 +40,17 @@ jest.mock('mongoose', () => {
         })
     };
 
+    const MockSchema = jest.fn();
+    MockSchema.Types = {
+        ObjectId: String,
+        Mixed: Object
+    };
+
     return {
+        Schema: MockSchema,
+        Types: {
+            ObjectId: String
+        },
         startSession: jest.fn().mockResolvedValue(mockSession),
         model: jest.fn().mockReturnValue(mockModel),
         _mockSession: mockSession,
@@ -59,6 +66,7 @@ jest.mock('mongoose', () => {
     };
 });
 
+// محاكاة نموذج Ledger لـ stress test
 jest.mock('../models/Ledger', () => {
     let ledgerEntries = [];
     const LedgerMock = class {
@@ -70,6 +78,9 @@ jest.mock('../models/Ledger', () => {
     };
     return LedgerMock;
 });
+
+const { updateBalanceWithLedger } = require('../services/walletService');
+const mongoose = require('mongoose');
 
 // ────────────────────────────────────────────────────────────
 // 📊 أدوات قياس الأداء

@@ -6,7 +6,7 @@ const registrationRequestSchema = new mongoose.Schema({
     accountType: { 
         type: String, 
         required: true, 
-        enum: ['direct', 'company', 'new', 'agent'] 
+        enum: ['direct', 'company', 'new', 'agent', 'executor'] 
     },
 
     // رقم الطلب المرجعي
@@ -55,13 +55,14 @@ registrationRequestSchema.pre('save', async function() {
     this.password = await bcrypt.hash(this.password, 12);
 });
 
-// توليد رقم الطلب المرجعي
+// توليد رقم الطلب المرجعي (مع حماية من التكرار)
 registrationRequestSchema.pre('save', function() {
     if (!this.refCode) {
         const yy = new Date().getFullYear().toString().slice(-2);
         const mm = (new Date().getMonth() + 1).toString().padStart(2, '0');
-        const rand = Math.floor(1000 + Math.random() * 9000);
-        this.refCode = `REG-${yy}${mm}-${rand}`;
+        const ts = Date.now().toString().slice(-4);
+        const rand = Math.floor(100 + Math.random() * 900);
+        this.refCode = `REG-${yy}${mm}-${ts}${rand}`;
     }
 });
 

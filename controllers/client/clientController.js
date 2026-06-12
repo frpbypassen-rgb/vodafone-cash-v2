@@ -6,7 +6,7 @@
 
 const User = require('../../models/User');
 const ClientEmployee = require('../../models/ClientEmployee');
-const ClientBot = require('../../models/ClientBot');
+const ClientCompany = require('../../models/ClientCompany');
 const Settings = require('../../models/Settings');
 const { getRateForTier } = require('../../utils/rateHelper');
 const transferService = require('../../services/transferService');
@@ -22,7 +22,7 @@ const getHome = async (req, res) => {
         if (accountType === 'client_company') {
             const emp = await ClientEmployee.findById(userId);
             if (emp) {
-                const comp = await ClientBot.findById(emp.clientBotId);
+                const comp = await ClientCompany.findById(emp.companyId);
                 if (comp) { balance = comp.balance || 0; tier = comp.tier || 1; }
             }
         } else if (accountType === 'client_user') {
@@ -51,7 +51,7 @@ const getExchangeRate = async (req, res) => {
         if (accountType === 'client_company') {
             const emp = await ClientEmployee.findById(userId);
             if (emp) {
-                const comp = await ClientBot.findById(emp.clientBotId);
+                const comp = await ClientCompany.findById(emp.companyId);
                 if (comp) { finalRate = getRateForTier(comp.tier || 1, settings); balance = comp.balance || 0; }
             }
         } else if (accountType === 'client_user') {

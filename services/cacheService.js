@@ -5,6 +5,7 @@
 'use strict';
 
 const { getRedisClient } = require('../config/redis');
+const { hashOtp, verifyOtp: compareOtp } = require('../utils/otp');
 
 /**
  * تخزين/جلب إعدادات النظام (تتغير نادراً)
@@ -46,7 +47,7 @@ const cacheOTP = async (phone, otp = null, ttlSeconds = 300) => {
     const KEY = `ahram:otp:${phone}`;
 
     if (otp) {
-        await client.set(KEY, otp.toString(), ttlSeconds);
+        await client.set(KEY, hashOtp(otp), ttlSeconds);
         return otp;
     }
 
@@ -59,7 +60,7 @@ const cacheOTP = async (phone, otp = null, ttlSeconds = 300) => {
 const verifyOTP = async (phone, inputOtp) => {
     const stored = await cacheOTP(phone);
     if (!stored) return { valid: false, reason: 'EXPIRED' };
-    if (stored !== inputOtp) return { valid: false, reason: 'MISMATCH' };
+    if (!compareOtp(inputOtp, stored)) return { valid: false, reason: 'MISMATCH' };
 
     // حذف بعد الاستخدام
     const client = getRedisClient();

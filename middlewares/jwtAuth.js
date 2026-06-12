@@ -21,10 +21,15 @@ const authenticateJWT = (req, res, next) => {
 
         jwt.verify(token, JWT_SECRET, (err, decodedUser) => {
             if (err) {
+                const code = err.name === 'TokenExpiredError' ? 'TOKEN_EXPIRED' : 'TOKEN_INVALID';
+                const message = code === 'TOKEN_EXPIRED'
+                    ? 'جلستك الحالية انتهت، يرجى تحديث التوكن (Refresh Token)'
+                    : 'التوكن غير صالح';
                 return res.status(401).json({
                     success: false,
-                    code: 'TOKEN_EXPIRED',
-                    message: 'جلستك الحالية انتهت، يرجى تحديث التوكن (Refresh Token)'
+                    code,
+                    message,
+                    correlationId: req.correlationId || null
                 });
             }
             req.user = decodedUser;
@@ -33,8 +38,9 @@ const authenticateJWT = (req, res, next) => {
     } else {
         res.status(401).json({
             success: false,
-            code: 'UNAUTHORIZED',
-            message: 'غير مصرح بالوصول، التوكن مفقود'
+            code: 'TOKEN_INVALID',
+            message: 'غير مصرح بالوصول، التوكن مفقود',
+            correlationId: req.correlationId || null
         });
     }
 };

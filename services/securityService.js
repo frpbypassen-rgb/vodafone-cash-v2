@@ -226,8 +226,11 @@ const cleanupExpiredRecords = () => {
     }
 };
 
-// تنظيف تلقائي كل 5 دقائق
-setInterval(cleanupExpiredRecords, 5 * 60 * 1000);
+// تنظيف تلقائي كل 5 دقائق بدون منع Jest/Node من الإغلاق الطبيعي.
+const cleanupInterval = setInterval(cleanupExpiredRecords, 5 * 60 * 1000);
+if (typeof cleanupInterval.unref === 'function') {
+    cleanupInterval.unref();
+}
 
 module.exports = {
     extractDeviceInfo,
