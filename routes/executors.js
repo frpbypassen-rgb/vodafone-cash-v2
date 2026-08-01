@@ -6,6 +6,7 @@ const Employee = require('../models/Employee');
 const Notification = require('../models/Notification');
 const { requireAuth, requireMaster } = require('../middlewares/auth');
 const { syncBotBalance } = require('../utils/helpers');
+const { DEFAULT_API_PROVIDER_KEY, getApiProviderPreset, getApiProviderPresets } = require('../utils/apiProviderPresets');
 
 const normalizeText = (value) => String(value || '').trim();
 const parseNumberOrDefault = (value, fallback) => {
@@ -21,7 +22,7 @@ router.get('/executors', requireAuth, async (req, res) => {
             let txCount = 0; if (group.isManagerBot) txCount = await Transaction.countDocuments({ managerGroupId: group._id, status: 'completed' }); else txCount = await Transaction.countDocuments({ executorGroupId: group._id, status: 'completed' });
             return { ...group._doc, balance: syncedBalance, txCount };
         }));
-        res.render('executors', { bots: groupsWithStats, adminName: req.session.adminName, query: req.query });
+        res.render('executors', { bots: groupsWithStats, apiProviderPresets: getApiProviderPresets(), adminName: req.session.adminName, query: req.query });
     } catch (e) { res.redirect('/'); }
 });
 
@@ -36,6 +37,8 @@ router.post('/executors/add', requireAuth, requireMaster, async (req, res) => {
         const isManagerBot = !isApiBot && (botType === 'manager' || body.isManagerBot === 'on' || body.isManagerBot === 'true');
         const balance = Number(body.balance || 0);
         const parentId = normalizeText(body.parentGroupId);
+        const apiProviderKey = isApiBot ? (normalizeText(body.apiProviderKey) || DEFAULT_API_PROVIDER_KEY) : '';
+        const apiPreset = getApiProviderPreset(apiProviderKey);
 
         const group = await ExecutorGroup.create({
             name,
@@ -47,14 +50,15 @@ router.post('/executors/add', requireAuth, requireMaster, async (req, res) => {
             isApiBot,
             parentGroupId: parentId && parentId !== 'none' ? parentId : null,
             parentBotId: parentId && parentId !== 'none' ? parentId : null,
-            apiUrl: isApiBot ? normalizeText(body.apiUrl) : '',
+            apiProviderKey: isApiBot ? apiPreset.key : '',
+            apiUrl: isApiBot ? (normalizeText(body.apiUrl) || apiPreset.apiUrl) : '',
             apiToken: isApiBot ? normalizeText(body.apiToken) : '',
             apiUsername: isApiBot ? normalizeText(body.apiUsername) : '',
             apiPassword: isApiBot ? normalizeText(body.apiPassword) : '',
-            apiServiceId: isApiBot ? parseNumberOrDefault(body.apiServiceId, 307) : 307,
-            apiProviderId: isApiBot ? parseNumberOrDefault(body.apiProviderId, 29) : 29,
-            apiFieldId: isApiBot ? parseNumberOrDefault(body.apiFieldId, 3488) : 3488,
-            apiMachineSerial: isApiBot ? (normalizeText(body.apiMachineSerial) || 'XP1') : 'XP1'
+            apiServiceId: isApiBot ? parseNumberOrDefault(body.apiServiceId, apiPreset.serviceId) : apiPreset.serviceId,
+            apiProviderId: isApiBot ? parseNumberOrDefault(body.apiProviderId, apiPreset.providerId) : apiPreset.providerId,
+            apiFieldId: isApiBot ? parseNumberOrDefault(body.apiFieldId, apiPreset.fieldId) : apiPreset.fieldId,
+            apiMachineSerial: isApiBot ? (normalizeText(body.apiMachineSerial) || apiPreset.machineSerial) : apiPreset.machineSerial
         });
 
         const managerName = normalizeText(body.managerName);
@@ -95,7 +99,7 @@ router.get('/executor/:id', requireAuth, async (req, res) => {
                 successCount: transactions.filter(t => t.status === 'completed').length,
                 failedCount: transactions.filter(t => t.status === 'pending' && t.adminNotes && t.adminNotes.includes('فشل')).length,
             };
-            return res.render('api_room', { bot, transactions, stats, managerBots, adminName: req.session.adminName });
+            return res.render('api_room', { bot, apiProviderPreset: getApiProviderPreset(bot.apiProviderKey), transactions, stats, managerBots, adminName: req.session.adminName });
         }
 
         res.render('executor_details', { bot, transactions, managerBots, adminName: req.session.adminName });

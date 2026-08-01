@@ -12,13 +12,14 @@ const executorGroupSchema = new mongoose.Schema({
 
     isApiGroup: { type: Boolean, default: false },
     isApiBot: { type: Boolean, default: false },
+    apiProviderKey: { type: String, default: 'zayn_external_aggregator' },
     apiUrl: { type: String, default: '' },
     apiToken: { type: String, default: '' },
     apiUsername: { type: String, default: '' },
     apiPassword: { type: String, default: '' },
-    apiServiceId: { type: Number, default: 307 },
-    apiProviderId: { type: Number, default: 29 },
-    apiFieldId: { type: Number, default: 3488 },
+    apiServiceId: { type: Number, default: 85 },
+    apiProviderId: { type: Number, default: 16 },
+    apiFieldId: { type: Number, default: 5488 },
     apiMachineSerial: { type: String, default: 'XP1' }
 }, { timestamps: true });
 

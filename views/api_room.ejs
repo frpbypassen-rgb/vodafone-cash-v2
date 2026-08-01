@@ -88,8 +88,12 @@
                     </div>
                     <div class="card-body p-4">
                         <div class="mb-3">
+                            <label class="form-label text-muted small">مزود الخدمة</label>
+                            <input type="text" class="form-control text-sky" value="<%= (typeof apiProviderPreset !== 'undefined' && apiProviderPreset.nameAr) ? apiProviderPreset.nameAr : (bot.apiProviderKey || 'Zayn External Aggregator') %>" readonly>
+                        </div>
+                        <div class="mb-3">
                             <label class="form-label text-muted small">رابط الطلب (POST URL)</label>
-                            <input type="text" class="form-control text-emerald" value="<%= bot.apiUrl || 'https://zaynpay.com' %>" readonly>
+                            <input type="text" class="form-control text-emerald" value="<%= bot.apiUrl || ((typeof apiProviderPreset !== 'undefined' && apiProviderPreset.apiUrl) ? apiProviderPreset.apiUrl : 'https://zaynpay.com') %>" readonly>
                         </div>
                         <div class="mb-4">
                             <label class="form-label text-muted small">مفتاح المصادقة (Secret Token)</label>
@@ -106,15 +110,15 @@
                             </div>
                             <div class="col-md-3">
                                 <label class="form-label text-muted small">Service ID</label>
-                                <input type="text" class="form-control" value="<%= bot.apiServiceId || 307 %>" readonly>
+                                <input type="text" class="form-control" value="<%= bot.apiServiceId || ((typeof apiProviderPreset !== 'undefined' && apiProviderPreset.serviceId) ? apiProviderPreset.serviceId : 85) %>" readonly>
                             </div>
                             <div class="col-md-3">
-                                <label class="form-label text-muted small">Provider ID</label>
-                                <input type="text" class="form-control" value="<%= bot.apiProviderId || 29 %>" readonly>
+                                <label class="form-label text-muted small">Current Provider ID</label>
+                                <input type="text" class="form-control" value="<%= bot.apiProviderId || ((typeof apiProviderPreset !== 'undefined' && apiProviderPreset.providerId) ? apiProviderPreset.providerId : 16) %>" readonly>
                             </div>
                             <div class="col-md-3">
                                 <label class="form-label text-muted small">Field ID</label>
-                                <input type="text" class="form-control" value="<%= bot.apiFieldId || 3488 %>" readonly>
+                                <input type="text" class="form-control" value="<%= bot.apiFieldId || ((typeof apiProviderPreset !== 'undefined' && apiProviderPreset.fieldId) ? apiProviderPreset.fieldId : 5488) %>" readonly>
                             </div>
                             <div class="col-md-3">
                                 <label class="form-label text-muted small">Machine Serial</label>

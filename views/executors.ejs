@@ -223,6 +223,12 @@
                                             <span class="badge <%= bot.status === 'active' ? 'bg-success text-success border-success' : 'bg-danger text-danger border-danger' %> bg-opacity-10 border rounded-pill px-3 py-1 mt-1" style="font-size:0.75rem;">
                                                 <i class="fa-solid <%= bot.status === 'active' ? 'fa-check-circle' : 'fa-ban' %> me-1"></i><%= bot.status === 'active' ? 'مفعل ونشط' : 'متوقف' %>
                                             </span>
+                                            <% if (bot.isApiBot) { %>
+                                                <div class="text-muted small fw-bold mt-2">
+                                                    <i class="fa-solid fa-plug me-1"></i>
+                                                    <%= bot.apiProviderKey === 'zayn_external_aggregator' ? 'Zayn External Aggregator' : (bot.apiProviderKey || 'API Provider') %>
+                                                </div>
+                                            <% } %>
                                         </div>
                                     </div>
                                 </div>
@@ -307,8 +313,23 @@
                                 <div class="fw-bold mb-3 text-warning"><i class="fa-solid fa-plug-circle-bolt me-1"></i> بيانات API الخاصة بهذا المنفذ</div>
                                 <div class="row g-3">
                                     <div class="col-md-6">
+                                        <label class="form-label fw-bold small text-muted">مزود الخدمة</label>
+                                        <select name="apiProviderKey" id="apiProviderKey" class="form-select fw-bold">
+                                            <% (typeof apiProviderPresets !== 'undefined' ? apiProviderPresets : []).forEach(provider => { %>
+                                                <option value="<%= provider.key %>"
+                                                        data-api-url="<%= provider.apiUrl %>"
+                                                        data-service-id="<%= provider.serviceId %>"
+                                                        data-provider-id="<%= provider.providerId %>"
+                                                        data-field-id="<%= provider.fieldId %>"
+                                                        data-machine-serial="<%= provider.machineSerial %>">
+                                                    <%= provider.nameAr || provider.name %>
+                                                </option>
+                                            <% }) %>
+                                        </select>
+                                    </div>
+                                    <div class="col-md-6">
                                         <label class="form-label fw-bold small text-muted">رابط API</label>
-                                        <input type="text" name="apiUrl" class="form-control" placeholder="https://zaynpay.com" dir="ltr">
+                                        <input type="text" name="apiUrl" class="form-control" placeholder="https://zaynpay.com" value="https://zaynpay.com" dir="ltr">
                                     </div>
                                     <div class="col-md-3">
                                         <label class="form-label fw-bold small text-muted">اسم مستخدم API</label>
@@ -324,15 +345,15 @@
                                     </div>
                                     <div class="col-md-2">
                                         <label class="form-label fw-bold small text-muted">Service ID</label>
-                                        <input type="number" name="apiServiceId" class="form-control text-center" value="307" dir="ltr">
+                                        <input type="number" name="apiServiceId" class="form-control text-center" value="85" dir="ltr">
                                     </div>
                                     <div class="col-md-2">
-                                        <label class="form-label fw-bold small text-muted">Provider ID</label>
-                                        <input type="number" name="apiProviderId" class="form-control text-center" value="29" dir="ltr">
+                                        <label class="form-label fw-bold small text-muted">Current Provider ID</label>
+                                        <input type="number" name="apiProviderId" class="form-control text-center" value="16" dir="ltr">
                                     </div>
                                     <div class="col-md-2">
                                         <label class="form-label fw-bold small text-muted">Field ID</label>
-                                        <input type="number" name="apiFieldId" class="form-control text-center" value="3488" dir="ltr">
+                                        <input type="number" name="apiFieldId" class="form-control text-center" value="5488" dir="ltr">
                                     </div>
                                     <div class="col-md-3">
                                         <label class="form-label fw-bold small text-muted">Machine Serial</label>
@@ -370,10 +391,29 @@
         apiFields.classList.toggle('d-none', typeField.value !== 'api');
     }
 
+    function applyApiProviderPreset() {
+        const providerField = document.getElementById('apiProviderKey');
+        if (!providerField) return;
+        const selected = providerField.options[providerField.selectedIndex];
+        if (!selected) return;
+        const setValue = (name, value) => {
+            const input = document.querySelector(`[name="${name}"]`);
+            if (input && value) input.value = value;
+        };
+        setValue('apiUrl', selected.dataset.apiUrl);
+        setValue('apiServiceId', selected.dataset.serviceId);
+        setValue('apiProviderId', selected.dataset.providerId);
+        setValue('apiFieldId', selected.dataset.fieldId);
+        setValue('apiMachineSerial', selected.dataset.machineSerial);
+    }
+
     document.addEventListener('DOMContentLoaded', () => {
         const typeField = document.getElementById('botType');
         if (typeField) typeField.addEventListener('change', toggleExecutorApiFields);
         toggleExecutorApiFields();
+        const providerField = document.getElementById('apiProviderKey');
+        if (providerField) providerField.addEventListener('change', applyApiProviderPreset);
+        applyApiProviderPreset();
 
         const shouldOpenCreateModal = <%- JSON.stringify(typeof query !== 'undefined' && query.openCreate ? true : false) %>;
         const createModalEl = document.getElementById('createExecutorModal');

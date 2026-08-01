@@ -1,13 +1,17 @@
 const axios = require('axios');
+const { getApiProviderPreset } = require('../utils/apiProviderPresets');
 
 class ZaynPayAPI {
     constructor() {
-        this.baseURL = 'https://zaynpay.com';
+        const preset = getApiProviderPreset('zayn_external_aggregator');
+        this.baseURL = (process.env.ZAYN_AGGREGATOR_URL || process.env.ZAYNPAY_URL || preset.apiUrl).replace(/\/$/, '');
+        if (!this.baseURL.startsWith('http')) this.baseURL = `https://${this.baseURL}`;
         this.username = process.env.ZAYN_USERNAME || process.env.ZAYNPAY_USERNAME;
         this.password = process.env.ZAYN_PASSWORD || process.env.ZAYNPAY_PASSWORD;
-        this.serviceId = parseInt(process.env.ZAYNPAY_SERVICE_ID || 307);
-        this.providerId = parseInt(process.env.ZAYNPAY_PROVIDER_ID || 29);
-        this.fieldId = parseInt(process.env.ZAYNPAY_FIELD_ID || 3488);
+        this.serviceId = parseInt(process.env.ZAYN_AGGREGATOR_SERVICE_ID || process.env.ZAYNPAY_SERVICE_ID || preset.serviceId);
+        this.providerId = parseInt(process.env.ZAYN_AGGREGATOR_PROVIDER_ID || process.env.ZAYNPAY_PROVIDER_ID || preset.providerId);
+        this.fieldId = parseInt(process.env.ZAYN_AGGREGATOR_FIELD_ID || process.env.ZAYNPAY_FIELD_ID || preset.fieldId);
+        this.machineSerial = process.env.ZAYN_AGGREGATOR_MACHINE_SERIAL || process.env.ZAYNPAY_MACHINE_SERIAL || preset.machineSerial;
         this.token = null;
     }
 
@@ -56,7 +60,7 @@ class ZaynPayAPI {
                 ],
                 CurrentServiceProviderId: this.providerId,
                 ServiceId: this.serviceId,
-                MachineSerial: "XP1",
+                MachineSerial: this.machineSerial,
                 InqueryAmount: amount
             };
 
@@ -89,7 +93,7 @@ class ZaynPayAPI {
                 ServiceId: this.serviceId,
                 PaymentBillInfo: paymentBillInfo,
                 Amount: amount,
-                MachineSerial: "XP1"
+                MachineSerial: this.machineSerial
             };
 
             let res = await axios.post(`${this.baseURL}/api/V1/Transactions/Payment`, payload, { headers });

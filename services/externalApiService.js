@@ -2,6 +2,7 @@
 const axios = require('axios');
 const https = require('https');
 const puppeteer = require('puppeteer');
+const { getApiProviderPreset } = require('../utils/apiProviderPresets');
 
 // 🚀 دالة التخاطب مع شركة زين
 const executeTransferViaApi = async (tx, apiBot) => {
@@ -14,13 +15,17 @@ const executeTransferViaApi = async (tx, apiBot) => {
     try {
         const targetNumber = tx.vodafoneNumber || tx.accountNumber;
         const amount = tx.amount;
+        const preset = getApiProviderPreset(apiBot.apiProviderKey);
         
-        let baseUrl = apiBot.apiUrl ? apiBot.apiUrl.replace(/\/$/, '') : 'https://zaynpay.com';
+        let baseUrl = apiBot.apiUrl ? apiBot.apiUrl.replace(/\/$/, '') : (process.env.ZAYN_AGGREGATOR_URL || process.env.ZAYNPAY_URL || preset.apiUrl);
         if (!baseUrl.startsWith('http')) baseUrl = 'https://' + baseUrl;
         const apiUsername = apiBot.apiUsername || process.env.ZAYN_USERNAME || process.env.ZAYNPAY_USERNAME;
         const apiPassword = apiBot.apiPassword || process.env.ZAYN_PASSWORD || process.env.ZAYNPAY_PASSWORD;
-        const serviceId = Number(apiBot.apiServiceId || process.env.ZAYNPAY_SERVICE_ID || 307);
-        const machineSerial = apiBot.apiMachineSerial || process.env.ZAYNPAY_MACHINE_SERIAL || 'XP1';
+        const staticToken = (apiBot.apiToken || process.env.ZAYN_API_TOKEN || process.env.ZAYNPAY_API_TOKEN || '').replace(/^Bearer\s+/i, '').trim();
+        const serviceId = Number(apiBot.apiServiceId || process.env.ZAYN_AGGREGATOR_SERVICE_ID || process.env.ZAYNPAY_SERVICE_ID || preset.serviceId);
+        const providerId = Number(apiBot.apiProviderId || process.env.ZAYN_AGGREGATOR_PROVIDER_ID || process.env.ZAYNPAY_PROVIDER_ID || preset.providerId);
+        const fieldId = Number(apiBot.apiFieldId || process.env.ZAYN_AGGREGATOR_FIELD_ID || process.env.ZAYNPAY_FIELD_ID || preset.fieldId);
+        const machineSerial = apiBot.apiMachineSerial || process.env.ZAYN_AGGREGATOR_MACHINE_SERIAL || process.env.ZAYNPAY_MACHINE_SERIAL || preset.machineSerial;
 
         const defaultHeaders = {
             'Content-Type': 'application/json',
@@ -31,31 +36,43 @@ const executeTransferViaApi = async (tx, apiBot) => {
         const authPayload = {
             UserName: apiUsername,
             Password: apiPassword,
-            AppType: "1",
-            AppId: "app12",
-            VersionID: "Samsuang-502"
+            AppType: preset.appType,
+            AppId: preset.appId,
+            VersionID: preset.versionId
         };
 
-        if (!authPayload.UserName || !authPayload.Password) {
+        let freshToken = staticToken;
+        if (!freshToken && (!authPayload.UserName || !authPayload.Password)) {
             addLog("AUTH_ERROR", "بيانات شركة زين مفقودة من ملف .env");
             return { success: false, message: 'خطأ إعدادات: بيانات الاتصال مفقودة', processLog: processLog.join('\n') };
         }
 
-        addLog("AUTH", "جاري إرسال طلب تسجيل الدخول...");
-        const authRes = await axios.post(`${baseUrl}/api/Account/GetToken`, authPayload, { headers: defaultHeaders, timeout: 15000 });
+        if (!freshToken) {
+            addLog("AUTH", "جاري إرسال طلب تسجيل الدخول...");
+            const authRes = await axios.post(`${baseUrl}/api/Account/GetToken`, authPayload, { headers: defaultHeaders, timeout: 15000 });
 
-        if (authRes.data.Code !== 200 || !authRes.data.Data || !authRes.data.Data.Access_Token) {
-            addLog("AUTH_FAIL", authRes.data.Message || "تم رفض تسجيل الدخول من الشركة");
-            return { success: false, message: 'فشل تسجيل الدخول لشركة زين', processLog: processLog.join('\n') };
+            if (authRes.data.Code !== 200 || !authRes.data.Data || !authRes.data.Data.Access_Token) {
+                addLog("AUTH_FAIL", authRes.data.Message || "تم رفض تسجيل الدخول من الشركة");
+                return { success: false, message: 'فشل تسجيل الدخول لشركة زين', processLog: processLog.join('\n') };
+            }
+
+            freshToken = authRes.data.Data.Access_Token;
+            addLog("AUTH_SUCCESS", `تم استلام التوكن بنجاح`);
+        } else {
+            addLog("AUTH_TOKEN", "تم استخدام Token محفوظ في بيانات المنفذ");
         }
-        
-        const freshToken = authRes.data.Data.Access_Token;
-        addLog("AUTH_SUCCESS", `تم استلام التوكن بنجاح`);
 
         const headers = { ...defaultHeaders, 'Authorization': `Bearer ${freshToken}`, 'Accept-Language': 'ar-EG' };
         
+        addLog("PROVIDER", `${preset.name} | ServiceId=${serviceId} | CurrentServiceProviderId=${providerId} | FieldId=${fieldId}`);
         addLog("INQUIRY", `جاري الاستعلام وفحص الرقم [${targetNumber}]...`);
-        const inquiryPayload = { Fields: [ { Key: "Key1", Value: targetNumber } ], ServiceId: serviceId, InqueryAmount: amount.toString() };
+        const inquiryPayload = {
+            Fields: [{ Id: fieldId, Value: targetNumber }],
+            CurrentServiceProviderId: providerId,
+            ServiceId: serviceId,
+            MachineSerial: machineSerial,
+            InqueryAmount: amount
+        };
         const inquiryRes = await axios.post(`${baseUrl}/api/V1/Transactions/Inquiry`, inquiryPayload, { headers, timeout: 20000 });
 
         if (inquiryRes.data.Code !== 200 || !inquiryRes.data.Data || !inquiryRes.data.Data.PaymentBillInfo) {
@@ -67,8 +84,12 @@ const executeTransferViaApi = async (tx, apiBot) => {
         addLog("PAYMENT", `جاري إرسال الدفعة النهائية بقيمة [${amount} EGP]...`);
         
         const paymentPayload = {
-            Fields: [ { Key: "Key1", Value: targetNumber } ], ServiceId: serviceId,
-            PaymentBillInfo: inquiryRes.data.Data.PaymentBillInfo, Amount: amount, MachineSerial: machineSerial
+            Fields: [{ Id: fieldId, Value: targetNumber }],
+            CurrentServiceProviderId: providerId,
+            ServiceId: serviceId,
+            PaymentBillInfo: inquiryRes.data.Data.PaymentBillInfo,
+            Amount: amount,
+            MachineSerial: machineSerial
         };
         const paymentRes = await axios.post(`${baseUrl}/api/V1/Transactions/Payment`, paymentPayload, { headers, timeout: 180000 });
 
