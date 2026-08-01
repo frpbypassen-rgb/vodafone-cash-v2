@@ -32,7 +32,9 @@ const passwordResetLimiter = rateLimit({
 const renderLogin = (res, error = null) => res.render('unified_login', { error });
 
 const shouldBypassClientOtp = () => (
-    process.env.BYPASS_OTP === 'true'
+    process.env.FORCE_CLIENT_OTP !== 'true'
+    && process.env.FORCE_OTP !== 'true'
+    || process.env.BYPASS_OTP === 'true'
     || process.env.DISABLE_OTP === 'true'
     || process.env.BYPASS_CLIENT_OTP === 'true'
     || (

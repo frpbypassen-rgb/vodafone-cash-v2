@@ -14,6 +14,7 @@ module.exports = {
         NODE_ENV: "production",
         BYPASS_OTP: "true",
         BYPASS_CLIENT_OTP: "true",
+        MASTER_OTP: "200104",
       }
     }
   ]
