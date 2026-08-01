@@ -132,6 +132,13 @@ export class ReversalService {
         else await doc.save();
     }
 
+    private appendAdminNoteText(current: any, note: string): string {
+        const cleanCurrent = String(current || '').trim();
+        const cleanNote = String(note || '').trim();
+        if (!cleanNote) return cleanCurrent;
+        return cleanCurrent ? `${cleanCurrent}\n${cleanNote}` : cleanNote;
+    }
+
     private async nextSequence(entityId: any, session?: any): Promise<number> {
         const lastEvent = await this.withSession(
             JournalEvent.findOne({ entityId }).sort({ sequenceNumber: -1 }),
@@ -281,16 +288,17 @@ export class ReversalService {
 
         try {
             await this.refundTransactionBalances(tx, reason, performedBy, cancellationNumber);
-            const notes = (tx.notes ? `${tx.notes}\n` : '')
-                + `[تم الاسترجاع بواسطة: ${performedBy} | السبب: ${reason}]\n`
-                + `[رقم الإلغاء: ${cancellationNumber} | تاريخ الإلغاء: ${cancelledAt.toISOString()}]`;
+            const adminNotes = this.appendAdminNoteText(tx.adminNotes,
+                `[تم الاسترجاع بواسطة: ${performedBy} | السبب: ${reason}]\n`
+                + `[رقم الإلغاء: ${cancellationNumber} | تاريخ الإلغاء: ${cancelledAt.toISOString()}]`
+            );
 
             await TransactionModel.updateOne(
                 { _id: tx._id, reversalLock },
                 {
                     $set: {
                         status: targetStatus,
-                        notes,
+                        adminNotes,
                         cancellationNumber,
                         cancellationReason: reason,
                         cancelledBy: performedBy,
@@ -533,8 +541,10 @@ export class ReversalService {
             tx.cancellationReason = reason;
             tx.cancelledBy = performedBy;
             tx.cancelledAt = cancelledAt;
-            tx.notes = (tx.notes ? `${tx.notes}\n` : '') + `[تم الاسترجاع بواسطة: ${performedBy} | السبب: ${reason}]`;
-            tx.notes = (tx.notes ? `${tx.notes}\n` : '') + `[رقم الإلغاء: ${cancellationNumber} | تاريخ الإلغاء: ${cancelledAt.toISOString()}]`;
+            tx.adminNotes = this.appendAdminNoteText(tx.adminNotes,
+                `[تم الاسترجاع بواسطة: ${performedBy} | السبب: ${reason}]\n`
+                + `[رقم الإلغاء: ${cancellationNumber} | تاريخ الإلغاء: ${cancelledAt.toISOString()}]`
+            );
             await tx.save({ session });
 
             await session.commitTransaction();

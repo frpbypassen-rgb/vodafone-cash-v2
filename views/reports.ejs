@@ -423,6 +423,19 @@
 
             let lastReportData = null;
 
+            function cleanTxNotes(tx = {}) {
+                const raw = String(tx.notes || '').trim();
+                const beforeApiLog = raw.split(/---\s*سجل\s+الـ\s+API/i)[0].trim();
+                const legacyTransfer = beforeApiLog.match(/(?:تحويل رصيد صادر إلى|تحويل رصيد وارد من).*\|\s*(.+)$/);
+                const systemPatterns = [/^سبب الرفض:/, /^\[تم /, /^\[فشل /, /^\[معلقة /, /^\[رقم الإلغاء:/, /^تحويل رصيد صادر إلى/, /^تحويل رصيد وارد من/, /^تمويل نقطة بيع/, /^سحب رصيد من نقطة بيع/, /^\[طلب وارد عبر API/];
+                const lines = legacyTransfer ? [legacyTransfer[1].trim()] : beforeApiLog.split(/\r?\n/).map(line => line.trim()).filter(Boolean).filter(line => {
+                    if (/رقم المحول|رقم المرسل|الرقم المرجعي|مرجع|reference|ref/i.test(line)) return true;
+                    return !systemPatterns.some(pattern => pattern.test(line));
+                });
+                if (tx.executorSenderPhone && !lines.some(line => line.includes(tx.executorSenderPhone))) lines.push(`[رقم المرسل: ${tx.executorSenderPhone}]`);
+                return lines.filter(Boolean).join('\n').trim();
+            }
+
             async function fetchReport() {
                 const mainCategory = document.getElementById('mainCategory').value;
                 const subId = document.getElementById('subEntity').value;
@@ -532,13 +545,14 @@
                             const timeStr = dateObj.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
 
                             const adminName = tx.employeeName || 'الإدارة';
+                            const visibleNotes = cleanTxNotes(tx) || '-';
 
                             dtbody.innerHTML += `
                             <tr>
                                 <td class="text-muted fw-bold">${i + 1}</td>
                                 <td dir="ltr" class="fw-bold text-end">#${tx.customId || tx._id.toString().slice(-6)}</td>
                                 <td class="fw-bold" style="color: ${tx.status === 'deposit' ? '#10b981' : '#ef4444'};">${tx.amount}</td>
-                                <td style="max-width: 200px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="${tx.notes || '-'}">${tx.notes || '-'}</td>
+                                <td style="max-width: 200px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="${visibleNotes}">${visibleNotes}</td>
                                 <td>
                                     <div dir="ltr" style="font-size:0.85em;" class="text-end">${dateStr}</div>
                                     <div dir="ltr" style="font-size:0.75rem; color: #94a3b8;" class="text-end">${timeStr}</div>
@@ -764,13 +778,14 @@
 
                             const dt = new Date(tx.createdAt);
                             const by = tx.employeeName || 'الإدارة';
+                            const visibleNotes = cleanTxNotes(tx) || '-';
 
                             html += `
                             <tr style="background: ${globalIdx % 2 === 0 ? '#fff' : '#f8f8f8'};">
                                 <td style="padding: 10px 8px; border-bottom: 1px solid #000; color: #000; font-weight: 700;">${globalIdx + 1}</td>
                                 <td style="padding: 10px 8px; border-bottom: 1px solid #000; font-weight: 800; color: #000;" dir="ltr">${tx.customId || tx._id.toString().slice(-6)}</td>
                                 <td style="padding: 10px 8px; border-bottom: 1px solid #000; font-weight: 900; color: #000;">${tx.amount}</td>
-                                <td style="padding: 10px 8px; border-bottom: 1px solid #000; color: #000; font-weight: 800;">${tx.notes || '-'}</td>
+                                <td style="padding: 10px 8px; border-bottom: 1px solid #000; color: #000; font-weight: 800;">${visibleNotes}</td>
                                 <td style="padding: 10px 8px; border-bottom: 1px solid #000; color: #000; font-weight: 800;">${by}</td>
                                 <td style="padding: 10px 8px; border-bottom: 1px solid #000;" dir="ltr">
                                     <div style="color: #000; font-weight: 800;">${dt.toLocaleDateString('en-GB')}</div>

@@ -11,6 +11,25 @@ const User = require('../models/User');
 const ClientEmployee = require('../models/ClientEmployee');
 const SupportTicket = require('../models/SupportTicket');
 
+const appendNoteText = (current, note) => {
+    const cleanNote = String(note || '').trim();
+    if (!cleanNote) return current || '';
+    return current ? `${current}\n${cleanNote}` : cleanNote;
+};
+
+const appendAdminNote = (tx, note) => {
+    tx.adminNotes = appendNoteText(tx.adminNotes, note);
+};
+
+const appendCustomerReference = (tx, label, value) => {
+    const cleanValue = String(value || '').trim();
+    if (!cleanValue) return;
+    const line = `[${label}: ${cleanValue}]`;
+    if (!String(tx.notes || '').includes(line)) {
+        tx.notes = appendNoteText(tx.notes, line);
+    }
+};
+
 const findClientUserForTx = async (tx) => {
     const isCompany = !!tx.companyId;
     if (isCompany) {
@@ -145,7 +164,7 @@ exports.postEditAmount = async (req, res) => {
         }
 
         tx.amount = parsedAmount; tx.costLYD = newCost;
-        tx.notes = (tx.notes ? tx.notes + '\n' : '') + `[تعديل المبلغ من ${oldAmount} إلى ${parsedAmount} | السبب: ${reason}]`;
+        appendAdminNote(tx, `[تعديل المبلغ من ${oldAmount} إلى ${parsedAmount} | السبب: ${reason}]`);
         await tx.save();
         res.json({ success: true, newAmount: parsedAmount });
     } catch(e) { res.json({ success: false, error: e.message }); }
@@ -162,7 +181,7 @@ exports.postCancelTask = async (req, res) => {
             else if (tx.userId) await User.findOneAndUpdate({ $or: [{ phone: tx.userId }, { webUsername: tx.userId }] }, { $inc: { balance: tx.costLYD } });
 
             tx.status = 'rejected';
-            tx.notes = (tx.notes ? tx.notes + '\n' : '') + `[تم الإلغاء | المنفذ: ${emp.name} | السبب: ${reason}]`;
+            appendAdminNote(tx, `[تم الإلغاء | المنفذ: ${emp.name} | السبب: ${reason}]`);
             await tx.save();
 
             // WhatsApp notification removed
@@ -184,7 +203,7 @@ exports.postReturnTask = async (req, res) => {
         if (tx && tx.status === 'accepted' && tx.operatorId === emp._id.toString()) {
             tx.status = 'pending'; tx.executorGroupId = undefined; tx.managerGroupId = undefined;
             tx.executorName = undefined; tx.operatorId = undefined; tx.broadcastMessages = [];
-            tx.notes = (tx.notes ? tx.notes + '\n' : '') + `[إرجاع للإدارة | السبب: ${reason}]`;
+            appendAdminNote(tx, `[إرجاع للإدارة | السبب: ${reason}]`);
             await tx.save();
             return res.json({ success: true });
         }
@@ -244,7 +263,7 @@ exports.postCompleteTask = async (req, res) => {
 
         let senderPhoneDisplay = '';
         if (senderPhone && senderPhone.trim() !== '') {
-            tx.notes = (tx.notes ? tx.notes + '\n' : '') + `[رقم المحول: ${senderPhone.trim()}]`;
+            appendCustomerReference(tx, 'رقم المحول', senderPhone.trim());
             senderPhoneDisplay = `\n📞 <b>رقم المُرسل:</b> <code>${senderPhone.trim()}</code>`;
         }
 
@@ -430,7 +449,9 @@ exports.executeViaZaynPay = async (req, res) => {
         tx.status = 'completed'; 
         tx.proofImage = localFileNames[0]; 
         tx.proofImages = localFileNames;
-        tx.notes = (tx.notes ? tx.notes + '\n' : '') + `[ZaynPay Auto-Executed | Ref: ${paymentRes.refNumber} | TxNo: ${paymentRes.transactionNumber}]`;
+        appendCustomerReference(tx, 'الرقم المرجعي', paymentRes.refNumber);
+        appendCustomerReference(tx, 'رقم العملية الخارجي', paymentRes.transactionNumber);
+        appendAdminNote(tx, `[ZaynPay Auto-Executed | Ref: ${paymentRes.refNumber} | TxNo: ${paymentRes.transactionNumber}]`);
         tx.completedAt = new Date();
         tx.completedBy = emp._id;
         tx.executorBotId = emp.groupId.token;

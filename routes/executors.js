@@ -93,7 +93,7 @@ router.get('/executor/:id', requireAuth, async (req, res) => {
         if (bot.isApiBot) {
             const stats = {
                 successCount: transactions.filter(t => t.status === 'completed').length,
-                failedCount: transactions.filter(t => t.status === 'pending' && t.notes && t.notes.includes('فشل')).length,
+                failedCount: transactions.filter(t => t.status === 'pending' && t.adminNotes && t.adminNotes.includes('فشل')).length,
             };
             return res.render('api_room', { bot, transactions, stats, managerBots, adminName: req.session.adminName });
         }
@@ -113,7 +113,7 @@ router.post('/executor/:id/settle', requireAuth, async (req, res) => {
         if (!isNaN(amount) && amount !== 0) {
             const tx = await Transaction.create({
                 userId: 'admin', executorGroupId: targetBotId, amount: Math.abs(amount), costLYD: 0, vodafoneNumber: 'تسديد حساب',
-                status: amount > 0 ? 'deposit' : 'deduction', customId: `SETTLE-${Date.now().toString().slice(-6)}`, companyName: 'الإدارة المركزية', employeeName: amount > 0 ? 'تسديد نقدية (إيداع)' : 'خصم من المنفذ', executorName: targetBotName, notes: notes 
+                status: amount > 0 ? 'deposit' : 'deduction', customId: `SETTLE-${Date.now().toString().slice(-6)}`, companyName: 'الإدارة المركزية', employeeName: amount > 0 ? 'تسديد نقدية (إيداع)' : 'خصم من المنفذ', executorName: targetBotName, notes: '', adminNotes: notes
             });
             await syncBotBalance(targetBotId); if(targetBotId.toString() !== bot._id.toString()) await syncBotBalance(bot._id); 
 

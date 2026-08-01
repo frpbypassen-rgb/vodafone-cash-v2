@@ -7,6 +7,7 @@ const mockTx = {
     costLYD: 150,
     status: 'completed',
     notes: '',
+    adminNotes: '',
     save: jest.fn().mockResolvedValue(true)
 };
 
@@ -89,6 +90,7 @@ describe('Reversal Service Tests', () => {
         jest.clearAllMocks();
         mockTx.status = 'completed';
         mockTx.notes = '';
+        mockTx.adminNotes = '';
         mockTx.cancellationNumber = undefined;
         mockTx.cancellationReason = undefined;
         mockTx.cancelledBy = undefined;
@@ -126,6 +128,9 @@ describe('Reversal Service Tests', () => {
         expect(mockTx.cancellationReason).toBe('Customer request');
         expect(mockTx.cancelledBy).toBe('Admin-Ali');
         expect(mockTx.cancelledAt).toBeInstanceOf(Date);
+        expect(mockTx.notes).toBe('');
+        expect(mockTx.adminNotes).toContain('تم الاسترجاع بواسطة: Admin-Ali');
+        expect(mockTx.adminNotes).toContain(expectedCancellationNumber);
         expect(mockCounterFindOneAndUpdate).toHaveBeenCalledWith(
             { name: `cancellation-${expectedPeriod}` },
             { $inc: { value: 1 } },
@@ -170,7 +175,8 @@ describe('Reversal Service Tests', () => {
             expect.objectContaining({
                 $set: expect.objectContaining({
                     status: 'cancelled_by_admin',
-                    cancellationNumber: expectedCancellationNumber
+                    cancellationNumber: expectedCancellationNumber,
+                    adminNotes: expect.stringContaining(expectedCancellationNumber)
                 }),
                 $unset: { reversalLock: '', reversalLockAt: '' }
             }),

@@ -14,6 +14,12 @@ const { syncBotBalance } = require('../utils/helpers');
 const { proofSourceUrl, streamProofImage } = require('../services/proofStorageService');
 const { reversalService } = require('../src/Application/Services/ReversalService');
 
+const appendAdminNoteText = (current, note) => {
+    const cleanNote = String(note || '').trim();
+    if (!cleanNote) return current || '';
+    return current ? `${current}\n${cleanNote}` : cleanNote;
+};
+
 router.get(['/proxy/image/:id', '/proxy/image/:id/:index'], requireAuth, async (req, res) => {
     try {
         const tx = await Transaction.findById(req.params.id);
@@ -164,8 +170,8 @@ router.post('/api/complaints/:id/edit-amount', requireAuth, async (req, res) => 
             const diffAmount = newAmount - oldAmountEGP;
             const diffDeposit = (tx.status === 'deposit') ? diffAmount : -diffAmount;
             if (tx.userId === 'admin' && tx.executorGroupId) {
-                const newNotes = (tx.notes ? tx.notes + '\n' : '') + `[تم تعديل المبلغ من ${oldAmountEGP} إلى ${newAmount} بواسطة: ${adminName}${reason ? ' | السبب: ' + reason : ''}]`;
-                await Transaction.updateOne({ _id: tx._id }, { $set: { amount: newAmount, notes: newNotes } }, { timestamps: false });
+                const newAdminNotes = appendAdminNoteText(tx.adminNotes, `[تم تعديل المبلغ من ${oldAmountEGP} إلى ${newAmount} بواسطة: ${adminName}${reason ? ' | السبب: ' + reason : ''}]`);
+                await Transaction.updateOne({ _id: tx._id }, { $set: { amount: newAmount, adminNotes: newAdminNotes } }, { timestamps: false });
                 await syncBotBalance(tx.executorGroupId);
                 if (tx.managerGroupId) await syncBotBalance(tx.managerGroupId);
             } else {
@@ -176,8 +182,8 @@ router.post('/api/complaints/:id/edit-amount', requireAuth, async (req, res) => 
                     const user = await User.findOne({ phone: tx.userId });
                     if (user) { user.balance += diffDeposit; await user.save(); }
                 }
-                const newNotes = (tx.notes ? tx.notes + '\n' : '') + `[تم تعديل المبلغ من ${oldAmountEGP} إلى ${newAmount} بواسطة: ${adminName}${reason ? ' | السبب: ' + reason : ''}]`;
-                await Transaction.updateOne({ _id: tx._id }, { $set: { amount: newAmount, notes: newNotes } }, { timestamps: false });
+                const newAdminNotes = appendAdminNoteText(tx.adminNotes, `[تم تعديل المبلغ من ${oldAmountEGP} إلى ${newAmount} بواسطة: ${adminName}${reason ? ' | السبب: ' + reason : ''}]`);
+                await Transaction.updateOne({ _id: tx._id }, { $set: { amount: newAmount, adminNotes: newAdminNotes } }, { timestamps: false });
             }
         } else {
             const oldCostLYD = tx.costLYD || 0;
@@ -203,8 +209,8 @@ router.post('/api/complaints/:id/edit-amount', requireAuth, async (req, res) => 
                 }
             }
 
-            const newNotes = (tx.notes ? tx.notes + '\n' : '') + `[تم تعديل المبلغ من ${oldAmountEGP} EGP إلى ${newAmount} EGP بواسطة: ${adminName}${reason ? ' | السبب: ' + reason : ''}]`;
-            await Transaction.updateOne({ _id: tx._id }, { $set: { amount: newAmount, costLYD: newCostLYD, notes: newNotes } }, { timestamps: false });
+            const newAdminNotes = appendAdminNoteText(tx.adminNotes, `[تم تعديل المبلغ من ${oldAmountEGP} EGP إلى ${newAmount} EGP بواسطة: ${adminName}${reason ? ' | السبب: ' + reason : ''}]`);
+            await Transaction.updateOne({ _id: tx._id }, { $set: { amount: newAmount, costLYD: newCostLYD, adminNotes: newAdminNotes } }, { timestamps: false });
         }
 
         res.json({ success: true });
@@ -242,7 +248,7 @@ router.post('/api/complaints/:id/edit-rate', requireAuth, async (req, res) => {
         const oldRate = oldCost > 0 ? (tx.amount / oldCost).toFixed(3) : (tx.exchangeRate || 0).toString();
         tx.costLYD = newCost;
         tx.exchangeRate = newRate;
-        tx.notes = (tx.notes ? tx.notes + '\n' : '') + `[تم تعديل السعر من ${oldRate} إلى ${newRate} بواسطة: ${adminName}${reason ? ' | السبب: ' + reason : ''}]`;
+        tx.adminNotes = appendAdminNoteText(tx.adminNotes, `[تم تعديل السعر من ${oldRate} إلى ${newRate} بواسطة: ${adminName}${reason ? ' | السبب: ' + reason : ''}]`);
         await tx.save();
 
         res.json({ success: true });
@@ -272,7 +278,7 @@ router.post('/api/complaints/:id/upload-proof', requireAuth, async (req, res) =>
         tx.proofImages.push(fileName);
         
         const adminName = req.session.adminName || 'الإدارة';
-        tx.notes = (tx.notes ? tx.notes + '\n' : '') + `[تم إرفاق إثبات جديد بواسطة: ${adminName}]`;
+        tx.adminNotes = appendAdminNoteText(tx.adminNotes, `[تم إرفاق إثبات جديد بواسطة: ${adminName}]`);
         await tx.save();
 
         res.json({ success: true, imageUrl: `/proxy/image/${tx._id}/${tx.proofImages.length - 1}` });
@@ -291,7 +297,7 @@ router.post('/api/complaints/:id/resolve', requireAuth, async (req, res) => {
         if (!tx) return res.status(404).json({ error: 'العملية غير موجودة' });
 
         const adminName = req.session.adminName || 'الإدارة';
-        tx.notes = (tx.notes ? tx.notes + '\n' : '') + `[تم حل الشكوى بواسطة: ${adminName} | السبب: ${reason}]`;
+        tx.adminNotes = appendAdminNoteText(tx.adminNotes, `[تم حل الشكوى بواسطة: ${adminName} | السبب: ${reason}]`);
         
         // Unset complaint fields
         tx.complaintText = undefined;

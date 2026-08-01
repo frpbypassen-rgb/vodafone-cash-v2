@@ -24,6 +24,50 @@ router.use(requireAuth);
 
 const getParentGroupId = (group) => group?.parentGroupId || group?.parentBotId || null;
 
+const appendNoteText = (current, note) => {
+    const cleanNote = String(note || '').trim();
+    if (!cleanNote) return current || '';
+    return current ? `${current}\n${cleanNote}` : cleanNote;
+};
+
+const appendAdminNote = (tx, note) => {
+    tx.adminNotes = appendNoteText(tx.adminNotes, note);
+};
+
+const appendCustomerReference = (tx, label, value) => {
+    const cleanValue = String(value || '').trim();
+    if (!cleanValue) return;
+    const line = `[${label}: ${cleanValue}]`;
+    if (!String(tx.notes || '').includes(line)) {
+        tx.notes = appendNoteText(tx.notes, line);
+    }
+};
+
+const customerFacingNotes = (notes) => {
+    const raw = String(notes || '').trim();
+    if (!raw) return '';
+    const apiSplit = raw.split(/---\s*سجل\s+الـ\s+API/i)[0].trim();
+    const legacyBalanceTransferNote = apiSplit.match(/(?:تحويل رصيد صادر إلى|تحويل رصيد وارد من).*\|\s*(.+)$/);
+    if (legacyBalanceTransferNote) return legacyBalanceTransferNote[1].trim();
+    const lines = apiSplit.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+    const systemPatterns = [
+        /^سبب الرفض:/,
+        /^\[تم /,
+        /^\[فشل /,
+        /^\[معلقة /,
+        /^\[رقم الإلغاء:/,
+        /^تحويل رصيد صادر إلى/,
+        /^تحويل رصيد وارد من/,
+        /^تمويل نقطة بيع/,
+        /^سحب رصيد من نقطة بيع/,
+        /^\[طلب وارد عبر API/
+    ];
+    return lines.filter((line) => {
+        if (/رقم المرسل|الرقم المرجعي|مرجع|reference|ref/i.test(line)) return true;
+        return !systemPatterns.some((pattern) => pattern.test(line));
+    }).join('\n').trim();
+};
+
 
 
 router.get('/transactions', async (req, res) => {
@@ -250,7 +294,9 @@ router.post('/transaction/:id/assign-executor', async (req, res) => {
                         tx.status = 'completed';
                         tx.executorName = 'تنفيذ آلي (API)';
                         tx.executorSenderPhone = exactRefNumber;
-                        tx.notes = (tx.notes ? tx.notes + '\n' : '') + `[مرجع الشركة الآلي: ${apiResult.external_transaction_id}]`;
+                        appendCustomerReference(tx, 'رقم المرسل', exactRefNumber);
+                        appendCustomerReference(tx, 'الرقم المرجعي', apiResult.external_transaction_id);
+                        appendAdminNote(tx, `[تنفيذ آلي ناجح | رقم المرسل: ${exactRefNumber || '---'} | مرجع الشركة: ${apiResult.external_transaction_id || '---'}]`);
                         
                         // 🧾 توليد صورة إثبات العملية بنجاح
                         try {
@@ -297,7 +343,7 @@ router.post('/transaction/:id/assign-executor', async (req, res) => {
                         }
 
                         if (apiResult.processLog) {
-                            tx.notes = (tx.notes ? tx.notes + '\n' : '') + `--- سجل الـ API\n${apiResult.processLog}`;
+                            appendAdminNote(tx, `--- سجل الـ API\n${apiResult.processLog}`);
                         }
                         await tx.save();
 
@@ -322,9 +368,10 @@ router.post('/transaction/:id/assign-executor', async (req, res) => {
                         tx.status = 'pending';
                         tx.executorGroupId = executorGroup._id;
                         tx.executorName = 'في انتظار تحديث (API)';
-                        tx.notes = (tx.notes ? tx.notes + '\n' : '') + `[معلقة - بانتظار التحقق من الرقم المرجعي: ${exactRefNumber}]`;
+                        appendCustomerReference(tx, 'رقم المرسل', exactRefNumber);
+                        appendAdminNote(tx, `[معلقة - بانتظار التحقق من الرقم المرجعي: ${exactRefNumber}]`);
                         if (apiResult.processLog) {
-                            tx.notes = tx.notes + `\n--- سجل الـ API\n${apiResult.processLog}`;
+                            appendAdminNote(tx, `--- سجل الـ API\n${apiResult.processLog}`);
                         }
                         await tx.save();
 
@@ -348,9 +395,9 @@ router.post('/transaction/:id/assign-executor', async (req, res) => {
                             tx.managerGroupId = getParentGroupId(monitorGroup);
                             tx.executorName = monitorGroup.name;
                             tx.status = 'processing';
-                            tx.notes = (tx.notes ? tx.notes + '\n' : '') + `[فشل API - تم التحويل للمراقبة البشرية | السبب: ${apiResult.message}]`;
+                            appendAdminNote(tx, `[فشل API - تم التحويل للمراقبة البشرية | السبب: ${apiResult.message}]`);
                             if (apiResult.processLog) {
-                                tx.notes = tx.notes + `\n--- سجل الـ API\n${apiResult.processLog}`;
+                                appendAdminNote(tx, `--- سجل الـ API\n${apiResult.processLog}`);
                             }
                             await tx.save();
 
@@ -359,9 +406,9 @@ router.post('/transaction/:id/assign-executor', async (req, res) => {
                     } else {
                         // لا يوجد فريق بشري مرتبط -> إرجاع الطلب للإدارة
                         tx.status = 'pending'; 
-                        tx.notes = (tx.notes ? tx.notes + '\n' : '') + `[فشل التنفيذ الآلي: ${apiResult.message}]`;
+                        appendAdminNote(tx, `[فشل التنفيذ الآلي: ${apiResult.message}]`);
                         if (apiResult.processLog) {
-                            tx.notes = tx.notes + `\n--- سجل الـ API\n${apiResult.processLog}`;
+                            appendAdminNote(tx, `--- سجل الـ API\n${apiResult.processLog}`);
                         }
                         tx.executorGroupId = undefined;
                         tx.executorName = undefined;
@@ -434,7 +481,7 @@ router.post('/transaction/:id/reject-deposit-web', async (req, res) => {
         const { reason } = req.body; const tx = await Transaction.findById(req.params.id);
         if (!tx || tx.status !== 'deposit_pending') return res.redirect('/transactions');
 
-        tx.status = 'rejected'; tx.notes = `سبب الرفض: ${reason}`; tx.updatedAt = new Date();
+        tx.status = 'rejected'; appendAdminNote(tx, `[تم رفض الإيداع | السبب: ${reason || '---'}]`); tx.updatedAt = new Date();
         await Transaction.updateOne({ _id: tx._id }, { $set: { executorWebAlert: { type: 'error', text: `تم رفض طلب الإيداع بقيمة ${tx.amount} EGP.<br><b>السبب:</b> ${reason}` } } }, { strict: false });
         await tx.save(); res.redirect('/transactions');
     } catch(e) { res.redirect('/transactions'); }
@@ -453,7 +500,7 @@ router.post('/transaction/:id/edit-rate', async (req, res) => {
 
         const adminName = req.session.adminName || 'الإدارة';
         tx.costLYD = newCost; const oldRate = oldCost > 0 ? (tx.amount / oldCost).toFixed(3) : '0';
-        tx.notes = (tx.notes ? tx.notes + '\n' : '') + `[تم تعديل السعر من ${oldRate} إلى ${newRate} بواسطة: ${adminName}]`;
+        appendAdminNote(tx, `[تم تعديل السعر من ${oldRate} إلى ${newRate} بواسطة: ${adminName}]`);
         await tx.save(); res.redirect('/transactions'); 
     } catch (error) { res.redirect('/transactions'); }
 });
@@ -470,14 +517,14 @@ router.post('/transaction/:id/edit-data', async (req, res) => {
         if (tx.status === 'deposit' || tx.status === 'deduction') {
             const diffAmount = newAmount - oldAmountEGP; const diffDeposit = (tx.status === 'deposit') ? diffAmount : -diffAmount;
             if (tx.userId === 'admin' && tx.executorGroupId) {
-                const newNotes = (tx.notes ? tx.notes + '\n' : '') + `[تم تعديل (المبلغ: ${newAmount}، التاريخ: ${newDate.toLocaleString('en-GB')}) بواسطة: ${adminName}]`;
-                await Transaction.updateOne({ _id: tx._id }, { $set: { amount: newAmount, createdAt: newDate, updatedAt: newDate, notes: newNotes } }, { timestamps: false });
+                const newAdminNotes = appendNoteText(tx.adminNotes, `[تم تعديل (المبلغ: ${newAmount}، التاريخ: ${newDate.toLocaleString('en-GB')}) بواسطة: ${adminName}]`);
+                await Transaction.updateOne({ _id: tx._id }, { $set: { amount: newAmount, createdAt: newDate, updatedAt: newDate, adminNotes: newAdminNotes } }, { timestamps: false });
                 await syncBotBalance(tx.executorGroupId); if (tx.managerGroupId) await syncBotBalance(tx.managerGroupId);
             } else {
                 if (tx.companyId) { const comp = await ClientCompany.findById(tx.companyId); if (comp) { comp.balance += diffDeposit; await comp.save(); } } 
                 else if (tx.userId) { const user = await User.findOne({ phone: tx.userId }); if (user) { user.balance += diffDeposit; await user.save(); } }
-                const newNotes = (tx.notes ? tx.notes + '\n' : '') + `[تم تعديل (المبلغ: ${newAmount}، التاريخ: ${newDate.toLocaleString('en-GB')}) بواسطة: ${adminName}]`;
-                await Transaction.updateOne({ _id: tx._id }, { $set: { amount: newAmount, createdAt: newDate, updatedAt: newDate, notes: newNotes } }, { timestamps: false });
+                const newAdminNotes = appendNoteText(tx.adminNotes, `[تم تعديل (المبلغ: ${newAmount}، التاريخ: ${newDate.toLocaleString('en-GB')}) بواسطة: ${adminName}]`);
+                await Transaction.updateOne({ _id: tx._id }, { $set: { amount: newAmount, createdAt: newDate, updatedAt: newDate, adminNotes: newAdminNotes } }, { timestamps: false });
             }
         } else {
             const oldCostLYD = tx.costLYD; const newCostLYD = parseFloat((newAmount / tx.exchangeRate).toFixed(3));
@@ -491,8 +538,8 @@ router.post('/transaction/:id/edit-data', async (req, res) => {
                 if (tx.managerGroupId) { const mgrGroup = await ExecutorGroup.findById(tx.managerGroupId); if (mgrGroup) { mgrGroup.balance -= diffEGP; await mgrGroup.save(); } }
             }
 
-            const newNotes = (tx.notes ? tx.notes + '\n' : '') + `[تم تعديل (المبلغ: ${newAmount}EGP، التاريخ: ${newDate.toLocaleString('en-GB')}) بواسطة: ${adminName}]`;
-            await Transaction.updateOne({ _id: tx._id }, { $set: { amount: newAmount, costLYD: newCostLYD, createdAt: newDate, updatedAt: newDate, notes: newNotes } }, { timestamps: false });
+            const newAdminNotes = appendNoteText(tx.adminNotes, `[تم تعديل (المبلغ: ${newAmount}EGP، التاريخ: ${newDate.toLocaleString('en-GB')}) بواسطة: ${adminName}]`);
+            await Transaction.updateOne({ _id: tx._id }, { $set: { amount: newAmount, costLYD: newCostLYD, createdAt: newDate, updatedAt: newDate, adminNotes: newAdminNotes } }, { timestamps: false });
 
             // 🟢 تم إزالة إشعارات التيليجرام للتعديلات
         }
@@ -539,7 +586,7 @@ router.post('/transaction/:id/change-bot', async (req, res) => {
         }
 
         tx.executorGroupId = newGroupId; tx.managerGroupId = newManagerId; tx.executorName = newGroup ? newGroup.name : 'غير محدد';
-        tx.notes = (tx.notes ? tx.notes + '\n' : '') + `[تم النقل محاسبياً إلى بوت: ${newGroup ? newGroup.name : 'غير معروف'}]`;
+        appendAdminNote(tx, `[تم النقل محاسبياً إلى بوت: ${newGroup ? newGroup.name : 'غير معروف'}]`);
         await tx.save(); res.redirect('/transactions');
     } catch (error) { res.redirect('/transactions'); }
 });
@@ -594,7 +641,7 @@ router.get('/transactions/:id/details', async (req, res) => {
                     sourceBalanceAfter: sourceLedger?.balanceAfter,
                     targetBalanceBefore: targetLedger?.balanceBefore,
                     targetBalanceAfter: targetLedger?.balanceAfter,
-                    notes: tx.notes,
+                    notes: customerFacingNotes(tx.notes),
                     createdAt: tx.createdAt
                 });
 

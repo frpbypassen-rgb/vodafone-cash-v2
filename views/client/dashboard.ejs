@@ -669,6 +669,20 @@
     <!-- End PWA Setup -->
 </head>
 <body>
+<%
+    const cleanClientTxNotes = (tx = {}) => {
+        const raw = String(tx.notes || '').trim();
+        const beforeApiLog = raw.split(/---\s*سجل\s+الـ\s+API/i)[0].trim();
+        const legacyTransfer = beforeApiLog.match(/(?:تحويل رصيد صادر إلى|تحويل رصيد وارد من).*\|\s*(.+)$/s);
+        const systemPatterns = [/^سبب الرفض:/, /^\[تم /, /^\[فشل /, /^\[معلقة /, /^\[رقم الإلغاء:/, /^تحويل رصيد صادر إلى/, /^تحويل رصيد وارد من/, /^تمويل نقطة بيع/, /^سحب رصيد من نقطة بيع/, /^\[طلب وارد عبر API/];
+        const lines = legacyTransfer ? [legacyTransfer[1].trim()] : beforeApiLog.split(/\r?\n/).map(line => line.trim()).filter(Boolean).filter(line => {
+            if (/رقم المحول|رقم المرسل|الرقم المرجعي|مرجع|reference|ref/i.test(line)) return true;
+            return !systemPatterns.some(pattern => pattern.test(line));
+        });
+        if (tx.executorSenderPhone && !lines.some(line => line.includes(tx.executorSenderPhone))) lines.push(`[رقم المرسل: ${tx.executorSenderPhone}]`);
+        return lines.filter(Boolean).join('\n').trim();
+    };
+%>
 
     <audio id="alertSound" src="https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3" preload="auto"></audio>
 
@@ -1122,7 +1136,7 @@
         <table class="print-table">
             <tr><th>ت</th><th>البيان</th><th>المبلغ LYD</th><th>ملاحظات</th></tr>
             <% depTxs.forEach((t, i) => { %>
-                <tr><td><%= i+1 %></td><td><%= t.status === 'deposit' ? 'إيداع' : 'خصم تسوية' %></td><td style="color:<%= t.status === 'deposit' ? '#198754' : '#dc3545' %>"><%= t.amount.toFixed(2) %></td><td><%= t.notes %></td></tr>
+                <tr><td><%= i+1 %></td><td><%= t.status === 'deposit' ? 'إيداع' : 'خصم تسوية' %></td><td style="color:<%= t.status === 'deposit' ? '#198754' : '#dc3545' %>"><%= t.amount.toFixed(2) %></td><td><%= cleanClientTxNotes(t) || '---' %></td></tr>
             <% }) %>
             <% if(depTxs.length===0){ %><tr><td colspan="4">لا توجد حركات تسوية</td></tr><% } %>
         </table>
@@ -1356,6 +1370,19 @@
     <script>
         // 📡 Geolocation & Fetch Override for Security Audit
         const csrfToken = <%- JSON.stringify(typeof csrfToken !== 'undefined' ? csrfToken : '') %>;
+
+        function cleanTxNotes(tx = {}) {
+            const raw = String(tx.notes || '').trim();
+            const beforeApiLog = raw.split(/---\s*سجل\s+الـ\s+API/i)[0].trim();
+            const legacyTransfer = beforeApiLog.match(/(?:تحويل رصيد صادر إلى|تحويل رصيد وارد من).*\|\s*(.+)$/);
+            const systemPatterns = [/^سبب الرفض:/, /^\[تم /, /^\[فشل /, /^\[معلقة /, /^\[رقم الإلغاء:/, /^تحويل رصيد صادر إلى/, /^تحويل رصيد وارد من/, /^تمويل نقطة بيع/, /^سحب رصيد من نقطة بيع/, /^\[طلب وارد عبر API/];
+            const lines = legacyTransfer ? [legacyTransfer[1].trim()] : beforeApiLog.split(/\r?\n/).map(line => line.trim()).filter(Boolean).filter(line => {
+                if (/رقم المحول|رقم المرسل|الرقم المرجعي|مرجع|reference|ref/i.test(line)) return true;
+                return !systemPatterns.some(pattern => pattern.test(line));
+            });
+            if (tx.executorSenderPhone && !lines.some(line => line.includes(tx.executorSenderPhone))) lines.push(`[رقم المرسل: ${tx.executorSenderPhone}]`);
+            return lines.filter(Boolean).join('\n').trim();
+        }
 
         (function() {
             let lat = null, lng = null;

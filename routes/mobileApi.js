@@ -65,6 +65,41 @@ const { sendMobileError, mobileErrorHandler } = require('../mappers/mobileErrorM
 
 const router = express.Router();
 
+const appendAdminNoteText = (current, note) => {
+    const cleanNote = String(note || '').trim();
+    if (!cleanNote) return current || '';
+    return current ? `${current}\n${cleanNote}` : cleanNote;
+};
+
+const customerFacingNotes = (notes, senderPhone = '') => {
+    const raw = String(notes || '').trim();
+    if (!raw && !senderPhone) return null;
+    const beforeApiLog = raw.split(/---\s*سجل\s+الـ\s+API/i)[0].trim();
+    const legacyTransferMatch = beforeApiLog.match(/(?:تحويل رصيد صادر إلى|تحويل رصيد وارد من).*\|\s*(.+)$/);
+    const systemPatterns = [
+        /^سبب الرفض:/,
+        /^\[تم /,
+        /^\[فشل /,
+        /^\[معلقة /,
+        /^\[رقم الإلغاء:/,
+        /^تحويل رصيد صادر إلى/,
+        /^تحويل رصيد وارد من/,
+        /^تمويل نقطة بيع/,
+        /^سحب رصيد من نقطة بيع/,
+        /^\[طلب وارد عبر API/
+    ];
+    const lines = legacyTransferMatch
+        ? [legacyTransferMatch[1].trim()]
+        : beforeApiLog.split(/\r?\n/).map((line) => line.trim()).filter(Boolean).filter((line) => {
+            if (/رقم المحول|رقم المرسل|الرقم المرجعي|مرجع|reference|ref/i.test(line)) return true;
+            return !systemPatterns.some((pattern) => pattern.test(line));
+        });
+    if (senderPhone && !lines.some((line) => line.includes(senderPhone))) {
+        lines.push(`[رقم المرسل: ${senderPhone}]`);
+    }
+    return lines.filter(Boolean).join('\n').trim() || null;
+};
+
 const RECEIPT_TICKET_TTL_MS = 2 * 60 * 1000;
 const receiptTickets = new Map();
 
@@ -1001,7 +1036,7 @@ router.post('/executor/cancel-task/:id', authenticateJWT, cancelTaskValidator, a
         await ledgerEntry.save({ session });
 
         tx.status = 'rejected';
-        tx.notes = (tx.notes ? `${tx.notes}\n` : '') + `[تم الإلغاء | المنفذ: ${emp.name} | السبب: ${reason}]`;
+        tx.adminNotes = appendAdminNoteText(tx.adminNotes, `[تم الإلغاء | المنفذ: ${emp.name} | السبب: ${reason}]`);
         await tx.save({ session });
 
         await session.commitTransaction();
@@ -1501,7 +1536,7 @@ router.get('/client/transactions', authenticateJWT, async (req, res) => {
                 exchangeRate: Number(tx.exchangeRate || 0),
                 status: tx.status,
                 createdAt: tx.createdAt ? new Date(tx.createdAt).toISOString() : null,
-                notes: tx.notes || null,
+                notes: customerFacingNotes(tx.notes, tx.executorSenderPhone),
                 hasProofImage: !!(tx.proofImage || (tx.proofImages && tx.proofImages.length > 0))
             })),
             pagination: {
@@ -1643,7 +1678,7 @@ router.get('/client/transactions/:id', authenticateJWT, async (req, res) => {
                 exchangeRate: Number(tx.exchangeRate || 0),
                 status: tx.status,
                 createdAt: tx.createdAt ? new Date(tx.createdAt).toISOString() : null,
-                notes: tx.notes || null,
+                notes: customerFacingNotes(tx.notes, tx.executorSenderPhone),
                 hasProofImage: !!(tx.proofImage || (tx.proofImages && tx.proofImages.length > 0))
             }
         });

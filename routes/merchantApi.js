@@ -26,6 +26,32 @@ const merchantRequestError = (statusCode, message) => {
     return error;
 };
 
+const customerFacingNotes = (notes) => {
+    const raw = String(notes || '').trim();
+    if (!raw) return '';
+    const beforeApiLog = raw.split(/---\s*سجل\s+الـ\s+API/i)[0].trim();
+    const legacyTransferMatch = beforeApiLog.match(/(?:تحويل رصيد صادر إلى|تحويل رصيد وارد من).*\|\s*(.+)$/);
+    if (legacyTransferMatch) return legacyTransferMatch[1].trim();
+    const systemPatterns = [
+        /^سبب الرفض:/,
+        /^\[تم /,
+        /^\[فشل /,
+        /^\[معلقة /,
+        /^\[رقم الإلغاء:/,
+        /^تحويل رصيد صادر إلى/,
+        /^تحويل رصيد وارد من/,
+        /^تمويل نقطة بيع/,
+        /^سحب رصيد من نقطة بيع/,
+        /^\[طلب وارد عبر API/
+    ];
+    return beforeApiLog.split(/\r?\n/)
+        .map((line) => line.trim())
+        .filter(Boolean)
+        .filter((line) => /رقم المحول|رقم المرسل|الرقم المرجعي|مرجع|reference|ref/i.test(line) || !systemPatterns.some((pattern) => pattern.test(line)))
+        .join('\n')
+        .trim();
+};
+
 const withOptionalTransaction = async (work) => {
     let session;
     try {
@@ -149,7 +175,8 @@ router.post('/transfer', merchantApiAuth, async (req, res) => {
                 companyName: req.merchant.name,
                 employeeName: 'ربط آلي (Merchant API)',
                 transferType: serviceKey,
-                notes: '[طلب وارد عبر API التاجر الخارجي]',
+                notes: '',
+                adminNotes: '[طلب وارد عبر API التاجر الخارجي]',
                 executorGroupId: (settings && settings.autoRouteEnabled && settings.autoRouteBotId) ? settings.autoRouteBotId : undefined
             };
             const tx = session
@@ -217,7 +244,7 @@ router.get('/status/:reference_id', merchantApiAuth, async (req, res) => {
                 exchange_rate: tx.exchangeRate || 1,
                 cost_lyd: tx.costLYD || tx.amount,
                 status: tx.status,
-                notes: tx.notes || 'لا يوجد ملاحظات'
+                notes: customerFacingNotes(tx.notes) || 'لا يوجد ملاحظات'
             }
         });
     } catch (_error) {

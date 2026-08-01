@@ -22,6 +22,25 @@ const { resolveAccountByCode, normalizeAccountCode } = require('./accountCodeSer
 const { logAction } = require('./auditService');
 const { acquireLock, releaseLock } = require('./lockService');
 
+const appendNoteText = (current, note) => {
+    const cleanNote = String(note || '').trim();
+    if (!cleanNote) return current || '';
+    return current ? `${current}\n${cleanNote}` : cleanNote;
+};
+
+const appendAdminNote = (tx, note) => {
+    tx.adminNotes = appendNoteText(tx.adminNotes, note);
+};
+
+const appendCustomerReference = (tx, label, value) => {
+    const cleanValue = String(value || '').trim();
+    if (!cleanValue) return;
+    const line = `[${label}: ${cleanValue}]`;
+    if (!String(tx.notes || '').includes(line)) {
+        tx.notes = appendNoteText(tx.notes, line);
+    }
+};
+
 // Helper to get start/end dates
 function getDateRange(dateStr, monthStr) {
     if (dateStr) {
@@ -616,7 +635,7 @@ async function editTaskAmount({ executorId, taskId, newAmount, reason, req }) {
                 tx.commission = parseFloat((newSubCost - newMasterCost).toFixed(3));
                 tx.masterProfit = tx.commission;
             }
-            tx.notes = (tx.notes ? tx.notes + '\n' : '') + `[تعديل المبلغ من ${oldAmount} إلى ${parsedAmount} | السبب: ${reason}]`;
+            appendAdminNote(tx, `[تعديل المبلغ من ${oldAmount} إلى ${parsedAmount} | السبب: ${reason}]`);
             
             const successResponse = {
                 success: true,
@@ -662,7 +681,7 @@ async function returnTask({ executorId, taskId, reason }) {
     tx.executorName = undefined;
     tx.operatorId = undefined;
     tx.broadcastMessages = [];
-    tx.notes = (tx.notes ? tx.notes + '\n' : '') + `[إرجاع للإدارة | السبب: ${reason}]`;
+    appendAdminNote(tx, `[إرجاع للإدارة | السبب: ${reason}]`);
     await tx.save();
     return true;
 }
@@ -795,7 +814,9 @@ async function executeZaynPayIdempotent({ executorId, taskId, req }) {
             tx.status = 'completed';
             tx.proofImage = fileName;
             tx.proofImages = [fileName];
-            tx.notes = (tx.notes ? tx.notes + '\n' : '') + `[ZaynPay Auto-Executed | Ref: ${paymentRes.refNumber} | TxNo: ${paymentRes.transactionNumber}]`;
+            appendCustomerReference(tx, 'الرقم المرجعي', paymentRes.refNumber);
+            appendCustomerReference(tx, 'رقم العملية الخارجي', paymentRes.transactionNumber);
+            appendAdminNote(tx, `[ZaynPay Auto-Executed | Ref: ${paymentRes.refNumber} | TxNo: ${paymentRes.transactionNumber}]`);
             tx.completedAt = new Date();
             tx.completedBy = emp._id;
             tx.zaynpayIdempotencyKey = idempotencyKey;

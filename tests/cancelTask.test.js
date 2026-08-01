@@ -33,6 +33,7 @@ describe('Cancel Task – منطق الإلغاء', () => {
         amount: 1000,
         vodafoneNumber: '01012345678',
         notes: '',
+        adminNotes: '',
         save: jest.fn().mockResolvedValue(true)
     };
 
@@ -60,13 +61,14 @@ describe('Cancel Task – منطق الإلغاء', () => {
         expect(refundAmount).toBeGreaterThan(0);
     });
 
-    test('يجب إضافة ملاحظة الإلغاء للعملية', () => {
+    test('يجب إضافة ملاحظة الإلغاء في سجل الإدارة للعملية', () => {
         const reason = 'رقم خاطئ';
-        const newNotes = `[تم الإلغاء | المنفذ: ${mockEmp.name} | السبب: ${reason}]`;
-        mockTx.notes = newNotes;
-        expect(mockTx.notes).toContain('تم الإلغاء');
-        expect(mockTx.notes).toContain(reason);
-        expect(mockTx.notes).toContain(mockEmp.name);
+        const newAdminNotes = `[تم الإلغاء | المنفذ: ${mockEmp.name} | السبب: ${reason}]`;
+        mockTx.adminNotes = newAdminNotes;
+        expect(mockTx.notes).toBe('');
+        expect(mockTx.adminNotes).toContain('تم الإلغاء');
+        expect(mockTx.adminNotes).toContain(reason);
+        expect(mockTx.adminNotes).toContain(mockEmp.name);
     });
 
     test('يجب أن يكون رقم التعريف customId بالتنسيق الصحيح', () => {

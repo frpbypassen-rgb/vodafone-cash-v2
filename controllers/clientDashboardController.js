@@ -228,7 +228,8 @@ exports.postSettleSubAccount = async (req, res) => {
             if (req.session.accountType === 'company') { const emp = await ClientEmployee.findById(req.session.clientId); parentClientCompanyId = emp.companyId; empName = emp.name; }
             else { const user = await User.findById(req.session.clientId); parentUserId = user.phone || user.webUsername; empName = user.name; }
 
-            await Transaction.create({ customId: txId, subAccountId: sub._id, userId: parentUserId, companyId: parentClientCompanyId, amount: Math.abs(val), costLYD: 0, status: type === 'add' ? 'deposit' : 'deduction', notes: type === 'add' ? `تمويل نقطة بيع (${sub.name})` : `سحب رصيد من نقطة بيع (${sub.name})`, companyName: 'تسوية وكيل', employeeName: empName });
+            const adminNotes = type === 'add' ? `تمويل نقطة بيع (${sub.name})` : `سحب رصيد من نقطة بيع (${sub.name})`;
+            await Transaction.create({ customId: txId, subAccountId: sub._id, userId: parentUserId, companyId: parentClientCompanyId, amount: Math.abs(val), costLYD: 0, status: type === 'add' ? 'deposit' : 'deduction', notes: '', adminNotes, companyName: 'تسوية وكيل', employeeName: empName });
         }
         res.redirect('/client/sub-accounts');
     } catch(e) { res.redirect('/client/sub-accounts?error=db'); }

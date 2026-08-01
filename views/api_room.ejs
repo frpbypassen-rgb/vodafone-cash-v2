@@ -198,15 +198,18 @@
                             <% if(transactions.length === 0) { %>
                                 <tr><td colspan="6" class="py-5 text-muted">لا يوجد سجل عمليات حتى الآن.</td></tr>
                             <% } %>
-                            <% transactions.forEach(tx => { %>
+                            <% transactions.forEach(tx => {
+                                const apiLogText = [tx.adminNotes, tx.notes].filter(Boolean).join('\n');
+                                const hasApiLog = apiLogText.includes('--- سجل الـ API');
+                            %>
                                 <tr>
                                     <td class="text-muted small"><%= new Date(tx.updatedAt).toLocaleString('en-GB') %></td>
                                     <td class="fw-bold text-light"><%= tx.customId || tx._id.toString().slice(-6) %></td>
                                     <td class="font-monospace text-warning"><%= tx.vodafoneNumber || 'تسديد حساب' %></td>
                                     <td class="fw-bold fs-5"><%= tx.amount %></td>
                                     <td>
-                                        <% if (tx.notes && tx.notes.includes('--- سجل الـ API (Terminal Log) ---')) { %>
-                                            <button onclick="showApiLog(this)" data-log="<%= encodeURIComponent(tx.notes) %>" class="btn-api-log">
+                                        <% if (hasApiLog) { %>
+                                            <button onclick="showApiLog(this)" data-log="<%= encodeURIComponent(apiLogText) %>" class="btn-api-log">
                                                 <i class="fa-solid fa-terminal me-2"></i> عرض السجل
                                             </button>
                                         <% } else { %>
@@ -245,6 +248,10 @@
         let logContent = rawNotes;
         if(rawNotes.includes(logMarker)) {
             logContent = rawNotes.split(logMarker)[1].trim();
+        } else if (rawNotes.includes('--- سجل الـ API ---')) {
+            logContent = rawNotes.split('--- سجل الـ API ---')[1].trim();
+        } else if (rawNotes.includes('--- سجل الـ API')) {
+            logContent = rawNotes.split('--- سجل الـ API')[1].trim();
         }
         
         Swal.fire({

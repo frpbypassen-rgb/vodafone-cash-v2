@@ -787,19 +787,25 @@
 
                     // 🟢 استخلاص وإخفاء سجل الـ API
                     let displayNote = t.notes || '';
+                    let fullLogSource = [t.adminNotes, t.notes].filter(Boolean).join('\n');
                     let hasApiLog = false;
                     let rawLog = '';
                     
-                    if (displayNote.includes('--- سجل الـ API (Terminal Log) ---')) {
-                        hasApiLog = true; rawLog = encodeURIComponent(displayNote);
+                    if (fullLogSource.includes('--- سجل الـ API (Terminal Log) ---')) {
+                        hasApiLog = true; rawLog = encodeURIComponent(fullLogSource);
                         displayNote = displayNote.split('--- سجل الـ API (Terminal Log) ---')[0].trim();
-                    } else if (displayNote.includes('--- سجل الـ API ---')) {
-                        hasApiLog = true; rawLog = encodeURIComponent(displayNote);
+                    } else if (fullLogSource.includes('--- سجل الـ API ---')) {
+                        hasApiLog = true; rawLog = encodeURIComponent(fullLogSource);
                         displayNote = displayNote.split('--- سجل الـ API ---')[0].trim();
-                    } else if (displayNote.includes('--- سجل الـ API')) {
-                        hasApiLog = true; rawLog = encodeURIComponent(displayNote);
+                    } else if (fullLogSource.includes('--- سجل الـ API')) {
+                        hasApiLog = true; rawLog = encodeURIComponent(fullLogSource);
                         displayNote = displayNote.split('--- سجل الـ API')[0].trim();
                     }
+                    displayNote = displayNote.split(/\r?\n/).map(line => line.trim()).filter(line => {
+                        if (!line) return false;
+                        if (/رقم المحول|رقم المرسل|الرقم المرجعي|مرجع|reference|ref/i.test(line)) return true;
+                        return !(/^سبب الرفض:|^\[تم |^\[فشل |^\[معلقة |^\[رقم الإلغاء:|^تحويل رصيد صادر إلى|^تحويل رصيد وارد من/.test(line));
+                    }).join('\n');
 
                     html += `
                         <div class="col-12 col-md-6 col-lg-4 col-xl-3">

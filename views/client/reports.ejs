@@ -721,6 +721,19 @@
 
         let lastReportData = null;
 
+        function cleanTxNotes(tx = {}) {
+            const raw = String(tx.notes || '').trim();
+            const beforeApiLog = raw.split(/---\s*سجل\s+الـ\s+API/i)[0].trim();
+            const legacyTransfer = beforeApiLog.match(/(?:تحويل رصيد صادر إلى|تحويل رصيد وارد من).*\|\s*(.+)$/);
+            const systemPatterns = [/^سبب الرفض:/, /^\[تم /, /^\[فشل /, /^\[معلقة /, /^\[رقم الإلغاء:/, /^تحويل رصيد صادر إلى/, /^تحويل رصيد وارد من/, /^تمويل نقطة بيع/, /^سحب رصيد من نقطة بيع/, /^\[طلب وارد عبر API/];
+            const lines = legacyTransfer ? [legacyTransfer[1].trim()] : beforeApiLog.split(/\r?\n/).map(line => line.trim()).filter(Boolean).filter(line => {
+                if (/رقم المحول|رقم المرسل|الرقم المرجعي|مرجع|reference|ref/i.test(line)) return true;
+                return !systemPatterns.some(pattern => pattern.test(line));
+            });
+            if (tx.executorSenderPhone && !lines.some(line => line.includes(tx.executorSenderPhone))) lines.push(`[رقم المرسل: ${tx.executorSenderPhone}]`);
+            return lines.filter(Boolean).join('\n').trim();
+        }
+
         async function sendToWhatsApp(txId) {
             const tx = lastReportData.operations.find(t => t._id === txId) || lastReportData.deposits.find(t => t._id === txId) || lastReportData.currentTransactions.find(t => t._id === txId);
             if (!tx) return;
@@ -961,7 +974,7 @@
                                     <td dir="ltr" class="fw-bold text-end">#${tx.customId || tx._id.toString().slice(-6)}</td>
                                     <td><span class="badge-st ${isDeduction ? 'st-fail' : 'st-done'}">${typeLabel}</span></td>
                                     <td class="fw-bold ${amountClass}" dir="ltr">${signedAmount.toFixed(2)} <small class="text-muted">LYD</small></td>
-                                    <td class="text-muted small">${tx.notes || '---'}</td>
+                            <td class="text-muted small">${cleanTxNotes(tx) || '---'}</td>
                                     <td>
                                         <div dir="ltr" style="font-size:0.85em;" class="text-end">${dateStr}</div>
                                         <div dir="ltr" style="font-size:0.75rem; color: var(--text-muted);" class="text-end">${timeStr}</div>

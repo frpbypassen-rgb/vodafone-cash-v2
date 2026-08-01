@@ -52,7 +52,7 @@ const assertDifferentAccounts = (source, target) => {
     }
 };
 
-const buildEntityTransactionFields = async (account, customId, status, amount, notes, session) => {
+const buildEntityTransactionFields = async (account, customId, status, amount, notes, adminNotes, session) => {
     const base = {
         customId,
         transferType: 'balance_transfer',
@@ -62,7 +62,8 @@ const buildEntityTransactionFields = async (account, customId, status, amount, n
         amount,
         costLYD: 0,
         status,
-        notes
+        notes,
+        adminNotes
     };
 
     if (account.modelName === 'User') {
@@ -158,8 +159,8 @@ const executeBalanceTransfer = async ({ source, targetCode, amount, notes = '', 
     const SourceModel = modelByName[source.modelName];
     const TargetModel = modelByName[target.modelName];
     const description = notes ? notes.trim() : '';
-    const sourceNotes = `تحويل رصيد صادر إلى ${accountName(target)} - ID: ${target.doc.accountCode}${description ? ` | ${description}` : ''}`;
-    const targetNotes = `تحويل رصيد وارد من ${accountName(source)} - ID: ${source.doc.accountCode || 'غير محدد'}${description ? ` | ${description}` : ''}`;
+    const sourceAdminNotes = `تحويل رصيد صادر إلى ${accountName(target)} - ID: ${target.doc.accountCode || 'غير محدد'}`;
+    const targetAdminNotes = `تحويل رصيد وارد من ${accountName(source)} - ID: ${source.doc.accountCode || 'غير محدد'}`;
 
     const useTransaction = externalSession ? false : await canUseMongoTransactions();
     let session = externalSession || null;
@@ -204,7 +205,7 @@ const executeBalanceTransfer = async ({ source, targetCode, amount, notes = '', 
             createdAt: new Date()
         });
 
-        const sourceTx = await buildEntityTransactionFields(source, `${transferId}-D`, 'deduction', normalizedAmount, sourceNotes, session);
+        const sourceTx = await buildEntityTransactionFields(source, `${transferId}-D`, 'deduction', normalizedAmount, description, sourceAdminNotes, session);
         sourceTx.proofImage = receiptProofId;
         sourceTx.proofImages = [receiptProofId];
         if (idempotencyKey) {
@@ -220,7 +221,7 @@ const executeBalanceTransfer = async ({ source, targetCode, amount, notes = '', 
                 targetType: target.label
             };
         }
-        const targetTx = await buildEntityTransactionFields(target, `${transferId}-C`, 'deposit', normalizedAmount, targetNotes, session);
+        const targetTx = await buildEntityTransactionFields(target, `${transferId}-C`, 'deposit', normalizedAmount, description, targetAdminNotes, session);
         targetTx.proofImage = receiptProofId;
         targetTx.proofImages = [receiptProofId];
         await Transaction.create([sourceTx, targetTx], options);

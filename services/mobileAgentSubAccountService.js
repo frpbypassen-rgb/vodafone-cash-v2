@@ -437,6 +437,7 @@ const executeSettlement = async (req, res) => {
         );
 
         const updatedSub = await withSession(SubAccount.findById(sub._id), session);
+        const adminNotes = type === 'deposit' ? `تمويل نقطة بيع (${sub.name})` : `سحب رصيد من نقطة بيع (${sub.name})`;
         const created = await Transaction.create([{
             customId: txId,
             subAccountId: sub._id,
@@ -445,7 +446,8 @@ const executeSettlement = async (req, res) => {
             amount: val,
             costLYD: 0,
             status: type === 'deposit' ? 'deposit' : 'deduction',
-            notes: notes || (type === 'deposit' ? `تمويل نقطة بيع (${sub.name})` : `سحب رصيد من نقطة بيع (${sub.name})`),
+            notes: notes || '',
+            adminNotes,
             companyName: 'تسوية وكيل',
             employeeName: agent.name,
             idempotencyKey,

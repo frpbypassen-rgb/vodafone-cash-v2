@@ -35,6 +35,13 @@ export interface ITransferInput {
 }
 
 export class TransferService {
+    private appendAdminNoteText(current: any, note: string): string {
+        const cleanCurrent = String(current || '').trim();
+        const cleanNote = String(note || '').trim();
+        if (!cleanNote) return cleanCurrent;
+        return cleanCurrent ? `${cleanCurrent}\n${cleanNote}` : cleanNote;
+    }
+
     private buildTransferFingerprint(userId: string, accountType: string, input: ITransferInput): string {
         const payload = {
             userId: String(userId),
@@ -675,7 +682,7 @@ export class TransferService {
             }
 
             tx.status = 'rejected';
-            tx.notes = (tx.notes ? tx.notes + '\n' : '') + `[تم الإلغاء | المنفذ: ${emp.name} | السبب: ${reason}]`;
+            tx.adminNotes = this.appendAdminNoteText(tx.adminNotes, `[تم الإلغاء | المنفذ: ${emp.name} | السبب: ${reason}]`);
             await tx.save({ session });
 
             await session.commitTransaction();
