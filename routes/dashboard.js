@@ -12,6 +12,7 @@ const RegistrationRequest = require('../models/RegistrationRequest');
 const { requireAuth } = require('../middlewares/auth');
 const { syncBotBalance } = require('../utils/helpers');
 const { proofSourceUrl, streamProofImage } = require('../services/proofStorageService');
+const { reversalService } = require('../src/Application/Services/ReversalService');
 
 router.get(['/proxy/image/:id', '/proxy/image/:id/:index'], requireAuth, async (req, res) => {
     try {
@@ -310,31 +311,28 @@ router.post('/api/complaints/:id/cancel', requireAuth, async (req, res) => {
         if (!reason) return res.status(400).json({ error: 'السبب مطلوب' });
 
         const tx = await Transaction.findById(txId);
-        if (!tx) return res.status(404).json({ error: 'العملية غير موجودة' });
+        if (tx) {
+            const groupId = tx.executorGroupId;
+            const managerGroupId = tx.managerGroupId;
+            const adminName = req.session.adminName || 'الإدارة';
+            const result = await reversalService.reverseTransaction(txId, reason, adminName, { status: 'cancelled_by_admin' });
 
-        if (tx.status === 'completed' || tx.status === 'processing' || tx.status === 'accepted' || tx.status === 'pending') {
-            if (tx.companyId) {
-                await ClientCompany.findByIdAndUpdate(tx.companyId, { $inc: { balance: tx.costLYD || 0 } });
-            } else if (tx.userId) {
-                await User.findOneAndUpdate({ phone: tx.userId }, { $inc: { balance: tx.costLYD || 0 } });
+            if (!result.success) {
+                return res.status(400).json({ error: result.message });
             }
+
+            await Transaction.updateOne(
+                { _id: tx._id },
+                { $unset: { complaintText: '', emergencyAlert: '' }, $set: { updatedAt: new Date() } },
+                { timestamps: false }
+            );
+
+            if (groupId) await syncBotBalance(groupId);
+            if (managerGroupId) await syncBotBalance(managerGroupId);
+
+            return res.json({ success: true, cancellationNumber: result.cancellationNumber });
         }
-        const groupId = tx.executorGroupId;
-        const managerGroupId = tx.managerGroupId;
-
-        tx.status = 'cancelled_by_admin';
-        const adminName = req.session.adminName || 'الإدارة';
-        tx.notes = (tx.notes ? tx.notes + '\n' : '') + `[تم إلغاء العملية لحل الشكوى بواسطة ${adminName} | السبب: ${reason}]`;
-        
-        tx.complaintText = undefined;
-        tx.emergencyAlert = undefined;
-        tx.updatedAt = new Date();
-        await tx.save();
-
-        if (groupId) await syncBotBalance(groupId);
-        if (managerGroupId) await syncBotBalance(managerGroupId);
-
-        res.json({ success: true });
+        if (!tx) return res.status(404).json({ error: 'العملية غير موجودة' });
     } catch (e) {
         res.status(500).json({ error: 'خطأ داخلي: ' + e.message });
     }

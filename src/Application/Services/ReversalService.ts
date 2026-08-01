@@ -6,6 +6,21 @@ import JournalEvent from '../../Domain/Entities/JournalEvent';
 import logger from '../../../utils/logger';
 import eventBus from '../../../services/eventBus';
 
+const Counter = require('../../../models/Counter');
+
+type ReversalStatus = 'rejected' | 'cancelled_by_admin';
+
+interface ReversalOptions {
+    status?: ReversalStatus;
+    cancellationNumber?: string;
+}
+
+interface ReversalResult {
+    success: boolean;
+    message: string;
+    cancellationNumber?: string;
+}
+
 export class ReversalService {
     private hasLegacyBalance(doc: any): boolean {
         return Number.isFinite(Number(doc?.balance));
@@ -50,10 +65,23 @@ export class ReversalService {
         return targetDoc;
     }
 
+    private async nextCancellationNumber(session: any): Promise<string> {
+        const now = new Date();
+        const year = String(now.getFullYear()).slice(-2);
+        const month = String(now.getMonth() + 1).padStart(2, '0');
+        const counter = await Counter.findOneAndUpdate(
+            { name: `cancellation-${year}${month}` },
+            { $inc: { value: 1 } },
+            { upsert: true, new: true, setDefaultsOnInsert: true, session }
+        );
+
+        return `CAN-${year}${month}-${String(counter.value).padStart(5, '0')}`;
+    }
+
     /**
      * تنفيذ استرجاع كامل لعملية تحويل (Refund / Rollback)
      */
-    public async reverseTransaction(txId: string, reason: string, performedBy: string): Promise<{ success: boolean; message: string }> {
+    public async reverseTransaction(txId: string, reason: string, performedBy: string, options: ReversalOptions = {}): Promise<ReversalResult> {
         const session = await mongoose.startSession();
         session.startTransaction();
 
@@ -71,6 +99,10 @@ export class ReversalService {
             }
 
             // 2. البحث عن المستخدم أو الشركة وإرجاع الرصيد
+            const cancellationNumber = options.cancellationNumber || tx.cancellationNumber || await this.nextCancellationNumber(session);
+            const cancelledAt = new Date();
+            const targetStatus = options.status || 'cancelled_by_admin';
+
             let targetId: any;
             let TargetModel: any;
             let targetDoc: any;
@@ -140,7 +172,8 @@ export class ReversalService {
                     metadata: {
                         transactionId: tx.customId,
                         reason,
-                        performedBy
+                        performedBy,
+                        cancellationNumber
                     }
                 });
                 await subEvent.save({ session });
@@ -187,7 +220,8 @@ export class ReversalService {
                     metadata: {
                         transactionId: tx.customId,
                         reason,
-                        performedBy
+                        performedBy,
+                        cancellationNumber
                     }
                 });
                 await masterEvent.save({ session });
@@ -239,25 +273,30 @@ export class ReversalService {
                     metadata: {
                         transactionId: tx.customId,
                         reason,
-                        performedBy
+                        performedBy,
+                        cancellationNumber
                     }
                 });
                 await refundEvent.save({ session });
             }
 
             // 5. تحديث حالة العملية
-            tx.status = 'rejected';
+            tx.status = targetStatus;
+            tx.cancellationNumber = cancellationNumber;
+            tx.cancellationReason = reason;
+            tx.cancelledBy = performedBy;
+            tx.cancelledAt = cancelledAt;
             tx.notes = (tx.notes ? `${tx.notes}\n` : '') + `[تم الاسترجاع بواسطة: ${performedBy} | السبب: ${reason}]`;
+            tx.notes = (tx.notes ? `${tx.notes}\n` : '') + `[رقم الإلغاء: ${cancellationNumber} | تاريخ الإلغاء: ${cancelledAt.toISOString()}]`;
             await tx.save({ session });
 
             await session.commitTransaction();
             session.endSession();
 
             // نشر الأحداث للمنظومة
-            eventBus.publish('transfer:cancelled', { tx, reason });
-            logger.info(`Transaction ${tx.customId} successfully reversed by ${performedBy}`);
-
-            return { success: true, message: 'تم إلغاء العملية واسترداد الرصيد بنجاح' };
+            eventBus.publish('transfer:cancelled', { tx, reason, cancellationNumber });
+            logger.info(`Transaction ${tx.customId} reversed by ${performedBy} with cancellation ${cancellationNumber}`);
+            return { success: true, message: 'تم إلغاء العملية واسترداد الرصيد بنجاح', cancellationNumber };
         } catch (error: any) {
             await session.abortTransaction();
             session.endSession();

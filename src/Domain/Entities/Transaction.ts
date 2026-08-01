@@ -44,6 +44,10 @@ export interface ITransaction extends Document {
     complaintText?: string;
     emergencyAlert?: string;
     executorWebAlert?: any;
+    cancellationNumber?: string;
+    cancellationReason?: string;
+    cancelledBy?: string;
+    cancelledAt?: Date;
     proofImage?: string;
     proofImages: string[];
     idCardImage?: string;
@@ -109,6 +113,10 @@ const transactionSchema = new Schema<ITransaction>({
     complaintText: { type: String },
     emergencyAlert: { type: String }, 
     executorWebAlert: { type: Object }, 
+    cancellationNumber: { type: String, unique: true, sparse: true },
+    cancellationReason: { type: String },
+    cancelledBy: { type: String },
+    cancelledAt: { type: Date },
     proofImage: { type: String }, 
     proofImages: [{ type: String }], 
     idCardImage: { type: String }, 

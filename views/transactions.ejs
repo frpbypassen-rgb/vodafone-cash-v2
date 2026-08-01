@@ -418,6 +418,9 @@
                                 <a class="clickable-id mono-num fs-6" data-tx='<%- JSON.stringify(tx).replace(/'/g, "&#39;") %>' onclick="viewTransactionDetails(this)">
                                     #<%= tx.customId || tx._id.toString().slice(-6) %>
                                 </a>
+                                <% if (tx.cancellationNumber) { %>
+                                    <div class="badge bg-danger-subtle text-danger mono-num mt-1" style="font-size: 0.7rem;"><i class="fa-solid fa-ban me-1"></i><%= tx.cancellationNumber %></div>
+                                <% } %>
                             </td>
 
                             <td class="fw-bold text-dark">
@@ -550,9 +553,12 @@
                                             <% } %>
                                         <% } %>
 
-                                        <form action="/transaction/<%= tx._id %>/global-cancel" method="POST" class="m-0" onsubmit="return confirm('تأكيد التراجع عن العملية وإرجاع الأرصدة؟')">
-                                            <button class="btn-action-sm undo" title="تراجع"><i class="fa-solid fa-rotate-left"></i></button>
-                                        </form>
+                                        <% if(['pending', 'processing', 'accepted', 'completed'].includes(tx.status) && tx.transferType !== 'balance_transfer') { %>
+                                            <form action="/transaction/<%= tx._id %>/global-cancel" method="POST" class="m-0" onsubmit="return promptGlobalCancel(this)">
+                                                <input type="hidden" name="reason" class="cancel-reason-input">
+                                                <button class="btn-action-sm undo" title="تراجع"><i class="fa-solid fa-rotate-left"></i></button>
+                                            </form>
+                                        <% } %>
                                     <% } %>
                                 </div>
                             </td>
@@ -596,6 +602,9 @@
                                 <a class="clickable-id mono-num fs-6 fw-bold" data-tx='<%- JSON.stringify(tx).replace(/'/g, "&#39;") %>' onclick="viewTransactionDetails(this)">
                                     #<%= tx.customId || tx._id.toString().slice(-6) %>
                                 </a>
+                                <% if (tx.cancellationNumber) { %>
+                                    <div class="badge bg-danger-subtle text-danger mono-num mt-1" style="font-size: 0.7rem;"><i class="fa-solid fa-ban me-1"></i><%= tx.cancellationNumber %></div>
+                                <% } %>
                                 <div class="text-muted small mt-1"><i class="fa-regular fa-clock me-1"></i> <%= tx.createdAt.toLocaleTimeString('en-US', {hour:'2-digit', minute:'2-digit'}) %></div>
                             </div>
                             <div class="text-end">
@@ -631,7 +640,8 @@
                         <% 
                         const hasApiLog = tx.notes && tx.notes.includes('--- سجل الـ API');
                         const isPendingOrProcessing = ['pending', 'processing', 'accepted'].includes(tx.status);
-                        if (isPendingOrProcessing || hasApiLog) { 
+                        const canGlobalCancel = ['pending', 'processing', 'accepted', 'completed'].includes(tx.status) && tx.transferType !== 'balance_transfer';
+                        if (isPendingOrProcessing || hasApiLog || canGlobalCancel) {
                         %>
                             <div class="d-flex gap-2 mt-3 pt-2" style="border-top: 1px dashed var(--border-glass);">
                                 <% if(tx.status === 'pending') { %>
@@ -661,7 +671,7 @@
                                     </form>
                                 <% } %>
                                 
-                                <% if(isPendingOrProcessing) { %>
+                                <% if(canGlobalCancel) { %>
                                     <form action="/transaction/<%= tx._id %>/global-cancel" method="POST" class="m-0" onsubmit="return promptGlobalCancel(this)">
                                         <input type="hidden" name="reason" class="cancel-reason-input">
                                         <button type="submit" class="btn btn-sm fw-bold rounded-3 px-3" style="background: rgba(239, 68, 68, 0.1); color: #ef4444; border: 1px solid rgba(239, 68, 68, 0.2);" title="إلغاء العملية"><i class="fa-solid fa-ban"></i></button>
@@ -1010,12 +1020,19 @@
         
         // 🔴 التنبيه الخاص بالعمليات الملغية
         if (isCancelled) {
+            const cancellationMeta = [
+                tx.cancellationNumber ? `<span class="mono-num fw-bold text-danger">رقم الإلغاء: ${txEscape(tx.cancellationNumber)}</span>` : '',
+                tx.cancelledBy ? `<span>بواسطة: ${txEscape(tx.cancelledBy)}</span>` : '',
+                tx.cancelledAt ? `<span>تاريخ الإلغاء: ${f(tx.cancelledAt)}</span>` : ''
+            ].filter(Boolean).join(' · ');
             htmlContent += `
                 <div class="alert alert-danger border-0 p-3 rounded-4 mb-4 d-flex align-items-center gap-3" style="background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.2) !important;">
                     <div class="fs-2 text-danger"><i class="fa-solid fa-circle-xmark"></i></div>
                     <div>
                         <h6 class="fw-bold m-0 text-danger" style="font-size: 1rem;">هذه العملية ملغية / مرفوضة 🚨</h6>
                         <div class="small fw-bold text-muted mt-1">تم إرجاع كافة الأرصدة والمديونيات المرتبطة بالعملية تلقائياً.</div>
+                        ${cancellationMeta ? `<div class="small fw-bold mt-2">${cancellationMeta}</div>` : ''}
+                        ${tx.cancellationReason ? `<div class="small text-muted mt-1">السبب: ${txEscape(tx.cancellationReason)}</div>` : ''}
                     </div>
                 </div>
             `;
@@ -1595,16 +1612,17 @@
         else if(numStrP.startsWith('012')) typeLabel = 'اورانج كاش';
         else if(numStrP.startsWith('015')) typeLabel = 'وي باي';
 
-        const statusMap = { 'completed': 'مكتمل ✅', 'pending': 'معلق ⏳', 'processing': 'قيد التوجيه ⚙️', 'accepted': 'قيد العمل 👤', 'deposit': 'إيداع 💰', 'deduction': 'خصم 📉', 'rejected': 'ملغي ❌', 'deposit_pending': 'طلب إيداع 🖐️' };
+        const statusMap = { 'completed': 'مكتمل ✅', 'pending': 'معلق ⏳', 'processing': 'قيد التوجيه ⚙️', 'accepted': 'قيد العمل 👤', 'deposit': 'إيداع 💰', 'deduction': 'خصم 📉', 'rejected': 'ملغي ❌', 'cancelled_by_admin': 'ملغي من الإدارة ❌', 'deposit_pending': 'طلب إيداع 🖐️' };
         const statusText = statusMap[tx.status] || tx.status;
         const rate = tx.exchangeRate ? Number(tx.exchangeRate).toFixed(2) : (tx.costLYD ? (tx.amount / tx.costLYD).toFixed(2) : '---');
         const costLYD = tx.costLYD ? tx.costLYD.toFixed(2) : '---';
         const accountNameHtml = tx.accountName ? `<tr><th>اسم المستلم:</th><td>${tx.accountName}</td></tr>` : '';
+        const cancellationRows = tx.cancellationNumber ? `<tr><th>رقم الإلغاء:</th><td class="mono-num" dir="ltr">${tx.cancellationNumber}</td></tr><tr><th>سبب الإلغاء:</th><td>${tx.cancellationReason || '---'}</td></tr>` : '';
         const printWindow = window.open('', '_blank');
         printWindow.document.write(`
             <html lang="ar" dir="rtl"><head><title>فاتورة ${tx.customId || tx._id}</title><link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;700;800&display=swap" rel="stylesheet"><style> * { box-sizing: border-box; } @page { size: A4; margin: 10mm; } body { font-family: 'Tajawal', sans-serif; background: #fff; color: #333; margin: 0; padding: 0; font-size: 14px; -webkit-print-color-adjust: exact; print-color-adjust: exact; } .invoice-box { width: 100%; padding: 10px; border-top: 10px solid #001a4d; } .header { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #eee; padding-bottom: 10px; margin-bottom: 15px; } .header .logo-text { color: #001a4d; font-size: 26px; font-weight: 800; margin: 0 0 5px 0; } 
             .header .sub-text { color: #dc3545; font-size: 13px; font-weight: 700; margin: 0; } .invoice-info table { width: 100%; font-size: 13px; text-align: left;} .invoice-info td { padding: 4px 8px; font-weight: 700; color: #444; } .invoice-info .highlight { color: #001a4d; background: #f8f9fa; border-radius: 4px; } .title-bar { background-color: #f8f9fa; padding: 6px 15px; border-right: 5px solid #d4af37; font-size: 15px; font-weight: 800; color: #001a4d; margin-bottom: 15px; page-break-after: avoid; } .content-table { width: 100%; border-collapse: collapse; margin-bottom: 20px; font-size: 14px; page-break-inside: avoid; } .content-table th, .content-table td { border: 1px solid #ddd; padding: 8px 15px; text-align: right; } .content-table th { background-color: #f8f9fa; color: #001a4d; font-weight: 800; width: 30%; } .content-table td { font-weight: 700; color: #222; } .totals-container { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; page-break-inside: avoid; } .qr-placeholder { width: 90px; height: 90px; border: 2px dashed #ccc; display: flex; align-items: center; justify-content: center; color: #aaa; font-weight: bold; border-radius: 8px; font-size: 12px; text-align: center; } .totals { width: 75%; border-collapse: collapse; } .totals th, .totals td { border: 2px solid #001a4d; padding: 8px; text-align: center; } .totals th { background-color: #001a4d; color: #fff; font-weight: 800; font-size: 14px; } .totals td { font-weight: 800; font-size: 17px; background: #fafafa; } .totals .lyd { color: #dc3545; } .totals .egp { color: #198754; } .footer { text-align: center; color: #666; border-top: 1px dashed #ccc; padding-top: 15px; font-size: 12px; font-weight: 700; margin-top: 20px; page-break-inside: avoid; }</style></head>
-            <body><div class="invoice-box"><div class="header"><div><h1 class="logo-text">شركة الأهرام</h1><p class="sub-text">لخدمات التحويلات المالية الذكية</p></div><div class="invoice-info"><table><tr><td>رقم الفاتورة:</td><td class="highlight" dir="ltr">#${tx.customId || tx._id.slice(-6)}</td></tr><tr><td>تاريخ الإصدار:</td><td class="highlight" dir="ltr">${f(tx.createdAt)}</td></tr><tr><td>حالة العملية:</td><td class="highlight" style="color:#198754;">${statusText}</td></tr></table></div></div><div class="title-bar">تفاصيل الجهة والمستفيد</div><table class="content-table"><tr><th>الجهة / العميل:</th><td>${entityName}</td></tr><tr><th>رقم الهاتف / الحساب:</th><td dir="ltr" style="text-align: right; letter-spacing: 1px;">${tx.vodafoneNumber || tx.accountNumber || '---'}</td></tr>${accountNameHtml}<tr><th>نوع التحويل:</th><td>${typeLabel}</td></tr><tr><th>الموظف المنفذ:</th><td>${tx.executorName || '---'}</td></tr><tr><th>ملاحظات إضافية:</th><td style="color:#666; font-size: 13px;">${tx.notes || 'لا توجد ملاحظات.'}</td></tr></table><div class="title-bar">تفاصيل المبالغ والتكلفة</div><div class="totals-container"><div class="qr-placeholder">QR Code<br>للتوثيق</div><table class="totals"><tr><th>سعر الصرف المعتمد</th><th>المبلغ المحول (مصري)</th><th>التكلفة (ليبي)</th></tr><tr><td>${rate}</td><td class="egp">${tx.amount.toFixed(2)} EGP</td><td class="lyd">${costLYD} LYD</td></tr></table></div><div class="footer">نقدر ثقتكم في خدماتنا.. شكراً لاختياركم شركة الأهرام 🚀<br><span style="font-weight: 400; color:#999; margin-top:5px; display:inline-block;">هذه الفاتورة تم إصدارها إلكترونياً ولا تحتاج إلى ختم أو توقيع.</span></div></div><script>window.onload = function() { setTimeout(function() { window.print(); window.close(); }, 500); }<\/script></body></html>
+            <body><div class="invoice-box"><div class="header"><div><h1 class="logo-text">شركة الأهرام</h1><p class="sub-text">لخدمات التحويلات المالية الذكية</p></div><div class="invoice-info"><table><tr><td>رقم الفاتورة:</td><td class="highlight" dir="ltr">#${tx.customId || tx._id.slice(-6)}</td></tr><tr><td>تاريخ الإصدار:</td><td class="highlight" dir="ltr">${f(tx.createdAt)}</td></tr><tr><td>حالة العملية:</td><td class="highlight" style="color:#198754;">${statusText}</td></tr></table></div></div><div class="title-bar">تفاصيل الجهة والمستفيد</div><table class="content-table"><tr><th>الجهة / العميل:</th><td>${entityName}</td></tr><tr><th>رقم الهاتف / الحساب:</th><td dir="ltr" style="text-align: right; letter-spacing: 1px;">${tx.vodafoneNumber || tx.accountNumber || '---'}</td></tr>${accountNameHtml}${cancellationRows}<tr><th>نوع التحويل:</th><td>${typeLabel}</td></tr><tr><th>الموظف المنفذ:</th><td>${tx.executorName || '---'}</td></tr><tr><th>ملاحظات إضافية:</th><td style="color:#666; font-size: 13px;">${tx.notes || 'لا توجد ملاحظات.'}</td></tr></table><div class="title-bar">تفاصيل المبالغ والتكلفة</div><div class="totals-container"><div class="qr-placeholder">QR Code<br>للتوثيق</div><table class="totals"><tr><th>سعر الصرف المعتمد</th><th>المبلغ المحول (مصري)</th><th>التكلفة (ليبي)</th></tr><tr><td>${rate}</td><td class="egp">${tx.amount.toFixed(2)} EGP</td><td class="lyd">${costLYD} LYD</td></tr></table></div><div class="footer">نقدر ثقتكم في خدماتنا.. شكراً لاختياركم شركة الأهرام 🚀<br><span style="font-weight: 400; color:#999; margin-top:5px; display:inline-block;">هذه الفاتورة تم إصدارها إلكترونياً ولا تحتاج إلى ختم أو توقيع.</span></div></div><script>window.onload = function() { setTimeout(function() { window.print(); window.close(); }, 500); }<\/script></body></html>
         `);
         printWindow.document.close();
     }
@@ -1636,6 +1654,13 @@
         const reason = prompt("❌ سبب رفض طلب الإيداع:");
         if (!reason) return false; 
         form.querySelector('.reject-reason-input').value = reason; 
+        return true;
+    }
+
+    function promptGlobalCancel(form) {
+        const reason = prompt("سبب إلغاء العملية وإرجاع الرصيد:", "إلغاء من الإدارة");
+        if (!reason) return false;
+        form.querySelector('.cancel-reason-input').value = reason;
         return true;
     }
 

@@ -35,11 +35,11 @@ const generateDailySettlement = async (date = new Date()) => {
         // جمع بيانات العمليات لليوم
         const transactions = await Transaction.find({
             createdAt: { $gte: startOfDay, $lte: endOfDay },
-            status: { $in: ['completed', 'rejected', 'pending', 'processing', 'accepted'] }
+            status: { $in: ['completed', 'rejected', 'cancelled_by_admin', 'pending', 'processing', 'accepted'] }
         }).lean();
 
         const completed = transactions.filter(t => t.status === 'completed');
-        const cancelled = transactions.filter(t => t.status === 'rejected');
+        const cancelled = transactions.filter(t => t.status === 'rejected' || t.status === 'cancelled_by_admin');
         const pending = transactions.filter(t => ['pending', 'processing', 'accepted'].includes(t.status));
 
         // تجميع حسب نوع التحويل

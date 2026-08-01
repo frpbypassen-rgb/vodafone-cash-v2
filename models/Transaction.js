@@ -76,6 +76,10 @@ const transactionSchema = new mongoose.Schema({
     complaintText: { type: String },
     emergencyAlert: { type: String }, 
     executorWebAlert: { type: Object }, 
+    cancellationNumber: { type: String, unique: true, sparse: true },
+    cancellationReason: { type: String },
+    cancelledBy: { type: String },
+    cancelledAt: { type: Date },
 
     // 🖼️ الصور وإثباتات التنفيذ
     proofImage: { type: String }, 

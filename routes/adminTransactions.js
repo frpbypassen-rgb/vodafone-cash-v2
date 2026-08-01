@@ -506,7 +506,7 @@ router.post('/transaction/:id/global-cancel', async (req, res) => {
         const adminName = req.session.adminName || 'الإدارة';
         
         // 🟢 استخدام خدمة الاسترجاع الموحدة لضمان الدبل إنتري والأحداث المتسلسلة
-        const result = await reversalService.reverseTransaction(req.params.id, reason, adminName);
+        const result = await reversalService.reverseTransaction(req.params.id, reason, adminName, { status: 'cancelled_by_admin' });
         if (result.success) {
             const tx = await Transaction.findById(req.params.id);
             if (tx) {
