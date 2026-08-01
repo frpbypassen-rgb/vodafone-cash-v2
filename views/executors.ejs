@@ -101,6 +101,7 @@
 
         .manager-bot-icon { background: linear-gradient(135deg, #3b82f6, #2563eb); }
         .normal-bot-icon { background: linear-gradient(135deg, #10b981, #059669); }
+        .api-bot-icon { background: linear-gradient(135deg, #f59e0b, #d97706); }
 
         /* 💰 مربع الرصيد العميق */
         .balance-box {
@@ -185,8 +186,18 @@
     <div class="container-fluid">
         <div class="admin-nav mb-4">
             <h3 class="fw-bold m-0 text-dark"><i class="fa-solid fa-network-wired text-primary me-2"></i> وكلاء وبوتات التنفيذ (الكاشير)</h3>
-            <a href="/settings/bots" class="btn btn-primary fw-bold shadow-sm rounded-pill px-4"><i class="fa-solid fa-plus me-1"></i> إضافة بوت جديد</a>
+            <button type="button" class="btn btn-primary fw-bold shadow-sm rounded-pill px-4" data-bs-toggle="modal" data-bs-target="#createExecutorModal"><i class="fa-solid fa-plus me-1"></i> إضافة بوت جديد</button>
         </div>
+
+        <% if (typeof query !== 'undefined' && query.created) { %>
+            <div class="alert alert-success fw-bold rounded-4 border-0 shadow-sm">
+                <i class="fa-solid fa-check-circle me-1"></i> تم إنشاء منفذ التنفيذ بنجاح.
+            </div>
+        <% } else if (typeof query !== 'undefined' && query.createError) { %>
+            <div class="alert alert-danger fw-bold rounded-4 border-0 shadow-sm">
+                <i class="fa-solid fa-triangle-exclamation me-1"></i> تعذر إنشاء المنفذ. تأكد من البيانات وحاول مرة أخرى.
+            </div>
+        <% } %>
 
         <div class="row g-4 mt-2 pb-5">
             <% if (bots.length === 0) { %>
@@ -199,13 +210,13 @@
             <% bots.forEach(bot => { %>
                 <div class="col-xl-4 col-md-6">
                     <div class="card-3d-wrapper">
-                        <div class="bot-card-3d" style="border-top: 5px solid <%= bot.isManagerBot ? '#3b82f6' : '#10b981' %>;">
+                        <div class="bot-card-3d" style="border-top: 5px solid <%= bot.isApiBot ? '#f59e0b' : (bot.isManagerBot ? '#3b82f6' : '#10b981') %>;">
                             
                             <div>
                                 <div class="d-flex justify-content-between align-items-start mb-3">
                                     <div class="d-flex align-items-center gap-3">
-                                        <div class="bot-icon-3d <%= bot.isManagerBot ? 'manager-bot-icon' : 'normal-bot-icon' %>">
-                                            <i class="fa-solid <%= bot.isManagerBot ? 'fa-building' : 'fa-robot' %>"></i>
+                                        <div class="bot-icon-3d <%= bot.isApiBot ? 'api-bot-icon' : (bot.isManagerBot ? 'manager-bot-icon' : 'normal-bot-icon') %>">
+                                            <i class="fa-solid <%= bot.isApiBot ? 'fa-plug-circle-bolt' : (bot.isManagerBot ? 'fa-building' : 'fa-robot') %>"></i>
                                         </div>
                                         <div>
                                             <h5 class="fw-bold m-0 text-dark mb-1"><%= bot.name %></h5>
@@ -242,11 +253,134 @@
     </div>
 </div>
 
+<div class="modal fade" id="createExecutorModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+        <div class="modal-content border-0 shadow-lg" style="background: var(--card-bg); color: var(--text-main); border-radius: 18px;">
+            <form action="/executors/add" method="POST">
+                <div class="modal-header border-0 pb-0">
+                    <h5 class="modal-title fw-bold">
+                        <i class="fa-solid fa-plus-circle text-primary me-2"></i> إضافة منفذ تنفيذ
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold small text-muted">اسم المنفذ</label>
+                            <input type="text" name="name" class="form-control fw-bold" required placeholder="مثال: منفذ API النيجر">
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label fw-bold small text-muted">نوع المنفذ</label>
+                            <select name="botType" id="botType" class="form-select fw-bold">
+                                <option value="normal">منفذ عادي</option>
+                                <option value="manager">منفذ مدير</option>
+                                <option value="api">منفذ API</option>
+                            </select>
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label fw-bold small text-muted">الرصيد الافتتاحي</label>
+                            <input type="number" step="any" name="balance" class="form-control fw-bold text-center" value="0" dir="ltr">
+                        </div>
+
+                        <div class="col-12">
+                            <div class="p-3 rounded-4 border" style="background: var(--input-bg); border-color: var(--border-glass) !important;">
+                                <div class="fw-bold mb-2"><i class="fa-solid fa-user-tie text-success me-1"></i> حساب دخول اختياري للمنفذ</div>
+                                <div class="row g-3">
+                                    <div class="col-md-3">
+                                        <input type="text" name="managerName" class="form-control" placeholder="اسم المستخدم">
+                                    </div>
+                                    <div class="col-md-3">
+                                        <input type="text" name="managerPhone" class="form-control" placeholder="الهاتف" dir="ltr">
+                                    </div>
+                                    <div class="col-md-3">
+                                        <input type="text" name="webUsername" class="form-control" placeholder="اسم الدخول" dir="ltr">
+                                    </div>
+                                    <div class="col-md-3">
+                                        <input type="password" name="webPassword" class="form-control" placeholder="كلمة المرور">
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="col-12 d-none" id="apiFields">
+                            <div class="p-3 rounded-4 border" style="background: rgba(245, 158, 11, 0.08); border-color: rgba(245, 158, 11, 0.35) !important;">
+                                <div class="fw-bold mb-3 text-warning"><i class="fa-solid fa-plug-circle-bolt me-1"></i> بيانات API الخاصة بهذا المنفذ</div>
+                                <div class="row g-3">
+                                    <div class="col-md-6">
+                                        <label class="form-label fw-bold small text-muted">رابط API</label>
+                                        <input type="text" name="apiUrl" class="form-control" placeholder="https://zaynpay.com" dir="ltr">
+                                    </div>
+                                    <div class="col-md-3">
+                                        <label class="form-label fw-bold small text-muted">اسم مستخدم API</label>
+                                        <input type="text" name="apiUsername" class="form-control" dir="ltr">
+                                    </div>
+                                    <div class="col-md-3">
+                                        <label class="form-label fw-bold small text-muted">كلمة مرور API</label>
+                                        <input type="password" name="apiPassword" class="form-control" dir="ltr">
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label class="form-label fw-bold small text-muted">API Token / Secret</label>
+                                        <input type="text" name="apiToken" class="form-control" dir="ltr">
+                                    </div>
+                                    <div class="col-md-2">
+                                        <label class="form-label fw-bold small text-muted">Service ID</label>
+                                        <input type="number" name="apiServiceId" class="form-control text-center" value="307" dir="ltr">
+                                    </div>
+                                    <div class="col-md-2">
+                                        <label class="form-label fw-bold small text-muted">Provider ID</label>
+                                        <input type="number" name="apiProviderId" class="form-control text-center" value="29" dir="ltr">
+                                    </div>
+                                    <div class="col-md-2">
+                                        <label class="form-label fw-bold small text-muted">Field ID</label>
+                                        <input type="number" name="apiFieldId" class="form-control text-center" value="3488" dir="ltr">
+                                    </div>
+                                    <div class="col-md-3">
+                                        <label class="form-label fw-bold small text-muted">Machine Serial</label>
+                                        <input type="text" name="apiMachineSerial" class="form-control text-center" value="XP1" dir="ltr">
+                                    </div>
+                                    <div class="col-md-9 d-flex align-items-end">
+                                        <div class="text-muted small">يمكن إضافة أكثر من منفذ API، وكل منفذ سيستخدم بياناته عند توجيه الطلب إليه.</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer border-0 pt-0">
+                    <button type="button" class="btn btn-light fw-bold px-4" data-bs-dismiss="modal">إلغاء</button>
+                    <button type="submit" class="btn btn-primary fw-bold px-4">
+                        <i class="fa-solid fa-floppy-disk me-1"></i> حفظ المنفذ
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
 <script>
     function toggleSidebar() { 
         document.querySelector('.sidebar').classList.toggle('active');
         document.querySelector('.sidebar-overlay').classList.toggle('active'); 
     }
+
+    function toggleExecutorApiFields() {
+        const typeField = document.getElementById('botType');
+        const apiFields = document.getElementById('apiFields');
+        if (!typeField || !apiFields) return;
+        apiFields.classList.toggle('d-none', typeField.value !== 'api');
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+        const typeField = document.getElementById('botType');
+        if (typeField) typeField.addEventListener('change', toggleExecutorApiFields);
+        toggleExecutorApiFields();
+
+        const shouldOpenCreateModal = <%- JSON.stringify(typeof query !== 'undefined' && query.openCreate ? true : false) %>;
+        const createModalEl = document.getElementById('createExecutorModal');
+        if (shouldOpenCreateModal && createModalEl && window.bootstrap) {
+            new bootstrap.Modal(createModalEl).show();
+        }
+    });
 </script>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
 </body>

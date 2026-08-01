@@ -4,8 +4,14 @@ const ExecutorGroup = require('../models/ExecutorGroup');
 const Transaction = require('../models/Transaction');
 const Employee = require('../models/Employee');
 const Notification = require('../models/Notification');
-const { requireAuth } = require('../middlewares/auth');
+const { requireAuth, requireMaster } = require('../middlewares/auth');
 const { syncBotBalance } = require('../utils/helpers');
+
+const normalizeText = (value) => String(value || '').trim();
+const parseNumberOrDefault = (value, fallback) => {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+};
 
 router.get('/executors', requireAuth, async (req, res) => {
     try {
@@ -15,8 +21,64 @@ router.get('/executors', requireAuth, async (req, res) => {
             let txCount = 0; if (group.isManagerBot) txCount = await Transaction.countDocuments({ managerGroupId: group._id, status: 'completed' }); else txCount = await Transaction.countDocuments({ executorGroupId: group._id, status: 'completed' });
             return { ...group._doc, balance: syncedBalance, txCount };
         }));
-        res.render('executors', { bots: groupsWithStats, adminName: req.session.adminName });
+        res.render('executors', { bots: groupsWithStats, adminName: req.session.adminName, query: req.query });
     } catch (e) { res.redirect('/'); }
+});
+
+router.post('/executors/add', requireAuth, requireMaster, async (req, res) => {
+    try {
+        const body = req.body || {};
+        const name = normalizeText(body.name);
+        if (!name) return res.redirect('/executors?createError=missing');
+
+        const botType = normalizeText(body.botType) || 'normal';
+        const isApiBot = botType === 'api' || body.isApiBot === 'on' || body.isApiBot === 'true';
+        const isManagerBot = !isApiBot && (botType === 'manager' || body.isManagerBot === 'on' || body.isManagerBot === 'true');
+        const balance = Number(body.balance || 0);
+        const parentId = normalizeText(body.parentGroupId);
+
+        const group = await ExecutorGroup.create({
+            name,
+            status: normalizeText(body.status) || 'active',
+            balance: Number.isFinite(balance) ? balance : 0,
+            isManagerGroup: isManagerBot,
+            isManagerBot,
+            isApiGroup: isApiBot,
+            isApiBot,
+            parentGroupId: parentId && parentId !== 'none' ? parentId : null,
+            parentBotId: parentId && parentId !== 'none' ? parentId : null,
+            apiUrl: isApiBot ? normalizeText(body.apiUrl) : '',
+            apiToken: isApiBot ? normalizeText(body.apiToken) : '',
+            apiUsername: isApiBot ? normalizeText(body.apiUsername) : '',
+            apiPassword: isApiBot ? normalizeText(body.apiPassword) : '',
+            apiServiceId: isApiBot ? parseNumberOrDefault(body.apiServiceId, 307) : 307,
+            apiProviderId: isApiBot ? parseNumberOrDefault(body.apiProviderId, 29) : 29,
+            apiFieldId: isApiBot ? parseNumberOrDefault(body.apiFieldId, 3488) : 3488,
+            apiMachineSerial: isApiBot ? (normalizeText(body.apiMachineSerial) || 'XP1') : 'XP1'
+        });
+
+        const managerName = normalizeText(body.managerName);
+        const webUsername = normalizeText(body.webUsername).toLowerCase();
+        const webPassword = normalizeText(body.webPassword);
+        if (managerName && webUsername && webPassword) {
+            await Employee.create({
+                name: managerName,
+                phone: normalizeText(body.managerPhone),
+                role: 'manager',
+                status: 'active',
+                groupId: group._id,
+                webUsername,
+                webPassword,
+                canViewAllReports: true,
+                tenantId: req.tenantId || undefined
+            });
+        }
+
+        return res.redirect('/executors?created=1');
+    } catch (e) {
+        console.error('[executors/add] failed:', e.stack || e.message);
+        return res.redirect('/executors?createError=1');
+    }
 });
 
 router.get('/executor/:id', requireAuth, async (req, res) => {

@@ -9,6 +9,16 @@
         const savedTheme = localStorage.getItem('ahram_theme') || 'dark';
         document.documentElement.setAttribute('data-theme', savedTheme);
         document.documentElement.setAttribute('data-bs-theme', savedTheme);
+
+        const csrfToken = <%- JSON.stringify(typeof csrfToken !== 'undefined' ? csrfToken : '') %>;
+
+        function normalizeProofUrl(img) {
+            const value = String(img || '').trim();
+            if (!value) return '';
+            if (value.startsWith('http') || value.startsWith('data:') || value.startsWith('/')) return value;
+            const cleaned = value.replace(/^uploads\//, '').replace(/^proofs\//, '');
+            return `/uploads/proofs/${cleaned}`;
+        }
     
         window.showReceiptModal = function(proofImage, proofImagesStr) {
             let images = [];
@@ -19,17 +29,13 @@
             
             let html = '<div class="receipt-container" style="text-align: center;">';
             images.forEach(img => {
-                let src = img;
-                if (!img.startsWith('http') && !img.startsWith('data:') && img.includes('.')) {
-                    src = '/uploads/proofs/' + img;
-                }
+                let src = normalizeProofUrl(img);
                 html += `<img src="${src}" class="img-fluid rounded mb-3 shadow-sm border" style="max-height: 50vh; max-width: 100%; object-fit: contain;" />`;
             });
             html += '</div>';
             
             const mappedImages = images.map(img => {
-                if (!img.startsWith('http') && !img.startsWith('data:') && img.includes('.')) return '/uploads/proofs/' + img;
-                return img;
+                return normalizeProofUrl(img);
             });
             const imagesJoined = mappedImages.join(',');
             
@@ -573,22 +579,28 @@
 
         <!-- الإحصائيات -->
         <div class="row g-3 mb-4 d-none" id="statsSection">
-            <div class="col-md-4">
+            <div class="col-md-3">
                 <div class="stat-card" style="background: linear-gradient(135deg, rgba(239,68,68,0.1), rgba(239,68,68,0.02)); border-color: rgba(239,68,68,0.2);">
                     <h5 class="fw-bold mb-2 text-danger" id="statTotalOps">0.00</h5>
                     <small class="text-danger fw-bold">إجمالي العمليات المنفذة (LYD)</small>
                 </div>
             </div>
-            <div class="col-md-4">
+            <div class="col-md-3">
                 <div class="stat-card" style="background: linear-gradient(135deg, rgba(16,185,129,0.1), rgba(16,185,129,0.02)); border-color: rgba(16,185,129,0.2);">
                     <h5 class="fw-bold mb-2 text-success" id="statCompletedCount">0</h5>
                     <small class="text-success fw-bold">العمليات الناجحة</small>
                 </div>
             </div>
-            <div class="col-md-4">
+            <div class="col-md-3">
                 <div class="stat-card" style="background: linear-gradient(135deg, rgba(212,175,55,0.1), rgba(212,175,55,0.02)); border-color: rgba(212,175,55,0.2);">
                     <h5 class="fw-bold mb-2 text-warning" id="statRejectedCount">0</h5>
                     <small class="text-warning fw-bold">العمليات المرفوضة</small>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="stat-card" style="background: linear-gradient(135deg, rgba(14,165,233,0.1), rgba(14,165,233,0.02)); border-color: rgba(14,165,233,0.2);">
+                    <h5 class="fw-bold mb-2 text-info" id="statDepositNet">0.00</h5>
+                    <small class="text-info fw-bold">صافي الإيداعات / الخصوم (LYD)</small>
                 </div>
             </div>
         </div>
@@ -616,10 +628,47 @@
             <!-- قائمة العمليات للموبايل (تظهر كبطاقات تطبيق) -->
             <div class="mobile-ops-list d-flex flex-column gap-3 d-md-none" id="mobileReportList"></div>
         </div>
+
+        <div class="card-glass d-none" id="depositSection">
+            <h5 class="fw-bold mb-3"><i class="fa-solid fa-wallet text-success me-1"></i> الإيداعات وتسويات الرصيد</h5>
+            <div class="table-responsive d-none d-md-block">
+                <table class="table-custom">
+                    <thead>
+                        <tr>
+                            <th>#</th>
+                            <th>رقم العملية</th>
+                            <th>النوع</th>
+                            <th>المبلغ (LYD)</th>
+                            <th>الملاحظة</th>
+                            <th>التاريخ</th>
+                        </tr>
+                    </thead>
+                    <tbody id="depositTableBody"></tbody>
+                </table>
+            </div>
+            <div class="mobile-ops-list d-flex flex-column gap-3 d-md-none" id="mobileDepositList"></div>
+        </div>
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
     <script>
+        (function() {
+            const originalFetch = window.fetch;
+            window.fetch = function(url, options) {
+                options = options || {};
+                options.headers = options.headers || {};
+                const method = String(options.method || 'GET').toUpperCase();
+                if (csrfToken && !['GET', 'HEAD', 'OPTIONS'].includes(method)) {
+                    if (options.headers instanceof Headers) {
+                        options.headers.set('x-csrf-token', csrfToken);
+                    } else {
+                        options.headers['x-csrf-token'] = csrfToken;
+                    }
+                }
+                return originalFetch.call(this, url, options);
+            };
+        })();
+
         function toggleTheme() {
             const html = document.documentElement;
             const currentTheme = html.getAttribute('data-theme');
@@ -795,10 +844,12 @@
                 document.getElementById('statTotalOps').innerHTML = `${(data.data.totalLYD).toFixed(2)} <span class="fs-6">LYD</span>`;
                 document.getElementById('statCompletedCount').innerHTML = data.data.completedCount;
                 document.getElementById('statRejectedCount').innerHTML = data.data.rejectedCount;
+                document.getElementById('statDepositNet').innerHTML = `${(data.data.totalDeposits || 0).toFixed(2)} <span class="fs-6">LYD</span>`;
 
                 lastReportData = data.data;
                 document.getElementById('statsSection').classList.remove('d-none');
                 document.getElementById('tableSection').classList.remove('d-none');
+                document.getElementById('depositSection').classList.remove('d-none');
                 document.getElementById('btnDownloadPdf').classList.remove('d-none');
 
                 // Render Operations Table
@@ -806,6 +857,10 @@
                 tbody.innerHTML = '';
                 const mobileList = document.getElementById('mobileReportList');
                 if (mobileList) mobileList.innerHTML = '';
+                const depositTbody = document.getElementById('depositTableBody');
+                if (depositTbody) depositTbody.innerHTML = '';
+                const mobileDepositList = document.getElementById('mobileDepositList');
+                if (mobileDepositList) mobileDepositList.innerHTML = '';
 
                 if (data.data.operations.length === 0) {
                     tbody.innerHTML = '<tr><td colspan="7" class="text-center text-muted py-4">لا توجد عمليات في هذه الفترة</td></tr>';
@@ -880,6 +935,65 @@
                             `;
                         }
                     });
+                }
+
+                const deposits = data.data.deposits || [];
+                if (depositTbody) {
+                    if (deposits.length === 0) {
+                        depositTbody.innerHTML = '<tr><td colspan="6" class="text-center text-muted py-4">لا توجد إيداعات أو تسويات في هذه الفترة</td></tr>';
+                    } else {
+                        deposits.forEach((tx, i) => {
+                            const dateObj = new Date(tx.createdAt);
+                            const dateStr = dateObj.toLocaleDateString('en-GB');
+                            const timeStr = dateObj.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
+                            const isDeduction = tx.status === 'deduction';
+                            const typeLabel = isDeduction ? 'خصم' : (tx.status === 'deposit_pending' ? 'إيداع معلق' : 'إيداع');
+                            const amountClass = isDeduction ? 'text-danger' : 'text-success';
+                            const signedAmount = isDeduction ? -Math.abs(tx.amount || 0) : Math.abs(tx.amount || 0);
+                            const hasProofImage = !!(tx.proofImage || (tx.proofImages && tx.proofImages.length > 0));
+                            const proofImage = String(tx.proofImage || '').replace(/'/g, "\\'");
+                            const proofImages = (tx.proofImages || []).join(',').replace(/'/g, "\\'");
+                            const receiptAttrs = hasProofImage ? `onclick="showReceiptModal('${proofImage}', '${proofImages}')" style="cursor: pointer;" title="عرض إيصال الإيداع"` : '';
+
+                            depositTbody.innerHTML += `
+                                <tr ${receiptAttrs}>
+                                    <td class="text-muted fw-bold">${i + 1}</td>
+                                    <td dir="ltr" class="fw-bold text-end">#${tx.customId || tx._id.toString().slice(-6)}</td>
+                                    <td><span class="badge-st ${isDeduction ? 'st-fail' : 'st-done'}">${typeLabel}</span></td>
+                                    <td class="fw-bold ${amountClass}" dir="ltr">${signedAmount.toFixed(2)} <small class="text-muted">LYD</small></td>
+                                    <td class="text-muted small">${tx.notes || '---'}</td>
+                                    <td>
+                                        <div dir="ltr" style="font-size:0.85em;" class="text-end">${dateStr}</div>
+                                        <div dir="ltr" style="font-size:0.75rem; color: var(--text-muted);" class="text-end">${timeStr}</div>
+                                    </td>
+                                </tr>
+                            `;
+
+                            if (mobileDepositList) {
+                                mobileDepositList.innerHTML += `
+                                    <div class="mobile-tx-card" ${receiptAttrs}>
+                                        <div class="mobile-tx-header">
+                                            <span class="tx-custom-id">#${tx.customId || tx._id.toString().slice(-6)}</span>
+                                            <span class="badge-st ${isDeduction ? 'st-fail' : 'st-done'}">${typeLabel}</span>
+                                        </div>
+                                        <div class="mobile-tx-body">
+                                            <div class="tx-amount-wrapper">
+                                                <span class="tx-amount ${amountClass}">${signedAmount.toFixed(2)}</span>
+                                                <span class="tx-currency">LYD</span>
+                                            </div>
+                                        </div>
+                                        <div class="mobile-tx-divider"></div>
+                                        <div class="mobile-tx-date-row">
+                                            <span><i class="fa-solid fa-calendar-alt text-muted"></i> ${dateStr} - ${timeStr}</span>
+                                        </div>
+                                    </div>
+                                `;
+                            }
+                        });
+                    }
+                }
+                if (mobileDepositList && deposits.length === 0) {
+                    mobileDepositList.innerHTML = '<div class="text-center text-muted py-4">لا توجد إيداعات أو تسويات في هذه الفترة</div>';
                 }
 
             } catch (e) {

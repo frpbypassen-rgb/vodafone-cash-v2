@@ -45,6 +45,10 @@ router.get('/', async (req, res) => {
     res.render('settings', { settings, executorBots, rateServices: getAdminRateServices() });
 });
 
+router.get('/bots', requireMaster, (req, res) => {
+    res.redirect('/executors?openCreate=1');
+});
+
 router.post('/update', requireMaster, async (req, res) => {
     try {
         const data = pickAllowed(req.body, ALLOWED_MAIN_SETTINGS);

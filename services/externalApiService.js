@@ -17,6 +17,10 @@ const executeTransferViaApi = async (tx, apiBot) => {
         
         let baseUrl = apiBot.apiUrl ? apiBot.apiUrl.replace(/\/$/, '') : 'https://zaynpay.com';
         if (!baseUrl.startsWith('http')) baseUrl = 'https://' + baseUrl;
+        const apiUsername = apiBot.apiUsername || process.env.ZAYN_USERNAME || process.env.ZAYNPAY_USERNAME;
+        const apiPassword = apiBot.apiPassword || process.env.ZAYN_PASSWORD || process.env.ZAYNPAY_PASSWORD;
+        const serviceId = Number(apiBot.apiServiceId || process.env.ZAYNPAY_SERVICE_ID || 307);
+        const machineSerial = apiBot.apiMachineSerial || process.env.ZAYNPAY_MACHINE_SERIAL || 'XP1';
 
         const defaultHeaders = {
             'Content-Type': 'application/json',
@@ -25,8 +29,8 @@ const executeTransferViaApi = async (tx, apiBot) => {
         };
 
         const authPayload = {
-            UserName: process.env.ZAYN_USERNAME, 
-            Password: process.env.ZAYN_PASSWORD,
+            UserName: apiUsername,
+            Password: apiPassword,
             AppType: "1",
             AppId: "app12",
             VersionID: "Samsuang-502"
@@ -51,7 +55,7 @@ const executeTransferViaApi = async (tx, apiBot) => {
         const headers = { ...defaultHeaders, 'Authorization': `Bearer ${freshToken}`, 'Accept-Language': 'ar-EG' };
         
         addLog("INQUIRY", `جاري الاستعلام وفحص الرقم [${targetNumber}]...`);
-        const inquiryPayload = { Fields: [ { Key: "Key1", Value: targetNumber } ], ServiceId: 307, InqueryAmount: amount.toString() };
+        const inquiryPayload = { Fields: [ { Key: "Key1", Value: targetNumber } ], ServiceId: serviceId, InqueryAmount: amount.toString() };
         const inquiryRes = await axios.post(`${baseUrl}/api/V1/Transactions/Inquiry`, inquiryPayload, { headers, timeout: 20000 });
 
         if (inquiryRes.data.Code !== 200 || !inquiryRes.data.Data || !inquiryRes.data.Data.PaymentBillInfo) {
@@ -63,8 +67,8 @@ const executeTransferViaApi = async (tx, apiBot) => {
         addLog("PAYMENT", `جاري إرسال الدفعة النهائية بقيمة [${amount} EGP]...`);
         
         const paymentPayload = {
-            Fields: [ { Key: "Key1", Value: targetNumber } ], ServiceId: 307,
-            PaymentBillInfo: inquiryRes.data.Data.PaymentBillInfo, Amount: amount, MachineSerial: "XP1"
+            Fields: [ { Key: "Key1", Value: targetNumber } ], ServiceId: serviceId,
+            PaymentBillInfo: inquiryRes.data.Data.PaymentBillInfo, Amount: amount, MachineSerial: machineSerial
         };
         const paymentRes = await axios.post(`${baseUrl}/api/V1/Transactions/Payment`, paymentPayload, { headers, timeout: 180000 });
 

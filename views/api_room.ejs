@@ -95,6 +95,32 @@
                             <label class="form-label text-muted small">مفتاح المصادقة (Secret Token)</label>
                             <input type="text" class="form-control text-rose" value="Bearer <%= bot.apiToken || 'AutoLogin' %>" readonly>
                         </div>
+                        <div class="row g-3 mb-4">
+                            <div class="col-md-6">
+                                <label class="form-label text-muted small">API Username</label>
+                                <input type="text" class="form-control text-sky" value="<%= bot.apiUsername || 'ENV fallback' %>" readonly>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label text-muted small">API Password</label>
+                                <input type="text" class="form-control text-warning" value="<%= bot.apiPassword ? '********' : 'ENV fallback' %>" readonly>
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label text-muted small">Service ID</label>
+                                <input type="text" class="form-control" value="<%= bot.apiServiceId || 307 %>" readonly>
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label text-muted small">Provider ID</label>
+                                <input type="text" class="form-control" value="<%= bot.apiProviderId || 29 %>" readonly>
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label text-muted small">Field ID</label>
+                                <input type="text" class="form-control" value="<%= bot.apiFieldId || 3488 %>" readonly>
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label text-muted small">Machine Serial</label>
+                                <input type="text" class="form-control" value="<%= bot.apiMachineSerial || 'XP1' %>" readonly>
+                            </div>
+                        </div>
                         
                         <form action="/executor/<%= bot._id %>/toggle-status" method="POST">
                             <button type="submit" class="btn btn-<%= bot.status === 'active' ? 'danger' : 'success' %> w-100 fw-bold py-2 mb-4">
