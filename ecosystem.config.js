@@ -12,6 +12,8 @@ module.exports = {
       },
       env_production: {
         NODE_ENV: "production",
+        BYPASS_OTP: "true",
+        BYPASS_CLIENT_OTP: "true",
       }
     }
   ]
