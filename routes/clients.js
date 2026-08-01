@@ -199,7 +199,7 @@ router.get('/company/:id', requireAuth, async (req, res) => {
     res.render('company_details', { company, transactions, accountCodeLength: CODE_LENGTHS.company, query: req.query });
 });
 
-router.post('/user/:id/add-balance', requireAuth, requireMaster, async (req, res) => {
+router.post('/user/:id/add-balance', requireAuth, async (req, res) => {
     try {
         const amount = parseFloat(req.body.amount);
         const notes = req.body.notes ? req.body.notes.trim() : '';
@@ -314,7 +314,7 @@ router.post('/user/:id/update-account-code', requireAuth, requireMaster, async (
     }
 });
 
-router.post('/company/:id/add-balance', requireAuth, requireMaster, async (req, res) => {
+router.post('/company/:id/add-balance', requireAuth, async (req, res) => {
     try {
         const amount = parseFloat(req.body.amount);
         const notes = req.body.notes ? req.body.notes.trim() : '';
