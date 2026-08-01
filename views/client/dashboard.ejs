@@ -2172,6 +2172,7 @@
                 
                 // Status pipeline
                 let statusMarkup = '';
+                const hasProofImage = !!(tx.proofImage || (tx.proofImages && tx.proofImages.length > 0));
                 if (tx.status === 'completed') {
                     // Check if rate was modified by executor
                     const rateModified = tx.adminNotes && tx.adminNotes.includes('تعديل');
@@ -2187,7 +2188,9 @@
                 } else if (tx.status === 'accepted') {
                     statusMarkup = `<span class="badge-st st-accepted"><i class="fa-solid fa-gear fa-spin"></i> قيد العمل</span>`;
                 } else if (tx.status === 'deposit') {
-                    statusMarkup = `<span class="badge-st st-dep"><i class="fa-solid fa-arrow-down"></i> إيداع</span>`;
+                    statusMarkup = hasProofImage
+                        ? `<span class="badge-st st-dep" onclick="viewProof('${tx._id}')" style="cursor:pointer;"><i class="fa-solid fa-arrow-down"></i> إيداع</span>`
+                        : `<span class="badge-st st-dep"><i class="fa-solid fa-arrow-down"></i> إيداع</span>`;
                 } else if (tx.status === 'deduction') {
                     statusMarkup = `<span class="badge-st" style="background: rgba(100,116,139,0.1); color: #64748b; border: 1px solid rgba(100,116,139,0.2);"><i class="fa-solid fa-arrow-up"></i> خصم</span>`;
                 } else if (tx.status === 'rejected' || tx.status === 'cancelled_by_admin') {
@@ -2197,7 +2200,7 @@
                 }
  
                 // Transaction ID
-                let idContent = (tx.status === 'completed') 
+                let idContent = hasProofImage
                     ? `<a class="tx-id no-print" onclick="viewProof('${tx._id}')">#${tx.customId || tx._id.toString().slice(-6)}</a>` 
                     : `<span class="tx-id text-muted" style="border:none; cursor:default;">#${tx.customId || tx._id.toString().slice(-6)}</span>`;
                 
@@ -2250,7 +2253,7 @@
                         mobileActionsHtml = `<div class="mobile-tx-actions">${whatsappBtn} ${complaintBtn}</div>`;
                     }
 
-                    let mobileIdContent = (tx.status === 'completed') 
+                    let mobileIdContent = hasProofImage
                         ? `<a class="tx-custom-id text-decoration-none" onclick="viewProof('${tx._id}')" style="cursor:pointer;">#${tx.customId || tx._id.toString().slice(-6)}</a>` 
                         : `<span class="tx-custom-id text-muted">#${tx.customId || tx._id.toString().slice(-6)}</span>`;
 
@@ -2287,7 +2290,7 @@
                 // Mobile Brief Render (Account Tab - max 5 operations)
                 if (mobileListBrief && briefCount < 5) {
                     briefCount++;
-                    let mobileIdContent = (tx.status === 'completed') 
+                    let mobileIdContent = hasProofImage
                         ? `<a class="tx-custom-id text-decoration-none" onclick="viewProof('${tx._id}')" style="cursor:pointer;">#${tx.customId || tx._id.toString().slice(-6)}</a>` 
                         : `<span class="tx-custom-id text-muted">#${tx.customId || tx._id.toString().slice(-6)}</span>`;
 

@@ -10,6 +10,7 @@ const SubAccount = require('../models/SubAccount');
 const { requireAuth, requireMaster } = require('../middlewares/auth');
 const { updateBalanceWithLedger } = require('../services/walletService');
 const { notifyBalanceAdjustment } = require('../services/clientNotificationService');
+const { createDepositReceiptProof } = require('../services/depositReceiptService');
 const {
     CODE_LENGTHS,
     expectedUserCodeLength,
@@ -104,6 +105,26 @@ const balanceErrorQuery = (error) => {
     if (error.message === 'INSUFFICIENT_BALANCE') return 'insufficient';
     if (error.message === 'ACCOUNT_NOT_FOUND') return 'notfound';
     return 'failed';
+};
+
+const attachBalanceAdjustmentReceipt = async ({ tx, account, amount, balanceAfter, notes, session }) => {
+    if (!tx || !account) return null;
+
+    const proofId = createDepositReceiptProof({
+        customId: tx.customId,
+        accountName: account.name || account.webUsername || account.phone || 'Client account',
+        accountCode: account.accountCode || account.webUsername || account.phone || '',
+        amount: Math.abs(amount),
+        balanceAfter,
+        notes,
+        createdAt: tx.createdAt,
+        type: amount >= 0 ? 'deposit' : 'deduction'
+    });
+
+    tx.proofImage = proofId;
+    tx.proofImages = [proofId];
+    await tx.save(session ? { session } : {});
+    return proofId;
 };
 
 router.get('/clients', requireAuth, async (req, res) => {
@@ -209,6 +230,15 @@ router.post('/user/:id/add-balance', requireAuth, requireMaster, async (req, res
                 employeeName: amount > 0 ? 'الإدارة (إيداع)' : 'الإدارة (خصم)',
                 notes
             }], session ? { session } : {});
+
+            await attachBalanceAdjustmentReceipt({
+                tx: createdTx,
+                account,
+                amount,
+                balanceAfter: balanceResult.balanceAfter,
+                notes,
+                session
+            });
 
             return { user: account, tx: createdTx, balanceAfter: balanceResult.balanceAfter };
         });
@@ -316,6 +346,15 @@ router.post('/company/:id/add-balance', requireAuth, requireMaster, async (req, 
                 employeeName: amount > 0 ? 'الإدارة (إيداع)' : 'الإدارة (خصم)',
                 notes
             }], session ? { session } : {});
+
+            await attachBalanceAdjustmentReceipt({
+                tx: createdTx,
+                account,
+                amount,
+                balanceAfter: balanceResult.balanceAfter,
+                notes,
+                session
+            });
 
             return { company: account, tx: createdTx, balanceAfter: balanceResult.balanceAfter };
         });

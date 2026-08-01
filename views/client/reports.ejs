@@ -827,10 +827,11 @@
                         const dateObj = new Date(tx.createdAt);
                         const dateStr = dateObj.toLocaleDateString('en-GB');
                         const timeStr = dateObj.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
+                        const hasProofImage = !!(tx.proofImage || (tx.proofImages && tx.proofImages.length > 0));
 
                         // Desktop Render
                         tbody.innerHTML += `
-                        <tr ${tx.status === 'completed' ? `onclick="showReceiptModal('${tx.proofImage || ''}', '${(tx.proofImages || []).join(',')}')" style="cursor: pointer;" title="عرض إيصال التحويل"` : ''}>
+                        <tr ${hasProofImage ? `onclick="showReceiptModal('${tx.proofImage || ''}', '${(tx.proofImages || []).join(',')}')" style="cursor: pointer;" title="عرض إيصال التحويل"` : ''}>
                             <td class="text-muted fw-bold">${i + 1}</td>
                             <td dir="ltr" class="fw-bold text-end">#${tx.customId || tx._id.toString().slice(-6)}</td>
                             <td class="fw-bold">${tx.amount} <small class="text-muted">EGP</small></td>
@@ -850,7 +851,7 @@
                         // Mobile Render
                         if (mobileList) {
                             mobileList.innerHTML += `
-                            <div class="mobile-tx-card" ${tx.status === 'completed' ? `onclick="showReceiptModal('${tx.proofImage || ''}', '${(tx.proofImages || []).join(',')}')" style="cursor: pointer;" title="عرض إيصال التحويل"` : ''}>
+                            <div class="mobile-tx-card" ${hasProofImage ? `onclick="showReceiptModal('${tx.proofImage || ''}', '${(tx.proofImages || []).join(',')}')" style="cursor: pointer;" title="عرض إيصال التحويل"` : ''}>
                                 <div class="mobile-tx-header">
                                     <span class="tx-custom-id">#${tx.customId || tx._id.toString().slice(-6)}</span>
                                     <span>${stHtml}</span>
