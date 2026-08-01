@@ -10,6 +10,7 @@ const ClientEmployee = require('../models/ClientEmployee');
 const SubAccount = require('../models/SubAccount');
 const Notification = require('../models/Notification');
 const { resolveAccountByCode } = require('./accountCodeService');
+const { createBalanceTransferReceiptProof } = require('./balanceTransferReceiptService');
 
 const modelByName = {
     User,
@@ -188,7 +189,24 @@ const executeBalanceTransfer = async ({ source, targetCode, amount, notes = '', 
         );
         if (!targetAfter) throw new Error('TARGET_NOT_FOUND');
 
+        const receiptProofId = createBalanceTransferReceiptProof({
+            transferId,
+            sourceName: accountName(source),
+            sourceCode: source.doc.accountCode || '',
+            targetName: accountName(target),
+            targetCode: target.doc.accountCode || '',
+            amount: normalizedAmount,
+            sourceBalanceBefore: sourceAfter.balance + normalizedAmount,
+            sourceBalanceAfter: sourceAfter.balance,
+            targetBalanceBefore: targetAfter.balance - normalizedAmount,
+            targetBalanceAfter: targetAfter.balance,
+            notes: description,
+            createdAt: new Date()
+        });
+
         const sourceTx = await buildEntityTransactionFields(source, `${transferId}-D`, 'deduction', normalizedAmount, sourceNotes, session);
+        sourceTx.proofImage = receiptProofId;
+        sourceTx.proofImages = [receiptProofId];
         if (idempotencyKey) {
             sourceTx.idempotencyKey = idempotencyKey;
             sourceTx.idempotencyFingerprint = idempotencyFingerprint;
@@ -203,6 +221,8 @@ const executeBalanceTransfer = async ({ source, targetCode, amount, notes = '', 
             };
         }
         const targetTx = await buildEntityTransactionFields(target, `${transferId}-C`, 'deposit', normalizedAmount, targetNotes, session);
+        targetTx.proofImage = receiptProofId;
+        targetTx.proofImages = [receiptProofId];
         await Transaction.create([sourceTx, targetTx], options);
 
         const ledgerEntries = createLedgerEntries(source, target, transferId, normalizedAmount, sourceAfter, targetAfter);

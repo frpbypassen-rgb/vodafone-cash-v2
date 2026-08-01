@@ -870,6 +870,84 @@
         new bootstrap.Modal(document.getElementById('editRateModal')).show();
     }
 
+    function txEscape(value) {
+        return String(value ?? '---')
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#039;');
+    }
+
+    function txMoney(value) {
+        const amount = Number(value);
+        return Number.isFinite(amount) ? `${amount.toFixed(2)} LYD` : '---';
+    }
+
+    function renderBalanceTransferDetails(tx, ledgerInfo, pairInfo, formatDate) {
+        const transferId = pairInfo?.transferId || tx.customId.replace(/-[CD]$/, '');
+        const source = pairInfo?.source || {};
+        const target = pairInfo?.target || {};
+        const senderLedger = ledgerInfo ? ledgerInfo.find((item) => item.amount < 0) : null;
+        const receiverLedger = ledgerInfo ? ledgerInfo.find((item) => item.amount > 0) : null;
+        const sourceName = source.name || tx.accountName || tx.employeeName || '---';
+        const sourceCode = source.code || tx.accountNumber || tx.vodafoneNumber || '---';
+        const targetName = target.name || '---';
+        const targetCode = target.code || '---';
+        const sourceBefore = source.balanceBefore ?? senderLedger?.balanceBefore;
+        const sourceAfter = source.balanceAfter ?? senderLedger?.balanceAfter;
+        const targetBefore = target.balanceBefore ?? receiverLedger?.balanceBefore;
+        const targetAfter = target.balanceAfter ?? receiverLedger?.balanceAfter;
+        const receiptButton = (tx.proofImage || (tx.proofImages && tx.proofImages.length > 0))
+            ? `<button type="button" class="btn btn-success fw-bold rounded-pill px-4 mt-3" onclick="document.getElementById('m_proof_container')?.scrollIntoView({ behavior: 'smooth', block: 'center' });"><i class="fa-solid fa-receipt me-1"></i> عرض إيصال التحويل</button>`
+            : '';
+
+        return `
+            <div class="panel-title text-primary mb-3"><i class="fa-solid fa-right-left ms-2"></i> تحويل رصيد داخلي بين الحسابات</div>
+            <div class="p-4 rounded-4 mb-4" style="background: linear-gradient(135deg, rgba(15,118,110,0.12), rgba(37,99,235,0.06)); border: 1px solid rgba(15,118,110,0.18);">
+                <div class="d-flex flex-column flex-md-row align-items-stretch gap-3">
+                    <div class="flex-fill p-3 rounded-4 text-center" style="background: var(--card-bg); border: 1px solid var(--border-glass);">
+                        <div class="small text-muted fw-bold mb-1">المرسل</div>
+                        <div class="fw-bold text-danger fs-5">${txEscape(sourceName)}</div>
+                        <div class="mono-num text-muted mt-1">${txEscape(sourceCode)}</div>
+                    </div>
+                    <div class="d-flex align-items-center justify-content-center fs-2 text-primary px-2"><i class="fa-solid fa-circle-arrow-left"></i></div>
+                    <div class="flex-fill p-3 rounded-4 text-center" style="background: var(--card-bg); border: 1px solid var(--border-glass);">
+                        <div class="small text-muted fw-bold mb-1">المستقبل</div>
+                        <div class="fw-bold text-success fs-5">${txEscape(targetName)}</div>
+                        <div class="mono-num text-muted mt-1">${txEscape(targetCode)}</div>
+                    </div>
+                </div>
+                <div class="text-center mt-4">
+                    <div class="small text-muted fw-bold">المبلغ المحول</div>
+                    <div class="display-6 fw-bold text-primary mono-num">${txMoney(tx.amount)}</div>
+                    <span class="badge bg-success px-3 py-2 rounded-pill"><i class="fa-solid fa-circle-check me-1"></i> مكتملة بنجاح</span>
+                    ${receiptButton}
+                </div>
+            </div>
+            <div class="row g-3 mb-4">
+                <div class="col-md-6">
+                    <div class="p-3 rounded-4 h-100" style="background: rgba(239,68,68,0.06); border: 1px solid rgba(239,68,68,0.14);">
+                        <div class="fw-bold text-danger mb-3"><i class="fa-solid fa-wallet me-1"></i> رصيد المرسل</div>
+                        <div class="d-flex justify-content-between mb-2"><span class="text-muted fw-bold">قبل العملية</span><strong class="mono-num">${txMoney(sourceBefore)}</strong></div>
+                        <div class="d-flex justify-content-between"><span class="text-muted fw-bold">بعد العملية</span><strong class="mono-num text-danger">${txMoney(sourceAfter)}</strong></div>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="p-3 rounded-4 h-100" style="background: rgba(16,185,129,0.06); border: 1px solid rgba(16,185,129,0.14);">
+                        <div class="fw-bold text-success mb-3"><i class="fa-solid fa-wallet me-1"></i> رصيد المستقبل</div>
+                        <div class="d-flex justify-content-between mb-2"><span class="text-muted fw-bold">قبل العملية</span><strong class="mono-num">${txMoney(targetBefore)}</strong></div>
+                        <div class="d-flex justify-content-between"><span class="text-muted fw-bold">بعد العملية</span><strong class="mono-num text-success">${txMoney(targetAfter)}</strong></div>
+                    </div>
+                </div>
+            </div>
+            <div class="data-line"><span class="data-val mono-num fw-bold text-dark">${txEscape(source.customId || `${transferId}-D`)}</span><span class="data-label">رقم عملية الخصم:</span></div>
+            <div class="data-line"><span class="data-val mono-num fw-bold text-dark">${txEscape(target.customId || `${transferId}-C`)}</span><span class="data-label">رقم عملية الإيداع:</span></div>
+            <div class="data-line"><span class="data-val text-muted">${txEscape(formatDate(tx.createdAt))}</span><span class="data-label">تاريخ العملية:</span></div>
+            <div class="data-line"><span class="data-val text-muted">${txEscape(tx.notes || 'لا توجد ملاحظات')}</span><span class="data-label">الملاحظات:</span></div>
+        `;
+    }
+
     async function viewTransactionDetails(el) {
         const txData = JSON.parse(el.getAttribute('data-tx'));
         
@@ -889,6 +967,7 @@
         
         let tx = txData;
         let ledgerInfo = null;
+        let balanceTransferPair = null;
         
         try {
             const response = await fetch(`/transactions/${txData._id}/details`);
@@ -896,6 +975,7 @@
             if (resData.success) {
                 tx = resData.transaction;
                 ledgerInfo = resData.ledgerInfo;
+                balanceTransferPair = resData.balanceTransferPair;
             }
         } catch (err) {
             console.error('Error fetching transaction details:', err);
@@ -942,6 +1022,8 @@
         }
         
         if (isBalanceTransfer) {
+            htmlContent += renderBalanceTransferDetails(tx, ledgerInfo, balanceTransferPair, f);
+        } else if (false) {
             // 🔄 تصميم مخصص ومحسن لتحويل الرصيد بين العملاء
             let senderName = tx.accountName || '---';
             let senderCode = tx.accountNumber || tx.vodafoneNumber || '---';
@@ -1141,7 +1223,7 @@
 
         const container = document.getElementById('m_proof_container');
         if(container) {
-            if (isBalanceTransfer) {
+            if (false) {
                 container.innerHTML = '<div class="text-muted text-center py-4"><i class="fa-solid fa-circle-info fs-1 d-block mb-2 opacity-25"></i> تحويل رصيد داخلي لا يتطلب إثبات صور</div>';
             } else {
                 let proofs = [];

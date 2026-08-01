@@ -3,6 +3,7 @@ const router = express.Router();
 const https = require('https');
 const Transaction = require('../models/Transaction');
 const Ledger = require('../models/Ledger');
+const { createBalanceTransferReceiptProof } = require('../services/balanceTransferReceiptService');
 const ExecutorGroup = require('../models/ExecutorGroup');
 const ClientCompany = require('../models/ClientCompany');
 const User = require('../models/User');
@@ -567,12 +568,65 @@ router.get('/transactions/:id/details', async (req, res) => {
         if (!tx) return res.status(404).json({ success: false, error: 'العملية غير موجودة' });
         
         let ledgerInfo = null;
+        let balanceTransferPair = null;
         if (tx.transferType === 'balance_transfer') {
             const transferId = tx.customId.replace(/-[CD]$/, '');
-            ledgerInfo = await Ledger.find({ transactionId: transferId });
+            ledgerInfo = await Ledger.find({ transactionId: transferId }).lean();
+            const pairTransactions = await Transaction.find({
+                customId: { $in: [`${transferId}-D`, `${transferId}-C`] }
+            }).lean();
+
+            const sourceTx = pairTransactions.find((item) => item.status === 'deduction' || String(item.customId).endsWith('-D'));
+            const targetTx = pairTransactions.find((item) => item.status === 'deposit' || String(item.customId).endsWith('-C'));
+            const sourceLedger = ledgerInfo.find((item) => item.amount < 0);
+            const targetLedger = ledgerInfo.find((item) => item.amount > 0);
+            let receiptProof = sourceTx?.proofImage || targetTx?.proofImage || tx.proofImage;
+
+            if (!receiptProof && sourceTx && targetTx) {
+                receiptProof = createBalanceTransferReceiptProof({
+                    transferId,
+                    sourceName: sourceTx.accountName || sourceTx.employeeName || sourceTx.companyName,
+                    sourceCode: sourceTx.accountNumber || sourceTx.vodafoneNumber,
+                    targetName: targetTx.accountName || targetTx.employeeName || targetTx.companyName,
+                    targetCode: targetTx.accountNumber || targetTx.vodafoneNumber,
+                    amount: tx.amount,
+                    sourceBalanceBefore: sourceLedger?.balanceBefore,
+                    sourceBalanceAfter: sourceLedger?.balanceAfter,
+                    targetBalanceBefore: targetLedger?.balanceBefore,
+                    targetBalanceAfter: targetLedger?.balanceAfter,
+                    notes: tx.notes,
+                    createdAt: tx.createdAt
+                });
+
+                await Transaction.updateMany(
+                    { customId: { $in: [`${transferId}-D`, `${transferId}-C`] } },
+                    { $set: { proofImage: receiptProof, proofImages: [receiptProof] } }
+                );
+                tx.proofImage = receiptProof;
+                tx.proofImages = [receiptProof];
+            }
+
+            balanceTransferPair = {
+                transferId,
+                receiptProof,
+                source: sourceTx ? {
+                    customId: sourceTx.customId,
+                    name: sourceTx.accountName || sourceTx.employeeName || sourceTx.companyName || '---',
+                    code: sourceTx.accountNumber || sourceTx.vodafoneNumber || '---',
+                    balanceBefore: sourceLedger?.balanceBefore,
+                    balanceAfter: sourceLedger?.balanceAfter
+                } : null,
+                target: targetTx ? {
+                    customId: targetTx.customId,
+                    name: targetTx.accountName || targetTx.employeeName || targetTx.companyName || '---',
+                    code: targetTx.accountNumber || targetTx.vodafoneNumber || '---',
+                    balanceBefore: targetLedger?.balanceBefore,
+                    balanceAfter: targetLedger?.balanceAfter
+                } : null
+            };
         }
         
-        res.json({ success: true, transaction: tx, ledgerInfo });
+        res.json({ success: true, transaction: tx, ledgerInfo, balanceTransferPair });
     } catch (e) {
         console.error('[adminTransactions/GET details] خطأ:', e.message);
         res.status(500).json({ success: false, error: 'حدث خطأ أثناء تحميل تفاصيل العملية.' });

@@ -144,6 +144,10 @@ jest.mock('../utils/receiptGenerator', () => ({
     )
 }));
 
+jest.mock('../services/balanceTransferReceiptService', () => ({
+    createBalanceTransferReceiptProof: jest.fn().mockReturnValue('proofs/BTR-test_balance_transfer_receipt.svg')
+}));
+
 // Mock audit service to prevent crashes and verify no password leaking
 const mockLogAction = jest.fn().mockResolvedValue(undefined);
 jest.mock('../services/auditService', () => ({
@@ -169,6 +173,7 @@ const ClientCompany = require('../models/ClientCompany');
 const SubAccount = require('../models/SubAccount');
 const Transaction = require('../models/Transaction');
 const SupportTicket = require('../models/SupportTicket');
+const { createBalanceTransferReceiptProof } = require('../services/balanceTransferReceiptService');
 const { executeBalanceTransfer } = require('../services/balanceTransferService');
 
 const app = RouterApp();
@@ -296,6 +301,61 @@ describe('📱 Spec 014: Mobile Web Parity Bridge Tests', () => {
             expect(User.findOneAndUpdate).toHaveBeenCalledWith(
                 expect.any(Object),
                 expect.any(Object),
+                expect.objectContaining({ session: mockSessionObj })
+            );
+        });
+
+        test('executeBalanceTransfer attaches one generated receipt to debit and credit transactions', async () => {
+            const mockSessionObj = { id: 'session-1' };
+            const sourceAccount = {
+                modelName: 'User',
+                doc: { _id: 'src-id', status: 'active', balance: 1000, accountCode: '1001', name: 'Source Client' }
+            };
+            const targetAccount = {
+                modelName: 'User',
+                doc: { _id: 'target-id', status: 'active', balance: 500, accountCode: '1002', name: 'Target Client' },
+                label: 'عميل فردي'
+            };
+
+            User.findOneAndUpdate = jest.fn().mockResolvedValue({ _id: 'src-id', balance: 925 });
+            User.findByIdAndUpdate = jest.fn().mockResolvedValue({ _id: 'target-id', balance: 575 });
+            User.findById = jest.fn().mockResolvedValue(targetAccount.doc);
+
+            const accountCodeService = require('../services/accountCodeService');
+            accountCodeService.resolveAccountByCode.mockResolvedValue(targetAccount);
+
+            await executeBalanceTransfer({
+                source: sourceAccount,
+                targetCode: '1002',
+                amount: 75,
+                notes: 'internal transfer',
+                session: mockSessionObj
+            });
+
+            expect(createBalanceTransferReceiptProof).toHaveBeenCalledWith(expect.objectContaining({
+                sourceName: 'Source Client',
+                sourceCode: '1001',
+                targetName: 'Target Client',
+                targetCode: '1002',
+                amount: 75,
+                sourceBalanceBefore: 1000,
+                sourceBalanceAfter: 925,
+                targetBalanceBefore: 500,
+                targetBalanceAfter: 575
+            }));
+            expect(Transaction.create).toHaveBeenCalledWith(
+                [
+                    expect.objectContaining({
+                        customId: expect.stringMatching(/^BTR-\d{4}-0101-D$/),
+                        proofImage: 'proofs/BTR-test_balance_transfer_receipt.svg',
+                        proofImages: ['proofs/BTR-test_balance_transfer_receipt.svg']
+                    }),
+                    expect.objectContaining({
+                        customId: expect.stringMatching(/^BTR-\d{4}-0101-C$/),
+                        proofImage: 'proofs/BTR-test_balance_transfer_receipt.svg',
+                        proofImages: ['proofs/BTR-test_balance_transfer_receipt.svg']
+                    })
+                ],
                 expect.objectContaining({ session: mockSessionObj })
             );
         });
