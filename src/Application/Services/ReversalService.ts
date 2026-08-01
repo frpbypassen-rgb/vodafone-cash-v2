@@ -7,6 +7,7 @@ import logger from '../../../utils/logger';
 import eventBus from '../../../services/eventBus';
 
 const Counter = require('../../../models/Counter');
+const { isMongoTransactionFallbackError } = require('../../../services/walletService');
 
 type ReversalStatus = 'rejected' | 'cancelled_by_admin';
 
@@ -22,6 +23,12 @@ interface ReversalResult {
 }
 
 export class ReversalService {
+    private readonly reversibleStatuses = ['completed', 'accepted', 'processing', 'pending'];
+
+    private isReversibleStatus(status: string): boolean {
+        return this.reversibleStatuses.includes(status);
+    }
+
     private hasLegacyBalance(doc: any): boolean {
         return Number.isFinite(Number(doc?.balance));
     }
@@ -48,7 +55,7 @@ export class ReversalService {
             return TargetModel.findByIdAndUpdate(
                 targetId,
                 { $inc: { [balanceKey]: amount } },
-                { new: true, session }
+                { new: true, ...(session ? { session } : {}) }
             );
         }
 
@@ -72,10 +79,250 @@ export class ReversalService {
         const counter = await Counter.findOneAndUpdate(
             { name: `cancellation-${year}${month}` },
             { $inc: { value: 1 } },
-            { upsert: true, new: true, setDefaultsOnInsert: true, session }
+            { upsert: true, new: true, setDefaultsOnInsert: true, ...(session ? { session } : {}) }
         );
 
         return `CAN-${year}${month}-${String(counter.value).padStart(5, '0')}`;
+    }
+
+    private userLookup(userId: any): any {
+        const raw = String(userId || '').trim();
+        const candidates: any[] = [
+            { phone: raw },
+            { webUsername: raw },
+            { accountCode: raw },
+            { telegramId: raw }
+        ];
+
+        if (mongoose.Types.ObjectId.isValid(raw)) {
+            candidates.push({ _id: raw });
+        }
+
+        return { $or: candidates };
+    }
+
+    private withSession(query: any, session?: any): any {
+        return session ? query.session(session) : query;
+    }
+
+    private async resolveTarget(tx: any, session?: any): Promise<{ targetId: any; TargetModel: any; targetDoc: any }> {
+        let targetId: any;
+        let TargetModel: any;
+        let targetDoc: any;
+
+        if (tx.companyId) {
+            try {
+                TargetModel = mongoose.model('ClientCompany');
+            } catch (_) {
+                TargetModel = require('../../../models/ClientCompany');
+            }
+            targetDoc = await this.withSession(TargetModel.findById(tx.companyId), session);
+            if (targetDoc) targetId = targetDoc._id;
+        } else if (tx.userId) {
+            TargetModel = User;
+            targetDoc = await this.withSession(User.findOne(this.userLookup(tx.userId)), session);
+            if (targetDoc) targetId = targetDoc._id;
+        }
+
+        return { targetId, TargetModel, targetDoc };
+    }
+
+    private async saveWithOptionalSession(doc: any, session?: any): Promise<void> {
+        if (session) await doc.save({ session });
+        else await doc.save();
+    }
+
+    private async nextSequence(entityId: any, session?: any): Promise<number> {
+        const lastEvent = await this.withSession(
+            JournalEvent.findOne({ entityId }).sort({ sequenceNumber: -1 }),
+            session
+        );
+        return lastEvent ? lastEvent.sequenceNumber + 1 : 1;
+    }
+
+    private async refundTransactionBalances(tx: any, reason: string, performedBy: string, cancellationNumber: string, session?: any): Promise<void> {
+        const currency = 'EGP';
+        const cost = tx.costLYD || 0;
+        const { targetId, TargetModel, targetDoc } = await this.resolveTarget(tx, session);
+
+        if (tx.isSubAccountTx) {
+            const SubAccount = require('../../../models/SubAccount');
+            const subDoc = await this.withSession(SubAccount.findById(tx.subAccountId), session);
+            if (!subDoc) throw new Error('SUB_ACCOUNT_NOT_FOUND');
+
+            const subBalanceBefore = subDoc.balance || 0;
+            const updatedSub = await SubAccount.findByIdAndUpdate(
+                tx.subAccountId,
+                { $inc: { balance: tx.subAccountCostLYD || 0 } },
+                { new: true, ...(session ? { session } : {}) }
+            );
+            if (!updatedSub) throw new Error('SUB_ACCOUNT_NOT_FOUND');
+
+            await this.saveWithOptionalSession(new Ledger({
+                entityId: tx.subAccountId,
+                entityModel: 'SubAccount',
+                transactionId: tx.customId,
+                type: 'REFUND',
+                amount: tx.subAccountCostLYD || 0,
+                debitAccount: 'Assets:VodafoneCash',
+                creditAccount: 'Liabilities:ClientDeposits',
+                balanceBefore: subBalanceBefore,
+                balanceAfter: updatedSub.balance || 0,
+                description: `استرجاع تكلفة حوالة ملغاة رقم ${tx.customId} (رقم الإلغاء: ${cancellationNumber} | السبب: ${reason})`
+            }), session);
+
+            await this.saveWithOptionalSession(new JournalEvent({
+                eventType: 'TransferReversed',
+                entityId: tx.subAccountId,
+                entityModel: 'SubAccount',
+                amount: tx.subAccountCostLYD || 0,
+                currency,
+                sequenceNumber: await this.nextSequence(tx.subAccountId, session),
+                metadata: { transactionId: tx.customId, reason, performedBy, cancellationNumber }
+            }), session);
+
+            if (!targetDoc) throw new Error('CLIENT_NOT_FOUND');
+            const masterBalanceBefore = this.getWalletBalance(targetDoc, currency);
+            const updatedMaster = await this.applyRefund(TargetModel, targetDoc, targetId, currency, cost, session);
+            if (!updatedMaster) throw new Error('CLIENT_NOT_FOUND');
+            const masterBalanceAfter = this.getWalletBalance(updatedMaster, currency);
+
+            await this.saveWithOptionalSession(new Ledger({
+                entityId: targetId,
+                entityModel: TargetModel.modelName,
+                transactionId: tx.customId,
+                type: 'REFUND',
+                amount: cost,
+                debitAccount: 'Assets:VodafoneCash',
+                creditAccount: 'Liabilities:ClientDeposits',
+                balanceBefore: masterBalanceBefore,
+                balanceAfter: masterBalanceAfter,
+                description: `استرجاع تكلفة حوالة ملغاة من نقطة بيع (${tx.subAccountName || '---'}) رقم ${tx.customId} (رقم الإلغاء: ${cancellationNumber} | السبب: ${reason})`
+            }), session);
+
+            await this.saveWithOptionalSession(new JournalEvent({
+                eventType: 'TransferReversed',
+                entityId: targetId,
+                entityModel: TargetModel.modelName,
+                amount: cost,
+                currency,
+                sequenceNumber: await this.nextSequence(targetId, session),
+                metadata: { transactionId: tx.customId, reason, performedBy, cancellationNumber }
+            }), session);
+            return;
+        }
+
+        if (!targetDoc) throw new Error('CLIENT_NOT_FOUND');
+
+        const balanceBefore = this.getWalletBalance(targetDoc, currency);
+        const updatedTarget = await this.applyRefund(TargetModel, targetDoc, targetId, currency, cost, session);
+        if (!updatedTarget) throw new Error('CLIENT_NOT_FOUND');
+        const balanceAfter = this.getWalletBalance(updatedTarget, currency);
+
+        await this.saveWithOptionalSession(new Ledger({
+            entityId: targetId,
+            entityModel: tx.companyId ? 'ClientCompany' : 'User',
+            transactionId: tx.customId,
+            type: 'REFUND',
+            amount: cost,
+            debitAccount: 'Assets:VodafoneCash',
+            creditAccount: 'Liabilities:ClientDeposits',
+            balanceBefore,
+            balanceAfter,
+            description: `استرجاع تكلفة الحوالة رقم ${tx.customId} (رقم الإلغاء: ${cancellationNumber} | السبب: ${reason})`
+        }), session);
+
+        await this.saveWithOptionalSession(new JournalEvent({
+            eventType: 'TransferReversed',
+            entityId: targetId,
+            entityModel: tx.companyId ? 'ClientCompany' : 'User',
+            amount: cost,
+            currency,
+            sequenceNumber: await this.nextSequence(targetId, session),
+            metadata: { transactionId: tx.customId, reason, performedBy, cancellationNumber }
+        }), session);
+    }
+
+    private async reverseTransactionWithoutMongoTransaction(txId: string, reason: string, performedBy: string, options: ReversalOptions): Promise<ReversalResult> {
+        const cancellationNumber = options.cancellationNumber || await this.nextCancellationNumber(null);
+        const cancelledAt = new Date();
+        const targetStatus = options.status || 'cancelled_by_admin';
+        const reversalLock = new mongoose.Types.ObjectId().toString();
+
+        const TransactionModel = Transaction as any;
+        const tx: any = await TransactionModel.findOneAndUpdate(
+            {
+                _id: txId,
+                status: { $in: this.reversibleStatuses },
+                cancellationNumber: { $exists: false },
+                reversalLock: { $exists: false }
+            },
+            {
+                $set: {
+                    reversalLock,
+                    reversalLockAt: cancelledAt,
+                    cancellationNumber,
+                    cancellationReason: reason,
+                    cancelledBy: performedBy,
+                    cancelledAt
+                }
+            },
+            { new: true, strict: false }
+        );
+
+        if (!tx) {
+            const existing: any = await TransactionModel.findById(txId);
+            if (!existing) return { success: false, message: 'العملية غير موجودة' };
+            if (!this.isReversibleStatus(existing.status)) {
+                return { success: false, message: 'حالة العملية لا تسمح بالإلغاء والاسترجاع' };
+            }
+            return { success: false, message: 'العملية قيد الإلغاء حالياً، يرجى المحاولة بعد لحظات' };
+        }
+
+        try {
+            await this.refundTransactionBalances(tx, reason, performedBy, cancellationNumber);
+            const notes = (tx.notes ? `${tx.notes}\n` : '')
+                + `[تم الاسترجاع بواسطة: ${performedBy} | السبب: ${reason}]\n`
+                + `[رقم الإلغاء: ${cancellationNumber} | تاريخ الإلغاء: ${cancelledAt.toISOString()}]`;
+
+            await TransactionModel.updateOne(
+                { _id: tx._id, reversalLock },
+                {
+                    $set: {
+                        status: targetStatus,
+                        notes,
+                        cancellationNumber,
+                        cancellationReason: reason,
+                        cancelledBy: performedBy,
+                        cancelledAt
+                    },
+                    $unset: { reversalLock: '', reversalLockAt: '' }
+                },
+                { strict: false }
+            );
+
+            const freshTx = await TransactionModel.findById(tx._id);
+            eventBus.publish('transfer:cancelled', { tx: freshTx || tx, reason, cancellationNumber });
+            logger.info(`Transaction ${tx.customId} reversed without Mongo transaction by ${performedBy} with cancellation ${cancellationNumber}`);
+            return { success: true, message: 'تم إلغاء العملية واسترداد الرصيد بنجاح', cancellationNumber };
+        } catch (error: any) {
+            await TransactionModel.updateOne(
+                { _id: tx._id, reversalLock },
+                {
+                    $unset: {
+                        reversalLock: '',
+                        reversalLockAt: '',
+                        cancellationNumber: '',
+                        cancellationReason: '',
+                        cancelledBy: '',
+                        cancelledAt: ''
+                    }
+                },
+                { strict: false }
+            );
+            logger.error(`Failed fallback reverse transaction ${txId}`, { error: error.message });
+            return { success: false, message: `فشل الاسترجاع: ${error.message}` };
+        }
     }
 
     /**
@@ -93,7 +340,7 @@ export class ReversalService {
                 return { success: false, message: 'العملية غير موجودة' };
             }
 
-            if (tx.status !== 'completed' && tx.status !== 'accepted' && tx.status !== 'processing' && tx.status !== 'pending') {
+            if (!this.isReversibleStatus(tx.status)) {
                 await session.abortTransaction();
                 return { success: false, message: 'حالة العملية لا تسمح بالإلغاء والاسترجاع' };
             }
@@ -118,7 +365,7 @@ export class ReversalService {
                 if (targetDoc) targetId = targetDoc._id;
             } else if (tx.userId) {
                 TargetModel = User;
-                targetDoc = await User.findOne({ phone: tx.userId }).session(session);
+                targetDoc = await User.findOne(this.userLookup(tx.userId)).session(session);
                 if (targetDoc) targetId = targetDoc._id;
             }
 
@@ -300,6 +547,10 @@ export class ReversalService {
         } catch (error: any) {
             await session.abortTransaction();
             session.endSession();
+            if (isMongoTransactionFallbackError(error)) {
+                logger.warn(`Mongo transactions unavailable; falling back to non-transactional reversal for ${txId}`, { error: error.message });
+                return this.reverseTransactionWithoutMongoTransaction(txId, reason, performedBy, options);
+            }
             logger.error(`Failed to reverse transaction ${txId}`, { error: error.message });
             return { success: false, message: `فشل الاسترجاع: ${error.message}` };
         }

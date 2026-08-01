@@ -26,14 +26,20 @@ const mockCounterFindOneAndUpdate = jest.fn().mockResolvedValue({ value: 7 });
 
 // mock dependencies
 jest.mock('../src/Domain/Entities/Transaction', () => ({
-    findById: jest.fn().mockReturnValue({
-        session: jest.fn().mockResolvedValue(mockTx)
-    })
+    findById: jest.fn(() => {
+        const query = Promise.resolve(mockTx);
+        query.session = jest.fn().mockResolvedValue(mockTx);
+        return query;
+    }),
+    findOneAndUpdate: jest.fn(),
+    updateOne: jest.fn()
 }));
 
 jest.mock('../src/Domain/Entities/User', () => ({
-    findOne: jest.fn().mockReturnValue({
-        session: jest.fn().mockResolvedValue(mockUser)
+    findOne: jest.fn(() => {
+        const query = Promise.resolve(mockUser);
+        query.session = jest.fn().mockResolvedValue(mockUser);
+        return query;
     })
 }));
 
@@ -51,8 +57,10 @@ jest.mock('../src/Domain/Entities/JournalEvent', () => {
         save: mockEventSave
     }));
     M.findOne = jest.fn().mockReturnValue({
-        sort: jest.fn().mockReturnValue({
-            session: jest.fn().mockResolvedValue(mockLastEvent)
+        sort: jest.fn(() => {
+            const query = Promise.resolve(mockLastEvent);
+            query.session = jest.fn().mockResolvedValue(mockLastEvent);
+            return query;
         })
     });
     return M;
@@ -87,6 +95,8 @@ describe('Reversal Service Tests', () => {
         mockTx.cancelledAt = undefined;
         mockUser.balances.EGP = 1000;
         mockCounterFindOneAndUpdate.mockResolvedValue({ value: 7 });
+        Transaction.findOneAndUpdate.mockResolvedValue(mockTx);
+        Transaction.updateOne.mockResolvedValue({ modifiedCount: 1 });
         mockSession = {
             startTransaction: jest.fn(),
             commitTransaction: jest.fn().mockResolvedValue(undefined),
@@ -107,7 +117,9 @@ describe('Reversal Service Tests', () => {
         expect(result.message).toBe('تم إلغاء العملية واسترداد الرصيد بنجاح');
 
         expect(Transaction.findById).toHaveBeenCalledWith('tx-id-123');
-        expect(User.findOne).toHaveBeenCalledWith({ phone: 'user-phone-123' });
+        expect(User.findOne).toHaveBeenCalledWith(expect.objectContaining({
+            $or: expect.arrayContaining([expect.objectContaining({ phone: 'user-phone-123' })])
+        }));
         expect(mockUser.balances.EGP).toBe(1150); // 1000 + 150 cost
         expect(mockTx.status).toBe('cancelled_by_admin');
         expect(mockTx.cancellationNumber).toBe(expectedCancellationNumber);
@@ -125,6 +137,46 @@ describe('Reversal Service Tests', () => {
             'transfer:cancelled',
             expect.objectContaining({ cancellationNumber: expectedCancellationNumber })
         );
+    });
+
+    test('Should fall back when MongoDB transactions are unavailable', async () => {
+        const now = new Date();
+        const expectedPeriod = `${String(now.getFullYear()).slice(-2)}${String(now.getMonth() + 1).padStart(2, '0')}`;
+        const expectedCancellationNumber = `CAN-${expectedPeriod}-00008`;
+        mockCounterFindOneAndUpdate
+            .mockRejectedValueOnce(new Error('Transaction numbers are only allowed on a replica set member or mongos'))
+            .mockResolvedValueOnce({ value: 8 });
+
+        const result = await reversalService.reverseTransaction('tx-id-123', 'Standalone Mongo fallback', 'Admin-Ali');
+
+        expect(result.success).toBe(true);
+        expect(result.cancellationNumber).toBe(expectedCancellationNumber);
+        expect(mockSession.abortTransaction).toHaveBeenCalled();
+        expect(Transaction.findOneAndUpdate).toHaveBeenCalledWith(
+            expect.objectContaining({
+                _id: 'tx-id-123',
+                status: { $in: ['completed', 'accepted', 'processing', 'pending'] }
+            }),
+            expect.objectContaining({
+                $set: expect.objectContaining({
+                    cancellationNumber: expectedCancellationNumber,
+                    cancellationReason: 'Standalone Mongo fallback'
+                })
+            }),
+            { new: true, strict: false }
+        );
+        expect(Transaction.updateOne).toHaveBeenCalledWith(
+            expect.objectContaining({ _id: mockTx._id }),
+            expect.objectContaining({
+                $set: expect.objectContaining({
+                    status: 'cancelled_by_admin',
+                    cancellationNumber: expectedCancellationNumber
+                }),
+                $unset: { reversalLock: '', reversalLockAt: '' }
+            }),
+            { strict: false }
+        );
+        expect(mockUser.balances.EGP).toBe(1150);
     });
 
     test('Should fail if transaction is not found', async () => {
