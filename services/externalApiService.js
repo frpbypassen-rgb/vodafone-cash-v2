@@ -4,6 +4,81 @@ const https = require('https');
 const puppeteer = require('puppeteer');
 const { getApiProviderPreset } = require('../utils/apiProviderPresets');
 
+const normalizeBaseUrl = (value) => {
+    let baseUrl = String(value || '').trim().replace(/\/+$/, '');
+    if (baseUrl && !baseUrl.startsWith('http')) baseUrl = `https://${baseUrl}`;
+    return baseUrl;
+};
+
+const parseNumberOrDefault = (value, fallback) => {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+};
+
+const numberOrZero = (value) => {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : 0;
+};
+
+const resolveApiProviderConfig = (apiBot = {}) => {
+    const preset = getApiProviderPreset(apiBot.apiProviderKey);
+    const baseUrl = normalizeBaseUrl(apiBot.apiUrl || process.env.ZAYN_AGGREGATOR_URL || process.env.ZAYNPAY_URL || preset.apiUrl);
+
+    return {
+        preset,
+        baseUrl,
+        apiUsername: apiBot.apiUsername || process.env.ZAYN_USERNAME || process.env.ZAYNPAY_USERNAME,
+        apiPassword: apiBot.apiPassword || process.env.ZAYN_PASSWORD || process.env.ZAYNPAY_PASSWORD,
+        staticToken: (apiBot.apiToken || process.env.ZAYN_API_TOKEN || process.env.ZAYNPAY_API_TOKEN || '').replace(/^Bearer\s+/i, '').trim(),
+        serviceId: parseNumberOrDefault(apiBot.apiServiceId || process.env.ZAYN_AGGREGATOR_SERVICE_ID || process.env.ZAYNPAY_SERVICE_ID, preset.serviceId),
+        providerId: parseNumberOrDefault(apiBot.apiProviderId || process.env.ZAYN_AGGREGATOR_PROVIDER_ID || process.env.ZAYNPAY_PROVIDER_ID, preset.providerId),
+        fieldId: parseNumberOrDefault(apiBot.apiFieldId || process.env.ZAYN_AGGREGATOR_FIELD_ID || process.env.ZAYNPAY_FIELD_ID, preset.fieldId),
+        machineSerial: apiBot.apiMachineSerial || process.env.ZAYN_AGGREGATOR_MACHINE_SERIAL || process.env.ZAYNPAY_MACHINE_SERIAL || preset.machineSerial,
+        defaultHeaders: {
+            'Content-Type': 'application/json',
+            'User-Agent': 'Mozilla/5.0 Ahram-Server/1.0',
+            'Accept': 'application/json',
+            'app-version': 'xyz67'
+        }
+    };
+};
+
+const authorizeApiProvider = async (config, addLog) => {
+    const authPayload = {
+        UserName: config.apiUsername,
+        Password: config.apiPassword,
+        AppType: config.preset.appType,
+        AppId: config.preset.appId,
+        VersionID: config.preset.versionId
+    };
+
+    let freshToken = config.staticToken;
+    if (!freshToken && (!authPayload.UserName || !authPayload.Password)) {
+        addLog("AUTH_ERROR", "بيانات مزود الـ API مفقودة من بيانات المنفذ أو ملف .env");
+        return { success: false, message: 'خطأ إعدادات: بيانات الاتصال مفقودة' };
+    }
+
+    if (!freshToken) {
+        addLog("AUTH", "جاري إرسال طلب تسجيل الدخول...");
+        const authRes = await axios.post(`${config.baseUrl}/api/Account/GetToken`, authPayload, { headers: config.defaultHeaders, timeout: 15000 });
+
+        if (authRes.data.Code !== 200 || !authRes.data.Data || !authRes.data.Data.Access_Token) {
+            addLog("AUTH_FAIL", authRes.data.Message || "تم رفض تسجيل الدخول من الشركة");
+            return { success: false, message: 'فشل تسجيل الدخول لشركة زين' };
+        }
+
+        freshToken = authRes.data.Data.Access_Token;
+        addLog("AUTH_SUCCESS", "تم استلام التوكن بنجاح");
+    } else {
+        addLog("AUTH_TOKEN", "تم استخدام Token محفوظ في بيانات المنفذ");
+    }
+
+    return {
+        success: true,
+        headers: { ...config.defaultHeaders, 'Authorization': `Bearer ${freshToken}`, 'Accept-Language': 'ar-EG' }
+    };
+};
+
 // 🚀 دالة التخاطب مع شركة زين
 const executeTransferViaApi = async (tx, apiBot) => {
     let processLog = [];
@@ -15,54 +90,13 @@ const executeTransferViaApi = async (tx, apiBot) => {
     try {
         const targetNumber = tx.vodafoneNumber || tx.accountNumber;
         const amount = tx.amount;
-        const preset = getApiProviderPreset(apiBot.apiProviderKey);
-        
-        let baseUrl = apiBot.apiUrl ? apiBot.apiUrl.replace(/\/$/, '') : (process.env.ZAYN_AGGREGATOR_URL || process.env.ZAYNPAY_URL || preset.apiUrl);
-        if (!baseUrl.startsWith('http')) baseUrl = 'https://' + baseUrl;
-        const apiUsername = apiBot.apiUsername || process.env.ZAYN_USERNAME || process.env.ZAYNPAY_USERNAME;
-        const apiPassword = apiBot.apiPassword || process.env.ZAYN_PASSWORD || process.env.ZAYNPAY_PASSWORD;
-        const staticToken = (apiBot.apiToken || process.env.ZAYN_API_TOKEN || process.env.ZAYNPAY_API_TOKEN || '').replace(/^Bearer\s+/i, '').trim();
-        const serviceId = Number(apiBot.apiServiceId || process.env.ZAYN_AGGREGATOR_SERVICE_ID || process.env.ZAYNPAY_SERVICE_ID || preset.serviceId);
-        const providerId = Number(apiBot.apiProviderId || process.env.ZAYN_AGGREGATOR_PROVIDER_ID || process.env.ZAYNPAY_PROVIDER_ID || preset.providerId);
-        const fieldId = Number(apiBot.apiFieldId || process.env.ZAYN_AGGREGATOR_FIELD_ID || process.env.ZAYNPAY_FIELD_ID || preset.fieldId);
-        const machineSerial = apiBot.apiMachineSerial || process.env.ZAYN_AGGREGATOR_MACHINE_SERIAL || process.env.ZAYNPAY_MACHINE_SERIAL || preset.machineSerial;
-
-        const defaultHeaders = {
-            'Content-Type': 'application/json',
-            'User-Agent': 'Mozilla/5.0 Ahram-Server/1.0',
-            'Accept': 'application/json'
-        };
-
-        const authPayload = {
-            UserName: apiUsername,
-            Password: apiPassword,
-            AppType: preset.appType,
-            AppId: preset.appId,
-            VersionID: preset.versionId
-        };
-
-        let freshToken = staticToken;
-        if (!freshToken && (!authPayload.UserName || !authPayload.Password)) {
-            addLog("AUTH_ERROR", "بيانات شركة زين مفقودة من ملف .env");
-            return { success: false, message: 'خطأ إعدادات: بيانات الاتصال مفقودة', processLog: processLog.join('\n') };
+        const config = resolveApiProviderConfig(apiBot || {});
+        const { preset, baseUrl, serviceId, providerId, fieldId, machineSerial } = config;
+        const auth = await authorizeApiProvider(config, addLog);
+        if (!auth.success) {
+            return { success: false, message: auth.message, processLog: processLog.join('\n') };
         }
-
-        if (!freshToken) {
-            addLog("AUTH", "جاري إرسال طلب تسجيل الدخول...");
-            const authRes = await axios.post(`${baseUrl}/api/Account/GetToken`, authPayload, { headers: defaultHeaders, timeout: 15000 });
-
-            if (authRes.data.Code !== 200 || !authRes.data.Data || !authRes.data.Data.Access_Token) {
-                addLog("AUTH_FAIL", authRes.data.Message || "تم رفض تسجيل الدخول من الشركة");
-                return { success: false, message: 'فشل تسجيل الدخول لشركة زين', processLog: processLog.join('\n') };
-            }
-
-            freshToken = authRes.data.Data.Access_Token;
-            addLog("AUTH_SUCCESS", `تم استلام التوكن بنجاح`);
-        } else {
-            addLog("AUTH_TOKEN", "تم استخدام Token محفوظ في بيانات المنفذ");
-        }
-
-        const headers = { ...defaultHeaders, 'Authorization': `Bearer ${freshToken}`, 'Accept-Language': 'ar-EG' };
+        const headers = auth.headers;
         
         addLog("PROVIDER", `${preset.name} | ServiceId=${serviceId} | CurrentServiceProviderId=${providerId} | FieldId=${fieldId}`);
         addLog("INQUIRY", `جاري الاستعلام وفحص الرقم [${targetNumber}]...`);
@@ -138,8 +172,64 @@ const executeTransferViaApi = async (tx, apiBot) => {
         }
 
     } catch (error) {
-        addLog("SYSTEM_ERROR", error.message);
-        return { success: false, message: 'خطأ في الاتصال بسيرفر الشركة', processLog: processLog.join('\n') };
+        const providerMessage = error.response && error.response.data
+            ? (error.response.data.Message || JSON.stringify(error.response.data))
+            : error.message;
+        addLog("SYSTEM_ERROR", providerMessage);
+        return { success: false, message: providerMessage || 'خطأ في الاتصال بسيرفر الشركة', processLog: processLog.join('\n') };
+    }
+};
+
+const getApiProviderBalance = async (apiBot) => {
+    const processLog = [];
+    const addLog = (step, detail) => {
+        const timeStr = new Date().toLocaleTimeString('en-GB', { hour12: false });
+        processLog.push(`[${timeStr}] ${step}: ${detail}`);
+    };
+
+    try {
+        const config = resolveApiProviderConfig(apiBot || {});
+        const auth = await authorizeApiProvider(config, addLog);
+        if (!auth.success) {
+            return { success: false, message: auth.message, processLog: processLog.join('\n') };
+        }
+
+        addLog("BALANCE", "جاري استعلام الرصيد المتاح من المزود...");
+        const balanceRes = await axios.post(`${config.baseUrl}/api/Account/GetBalance`, {}, { headers: auth.headers, timeout: 20000 });
+        const responseData = balanceRes.data || {};
+        const rawBalance = responseData.Data || {};
+
+        if (responseData.Code !== 200 || !responseData.Data) {
+            addLog("BALANCE_FAIL", responseData.Message || "رد غير متوقع من مزود الخدمة");
+            return {
+                success: false,
+                message: responseData.Message || 'فشل استعلام الرصيد من مزود الخدمة',
+                processLog: processLog.join('\n')
+            };
+        }
+
+        const serviceCredit = numberOrZero(rawBalance.ServiceCredit);
+        const cashCredit = numberOrZero(rawBalance.CashCredit);
+        const availableBalance = numberOrZero(rawBalance.AvailableBalance ?? rawBalance.Balance ?? (serviceCredit + cashCredit));
+
+        addLog("BALANCE_SUCCESS", `ServiceCredit=${serviceCredit} | CashCredit=${cashCredit} | Available=${availableBalance}`);
+
+        return {
+            success: true,
+            message: responseData.Message || 'تم استعلام الرصيد بنجاح',
+            serviceCredit,
+            cashCredit,
+            availableBalance,
+            balance: availableBalance,
+            rawData: rawBalance,
+            processLog: processLog.join('\n')
+        };
+    } catch (error) {
+        const providerMessage = error.response && error.response.data
+            ? (error.response.data.Message || JSON.stringify(error.response.data))
+            : error.message;
+        addLog("SYSTEM_ERROR", providerMessage);
+        return { success: false, message: providerMessage || 'خطأ في الاتصال بسيرفر مزود الخدمة', processLog: processLog.join('\n') };
     }
 };
 
@@ -163,4 +253,4 @@ const generateCustomReceipt = async (tx, apiResult) => {
     } catch (error) { return null; } finally { if (browser) await browser.close(); }
 };
 
-module.exports = { executeTransferViaApi, generateCustomReceipt };
+module.exports = { executeTransferViaApi, getApiProviderBalance, generateCustomReceipt };

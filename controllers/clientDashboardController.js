@@ -21,7 +21,10 @@ exports.getDashboard = async (req, res) => {
         if (account.status && account.status !== 'active') return res.redirect('/client/logout');
 
         const search = req.query.search ? req.query.search.trim() : '';
-        let targetDate = req.query.date; let showMonth = req.query.month === 'true'; let dateLabel = '';
+        let targetDate = req.query.date;
+        const hasExplicitDateFilter = req.query.date !== undefined || req.query.month !== undefined;
+        let showMonth = req.query.month === 'true' || !hasExplicitDateFilter;
+        let dateLabel = '';
 
         let filter = {};
         if (isSubAccount) { filter.subAccountId = account._id; }

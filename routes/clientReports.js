@@ -68,12 +68,19 @@ router.post('/reports/filter', requireClientAuth, async (req, res) => {
         const accountType = req.session.accountType === 'company'
             ? 'client_company'
             : req.session.accountType;
+        const now = new Date();
+        const defaultDateType = reportInput.dateType || 'month';
+        const defaultDateValue = reportInput.dateValue || (
+            defaultDateType === 'month'
+                ? `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
+                : `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
+        );
 
         const reportData = await getClientReports({
             userId: req.session.clientId,
             accountType,
-            dateType: reportInput.dateType,
-            dateValue: reportInput.dateValue,
+            dateType: defaultDateType,
+            dateValue: defaultDateValue,
             tenantId: req.tenantId
         });
 

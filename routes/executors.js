@@ -7,6 +7,7 @@ const Notification = require('../models/Notification');
 const { requireAuth, requireMaster } = require('../middlewares/auth');
 const { syncBotBalance } = require('../utils/helpers');
 const { DEFAULT_API_PROVIDER_KEY, getApiProviderPreset, getApiProviderPresets } = require('../utils/apiProviderPresets');
+const { getApiProviderBalance } = require('../services/externalApiService');
 
 const normalizeText = (value) => String(value || '').trim();
 const parseNumberOrDefault = (value, fallback) => {
@@ -104,6 +105,33 @@ router.get('/executor/:id', requireAuth, async (req, res) => {
 
         res.render('executor_details', { bot, transactions, managerBots, adminName: req.session.adminName });
     } catch (e) { res.redirect('/executors'); }
+});
+
+router.post('/executor/:id/test-api', requireAuth, async (req, res) => {
+    try {
+        const bot = await ExecutorGroup.findById(req.params.id);
+        if (!bot || !bot.isApiBot) {
+            return res.status(404).json({ success: false, message: 'لم يتم العثور على منفذ API صالح للاختبار' });
+        }
+
+        bot.lastApiTestStatus = 'pending';
+        bot.lastApiTestAt = new Date();
+        await bot.save();
+
+        const result = await getApiProviderBalance(bot);
+        bot.lastApiTestStatus = result.success ? 'success' : 'failed';
+        bot.lastApiTestAt = new Date();
+        bot.lastApiTestMessage = result.message || '';
+        bot.lastApiServiceCredit = result.success ? result.serviceCredit : null;
+        bot.lastApiCashCredit = result.success ? result.cashCredit : null;
+        bot.lastApiAvailableBalance = result.success ? result.availableBalance : null;
+        await bot.save();
+
+        return res.status(result.success ? 200 : 502).json(result);
+    } catch (e) {
+        console.error('[executor/test-api] failed:', e.stack || e.message);
+        return res.status(500).json({ success: false, message: 'حدث خطأ أثناء اختبار منفذ API' });
+    }
 });
 
 router.post('/executor/:id/settle', requireAuth, async (req, res) => {

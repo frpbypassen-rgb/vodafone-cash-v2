@@ -53,8 +53,9 @@ function getDateRange(dateStr, monthStr) {
         const end = new Date(year, parseInt(month), 0, 23, 59, 59, 999);
         return { start, end };
     }
-    const start = new Date(); start.setHours(0, 0, 0, 0);
-    const end = new Date(); end.setHours(23, 59, 59, 999);
+    const now = new Date();
+    const start = new Date(now.getFullYear(), now.getMonth(), 1); start.setHours(0, 0, 0, 0);
+    const end = new Date(now.getFullYear(), now.getMonth() + 1, 0); end.setHours(23, 59, 59, 999);
     return { start, end };
 }
 

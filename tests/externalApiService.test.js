@@ -5,7 +5,7 @@ jest.mock('axios', () => ({
 }));
 
 const axios = require('axios');
-const { executeTransferViaApi } = require('../services/externalApiService');
+const { executeTransferViaApi, getApiProviderBalance } = require('../services/externalApiService');
 
 describe('externalApiService', () => {
     beforeEach(() => {
@@ -14,6 +14,8 @@ describe('externalApiService', () => {
         delete process.env.ZAYN_PASSWORD;
         delete process.env.ZAYNPAY_USERNAME;
         delete process.env.ZAYNPAY_PASSWORD;
+        delete process.env.ZAYN_API_TOKEN;
+        delete process.env.ZAYNPAY_API_TOKEN;
     });
 
     const mockSuccessFlow = () => {
@@ -137,6 +139,48 @@ describe('externalApiService', () => {
                 InqueryAmount: 10
             }),
             expect.any(Object)
+        );
+    });
+
+    test('checks provider balance through GetBalance', async () => {
+        axios.post
+            .mockResolvedValueOnce({
+                data: {
+                    Code: 200,
+                    Data: { Access_Token: 'token-456' }
+                }
+            })
+            .mockResolvedValueOnce({
+                data: {
+                    Code: 200,
+                    Message: 'عمليه ناجحه',
+                    Data: {
+                        ServiceCredit: 23,
+                        CashCredit: 7
+                    }
+                }
+            });
+
+        const result = await getApiProviderBalance({
+            apiProviderKey: 'zayn_external_aggregator',
+            apiUrl: 'https://zayn.example/',
+            apiUsername: 'api-user',
+            apiPassword: 'api-pass'
+        });
+
+        expect(result.success).toBe(true);
+        expect(result.serviceCredit).toBe(23);
+        expect(result.cashCredit).toBe(7);
+        expect(result.availableBalance).toBe(30);
+
+        expect(axios.post).toHaveBeenNthCalledWith(
+            2,
+            'https://zayn.example/api/Account/GetBalance',
+            {},
+            expect.objectContaining({
+                headers: expect.objectContaining({ Authorization: 'Bearer token-456' }),
+                timeout: 20000
+            })
         );
     });
 });

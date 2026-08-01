@@ -80,15 +80,15 @@ router.get('/transactions', async (req, res) => {
         let toDate = req.query.toDate;
         const filterType = req.query.filterType || '';
 
-        // Default to today if fromDate and toDate are not specified
+        // Default to the current full month if fromDate and toDate are not specified.
         if (fromDate === undefined && toDate === undefined) {
             const today = new Date();
             const year = today.getFullYear();
-            const month = String(today.getMonth() + 1).padStart(2, '0');
-            const day = String(today.getDate()).padStart(2, '0');
-            const todayStr = `${year}-${month}-${day}`;
-            fromDate = todayStr;
-            toDate = todayStr;
+            const monthNumber = today.getMonth() + 1;
+            const month = String(monthNumber).padStart(2, '0');
+            const lastDay = String(new Date(year, monthNumber, 0).getDate()).padStart(2, '0');
+            fromDate = `${year}-${month}-01`;
+            toDate = `${year}-${month}-${lastDay}`;
         } else {
             fromDate = fromDate || '';
             toDate = toDate || '';
@@ -192,15 +192,15 @@ router.get('/transactions/print', async (req, res) => {
         let toDate = req.query.toDate;
         const filterType = req.query.filterType || '';
 
-        // Default to today if fromDate and toDate are not specified
+        // Default to the current full month if fromDate and toDate are not specified.
         if (fromDate === undefined && toDate === undefined) {
             const today = new Date();
             const year = today.getFullYear();
-            const month = String(today.getMonth() + 1).padStart(2, '0');
-            const day = String(today.getDate()).padStart(2, '0');
-            const todayStr = `${year}-${month}-${day}`;
-            fromDate = todayStr;
-            toDate = todayStr;
+            const monthNumber = today.getMonth() + 1;
+            const month = String(monthNumber).padStart(2, '0');
+            const lastDay = String(new Date(year, monthNumber, 0).getDate()).padStart(2, '0');
+            fromDate = `${year}-${month}-01`;
+            toDate = `${year}-${month}-${lastDay}`;
         } else {
             fromDate = fromDate || '';
             toDate = toDate || '';

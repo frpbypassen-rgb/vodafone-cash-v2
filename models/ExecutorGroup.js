@@ -20,7 +20,13 @@ const executorGroupSchema = new mongoose.Schema({
     apiServiceId: { type: Number, default: 85 },
     apiProviderId: { type: Number, default: 16 },
     apiFieldId: { type: Number, default: 5488 },
-    apiMachineSerial: { type: String, default: 'XP1' }
+    apiMachineSerial: { type: String, default: 'XP1' },
+    lastApiTestAt: { type: Date },
+    lastApiTestStatus: { type: String, enum: ['success', 'failed', 'pending'], default: undefined },
+    lastApiTestMessage: { type: String, default: '' },
+    lastApiServiceCredit: { type: Number, default: null },
+    lastApiCashCredit: { type: Number, default: null },
+    lastApiAvailableBalance: { type: Number, default: null }
 }, { timestamps: true });
 
 module.exports = mongoose.model('ExecutorGroup', executorGroupSchema);

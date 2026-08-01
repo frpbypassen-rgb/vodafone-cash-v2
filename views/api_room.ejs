@@ -13,6 +13,9 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.rtl.min.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800;900&family=JetBrains+Mono:wght@700&display=swap" rel="stylesheet">
+    <script>
+        const csrfToken = <%- JSON.stringify(typeof csrfToken !== 'undefined' ? csrfToken : '') %>;
+    </script>
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 
     <style>
@@ -123,6 +126,27 @@
                             <div class="col-md-3">
                                 <label class="form-label text-muted small">Machine Serial</label>
                                 <input type="text" class="form-control" value="<%= bot.apiMachineSerial || 'XP1' %>" readonly>
+                            </div>
+                        </div>
+
+                        <div class="p-3 rounded-3 mb-3" style="background:#0f172a; border:1px solid #334155;">
+                            <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+                                <div>
+                                    <div class="fw-bold text-light"><i class="fa-solid fa-signal text-info me-1"></i> اختبار اتصال المزود</div>
+                                    <small class="<%= bot.lastApiTestStatus === 'success' ? 'text-success' : (bot.lastApiTestStatus === 'failed' ? 'text-danger' : 'text-muted') %>">
+                                        <% if (bot.lastApiTestAt) { %>
+                                            آخر اختبار: <%= new Date(bot.lastApiTestAt).toLocaleString('ar-EG') %>
+                                            <% if (bot.lastApiAvailableBalance !== null && bot.lastApiAvailableBalance !== undefined) { %>
+                                                | المتاح: <span dir="ltr"><%= Number(bot.lastApiAvailableBalance).toFixed(2) %></span>
+                                            <% } %>
+                                        <% } else { %>
+                                            لم يتم اختبار هذا المنفذ بعد
+                                        <% } %>
+                                    </small>
+                                </div>
+                                <button type="button" class="btn btn-info fw-bold px-4" data-api-bot-id="<%= bot._id %>" onclick="testApiExecutor(this)">
+                                    <i class="fa-solid fa-plug-circle-check me-1"></i> اختبار الرصيد
+                                </button>
                             </div>
                         </div>
                         
@@ -268,6 +292,68 @@
             width: '600px',
             customClass: { popup: 'border border-secondary rounded-4' }
         });
+    }
+
+    function escapeHtml(value) {
+        return String(value ?? '')
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#039;');
+    }
+
+    async function testApiExecutor(button) {
+        const botId = button?.dataset?.apiBotId;
+        if (!botId) return;
+        const originalHtml = button.innerHTML;
+        button.disabled = true;
+        button.innerHTML = '<i class="fa-solid fa-spinner fa-spin me-1"></i> جاري الاختبار...';
+
+        try {
+            const res = await fetch(`/executor/${encodeURIComponent(botId)}/test-api`, {
+                method: 'POST',
+                headers: {
+                    'Accept': 'application/json',
+                    'Content-Type': 'application/json',
+                    'x-csrf-token': csrfToken
+                },
+                body: '{}'
+            });
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok || !data.success) {
+                throw new Error(data.message || data.error || 'فشل اختبار منفذ API');
+            }
+
+            Swal.fire({
+                icon: 'success',
+                title: 'الاتصال يعمل',
+                html: `
+                    <div style="direction:rtl;text-align:right;line-height:1.9">
+                        <div><b>رصيد الخدمة:</b> <span dir="ltr">${Number(data.serviceCredit || 0).toFixed(2)}</span></div>
+                        <div><b>الرصيد النقدي:</b> <span dir="ltr">${Number(data.cashCredit || 0).toFixed(2)}</span></div>
+                        <div><b>الرصيد المتاح:</b> <span dir="ltr">${Number(data.availableBalance || data.balance || 0).toFixed(2)}</span></div>
+                    </div>
+                `,
+                background: '#1e293b',
+                color: '#fff',
+                confirmButtonColor: '#0ea5e9',
+                confirmButtonText: 'تحديث الصفحة'
+            }).then(() => window.location.reload());
+        } catch (error) {
+            Swal.fire({
+                icon: 'error',
+                title: 'فشل اختبار الاتصال',
+                html: `<div style="direction:rtl;text-align:right">${escapeHtml(error.message)}</div>`,
+                background: '#1e293b',
+                color: '#fff',
+                confirmButtonColor: '#ef4444',
+                confirmButtonText: 'إغلاق'
+            });
+        } finally {
+            button.disabled = false;
+            button.innerHTML = originalHtml;
+        }
     }
 </script>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
