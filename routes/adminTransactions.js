@@ -582,8 +582,8 @@ router.get('/transactions/:id/details', async (req, res) => {
             const targetLedger = ledgerInfo.find((item) => item.amount > 0);
             let receiptProof = sourceTx?.proofImage || targetTx?.proofImage || tx.proofImage;
 
-            if (!receiptProof && sourceTx && targetTx) {
-                receiptProof = createBalanceTransferReceiptProof({
+            if (sourceTx && targetTx) {
+                const generatedReceiptProof = createBalanceTransferReceiptProof({
                     transferId,
                     sourceName: sourceTx.accountName || sourceTx.employeeName || sourceTx.companyName,
                     sourceCode: sourceTx.accountNumber || sourceTx.vodafoneNumber,
@@ -598,6 +598,7 @@ router.get('/transactions/:id/details', async (req, res) => {
                     createdAt: tx.createdAt
                 });
 
+                receiptProof = generatedReceiptProof;
                 await Transaction.updateMany(
                     { customId: { $in: [`${transferId}-D`, `${transferId}-C`] } },
                     { $set: { proofImage: receiptProof, proofImages: [receiptProof] } }

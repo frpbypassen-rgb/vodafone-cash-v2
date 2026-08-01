@@ -11,12 +11,28 @@ const escapeXml = (value) => String(value ?? '')
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&apos;');
 
-const formatAmount = (value) => `${Number(value || 0).toFixed(2)} LYD`;
+const compactText = (value, max = 34) => {
+    const text = String(value || '-').trim();
+    return text.length > max ? `${text.slice(0, max - 3)}...` : text;
+};
+
+const formatAmount = (value) => {
+    const amount = Number(value);
+    return Number.isFinite(amount) ? `${amount.toFixed(2)} LYD` : '---';
+};
 
 const formatDate = (value) => {
     const date = value ? new Date(value) : new Date();
     return date.toLocaleString('en-GB', { hour12: true });
 };
+
+const rtlText = (x, y, value, className, anchor = 'end') => (
+    `<text x="${x}" y="${y}" text-anchor="${anchor}" class="${className}">${escapeXml(value)}</text>`
+);
+
+const ltrText = (x, y, value, className, anchor = 'start') => (
+    `<text x="${x}" y="${y}" text-anchor="${anchor}" class="${className}">${escapeXml(value)}</text>`
+);
 
 const createBalanceTransferReceiptProof = ({
     transferId,
@@ -36,84 +52,108 @@ const createBalanceTransferReceiptProof = ({
     const fileName = `${safeId}_balance_transfer_receipt.svg`;
     const fullPath = proofFilePath(fileName);
     const proofId = `proofs/${path.basename(fileName)}`;
+    const issuedAt = formatDate(createdAt);
+    const cleanNotes = compactText(notes || 'لا توجد ملاحظات', 48);
 
     fs.mkdirSync(path.dirname(fullPath), { recursive: true });
 
-    const rows = [
-        ['رقم العملية', transferId],
-        ['المرسل', `${sourceName || '-'} (${sourceCode || '-'})`],
-        ['المستقبل', `${targetName || '-'} (${targetCode || '-'})`],
-        ['المبلغ', formatAmount(amount)],
-        ['التاريخ', formatDate(createdAt)],
-        ['الملاحظة', notes || '-']
+    const detailRows = [
+        ['رقم العملية', transferId || '-'],
+        ['تاريخ التنفيذ', issuedAt],
+        ['حالة العملية', 'مكتملة بنجاح'],
+        ['الملاحظات', cleanNotes]
     ];
 
-    const rowSvg = rows.map(([label, value], index) => {
-        const y = 410 + index * 58;
+    const detailsSvg = detailRows.map(([label, value], index) => {
+        const y = 608 + index * 58;
         return `
-            <text x="520" y="${y}" class="label">${escapeXml(label)}</text>
-            <text x="80" y="${y}" class="value">${escapeXml(value)}</text>
-            <line x1="80" y1="${y + 20}" x2="520" y2="${y + 20}" class="dash"/>`;
+            ${rtlText(602, y, label, 'detail-label')}
+            ${rtlText(86, y, value, 'detail-value', 'start')}
+            <line x1="82" y1="${y + 20}" x2="604" y2="${y + 20}" class="soft-line"/>`;
     }).join('');
 
     const svg = `<?xml version="1.0" encoding="UTF-8"?>
-<svg xmlns="http://www.w3.org/2000/svg" width="600" height="920" viewBox="0 0 600 920">
+<svg xmlns="http://www.w3.org/2000/svg" width="686" height="980" viewBox="0 0 686 980">
     <defs>
+        <linearGradient id="headerGradient" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0%" stop-color="#0f172a"/>
+            <stop offset="100%" stop-color="#0f766e"/>
+        </linearGradient>
+        <linearGradient id="amountGradient" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0%" stop-color="#ecfdf5"/>
+            <stop offset="100%" stop-color="#eff6ff"/>
+        </linearGradient>
+        <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+            <feDropShadow dx="0" dy="14" stdDeviation="18" flood-color="#0f172a" flood-opacity="0.12"/>
+        </filter>
         <style>
-            .brand { font: 800 42px Arial, Tahoma, sans-serif; fill: #0f172a; }
-            .title { font: 800 30px Arial, Tahoma, sans-serif; fill: #0f766e; direction: rtl; unicode-bidi: bidi-override; }
-            .subtitle { font: 700 18px Arial, Tahoma, sans-serif; fill: #64748b; direction: rtl; unicode-bidi: bidi-override; }
-            .node-title { font: 700 16px Arial, Tahoma, sans-serif; fill: #64748b; direction: rtl; unicode-bidi: bidi-override; }
-            .node-name { font: 800 19px Arial, Tahoma, sans-serif; fill: #0f172a; direction: rtl; unicode-bidi: bidi-override; }
-            .node-code { font: 700 16px Consolas, monospace; fill: #334155; }
-            .amount { font: 900 38px Consolas, monospace; fill: #0f766e; }
-            .label { font: 800 19px Arial, Tahoma, sans-serif; fill: #64748b; text-anchor: end; direction: rtl; unicode-bidi: bidi-override; }
-            .value { font: 800 19px Arial, Tahoma, sans-serif; fill: #111827; text-anchor: start; direction: rtl; unicode-bidi: bidi-override; }
-            .balance-label { font: 700 15px Arial, Tahoma, sans-serif; fill: #64748b; direction: rtl; unicode-bidi: bidi-override; }
-            .balance-value { font: 800 17px Consolas, monospace; fill: #111827; }
-            .dash { stroke: #d1d5db; stroke-width: 1.4; stroke-dasharray: 7 8; }
-            .small { font: 700 15px Arial, Tahoma, sans-serif; fill: #64748b; direction: rtl; unicode-bidi: bidi-override; }
+            .brand { font: 900 36px Arial, Tahoma, sans-serif; fill: #ffffff; letter-spacing: 0.4px; }
+            .header-title { font: 800 28px Arial, Tahoma, sans-serif; fill: #ffffff; }
+            .header-subtitle { font: 700 16px Arial, Tahoma, sans-serif; fill: #d1fae5; }
+            .status { font: 800 14px Arial, Tahoma, sans-serif; fill: #065f46; }
+            .section-title { font: 800 19px Arial, Tahoma, sans-serif; fill: #0f172a; }
+            .small-muted { font: 700 14px Arial, Tahoma, sans-serif; fill: #64748b; }
+            .node-name { font: 900 22px Arial, Tahoma, sans-serif; fill: #0f172a; }
+            .node-code { font: 800 16px Consolas, monospace; fill: #334155; }
+            .amount-label { font: 800 16px Arial, Tahoma, sans-serif; fill: #0f766e; }
+            .amount-value { font: 900 44px Consolas, monospace; fill: #0f766e; }
+            .detail-label { font: 800 17px Arial, Tahoma, sans-serif; fill: #64748b; }
+            .detail-value { font: 800 18px Arial, Tahoma, sans-serif; fill: #111827; }
+            .balance-label { font: 800 14px Arial, Tahoma, sans-serif; fill: #64748b; }
+            .balance-value { font: 900 16px Consolas, monospace; fill: #111827; }
+            .footer { font: 700 14px Arial, Tahoma, sans-serif; fill: #64748b; }
+            .soft-line { stroke: #e2e8f0; stroke-width: 1.4; }
         </style>
     </defs>
-    <rect width="600" height="920" rx="28" fill="#f8fafc"/>
-    <rect x="38" y="38" width="524" height="844" rx="22" fill="#ffffff" stroke="#e2e8f0" stroke-width="2"/>
-    <text x="300" y="102" text-anchor="middle" class="brand">Ahram Pay</text>
-    <line x1="135" y1="128" x2="465" y2="128" class="dash"/>
-    <circle cx="300" cy="182" r="38" fill="#0f766e"/>
-    <path d="M279 183h38m0 0l-14-14m14 14l-14 14" fill="none" stroke="#ffffff" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/>
-    <text x="300" y="250" text-anchor="middle" class="title">إيصال تحويل رصيد داخلي</text>
-    <text x="300" y="278" text-anchor="middle" class="subtitle">تم تنفيذ العملية بنجاح بين حسابين داخل المنظومة</text>
 
-    <rect x="70" y="315" width="190" height="68" rx="14" fill="#fee2e2" stroke="#fecaca"/>
-    <text x="165" y="340" text-anchor="middle" class="node-title">المرسل</text>
-    <text x="165" y="365" text-anchor="middle" class="node-name">${escapeXml(sourceName || '-')}</text>
-    <text x="165" y="385" text-anchor="middle" class="node-code">${escapeXml(sourceCode || '-')}</text>
+    <rect width="686" height="980" fill="#f6f8fb"/>
+    <rect x="34" y="30" width="618" height="920" rx="28" fill="#ffffff" filter="url(#shadow)"/>
 
-    <rect x="340" y="315" width="190" height="68" rx="14" fill="#dcfce7" stroke="#bbf7d0"/>
-    <text x="435" y="340" text-anchor="middle" class="node-title">المستقبل</text>
-    <text x="435" y="365" text-anchor="middle" class="node-name">${escapeXml(targetName || '-')}</text>
-    <text x="435" y="385" text-anchor="middle" class="node-code">${escapeXml(targetCode || '-')}</text>
+    <rect x="54" y="50" width="578" height="156" rx="24" fill="url(#headerGradient)"/>
+    ${rtlText(604, 96, 'إيصال تحويل بين الحسابات', 'header-title')}
+    ${rtlText(604, 128, 'مستند إلكتروني معتمد لحركة رصيد داخلية', 'header-subtitle')}
+    <text x="84" y="174" text-anchor="start" class="brand">Ahram Pay</text>
+    <rect x="452" y="154" width="154" height="34" rx="17" fill="#d1fae5"/>
+    ${rtlText(586, 177, 'تم التنفيذ بنجاح', 'status')}
 
-    <text x="300" y="361" text-anchor="middle" font-size="28" font-family="Arial" fill="#2563eb">←</text>
-    ${rowSvg}
+    <rect x="76" y="236" width="534" height="118" rx="22" fill="url(#amountGradient)" stroke="#cbd5e1"/>
+    ${rtlText(343, 271, 'المبلغ المحول', 'amount-label', 'middle')}
+    <text x="343" y="322" text-anchor="middle" class="amount-value">${escapeXml(formatAmount(amount))}</text>
 
-    <rect x="80" y="760" width="440" height="78" rx="16" fill="#ecfdf5" stroke="#bbf7d0"/>
-    <text x="300" y="793" text-anchor="middle" class="subtitle">المبلغ المحول</text>
-    <text x="300" y="823" text-anchor="middle" class="amount">${escapeXml(formatAmount(amount))}</text>
+    ${rtlText(610, 398, 'مسار العملية', 'section-title')}
+    <rect x="378" y="424" width="232" height="112" rx="20" fill="#fff1f2" stroke="#fecdd3"/>
+    ${rtlText(586, 456, 'من حساب', 'small-muted')}
+    ${rtlText(586, 488, compactText(sourceName, 24), 'node-name')}
+    ${ltrText(402, 520, sourceCode || '-', 'node-code')}
 
-    <g>
-        <text x="430" y="680" class="balance-label">رصيد المرسل: قبل</text>
-        <text x="270" y="680" class="balance-value">${escapeXml(formatAmount(sourceBalanceBefore))}</text>
-        <text x="185" y="680" class="balance-label">بعد</text>
-        <text x="80" y="680" class="balance-value">${escapeXml(formatAmount(sourceBalanceAfter))}</text>
-        <line x1="80" y1="700" x2="520" y2="700" class="dash"/>
-        <text x="430" y="730" class="balance-label">رصيد المستقبل: قبل</text>
-        <text x="270" y="730" class="balance-value">${escapeXml(formatAmount(targetBalanceBefore))}</text>
-        <text x="185" y="730" class="balance-label">بعد</text>
-        <text x="80" y="730" class="balance-value">${escapeXml(formatAmount(targetBalanceAfter))}</text>
-    </g>
+    <circle cx="343" cy="480" r="28" fill="#eff6ff" stroke="#bfdbfe" stroke-width="2"/>
+    <path d="M355 480H328m0 0l11-11m-11 11l11 11" fill="none" stroke="#2563eb" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
 
-    <text x="300" y="865" text-anchor="middle" class="small">تم إصدار هذا الإيصال تلقائياً من منظومة Ahram Pay.</text>
+    <rect x="76" y="424" width="232" height="112" rx="20" fill="#ecfdf5" stroke="#bbf7d0"/>
+    ${rtlText(284, 456, 'إلى حساب', 'small-muted')}
+    ${rtlText(284, 488, compactText(targetName, 24), 'node-name')}
+    ${ltrText(100, 520, targetCode || '-', 'node-code')}
+
+    ${rtlText(610, 578, 'تفاصيل العملية', 'section-title')}
+    <rect x="68" y="590" width="550" height="250" rx="20" fill="#ffffff" stroke="#e2e8f0"/>
+    ${detailsSvg}
+
+    <rect x="356" y="852" width="262" height="72" rx="17" fill="#fff1f2" stroke="#fecdd3"/>
+    ${rtlText(596, 875, 'رصيد المرسل', 'balance-label')}
+    ${rtlText(596, 899, 'قبل', 'balance-label')}
+    ${ltrText(378, 899, formatAmount(sourceBalanceBefore), 'balance-value')}
+    ${rtlText(596, 918, 'بعد', 'balance-label')}
+    ${ltrText(378, 918, formatAmount(sourceBalanceAfter), 'balance-value')}
+    <rect x="68" y="852" width="262" height="72" rx="17" fill="#ecfdf5" stroke="#bbf7d0"/>
+    ${rtlText(308, 875, 'رصيد المستقبل', 'balance-label')}
+    ${rtlText(308, 899, 'قبل', 'balance-label')}
+    ${ltrText(90, 899, formatAmount(targetBalanceBefore), 'balance-value')}
+    ${rtlText(308, 918, 'بعد', 'balance-label')}
+    ${ltrText(90, 918, formatAmount(targetBalanceAfter), 'balance-value')}
+
+    <line x1="84" y1="924" x2="602" y2="924" stroke="#e2e8f0" stroke-width="1.4" stroke-dasharray="7 8"/>
+    ${rtlText(602, 946, 'تم إصدار هذا الإيصال تلقائياً ولا يحتاج إلى توقيع يدوي.', 'footer')}
+    <text x="84" y="946" text-anchor="start" class="footer">${escapeXml(transferId || '-')}</text>
 </svg>`;
 
     fs.writeFileSync(fullPath, svg, 'utf8');
