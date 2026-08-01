@@ -13,14 +13,16 @@ const ClientEmployee = require('../../../models/ClientEmployee');
 const ClientCompany = require('../../../models/ClientCompany');
 const Counter = require('../../../models/Counter');
 const Settings = require('../../../models/Settings');
+const SubAccount = require('../../../models/SubAccount');
 const { logAction } = require('../../../services/auditService');
-const { getRateForTier } = require('../../../utils/rateHelper');
+const { getRateForTier, getServiceRatesForTier } = require('../../../utils/rateHelper');
+const { getTransferServiceDefinition } = require('../../../utils/mobileTransferServiceCatalog');
 const { acquireLock, releaseLock } = require('../../../services/lockService');
 const eventBus = require('../../../services/eventBus');
 import logger from '../../../utils/logger';
 
 export interface ITransferInput {
-    transferType: 'vodafone' | 'post_account' | 'post_card';
+    transferType: 'vodafone' | 'post_account' | 'post_card' | 'bank_account' | 'sefa_niger' | 'bankak_sudan';
     amount: number;
     number: string;
     name?: string;
@@ -28,6 +30,8 @@ export interface ITransferInput {
     currency?: 'EGP' | 'USD' | 'EUR' | 'LYD' | 'SAR';
     idCardImage?: string;
     oldReceiptImage?: string;
+    serviceSubtype?: 'nita' | 'nita_account';
+    city?: string;
 }
 
 export class TransferService {
@@ -39,7 +43,9 @@ export class TransferService {
             amount: Number(Number(input.amount).toFixed(3)),
             number: input.number?.trim() || null,
             name: input.name?.trim() || null,
-            notes: input.notes?.trim() || null
+            notes: input.notes?.trim() || null,
+            serviceSubtype: input.serviceSubtype?.trim() || null,
+            city: input.city?.trim() || null
         };
         return crypto.createHash('sha256').update(JSON.stringify(payload)).digest('hex');
     }
@@ -125,11 +131,29 @@ export class TransferService {
 
         try {
             const transferType = transferData.transferType;
+            const serviceDefinition = getTransferServiceDefinition(transferType);
+            if (!serviceDefinition || !serviceDefinition.mobileEnabled) {
+                await session.abortTransaction();
+                session.endSession();
+                return {
+                    success: false,
+                    statusCode: 400,
+                    code: 'UNSUPPORTED_TRANSFER_TYPE',
+                    message: 'نوع التحويل غير مدعوم في تطبيق الموبايل'
+                };
+            }
             const amount = Number(transferData.amount);
             const number = transferData.number?.trim();
             const name = transferData.name?.trim();
             const notes = transferData.notes?.trim();
+            const serviceSubtype = transferData.serviceSubtype?.trim();
+            const city = transferData.city?.trim();
             const currency = transferData.currency || 'EGP';
+            const storedNotes = [
+                notes,
+                serviceSubtype ? `serviceSubtype=${serviceSubtype}` : null,
+                city ? `city=${city}` : null
+            ].filter(Boolean).join(' | ');
 
             const idempotencyFingerprint = this.buildTransferFingerprint(userId, accountType, transferData);
 
@@ -212,34 +236,92 @@ export class TransferService {
             }
 
             // 5. حساب الرسوم والأسعار
-            let finalRate = currentRate;
-            if (transferType === 'post_account') finalRate = currentRate - 0.05;
-            else if (transferType === 'post_card') finalRate = currentRate - 0.15;
+            let isSubAccountTx = !!clientInfo.isSubAccount;
+            const serviceRates = getServiceRatesForTier(clientInfo.tier || 1, settings);
+            let finalRate = serviceRates[transferType] || currentRate;
 
-            const costLYD = parseFloat((amount / finalRate).toFixed(3));
+            let masterRate = 0;
+            let actualSubRate = 0;
+            let subCostLYD = 0;
+            let masterCostLYD = 0;
+            let commission = 0;
+
+            if (isSubAccountTx) {
+                const masterObj = clientInfo.masterObj;
+                const clientTier = masterObj.tier || 1;
+                const tierRate = getRateForTier(clientTier, settings);
+                const masterServiceRates = getServiceRatesForTier(clientTier, settings);
+                masterRate = masterServiceRates[transferType] || tierRate;
+
+                actualSubRate = Number((masterRate - clientInfo.customMargin).toFixed(2));
+                if (actualSubRate <= 0) actualSubRate = masterRate;
+
+                subCostLYD = parseFloat((amount / actualSubRate).toFixed(3));
+                masterCostLYD = parseFloat((amount / masterRate).toFixed(3));
+                commission = parseFloat((subCostLYD - masterCostLYD).toFixed(3));
+            }
+
+            const costLYD = isSubAccountTx ? masterCostLYD : parseFloat((amount / finalRate).toFixed(3));
             const minRequiredBalance = costLYD - creditLimit;
 
             // 6. التحقق من الرصيد والخصم (Multi-Currency Wallet)
+            let updatedClient: any;
+            let updatedMaster: any;
             const balanceKey = this.balancePath(clientDoc, currency);
             const currentBalance = this.getWalletBalance(clientDoc, currency);
 
-            if (currentBalance < minRequiredBalance) {
-                await session.abortTransaction();
-                session.endSession();
-                return { success: false, statusCode: 400, code: 'INSUFFICIENT_BALANCE', message: 'رصيد المحفظة غير كافٍ لإتمام العملية بالعملة المطلوبة' };
-            }
+            if (isSubAccountTx) {
+                const subAccount = clientInfo.subAccount;
+                const masterObj = clientInfo.masterObj;
+                const MasterModel = clientInfo.MasterModel;
 
-            // خصم الرصيد
-            const updatedClient = await TargetModel.findOneAndUpdate(
-                { _id: targetId, [balanceKey]: { $gte: minRequiredBalance } },
-                { $inc: { [balanceKey]: -costLYD } },
-                { new: true, session }
-            );
+                const minSubBalance = subCostLYD - (subAccount.creditLimit || 0);
+                const minMasterBalance = masterCostLYD - (masterObj.creditLimit || 0);
 
-            if (!updatedClient) {
-                await session.abortTransaction();
-                session.endSession();
-                return { success: false, statusCode: 400, code: 'INSUFFICIENT_BALANCE', message: 'رصيد غير كافٍ أو تغير أثناء العملية' };
+                // 🟢 الخصم الذري لنقطة البيع
+                const updatedSub = await SubAccount.findOneAndUpdate(
+                    { _id: subAccount._id, balance: { $gte: minSubBalance } },
+                    { $inc: { balance: -subCostLYD } },
+                    { new: true, session }
+                );
+                if (!updatedSub) {
+                    await session.abortTransaction();
+                    session.endSession();
+                    return { success: false, statusCode: 400, code: 'INSUFFICIENT_BALANCE', message: 'رصيد الحساب التابع غير كافٍ لإتمام العملية' };
+                }
+
+                // 🟢 الخصم الذري للرئيسي
+                updatedMaster = await MasterModel.findOneAndUpdate(
+                    { _id: masterObj._id, balance: { $gte: minMasterBalance } },
+                    { $inc: { balance: -masterCostLYD } },
+                    { new: true, session }
+                );
+                if (!updatedMaster) {
+                    await session.abortTransaction();
+                    session.endSession();
+                    return { success: false, statusCode: 400, code: 'INSUFFICIENT_BALANCE', message: 'رصيد الحساب الرئيسي غير كافٍ لإتمام العملية' };
+                }
+
+                updatedClient = updatedSub;
+            } else {
+                if (currentBalance < minRequiredBalance) {
+                    await session.abortTransaction();
+                    session.endSession();
+                    return { success: false, statusCode: 400, code: 'INSUFFICIENT_BALANCE', message: 'رصيد المحفظة غير كافٍ لإتمام العملية بالعملة المطلوبة' };
+                }
+
+                // خصم الرصيد
+                updatedClient = await TargetModel.findOneAndUpdate(
+                    { _id: targetId, [balanceKey]: { $gte: minRequiredBalance } },
+                    { $inc: { [balanceKey]: -costLYD } },
+                    { new: true, session }
+                );
+
+                if (!updatedClient) {
+                    await session.abortTransaction();
+                    session.endSession();
+                    return { success: false, statusCode: 400, code: 'INSUFFICIENT_BALANCE', message: 'رصيد غير كافٍ أو تغير أثناء العملية' };
+                }
             }
 
             // 7. توليد رقم العملية (ATT Invoice ID)
@@ -264,9 +346,27 @@ export class TransferService {
             }
 
             const newTx = new Transaction({
-                userId: userIdForTx, companyId: companyIdForTx, amount, exchangeRate: finalRate,
-                costLYD, transferType, vodafoneNumber: number, accountName: name, notes,
-                status: 'pending', customId, companyName, employeeName,
+                customId,
+                userId: userIdForTx,
+                companyId: companyIdForTx,
+                subAccountId: isSubAccountTx ? clientInfo.subAccount._id : undefined,
+                subAccountName: isSubAccountTx ? clientInfo.subAccount.name : undefined,
+                companyName: isSubAccountTx ? clientInfo.masterObj.name : companyName,
+                employeeName: employeeName,
+                vodafoneNumber: number,
+                transferType,
+                accountName: name,
+                accountNumber: number,
+                amount,
+                costLYD: isSubAccountTx ? masterCostLYD : costLYD,
+                subAccountCostLYD: isSubAccountTx ? subCostLYD : 0,
+                commission: isSubAccountTx ? commission : 0,
+                exchangeRate: isSubAccountTx ? masterRate : finalRate,
+                subClientRate: isSubAccountTx ? actualSubRate : 0,
+                notes: storedNotes,
+                status: 'pending',
+                isSubAccountTx,
+                masterProfit: isSubAccountTx ? commission : 0,
                 idempotencyKey,
                 idempotencyFingerprint,
                 idCardImage: savedIdCardPath,
@@ -276,15 +376,47 @@ export class TransferService {
             });
 
             // 9. القيد المزدوج في دفتر الأستاذ (Double-Entry Ledger)
-            const ledgerEntry = new Ledger({
-                entityId: targetId, entityModel: TargetModel.modelName, transactionId: customId,
-                type: 'TRANSFER', amount: -costLYD,
-                debitAccount: 'Liabilities:ClientDeposits',
-                creditAccount: 'Assets:Receivables',
-                balanceBefore: currentBalance, balanceAfter: this.getWalletBalance(updatedClient, currency),
-                description: `تحويل حوالة مالية بقيمة ${amount} EGP - رقم العملية ${customId}`
-            });
-            await ledgerEntry.save({ session });
+            if (isSubAccountTx) {
+                // Ledger لنقطة البيع
+                const ledgerSub = new Ledger({
+                    entityId: clientInfo.subAccount._id,
+                    entityModel: 'SubAccount',
+                    transactionId: customId,
+                    type: 'TRANSFER',
+                    amount: -subCostLYD,
+                    debitAccount: 'Liabilities:ClientDeposits',
+                    creditAccount: 'Assets:Receivables',
+                    balanceBefore: clientInfo.subAccount.balance,
+                    balanceAfter: updatedClient.balance,
+                    description: `تحويل حوالة مالية بقيمة ${amount} EGP إلى ${number}`
+                });
+                await ledgerSub.save({ session });
+
+                // Ledger للرئيسي
+                const ledgerMaster = new Ledger({
+                    entityId: clientInfo.masterObj._id,
+                    entityModel: clientInfo.MasterModel.modelName,
+                    transactionId: customId,
+                    type: 'TRANSFER',
+                    amount: -masterCostLYD,
+                    debitAccount: 'Liabilities:ClientDeposits',
+                    creditAccount: 'Assets:Receivables',
+                    balanceBefore: clientInfo.masterObj.balance,
+                    balanceAfter: updatedMaster.balance,
+                    description: `تحويل من نقطة بيع (${clientInfo.subAccount.name}): ${amount} EGP إلى ${number}`
+                });
+                await ledgerMaster.save({ session });
+            } else {
+                const ledgerEntry = new Ledger({
+                    entityId: targetId, entityModel: TargetModel.modelName, transactionId: customId,
+                    type: 'TRANSFER', amount: -costLYD,
+                    debitAccount: 'Liabilities:ClientDeposits',
+                    creditAccount: 'Assets:Receivables',
+                    balanceBefore: currentBalance, balanceAfter: this.getWalletBalance(updatedClient, currency),
+                    description: `تحويل حوالة مالية بقيمة ${amount} EGP - رقم العملية ${customId}`
+                });
+                await ledgerEntry.save({ session });
+            }
 
             // 10. حفظ الحدث (Event Sourcing)
             const lastEvent = await JournalEvent.findOne({ entityId: targetId }).sort({ sequenceNumber: -1 }).session(session);
@@ -293,7 +425,7 @@ export class TransferService {
                 eventType: 'MoneyWithdrawn',
                 entityId: targetId,
                 entityModel: TargetModel.modelName,
-                amount: costLYD,
+                amount: isSubAccountTx ? subCostLYD : costLYD,
                 currency: 'LYD',
                 sequenceNumber,
                 metadata: {
@@ -308,9 +440,11 @@ export class TransferService {
                 message: 'تم إرسال طلبك بنجاح',
                 txId: customId,
                 status: 'pending',
-                costLYD,
-                exchangeRate: finalRate,
-                newBalance: this.getWalletBalance(updatedClient, currency),
+                transferType,
+                transferTypeLabel: serviceDefinition.label,
+                costLYD: isSubAccountTx ? subCostLYD : costLYD,
+                exchangeRate: isSubAccountTx ? actualSubRate : finalRate,
+                newBalance: isSubAccountTx ? updatedClient.balance : this.getWalletBalance(updatedClient, currency),
                 serverTime: new Date().toISOString()
             };
             newTx.idempotencyResponse = successBody;
@@ -330,7 +464,7 @@ export class TransferService {
                 performedByName: employeeName,
                 targetId: newTx._id,
                 targetModel: 'Transaction',
-                newData: { customId, amount, transferType, costLYD, exchangeRate: finalRate },
+                newData: { customId, amount, transferType, costLYD, exchangeRate: isSubAccountTx ? actualSubRate : finalRate },
                 metadata: { companyName, balance: this.getWalletBalance(updatedClient, currency) }
             });
 
@@ -410,44 +544,135 @@ export class TransferService {
                 }
             }
 
-            if (!targetId || !TargetModel) throw new Error('CLIENT_NOT_FOUND');
+            if (tx.isSubAccountTx) {
+                const sub = await SubAccount.findById(tx.subAccountId).session(session);
+                if (!sub) throw new Error('SUB_ACCOUNT_NOT_FOUND');
 
-            // إرجاع الرصيد
-            const balanceKey = this.balancePath(targetDoc, currency);
-            const updatedClient = await TargetModel.findByIdAndUpdate(
-                targetId, { $inc: { [balanceKey]: tx.costLYD } }, { new: true, session }
-            );
-            if (!updatedClient) throw new Error('CLIENT_NOT_FOUND');
-            const refundedBalance = this.getWalletBalance(updatedClient, currency);
+                // 1. استرجاع رصيد الحساب التابع (subAccountCostLYD)
+                const updatedSub = await SubAccount.findByIdAndUpdate(
+                    tx.subAccountId,
+                    { $inc: { balance: tx.subAccountCostLYD } },
+                    { new: true, session }
+                );
+                if (!updatedSub) throw new Error('SUB_ACCOUNT_NOT_FOUND');
 
-            // تسجيل المرتجع في دفتر الأستاذ
-            const ledgerEntry = new Ledger({
-                entityId: targetId, entityModel: TargetModel.modelName, transactionId: tx.customId,
-                type: 'REFUND', amount: tx.costLYD,
-                debitAccount: 'Assets:Receivables',
-                creditAccount: 'Liabilities:ClientDeposits',
-                balanceBefore: refundedBalance - tx.costLYD, balanceAfter: refundedBalance,
-                description: `استرجاع تكلفة حوالة ملغاة رقم ${tx.customId} (السبب: ${reason})`
-            });
-            await ledgerEntry.save({ session });
-
-            // حفظ حدث الإلغاء (Event Sourcing)
-            const lastEvent = await JournalEvent.findOne({ entityId: targetId }).sort({ sequenceNumber: -1 }).session(session);
-            const sequenceNumber = lastEvent ? lastEvent.sequenceNumber + 1 : 1;
-            const journalEvent = new JournalEvent({
-                eventType: 'TransferReversed',
-                entityId: targetId,
-                entityModel: TargetModel.modelName,
-                amount: tx.costLYD,
-                currency: 'LYD',
-                sequenceNumber,
-                metadata: {
+                // Ledger لنقاط البيع التابعة
+                const ledgerSub = new Ledger({
+                    entityId: tx.subAccountId,
+                    entityModel: 'SubAccount',
                     transactionId: tx.customId,
-                    reason,
-                    performedBy: emp.name
-                }
-            });
-            await journalEvent.save({ session });
+                    type: 'REFUND',
+                    amount: tx.subAccountCostLYD,
+                    debitAccount: 'Assets:Receivables',
+                    creditAccount: 'Liabilities:ClientDeposits',
+                    balanceBefore: updatedSub.balance - tx.subAccountCostLYD,
+                    balanceAfter: updatedSub.balance,
+                    description: `استرجاع تكلفة حوالة ملغاة رقم ${tx.customId} (السبب: ${reason})`
+                });
+                await ledgerSub.save({ session });
+
+                // Event Sourcing لنقطة البيع
+                const lastSubEvent = await JournalEvent.findOne({ entityId: tx.subAccountId }).sort({ sequenceNumber: -1 }).session(session);
+                const subSeqNum = lastSubEvent ? lastSubEvent.sequenceNumber + 1 : 1;
+                const subEvent = new JournalEvent({
+                    eventType: 'TransferReversed',
+                    entityId: tx.subAccountId,
+                    entityModel: 'SubAccount',
+                    amount: tx.subAccountCostLYD,
+                    currency,
+                    sequenceNumber: subSeqNum,
+                    metadata: {
+                        transactionId: tx.customId,
+                        reason,
+                        performedBy: emp.name
+                    }
+                });
+                await subEvent.save({ session });
+
+                // 2. استرجاع رصيد الوكيل الرئيسي (costLYD)
+                if (!targetId || !TargetModel) throw new Error('CLIENT_NOT_FOUND');
+                const balanceKey = this.balancePath(targetDoc, currency);
+                const updatedMaster = await TargetModel.findByIdAndUpdate(
+                    targetId,
+                    { $inc: { [balanceKey]: tx.costLYD } },
+                    { new: true, session }
+                );
+                if (!updatedMaster) throw new Error('CLIENT_NOT_FOUND');
+                const masterRefundedBalance = this.getWalletBalance(updatedMaster, currency);
+
+                // Ledger للوكيل الرئيسي
+                const ledgerMaster = new Ledger({
+                    entityId: targetId,
+                    entityModel: TargetModel.modelName,
+                    transactionId: tx.customId,
+                    type: 'REFUND',
+                    amount: tx.costLYD,
+                    debitAccount: 'Assets:Receivables',
+                    creditAccount: 'Liabilities:ClientDeposits',
+                    balanceBefore: masterRefundedBalance - tx.costLYD,
+                    balanceAfter: masterRefundedBalance,
+                    description: `استرجاع تكلفة حوالة ملغاة من نقطة بيع (${tx.subAccountName}) رقم ${tx.customId} (السبب: ${reason})`
+                });
+                await ledgerMaster.save({ session });
+
+                // Event Sourcing للرئيسي
+                const lastMasterEvent = await JournalEvent.findOne({ entityId: targetId }).sort({ sequenceNumber: -1 }).session(session);
+                const masterSeqNum = lastMasterEvent ? lastMasterEvent.sequenceNumber + 1 : 1;
+                const masterEvent = new JournalEvent({
+                    eventType: 'TransferReversed',
+                    entityId: targetId,
+                    entityModel: TargetModel.modelName,
+                    amount: tx.costLYD,
+                    currency,
+                    sequenceNumber: masterSeqNum,
+                    metadata: {
+                        transactionId: tx.customId,
+                        reason,
+                        performedBy: emp.name
+                    }
+                });
+                await masterEvent.save({ session });
+
+            } else {
+                if (!targetId || !TargetModel) throw new Error('CLIENT_NOT_FOUND');
+
+                // إرجاع الرصيد
+                const balanceKey = this.balancePath(targetDoc, currency);
+                const updatedClient = await TargetModel.findByIdAndUpdate(
+                    targetId, { $inc: { [balanceKey]: tx.costLYD } }, { new: true, session }
+                );
+                if (!updatedClient) throw new Error('CLIENT_NOT_FOUND');
+                const refundedBalance = this.getWalletBalance(updatedClient, currency);
+
+                // تسجيل المرتجع في دفتر الأستاذ
+                const ledgerEntry = new Ledger({
+                    entityId: targetId, entityModel: TargetModel.modelName, transactionId: tx.customId,
+                    type: 'REFUND', amount: tx.costLYD,
+                    debitAccount: 'Assets:Receivables',
+                    creditAccount: 'Liabilities:ClientDeposits',
+                    balanceBefore: refundedBalance - tx.costLYD, balanceAfter: refundedBalance,
+                    description: `استرجاع تكلفة حوالة ملغاة رقم ${tx.customId} (السبب: ${reason})`
+                });
+                await ledgerEntry.save({ session });
+
+                // حفظ حدث الإلغاء (Event Sourcing)
+                const lastEvent = await JournalEvent.findOne({ entityId: targetId }).sort({ sequenceNumber: -1 }).session(session);
+                const sequenceNumber = lastEvent ? lastEvent.sequenceNumber + 1 : 1;
+                const journalEvent = new JournalEvent({
+                    eventType: 'TransferReversed',
+                    entityId: targetId,
+                    entityModel: TargetModel.modelName,
+                    amount: tx.costLYD,
+                    currency: 'LYD',
+                    sequenceNumber,
+                    metadata: {
+                        transactionId: tx.customId,
+                        reason,
+                        performedBy: emp.name
+                    }
+                });
+                await journalEvent.save({ session });
+            }
 
             tx.status = 'rejected';
             tx.notes = (tx.notes ? tx.notes + '\n' : '') + `[تم الإلغاء | المنفذ: ${emp.name} | السبب: ${reason}]`;
@@ -484,10 +709,9 @@ export class TransferService {
             await releaseLock(lock);
         }
     }
-
     private async resolveClient(userId: string, accountType: string, settings: any, session: any, req: any) {
         let clientDoc: any, currentRate = 0, companyName = 'عميل فردي', employeeName = 'غير محدد';
-        let TargetModel: any, targetId: any, creditLimit = 0;
+        let TargetModel: any, targetId: any, creditLimit = 0, tier = 1;
         let userIdForTx = null, companyIdForTx = null;
 
         if (accountType === 'client_user') {
@@ -497,13 +721,51 @@ export class TransferService {
                 clientDoc = await User.findById(userId).session(session);
             }
             if (clientDoc) {
-                const tier = clientDoc.tier || 1;
+                tier = clientDoc.tier || 1;
                 currentRate = getRateForTier(tier, settings);
                 employeeName = clientDoc.name;
                 creditLimit = clientDoc.creditLimit || 0;
                 TargetModel = User;
                 targetId = clientDoc._id;
                 userIdForTx = clientDoc.phone || clientDoc.webUsername;
+            }
+        } else if (accountType === 'sub_client') {
+            clientDoc = await SubAccount.findById(userId).session(session);
+            if (clientDoc) {
+                if (clientDoc.status !== 'active') return null;
+                let masterObj: any;
+                let MasterModel: any;
+                if (clientDoc.masterType === 'user') {
+                    masterObj = await User.findById(clientDoc.masterId).session(session);
+                    MasterModel = User;
+                } else {
+                    masterObj = await ClientCompany.findById(clientDoc.masterId).session(session);
+                    MasterModel = ClientCompany;
+                }
+                if (masterObj) {
+                    if (masterObj.status && masterObj.status !== 'active') return null;
+                    employeeName = clientDoc.name;
+                    companyName = masterObj.name;
+                    tier = masterObj.tier || 1;
+                    currentRate = getRateForTier(tier, settings);
+                    creditLimit = clientDoc.creditLimit || 0;
+                    TargetModel = SubAccount;
+                    targetId = clientDoc._id;
+                    userIdForTx = clientDoc.masterType === 'user' ? (masterObj.telegramId || masterObj.phone || masterObj.webUsername) : null;
+                    companyIdForTx = clientDoc.masterType === 'company' ? masterObj._id : null;
+
+                    return {
+                        clientDoc, currentRate, companyName, employeeName,
+                        TargetModel, targetId, creditLimit,
+                        userIdForTx, companyIdForTx,
+                        tier,
+                        isSubAccount: true,
+                        subAccount: clientDoc,
+                        masterObj,
+                        MasterModel,
+                        customMargin: clientDoc.customMargin || 0
+                    };
+                }
             }
         } else {
             const emp = await ClientEmployee.findById(userId).session(session);
@@ -512,7 +774,7 @@ export class TransferService {
                 clientDoc = await ClientCompany.findById(emp.companyId).session(session);
                 if (clientDoc) {
                     companyName = clientDoc.name;
-                    const tier = clientDoc.tier || 1;
+                    tier = clientDoc.tier || 1;
                     currentRate = getRateForTier(tier, settings);
                     creditLimit = clientDoc.creditLimit || 0;
                     TargetModel = ClientCompany;
@@ -527,7 +789,8 @@ export class TransferService {
         return {
             clientDoc, currentRate, companyName, employeeName,
             TargetModel, targetId, creditLimit,
-            userIdForTx, companyIdForTx
+            userIdForTx, companyIdForTx,
+            tier
         };
     }
 }

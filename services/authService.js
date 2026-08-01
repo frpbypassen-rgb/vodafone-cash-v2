@@ -9,7 +9,7 @@ const { JWT_SECRET, JWT_REFRESH_SECRET } = require('../middlewares/jwtAuth');
 const userRepo = require('../repositories/userRepository');
 const settingsRepo = require('../repositories/settingsRepository');
 const { logAction } = require('./auditService');
-const { getRateForTier } = require('../utils/rateHelper');
+const { buildMobileRateContract, applyRateMargin } = require('../utils/rateHelper');
 const {
     recordFailedLogin,
     resetFailedAttempts,
@@ -17,10 +17,123 @@ const {
     extractDeviceInfo
 } = require('./securityService');
 const ClientBot = require('../models/ClientBot');
+const User = require('../models/User');
+const ClientCompany = require('../models/ClientCompany');
 const { buildContext } = require('../mappers/mobileAuthMapper');
 
 const ACCESS_TOKEN_EXPIRY_SECONDS = 3600;      // 1 hour
 const REFRESH_TOKEN_EXPIRY_SECONDS = 2592000;   // 30 days
+
+const CLIENT_PERMISSIONS = Object.freeze([
+    'client.home.read',
+    'client.transfer.create',
+    'client.transactions.read',
+    'client.tickets.manage',
+    'client.profile.read',
+    'client.profile.update'
+]);
+
+const COMPANY_OWNER_PERMISSIONS = Object.freeze([
+    ...CLIENT_PERMISSIONS,
+    'company.dashboard.read',
+    'company.employees.read',
+    'company.employees.create',
+    'company.employees.update_status',
+    'company.employees.update_permissions',
+    'company.reports.read',
+    'company.reports.read_all'
+]);
+
+const COMPANY_EMPLOYEE_PERMISSIONS = Object.freeze([
+    ...CLIENT_PERMISSIONS,
+    'company.dashboard.read',
+    'company.reports.read_day'
+]);
+
+const COMPANY_ACCOUNTANT_PERMISSIONS = Object.freeze([
+    ...CLIENT_PERMISSIONS,
+    'company.dashboard.read',
+    'company.reports.read',
+    'company.reports.read_all'
+]);
+
+const AGENT_OWNER_PERMISSIONS = Object.freeze([
+    ...CLIENT_PERMISSIONS,
+    'agent.dashboard.read',
+    'agent.sub_accounts.read',
+    'agent.sub_accounts.create',
+    'agent.sub_accounts.update_status',
+    'agent.sub_accounts.update_credit_limit',
+    'agent.sub_accounts.settle',
+    'agent.reports.read',
+    'agent.reports.read_personal'
+]);
+
+const EXECUTOR_PERMISSIONS = Object.freeze([
+    'executor.tasks.read',
+    'executor.tasks.accept',
+    'executor.tasks.cancel',
+    'executor.tasks.complete',
+    'executor.reports.read',
+    'executor.profile.read'
+]);
+
+const resolveClientUserIdentity = (account) => {
+    if (String(account.role || '').toLowerCase() === 'agent') {
+        return {
+            persona: 'agentOwner',
+            role: 'agent',
+            permissions: [...AGENT_OWNER_PERMISSIONS],
+            agentId: String(account._id),
+            agentName: account.name || null,
+            agentCode: account.agentCode || account.accountCode || null
+        };
+    }
+
+    return {
+        persona: 'directClient',
+        role: 'client',
+        permissions: [...CLIENT_PERMISSIONS],
+        agentId: null,
+        agentName: null,
+        agentCode: null
+    };
+};
+
+const resolveCompanyIdentity = (account) => {
+    const role = String(account.role || '').toLowerCase();
+    if (role === 'accountant') {
+        return {
+            persona: 'companyAccountant',
+            role: 'accountant',
+            permissions: [...COMPANY_ACCOUNTANT_PERMISSIONS]
+        };
+    }
+
+    const isOwner = role === 'owner' || account.canViewAllReports === true;
+    return {
+        persona: isOwner ? 'companyOwner' : 'companyEmployee',
+        role: isOwner ? 'owner' : 'employee',
+        permissions: isOwner ? [...COMPANY_OWNER_PERMISSIONS] : [...COMPANY_EMPLOYEE_PERMISSIONS]
+    };
+};
+
+const resolveExecutorIdentity = () => ({
+    persona: 'executor',
+    role: 'executor',
+    permissions: [...EXECUTOR_PERMISSIONS]
+});
+
+const resolveSubClientIdentity = () => ({
+    persona: 'agentClient',
+    role: 'client',
+    permissions: [...CLIENT_PERMISSIONS]
+});
+
+const finiteNumberOr = (value, fallback = 0) => {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : fallback;
+};
 
 /**
  * تسجيل الدخول
@@ -111,18 +224,86 @@ const login = async (username, password, req) => {
     let companyName = null;
     let companyId = null;
     let executorBotName = null;
+    let rateContract;
+    let persona = undefined;
+    let mobileRole = undefined;
+    let mobilePermissions = undefined;
+    let agentId = null;
+    let agentName = null;
+    let agentCode = null;
+    let subAccountId = null;
+    let subClientCreditLimit = undefined;
+    let subClientDebt = undefined;
+    let subClientAvailableToSpend = undefined;
+    let subClientAccountCode = '';
 
     if (accountType === 'client_company') {
         const company = await ClientBot.findById(account.companyId);
         tier = (company && company.tier) ? company.tier : 1;
         companyId = account.companyId;
         companyName = company ? company.name : null;
+        rateContract = buildMobileRateContract(tier, settings);
+        const identity = resolveCompanyIdentity(account);
+        persona = identity.persona;
+        mobileRole = identity.role;
+        mobilePermissions = identity.permissions;
     } else if (accountType === 'client_user') {
         tier = account.tier || 1;
+        rateContract = buildMobileRateContract(tier, settings);
+        const identity = resolveClientUserIdentity(account);
+        persona = identity.persona;
+        mobileRole = identity.role;
+        mobilePermissions = identity.permissions;
+        agentId = identity.agentId;
+        agentName = identity.agentName;
+        agentCode = identity.agentCode;
     } else if (accountType === 'executor') {
         executorBotName = account.groupId ? account.groupId.name : (account.botId ? account.botId.name : null);
+        rateContract = buildMobileRateContract(tier, settings);
+        const identity = resolveExecutorIdentity();
+        persona = identity.persona;
+        mobileRole = identity.role;
+        mobilePermissions = identity.permissions;
+    } else if (accountType === 'sub_client') {
+        let masterObj;
+        if (account.masterType === 'user') {
+            masterObj = await User.findById(account.masterId);
+        } else {
+            masterObj = await ClientCompany.findById(account.masterId);
+        }
+        tier = masterObj ? (masterObj.tier || 1) : 1;
+        companyName = masterObj ? masterObj.name : null;
+        companyId = account.masterType === 'company' ? account.masterId : null;
+
+        const masterContract = buildMobileRateContract(tier, settings);
+        const customMargin = finiteNumberOr(account.customMargin, 0);
+        const subServiceRates = applyRateMargin(masterContract.serviceRates, customMargin);
+        const subBaseRate = subServiceRates.vodafone || masterContract.baseExchangeRate;
+
+        rateContract = {
+            tier: masterContract.tier,
+            tierLabel: masterContract.tierLabel,
+            baseExchangeRate: masterContract.baseExchangeRate,
+            exchangeRate: subBaseRate,
+            serviceRates: subServiceRates,
+            serviceCatalog: masterContract.serviceCatalog
+        };
+
+        const identity = resolveSubClientIdentity();
+        persona = identity.persona;
+        mobileRole = identity.role;
+        mobilePermissions = identity.permissions;
+        agentId = account.masterType === 'user' && masterObj ? String(masterObj._id) : null;
+        agentName = account.masterType === 'user' && masterObj ? masterObj.name : null;
+        agentCode = account.masterType === 'user' && masterObj ? (masterObj.agentCode || masterObj.accountCode || null) : null;
+        subAccountId = String(account._id);
+        const subBalance = finiteNumberOr(account.balance, 0);
+        const subCreditLimit = Math.max(0, finiteNumberOr(account.creditLimit, 0));
+        subClientCreditLimit = subCreditLimit;
+        subClientDebt = subBalance < 0 ? Math.abs(subBalance) : 0;
+        subClientAvailableToSpend = subBalance + subCreditLimit;
+        subClientAccountCode = account.accountCode || '';
     }
-    const currentRate = getRateForTier(tier, settings);
     const isOpen = !(settings && settings.isManualClosed);
 
     // 5. تسجيل في Audit Log
@@ -147,13 +328,26 @@ const login = async (username, password, req) => {
         accountType,
         name: account.name,
         balance: Number(balance) || 0,
-        exchangeRate: Number(currentRate) || 0,
         isOpen,
+        ...rateContract,
+        persona,
+        role: mobileRole,
+        permissions: mobilePermissions,
+        creditLimit: subClientCreditLimit,
+        debt: subClientDebt,
+        availableToSpend: subClientAvailableToSpend,
         context: buildContext(accountType, {
             executorGroupId,
             executorGroupName: executorBotName,
             clientCompanyId: companyId,
-            clientCompanyName: companyName
+            clientCompanyName: companyName,
+            persona,
+            agentId,
+            agentName,
+            agentCode,
+            subAccountId,
+            masterName: companyName,
+            accountCode: subClientAccountCode
         })
     };
 };

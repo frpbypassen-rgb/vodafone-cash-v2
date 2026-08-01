@@ -53,15 +53,33 @@ Login for all account types (executor, company employee, individual user).
 ```json
 {
     "success": true,
-    "accessToken": "eyJhbGciOiJIUzI1NiJ9...",
+    "token": "eyJhbGciOiJIUzI1NiJ9...",
     "refreshToken": "eyJhbGciOiJIUzI1NiJ9...",
+    "expiresIn": 3600,
+    "refreshExpiresIn": 2592000,
+    "id": "665f1f...",
     "accountType": "client_user",
-    "user": {
-        "name": "أحمد محمد",
-        "balance": 5000.00,
-        "tier": 2
+    "name": "أحمد محمد",
+    "balance": 5000.00,
+    "tier": 2,
+    "tierLabel": "مستوى 2",
+    "baseExchangeRate": 6.45,
+    "exchangeRate": 6.45,
+    "serviceRates": {
+        "vodafone": 6.45,
+        "post_account": 6.40,
+        "post_card": 6.30
     },
-    "rate": 6.45
+    "isOpen": true,
+    "serverTime": "2026-06-11T14:00:00.000Z",
+    "context": {
+        "clientCompanyId": null,
+        "clientCompanyName": null,
+        "executorGroupId": null,
+        "executorGroupName": null,
+        "executorBotId": null,
+        "executorBotName": null
+    }
 }
 ```
 
@@ -113,25 +131,45 @@ Get client dashboard data.
 {
     "success": true,
     "balance": 5000.00,
-    "rate": 6.45,
-    "isOpen": true
+    "tier": 2,
+    "tierLabel": "مستوى 2",
+    "baseExchangeRate": 6.45,
+    "exchangeRate": 6.45,
+    "serviceRates": {
+        "vodafone": 6.45,
+        "post_account": 6.40,
+        "post_card": 6.30
+    },
+    "isOpen": true,
+    "serverTime": "2026-06-11T14:00:00.000Z"
 }
 ```
 
 ---
 
-### GET /client/exchange-rate
+### POST /client/exchange-rate
 
-Get current exchange rate for the authenticated user's tier.
+Get current exchange rate and updated client info.
 
 **Auth Required**: ✅  
+**Account Types**: `client_user`, `client_company`
 
 **Success Response (200):**
 ```json
 {
     "success": true,
-    "rate": 6.45,
-    "balance": 5000.00
+    "balance": 5000.00,
+    "tier": 2,
+    "tierLabel": "مستوى 2",
+    "baseExchangeRate": 6.45,
+    "exchangeRate": 6.45,
+    "serviceRates": {
+        "vodafone": 6.45,
+        "post_account": 6.40,
+        "post_card": 6.30
+    },
+    "isOpen": true,
+    "serverTime": "2026-06-11T14:00:00.000Z"
 }
 ```
 

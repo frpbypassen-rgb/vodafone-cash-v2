@@ -9,6 +9,7 @@ const executorGroupSchema = new mongoose.Schema({
     isManagerGroup: { type: Boolean, default: false }, 
     isManagerBot: { type: Boolean, default: false }, 
     parentGroupId: { type: mongoose.Schema.Types.ObjectId, ref: 'ExecutorGroup', default: null },
+    parentBotId: { type: mongoose.Schema.Types.ObjectId, ref: 'ExecutorGroup', default: null },
 
     // 🚀 الحقول الجديدة الخاصة بالربط الآلي (API Integration)
     isApiGroup: { type: Boolean, default: false }, // هل هذه مجموعة ترتبط بـ API شركة أخرى؟

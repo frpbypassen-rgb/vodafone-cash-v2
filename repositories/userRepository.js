@@ -84,6 +84,27 @@ const findByCredentials = async (username, password, tenantId) => {
         }
     }
 
+    // 4. فحص الحساب التابع (SubAccount)
+    const SubAccount = require('../models/SubAccount');
+    const subQuery = {
+        $or: [{ webUsername: searchUser }, { phone: username }]
+    };
+    const subDoc = await SubAccount.findOne(subQuery);
+
+    if (subDoc) {
+        const isMatch = await _comparePassword(searchPass, subDoc.webPassword, SubAccount, subDoc._id);
+        if (isMatch) {
+            if (subDoc.status !== 'active') return { error: 'ACCOUNT_BANNED', accountType: 'sub_client' };
+            return {
+                account: subDoc,
+                accountType: 'sub_client',
+                telegramId: null,
+                executorBotId: null,
+                balance: subDoc.balance
+            };
+        }
+    }
+
     return null;
 };
 
@@ -148,6 +169,7 @@ const _getModel = (accountType) => {
     switch (accountType) {
         case 'executor': return Employee;
         case 'client_company': return ClientEmployee;
+        case 'sub_client': return require('../models/SubAccount');
         default: return User;
     }
 };
@@ -159,6 +181,7 @@ const getModelName = (accountType) => {
     switch (accountType) {
         case 'executor': return 'Employee';
         case 'client_company': return 'ClientEmployee';
+        case 'sub_client': return 'SubAccount';
         default: return 'User';
     }
 };

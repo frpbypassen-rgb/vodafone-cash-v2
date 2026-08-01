@@ -52,7 +52,35 @@
                     <div class="col-md-12">
                         <div class="p-4 rounded-4 border" style="background-color: var(--input-bg);">
                             <h6 class="fw-bold mb-4 text-success"><i class="fa-solid fa-arrow-trend-up me-2"></i> مستويات أسعار الصرف</h6>
-                            <div class="row g-4">
+                            <div class="table-responsive mb-4">
+                                <table class="table align-middle text-center mb-0">
+                                    <thead>
+                                        <tr>
+                                            <th class="text-start">الخدمة</th>
+                                            <th>المستوى 1</th>
+                                            <th>المستوى 2</th>
+                                            <th>المستوى 3</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <% (rateServices || []).forEach(service => { %>
+                                            <tr>
+                                                <td class="text-start fw-bold"><%= service.label %></td>
+                                                <% ['level1', 'level2', 'level3'].forEach(level => {
+                                                    const fieldName = service.fields[level];
+                                                    const fallbackValue = service.defaults[level];
+                                                    const value = settings[fieldName] !== undefined && settings[fieldName] !== null ? settings[fieldName] : fallbackValue;
+                                                %>
+                                                    <td>
+                                                        <input type="number" step="any" name="<%= fieldName %>" class="form-control fw-bold text-center text-primary mono-num" value="<%= value %>" required>
+                                                    </td>
+                                                <% }) %>
+                                            </tr>
+                                        <% }) %>
+                                    </tbody>
+                                </table>
+                            </div>
+                            <div class="row g-4 d-none">
                                 <div class="col-md-4">
                                     <label class="form-label small fw-bold text-muted">سعر الصرف المستوى 1</label>
                                     <div class="input-group">

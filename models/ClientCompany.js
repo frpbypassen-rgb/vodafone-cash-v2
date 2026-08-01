@@ -1,4 +1,5 @@
 const mongoose = require('mongoose');
+const crypto = require('crypto');
 
 const clientCompanySchema = new mongoose.Schema({
     name: { type: String, required: true },
@@ -7,6 +8,13 @@ const clientCompanySchema = new mongoose.Schema({
     tier: { type: Number, default: 3 },
     balance: { type: Number, default: 0 },
     accountCode: { type: String, trim: true, unique: true, sparse: true },
+    token: {
+        type: String,
+        trim: true,
+        unique: true,
+        sparse: true,
+        default: () => crypto.randomBytes(24).toString('hex')
+    },
     
     // 🟢 تم التعديل: إضافة حقل سعر الصرف المخصص للشركة
     exchangeRate: { type: Number, default: 0 },

@@ -2,6 +2,7 @@ module.exports = {
   preset: 'ts-jest',
   testEnvironment: 'node',
   testMatch: ['**/tests/**/*.test.js', '**/tests/**/*.test.ts'],
+  testPathIgnorePatterns: ['<rootDir>/delivery/', '<rootDir>/ahram_app/'],
   transform: {
     '^.+\\.tsx?$': 'ts-jest',
   },

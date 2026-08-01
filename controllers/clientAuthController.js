@@ -7,6 +7,16 @@ const { verifyAndUpgradePassword, escapeRegex, getTodayString } = require('../ut
 const { generateOtp, hashOtp, verifyOtp } = require('../utils/otp');
 const { logAction } = require('../services/auditService');
 
+const shouldBypassClientOtp = () => (
+    process.env.BYPASS_OTP === 'true'
+    || process.env.DISABLE_OTP === 'true'
+    || process.env.BYPASS_CLIENT_OTP === 'true'
+    || (
+        process.env.NODE_ENV !== 'production'
+        && ['demo', 'DEMO'].includes(process.env.MONGO_URI || '')
+    )
+);
+
 // إشعار الأدمن بطلب تسجيل جديد
 async function notifyAdminNewRegistration(reg) {
     // 🟢 الإشعارات تتم الآن عبر قاعدة البيانات أو WebSockets
@@ -258,7 +268,7 @@ exports.postLogin = async (req, res) => {
                     return res.render('client/login', { error: 'حسابك معلق حالياً من قبل الإدارة.' });
                 }
                 
-                if (clientUser.lastOtpDate === todayStr) {
+                if (clientUser.lastOtpDate === todayStr || shouldBypassClientOtp()) {
                     req.session.isClientLoggedIn = true; req.session.clientId = clientUser._id; req.session.accountType = 'user';
                     await logAction({ action: 'LOGIN_SUCCESS', req, performedById: clientUser._id, performedByModel: 'User', performedByName: clientUser.name, metadata: { accountType: 'user' } });
                     return req.session.save(() => res.redirect('/client/dashboard')); 
@@ -287,7 +297,7 @@ exports.postLogin = async (req, res) => {
                     return res.render('client/login', { error: 'حسابك معلق حالياً من قبل الإدارة.' });
                 }
                 
-                if (clientCompany.lastOtpDate === todayStr) {
+                if (clientCompany.lastOtpDate === todayStr || shouldBypassClientOtp()) {
                     req.session.isClientLoggedIn = true; req.session.clientId = clientCompany._id; req.session.accountType = 'company';
                     await logAction({ action: 'LOGIN_SUCCESS', req, performedById: clientCompany._id, performedByModel: 'ClientEmployee', performedByName: clientCompany.name, metadata: { accountType: 'company' } });
                     return req.session.save(() => res.redirect('/client/dashboard')); 

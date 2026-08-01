@@ -4,6 +4,30 @@ const settingsSchema = new mongoose.Schema({
     rateLevel1: { type: Number, default: 6.40 },
     rateLevel2: { type: Number, default: 6.45 },
     rateLevel3: { type: Number, default: 6.50 },
+
+    cashRateLevel1: { type: Number, default: 6.40 },
+    cashRateLevel2: { type: Number, default: 6.45 },
+    cashRateLevel3: { type: Number, default: 6.50 },
+
+    postAccountRateLevel1: { type: Number, default: 6.35 },
+    postAccountRateLevel2: { type: Number, default: 6.40 },
+    postAccountRateLevel3: { type: Number, default: 6.45 },
+
+    postCardRateLevel1: { type: Number, default: 6.25 },
+    postCardRateLevel2: { type: Number, default: 6.30 },
+    postCardRateLevel3: { type: Number, default: 6.35 },
+
+    bankAccountRateLevel1: { type: Number, default: 6.40 },
+    bankAccountRateLevel2: { type: Number, default: 6.45 },
+    bankAccountRateLevel3: { type: Number, default: 6.50 },
+
+    sefaNigerRateLevel1: { type: Number, default: 6.50 },
+    sefaNigerRateLevel2: { type: Number, default: 6.55 },
+    sefaNigerRateLevel3: { type: Number, default: 6.60 },
+
+    bankakSudanRateLevel1: { type: Number, default: 6.60 },
+    bankakSudanRateLevel2: { type: Number, default: 6.65 },
+    bankakSudanRateLevel3: { type: Number, default: 6.70 },
     
     openingTime: { type: String, default: '09:00' },
     closingTime: { type: String, default: '23:00' },

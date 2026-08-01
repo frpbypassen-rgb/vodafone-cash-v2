@@ -266,6 +266,7 @@ app.use('/executor-portal', require('./routes/executorPortal'));
 app.use('/executor-portal', require('./routes/executorReports')); // Reports for executors
 app.use('/api/mobile', require('./routes/mobileApi'));
 app.use('/api/v1/mobile', require('./routes/mobileApi'));
+app.use('/api/v1/merchant', require('./routes/merchantApi'));
 
 app.use('/', require('./routes/auth'));
 app.use('/', require('./routes/dashboard'));
@@ -282,8 +283,6 @@ app.use('/', require('./routes/reports'));
 
 
 
-
-app.use('/api/v1/merchant', require('./routes/merchantApi'));
 
 // 📚 Swagger API Documentation
 const swaggerUi = require('swagger-ui-express');
@@ -304,24 +303,15 @@ app.use(errorHandler);
 const PORT = process.env.PORT || 3000;
 Promise.all([connectDB(), initRedis()]).then(async () => {
     // 🟢 التأكد من وجود الإعدادات الافتراضية في قاعدة البيانات لتفادي أخطاء null pointer
-    try {
-        const Settings = require('./models/Settings');
-        const settingsCount = await Settings.countDocuments({});
-        if (settingsCount === 0) {
-            await Settings.create({});
-            console.log('✅ [Settings] Created default system settings');
-        }
-    } catch (err) {
-        console.error('⚠️ [Settings Error] Failed to ensure default settings:', err.message);
-    }
-
     server.listen(PORT, () => {
         logger.info(`🟢 Al-Ahram Pay v2.0 running on port ${PORT}`, { port: PORT, env: process.env.NODE_ENV || 'development' });
         console.log(`🟢 السيرفر يعمل بقوة الزمن الفعلي والحماية الشاملة على البورت ${PORT}`);
 
         // تسجيل بدء تشغيل النظام في Audit Log
-        const { logAction } = require('./services/auditService');
-        logAction({ action: 'SYSTEM_STARTUP', metadata: { port: PORT, nodeVersion: process.version } }).catch(() => {});
+        if (process.env.ENABLE_STARTUP_AUDIT === 'true') {
+            const { logAction } = require('./services/auditService');
+            logAction({ action: 'SYSTEM_STARTUP', metadata: { port: PORT, nodeVersion: process.version } }).catch(() => {});
+        }
     });
 }).catch((error) => {
     logger.error('Application startup failed', { error: error.message });

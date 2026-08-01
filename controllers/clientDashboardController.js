@@ -10,6 +10,7 @@ const StoreCategory = require('../models/StoreCategory');
 const StoreProduct = require('../models/StoreProduct');
 const Card = require('../models/Card');
 const { updateBalanceWithLedger } = require('../services/walletService');
+const { getServiceRatesForTier, applyRateMargin } = require('../utils/rateHelper');
 
 exports.getDashboard = async (req, res) => {
     try {
@@ -67,7 +68,7 @@ exports.getDashboard = async (req, res) => {
 
         let set = await Settings.findOne({});
         if (!set) set = await Settings.create({});
-        let balance, currentRate, clientTier = 1;
+        let balance, currentRate, serviceRates, clientTier = 1;
 
         let accountCode = account.accountCode || '';
 
@@ -75,17 +76,19 @@ exports.getDashboard = async (req, res) => {
             balance = account.balance;
             let master = account.masterType === 'user' ? await User.findById(account.masterId) : await ClientCompany.findById(account.masterId);
             clientTier = master ? (master.tier || 1) : 1;
-            let mRate = clientTier === 3 ? set.rateLevel3 : (clientTier === 2 ? set.rateLevel2 : set.rateLevel1);
-            currentRate = mRate - account.customMargin;
+            serviceRates = applyRateMargin(getServiceRatesForTier(clientTier, set), account.customMargin);
+            currentRate = serviceRates.vodafone;
         } else if (req.session.accountType === 'company') {
             const company = await ClientCompany.findById(account.companyId);
             if (!company || company.status !== 'active') return res.redirect('/client/logout');
             balance = company.balance; clientTier = company.tier || 1;
             accountCode = company.accountCode || '';
-            currentRate = company.tier === 3 ? set.rateLevel3 : (company.tier === 2 ? set.rateLevel2 : set.rateLevel1);
+            serviceRates = getServiceRatesForTier(clientTier, set);
+            currentRate = serviceRates.vodafone;
         } else {
             balance = account.balance; clientTier = account.tier || 1;
-            currentRate = account.tier === 3 ? set.rateLevel3 : (account.tier === 2 ? set.rateLevel2 : set.rateLevel1);
+            serviceRates = getServiceRatesForTier(clientTier, set);
+            currentRate = serviceRates.vodafone;
         }
 
         const categoriesMeta = await StoreCategory.find({});
@@ -157,7 +160,7 @@ exports.getDashboard = async (req, res) => {
 
         res.render('client/dashboard', {
             user: { name: account.name, phone: account.phone || account.webUsername, balance: balance, role: account.role || 'user', accountType: req.session.accountType, accountCode, canViewBalance },
-            isSubAccount, isMaster: !isSubAccount, masterTotalProfit, transactions: combinedTransactions, currentRate, totals, targetDate, dateLabel, showMonth, search, query: req.query, storeCatalog,
+            isSubAccount, isMaster: !isSubAccount, masterTotalProfit, transactions: combinedTransactions, currentRate, serviceRates, totals, targetDate, dateLabel, showMonth, search, query: req.query, storeCatalog,
             isSystemOpen,
             profile
         });
@@ -275,17 +278,20 @@ exports.getApiTransactions = async (req, res) => {
         }
 
         let currentRate = 1;
+        let serviceRates = {};
         let set = await Settings.findOne({});
         if (!set) set = await Settings.create({});
         if (isSubAccount) {
             let master = account.masterType === 'user' ? await User.findById(account.masterId) : await ClientCompany.findById(account.masterId);
-            let mRate = master.tier === 3 ? set.rateLevel3 : (master.tier === 2 ? set.rateLevel2 : set.rateLevel1);
-            currentRate = mRate - account.customMargin;
+            const tier = master ? (master.tier || 1) : 1;
+            serviceRates = applyRateMargin(getServiceRatesForTier(tier, set), account.customMargin);
+            currentRate = serviceRates.vodafone;
         } else {
             let tier = 1;
             if (req.session.accountType === 'company') { const comp = await ClientCompany.findById(account.companyId); tier = comp.tier || 1; }
             else { tier = account.tier || 1; }
-            currentRate = tier === 3 ? set.rateLevel3 : (tier === 2 ? set.rateLevel2 : set.rateLevel1);
+            serviceRates = getServiceRatesForTier(tier, set);
+            currentRate = serviceRates.vodafone;
         }
 
         const mappedTransactions = transactions.map(t => {
@@ -293,6 +299,6 @@ exports.getApiTransactions = async (req, res) => {
             return t;
         });
 
-        res.json({ success: true, transactions: mappedTransactions, currentRate, availableBalance: account.balance });
+        res.json({ success: true, transactions: mappedTransactions, currentRate, serviceRates, availableBalance: account.balance });
     } catch (error) { res.status(500).json({ error: 'Internal Server Error' }); }
 };

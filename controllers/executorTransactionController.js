@@ -234,7 +234,8 @@ exports.postCompleteTask = async (req, res) => {
             imagesArray = [receiptBase64];
         }
 
-        if (emp.groupId.parentBotId) { await ExecutorGroup.findByIdAndUpdate(emp.groupId.parentBotId, { $inc: { balance: -tx.amount } }); }
+        const parentGroupId = emp.groupId.parentGroupId || emp.groupId.parentBotId;
+        if (parentGroupId) { await ExecutorGroup.findByIdAndUpdate(parentGroupId, { $inc: { balance: -tx.amount } }); }
         await ExecutorGroup.findByIdAndUpdate(emp.groupId._id, { $inc: { balance: -tx.amount } });
 
         let typeLabel = 'فودافون كاش';
@@ -422,7 +423,8 @@ exports.executeViaZaynPay = async (req, res) => {
         fs.writeFileSync(path.join(proofsDir, fileName), buffers[0]);
         localFileNames.push(fileName);
 
-        if (emp.groupId.parentBotId) { await ExecutorGroup.findByIdAndUpdate(emp.groupId.parentBotId, { $inc: { balance: -tx.amount } }); }
+        const parentGroupId = emp.groupId.parentGroupId || emp.groupId.parentBotId;
+        if (parentGroupId) { await ExecutorGroup.findByIdAndUpdate(parentGroupId, { $inc: { balance: -tx.amount } }); }
         await ExecutorGroup.findByIdAndUpdate(emp.groupId._id, { $inc: { balance: -tx.amount } });
 
         tx.status = 'completed'; 

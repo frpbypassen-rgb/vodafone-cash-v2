@@ -38,9 +38,6 @@ const login = async (req, res) => {
     }
 };
 
-/**
- * POST /refresh-token
- */
 const refreshToken = async (req, res) => {
     try {
         const errors = validationResult(req);

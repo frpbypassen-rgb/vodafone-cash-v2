@@ -38,10 +38,12 @@ const buildTestFingerprint = ({ userId, accountType, transferData }) => {
         userId: String(userId),
         accountType,
         transferType: transferData.transferType || null,
-        amount: Number(transferData.amount),
+        amount: Number(Number(transferData.amount).toFixed(3)),
         number: transferData.number || null,
         name: transferData.name || null,
-        notes: transferData.notes || null
+        notes: transferData.notes || null,
+        serviceSubtype: transferData.serviceSubtype || null,
+        city: transferData.city || null
     };
     return crypto.createHash('sha256').update(JSON.stringify(payload)).digest('hex');
 };

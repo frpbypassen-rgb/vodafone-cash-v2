@@ -5,6 +5,12 @@ export interface ITransaction extends Document {
     idempotencyKey?: string;
     idempotencyFingerprint?: string;
     idempotencyResponse?: any;
+    editIdempotencyKey?: string;
+    editIdempotencyFingerprint?: string;
+    editIdempotencyResponse?: any;
+    zaynpayIdempotencyKey?: string;
+    zaynpayIdempotencyFingerprint?: string;
+    zaynpayIdempotencyResponse?: any;
     userId?: string;
     companyId?: mongoose.Types.ObjectId;
     subAccountId?: mongoose.Types.ObjectId;
@@ -50,6 +56,12 @@ const transactionSchema = new Schema<ITransaction>({
     idempotencyKey: { type: String, unique: true, sparse: true }, 
     idempotencyFingerprint: { type: String },
     idempotencyResponse: { type: Object },
+    editIdempotencyKey: { type: String, unique: true, sparse: true }, 
+    editIdempotencyFingerprint: { type: String },
+    editIdempotencyResponse: { type: Object },
+    zaynpayIdempotencyKey: { type: String, unique: true, sparse: true }, 
+    zaynpayIdempotencyFingerprint: { type: String },
+    zaynpayIdempotencyResponse: { type: Object },
     userId: { type: String },
     companyId: { type: Schema.Types.ObjectId, ref: 'ClientCompany' }, 
     subAccountId: { type: Schema.Types.ObjectId, ref: 'SubAccount' }, 

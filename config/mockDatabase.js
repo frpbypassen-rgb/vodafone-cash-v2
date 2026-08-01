@@ -165,6 +165,7 @@ const seedDemoData = async () => {
         status: 'active',
         balance: 5000,
         isManagerBot: false,
+        parentGroupId: execBot2._id,
         parentBotId: execBot2._id,
         isApiBot: false
     });

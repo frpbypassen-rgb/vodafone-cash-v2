@@ -69,9 +69,27 @@ Success 200:
   "refreshExpiresIn": 2592000,
   "id": "665f1f...",
   "accountType": "client_user",
+  "persona": "directClient",
+  "role": "client",
+  "permissions": [
+    "client.home.read",
+    "client.transfer.create",
+    "client.transactions.read",
+    "client.tickets.manage",
+    "client.profile.read",
+    "client.profile.update"
+  ],
   "name": "Mohamed Star",
   "balance": 1200,
+  "tier": 2,
+  "tierLabel": "مستوى 2",
+  "baseExchangeRate": 6.45,
   "exchangeRate": 6.45,
+  "serviceRates": {
+    "vodafone": 6.45,
+    "post_account": 6.40,
+    "post_card": 6.30
+  },
   "isOpen": true,
   "serverTime": "2026-06-11T14:00:00.000Z",
   "context": {
@@ -81,6 +99,36 @@ Success 200:
     "executorGroupName": null,
     "executorBotId": null,
     "executorBotName": null
+  }
+}
+```
+
+Supported mobile personas:
+
+- `directClient`: direct client user.
+- `agentClient`: client linked to an agent, including `sub_client` point-of-sale/sub-account users.
+- `companyOwner`: company owner/manager account with explicit company permissions and `context.clientCompanyId`.
+- `companyEmployee`: company employee account with explicit company permissions and `context.clientCompanyId`.
+- `companyAccountant`: reserved for company accountant accounts only when the backend has an explicit accountant source field.
+- `agentOwner`: agent owner account with explicit agent permissions and `context.agentId` or `context.agentCode`.
+- `agentEmployee`: reserved for agent employee accounts only when the backend has an explicit source field.
+- `agentAccountant`: reserved for agent accountant accounts only when the backend has an explicit source field.
+- `executor`: executor user with explicit executor permissions and `context.executorGroupId`.
+
+`sub_client` login response must use:
+
+```json
+{
+  "accountType": "sub_client",
+  "persona": "agentClient",
+  "role": "client",
+  "context": {
+    "subAccountId": "sub-account-id",
+    "accountCode": "SUB-001",
+    "agentId": "agent-id",
+    "agentName": "Agent Name",
+    "agentCode": "AGT-001",
+    "masterName": "Agent Name"
   }
 }
 ```
@@ -217,7 +265,7 @@ Full URL:
 GET https://2c70a687affed6.lhr.life/api/mobile/client/home
 ```
 
-Allowed account types: `client_user`, `client_company`.
+Allowed account types: `client_user`, `client_company`, `sub_client`.
 
 Success 200:
 
@@ -225,7 +273,15 @@ Success 200:
 {
   "success": true,
   "balance": 1200,
+  "tier": 2,
+  "tierLabel": "مستوى 2",
+  "baseExchangeRate": 6.45,
   "exchangeRate": 6.45,
+  "serviceRates": {
+    "vodafone": 6.45,
+    "post_account": 6.40,
+    "post_card": 6.30
+  },
   "isOpen": true,
   "serverTime": "2026-06-11T14:00:00.000Z"
 }
@@ -245,6 +301,38 @@ Errors:
   "code": "FORBIDDEN",
   "message": "Insufficient permissions",
   "correlationId": "corr-1"
+}
+```
+
+### POST /client/exchange-rate
+
+Full URL:
+
+```text
+POST https://2c70a687affed6.lhr.life/api/mobile/client/exchange-rate
+```
+
+Allowed account types: `client_user`, `client_company`, `sub_client`.
+
+Used for real-time exchange rate refresh.
+
+Success 200:
+
+```json
+{
+  "success": true,
+  "balance": 1200,
+  "tier": 2,
+  "tierLabel": "مستوى 2",
+  "baseExchangeRate": 6.45,
+  "exchangeRate": 6.45,
+  "serviceRates": {
+    "vodafone": 6.45,
+    "post_account": 6.40,
+    "post_card": 6.30
+  },
+  "isOpen": true,
+  "serverTime": "2026-06-11T14:00:00.000Z"
 }
 ```
 
@@ -521,6 +609,168 @@ curl -L -X GET "RECEIPT_URL_FROM_PREVIOUS_RESPONSE" \
   -H "Authorization: Bearer ACCESS_TOKEN_HERE" \
   --output receipt.jpg
 ```
+
+## Agent Sub-Accounts
+
+These endpoints are available only to `client_user` accounts whose login contract resolves to:
+
+```json
+{
+  "persona": "agentOwner",
+  "role": "agent",
+  "permissions": ["agent.sub_accounts.read"]
+}
+```
+
+Flutter must not call these endpoints for normal clients or executors.
+
+### GET /agent/overview
+
+Returns agent balance and sub-account summary.
+
+Success 200:
+
+```json
+{
+  "success": true,
+  "agent": {
+    "name": "Agent Name",
+    "accountCode": "AGT-001",
+    "balance": 100000,
+    "creditLimit": 0
+  },
+  "summary": {
+    "subAccountsCount": 3,
+    "activeSubAccountsCount": 2,
+    "totalCreditLimit": 20000,
+    "totalDebt": 5000,
+    "totalAvailableToSpend": 15000
+  },
+  "serverTime": "2026-06-11T14:00:00.000Z"
+}
+```
+
+### GET /agent/sub-accounts
+
+Query:
+
+```text
+page=1&limit=20&status=active&search=optional
+```
+
+Success 200:
+
+```json
+{
+  "success": true,
+  "page": 1,
+  "limit": 20,
+  "total": 1,
+  "totalPages": 1,
+  "hasMore": false,
+  "data": [
+    {
+      "id": "mob_opaque_id",
+      "accountCode": "SUB-001",
+      "name": "Sub Client",
+      "phone": "01000000000",
+      "status": "active",
+      "balance": -5000,
+      "creditLimit": 20000,
+      "debt": 5000,
+      "availableToSpend": 15000,
+      "customMargin": 0.1,
+      "createdAt": "2026-06-11T14:00:00.000Z"
+    }
+  ],
+  "serverTime": "2026-06-11T14:00:00.000Z"
+}
+```
+
+`id` is an opaque mobile identifier. Flutter must treat it as an opaque string and must not parse database ids.
+
+### GET /agent/sub-accounts/:id
+
+Returns one sub-account using the same safe DTO. `webPassword`, `masterId`, `masterType`, `refreshToken`, `cardMargin`, and raw database fields must never be returned.
+
+### POST /agent/sub-accounts
+
+Required header:
+
+```http
+Idempotency-Key: <UUID-v4>
+```
+
+Request:
+
+```json
+{
+  "name": "Sub Client",
+  "phone": "01000000000",
+  "username": "sub_client_username",
+  "password": "StrongPass123",
+  "creditLimit": 20000,
+  "customMargin": 0.1
+}
+```
+
+`cardMargin` is not part of the mobile contract because the card store is cancelled for Flutter.
+
+### PATCH /agent/sub-accounts/:id/credit-limit
+
+Required header:
+
+```http
+Idempotency-Key: <UUID-v4>
+```
+
+Request:
+
+```json
+{
+  "creditLimit": 20000
+}
+```
+
+### PATCH /agent/sub-accounts/:id/status
+
+Required header:
+
+```http
+Idempotency-Key: <UUID-v4>
+```
+
+Request:
+
+```json
+{
+  "status": "active"
+}
+```
+
+Allowed statuses: `active`, `banned`.
+
+### POST /agent/sub-accounts/:id/settlements
+
+Required header:
+
+```http
+Idempotency-Key: <UUID-v4>
+```
+
+Request:
+
+```json
+{
+  "type": "deposit",
+  "amount": 1000,
+  "notes": "Optional note"
+}
+```
+
+Allowed types: `deposit`, `withdraw`.
+
+This endpoint is a ledger-backed bridge to existing backend wallet logic. Flutter must not duplicate balance math locally.
 
 ## Executor
 

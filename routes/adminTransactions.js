@@ -21,6 +21,8 @@ const { reversalService } = require('../src/Application/Services/ReversalService
 
 router.use(requireAuth);
 
+const getParentGroupId = (group) => group?.parentGroupId || group?.parentBotId || null;
+
 
 
 router.get('/transactions', async (req, res) => {
@@ -305,9 +307,10 @@ router.post('/transaction/:id/assign-executor', async (req, res) => {
                         // 🟢 تم استبدال التيليجرام بـ Socket.IO لاحقاً
 
                         // 3. 🟢 إرسال Log النجاح لـ "بوت المراقبة البشري" (إن وجد)
-                        if (executorGroup.parentGroupId) {
+                        const parentGroupId = getParentGroupId(executorGroup);
+                        if (parentGroupId) {
                             try {
-                                const monitorGroup = await ExecutorGroup.findById(executorGroup.parentGroupId);
+                                const monitorGroup = await ExecutorGroup.findById(parentGroupId);
                                 if (monitorGroup) {
                                     // 🟢 تم استبدال التيليجرام بـ Socket.IO لاحقاً
                                 }
@@ -335,12 +338,13 @@ router.post('/transaction/:id/assign-executor', async (req, res) => {
 
                 } else {
                     // 🔴 فشل الـ API -> تحويل الطلب فوراً للبشر (Human Fallback)
-                    if (executorGroup.parentGroupId) {
-                        const monitorGroup = await ExecutorGroup.findById(executorGroup.parentGroupId);
+                    const parentGroupId = getParentGroupId(executorGroup);
+                    if (parentGroupId) {
+                        const monitorGroup = await ExecutorGroup.findById(parentGroupId);
                         if (monitorGroup) {
                             // تغيير مسؤولية الطلب ليكون من نصيب الفريق البشري
                             tx.executorGroupId = monitorGroup._id;
-                            tx.managerGroupId = monitorGroup.parentGroupId || null;
+                            tx.managerGroupId = getParentGroupId(monitorGroup);
                             tx.executorName = monitorGroup.name;
                             tx.status = 'processing';
                             tx.notes = (tx.notes ? tx.notes + '\n' : '') + `[فشل API - تم التحويل للمراقبة البشرية | السبب: ${apiResult.message}]`;
@@ -369,7 +373,7 @@ router.post('/transaction/:id/assign-executor', async (req, res) => {
             // 👨‍💻====================================================👨‍💻
             // المسار الكلاسيكي: للبوت البشري العادي
             // 👨‍💻====================================================👨‍💻
-            tx.executorGroupId = executorGroup._id; tx.managerGroupId = executorGroup.parentGroupId || null; tx.executorName = executorGroup.name; tx.status = 'processing'; tx.broadcastMessages = []; 
+            tx.executorGroupId = executorGroup._id; tx.managerGroupId = getParentGroupId(executorGroup); tx.executorName = executorGroup.name; tx.status = 'processing'; tx.broadcastMessages = []; 
 
             // 🟢 الإشعارات ستكون عبر Socket.IO
 
@@ -529,7 +533,8 @@ router.post('/transaction/:id/change-bot', async (req, res) => {
         const newGroup = await ExecutorGroup.findById(newGroupId); let newManagerId = null;
         if (newGroup) {
             newGroup.balance -= tx.amount; await newGroup.save();
-            if (newGroup.parentGroupId) { const newManager = await ExecutorGroup.findById(newGroup.parentGroupId); if (newManager) { newManager.balance -= tx.amount; await newManager.save(); newManagerId = newManager._id; } }
+            const parentGroupId = getParentGroupId(newGroup);
+            if (parentGroupId) { const newManager = await ExecutorGroup.findById(parentGroupId); if (newManager) { newManager.balance -= tx.amount; await newManager.save(); newManagerId = newManager._id; } }
         }
 
         tx.executorGroupId = newGroupId; tx.managerGroupId = newManagerId; tx.executorName = newGroup ? newGroup.name : 'غير محدد';

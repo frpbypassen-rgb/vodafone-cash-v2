@@ -31,6 +31,16 @@ const passwordResetLimiter = rateLimit({
 
 const renderLogin = (res, error = null) => res.render('unified_login', { error });
 
+const shouldBypassClientOtp = () => (
+    process.env.BYPASS_OTP === 'true'
+    || process.env.DISABLE_OTP === 'true'
+    || process.env.BYPASS_CLIENT_OTP === 'true'
+    || (
+        process.env.NODE_ENV !== 'production'
+        && ['demo', 'DEMO'].includes(process.env.MONGO_URI || '')
+    )
+);
+
 const clearLoginState = (session) => {
     delete session.isLoggedIn;
     delete session.adminName;
@@ -369,7 +379,7 @@ router.post('/login', loginLimiter, async (req, res) => {
                     await logLoginFailure(req, username, 'SUSPENDED', 'حساب العميل معلق حالياً');
                     return renderLogin(res, 'حساب العميل معلق حالياً.');
                 }
-                if (clientUser.lastOtpDate === todayStr) {
+                if (clientUser.lastOtpDate === todayStr || shouldBypassClientOtp()) {
                     return loginAsClient(req, res, clientUser, 'user');
                 }
                 return startClientOtp(req, res, clientUser, 'user', User);
@@ -384,7 +394,7 @@ router.post('/login', loginLimiter, async (req, res) => {
                     await logLoginFailure(req, username, 'SUSPENDED', 'حساب الشركة معلق حالياً');
                     return renderLogin(res, 'حساب الشركة معلق حالياً.');
                 }
-                if (clientCompany.lastOtpDate === todayStr) {
+                if (clientCompany.lastOtpDate === todayStr || shouldBypassClientOtp()) {
                     return loginAsClient(req, res, clientCompany, 'company');
                 }
                 return startClientOtp(req, res, clientCompany, 'company', ClientEmployee);

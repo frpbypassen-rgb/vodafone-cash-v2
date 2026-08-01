@@ -4,6 +4,12 @@
 // ===============================================
 'use strict';
 
+const {
+    toSubAccountListItemDto,
+    toSubAccountDetailsDto,
+    toSubAccountTransactionDto
+} = require('../mappers/mobileAgentSubAccountMapper');
+
 const FORBIDDEN_FIELDS = [
     'webPassword',
     'password',
@@ -16,7 +22,11 @@ const FORBIDDEN_FIELDS = [
     'botId',
     'proofImage',
     'proofImages',
-    '__v'
+    '__v',
+    'rateLevel1',
+    'rateLevel2',
+    'rateLevel3',
+    'settings'
 ];
 
 /**
@@ -125,6 +135,82 @@ describe('🛡️ Security Contract: Forbidden Raw Fields Scanner', () => {
 
         const found = scanForForbiddenFields(safeTask);
         expect(found.length).toBe(0);
+    });
+
+    test('Mobile endpoints DTO payloads must not leak any raw settings fields or forbidden fields', () => {
+        const loginResponse = {
+            success: true,
+            token: 'jwt-token',
+            refreshToken: 'jwt-refresh-token',
+            id: 'user-id',
+            accountType: 'client_user',
+            name: 'Client User',
+            balance: 500,
+            tier: 1,
+            tierLabel: 'مستوى 1',
+            baseExchangeRate: 6.40,
+            exchangeRate: 6.40,
+            serviceRates: {
+                vodafone: 6.40,
+                post_account: 6.35,
+                post_card: 6.25
+            },
+            isOpen: true,
+            context: {
+                clientCompanyId: null,
+                clientCompanyName: null,
+                executorBotId: null,
+                executorBotName: null
+            }
+        };
+
+        const found = scanForForbiddenFields(loginResponse, ['token', 'refreshToken', 'context.executorBotId']);
+        expect(found).toEqual([]);
+
+        const badResponse = {
+            ...loginResponse,
+            rateLevel1: 6.40,
+            settings: { rateLevel2: 6.45 }
+        };
+        const foundBad = scanForForbiddenFields(badResponse, ['token', 'refreshToken']);
+        expect(foundBad).toContain('rateLevel1');
+        expect(foundBad).toContain('settings');
+        expect(foundBad).toContain('settings.rateLevel2');
+    });
+
+    test('Agent sub-account mobile DTOs must emit opaque ids instead of raw Mongo ids', () => {
+        const sub = {
+            _id: '64a111111111111111111111',
+            name: 'Sub POS',
+            phone: '01000000001',
+            webUsername: 'subpos',
+            status: 'active',
+            balance: -25,
+            creditLimit: 100,
+            customMargin: 0.1
+        };
+        const tx = {
+            _id: '64b222222222222222222222',
+            customId: 'ATT-2606-0001',
+            status: 'pending',
+            amount: 100,
+            costLYD: 15,
+            subAccountCostLYD: 16,
+            exchangeRate: 6.4,
+            transferType: 'vodafone',
+            vodafoneNumber: '01011111111'
+        };
+
+        const listDto = toSubAccountListItemDto(sub);
+        const detailsDto = toSubAccountDetailsDto(sub);
+        const txDto = toSubAccountTransactionDto(tx);
+
+        expect(listDto.id).toMatch(/^mob_/);
+        expect(detailsDto.id).toMatch(/^mob_/);
+        expect(txDto.id).toMatch(/^mob_/);
+        expect(listDto.id).not.toBe(String(sub._id));
+        expect(detailsDto.id).not.toBe(String(sub._id));
+        expect(txDto.id).not.toBe(String(tx._id));
     });
 });
 

@@ -823,42 +823,42 @@
                         <div class="d-flex justify-content-between align-items-center p-2 rounded" style="background: rgba(14, 165, 233, 0.05);">
                             <span><i class="fa-solid fa-money-bill-wave text-info me-2 w-15px text-center"></i> تحويل كاش</span> 
                             <div class="d-flex align-items-center gap-2">
-                                <span class="fw-bold fs-5 mono-num" id="liveRateCash"><%= currentRate.toFixed(2) %></span>
+                                <span class="fw-bold fs-5 mono-num" id="liveRateCash"><%= (serviceRates && serviceRates.vodafone ? serviceRates.vodafone : currentRate).toFixed(2) %></span>
                                 <span class="badge bg-success-subtle text-success d-flex align-items-center gap-1 py-1 px-2 rounded-pill" style="font-size: 0.72rem; border: 1px solid rgba(16,185,129,0.2); font-weight: 800;"><i class="fa-solid fa-arrow-trend-up"></i> 0.25%+</span>
                             </div>
                         </div>
                         <div class="d-flex justify-content-between align-items-center p-2 rounded" style="background: rgba(245, 158, 11, 0.05);">
                             <span><i class="fa-solid fa-id-card text-warning me-2 w-15px text-center"></i> تحويل بريد بطاقة</span> 
                             <div class="d-flex align-items-center gap-2">
-                                <span class="fw-bold fs-5 mono-num" id="liveRatePostCard"><%= (currentRate - 0.15).toFixed(2) %></span>
+                                <span class="fw-bold fs-5 mono-num" id="liveRatePostCard"><%= (serviceRates && serviceRates.post_card ? serviceRates.post_card : (currentRate - 0.15)).toFixed(2) %></span>
                                 <span class="badge bg-danger-subtle text-danger d-flex align-items-center gap-1 py-1 px-2 rounded-pill" style="font-size: 0.72rem; border: 1px solid rgba(239,68,68,0.2); font-weight: 800;"><i class="fa-solid fa-arrow-trend-down"></i> 0.15%-</span>
                             </div>
                         </div>
                         <div class="d-flex justify-content-between align-items-center p-2 rounded" style="background: rgba(16, 185, 129, 0.05);">
                             <span><i class="fa-solid fa-envelope-open-text text-success me-2 w-15px text-center"></i> تحويل بريد حساب</span> 
                             <div class="d-flex align-items-center gap-2">
-                                <span class="fw-bold fs-5 mono-num" id="liveRatePostAcc"><%= (currentRate - 0.05).toFixed(2) %></span>
+                                <span class="fw-bold fs-5 mono-num" id="liveRatePostAcc"><%= (serviceRates && serviceRates.post_account ? serviceRates.post_account : (currentRate - 0.05)).toFixed(2) %></span>
                                 <span class="badge bg-secondary-subtle text-secondary d-flex align-items-center gap-1 py-1 px-2 rounded-pill" style="font-size: 0.72rem; border: 1px solid rgba(107,114,128,0.2); font-weight: 800;"><i class="fa-solid fa-arrows-left-right"></i> مستقر</span>
                             </div>
                         </div>
                         <div class="d-flex justify-content-between align-items-center p-2 rounded" style="background: rgba(99, 102, 241, 0.05);">
                             <span><i class="fa-solid fa-building-columns text-indigo me-2 w-15px text-center" style="color: #6366f1;"></i> تحويل حساب بنكي</span> 
                             <div class="d-flex align-items-center gap-2">
-                                <span class="fw-bold fs-5 mono-num" id="liveRateBank"><%= currentRate.toFixed(2) %></span>
+                                <span class="fw-bold fs-5 mono-num" id="liveRateBank"><%= (serviceRates && serviceRates.bank_account ? serviceRates.bank_account : currentRate).toFixed(2) %></span>
                                 <span class="badge bg-success-subtle text-success d-flex align-items-center gap-1 py-1 px-2 rounded-pill" style="font-size: 0.72rem; border: 1px solid rgba(16,185,129,0.2); font-weight: 800;"><i class="fa-solid fa-arrow-trend-up"></i> 0.30%+</span>
                             </div>
                         </div>
                         <div class="d-flex justify-content-between align-items-center p-2 rounded" style="background: rgba(107, 114, 128, 0.05);">
                             <span><i class="fa-solid fa-earth-africa text-secondary me-2 w-15px text-center"></i> تحويل سيفا النيجر</span> 
                             <div class="d-flex align-items-center gap-2">
-                                <span class="fw-bold fs-5 mono-num" id="liveRateNiger"><%= (currentRate + 0.1).toFixed(2) %></span>
+                                <span class="fw-bold fs-5 mono-num" id="liveRateNiger"><%= (serviceRates && serviceRates.sefa_niger ? serviceRates.sefa_niger : (currentRate + 0.1)).toFixed(2) %></span>
                                 <span class="badge bg-secondary-subtle text-secondary d-flex align-items-center gap-1 py-1 px-2 rounded-pill" style="font-size: 0.72rem; border: 1px solid rgba(107,114,128,0.2); font-weight: 800;"><i class="fa-solid fa-arrows-left-right"></i> مستقر</span>
                             </div>
                         </div>
                         <div class="d-flex justify-content-between align-items-center p-2 rounded" style="background: rgba(239, 68, 68, 0.05);">
                             <span><i class="fa-solid fa-landmark text-danger me-2 w-15px text-center"></i> تحويل بنكك السودان</span> 
                             <div class="d-flex align-items-center gap-2">
-                                <span class="fw-bold fs-5 mono-num" id="liveRateSudan"><%= (currentRate + 0.2).toFixed(2) %></span>
+                                <span class="fw-bold fs-5 mono-num" id="liveRateSudan"><%= (serviceRates && serviceRates.bankak_sudan ? serviceRates.bankak_sudan : (currentRate + 0.2)).toFixed(2) %></span>
                                 <span class="badge bg-danger-subtle text-danger d-flex align-items-center gap-1 py-1 px-2 rounded-pill" style="font-size: 0.72rem; border: 1px solid rgba(239,68,68,0.2); font-weight: 800;"><i class="fa-solid fa-arrow-trend-down"></i> 0.40%-</span>
                             </div>
                         </div>
@@ -1421,6 +1421,7 @@
         }
 
         let currentRate = parseFloat("<%= currentRate %>") || 1;
+        let serviceRates = <%- JSON.stringify(typeof serviceRates !== 'undefined' ? serviceRates : {}) %>;
         let currentTransferType = '';
         const isSubAccount = <%= typeof isSubAccount !== 'undefined' ? isSubAccount : false %>;
         const isMaster = <%= typeof isMaster !== 'undefined' ? isMaster : false %>;
@@ -1447,12 +1448,17 @@
         }
 
         function getServiceRate() {
-            let rate = currentRate;
-            if (currentTransferType === 'بريد حساب') rate = currentRate - 0.05;
-            else if (currentTransferType === 'بريد بطاقة') rate = currentRate - 0.15;
-            else if (currentTransferType === 'سيفا النيجر') rate = currentRate + 0.1;
-            else if (currentTransferType === 'بنكك السودان') rate = currentRate + 0.2;
-            return rate;
+            const serviceKeyByType = {
+                'كاش': 'vodafone',
+                'بريد حساب': 'post_account',
+                'بريد بطاقة': 'post_card',
+                'حساب بنكي': 'bank_account',
+                'سيفا النيجر': 'sefa_niger',
+                'بنكك السودان': 'bankak_sudan'
+            };
+            const key = serviceKeyByType[currentTransferType] || 'vodafone';
+            const rate = parseFloat(serviceRates[key]);
+            return Number.isFinite(rate) && rate > 0 ? rate : currentRate;
         }
 
         function updateServiceRateDisplay() {
@@ -2033,6 +2039,7 @@
                     
                     // 🔔 1. نظام إشعار وتحديث سعر الصرف اللحظي
                     if (data.currentRate) {
+                        if (data.serviceRates) serviceRates = data.serviceRates;
                         let fetchedRate = parseFloat(data.currentRate);
                         if (Math.abs(fetchedRate - currentRate) > 0.001 && currentRate > 0) {
                             
@@ -2044,12 +2051,19 @@
                             const rateNiger = document.getElementById('liveRateNiger');
                             const rateSudan = document.getElementById('liveRateSudan');
                             
-                            if(rateCash) { rateCash.innerText = currentRate.toFixed(2); rateCash.classList.add('rate-updated'); setTimeout(()=>rateCash.classList.remove('rate-updated'), 1000); }
-                            if(ratePostAcc) { ratePostAcc.innerText = (currentRate - 0.05).toFixed(2); ratePostAcc.classList.add('rate-updated'); setTimeout(()=>ratePostAcc.classList.remove('rate-updated'), 1000); }
-                            if(ratePostCard) { ratePostCard.innerText = (currentRate - 0.15).toFixed(2); ratePostCard.classList.add('rate-updated'); setTimeout(()=>ratePostCard.classList.remove('rate-updated'), 1000); }
-                            if(rateBank) { rateBank.innerText = currentRate.toFixed(2); rateBank.classList.add('rate-updated'); setTimeout(()=>rateBank.classList.remove('rate-updated'), 1000); }
-                            if(rateNiger) { rateNiger.innerText = (currentRate + 0.1).toFixed(2); rateNiger.classList.add('rate-updated'); setTimeout(()=>rateNiger.classList.remove('rate-updated'), 1000); }
-                            if(rateSudan) { rateSudan.innerText = (currentRate + 0.2).toFixed(2); rateSudan.classList.add('rate-updated'); setTimeout(()=>rateSudan.classList.remove('rate-updated'), 1000); }
+                            const updateRateEl = (el, key) => {
+                                if (!el) return;
+                                const value = parseFloat(serviceRates[key] || currentRate);
+                                el.innerText = (Number.isFinite(value) ? value : currentRate).toFixed(2);
+                                el.classList.add('rate-updated');
+                                setTimeout(() => el.classList.remove('rate-updated'), 1000);
+                            };
+                            updateRateEl(rateCash, 'vodafone');
+                            updateRateEl(ratePostAcc, 'post_account');
+                            updateRateEl(ratePostCard, 'post_card');
+                            updateRateEl(rateBank, 'bank_account');
+                            updateRateEl(rateNiger, 'sefa_niger');
+                            updateRateEl(rateSudan, 'bankak_sudan');
                             
                             updateCost();
                             document.getElementById('alertSound').play().catch(()=>{});

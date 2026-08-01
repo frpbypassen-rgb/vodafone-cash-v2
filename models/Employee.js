@@ -4,7 +4,7 @@ const bcrypt = require('bcryptjs');
 const employeeSchema = new mongoose.Schema({
     name: { type: String, required: true },
     phone: { type: String },
-    role: { type: String, enum: ['operator', 'manager'], default: 'operator' },
+    role: { type: String, enum: ['operator', 'manager', 'accountant'], default: 'operator' },
     status: { type: String, enum: ['pending', 'active', 'suspended', 'banned'], default: 'pending' },
     groupId: { type: mongoose.Schema.Types.ObjectId, ref: 'ExecutorGroup', required: true },
     webUsername: { type: String, unique: true, required: true },

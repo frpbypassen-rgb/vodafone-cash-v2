@@ -1,6 +1,9 @@
 // config/database.js
 const mongoose = require('mongoose');
 
+mongoose.set('autoCreate', false);
+mongoose.set('autoIndex', false);
+
 const connectDB = async () => {
     // 🧪 وضع تجريبي: إذا كان MONGO_URI فارغاً أو يساوي 'demo'
     const mongoUri = process.env.MONGO_URI;

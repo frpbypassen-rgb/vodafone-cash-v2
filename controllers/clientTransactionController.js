@@ -12,6 +12,7 @@ const Admin = require('../models/Admin');
 const { executeBalanceTransfer } = require('../services/balanceTransferService');
 const { normalizeAccountCode, resolveAccountByCode } = require('../services/accountCodeService');
 const { logAction } = require('../services/auditService');
+const { getServiceRateForTier, resolveTransferServiceKey } = require('../utils/rateHelper');
 
 const createClientError = (message, statusCode = 400) => {
     const error = new Error(message);
@@ -115,9 +116,10 @@ exports.postTransfer = async (req, res) => {
         const amount = parseFloat(req.body.amount); 
         const phone = req.body.phone; 
         const notes = req.body.notes ? req.body.notes.trim() : ''; 
+        const serviceKey = resolveTransferServiceKey(req.body.type || 'كاش');
         const transferType = req.body.type || 'كاش'; 
 
-        if (isNaN(amount) || amount <= 0 || !phone) throw new Error('INVALID_DATA');
+        if (isNaN(amount) || amount <= 0 || !phone || !serviceKey) throw new Error('INVALID_DATA');
 
         let settings = await withSess(Settings.findOne({}));
         if (!settings) settings = await Settings.create({}, sessionOpts);
@@ -141,8 +143,7 @@ exports.postTransfer = async (req, res) => {
         if (isSubAccount) {
             masterObj = account.masterType === 'user' ? await withSess(User.findById(account.masterId)) : await withSess(ClientCompany.findById(account.masterId));
             let clientTier = masterObj.tier || 1;
-            masterRate = clientTier === 3 ? settings.rateLevel3 : (clientTier === 2 ? settings.rateLevel2 : settings.rateLevel1);
-            if (transferType === 'بريد حساب') masterRate -= 0.05; else if (transferType === 'بريد بطاقة') masterRate -= 0.15; 
+            masterRate = getServiceRateForTier(serviceKey, clientTier, settings);
             actualSubRate = masterRate - account.customMargin; if (actualSubRate <= 0) actualSubRate = masterRate;
             subCostLYD = parseFloat((amount / actualSubRate).toFixed(3)); masterCostLYD = parseFloat((amount / masterRate).toFixed(3)); commission = parseFloat((subCostLYD - masterCostLYD).toFixed(3));
 
@@ -188,13 +189,11 @@ exports.postTransfer = async (req, res) => {
         } else {
             if (req.session.accountType === 'company') {
                 const company = await withSess(ClientCompany.findById(account.companyId));
-                masterRate = company.tier === 3 ? settings.rateLevel3 : (company.tier === 2 ? settings.rateLevel2 : settings.rateLevel1);
-                if (transferType === 'بريد حساب') masterRate -= 0.05; else if (transferType === 'بريد بطاقة') masterRate -= 0.15; 
+                masterRate = getServiceRateForTier(serviceKey, company.tier || 1, settings);
                 masterCostLYD = parseFloat((amount / masterRate).toFixed(3));
                 balanceModel = company; companyId = company._id; companyName = company.name; telegramId = account.phone || account.webUsername;
             } else {
-                masterRate = account.tier === 3 ? settings.rateLevel3 : (account.tier === 2 ? settings.rateLevel2 : settings.rateLevel1);
-                if (transferType === 'بريد حساب') masterRate -= 0.05; else if (transferType === 'بريد بطاقة') masterRate -= 0.15; 
+                masterRate = getServiceRateForTier(serviceKey, account.tier || 1, settings);
                 masterCostLYD = parseFloat((amount / masterRate).toFixed(3));
                 balanceModel = account; telegramId = account.phone || account.webUsername;
             }
@@ -223,7 +222,7 @@ exports.postTransfer = async (req, res) => {
         const newTx = new Transaction({
             customId: finalCustomId, userId: telegramId, companyId: companyId, subAccountId: isSubAccount ? account._id : null,
             subAccountName: isSubAccount ? account.name : '', companyName: isSubAccount ? masterObj.name : companyName, 
-            employeeName: isSubAccount ? account.name : account.name, vodafoneNumber: phone, transferType: transferType,
+            employeeName: isSubAccount ? account.name : account.name, vodafoneNumber: phone, transferType: serviceKey,
             accountName: req.body.name || '', accountNumber: req.body.number || '', amount: amount, costLYD: masterCostLYD,
             subAccountCostLYD: isSubAccount ? subCostLYD : 0, commission: commission, exchangeRate: masterRate, subClientRate: isSubAccount ? actualSubRate : 0,
             notes: notes, status: 'pending', isSubAccountTx: isSubAccount, masterProfit: isSubAccount ? commission : 0

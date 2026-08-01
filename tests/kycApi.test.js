@@ -29,13 +29,27 @@ jest.mock('../src/Presentation/Middlewares/deviceTrustMiddleware', () => ({
 jest.mock('../src/Presentation/Middlewares/mfaMiddleware', () => ({
     mfaMiddleware: (req, res, next) => next()
 }));
-jest.mock('../validators/mobileValidators', () => ({
-    loginValidator: [(_r, _s, n) => n()],
-    transferValidator: [(_r, _s, n) => n()],
-    cancelTaskValidator: [(_r, _s, n) => n()],
-    completeTaskValidator: [(_r, _s, n) => n()],
-    refreshTokenValidator: [(_r, _s, n) => n()],
-}));
+jest.mock('../validators/mobileValidators', () => {
+    const pass = [(_r, _s, n) => n()];
+    return {
+        loginValidator: pass,
+        transferValidator: pass,
+        cancelTaskValidator: pass,
+        completeTaskValidator: pass,
+        refreshTokenValidator: pass,
+        clientReportsValidator: pass,
+        lookupValidator: pass,
+        balanceTransferValidator: pass,
+        complaintValidator: pass,
+        depositRequestValidator: pass,
+        editAmountValidator: pass,
+        returnTaskValidator: pass,
+        createEmployeeValidator: pass,
+        resetPasswordValidator: pass,
+        executorReportsValidator: pass,
+        executorSupportMessageValidator: pass,
+    };
+});
 
 // Mock model saves and updates to avoid DB connections
 jest.mock('../models/Transaction', () => ({}));

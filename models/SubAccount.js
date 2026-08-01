@@ -8,6 +8,8 @@ const subAccountSchema = new mongoose.Schema({
     phone: { type: String },
     webUsername: { type: String, required: true, unique: true },
     webPassword: { type: String, required: true },
+    creationIdempotencyKey: { type: String, unique: true, sparse: true },
+    creationIdempotencyFingerprint: { type: String },
     refreshToken: { type: String }, // 🟢 مخصص لتطبيق الموبايل
     customMargin: { type: Number, default: 0 }, 
     cardMargin: { type: Number, default: 0 }, 

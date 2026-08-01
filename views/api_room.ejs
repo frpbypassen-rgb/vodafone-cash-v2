@@ -107,10 +107,10 @@
                             <label class="form-label text-warning small fw-bold"><i class="fa-solid fa-radar me-1"></i> ربط بسجل العمليات (Audit Trail Bot)</label>
                             <form action="/executor/<%= bot._id %>/link-manager" method="POST">
                                 <div class="input-group">
-                                    <select name="parentBotId" class="form-select border-warning">
+                                    <select name="parentGroupId" class="form-select border-warning">
                                         <option value="none">-- غير مربوط بأي سجل --</option>
                                         <% managerBots.forEach(mBot => { %>
-                                            <option value="<%= mBot._id %>" <%= bot.parentBotId && bot.parentBotId._id && bot.parentBotId._id.toString() === mBot._id.toString() ? 'selected' : '' %>>
+                                            <option value="<%= mBot._id %>" <%= ((bot.parentGroupId || bot.parentBotId) && (bot.parentGroupId || bot.parentBotId)._id && (bot.parentGroupId || bot.parentBotId)._id.toString() === mBot._id.toString()) ? 'selected' : '' %>>
                                                 <%= mBot.name %>
                                             </option>
                                         <% }) %>

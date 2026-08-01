@@ -6,6 +6,10 @@ const Transaction = require('../models/Transaction');
 const Settings = require('../models/Settings');
 const Ledger = require('../models/Ledger');
 const Counter = require('../models/Counter');
+const {
+    getServiceRateForTier,
+    resolveTransferServiceKey
+} = require('../utils/rateHelper');
 
 const isTransactionUnsupportedError = (error) => {
     const message = error && error.message ? error.message : '';
@@ -66,8 +70,8 @@ const merchantApiAuth = async (req, res, next) => {
 
 router.get('/balance', merchantApiAuth, async (req, res) => {
     const settings = await Settings.findOne({}).lean();
-    const globalRate = Number(settings && settings.exchangeRate ? settings.exchangeRate : 1);
-    const customRate = Number(req.merchant.exchangeRate ? req.merchant.exchangeRate : globalRate);
+    const serviceRate = getServiceRateForTier('vodafone', req.merchant.tier || 1, settings);
+    const customRate = Number(req.merchant.exchangeRate) > 0 ? Number(req.merchant.exchangeRate) : serviceRate;
 
     res.json({
         status: 'success',
@@ -84,6 +88,7 @@ router.post('/transfer', merchantApiAuth, async (req, res) => {
         const { target_number, amount, transfer_type } = req.body;
         const amountValue = Number(amount);
         const phoneStr = target_number ? target_number.toString().trim() : '';
+        const serviceKey = resolveTransferServiceKey(transfer_type || 'vodafone');
 
         if (!/^\d{11}$/.test(phoneStr)) {
             return res.status(400).json({ status: 'failed', message: 'رقم الهاتف غير صالح. يجب أن يتكون من 11 رقماً.' });
@@ -92,11 +97,15 @@ router.post('/transfer', merchantApiAuth, async (req, res) => {
             return res.status(400).json({ status: 'failed', message: 'المبلغ غير صالح' });
         }
 
+        if (!serviceKey) {
+            return res.status(400).json({ status: 'failed', message: 'نوع التحويل غير مدعوم' });
+        }
+
         const result = await withOptionalTransaction(async (session) => {
             const settingsQuery = Settings.findOne({});
             const settings = session ? await settingsQuery.session(session).lean() : await settingsQuery.lean();
-            const globalRate = Number(settings && settings.exchangeRate ? settings.exchangeRate : 1);
-            const exchangeRate = Number(req.merchant.exchangeRate ? req.merchant.exchangeRate : globalRate);
+            const serviceRate = getServiceRateForTier(serviceKey, req.merchant.tier || 1, settings);
+            const exchangeRate = Number(req.merchant.exchangeRate) > 0 ? Number(req.merchant.exchangeRate) : serviceRate;
             if (!Number.isFinite(exchangeRate) || exchangeRate <= 0) {
                 throw merchantRequestError(400, 'سعر الصرف غير صالح');
             }
@@ -139,7 +148,7 @@ router.post('/transfer', merchantApiAuth, async (req, res) => {
                 customId,
                 companyName: req.merchant.name,
                 employeeName: 'ربط آلي (Merchant API)',
-                transferType: transfer_type || 'vodafone',
+                transferType: serviceKey,
                 notes: '[طلب وارد عبر API التاجر الخارجي]',
                 executorGroupId: (settings && settings.autoRouteEnabled && settings.autoRouteBotId) ? settings.autoRouteBotId : undefined
             };

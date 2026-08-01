@@ -8,6 +8,14 @@ const transactionSchema = new mongoose.Schema({
     idempotencyFingerprint: { type: String },
     idempotencyResponse: { type: Object },
 
+    editIdempotencyKey: { type: String, unique: true, sparse: true }, 
+    editIdempotencyFingerprint: { type: String },
+    editIdempotencyResponse: { type: Object },
+
+    zaynpayIdempotencyKey: { type: String, unique: true, sparse: true }, 
+    zaynpayIdempotencyFingerprint: { type: String },
+    zaynpayIdempotencyResponse: { type: Object },
+
     // 👤 بيانات الجهة الطالبة 
     userId: { type: String }, // معرف العميل الفردي أو الموظف
     companyId: { type: mongoose.Schema.Types.ObjectId, ref: 'ClientCompany' }, 

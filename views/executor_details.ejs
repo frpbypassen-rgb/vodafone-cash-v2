@@ -123,7 +123,7 @@
                     <% if(!bot.isManagerBot) { %>
                     <div class="info-box py-2 px-3">
                         <span class="small text-muted fw-bold"><i class="fa-solid fa-link me-1"></i> الوكالة التابع لها</span>
-                        <span class="fw-bold text-primary small"><%= bot.parentBotId ? bot.parentBotId.name : 'مستقل (يُحاسب مباشرة)' %></span>
+                        <span class="fw-bold text-primary small"><%= (bot.parentGroupId || bot.parentBotId) ? (bot.parentGroupId || bot.parentBotId).name : 'مستقل (يُحاسب مباشرة)' %></span>
                     </div>
                     <% } %>
 
@@ -178,10 +178,10 @@
                                 <label class="form-label fw-bold text-dark small mb-2"><i class="fa-solid fa-link text-info me-1"></i> ربط بوكالة إدارية مركزية</label>
                                 <form action="/executor/<%= bot._id %>/link-manager" method="POST" class="row g-2 align-items-center">
                                     <div class="col-md-9">
-                                        <select name="parentBotId" class="form-select fw-bold text-center unified-height border-0 shadow-sm">
+                                        <select name="parentGroupId" class="form-select fw-bold text-center unified-height border-0 shadow-sm">
                                             <option value="none">-- فك الارتباط (جعله مستقلاً) --</option>
                                             <% managerBots.forEach(m => { %>
-                                                <option value="<%= m._id %>" <%= (bot.parentBotId && bot.parentBotId._id.toString() === m._id.toString()) ? 'selected' : '' %>><%= m.name %></option>
+                                                <option value="<%= m._id %>" <%= ((bot.parentGroupId || bot.parentBotId) && (bot.parentGroupId || bot.parentBotId)._id.toString() === m._id.toString()) ? 'selected' : '' %>><%= m.name %></option>
                                             <% }) %>
                                         </select>
                                     </div>

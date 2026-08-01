@@ -13,6 +13,7 @@ const clientEmployeeSchema = new mongoose.Schema({
     webPassword: { type: String, required: true },
     otpCode: { type: String },
     otpExpires: { type: Date },
+    role: { type: String, enum: ['owner', 'employee', 'accountant'], default: 'employee' },
     canViewAllReports: { type: Boolean, default: false } // السماح برؤية جميع تقارير الشركة
 }, { timestamps: true });
 

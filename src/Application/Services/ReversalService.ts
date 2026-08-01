@@ -90,57 +90,160 @@ export class ReversalService {
                 if (targetDoc) targetId = targetDoc._id;
             }
 
-            if (!targetDoc) {
-                await session.abortTransaction();
-                return { success: false, message: 'المستفيد غير موجود بالنظام لإرجاع الرصيد' };
-            }
-
-            // تحديث رصيد العملة المقابلة في المحفظة متعددة العملات
-            const cost = tx.costLYD; // التكلفة بالـ LYD المسترجعة
-            const balanceBefore = this.getWalletBalance(targetDoc, currency);
-            const updatedTarget = await this.applyRefund(TargetModel, targetDoc, targetId, currency, cost, session);
-
-            if (!updatedTarget) {
-                await session.abortTransaction();
-                session.endSession();
-                return { success: false, message: 'المستفيد غير موجود بالنظام لإرجاع الرصيد' };
-            }
-
-            const balanceAfter = this.getWalletBalance(updatedTarget, currency);
-
-            // 3. كتابة قيد عكسي في دفتر الأستاذ (Double-Entry Debit/Credit)
-            const ledgerEntry = new Ledger({
-                entityId: targetId,
-                entityModel: tx.companyId ? 'ClientCompany' : 'User',
-                transactionId: tx.customId,
-                type: 'REFUND',
-                amount: cost,
-                debitAccount: 'Assets:VodafoneCash',
-                creditAccount: 'Liabilities:ClientDeposits',
-                balanceBefore,
-                balanceAfter,
-                description: `استرجاع تكلفة الحوالة رقم ${tx.customId} (السبب: ${reason})`
-            });
-            await ledgerEntry.save({ session });
-
-            // 4. حفظ الحدث (Event Sourcing)
-            const lastEvent = await JournalEvent.findOne({ entityId: targetId }).sort({ sequenceNumber: -1 }).session(session);
-            const sequenceNumber = lastEvent ? lastEvent.sequenceNumber + 1 : 1;
-
-            const refundEvent = new JournalEvent({
-                eventType: 'TransferReversed',
-                entityId: targetId,
-                entityModel: tx.companyId ? 'ClientCompany' : 'User',
-                amount: cost,
-                currency,
-                sequenceNumber,
-                metadata: {
-                    transactionId: tx.customId,
-                    reason,
-                    performedBy
+            const cost = tx.costLYD;
+            if (tx.isSubAccountTx) {
+                const SubAccount = require('../../../models/SubAccount');
+                const subDoc = await SubAccount.findById(tx.subAccountId).session(session);
+                if (!subDoc) {
+                    await session.abortTransaction();
+                    return { success: false, message: 'الحساب التابع غير موجود لإرجاع الرصيد' };
                 }
-            });
-            await refundEvent.save({ session });
+
+                // 1. استرجاع رصيد الحساب التابع (subAccountCostLYD)
+                const subBalanceBefore = subDoc.balance || 0;
+                const updatedSub = await SubAccount.findByIdAndUpdate(
+                    tx.subAccountId,
+                    { $inc: { balance: tx.subAccountCostLYD } },
+                    { new: true, session }
+                );
+                if (!updatedSub) {
+                    await session.abortTransaction();
+                    return { success: false, message: 'فشل استرجاع رصيد الحساب التابع' };
+                }
+                const subBalanceAfter = updatedSub.balance || 0;
+
+                // Ledger لنقاط البيع التابعة
+                const ledgerSub = new Ledger({
+                    entityId: tx.subAccountId,
+                    entityModel: 'SubAccount',
+                    transactionId: tx.customId,
+                    type: 'REFUND',
+                    amount: tx.subAccountCostLYD,
+                    debitAccount: 'Assets:VodafoneCash',
+                    creditAccount: 'Liabilities:ClientDeposits',
+                    balanceBefore: subBalanceBefore,
+                    balanceAfter: subBalanceAfter,
+                    description: `استرجاع تكلفة حوالة ملغاة رقم ${tx.customId} (السبب: ${reason})`
+                });
+                await ledgerSub.save({ session });
+
+                // Event Sourcing لنقطة البيع
+                const lastSubEvent = await JournalEvent.findOne({ entityId: tx.subAccountId }).sort({ sequenceNumber: -1 }).session(session);
+                const subSeqNum = lastSubEvent ? lastSubEvent.sequenceNumber + 1 : 1;
+                const subEvent = new JournalEvent({
+                    eventType: 'TransferReversed',
+                    entityId: tx.subAccountId,
+                    entityModel: 'SubAccount',
+                    amount: tx.subAccountCostLYD,
+                    currency,
+                    sequenceNumber: subSeqNum,
+                    metadata: {
+                        transactionId: tx.customId,
+                        reason,
+                        performedBy
+                    }
+                });
+                await subEvent.save({ session });
+
+                // 2. استرجاع رصيد الوكيل الرئيسي (costLYD)
+                if (!targetDoc) {
+                    await session.abortTransaction();
+                    return { success: false, message: 'المستفيد الرئيسي غير موجود بالنظام لإرجاع الرصيد' };
+                }
+                const masterBalanceBefore = this.getWalletBalance(targetDoc, currency);
+                const updatedMaster = await this.applyRefund(TargetModel, targetDoc, targetId, currency, cost, session);
+                if (!updatedMaster) {
+                    await session.abortTransaction();
+                    session.endSession();
+                    return { success: false, message: 'المستفيد الرئيسي غير موجود بالنظام لإرجاع الرصيد' };
+                }
+                const masterBalanceAfter = this.getWalletBalance(updatedMaster, currency);
+
+                // Ledger للوكيل الرئيسي
+                const ledgerMaster = new Ledger({
+                    entityId: targetId,
+                    entityModel: TargetModel.modelName,
+                    transactionId: tx.customId,
+                    type: 'REFUND',
+                    amount: cost,
+                    debitAccount: 'Assets:VodafoneCash',
+                    creditAccount: 'Liabilities:ClientDeposits',
+                    balanceBefore: masterBalanceBefore,
+                    balanceAfter: masterBalanceAfter,
+                    description: `استرجاع تكلفة حوالة ملغاة من نقطة بيع (${tx.subAccountName}) رقم ${tx.customId} (السبب: ${reason})`
+                });
+                await ledgerMaster.save({ session });
+
+                // Event Sourcing للرئيسي
+                const lastMasterEvent = await JournalEvent.findOne({ entityId: targetId }).sort({ sequenceNumber: -1 }).session(session);
+                const masterSeqNum = lastMasterEvent ? lastMasterEvent.sequenceNumber + 1 : 1;
+                const masterEvent = new JournalEvent({
+                    eventType: 'TransferReversed',
+                    entityId: targetId,
+                    entityModel: TargetModel.modelName,
+                    amount: cost,
+                    currency,
+                    sequenceNumber: masterSeqNum,
+                    metadata: {
+                        transactionId: tx.customId,
+                        reason,
+                        performedBy
+                    }
+                });
+                await masterEvent.save({ session });
+
+            } else {
+                if (!targetDoc) {
+                    await session.abortTransaction();
+                    return { success: false, message: 'المستفيد غير موجود بالنظام لإرجاع الرصيد' };
+                }
+
+                // تحديث رصيد العملة المقابلة في المحفظة متعددة العملات
+                const balanceBefore = this.getWalletBalance(targetDoc, currency);
+                const updatedTarget = await this.applyRefund(TargetModel, targetDoc, targetId, currency, cost, session);
+
+                if (!updatedTarget) {
+                    await session.abortTransaction();
+                    session.endSession();
+                    return { success: false, message: 'المستفيد غير موجود بالنظام لإرجاع الرصيد' };
+                }
+
+                const balanceAfter = this.getWalletBalance(updatedTarget, currency);
+
+                // 3. كتابة قيد عكسي في دفتر الأستاذ (Double-Entry Debit/Credit)
+                const ledgerEntry = new Ledger({
+                    entityId: targetId,
+                    entityModel: tx.companyId ? 'ClientCompany' : 'User',
+                    transactionId: tx.customId,
+                    type: 'REFUND',
+                    amount: cost,
+                    debitAccount: 'Assets:VodafoneCash',
+                    creditAccount: 'Liabilities:ClientDeposits',
+                    balanceBefore,
+                    balanceAfter,
+                    description: `استرجاع تكلفة الحوالة رقم ${tx.customId} (السبب: ${reason})`
+                });
+                await ledgerEntry.save({ session });
+
+                // 4. حفظ الحدث (Event Sourcing)
+                const lastEvent = await JournalEvent.findOne({ entityId: targetId }).sort({ sequenceNumber: -1 }).session(session);
+                const sequenceNumber = lastEvent ? lastEvent.sequenceNumber + 1 : 1;
+
+                const refundEvent = new JournalEvent({
+                    eventType: 'TransferReversed',
+                    entityId: targetId,
+                    entityModel: tx.companyId ? 'ClientCompany' : 'User',
+                    amount: cost,
+                    currency,
+                    sequenceNumber,
+                    metadata: {
+                        transactionId: tx.customId,
+                        reason,
+                        performedBy
+                    }
+                });
+                await refundEvent.save({ session });
+            }
 
             // 5. تحديث حالة العملية
             tx.status = 'rejected';

@@ -150,6 +150,13 @@ app.use(require('../routes/mobileApi'));
 
 const uuid = '550e8400-e29b-41d4-a716-446655440000';
 
+const expectedMonthlyTxId = () => {
+    const now = new Date();
+    const yy = now.getFullYear().toString().slice(-2);
+    const mm = (now.getMonth() + 1).toString().padStart(2, '0');
+    return `ATT-${yy}${mm}-1001`;
+};
+
 const chainResolve = (value) => ({
     session: jest.fn().mockResolvedValue(value)
 });
@@ -162,7 +169,9 @@ const fingerprintFor = (payload, userId = 'user-id-123', accountType = 'client_u
         amount: Number(Number(payload.amount).toFixed(3)),
         number: payload.number,
         name: payload.name || null,
-        notes: payload.notes || null
+        notes: payload.notes || null,
+        serviceSubtype: payload.serviceSubtype || null,
+        city: payload.city || null
     };
     return crypto.createHash('sha256').update(JSON.stringify(normalized)).digest('hex');
 };
@@ -230,7 +239,7 @@ describe('💸 Contract Tests: Transfer (Mobile API)', () => {
         expect(res.body).toMatchObject({
             success: true,
             code: 'SUCCESS',
-            txId: 'ATT-2606-1001',
+            txId: expectedMonthlyTxId(),
             status: 'pending',
             exchangeRate: 6.45,
             newBalance: 4984.496
@@ -249,13 +258,81 @@ describe('💸 Contract Tests: Transfer (Mobile API)', () => {
             status: 'pending'
         });
         expect(Ledger).toHaveBeenCalledTimes(1);
-        expect(Ledger.mock.calls[0][0].description).toContain('ATT-2606-1001');
+        expect(Ledger.mock.calls[0][0].description).toContain(expectedMonthlyTxId());
         expect(Ledger.mock.calls[0][0].description).not.toContain(validPayload.number);
         expect(logAction).toHaveBeenCalledTimes(1);
         const auditPayload = logAction.mock.calls[0][0];
         expect(auditPayload.newData.number).toBeUndefined();
         expect(auditPayload.newData.notes).toBeUndefined();
         expect(auditPayload.newData.idempotencyKey).toBeUndefined();
+    });
+
+    test.each([
+        [
+            'bank_account',
+            {
+                amount: 100,
+                number: 'EG1234567890123456',
+                transferType: 'bank_account',
+                name: 'Bank Recipient',
+                notes: 'bank transfer test'
+            },
+            6.45,
+            '550e8400-e29b-41d4-a716-446655440010'
+        ],
+        [
+            'sefa_niger',
+            {
+                amount: 100,
+                number: '12345678',
+                transferType: 'sefa_niger',
+                name: 'Nita Recipient',
+                serviceSubtype: 'nita',
+                city: 'Niamey',
+                notes: 'nita transfer test'
+            },
+            6.55,
+            '550e8400-e29b-41d4-a716-446655440011'
+        ],
+        [
+            'bankak_sudan',
+            {
+                amount: 100,
+                number: 'BK123456789',
+                transferType: 'bankak_sudan',
+                name: 'Bankak Recipient',
+                notes: 'bankak transfer test'
+            },
+            6.65,
+            '550e8400-e29b-41d4-a716-446655440012'
+        ]
+    ])('accepts extra mobile service %s with the web parity rate', async (_label, payload, expectedRate, key) => {
+        const res = await request(app)
+            .post('/client/new-transfer')
+            .set('Idempotency-Key', key)
+            .send(payload);
+
+        expect(res.status).toBe(200);
+        expect(res.body).toMatchObject({
+            success: true,
+            code: 'SUCCESS',
+            txId: expectedMonthlyTxId(),
+            status: 'pending',
+            transferType: payload.transferType,
+            exchangeRate: expectedRate
+        });
+        expect(res.body.transferTypeLabel).toEqual(expect.any(String));
+        expect(res.body.costLYD).toBeCloseTo(payload.amount / expectedRate, 3);
+        expect(Transaction).toHaveBeenCalledTimes(1);
+        expect(Transaction.mock.calls[0][0]).toMatchObject({
+            idempotencyKey: key,
+            idempotencyFingerprint: fingerprintFor(payload),
+            transferType: payload.transferType,
+            accountNumber: payload.number,
+            amount: payload.amount,
+            exchangeRate: expectedRate,
+            status: 'pending'
+        });
     });
 
     test('T024: rejects Arabic legacy transferType values', async () => {
@@ -275,7 +352,7 @@ describe('💸 Contract Tests: Transfer (Mobile API)', () => {
 
     test('T026: same Idempotency-Key and same payload returns replay without creating a new transaction', async () => {
         Transaction.findOne.mockReturnValue(chainResolve({
-            customId: 'ATT-2606-1001',
+            customId: expectedMonthlyTxId(),
             status: 'pending',
             costLYD: 15.504,
             exchangeRate: 6.45,
@@ -283,7 +360,7 @@ describe('💸 Contract Tests: Transfer (Mobile API)', () => {
             idempotencyResponse: {
                 code: 'SUCCESS',
                 message: 'تم إرسال طلبك بنجاح',
-                txId: 'ATT-2606-1001',
+                txId: expectedMonthlyTxId(),
                 status: 'pending',
                 costLYD: 15.504,
                 exchangeRate: 6.45,
@@ -300,7 +377,7 @@ describe('💸 Contract Tests: Transfer (Mobile API)', () => {
         expect(res.status).toBe(200);
         expect(res.body.success).toBe(true);
         expect(res.body.code).toBe('DUPLICATE_REPLAYED');
-        expect(res.body.txId).toBe('ATT-2606-1001');
+        expect(res.body.txId).toBe(expectedMonthlyTxId());
         expect(res.body.newBalance).toBe(4984.496);
         expect(Transaction).not.toHaveBeenCalled();
         expect(User.findOneAndUpdate).not.toHaveBeenCalled();
@@ -309,7 +386,7 @@ describe('💸 Contract Tests: Transfer (Mobile API)', () => {
 
     test('T027: same Idempotency-Key with different payload returns IDEMPOTENCY_CONFLICT', async () => {
         Transaction.findOne.mockReturnValue(chainResolve({
-            customId: 'ATT-2606-1001',
+            customId: expectedMonthlyTxId(),
             idempotencyFingerprint: fingerprintFor({ ...validPayload, amount: 200 })
         }));
 

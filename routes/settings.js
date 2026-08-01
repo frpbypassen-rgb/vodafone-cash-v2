@@ -12,6 +12,7 @@ const Admin = require('../models/Admin');
 const { requireAuth, requireMaster } = require('../middlewares/auth');
 const { pickAllowed } = require('../middlewares/sanitize');
 const { hashPassword } = require('../services/passwordService');
+const { SERVICE_RATE_ADMIN_FIELDS, getAdminRateServices } = require('../utils/rateHelper');
 
 router.use(requireAuth);
 
@@ -20,6 +21,7 @@ router.use(requireAuth);
 // =========================================================
 const ALLOWED_MAIN_SETTINGS = [
     'rateLevel1', 'rateLevel2', 'rateLevel3',
+    ...SERVICE_RATE_ADMIN_FIELDS,
     'openingTime', 'closingTime', 'isManualClosed',
     'supportContact', 'autoRouteEnabled', 'autoRouteBotId'
 ];
@@ -40,7 +42,7 @@ const ALLOWED_CLIENT_BOT_FIELDS = [
 router.get('/', async (req, res) => {
     const settings = await Settings.findOne({}) || await Settings.create({});
     const executorBots = await ExecutorBot.find({ status: 'active' });
-    res.render('settings', { settings, executorBots });
+    res.render('settings', { settings, executorBots, rateServices: getAdminRateServices() });
 });
 
 router.post('/update', requireMaster, async (req, res) => {
@@ -50,9 +52,15 @@ router.post('/update', requireMaster, async (req, res) => {
         data.autoRouteEnabled = data.autoRouteEnabled === 'true' || data.autoRouteEnabled === true;
         if (!data.autoRouteBotId || data.autoRouteBotId === '') data.autoRouteBotId = null;
         // تحقق من القيم الرقمية
-        ['rateLevel1', 'rateLevel2', 'rateLevel3'].forEach(field => {
+        ['rateLevel1', 'rateLevel2', 'rateLevel3', ...SERVICE_RATE_ADMIN_FIELDS].forEach(field => {
             if (data[field] !== undefined) data[field] = parseFloat(data[field]) || 0;
         });
+        if (data.cashRateLevel1 !== undefined) data.rateLevel1 = data.cashRateLevel1;
+        if (data.cashRateLevel2 !== undefined) data.rateLevel2 = data.cashRateLevel2;
+        if (data.cashRateLevel3 !== undefined) data.rateLevel3 = data.cashRateLevel3;
+        if (data.rateLevel1 !== undefined && data.cashRateLevel1 === undefined) data.cashRateLevel1 = data.rateLevel1;
+        if (data.rateLevel2 !== undefined && data.cashRateLevel2 === undefined) data.cashRateLevel2 = data.rateLevel2;
+        if (data.rateLevel3 !== undefined && data.cashRateLevel3 === undefined) data.cashRateLevel3 = data.rateLevel3;
         await Settings.updateOne({}, data, { upsert: true });
         res.redirect('/settings');
     } catch (e) {

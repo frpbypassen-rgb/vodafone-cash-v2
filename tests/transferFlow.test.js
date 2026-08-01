@@ -40,13 +40,14 @@ jest.mock('express-validator', () => {
     const mockFn = jest.fn((req, res, next) => next());
     const methods = [
         'trim', 'notEmpty', 'isLength', 'isFloat', 'isIn', 'isString',
-        'optional', 'escape', 'custom', 'isNumeric', 'isEmail', 'withMessage'
+        'optional', 'escape', 'custom', 'isNumeric', 'isEmail', 'withMessage', 'isInt'
     ];
     methods.forEach(m => {
         mockFn[m] = jest.fn().mockReturnValue(mockFn);
     });
     return {
         body: jest.fn(() => mockFn),
+        query: jest.fn(() => mockFn),
         validationResult: jest.fn(() => ({ isEmpty: () => true, array: () => [] })),
     };
 });
@@ -57,6 +58,9 @@ jest.mock('../models/AuditLog', () => function() {
 });
 jest.mock('../services/auditService', () => ({
     logAction: jest.fn().mockResolvedValue(undefined),
+}));
+jest.mock('../services/eventBus', () => ({
+    publish: jest.fn().mockResolvedValue(undefined),
 }));
 
 // ── محاكاة bcrypt ──────────────────────────────────────────────────
@@ -145,9 +149,10 @@ jest.mock('../models/User', () => {
     const MockUser = jest.fn().mockImplementation(() => MOCK_USER);
     // findOne يُستخدم في login — يُرجع كائن مباشرة (لا يحتاج session)
     MockUser.findOne = jest.fn().mockResolvedValue(MOCK_USER);
-    // findById يُستخدم في /client/home و /client/new-transfer — يدعم .session()
+    // findById يُسخدم في /client/home و /client/new-transfer — يدعم .session()
     MockUser.findById = jest.fn().mockImplementation(() => ({
         session: jest.fn().mockReturnValue(MOCK_USER),
+        then: function(resolve) { return Promise.resolve(MOCK_USER).then(resolve); }
     }));
     // findOneAndUpdate يُستخدم في خصم الرصيد الذري — يدعم .session() كـ option
     MockUser.findOneAndUpdate = jest.fn().mockResolvedValue({ ...MOCK_USER, balance: 4750, balances: { EGP: 4750, LYD: 4750, USD: 4750, EUR: 4750, SAR: 4750 } });
@@ -190,6 +195,15 @@ jest.mock('../models/Ledger', () => {
     }));
     return MockLedger;
 });
+jest.mock('../models/SubAccount', () => {
+    const MockSub = jest.fn();
+    MockSub.findOne = jest.fn().mockResolvedValue(null);
+    MockSub.findById = jest.fn().mockResolvedValue(null);
+    MockSub.findOneAndUpdate = jest.fn().mockResolvedValue(null);
+    MockSub.findByIdAndUpdate = jest.fn().mockResolvedValue(null);
+    MockSub.modelName = 'SubAccount';
+    return MockSub;
+});
 jest.mock('../models/JournalEvent', () => {
     const MockJournalEvent = jest.fn().mockImplementation((data) => ({
         ...data,
@@ -207,6 +221,7 @@ jest.mock('../models/ClientEmployee', () => {
     M.findOne = jest.fn().mockResolvedValue(null);
     M.findById = jest.fn().mockImplementation(() => ({
         session: jest.fn().mockReturnValue(null),
+        then: function(resolve) { return Promise.resolve(null).then(resolve); }
     }));
     return M;
 });
@@ -227,13 +242,27 @@ jest.mock('../models/ClientBot',      () => {
 });
 jest.mock('../models/ExecutorBot',    () => { const M = jest.fn(); M.findByIdAndUpdate = jest.fn().mockResolvedValue(null); return M; });
 jest.mock('../models/Admin',          () => { const M = jest.fn(); M.find = jest.fn().mockResolvedValue([]); return M; });
-jest.mock('../validators/mobileValidators', () => ({
-    loginValidator:        [(_r, _s, n) => n()],
-    transferValidator:     [(_r, _s, n) => n()],
-    cancelTaskValidator:   [(_r, _s, n) => n()],
-    completeTaskValidator: [(_r, _s, n) => n()],
-    refreshTokenValidator: [(_r, _s, n) => n()],
-}));
+jest.mock('../validators/mobileValidators', () => {
+    const pass = [(_r, _s, n) => n()];
+    return {
+        loginValidator: pass,
+        transferValidator: pass,
+        cancelTaskValidator: pass,
+        completeTaskValidator: pass,
+        refreshTokenValidator: pass,
+        clientReportsValidator: pass,
+        lookupValidator: pass,
+        balanceTransferValidator: pass,
+        complaintValidator: pass,
+        depositRequestValidator: pass,
+        editAmountValidator: pass,
+        returnTaskValidator: pass,
+        createEmployeeValidator: pass,
+        resetPasswordValidator: pass,
+        executorReportsValidator: pass,
+        executorSupportMessageValidator: pass,
+    };
+});
 jest.mock('../models/Counter', () => ({
     findOneAndUpdate: jest.fn().mockImplementation(() => ({
         value: 1,
@@ -351,6 +380,28 @@ describe('🏠 المرحلة 3: جلب الشاشة الرئيسية (GET /clie
         expect(res.body.exchangeRate).toBeDefined();
         expect(typeof res.body.exchangeRate).toBe('number');
         expect(res.body.rate).toBeUndefined();
+    });
+
+    test('✅ يعيد عقد أسعار الصرف الكامل للموبايل', () => {
+        expect(res.body.tier).toBe(2);
+        expect(res.body.tierLabel).toBe('مستوى 2');
+        expect(res.body.baseExchangeRate).toBe(6.45);
+        expect(res.body.serviceRates).toEqual({
+            vodafone: 6.45,
+            post_account: 6.40,
+            post_card: 6.30,
+            bank_account: 6.45,
+            sefa_niger: 6.55,
+            bankak_sudan: 6.65
+        });
+        expect(res.body.serviceCatalog.map(service => service.key).sort()).toEqual([
+            'bank_account',
+            'bankak_sudan',
+            'post_account',
+            'post_card',
+            'sefa_niger',
+            'vodafone'
+        ]);
     });
 
     test('✅ النظام مفتوح (isOpen: true)', () => {

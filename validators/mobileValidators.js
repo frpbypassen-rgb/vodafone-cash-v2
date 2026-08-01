@@ -1,12 +1,13 @@
-// validators/mobileValidators.js
-// طبقة التحقق من المدخلات لمسارات Mobile API
+﻿// validators/mobileValidators.js
+// Ø·Ø¨Ù‚Ø© Ø§Ù„ØªØ­Ù‚Ù‚ Ù…Ù† Ø§Ù„Ù…Ø¯Ø®Ù„Ø§Øª Ù„Ù…Ø³Ø§Ø±Ø§Øª Mobile API
 'use strict';
 
 const { body, validationResult } = require('express-validator');
 const { sendMobileError } = require('../mappers/mobileErrorMapper');
+const { getEnabledMobileTransferServiceKeys, getTransferServiceDefinition } = require('../utils/mobileTransferServiceCatalog');
 
 /**
- * Middleware للتحقق من نتائج الـ validation وإرجاع خطأ موحد
+ * Middleware Ù„Ù„ØªØ­Ù‚Ù‚ Ù…Ù† Ù†ØªØ§Ø¦Ø¬ Ø§Ù„Ù€ validation ÙˆØ¥Ø±Ø¬Ø§Ø¹ Ø®Ø·Ø£ Ù…ÙˆØ­Ø¯
  */
 const validate = (req, res, next) => {
     const errors = validationResult(req);
@@ -17,21 +18,46 @@ const validate = (req, res, next) => {
     next();
 };
 
-// ── تسجيل الدخول ──────────────────────────────────────────────────
+const MAX_SUPPORT_IMAGE_BYTES = 4 * 1024 * 1024;
+const DATA_IMAGE_PREFIX = /^data:image\/(jpeg|jpg|png|webp);base64,/i;
+
+const validateBase64Image = (value, maxBytes = MAX_SUPPORT_IMAGE_BYTES) => {
+    if (typeof value !== 'string' || value.trim().length === 0) {
+        throw new Error('Ø§Ù„ØµÙˆØ±Ø© Ø§Ù„Ù…Ø±ÙÙ‚Ø© ØºÙŠØ± ØµØ§Ù„Ø­Ø©');
+    }
+
+    if (!DATA_IMAGE_PREFIX.test(value)) {
+        throw new Error('Ø§Ù„ØµÙˆØ±Ø© ÙŠØ¬Ø¨ Ø£Ù† ØªÙƒÙˆÙ† Ø¨ØµÙŠØºØ© jpeg Ø£Ùˆ png Ø£Ùˆ webp');
+    }
+
+    const base64Data = value.replace(DATA_IMAGE_PREFIX, '');
+    if (base64Data.length % 4 !== 0 || /[^A-Za-z0-9+/=]/.test(base64Data)) {
+        throw new Error('Ø§Ù„ØµÙˆØ±Ø© ÙŠØ¬Ø¨ Ø£Ù† ØªÙƒÙˆÙ† Ù†Øµ Base64 ØµØ§Ù„Ø­');
+    }
+
+    const sizeInBytes = Buffer.from(base64Data, 'base64').length;
+    if (sizeInBytes > maxBytes) {
+        throw new Error('Ø­Ø¬Ù… Ø§Ù„ØµÙˆØ±Ø© ÙŠØ¬Ø¨ Ø£Ù„Ø§ ÙŠØªØ¬Ø§ÙˆØ² 4 Ù…ÙŠØ¬Ø§Ø¨Ø§ÙŠØª');
+    }
+
+    return true;
+};
+
+// â”€â”€ ØªØ³Ø¬ÙŠÙ„ Ø§Ù„Ø¯Ø®ÙˆÙ„ â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const loginValidator = [
     body('username')
         .trim()
-        .notEmpty().withMessage('اسم المستخدم مطلوب')
-        .isLength({ min: 3, max: 50 }).withMessage('اسم المستخدم يجب أن يكون بين 3 و50 حرف')
+        .notEmpty().withMessage('Ø§Ø³Ù… Ø§Ù„Ù…Ø³ØªØ®Ø¯Ù… Ù…Ø·Ù„ÙˆØ¨')
+        .isLength({ min: 3, max: 50 }).withMessage('Ø§Ø³Ù… Ø§Ù„Ù…Ø³ØªØ®Ø¯Ù… ÙŠØ¬Ø¨ Ø£Ù† ÙŠÙƒÙˆÙ† Ø¨ÙŠÙ† 3 Ùˆ50 Ø­Ø±Ù')
         .escape(),
     body('password')
         .trim()
-        .notEmpty().withMessage('كلمة المرور مطلوبة')
-        .isLength({ min: 4, max: 100 }).withMessage('كلمة المرور يجب أن تكون 4 أحرف على الأقل'),
+        .notEmpty().withMessage('ÙƒÙ„Ù…Ø© Ø§Ù„Ù…Ø±ÙˆØ± Ù…Ø·Ù„ÙˆØ¨Ø©')
+        .isLength({ min: 4, max: 100 }).withMessage('ÙƒÙ„Ù…Ø© Ø§Ù„Ù…Ø±ÙˆØ± ÙŠØ¬Ø¨ Ø£Ù† ØªÙƒÙˆÙ† 4 Ø£Ø­Ø±Ù Ø¹Ù„Ù‰ Ø§Ù„Ø£Ù‚Ù„'),
     validate
 ];
 
-// ── إنشاء تحويل جديد ──────────────────────────────────────────────
+// â”€â”€ Ø¥Ù†Ø´Ø§Ø¡ ØªØ­ÙˆÙŠÙ„ Ø¬Ø¯ÙŠØ¯ â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const transferValidator = [
     body('amount')
         .notEmpty().withMessage('المبلغ مطلوب')
@@ -42,9 +68,9 @@ const transferValidator = [
         .isLength({ min: 5, max: 30 }).withMessage('الرقم يجب أن يكون بين 5 و30 خانة'),
     body('transferType')
         .trim()
-        .notEmpty().withMessage('نوع التحويل مطلوب')
-        .isIn(['vodafone', 'post_account', 'post_card'])
-        .withMessage('نوع التحويل غير صالح. المسموح فقط: vodafone, post_account, post_card'),
+        .notEmpty().withMessage('Ù†ÙˆØ¹ Ø§Ù„ØªØ­ÙˆÙŠÙ„ Ù…Ø·Ù„ÙˆØ¨')
+        .isIn(getEnabledMobileTransferServiceKeys())
+        .withMessage('نوع التحويل غير صالح للموبايل'),
     body('name')
         .optional()
         .trim()
@@ -55,8 +81,22 @@ const transferValidator = [
         .trim()
         .isLength({ max: 500 }).withMessage('الملاحظات لا تتجاوز 500 حرف')
         .escape(),
+    body('serviceSubtype')
+        .optional()
+        .trim()
+        .isLength({ min: 2, max: 32 }).withMessage('نوع الخدمة الفرعي غير صالح')
+        .escape(),
+    body('city')
+        .optional()
+        .trim()
+        .isLength({ max: 80 }).withMessage('اسم المدينة لا يتجاوز 80 حرف')
+        .escape(),
     body().custom((body) => {
-        const { transferType, name, number, idCardImage, oldReceiptImage } = body;
+        const { transferType, name, number, idCardImage, oldReceiptImage, serviceSubtype, city } = body;
+        const service = getTransferServiceDefinition(transferType);
+        if (!service || !service.mobileEnabled) {
+            throw new Error('نوع التحويل غير مدعوم للموبايل');
+        }
         
         if (transferType === 'post_card') {
             if (!name) {
@@ -105,42 +145,236 @@ const transferValidator = [
         
         if (transferType === 'vodafone') {
             if (!number || !/^\d{10,15}$/.test(number)) {
-                throw new Error('رقم مستلم الكاش يجب أن يكون بين 10 و 15 رقماً');
+                throw new Error('رقم مستلم الكاش يجب أن يكون بين 10 و15 رقماً');
             }
         }
-        
+
+        if (transferType === 'bank_account') {
+            if (!name || name.trim().length < 3) {
+                throw new Error('اسم المستفيد مطلوب لتحويل الحساب البنكي');
+            }
+            if (!number || !/^[A-Za-z0-9\s-]{8,34}$/.test(number)) {
+                throw new Error('رقم الحساب البنكي أو IBAN غير صالح');
+            }
+        }
+
+        if (transferType === 'sefa_niger') {
+            const subtype = serviceSubtype || 'nita';
+            if (!service.allowedSubtypes || !service.allowedSubtypes.includes(subtype)) {
+                throw new Error('نوع خدمة سيفا النيجر غير صالح');
+            }
+            if (!name || name.trim().length < 3) {
+                throw new Error('اسم المستفيد مطلوب لسيفا النيجر');
+            }
+            if (!number || !/^\d{8}$/.test(number)) {
+                throw new Error('رقم حساب NITA يجب أن يكون 8 أرقام');
+            }
+            if (subtype === 'nita' && (!city || city.trim().length < 2)) {
+                throw new Error('اسم المدينة مطلوب لخدمة NITA');
+            }
+            const amount = Number(body.amount);
+            if (!Number.isInteger(amount)) {
+                throw new Error('مبلغ سيفا النيجر يجب أن يكون رقماً صحيحاً بدون كسور');
+            }
+        }
+
+        if (transferType === 'bankak_sudan') {
+            if (!name || name.trim().length < 3) {
+                throw new Error('اسم المستفيد مطلوب لبنكك السودان');
+            }
+            if (!number || !/^[A-Za-z0-9]{5,30}$/.test(number)) {
+                throw new Error('رقم حساب بنكك غير صالح');
+            }
+        }
         return true;
     }),
     validate
 ];
 
-// ── إلغاء مهمة ────────────────────────────────────────────────────
+// â”€â”€ Ø¥Ù„ØºØ§Ø¡ Ù…Ù‡Ù…Ø© â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const cancelTaskValidator = [
     body('reason')
         .trim()
-        .notEmpty().withMessage('سبب الإلغاء مطلوب')
-        .isLength({ min: 5, max: 300 }).withMessage('سبب الإلغاء يجب أن يكون بين 5 و300 حرف')
+        .notEmpty().withMessage('Ø³Ø¨Ø¨ Ø§Ù„Ø¥Ù„ØºØ§Ø¡ Ù…Ø·Ù„ÙˆØ¨')
+        .isLength({ min: 5, max: 300 }).withMessage('Ø³Ø¨Ø¨ Ø§Ù„Ø¥Ù„ØºØ§Ø¡ ÙŠØ¬Ø¨ Ø£Ù† ÙŠÙƒÙˆÙ† Ø¨ÙŠÙ† 5 Ùˆ300 Ø­Ø±Ù')
         .escape(),
     validate
 ];
 
-// ── إتمام مهمة ────────────────────────────────────────────────────
+// â”€â”€ Ø¥ØªÙ…Ø§Ù… Ù…Ù‡Ù…Ø© â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const completeTaskValidator = [
     body('imageBase64')
-        .notEmpty().withMessage('صورة الإثبات مطلوبة')
-        .isString().withMessage('صورة الإثبات يجب أن تكون نص Base64'),
+        .notEmpty().withMessage('ØµÙˆØ±Ø© Ø§Ù„Ø¥Ø«Ø¨Ø§Øª Ù…Ø·Ù„ÙˆØ¨Ø©')
+        .isString().withMessage('ØµÙˆØ±Ø© Ø§Ù„Ø¥Ø«Ø¨Ø§Øª ÙŠØ¬Ø¨ Ø£Ù† ØªÙƒÙˆÙ† Ù†Øµ Base64'),
     body('senderPhone')
         .optional()
         .trim()
-        .isLength({ min: 7, max: 20 }).withMessage('رقم المرسل غير صالح'),
+        .isLength({ min: 7, max: 20 }).withMessage('Ø±Ù‚Ù… Ø§Ù„Ù…Ø±Ø³Ù„ ØºÙŠØ± ØµØ§Ù„Ø­'),
     validate
 ];
 
-// ── تجديد التوكن ──────────────────────────────────────────────────
+// â”€â”€ ØªØ¬Ø¯ÙŠØ¯ Ø§Ù„ØªÙˆÙƒÙ† â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const refreshTokenValidator = [
     body('refreshToken')
         .trim()
-        .notEmpty().withMessage('Refresh Token مطلوب'),
+        .notEmpty().withMessage('Refresh Token Ù…Ø·Ù„ÙˆØ¨'),
+    validate
+];
+
+const clientReportsValidator = [
+    body('dateType')
+        .optional()
+        .trim()
+        .isIn(['day', 'month']).withMessage('Ù†ÙˆØ¹ Ø§Ù„ØªØ§Ø±ÙŠØ® ØºÙŠØ± ØµØ§Ù„Ø­'),
+    body('dateValue')
+        .optional()
+        .trim()
+        .isLength({ min: 4, max: 20 }).withMessage('Ù‚ÙŠÙ…Ø© Ø§Ù„ØªØ§Ø±ÙŠØ® ØºÙŠØ± ØµØ§Ù„Ø­Ø©'),
+    validate
+];
+
+const lookupValidator = [
+    body('targetAccountCode')
+        .trim()
+        .notEmpty().withMessage('ÙƒÙˆØ¯ Ø§Ù„Ù…Ø³ØªÙ„Ù… Ù…Ø·Ù„ÙˆØ¨'),
+    validate
+];
+
+const balanceTransferValidator = [
+    body('targetAccountCode')
+        .trim()
+        .notEmpty().withMessage('ÙƒÙˆØ¯ Ø§Ù„Ù…Ø³ØªÙ„Ù… Ù…Ø·Ù„ÙˆØ¨'),
+    body('amount')
+        .notEmpty().withMessage('Ø§Ù„Ù…Ø¨Ù„Øº Ù…Ø·Ù„ÙˆØ¨')
+        .isFloat({ min: 0.01, max: 500000 }).withMessage('Ø§Ù„Ù…Ø¨Ù„Øº ÙŠØ¬Ø¨ Ø£Ù† ÙŠÙƒÙˆÙ† Ø¨ÙŠÙ† 0.01 Ùˆ 500,000'),
+    body('notes')
+        .optional()
+        .trim()
+        .escape(),
+    validate
+];
+
+const complaintValidator = [
+    body('transactionId')
+        .trim()
+        .notEmpty().withMessage('Ù…Ø¹Ø±Ù Ø§Ù„Ø¹Ù…Ù„ÙŠØ© Ù…Ø·Ù„ÙˆØ¨'),
+    body('complaintText')
+        .trim()
+        .notEmpty().withMessage('Ù†Øµ Ø§Ù„Ø´ÙƒÙˆÙ‰ Ù…Ø·Ù„ÙˆØ¨')
+        .isLength({ min: 5, max: 1000 }).withMessage('Ù†Øµ Ø§Ù„Ø´ÙƒÙˆÙ‰ ÙŠØ¬Ø¨ Ø£Ù† ÙŠÙƒÙˆÙ† Ø¨ÙŠÙ† 5 Ùˆ 1000 Ø­Ø±Ù')
+        .escape(),
+    validate
+];
+
+const depositRequestValidator = [
+    body('amount')
+        .notEmpty().withMessage('Ø§Ù„Ù…Ø¨Ù„Øº Ù…Ø·Ù„ÙˆØ¨')
+        .isFloat({ min: 1, max: 1000000 }).withMessage('Ø§Ù„Ù…Ø¨Ù„Øº ÙŠØ¬Ø¨ Ø£Ù† ÙŠÙƒÙˆÙ† Ø¨ÙŠÙ† 1 Ùˆ 1,000,000'),
+    validate
+];
+
+const editAmountValidator = [
+    body('newAmount')
+        .notEmpty().withMessage('Ø§Ù„Ù…Ø¨Ù„Øº Ø§Ù„Ø¬Ø¯ÙŠØ¯ Ù…Ø·Ù„ÙˆØ¨')
+        .isFloat({ min: 0.01, max: 500000 }).withMessage('Ø§Ù„Ù…Ø¨Ù„Øº ÙŠØ¬Ø¨ Ø£Ù† ÙŠÙƒÙˆÙ† Ø¨ÙŠÙ† 0.01 Ùˆ 500,000'),
+    body('reason')
+        .trim()
+        .notEmpty().withMessage('Ø§Ù„Ø³Ø¨Ø¨ Ù…Ø·Ù„ÙˆØ¨')
+        .isLength({ min: 5, max: 300 }).withMessage('Ø§Ù„Ø³Ø¨Ø¨ ÙŠØ¬Ø¨ Ø£Ù† ÙŠÙƒÙˆÙ† Ø¨ÙŠÙ† 5 Ùˆ 300 Ø­Ø±Ù')
+        .escape(),
+    validate
+];
+
+const returnTaskValidator = [
+    body('reason')
+        .trim()
+        .notEmpty().withMessage('Ø§Ù„Ø³Ø¨Ø¨ Ù…Ø·Ù„ÙˆØ¨')
+        .isLength({ min: 5, max: 300 }).withMessage('Ø§Ù„Ø³Ø¨Ø¨ ÙŠØ¬Ø¨ Ø£Ù† ÙŠÙƒÙˆÙ† Ø¨ÙŠÙ† 5 Ùˆ 300 Ø­Ø±Ù')
+        .escape(),
+    validate
+];
+
+const createEmployeeValidator = [
+    body('name')
+        .trim()
+        .notEmpty().withMessage('Ø§Ù„Ø§Ø³Ù… Ù…Ø·Ù„ÙˆØ¨')
+        .isLength({ min: 3, max: 100 }).withMessage('Ø§Ù„Ø§Ø³Ù… ÙŠØ¬Ø¨ Ø£Ù† ÙŠÙƒÙˆÙ† Ø¨ÙŠÙ† 3 Ùˆ 100 Ø­Ø±Ù')
+        .escape(),
+    body('phone')
+        .optional()
+        .trim()
+        .escape(),
+    body('role')
+        .trim()
+        .notEmpty().withMessage('Ø§Ù„Ø¯ÙˆØ± Ù…Ø·Ù„ÙˆØ¨')
+        .isIn(['operator', 'accountant']).withMessage('Ø§Ù„Ø¯ÙˆØ± ØºÙŠØ± ØµØ§Ù„Ø­'),
+    body('webUsername')
+        .trim()
+        .notEmpty().withMessage('Ø§Ø³Ù… Ø§Ù„Ù…Ø³ØªØ®Ø¯Ù… Ù…Ø·Ù„ÙˆØ¨')
+        .isLength({ min: 3, max: 100 }).withMessage('Ø§Ø³Ù… Ø§Ù„Ù…Ø³ØªØ®Ø¯Ù… ÙŠØ¬Ø¨ Ø£Ù† ÙŠÙƒÙˆÙ† Ø¨ÙŠÙ† 3 Ùˆ 100 Ø­Ø±Ù')
+        .escape(),
+    body('webPassword')
+        .trim()
+        .notEmpty().withMessage('ÙƒÙ„Ù…Ø© Ø§Ù„Ù…Ø±ÙˆØ± Ù…Ø·Ù„ÙˆØ¨Ø©')
+        .isLength({ min: 4, max: 100 }).withMessage('ÙƒÙ„Ù…Ø© Ø§Ù„Ù…Ø±ÙˆØ± ÙŠØ¬Ø¨ Ø£Ù† ØªÙƒÙˆÙ† 4 Ø£Ø­Ø±Ù Ø¹Ù„Ù‰ Ø§Ù„Ø£Ù‚Ù„'),
+    body('webPassword').custom((value) => {
+        const password = String(value || '');
+        if (password.length < 8) {
+            throw new Error('ÙƒÙ„Ù…Ø© Ø§Ù„Ù…Ø±ÙˆØ± ÙŠØ¬Ø¨ Ø£Ù† ØªÙƒÙˆÙ† 8 Ø£Ø­Ø±Ù Ø¹Ù„Ù‰ Ø§Ù„Ø£Ù‚Ù„');
+        }
+        if (!/^(?=.*[A-Za-z])(?=.*\d).+$/.test(password)) {
+            throw new Error('ÙƒÙ„Ù…Ø© Ø§Ù„Ù…Ø±ÙˆØ± ÙŠØ¬Ø¨ Ø£Ù† ØªØ­ØªÙˆÙŠ Ø¹Ù„Ù‰ Ø­Ø±Ù ÙˆØ±Ù‚Ù… Ø¹Ù„Ù‰ Ø§Ù„Ø£Ù‚Ù„');
+        }
+        return true;
+    }),
+    validate
+];
+
+const resetPasswordValidator = [
+    body('newPassword')
+        .trim()
+        .notEmpty().withMessage('ÙƒÙ„Ù…Ø© Ø§Ù„Ù…Ø±ÙˆØ± Ø§Ù„Ø¬Ø¯ÙŠØ¯Ø© Ù…Ø·Ù„ÙˆØ¨Ø©')
+        .isLength({ min: 4, max: 100 }).withMessage('ÙƒÙ„Ù…Ø© Ø§Ù„Ù…Ø±ÙˆØ± ÙŠØ¬Ø¨ Ø£Ù† ØªÙƒÙˆÙ† 4 Ø£Ø­Ø±Ù Ø¹Ù„Ù‰ Ø§Ù„Ø£Ù‚Ù„'),
+    body('newPassword').custom((value) => {
+        const password = String(value || '');
+        if (password.length < 8) {
+            throw new Error('ÙƒÙ„Ù…Ø© Ø§Ù„Ù…Ø±ÙˆØ± ÙŠØ¬Ø¨ Ø£Ù† ØªÙƒÙˆÙ† 8 Ø£Ø­Ø±Ù Ø¹Ù„Ù‰ Ø§Ù„Ø£Ù‚Ù„');
+        }
+        if (!/^(?=.*[A-Za-z])(?=.*\d).+$/.test(password)) {
+            throw new Error('ÙƒÙ„Ù…Ø© Ø§Ù„Ù…Ø±ÙˆØ± ÙŠØ¬Ø¨ Ø£Ù† ØªØ­ØªÙˆÙŠ Ø¹Ù„Ù‰ Ø­Ø±Ù ÙˆØ±Ù‚Ù… Ø¹Ù„Ù‰ Ø§Ù„Ø£Ù‚Ù„');
+        }
+        return true;
+    }),
+    validate
+];
+
+const executorReportsValidator = [
+    body('dateType')
+        .optional()
+        .trim()
+        .isIn(['day', 'month']).withMessage('Ù†ÙˆØ¹ Ø§Ù„ØªØ§Ø±ÙŠØ® ØºÙŠØ± ØµØ§Ù„Ø­'),
+    body('dateValue')
+        .optional()
+        .trim()
+        .isLength({ min: 4, max: 20 }).withMessage('Ù‚ÙŠÙ…Ø© Ø§Ù„ØªØ§Ø±ÙŠØ® ØºÙŠØ± ØµØ§Ù„Ø­Ø©'),
+    validate
+];
+
+const executorSupportMessageValidator = [
+    body('text')
+        .optional({ nullable: true, checkFalsy: true })
+        .trim()
+        .isLength({ max: 1000 }).withMessage('Ù†Øµ Ø§Ù„Ø±Ø³Ø§Ù„Ø© ÙŠØ¬Ø¨ Ø£Ù„Ø§ ÙŠØªØ¬Ø§ÙˆØ² 1000 Ø­Ø±Ù')
+        .escape(),
+    body('imageBase64')
+        .optional({ nullable: true, checkFalsy: true })
+        .custom((value) => validateBase64Image(value)),
+    body().custom((payload) => {
+        if (!payload.text && !payload.imageBase64) {
+            throw new Error('ÙŠØ¬Ø¨ Ø¥Ø±Ø³Ø§Ù„ Ù†Øµ Ø£Ùˆ ØµÙˆØ±Ø©');
+        }
+        return true;
+    }),
     validate
 ];
 
@@ -149,5 +383,17 @@ module.exports = {
     transferValidator,
     cancelTaskValidator,
     completeTaskValidator,
-    refreshTokenValidator
+    refreshTokenValidator,
+    clientReportsValidator,
+    lookupValidator,
+    balanceTransferValidator,
+    complaintValidator,
+    depositRequestValidator,
+    editAmountValidator,
+    returnTaskValidator,
+    createEmployeeValidator,
+    resetPasswordValidator,
+    executorReportsValidator,
+    executorSupportMessageValidator
 };
+

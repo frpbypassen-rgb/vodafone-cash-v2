@@ -22,7 +22,7 @@ router.get('/executors', requireAuth, async (req, res) => {
 router.get('/executor/:id', requireAuth, async (req, res) => {
     try {
         await syncBotBalance(req.params.id); 
-        const bot = await ExecutorGroup.findById(req.params.id).populate('parentGroupId');
+        const bot = await ExecutorGroup.findById(req.params.id).populate('parentGroupId parentBotId');
         let queryFilter = bot.isManagerBot ? { managerGroupId: bot._id } : { executorGroupId: bot._id };
         const transactions = await Transaction.find(queryFilter).sort({ updatedAt: -1 }).limit(100);
         
@@ -45,7 +45,8 @@ router.post('/executor/:id/settle', requireAuth, async (req, res) => {
         const bot = await ExecutorGroup.findById(req.params.id); const amount = parseFloat(req.body.amount); const notes = req.body.notes ? req.body.notes.trim() : ''; 
         let targetBotId = bot._id; let targetBotName = bot.name;
 
-        if (!bot.isManagerBot && bot.parentGroupId) { targetBotId = bot.parentGroupId; const parentBot = await ExecutorGroup.findById(targetBotId); if (parentBot) { targetBotName = parentBot.name; } }
+        const parentGroupId = bot.parentGroupId || bot.parentBotId;
+        if (!bot.isManagerBot && parentGroupId) { targetBotId = parentGroupId; const parentBot = await ExecutorGroup.findById(targetBotId); if (parentBot) { targetBotName = parentBot.name; } }
         
         if (!isNaN(amount) && amount !== 0) {
             const tx = await Transaction.create({
@@ -78,8 +79,17 @@ router.post('/executor/:id/settle', requireAuth, async (req, res) => {
 
 router.post('/executor/:id/link-manager', requireAuth, async (req, res) => {
     try {
-        const botId = req.params.id; const parentId = req.body.parentGroupId; const bot = await ExecutorGroup.findById(botId);
-        if (bot) { if (parentId === 'none') { bot.parentGroupId = null; } else { bot.parentGroupId = parentId; } await bot.save(); }
+        const botId = req.params.id; const parentId = req.body.parentGroupId || req.body.parentBotId; const bot = await ExecutorGroup.findById(botId);
+        if (bot) {
+            if (parentId === 'none') {
+                bot.parentGroupId = null;
+                bot.parentBotId = null;
+            } else {
+                bot.parentGroupId = parentId;
+                bot.parentBotId = parentId;
+            }
+            await bot.save();
+        }
         res.redirect(`/executor/${botId}`);
     } catch (e) { res.redirect('/executors'); }
 });

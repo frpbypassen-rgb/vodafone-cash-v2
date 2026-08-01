@@ -41,6 +41,15 @@ jest.mock('../models/ClientBot', () => {
     return M;
 });
 
+jest.mock('../models/SubAccount', () => {
+    const M = jest.fn();
+    M.findOne = jest.fn();
+    M.findById = jest.fn();
+    M.updateOne = jest.fn().mockResolvedValue({ modifiedCount: 1 });
+    M.modelName = 'SubAccount';
+    return M;
+});
+
 jest.mock('../models/Settings', () => ({
     findOne: jest.fn().mockReturnValue({
         lean: jest.fn().mockResolvedValue({
@@ -150,8 +159,17 @@ describe('🔐 Contract Tests: Auth (Mobile API)', () => {
         expect(res.body.exchangeRate).toBe(6.40);
         expect(res.body.isOpen).toBe(true);
         expect(res.body.serverTime).toBeDefined();
+        expect(res.body.persona).toBe('directClient');
+        expect(res.body.role).toBe('client');
+        expect(res.body.permissions).toEqual(expect.arrayContaining([
+            'client.home.read',
+            'client.transfer.create',
+            'client.transactions.read',
+            'client.tickets.manage'
+        ]));
         expect(res.body.context).toBeDefined();
         expect(res.body.context.clientCompanyId).toBeNull();
+        expect(res.body.context.agentId).toBeNull();
 
         // T016: Should NOT return webPassword, password, or direct credentials
         expect(res.body.webPassword).toBeUndefined();
@@ -167,6 +185,7 @@ describe('🔐 Contract Tests: Auth (Mobile API)', () => {
             phone: '01022222222',
             status: 'active',
             companyId: 'company-id-123',
+            canViewAllReports: true,
             webPassword: '$2b$12$hashed'
         };
         const mockCompany = {
@@ -190,9 +209,56 @@ describe('🔐 Contract Tests: Auth (Mobile API)', () => {
         expect(res.body.name).toBe('Company Employee');
         expect(res.body.balance).toBe(25000);
         expect(res.body.exchangeRate).toBe(6.45);
+        expect(res.body.persona).toBe('companyOwner');
+        expect(res.body.role).toBe('owner');
+        expect(res.body.permissions).toEqual(expect.arrayContaining([
+            'company.dashboard.read',
+            'company.employees.create',
+            'company.reports.read_all'
+        ]));
         expect(res.body.context.clientCompanyId).toBe('company-id-123');
         expect(res.body.context.clientCompanyName).toBe('Ahram Company');
         expect(res.body.companyId).toBeUndefined();
+        expect(scanRawResponseFields(res.body)).toEqual([]);
+    });
+
+    test('POST /login should return companyAccountant persona for accountant company employees', async () => {
+        const mockEmployee = {
+            _id: 'company-accountant-id',
+            name: 'Company Accountant',
+            phone: '01022222223',
+            status: 'active',
+            companyId: 'company-id-123',
+            role: 'accountant',
+            canViewAllReports: true,
+            webPassword: '$2b$12$hashed'
+        };
+        const mockCompany = {
+            _id: 'company-id-123',
+            name: 'Ahram Company',
+            balance: 25000,
+            tier: 2
+        };
+
+        ClientEmployee.findOne.mockResolvedValue(mockEmployee);
+        ClientBot.findById.mockResolvedValue(mockCompany);
+
+        const res = await request(app)
+            .post('/login')
+            .send({ username: 'company-accountant', password: 'password123' });
+
+        expect(res.status).toBe(200);
+        expect(res.body.success).toBe(true);
+        expect(res.body.accountType).toBe('client_company');
+        expect(res.body.persona).toBe('companyAccountant');
+        expect(res.body.role).toBe('accountant');
+        expect(res.body.permissions).toEqual(expect.arrayContaining([
+            'company.dashboard.read',
+            'company.reports.read',
+            'company.reports.read_all'
+        ]));
+        expect(res.body.permissions).not.toContain('company.employees.create');
+        expect(res.body.context.clientCompanyId).toBe('company-id-123');
         expect(scanRawResponseFields(res.body)).toEqual([]);
     });
 
@@ -223,9 +289,55 @@ describe('🔐 Contract Tests: Auth (Mobile API)', () => {
         expect(res.body.id).toBe('executor-id-123');
         expect(res.body.name).toBe('Executor Employee');
         expect(res.body.balance).toBe(8000);
+        expect(res.body.persona).toBe('executor');
+        expect(res.body.role).toBe('executor');
+        expect(res.body.permissions).toEqual(expect.arrayContaining([
+            'executor.tasks.read',
+            'executor.tasks.accept',
+            'executor.tasks.complete'
+        ]));
         expect(res.body.context.executorBotId).toBe('executor-bot-id-123');
         expect(res.body.context.executorBotName).toBe('Executor Bot');
         expect(res.body.botId).toBeUndefined();
+        expect(scanRawResponseFields(res.body)).toEqual([]);
+    });
+
+    test('POST /login should return official agent owner persona for client_user agent accounts', async () => {
+        const mockAgent = {
+            _id: 'agent-user-id-123',
+            name: 'Agent Owner',
+            phone: '01055555555',
+            balance: 5000,
+            status: 'active',
+            tier: 2,
+            role: 'agent',
+            agentCode: 'AGT-100',
+            accountCode: 'AG-001',
+            webPassword: '$2b$12$hashed',
+            save: jest.fn().mockResolvedValue(true),
+            toObject: jest.fn().mockReturnThis()
+        };
+
+        User.findOne.mockResolvedValue(mockAgent);
+
+        const res = await request(app)
+            .post('/login')
+            .send({ username: '01055555555', password: 'password123' });
+
+        expect(res.status).toBe(200);
+        expect(res.body.success).toBe(true);
+        expect(res.body.accountType).toBe('client_user');
+        expect(res.body.persona).toBe('agentOwner');
+        expect(res.body.role).toBe('agent');
+        expect(res.body.permissions).toEqual(expect.arrayContaining([
+            'agent.dashboard.read',
+            'agent.sub_accounts.read',
+            'agent.sub_accounts.update_credit_limit',
+            'agent.sub_accounts.settle'
+        ]));
+        expect(res.body.context.agentId).toBe('agent-user-id-123');
+        expect(res.body.context.agentName).toBe('Agent Owner');
+        expect(res.body.context.agentCode).toBe('AGT-100');
         expect(scanRawResponseFields(res.body)).toEqual([]);
     });
 

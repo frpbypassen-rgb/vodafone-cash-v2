@@ -142,7 +142,7 @@ const notifyAccount = async (account, title, message, type = 'transfer') => {
     } catch (_) {}
 };
 
-const executeBalanceTransfer = async ({ source, targetCode, amount, notes = '' }) => {
+const executeBalanceTransfer = async ({ source, targetCode, amount, notes = '', idempotencyKey = null, idempotencyFingerprint = null, session: externalSession = null }) => {
     const normalizedAmount = Number(amount);
     if (!Number.isFinite(normalizedAmount) || normalizedAmount <= 0) {
         throw new Error('INVALID_AMOUNT');
@@ -154,17 +154,17 @@ const executeBalanceTransfer = async ({ source, targetCode, amount, notes = '' }
     if (!isActiveAccount(target)) throw new Error('TARGET_INACTIVE');
     assertDifferentAccounts(source, target);
 
-    const transferId = await nextBalanceTransferId();
     const SourceModel = modelByName[source.modelName];
     const TargetModel = modelByName[target.modelName];
     const description = notes ? notes.trim() : '';
     const sourceNotes = `تحويل رصيد صادر إلى ${accountName(target)} - ID: ${target.doc.accountCode}${description ? ` | ${description}` : ''}`;
     const targetNotes = `تحويل رصيد وارد من ${accountName(source)} - ID: ${source.doc.accountCode || 'غير محدد'}${description ? ` | ${description}` : ''}`;
 
-    const useTransaction = await canUseMongoTransactions();
-    let session = null;
+    const useTransaction = externalSession ? false : await canUseMongoTransactions();
+    let session = externalSession || null;
     let sourceAfter;
     let targetAfter;
+    let transferId;
 
     try {
         if (useTransaction) {
@@ -172,6 +172,7 @@ const executeBalanceTransfer = async ({ source, targetCode, amount, notes = '' }
             session.startTransaction();
         }
 
+        transferId = await nextBalanceTransferId(session);
         const options = session ? { session } : {};
         sourceAfter = await SourceModel.findOneAndUpdate(
             { _id: source.doc._id, balance: { $gte: normalizedAmount } },
@@ -188,13 +189,26 @@ const executeBalanceTransfer = async ({ source, targetCode, amount, notes = '' }
         if (!targetAfter) throw new Error('TARGET_NOT_FOUND');
 
         const sourceTx = await buildEntityTransactionFields(source, `${transferId}-D`, 'deduction', normalizedAmount, sourceNotes, session);
+        if (idempotencyKey) {
+            sourceTx.idempotencyKey = idempotencyKey;
+            sourceTx.idempotencyFingerprint = idempotencyFingerprint;
+            sourceTx.idempotencyResponse = {
+                success: true,
+                transferId,
+                amount: normalizedAmount,
+                sourceBalance: sourceAfter.balance,
+                targetName: accountName(target),
+                targetCode: target.doc.accountCode,
+                targetType: target.label
+            };
+        }
         const targetTx = await buildEntityTransactionFields(target, `${transferId}-C`, 'deposit', normalizedAmount, targetNotes, session);
         await Transaction.create([sourceTx, targetTx], options);
 
         const ledgerEntries = createLedgerEntries(source, target, transferId, normalizedAmount, sourceAfter, targetAfter);
         await Ledger.create(ledgerEntries, options);
 
-        if (session) {
+        if (session && !externalSession) {
             await session.commitTransaction();
             session.endSession();
         }
@@ -212,12 +226,12 @@ const executeBalanceTransfer = async ({ source, targetCode, amount, notes = '' }
             targetType: target.label
         };
     } catch (error) {
-        if (session) {
+        if (session && !externalSession) {
             try {
                 await session.abortTransaction();
                 session.endSession();
             } catch (_) {}
-        } else if (sourceAfter) {
+        } else if (!session && sourceAfter) {
             await SourceModel.findByIdAndUpdate(source.doc._id, { $inc: { balance: normalizedAmount } }).catch(() => {});
             if (targetAfter) {
                 await TargetModel.findByIdAndUpdate(target.doc._id, { $inc: { balance: -normalizedAmount } }).catch(() => {});

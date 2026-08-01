@@ -22,14 +22,37 @@ const authController = require('../controllers/auth/authController');
 const transferService = require('../services/transferService');
 const { deviceTrustMiddleware } = require('../src/Presentation/Middlewares/deviceTrustMiddleware');
 const { mfaMiddleware } = require('../src/Presentation/Middlewares/mfaMiddleware');
-const { getRateForTier } = require('../utils/rateHelper');
+const { buildMobileRateContract, applyRateMargin } = require('../utils/rateHelper');
+const { getTransferServiceLabel } = require('../utils/mobileTransferServiceCatalog');
+const agentService = require('../services/mobileAgentSubAccountService');
+const {
+    createSubAccountValidator,
+    updateCreditLimitValidator,
+    settlementValidator,
+    updateStatusValidator,
+    paginationValidator
+} = require('../validators/mobileAgentSubAccountValidators');
 const {
     loginValidator,
     refreshTokenValidator,
     transferValidator,
     cancelTaskValidator,
-    completeTaskValidator
+    completeTaskValidator,
+    clientReportsValidator,
+    lookupValidator,
+    balanceTransferValidator,
+    complaintValidator,
+    depositRequestValidator,
+    editAmountValidator,
+    returnTaskValidator,
+    createEmployeeValidator,
+    resetPasswordValidator,
+    executorReportsValidator,
+    executorSupportMessageValidator
 } = require('../validators/mobileValidators');
+
+const mobileWebParityService = require('../services/mobileWebParityService');
+const mobileWebParityMapper = require('../mappers/mobileWebParityMapper');
 const {
     directRegisterValidator,
     newRegisterValidator,
@@ -92,6 +115,7 @@ const toExecutorTaskDto = (tx) => ({
     id: tx._id ? String(tx._id) : null,
     txId: tx.customId || null,
     transferType: tx.transferType || null,
+    transferTypeLabel: getTransferServiceLabel(tx.transferType),
     amount: Number(tx.amount || 0),
     recipientNumber: tx.vodafoneNumber || tx.accountNumber || null,
     recipientName: tx.accountName || null,
@@ -503,6 +527,92 @@ router.post('/logout', authenticateJWT, authController.logout);
  *                   type: string
  *                   format: date-time
  */
+const buildHomeRateResponse = async (req, res, userId, accountType, settings) => {
+    let balance = 0;
+    let tier = 1;
+    let subAccount = null;
+
+    if (accountType === 'client_company') {
+        const emp = await ClientEmployee.findById(userId);
+        if (emp) {
+            const company = await ClientCompany.findById(emp.companyId);
+            if (company) {
+                balance = company.balance || 0;
+                tier = company.tier || 1;
+            }
+        }
+    } else if (accountType === 'client_user') {
+        let user;
+        if (req.tenant) {
+            user = await User.findOne({ _id: userId, tenantId: req.tenant._id });
+        } else {
+            user = await User.findById(userId);
+        }
+        if (user) {
+            balance = user.balance || 0;
+            tier = user.tier || 1;
+        }
+    } else if (accountType === 'sub_client') {
+        const SubAccount = require('../models/SubAccount');
+        subAccount = await SubAccount.findById(userId);
+        if (subAccount) {
+            balance = subAccount.balance || 0;
+            let masterObj;
+            if (subAccount.masterType === 'user') {
+                masterObj = await User.findById(subAccount.masterId);
+            } else {
+                masterObj = await ClientCompany.findById(subAccount.masterId);
+            }
+            tier = masterObj ? (masterObj.tier || 1) : 1;
+        }
+    }
+
+    let rateContract;
+    if (accountType === 'sub_client' && subAccount) {
+        const masterContract = buildMobileRateContract(tier, settings);
+        const subServiceRates = applyRateMargin(masterContract.serviceRates, subAccount.customMargin);
+        const subBaseRate = subServiceRates.vodafone || masterContract.baseExchangeRate;
+
+        rateContract = {
+            tier: masterContract.tier,
+            tierLabel: masterContract.tierLabel,
+            baseExchangeRate: masterContract.baseExchangeRate,
+            exchangeRate: subBaseRate,
+            serviceRates: subServiceRates,
+            serviceCatalog: masterContract.serviceCatalog
+        };
+    } else {
+        rateContract = buildMobileRateContract(tier, settings);
+    }
+
+    const responseData = {
+        success: true,
+        balance: Number(balance),
+        ...rateContract,
+        isOpen: !(settings && settings.isManualClosed),
+        serverTime: new Date().toISOString()
+    };
+
+    if (accountType === 'sub_client' && subAccount) {
+        let masterObj;
+        if (subAccount.masterType === 'user') {
+            masterObj = await User.findById(subAccount.masterId);
+        } else {
+            masterObj = await ClientCompany.findById(subAccount.masterId);
+        }
+        const { buildContext } = require('../mappers/mobileAuthMapper');
+        responseData.creditLimit = subAccount.creditLimit || 0;
+        responseData.debt = balance < 0 ? Math.abs(balance) : 0;
+        responseData.availableToSpend = balance + (subAccount.creditLimit || 0);
+        responseData.context = buildContext(accountType, {
+            masterName: masterObj ? masterObj.name : null,
+            accountCode: subAccount.accountCode || ''
+        });
+    }
+
+    return responseData;
+};
+
 router.get('/client/home', authenticateJWT, async (req, res) => {
     try {
         const { userId, accountType } = req.user;
@@ -510,40 +620,9 @@ router.get('/client/home', authenticateJWT, async (req, res) => {
             return sendMobileError(res, 403, 'FORBIDDEN', 'صلاحيات غير كافية', req.correlationId);
         }
 
-        let balance = 0;
-        let tier = 1;
-
-        if (accountType === 'client_company') {
-            const emp = await ClientEmployee.findById(userId);
-            if (emp) {
-                const company = await ClientCompany.findById(emp.companyId);
-                if (company) {
-                    balance = company.balance || 0;
-                    tier = company.tier || 1;
-                }
-            }
-        } else if (accountType === 'client_user') {
-            let user;
-            if (req.tenant) {
-                user = await User.findOne({ _id: userId, tenantId: req.tenant._id });
-            } else {
-                user = await User.findById(userId);
-            }
-            if (user) {
-                balance = user.balance || 0;
-                tier = user.tier || 1;
-            }
-        }
-
         const settings = await Settings.findOne({});
-        const exchangeRate = getRateForTier(tier, settings);
-        return res.json({
-            success: true,
-            balance: Number(balance),
-            exchangeRate: Number(exchangeRate),
-            isOpen: !(settings && settings.isManualClosed),
-            serverTime: new Date().toISOString()
-        });
+        const responseData = await buildHomeRateResponse(req, res, userId, accountType, settings);
+        return res.json(responseData);
     } catch (e) {
         return sendServerError(res, req, 'خطأ داخلي');
     }
@@ -569,42 +648,22 @@ router.post('/client/exchange-rate', authenticateJWT, async (req, res) => {
         }
 
         const settings = await Settings.findOne({});
-        let balance = 0;
-        let tier = 1;
-
-        if (accountType === 'client_company') {
-            const emp = await ClientEmployee.findById(userId);
-            if (emp) {
-                const company = await ClientCompany.findById(emp.companyId);
-                if (company) {
-                    balance = company.balance || 0;
-                    tier = company.tier || 1;
-                }
-            }
-        } else if (accountType === 'client_user') {
-            let user;
-            if (req.tenant) {
-                user = await User.findOne({ _id: userId, tenantId: req.tenant._id });
-            } else {
-                user = await User.findById(userId);
-            }
-            if (user) {
-                balance = user.balance || 0;
-                tier = user.tier || 1;
-            }
-        }
-
-        return res.json({
-            success: true,
-            balance: Number(balance),
-            exchangeRate: Number(getRateForTier(tier, settings)),
-            isOpen: !(settings && settings.isManualClosed),
-            serverTime: new Date().toISOString()
-        });
+        const responseData = await buildHomeRateResponse(req, res, userId, accountType, settings);
+        return res.json(responseData);
     } catch (e) {
         return sendServerError(res, req, 'خطأ داخلي بالسيرفر');
     }
 });
+
+// ── Agent Management Routes ─────────────────────────────────────────
+router.get('/agent/overview', authenticateJWT, agentService.getOverview);
+router.get('/agent/sub-accounts', authenticateJWT, paginationValidator, agentService.getSubAccounts);
+router.get('/agent/sub-accounts/:id', authenticateJWT, agentService.getSubAccountDetails);
+router.post('/agent/sub-accounts', authenticateJWT, requireIdempotencyKey, createSubAccountValidator, agentService.createSubAccount);
+router.patch('/agent/sub-accounts/:id/credit-limit', authenticateJWT, requireIdempotencyKey, updateCreditLimitValidator, agentService.updateCreditLimit);
+router.post('/agent/sub-accounts/:id/settlements', authenticateJWT, requireIdempotencyKey, settlementValidator, agentService.executeSettlement);
+router.patch('/agent/sub-accounts/:id/status', authenticateJWT, requireIdempotencyKey, updateStatusValidator, agentService.updateStatus);
+router.get('/agent/sub-accounts/:id/transactions', authenticateJWT, paginationValidator, agentService.getTransactions);
 
 /**
  * @swagger
@@ -1432,6 +1491,7 @@ router.get('/client/transactions', authenticateJWT, async (req, res) => {
                 id: String(tx._id),
                 customId: tx.customId,
                 transferType: tx.transferType,
+                transferTypeLabel: getTransferServiceLabel(tx.transferType),
                 recipientNumber: tx.vodafoneNumber || tx.accountNumber || null,
                 recipientName: tx.accountName || null,
                 amount: Number(tx.amount || 0),
@@ -1490,6 +1550,7 @@ router.get('/client/transactions/:id', authenticateJWT, async (req, res) => {
                 id: String(tx._id),
                 customId: tx.customId,
                 transferType: tx.transferType,
+                transferTypeLabel: getTransferServiceLabel(tx.transferType),
                 recipientNumber: tx.vodafoneNumber || tx.accountNumber || null,
                 recipientName: tx.accountName || null,
                 amount: Number(tx.amount || 0),
@@ -1503,6 +1564,543 @@ router.get('/client/transactions/:id', authenticateJWT, async (req, res) => {
         });
     } catch (e) {
         return sendServerError(res, req, 'حدث خطأ أثناء جلب تفاصيل العملية');
+    }
+});
+
+// 📊 Client Reports Parity
+router.post('/client/reports/filter', authenticateJWT, clientReportsValidator, async (req, res) => {
+    try {
+        const { userId, accountType } = req.user;
+        const { dateType, dateValue } = req.body;
+        const tenantId = req.tenant ? req.tenant._id : null;
+        
+        const result = await mobileWebParityService.getClientReports({
+            userId,
+            accountType,
+            dateType,
+            dateValue,
+            tenantId
+        });
+        
+        return res.json({
+            success: true,
+            data: mobileWebParityMapper.toClientReportDto(result),
+            serverTime: new Date().toISOString()
+        });
+    } catch (e) {
+        if (e.message === 'UNAUTHORIZED') {
+            return sendMobileError(res, 401, 'UNAUTHORIZED', 'غير مصرح بالوصول', req.correlationId);
+        }
+        return sendServerError(res, req, 'حدث خطأ أثناء جلب التقارير');
+    }
+});
+
+// 💸 Client Balance Transfer Lookup
+router.post('/client/balance-transfer/lookup', authenticateJWT, lookupValidator, async (req, res) => {
+    try {
+        const { userId, accountType } = req.user;
+        const { targetAccountCode } = req.body;
+        
+        const target = await mobileWebParityService.lookupBalanceTransfer({
+            userId,
+            accountType,
+            targetAccountCode
+        });
+        
+        return res.json({
+            success: true,
+            target: mobileWebParityMapper.toBalanceTransferLookupDto(target)
+        });
+    } catch (e) {
+        const knownMsg = {
+            SESSION_EXPIRED: 'انتهت الجلسة. يرجى تسجيل الدخول مرة أخرى.',
+            SOURCE_INACTIVE: 'حساب المرسل غير نشط.',
+            TARGET_INACTIVE: 'الحساب المستلم غير نشط.',
+            SAME_ACCOUNT: 'لا يمكن تحويل الرصيد إلى نفس الحساب.',
+            INVALID_ACCOUNT_CODE: 'كود المستلم غير صالح.',
+            TARGET_NOT_FOUND: 'لم يتم العثور على حساب بهذا الكود.'
+        };
+        Object.assign(knownMsg, {
+            INVALID_RATE: 'سعر الصرف المسجل على العملية غير صالح.',
+            ACCOUNT_NOT_FOUND: 'الحساب المرتبط بالعملية غير موجود.',
+            LOCK_TIMEOUT: 'تعذر قفل العملية حالياً، يرجى المحاولة لاحقاً.'
+        });
+        if (knownMsg[e.message]) {
+            const status = e.message === 'TARGET_NOT_FOUND' ? 404 : (e.message === 'SESSION_EXPIRED' ? 401 : 400);
+            return sendMobileError(res, status, e.message, knownMsg[e.message], req.correlationId);
+        }
+        return sendServerError(res, req, 'تعذر التحقق من حساب المستلم');
+    }
+});
+
+// 💸 Client Balance Transfer Execute (Idempotent)
+router.post('/client/balance-transfer', authenticateJWT, requireIdempotencyKey, balanceTransferValidator, async (req, res) => {
+    try {
+        const { userId, accountType } = req.user;
+        const { targetAccountCode, amount, notes } = req.body;
+        
+        const result = await mobileWebParityService.executeBalanceTransferIdempotent({
+            userId,
+            accountType,
+            targetAccountCode,
+            amount,
+            notes,
+            req
+        });
+        
+        return res.json({
+            success: true,
+            message: `تم تحويل ${result.response.amount.toFixed(2)} LYD إلى ${result.response.targetName} بنجاح.`,
+            ...mobileWebParityMapper.toBalanceTransferExecuteDto(result.response)
+        });
+    } catch (e) {
+        const knownMsg = {
+            SESSION_EXPIRED: 'انتهت الجلسة. يرجى تسجيل الدخول مرة أخرى.',
+            SOURCE_INACTIVE: 'حساب المرسل غير نشط.',
+            TARGET_INACTIVE: 'الحساب المستلم غير نشط.',
+            SAME_ACCOUNT: 'لا يمكن تحويل الرصيد إلى نفس الحساب.',
+            INVALID_ACCOUNT_CODE: 'كود المستلم غير صالح.',
+            TARGET_NOT_FOUND: 'لم يتم العثور على حساب بهذا الكود.',
+            INSUFFICIENT_BALANCE: 'الرصيد غير كافٍ لإتمام العملية.',
+            INVALID_AMOUNT: 'المبلغ المدخل غير صالح.',
+            IDEMPOTENCY_CONFLICT: 'مفتاح العملية مستخدم لطلب مختلف.',
+            LOCK_TIMEOUT: 'الرجاء المحاولة مرة أخرى لاحقاً.'
+        };
+        if (knownMsg[e.message]) {
+            const status = e.message === 'TARGET_NOT_FOUND' ? 404 : (e.message === 'SESSION_EXPIRED' ? 401 : (e.message === 'IDEMPOTENCY_CONFLICT' ? 409 : 400));
+            return sendMobileError(res, status, e.message, knownMsg[e.message], req.correlationId);
+        }
+        return sendServerError(res, req, 'تعذر تنفيذ تحويل الرصيد');
+    }
+});
+
+// ⚠️ Client Complaint
+router.post('/client/complaints', authenticateJWT, complaintValidator, async (req, res) => {
+    try {
+        const { userId, accountType } = req.user;
+        const { transactionId, complaintText } = req.body;
+        
+        const tx = await mobileWebParityService.submitClientComplaint({
+            userId,
+            accountType,
+            transactionId,
+            complaintText
+        });
+        
+        return res.json({
+            success: true,
+            complaint: mobileWebParityMapper.toComplaintDto(tx)
+        });
+    } catch (e) {
+        if (e.message === 'FORBIDDEN') {
+            return sendMobileError(res, 403, 'FORBIDDEN', 'غير مصرح لك بتقديم شكوى على هذه العملية', req.correlationId);
+        }
+        if (e.message === 'INVALID_STATE') {
+            return sendMobileError(res, 400, 'INVALID_STATE', 'لا يمكن تقديم شكوى على عملية ملغية أو مرفوضة', req.correlationId);
+        }
+        if (e.message === 'TRANSACTION_NOT_FOUND') {
+            return sendMobileError(res, 404, 'NOT_FOUND', 'العملية غير موجودة', req.correlationId);
+        }
+        return sendServerError(res, req, 'حدث خطأ أثناء تسجيل الشكوى');
+    }
+});
+
+// 🤖 Executor Alerts Clearing
+router.post('/executor/alerts/:id/clear', authenticateJWT, async (req, res) => {
+    try {
+        const { userId } = req.user;
+        await mobileWebParityService.clearExecutorAlert({
+            executorId: userId,
+            taskId: req.params.id,
+            alertType: 'emergency'
+        });
+        return res.json({ success: true });
+    } catch (e) {
+        if (e.message === 'FORBIDDEN') {
+            return sendMobileError(res, 403, 'FORBIDDEN', 'غير مصرح لك بتعديل هذه المهمة', req.correlationId);
+        }
+        if (e.message === 'TASK_NOT_FOUND') {
+            return sendMobileError(res, 404, 'NOT_FOUND', 'المهمة غير موجودة', req.correlationId);
+        }
+        return sendServerError(res, req, 'حدث خطأ أثناء مسح التنبيه');
+    }
+});
+
+router.post('/executor/deposit-alerts/:id/clear', authenticateJWT, async (req, res) => {
+    try {
+        const { userId } = req.user;
+        await mobileWebParityService.clearExecutorAlert({
+            executorId: userId,
+            taskId: req.params.id,
+            alertType: 'deposit'
+        });
+        return res.json({ success: true });
+    } catch (e) {
+        if (e.message === 'FORBIDDEN') {
+            return sendMobileError(res, 403, 'FORBIDDEN', 'غير مصرح لك بتعديل هذه المهمة', req.correlationId);
+        }
+        if (e.message === 'TASK_NOT_FOUND') {
+            return sendMobileError(res, 404, 'NOT_FOUND', 'المهمة غير موجودة', req.correlationId);
+        }
+        return sendServerError(res, req, 'حدث خطأ أثناء مسح تنبيه الإيداع');
+    }
+});
+
+// 📥 Executor Deposit Request (Idempotent)
+router.post('/executor/request-deposit', authenticateJWT, requireIdempotencyKey, depositRequestValidator, async (req, res) => {
+    try {
+        const { userId } = req.user;
+        const { amount } = req.body;
+        
+        const result = await mobileWebParityService.requestExecutorDeposit({
+            executorId: userId,
+            amount,
+            req
+        });
+        
+        return res.json(result.response);
+    } catch (e) {
+        if (e.message === 'IDEMPOTENCY_CONFLICT') {
+            return sendMobileError(res, 409, 'IDEMPOTENCY_CONFLICT', 'مفتاح العملية مستخدم لطلب مختلف', req.correlationId);
+        }
+        if (e.message === 'UNAUTHORIZED') {
+            return sendMobileError(res, 401, 'UNAUTHORIZED', 'غير مصرح بالوصول', req.correlationId);
+        }
+        return sendServerError(res, req, 'تعذر تقديم طلب الإيداع');
+    }
+});
+
+// 👨‍💻 Executor Edit Amount (Idempotent)
+router.post('/executor/tasks/:id/edit-amount', authenticateJWT, requireIdempotencyKey, editAmountValidator, async (req, res) => {
+    try {
+        const { userId } = req.user;
+        const { newAmount, reason } = req.body;
+        
+        const result = await mobileWebParityService.editTaskAmount({
+            executorId: userId,
+            taskId: req.params.id,
+            newAmount,
+            reason,
+            req
+        });
+        
+        return res.json(result.response);
+    } catch (e) {
+        const knownMsg = {
+            INVALID_STATE: 'حالة المهمة الحالية لا تسمح بتعديل القيمة.',
+            INVALID_AMOUNT: 'المبلغ غير صالح.',
+            INSUFFICIENT_BALANCE: 'رصيد العميل غير كافٍ لإتمام التعديل.',
+            IDEMPOTENCY_CONFLICT: 'مفتاح العملية مستخدم لطلب تعديل مختلف.',
+            UNAUTHORIZED: 'غير مصرح بالوصول.'
+        };
+        if (knownMsg[e.message]) {
+            const status = e.message === 'IDEMPOTENCY_CONFLICT' ? 409 : (e.message === 'UNAUTHORIZED' ? 401 : 400);
+            return sendMobileError(res, status, e.message, knownMsg[e.message], req.correlationId);
+        }
+        return sendServerError(res, req, 'تعذر تعديل قيمة المهمة');
+    }
+});
+
+// 👨‍💻 Executor Return Task
+router.post('/executor/tasks/:id/return', authenticateJWT, returnTaskValidator, async (req, res) => {
+    try {
+        const { userId } = req.user;
+        const { reason } = req.body;
+        
+        await mobileWebParityService.returnTask({
+            executorId: userId,
+            taskId: req.params.id,
+            reason
+        });
+        
+        return res.json({ success: true, message: 'تم إرجاع المهمة للإدارة بنجاح' });
+    } catch (e) {
+        if (e.message === 'INVALID_STATE') {
+            return sendMobileError(res, 400, 'INVALID_STATE', 'لا يمكن إرجاع هذه المهمة لأنها ليست مقبولة لديك حالياً', req.correlationId);
+        }
+        if (e.message === 'UNAUTHORIZED') {
+            return sendMobileError(res, 401, 'UNAUTHORIZED', 'غير مصرح بالوصول', req.correlationId);
+        }
+        return sendServerError(res, req, 'تعذر إرجاع المهمة');
+    }
+});
+
+// 👨‍💻 Executor ZaynPay Execution (Idempotent)
+router.post('/executor/tasks/:id/zaynpay-execute', authenticateJWT, requireIdempotencyKey, async (req, res) => {
+    try {
+        const { userId } = req.user;
+        
+        const result = await mobileWebParityService.executeZaynPayIdempotent({
+            executorId: userId,
+            taskId: req.params.id,
+            req
+        });
+        
+        return res.json(result.response);
+    } catch (e) {
+        if (e.message === 'FORBIDDEN') {
+            return sendMobileError(res, 403, 'FORBIDDEN', 'غير مصرح لك بتشغيل نظام ZaynPay الآلي', req.correlationId);
+        }
+        if (e.message === 'IDEMPOTENCY_CONFLICT') {
+            return sendMobileError(res, 409, 'IDEMPOTENCY_CONFLICT', 'مفتاح العملية مستخدم لطلب ZaynPay مختلف', req.correlationId);
+        }
+        if (e.message === 'TASK_NOT_FOUND') {
+            return sendMobileError(res, 404, 'NOT_FOUND', 'المهمة غير موجودة', req.correlationId);
+        }
+        if (e.message === 'INVALID_STATE') {
+            return sendMobileError(res, 400, 'INVALID_STATE', 'المهمة مكتملة بالفعل ولا يمكن إعادة تنفيذها', req.correlationId);
+        }
+        if (e.message === 'INVALID_AMOUNT' || e.message === 'INVALID_WALLET') {
+            return sendMobileError(res, 400, e.message, 'بيانات العملية غير صالحة للتنفيذ الآلي', req.correlationId);
+        }
+        if (e.message === 'INSUFFICIENT_EXECUTOR_BALANCE') {
+            return sendMobileError(res, 409, 'INSUFFICIENT_EXECUTOR_BALANCE', 'رصيد مجموعة المنفذ غير كافٍ لتنفيذ العملية', req.correlationId);
+        }
+        if (e.message === 'LOCK_TIMEOUT') {
+            return sendMobileError(res, 409, 'LOCK_TIMEOUT', 'تعذر قفل العملية حالياً، يرجى المحاولة لاحقاً', req.correlationId);
+        }
+        return sendMobileError(res, 400, 'PAYMENT_FAILED', e.message, req.correlationId);
+    }
+});
+
+// 👨‍💻 Executor Support Messages
+router.get('/executor/tickets/current', authenticateJWT, async (req, res) => {
+    try {
+        const { userId } = req.user;
+        const ticket = await mobileWebParityService.getExecutorSupportTicket({ executorId: userId });
+        return res.json({
+            success: true,
+            ticket: mobileWebParityMapper.toExecutorSupportTicketDto(ticket)
+        });
+    } catch (e) {
+        if (e.message === 'UNAUTHORIZED') {
+            return sendMobileError(res, 401, 'UNAUTHORIZED', 'غير مصرح بالوصول', req.correlationId);
+        }
+        return sendServerError(res, req, 'حدث خطأ أثناء جلب تذكرة الدعم الفني');
+    }
+});
+
+router.post('/executor/tickets/messages', authenticateJWT, executorSupportMessageValidator, async (req, res) => {
+    try {
+        const { userId } = req.user;
+        const { text, imageBase64 } = req.body;
+        
+        if (!text && !imageBase64) {
+            return sendMobileError(res, 400, 'VALIDATION_ERROR', 'يجب إرسال نص أو صورة', req.correlationId);
+        }
+        
+        const message = await mobileWebParityService.sendExecutorSupportReply({
+            executorId: userId,
+            text,
+            imageBase64
+        });
+        
+        return res.json({
+            success: true,
+            message: {
+                sender: message.sender,
+                text: message.text,
+                imageUrl: message.imageUrl || null,
+                createdAt: message.createdAt.toISOString()
+            }
+        });
+    } catch (e) {
+        if (e.message === 'UNAUTHORIZED') {
+            return sendMobileError(res, 401, 'UNAUTHORIZED', 'غير مصرح بالوصول', req.correlationId);
+        }
+        if (e.message === 'INVALID_IMAGE' || e.message === 'IMAGE_TOO_LARGE') {
+            return sendMobileError(res, 400, e.message, 'الصورة المرفقة غير صالحة أو حجمها أكبر من المسموح', req.correlationId);
+        }
+        return sendServerError(res, req, 'حدث خطأ أثناء إرسال الرسالة للدعم الفني');
+    }
+});
+
+// 📊 Executor Reports
+router.post('/executor/reports/filter', authenticateJWT, executorReportsValidator, async (req, res) => {
+    try {
+        const { userId } = req.user;
+        const { dateType, dateValue } = req.body;
+        
+        const result = await mobileWebParityService.getExecutorReports({
+            executorId: userId,
+            dateType,
+            dateValue
+        });
+        
+        return res.json({
+            success: true,
+            data: mobileWebParityMapper.toClientReportDto(result),
+            serverTime: new Date().toISOString()
+        });
+    } catch (e) {
+        if (e.message === 'UNAUTHORIZED') {
+            return sendMobileError(res, 401, 'UNAUTHORIZED', 'غير مصرح بالوصول', req.correlationId);
+        }
+        return sendServerError(res, req, 'حدث خطأ أثناء جلب التقارير');
+    }
+});
+
+// 👥 Executor Employee Management (Manager only)
+router.get('/executor/employees', authenticateJWT, async (req, res) => {
+    try {
+        const { userId } = req.user;
+        const list = await mobileWebParityService.getEmployeesList(userId);
+        return res.json({
+            success: true,
+            employees: list.map(emp => mobileWebParityMapper.toEmployeeDto(emp))
+        });
+    } catch (e) {
+        if (e.message === 'UNAUTHORIZED') {
+            return sendMobileError(res, 401, 'UNAUTHORIZED', 'غير مصرح بالوصول', req.correlationId);
+        }
+        if (e.message === 'FORBIDDEN') {
+            return sendMobileError(res, 403, 'FORBIDDEN', 'ليس لديك صلاحيات مدير لتصفح الموظفين', req.correlationId);
+        }
+        return sendServerError(res, req, 'حدث خطأ أثناء جلب قائمة الموظفين');
+    }
+});
+
+router.post('/executor/employees', authenticateJWT, createEmployeeValidator, async (req, res) => {
+    try {
+        const { userId } = req.user;
+        const { name, phone, role, webUsername, webPassword } = req.body;
+        const tenantId = req.tenant ? req.tenant._id : null;
+        
+        const created = await mobileWebParityService.createEmployee({
+            executorId: userId,
+            name,
+            phone,
+            role,
+            webUsername,
+            webPassword,
+            tenantId
+        });
+        
+        return res.json({
+            success: true,
+            employee: mobileWebParityMapper.toEmployeeDto(created)
+        });
+    } catch (e) {
+        if (e.message === 'UNAUTHORIZED') {
+            return sendMobileError(res, 401, 'UNAUTHORIZED', 'غير مصرح بالوصول', req.correlationId);
+        }
+        if (e.message === 'FORBIDDEN') {
+            return sendMobileError(res, 403, 'FORBIDDEN', 'ليس لديك صلاحيات مدير لإضافة موظف', req.correlationId);
+        }
+        if (e.message === 'INVALID_ROLE') {
+            return sendMobileError(res, 400, 'INVALID_ROLE', 'الدور الوظيفي المحدد غير صالح', req.correlationId);
+        }
+        if (e.message === 'INVALID_USERNAME') {
+            return sendMobileError(res, 400, 'INVALID_USERNAME', 'اسم المستخدم يجب أن يحتوي على أحرف وأرقام إنجليزية فقط', req.correlationId);
+        }
+        if (e.message === 'USERNAME_TAKEN') {
+            return sendMobileError(res, 400, 'USERNAME_TAKEN', 'اسم المستخدم مسجل بالفعل في النظام', req.correlationId);
+        }
+        return sendServerError(res, req, 'حدث خطأ أثناء إضافة الموظف');
+    }
+});
+
+router.patch('/executor/employees/:id/status', authenticateJWT, async (req, res) => {
+    try {
+        const { userId } = req.user;
+        const updated = await mobileWebParityService.toggleEmployeeStatus({
+            executorId: userId,
+            targetId: req.params.id
+        });
+        return res.json({
+            success: true,
+            employee: mobileWebParityMapper.toEmployeeDto(updated)
+        });
+    } catch (e) {
+        if (e.message === 'UNAUTHORIZED') {
+            return sendMobileError(res, 401, 'UNAUTHORIZED', 'غير مصرح بالوصول', req.correlationId);
+        }
+        if (e.message === 'FORBIDDEN') {
+            return sendMobileError(res, 403, 'FORBIDDEN', 'ليس لديك صلاحيات مدير لتعديل حالة الموظف', req.correlationId);
+        }
+        if (e.message === 'NOT_FOUND') {
+            return sendMobileError(res, 404, 'NOT_FOUND', 'الموظف غير موجود أو لا ينتمي إلى مجموعتك', req.correlationId);
+        }
+        return sendServerError(res, req, 'حدث خطأ أثناء تعديل حالة الموظف');
+    }
+});
+
+router.patch('/executor/employees/:id/reports-permission', authenticateJWT, async (req, res) => {
+    try {
+        const { userId } = req.user;
+        const updated = await mobileWebParityService.toggleEmployeeReports({
+            executorId: userId,
+            targetId: req.params.id
+        });
+        return res.json({
+            success: true,
+            employee: mobileWebParityMapper.toEmployeeDto(updated)
+        });
+    } catch (e) {
+        if (e.message === 'UNAUTHORIZED') {
+            return sendMobileError(res, 401, 'UNAUTHORIZED', 'غير مصرح بالوصول', req.correlationId);
+        }
+        if (e.message === 'FORBIDDEN') {
+            return sendMobileError(res, 403, 'FORBIDDEN', 'ليس لديك صلاحيات مدير لتعديل صلاحيات التقارير للموظف', req.correlationId);
+        }
+        if (e.message === 'NOT_FOUND') {
+            return sendMobileError(res, 404, 'NOT_FOUND', 'الموظف غير موجود أو لا ينتمي إلى مجموعتك', req.correlationId);
+        }
+        return sendServerError(res, req, 'حدث خطأ أثناء تعديل صلاحيات التقارير للموظف');
+    }
+});
+
+router.post('/executor/employees/:id/reset-password', authenticateJWT, resetPasswordValidator, async (req, res) => {
+    try {
+        const { userId } = req.user;
+        const { newPassword } = req.body;
+        
+        await mobileWebParityService.resetEmployeePassword({
+            executorId: userId,
+            targetId: req.params.id,
+            newPassword
+        });
+        
+        return res.json({
+            success: true,
+            message: 'تم إعادة تعيين كلمة المرور بنجاح'
+        });
+    } catch (e) {
+        if (e.message === 'UNAUTHORIZED') {
+            return sendMobileError(res, 401, 'UNAUTHORIZED', 'غير مصرح بالوصول', req.correlationId);
+        }
+        if (e.message === 'FORBIDDEN') {
+            return sendMobileError(res, 403, 'FORBIDDEN', 'ليس لديك صلاحيات مدير لإعادة تعيين كلمة المرور للموظف', req.correlationId);
+        }
+        if (e.message === 'NOT_FOUND') {
+            return sendMobileError(res, 404, 'NOT_FOUND', 'الموظف غير موجود أو لا ينتمي إلى مجموعتك', req.correlationId);
+        }
+        return sendServerError(res, req, 'حدث خطأ أثناء إعادة تعيين كلمة المرور');
+    }
+});
+
+router.delete('/executor/employees/:id', authenticateJWT, async (req, res) => {
+    try {
+        const { userId } = req.user;
+        await mobileWebParityService.deleteEmployee({
+            executorId: userId,
+            targetId: req.params.id
+        });
+        return res.json({
+            success: true,
+            message: 'تم حذف الموظف بنجاح'
+        });
+    } catch (e) {
+        if (e.message === 'UNAUTHORIZED') {
+            return sendMobileError(res, 401, 'UNAUTHORIZED', 'غير مصرح بالوصول', req.correlationId);
+        }
+        if (e.message === 'FORBIDDEN') {
+            return sendMobileError(res, 403, 'FORBIDDEN', 'ليس لديك صلاحيات مدير لحذف الموظف', req.correlationId);
+        }
+        if (e.message === 'NOT_FOUND') {
+            return sendMobileError(res, 404, 'NOT_FOUND', 'الموظف غير موجود أو لا ينتمي إلى مجموعتك', req.correlationId);
+        }
+        return sendServerError(res, req, 'حدث خطأ أثناء حذف الموظف');
     }
 });
 
