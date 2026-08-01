@@ -279,6 +279,7 @@ exports.getApiTransactions = async (req, res) => {
 
         let currentRate = 1;
         let serviceRates = {};
+        let availableBalance = Number(account.balance || 0);
         let set = await Settings.findOne({});
         if (!set) set = await Settings.create({});
         if (isSubAccount) {
@@ -288,7 +289,11 @@ exports.getApiTransactions = async (req, res) => {
             currentRate = serviceRates.vodafone;
         } else {
             let tier = 1;
-            if (req.session.accountType === 'company') { const comp = await ClientCompany.findById(account.companyId); tier = comp.tier || 1; }
+            if (req.session.accountType === 'company') {
+                const comp = await ClientCompany.findById(account.companyId);
+                tier = comp ? (comp.tier || 1) : 1;
+                availableBalance = comp ? Number(comp.balance || 0) : 0;
+            }
             else { tier = account.tier || 1; }
             serviceRates = getServiceRatesForTier(tier, set);
             currentRate = serviceRates.vodafone;
@@ -299,6 +304,6 @@ exports.getApiTransactions = async (req, res) => {
             return t;
         });
 
-        res.json({ success: true, transactions: mappedTransactions, currentRate, serviceRates, availableBalance: account.balance });
+        res.json({ success: true, transactions: mappedTransactions, currentRate, serviceRates, availableBalance });
     } catch (error) { res.status(500).json({ error: 'Internal Server Error' }); }
 };

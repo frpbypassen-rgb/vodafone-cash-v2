@@ -12,6 +12,7 @@ const Settings = require('../models/Settings');
 const Ledger = require('../models/Ledger');
 const RegistrationRequest = require('../models/RegistrationRequest');
 const SupportTicket = require('../models/SupportTicket');
+const Notification = require('../models/Notification');
 
 const { authenticateJWT } = require('../middlewares/jwtAuth');
 const correlationId = require('../middlewares/correlationId');
@@ -53,6 +54,7 @@ const {
 
 const mobileWebParityService = require('../services/mobileWebParityService');
 const mobileWebParityMapper = require('../mappers/mobileWebParityMapper');
+const { resolveClientNotificationUserIds } = require('../services/clientNotificationService');
 const {
     directRegisterValidator,
     newRegisterValidator,
@@ -1511,6 +1513,89 @@ router.get('/client/transactions', authenticateJWT, async (req, res) => {
         });
     } catch (e) {
         return sendServerError(res, req, 'حدث خطأ أثناء جلب قائمة العمليات');
+    }
+});
+
+router.get('/client/notifications', authenticateJWT, async (req, res) => {
+    try {
+        const { userId, accountType } = req.user;
+        if (!['client_user', 'client_company', 'sub_client'].includes(accountType)) {
+            return sendMobileError(res, 403, 'FORBIDDEN', 'صلاحيات غير كافية', req.correlationId);
+        }
+
+        const page = Math.max(1, parseInt(req.query.page) || 1);
+        const limit = Math.max(1, Math.min(100, parseInt(req.query.limit) || 20));
+        const userIds = await resolveClientNotificationUserIds({ accountType, clientId: userId });
+
+        if (!userIds.length) {
+            return res.status(200).json({
+                success: true,
+                notifications: [],
+                pagination: { page, limit, total: 0, pages: 0 }
+            });
+        }
+
+        const query = {
+            userId: { $in: userIds },
+            audience: { $in: ['client', 'all'] }
+        };
+        if (req.query.unreadOnly === 'true') query.isRead = false;
+
+        const total = await Notification.countDocuments(query);
+        const notifications = await Notification.find(query)
+            .sort({ createdAt: -1 })
+            .skip((page - 1) * limit)
+            .limit(limit)
+            .lean();
+
+        return res.status(200).json({
+            success: true,
+            notifications: notifications.map((notification) => ({
+                id: String(notification._id),
+                title: notification.title,
+                message: notification.message,
+                type: notification.type || 'system_alert',
+                isRead: Boolean(notification.isRead),
+                txId: notification.txId || null,
+                createdAt: notification.createdAt ? new Date(notification.createdAt).toISOString() : null
+            })),
+            pagination: {
+                page,
+                limit,
+                total,
+                pages: Math.ceil(total / limit)
+            }
+        });
+    } catch (e) {
+        return sendServerError(res, req, 'حدث خطأ أثناء جلب الإشعارات');
+    }
+});
+
+router.post('/client/notifications/:id/read', authenticateJWT, async (req, res) => {
+    try {
+        const { userId, accountType } = req.user;
+        if (!['client_user', 'client_company', 'sub_client'].includes(accountType)) {
+            return sendMobileError(res, 403, 'FORBIDDEN', 'صلاحيات غير كافية', req.correlationId);
+        }
+
+        const userIds = await resolveClientNotificationUserIds({ accountType, clientId: userId });
+        if (!userIds.length) {
+            return sendMobileError(res, 404, 'NOT_FOUND', 'الإشعار غير موجود', req.correlationId);
+        }
+
+        const result = await Notification.updateOne({
+            _id: req.params.id,
+            userId: { $in: userIds },
+            audience: { $in: ['client', 'all'] }
+        }, { $set: { isRead: true } });
+
+        if (!result.matchedCount) {
+            return sendMobileError(res, 404, 'NOT_FOUND', 'الإشعار غير موجود', req.correlationId);
+        }
+
+        return res.status(200).json({ success: true });
+    } catch (e) {
+        return sendServerError(res, req, 'حدث خطأ أثناء تحديث الإشعار');
     }
 });
 

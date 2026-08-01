@@ -6,6 +6,8 @@ const User = require('../models/User');
 const ClientEmployee = require('../models/ClientEmployee');
 const ClientCompany = require('../models/ClientCompany');
 const SubAccount = require('../models/SubAccount');
+const Notification = require('../models/Notification');
+const { resolveClientNotificationUserIds } = require('../services/clientNotificationService');
 
 // Middleware
 const endUnauthorizedClientSession = (req, res) => {
@@ -82,6 +84,68 @@ router.get('/logout', clientAuthController.logout);
 // ===============================================
 router.get('/dashboard', requireClientAuth, clientDashboardController.getDashboard);
 router.get('/api/transactions', requireClientAuth, clientDashboardController.getApiTransactions);
+router.get('/api/notifications/unread', requireClientAuth, async (req, res) => {
+    try {
+        const userIds = await resolveClientNotificationUserIds({
+            accountType: req.session.accountType,
+            clientId: req.session.clientId
+        });
+
+        if (!userIds.length) return res.json({ success: true, count: 0, notifications: [] });
+
+        const notifications = await Notification.find({
+            userId: { $in: userIds },
+            audience: { $in: ['client', 'all'] },
+            isRead: false
+        }).sort({ createdAt: -1 }).limit(10).lean();
+
+        return res.json({ success: true, count: notifications.length, notifications });
+    } catch (e) {
+        return res.status(500).json({ success: false, error: 'Internal Server Error' });
+    }
+});
+
+router.post('/api/notifications/:id/read', requireClientAuth, async (req, res) => {
+    try {
+        const userIds = await resolveClientNotificationUserIds({
+            accountType: req.session.accountType,
+            clientId: req.session.clientId
+        });
+
+        if (!userIds.length) return res.status(404).json({ success: false });
+
+        await Notification.updateOne({
+            _id: req.params.id,
+            userId: { $in: userIds },
+            audience: { $in: ['client', 'all'] }
+        }, { $set: { isRead: true } });
+
+        return res.json({ success: true });
+    } catch (e) {
+        return res.status(500).json({ success: false, error: 'Internal Server Error' });
+    }
+});
+
+router.post('/api/notifications/read-all', requireClientAuth, async (req, res) => {
+    try {
+        const userIds = await resolveClientNotificationUserIds({
+            accountType: req.session.accountType,
+            clientId: req.session.clientId
+        });
+
+        if (userIds.length) {
+            await Notification.updateMany({
+                userId: { $in: userIds },
+                audience: { $in: ['client', 'all'] },
+                isRead: false
+            }, { $set: { isRead: true } });
+        }
+
+        return res.json({ success: true });
+    } catch (e) {
+        return res.status(500).json({ success: false, error: 'Internal Server Error' });
+    }
+});
 
 // ===============================================
 // 🚀 Sub-Accounts Routes

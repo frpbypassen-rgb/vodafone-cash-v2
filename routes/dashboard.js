@@ -91,7 +91,16 @@ router.get('/api/sidebar-stats', requireAuth, async (req, res) => {
 const Notification = require('../models/Notification');
 
 router.get('/api/notifications/unread', requireAuth, async (req, res) => {
-    try { const notifs = await Notification.find({ isRead: false }).sort({ createdAt: -1 }); res.json({ count: notifs.length, notifications: notifs }); } catch (e) { res.status(500).json({ error: true }); }
+    try {
+        const notifs = await Notification.find({
+            isRead: false,
+            $or: [
+                { audience: { $in: ['admin', 'all'] } },
+                { audience: { $exists: false } }
+            ]
+        }).sort({ createdAt: -1 });
+        res.json({ count: notifs.length, notifications: notifs });
+    } catch (e) { res.status(500).json({ error: true }); }
 });
 
 router.post('/api/notifications/:id/read', requireAuth, async (req, res) => {
@@ -99,7 +108,16 @@ router.post('/api/notifications/:id/read', requireAuth, async (req, res) => {
 });
 
 router.post('/api/notifications/read-all', requireAuth, async (req, res) => {
-    try { await Notification.updateMany({ isRead: false }, { isRead: true }); res.json({ success: true }); } catch (e) { res.status(500).json({ error: true }); }
+    try {
+        await Notification.updateMany({
+            isRead: false,
+            $or: [
+                { audience: { $in: ['admin', 'all'] } },
+                { audience: { $exists: false } }
+            ]
+        }, { isRead: true });
+        res.json({ success: true });
+    } catch (e) { res.status(500).json({ error: true }); }
 });
 
 router.get('/complaints', requireAuth, async (req, res) => {

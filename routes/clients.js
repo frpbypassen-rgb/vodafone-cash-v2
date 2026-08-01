@@ -6,10 +6,10 @@ const User = require('../models/User');
 const ClientCompany = require('../models/ClientCompany');
 const Transaction = require('../models/Transaction');
 const ClientEmployee = require('../models/ClientEmployee');
-const Notification = require('../models/Notification');
 const SubAccount = require('../models/SubAccount');
 const { requireAuth, requireMaster } = require('../middlewares/auth');
 const { updateBalanceWithLedger } = require('../services/walletService');
+const { notifyBalanceAdjustment } = require('../services/clientNotificationService');
 const {
     CODE_LENGTHS,
     expectedUserCodeLength,
@@ -85,6 +85,15 @@ const runDbTransaction = async (callback) => {
         return result;
     } catch (error) {
         try { await session.abortTransaction(); } catch (_) {}
+        const message = error.message || '';
+        if (
+            message.includes('Transaction numbers') ||
+            message.includes('replica set') ||
+            message.includes('transactions are not supported') ||
+            (message.includes('Transaction') && message.includes('not supported'))
+        ) {
+            return callback(null);
+        }
         throw error;
     } finally {
         session.endSession();
@@ -175,8 +184,9 @@ router.post('/user/:id/add-balance', requireAuth, requireMaster, async (req, res
         const notes = req.body.notes ? req.body.notes.trim() : '';
         if (isNaN(amount) || amount === 0) return res.redirect(`/user/${req.params.id}?balanceError=invalid`);
 
-        const { user, tx } = await runDbTransaction(async (session) => {
-            const account = await User.findById(req.params.id).session(session);
+        const { user, tx, balanceAfter } = await runDbTransaction(async (session) => {
+            const accountQuery = User.findById(req.params.id);
+            const account = session ? await accountQuery.session(session) : await accountQuery;
             if (!account) throw new Error('ACCOUNT_NOT_FOUND');
 
             const customId = createManualAdjustmentId(amount);
@@ -184,10 +194,9 @@ router.post('/user/:id/add-balance', requireAuth, requireMaster, async (req, res
             const status = amount > 0 ? 'deposit' : 'deduction';
             const description = `${amount > 0 ? 'Admin deposit' : 'Admin deduction'} for user ${account.name || account.webUsername || account.phone}`;
 
-            await updateBalanceWithLedger('User', account._id, amount, type, customId, description, {
-                minBalance: 0,
-                session
-            });
+            const balanceOptions = { minBalance: 0 };
+            if (session) balanceOptions.session = session;
+            const balanceResult = await updateBalanceWithLedger('User', account._id, amount, type, customId, description, balanceOptions);
 
             const [createdTx] = await Transaction.create([{
                 userId: account.phone || account.webUsername,
@@ -199,14 +208,21 @@ router.post('/user/:id/add-balance', requireAuth, requireMaster, async (req, res
                 companyName: 'عميل فردي',
                 employeeName: amount > 0 ? 'الإدارة (إيداع)' : 'الإدارة (خصم)',
                 notes
-            }], { session });
+            }], session ? { session } : {});
 
-            return { user: account, tx: createdTx };
+            return { user: account, tx: createdTx, balanceAfter: balanceResult.balanceAfter };
         });
 
-        const actionType = amount > 0 ? 'إيداع/شحن رصيد' : 'خصم من الرصيد';
-        const msg = `💰 <b>إشعار مالي من الإدارة (${actionType})</b>\n\n💵 المبلغ: <b>${Math.abs(amount).toFixed(2)} دينار/EGP</b>\n📝 الملاحظة: ${notes || 'لا يوجد'}\n🧾 رقم العملية: <code>${tx.customId}</code>`;
-        try { await Notification.create({ userId: user.phone || user.webUsername, title: 'إشعار مالي', message: msg, type: amount > 0 ? 'deposit' : 'deduction' }); } catch(err) {}
+        await notifyBalanceAdjustment({
+            accountModel: 'User',
+            account: user,
+            amount,
+            balanceAfter,
+            customId: tx.customId,
+            notes
+        }).catch(() => {});
+        const io = req.app && req.app.get('io');
+        if (io) io.emit('update_data');
 
         return res.redirect(`/user/${user._id}`);
     } catch (e) {
@@ -274,8 +290,9 @@ router.post('/company/:id/add-balance', requireAuth, requireMaster, async (req, 
         const notes = req.body.notes ? req.body.notes.trim() : '';
         if (isNaN(amount) || amount === 0) return res.redirect(`/company/${req.params.id}?balanceError=invalid`);
 
-        const { company, tx } = await runDbTransaction(async (session) => {
-            const account = await ClientCompany.findById(req.params.id).session(session);
+        const { company, tx, balanceAfter } = await runDbTransaction(async (session) => {
+            const accountQuery = ClientCompany.findById(req.params.id);
+            const account = session ? await accountQuery.session(session) : await accountQuery;
             if (!account) throw new Error('ACCOUNT_NOT_FOUND');
 
             const customId = createManualAdjustmentId(amount);
@@ -283,10 +300,9 @@ router.post('/company/:id/add-balance', requireAuth, requireMaster, async (req, 
             const status = amount > 0 ? 'deposit' : 'deduction';
             const description = `${amount > 0 ? 'Admin deposit' : 'Admin deduction'} for company ${account.name || account._id}`;
 
-            await updateBalanceWithLedger('ClientCompany', account._id, amount, type, customId, description, {
-                minBalance: 0,
-                session
-            });
+            const balanceOptions = { minBalance: 0 };
+            if (session) balanceOptions.session = session;
+            const balanceResult = await updateBalanceWithLedger('ClientCompany', account._id, amount, type, customId, description, balanceOptions);
 
             const [createdTx] = await Transaction.create([{
                 userId: 'admin',
@@ -299,17 +315,21 @@ router.post('/company/:id/add-balance', requireAuth, requireMaster, async (req, 
                 companyName: account.name,
                 employeeName: amount > 0 ? 'الإدارة (إيداع)' : 'الإدارة (خصم)',
                 notes
-            }], { session });
+            }], session ? { session } : {});
 
-            return { company: account, tx: createdTx };
+            return { company: account, tx: createdTx, balanceAfter: balanceResult.balanceAfter };
         });
 
-        const actionType = amount > 0 ? 'إيداع/شحن رصيد' : 'خصم من الرصيد';
-        const msg = `💰 <b>إشعار مالي من الإدارة (${actionType})</b>\n\n💵 المبلغ: <b>${Math.abs(amount).toFixed(2)} دينار/EGP</b>\n📝 الملاحظة: ${notes || 'لا يوجد'}\n🧾 رقم العملية: <code>${tx.customId}</code>`;
-        const emps = await ClientEmployee.find({ companyId: company._id, status: 'active' });
-        for (const emp of emps) {
-            try { await Notification.create({ userId: emp.webUsername, title: 'إشعار مالي', message: msg, type: amount > 0 ? 'deposit' : 'deduction' }); } catch(err) {}
-        }
+        await notifyBalanceAdjustment({
+            accountModel: 'ClientCompany',
+            account: company,
+            amount,
+            balanceAfter,
+            customId: tx.customId,
+            notes
+        }).catch(() => {});
+        const io = req.app && req.app.get('io');
+        if (io) io.emit('update_data');
 
         return res.redirect(`/company/${company._id}`);
     } catch (e) {

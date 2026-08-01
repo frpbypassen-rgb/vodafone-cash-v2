@@ -2029,6 +2029,47 @@
 
         // 📡 نظام التحديث اللحظي للعميل (Smart Diffing & Live Notifications)
         let lastRenderedDataHash = '';
+        const shownClientNotificationIds = new Set(JSON.parse(sessionStorage.getItem('shownClientNotificationIds') || '[]'));
+
+        function saveShownClientNotificationIds() {
+            sessionStorage.setItem('shownClientNotificationIds', JSON.stringify([...shownClientNotificationIds].slice(-100)));
+        }
+
+        function plainNotificationText(value) {
+            const div = document.createElement('div');
+            div.innerHTML = value || '';
+            return div.textContent || div.innerText || '';
+        }
+
+        async function fetchClientNotifications() {
+            try {
+                const response = await fetch('/client/api/notifications/unread');
+                if (!response.ok) return;
+                const data = await response.json();
+                if (!data.success || !Array.isArray(data.notifications)) return;
+
+                for (const notification of data.notifications.reverse()) {
+                    if (!notification._id || shownClientNotificationIds.has(notification._id)) continue;
+                    shownClientNotificationIds.add(notification._id);
+                    saveShownClientNotificationIds();
+
+                    document.getElementById('alertSound').play().catch(() => {});
+                    Swal.fire({
+                        toast: true,
+                        position: 'top-end',
+                        icon: notification.type === 'deduction' ? 'warning' : 'success',
+                        title: notification.title || 'Notification',
+                        text: plainNotificationText(notification.message),
+                        showConfirmButton: false,
+                        timer: 8000,
+                        timerProgressBar: true,
+                        customClass: { popup: 'swal2-popup' }
+                    });
+
+                    fetch(`/client/api/notifications/${notification._id}/read`, { method: 'POST' }).catch(() => {});
+                }
+            } catch (error) {}
+        }
         async function fetchLiveClientPortalData() {
             try {
                 const response = await fetch('/client/api/transactions' + window.location.search);
@@ -2398,7 +2439,11 @@
         }
 
         fetchLiveClientPortalData();
-        setInterval(fetchLiveClientPortalData, 3000);
+        fetchClientNotifications();
+        setInterval(() => {
+            fetchLiveClientPortalData();
+            fetchClientNotifications();
+        }, 3000);
 
         
 
