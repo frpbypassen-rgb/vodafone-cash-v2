@@ -5,6 +5,15 @@
 const mongoose = require('mongoose');
 const Ledger = require('../models/Ledger');
 
+const isMongoTransactionFallbackError = (error) => {
+    const message = error && error.message ? error.message : '';
+    return message.includes('replica set')
+        || message.includes('Transaction numbers')
+        || message.includes('transactions are not supported')
+        || message.includes('retryable writes')
+        || message.includes('mongos');
+};
+
 /**
  * تحديث رصيد حساب مع تسجيل قيد في دفتر الأستاذ بشكل ذري
  *
@@ -79,11 +88,7 @@ const updateBalanceWithLedger = async (entityModel, entityId, amount, type, tran
         }
 
         // 🛡️ وضع بديل للسيرفر المحلي الذي لا يدعم Transactions (Replica Set مطلوب)
-        if (
-            error.message.includes('replica set') ||
-            error.message.includes('Transaction numbers') ||
-            error.message.includes('mongos')
-        ) {
+        if (isMongoTransactionFallbackError(error)) {
             console.warn(`⚠️ [WalletService] السيرفر لا يدعم Transactions. تفعيل الوضع البديل للعملية: ${transactionId}`);
             return executeFallback(Model, entityId, amount, type, transactionId, description, minBalance);
         }
@@ -129,4 +134,4 @@ const executeFallback = async (Model, entityId, amount, type, transactionId, des
     return { success: true, balanceBefore, balanceAfter };
 };
 
-module.exports = { updateBalanceWithLedger };
+module.exports = { updateBalanceWithLedger, isMongoTransactionFallbackError };

@@ -18,6 +18,7 @@ uploads/
 # ======================================
 # 📊 Generated Reports & Exports
 # ======================================
+artifacts/
 *.xlsx
 *.xls
 *.csv

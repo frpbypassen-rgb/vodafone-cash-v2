@@ -201,6 +201,7 @@ try {
             ttl: 24 * 60 * 60,
             autoRemove: 'native',
             mongoOptions: {
+                retryWrites: false,
                 serverSelectionTimeoutMS: 120000,
                 connectTimeoutMS: 120000,
                 socketTimeoutMS: 120000

@@ -8,7 +8,7 @@ const Transaction = require('../models/Transaction');
 const ClientEmployee = require('../models/ClientEmployee');
 const SubAccount = require('../models/SubAccount');
 const { requireAuth, requireMaster } = require('../middlewares/auth');
-const { updateBalanceWithLedger } = require('../services/walletService');
+const { updateBalanceWithLedger, isMongoTransactionFallbackError } = require('../services/walletService');
 const { notifyBalanceAdjustment } = require('../services/clientNotificationService');
 const { createDepositReceiptProof } = require('../services/depositReceiptService');
 const {
@@ -88,9 +88,7 @@ const runDbTransaction = async (callback) => {
         try { await session.abortTransaction(); } catch (_) {}
         const message = error.message || '';
         if (
-            message.includes('Transaction numbers') ||
-            message.includes('replica set') ||
-            message.includes('transactions are not supported') ||
+            isMongoTransactionFallbackError(error) ||
             (message.includes('Transaction') && message.includes('not supported'))
         ) {
             return callback(null);
@@ -256,6 +254,7 @@ router.post('/user/:id/add-balance', requireAuth, async (req, res) => {
 
         return res.redirect(`/user/${user._id}`);
     } catch (e) {
+        console.error('[clients/add-balance:user] failed:', e.stack || e.message);
         return res.redirect(`/user/${req.params.id}?balanceError=${balanceErrorQuery(e)}`);
     }
 });
@@ -372,6 +371,7 @@ router.post('/company/:id/add-balance', requireAuth, async (req, res) => {
 
         return res.redirect(`/company/${company._id}`);
     } catch (e) {
+        console.error('[clients/add-balance:company] failed:', e.stack || e.message);
         return res.redirect(`/company/${req.params.id}?balanceError=${balanceErrorQuery(e)}`);
     }
 });
