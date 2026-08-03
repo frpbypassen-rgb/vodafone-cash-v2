@@ -594,246 +594,462 @@
 
             function generatePDF() {
                 if (!lastReportData) return;
+
                 const data = lastReportData;
                 const ei = data.entityInfo || {};
+                const generatedAt = new Date();
+                const currency = data.stats.isExecutor ? 'EGP' : 'LYD';
+                const operationsTotal = data.stats.isExecutor ? data.stats.totalEGP : data.stats.totalLYD;
 
-                let html = `
-                <div style="font-family: 'Cairo', sans-serif; direction: rtl; padding: 15px; color: #000; background: #fff;">
-                    
-                    <!-- Header Section -->
-                    <div style="text-align: center; border-bottom: 3px solid #000; padding-bottom: 20px; margin-bottom: 30px; page-break-inside: avoid;">
-                        <h1 style="color: #000; margin: 0; font-size: 28px; font-weight: 900;">شركة الأهرام للخدمات المالية</h1>
-                        <h2 style="color: #000; margin: 5px 0 0 0; font-size: 18px; font-weight: 800;">تقرير حساب العميل الشامل</h2>
-                        <div style="margin-top: 10px; font-size: 12px; color: #000; font-weight: 600;">
-                            تاريخ الإصدار: ${new Date().toLocaleDateString('en-GB')} | الوقت: ${new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true })}
-                        </div>
+                const escapePdf = (value) => String(value ?? '---')
+                    .replace(/&/g, '&amp;')
+                    .replace(/</g, '&lt;')
+                    .replace(/>/g, '&gt;')
+                    .replace(/"/g, '&quot;')
+                    .replace(/'/g, '&#039;');
+
+                const compactPdf = (value, max = 62) => {
+                    const text = String(value || '---').trim() || '---';
+                    return text.length > max ? `${text.slice(0, max - 3)}...` : text;
+                };
+
+                const formatNumber = (value, digits = 2) => {
+                    const parsed = Number(value || 0);
+                    return Number.isFinite(parsed)
+                        ? parsed.toLocaleString('en-US', { minimumFractionDigits: digits, maximumFractionDigits: digits })
+                        : '0.00';
+                };
+
+                const formatDate = (value) => {
+                    const date = value ? new Date(value) : null;
+                    return date && !Number.isNaN(date.getTime()) ? date.toLocaleDateString('en-GB') : '---';
+                };
+
+                const formatTime = (value) => {
+                    const date = value ? new Date(value) : null;
+                    return date && !Number.isNaN(date.getTime())
+                        ? date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true })
+                        : '---';
+                };
+
+                const statusMeta = (status) => {
+                    if (status === 'completed' || status === 'deposit') {
+                        return { text: status === 'deposit' ? 'إيداع' : 'ناجحة', className: 'status-success' };
+                    }
+                    if (status === 'deduction') return { text: 'خصم', className: 'status-danger' };
+                    if (status === 'rejected' || status === 'cancelled_by_admin') return { text: 'ملغية', className: 'status-danger' };
+                    if (status === 'deposit_pending') return { text: 'قيد المراجعة', className: 'status-warning' };
+                    return { text: status || 'قيد التنفيذ', className: 'status-neutral' };
+                };
+
+                const infoCell = (label, value, ltr = false) => `
+                    <div class="info-cell">
+                        <span>${escapePdf(label)}</span>
+                        <strong ${ltr ? 'dir="ltr"' : ''}>${escapePdf(value || '---')}</strong>
                     </div>
-                    
-                    <!-- Client Card 2030 Style -->
-                    <div style="background: #fff; border: 2px solid #000; border-right: 6px solid #000; border-radius: 12px; padding: 20px; margin-bottom: 30px;">
-                        <h4 style="margin: 0 0 15px 0; color: #000; font-size: 16px; font-weight: 800; display: flex; align-items: center; border-bottom: 1px solid #ccc; padding-bottom: 10px;">
-                            <span style="background: #000; color: #fff; padding: 4px 12px; border-radius: 6px; margin-left: 10px; font-size: 12px;">بيانات الحساب</span>
-                        </h4>
-                        <table style="width: 100%; font-size: 14px; color: #000; border-spacing: 0 10px; font-weight: 700;">
-                            <tr>
-                                <td style="width: 50%;">
-                                    <div style="color: #333; font-size: 12px; margin-bottom: 2px;">اسم العميل</div>
-                                    <strong style="color: #000; font-size: 16px;">${ei.name || '---'}</strong>
-                                </td>
-                                <td style="width: 50%;">
-                                    <div style="color: #333; font-size: 12px; margin-bottom: 2px;">رقم الهاتف</div>
-                                    <strong dir="ltr" style="color: #000; font-size: 16px;">${ei.phone || '---'}</strong>
-                                </td>
-                            </tr>
-                            <tr>
-                                <td>
-                                    <div style="color: #333; font-size: 12px; margin-bottom: 2px;">اسم المستخدم</div>
-                                    <strong style="color: #000; font-size: 16px;">${ei.username || '---'}</strong>
-                                </td>
-                                <td>
-                                    <div style="color: #333; font-size: 12px; margin-bottom: 2px;">تاريخ الانضمام</div>
-                                    <strong style="color: #000; font-size: 16px;">${ei.joinDate ? new Date(ei.joinDate).toLocaleDateString('en-GB') : '---'}</strong>
-                                </td>
-                            </tr>
-                            <tr>
-                                <td colspan="2" style="padding-top: 10px; border-top: 1px solid #000;">
-                                    <div style="color: #333; font-size: 12px; margin-bottom: 2px;">حالة العميل والتصنيف</div>
-                                    <strong style="color: #000; font-size: 16px;">${ei.status || '---'}</strong>
-                                </td>
-                            </tr>
-                        </table>
+                `;
+
+                const metricCard = (label, value, tone, unit = currency) => `
+                    <div class="metric-card ${tone}">
+                        <span>${escapePdf(label)}</span>
+                        <strong dir="ltr">${escapePdf(formatNumber(value))}</strong>
+                        <small>${escapePdf(unit)}</small>
                     </div>
+                `;
 
-                    <!-- Financial Summary 2030 Style -->
-                    <div style="display: flex; justify-content: space-between; margin-bottom: 30px; gap: 10px; page-break-inside: avoid;">
-                        <div style="flex: 1; padding: 15px; background: #fff; border: 2px solid #000; border-radius: 8px; text-align: center;">
-                            <div style="color: #000; font-size: 14px; font-weight: 700; margin-bottom: 8px; border-bottom: 1px dashed #000; padding-bottom: 5px;">الرصيد السابق</div>
-                            <div style="font-size: 18px; color: #000; font-weight: 900;">${data.stats.previousBalance.toFixed(2)}</div>
-                        </div>
-                        <div style="flex: 1; padding: 15px; background: #fff; border: 2px solid #000; border-radius: 8px; text-align: center;">
-                            <div style="color: #000; font-size: 14px; font-weight: 700; margin-bottom: 8px; border-bottom: 1px dashed #000; padding-bottom: 5px;">إجمالي العمليات</div>
-                            <div style="font-size: 18px; color: #000; font-weight: 900;">${data.stats.isExecutor ? data.stats.totalEGP.toFixed(2) : data.stats.totalLYD.toFixed(2)}</div>
-                        </div>
-                        <div style="flex: 1; padding: 15px; background: #fff; border: 2px solid #000; border-radius: 8px; text-align: center;">
-                            <div style="color: #000; font-size: 14px; font-weight: 700; margin-bottom: 8px; border-bottom: 1px dashed #000; padding-bottom: 5px;">إجمالي الإيداعات</div>
-                            <div style="font-size: 18px; color: #000; font-weight: 900;">${data.stats.totalDeposits.toFixed(2)}</div>
-                        </div>
-                        <div style="flex: 1; padding: 15px; background: #000; border: 2px solid #000; border-radius: 8px; text-align: center;">
-                            <div style="color: #fff; font-size: 14px; font-weight: 700; margin-bottom: 8px; border-bottom: 1px dashed #fff; padding-bottom: 5px;">الرصيد النهائي</div>
-                            <div style="font-size: 20px; color: #fff; font-weight: 900;">${data.stats.endingBalance.toFixed(2)}</div>
-                        </div>
-                    </div>
+                const emptyRow = (colspan, label) => `
+                    <tr>
+                        <td colspan="${colspan}" class="empty-row">${escapePdf(label)}</td>
+                    </tr>
+                `;
 
-                    <!-- Operations Section -->
-            `;
-
-                const generateOpsHeader = (isContinuation = false) => `
-                    <h4 style="color: #000; font-size: 18px; font-weight: 800; margin-bottom: 15px; padding-bottom: 8px; border-bottom: 2px solid #000; page-break-inside: avoid;">
-                        كشف العمليات ${isContinuation ? '<span style="font-size: 14px;">(تكملة)</span>' : ''}
-                    </h4>
-                    <table style="width: 100%; border-collapse: separate; border-spacing: 0; font-size: 13px; margin-bottom: 30px; text-align: right; border: 2px solid #000; border-radius: 8px; overflow: hidden; page-break-inside: avoid;">
-                        <thead>
-                            <tr style="background: #000; color: #fff;">
-                                <th style="padding: 12px 8px; border-bottom: 2px solid #000; font-weight: 800;">#</th>
-                                <th style="padding: 12px 8px; border-bottom: 2px solid #000; font-weight: 800;">رقم العملية</th>
-                                <th style="padding: 12px 8px; border-bottom: 2px solid #000; font-weight: 800;">المبلغ</th>
-                                <th style="padding: 12px 8px; border-bottom: 2px solid #000; font-weight: 800;">سعر الصرف</th>
-                                <th style="padding: 12px 8px; border-bottom: 2px solid #000; font-weight: 800;">القيمة</th>
-                                <th style="padding: 12px 8px; border-bottom: 2px solid #000; font-weight: 800;">بواسطة</th>
-                                <th style="padding: 12px 8px; border-bottom: 2px solid #000; font-weight: 800;">التاريخ والوقت</th>
-                                <th style="padding: 12px 8px; border-bottom: 2px solid #000; font-weight: 800;">الحالة</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-            `;
-
-                if (data.operations.length === 0) {
-                    html += generateOpsHeader() + '<tr><td colspan="8" style="border: 1px solid #000; padding: 15px; text-align: center; color: #000; font-weight: bold;">لا توجد عمليات</td></tr></tbody></table>';
-                } else {
-                    let sortedOps = [...data.operations].sort((a, b) => {
-                        const statusA = ['rejected', 'cancelled_by_admin'].includes(a.status) ? 1 : 0;
-                        const statusB = ['rejected', 'cancelled_by_admin'].includes(b.status) ? 1 : 0;
-                        if (statusA !== statusB) return statusA - statusB;
+                const operationRows = [...(data.operations || [])]
+                    .sort((a, b) => {
+                        const cancelledA = ['rejected', 'cancelled_by_admin'].includes(a.status) ? 1 : 0;
+                        const cancelledB = ['rejected', 'cancelled_by_admin'].includes(b.status) ? 1 : 0;
+                        if (cancelledA !== cancelledB) return cancelledA - cancelledB;
                         return new Date(b.createdAt) - new Date(a.createdAt);
-                    });
+                    })
+                    .map((tx, index) => {
+                        const status = statusMeta(tx.status);
+                        let by = tx.operatorName || tx.executorName || tx.employeeName || 'الإدارة';
+                        if (by === 'بوت تنفيذ' && tx.executorGroupName) by = `${by} - ${tx.executorGroupName}`;
+                        return `
+                            <tr>
+                                <td>${index + 1}</td>
+                                <td dir="ltr" class="mono">${escapePdf(tx.customId || tx._id?.toString?.().slice(-6) || '---')}</td>
+                                <td dir="ltr" class="amount-cell">${escapePdf(formatNumber(tx.amount))} EGP</td>
+                                <td dir="ltr">${escapePdf(tx.exchangeRate || '-')}</td>
+                                <td dir="ltr" class="amount-cell">${escapePdf(formatNumber(tx.costLYD || 0))} LYD</td>
+                                <td>${escapePdf(compactPdf(by, 34))}</td>
+                                <td dir="ltr">
+                                    <strong>${escapePdf(formatDate(tx.createdAt))}</strong>
+                                    <small>${escapePdf(formatTime(tx.createdAt))}</small>
+                                </td>
+                                <td><span class="status-pill ${status.className}">${escapePdf(status.text)}</span></td>
+                            </tr>
+                        `;
+                    }).join('') || emptyRow(8, 'لا توجد عمليات في الفترة المحددة');
 
-                    // Chunking logic: 10 items for the first page (due to summary cards), 20 items for subsequent pages
-                    let opsChunks = [];
-                    if (sortedOps.length > 10) {
-                        opsChunks.push(sortedOps.slice(0, 10));
-                        for (let i = 10; i < sortedOps.length; i += 20) {
-                            opsChunks.push(sortedOps.slice(i, i + 20));
-                        }
-                    } else {
-                        opsChunks.push(sortedOps);
-                    }
+                const depositRows = [...(data.deposits || [])].map((tx, index) => {
+                    const status = statusMeta(tx.status);
+                    const visibleNotes = cleanTxNotes(tx) || '-';
+                    return `
+                        <tr>
+                            <td>${index + 1}</td>
+                            <td dir="ltr" class="mono">${escapePdf(tx.customId || tx._id?.toString?.().slice(-6) || '---')}</td>
+                            <td dir="ltr" class="amount-cell">${escapePdf(formatNumber(tx.amount))} LYD</td>
+                            <td>${escapePdf(compactPdf(visibleNotes, 50))}</td>
+                            <td>${escapePdf(compactPdf(tx.employeeName || 'الإدارة', 30))}</td>
+                            <td dir="ltr">
+                                <strong>${escapePdf(formatDate(tx.createdAt))}</strong>
+                                <small>${escapePdf(formatTime(tx.createdAt))}</small>
+                            </td>
+                            <td><span class="status-pill ${status.className}">${escapePdf(status.text)}</span></td>
+                        </tr>
+                    `;
+                }).join('') || emptyRow(7, 'لا توجد إيداعات أو تسويات في الفترة المحددة');
 
-                    opsChunks.forEach((chunk, chunkIdx) => {
-                        if (chunkIdx > 0) {
-                            html += '<div style="page-break-before: always; margin-top: 20px;"></div>';
-                        }
-                        html += generateOpsHeader(chunkIdx > 0);
-
-                        chunk.forEach((tx, idxInChunk) => {
-                            const globalIdx = chunkIdx === 0 ? idxInChunk : 10 + ((chunkIdx - 1) * 20) + idxInChunk;
-
-                            let stTxt = 'معلقة'; let stCol = '#000'; let stBg = '#fff';
-                            if (tx.status === 'completed') { stTxt = 'ناجحة'; stCol = '#000'; stBg = '#fff'; }
-                            else if (['rejected', 'cancelled_by_admin'].includes(tx.status)) { stTxt = 'ملغية'; stCol = '#fff'; stBg = '#000'; }
-
-                            const dt = new Date(tx.createdAt);
-                            let by = tx.operatorName || tx.executorName || tx.employeeName || 'الإدارة';
-                            if (by === 'بوت تنفيذ' && tx.executorGroupName) {
-                                by = by + ' - ' + tx.executorGroupName;
+                const html = `
+                    <div class="pdf-report" dir="rtl">
+                        <style>
+                            .pdf-report {
+                                width: 780px;
+                                min-height: 1100px;
+                                box-sizing: border-box;
+                                padding: 26px;
+                                font-family: 'Cairo', Tahoma, Arial, sans-serif;
+                                color: #101828;
+                                background:
+                                    radial-gradient(circle at 8% 4%, rgba(245, 184, 61, 0.16), transparent 26%),
+                                    linear-gradient(145deg, #f8fcff 0%, #edf8fb 100%);
                             }
+                            .pdf-cover {
+                                position: relative;
+                                overflow: hidden;
+                                border-radius: 24px;
+                                padding: 28px 30px;
+                                color: #fff;
+                                background: linear-gradient(135deg, #101828 0%, #14546a 58%, #00a6a6 100%);
+                                box-shadow: 0 18px 34px rgba(16, 24, 40, 0.18);
+                                page-break-inside: avoid;
+                            }
+                            .pdf-cover:before {
+                                content: '';
+                                position: absolute;
+                                left: -70px;
+                                bottom: -96px;
+                                width: 240px;
+                                height: 240px;
+                                border-radius: 50%;
+                                background: rgba(245, 184, 61, 0.18);
+                            }
+                            .brand-row {
+                                position: relative;
+                                display: flex;
+                                align-items: center;
+                                justify-content: space-between;
+                                gap: 18px;
+                                z-index: 1;
+                            }
+                            .brand-copy h1 {
+                                margin: 0;
+                                font-size: 30px;
+                                line-height: 1.35;
+                                font-weight: 900;
+                            }
+                            .brand-copy p {
+                                margin: 8px 0 0;
+                                color: #d8fffb;
+                                font-size: 14px;
+                                font-weight: 800;
+                            }
+                            .brand-mark {
+                                width: 74px;
+                                height: 74px;
+                                border-radius: 24px;
+                                background: rgba(255,255,255,0.13);
+                                display: grid;
+                                place-items: center;
+                                box-shadow: inset 0 1px 0 rgba(255,255,255,0.2);
+                            }
+                            .brand-mark span {
+                                width: 44px;
+                                height: 44px;
+                                border-radius: 50%;
+                                display: grid;
+                                place-items: center;
+                                background: #f5b83d;
+                                color: #101828;
+                                font-size: 34px;
+                                font-weight: 900;
+                                line-height: 1;
+                            }
+                            .cover-meta {
+                                position: relative;
+                                z-index: 1;
+                                display: flex;
+                                justify-content: space-between;
+                                margin-top: 22px;
+                                padding-top: 18px;
+                                border-top: 1px solid rgba(255,255,255,0.22);
+                                font-size: 12px;
+                                font-weight: 800;
+                                color: #e8fffb;
+                            }
+                            .section-card {
+                                margin-top: 18px;
+                                padding: 20px;
+                                border: 1px solid #d9e4ea;
+                                border-radius: 22px;
+                                background: rgba(255,255,255,0.94);
+                                box-shadow: 0 12px 24px rgba(16,24,40,0.08);
+                                page-break-inside: avoid;
+                            }
+                            .section-title {
+                                display: flex;
+                                align-items: center;
+                                justify-content: space-between;
+                                margin: 0 0 14px;
+                                padding-bottom: 10px;
+                                border-bottom: 1px solid #d9e4ea;
+                                color: #101828;
+                                font-size: 18px;
+                                font-weight: 900;
+                            }
+                            .section-title span {
+                                color: #00a6a6;
+                                font-size: 12px;
+                                font-weight: 900;
+                            }
+                            .info-grid {
+                                display: grid;
+                                grid-template-columns: repeat(2, 1fr);
+                                gap: 12px;
+                            }
+                            .info-cell {
+                                padding: 13px 15px;
+                                border: 1px solid #e3edf2;
+                                border-radius: 16px;
+                                background: linear-gradient(145deg, #ffffff, #f5fbfd);
+                            }
+                            .info-cell span,
+                            .metric-card span {
+                                display: block;
+                                color: #667085;
+                                font-size: 11px;
+                                font-weight: 800;
+                                margin-bottom: 5px;
+                            }
+                            .info-cell strong {
+                                display: block;
+                                color: #101828;
+                                font-size: 15px;
+                                font-weight: 900;
+                                overflow-wrap: anywhere;
+                            }
+                            .metric-grid {
+                                display: grid;
+                                grid-template-columns: repeat(4, 1fr);
+                                gap: 12px;
+                                margin-top: 18px;
+                                page-break-inside: avoid;
+                            }
+                            .metric-card {
+                                padding: 16px 12px;
+                                border-radius: 18px;
+                                border: 1px solid #d9e4ea;
+                                background: #fff;
+                                text-align: center;
+                                box-shadow: 0 10px 18px rgba(16,24,40,0.07);
+                            }
+                            .metric-card strong {
+                                display: block;
+                                color: #101828;
+                                font-size: 19px;
+                                line-height: 1.25;
+                                font-weight: 900;
+                            }
+                            .metric-card small {
+                                display: block;
+                                margin-top: 2px;
+                                color: #667085;
+                                font-size: 10px;
+                                font-weight: 900;
+                            }
+                            .metric-card.teal { border-color: #bdebe4; background: linear-gradient(145deg, #ffffff, #ecfffb); }
+                            .metric-card.gold { border-color: #f5d18b; background: linear-gradient(145deg, #ffffff, #fff8e6); }
+                            .metric-card.red { border-color: #ffd0cc; background: linear-gradient(145deg, #ffffff, #fff4f2); }
+                            .metric-card.navy { background: linear-gradient(135deg, #101828, #14546a); border-color: #101828; }
+                            .metric-card.navy span,
+                            .metric-card.navy strong,
+                            .metric-card.navy small { color: #fff; }
+                            .report-table-wrap {
+                                margin-top: 18px;
+                                border: 1px solid #d9e4ea;
+                                border-radius: 18px;
+                                overflow: hidden;
+                                background: #fff;
+                            }
+                            .report-table {
+                                width: 100%;
+                                border-collapse: collapse;
+                                font-size: 11px;
+                                text-align: center;
+                            }
+                            .report-table th {
+                                padding: 11px 8px;
+                                background: #101828;
+                                color: #ffffff;
+                                font-weight: 900;
+                                white-space: nowrap;
+                            }
+                            .report-table td {
+                                padding: 10px 8px;
+                                border-bottom: 1px solid #e6edf2;
+                                color: #101828;
+                                font-weight: 800;
+                                vertical-align: middle;
+                                page-break-inside: avoid;
+                            }
+                            .report-table tbody tr:nth-child(even) td { background: #f7fbfd; }
+                            .report-table small {
+                                display: block;
+                                margin-top: 2px;
+                                color: #667085;
+                                font-size: 10px;
+                            }
+                            .mono {
+                                font-family: Consolas, 'Courier New', monospace;
+                                font-weight: 900;
+                            }
+                            .amount-cell {
+                                color: #00a6a6;
+                                font-weight: 900;
+                                white-space: nowrap;
+                            }
+                            .status-pill {
+                                display: inline-block;
+                                min-width: 58px;
+                                padding: 5px 9px;
+                                border-radius: 999px;
+                                font-size: 10px;
+                                line-height: 1;
+                                font-weight: 900;
+                                white-space: nowrap;
+                            }
+                            .status-success { color: #067647; background: #d1fadf; }
+                            .status-danger { color: #b42318; background: #fee4e2; }
+                            .status-warning { color: #93370d; background: #fef0c7; }
+                            .status-neutral { color: #344054; background: #eaecf0; }
+                            .empty-row {
+                                padding: 22px !important;
+                                color: #667085 !important;
+                                background: #fff !important;
+                                font-size: 13px;
+                            }
+                            .pdf-footer {
+                                margin-top: 18px;
+                                padding-top: 14px;
+                                border-top: 1px solid #d9e4ea;
+                                display: flex;
+                                justify-content: space-between;
+                                color: #667085;
+                                font-size: 11px;
+                                font-weight: 800;
+                            }
+                        </style>
 
-                            html += `
-                            <tr style="background: ${globalIdx % 2 === 0 ? '#fff' : '#f8f8f8'};">
-                                <td style="padding: 10px 8px; border-bottom: 1px solid #000; color: #000; font-weight: 700;">${globalIdx + 1}</td>
-                                <td style="padding: 10px 8px; border-bottom: 1px solid #000; font-weight: 800; color: #000;" dir="ltr">${tx.customId || tx._id.toString().slice(-6)}</td>
-                                <td style="padding: 10px 8px; border-bottom: 1px solid #000; font-weight: 900; color: #000;" dir="ltr">${tx.amount}</td>
-                                <td style="padding: 10px 8px; border-bottom: 1px solid #000; color: #000; font-weight: 800;">${tx.exchangeRate || '-'}</td>
-                                <td style="padding: 10px 8px; border-bottom: 1px solid #000; font-weight: 900; color: #000;">${tx.costLYD || 0}</td>
-                                <td style="padding: 10px 8px; border-bottom: 1px solid #000; color: #000; font-weight: 800;">${by}</td>
-                                <td style="padding: 10px 8px; border-bottom: 1px solid #000;" dir="ltr">
-                                    <div style="color: #000; font-weight: 800;">${dt.toLocaleDateString('en-GB')}</div>
-                                    <div style="font-size: 11px; color: #000; font-weight: 700;">${dt.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true })}</div>
-                                </td>
-                                <td style="padding: 10px 8px; border-bottom: 1px solid #000;">
-                                    <span style="background: ${stBg}; color: ${stCol}; padding: 4px 10px; border-radius: 4px; font-size: 12px; font-weight: 800; border: 2px solid #000;">${stTxt}</span>
-                                </td>
-                            </tr>
-                        `;
-                        });
+                        <section class="pdf-cover">
+                            <div class="brand-row">
+                                <div class="brand-copy">
+                                    <h1>تقرير الحساب الشامل</h1>
+                                    <p>Power Pay AL-Ahram - منظومة مالية موحدة لإدارة الحركات والتحويلات</p>
+                                </div>
+                                <div class="brand-mark"><span>+</span></div>
+                            </div>
+                            <div class="cover-meta">
+                                <div>تاريخ الإصدار: <span dir="ltr">${escapePdf(formatDate(generatedAt))}</span></div>
+                                <div>وقت الإصدار: <span dir="ltr">${escapePdf(formatTime(generatedAt))}</span></div>
+                                <div>عملة التقرير: ${escapePdf(currency)}</div>
+                            </div>
+                        </section>
 
-                        html += `
-                            </tbody>
-                        </table>
-                    `;
-                    });
-                }
+                        <section class="section-card">
+                            <h2 class="section-title">بيانات الحساب <span>ACCOUNT PROFILE</span></h2>
+                            <div class="info-grid">
+                                ${infoCell('اسم الحساب', ei.name)}
+                                ${infoCell('رقم الهاتف', ei.phone, true)}
+                                ${infoCell('اسم المستخدم', ei.username)}
+                                ${infoCell('تاريخ الانضمام', ei.joinDate ? formatDate(ei.joinDate) : '---', true)}
+                                ${infoCell('التصنيف', ei.status)}
+                                ${infoCell('عدد العمليات', data.stats.totalCount || 0, true)}
+                            </div>
+                        </section>
 
-                // Deposits Section
-                const generateDepsHeader = (isContinuation = false) => `
-                    <h4 style="color: #000; font-size: 18px; font-weight: 800; margin-bottom: 15px; padding-bottom: 8px; border-bottom: 2px solid #000; margin-top: 20px; page-break-inside: avoid;">
-                        عمليات الإيداع ${isContinuation ? '<span style="font-size: 14px;">(تكملة)</span>' : ''}
-                    </h4>
-                    <table style="width: 100%; border-collapse: separate; border-spacing: 0; font-size: 13px; margin-bottom: 30px; text-align: right; border: 2px solid #000; border-radius: 8px; overflow: hidden; page-break-inside: avoid;">
-                        <thead>
-                            <tr style="background: #000; color: #fff;">
-                                <th style="padding: 12px 8px; border-bottom: 2px solid #000; font-weight: 800;">#</th>
-                                <th style="padding: 12px 8px; border-bottom: 2px solid #000; font-weight: 800;">رقم الإيداع</th>
-                                <th style="padding: 12px 8px; border-bottom: 2px solid #000; font-weight: 800;">القيمة (LYD)</th>
-                                <th style="padding: 12px 8px; border-bottom: 2px solid #000; font-weight: 800;">الملاحظة</th>
-                                <th style="padding: 12px 8px; border-bottom: 2px solid #000; font-weight: 800;">بواسطة</th>
-                                <th style="padding: 12px 8px; border-bottom: 2px solid #000; font-weight: 800;">التاريخ والوقت</th>
-                                <th style="padding: 12px 8px; border-bottom: 2px solid #000; font-weight: 800;">الحالة</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-            `;
+                        <section class="metric-grid">
+                            ${metricCard('الرصيد السابق', data.stats.previousBalance, 'teal')}
+                            ${metricCard('إجمالي العمليات', operationsTotal, 'red')}
+                            ${metricCard('إجمالي الإيداعات', data.stats.totalDeposits, 'gold')}
+                            ${metricCard('الرصيد الختامي', data.stats.endingBalance, 'navy')}
+                        </section>
 
-                if (data.deposits.length === 0) {
-                    html += generateDepsHeader() + '<tr><td colspan="7" style="padding: 15px; text-align: center; color: #000; font-weight: bold; border-bottom: 1px solid #000;">لا توجد إيداعات</td></tr></tbody></table>';
-                } else {
-                    // Chunking logic: 20 items per page for deposits
-                    let depChunks = [];
-                    for (let i = 0; i < data.deposits.length; i += 20) {
-                        depChunks.push(data.deposits.slice(i, i + 20));
-                    }
+                        <section class="section-card">
+                            <h2 class="section-title">كشف العمليات <span>TRANSFERS LEDGER</span></h2>
+                            <div class="report-table-wrap">
+                                <table class="report-table">
+                                    <thead>
+                                        <tr>
+                                            <th>#</th>
+                                            <th>رقم العملية</th>
+                                            <th>المبلغ</th>
+                                            <th>السعر</th>
+                                            <th>القيمة</th>
+                                            <th>بواسطة</th>
+                                            <th>التاريخ</th>
+                                            <th>الحالة</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>${operationRows}</tbody>
+                                </table>
+                            </div>
+                        </section>
 
-                    depChunks.forEach((chunk, chunkIdx) => {
-                        if (chunkIdx > 0) {
-                            html += '<div style="page-break-before: always; margin-top: 20px;"></div>';
-                        }
-                        html += generateDepsHeader(chunkIdx > 0);
+                        <section class="section-card">
+                            <h2 class="section-title">الإيداعات والتسويات <span>ACCOUNT MOVEMENTS</span></h2>
+                            <div class="report-table-wrap">
+                                <table class="report-table">
+                                    <thead>
+                                        <tr>
+                                            <th>#</th>
+                                            <th>رقم الحركة</th>
+                                            <th>القيمة</th>
+                                            <th>الملاحظة</th>
+                                            <th>بواسطة</th>
+                                            <th>التاريخ</th>
+                                            <th>الحالة</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>${depositRows}</tbody>
+                                </table>
+                            </div>
+                        </section>
 
-                        chunk.forEach((tx, idxInChunk) => {
-                            const globalIdx = (chunkIdx * 20) + idxInChunk;
-                            let stTxt = 'إيداع'; let stCol = '#000'; let stBg = '#fff';
-                            if (tx.status === 'deduction') { stTxt = 'خصم'; stCol = '#fff'; stBg = '#000'; }
-                            else if (tx.status === 'deposit_pending') { stTxt = 'قيد المراجعة'; stCol = '#000'; stBg = '#fff'; }
-
-                            const dt = new Date(tx.createdAt);
-                            const by = tx.employeeName || 'الإدارة';
-                            const visibleNotes = cleanTxNotes(tx) || '-';
-
-                            html += `
-                            <tr style="background: ${globalIdx % 2 === 0 ? '#fff' : '#f8f8f8'};">
-                                <td style="padding: 10px 8px; border-bottom: 1px solid #000; color: #000; font-weight: 700;">${globalIdx + 1}</td>
-                                <td style="padding: 10px 8px; border-bottom: 1px solid #000; font-weight: 800; color: #000;" dir="ltr">${tx.customId || tx._id.toString().slice(-6)}</td>
-                                <td style="padding: 10px 8px; border-bottom: 1px solid #000; font-weight: 900; color: #000;">${tx.amount}</td>
-                                <td style="padding: 10px 8px; border-bottom: 1px solid #000; color: #000; font-weight: 800;">${visibleNotes}</td>
-                                <td style="padding: 10px 8px; border-bottom: 1px solid #000; color: #000; font-weight: 800;">${by}</td>
-                                <td style="padding: 10px 8px; border-bottom: 1px solid #000;" dir="ltr">
-                                    <div style="color: #000; font-weight: 800;">${dt.toLocaleDateString('en-GB')}</div>
-                                    <div style="font-size: 11px; color: #000; font-weight: 700;">${dt.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true })}</div>
-                                </td>
-                                <td style="padding: 10px 8px; border-bottom: 1px solid #000;">
-                                    <span style="background: ${stBg}; color: ${stCol}; padding: 4px 10px; border-radius: 4px; font-size: 12px; font-weight: 800; border: 2px solid #000;">${stTxt}</span>
-                                </td>
-                            </tr>
-                        `;
-                        });
-
-                        html += `
-                            </tbody>
-                        </table>
-                    `;
-                    });
-                }
-
-                html += `
-                </div>
-            `;
+                        <footer class="pdf-footer">
+                            <span>Power Pay AL-Ahram</span>
+                            <span>تم إصدار هذا التقرير إلكترونيا من لوحة الإدارة</span>
+                            <span dir="ltr">${escapePdf(formatDate(generatedAt))}</span>
+                        </footer>
+                    </div>
+                `;
 
                 const opt = {
-                    margin: 10,
+                    margin: 6,
                     filename: 'تقرير_حساب_الاهرام_باي.pdf',
-                    image: { type: 'jpeg', quality: 1.0 },
-                    html2canvas: { scale: 2, useCORS: true, letterRendering: true },
+                    image: { type: 'jpeg', quality: 0.98 },
+                    html2canvas: { scale: 2, useCORS: true, letterRendering: true, backgroundColor: '#f8fcff' },
                     jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
-                    pagebreak: { mode: ['css', 'legacy'] }
+                    pagebreak: { mode: ['avoid-all', 'css', 'legacy'], avoid: ['tr', '.section-card', '.metric-grid'] }
                 };
 
                 const container = document.createElement('div');
