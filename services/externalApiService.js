@@ -27,7 +27,7 @@ const numberOrZero = (value) => {
 const formatAmount = (value) => {
     const parsed = Number(value);
     if (!Number.isFinite(parsed)) return String(value || '0');
-    return parsed.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    return parsed.toLocaleString('en-US', { maximumFractionDigits: 0 });
 };
 
 const escapeHtml = (value) => String(value ?? '')
@@ -265,13 +265,13 @@ const generateCustomReceipt = async (tx, apiResult) => {
         const targetNumber = tx.vodafoneNumber || tx.accountNumber || '---';
         const referenceNumber = apiResult.reference_number || apiResult.sender_number || '---';
         const providerTxId = apiResult.provider_transaction_id || apiResult.external_transaction_id || '---';
-        const amountText = `${formatAmount(tx.amount)} EGP`;
+        const amountText = `${formatAmount(tx.amount)} جنية`;
         
         const rows = [
             ['الرقم المرجعي', referenceNumber],
             ['رقم عملية المزود', providerTxId],
             ['رقم طلب الأهرام', tx.customId || tx._id?.toString?.() || '---'],
-            ['الخدمة', 'تحويل API'],
+            ['الخدمة', 'محافظ كاش'],
             ['وقت التنفيذ', dateStr]
         ].map(([label, value]) => `
             <div class="row">
@@ -343,7 +343,7 @@ const saveApiReceiptProof = async (tx, apiResult) => {
             referenceNumber: apiResult.reference_number || apiResult.sender_number || apiResult.external_transaction_id || '---',
             customId: apiResult.external_transaction_id || tx.customId || tx._id?.toString?.() || '---',
             accountName: tx.companyName || tx.employeeName || tx.accountName || '---',
-            serviceName: 'تحويل API',
+            serviceName: 'محافظ كاش',
             date: apiResult.transaction_time || new Date().toLocaleString('en-GB')
         });
         receiptBuffer = Buffer.from(receiptBase64.replace(/^data:image\/\w+;base64,/, ''), 'base64');

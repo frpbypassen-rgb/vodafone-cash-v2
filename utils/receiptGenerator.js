@@ -16,7 +16,7 @@ const BRAND = {
 const formatAmount = (value) => {
     const parsed = Number(value);
     if (!Number.isFinite(parsed)) return String(value || '0');
-    return parsed.toLocaleString('ar-EG-u-nu-latn', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    return parsed.toLocaleString('ar-EG-u-nu-latn', { maximumFractionDigits: 0 });
 };
 
 const compactText = (value, max = 34) => {
@@ -80,6 +80,32 @@ async function generateReceiptBase64(data) {
         ctx.textAlign = 'center';
         ctx.fillStyle = color;
         ctx.fillText(value, width / 2, y);
+    };
+
+    const drawEgpAmount = (amount, y, maxWidth, size) => {
+        const numberText = formatAmount(amount);
+        const currencyText = 'جنية';
+        let fontSize = size;
+        let totalWidth;
+        let numberWidth;
+        let currencyWidth;
+        let gap;
+
+        do {
+            setFont(fontSize, '900');
+            gap = Math.round(fontSize * 0.28);
+            numberWidth = ctx.measureText(numberText).width;
+            currencyWidth = ctx.measureText(currencyText).width;
+            totalWidth = numberWidth + gap + currencyWidth;
+            if (totalWidth <= maxWidth || fontSize <= 26) break;
+            fontSize -= 2;
+        } while (fontSize > 26);
+
+        const startX = (width - totalWidth) / 2;
+        ctx.textAlign = 'left';
+        ctx.fillStyle = BRAND.teal;
+        ctx.fillText(numberText, startX, y);
+        ctx.fillText(currencyText, startX + numberWidth + gap, y);
     };
 
     const drawBrandMark = (x, y) => {
@@ -163,10 +189,10 @@ async function generateReceiptBase64(data) {
     ctx.fillStyle = BRAND.muted;
     setFont(19, '900');
     ctx.fillText('القيمة', width / 2, 505);
-    drawCenteredFit(`${formatAmount(data.amount)} ج.م`, 574, width - 150, 62, BRAND.teal);
+    drawEgpAmount(data.amount, 574, width - 150, 62);
 
     const rows = [
-        { label: 'الخدمة', value: data.serviceName || 'تحويل كاش' },
+        { label: 'الخدمة', value: data.serviceName || 'محافظ كاش' },
         { label: 'رقم العملية', value: data.customId },
         { label: 'الرقم المرجعي', value: data.referenceNumber || data.reference_number || '' },
         { label: 'التاريخ', value: data.date }

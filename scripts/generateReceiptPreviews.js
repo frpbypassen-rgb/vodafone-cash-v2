@@ -78,7 +78,7 @@ const writeTransferPreview = async () => {
             referenceNumber: apiResult.reference_number,
             customId: tx.customId,
             accountName: tx.companyName,
-            serviceName: 'تحويل API',
+            serviceName: 'محافظ كاش',
             date: apiResult.transaction_time
         });
         buffer = Buffer.from(receiptBase64.replace(/^data:image\/\w+;base64,/, ''), 'base64');
