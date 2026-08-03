@@ -1,13 +1,11 @@
 // services/queueService.js
-const fs = require('fs');
-const path = require('path');
 const Transaction = require('../models/Transaction');
 const ExecutorGroup = require('../models/ExecutorGroup');
 const ClientCompany = require('../models/ClientCompany');
 const ClientEmployee = require('../models/ClientEmployee');
 const Admin = require('../models/Admin');
 const Employee = require('../models/Employee');
-const { executeTransferViaApi, generateCustomReceipt } = require('./externalApiService');
+const { executeTransferViaApi, saveApiReceiptProof } = require('./externalApiService');
 const { updateBalanceWithLedger } = require('./walletService');
 const logger = require('../utils/logger');
 
@@ -48,43 +46,38 @@ class ApiTransferQueue {
                 const detailedLog = apiResult.processLog ? `--- سجل الـ API ---\n${apiResult.processLog}` : '';
 
                 if (apiResult.success === true) {
-                    let exactRefNumber = apiResult.sender_number || apiResult.external_transaction_id || '';
+                    let exactRefNumber = apiResult.reference_number || apiResult.sender_number || apiResult.external_transaction_id || '';
                     if (apiResult.processLog && !exactRefNumber) { 
                         const refMatch = apiResult.processLog.match(/"RefTransactionNumber"\s*:\s*"([^"]+)"/); 
                         if (refMatch && refMatch[1]) exactRefNumber = refMatch[1]; 
                     }
-                    const hasAsterisk = exactRefNumber.includes('*');
+                    exactRefNumber = String(exactRefNumber || '').trim();
 
-                    if (hasAsterisk) {
+                    if (exactRefNumber) {
                         tx.status = 'completed'; 
                         tx.executorName = 'تنفيذ آلي (API)';
                         tx.executorSenderPhone = exactRefNumber;
                         appendCustomerReference(tx, 'الرقم المرجعي', exactRefNumber);
-                        appendAdminNote(tx, `[نجاح آلي | المرجع: ${exactRefNumber}]`);
+                        if (apiResult.external_transaction_id && apiResult.external_transaction_id !== exactRefNumber) {
+                            appendCustomerReference(tx, 'رقم عملية المزود', apiResult.external_transaction_id);
+                        }
+                        appendAdminNote(tx, `[نجاح آلي | الرقم المرجعي: ${exactRefNumber} | رقم عملية المزود: ${apiResult.external_transaction_id || '---'}]`);
                         if (detailedLog) appendAdminNote(tx, detailedLog);
 
                         await updateBalanceWithLedger('ExecutorGroup', executorGroup._id, -tx.amount, 'TRANSFER', tx.customId, 'تنفيذ API آلي');
 
-                        // 🟢 1. توليد الصورة من الـ API وحفظها في الهارد ديسك فقط
-                        const receiptBuffer = await generateCustomReceipt(tx, apiResult);
-                        let localImagePath = null;
-
-                        if (receiptBuffer) {
-                            try {
-                                const uploadDir = path.join(process.cwd(), 'uploads', 'proofs');
-                                if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
-                                const fileName = `api_proof_${tx._id}_${Date.now()}.jpg`;
-                                const fullLocalPath = path.join(uploadDir, fileName);
-                                
-                                fs.writeFileSync(fullLocalPath, receiptBuffer);
-                                localImagePath = `/uploads/proofs/${fileName}`;
-                                
-                                tx.proofImage = localImagePath;
-                                tx.proofImages = [localImagePath];
-                                tx.set('localProofImage', localImagePath, { strict: false });
-                            } catch (fileErr) {
-                                logger.error('[API File Save Error]:', fileErr.message);
+                        try {
+                            const receiptProof = await saveApiReceiptProof(tx, apiResult);
+                            if (receiptProof) {
+                                tx.proofImage = receiptProof;
+                                tx.proofImages = [receiptProof];
+                                tx.set('localProofImage', receiptProof, { strict: false });
+                            } else {
+                                appendAdminNote(tx, '[تنبيه: تم تنفيذ API بنجاح لكن تعذر توليد صورة الإيصال]');
                             }
+                        } catch (fileErr) {
+                            logger.error('[API File Save Error]:', fileErr.message);
+                            appendAdminNote(tx, `[تعذر توليد إيصال API: ${fileErr.message}]`);
                         }
 
                         await tx.save(); 
@@ -92,9 +85,9 @@ class ApiTransferQueue {
                     } else {
                         tx.status = 'pending'; 
                         tx.executorGroupId = executorGroup._id; 
-                        tx.executorName = 'في انتظار تحديث (API)';
+                        tx.executorName = 'في انتظار رقم مرجعي (API)';
                         appendCustomerReference(tx, 'الرقم المرجعي', exactRefNumber);
-                        appendAdminNote(tx, `[في الانتظار - بانتظار رقم مرجعي مشفر من الـ API | المرجع الحالي: ${exactRefNumber}]`);
+                        appendAdminNote(tx, '[في الانتظار - تم تنفيذ طلب API بدون رقم مرجعي واضح]');
                         if (detailedLog) appendAdminNote(tx, detailedLog);
                         tx.set('isApiReview', undefined, { strict: false }); 
                         tx.set('apiResultData', undefined, { strict: false }); 

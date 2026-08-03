@@ -63,6 +63,7 @@ describe('externalApiService', () => {
 
         expect(result.success).toBe(true);
         expect(result.external_transaction_id).toBe('50011611');
+        expect(result.reference_number).toBe('28059087');
         expect(result.sender_number).toBe('28059087');
 
         expect(axios.post).toHaveBeenNthCalledWith(

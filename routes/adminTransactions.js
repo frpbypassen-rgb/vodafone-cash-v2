@@ -17,7 +17,7 @@ const { syncBotBalance } = require('../utils/helpers');
 const { escapeRegex } = require('../middlewares/sanitize');
 
 // 🚀 استدعاء محرك الـ API 
-const { executeTransferViaApi } = require('../services/externalApiService');
+const { executeTransferViaApi, saveApiReceiptProof } = require('../services/externalApiService');
 const { reversalService } = require('../src/Application/Services/ReversalService');
 
 router.use(requireAuth);
@@ -286,60 +286,29 @@ router.post('/transaction/:id/assign-executor', async (req, res) => {
                 const apiResult = await executeTransferViaApi(tx, executorGroup);
 
                 if (apiResult.success === true) {
-                    const exactRefNumber = apiResult.sender_number || '';
-                    const hasAsterisk = exactRefNumber.includes('*');
+                    const exactRefNumber = String(apiResult.reference_number || apiResult.sender_number || apiResult.external_transaction_id || '').trim();
 
-                    if (hasAsterisk) {
-                        // 1. إكمال العملية بنجاح (رقم مرجعي مقنع بـ نجوم)
+                    if (exactRefNumber) {
                         tx.status = 'completed';
                         tx.executorName = 'تنفيذ آلي (API)';
                         tx.executorSenderPhone = exactRefNumber;
-                        appendCustomerReference(tx, 'رقم المرسل', exactRefNumber);
-                        appendCustomerReference(tx, 'الرقم المرجعي', apiResult.external_transaction_id);
-                        appendAdminNote(tx, `[تنفيذ آلي ناجح | رقم المرسل: ${exactRefNumber || '---'} | مرجع الشركة: ${apiResult.external_transaction_id || '---'}]`);
+                        appendCustomerReference(tx, 'الرقم المرجعي', exactRefNumber);
+                        if (apiResult.external_transaction_id && apiResult.external_transaction_id !== exactRefNumber) {
+                            appendCustomerReference(tx, 'رقم عملية المزود', apiResult.external_transaction_id);
+                        }
+                        appendAdminNote(tx, `[تنفيذ آلي ناجح | الرقم المرجعي: ${exactRefNumber || '---'} | رقم عملية المزود: ${apiResult.external_transaction_id || '---'}]`);
                         
-                        // 🧾 توليد صورة إثبات العملية بنجاح
                         try {
-                            const { generateReceiptBase64 } = require('../utils/receiptGenerator');
-                            const fs = require('fs');
-                            const path = require('path');
-                            
-                            let walletNumber = tx.vodafoneNumber || tx.accountNumber || '---';
-                            let maskedPhone = walletNumber.trim();
-                            if (maskedPhone.length === 11) {
-                                maskedPhone = maskedPhone.substring(0, 4) + '****' + maskedPhone.substring(8);
-                            } else if (maskedPhone.length > 0 && maskedPhone.length <= 4) {
-                                maskedPhone = '01******' + maskedPhone;
-                            } else if (maskedPhone.length > 4) {
-                                const firstPart = Math.floor(maskedPhone.length / 3);
-                                const lastPart = Math.floor(maskedPhone.length / 3);
-                                const middlePart = maskedPhone.length - firstPart - lastPart;
-                                maskedPhone = maskedPhone.substring(0, firstPart) + '*'.repeat(middlePart) + maskedPhone.substring(maskedPhone.length - lastPart);
+                            const receiptProof = await saveApiReceiptProof(tx, apiResult);
+                            if (receiptProof) {
+                                tx.proofImage = receiptProof;
+                                tx.proofImages = [receiptProof];
                             } else {
-                                maskedPhone = '---';
+                                appendAdminNote(tx, '[تنبيه: تم تنفيذ API بنجاح لكن تعذر توليد صورة الإيصال]');
                             }
-
-                            const receiptBase64 = await generateReceiptBase64({
-                                amount: tx.amount,
-                                walletNumber: walletNumber,
-                                senderPhone: maskedPhone,
-                                customId: tx.customId || tx._id.toString().slice(-6),
-                                accountName: tx.companyName || tx.employeeName || 'غير حدد',
-                                date: new Date().toLocaleDateString('en-GB')
-                            });
-
-                            const buffer = Buffer.from(receiptBase64.replace(/^data:image\/\w+;base64,/, ""), 'base64');
-                            const proofsDir = path.join(process.cwd(), 'uploads', 'proofs');
-                            if (!fs.existsSync(proofsDir)) { fs.mkdirSync(proofsDir, { recursive: true }); }
-                            
-                            const safeId = (tx.customId || tx._id.toString().slice(-6)).toString().replace(/[^a-zA-Z0-9_-]/g, '');
-                            const fileName = `${safeId}_api.jpg`;
-                            fs.writeFileSync(path.join(proofsDir, fileName), buffer);
-                            
-                            tx.proofImage = fileName;
-                            tx.proofImages = [fileName];
                         } catch (err) {
                             console.error('[adminTransactions/assign-executor] خطأ في إنشاء إيصال الـ API:', err.message);
+                            appendAdminNote(tx, `[تعذر توليد إيصال API: ${err.message}]`);
                         }
 
                         if (apiResult.processLog) {
@@ -364,12 +333,11 @@ router.post('/transaction/:id/assign-executor', async (req, res) => {
                             } catch(e){}
                         }
                     } else {
-                        // 2. عملية معلقة (رقم مرجعي غير مقنع بالنجوم، مثل 01274587351)
                         tx.status = 'pending';
                         tx.executorGroupId = executorGroup._id;
-                        tx.executorName = 'في انتظار تحديث (API)';
+                        tx.executorName = 'في انتظار رقم مرجعي (API)';
                         appendCustomerReference(tx, 'رقم المرسل', exactRefNumber);
-                        appendAdminNote(tx, `[معلقة - بانتظار التحقق من الرقم المرجعي: ${exactRefNumber}]`);
+                        appendAdminNote(tx, '[معلقة - تم تنفيذ طلب API بدون رقم مرجعي واضح]');
                         if (apiResult.processLog) {
                             appendAdminNote(tx, `--- سجل الـ API\n${apiResult.processLog}`);
                         }

@@ -1,8 +1,12 @@
 // services/externalApiService.js
 const axios = require('axios');
+const fs = require('fs');
 const https = require('https');
+const path = require('path');
 const puppeteer = require('puppeteer');
 const { getApiProviderPreset } = require('../utils/apiProviderPresets');
+
+const SUPPORT_PHONE = '01108172258';
 
 const normalizeBaseUrl = (value) => {
     let baseUrl = String(value || '').trim().replace(/\/+$/, '');
@@ -19,6 +23,19 @@ const numberOrZero = (value) => {
     const parsed = Number(value);
     return Number.isFinite(parsed) ? parsed : 0;
 };
+
+const formatAmount = (value) => {
+    const parsed = Number(value);
+    if (!Number.isFinite(parsed)) return String(value || '0');
+    return parsed.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+};
+
+const escapeHtml = (value) => String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
 
 const resolveApiProviderConfig = (apiBot = {}) => {
     const preset = getApiProviderPreset(apiBot.apiProviderKey);
@@ -130,7 +147,7 @@ const executeTransferViaApi = async (tx, apiBot) => {
         const pd = paymentRes.data.Data || {};
         const print = pd.PrintBill || {};
         const extRef = pd.TransactionNumber ? pd.TransactionNumber.toString() : '---';
-        const refTxNum = pd.RefTransactionNumber || print.RefTransactionNumber || print.RefNumber || '';
+        const refTxNum = String(pd.RefTransactionNumber || print.RefTransactionNumber || print.RefNumber || '').trim();
 
         const prettyLog = `
 =========================================
@@ -157,6 +174,8 @@ const executeTransferViaApi = async (tx, apiBot) => {
             return {
                 success: true,
                 external_transaction_id: extRef,
+                provider_transaction_id: extRef,
+                reference_number: refTxNum,
                 message: paymentRes.data.Message || 'تم التحويل الآلي',
                 sender_number: refTxNum,
                 balance_before: pd.BalanceBefore,
@@ -239,18 +258,97 @@ const generateCustomReceipt = async (tx, apiResult) => {
     try {
         browser = await puppeteer.launch({ headless: "new", args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage', '--disable-gpu', '--single-process'] });
         const page = await browser.newPage();
-        await page.setViewport({ width: 450, height: 800 }); 
+        await page.setViewport({ width: 520, height: 860 });
         
-        const now = new Date(); const dateStr = now.toLocaleDateString('en-GB').replace(/\//g, '-'); const timeStr = now.toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+        const now = new Date();
+        const dateStr = apiResult.transaction_time || `${now.toLocaleDateString('en-GB').replace(/\//g, '-')} ${now.toLocaleTimeString('en-GB', { hour12: false })}`;
+        const targetNumber = tx.vodafoneNumber || tx.accountNumber || '---';
+        const referenceNumber = apiResult.reference_number || apiResult.sender_number || '---';
+        const providerTxId = apiResult.provider_transaction_id || apiResult.external_transaction_id || '---';
+        const amountText = `${formatAmount(tx.amount)} EGP`;
         
-        const htmlContent = `<!DOCTYPE html><html lang="ar" dir="rtl"><head><meta charset="UTF-8"><style>@import url('https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700&display=swap');body { margin: 0; padding: 0; background: #fff; }#receipt-container { width: 450px; padding: 40px; background: white; color: black; font-family: 'Tajawal', sans-serif; text-align: center; box-sizing: border-box; display: inline-block; }.dashed-line { border-top: 2px dashed #000; margin: 20px 0; }h1 { font-size: 40px; font-weight: 500; margin: 0; }h2 { font-size: 32px; font-weight: 500; margin: 10px 0; }h3 { font-size: 44px; font-weight: 500; margin: 15px 0; }p { font-size: 24px; margin: 8px 0; font-weight: 400; }.success { font-size: 44px; font-weight: 500; margin: 25px 0; }.time-row { display: flex; justify-content: center; gap: 5px; font-size: 24px; direction: ltr; }</style></head><body><div id="receipt-container"><h1>المحافظ الذكية</h1><div class="dashed-line"></div><p>رقم العميل</p><h3>${tx.vodafoneNumber || tx.accountNumber}</h3><div class="dashed-line"></div><p>القيمة: ${tx.amount} جنية</p><div class="success">عملية ناجحة</div><p>المحول منه: ${apiResult.sender_number || '---'}</p><p>الرقم المحول منه للاستدلال فقط</p><p>لا يجوز التحويل له نهائيا</p><div class="time-row"><span>التاريخ:</span><span>${dateStr}</span><span>${timeStr}</span></div><div class="dashed-line"></div><p>التاجر: Zone Tech - 01108172258</p><div class="dashed-line"></div><p>في حالة بطئ الشبكات قد تستغرق العملية حتي 60 دقيقة</p><div class="dashed-line"></div></div></body></html>`;
+        const rows = [
+            ['الرقم المرجعي', referenceNumber],
+            ['رقم عملية المزود', providerTxId],
+            ['رقم طلب الأهرام', tx.customId || tx._id?.toString?.() || '---'],
+            ['الخدمة', 'تحويل API'],
+            ['وقت التنفيذ', dateStr]
+        ].map(([label, value]) => `
+            <div class="row">
+                <span>${escapeHtml(label)}</span>
+                <strong dir="ltr">${escapeHtml(value)}</strong>
+            </div>
+        `).join('');
+
+        const htmlContent = `<!DOCTYPE html><html lang="ar" dir="rtl"><head><meta charset="UTF-8"><style>
+            * { box-sizing: border-box; }
+            body { margin: 0; padding: 0; background: #fff; color: #000; font-family: Arial, Tahoma, sans-serif; }
+            #receipt-container { width: 520px; min-height: 820px; padding: 30px 34px; background: #fff; display: inline-block; border: 3px solid #000; }
+            .title { text-align: center; font-size: 30px; font-weight: 900; padding-bottom: 18px; border-bottom: 2px dashed #000; }
+            .check { margin: 22px auto 16px; width: 64px; height: 64px; border-radius: 50%; background: #000; color: #fff; display: flex; align-items: center; justify-content: center; font-size: 38px; font-weight: 900; }
+            .status { text-align: center; font-size: 28px; font-weight: 900; margin-bottom: 30px; }
+            .focus { text-align: center; margin: 24px 0 28px; }
+            .focus .label { font-size: 18px; font-weight: 800; margin-bottom: 8px; }
+            .phone { direction: ltr; font-size: 48px; font-weight: 900; letter-spacing: 0; overflow-wrap: anywhere; }
+            .amount { direction: ltr; font-size: 56px; font-weight: 900; letter-spacing: 0; overflow-wrap: anywhere; }
+            .separator { border-top: 2px dashed #000; margin: 26px 0 18px; }
+            .row { display: flex; justify-content: space-between; align-items: center; gap: 16px; padding: 13px 0; border-bottom: 1px dashed #000; font-size: 18px; }
+            .row span { font-weight: 800; }
+            .row strong { font-weight: 900; text-align: left; max-width: 270px; overflow-wrap: anywhere; }
+            .support { margin-top: 24px; padding: 13px 12px; border: 2px solid #000; text-align: center; line-height: 1.65; font-weight: 900; font-size: 18px; }
+            .support .number { direction: ltr; font-size: 26px; font-family: Arial, sans-serif; }
+            .footer { margin-top: 22px; text-align: center; border-top: 2px dashed #000; padding-top: 18px; font-size: 22px; font-weight: 900; font-family: Arial, sans-serif; }
+        </style></head><body><div id="receipt-container">
+            <div class="title">إيصال تحويل</div>
+            <div class="check">✓</div>
+            <div class="status">عملية ناجحة</div>
+            <div class="focus">
+                <div class="label">رقم الهاتف / الحساب</div>
+                <div class="phone">${escapeHtml(targetNumber)}</div>
+            </div>
+            <div class="focus">
+                <div class="label">القيمة</div>
+                <div class="amount">${escapeHtml(amountText)}</div>
+            </div>
+            <div class="separator"></div>
+            ${rows}
+            <div class="support">
+                <div>الدعم الفني واتساب فقط</div>
+                <div class="number">${SUPPORT_PHONE}</div>
+            </div>
+            <div class="footer">Power Pay AL-Ahram</div>
+        </div></body></html>`;
         
-        await page.setContent(htmlContent, { waitUntil: 'networkidle0', timeout: 15000 });
-        await page.evaluateHandle('document.fonts.ready');
+        await page.setContent(htmlContent, { waitUntil: 'domcontentloaded', timeout: 15000 });
         await new Promise(resolve => setTimeout(resolve, 500)); 
         const element = await page.$('#receipt-container');
         return await element.screenshot({ type: 'jpeg', quality: 100 });
     } catch (error) { return null; } finally { if (browser) await browser.close(); }
 };
 
-module.exports = { executeTransferViaApi, getApiProviderBalance, generateCustomReceipt };
+const saveApiReceiptProof = async (tx, apiResult) => {
+    let receiptBuffer = await generateCustomReceipt(tx, apiResult);
+    if (!receiptBuffer) {
+        const { generateReceiptBase64 } = require('../utils/receiptGenerator');
+        const receiptBase64 = await generateReceiptBase64({
+            amount: tx.amount,
+            walletNumber: tx.vodafoneNumber || tx.accountNumber || '---',
+            referenceNumber: apiResult.reference_number || apiResult.sender_number || apiResult.external_transaction_id || '---',
+            customId: apiResult.external_transaction_id || tx.customId || tx._id?.toString?.() || '---',
+            accountName: tx.companyName || tx.employeeName || tx.accountName || '---',
+            serviceName: 'تحويل API',
+            date: apiResult.transaction_time || new Date().toLocaleString('en-GB')
+        });
+        receiptBuffer = Buffer.from(receiptBase64.replace(/^data:image\/\w+;base64,/, ''), 'base64');
+    }
+    if (!receiptBuffer) return null;
+
+    const uploadDir = path.join(process.cwd(), 'uploads', 'proofs');
+    fs.mkdirSync(uploadDir, { recursive: true });
+    const safeId = String(tx.customId || tx._id || 'api').replace(/[^a-zA-Z0-9_.-]/g, '_');
+    const fileName = `${safeId}_api_${Date.now()}.jpg`;
+    fs.writeFileSync(path.join(uploadDir, fileName), receiptBuffer);
+    return `proofs/${fileName}`;
+};
+
+module.exports = { executeTransferViaApi, getApiProviderBalance, generateCustomReceipt, saveApiReceiptProof };

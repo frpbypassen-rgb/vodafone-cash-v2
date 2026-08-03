@@ -1,105 +1,121 @@
 const { createCanvas } = require('canvas');
 
+const SUPPORT_PHONE = '01108172258';
+
+const formatAmount = (value) => {
+    const parsed = Number(value);
+    if (!Number.isFinite(parsed)) return String(value || '0');
+    return parsed.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+};
+
 async function generateReceiptBase64(data) {
-    const width = 600;
-    const height = 900;
+    const width = 640;
+    const height = 1080;
     const canvas = createCanvas(width, height);
     const ctx = canvas.getContext('2d');
 
-    // Background
-    ctx.fillStyle = '#f8f8f8';
-    ctx.fillRect(0, 0, width, height);
-    
-    // Title
-    ctx.fillStyle = '#000';
-    ctx.font = 'bold 48px "Segoe UI", Arial, sans-serif';
-    ctx.textAlign = 'center';
-    ctx.fillText('Ahram-Pay', width / 2, 80);
-    
-    // Line below title
-    ctx.beginPath();
-    ctx.moveTo(150, 110);
-    ctx.lineTo(450, 110);
-    ctx.lineWidth = 2;
-    ctx.stroke();
+    const drawCenteredFit = (text, y, maxWidth, size, weight = 'bold') => {
+        const value = String(text || '---');
+        let fontSize = size;
+        do {
+            ctx.font = `${weight} ${fontSize}px "Segoe UI", Arial, sans-serif`;
+            if (ctx.measureText(value).width <= maxWidth || fontSize <= 24) break;
+            fontSize -= 2;
+        } while (fontSize > 24);
+        ctx.textAlign = 'center';
+        ctx.fillText(value, width / 2, y);
+    };
 
-    // Checkmark circle
-    ctx.beginPath();
-    ctx.arc(width / 2, 160, 25, 0, Math.PI * 2);
-    ctx.fillStyle = '#000';
-    ctx.fill();
-    ctx.fillStyle = '#fff';
-    ctx.font = 'bold 24px Arial';
-    ctx.fillText('✓', width / 2, 168);
-
-    // Subtitle
-    ctx.fillStyle = '#000';
-    ctx.font = 'bold 36px "Segoe UI", Arial, sans-serif';
-    ctx.fillText('عملية ناجحة', width / 2, 240);
-    
-    // Dashed separator
-    function drawDashedLine(y) {
+    const drawDashedLine = (y) => {
         ctx.beginPath();
-        ctx.setLineDash([5, 10]);
-        ctx.moveTo(80, y);
-        ctx.lineTo(520, y);
+        ctx.setLineDash([8, 10]);
+        ctx.moveTo(70, y);
+        ctx.lineTo(width - 70, y);
         ctx.stroke();
         ctx.setLineDash([]);
-    }
-    
-    drawDashedLine(280);
+    };
 
-    let startY = 340;
-    const rowHeight = 60;
-    
-    // Fields
+    const drawCheck = (centerX, centerY) => {
+        ctx.beginPath();
+        ctx.arc(centerX, centerY, 26, 0, Math.PI * 2);
+        ctx.fillStyle = '#000';
+        ctx.fill();
+        ctx.strokeStyle = '#fff';
+        ctx.lineWidth = 6;
+        ctx.lineCap = 'round';
+        ctx.lineJoin = 'round';
+        ctx.beginPath();
+        ctx.moveTo(centerX - 13, centerY);
+        ctx.lineTo(centerX - 4, centerY + 11);
+        ctx.lineTo(centerX + 15, centerY - 13);
+        ctx.stroke();
+        ctx.lineCap = 'butt';
+        ctx.lineJoin = 'miter';
+        ctx.lineWidth = 1;
+        ctx.strokeStyle = '#000';
+        ctx.fillStyle = '#000';
+    };
+
+    ctx.fillStyle = '#fff';
+    ctx.fillRect(0, 0, width, height);
+    ctx.strokeStyle = '#000';
+    ctx.lineWidth = 3;
+    ctx.strokeRect(28, 28, width - 56, height - 56);
+
+    ctx.fillStyle = '#000';
+    ctx.textBaseline = 'alphabetic';
+    ctx.font = 'bold 34px "Segoe UI", Arial, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('إيصال تحويل', width / 2, 88);
+    drawDashedLine(122);
+
+    drawCheck(width / 2, 168);
+    ctx.font = 'bold 32px "Segoe UI", Arial, sans-serif';
+    ctx.fillText('عملية ناجحة', width / 2, 232);
+
+    ctx.font = 'bold 22px "Segoe UI", Arial, sans-serif';
+    ctx.fillText('رقم الهاتف / الحساب', width / 2, 298);
+    drawCenteredFit(data.walletNumber, 366, width - 120, 56, 'bold');
+
+    ctx.font = 'bold 22px "Segoe UI", Arial, sans-serif';
+    ctx.fillText('القيمة', width / 2, 434);
+    drawCenteredFit(`${formatAmount(data.amount)} ج.م`, 506, width - 120, 64, 'bold');
+
+    drawDashedLine(548);
+
+    let startY = 602;
+    const rowHeight = 52;
     const rows = [
-        { label: 'اسم الخدمة :', value: 'تحويل كاش' },
-        { label: 'رقم المحفظة :', value: data.walletNumber },
-        { label: 'القيمة :', value: `${data.amount} ج.م` },
-        { label: 'الرقم المرسل :', value: data.senderPhone },
-        { label: 'رقم العملية :', value: data.customId },
-        { label: 'الحساب :', value: data.accountName },
-        { label: 'التاريخ :', value: data.date }
-    ];
+        { label: 'الخدمة', value: data.serviceName || 'تحويل كاش' },
+        { label: 'رقم العملية', value: data.customId },
+        { label: 'الرقم المرجعي', value: data.referenceNumber || data.reference_number || '' },
+        { label: 'التاريخ', value: data.date }
+    ].filter((row) => String(row.value || '').trim());
 
     rows.forEach(row => {
-        ctx.font = 'bold 24px "Segoe UI", Arial, sans-serif';
-        // Label (Right aligned)
+        ctx.font = 'bold 21px "Segoe UI", Arial, sans-serif';
         ctx.textAlign = 'right';
-        ctx.fillText(row.label, 500, startY);
-        // Value (Left aligned)
+        ctx.fillText(row.label, width - 82, startY);
         ctx.textAlign = 'left';
-        ctx.fillText(row.value, 100, startY);
-        
-        drawDashedLine(startY + 20);
+        ctx.fillText(String(row.value), 82, startY);
+        drawDashedLine(startY + 18);
         startY += rowHeight;
     });
 
-    // Warning Box
-    ctx.fillStyle = '#eaeaea';
-    ctx.strokeStyle = '#888';
-    ctx.lineWidth = 1;
-    ctx.beginPath();
-    ctx.roundRect(80, startY + 20, 440, 100, 10);
-    ctx.fill();
-    ctx.stroke();
-
-    ctx.fillStyle = '#000';
+    const supportY = Math.max(startY + 28, height - 240);
+    ctx.strokeStyle = '#000';
+    ctx.lineWidth = 2;
+    ctx.strokeRect(70, supportY, width - 140, 90);
     ctx.textAlign = 'center';
-    ctx.font = 'bold 18px "Segoe UI", Arial, sans-serif';
-    ctx.fillText('الرقم المحول منه للتأكيد فقط على وصول العملية للجهة', width / 2, startY + 50);
-    ctx.fillText('الاخرى، لا تقم نهائياً بالتحويل اليه مره اخرى', width / 2, startY + 75);
-    ctx.fillText('حتى لا تخسر اموالك .', width / 2, startY + 105);
-
-    // Footer
-    drawDashedLine(startY + 150);
-    ctx.font = 'bold 20px Arial';
-    ctx.fillText('★ ★ ★', width / 2, startY + 190);
     ctx.font = 'bold 20px "Segoe UI", Arial, sans-serif';
-    ctx.fillText('Power by AhramPay', width / 2, startY + 220);
-    
-    // Return base64 string directly
+    ctx.fillText('الدعم الفني واتساب فقط', width / 2, supportY + 34);
+    ctx.font = 'bold 28px Arial, sans-serif';
+    ctx.fillText(SUPPORT_PHONE, width / 2, supportY + 72);
+
+    drawDashedLine(supportY + 122);
+    ctx.font = 'bold 24px Arial, sans-serif';
+    ctx.fillText('Power Pay AL-Ahram', width / 2, supportY + 164);
+
     const base64Data = canvas.toDataURL('image/jpeg');
     return base64Data;
 }
