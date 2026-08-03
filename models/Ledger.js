@@ -3,7 +3,7 @@ const mongoose = require('mongoose');
 
 const ledgerSchema = new mongoose.Schema({
     entityId: { type: mongoose.Schema.Types.ObjectId, required: true }, // أيدي العميل أو الشركة
-    entityModel: { type: String, required: true, enum: ['User', 'ClientCompany', 'ClientBot', 'SubAccount', 'ExecutorBot'] }, // نوع الحساب
+    entityModel: { type: String, required: true, enum: ['User', 'ClientCompany', 'ClientBot', 'SubAccount', 'ExecutorBot', 'ExecutorGroup'] }, // نوع الحساب
     transactionId: { type: String, required: true }, // رقم الفاتورة (مثال: ATT-2605-0001)
     type: { type: String, required: true, enum: ['DEPOSIT', 'DEDUCTION', 'TRANSFER', 'COMMISSION', 'REFUND'] }, // نوع الحركة
     amount: { type: Number, required: true }, // المبلغ المخصوم أو المضاف

@@ -279,8 +279,13 @@ router.post('/transaction/:id/assign-executor', async (req, res) => {
             if (executorGroup.isApiBot) {
                 tx.status = 'processing';
                 tx.executorGroupId = executorGroup._id;
+                tx.managerGroupId = getParentGroupId(executorGroup);
                 tx.executorName = executorGroup.name;
                 await tx.save();
+
+                const { addTransferJob } = require('../services/bullQueueService');
+                await addTransferJob(String(tx._id), String(executorGroup._id));
+                return res.redirect('/transactions');
 
                 // التخاطب مع سيرفر الشركة الخارجية
                 const apiResult = await executeTransferViaApi(tx, executorGroup);

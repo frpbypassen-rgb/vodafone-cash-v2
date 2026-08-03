@@ -73,10 +73,22 @@ eventBus.on('transfer:completed', async (data) => {
 // 3. عند إلغاء تحويل مالي
 eventBus.on('transfer:cancelled', async (data) => {
     try {
-        const { tx, emp, reason } = data;
+        const { tx, emp, reason, cancellationNumber } = data;
         logger.financial('Transfer Cancelled Event Received', { customId: tx.customId, refund: tx.costLYD });
 
         const { addNotificationJob } = require('./bullQueueService');
+        const { attachCancellationReceipt } = require('./cancellationReceiptService');
+        await attachCancellationReceipt(tx, {
+            reason,
+            cancellationNumber,
+            performedBy: emp?.name || tx.cancelledBy || 'System',
+            cancelledAt: tx.cancelledAt
+        }).catch((err) => {
+            logger.error('Failed to generate cancellation receipt', {
+                customId: tx.customId,
+                error: err.message
+            });
+        });
         const msg = `❌ تم إلغاء الحوالة رقم ${tx.customId} وإرجاع القيمة ${tx.costLYD} LYD لرصيدك. السبب: ${reason}`;
         
         if (tx.userId) {

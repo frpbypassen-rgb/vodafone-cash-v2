@@ -18,6 +18,7 @@ const { logAction } = require('../../../services/auditService');
 const { getRateForTier, getServiceRatesForTier } = require('../../../utils/rateHelper');
 const { getTransferServiceDefinition } = require('../../../utils/mobileTransferServiceCatalog');
 const { acquireLock, releaseLock } = require('../../../services/lockService');
+const { resolveAutoRouteExecutor, applyAutoRouteFields, enqueueAutoRouteIfNeeded } = require('../../../services/autoRouteService');
 const eventBus = require('../../../services/eventBus');
 import logger from '../../../utils/logger';
 
@@ -185,6 +186,7 @@ export class TransferService {
             }
 
             const settings = await Settings.findOne({}).session(session);
+            const autoRouteExecutor = await resolveAutoRouteExecutor(settings, session);
             if (settings && settings.isManualClosed) {
                 await session.abortTransaction();
                 session.endSession();
@@ -378,9 +380,10 @@ export class TransferService {
                 idempotencyFingerprint,
                 idCardImage: savedIdCardPath,
                 oldReceiptImage: savedOldReceiptPath,
-                executorGroupId: (settings && settings.autoRouteEnabled && settings.autoRouteBotId) ? settings.autoRouteBotId : undefined,
+                executorGroupId: undefined,
                 tenantId: (req && req.tenant) ? req.tenant._id : undefined
             });
+            if (autoRouteExecutor) applyAutoRouteFields(newTx, autoRouteExecutor);
 
             // 9. القيد المزدوج في دفتر الأستاذ (Double-Entry Ledger)
             if (isSubAccountTx) {
@@ -446,7 +449,7 @@ export class TransferService {
                 code: 'SUCCESS',
                 message: 'تم إرسال طلبك بنجاح',
                 txId: customId,
-                status: 'pending',
+                status: newTx.status || 'pending',
                 transferType,
                 transferTypeLabel: serviceDefinition.label,
                 costLYD: isSubAccountTx ? subCostLYD : costLYD,
@@ -459,6 +462,15 @@ export class TransferService {
 
             await session.commitTransaction();
             session.endSession();
+
+            if (autoRouteExecutor) {
+                enqueueAutoRouteIfNeeded(newTx, autoRouteExecutor).catch((err: any) => {
+                    logger.error('Auto-route enqueue failed', {
+                        txId: newTx.customId,
+                        error: err.message
+                    });
+                });
+            }
 
             // نشر الأحداث
             eventBus.publish('transfer:created', { tx: newTx, companyName, employeeName });

@@ -58,6 +58,7 @@ const requestLogger = require('./middlewares/requestLogger');
 const { metricsMiddleware, metricsEndpoint } = require('./middlewares/metrics');
 const csrfProtection = require('./middlewares/csrfProtection');
 const logger = require('./utils/logger');
+const { startApiCompletionMonitor } = require('./services/apiExecutionLifecycleService');
 
 // 🟢 استدعاء طابور المهام الجديد (Queue System)
 
@@ -272,6 +273,7 @@ app.use('/api/v1/merchant', require('./routes/merchantApi'));
 app.use('/', require('./routes/auth'));
 app.use('/', require('./routes/dashboard'));
 app.use('/', require('./routes/adminTransactions'));
+app.use('/', require('./routes/financialMovements'));
 app.use('/', require('./routes/executors'));
 app.use('/', require('./routes/clients'));
 app.use('/settings', require('./routes/settings'));
@@ -303,6 +305,7 @@ app.use(errorHandler);
 
 const PORT = process.env.PORT || 3000;
 Promise.all([connectDB(), initRedis()]).then(async () => {
+    startApiCompletionMonitor();
     // 🟢 التأكد من وجود الإعدادات الافتراضية في قاعدة البيانات لتفادي أخطاء null pointer
     server.listen(PORT, () => {
         logger.info(`🟢 Al-Ahram Pay v2.0 running on port ${PORT}`, { port: PORT, env: process.env.NODE_ENV || 'development' });

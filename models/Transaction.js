@@ -105,5 +105,10 @@ transactionSchema.index({ status: 1, updatedAt: -1 });           // التقار
 transactionSchema.index({ executorGroupId: 1, createdAt: -1 });    // رصيد المنفذ
 transactionSchema.index({ managerGroupId: 1, status: 1 });         // مهام المدير
 transactionSchema.index({ tenantId: 1, createdAt: -1 });
+transactionSchema.index({
+    status: 1,
+    'apiResultData.waitingApiAutoCompletion': 1,
+    'apiResultData.autoCompleteAt': 1
+});
 
 module.exports = mongoose.model('Transaction', transactionSchema);

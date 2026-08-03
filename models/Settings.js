@@ -39,7 +39,7 @@ const settingsSchema = new mongoose.Schema({
     supportContact: { type: String, default: '@AhramSupport' },
 
     autoRouteEnabled: { type: Boolean, default: false },
-    autoRouteBotId: { type: mongoose.Schema.Types.ObjectId, ref: 'ExecutorBot', default: null },
+    autoRouteBotId: { type: mongoose.Schema.Types.ObjectId, ref: 'ExecutorGroup', default: null },
 
     executorWelcomeMessage: { type: String, default: 'أهلاً بك في لوحة تحكم التنفيذ الخاصة بشركة الأهرام.' },
     executorPendingMessage: { type: String, default: '⏳ حسابك لا يزال قيد المراجعة من قبل الإدارة.' },

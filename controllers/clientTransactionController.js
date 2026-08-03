@@ -10,6 +10,11 @@ const Counter = require('../models/Counter');
 const Ledger = require('../models/Ledger'); 
 const Admin = require('../models/Admin');
 const { executeBalanceTransfer } = require('../services/balanceTransferService');
+const {
+    resolveAutoRouteExecutor,
+    applyAutoRouteFields,
+    enqueueAutoRouteIfNeeded
+} = require('../services/autoRouteService');
 const { normalizeAccountCode, resolveAccountByCode } = require('../services/accountCodeService');
 const { logAction } = require('../services/auditService');
 const { getServiceRateForTier, resolveTransferServiceKey } = require('../utils/rateHelper');
@@ -124,6 +129,7 @@ exports.postTransfer = async (req, res) => {
         let settings = await withSess(Settings.findOne({}));
         if (!settings) settings = await Settings.create({}, sessionOpts);
         if (settings && settings.isManualClosed) throw new Error('SYSTEM_CLOSED');
+        const autoRouteExecutor = await resolveAutoRouteExecutor(settings, useTransaction ? session : null);
 
         let masterRate, actualSubRate, subCostLYD, masterCostLYD, commission = 0;
         let balanceModel, companyId = null, companyName = 'عميل فردي (ويب)';
@@ -227,6 +233,7 @@ exports.postTransfer = async (req, res) => {
             subAccountCostLYD: isSubAccount ? subCostLYD : 0, commission: commission, exchangeRate: masterRate, subClientRate: isSubAccount ? actualSubRate : 0,
             notes: notes, status: 'pending', isSubAccountTx: isSubAccount, masterProfit: isSubAccount ? commission : 0
         });
+        if (autoRouteExecutor) applyAutoRouteFields(newTx, autoRouteExecutor);
         await newTx.save(sessionOpts);
 
         // Log successful transfer to audit log
@@ -244,6 +251,14 @@ exports.postTransfer = async (req, res) => {
 
         // ✅ تأكيد العملية بنجاح (Commit)
         if (useTransaction) { await session.commitTransaction(); session.endSession(); }
+
+        if (autoRouteExecutor) {
+            setImmediate(() => {
+                enqueueAutoRouteIfNeeded(newTx, autoRouteExecutor).catch((err) => {
+                    console.error('[Transfer] Auto-route enqueue failed:', err.message);
+                });
+            });
+        }
 
         if (isAjax) res.json({ success: true, message: '✅ تم الإرسال بنجاح!', newBalance: balanceModel.balance.toFixed(2) });
 

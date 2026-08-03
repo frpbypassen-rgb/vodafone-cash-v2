@@ -10,6 +10,11 @@ const {
     getServiceRateForTier,
     resolveTransferServiceKey
 } = require('../utils/rateHelper');
+const {
+    resolveAutoRouteExecutor,
+    applyAutoRouteFields,
+    enqueueAutoRouteIfNeeded
+} = require('../services/autoRouteService');
 
 const isTransactionUnsupportedError = (error) => {
     const message = error && error.message ? error.message : '';
@@ -130,6 +135,7 @@ router.post('/transfer', merchantApiAuth, async (req, res) => {
         const result = await withOptionalTransaction(async (session) => {
             const settingsQuery = Settings.findOne({});
             const settings = session ? await settingsQuery.session(session).lean() : await settingsQuery.lean();
+            const autoRouteExecutor = await resolveAutoRouteExecutor(settings, session);
             const serviceRate = getServiceRateForTier(serviceKey, req.merchant.tier || 1, settings);
             const exchangeRate = Number(req.merchant.exchangeRate) > 0 ? Number(req.merchant.exchangeRate) : serviceRate;
             if (!Number.isFinite(exchangeRate) || exchangeRate <= 0) {
@@ -177,8 +183,9 @@ router.post('/transfer', merchantApiAuth, async (req, res) => {
                 transferType: serviceKey,
                 notes: '',
                 adminNotes: '[طلب وارد عبر API التاجر الخارجي]',
-                executorGroupId: (settings && settings.autoRouteEnabled && settings.autoRouteBotId) ? settings.autoRouteBotId : undefined
+                executorGroupId: undefined
             };
+            if (autoRouteExecutor) applyAutoRouteFields(txData, autoRouteExecutor);
             const tx = session
                 ? (await Transaction.create([txData], { session }))[0]
                 : await Transaction.create(txData);
@@ -200,8 +207,14 @@ router.post('/transfer', merchantApiAuth, async (req, res) => {
                 await ledgerEntry.save();
             }
 
-            return { tx, exchangeRate, balanceAfter };
+            return { tx, exchangeRate, balanceAfter, autoRouteExecutor };
         });
+
+        if (result.autoRouteExecutor) {
+            enqueueAutoRouteIfNeeded(result.tx, result.autoRouteExecutor).catch((err) => {
+                console.error('[Merchant API] Auto-route enqueue failed:', err.message);
+            });
+        }
 
         return res.json({
             status: 'success',
@@ -209,7 +222,7 @@ router.post('/transfer', merchantApiAuth, async (req, res) => {
             data: {
                 transaction_id: result.tx._id,
                 invoice_number: result.tx.customId,
-                status: 'pending',
+                status: result.tx.status,
                 amount_egp: result.tx.amount,
                 exchange_rate: result.exchangeRate,
                 cost_lyd: result.tx.costLYD,

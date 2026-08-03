@@ -1,0 +1,339 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>الحركات المالية - Power Pay</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Cairo', sans-serif; background: var(--bg-body); color: var(--text-main); }
+        .main-content { margin-right: 260px; padding: 22px; }
+        @media (max-width: 991px) { .main-content { margin-right: 0; padding: 14px; padding-bottom: 86px; } }
+        .page-title { font-weight: 900; letter-spacing: 0; margin: 0; }
+        .toolbar, .data-surface { background: var(--card-bg); border: 1px solid var(--border-glass); border-radius: 8px; box-shadow: var(--shadow-soft); }
+        .toolbar { padding: 16px; }
+        .metric-grid { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 10px; margin: 16px 0; }
+        @media (max-width: 1200px) { .metric-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+        @media (max-width: 640px) { .metric-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+        .metric { background: var(--card-bg); border: 1px solid var(--border-glass); border-radius: 8px; padding: 14px; min-height: 104px; display: flex; flex-direction: column; justify-content: space-between; }
+        .metric span { color: var(--text-muted); font-weight: 800; font-size: .78rem; }
+        .metric strong { font-size: clamp(1.05rem, 1.8vw, 1.55rem); font-weight: 900; line-height: 1.2; overflow-wrap: anywhere; }
+        .metric i { color: var(--brand-gold); }
+        .form-label { color: var(--text-muted); font-size: .78rem; font-weight: 900; margin-bottom: 6px; }
+        .form-control, .form-select { background: var(--input-bg); color: var(--text-main); border: 1px solid var(--border-glass); border-radius: 8px; min-height: 42px; }
+        .form-control:focus, .form-select:focus { background: var(--input-bg); color: var(--text-main); border-color: var(--brand-gold); box-shadow: 0 0 0 .2rem rgba(212,175,55,.18); }
+        .table-wrap { overflow-x: auto; }
+        .ledger-table { min-width: 1280px; margin: 0; }
+        .ledger-table th { color: var(--text-muted); font-size: .76rem; font-weight: 900; border-bottom: 1px solid var(--border-glass); white-space: nowrap; padding: 14px 12px; }
+        .ledger-table td { vertical-align: middle; border-bottom: 1px solid var(--border-glass); padding: 13px 12px; font-size: .88rem; }
+        .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; direction: ltr; unicode-bidi: plaintext; }
+        .type-pill, .status-pill { display: inline-flex; align-items: center; gap: 6px; border-radius: 999px; padding: 6px 10px; font-size: .75rem; font-weight: 900; white-space: nowrap; }
+        .type-DEPOSIT { background: rgba(16,185,129,.12); color: #10b981; }
+        .type-DEDUCTION { background: rgba(239,68,68,.12); color: #ef4444; }
+        .type-TRANSFER { background: rgba(59,130,246,.12); color: #3b82f6; }
+        .type-COMMISSION { background: rgba(212,175,55,.14); color: var(--brand-gold); }
+        .type-REFUND { background: rgba(148,163,184,.16); color: #94a3b8; }
+        .amount-in { color: #10b981; font-weight: 900; }
+        .amount-out { color: #ef4444; font-weight: 900; }
+        .muted-line { color: var(--text-muted); font-size: .75rem; font-weight: 700; }
+        .cell-main { font-weight: 900; color: var(--text-main); }
+        .details-btn { width: 38px; height: 38px; border-radius: 8px; display: inline-flex; align-items: center; justify-content: center; }
+        .breakdown { display: flex; gap: 8px; flex-wrap: wrap; }
+        .breakdown span { background: var(--input-bg); border: 1px solid var(--border-glass); border-radius: 999px; padding: 7px 11px; font-size: .75rem; font-weight: 900; }
+        .pagination .page-link { background: var(--card-bg); color: var(--text-main); border-color: var(--border-glass); }
+        .pagination .active .page-link { background: var(--brand-primary); border-color: var(--brand-primary); }
+        .modal-content { background: var(--card-bg); color: var(--text-main); border: 1px solid var(--border-glass); border-radius: 8px; }
+        .detail-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+        @media (max-width: 640px) { .detail-grid { grid-template-columns: 1fr; } }
+        .detail-item { border: 1px solid var(--border-glass); background: var(--input-bg); border-radius: 8px; padding: 10px; }
+        .detail-item span { display: block; color: var(--text-muted); font-size: .72rem; font-weight: 900; margin-bottom: 4px; }
+        .detail-item strong { display: block; font-size: .9rem; overflow-wrap: anywhere; }
+        @media print { .sidebar, .topbar-mobile, .bottom-nav-admin-mobile, .toolbar, .no-print { display: none !important; } .main-content { margin: 0; padding: 0; } }
+    </style>
+</head>
+<body>
+<%- include('partials/sidebar', { activePage: 'financial_movements' }) %>
+
+<%
+    const money = (value, digits = 3) => Number(value || 0).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: digits });
+    const dateText = (value) => value ? new Date(value).toLocaleString('en-GB', { hour12: true }) : '-';
+    const queryParams = (extra = {}) => {
+        const params = new URLSearchParams();
+        Object.entries(filters || {}).forEach(([key, value]) => {
+            if (value !== undefined && value !== null && value !== '') params.set(key, value);
+        });
+        Object.entries(extra).forEach(([key, value]) => {
+            if (value === undefined || value === null || value === '') params.delete(key);
+            else params.set(key, value);
+        });
+        return params.toString();
+    };
+    const typeLabels = { DEPOSIT: 'إيداع', DEDUCTION: 'خصم', TRANSFER: 'تحويل', COMMISSION: 'عمولة', REFUND: 'استرجاع' };
+    const entityLabels = { User: 'عميل فردي', ClientCompany: 'شركة', ClientBot: 'تاجر API', SubAccount: 'نقطة بيع', ExecutorBot: 'منفذ', ExecutorGroup: 'منفذ' };
+    const statusLabels = { pending: 'معلقة', processing: 'قيد التنفيذ', accepted: 'مقبولة', completed: 'ناجحة', rejected: 'ملغية', cancelled_by_admin: 'ملغية من الإدارة', deposit: 'إيداع', deduction: 'خصم', deposit_pending: 'طلب إيداع' };
+%>
+
+<main class="main-content">
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-3">
+        <div>
+            <h1 class="page-title"><i class="fa-solid fa-scale-balanced ms-2 text-warning"></i>الحركات المالية</h1>
+            <div class="muted-line mt-1">دفتر مالي موحد لكل حركة رصيد داخل المنظومة</div>
+        </div>
+        <div class="d-flex gap-2 no-print">
+            <a class="btn btn-outline-warning fw-bold" href="/financial-movements/export.csv?<%= queryParams({ page: '' }) %>">
+                <i class="fa-solid fa-file-arrow-down ms-1"></i> CSV
+            </a>
+            <button class="btn btn-outline-light fw-bold" onclick="window.print()">
+                <i class="fa-solid fa-print ms-1"></i>
+            </button>
+        </div>
+    </div>
+
+    <section class="toolbar no-print mb-3">
+        <form method="GET" action="/financial-movements" class="row g-3 align-items-end">
+            <div class="col-12 col-lg-3">
+                <label class="form-label">بحث</label>
+                <input class="form-control" name="search" value="<%= filters.search || '' %>" placeholder="رقم العملية، العميل، الهاتف، رقم الإلغاء">
+            </div>
+            <div class="col-6 col-md-3 col-lg-2">
+                <label class="form-label">من تاريخ</label>
+                <input type="date" class="form-control mono" name="fromDate" value="<%= filters.fromDate || '' %>">
+            </div>
+            <div class="col-6 col-md-3 col-lg-2">
+                <label class="form-label">إلى تاريخ</label>
+                <input type="date" class="form-control mono" name="toDate" value="<%= filters.toDate || '' %>">
+            </div>
+            <div class="col-6 col-md-3 col-lg-2">
+                <label class="form-label">نوع الحركة</label>
+                <select class="form-select" name="type">
+                    <option value="">الكل</option>
+                    <% movementTypes.forEach((type) => { %>
+                        <option value="<%= type %>" <%= filters.type === type ? 'selected' : '' %>><%= typeLabels[type] || type %></option>
+                    <% }) %>
+                </select>
+            </div>
+            <div class="col-6 col-md-3 col-lg-2">
+                <label class="form-label">نوع الحساب</label>
+                <select class="form-select" name="entityModel">
+                    <option value="">الكل</option>
+                    <% entityModels.forEach((model) => { %>
+                        <option value="<%= model %>" <%= filters.entityModel === model ? 'selected' : '' %>><%= entityLabels[model] || model %></option>
+                    <% }) %>
+                </select>
+            </div>
+            <div class="col-6 col-md-3 col-lg-1">
+                <label class="form-label">الاتجاه</label>
+                <select class="form-select" name="direction">
+                    <option value="">الكل</option>
+                    <option value="in" <%= filters.direction === 'in' ? 'selected' : '' %>>دائن</option>
+                    <option value="out" <%= filters.direction === 'out' ? 'selected' : '' %>>مدين</option>
+                </select>
+            </div>
+            <div class="col-6 col-md-3 col-lg-2">
+                <label class="form-label">أقل مبلغ</label>
+                <input type="number" step="any" class="form-control mono" name="minAmount" value="<%= filters.minAmount || '' %>">
+            </div>
+            <div class="col-6 col-md-3 col-lg-2">
+                <label class="form-label">أكبر مبلغ</label>
+                <input type="number" step="any" class="form-control mono" name="maxAmount" value="<%= filters.maxAmount || '' %>">
+            </div>
+            <div class="col-6 col-md-3 col-lg-2">
+                <label class="form-label">الترتيب</label>
+                <select class="form-select" name="sortBy">
+                    <% [['createdAt','التاريخ'], ['amount','المبلغ'], ['balanceAfter','الرصيد بعد'], ['type','النوع'], ['entityModel','الحساب']].forEach(([value, label]) => { %>
+                        <option value="<%= value %>" <%= pagination.sortField === value ? 'selected' : '' %>><%= label %></option>
+                    <% }) %>
+                </select>
+            </div>
+            <div class="col-6 col-md-3 col-lg-1">
+                <label class="form-label">الاتجاه</label>
+                <select class="form-select" name="sortDir">
+                    <option value="desc" <%= pagination.sortDir === -1 ? 'selected' : '' %>>تنازلي</option>
+                    <option value="asc" <%= pagination.sortDir === 1 ? 'selected' : '' %>>تصاعدي</option>
+                </select>
+            </div>
+            <div class="col-6 col-md-3 col-lg-1">
+                <label class="form-label">العدد</label>
+                <select class="form-select" name="limit">
+                    <% [25, 50, 100, 200].forEach((size) => { %>
+                        <option value="<%= size %>" <%= pagination.limit === size ? 'selected' : '' %>><%= size %></option>
+                    <% }) %>
+                </select>
+            </div>
+            <div class="col-12 col-lg-2 d-flex gap-2">
+                <button class="btn btn-primary fw-bold flex-fill"><i class="fa-solid fa-filter ms-1"></i> تطبيق</button>
+                <a class="btn btn-light fw-bold" href="/financial-movements"><i class="fa-solid fa-rotate-left"></i></a>
+            </div>
+        </form>
+    </section>
+
+    <section class="metric-grid">
+        <div class="metric"><span><i class="fa-solid fa-layer-group ms-1"></i>عدد القيود</span><strong class="mono"><%= money(stats.count, 0) %></strong></div>
+        <div class="metric"><span><i class="fa-solid fa-arrow-trend-up ms-1"></i>إجمالي الداخل</span><strong class="mono amount-in"><%= money(stats.totalIn) %></strong></div>
+        <div class="metric"><span><i class="fa-solid fa-arrow-trend-down ms-1"></i>إجمالي الخارج</span><strong class="mono amount-out"><%= money(stats.totalOut) %></strong></div>
+        <div class="metric"><span><i class="fa-solid fa-equals ms-1"></i>الصافي</span><strong class="mono <%= stats.net >= 0 ? 'amount-in' : 'amount-out' %>"><%= money(stats.net) %></strong></div>
+        <div class="metric"><span><i class="fa-solid fa-circle-up ms-1"></i>أكبر حركة</span><strong class="mono"><%= money(stats.maxMovement) %></strong></div>
+        <div class="metric"><span><i class="fa-solid fa-circle-down ms-1"></i>أصغر حركة</span><strong class="mono"><%= money(stats.minMovement) %></strong></div>
+    </section>
+
+    <section class="data-surface p-3 mb-3">
+        <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+            <h2 class="h6 fw-black m-0"><i class="fa-solid fa-chart-simple ms-1 text-warning"></i>توزيع الحركات</h2>
+            <div class="breakdown">
+                <% if (!stats.byType.length) { %>
+                    <span>لا توجد بيانات</span>
+                <% } %>
+                <% stats.byType.forEach((row) => { %>
+                    <span><%= typeLabels[row._id] || row._id %>: <span class="mono"><%= money(row.count, 0) %></span> / <span class="mono <%= row.net >= 0 ? 'amount-in' : 'amount-out' %>"><%= money(row.net) %></span></span>
+                <% }) %>
+            </div>
+        </div>
+
+        <div class="table-wrap">
+            <table class="table ledger-table">
+                <thead>
+                    <tr>
+                        <th>التاريخ</th>
+                        <th>الحركة</th>
+                        <th>المبلغ</th>
+                        <th>الحساب</th>
+                        <th>القيد</th>
+                        <th>الرصيد</th>
+                        <th>العملية</th>
+                        <th>العميل / الرقم</th>
+                        <th>المنفذ</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <% if (!movements.length) { %>
+                        <tr><td colspan="10" class="text-center py-5 text-muted fw-bold">لا توجد حركات مالية مطابقة</td></tr>
+                    <% } %>
+                    <% movements.forEach((item, index) => {
+                        const tx = item.transaction || {};
+                        const amountClass = item.amount >= 0 ? 'amount-in' : 'amount-out';
+                    %>
+                        <tr>
+                            <td>
+                                <div class="cell-main mono"><%= dateText(item.createdAt) %></div>
+                                <div class="muted-line mono"><%= item._id %></div>
+                            </td>
+                            <td>
+                                <span class="type-pill type-<%= item.type %>"><i class="fa-solid fa-circle-dot"></i><%= typeLabels[item.type] || item.type %></span>
+                                <div class="muted-line mt-1"><%= item.type %></div>
+                            </td>
+                            <td>
+                                <div class="mono <%= amountClass %>"><%= item.amount >= 0 ? '+' : '' %><%= money(item.amount) %></div>
+                                <div class="muted-line"><%= item.amount >= 0 ? 'دائن' : 'مدين' %></div>
+                            </td>
+                            <td>
+                                <div class="cell-main"><%= entityLabels[item.entityModel] || item.entityModel %></div>
+                                <div class="muted-line mono"><%= item.entityId %></div>
+                            </td>
+                            <td>
+                                <div class="cell-main"><%= item.debitAccount || '-' %></div>
+                                <div class="muted-line"><%= item.creditAccount || '-' %></div>
+                            </td>
+                            <td>
+                                <div class="mono">قبل: <%= money(item.balanceBefore) %></div>
+                                <div class="mono">بعد: <%= money(item.balanceAfter) %></div>
+                            </td>
+                            <td>
+                                <div class="cell-main mono"><%= item.transactionId %></div>
+                                <% if (tx.status) { %><span class="status-pill type-<%= item.type %>"><%= statusLabels[tx.status] || tx.status %></span><% } %>
+                                <% if (tx.cancellationNumber) { %><div class="muted-line mono text-danger"><%= tx.cancellationNumber %></div><% } %>
+                            </td>
+                            <td>
+                                <div class="cell-main"><%= tx.companyName || tx.employeeName || '-' %></div>
+                                <div class="muted-line mono"><%= tx.vodafoneNumber || '-' %></div>
+                            </td>
+                            <td>
+                                <div class="cell-main"><%= tx.executorName || '-' %></div>
+                                <div class="muted-line"><%= tx.transferType || '-' %></div>
+                            </td>
+                            <td>
+                                <button type="button" class="btn btn-outline-warning details-btn" title="تفاصيل" onclick="showMovementDetails(<%= index %>)">
+                                    <i class="fa-solid fa-eye"></i>
+                                </button>
+                            </td>
+                        </tr>
+                    <% }) %>
+                </tbody>
+            </table>
+        </div>
+    </section>
+
+    <nav class="no-print">
+        <ul class="pagination justify-content-center flex-wrap gap-1">
+            <li class="page-item <%= pagination.page <= 1 ? 'disabled' : '' %>"><a class="page-link" href="/financial-movements?<%= queryParams({ page: pagination.page - 1 }) %>">السابق</a></li>
+            <% for (let p = Math.max(1, pagination.page - 2); p <= Math.min(pagination.pages, pagination.page + 2); p++) { %>
+                <li class="page-item <%= p === pagination.page ? 'active' : '' %>"><a class="page-link mono" href="/financial-movements?<%= queryParams({ page: p }) %>"><%= p %></a></li>
+            <% } %>
+            <li class="page-item <%= pagination.page >= pagination.pages ? 'disabled' : '' %>"><a class="page-link" href="/financial-movements?<%= queryParams({ page: pagination.page + 1 }) %>">التالي</a></li>
+        </ul>
+        <div class="text-center muted-line">إجمالي النتائج: <span class="mono"><%= money(pagination.total, 0) %></span></div>
+    </nav>
+</main>
+
+<div class="modal fade" id="movementDetailsModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header border-0">
+                <h5 class="modal-title fw-bold"><i class="fa-solid fa-file-invoice-dollar ms-2 text-warning"></i>تفاصيل الحركة المالية</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div id="movementDetailsBody" class="detail-grid"></div>
+                <div class="mt-3">
+                    <label class="form-label">البيان</label>
+                    <div id="movementDescription" class="detail-item"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script id="movementsData" type="application/json"><%- JSON.stringify(movements).replace(/</g, '\\u003c') %></script>
+<script>
+    const movements = JSON.parse(document.getElementById('movementsData').textContent || '[]');
+    const typeLabels = <%- JSON.stringify(typeLabels) %>;
+    const statusLabels = <%- JSON.stringify(statusLabels) %>;
+    const entityLabels = <%- JSON.stringify(entityLabels) %>;
+    const formatDate = (value) => value ? new Date(value).toLocaleString('en-GB', { hour12: true }) : '-';
+    const formatMoney = (value) => Number(value || 0).toLocaleString('en-US', { maximumFractionDigits: 3 });
+    const esc = (value) => String(value ?? '-').replace(/[&<>"']/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
+    function detail(label, value, mono = false) {
+        return `<div class="detail-item"><span>${esc(label)}</span><strong class="${mono ? 'mono' : ''}">${esc(value)}</strong></div>`;
+    }
+    window.showMovementDetails = function(index) {
+        const item = movements[index];
+        if (!item) return;
+        const tx = item.transaction || {};
+        const body = [
+            detail('رقم القيد', item._id, true),
+            detail('تاريخ القيد', formatDate(item.createdAt), true),
+            detail('نوع الحركة', typeLabels[item.type] || item.type),
+            detail('نوع الحساب', entityLabels[item.entityModel] || item.entityModel),
+            detail('معرف الحساب', item.entityId, true),
+            detail('المبلغ', `${item.amount >= 0 ? '+' : ''}${formatMoney(item.amount)}`, true),
+            detail('الرصيد قبل', formatMoney(item.balanceBefore), true),
+            detail('الرصيد بعد', formatMoney(item.balanceAfter), true),
+            detail('حساب مدين', item.debitAccount || '-'),
+            detail('حساب دائن', item.creditAccount || '-'),
+            detail('رقم العملية', item.transactionId || '-', true),
+            detail('حالة العملية', statusLabels[tx.status] || tx.status || '-'),
+            detail('العميل', tx.companyName || tx.employeeName || '-'),
+            detail('رقم الهاتف', tx.vodafoneNumber || '-', true),
+            detail('المنفذ', tx.executorName || '-'),
+            detail('رقم الإلغاء', tx.cancellationNumber || '-', true)
+        ].join('');
+        document.getElementById('movementDetailsBody').innerHTML = body;
+        document.getElementById('movementDescription').innerHTML = `<strong>${esc(item.description || '-')}</strong>`;
+        new bootstrap.Modal(document.getElementById('movementDetailsModal')).show();
+    };
+</script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>
