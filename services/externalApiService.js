@@ -261,7 +261,7 @@ const generateCustomReceipt = async (tx, apiResult) => {
         await page.setViewport({ width: 520, height: 860 });
         
         const now = new Date();
-        const dateStr = apiResult.transaction_time || `${now.toLocaleDateString('en-GB').replace(/\//g, '-')} ${now.toLocaleTimeString('en-GB', { hour12: false })}`;
+        const dateStr = apiResult.transaction_time || now.toLocaleString('ar-EG-u-nu-latn', { hour12: true });
         const targetNumber = tx.vodafoneNumber || tx.accountNumber || '---';
         const referenceNumber = apiResult.reference_number || apiResult.sender_number || '---';
         const providerTxId = apiResult.provider_transaction_id || apiResult.external_transaction_id || '---';
@@ -282,36 +282,43 @@ const generateCustomReceipt = async (tx, apiResult) => {
 
         const htmlContent = `<!DOCTYPE html><html lang="ar" dir="rtl"><head><meta charset="UTF-8"><style>
             * { box-sizing: border-box; }
-            body { margin: 0; padding: 0; background: #fff; color: #000; font-family: Arial, Tahoma, sans-serif; }
-            #receipt-container { width: 520px; min-height: 820px; padding: 30px 34px; background: #fff; display: inline-block; border: 3px solid #000; }
-            .title { text-align: center; font-size: 30px; font-weight: 900; padding-bottom: 18px; border-bottom: 2px dashed #000; }
-            .check { margin: 22px auto 16px; width: 64px; height: 64px; border-radius: 50%; background: #000; color: #fff; display: flex; align-items: center; justify-content: center; font-size: 38px; font-weight: 900; }
-            .status { text-align: center; font-size: 28px; font-weight: 900; margin-bottom: 30px; }
-            .focus { text-align: center; margin: 24px 0 28px; }
-            .focus .label { font-size: 18px; font-weight: 800; margin-bottom: 8px; }
-            .phone { direction: ltr; font-size: 48px; font-weight: 900; letter-spacing: 0; overflow-wrap: anywhere; }
-            .amount { direction: ltr; font-size: 56px; font-weight: 900; letter-spacing: 0; overflow-wrap: anywhere; }
-            .separator { border-top: 2px dashed #000; margin: 26px 0 18px; }
-            .row { display: flex; justify-content: space-between; align-items: center; gap: 16px; padding: 13px 0; border-bottom: 1px dashed #000; font-size: 18px; }
-            .row span { font-weight: 800; }
-            .row strong { font-weight: 900; text-align: left; max-width: 270px; overflow-wrap: anywhere; }
-            .support { margin-top: 24px; padding: 13px 12px; border: 2px solid #000; text-align: center; line-height: 1.65; font-weight: 900; font-size: 18px; }
-            .support .number { direction: ltr; font-size: 26px; font-family: Arial, sans-serif; }
-            .footer { margin-top: 22px; text-align: center; border-top: 2px dashed #000; padding-top: 18px; font-size: 22px; font-weight: 900; font-family: Arial, sans-serif; }
+            body { margin: 0; padding: 0; background: #eef7fb; color: #111827; font-family: Tahoma, Arial, sans-serif; }
+            #receipt-container { width: 520px; min-height: 820px; padding: 20px; background: linear-gradient(145deg, #f8fcff, #eaf7f7); display: inline-block; border-radius: 26px; box-shadow: 0 18px 32px rgba(16,24,40,.18); overflow: hidden; }
+            .header { height: 132px; border-radius: 24px; padding: 22px 24px; color: #fff; background: linear-gradient(135deg, #101828, #14546a 58%, #00a6a6); position: relative; box-shadow: 0 10px 18px rgba(16,24,40,.18); }
+            .mark { position: absolute; left: 24px; bottom: 20px; width: 50px; height: 50px; border-radius: 50%; background: rgba(255,255,255,.15); display: grid; place-items: center; }
+            .mark:after { content: ""; width: 34px; height: 34px; border-radius: 50%; background: #f5b83d; box-shadow: inset 0 2px 0 rgba(255,255,255,.45); }
+            .title { font-size: 28px; font-weight: 900; margin: 0 0 8px; }
+            .subtitle { color: #d8fffb; font-size: 15px; font-weight: 800; }
+            .status-pill { margin: -21px auto 13px; width: 220px; height: 42px; border-radius: 21px; background: #fff; box-shadow: 0 10px 20px rgba(16,24,40,.16); display: flex; align-items: center; justify-content: center; gap: 10px; color: #12b76a; font-size: 18px; font-weight: 900; position: relative; }
+            .status-dot { width: 24px; height: 24px; border-radius: 50%; background: #12b76a; color: #fff; display: inline-flex; align-items: center; justify-content: center; font-size: 16px; }
+            .focus-card { text-align: center; background: linear-gradient(135deg, #ffffff, #ecfffb); border: 1px solid #bdebe4; border-radius: 26px; padding: 13px 14px; margin: 12px 10px; box-shadow: 0 10px 18px rgba(16,24,40,.12); }
+            .focus-card .label { font-size: 15px; font-weight: 900; color: #667085; margin-bottom: 7px; }
+            .phone { direction: ltr; font-size: 36px; font-weight: 900; letter-spacing: 0; overflow-wrap: anywhere; color: #101828; }
+            .amount { direction: ltr; font-size: 43px; font-weight: 900; letter-spacing: 0; overflow-wrap: anywhere; color: #00a6a6; }
+            .details { margin: 14px 10px 0; border-radius: 22px; background: rgba(255,255,255,.84); border: 1px solid #d9e4ea; padding: 6px 18px; }
+            .row { display: flex; justify-content: space-between; align-items: center; gap: 16px; padding: 9px 0; border-bottom: 1px solid #d9e4ea; font-size: 15px; }
+            .row:last-child { border-bottom: 0; }
+            .row span { font-weight: 800; color: #667085; }
+            .row strong { font-weight: 900; text-align: left; max-width: 250px; overflow-wrap: anywhere; color: #101828; }
+            .support { margin: 12px 10px 0; padding: 10px 12px; border-radius: 20px; background: #fff7e6; border: 1px solid #f5d18b; text-align: center; line-height: 1.45; font-weight: 900; font-size: 15px; color: #101828; box-shadow: inset 0 1px 0 rgba(255,255,255,.85); }
+            .support .number { direction: ltr; font-size: 23px; font-family: Arial, sans-serif; color: #00a6a6; }
+            .footer { margin-top: 12px; text-align: center; padding-top: 12px; border-top: 1px solid #d9e4ea; font-size: 18px; font-weight: 900; font-family: Arial, sans-serif; color: #101828; }
         </style></head><body><div id="receipt-container">
-            <div class="title">إيصال تحويل</div>
-            <div class="check">✓</div>
-            <div class="status">عملية ناجحة</div>
-            <div class="focus">
+            <div class="header">
+                <div class="mark"></div>
+                <div class="title">إيصال تحويل</div>
+                <div class="subtitle">مستند تنفيذ إلكتروني معتمد</div>
+            </div>
+            <div class="status-pill"><span class="status-dot">✓</span><span>عملية ناجحة</span></div>
+            <div class="focus-card">
                 <div class="label">رقم الهاتف / الحساب</div>
                 <div class="phone">${escapeHtml(targetNumber)}</div>
             </div>
-            <div class="focus">
+            <div class="focus-card">
                 <div class="label">القيمة</div>
                 <div class="amount">${escapeHtml(amountText)}</div>
             </div>
-            <div class="separator"></div>
-            ${rows}
+            <div class="details">${rows}</div>
             <div class="support">
                 <div>الدعم الفني واتساب فقط</div>
                 <div class="number">${SUPPORT_PHONE}</div>

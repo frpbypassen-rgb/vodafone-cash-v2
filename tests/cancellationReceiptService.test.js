@@ -21,8 +21,7 @@ describe('cancellationReceiptService', () => {
                 vodafoneNumber: '01012345678',
                 accountName: 'عميل تجريبي',
                 transferType: 'vodafone',
-                amount: 500,
-                costLYD: 42.5
+                amount: 500
             },
             reason: 'طلب العميل إلغاء العملية',
             cancellationNumber: 'CAN-2608-00001',
@@ -36,9 +35,12 @@ describe('cancellationReceiptService', () => {
         expect(proofId).toBe('proofs/CAN-2608-00001_cancellation_receipt.svg');
         expect(svg).toContain('إيصال إلغاء عملية');
         expect(svg).toContain('رقم الإلغاء');
-        expect(svg).toContain('المبلغ المرتجع');
+        expect(svg).toContain('قيمة العملية');
+        expect(svg).toContain('500.00 ج.م');
         expect(svg).toContain('ملغاة');
         expect(svg).toContain('Power Pay AL-Ahram');
+        expect(svg).not.toContain('المبلغ المرتجع');
+        expect(svg).not.toContain('42.50 د.ل');
         expect(svg).not.toContain('Cancellation Receipt');
         expect(svg).not.toContain('CANCELLED');
         expect(svg).not.toContain('Refunded:');
