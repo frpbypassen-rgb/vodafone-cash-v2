@@ -17,6 +17,10 @@ jest.mock('../services/walletService', () => ({
     updateBalanceWithLedger: jest.fn()
 }));
 
+jest.mock('../services/eventBus', () => ({
+    publish: jest.fn()
+}));
+
 jest.mock('../utils/logger', () => ({
     info: jest.fn(),
     financial: jest.fn(),
@@ -28,6 +32,7 @@ const Transaction = require('../models/Transaction');
 const ExecutorGroup = require('../models/ExecutorGroup');
 const { executeTransferViaApi, saveApiReceiptProof } = require('../services/externalApiService');
 const { updateBalanceWithLedger } = require('../services/walletService');
+const eventBus = require('../services/eventBus');
 const queueService = require('../services/queueService');
 
 describe('queueService API execution', () => {
@@ -36,9 +41,7 @@ describe('queueService API execution', () => {
         jest.clearAllMocks();
     });
 
-    test('keeps API transaction processing for 25 seconds after provider reference then completes it', async () => {
-        jest.useFakeTimers();
-
+    test('completes API transaction immediately when provider reference is received', async () => {
         const tx = {
             _id: 'tx-1',
             customId: 'ATT-2608-0001',
@@ -68,20 +71,20 @@ describe('queueService API execution', () => {
 
         await queueService.processSingleJob('tx-1', 'group-api');
 
-        expect(tx.status).toBe('processing');
-        expect(tx.executorName).toBe('قيد التنفيذ عبر API');
+        expect(tx.status).toBe('completed');
+        expect(tx.executorName).toBe('تنفيذ آلي (API)');
         expect(tx.executorSenderPhone).toBe('28059087');
         expect(tx.proofImage).toBe('proofs/ATT-2608-0001_api.jpg');
         expect(tx.proofImages).toEqual(['proofs/ATT-2608-0001_api.jpg']);
         expect(tx.notes).toContain('[الرقم المرجعي: 28059087]');
         expect(tx.notes).toContain('[رقم عملية المزود: 50011611]');
-        expect(updateBalanceWithLedger).not.toHaveBeenCalled();
-        expect(tx.save).toHaveBeenCalled();
-
-        await jest.advanceTimersByTimeAsync(25000);
-
-        expect(tx.status).toBe('completed');
-        expect(tx.executorName).toBe('تنفيذ آلي (API)');
+        expect(tx.apiResultData).toMatchObject({
+            waitingApiAutoCompletion: false,
+            autoCompleteAt: null,
+            referenceNumber: '28059087',
+            completionMode: 'immediate_reference',
+            ledgerPosted: true
+        });
         expect(updateBalanceWithLedger).toHaveBeenCalledWith(
             'ExecutorGroup',
             'group-api',
@@ -90,5 +93,10 @@ describe('queueService API execution', () => {
             'ATT-2608-0001',
             'تنفيذ API آلي'
         );
+        expect(tx.save).toHaveBeenCalled();
+        expect(eventBus.publish).toHaveBeenCalledWith('transfer:completed', {
+            tx,
+            emp: { name: 'Zayn API' }
+        });
     });
 });

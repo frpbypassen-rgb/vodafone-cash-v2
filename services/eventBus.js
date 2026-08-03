@@ -81,7 +81,7 @@ eventBus.on('transfer:cancelled', async (data) => {
         await attachCancellationReceipt(tx, {
             reason,
             cancellationNumber,
-            performedBy: emp?.name || tx.cancelledBy || 'System',
+            performedBy: emp?.name || tx.cancelledBy || 'النظام',
             cancelledAt: tx.cancelledAt
         }).catch((err) => {
             logger.error('Failed to generate cancellation receipt', {

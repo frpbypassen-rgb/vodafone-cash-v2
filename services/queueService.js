@@ -5,10 +5,10 @@ const Transaction = require('../models/Transaction');
 const ExecutorGroup = require('../models/ExecutorGroup');
 const { executeTransferViaApi, saveApiReceiptProof } = require('./externalApiService');
 const {
-    prepareApiTransactionForDelayedCompletion,
-    resolveApiReferenceNumber,
-    scheduleApiCompletion
+    completeApiTransactionWithReference,
+    resolveApiReferenceNumber
 } = require('./apiExecutionLifecycleService');
+const eventBus = require('./eventBus');
 const logger = require('../utils/logger');
 
 const appendNoteText = (current, note) => {
@@ -64,7 +64,7 @@ class ApiTransferQueue {
                         appendAdminNote(tx, `[تعذر توليد إيصال API: ${fileErr.message}]`);
                     }
 
-                    const prepared = prepareApiTransactionForDelayedCompletion({
+                    const completion = await completeApiTransactionWithReference({
                         tx,
                         executorGroup,
                         apiResult,
@@ -73,16 +73,15 @@ class ApiTransferQueue {
                     });
 
                     await tx.save();
-                    scheduleApiCompletion({
-                        txId: tx._id,
-                        executorGroupId: executorGroup._id,
-                        delayMs: prepared.delayMs
+                    eventBus.publish('transfer:completed', {
+                        tx,
+                        emp: { name: executorGroup.name || 'تنفيذ آلي (API)' }
                     });
 
-                    logger.info('API Execution Reference Received - Delayed Completion Scheduled', {
+                    logger.info('API Execution Reference Received - Completed Immediately', {
                         txId: tx.customId,
                         exactRefNumber,
-                        autoCompleteAt: prepared.autoCompleteAt
+                        ledgerPosted: completion ? !completion.ledgerError : false
                     });
                     return;
                 }

@@ -104,6 +104,84 @@ const prepareApiTransactionForDelayedCompletion = ({
     return { referenceNumber, autoCompleteAt, delayMs };
 };
 
+const completeApiTransactionWithReference = async ({
+    tx,
+    executorGroup,
+    apiResult,
+    receiptProof,
+    detailedLog
+}) => {
+    const referenceNumber = resolveApiReferenceNumber(apiResult);
+    if (!referenceNumber) return null;
+
+    let ledgerResult = null;
+    let ledgerError = null;
+
+    try {
+        ledgerResult = await updateBalanceWithLedger(
+            'ExecutorGroup',
+            executorGroup._id,
+            -Number(tx.amount || 0),
+            'TRANSFER',
+            tx.customId,
+            'تنفيذ API آلي'
+        );
+    } catch (error) {
+        ledgerError = error;
+        appendAdminNote(tx, `[تنبيه مالي: تم استلام الرقم المرجعي واعتماد العملية، لكن تعذر تسجيل قيد رصيد المنفذ: ${error.message}]`);
+        logger.error('Immediate API completion balance update failed', {
+            txId: tx.customId,
+            executorGroupId: String(executorGroup._id),
+            error: error.message
+        });
+    }
+
+    tx.status = 'completed';
+    tx.executorGroupId = executorGroup._id;
+    tx.managerGroupId = getParentGroupId(executorGroup);
+    tx.executorName = 'تنفيذ آلي (API)';
+    tx.executorSenderPhone = referenceNumber;
+
+    appendCustomerReference(tx, 'الرقم المرجعي', referenceNumber);
+    if (apiResult.external_transaction_id && apiResult.external_transaction_id !== referenceNumber) {
+        appendCustomerReference(tx, 'رقم عملية المزود', apiResult.external_transaction_id);
+    }
+
+    appendAdminNote(
+        tx,
+        `[تنفيذ API ناجح | تم اعتماد العملية فور استلام الرقم المرجعي: ${referenceNumber} | رقم عملية المزود: ${apiResult.external_transaction_id || '---'}]`
+    );
+    if (detailedLog) appendAdminNote(tx, detailedLog);
+
+    if (receiptProof) {
+        tx.proofImage = receiptProof;
+        tx.proofImages = [receiptProof];
+        if (typeof tx.set === 'function') {
+            tx.set('localProofImage', receiptProof, { strict: false });
+        }
+    }
+
+    tx.apiResultData = {
+        ...(tx.apiResultData || {}),
+        waitingApiAutoCompletion: false,
+        autoCompleteAt: null,
+        referenceNumber,
+        externalTransactionId: apiResult.external_transaction_id || null,
+        providerTransactionId: apiResult.provider_transaction_id || null,
+        completedAt: new Date(),
+        completionMode: 'immediate_reference',
+        ledgerPosted: Boolean(ledgerResult),
+        ledgerError: ledgerError ? ledgerError.message : null
+    };
+
+    return {
+        completed: true,
+        referenceNumber,
+        ledgerResult,
+        ledgerError
+    };
+};
+
 const completeApiTransaction = async (txId, executorGroupId) => {
     const tx = await Transaction.findById(txId);
     if (!tx) return { completed: false, reason: 'transaction_not_found' };
@@ -220,6 +298,7 @@ module.exports = {
     DEFAULT_API_COMPLETION_DELAY_MS,
     getApiCompletionDelayMs,
     resolveApiReferenceNumber,
+    completeApiTransactionWithReference,
     prepareApiTransactionForDelayedCompletion,
     scheduleApiCompletion,
     completeApiTransaction,

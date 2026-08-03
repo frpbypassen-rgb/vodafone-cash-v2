@@ -15,14 +15,35 @@ const escapeXml = (value) => String(value ?? '')
 
 const formatMoney = (value, currency = '') => {
     const amount = Number(value || 0);
-    const formatted = Number.isFinite(amount) ? amount.toFixed(3).replace(/\.?0+$/, '') : '0';
-    return currency ? `${formatted} ${currency}` : formatted;
+    const formatted = new Intl.NumberFormat('ar-EG-u-nu-latn', {
+        maximumFractionDigits: 3
+    }).format(Number.isFinite(amount) ? amount : 0);
+    const currencyLabel = {
+        EGP: 'ج.م',
+        LYD: 'د.ل'
+    }[currency] || currency;
+    return currencyLabel ? `${formatted} ${currencyLabel}` : formatted;
 };
 
 const formatDate = (value) => {
     const date = value ? new Date(value) : new Date();
     if (Number.isNaN(date.getTime())) return '-';
-    return date.toLocaleString('en-GB', { hour12: true });
+    return date.toLocaleString('ar-EG-u-nu-latn', { hour12: true });
+};
+
+const compactText = (value, maxLength = 54) => {
+    const text = String(value || '-').trim() || '-';
+    return text.length > maxLength ? `${text.slice(0, maxLength - 3)}...` : text;
+};
+
+const transferTypeLabels = {
+    vodafone: 'فودافون كاش',
+    post_account: 'حساب بريد',
+    post_card: 'بطاقة بريد',
+    bank_transfer: 'تحويل بنكي',
+    balance_transfer: 'تحويل داخلي',
+    safar: 'السفا - النيجر',
+    bankak: 'بنكك - السودان'
 };
 
 const safeFileId = (value) => String(value || `cancel-${Date.now()}`).replace(/[^\w.-]/g, '_');
@@ -55,63 +76,69 @@ const createCancellationReceiptProof = ({
 
     const targetNumber = tx.vodafoneNumber || tx.accountNumber || '-';
     const accountName = tx.accountName || tx.employeeName || tx.companyName || '-';
-    const transferType = tx.transferType || '-';
-    const statusText = tx.status === 'cancelled_by_admin' ? 'Cancelled By Admin' : 'Cancelled';
+    const transferType = transferTypeLabels[tx.transferType] || tx.transferType || '-';
+    const statusText = tx.status === 'cancelled_by_admin' ? 'إلغاء بواسطة الإدارة' : 'عملية ملغاة';
 
     const rows = [
-        ['Cancellation No.', cancellationNumber || tx.cancellationNumber || '-'],
-        ['Original Transaction', tx.customId || '-'],
-        ['Target Number', targetNumber],
-        ['Account / Client', accountName],
-        ['Transfer Type', transferType],
-        ['Amount', formatMoney(tx.amount, 'EGP')],
-        ['Refunded Cost', formatMoney(tx.costLYD, 'LYD')],
-        ['Cancelled By', performedBy || tx.cancelledBy || '-'],
-        ['Cancellation Date', formatDate(cancelledAt || tx.cancelledAt)],
-        ['Reason', reason || tx.cancellationReason || '-']
+        ['رقم الإلغاء', cancellationNumber || tx.cancellationNumber || '-'],
+        ['رقم العملية الأصلية', tx.customId || '-'],
+        ['رقم الهاتف / الحساب', targetNumber],
+        ['اسم العميل', accountName],
+        ['نوع العملية', transferType],
+        ['قيمة التحويل', formatMoney(tx.amount, 'EGP')],
+        ['المبلغ المرتجع', formatMoney(tx.costLYD, 'LYD')],
+        ['تم الإلغاء بواسطة', performedBy || tx.cancelledBy || '-'],
+        ['تاريخ الإلغاء', formatDate(cancelledAt || tx.cancelledAt)],
+        ['سبب الإلغاء', reason || tx.cancellationReason || '-']
     ];
 
     const rowsSvg = rows.map(([label, value], index) => {
-        const y = 370 + index * 52;
+        const y = 394 + index * 50;
         return `
-            <text x="72" y="${y}" class="row-label">${escapeXml(label)}</text>
-            <text x="548" y="${y}" class="row-value">${escapeXml(value)}</text>
-            <line x1="72" y1="${y + 18}" x2="548" y2="${y + 18}" class="hairline" />`;
+            <text x="548" y="${y}" class="row-label rtl">${escapeXml(label)}</text>
+            <text x="548" y="${y + 24}" class="row-value rtl">${escapeXml(compactText(value))}</text>
+            <line x1="72" y1="${y + 38}" x2="548" y2="${y + 38}" class="hairline" />`;
     }).join('');
 
     const svg = `<?xml version="1.0" encoding="UTF-8"?>
-<svg xmlns="http://www.w3.org/2000/svg" width="620" height="980" viewBox="0 0 620 980">
+<svg xmlns="http://www.w3.org/2000/svg" width="620" height="980" viewBox="0 0 620 980" direction="rtl">
     <defs>
         <style>
             .paper { fill: #fff; }
             .ink { fill: #0b0b0b; }
-            .muted { fill: #5f6368; }
-            .hairline { stroke: #d8d8d8; stroke-width: 1; }
-            .frame { fill: none; stroke: #0b0b0b; stroke-width: 3; }
-            .title { font: 900 36px Arial, sans-serif; letter-spacing: 0; }
-            .sub { font: 700 17px Arial, sans-serif; }
-            .amount { font: 900 44px Arial, sans-serif; }
-            .phone { font: 900 35px Arial, sans-serif; }
-            .row-label { font: 700 17px Arial, sans-serif; fill: #5f6368; text-anchor: start; }
-            .row-value { font: 800 18px Arial, sans-serif; fill: #0b0b0b; text-anchor: end; }
-            .stamp { font: 900 18px Arial, sans-serif; fill: #0b0b0b; }
+            .muted { fill: #60646c; }
+            .soft { fill: #f7f7f7; }
+            .hairline { stroke: #d9d9d9; stroke-width: 1; }
+            .frame { fill: none; stroke: #0b0b0b; stroke-width: 2.5; }
+            .block { fill: none; stroke: #0b0b0b; stroke-width: 1.5; }
+            .title { font: 900 34px Tahoma, Arial, sans-serif; letter-spacing: 0; }
+            .sub { font: 700 16px Tahoma, Arial, sans-serif; }
+            .eyebrow { font: 700 15px Tahoma, Arial, sans-serif; fill: #60646c; }
+            .amount { font: 900 46px Tahoma, Arial, sans-serif; }
+            .phone { font: 900 31px Tahoma, Arial, sans-serif; }
+            .row-label { font: 700 14px Tahoma, Arial, sans-serif; fill: #60646c; text-anchor: end; }
+            .row-value { font: 800 18px Tahoma, Arial, sans-serif; fill: #0b0b0b; text-anchor: end; }
+            .stamp { font: 900 19px Tahoma, Arial, sans-serif; fill: #0b0b0b; }
             .footer { font: 800 16px Arial, sans-serif; fill: #0b0b0b; }
+            .rtl { direction: rtl; unicode-bidi: plaintext; }
+            .ltr { direction: ltr; unicode-bidi: plaintext; }
         </style>
     </defs>
 
     <rect width="620" height="980" class="paper"/>
     <rect x="32" y="32" width="556" height="916" rx="0" class="frame"/>
 
-    <text x="310" y="92" text-anchor="middle" class="title ink">Cancellation Receipt</text>
-    <text x="310" y="124" text-anchor="middle" class="sub muted">${escapeXml(statusText)}</text>
-    <line x1="86" y1="156" x2="534" y2="156" class="hairline"/>
+    <text x="310" y="88" text-anchor="middle" class="title ink rtl">إيصال إلغاء عملية</text>
+    <text x="310" y="121" text-anchor="middle" class="sub muted rtl">${escapeXml(statusText)}</text>
+    <line x1="82" y1="152" x2="538" y2="152" class="hairline"/>
 
-    <text x="310" y="218" text-anchor="middle" class="amount ink">${escapeXml(formatMoney(tx.amount, 'EGP'))}</text>
-    <text x="310" y="270" text-anchor="middle" class="phone ink">${escapeXml(targetNumber)}</text>
-    <text x="310" y="304" text-anchor="middle" class="sub muted">Refunded: ${escapeXml(formatMoney(tx.costLYD, 'LYD'))}</text>
+    <text x="310" y="190" text-anchor="middle" class="eyebrow rtl">المبلغ المرتجع إلى الحساب</text>
+    <text x="310" y="244" text-anchor="middle" class="amount ink rtl">${escapeXml(formatMoney(tx.costLYD, 'LYD'))}</text>
+    <text x="310" y="294" text-anchor="middle" class="phone ink ltr">${escapeXml(targetNumber)}</text>
+    <text x="310" y="329" text-anchor="middle" class="sub muted rtl">رقم الإلغاء: ${escapeXml(cancellationNumber || tx.cancellationNumber || '-')}</text>
 
-    <rect x="202" y="322" width="216" height="34" fill="#fff" stroke="#0b0b0b" stroke-width="2"/>
-    <text x="310" y="345" text-anchor="middle" class="stamp">CANCELLED</text>
+    <rect x="214" y="346" width="192" height="34" fill="#fff" stroke="#0b0b0b" stroke-width="2"/>
+    <text x="310" y="369" text-anchor="middle" class="stamp rtl">ملغاة</text>
 
     ${rowsSvg}
 
@@ -134,7 +161,7 @@ const attachCancellationReceipt = async (txInput, metadata = {}) => {
     const cancellationNumber = metadata.cancellationNumber || tx.cancellationNumber || await nextCancellationNumber();
     tx.cancellationNumber = tx.cancellationNumber || cancellationNumber;
     tx.cancellationReason = tx.cancellationReason || metadata.reason || '';
-    tx.cancelledBy = tx.cancelledBy || metadata.performedBy || 'System';
+    tx.cancelledBy = tx.cancelledBy || metadata.performedBy || 'النظام';
     tx.cancelledAt = tx.cancelledAt || metadata.cancelledAt || new Date();
 
     const existingImages = Array.isArray(tx.proofImages) ? tx.proofImages.filter(Boolean) : [];
