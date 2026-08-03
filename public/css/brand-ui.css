@@ -1,0 +1,584 @@
+/* Power Pay AL-Ahram unified visual identity layer. */
+:root {
+    --pp-navy: #081a33;
+    --pp-navy-2: #0f2f57;
+    --pp-blue: #1457d9;
+    --pp-teal: #0f9f8f;
+    --pp-gold: #d7a92e;
+    --pp-gold-2: #f3c85b;
+    --pp-red: #dc2626;
+    --pp-green: #059669;
+    --pp-page: #f3f6fb;
+    --pp-surface: #ffffff;
+    --pp-surface-soft: #f8fafc;
+    --pp-border: #dbe5f2;
+    --pp-text: #111827;
+    --pp-muted: #667085;
+    --pp-shadow: 0 16px 40px rgba(8, 26, 51, 0.10);
+    --pp-shadow-strong: 0 22px 55px rgba(8, 26, 51, 0.16);
+    --pp-radius: 8px;
+
+    --brand-primary: var(--pp-navy);
+    --brand-dark: #031022;
+    --brand-gold: var(--pp-gold);
+    --brand-gold-dark: #b88a18;
+    --bg-body: var(--pp-page);
+    --card-bg: var(--pp-surface);
+    --input-bg: var(--pp-surface-soft);
+    --border-glass: var(--pp-border);
+    --text-main: var(--pp-text);
+    --text-muted: var(--pp-muted);
+    --surface: var(--pp-surface);
+    --surface-soft: var(--pp-surface-soft);
+    --border: var(--pp-border);
+    --text: var(--pp-text);
+    --muted: var(--pp-muted);
+    --ink: var(--pp-navy);
+    --navy: var(--pp-navy);
+    --gold: var(--pp-gold);
+    --blue: var(--pp-blue);
+    --teal: var(--pp-teal);
+    --red: var(--pp-red);
+    --green: var(--pp-green);
+    --shadow: var(--pp-shadow);
+}
+
+[data-theme="dark"] {
+    --pp-page: #07111f;
+    --pp-surface: #101d2e;
+    --pp-surface-soft: #0b1626;
+    --pp-border: #24364d;
+    --pp-text: #f8fafc;
+    --pp-muted: #a8b3c4;
+    --pp-blue: #62a4ff;
+    --pp-teal: #35d0bf;
+    --pp-gold: #f4c64f;
+    --pp-gold-2: #ffe08a;
+    --pp-shadow: 0 18px 46px rgba(0, 0, 0, 0.34);
+    --pp-shadow-strong: 0 24px 65px rgba(0, 0, 0, 0.46);
+
+    --brand-primary: var(--pp-blue);
+    --brand-dark: #020814;
+    --brand-gold: var(--pp-gold);
+    --bg-body: var(--pp-page);
+    --card-bg: var(--pp-surface);
+    --input-bg: var(--pp-surface-soft);
+    --border-glass: var(--pp-border);
+    --text-main: var(--pp-text);
+    --text-muted: var(--pp-muted);
+    --surface: var(--pp-surface);
+    --surface-soft: var(--pp-surface-soft);
+    --border: var(--pp-border);
+    --text: var(--pp-text);
+    --muted: var(--pp-muted);
+    --ink: #f8fafc;
+    --navy: var(--pp-blue);
+    --gold: var(--pp-gold);
+    --blue: var(--pp-blue);
+    --teal: var(--pp-teal);
+    --red: #f87171;
+    --green: #34d399;
+    --shadow: var(--pp-shadow);
+}
+
+html {
+    scroll-behavior: smooth;
+}
+
+body {
+    background:
+        linear-gradient(135deg, color-mix(in srgb, var(--pp-blue) 8%, transparent), transparent 34%),
+        linear-gradient(180deg, color-mix(in srgb, var(--pp-gold) 7%, transparent), transparent 24%),
+        repeating-linear-gradient(90deg, color-mix(in srgb, var(--pp-border) 45%, transparent) 0 1px, transparent 1px 88px),
+        var(--pp-page) !important;
+    color: var(--pp-text) !important;
+    letter-spacing: 0;
+}
+
+body,
+.main-content,
+.shell,
+.container,
+.container-fluid {
+    min-width: 0;
+}
+
+.main-content {
+    background: transparent !important;
+}
+
+.navbar-custom,
+.navbar-glass,
+.topbar,
+.top-nav-admin-mobile {
+    position: relative;
+    background: color-mix(in srgb, var(--pp-surface) 91%, transparent) !important;
+    border-bottom: 1px solid color-mix(in srgb, var(--pp-border) 86%, transparent) !important;
+    box-shadow: 0 10px 32px rgba(8, 26, 51, 0.08) !important;
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+}
+
+[data-theme="dark"] .navbar-custom,
+[data-theme="dark"] .navbar-glass,
+[data-theme="dark"] .topbar,
+[data-theme="dark"] .top-nav-admin-mobile {
+    background: color-mix(in srgb, var(--pp-surface) 84%, transparent) !important;
+    box-shadow: 0 12px 34px rgba(0, 0, 0, 0.34) !important;
+}
+
+.navbar-custom::after,
+.navbar-glass::after,
+.topbar::after {
+    content: "";
+    position: absolute;
+    inset-inline: 0;
+    bottom: 0;
+    height: 3px;
+    background: linear-gradient(90deg, var(--pp-blue), var(--pp-gold), var(--pp-teal));
+}
+
+.logo-img,
+.brand-logo,
+.mobile-logo-wrapper img {
+    border-radius: var(--pp-radius) !important;
+    background: #fff !important;
+    border: 1px solid color-mix(in srgb, var(--pp-gold) 42%, var(--pp-border)) !important;
+    box-shadow: 0 10px 24px rgba(8, 26, 51, 0.14) !important;
+    object-fit: cover;
+}
+
+.navbar-brand,
+.brand-title,
+.page-title,
+.panel-title,
+.ledger-title,
+.wallet-name {
+    color: var(--pp-navy) !important;
+    letter-spacing: 0 !important;
+}
+
+[data-theme="dark"] .navbar-brand,
+[data-theme="dark"] .brand-title,
+[data-theme="dark"] .page-title,
+[data-theme="dark"] .panel-title,
+[data-theme="dark"] .ledger-title,
+[data-theme="dark"] .wallet-name {
+    color: var(--pp-text) !important;
+}
+
+.brand-subtitle,
+.small-muted,
+.text-muted {
+    color: var(--pp-muted) !important;
+}
+
+.card,
+.panel,
+.metric-card,
+.stat-card,
+.data-card,
+.info-panel,
+.support-container,
+.ledger-card,
+.app-btn,
+.live-rates-bar,
+.modal-content,
+.dropdown-menu,
+.table-responsive,
+.report-card,
+.filter-card,
+.summary-box,
+.staff-item,
+.agent-lookup-box {
+    background: color-mix(in srgb, var(--pp-surface) 97%, transparent) !important;
+    border: 1px solid color-mix(in srgb, var(--pp-border) 92%, transparent) !important;
+    border-radius: var(--pp-radius) !important;
+    box-shadow: var(--pp-shadow) !important;
+}
+
+.card:hover,
+.panel:hover,
+.metric-card:hover,
+.stat-card:hover,
+.data-card:hover,
+.app-btn:hover,
+.staff-item:hover {
+    box-shadow: var(--pp-shadow-strong) !important;
+}
+
+.panel-heading,
+.card-header,
+.modal-header,
+.table thead th,
+.company-table th {
+    background: linear-gradient(180deg, var(--pp-surface-soft), color-mix(in srgb, var(--pp-surface) 88%, var(--pp-gold) 12%)) !important;
+    border-color: var(--pp-border) !important;
+}
+
+.table,
+.company-table {
+    color: var(--pp-text) !important;
+}
+
+.table td,
+.table th,
+.company-table td,
+.company-table th {
+    border-color: color-mix(in srgb, var(--pp-border) 88%, transparent) !important;
+}
+
+.table tbody tr,
+.company-table tbody tr {
+    transition: background 0.16s ease, transform 0.16s ease;
+}
+
+.table tbody tr:hover,
+.company-table tbody tr:hover {
+    background: color-mix(in srgb, var(--pp-blue) 7%, transparent) !important;
+}
+
+.form-control,
+.form-select,
+.input-group-text,
+.chat-input {
+    background: var(--pp-surface-soft) !important;
+    border-color: var(--pp-border) !important;
+    border-radius: var(--pp-radius) !important;
+    color: var(--pp-text) !important;
+}
+
+.form-control:focus,
+.form-select:focus,
+.chat-input:focus {
+    border-color: var(--pp-blue) !important;
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--pp-blue) 18%, transparent) !important;
+    background: var(--pp-surface) !important;
+    color: var(--pp-text) !important;
+}
+
+.btn,
+.nav-btn,
+.nav-link-btn,
+.icon-btn,
+.primary-btn,
+.secondary-btn,
+.danger-btn,
+.filter-btn,
+.mini-btn,
+.lookup-btn,
+.btn-submit,
+.send-btn,
+.attach-btn {
+    border-radius: var(--pp-radius) !important;
+    font-weight: 900 !important;
+    letter-spacing: 0 !important;
+    transition: transform 0.16s ease, box-shadow 0.16s ease, border-color 0.16s ease, background 0.16s ease !important;
+}
+
+.btn:hover,
+.nav-btn:hover,
+.nav-link-btn:hover,
+.icon-btn:hover,
+.primary-btn:hover,
+.secondary-btn:hover,
+.danger-btn:hover,
+.filter-btn:hover,
+.mini-btn:hover,
+.lookup-btn:hover,
+.btn-submit:hover,
+.send-btn:hover,
+.attach-btn:hover {
+    transform: translateY(-1px);
+}
+
+.btn-primary,
+.primary-btn,
+.filter-btn,
+.send-btn {
+    background: linear-gradient(135deg, var(--pp-blue), var(--pp-navy-2)) !important;
+    border-color: color-mix(in srgb, var(--pp-blue) 80%, var(--pp-navy)) !important;
+    color: #fff !important;
+    box-shadow: 0 12px 28px color-mix(in srgb, var(--pp-blue) 24%, transparent) !important;
+}
+
+.btn-warning,
+.btn-submit {
+    background: linear-gradient(135deg, var(--pp-gold), var(--pp-gold-2)) !important;
+    border-color: color-mix(in srgb, var(--pp-gold) 78%, #7a4d00) !important;
+    color: #111827 !important;
+    box-shadow: 0 12px 28px color-mix(in srgb, var(--pp-gold) 24%, transparent) !important;
+}
+
+.btn-light,
+.btn-outline-secondary,
+.secondary-btn,
+.nav-btn,
+.nav-link-btn,
+.icon-btn,
+.mini-btn,
+.attach-btn {
+    background: var(--pp-surface) !important;
+    border-color: var(--pp-border) !important;
+    color: var(--pp-text) !important;
+}
+
+.btn-danger,
+.danger-btn,
+.logout-btn,
+.btn-logout,
+.nav-logout {
+    border-color: color-mix(in srgb, var(--pp-red) 35%, var(--pp-border)) !important;
+    color: var(--pp-red) !important;
+}
+
+.btn-danger,
+.danger-btn:hover,
+.logout-btn:hover,
+.btn-logout:hover,
+.nav-logout:hover {
+    background: var(--pp-red) !important;
+    color: #fff !important;
+}
+
+.wallet-card,
+.balance-chip,
+.sc-balance {
+    border-radius: var(--pp-radius) !important;
+    background:
+        linear-gradient(135deg, color-mix(in srgb, var(--pp-navy) 92%, #000), var(--pp-navy-2)) !important;
+    border: 1px solid color-mix(in srgb, var(--pp-gold) 32%, transparent) !important;
+    box-shadow: 0 22px 55px rgba(8, 26, 51, 0.26) !important;
+}
+
+.wallet-card::before {
+    background:
+        linear-gradient(135deg, transparent 0 38%, color-mix(in srgb, var(--pp-gold) 20%, transparent) 38% 42%, transparent 42% 100%) !important;
+    border-radius: 0 !important;
+}
+
+.wallet-balance,
+.metric-value,
+.stat-val,
+.mono-num {
+    font-variant-numeric: tabular-nums;
+}
+
+.metric-label,
+.stat-label,
+.wallet-label {
+    color: var(--pp-muted) !important;
+    font-weight: 900 !important;
+}
+
+.status-pill,
+.badge {
+    border-radius: 999px !important;
+    letter-spacing: 0 !important;
+}
+
+.bottom-nav-mobile,
+.bottom-nav-admin-mobile {
+    background: color-mix(in srgb, var(--pp-surface) 88%, transparent) !important;
+    border: 1px solid color-mix(in srgb, var(--pp-border) 82%, transparent) !important;
+    box-shadow: 0 16px 40px rgba(8, 26, 51, 0.18) !important;
+}
+
+[data-theme="dark"] .bottom-nav-mobile,
+[data-theme="dark"] .bottom-nav-admin-mobile {
+    background: color-mix(in srgb, var(--pp-surface) 84%, transparent) !important;
+    box-shadow: 0 18px 46px rgba(0, 0, 0, 0.42) !important;
+}
+
+.bottom-nav-item.active,
+.bottom-nav-item.active i {
+    color: var(--pp-gold) !important;
+}
+
+[data-theme="light"] .bottom-nav-item.active,
+[data-theme="light"] .bottom-nav-item.active i {
+    color: var(--pp-blue) !important;
+}
+
+.sidebar {
+    background:
+        linear-gradient(180deg, #061526 0%, #0b1f3a 58%, #031022 100%) !important;
+    border-left: 1px solid color-mix(in srgb, var(--pp-gold) 34%, transparent) !important;
+    box-shadow: -18px 0 48px rgba(8, 26, 51, 0.24) !important;
+}
+
+.sidebar::after {
+    content: "Power Pay AL-Ahram";
+    position: absolute;
+    left: 16px;
+    bottom: 12px;
+    color: rgba(255, 255, 255, 0.24);
+    font: 800 0.68rem/1.1 system-ui, sans-serif;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    pointer-events: none;
+}
+
+.pp-sidebar-brand {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin: 16px 16px 6px;
+    padding: 12px;
+    border-radius: var(--pp-radius);
+    border: 1px solid rgba(244, 198, 79, 0.26);
+    background: rgba(255, 255, 255, 0.07);
+    color: #fff;
+}
+
+.pp-brand-mark {
+    width: 40px;
+    height: 40px;
+    flex: 0 0 40px;
+    display: inline-grid;
+    place-items: center;
+    border-radius: var(--pp-radius);
+    background: linear-gradient(135deg, var(--pp-gold), var(--pp-gold-2));
+    color: #111827;
+    font-weight: 900;
+    box-shadow: 0 12px 24px rgba(215, 169, 46, 0.26);
+}
+
+.pp-brand-title {
+    display: block;
+    color: #fff;
+    font-size: 0.84rem;
+    font-weight: 900;
+    line-height: 1.2;
+}
+
+.pp-brand-subtitle {
+    display: block;
+    margin-top: 2px;
+    color: rgba(255, 255, 255, 0.56);
+    font-size: 0.68rem;
+    font-weight: 800;
+}
+
+.sidebar-user {
+    border-bottom-color: rgba(244, 198, 79, 0.18) !important;
+}
+
+.sidebar-menu a {
+    border-radius: var(--pp-radius) !important;
+}
+
+.sidebar-menu a.active {
+    background: linear-gradient(135deg, var(--pp-gold), var(--pp-gold-2)) !important;
+    color: #111827 !important;
+    box-shadow: 0 14px 30px rgba(215, 169, 46, 0.22) !important;
+}
+
+.sidebar-menu a.active i,
+.sidebar-menu a.active .menu-chevron {
+    color: #111827 !important;
+}
+
+.topbar .brand-lockup::before,
+.navbar-custom .d-flex.align-items-center.gap-3::before,
+.navbar-glass .fw-bold.fs-5::before,
+.executor-info::before {
+    content: "";
+    width: 10px;
+    height: 40px;
+    border-radius: 999px;
+    background: linear-gradient(180deg, var(--pp-blue), var(--pp-gold));
+    flex: 0 0 10px;
+}
+
+.executor-info {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.executor-avatar,
+.avatar-sm,
+.sidebar-user .avatar {
+    border-radius: var(--pp-radius) !important;
+}
+
+.bg-glow {
+    display: none !important;
+}
+
+.login-card {
+    border-radius: var(--pp-radius) !important;
+    border: 1px solid color-mix(in srgb, var(--pp-gold) 34%, var(--pp-border)) !important;
+    border-bottom: 4px solid var(--pp-gold) !important;
+    box-shadow: var(--pp-shadow-strong) !important;
+}
+
+.login-card::before {
+    content: "Power Pay AL-Ahram";
+    display: inline-flex;
+    justify-content: center;
+    width: 100%;
+    margin-bottom: 12px;
+    color: var(--pp-muted);
+    font: 900 0.72rem/1.2 system-ui, sans-serif;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    direction: ltr;
+}
+
+.logo-engraved,
+.login-card img {
+    border-radius: var(--pp-radius) !important;
+}
+
+.empty-state {
+    background:
+        linear-gradient(135deg, color-mix(in srgb, var(--pp-blue) 6%, transparent), transparent),
+        var(--pp-surface-soft) !important;
+    border-radius: var(--pp-radius) !important;
+}
+
+@media (max-width: 991px) {
+    body {
+        background:
+            linear-gradient(180deg, color-mix(in srgb, var(--pp-blue) 7%, transparent), transparent 260px),
+            var(--pp-page) !important;
+    }
+
+    .navbar-custom::after,
+    .navbar-glass::after,
+    .topbar::after {
+        height: 2px;
+    }
+
+    .pp-sidebar-brand {
+        margin-top: 54px;
+    }
+}
+
+@media print {
+    body {
+        background: #fff !important;
+    }
+
+    .navbar-custom,
+    .navbar-glass,
+    .topbar,
+    .sidebar,
+    .bottom-nav-mobile,
+    .bottom-nav-admin-mobile {
+        box-shadow: none !important;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+        scroll-behavior: auto !important;
+        transition-duration: 0.01ms !important;
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+    }
+}
