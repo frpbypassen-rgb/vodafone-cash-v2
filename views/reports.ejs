@@ -329,6 +329,24 @@
             const dbAgents = <%- JSON.stringify(agents) %>;
             const dbExecutors = <%- JSON.stringify(executors) %>;
             const dbApiExecutors = <%- JSON.stringify(apiExecutors) %>;
+            const csrfToken = <%- JSON.stringify(typeof csrfToken !== 'undefined' ? csrfToken : '') %>;
+
+            (function() {
+                const originalFetch = window.fetch;
+                window.fetch = function(url, options) {
+                    options = options || {};
+                    options.headers = options.headers || {};
+                    const method = String(options.method || 'GET').toUpperCase();
+                    if (csrfToken && !['GET', 'HEAD', 'OPTIONS'].includes(method)) {
+                        if (options.headers instanceof Headers) {
+                            options.headers.set('x-csrf-token', csrfToken);
+                        } else {
+                            options.headers['x-csrf-token'] = csrfToken;
+                        }
+                    }
+                    return originalFetch.call(this, url, options);
+                };
+            })();
 
             // تهيئة التواريخ
             document.getElementById('dateValueDay').valueAsDate = new Date();
