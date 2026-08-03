@@ -67,6 +67,48 @@ async function notifyAdminNewRegistration(reg) {
     // 🟢 الإشعارات تتم الآن عبر قاعدة البيانات أو WebSockets
 }
 
+const REGISTER_FORM_FIELDS = [
+    'accountType',
+    'fullName', 'phone', 'storeName', 'address', 'username',
+    'companyName', 'companyContact', 'companyPhone', 'companyEmail',
+    'newFullName', 'newPhone', 'nationality', 'newCity', 'newUsername', 'agentCode',
+    'agentCompanyName', 'agentFullName', 'agentPhone', 'agentAddress', 'agentEmail', 'agentUsername',
+    'latitude', 'longitude'
+];
+
+const sanitizeRegisterFormData = (body = {}) => REGISTER_FORM_FIELDS.reduce((data, field) => {
+    const value = body[field];
+    if (Array.isArray(value)) {
+        data[field] = value.find((item) => typeof item === 'string' && item.trim()) || '';
+    } else if (typeof value === 'string') {
+        data[field] = value;
+    }
+    return data;
+}, {});
+
+const registerViewData = (data = {}) => ({
+    error: null,
+    success: false,
+    refCode: null,
+    createdUsername: null,
+    createdPassword: null,
+    formData: {},
+    restoreNewAgentVerified: false,
+    restoredAgentName: '',
+    libyanCities: LIBYAN_CITIES,
+    ...data
+});
+
+const renderRegister = (res, data = {}) => res.render('client/register', registerViewData(data));
+
+const renderRegisterError = (req, res, error, data = {}) => renderRegister(res, {
+    error,
+    success: false,
+    refCode: null,
+    formData: sanitizeRegisterFormData(req.body),
+    ...data
+});
+
 exports.getLogin = (req, res) => {
     if (req.session.isClientLoggedIn) return res.redirect('/client/dashboard');
     res.redirect('/login');
@@ -75,11 +117,7 @@ exports.getLogin = (req, res) => {
 exports.getRegister = (req, res) => {
     if (req.session.isClientLoggedIn) return res.redirect('/client/dashboard');
     res.set('Cache-Control', 'no-store, no-cache, must-revalidate, private');
-    res.render('client/register', { 
-        error: null, success: false, refCode: null, 
-        createdUsername: null, createdPassword: null,
-        libyanCities: LIBYAN_CITIES
-    });
+    renderRegister(res);
 };
 
 exports.lookupAgent = async (req, res) => {
@@ -102,6 +140,7 @@ exports.lookupAgent = async (req, res) => {
 
 exports.postRegister = async (req, res) => {
     try {
+        const fail = (message, data = {}) => renderRegisterError(req, res, message, data);
         const getField = (val) => {
             if (Array.isArray(val)) return val.find(v => v && typeof v === 'string' && v.trim()) || '';
             return (typeof val === 'string') ? val : '';
@@ -109,7 +148,7 @@ exports.postRegister = async (req, res) => {
 
         const { accountType } = req.body;
         if (!accountType || !['direct', 'company', 'new', 'agent'].includes(accountType)) {
-            return res.render('client/register', { error: 'يرجى اختيار نوع الحساب.', success: false, refCode: null, createdUsername: null, createdPassword: null });
+            return fail('يرجى اختيار نوع الحساب.');
         }
 
         // ======= عميل مباشر =======
@@ -125,19 +164,19 @@ exports.postRegister = async (req, res) => {
             const password = getField(req.body.password);
             const passwordConfirm = getField(req.body.passwordConfirm);
 
-            if (!fullName || fullName.split(/\s+/).length < 3) return res.render('client/register', { error: 'يرجى إدخال الاسم الثلاثي كاملاً (3 كلمات على الأقل).', success: false, refCode: null });
-            if (!phone || phone.length < 10) return res.render('client/register', { error: 'يرجى إدخال رقم هاتف صحيح (10 أرقام على الأقل).', success: false, refCode: null });
-            if (!storeName) return res.render('client/register', { error: 'يرجى إدخال اسم المتجر.', success: false, refCode: null });
-            if (!address) return res.render('client/register', { error: 'يرجى إدخال العنوان.', success: false, refCode: null });
-            if (!username || !/^[a-zA-Z0-9_]{3,20}@ahram\.com$/.test(username)) return res.render('client/register', { error: 'اسم المستخدم يجب أن يكون باللغة الإنجليزية وبدون مسافات (من 3 إلى 20 حرف).', success: false, refCode: null });
-            if (!password || password.length < 6) return res.render('client/register', { error: 'الرقم السري يجب أن يكون 6 أحرف على الأقل.', success: false, refCode: null });
-            if (password !== passwordConfirm) return res.render('client/register', { error: 'الرقم السري غير متطابق.', success: false, refCode: null });
+            if (!fullName || fullName.split(/\s+/).length < 3) return fail('يرجى إدخال الاسم الثلاثي كاملاً (3 كلمات على الأقل).');
+            if (!phone || phone.length < 10) return fail('يرجى إدخال رقم هاتف صحيح (10 أرقام على الأقل).');
+            if (!storeName) return fail('يرجى إدخال اسم المتجر.');
+            if (!address) return fail('يرجى إدخال العنوان.');
+            if (!username || !/^[a-zA-Z0-9_]{3,20}@ahram\.com$/.test(username)) return fail('اسم المستخدم يجب أن يكون باللغة الإنجليزية وبدون مسافات (من 3 إلى 20 حرف).');
+            if (!password || password.length < 6) return fail('الرقم السري يجب أن يكون 6 أحرف على الأقل.');
+            if (password !== passwordConfirm) return fail('الرقم السري غير متطابق.');
 
             const existingRequest = await RegistrationRequest.findOne({ phone, status: 'pending' });
-            if (existingRequest) return res.render('client/register', { error: `يوجد طلب تسجيل سابق لهذا الرقم برقم مرجعي: ${existingRequest.refCode}. يرجى انتظار المراجعة.`, success: false, refCode: null });
+            if (existingRequest) return fail(`يوجد طلب تسجيل سابق لهذا الرقم برقم مرجعي: ${existingRequest.refCode}. يرجى انتظار المراجعة.`);
             
-            const existingUser = await User.findOne({ $or: [{ phone }, { username: { $regex: new RegExp(`^${username}$`, 'i') } }] });
-            if (existingUser) return res.render('client/register', { error: 'رقم الهاتف أو اسم المستخدم مسجل بالفعل. يرجى اختيار اسم آخر أو تسجيل الدخول.', success: false, refCode: null });
+            const existingUser = await User.findOne({ $or: [{ phone }, { webUsername: { $regex: new RegExp(`^${username}$`, 'i') } }] });
+            if (existingUser) return fail('رقم الهاتف أو اسم المستخدم مسجل بالفعل. يرجى اختيار اسم آخر أو تسجيل الدخول.');
 
             const regRequest = await RegistrationRequest.create({
                 accountType, fullName, phone, storeName, address, username, password,
@@ -153,7 +192,7 @@ exports.postRegister = async (req, res) => {
                 result: 'معلق',
                 metadata: { accountType, phone, regRequestId: regRequest._id }
             });
-            return res.render('client/register', { error: null, success: true, refCode: regRequest.refCode, createdUsername: username, createdPassword: password });
+            return renderRegister(res, { error: null, success: true, refCode: regRequest.refCode, createdUsername: username, createdPassword: password });
         }
 
         // ======= عميل جديد =======
@@ -168,20 +207,23 @@ exports.postRegister = async (req, res) => {
             const password = getField(req.body.newPassword);
             const passwordConfirm = getField(req.body.newPasswordConfirm);
 
-            if (!fullName || fullName.split(/\s+/).length < 3) return res.render('client/register', { error: 'يرجى إدخال الاسم الثلاثي كاملاً.', success: false, refCode: null });
-            if (!phone || phone.length < 10) return res.render('client/register', { error: 'يرجى إدخال رقم هاتف صحيح.', success: false, refCode: null });
-            if (!agentCode || !/^\d{4}$/.test(agentCode)) return res.render('client/register', { error: 'يرجى إدخال رقم وكيل صحيح مكون من 4 أرقام.', success: false, refCode: null });
-            if (!nationality || !['libyan', 'egyptian'].includes(nationality)) return res.render('client/register', { error: 'يرجى اختيار الجنسية.', success: false, refCode: null });
-            if (!city || !LIBYAN_CITIES.includes(city)) return res.render('client/register', { error: 'يرجى اختيار مدينة صحيحة من القائمة.', success: false, refCode: null });
-            if (!username || !/^[a-zA-Z0-9_]{3,20}@ahram\.com$/.test(username)) return res.render('client/register', { error: 'اسم المستخدم يجب أن يكون باللغة الإنجليزية وبدون مسافات.', success: false, refCode: null });
-            if (!password || password.length < 6) return res.render('client/register', { error: 'الرقم السري يجب أن يكون 6 أحرف على الأقل.', success: false, refCode: null });
-            if (password !== passwordConfirm) return res.render('client/register', { error: 'الرقم السري غير متطابق.', success: false, refCode: null });
+            if (!fullName || fullName.split(/\s+/).length < 3) return fail('يرجى إدخال الاسم الثلاثي كاملاً.');
+            if (!phone || phone.length < 10) return fail('يرجى إدخال رقم هاتف صحيح.');
+            if (!agentCode || !/^\d{4}$/.test(agentCode)) return fail('يرجى إدخال رقم وكيل صحيح مكون من 4 أرقام.');
+            if (!nationality || !['libyan', 'egyptian'].includes(nationality)) return fail('يرجى اختيار الجنسية.');
+            if (!city || !LIBYAN_CITIES.includes(city)) return fail('يرجى اختيار مدينة صحيحة من القائمة.');
+            if (!username || !/^[a-zA-Z0-9_]{3,20}@ahram\.com$/.test(username)) return fail('اسم المستخدم يجب أن يكون باللغة الإنجليزية وبدون مسافات.');
+            if (!password || password.length < 6) return fail('الرقم السري يجب أن يكون 6 أحرف على الأقل.');
+            if (password !== passwordConfirm) return fail('الرقم السري غير متطابق.');
 
             const agent = await findActiveAgentByCode(agentCode);
-            if (!agent) return res.render('client/register', { error: 'رقم الوكيل غير صحيح أو غير نشط.', success: false, refCode: null });
+            if (!agent) return fail('رقم الوكيل غير صحيح أو غير نشط.');
 
             const credentialsAvailable = await ensureClientCredentialsAvailable({ phone, username });
-            if (!credentialsAvailable) return res.render('client/register', { error: 'رقم الهاتف أو اسم المستخدم لديه حساب أو طلب تسجيل سابق.', success: false, refCode: null });
+            if (!credentialsAvailable) return fail('رقم الهاتف أو اسم المستخدم لديه حساب أو طلب تسجيل سابق.', {
+                restoreNewAgentVerified: true,
+                restoredAgentName: agent.name || agent.webUsername || 'وكيل معتمد'
+            });
 
             const regRequest = await RegistrationRequest.create({
                 accountType,
@@ -207,7 +249,7 @@ exports.postRegister = async (req, res) => {
                 result: 'معلق لدى الوكيل',
                 metadata: { accountType, phone, regRequestId: regRequest._id, agentCode, agentId: agent._id }
             });
-            return res.render('client/register', { error: null, success: true, refCode: regRequest.refCode });
+            return renderRegister(res, { error: null, success: true, refCode: regRequest.refCode });
         }
 
         // ======= وكيل منطقة =======
@@ -222,19 +264,19 @@ exports.postRegister = async (req, res) => {
             const password = getField(req.body.agentPassword);
             const passwordConfirm = getField(req.body.agentPasswordConfirm);
 
-            if (!companyName) return res.render('client/register', { error: 'يرجى إدخال اسم الشركة.', success: false, refCode: null });
-            if (!fullName || fullName.split(/\s+/).length < 3) return res.render('client/register', { error: 'يرجى إدخال اسم الوكيل الثلاثي كاملاً.', success: false, refCode: null });
-            if (!phone || phone.length < 10) return res.render('client/register', { error: 'يرجى إدخال رقم هاتف صحيح.', success: false, refCode: null });
-            if (!address) return res.render('client/register', { error: 'يرجى إدخال العنوان.', success: false, refCode: null });
-            if (!companyEmail || !/^\S+@\S+\.\S+$/.test(companyEmail)) return res.render('client/register', { error: 'يرجى إدخال بريد إلكتروني رسمي صحيح.', success: false, refCode: null });
-            if (!username || !/^[a-zA-Z0-9_]{3,20}@ahram\.com$/.test(username)) return res.render('client/register', { error: 'اسم المستخدم يجب أن يكون باللغة الإنجليزية وبدون مسافات.', success: false, refCode: null });
-            if (!password || password.length < 6) return res.render('client/register', { error: 'الرقم السري يجب أن يكون 6 أحرف على الأقل.', success: false, refCode: null });
-            if (password !== passwordConfirm) return res.render('client/register', { error: 'الرقم السري غير متطابق.', success: false, refCode: null });
+            if (!companyName) return fail('يرجى إدخال اسم الشركة.');
+            if (!fullName || fullName.split(/\s+/).length < 3) return fail('يرجى إدخال اسم الوكيل الثلاثي كاملاً.');
+            if (!phone || phone.length < 10) return fail('يرجى إدخال رقم هاتف صحيح.');
+            if (!address) return fail('يرجى إدخال العنوان.');
+            if (!companyEmail || !/^\S+@\S+\.\S+$/.test(companyEmail)) return fail('يرجى إدخال بريد إلكتروني رسمي صحيح.');
+            if (!username || !/^[a-zA-Z0-9_]{3,20}@ahram\.com$/.test(username)) return fail('اسم المستخدم يجب أن يكون باللغة الإنجليزية وبدون مسافات.');
+            if (!password || password.length < 6) return fail('الرقم السري يجب أن يكون 6 أحرف على الأقل.');
+            if (password !== passwordConfirm) return fail('الرقم السري غير متطابق.');
 
             const existingRequest = await RegistrationRequest.findOne({ phone, status: 'pending' });
-            if (existingRequest) return res.render('client/register', { error: `يوجد طلب تسجيل سابق لهذا الرقم. يرجى انتظار المراجعة.`, success: false, refCode: null });
-            const existingUser = await User.findOne({ $or: [{ phone }, { username: { $regex: new RegExp(`^${username}$`, 'i') } }] });
-            if (existingUser) return res.render('client/register', { error: 'رقم الهاتف أو اسم المستخدم مسجل بالفعل. يرجى اختيار بيانات أخرى.', success: false, refCode: null });
+            if (existingRequest) return fail('يوجد طلب تسجيل سابق لهذا الرقم. يرجى انتظار المراجعة.');
+            const existingUser = await User.findOne({ $or: [{ phone }, { webUsername: { $regex: new RegExp(`^${username}$`, 'i') } }] });
+            if (existingUser) return fail('رقم الهاتف أو اسم المستخدم مسجل بالفعل. يرجى اختيار بيانات أخرى.');
 
             const regRequest = await RegistrationRequest.create({
                 accountType, companyName, fullName, phone, address, companyEmail, username, password,
@@ -250,7 +292,7 @@ exports.postRegister = async (req, res) => {
                 result: 'معلق',
                 metadata: { accountType, phone, regRequestId: regRequest._id }
             });
-            return res.render('client/register', { error: null, success: true, refCode: regRequest.refCode, createdUsername: username, createdPassword: password });
+            return renderRegister(res, { error: null, success: true, refCode: regRequest.refCode, createdUsername: username, createdPassword: password });
         }
 
         // ======= حساب شركة =======
@@ -264,18 +306,18 @@ exports.postRegister = async (req, res) => {
             const password = getField(req.body.password);
             const passwordConfirm = getField(req.body.passwordConfirm);
 
-            if (!companyName) return res.render('client/register', { error: 'يرجى إدخال اسم الشركة القانوني.', success: false, refCode: null });
-            if (!companyContact) return res.render('client/register', { error: 'يرجى إدخال اسم مدير الشركة.', success: false, refCode: null });
-            if (!companyPhone || companyPhone.length < 10) return res.render('client/register', { error: 'يرجى إدخال رقم تواصل صحيح للشركة.', success: false, refCode: null });
-            if (!companyEmail || !/^\S+@\S+\.\S+$/.test(companyEmail)) return res.render('client/register', { error: 'يرجى إدخال بريد إلكتروني رسمي صحيح.', success: false, refCode: null });
-            if (!username || !/^[a-zA-Z0-9_]{3,20}@ahram\.com$/.test(username)) return res.render('client/register', { error: 'اسم المستخدم يجب أن يكون باللغة الإنجليزية وبدون مسافات.', success: false, refCode: null });
-            if (!password || password.length < 6) return res.render('client/register', { error: 'الرقم السري يجب أن يكون 6 أحرف على الأقل.', success: false, refCode: null });
-            if (password !== passwordConfirm) return res.render('client/register', { error: 'الرقم السري غير متطابق.', success: false, refCode: null });
+            if (!companyName) return fail('يرجى إدخال اسم الشركة القانوني.');
+            if (!companyContact) return fail('يرجى إدخال اسم مدير الشركة.');
+            if (!companyPhone || companyPhone.length < 10) return fail('يرجى إدخال رقم تواصل صحيح للشركة.');
+            if (!companyEmail || !/^\S+@\S+\.\S+$/.test(companyEmail)) return fail('يرجى إدخال بريد إلكتروني رسمي صحيح.');
+            if (!username || !/^[a-zA-Z0-9_]{3,20}@ahram\.com$/.test(username)) return fail('اسم المستخدم يجب أن يكون باللغة الإنجليزية وبدون مسافات.');
+            if (!password || password.length < 6) return fail('الرقم السري يجب أن يكون 6 أحرف على الأقل.');
+            if (password !== passwordConfirm) return fail('الرقم السري غير متطابق.');
 
             const existingCompanyReq = await RegistrationRequest.findOne({ companyPhone, status: 'pending' });
-            if (existingCompanyReq) return res.render('client/register', { error: `يوجد طلب تسجيل سابق لهذا الرقم. رقم الطلب: ${existingCompanyReq.refCode}`, success: false, refCode: null });
-            const existingUser = await User.findOne({ username: { $regex: new RegExp(`^${username}$`, 'i') } });
-            if (existingUser) return res.render('client/register', { error: 'اسم المستخدم مسجل بالفعل. يرجى اختيار اسم آخر.', success: false, refCode: null });
+            if (existingCompanyReq) return fail(`يوجد طلب تسجيل سابق لهذا الرقم. رقم الطلب: ${existingCompanyReq.refCode}`);
+            const existingUser = await User.findOne({ webUsername: { $regex: new RegExp(`^${username}$`, 'i') } });
+            if (existingUser) return fail('اسم المستخدم مسجل بالفعل. يرجى اختيار اسم آخر.');
 
             const regRequest = await RegistrationRequest.create({
                 accountType, companyName, companyContact, companyPhone, companyEmail, username, password,
@@ -291,12 +333,12 @@ exports.postRegister = async (req, res) => {
                 result: 'معلق',
                 metadata: { accountType, companyPhone, regRequestId: regRequest._id }
             });
-            return res.render('client/register', { error: null, success: true, refCode: regRequest.refCode, createdUsername: username, createdPassword: password });
+            return renderRegister(res, { error: null, success: true, refCode: regRequest.refCode, createdUsername: username, createdPassword: password });
         }
 
     } catch (e) {
         console.error('[Register] خطأ:', e.message, e.stack);
-        res.render('client/register', { error: 'حدث خطأ في النظام. يرجى المحاولة لاحقاً.', success: false, refCode: null, createdUsername: null, createdPassword: null });
+        renderRegisterError(req, res, 'حدث خطأ في النظام. يرجى المحاولة لاحقاً.');
     }
 };
 

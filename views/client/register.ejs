@@ -398,12 +398,10 @@
             <!-- ✍️ شاشة التسجيل -->
             <h2 class="page-title">انضم <span>إلينا</span></h2>
 
-            <% if (typeof error !== 'undefined' && error) { %>
-                <div class="custom-alert">
-                    <i class="fa-solid fa-circle-exclamation"></i>
-                    <div><%= error %></div>
-                </div>
-            <% } %>
+            <div class="custom-alert" id="registerClientAlert" style="<%= typeof error !== 'undefined' && error ? '' : 'display:none;' %>">
+                <i class="fa-solid fa-circle-exclamation"></i>
+                <div id="registerClientAlertText"><%= typeof error !== 'undefined' && error ? error : '' %></div>
+            </div>
 
             <form action="/client/register" method="POST" id="registerForm" autocomplete="off" novalidate>
                 <input type="hidden" name="latitude" id="latitudeInput">
@@ -667,6 +665,114 @@
     <script>
         let selectedType = '';
         let verifiedAgentCode = '';
+        const restoredFormData = <%- JSON.stringify(typeof formData !== 'undefined' ? formData : {}).replace(/</g, '\\u003c') %>;
+        const restoreNewAgentVerified = <%- JSON.stringify(typeof restoreNewAgentVerified !== 'undefined' ? restoreNewAgentVerified : false) %>;
+        const restoredAgentName = <%- JSON.stringify(typeof restoredAgentName !== 'undefined' ? restoredAgentName : '').replace(/</g, '\\u003c') %>;
+
+        function showRegisterError(message, focusId) {
+            const alert = document.getElementById('registerClientAlert');
+            const text = document.getElementById('registerClientAlertText');
+            if (text) text.textContent = message;
+            if (alert) {
+                alert.style.display = 'flex';
+                alert.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }
+            const field = focusId ? document.getElementById(focusId) : null;
+            if (field) setTimeout(() => field.focus({ preventScroll: true }), 250);
+            return false;
+        }
+
+        function clearRegisterError() {
+            const alert = document.getElementById('registerClientAlert');
+            const text = document.getElementById('registerClientAlertText');
+            if (alert) alert.style.display = 'none';
+            if (text) text.textContent = '';
+        }
+
+        function valueOf(id) {
+            return (document.getElementById(id)?.value || '').trim();
+        }
+
+        function isTripleName(value) {
+            return String(value || '').trim().split(/\s+/).filter(Boolean).length >= 3;
+        }
+
+        function isValidPhone(value) {
+            return String(value || '').replace(/\D/g, '').length >= 10;
+        }
+
+        function normalizedUsername(value) {
+            const username = String(value || '').trim();
+            if (!username) return '';
+            return username.includes('@') ? username : `${username}@ahram.com`;
+        }
+
+        function isValidUsername(value) {
+            return /^[a-zA-Z0-9_]{3,20}@ahram\.com$/.test(normalizedUsername(value));
+        }
+
+        function isValidEmail(value) {
+            return /^\S+@\S+\.\S+$/.test(String(value || '').trim());
+        }
+
+        function validateRegisterForm() {
+            clearRegisterError();
+            if (!selectedType) return showRegisterError('يرجى اختيار نوع الحساب.');
+
+            if (selectedType === 'direct') {
+                if (!isTripleName(valueOf('directFullName'))) return showRegisterError('يرجى إدخال الاسم الثلاثي كاملاً.', 'directFullName');
+                if (!isValidPhone(valueOf('directPhone'))) return showRegisterError('يرجى إدخال رقم هاتف صحيح لا يقل عن 10 أرقام.', 'directPhone');
+                if (!valueOf('directStoreName')) return showRegisterError('يرجى إدخال اسم المتجر أو الكيان.', 'directStoreName');
+                if (!valueOf('directAddress')) return showRegisterError('يرجى إدخال العنوان.', 'directAddress');
+                if (!isValidUsername(valueOf('directUsername'))) return showRegisterError('اسم المستخدم يجب أن يكون بالإنجليزية من 3 إلى 20 حرفًا وبدون مسافات.', 'directUsername');
+                if (valueOf('directPassword').length < 6) return showRegisterError('كلمة المرور يجب أن تكون 6 أحرف على الأقل.', 'directPassword');
+                if (valueOf('directPassword') !== valueOf('directPasswordConfirm')) return showRegisterError('تأكيد كلمة المرور غير مطابق.', 'directPasswordConfirm');
+                return true;
+            }
+
+            if (selectedType === 'company') {
+                if (!valueOf('companyName')) return showRegisterError('يرجى إدخال اسم الشركة القانوني.', 'companyName');
+                if (!valueOf('companyContact')) return showRegisterError('يرجى إدخال اسم مدير الشركة.', 'companyContact');
+                if (!isValidPhone(valueOf('companyPhone'))) return showRegisterError('يرجى إدخال رقم تواصل صحيح للشركة.', 'companyPhone');
+                if (!isValidEmail(valueOf('companyEmail'))) return showRegisterError('يرجى إدخال البريد الإلكتروني الرسمي بشكل صحيح.', 'companyEmail');
+                if (!isValidUsername(valueOf('companyUsername'))) return showRegisterError('اسم المستخدم يجب أن يكون بالإنجليزية من 3 إلى 20 حرفًا وبدون مسافات.', 'companyUsername');
+                if (valueOf('companyPassword').length < 6) return showRegisterError('كلمة المرور يجب أن تكون 6 أحرف على الأقل.', 'companyPassword');
+                if (valueOf('companyPassword') !== valueOf('companyPasswordConfirm')) return showRegisterError('تأكيد كلمة المرور غير مطابق.', 'companyPasswordConfirm');
+                return true;
+            }
+
+            if (selectedType === 'new') {
+                const code = valueOf('newAgentCode').replace(/\D/g, '').slice(0, 4);
+                const detailsVisible = document.getElementById('newClientDetails')?.classList.contains('visible');
+                if (!/^\d{4}$/.test(code)) return showRegisterError('رقم الوكيل يجب أن يكون 4 أرقام.', 'newAgentCode');
+                if (!verifiedAgentCode || verifiedAgentCode !== code || !detailsVisible) {
+                    showAgentLookupResult({ success: false, message: 'يرجى التحقق من رقم الوكيل والمتابعة قبل إرسال الطلب.', name: '' });
+                    return showRegisterError('يرجى التحقق من رقم الوكيل ثم الضغط على متابعة التسجيل.', 'newAgentCode');
+                }
+                if (!isTripleName(valueOf('newFullName'))) return showRegisterError('يرجى إدخال اسم العميل الثلاثي.', 'newFullName');
+                if (!isValidPhone(valueOf('newPhone'))) return showRegisterError('يرجى إدخال رقم هاتف صحيح.', 'newPhone');
+                if (!isValidUsername(valueOf('newUsername'))) return showRegisterError('اسم المستخدم يجب أن يكون بالإنجليزية من 3 إلى 20 حرفًا وبدون مسافات.', 'newUsername');
+                if (!valueOf('nationalityInput')) return showRegisterError('يرجى اختيار الجنسية.');
+                if (!valueOf('newCity')) return showRegisterError('يرجى اختيار المدينة.', 'newCity');
+                if (valueOf('newPassword').length < 6) return showRegisterError('كلمة المرور يجب أن تكون 6 أحرف على الأقل.', 'newPassword');
+                if (valueOf('newPassword') !== valueOf('newPasswordConfirm')) return showRegisterError('تأكيد كلمة المرور غير مطابق.', 'newPasswordConfirm');
+                return true;
+            }
+
+            if (selectedType === 'agent') {
+                if (!valueOf('agentCompanyName')) return showRegisterError('يرجى إدخال اسم الشركة.', 'agentCompanyName');
+                if (!isTripleName(valueOf('agentFullName'))) return showRegisterError('يرجى إدخال اسم الوكيل الثلاثي.', 'agentFullName');
+                if (!isValidPhone(valueOf('agentPhone'))) return showRegisterError('يرجى إدخال رقم هاتف صحيح.', 'agentPhone');
+                if (!valueOf('agentAddress')) return showRegisterError('يرجى إدخال العنوان.', 'agentAddress');
+                if (!isValidEmail(valueOf('agentEmail'))) return showRegisterError('يرجى إدخال بريد إلكتروني رسمي صحيح.', 'agentEmail');
+                if (!isValidUsername(valueOf('agentUsername'))) return showRegisterError('اسم المستخدم يجب أن يكون بالإنجليزية من 3 إلى 20 حرفًا وبدون مسافات.', 'agentUsername');
+                if (valueOf('agentPassword').length < 6) return showRegisterError('كلمة المرور يجب أن تكون 6 أحرف على الأقل.', 'agentPassword');
+                if (valueOf('agentPassword') !== valueOf('agentPasswordConfirm')) return showRegisterError('تأكيد كلمة المرور غير مطابق.', 'agentPasswordConfirm');
+                return true;
+            }
+
+            return showRegisterError('يرجى اختيار نوع حساب صحيح.');
+        }
 
         function setNewClientDetailsVisible(visible) {
             const details = document.getElementById('newClientDetails');
@@ -712,6 +818,10 @@
             document.getElementById('accountTypeInput').value = type;
 
             document.querySelectorAll('.form-section').forEach(s => {
+                const isActiveSection = s.id === 'section-' + type;
+                s.querySelectorAll('input, select, textarea').forEach(field => {
+                    field.disabled = !isActiveSection;
+                });
                 s.classList.remove('visible');
                 setTimeout(() => { if(!s.classList.contains('visible')) s.style.display = 'none'; }, 300);
             });
@@ -837,19 +947,95 @@
             );
         }
 
+        document.getElementById('registerForm')?.addEventListener('input', clearRegisterError);
+
         document.getElementById('registerForm')?.addEventListener('submit', function(e) {
-            if (selectedType === 'new') {
-                const code = (document.getElementById('newAgentCode')?.value || '').replace(/\D/g, '').slice(0, 4);
-                if (!verifiedAgentCode || verifiedAgentCode !== code || !document.getElementById('newClientDetails')?.classList.contains('visible')) {
-                    e.preventDefault();
-                    showAgentLookupResult({ success: false, message: 'يرجى التحقق من رقم الوكيل والمتابعة قبل إرسال الطلب.', name: '' });
-                    return;
-                }
+            if (!validateRegisterForm()) {
+                e.preventDefault();
+                return;
             }
             const btn = document.getElementById('submitBtn');
-            btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> جاري الإرسال...';
-            btn.style.pointerEvents = 'none';
+            if (btn) {
+                btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> جاري الإرسال...';
+                btn.style.pointerEvents = 'none';
+            }
         });
+
+        function setFieldValue(id, value) {
+            const field = document.getElementById(id);
+            if (!field || typeof value !== 'string') return;
+            field.value = value;
+        }
+
+        function restoreRegisterFormData() {
+            const type = restoredFormData.accountType;
+            if (!type || !['direct', 'company', 'new', 'agent'].includes(type)) return;
+
+            const typeButton = document.querySelector(`.account-type-btn[data-type="${type}"]`);
+            if (typeButton) selectAccountType(typeButton, type);
+
+            const restoreMaps = {
+                direct: {
+                    directFullName: 'fullName',
+                    directPhone: 'phone',
+                    directStoreName: 'storeName',
+                    directAddress: 'address',
+                    directUsername: 'username'
+                },
+                company: {
+                    companyName: 'companyName',
+                    companyContact: 'companyContact',
+                    companyPhone: 'companyPhone',
+                    companyEmail: 'companyEmail',
+                    companyUsername: 'username'
+                },
+                new: {
+                    newAgentCode: 'agentCode',
+                    newFullName: 'newFullName',
+                    newPhone: 'newPhone',
+                    newUsername: 'newUsername',
+                    newCity: 'newCity'
+                },
+                agent: {
+                    agentCompanyName: 'agentCompanyName',
+                    agentFullName: 'agentFullName',
+                    agentPhone: 'agentPhone',
+                    agentAddress: 'agentAddress',
+                    agentEmail: 'agentEmail',
+                    agentUsername: 'agentUsername'
+                }
+            };
+
+            Object.entries(restoreMaps[type] || {}).forEach(([id, fieldName]) => {
+                setFieldValue(id, restoredFormData[fieldName]);
+            });
+
+            if (type === 'new') {
+                const nationality = restoredFormData.nationality;
+                if (nationality) {
+                    const nationalityButton = document.querySelector(`.nationality-btn[data-nat="${nationality}"]`);
+                    if (nationalityButton) selectNationality(nationalityButton, nationality);
+                    else setFieldValue('nationalityInput', nationality);
+                }
+
+                const code = valueOf('newAgentCode').replace(/\D/g, '').slice(0, 4);
+                if (code && restoreNewAgentVerified) {
+                    verifiedAgentCode = code;
+                    showAgentLookupResult({
+                        success: true,
+                        message: 'تم التحقق من الوكيل',
+                        name: restoredAgentName || 'وكيل معتمد'
+                    });
+                    setNewClientDetailsVisible(true);
+                    const submitBtn = document.getElementById('submitBtn');
+                    if (submitBtn) submitBtn.disabled = false;
+                } else if (code) {
+                    setNewClientDetailsVisible(true);
+                }
+            }
+        }
+
+        restoreRegisterFormData();
     </script>
 </body>
 </html>

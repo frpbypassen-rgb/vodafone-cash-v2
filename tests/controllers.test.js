@@ -88,9 +88,50 @@ describe('Client Auth Controller Tests', () => {
         req.session.isClientLoggedIn = false;
         clientAuthController.getRegister(req, res);
         expect(res.set).toHaveBeenCalledWith('Cache-Control', 'no-store, no-cache, must-revalidate, private');
-        expect(res.render).toHaveBeenCalledWith('client/register', {
-            error: null, success: false, refCode: null, createdUsername: null, createdPassword: null
-        });
+        expect(res.render).toHaveBeenCalledWith('client/register', expect.objectContaining({
+            error: null,
+            success: false,
+            refCode: null,
+            createdUsername: null,
+            createdPassword: null,
+            formData: {},
+            restoreNewAgentVerified: false,
+            restoredAgentName: ''
+        }));
+        const viewData = res.render.mock.calls[0][1];
+        expect(Array.isArray(viewData.libyanCities)).toBe(true);
+        expect(viewData.libyanCities.length).toBeGreaterThan(0);
+    });
+
+    test('postRegister - يجب حفظ بيانات التسجيل غير الحساسة عند خطأ التحقق', async () => {
+        req.body = {
+            accountType: 'new',
+            agentCode: '1234',
+            newFullName: 'أحمد علي',
+            newPhone: '0912345678',
+            newUsername: 'ahmed_ali',
+            nationality: 'libyan',
+            newCity: 'طرابلس',
+            newPassword: 'secret1',
+            newPasswordConfirm: 'secret2'
+        };
+
+        await clientAuthController.postRegister(req, res);
+
+        expect(res.render).toHaveBeenCalledWith('client/register', expect.objectContaining({
+            success: false,
+            refCode: null,
+            formData: expect.objectContaining({
+                accountType: 'new',
+                agentCode: '1234',
+                newFullName: 'أحمد علي',
+                newPhone: '0912345678',
+                newUsername: 'ahmed_ali'
+            })
+        }));
+        const viewData = res.render.mock.calls[0][1];
+        expect(viewData.formData.newPassword).toBeUndefined();
+        expect(viewData.formData.newPasswordConfirm).toBeUndefined();
     });
 
     test('logout - يجب تدمير الجلسة وإعادة التوجيه لصفحة الدخول', () => {
