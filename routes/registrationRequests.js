@@ -104,7 +104,10 @@ router.post('/registration-requests/:id/approve', requireAuth, requireMaster, as
                 companyId: company._id,
                 webUsername: regReq.username,
                 webPassword: regReq.password,
+                role: 'owner',
                 canViewAllReports: true,
+                canManageCompany: true,
+                canCreateCompanyStaff: true,
                 status: 'active'
             });
 

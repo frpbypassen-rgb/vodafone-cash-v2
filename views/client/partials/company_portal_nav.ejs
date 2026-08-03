@@ -1,0 +1,33 @@
+<nav class="topbar">
+    <div class="container topbar-inner">
+        <a href="/client/dashboard" class="brand-lockup text-decoration-none">
+            <img src="/images/logo.jpeg" alt="Power Pay AL-Ahram" class="brand-logo" onerror="this.onerror=null; this.src='/images/logo.jpg';">
+            <span>
+                <span class="brand-title d-block"><%= company.name %></span>
+                <span class="brand-subtitle d-block"><%= roleLabel %> - <%= account.name %></span>
+            </span>
+        </a>
+        <div class="nav-actions">
+            <% if (canViewBalance) { %>
+                <span class="balance-chip">
+                    <i class="fa-solid fa-wallet"></i>
+                    <span class="mono-num" dir="ltr"><%= Number(company.balance || 0).toFixed(2) %> LYD</span>
+                </span>
+            <% } %>
+            <a href="/client/reports" class="nav-link-btn" title="التقارير">
+                <i class="fa-solid fa-chart-pie"></i>
+                <span>التقارير</span>
+            </a>
+            <a href="/client/support" class="nav-link-btn" title="الدعم الفني">
+                <i class="fa-solid fa-headset"></i>
+                <span>الدعم</span>
+            </a>
+            <button type="button" class="icon-btn" onclick="toggleTheme()" title="تغيير المظهر">
+                <i class="fa-solid fa-moon" id="themeIcon"></i>
+            </button>
+            <a href="/client/logout" class="icon-btn logout-btn" title="خروج">
+                <i class="fa-solid fa-power-off"></i>
+            </a>
+        </div>
+    </div>
+</nav>

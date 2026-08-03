@@ -44,6 +44,16 @@ const COMPANY_OWNER_PERMISSIONS = Object.freeze([
     'company.reports.read_all'
 ]);
 
+const COMPANY_MANAGER_PERMISSIONS = Object.freeze([
+    ...CLIENT_PERMISSIONS,
+    'company.dashboard.read',
+    'company.employees.read',
+    'company.employees.update_status',
+    'company.employees.update_permissions',
+    'company.reports.read',
+    'company.reports.read_all'
+]);
+
 const COMPANY_EMPLOYEE_PERMISSIONS = Object.freeze([
     ...CLIENT_PERMISSIONS,
     'company.dashboard.read',
@@ -110,11 +120,17 @@ const resolveCompanyIdentity = (account) => {
         };
     }
 
-    const isOwner = role === 'owner' || account.canViewAllReports === true;
+    const isLegacyOwner = role !== 'accountant'
+        && account.canViewAllReports === true
+        && account.canManageCompany !== true;
+    const isOwner = role === 'owner' || account.canCreateCompanyStaff === true || isLegacyOwner;
+    const isManager = isOwner || account.canManageCompany === true;
     return {
-        persona: isOwner ? 'companyOwner' : 'companyEmployee',
-        role: isOwner ? 'owner' : 'employee',
-        permissions: isOwner ? [...COMPANY_OWNER_PERMISSIONS] : [...COMPANY_EMPLOYEE_PERMISSIONS]
+        persona: isOwner ? 'companyOwner' : (isManager ? 'companyManager' : 'companyEmployee'),
+        role: isOwner ? 'owner' : (isManager ? 'manager' : 'employee'),
+        permissions: isOwner
+            ? [...COMPANY_OWNER_PERMISSIONS]
+            : (isManager ? [...COMPANY_MANAGER_PERMISSIONS] : [...COMPANY_EMPLOYEE_PERMISSIONS])
     };
 };
 

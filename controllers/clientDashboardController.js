@@ -11,6 +11,7 @@ const StoreProduct = require('../models/StoreProduct');
 const Card = require('../models/Card');
 const { updateBalanceWithLedger } = require('../services/walletService');
 const { getServiceRatesForTier, applyRateMargin } = require('../utils/rateHelper');
+const clientCompanyController = require('./clientCompanyController');
 
 exports.getDashboard = async (req, res) => {
     try {
@@ -19,6 +20,10 @@ exports.getDashboard = async (req, res) => {
         const account = await Model.findById(req.session.clientId);
         if (!account) return res.redirect('/client/logout');
         if (account.status && account.status !== 'active') return res.redirect('/client/logout');
+
+        if (req.session.accountType === 'company') {
+            return clientCompanyController.renderCompanyDashboard(req, res, account);
+        }
 
         const search = req.query.search ? req.query.search.trim() : '';
         let targetDate = req.query.date;
@@ -301,6 +306,10 @@ exports.getApiTransactions = async (req, res) => {
             else { tier = account.tier || 1; }
             serviceRates = getServiceRatesForTier(tier, set);
             currentRate = serviceRates.vodafone;
+        }
+
+        if (req.session.accountType === 'company' && !clientCompanyController.companyRoleHelpers.canViewCompanyBalance(account)) {
+            availableBalance = null;
         }
 
         const mappedTransactions = transactions.map(t => {

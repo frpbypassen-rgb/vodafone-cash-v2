@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<%- include('partials/company_portal_head', { title: 'واجهة المحاسب' }) %>
+<body>
+    <%- include('partials/company_portal_nav') %>
+
+    <main class="shell">
+        <section class="role-hero">
+            <div>
+                <div class="eyebrow"><i class="fa-solid fa-calculator"></i>واجهة المحاسب</div>
+                <h1 class="page-title">المركز المالي للشركة</h1>
+                <p class="page-subtitle"><%= company.name %> - متابعة الرصيد، الإيداعات، وحركة العمليات حسب الفترة.</p>
+            </div>
+            <div class="toolbar">
+                <a href="/client/reports" class="primary-btn"><i class="fa-solid fa-chart-line"></i>التقرير الشامل</a>
+                <a href="/client/support" class="secondary-btn"><i class="fa-solid fa-headset"></i>الدعم</a>
+            </div>
+        </section>
+
+        <%- include('partials/company_stats') %>
+
+        <section class="layout-grid">
+            <div>
+                <%- include('partials/company_transactions_table', { showFilters: true }) %>
+            </div>
+            <aside class="panel">
+                <div class="panel-heading">
+                    <h2 class="panel-title"><i class="fa-solid fa-scale-balanced text-primary"></i>ملخص مالي</h2>
+                    <span class="small-muted"><%= dateLabel %></span>
+                </div>
+                <div class="panel-body">
+                    <div class="staff-list">
+                        <div class="staff-item">
+                            <div class="small-muted">إجمالي التكلفة</div>
+                            <div class="metric-value mono-num" dir="ltr"><%= Number(totals.totalLYD || 0).toFixed(3) %> LYD</div>
+                        </div>
+                        <div class="staff-item">
+                            <div class="small-muted">صافي الإيداعات والخصومات</div>
+                            <div class="metric-value mono-num" dir="ltr"><%= Number(totals.deposits || 0).toFixed(2) %> LYD</div>
+                        </div>
+                        <div class="staff-item">
+                            <div class="small-muted">العمليات الملغية أو المرفوضة</div>
+                            <div class="metric-value mono-num"><%= totals.cancelledCount %></div>
+                        </div>
+                    </div>
+                </div>
+            </aside>
+        </section>
+    </main>
+
+    <%- include('partials/company_portal_scripts') %>
+</body>
+</html>

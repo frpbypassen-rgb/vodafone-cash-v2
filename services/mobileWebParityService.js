@@ -200,9 +200,6 @@ async function getClientReports({ userId, accountType, dateType, dateValue, tena
 
     if (isEmployee) {
         baseQuery.companyId = account.companyId;
-        if (!canViewAll) {
-            baseQuery.employeeName = account.name;
-        }
     } else if (isSubAccount) {
         baseQuery.subAccountId = account._id;
         baseQuery.isSubAccountTx = true;

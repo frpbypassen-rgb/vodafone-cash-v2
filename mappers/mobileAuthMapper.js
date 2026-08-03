@@ -14,6 +14,7 @@ const REQUIRED_PERSONAS = new Set([
     'agentClient',
     'companyOwner',
     'companyEmployee',
+    'companyManager',
     'companyAccountant',
     'agentOwner',
     'agentEmployee',

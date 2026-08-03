@@ -1,0 +1,93 @@
+<%
+    const formatMoney = (value, digits = 2) => Number(value || 0).toLocaleString('en-US', {
+        minimumFractionDigits: digits,
+        maximumFractionDigits: digits
+    });
+    const formatDate = (value) => {
+        const dt = new Date(value);
+        return {
+            date: dt.toLocaleDateString('en-GB'),
+            time: dt.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true })
+        };
+    };
+%>
+
+<div class="panel">
+    <div class="panel-heading">
+        <h2 class="panel-title"><i class="fa-solid fa-list-check text-primary"></i>سجل عمليات الشركة</h2>
+        <% if (typeof showFilters === 'undefined' || showFilters) { %>
+            <form method="GET" action="/client/dashboard" class="filter-row">
+                <input type="text" name="search" class="form-control" placeholder="بحث" value="<%= search || '' %>">
+                <% if (showMonth) { %>
+                    <input type="month" name="month" class="form-control mono-num" value="<%= targetMonth || '' %>" dir="ltr">
+                <% } else { %>
+                    <input type="date" name="date" class="form-control mono-num" value="<%= targetDate || '' %>" dir="ltr">
+                <% } %>
+                <button type="submit" class="secondary-btn"><i class="fa-solid fa-filter"></i>عرض</button>
+            </form>
+        <% } else { %>
+            <span class="small-muted"><%= dateLabel %></span>
+        <% } %>
+    </div>
+
+    <% if (!transactions.length) { %>
+        <div class="empty-state">
+            <div>
+                <i class="fa-regular fa-folder-open fa-2x mb-2"></i>
+                <div>لا توجد عمليات في هذه الفترة</div>
+            </div>
+        </div>
+    <% } else { %>
+        <div class="table-responsive">
+            <table class="company-table">
+                <thead>
+                    <tr>
+                        <th>رقم العملية</th>
+                        <th>الخدمة</th>
+                        <th>المبلغ</th>
+                        <th>الحساب / الهاتف</th>
+                        <th>الحالة</th>
+                        <th>الموظف</th>
+                        <th>الوقت</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <% transactions.forEach((tx) => {
+                        const when = formatDate(tx.createdAt);
+                        const statusClass = `st-${tx.status || 'pending'}`;
+                        const serviceLabel = serviceLabels[tx.transferType] || tx.transferType || 'محافظ كاش';
+                        const destination = tx.vodafoneNumber || tx.accountNumber || tx.accountName || '---';
+                    %>
+                        <tr>
+                            <td>
+                                <div class="mono-num" dir="ltr">#<%= tx.customId || String(tx._id).slice(-6) %></div>
+                                <% if (tx.cancellationNumber) { %>
+                                    <div class="small-muted mono-num" dir="ltr"><%= tx.cancellationNumber %></div>
+                                <% } %>
+                            </td>
+                            <td><%= serviceLabel %></td>
+                            <td>
+                                <div class="mono-num" dir="ltr"><%= formatMoney(tx.amount, 2) %> EGP</div>
+                                <% if (canViewBalance && tx.costLYD) { %>
+                                    <div class="small-muted mono-num" dir="ltr"><%= formatMoney(tx.costLYD, 3) %> LYD</div>
+                                <% } %>
+                            </td>
+                            <td class="mono-num" dir="ltr"><%= destination %></td>
+                            <td><span class="status-pill <%= statusClass %>"><%= statusLabels[tx.status] || tx.status || 'قيد الانتظار' %></span></td>
+                            <td>
+                                <%= tx.employeeName || '---' %>
+                                <% if (tx.subAccountName) { %>
+                                    <div class="small-muted"><%= tx.subAccountName %></div>
+                                <% } %>
+                            </td>
+                            <td>
+                                <div class="mono-num" dir="ltr"><%= when.date %></div>
+                                <div class="small-muted mono-num" dir="ltr"><%= when.time %></div>
+                            </td>
+                        </tr>
+                    <% }) %>
+                </tbody>
+            </table>
+        </div>
+    <% } %>
+</div>

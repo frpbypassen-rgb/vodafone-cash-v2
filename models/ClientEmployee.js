@@ -14,7 +14,10 @@ const clientEmployeeSchema = new mongoose.Schema({
     otpCode: { type: String },
     otpExpires: { type: Date },
     role: { type: String, enum: ['owner', 'employee', 'accountant'], default: 'employee' },
-    canViewAllReports: { type: Boolean, default: false } // السماح برؤية جميع تقارير الشركة
+    canViewAllReports: { type: Boolean, default: false }, // السماح برؤية جميع تقارير الشركة
+    canManageCompany: { type: Boolean, default: false }, // صلاحيات مدير تشغيل بدون إنشاء حسابات
+    canCreateCompanyStaff: { type: Boolean, default: false }, // مالك الشركة فقط ينشئ حسابات الموظفين
+    lastOtpDate: { type: String }
 }, { timestamps: true });
 
 // 🔐 تشفير كلمة المرور قبل الحفظ

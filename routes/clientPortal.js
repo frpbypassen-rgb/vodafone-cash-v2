@@ -55,6 +55,7 @@ const requireClientAuth = async (req, res, next) => {
 const clientAuthController = require('../controllers/clientAuthController');
 const clientDashboardController = require('../controllers/clientDashboardController');
 const clientTransactionController = require('../controllers/clientTransactionController');
+const clientCompanyController = require('../controllers/clientCompanyController');
 
 router.get('/', (req, res) => {
     if (req.session.isClientLoggedIn && req.session.clientId) {
@@ -84,6 +85,10 @@ router.get('/logout', clientAuthController.logout);
 // ===============================================
 router.get('/dashboard', requireClientAuth, clientDashboardController.getDashboard);
 router.get('/api/transactions', requireClientAuth, clientDashboardController.getApiTransactions);
+router.get('/company/staff', requireClientAuth, clientCompanyController.getStaffManagement);
+router.post('/company/staff/add', requireClientAuth, clientCompanyController.postAddStaff);
+router.post('/company/staff/:id/toggle', requireClientAuth, clientCompanyController.postToggleStaff);
+router.post('/company/staff/:id/password', requireClientAuth, clientCompanyController.postResetStaffPassword);
 router.get('/api/notifications/unread', requireClientAuth, async (req, res) => {
     try {
         const userIds = await resolveClientNotificationUserIds({

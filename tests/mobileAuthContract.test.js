@@ -262,6 +262,46 @@ describe('🔐 Contract Tests: Auth (Mobile API)', () => {
         expect(scanRawResponseFields(res.body)).toEqual([]);
     });
 
+    test('POST /login should return companyManager persona without staff creation for delegated managers', async () => {
+        const mockEmployee = {
+            _id: 'company-manager-id',
+            name: 'Company Operations Manager',
+            phone: '01022222224',
+            status: 'active',
+            companyId: 'company-id-123',
+            role: 'employee',
+            canViewAllReports: true,
+            canManageCompany: true,
+            canCreateCompanyStaff: false,
+            webPassword: '$2b$12$hashed'
+        };
+        const mockCompany = {
+            _id: 'company-id-123',
+            name: 'Ahram Company',
+            balance: 25000,
+            tier: 2
+        };
+
+        ClientEmployee.findOne.mockResolvedValue(mockEmployee);
+        ClientBot.findById.mockResolvedValue(mockCompany);
+
+        const res = await request(app)
+            .post('/login')
+            .send({ username: 'company-manager', password: 'password123' });
+
+        expect(res.status).toBe(200);
+        expect(res.body.success).toBe(true);
+        expect(res.body.persona).toBe('companyManager');
+        expect(res.body.role).toBe('manager');
+        expect(res.body.permissions).toEqual(expect.arrayContaining([
+            'company.dashboard.read',
+            'company.employees.read',
+            'company.reports.read_all'
+        ]));
+        expect(res.body.permissions).not.toContain('company.employees.create');
+        expect(scanRawResponseFields(res.body)).toEqual([]);
+    });
+
     test('T014 & T015: POST /login should return official executor context only under context', async () => {
         const mockExecutor = {
             _id: 'executor-id-123',

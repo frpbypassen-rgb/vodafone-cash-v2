@@ -1,0 +1,59 @@
+<% if (canTransfer) { %>
+<div class="modal fade" id="companyTransferModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title fw-bold">
+                    <i class="fa-solid fa-paper-plane text-primary ms-2"></i>إرسال عملية تحويل
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="إغلاق"></button>
+            </div>
+            <form id="companyTransferForm">
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label fw-bold small text-muted">نوع الخدمة</label>
+                        <select class="form-select" name="type" required>
+                            <option value="كاش">محافظ كاش</option>
+                            <option value="بريد حساب">بريد حساب</option>
+                            <option value="بريد بطاقة">بريد بطاقة</option>
+                            <option value="حساب بنكي">حساب بنكي</option>
+                            <option value="سيفا النيجر">سيفا النيجر</option>
+                            <option value="بنكك السودان">بنكك السودان</option>
+                        </select>
+                    </div>
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold small text-muted">رقم الهاتف / الحساب</label>
+                            <input type="text" class="form-control mono-num text-center" name="phone" dir="ltr" required>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold small text-muted">المبلغ بالمصري</label>
+                            <input type="number" class="form-control mono-num text-center" name="amount" step="0.01" min="1" dir="ltr" required>
+                        </div>
+                    </div>
+                    <div class="row g-3 mt-0">
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold small text-muted">اسم المستفيد</label>
+                            <input type="text" class="form-control" name="name" autocomplete="off">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold small text-muted">رقم إضافي / حساب</label>
+                            <input type="text" class="form-control mono-num text-center" name="number" dir="ltr" autocomplete="off">
+                        </div>
+                    </div>
+                    <div class="mt-3">
+                        <label class="form-label fw-bold small text-muted">ملاحظة العميل</label>
+                        <input type="text" class="form-control" name="notes" autocomplete="off">
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="secondary-btn" data-bs-dismiss="modal">إلغاء</button>
+                    <button type="submit" class="primary-btn" id="companyTransferSubmit">
+                        <i class="fa-solid fa-check"></i>إرسال العملية
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+<% } %>
