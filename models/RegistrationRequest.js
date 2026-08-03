@@ -27,13 +27,15 @@ const registrationRequestSchema = new mongoose.Schema({
     companyContact: { type: String }, // اسم مدير الشركة
     companyPhone: { type: String },
     companyEmail: { type: String },
-    agentCode: { type: String, sparse: true }, // رقم مخصص للوكيل (8 أرقام)
+    agentCode: { type: String, sparse: true }, // رقم حساب الوكيل (4 أرقام)
+    agentId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+    agentName: { type: String },
 
     // حالة الطلب
-    status: { 
-        type: String, 
-        default: 'pending', 
-        enum: ['pending', 'approved', 'rejected'] 
+    status: {
+        type: String,
+        default: 'pending',
+        enum: ['pending', 'pending_agent', 'approved', 'rejected']
     },
 
     // ملاحظات الإدارة

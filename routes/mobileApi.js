@@ -6,6 +6,8 @@ const User = require('../models/User');
 const ClientEmployee = require('../models/ClientEmployee');
 const ClientCompany = require('../models/ClientCompany');
 const Employee = require('../models/Employee');
+const AgentEmployee = require('../models/AgentEmployee');
+const SubAccount = require('../models/SubAccount');
 const ExecutorGroup = require('../models/ExecutorGroup');
 const Transaction = require('../models/Transaction');
 const Settings = require('../models/Settings');
@@ -13,6 +15,7 @@ const Ledger = require('../models/Ledger');
 const RegistrationRequest = require('../models/RegistrationRequest');
 const SupportTicket = require('../models/SupportTicket');
 const Notification = require('../models/Notification');
+const Admin = require('../models/Admin');
 
 const { authenticateJWT } = require('../middlewares/jwtAuth');
 const correlationId = require('../middlewares/correlationId');
@@ -216,7 +219,10 @@ router.use(apiLimiter);
  *         description: الحساب مقفل مؤقتاً لمحاولات خاطئة
  */
 const checkRegistrationUniqueness = async (phone, username) => {
-    const pendingRequest = await RegistrationRequest.findOne({ phone, status: 'pending' });
+    const pendingRequest = await RegistrationRequest.findOne({
+        status: { $in: ['pending', 'pending_agent'] },
+        $or: [{ phone }, { username }]
+    });
     if (pendingRequest) {
         return {
             success: false,
@@ -232,8 +238,24 @@ const checkRegistrationUniqueness = async (phone, username) => {
         };
     }
 
+    const subAccount = await SubAccount.findOne({ $or: [{ phone }, { webUsername: username }] });
+    if (subAccount) {
+        return {
+            success: false,
+            message: 'رقم الهاتف أو اسم المستخدم مسجل بالفعل. يرجى تسجيل الدخول أو التواصل مع الإدارة.'
+        };
+    }
+
     const clientEmp = await ClientEmployee.findOne({ $or: [{ phone }, { webUsername: username }] });
     if (clientEmp) {
+        return {
+            success: false,
+            message: 'رقم الهاتف أو اسم المستخدم مسجل بالفعل. يرجى تسجيل الدخول أو التواصل مع الإدارة.'
+        };
+    }
+
+    const agentEmp = await AgentEmployee.findOne({ $or: [{ phone }, { webUsername: username }] });
+    if (agentEmp) {
         return {
             success: false,
             message: 'رقم الهاتف أو اسم المستخدم مسجل بالفعل. يرجى تسجيل الدخول أو التواصل مع الإدارة.'
@@ -248,8 +270,68 @@ const checkRegistrationUniqueness = async (phone, username) => {
         };
     }
 
+    const admin = await Admin.findOne({ webUsername: username });
+    if (admin) {
+        return {
+            success: false,
+            message: 'رقم الهاتف أو اسم المستخدم مسجل بالفعل. يرجى تسجيل الدخول أو التواصل مع الإدارة.'
+        };
+    }
+
     return { success: true };
 };
+
+const normalizeMobileAgentCode = (value) => String(value || '').replace(/\D/g, '').slice(0, 4);
+
+const findMobileAgentByCode = async (agentCode) => {
+    const normalized = normalizeMobileAgentCode(agentCode);
+    if (!/^\d{4}$/.test(normalized)) return null;
+    return User.findOne({
+        role: 'agent',
+        status: 'active',
+        $or: [{ accountCode: normalized }, { agentCode: normalized }]
+    });
+};
+
+const buildAgentStaffTransactionQuery = async (agentStaffId) => {
+    const emp = await AgentEmployee.findById(agentStaffId);
+    if (!emp) return null;
+    const agent = await User.findById(emp.agentId);
+    if (!agent || agent.status !== 'active' || agent.role !== 'agent') return null;
+    const subAccountIds = await SubAccount
+        .find({ masterType: 'user', masterId: agent._id, status: { $ne: 'deleted' } })
+        .distinct('_id');
+
+    return {
+        $or: [
+            { userId: agent.phone, companyId: null },
+            { userId: agent.webUsername, companyId: null },
+            { userId: String(agent._id), companyId: null },
+            { subAccountId: { $in: subAccountIds } }
+        ].filter((condition) => {
+            if (condition.userId !== undefined) return Boolean(condition.userId);
+            return true;
+        })
+    };
+};
+
+router.get('/client/register/agent-lookup', async (req, res) => {
+    try {
+        const agent = await findMobileAgentByCode(req.query.code);
+        if (!agent) {
+            return sendMobileError(res, 404, 'INVALID_AGENT_CODE', 'رقم الوكيل غير صحيح أو غير نشط', req.correlationId);
+        }
+        return res.json({
+            success: true,
+            data: {
+                code: agent.accountCode || agent.agentCode,
+                name: agent.name || agent.webUsername
+            }
+        });
+    } catch (e) {
+        return sendServerError(res, req, 'تعذر التحقق من رقم الوكيل');
+    }
+});
 
 router.post('/client/register/direct', directRegisterValidator, async (req, res) => {
     try {
@@ -304,10 +386,11 @@ router.post('/client/register/direct', directRegisterValidator, async (req, res)
 
 router.post('/client/register/new', newRegisterValidator, async (req, res) => {
     try {
-        let { fullName, phone, storeName, address, username, password, agentCode } = req.body;
+        let { fullName, phone, city, nationality, username, password, agentCode } = req.body;
         if (username && !username.includes('@')) username += '@ahram.com';
 
-        const agent = await User.findOne({ agentCode, role: 'agent', status: 'active' });
+        agentCode = normalizeMobileAgentCode(agentCode);
+        const agent = await findMobileAgentByCode(agentCode);
         if (!agent) {
             return sendMobileError(res, 400, 'INVALID_AGENT_CODE', 'كود الوكيل المدخل غير صالح أو غير نشط بالنظام', req.correlationId);
         }
@@ -321,36 +404,39 @@ router.post('/client/register/new', newRegisterValidator, async (req, res) => {
             accountType: 'new',
             fullName,
             phone,
-            storeName,
-            address,
+            city,
+            nationality,
             username,
             password,
             agentCode,
+            agentId: agent._id,
+            agentName: agent.name || agent.webUsername,
             ipAddress: req.ip || req.headers['x-forwarded-for'] || 'unknown',
             userAgent: req.headers['user-agent'] || 'unknown',
-            status: 'pending'
+            status: 'pending_agent'
         });
 
         await logAction({
             action: 'USER_CREATED',
             req,
             performedByName: fullName || username || 'unknown',
-            result: 'معلق',
-            metadata: { accountType: 'new', phone, regRequestId: regRequest._id, agentCode }
+            result: 'معلق لدى الوكيل',
+            metadata: { accountType: 'new', phone, regRequestId: regRequest._id, agentCode, agentId: agent._id }
         });
 
         return res.status(200).json({
             success: true,
-            message: 'تم تقديم طلب التسجيل بنجاح، وهو قيد المراجعة من قبل الإدارة',
+            message: 'تم تقديم طلب التسجيل بنجاح، وهو قيد موافقة الوكيل',
             data: {
                 refCode: regRequest.refCode,
                 accountType: 'new',
                 fullName: regRequest.fullName,
                 phone: regRequest.phone,
-                storeName: regRequest.storeName,
-                address: regRequest.address,
+                city: regRequest.city,
+                nationality: regRequest.nationality,
                 username: regRequest.username,
                 agentCode: regRequest.agentCode,
+                agentName: regRequest.agentName,
                 status: regRequest.status,
                 createdAt: regRequest.createdAt.toISOString()
             }
@@ -421,14 +507,6 @@ router.post('/client/register/agent', agentRegisterValidator, async (req, res) =
             return sendMobileError(res, 400, 'REGISTRATION_FAILED', uniqueCheck.message, req.correlationId);
         }
 
-        let agentCode;
-        let codeExists = true;
-        while (codeExists) {
-            agentCode = Math.floor(10000000 + Math.random() * 90000000).toString();
-            const checkReq = await RegistrationRequest.findOne({ agentCode });
-            if (!checkReq) codeExists = false;
-        }
-
         const regRequest = await RegistrationRequest.create({
             accountType: 'agent',
             companyName,
@@ -440,7 +518,6 @@ router.post('/client/register/agent', agentRegisterValidator, async (req, res) =
             companyEmail,
             username,
             password,
-            agentCode,
             ipAddress: req.ip || req.headers['x-forwarded-for'] || 'unknown',
             userAgent: req.headers['user-agent'] || 'unknown',
             status: 'pending'
@@ -451,7 +528,7 @@ router.post('/client/register/agent', agentRegisterValidator, async (req, res) =
             req,
             performedByName: fullName || username || 'unknown',
             result: 'معلق',
-            metadata: { accountType: 'agent', phone, regRequestId: regRequest._id, agentCode }
+            metadata: { accountType: 'agent', phone, regRequestId: regRequest._id }
         });
 
         return res.status(200).json({
@@ -467,7 +544,6 @@ router.post('/client/register/agent', agentRegisterValidator, async (req, res) =
                 city: regRequest.city,
                 companyEmail: regRequest.companyEmail,
                 username: regRequest.username,
-                agentCode: regRequest.agentCode,
                 status: regRequest.status,
                 createdAt: regRequest.createdAt.toISOString()
             }
@@ -589,8 +665,14 @@ const buildHomeRateResponse = async (req, res, userId, accountType, settings) =>
             balance = user.balance || 0;
             tier = user.tier || 1;
         }
+    } else if (accountType === 'agent_staff') {
+        const emp = await AgentEmployee.findById(userId);
+        const agent = emp ? await User.findById(emp.agentId) : null;
+        if (agent) {
+            balance = agent.balance || 0;
+            tier = agent.tier || 1;
+        }
     } else if (accountType === 'sub_client') {
-        const SubAccount = require('../models/SubAccount');
         subAccount = await SubAccount.findById(userId);
         if (subAccount) {
             balance = subAccount.balance || 0;
@@ -1270,6 +1352,12 @@ router.get('/transaction/image/:id', authenticateJWT, async (req, res) => {
         } else if (accountType === 'client_company') {
             const emp = await ClientEmployee.findById(userId);
             if (emp && tx.companyId && tx.companyId.toString() === emp.companyId.toString()) hasAccess = true;
+        } else if (accountType === 'agent_staff') {
+            const agentQuery = await buildAgentStaffTransactionQuery(userId);
+            if (agentQuery) {
+                const scopedTx = await Transaction.exists({ _id: tx._id, ...agentQuery });
+                if (scopedTx) hasAccess = true;
+            }
         } else if (accountType === 'client_user') {
             const requesterIds = [userId, req.user.telegramId].filter(Boolean).map(String);
             if (requesterIds.includes(String(tx.userId))) hasAccess = true;
@@ -1505,6 +1593,11 @@ router.get('/client/transactions', authenticateJWT, async (req, res) => {
                 return sendMobileError(res, 404, 'USER_NOT_FOUND', 'المستخدم غير موجود', req.correlationId);
             }
             query = { companyId: emp.companyId };
+        } else if (accountType === 'agent_staff') {
+            query = await buildAgentStaffTransactionQuery(userId);
+            if (!query) {
+                return sendMobileError(res, 404, 'USER_NOT_FOUND', 'المستخدم غير موجود', req.correlationId);
+            }
         } else {
             return sendMobileError(res, 403, 'FORBIDDEN', 'صلاحيات غير كافية', req.correlationId);
         }
@@ -1554,7 +1647,7 @@ router.get('/client/transactions', authenticateJWT, async (req, res) => {
 router.get('/client/notifications', authenticateJWT, async (req, res) => {
     try {
         const { userId, accountType } = req.user;
-        if (!['client_user', 'client_company', 'sub_client'].includes(accountType)) {
+        if (!['client_user', 'client_company', 'sub_client', 'agent_staff'].includes(accountType)) {
             return sendMobileError(res, 403, 'FORBIDDEN', 'صلاحيات غير كافية', req.correlationId);
         }
 
@@ -1609,7 +1702,7 @@ router.get('/client/notifications', authenticateJWT, async (req, res) => {
 router.post('/client/notifications/:id/read', authenticateJWT, async (req, res) => {
     try {
         const { userId, accountType } = req.user;
-        if (!['client_user', 'client_company', 'sub_client'].includes(accountType)) {
+        if (!['client_user', 'client_company', 'sub_client', 'agent_staff'].includes(accountType)) {
             return sendMobileError(res, 403, 'FORBIDDEN', 'صلاحيات غير كافية', req.correlationId);
         }
 
@@ -1657,6 +1750,12 @@ router.get('/client/transactions/:id', authenticateJWT, async (req, res) => {
             const emp = await ClientEmployee.findById(userId);
             if (emp && tx.companyId && String(tx.companyId) === String(emp.companyId)) {
                 hasAccess = true;
+            }
+        } else if (accountType === 'agent_staff') {
+            const agentQuery = await buildAgentStaffTransactionQuery(userId);
+            if (agentQuery) {
+                const scopedTx = await Transaction.exists({ _id: tx._id, ...agentQuery });
+                if (scopedTx) hasAccess = true;
             }
         }
 

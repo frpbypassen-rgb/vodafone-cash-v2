@@ -6,8 +6,9 @@
 
 const User = require('../models/User');
 const ClientEmployee = require('../models/ClientEmployee');
+const AgentEmployee = require('../models/AgentEmployee');
 const Employee = require('../models/Employee');
-const ClientBot = require('../models/ClientBot');
+const ClientCompany = require('../models/ClientCompany');
 const bcrypt = require('bcryptjs');
 
 /**
@@ -52,7 +53,7 @@ const findByCredentials = async (username, password, tenantId) => {
         const isMatch = await _comparePassword(searchPass, empDoc.webPassword, ClientEmployee, empDoc._id);
         if (isMatch) {
             if (empDoc.status !== 'active') return { error: 'ACCOUNT_BANNED', accountType: 'client_company' };
-            const company = await ClientBot.findById(empDoc.companyId);
+            const company = await ClientCompany.findById(empDoc.companyId);
             return {
                 account: empDoc,
                 accountType: 'client_company',
@@ -63,7 +64,30 @@ const findByCredentials = async (username, password, tenantId) => {
         }
     }
 
-    // 3. فحص العميل الفردي (User)
+    // 3. فحص موظف الوكيل (AgentEmployee)
+    const agentEmpDoc = await AgentEmployee.findOne({
+        $or: [{ webUsername: searchUser }, { phone: username }]
+    });
+
+    if (agentEmpDoc) {
+        const isMatch = await _comparePassword(searchPass, agentEmpDoc.webPassword, AgentEmployee, agentEmpDoc._id);
+        if (isMatch) {
+            if (agentEmpDoc.status !== 'active') return { error: 'ACCOUNT_BANNED', accountType: 'agent_staff' };
+            const agent = await User.findById(agentEmpDoc.agentId);
+            if (!agent || agent.status !== 'active' || agent.role !== 'agent') {
+                return { error: 'ACCOUNT_BANNED', accountType: 'agent_staff' };
+            }
+            return {
+                account: agentEmpDoc,
+                accountType: 'agent_staff',
+                telegramId: null,
+                executorBotId: null,
+                balance: agent.balance
+            };
+        }
+    }
+
+    // 4. فحص العميل الفردي (User)
     const userQuery = {
         $or: [{ webUsername: searchUser }, { phone: username }]
     };
@@ -84,7 +108,7 @@ const findByCredentials = async (username, password, tenantId) => {
         }
     }
 
-    // 4. فحص الحساب التابع (SubAccount)
+    // 5. فحص الحساب التابع (SubAccount)
     const SubAccount = require('../models/SubAccount');
     const subQuery = {
         $or: [{ webUsername: searchUser }, { phone: username }]
@@ -169,6 +193,7 @@ const _getModel = (accountType) => {
     switch (accountType) {
         case 'executor': return Employee;
         case 'client_company': return ClientEmployee;
+        case 'agent_staff': return AgentEmployee;
         case 'sub_client': return require('../models/SubAccount');
         default: return User;
     }
@@ -181,6 +206,7 @@ const getModelName = (accountType) => {
     switch (accountType) {
         case 'executor': return 'Employee';
         case 'client_company': return 'ClientEmployee';
+        case 'agent_staff': return 'AgentEmployee';
         case 'sub_client': return 'SubAccount';
         default: return 'User';
     }

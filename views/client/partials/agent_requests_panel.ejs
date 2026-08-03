@@ -1,0 +1,75 @@
+<div class="panel" id="requests">
+    <div class="panel-heading">
+        <h2 class="panel-title"><i class="fa-solid fa-user-check text-primary"></i>طلبات العملاء الجدد</h2>
+        <span class="small-muted"><%= pendingRequests.length %> طلب معلق</span>
+    </div>
+    <div class="panel-body">
+        <% if (typeof query !== 'undefined' && query.requestSuccess) { %>
+            <div class="success-banner">
+                <i class="fa-solid fa-check-circle ms-1"></i>تم تحديث طلب العميل بنجاح.
+            </div>
+        <% } %>
+        <% if (typeof query !== 'undefined' && query.requestError) { %>
+            <div class="error-banner">
+                <i class="fa-solid fa-triangle-exclamation ms-1"></i>
+                <% if (query.requestError === 'duplicate') { %>
+                    رقم الهاتف أو اسم المستخدم مسجل بالفعل.
+                <% } else if (query.requestError === 'forbidden') { %>
+                    لا توجد صلاحية لاعتماد الطلبات.
+                <% } else if (query.requestError === 'notfound') { %>
+                    الطلب غير موجود أو تمت مراجعته سابقًا.
+                <% } else { %>
+                    تعذر تنفيذ الإجراء. حاول مرة أخرى.
+                <% } %>
+            </div>
+        <% } %>
+
+        <% if (!pendingRequests.length) { %>
+            <div class="empty-state">
+                <div>
+                    <i class="fa-regular fa-folder-open fa-2x mb-2"></i>
+                    <div>لا توجد طلبات عملاء معلقة</div>
+                </div>
+            </div>
+        <% } %>
+
+        <div class="staff-list">
+            <% pendingRequests.forEach((request) => { %>
+                <div class="staff-item">
+                    <div class="staff-main">
+                        <div>
+                            <div class="staff-name"><%= request.fullName %></div>
+                            <div class="staff-meta">
+                                <span dir="ltr"><%= request.username || '---' %></span>
+                                <span class="mx-1">|</span>
+                                <span dir="ltr"><%= request.phone || '---' %></span>
+                            </div>
+                            <div class="small-muted mt-1">
+                                <%= request.city || '---' %> - <%= request.nationality === 'egyptian' ? 'مصري' : 'ليبي' %>
+                            </div>
+                        </div>
+                        <div class="text-start">
+                            <span class="status-pill st-pending">قيد موافقة الوكيل</span>
+                            <div class="small-muted mono-num mt-1" dir="ltr"><%= request.refCode || String(request._id).slice(-8) %></div>
+                        </div>
+                    </div>
+                    <% if (canManageAgent) { %>
+                        <div class="staff-actions">
+                            <form action="/client/agent/registration-requests/<%= request._id %>/approve" method="POST">
+                                <button type="submit" class="mini-btn">
+                                    <i class="fa-solid fa-check"></i>قبول
+                                </button>
+                            </form>
+                            <form action="/client/agent/registration-requests/<%= request._id %>/reject" method="POST" class="d-flex gap-2 flex-wrap">
+                                <input type="text" name="notes" class="form-control" placeholder="سبب الرفض" style="min-height:34px; width: 160px;">
+                                <button type="submit" class="mini-btn">
+                                    <i class="fa-solid fa-xmark"></i>رفض
+                                </button>
+                            </form>
+                        </div>
+                    <% } %>
+                </div>
+            <% }) %>
+        </div>
+    </div>
+</div>

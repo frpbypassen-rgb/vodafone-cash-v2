@@ -48,6 +48,33 @@ jest.mock('../models/ClientCompany', () => {
     return M;
 });
 
+jest.mock('../models/SubAccount', () => {
+    const M = jest.fn();
+    M.findOne = jest.fn();
+    M.findById = jest.fn();
+    M.find = jest.fn();
+    M.distinct = jest.fn();
+    M.updateOne = jest.fn().mockResolvedValue({ modifiedCount: 1 });
+    M.modelName = 'SubAccount';
+    return M;
+});
+
+jest.mock('../models/AgentEmployee', () => {
+    const M = jest.fn();
+    M.findOne = jest.fn();
+    M.findById = jest.fn();
+    M.updateOne = jest.fn().mockResolvedValue({ modifiedCount: 1 });
+    M.modelName = 'AgentEmployee';
+    return M;
+});
+
+jest.mock('../models/Admin', () => {
+    const M = jest.fn();
+    M.findOne = jest.fn();
+    M.modelName = 'Admin';
+    return M;
+});
+
 jest.mock('../models/ExecutorGroup', () => {
     const M = jest.fn();
     M.findById = jest.fn();
@@ -67,7 +94,7 @@ jest.mock('../models/RegistrationRequest', () => {
     M.create = jest.fn().mockImplementation((data) => ({
         ...data,
         refCode: 'REG-2606-9999',
-        status: 'pending',
+        status: data.status || 'pending',
         createdAt: new Date()
     }));
     M.findOne = jest.fn();
@@ -171,6 +198,9 @@ jest.mock('bcryptjs', () => ({
 const User = require('../models/User');
 const Employee = require('../models/Employee');
 const ClientEmployee = require('../models/ClientEmployee');
+const SubAccount = require('../models/SubAccount');
+const AgentEmployee = require('../models/AgentEmployee');
+const Admin = require('../models/Admin');
 const RegistrationRequest = require('../models/RegistrationRequest');
 const SupportTicket = require('../models/SupportTicket');
 const Transaction = require('../models/Transaction');
@@ -198,6 +228,9 @@ describe('📱 Automated Tests: Mobile API Consolidation & Safety', () => {
         User.findById.mockResolvedValue({ _id: 'user-id-123', name: 'أحمد علي', phone: '0912345678', mfaEnabled: false });
         ClientEmployee.findOne.mockResolvedValue(null);
         ClientEmployee.findById.mockResolvedValue(null);
+        SubAccount.findOne.mockResolvedValue(null);
+        AgentEmployee.findOne.mockResolvedValue(null);
+        Admin.findOne.mockResolvedValue(null);
         
         const employeeQueryMock = {
             populate: jest.fn().mockReturnThis(),
@@ -309,11 +342,11 @@ describe('📱 Automated Tests: Mobile API Consolidation & Safety', () => {
             const payload = {
                 fullName: 'أحمد محمد علي',
                 phone: '0912345678',
-                storeName: 'متجر التميز',
-                address: 'شارع قصر بن غشير',
+                city: 'طرابلس',
+                nationality: 'libyan',
                 username: 'ahmed_referred',
                 password: 'password123',
-                agentCode: '88888888'
+                agentCode: '8888'
             };
 
             // Mock no agent found
@@ -332,17 +365,18 @@ describe('📱 Automated Tests: Mobile API Consolidation & Safety', () => {
             const payload = {
                 fullName: 'أحمد محمد علي',
                 phone: '0912345678',
-                storeName: 'متجر التميز',
-                address: 'شارع قصر بن غشير',
+                city: 'طرابلس',
+                nationality: 'libyan',
                 username: 'ahmed_referred',
                 password: 'password123',
-                agentCode: '12345678'
+                agentCode: '1234'
             };
 
             // Mock active agent found
             User.findOne.mockImplementation((query) => {
-                if (query && query.agentCode === '12345678') {
-                    return Promise.resolve({ _id: 'agent-123', role: 'agent', status: 'active' });
+                const hasCode = query && Array.isArray(query.$or) && query.$or.some((item) => item.accountCode === '1234' || item.agentCode === '1234');
+                if (hasCode) {
+                    return Promise.resolve({ _id: 'agent-123', role: 'agent', status: 'active', name: 'وكيل طرابلس', accountCode: '1234' });
                 }
                 return Promise.resolve(null);
             });
@@ -353,8 +387,9 @@ describe('📱 Automated Tests: Mobile API Consolidation & Safety', () => {
 
             expect(res.status).toBe(200);
             expect(res.body.success).toBe(true);
-            expect(res.body.data.status).toBe('pending');
-            expect(res.body.data.agentCode).toBe('12345678');
+            expect(res.body.data.status).toBe('pending_agent');
+            expect(res.body.data.agentCode).toBe('1234');
+            expect(res.body.data.agentName).toBe('وكيل طرابلس');
         });
 
         test('POST /client/register/company creates a pending company request', async () => {
@@ -377,7 +412,7 @@ describe('📱 Automated Tests: Mobile API Consolidation & Safety', () => {
             expect(res.body.data.companyName).toBe('شركة النجم الساطع');
         });
 
-        test('POST /client/register/agent generates code and registers a pending agent request', async () => {
+        test('POST /client/register/agent registers a pending agent request without provisional code', async () => {
             const payload = {
                 companyName: 'وكالة بنغازي للخدمات',
                 fullName: 'علي محمود حسن',
@@ -396,8 +431,7 @@ describe('📱 Automated Tests: Mobile API Consolidation & Safety', () => {
             expect(res.status).toBe(200);
             expect(res.body.success).toBe(true);
             expect(res.body.data.status).toBe('pending');
-            expect(res.body.data.agentCode).toBeDefined();
-            expect(res.body.data.agentCode.length).toBe(8);
+            expect(res.body.data.agentCode).toBeUndefined();
         });
     });
 

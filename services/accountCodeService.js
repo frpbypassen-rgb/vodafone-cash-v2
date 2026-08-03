@@ -26,6 +26,12 @@ const validateAccountCode = (code, length) => {
     return normalized;
 };
 
+const generateNumericCode = (length) => {
+    const min = length === 1 ? 0 : 10 ** (length - 1);
+    const max = (10 ** length) - 1;
+    return String(Math.floor(min + Math.random() * (max - min + 1))).padStart(length, '0');
+};
+
 const findDuplicateAccountCode = async (code, current = {}) => {
     const normalized = normalizeAccountCode(code);
     if (!normalized) return null;
@@ -78,6 +84,27 @@ const reserveAccountCode = async (code, current) => {
         if (error.code === 11000) throw duplicateReservationError();
         throw error;
     }
+};
+
+const assignGeneratedAccountCode = async ({ Model, modelName, id, length, maxAttempts = 200 }) => {
+    const current = { modelName, id };
+
+    for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+        const code = validateAccountCode(generateNumericCode(length), length);
+        try {
+            await ensureAccountCodeAvailable(code, current);
+            await reserveAccountCode(code, current);
+            await Model.findByIdAndUpdate(id, { accountCode: code }, { runValidators: true });
+            return code;
+        } catch (error) {
+            if (error.message !== 'ACCOUNT_CODE_DUPLICATE') {
+                await releaseAccountCodeReservation(current).catch(() => {});
+                throw error;
+            }
+        }
+    }
+
+    throw new Error('ACCOUNT_CODE_GENERATION_FAILED');
 };
 
 const releaseAccountCodeReservation = async (current) => {
@@ -136,6 +163,7 @@ module.exports = {
     validateAccountCode,
     ensureAccountCodeAvailable,
     reserveAccountCode,
+    assignGeneratedAccountCode,
     releaseAccountCodeReservation,
     resolveAccountByCode
 };

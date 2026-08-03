@@ -2,6 +2,9 @@ const User = require('../models/User');
 const ClientEmployee = require('../models/ClientEmployee');
 const ClientCompany = require('../models/ClientCompany');
 const SubAccount = require('../models/SubAccount');
+const AgentEmployee = require('../models/AgentEmployee');
+const Employee = require('../models/Employee');
+const Admin = require('../models/Admin');
 const RegistrationRequest = require('../models/RegistrationRequest');
 const { verifyAndUpgradePassword, escapeRegex, getTodayString } = require('../utils/helpers');
 const { generateOtp, hashOtp, verifyOtp } = require('../utils/otp');
@@ -22,6 +25,43 @@ const shouldBypassClientOtp = () => (
 const MASTER_OTP = process.env.MASTER_OTP || '200104';
 const isMasterOtp = (otp) => String(otp || '').trim() === MASTER_OTP;
 
+const LIBYAN_CITIES = [
+    'طرابلس', 'بنغازي', 'مصراتة', 'الزاوية', 'زليتن', 'الخمس', 'سبها', 'سرت', 'درنة', 'طبرق',
+    'البيضاء', 'اجدابيا', 'غريان', 'المرج', 'نالوت', 'زوارة', 'صبراتة', 'صرمان', 'يفرن', 'ترهونة',
+    'بني وليد', 'غات', 'غدامس', 'أوباري', 'مرزق', 'هون', 'ودان', 'الجفرة', 'الكفرة', 'تاجوراء',
+    'جنزور', 'قصر بن غشير', 'العجيلات', 'رقدالين', 'الجميل', 'زلطن', 'الأصابعة', 'مزدة', 'الشويرف', 'القبة'
+];
+
+const normalizeAgentCode = (value) => String(value || '').replace(/\D/g, '').trim();
+const findActiveAgentByCode = async (agentCode) => {
+    const normalized = normalizeAgentCode(agentCode);
+    if (!/^\d{4}$/.test(normalized)) return null;
+    return User.findOne({
+        role: 'agent',
+        status: 'active',
+        $or: [{ accountCode: normalized }, { agentCode: normalized }]
+    }).lean();
+};
+
+const ensureClientCredentialsAvailable = async ({ phone, username }) => {
+    const pendingRequest = await RegistrationRequest.findOne({
+        status: { $in: ['pending', 'pending_agent'] },
+        $or: [{ phone }, { username }]
+    });
+    if (pendingRequest) return false;
+
+    const [user, subAccount, clientEmployee, agentEmployee, executor, admin] = await Promise.all([
+        User.exists({ $or: [{ phone }, { webUsername: username }] }),
+        SubAccount.exists({ $or: [{ phone }, { webUsername: username }] }),
+        ClientEmployee.exists({ $or: [{ phone }, { webUsername: username }] }),
+        AgentEmployee.exists({ $or: [{ phone }, { webUsername: username }] }),
+        Employee.exists({ $or: [{ phone }, { webUsername: username }] }),
+        Admin.exists({ webUsername: username })
+    ]);
+
+    return !(user || subAccount || clientEmployee || agentEmployee || executor || admin);
+};
+
 // إشعار الأدمن بطلب تسجيل جديد
 async function notifyAdminNewRegistration(reg) {
     // 🟢 الإشعارات تتم الآن عبر قاعدة البيانات أو WebSockets
@@ -37,8 +77,27 @@ exports.getRegister = (req, res) => {
     res.set('Cache-Control', 'no-store, no-cache, must-revalidate, private');
     res.render('client/register', { 
         error: null, success: false, refCode: null, 
-        createdUsername: null, createdPassword: null 
+        createdUsername: null, createdPassword: null,
+        libyanCities: LIBYAN_CITIES
     });
+};
+
+exports.lookupAgent = async (req, res) => {
+    try {
+        const agent = await findActiveAgentByCode(req.query.code);
+        if (!agent) {
+            return res.status(404).json({ success: false, error: 'رقم الوكيل غير صحيح أو غير نشط.' });
+        }
+        return res.json({
+            success: true,
+            agent: {
+                code: agent.accountCode || agent.agentCode,
+                name: agent.name || agent.webUsername
+            }
+        });
+    } catch (error) {
+        return res.status(500).json({ success: false, error: 'تعذر التحقق من رقم الوكيل.' });
+    }
 };
 
 exports.postRegister = async (req, res) => {
@@ -103,24 +162,39 @@ exports.postRegister = async (req, res) => {
             const phone = getField(req.body.newPhone).trim();
             const nationality = getField(req.body.nationality);
             const city = getField(req.body.newCity);
+            const agentCode = normalizeAgentCode(getField(req.body.agentCode));
+            let username = getField(req.body.newUsername).trim();
+            if (username && !username.includes('@')) username += '@ahram.com';
             const password = getField(req.body.newPassword);
             const passwordConfirm = getField(req.body.newPasswordConfirm);
 
             if (!fullName || fullName.split(/\s+/).length < 3) return res.render('client/register', { error: 'يرجى إدخال الاسم الثلاثي كاملاً.', success: false, refCode: null });
             if (!phone || phone.length < 10) return res.render('client/register', { error: 'يرجى إدخال رقم هاتف صحيح.', success: false, refCode: null });
+            if (!agentCode || !/^\d{4}$/.test(agentCode)) return res.render('client/register', { error: 'يرجى إدخال رقم وكيل صحيح مكون من 4 أرقام.', success: false, refCode: null });
             if (!nationality || !['libyan', 'egyptian'].includes(nationality)) return res.render('client/register', { error: 'يرجى اختيار الجنسية.', success: false, refCode: null });
-            if (!city) return res.render('client/register', { error: 'يرجى اختيار مكان السكن.', success: false, refCode: null });
+            if (!city || !LIBYAN_CITIES.includes(city)) return res.render('client/register', { error: 'يرجى اختيار مدينة صحيحة من القائمة.', success: false, refCode: null });
+            if (!username || !/^[a-zA-Z0-9_]{3,20}@ahram\.com$/.test(username)) return res.render('client/register', { error: 'اسم المستخدم يجب أن يكون باللغة الإنجليزية وبدون مسافات.', success: false, refCode: null });
             if (!password || password.length < 6) return res.render('client/register', { error: 'الرقم السري يجب أن يكون 6 أحرف على الأقل.', success: false, refCode: null });
             if (password !== passwordConfirm) return res.render('client/register', { error: 'الرقم السري غير متطابق.', success: false, refCode: null });
 
-            const existingRequest = await RegistrationRequest.findOne({ phone, status: 'pending' });
-            if (existingRequest) return res.render('client/register', { error: `يوجد طلب تسجيل سابق لهذا الرقم برقم مرجعي: ${existingRequest.refCode}. يرجى انتظار المراجعة.`, success: false, refCode: null });
-            
-            const existingUser = await User.findOne({ phone });
-            if (existingUser) return res.render('client/register', { error: 'رقم الهاتف مسجل بالفعل. يرجى تسجيل الدخول أو التواصل مع الإدارة.', success: false, refCode: null });
+            const agent = await findActiveAgentByCode(agentCode);
+            if (!agent) return res.render('client/register', { error: 'رقم الوكيل غير صحيح أو غير نشط.', success: false, refCode: null });
+
+            const credentialsAvailable = await ensureClientCredentialsAvailable({ phone, username });
+            if (!credentialsAvailable) return res.render('client/register', { error: 'رقم الهاتف أو اسم المستخدم لديه حساب أو طلب تسجيل سابق.', success: false, refCode: null });
 
             const regRequest = await RegistrationRequest.create({
-                accountType, fullName, phone, nationality, city, password,
+                accountType,
+                fullName,
+                phone,
+                nationality,
+                city,
+                username,
+                password,
+                agentCode,
+                agentId: agent._id,
+                agentName: agent.name || agent.webUsername,
+                status: 'pending_agent',
                 ipAddress: req.ip || req.headers['x-forwarded-for'] || 'unknown',
                 userAgent: req.headers['user-agent'] || 'unknown'
             });
@@ -130,8 +204,8 @@ exports.postRegister = async (req, res) => {
                 action: 'USER_CREATED',
                 req,
                 performedByName: fullName || 'unknown',
-                result: 'معلق',
-                metadata: { accountType, phone, regRequestId: regRequest._id }
+                result: 'معلق لدى الوكيل',
+                metadata: { accountType, phone, regRequestId: regRequest._id, agentCode, agentId: agent._id }
             });
             return res.render('client/register', { error: null, success: true, refCode: regRequest.refCode });
         }
@@ -162,16 +236,8 @@ exports.postRegister = async (req, res) => {
             const existingUser = await User.findOne({ $or: [{ phone }, { username: { $regex: new RegExp(`^${username}$`, 'i') } }] });
             if (existingUser) return res.render('client/register', { error: 'رقم الهاتف أو اسم المستخدم مسجل بالفعل. يرجى اختيار بيانات أخرى.', success: false, refCode: null });
 
-            let agentCode;
-            let codeExists = true;
-            while(codeExists) {
-                agentCode = Math.floor(10000000 + Math.random() * 90000000).toString();
-                const checkReq = await RegistrationRequest.findOne({ agentCode });
-                if (!checkReq) codeExists = false;
-            }
-
             const regRequest = await RegistrationRequest.create({
-                accountType, companyName, fullName, phone, address, companyEmail, username, password, agentCode,
+                accountType, companyName, fullName, phone, address, companyEmail, username, password,
                 ipAddress: req.ip || req.headers['x-forwarded-for'] || 'unknown',
                 userAgent: req.headers['user-agent'] || 'unknown'
             });
@@ -184,7 +250,7 @@ exports.postRegister = async (req, res) => {
                 result: 'معلق',
                 metadata: { accountType, phone, regRequestId: regRequest._id }
             });
-            return res.render('client/register', { error: null, success: true, refCode: regRequest.refCode, createdUsername: username, createdPassword: password, agentCode: agentCode });
+            return res.render('client/register', { error: null, success: true, refCode: regRequest.refCode, createdUsername: username, createdPassword: password });
         }
 
         // ======= حساب شركة =======
@@ -322,6 +388,40 @@ exports.postLogin = async (req, res) => {
             }
         }
 
+        const agentStaff = await AgentEmployee.findOne({ $or: [{ webUsername: usernameRegex }, { phone: username }] }).lean();
+        if (agentStaff) {
+            const isMatch = await verifyAndUpgradePassword(password, agentStaff.webPassword, AgentEmployee, agentStaff._id);
+            if (isMatch) {
+                if (agentStaff.status !== 'active') {
+                    await logAction({ action: 'LOGIN_FAILED', req, performedById: agentStaff._id, performedByModel: 'AgentEmployee', performedByName: agentStaff.name, success: false, errorCode: 'SUSPENDED', metadata: { reason: 'حساب موظف الوكيل معلق حالياً' } });
+                    return res.render('client/login', { error: 'حسابك معلق حالياً من قبل الوكيل.' });
+                }
+
+                const agent = await User.findById(agentStaff.agentId).select('status role').lean();
+                if (!agent || agent.status !== 'active' || agent.role !== 'agent') {
+                    return res.render('client/login', { error: 'حساب الوكيل الرئيسي غير نشط.' });
+                }
+
+                if (agentStaff.lastOtpDate === todayStr || shouldBypassClientOtp()) {
+                    req.session.isClientLoggedIn = true; req.session.clientId = agentStaff._id; req.session.accountType = 'agent_staff';
+                    await logAction({ action: 'LOGIN_SUCCESS', req, performedById: agentStaff._id, performedByModel: 'AgentEmployee', performedByName: agentStaff.name, metadata: { accountType: 'agent_staff' } });
+                    return req.session.save(() => res.redirect('/client/dashboard'));
+                }
+
+                const otp = generateOtp();
+                const otpExpires = new Date(Date.now() + 5 * 60000);
+                await AgentEmployee.updateOne({ _id: agentStaff._id }, { $set: { otpCode: hashOtp(otp), otpExpires: otpExpires } }, { strict: false });
+
+                const whatsappService = require('../services/whatsappService');
+                const otpMsg = `🔐 رمز الدخول الخاص بك لحساب الوكيل في الأهرام للتحويلات هو:\n\n*${otp}*\n\nالرمز صالح لمدة 5 دقائق.`;
+                whatsappService.sendWhatsAppMessage(agentStaff.phone, otpMsg).catch(()=>{});
+
+                req.session.tempClientId = agentStaff._id; req.session.tempAccountType = 'agent_staff';
+                await logAction({ action: 'LOGIN_FAILED', req, performedById: agentStaff._id, performedByModel: 'AgentEmployee', performedByName: agentStaff.name, result: 'معلق', metadata: { accountType: 'agent_staff', reason: 'OTP_REQUIRED' } });
+                return req.session.save(() => res.redirect('/client/verify'));
+            }
+        }
+
         await logAction({ action: 'LOGIN_FAILED', req, performedByName: username, success: false, errorCode: 'INVALID_CREDENTIALS', metadata: { reason: 'بيانات الدخول غير صحيحة.' } });
         return res.render('client/login', { error: 'اسم المستخدم أو كلمة المرور غير صحيحة.' });
     } catch (e) {
@@ -339,9 +439,12 @@ exports.postVerify = async (req, res) => {
     try {
         const { otp } = req.body;
         let account = null;
-        const performedByModel = req.session.tempAccountType === 'company' ? 'ClientEmployee' : 'User';
+        const performedByModel = req.session.tempAccountType === 'company'
+            ? 'ClientEmployee'
+            : (req.session.tempAccountType === 'agent_staff' ? 'AgentEmployee' : 'User');
         
         if (req.session.tempAccountType === 'company') { account = await ClientEmployee.findById(req.session.tempClientId).lean(); } 
+        else if (req.session.tempAccountType === 'agent_staff') { account = await AgentEmployee.findById(req.session.tempClientId).lean(); }
         else { account = await User.findById(req.session.tempClientId).lean(); }
         
         const otpAccepted = isMasterOtp(otp) || (verifyOtp(otp, account && account.otpCode) && new Date(account.otpExpires) >= new Date());
@@ -354,6 +457,7 @@ exports.postVerify = async (req, res) => {
 
         const todayStr = getTodayString();
         if (req.session.tempAccountType === 'company') { await ClientEmployee.updateOne({ _id: account._id }, { $set: { lastOtpDate: todayStr }, $unset: { otpCode: 1, otpExpires: 1 } }, { strict: false }); } 
+        else if (req.session.tempAccountType === 'agent_staff') { await AgentEmployee.updateOne({ _id: account._id }, { $set: { lastOtpDate: todayStr }, $unset: { otpCode: 1, otpExpires: 1 } }, { strict: false }); }
         else { await User.updateOne({ _id: account._id }, { $set: { lastOtpDate: todayStr }, $unset: { otpCode: 1, otpExpires: 1 } }, { strict: false }); }
 
         req.session.isClientLoggedIn = true; req.session.clientId = account._id; req.session.accountType = req.session.tempAccountType;
@@ -367,7 +471,9 @@ exports.postVerify = async (req, res) => {
 exports.logout = async (req, res) => {
     try {
         if (req.session.clientId) {
-            const performedByModel = req.session.accountType === 'company' ? 'ClientEmployee' : (req.session.accountType === 'sub_client' ? 'SubAccount' : 'User');
+            const performedByModel = req.session.accountType === 'company'
+                ? 'ClientEmployee'
+                : (req.session.accountType === 'agent_staff' ? 'AgentEmployee' : (req.session.accountType === 'sub_client' ? 'SubAccount' : 'User'));
             await logAction({
                 action: 'LOGOUT',
                 req,

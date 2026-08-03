@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<%- include('partials/company_portal_head', { title: 'واجهة موظف الوكيل' }) %>
+<body>
+    <%- include('partials/company_portal_nav') %>
+
+    <main class="shell">
+        <section class="role-hero">
+            <div>
+                <div class="eyebrow"><i class="fa-solid fa-user-tie"></i>واجهة موظف الوكيل</div>
+                <h1 class="page-title">عمليات اليوم</h1>
+                <p class="page-subtitle"><%= agent.name %> - تظهر عمليات اليوم الخاصة بالوكيل والعملاء التابعين له مع اسم الموظف المنفذ.</p>
+            </div>
+            <div class="toolbar">
+                <button type="button" class="primary-btn" data-bs-toggle="modal" data-bs-target="#companyTransferModal">
+                    <i class="fa-solid fa-paper-plane"></i>تحويل جديد
+                </button>
+                <a href="/client/support" class="secondary-btn"><i class="fa-solid fa-headset"></i>الدعم</a>
+            </div>
+        </section>
+
+        <%- include('partials/company_stats') %>
+
+        <section class="panel mb-3">
+            <div class="panel-heading">
+                <h2 class="panel-title"><i class="fa-solid fa-id-card text-primary"></i>بيانات الموظف</h2>
+                <span class="status-pill st-completed">نشط</span>
+            </div>
+            <div class="panel-body">
+                <div class="row g-3">
+                    <div class="col-md-4">
+                        <div class="small-muted">الاسم</div>
+                        <div class="fw-bold"><%= account.name %></div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="small-muted">اسم المستخدم</div>
+                        <div class="mono-num" dir="ltr"><%= account.webUsername %></div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="small-muted">الوكيل</div>
+                        <div class="fw-bold"><%= agent.name %></div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <%- include('partials/company_transactions_table', { showFilters: false }) %>
+    </main>
+
+    <%- include('partials/company_transfer_modal') %>
+    <%- include('partials/company_portal_scripts') %>
+</body>
+</html>

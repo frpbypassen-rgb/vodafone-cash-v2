@@ -11,6 +11,7 @@ import { amlSanctionsService } from './AmlSanctionsService';
 // استيراد النماذج القديمة بالـ CommonJS بشكل مؤقت
 const ClientEmployee = require('../../../models/ClientEmployee');
 const ClientCompany = require('../../../models/ClientCompany');
+const AgentEmployee = require('../../../models/AgentEmployee');
 const Counter = require('../../../models/Counter');
 const Settings = require('../../../models/Settings');
 const SubAccount = require('../../../models/SubAccount');
@@ -479,7 +480,7 @@ export class TransferService {
                 action: 'TRANSFER_CREATED',
                 req,
                 performedById: userId,
-                performedByModel: accountType === 'client_company' ? 'ClientEmployee' : 'User',
+                performedByModel: accountType === 'client_company' ? 'ClientEmployee' : (accountType === 'agent_staff' ? 'AgentEmployee' : 'User'),
                 performedByName: employeeName,
                 targetId: newTx._id,
                 targetModel: 'Transaction',
@@ -784,6 +785,22 @@ export class TransferService {
                         MasterModel,
                         customMargin: clientDoc.customMargin || 0
                     };
+                }
+            }
+        } else if (accountType === 'agent_staff') {
+            const emp = await AgentEmployee.findById(userId).session(session);
+            if (emp && emp.status === 'active' && emp.role !== 'accountant') {
+                const agent = await User.findById(emp.agentId).session(session);
+                if (agent && agent.status === 'active' && agent.role === 'agent') {
+                    employeeName = emp.name || emp.webUsername || 'موظف وكيل';
+                    clientDoc = agent;
+                    companyName = agent.name || agent.webUsername || 'وكيل';
+                    tier = agent.tier || 1;
+                    currentRate = getRateForTier(tier, settings);
+                    creditLimit = agent.creditLimit || 0;
+                    TargetModel = User;
+                    targetId = agent._id;
+                    userIdForTx = agent.phone || agent.webUsername;
                 }
             }
         } else {

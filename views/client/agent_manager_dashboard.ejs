@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<%- include('partials/company_portal_head', { title: canCreateStaff ? 'لوحة مدير الوكيل' : 'لوحة مدير التشغيل' }) %>
+<body>
+    <%- include('partials/company_portal_nav') %>
+
+    <main class="shell">
+        <section class="role-hero">
+            <div>
+                <div class="eyebrow"><i class="fa-solid fa-map-location-dot"></i><%= canCreateStaff ? 'مساحة مدير الوكيل' : 'مساحة مدير التشغيل' %></div>
+                <h1 class="page-title"><%= agent.name %></h1>
+                <p class="page-subtitle">
+                    إدارة فريق الوكيل، قبول العملاء الجدد، متابعة العمليات، وإرسال التحويلات من رصيد الوكيل.
+                </p>
+            </div>
+            <div class="toolbar">
+                <% if (canTransfer) { %>
+                    <button type="button" class="primary-btn" data-bs-toggle="modal" data-bs-target="#companyTransferModal">
+                        <i class="fa-solid fa-paper-plane"></i>تحويل جديد
+                    </button>
+                <% } %>
+                <a href="#requests" class="secondary-btn"><i class="fa-solid fa-user-check"></i>طلبات العملاء</a>
+                <a href="#staff" class="secondary-btn"><i class="fa-solid fa-users-gear"></i>الفريق</a>
+                <a href="/client/reports" class="secondary-btn"><i class="fa-solid fa-file-invoice"></i>التقارير</a>
+            </div>
+        </section>
+
+        <%- include('partials/company_stats') %>
+
+        <section class="layout-grid">
+            <div>
+                <%- include('partials/company_transactions_table', { showFilters: true }) %>
+            </div>
+            <aside>
+                <%- include('partials/agent_requests_panel') %>
+                <div class="mt-3">
+                    <%- include('partials/agent_staff_panel') %>
+                </div>
+            </aside>
+        </section>
+    </main>
+
+    <%- include('partials/company_transfer_modal') %>
+    <%- include('partials/company_portal_scripts') %>
+</body>
+</html>

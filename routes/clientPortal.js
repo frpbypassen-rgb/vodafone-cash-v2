@@ -6,6 +6,7 @@ const User = require('../models/User');
 const ClientEmployee = require('../models/ClientEmployee');
 const ClientCompany = require('../models/ClientCompany');
 const SubAccount = require('../models/SubAccount');
+const AgentEmployee = require('../models/AgentEmployee');
 const Notification = require('../models/Notification');
 const { resolveClientNotificationUserIds } = require('../services/clientNotificationService');
 
@@ -38,6 +39,14 @@ const isActiveClientSession = async (req) => {
         return Boolean(subAccount && subAccount.status === 'active');
     }
 
+    if (req.session.accountType === 'agent_staff') {
+        const employee = await AgentEmployee.findById(req.session.clientId).select('status agentId').lean();
+        if (!employee || employee.status !== 'active') return false;
+
+        const agent = await User.findById(employee.agentId).select('status role').lean();
+        return Boolean(agent && agent.status === 'active' && agent.role === 'agent');
+    }
+
     const user = await User.findById(req.session.clientId).select('status').lean();
     return Boolean(user && user.status === 'active');
 };
@@ -56,6 +65,7 @@ const clientAuthController = require('../controllers/clientAuthController');
 const clientDashboardController = require('../controllers/clientDashboardController');
 const clientTransactionController = require('../controllers/clientTransactionController');
 const clientCompanyController = require('../controllers/clientCompanyController');
+const clientAgentController = require('../controllers/clientAgentController');
 
 router.get('/', (req, res) => {
     if (req.session.isClientLoggedIn && req.session.clientId) {
@@ -75,6 +85,7 @@ router.get('/login', (req, res) => {
 });
 router.post('/login', (req, res) => res.redirect(307, '/login'));
 router.get('/register', clientAuthController.getRegister);
+router.get('/register/agent-lookup', clientAuthController.lookupAgent);
 router.post('/register', clientAuthController.postRegister);
 router.get('/verify', clientAuthController.getVerify);
 router.post('/verify', clientAuthController.postVerify);
@@ -89,6 +100,11 @@ router.get('/company/staff', requireClientAuth, clientCompanyController.getStaff
 router.post('/company/staff/add', requireClientAuth, clientCompanyController.postAddStaff);
 router.post('/company/staff/:id/toggle', requireClientAuth, clientCompanyController.postToggleStaff);
 router.post('/company/staff/:id/password', requireClientAuth, clientCompanyController.postResetStaffPassword);
+router.post('/agent/staff/add', requireClientAuth, clientAgentController.postAddStaff);
+router.post('/agent/staff/:id/toggle', requireClientAuth, clientAgentController.postToggleStaff);
+router.post('/agent/staff/:id/password', requireClientAuth, clientAgentController.postResetStaffPassword);
+router.post('/agent/registration-requests/:id/approve', requireClientAuth, clientAgentController.postApproveClientRequest);
+router.post('/agent/registration-requests/:id/reject', requireClientAuth, clientAgentController.postRejectClientRequest);
 router.get('/api/notifications/unread', requireClientAuth, async (req, res) => {
     try {
         const userIds = await resolveClientNotificationUserIds({

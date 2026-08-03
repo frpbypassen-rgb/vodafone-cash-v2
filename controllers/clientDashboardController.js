@@ -12,9 +12,17 @@ const Card = require('../models/Card');
 const { updateBalanceWithLedger } = require('../services/walletService');
 const { getServiceRatesForTier, applyRateMargin } = require('../utils/rateHelper');
 const clientCompanyController = require('./clientCompanyController');
+const clientAgentController = require('./clientAgentController');
+const AgentEmployee = require('../models/AgentEmployee');
 
 exports.getDashboard = async (req, res) => {
     try {
+        if (req.session.accountType === 'agent_staff') {
+            const account = await AgentEmployee.findById(req.session.clientId);
+            if (!account || account.status !== 'active') return res.redirect('/client/logout');
+            return clientAgentController.renderAgentDashboard(req, res, account);
+        }
+
         const isSubAccount = req.session.accountType === 'sub_client';
         const Model = isSubAccount ? SubAccount : (req.session.accountType === 'company' ? ClientEmployee : User);
         const account = await Model.findById(req.session.clientId);
@@ -23,6 +31,9 @@ exports.getDashboard = async (req, res) => {
 
         if (req.session.accountType === 'company') {
             return clientCompanyController.renderCompanyDashboard(req, res, account);
+        }
+        if (req.session.accountType === 'user' && account.role === 'agent') {
+            return clientAgentController.renderAgentDashboard(req, res, account);
         }
 
         const search = req.query.search ? req.query.search.trim() : '';

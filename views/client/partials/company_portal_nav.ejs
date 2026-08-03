@@ -14,10 +14,13 @@
                     <span class="mono-num" dir="ltr"><%= Number(company.balance || 0).toFixed(2) %> LYD</span>
                 </span>
             <% } %>
-            <a href="/client/reports" class="nav-link-btn" title="التقارير">
-                <i class="fa-solid fa-chart-pie"></i>
-                <span>التقارير</span>
-            </a>
+            <% const showReportsNav = !(typeof entityLabel !== 'undefined' && entityLabel === 'الوكيل' && persona === 'employee'); %>
+            <% if (showReportsNav) { %>
+                <a href="/client/reports" class="nav-link-btn" title="التقارير">
+                    <i class="fa-solid fa-chart-pie"></i>
+                    <span>التقارير</span>
+                </a>
+            <% } %>
             <a href="/client/support" class="nav-link-btn" title="الدعم الفني">
                 <i class="fa-solid fa-headset"></i>
                 <span>الدعم</span>

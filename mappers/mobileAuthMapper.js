@@ -8,7 +8,7 @@ const {
     getEnabledMobileTransferServiceKeys
 } = require('../utils/mobileTransferServiceCatalog');
 
-const REQUIRED_ACCOUNT_TYPES = new Set(['client_user', 'client_company', 'executor', 'sub_client']);
+const REQUIRED_ACCOUNT_TYPES = new Set(['client_user', 'client_company', 'executor', 'sub_client', 'agent_staff']);
 const REQUIRED_PERSONAS = new Set([
     'directClient',
     'agentClient',
@@ -17,6 +17,7 @@ const REQUIRED_PERSONAS = new Set([
     'companyManager',
     'companyAccountant',
     'agentOwner',
+    'agentManager',
     'agentEmployee',
     'agentAccountant',
     'executor'
@@ -244,9 +245,9 @@ const buildContext = (accountType, {
     return {
         clientCompanyId: accountType === 'client_company' ? (clientCompanyId ? String(clientCompanyId) : null) : null,
         clientCompanyName: accountType === 'client_company' ? (clientCompanyName || null) : null,
-        agentId: accountType === 'client_user' ? (agentId ? String(agentId) : null) : null,
-        agentName: accountType === 'client_user' ? (agentName || null) : null,
-        agentCode: accountType === 'client_user' ? (agentCode || null) : null,
+        agentId: ['client_user', 'agent_staff'].includes(accountType) ? (agentId ? String(agentId) : null) : null,
+        agentName: ['client_user', 'agent_staff'].includes(accountType) ? (agentName || null) : null,
+        agentCode: ['client_user', 'agent_staff'].includes(accountType) ? (agentCode || null) : null,
         executorGroupId: accountType === 'executor' ? (executorGroupId ? String(executorGroupId) : null) : null,
         executorGroupName: accountType === 'executor' ? (executorGroupName || null) : null,
         // Legacy bot fields mapping the group info for compatibility

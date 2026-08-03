@@ -16,7 +16,6 @@ const {
     isAccountLocked,
     extractDeviceInfo
 } = require('./securityService');
-const ClientBot = require('../models/ClientBot');
 const User = require('../models/User');
 const ClientCompany = require('../models/ClientCompany');
 const { buildContext } = require('../mappers/mobileAuthMapper');
@@ -75,8 +74,36 @@ const AGENT_OWNER_PERMISSIONS = Object.freeze([
     'agent.sub_accounts.update_status',
     'agent.sub_accounts.update_credit_limit',
     'agent.sub_accounts.settle',
+    'agent.employees.read',
+    'agent.employees.create',
+    'agent.employees.update_status',
+    'agent.registration_requests.read',
+    'agent.registration_requests.review',
     'agent.reports.read',
+    'agent.reports.read_all',
     'agent.reports.read_personal'
+]);
+
+const AGENT_MANAGER_PERMISSIONS = Object.freeze([
+    ...CLIENT_PERMISSIONS,
+    'agent.dashboard.read',
+    'agent.registration_requests.read',
+    'agent.registration_requests.review',
+    'agent.reports.read',
+    'agent.reports.read_all'
+]);
+
+const AGENT_EMPLOYEE_PERMISSIONS = Object.freeze([
+    ...CLIENT_PERMISSIONS,
+    'agent.dashboard.read',
+    'agent.reports.read_day'
+]);
+
+const AGENT_ACCOUNTANT_PERMISSIONS = Object.freeze([
+    ...CLIENT_PERMISSIONS,
+    'agent.dashboard.read',
+    'agent.reports.read',
+    'agent.reports.read_all'
 ]);
 
 const EXECUTOR_PERMISSIONS = Object.freeze([
@@ -145,6 +172,29 @@ const resolveSubClientIdentity = () => ({
     role: 'client',
     permissions: [...CLIENT_PERMISSIONS]
 });
+
+const resolveAgentStaffIdentity = (account) => {
+    const role = String(account.role || '').toLowerCase();
+    if (role === 'accountant') {
+        return {
+            persona: 'agentAccountant',
+            role: 'accountant',
+            permissions: [...AGENT_ACCOUNTANT_PERMISSIONS]
+        };
+    }
+    if (account.canManageAgent === true) {
+        return {
+            persona: 'agentManager',
+            role: 'manager',
+            permissions: [...AGENT_MANAGER_PERMISSIONS]
+        };
+    }
+    return {
+        persona: 'agentEmployee',
+        role: 'employee',
+        permissions: [...AGENT_EMPLOYEE_PERMISSIONS]
+    };
+};
 
 const finiteNumberOr = (value, fallback = 0) => {
     const parsed = Number(value);
@@ -254,7 +304,7 @@ const login = async (username, password, req) => {
     let subClientAccountCode = '';
 
     if (accountType === 'client_company') {
-        const company = await ClientBot.findById(account.companyId);
+        const company = await ClientCompany.findById(account.companyId);
         tier = (company && company.tier) ? company.tier : 1;
         companyId = account.companyId;
         companyName = company ? company.name : null;
@@ -280,6 +330,17 @@ const login = async (username, password, req) => {
         persona = identity.persona;
         mobileRole = identity.role;
         mobilePermissions = identity.permissions;
+    } else if (accountType === 'agent_staff') {
+        const agent = await User.findById(account.agentId);
+        tier = agent ? (agent.tier || 1) : 1;
+        rateContract = buildMobileRateContract(tier, settings);
+        const identity = resolveAgentStaffIdentity(account);
+        persona = identity.persona;
+        mobileRole = identity.role;
+        mobilePermissions = identity.permissions;
+        agentId = agent ? String(agent._id) : null;
+        agentName = agent ? agent.name : null;
+        agentCode = agent ? (agent.agentCode || agent.accountCode || null) : null;
     } else if (accountType === 'sub_client') {
         let masterObj;
         if (account.masterType === 'user') {

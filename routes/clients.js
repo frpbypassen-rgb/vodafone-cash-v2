@@ -69,7 +69,7 @@ const releaseSubAccountCodes = async (subAccounts) => {
 
 const deletedAccountUpdate = (req) => ({
     $set: { status: 'deleted', refreshToken: null, ...deleteMetadata(req) },
-    $unset: { accountCode: 1, otpCode: 1, otpExpires: 1 }
+    $unset: { accountCode: 1, agentCode: 1, otpCode: 1, otpExpires: 1 }
 });
 
 const createManualAdjustmentId = (amount) => {
@@ -307,6 +307,14 @@ router.post('/user/:id/update-account-code', requireAuth, requireMaster, async (
             code: req.body.accountCode,
             expectedLength: expectedUserCodeLength(user, Boolean(hasSubAccounts))
         });
+        if (user.role === 'agent') {
+            const normalizedCode = String(req.body.accountCode || '').trim();
+            if (normalizedCode) {
+                await User.findByIdAndUpdate(req.params.id, { agentCode: normalizedCode }, { strict: false });
+            } else {
+                await User.findByIdAndUpdate(req.params.id, { $unset: { agentCode: 1 } }, { strict: false });
+            }
+        }
         res.redirect(`/user/${req.params.id}?codeSaved=1`);
     } catch (error) {
         res.redirect(`/user/${req.params.id}?codeError=${accountCodeErrorQuery(error)}`);

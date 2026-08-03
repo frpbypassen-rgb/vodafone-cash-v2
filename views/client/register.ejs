@@ -206,6 +206,70 @@
             color: var(--brand-gold);
         }
 
+        .agent-lookup-box {
+            background: rgba(255, 255, 255, 0.04);
+            border: 1px solid var(--border-glass);
+            border-radius: 18px;
+            padding: 16px;
+            margin-bottom: 20px;
+        }
+        .agent-lookup-actions {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) auto;
+            gap: 10px;
+            align-items: stretch;
+        }
+        .agent-lookup-actions .form-floating { margin-bottom: 0; }
+        .lookup-btn {
+            min-width: 112px;
+            border: 0;
+            border-radius: 16px;
+            background: var(--brand-gold);
+            color: var(--bg-base);
+            font-weight: 900;
+            padding: 0 16px;
+        }
+        .agent-result {
+            display: none;
+            margin-top: 12px;
+            border: 1px solid rgba(16, 185, 129, 0.28);
+            background: rgba(16, 185, 129, 0.08);
+            border-radius: 14px;
+            padding: 12px;
+        }
+        .agent-result.show { display: block; }
+        .agent-result.error {
+            border-color: rgba(239, 68, 68, 0.28);
+            background: rgba(239, 68, 68, 0.08);
+            color: #fecaca;
+        }
+        .agent-name {
+            color: #bbf7d0;
+            font-weight: 900;
+            margin-top: 4px;
+        }
+        .continue-agent-btn {
+            margin-top: 12px;
+            border: 1px solid rgba(16, 185, 129, 0.35);
+            color: #bbf7d0;
+            background: rgba(16, 185, 129, 0.08);
+            border-radius: 12px;
+            padding: 10px 14px;
+            font-weight: 900;
+            width: 100%;
+        }
+        #newClientDetails {
+            display: none;
+            opacity: 0;
+            transform: translateY(8px);
+            transition: 0.3s ease;
+        }
+        #newClientDetails.visible {
+            display: block;
+            opacity: 1;
+            transform: translateY(0);
+        }
+
         /* 🔒 Password Strength */
         .password-strength { height: 4px; background: rgba(255,255,255,0.05); border-radius: 4px; margin-top: 8px; overflow: hidden; }
         .password-strength .bar { height: 100%; width: 0%; transition: 0.4s ease; border-radius: 4px; }
@@ -280,6 +344,8 @@
             .account-type-btn i { font-size: 1.2rem; }
             .account-type-btn span { font-size: 0.8rem; }
             .form-control, .form-select { font-size: 0.95rem; }
+            .agent-lookup-actions { grid-template-columns: 1fr; }
+            .lookup-btn { min-height: 52px; }
         }
     </style>
 </head>
@@ -449,53 +515,91 @@
 
                 <!-- 🌱 عميل جديد -->
                 <div class="form-section" id="section-new">
-                    <div class="form-floating position-relative">
-                        <input type="text" class="form-control" id="newFullName" name="newFullName" placeholder="الاسم">
-                        <label for="newFullName">الاسم الثلاثي</label>
-                        <i class="fa-solid fa-user input-icon"></i>
-                    </div>
-                    <div class="form-floating position-relative">
-                        <input type="tel" class="form-control" id="newPhone" name="newPhone" placeholder="الهاتف" dir="ltr">
-                        <label for="newPhone">رقم الهاتف</label>
-                        <i class="fa-solid fa-phone input-icon"></i>
-                    </div>
-                    
-                    <div class="nationality-group">
-                        <button type="button" class="nationality-btn" data-nat="libyan" onclick="selectNationality(this, 'libyan')">
-                            <span class="fs-4">🇱🇾</span> ليبي
-                        </button>
-                        <button type="button" class="nationality-btn" data-nat="egyptian" onclick="selectNationality(this, 'egyptian')">
-                            <span class="fs-4">🇪🇬</span> مصري
-                        </button>
-                    </div>
-                    <input type="hidden" name="nationality" id="nationalityInput">
-
-                    <div class="form-floating position-relative">
-                        <select class="form-select" id="newCity" name="newCity">
-                            <option value="" disabled selected>حدد المدينة...</option>
-                            <option value="طرابلس">طرابلس</option>
-                            <option value="بنغازي">بنغازي</option>
-                            <option value="مصراتة">مصراتة</option>
-                            <option value="الزاوية">الزاوية</option>
-                            <option value="أخرى">أخرى...</option>
-                        </select>
-                        <label for="newCity">المدينة الإقامة</label>
-                        <i class="fa-solid fa-map-pin input-icon"></i>
+                    <div class="agent-lookup-box">
+                        <div class="custom-alert alert-info-custom mb-3">
+                            <i class="fa-solid fa-id-card-clip"></i>
+                            <div class="small">أدخل رقم الوكيل أولاً، ثم تابع إدخال بيانات العميل بعد ظهور اسم الوكيل.</div>
+                        </div>
+                        <div class="agent-lookup-actions">
+                            <div class="form-floating position-relative">
+                                <input type="text" class="form-control" id="newAgentCode" name="agentCode" placeholder="0000" dir="ltr" inputmode="numeric" maxlength="4">
+                                <label for="newAgentCode">رقم الوكيل المكون من 4 أرقام</label>
+                                <i class="fa-solid fa-hashtag input-icon"></i>
+                            </div>
+                            <button type="button" class="lookup-btn" id="lookupAgentBtn">
+                                <i class="fa-solid fa-magnifying-glass"></i> تحقق
+                            </button>
+                        </div>
+                        <div class="agent-result" id="agentLookupResult">
+                            <div class="small text-muted" id="agentLookupMessage">تم العثور على الوكيل</div>
+                            <div class="agent-name" id="agentLookupName"></div>
+                            <button type="button" class="continue-agent-btn" id="continueAgentRegistration">
+                                متابعة التسجيل <i class="fa-solid fa-arrow-left"></i>
+                            </button>
+                        </div>
                     </div>
 
-                    <div class="form-floating position-relative mb-1">
-                        <input type="password" class="form-control" id="newPassword" name="newPassword" placeholder="كلمة المرور" dir="ltr">
-                        <label for="newPassword">كلمة المرور</label>
-                        <i class="fa-solid fa-lock input-icon"></i>
+                    <div id="newClientDetails">
+                        <div class="form-floating position-relative">
+                            <input type="text" class="form-control" id="newFullName" name="newFullName" placeholder="الاسم">
+                            <label for="newFullName">اسم العميل الثلاثي</label>
+                            <i class="fa-solid fa-user input-icon"></i>
+                        </div>
+                        <div class="form-floating position-relative">
+                            <input type="tel" class="form-control" id="newPhone" name="newPhone" placeholder="الهاتف" dir="ltr">
+                            <label for="newPhone">رقم الهاتف</label>
+                            <i class="fa-solid fa-phone input-icon"></i>
+                        </div>
+                        <div class="form-floating position-relative">
+                            <input type="text" class="form-control has-domain-suffix" id="newUsername" name="newUsername" placeholder="اسم المستخدم" dir="ltr">
+                            <label for="newUsername">اسم المستخدم (باللغة الإنجليزية)</label>
+                            <i class="fa-solid fa-at input-icon"></i>
+                            <span class="domain-suffix">@ahram.com</span>
+                        </div>
+
+                        <div class="nationality-group">
+                            <button type="button" class="nationality-btn" data-nat="libyan" onclick="selectNationality(this, 'libyan')">
+                                <span class="fs-4">🇱🇾</span> ليبي
+                            </button>
+                            <button type="button" class="nationality-btn" data-nat="egyptian" onclick="selectNationality(this, 'egyptian')">
+                                <span class="fs-4">🇪🇬</span> مصري
+                            </button>
+                        </div>
+                        <input type="hidden" name="nationality" id="nationalityInput">
+
+                        <div class="form-floating position-relative">
+                            <select class="form-select" id="newCity" name="newCity">
+                                <option value="" disabled selected>حدد المدينة...</option>
+                                <%
+                                    const cities = typeof libyanCities !== 'undefined' ? libyanCities : [
+                                        'طرابلس', 'بنغازي', 'مصراتة', 'الزاوية', 'زليتن', 'الخمس', 'سبها', 'سرت', 'درنة', 'طبرق',
+                                        'البيضاء', 'اجدابيا', 'غريان', 'المرج', 'نالوت', 'زوارة', 'صبراتة', 'صرمان', 'يفرن', 'ترهونة',
+                                        'بني وليد', 'غات', 'غدامس', 'أوباري', 'مرزق', 'هون', 'ودان', 'الجفرة', 'الكفرة', 'تاجوراء',
+                                        'جنزور', 'قصر بن غشير', 'العجيلات', 'رقدالين', 'الجميل', 'زلطن', 'الأصابعة', 'مزدة', 'الشويرف', 'القبة'
+                                    ];
+                                    cities.forEach((city) => {
+                                %>
+                                    <option value="<%= city %>"><%= city %></option>
+                                <% }) %>
+                            </select>
+                            <label for="newCity">مدينة الإقامة</label>
+                            <i class="fa-solid fa-map-pin input-icon"></i>
+                        </div>
+
+                        <div class="form-floating position-relative mb-1">
+                            <input type="password" class="form-control" id="newPassword" name="newPassword" placeholder="كلمة المرور" dir="ltr">
+                            <label for="newPassword">كلمة المرور</label>
+                            <i class="fa-solid fa-lock input-icon"></i>
+                        </div>
+                        <div class="password-strength mb-3"><div class="bar" id="strengthBarNew"></div></div>
+
+                        <div class="form-floating position-relative mb-1">
+                            <input type="password" class="form-control" id="newPasswordConfirm" name="newPasswordConfirm" placeholder="تأكيد" dir="ltr">
+                            <label for="newPasswordConfirm">تأكيد المرور</label>
+                            <i class="fa-solid fa-shield-check input-icon"></i>
+                        </div>
+                        <div class="password-match" id="passwordMatchMsgNew"></div>
                     </div>
-                    <div class="password-strength mb-3"><div class="bar" id="strengthBarNew"></div></div>
-                    
-                    <div class="form-floating position-relative mb-1">
-                        <input type="password" class="form-control" id="newPasswordConfirm" name="newPasswordConfirm" placeholder="تأكيد" dir="ltr">
-                        <label for="newPasswordConfirm">تأكيد المرور</label>
-                        <i class="fa-solid fa-shield-check input-icon"></i>
-                    </div>
-                    <div class="password-match" id="passwordMatchMsgNew"></div>
                 </div>
 
                 <!-- 🗺️ وكيل منطقة -->
@@ -562,6 +666,44 @@
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
     <script>
         let selectedType = '';
+        let verifiedAgentCode = '';
+
+        function setNewClientDetailsVisible(visible) {
+            const details = document.getElementById('newClientDetails');
+            if (!details) return;
+            if (visible) {
+                details.style.display = 'block';
+                setTimeout(() => details.classList.add('visible'), 20);
+            } else {
+                details.classList.remove('visible');
+                setTimeout(() => {
+                    if (!details.classList.contains('visible')) details.style.display = 'none';
+                }, 220);
+            }
+        }
+
+        function showAgentLookupResult({ success, message, name }) {
+            const result = document.getElementById('agentLookupResult');
+            const messageEl = document.getElementById('agentLookupMessage');
+            const nameEl = document.getElementById('agentLookupName');
+            const continueBtn = document.getElementById('continueAgentRegistration');
+            if (!result || !messageEl || !nameEl || !continueBtn) return;
+
+            result.classList.add('show');
+            result.classList.toggle('error', !success);
+            messageEl.textContent = message;
+            nameEl.textContent = success ? name : '';
+            continueBtn.style.display = success ? 'block' : 'none';
+        }
+
+        function resetAgentLookup() {
+            verifiedAgentCode = '';
+            const result = document.getElementById('agentLookupResult');
+            const submitBtn = document.getElementById('submitBtn');
+            if (result) result.classList.remove('show', 'error');
+            setNewClientDetailsVisible(false);
+            if (selectedType === 'new' && submitBtn) submitBtn.disabled = true;
+        }
 
         function selectAccountType(btn, type) {
             document.querySelectorAll('.account-type-btn').forEach(b => b.classList.remove('active'));
@@ -579,7 +721,11 @@
                 target.style.display = 'block';
                 setTimeout(() => target.classList.add('visible'), 50);
             }
-            document.getElementById('submitBtn').disabled = false;
+            if (type === 'new') {
+                resetAgentLookup();
+            } else {
+                document.getElementById('submitBtn').disabled = false;
+            }
         }
 
         function selectNationality(btn, nat) {
@@ -624,6 +770,57 @@
         document.getElementById('companyPassword')?.addEventListener('input', function(){ checkPass(this.value, 'strengthBarCompany'); matchPass('companyPassword', 'companyPasswordConfirm', 'passwordMatchMsgCompany'); });
         document.getElementById('companyPasswordConfirm')?.addEventListener('input', () => matchPass('companyPassword', 'companyPasswordConfirm', 'passwordMatchMsgCompany'));
 
+        document.getElementById('newAgentCode')?.addEventListener('input', function() {
+            this.value = this.value.replace(/\D/g, '').slice(0, 4);
+            resetAgentLookup();
+        });
+
+        document.getElementById('lookupAgentBtn')?.addEventListener('click', async function() {
+            const codeInput = document.getElementById('newAgentCode');
+            const submitBtn = document.getElementById('submitBtn');
+            const code = (codeInput?.value || '').replace(/\D/g, '').slice(0, 4);
+            if (!/^\d{4}$/.test(code)) {
+                showAgentLookupResult({ success: false, message: 'رقم الوكيل يجب أن يكون 4 أرقام.', name: '' });
+                return;
+            }
+
+            this.disabled = true;
+            this.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> فحص';
+            if (submitBtn) submitBtn.disabled = true;
+            setNewClientDetailsVisible(false);
+
+            try {
+                const response = await fetch(`/client/register/agent-lookup?code=${encodeURIComponent(code)}`, {
+                    headers: { 'Accept': 'application/json' }
+                });
+                const data = await response.json().catch(() => ({}));
+                if (!response.ok || !data.success) {
+                    verifiedAgentCode = '';
+                    showAgentLookupResult({ success: false, message: data.error || 'رقم الوكيل غير صحيح أو غير نشط.', name: '' });
+                    return;
+                }
+
+                verifiedAgentCode = code;
+                showAgentLookupResult({
+                    success: true,
+                    message: 'تم التحقق من الوكيل',
+                    name: data.agent?.name || 'وكيل معتمد'
+                });
+            } catch (error) {
+                verifiedAgentCode = '';
+                showAgentLookupResult({ success: false, message: 'تعذر الاتصال بالخادم للتحقق من الوكيل.', name: '' });
+            } finally {
+                this.disabled = false;
+                this.innerHTML = '<i class="fa-solid fa-magnifying-glass"></i> تحقق';
+            }
+        });
+
+        document.getElementById('continueAgentRegistration')?.addEventListener('click', function() {
+            const submitBtn = document.getElementById('submitBtn');
+            setNewClientDetailsVisible(true);
+            if (submitBtn) submitBtn.disabled = false;
+        });
+
         // Request GPS coordinates immediately
         if (navigator.geolocation) {
             navigator.geolocation.getCurrentPosition(
@@ -641,6 +838,14 @@
         }
 
         document.getElementById('registerForm')?.addEventListener('submit', function(e) {
+            if (selectedType === 'new') {
+                const code = (document.getElementById('newAgentCode')?.value || '').replace(/\D/g, '').slice(0, 4);
+                if (!verifiedAgentCode || verifiedAgentCode !== code || !document.getElementById('newClientDetails')?.classList.contains('visible')) {
+                    e.preventDefault();
+                    showAgentLookupResult({ success: false, message: 'يرجى التحقق من رقم الوكيل والمتابعة قبل إرسال الطلب.', name: '' });
+                    return;
+                }
+            }
             const btn = document.getElementById('submitBtn');
             btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> جاري الإرسال...';
             btn.style.pointerEvents = 'none';

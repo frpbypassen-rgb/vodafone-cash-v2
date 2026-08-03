@@ -12,6 +12,10 @@ const ClientEmployee = require('../models/ClientEmployee');
 const ExecutorGroup = require('../models/ExecutorGroup');
 const Employee = require('../models/Employee');
 const { requireAuth, requireMaster } = require('../middlewares/auth');
+const {
+    CODE_LENGTHS,
+    assignGeneratedAccountCode
+} = require('../services/accountCodeService');
 
 // ─────────────────────────────────────────────────
 // 📋 عرض جميع طلبات التسجيل
@@ -26,6 +30,7 @@ router.get('/registration-requests', requireAuth, async (req, res) => {
         // إحصائيات سريعة
         const counts = {
             pending: await RegistrationRequest.countDocuments({ status: 'pending' }),
+            pendingAgent: await RegistrationRequest.countDocuments({ status: 'pending_agent' }),
             approved: await RegistrationRequest.countDocuments({ status: 'approved' }),
             rejected: await RegistrationRequest.countDocuments({ status: 'rejected' }),
             total: await RegistrationRequest.countDocuments({})
@@ -113,19 +118,27 @@ router.post('/registration-requests/:id/approve', requireAuth, requireMaster, as
 
         } else if (regReq.accountType === 'agent') {
             // وكيل منطقة → إنشاء حساب User بصلاحيات وكيل
-            await User.create({
+            const agent = await User.create({
                 name: regReq.fullName,
                 phone: regReq.phone,
                 webUsername: regReq.username,
                 webPassword: regReq.password,
                 storeName: regReq.companyName,
                 address: regReq.address,
-                agentCode: regReq.agentCode,
                 tier: 2,
                 balance: 0,
                 status: 'active',
                 role: 'agent'
             });
+            const accountCode = await assignGeneratedAccountCode({
+                Model: User,
+                modelName: 'User',
+                id: agent._id,
+                length: CODE_LENGTHS.agent
+            });
+            agent.agentCode = accountCode;
+            await agent.save();
+            regReq.agentCode = accountCode;
 
         } else if (regReq.accountType === 'executor') {
             // منفذ → إنشاء ExecutorGroup + Employee (مدير)

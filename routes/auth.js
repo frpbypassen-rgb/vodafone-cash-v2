@@ -8,6 +8,7 @@ const Admin = require('../models/Admin');
 const Employee = require('../models/Employee');
 const User = require('../models/User');
 const ClientEmployee = require('../models/ClientEmployee');
+const AgentEmployee = require('../models/AgentEmployee');
 const SubAccount = require('../models/SubAccount');
 const SupportTicket = require('../models/SupportTicket');
 const PasswordResetRequest = require('../models/PasswordResetRequest');
@@ -161,7 +162,9 @@ const loginAsClient = async (req, res, account, accountType) => {
     req.session.isClientLoggedIn = true;
     req.session.clientId = account._id;
     req.session.accountType = accountType;
-    const performedByModel = accountType === 'company' ? 'ClientEmployee' : (accountType === 'sub_client' ? 'SubAccount' : 'User');
+    const performedByModel = accountType === 'company'
+        ? 'ClientEmployee'
+        : (accountType === 'agent_staff' ? 'AgentEmployee' : (accountType === 'sub_client' ? 'SubAccount' : 'User'));
 
     await logAction({
         action: 'LOGIN_SUCCESS',
@@ -197,7 +200,9 @@ const startClientOtp = async (req, res, account, accountType, Model) => {
     req.session.tempClientId = account._id;
     req.session.tempAccountType = accountType;
 
-    const performedByModel = accountType === 'company' ? 'ClientEmployee' : 'User';
+    const performedByModel = accountType === 'company'
+        ? 'ClientEmployee'
+        : (accountType === 'agent_staff' ? 'AgentEmployee' : 'User');
     await logAction({
         action: 'LOGIN_FAILED',
         req,
@@ -403,6 +408,26 @@ router.post('/login', loginLimiter, async (req, res) => {
             }
         }
 
+        const agentStaff = await AgentEmployee.findOne(personLookup(username)).lean();
+        if (agentStaff?.webPassword) {
+            const isMatch = await verifyAndUpgradePassword(password, agentStaff.webPassword, AgentEmployee, agentStaff._id);
+            if (isMatch) {
+                if (agentStaff.status !== 'active') {
+                    await logLoginFailure(req, username, 'SUSPENDED', 'حساب موظف الوكيل معلق حالياً');
+                    return renderLogin(res, 'حساب موظف الوكيل معلق حالياً.');
+                }
+                const agent = await User.findById(agentStaff.agentId).select('status role').lean();
+                if (!agent || agent.status !== 'active' || agent.role !== 'agent') {
+                    await logLoginFailure(req, username, 'SUSPENDED', 'حساب الوكيل الرئيسي غير نشط');
+                    return renderLogin(res, 'حساب الوكيل الرئيسي غير نشط.');
+                }
+                if (agentStaff.lastOtpDate === todayStr || shouldBypassClientOtp()) {
+                    return loginAsClient(req, res, agentStaff, 'agent_staff');
+                }
+                return startClientOtp(req, res, agentStaff, 'agent_staff', AgentEmployee);
+            }
+        }
+
         await logLoginFailure(req, username, 'INVALID_CREDENTIALS', 'بيانات الدخول غير صحيحة');
         return renderLogin(res, 'بيانات الدخول غير صحيحة.');
     } catch (error) {
@@ -582,7 +607,9 @@ router.get('/logout', async (req, res) => {
             performedByName = req.session.adminName;
         } else if (req.session.clientId) {
             userId = req.session.clientId;
-            performedByModel = req.session.accountType === 'company' ? 'ClientEmployee' : (req.session.accountType === 'sub_client' ? 'SubAccount' : 'User');
+            performedByModel = req.session.accountType === 'company'
+                ? 'ClientEmployee'
+                : (req.session.accountType === 'agent_staff' ? 'AgentEmployee' : (req.session.accountType === 'sub_client' ? 'SubAccount' : 'User'));
             performedByName = req.session.adminName || 'عميل';
         } else if (req.session.executorId) {
             userId = req.session.executorId;

@@ -4,6 +4,7 @@ const ClientEmployee = require('../models/ClientEmployee');
 const ClientCompany = require('../models/ClientCompany');
 const User = require('../models/User');
 const SubAccount = require('../models/SubAccount');
+const AgentEmployee = require('../models/AgentEmployee');
 const { getClientReports } = require('../services/mobileWebParityService');
 
 const requireClientAuth = async (req, res, next) => {
@@ -16,6 +17,15 @@ const requireClientAuth = async (req, res, next) => {
 
             const company = await ClientCompany.findById(employee.companyId).select('status').lean();
             if (!company || company.status !== 'active') return res.redirect('/client/logout');
+            return next();
+        }
+
+        if (req.session.accountType === 'agent_staff') {
+            const employee = await AgentEmployee.findById(req.session.clientId).select('status agentId').lean();
+            if (!employee || employee.status !== 'active') return res.redirect('/client/logout');
+
+            const agent = await User.findById(employee.agentId).select('status role').lean();
+            if (!agent || agent.status !== 'active' || agent.role !== 'agent') return res.redirect('/client/logout');
             return next();
         }
 
@@ -36,6 +46,7 @@ const requireClientAuth = async (req, res, next) => {
 router.get('/reports', requireClientAuth, async (req, res) => {
     try {
         const isCompanyEmployee = req.session.accountType === 'company';
+        const isAgentStaff = req.session.accountType === 'agent_staff';
         const isSubAccount = req.session.accountType === 'sub_client';
         let account;
         let canViewBalance = true;
@@ -46,6 +57,13 @@ router.get('/reports', requireClientAuth, async (req, res) => {
                 const company = await ClientCompany.findById(account.companyId).lean();
                 account.balance = company ? company.balance : 0;
                 canViewBalance = account.canViewAllReports;
+            }
+        } else if (isAgentStaff) {
+            account = await AgentEmployee.findById(req.session.clientId).lean();
+            if (account) {
+                const agent = await User.findById(account.agentId).lean();
+                account.balance = agent ? agent.balance : 0;
+                canViewBalance = account.canViewAllReports || account.canManageAgent || account.role === 'accountant';
             }
         } else if (isSubAccount) {
             account = await SubAccount.findById(req.session.clientId).lean();
@@ -65,9 +83,7 @@ router.get('/reports', requireClientAuth, async (req, res) => {
 router.post('/reports/filter', requireClientAuth, async (req, res) => {
     try {
         const reportInput = req.body || {};
-        const accountType = req.session.accountType === 'company'
-            ? 'client_company'
-            : req.session.accountType;
+        const accountType = req.session.accountType === 'company' ? 'client_company' : req.session.accountType;
         const now = new Date();
         const defaultDateType = reportInput.dateType || 'month';
         const defaultDateValue = reportInput.dateValue || (

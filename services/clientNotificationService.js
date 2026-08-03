@@ -5,6 +5,7 @@ const User = require('../models/User');
 const ClientCompany = require('../models/ClientCompany');
 const ClientEmployee = require('../models/ClientEmployee');
 const SubAccount = require('../models/SubAccount');
+const AgentEmployee = require('../models/AgentEmployee');
 
 const unique = (values) => [...new Set(values.filter(Boolean).map(String))];
 
@@ -48,6 +49,12 @@ const resolveClientNotificationUserIds = async ({ accountType, clientId }) => {
         const subAccount = await SubAccount.findById(clientId).select('_id webUsername phone').lean();
         if (!subAccount) return [];
         return unique([subAccount.webUsername, subAccount.phone, subAccount._id]);
+    }
+
+    if (accountType === 'agent_staff') {
+        const employee = await AgentEmployee.findById(clientId).select('_id webUsername phone agentId').lean();
+        if (!employee) return [];
+        return unique([employee.webUsername, employee.phone, employee._id, employee.agentId]);
     }
 
     const user = await User.findById(clientId).select('_id phone webUsername').lean();

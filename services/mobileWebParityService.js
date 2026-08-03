@@ -13,6 +13,7 @@ const ClientCompany = require('../models/ClientCompany');
 const User = require('../models/User');
 const ClientEmployee = require('../models/ClientEmployee');
 const SubAccount = require('../models/SubAccount');
+const AgentEmployee = require('../models/AgentEmployee');
 const SupportTicket = require('../models/SupportTicket');
 const Admin = require('../models/Admin');
 const Counter = require('../models/Counter');
@@ -168,12 +169,18 @@ async function getClientReports({ userId, accountType, dateType, dateValue, tena
     let account = null;
     let company = null;
     const isEmployee = accountType === 'client_company';
+    const isAgentStaff = accountType === 'agent_staff';
     const isSubAccount = accountType === 'sub_client';
 
     if (isEmployee) {
         account = await ClientEmployee.findById(userId);
         if (!account) throw new Error('UNAUTHORIZED');
         company = await ClientCompany.findById(account.companyId);
+    } else if (isAgentStaff) {
+        account = await AgentEmployee.findById(userId);
+        if (!account) throw new Error('UNAUTHORIZED');
+        company = await User.findById(account.agentId);
+        if (!company || company.role !== 'agent') throw new Error('UNAUTHORIZED');
     } else if (isSubAccount) {
         account = await SubAccount.findById(userId);
         if (!account) throw new Error('UNAUTHORIZED');
@@ -187,9 +194,12 @@ async function getClientReports({ userId, accountType, dateType, dateValue, tena
         dateType === 'month' ? dateValue : null
     );
 
-    const canViewAll = !isEmployee || account.canViewAllReports;
+    const canViewAll = (!isEmployee && !isAgentStaff)
+        || account.canViewAllReports
+        || account.canManageAgent
+        || account.role === 'accountant';
 
-    if (isEmployee && !canViewAll) {
+    if ((isEmployee || isAgentStaff) && !canViewAll) {
         const today = new Date();
         start = new Date(today.setHours(0, 0, 0, 0));
         end = new Date(today.setHours(23, 59, 59, 999));
@@ -200,6 +210,18 @@ async function getClientReports({ userId, accountType, dateType, dateValue, tena
 
     if (isEmployee) {
         baseQuery.companyId = account.companyId;
+    } else if (isAgentStaff) {
+        const subAccountIds = await SubAccount
+            .find({ masterType: 'user', masterId: company._id, status: { $ne: 'deleted' } })
+            .distinct('_id');
+        baseQuery.$or = [
+            { userId: company.phone, companyId: null },
+            { userId: company.webUsername, companyId: null },
+            { subAccountId: { $in: subAccountIds } }
+        ].filter((cond) => {
+            const value = cond.userId || cond.subAccountId;
+            return value !== undefined && value !== null;
+        });
     } else if (isSubAccount) {
         baseQuery.subAccountId = account._id;
         baseQuery.isSubAccountTx = true;
@@ -250,6 +272,7 @@ async function getClientReports({ userId, accountType, dateType, dateValue, tena
 
     let statusLabel = 'عميل مباشر';
     if (isEmployee) statusLabel = canViewAll ? 'مدير/مسؤول شركة' : 'موظف شركة';
+    else if (isAgentStaff) statusLabel = canViewAll ? 'مدير/مسؤول وكيل' : 'موظف وكيل';
     else if (isSubAccount) statusLabel = 'نقطة بيع';
 
     const entityInfo = {
@@ -261,6 +284,9 @@ async function getClientReports({ userId, accountType, dateType, dateValue, tena
     };
 
     if (isEmployee && company) {
+        entityInfo.status += ` (${company.name})`;
+    }
+    if (isAgentStaff && company) {
         entityInfo.status += ` (${company.name})`;
     }
 
@@ -283,7 +309,8 @@ async function getClientReports({ userId, accountType, dateType, dateValue, tena
  */
 async function getBalanceTransferSource(userId, accountType) {
     const isSubAccount = accountType === 'sub_client';
-    const Model = isSubAccount ? SubAccount : (accountType === 'client_company' ? ClientEmployee : User);
+    const isAgentStaff = accountType === 'agent_staff';
+    const Model = isSubAccount ? SubAccount : (accountType === 'client_company' ? ClientEmployee : (isAgentStaff ? AgentEmployee : User));
     const account = await Model.findById(userId);
     if (!account) throw new Error('SESSION_EXPIRED');
     if (account.status && account.status !== 'active') throw new Error('SOURCE_INACTIVE');
@@ -296,6 +323,13 @@ async function getBalanceTransferSource(userId, accountType) {
         const company = await ClientCompany.findById(account.companyId);
         if (!company) throw new Error('COMPANY_NOT_FOUND');
         return { modelName: 'ClientCompany', doc: company, performedBy: account.name };
+    }
+
+    if (isAgentStaff) {
+        if (account.role === 'accountant') throw new Error('ACCOUNTANT_FORBIDDEN');
+        const agent = await User.findById(account.agentId);
+        if (!agent || agent.role !== 'agent') throw new Error('AGENT_NOT_FOUND');
+        return { modelName: 'User', doc: agent, performedBy: account.name };
     }
 
     if (account.role === 'accountant') {
@@ -401,6 +435,17 @@ async function submitClientComplaint({ userId, accountType, transactionId, compl
         const emp = await ClientEmployee.findById(userId);
         if (emp && tx.companyId && String(tx.companyId) === String(emp.companyId)) {
             hasAccess = true;
+        }
+    } else if (accountType === 'agent_staff') {
+        const emp = await AgentEmployee.findById(userId);
+        const agent = emp ? await User.findById(emp.agentId) : null;
+        if (agent) {
+            const allowedIds = [agent.phone, agent.webUsername, String(agent._id)].filter(Boolean).map(String);
+            if (allowedIds.includes(String(tx.userId))) hasAccess = true;
+            if (!hasAccess && tx.subAccountId) {
+                const ownsSub = await SubAccount.exists({ _id: tx.subAccountId, masterType: 'user', masterId: agent._id });
+                if (ownsSub) hasAccess = true;
+            }
         }
     }
 

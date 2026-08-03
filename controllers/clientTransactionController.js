@@ -6,6 +6,7 @@ const ClientCompany = require('../models/ClientCompany');
 const Transaction = require('../models/Transaction');
 const Settings = require('../models/Settings');
 const SubAccount = require('../models/SubAccount');
+const AgentEmployee = require('../models/AgentEmployee');
 const Counter = require('../models/Counter'); 
 const Ledger = require('../models/Ledger'); 
 const Admin = require('../models/Admin');
@@ -27,7 +28,8 @@ const createClientError = (message, statusCode = 400) => {
 
 const getBalanceTransferSource = async (req) => {
     const isSubAccount = req.session.accountType === 'sub_client';
-    const Model = isSubAccount ? SubAccount : (req.session.accountType === 'company' ? ClientEmployee : User);
+    const isAgentStaff = req.session.accountType === 'agent_staff';
+    const Model = isSubAccount ? SubAccount : (req.session.accountType === 'company' ? ClientEmployee : (isAgentStaff ? AgentEmployee : User));
     const account = await Model.findById(req.session.clientId);
     if (!account) throw createClientError('SESSION_EXPIRED', 401);
     if (account.status && account.status !== 'active') throw createClientError('SOURCE_INACTIVE', 403);
@@ -40,6 +42,13 @@ const getBalanceTransferSource = async (req) => {
         const company = await ClientCompany.findById(account.companyId);
         if (!company) throw createClientError('COMPANY_NOT_FOUND', 404);
         return { modelName: 'ClientCompany', doc: company, performedBy: account.name };
+    }
+
+    if (isAgentStaff) {
+        if (account.role === 'accountant') throw createClientError('ACCOUNTANT_FORBIDDEN', 403);
+        const agent = await User.findById(account.agentId);
+        if (!agent || agent.role !== 'agent') throw createClientError('AGENT_NOT_FOUND', 404);
+        return { modelName: 'User', doc: agent, performedBy: account.name };
     }
 
     if (account.role === 'accountant') {
@@ -108,10 +117,12 @@ exports.postTransfer = async (req, res) => {
         const withSess = (query) => useTransaction ? query.session(session) : query;
 
         const isSubAccount = req.session.accountType === 'sub_client';
-        const Model = isSubAccount ? SubAccount : (req.session.accountType === 'company' ? ClientEmployee : User);
+        const isAgentStaff = req.session.accountType === 'agent_staff';
+        const Model = isSubAccount ? SubAccount : (req.session.accountType === 'company' ? ClientEmployee : (isAgentStaff ? AgentEmployee : User));
         const account = await withSess(Model.findById(req.session.clientId));
         auditAccount = account;
         auditIsSubAccount = isSubAccount;
+        if (!account) throw new Error('SESSION_EXPIRED');
         
         if (account.role === 'accountant') {
             if (useTransaction) { await session.abortTransaction(); session.endSession(); }
@@ -198,6 +209,14 @@ exports.postTransfer = async (req, res) => {
                 masterRate = getServiceRateForTier(serviceKey, company.tier || 1, settings);
                 masterCostLYD = parseFloat((amount / masterRate).toFixed(3));
                 balanceModel = company; companyId = company._id; companyName = company.name; telegramId = account.phone || account.webUsername;
+            } else if (isAgentStaff) {
+                const agent = await withSess(User.findById(account.agentId));
+                if (!agent || agent.status !== 'active' || agent.role !== 'agent') throw new Error('AGENT_NOT_FOUND');
+                masterRate = getServiceRateForTier(serviceKey, agent.tier || 1, settings);
+                masterCostLYD = parseFloat((amount / masterRate).toFixed(3));
+                balanceModel = agent;
+                companyName = agent.name;
+                telegramId = agent.phone || agent.webUsername;
             } else {
                 masterRate = getServiceRateForTier(serviceKey, account.tier || 1, settings);
                 masterCostLYD = parseFloat((amount / masterRate).toFixed(3));
@@ -241,7 +260,7 @@ exports.postTransfer = async (req, res) => {
             action: 'TRANSFER_CREATED',
             req,
             performedById: account._id,
-            performedByModel: isSubAccount ? 'SubAccount' : (req.session.accountType === 'company' ? 'ClientEmployee' : 'User'),
+            performedByModel: isSubAccount ? 'SubAccount' : (req.session.accountType === 'company' ? 'ClientEmployee' : (isAgentStaff ? 'AgentEmployee' : 'User')),
             performedByName: account.name,
             targetId: newTx._id,
             targetModel: 'Transaction',
@@ -266,7 +285,9 @@ exports.postTransfer = async (req, res) => {
         setImmediate(async () => {
             try {
                 const masterNameText = isSubAccount ? masterObj.name : companyName;
-                const requesterText = isSubAccount ? `${account.name} (نقطة بيع)` : 'حساب الوكيل المباشر';
+                const requesterText = isSubAccount
+                    ? `${account.name} (نقطة بيع)`
+                    : (isAgentStaff ? `${account.name} (موظف وكيل)` : 'حساب الوكيل المباشر');
                 const profitNote = commission > 0 ? `\n🎁 ربح الوكيل من العملية: ${commission.toFixed(3)} LYD` : '';
                 
                 const adminMsg = `🔔 طلب جديد من الويب!\n\n🏢 الوكيل الرئيسي: ${masterNameText}\n🏪 الجهة الطالبة: ${requesterText}\n📞 المحفظة: ${phone}\n💵 المبلغ: ${amount} EGP\n💰 التكلفة: ${masterCostLYD.toFixed(3)} LYD${profitNote}\n📝 التفاصيل: ${notes || 'لا يوجد'}\n🔢 رقم: ${finalCustomId}`;
@@ -297,7 +318,7 @@ exports.postTransfer = async (req, res) => {
                 action: 'TRANSFER_CREATED',
                 req,
                 performedById: auditAccount ? auditAccount._id : null,
-                performedByModel: auditAccount ? (auditIsSubAccount ? 'SubAccount' : (req.session.accountType === 'company' ? 'ClientEmployee' : 'User')) : 'System',
+                performedByModel: auditAccount ? (auditIsSubAccount ? 'SubAccount' : (req.session.accountType === 'company' ? 'ClientEmployee' : (req.session.accountType === 'agent_staff' ? 'AgentEmployee' : 'User'))) : 'System',
                 performedByName: auditAccount ? auditAccount.name : 'System',
                 success: false,
                 errorCode: error.message,
@@ -306,6 +327,8 @@ exports.postTransfer = async (req, res) => {
         } catch (_) {}
 
         if (error.message === 'SYSTEM_CLOSED') return isAjax ? res.status(403).json({ error: '⛔ النظام مغلق.' }) : null;
+        if (error.message === 'SESSION_EXPIRED') return isAjax ? res.status(401).json({ error: 'انتهت الجلسة. يرجى تسجيل الدخول مرة أخرى.' }) : res.redirect('/client/logout');
+        if (error.message === 'AGENT_NOT_FOUND') return isAjax ? res.status(404).json({ error: 'حساب الوكيل غير موجود أو غير نشط.' }) : null;
         if (error.message === 'INVALID_DATA') return isAjax ? res.status(400).json({ error: '❌ بيانات التحويل غير صحيحة.' }) : null;
         if (error.message.includes('INSUFFICIENT_BALANCE')) return isAjax ? res.status(400).json({ error: '❌ الرصيد غير كافٍ أو تغير أثناء العملية.' }) : null;
 
@@ -437,6 +460,15 @@ exports.getProxyImage = async (req, res) => {
         else if (req.session.accountType === 'company') {
             const emp = await ClientEmployee.findById(accountId);
             if (emp && tx.companyId && tx.companyId.toString() === emp.companyId.toString()) hasAccess = true;
+        } else if (req.session.accountType === 'agent_staff') {
+            const emp = await AgentEmployee.findById(accountId);
+            if (emp) {
+                const agent = await User.findById(emp.agentId);
+                const agentUserId = agent ? (agent.phone || agent.webUsername) : '';
+                const subAccountIds = await SubAccount.find({ masterType: 'user', masterId: emp.agentId }).distinct('_id');
+                if (agent && tx.userId === agentUserId) hasAccess = true;
+                if (!hasAccess && tx.subAccountId && subAccountIds.some((id) => id.toString() === tx.subAccountId.toString())) hasAccess = true;
+            }
         } else if (req.session.accountType === 'user') {
             const user = await User.findById(accountId);
             if (user && tx.userId === (user.phone || user.webUsername)) hasAccess = true;
