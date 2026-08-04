@@ -281,7 +281,7 @@ exports.getStaffManagement = async (req, res) => {
     try {
         const { account } = await getCompanyActor(req);
         if (!canManageCompany(account)) return res.redirect('/client/dashboard');
-        return res.redirect('/client/dashboard#staff');
+        return res.redirect('/client/staff');
     } catch (error) {
         return res.redirect('/client/logout');
     }
@@ -291,7 +291,7 @@ exports.postAddStaff = async (req, res) => {
     try {
         const { account, company } = await getCompanyActor(req);
         if (!canCreateStaff(account)) {
-            return res.status(403).redirect('/client/dashboard?staffError=forbidden#staff');
+            return res.status(403).redirect('/client/staff?staffError=forbidden');
         }
 
         const name = String(req.body.name || '').trim();
@@ -301,10 +301,10 @@ exports.postAddStaff = async (req, res) => {
         const grantManagerAccess = isChecked(req.body.canManageCompany);
 
         if (!name || !phone || !webPassword || !['employee', 'accountant'].includes(role)) {
-            return res.redirect('/client/dashboard?staffError=missing#staff');
+            return res.redirect('/client/staff?staffError=missing');
         }
         if (webPassword.length < 6) {
-            return res.redirect('/client/dashboard?staffError=password#staff');
+            return res.redirect('/client/staff?staffError=password');
         }
 
         const webUsername = normalizeCompanyUsername(req.body.webUsername);
@@ -340,7 +340,7 @@ exports.postAddStaff = async (req, res) => {
             }
         });
 
-        return res.redirect('/client/dashboard?staffSuccess=created#staff');
+        return res.redirect('/client/staff?staffSuccess=created');
     } catch (error) {
         const code = error.message === 'USERNAME_TAKEN'
             ? 'username'
@@ -348,7 +348,7 @@ exports.postAddStaff = async (req, res) => {
                 ? 'username_format'
                 : 'server';
         console.error('[Company Staff] create failed:', error.message);
-        return res.redirect(`/client/dashboard?staffError=${code}#staff`);
+        return res.redirect(`/client/staff?staffError=${code}`);
     }
 };
 
@@ -356,12 +356,12 @@ exports.postToggleStaff = async (req, res) => {
     try {
         const { account, company } = await getCompanyActor(req);
         if (!canCreateStaff(account)) {
-            return res.status(403).redirect('/client/dashboard?staffError=forbidden#staff');
+            return res.status(403).redirect('/client/staff?staffError=forbidden');
         }
 
         const target = await ClientEmployee.findOne({ _id: req.params.id, companyId: company._id });
         if (!target || String(target._id) === String(account._id) || isCompanyOwner(target)) {
-            return res.redirect('/client/dashboard?staffError=forbidden#staff');
+            return res.redirect('/client/staff?staffError=forbidden');
         }
 
         target.status = target.status === 'active' ? 'banned' : 'active';
@@ -379,10 +379,10 @@ exports.postToggleStaff = async (req, res) => {
             metadata: { companyId: company._id, webUsername: target.webUsername }
         });
 
-        return res.redirect('/client/dashboard?staffSuccess=status#staff');
+        return res.redirect('/client/staff?staffSuccess=status');
     } catch (error) {
         console.error('[Company Staff] toggle failed:', error.message);
-        return res.redirect('/client/dashboard?staffError=server#staff');
+        return res.redirect('/client/staff?staffError=server');
     }
 };
 
@@ -390,17 +390,17 @@ exports.postResetStaffPassword = async (req, res) => {
     try {
         const { account, company } = await getCompanyActor(req);
         if (!canCreateStaff(account)) {
-            return res.status(403).redirect('/client/dashboard?staffError=forbidden#staff');
+            return res.status(403).redirect('/client/staff?staffError=forbidden');
         }
 
         const newPassword = String(req.body.newPassword || '').trim();
         if (newPassword.length < 6) {
-            return res.redirect('/client/dashboard?staffError=password#staff');
+            return res.redirect('/client/staff?staffError=password');
         }
 
         const target = await ClientEmployee.findOne({ _id: req.params.id, companyId: company._id });
         if (!target || String(target._id) === String(account._id) || isCompanyOwner(target)) {
-            return res.redirect('/client/dashboard?staffError=forbidden#staff');
+            return res.redirect('/client/staff?staffError=forbidden');
         }
 
         target.webPassword = newPassword;
@@ -418,10 +418,10 @@ exports.postResetStaffPassword = async (req, res) => {
             metadata: { companyId: company._id, webUsername: target.webUsername }
         });
 
-        return res.redirect('/client/dashboard?staffSuccess=password#staff');
+        return res.redirect('/client/staff?staffSuccess=password');
     } catch (error) {
         console.error('[Company Staff] password reset failed:', error.message);
-        return res.redirect('/client/dashboard?staffError=server#staff');
+        return res.redirect('/client/staff?staffError=server');
     }
 };
 

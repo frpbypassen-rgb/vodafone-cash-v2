@@ -1,0 +1,92 @@
+<section class="bw-mini-metrics">
+    <article><span>إجمالي العملاء</span><strong class="bw-mono"><%= customerSummary.total %></strong></article>
+    <article class="success"><span>الحسابات النشطة</span><strong class="bw-mono"><%= customerSummary.active %></strong></article>
+    <article><span>أرصدة العملاء</span><strong class="bw-mono"><%= Number(customerSummary.totalBalance).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) %> <small>LYD</small></strong></article>
+    <article class="warning"><span>الحدود الائتمانية</span><strong class="bw-mono"><%= Number(customerSummary.totalCredit).toLocaleString('en-US', { maximumFractionDigits: 2 }) %> <small>LYD</small></strong></article>
+    <article class="blue"><span>حجم الشهر</span><strong class="bw-mono"><%= Number(customerSummary.monthVolumeEGP).toLocaleString('en-US', { maximumFractionDigits: 0 }) %> <small>EGP</small></strong></article>
+</section>
+
+<section class="bw-section">
+    <header class="bw-section-head">
+        <div><span class="bw-section-kicker">قاعدة العملاء</span><h2>حسابات العملاء التابعة</h2></div>
+        <button type="button" class="bw-button primary" data-dialog-open="createCustomerDialog"><i class="fa-solid fa-user-plus"></i>عميل جديد</button>
+    </header>
+    <div class="bw-table-wrap">
+        <table class="bw-table bw-customer-table">
+            <thead><tr><th>العميل</th><th>بيانات الحساب</th><th>الرصيد والحد</th><th>نشاط الشهر</th><th>آخر نشاط</th><th>الحالة</th><th></th></tr></thead>
+            <tbody>
+                <% if (!customers.length) { %><tr><td colspan="7"><div class="bw-empty"><i class="fa-solid fa-users"></i><strong>لا توجد حسابات عملاء</strong><span>أنشئ أول حساب عميل لبدء إدارة شبكتك.</span></div></td></tr><% } %>
+                <% customers.forEach(customer => { %>
+                    <tr>
+                        <td data-label="العميل"><span class="bw-person-cell"><span class="bw-avatar small"><%= String(customer.name).charAt(0) %></span><span><strong><%= customer.name %></strong><small class="bw-mono"><%= customer.phone || 'بدون هاتف' %></small></span></span></td>
+                        <td data-label="بيانات الحساب"><strong class="bw-mono"><%= customer.accountCode || 'قيد التوليد' %></strong><small dir="ltr"><%= customer.webUsername %></small></td>
+                        <td data-label="الرصيد والحد"><strong class="bw-mono"><%= Number(customer.balance || 0).toFixed(2) %> LYD</strong><small>حد ائتماني: <%= Number(customer.creditLimit || 0).toFixed(2) %></small></td>
+                        <td data-label="نشاط الشهر"><strong class="bw-mono"><%= customer.stats.transactionCount %> عملية</strong><small><%= Number(customer.stats.totalEGP || 0).toLocaleString('en-US', { maximumFractionDigits: 0 }) %> EGP</small></td>
+                        <td data-label="آخر نشاط"><% if (customer.stats.lastActivity) { %><strong class="bw-mono"><%= new Date(customer.stats.lastActivity).toLocaleDateString('en-GB') %></strong><small><%= new Date(customer.stats.lastActivity).toLocaleTimeString('ar-LY', { hour: '2-digit', minute: '2-digit' }) %></small><% } else { %><span class="bw-muted">لا يوجد</span><% } %></td>
+                        <td data-label="الحالة"><span class="bw-status <%= customer.status === 'active' ? 'success' : 'danger' %>"><%= customer.status === 'active' ? 'نشط' : 'موقوف' %></span></td>
+                        <td>
+                            <div class="bw-row-actions">
+                                <button type="button" class="bw-icon-button compact" data-customer-balance data-customer-id="<%= customer._id %>" data-customer-name="<%= customer.name %>" title="تمويل أو سحب" aria-label="إدارة رصيد <%= customer.name %>"><i class="fa-solid fa-wallet"></i></button>
+                                <form method="POST" action="/client/customers/<%= customer._id %>/toggle" data-confirm="<%= customer.status === 'active' ? 'إيقاف حساب هذا العميل؟' : 'إعادة تنشيط حساب هذا العميل؟' %>">
+                                    <button type="submit" class="bw-icon-button compact <%= customer.status === 'active' ? 'danger' : 'success' %>" title="<%= customer.status === 'active' ? 'إيقاف' : 'تنشيط' %>" aria-label="<%= customer.status === 'active' ? 'إيقاف' : 'تنشيط' %> حساب <%= customer.name %>"><i class="fa-solid <%= customer.status === 'active' ? 'fa-pause' : 'fa-play' %>"></i></button>
+                                </form>
+                            </div>
+                        </td>
+                    </tr>
+                <% }) %>
+            </tbody>
+        </table>
+    </div>
+</section>
+
+<% if (workspace.isAgent) { %>
+    <section class="bw-section" id="registrationRequests">
+        <header class="bw-section-head"><div><span class="bw-section-kicker">اعتماد الوكيل</span><h2>طلبات التسجيل الجديدة</h2></div><span class="bw-meta-chip"><%= pendingRequests.length %> طلب</span></header>
+        <div class="bw-request-grid">
+            <% if (!pendingRequests.length) { %><div class="bw-empty wide"><i class="fa-solid fa-user-check"></i><strong>لا توجد طلبات معلقة</strong><span>ستظهر طلبات العملاء المرتبطة برقم وكالتك هنا.</span></div><% } %>
+            <% pendingRequests.forEach(request => { %>
+                <article class="bw-request-item">
+                    <header><span class="bw-avatar"><%= String(request.fullName || 'ع').charAt(0) %></span><div><strong><%= request.fullName %></strong><small class="bw-mono"><%= request.refCode %></small></div><time><%= new Date(request.createdAt).toLocaleDateString('ar-LY') %></time></header>
+                    <dl>
+                        <div><dt>الهاتف</dt><dd class="bw-mono"><%= request.phone %></dd></div>
+                        <div><dt>المدينة</dt><dd><%= request.city || '---' %></dd></div>
+                        <div><dt>الجنسية</dt><dd><%= request.nationality === 'egyptian' ? 'مصري' : 'ليبي' %></dd></div>
+                        <div><dt>اسم المستخدم</dt><dd dir="ltr"><%= request.username %></dd></div>
+                    </dl>
+                    <footer>
+                        <form method="POST" action="/client/agent/registration-requests/<%= request._id %>/approve" data-confirm="قبول الطلب وإنشاء حساب العميل؟"><button type="submit" class="bw-button primary compact"><i class="fa-solid fa-check"></i>قبول</button></form>
+                        <form method="POST" action="/client/agent/registration-requests/<%= request._id %>/reject" data-confirm="رفض طلب التسجيل؟"><input type="hidden" name="notes" value="تم الرفض من الوكيل"><button type="submit" class="bw-button danger compact"><i class="fa-solid fa-xmark"></i>رفض</button></form>
+                    </footer>
+                </article>
+            <% }) %>
+        </div>
+    </section>
+<% } %>
+
+<dialog class="bw-dialog" id="createCustomerDialog" aria-labelledby="createCustomerTitle">
+    <form method="POST" action="/client/customers/add" class="bw-dialog-form">
+        <div class="bw-dialog-head"><div><span class="bw-section-kicker">حساب تابع جديد</span><h2 id="createCustomerTitle">إضافة عميل</h2></div><button type="button" class="bw-icon-button" data-dialog-close aria-label="إغلاق"><i class="fa-solid fa-xmark"></i></button></div>
+        <div class="bw-dialog-body bw-form-grid">
+            <label class="bw-field span-2"><span>اسم العميل أو النشاط</span><input type="text" name="name" minlength="3" maxlength="120" required></label>
+            <label class="bw-field"><span>رقم الهاتف</span><input type="tel" name="phone" dir="ltr" inputmode="tel" required></label>
+            <label class="bw-field"><span>اسم المستخدم</span><div class="bw-input-suffix"><input type="text" name="webUsername" dir="ltr" pattern="[A-Za-z0-9_]{3,40}" required><b>@ahram.com</b></div></label>
+            <label class="bw-field"><span>كلمة المرور</span><input type="password" name="webPassword" minlength="8" autocomplete="new-password" required></label>
+            <label class="bw-field"><span>هامش الخدمة</span><input type="number" name="customMargin" min="0" step="0.001" value="0"></label>
+            <label class="bw-field span-2"><span>الحد الائتماني</span><div class="bw-input-affix"><input type="number" name="creditLimit" min="0" step="0.01" value="0"><b>LYD</b></div></label>
+        </div>
+        <div class="bw-dialog-actions"><button type="button" class="bw-button secondary" data-dialog-close>إلغاء</button><button type="submit" class="bw-button primary"><i class="fa-solid fa-user-plus"></i>إنشاء الحساب</button></div>
+    </form>
+</dialog>
+
+<dialog class="bw-dialog" id="customerBalanceDialog" aria-labelledby="customerBalanceTitle">
+    <form method="POST" action="" class="bw-dialog-form" id="customerBalanceForm">
+        <div class="bw-dialog-head"><div><span class="bw-section-kicker">حركة مالية</span><h2 id="customerBalanceTitle">إدارة رصيد العميل</h2></div><button type="button" class="bw-icon-button" data-dialog-close aria-label="إغلاق"><i class="fa-solid fa-xmark"></i></button></div>
+        <div class="bw-dialog-body bw-form-grid">
+            <div class="bw-selected-customer span-2"><span class="bw-avatar"><i class="fa-solid fa-user"></i></span><div><small>الحساب المحدد</small><strong id="customerBalanceName">---</strong></div></div>
+            <label class="bw-field"><span>نوع الحركة</span><select name="operation"><option value="deposit">تمويل - إضافة رصيد</option><option value="withdraw">سحب - خصم رصيد</option></select></label>
+            <label class="bw-field"><span>المبلغ</span><div class="bw-input-affix"><input type="number" name="amount" min="0.01" step="0.01" required><b>LYD</b></div></label>
+            <label class="bw-field span-2"><span>البيان</span><input type="text" name="note" maxlength="240" placeholder="سبب التمويل أو السحب"></label>
+        </div>
+        <div class="bw-dialog-actions"><button type="button" class="bw-button secondary" data-dialog-close>إلغاء</button><button type="submit" class="bw-button primary"><i class="fa-solid fa-check"></i>تسجيل الحركة</button></div>
+    </form>
+</dialog>

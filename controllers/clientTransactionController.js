@@ -1,4 +1,5 @@
 const mongoose = require('mongoose');
+const fs = require('fs');
 
 const User = require('../models/User');
 const ClientEmployee = require('../models/ClientEmployee');
@@ -19,6 +20,7 @@ const {
 const { normalizeAccountCode, resolveAccountByCode } = require('../services/accountCodeService');
 const { logAction } = require('../services/auditService');
 const { getServiceRateForTier, resolveTransferServiceKey } = require('../utils/rateHelper');
+const { getTransferServiceDefinition } = require('../utils/mobileTransferServiceCatalog');
 
 const createClientError = (message, statusCode = 400) => {
     const error = new Error(message);
@@ -129,13 +131,30 @@ exports.postTransfer = async (req, res) => {
             return isAjax ? res.status(403).json({ error: '❌ ليس لديك صلاحية.' }) : res.redirect('/client/dashboard?error=unauthorized');
         }
 
-        const amount = parseFloat(req.body.amount); 
-        const phone = req.body.phone; 
-        const notes = req.body.notes ? req.body.notes.trim() : ''; 
+        const amount = parseFloat(req.body.amount);
+        const phone = String(req.body.phone || '').trim();
+        const notes = req.body.notes ? String(req.body.notes).trim().slice(0, 500) : '';
         const serviceKey = resolveTransferServiceKey(req.body.type || 'كاش');
         const transferType = req.body.type || 'كاش'; 
+        const serviceDefinition = getTransferServiceDefinition(serviceKey);
+        const accountName = String(req.body.name || '').trim().slice(0, 160);
+        const accountNumber = String(req.body.number || phone).trim().slice(0, 100);
+        const serviceDetails = {
+            subtype: String(req.body.serviceSubtype || '').trim().slice(0, 40),
+            city: String(req.body.city || '').trim().slice(0, 100),
+            bankName: String(req.body.bankName || '').trim().slice(0, 120),
+            destinationLabel: serviceDefinition ? serviceDefinition.numberLabel : ''
+        };
 
         if (isNaN(amount) || amount <= 0 || !phone || !serviceKey) throw new Error('INVALID_DATA');
+        if (serviceDefinition?.requiredFields?.includes('name') && !accountName) throw new Error('INVALID_DATA');
+        if (serviceDefinition?.requiredFields?.includes('idCardImage') && !req.file) throw new Error('INVALID_DATA');
+        if (serviceDefinition?.requiredFields?.includes('serviceSubtype') && !serviceDetails.subtype) throw new Error('INVALID_DATA');
+        if (serviceDefinition?.allowedSubtypes && !serviceDefinition.allowedSubtypes.includes(serviceDetails.subtype)) {
+            throw new Error('INVALID_DATA');
+        }
+        if (serviceKey === 'bank_account' && !serviceDetails.bankName) throw new Error('INVALID_DATA');
+        if (serviceKey === 'sefa_niger' && !serviceDetails.city) throw new Error('INVALID_DATA');
 
         let settings = await withSess(Settings.findOne({}));
         if (!settings) settings = await Settings.create({}, sessionOpts);
@@ -248,9 +267,10 @@ exports.postTransfer = async (req, res) => {
             customId: finalCustomId, userId: telegramId, companyId: companyId, subAccountId: isSubAccount ? account._id : null,
             subAccountName: isSubAccount ? account.name : '', companyName: isSubAccount ? masterObj.name : companyName, 
             employeeName: isSubAccount ? account.name : account.name, vodafoneNumber: phone, transferType: serviceKey,
-            accountName: req.body.name || '', accountNumber: req.body.number || '', amount: amount, costLYD: masterCostLYD,
+            accountName, accountNumber, serviceDetails, amount: amount, costLYD: masterCostLYD,
             subAccountCostLYD: isSubAccount ? subCostLYD : 0, commission: commission, exchangeRate: masterRate, subClientRate: isSubAccount ? actualSubRate : 0,
-            notes: notes, status: 'pending', isSubAccountTx: isSubAccount, masterProfit: isSubAccount ? commission : 0
+            notes: notes, status: 'pending', isSubAccountTx: isSubAccount, masterProfit: isSubAccount ? commission : 0,
+            idCardImage: req.file ? `/uploads/${req.file.filename}` : undefined
         });
         if (autoRouteExecutor) applyAutoRouteFields(newTx, autoRouteExecutor);
         await newTx.save(sessionOpts);
@@ -311,6 +331,9 @@ exports.postTransfer = async (req, res) => {
         // 🔴 في حال أي خطأ يتم التراجع عن خصم الأرصدة وإلغاء الفواتير والدفتر
         console.error('[Transfer] خطأ:', error.message, error.stack);
         if (useTransaction) { try { await session.abortTransaction(); session.endSession(); } catch(e) {} }
+        if (req.file?.path) {
+            fs.promises.unlink(req.file.path).catch(() => {});
+        }
 
         // Log failed transfer to audit log
         try {

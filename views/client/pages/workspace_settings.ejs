@@ -1,0 +1,55 @@
+<section class="bw-settings-grid">
+    <section class="bw-section">
+        <header class="bw-section-head"><div><span class="bw-section-kicker">هوية المنشأة</span><h2>بيانات <%= workspace.entityLabel %></h2></div><span class="bw-status success">حساب نشط</span></header>
+        <form method="POST" action="/client/settings/profile" class="bw-form bw-form-grid">
+            <label class="bw-field span-2"><span>اسم المنشأة</span><input type="text" value="<%= workspace.entity.name %>" disabled><small>يتم تعديل الاسم القانوني عن طريق الإدارة.</small></label>
+            <label class="bw-field"><span>اسم مسؤول التواصل</span><input type="text" name="contactName" value="<%= settingsData.profile.contactName || '' %>" maxlength="120" <%= workspace.permissions.canEditSettings ? '' : 'disabled' %>></label>
+            <label class="bw-field"><span>رقم التواصل</span><input type="tel" name="phone" value="<%= workspace.entity.phone || '' %>" dir="ltr" maxlength="32" <%= workspace.permissions.canEditSettings ? '' : 'disabled' %>></label>
+            <label class="bw-field"><span>البريد الإلكتروني</span><input type="email" name="email" value="<%= settingsData.profile.email || '' %>" dir="ltr" maxlength="160" <%= workspace.permissions.canEditSettings ? '' : 'disabled' %>></label>
+            <label class="bw-field"><span>المدينة</span><input type="text" name="city" value="<%= settingsData.profile.city || '' %>" maxlength="80" <%= workspace.permissions.canEditSettings ? '' : 'disabled' %>></label>
+            <label class="bw-field span-2"><span>العنوان</span><input type="text" name="address" value="<%= settingsData.profile.address || '' %>" maxlength="240" <%= workspace.permissions.canEditSettings ? '' : 'disabled' %>></label>
+            <label class="bw-field span-2"><span>رقم السجل أو الترخيص</span><input type="text" name="registrationNumber" value="<%= settingsData.profile.registrationNumber || '' %>" maxlength="80" <%= workspace.permissions.canEditSettings ? '' : 'disabled' %>></label>
+            <% if (workspace.permissions.canEditSettings) { %><div class="bw-form-actions span-2"><button type="submit" class="bw-button primary"><i class="fa-solid fa-floppy-disk"></i>حفظ البيانات</button></div><% } %>
+        </form>
+    </section>
+
+    <aside class="bw-section bw-account-summary">
+        <header class="bw-section-head"><div><span class="bw-section-kicker">بيانات الحساب</span><h2>الاشتراك والصلاحية</h2></div></header>
+        <dl class="bw-definition-list">
+            <div><dt>رقم الحساب</dt><dd class="bw-mono"><%= workspace.entity.accountCode || workspace.entity.agentCode || '---' %></dd></div>
+            <div><dt>المستوى السعري</dt><dd>المستوى <%= workspace.entity.tier || 1 %></dd></div>
+            <div><dt>الحد الائتماني</dt><dd class="bw-mono"><%= Number(workspace.entity.creditLimit || 0).toFixed(2) %> LYD</dd></div>
+            <div><dt>حالة النظام</dt><dd><span class="bw-status <%= systemOpen ? 'success' : 'danger' %>"><%= systemOpen ? 'متاح' : 'مغلق' %></span></dd></div>
+            <div><dt>دورك</dt><dd><%= workspace.roleLabel %></dd></div>
+            <div><dt>اسم الدخول</dt><dd dir="ltr"><%= workspace.actor.webUsername || workspace.actor.phone %></dd></div>
+        </dl>
+    </aside>
+</section>
+
+<section class="bw-settings-grid secondary-grid">
+    <section class="bw-section">
+        <header class="bw-section-head"><div><span class="bw-section-kicker">الأسعار الحالية</span><h2>أسعار الخدمات لحسابك</h2></div><span class="bw-meta-chip">المستوى <%= workspace.entity.tier || 1 %></span></header>
+        <div class="bw-rate-list">
+            <% serviceCatalog.forEach(service => { %><div class="bw-rate-row"><span class="bw-service-icon tone-<%= service.tone %>"><i class="fa-solid <%= service.icon %>"></i></span><div><strong><%= service.label %></strong><small><%= service.description %></small></div><strong class="bw-mono"><%= Number(service.rate).toFixed(2) %></strong></div><% }) %>
+        </div>
+    </section>
+
+    <section class="bw-section">
+        <header class="bw-section-head"><div><span class="bw-section-kicker">تفضيلات العرض</span><h2>واجهة هذا الجهاز</h2></div></header>
+        <div class="bw-form bw-form-grid">
+            <label class="bw-field span-2"><span>المظهر</span><select id="workspaceThemeSelect" data-preference="theme"><option value="light">فاتح</option><option value="dark">داكن</option><option value="system">حسب الجهاز</option></select></label>
+            <label class="bw-field span-2"><span>كثافة الجداول</span><select id="workspaceDensitySelect" data-preference="density"><option value="comfortable">مريحة</option><option value="compact">مضغوطة</option></select></label>
+            <div class="bw-setting-note span-2"><i class="fa-solid fa-display"></i><span><strong>إعداد خاص بالجهاز</strong><small>يُحفظ هذا الاختيار في المتصفح الحالي ولا يؤثر في بقية الموظفين.</small></span></div>
+        </div>
+    </section>
+
+    <section class="bw-section">
+        <header class="bw-section-head"><div><span class="bw-section-kicker">الأمان</span><h2>تغيير كلمة المرور</h2></div></header>
+        <form method="POST" action="/client/settings/password" class="bw-form bw-form-grid">
+            <label class="bw-field span-2"><span>كلمة المرور الحالية</span><input type="password" name="currentPassword" autocomplete="current-password" required></label>
+            <label class="bw-field"><span>كلمة المرور الجديدة</span><input type="password" name="newPassword" minlength="8" autocomplete="new-password" required></label>
+            <label class="bw-field"><span>تأكيد كلمة المرور</span><input type="password" name="passwordConfirm" minlength="8" autocomplete="new-password" required></label>
+            <div class="bw-form-actions span-2"><button type="submit" class="bw-button secondary"><i class="fa-solid fa-key"></i>تحديث كلمة المرور</button></div>
+        </form>
+    </section>
+</section>

@@ -13,6 +13,13 @@ const userSchema = new mongoose.Schema({
     webUsername: { type: String, unique: true, required: true },
     webPassword: { type: String, required: true },
     role: { type: String, default: 'user' }, // user | accountant
+    businessProfile: {
+        contactName: { type: String, trim: true, default: '' },
+        email: { type: String, trim: true, lowercase: true, default: '' },
+        city: { type: String, trim: true, default: '' },
+        address: { type: String, trim: true, default: '' },
+        registrationNumber: { type: String, trim: true, default: '' }
+    },
     refreshToken: { type: String }, // 🟢 مخصص لتطبيق الموبايل
     otpCode: { type: String },
     otpExpires: { type: Date },

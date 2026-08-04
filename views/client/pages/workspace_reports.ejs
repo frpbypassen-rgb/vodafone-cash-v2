@@ -1,0 +1,71 @@
+<section class="bw-report-toolbar">
+    <div class="bw-segmented" role="navigation" aria-label="نوع التقرير">
+        <% Object.entries(reportScopes).forEach(([scopeKey, scopeLabel]) => { const params = new URLSearchParams({ ...query, scope: scopeKey }); params.delete('page'); %>
+            <a href="/client/reports?<%= params.toString() %>" class="<%= reportScope === scopeKey ? 'active' : '' %>"><i class="fa-solid <%= scopeKey === 'organization' ? 'fa-building' : scopeKey === 'customers' ? 'fa-users' : 'fa-user-group' %>"></i><%= scopeLabel %></a>
+        <% }) %>
+    </div>
+    <div class="bw-report-actions">
+        <% const exportParams = new URLSearchParams({ ...query, scope: reportScope }); %>
+        <a href="/client/reports/export.csv?<%= exportParams.toString() %>" class="bw-button secondary"><i class="fa-solid fa-file-csv"></i>CSV</a>
+        <button type="button" class="bw-button secondary" onclick="window.print()"><i class="fa-solid fa-print"></i>طباعة / PDF</button>
+    </div>
+</section>
+
+<section class="bw-filter-band">
+    <form method="GET" action="/client/reports" class="bw-filter-form">
+        <input type="hidden" name="scope" value="<%= reportScope %>">
+        <% if (!workspace.forceToday) { %>
+            <label><span>من</span><input type="date" name="from" value="<%= filters.from %>"></label>
+            <label><span>إلى</span><input type="date" name="to" value="<%= filters.to %>"></label>
+            <label><span>أو اختر شهراً</span><input type="month" name="month" value="<%= filters.month %>"></label>
+        <% } %>
+        <button type="submit" class="bw-button primary compact"><i class="fa-solid fa-chart-simple"></i>إنشاء التقرير</button>
+    </form>
+</section>
+
+<section class="bw-report-cover">
+    <div class="bw-report-brand"><img src="/images/logo.jpeg" alt="Power Pay AL-Ahram" onerror="this.onerror=null;this.src='/images/logo.jpg'"><div><span>Power Pay AL-Ahram</span><strong><%= reportScopeLabel %></strong><small><%= workspace.entity.name %></small></div></div>
+    <dl><div><dt>الفترة</dt><dd><%= filters.label %></dd></div><div><dt>أُعد بواسطة</dt><dd><%= workspace.actor.name %></dd></div><div><dt>تاريخ الإصدار</dt><dd class="bw-mono"><%= now.toLocaleDateString('en-GB') %></dd></div></dl>
+</section>
+
+<section class="bw-mini-metrics report">
+    <article><span>إجمالي العمليات</span><strong class="bw-mono"><%= reportSummary.totalCount %></strong></article>
+    <article class="success"><span>العمليات الناجحة</span><strong class="bw-mono"><%= reportSummary.completedCount %></strong></article>
+    <article class="blue"><span>إجمالي التحويلات</span><strong class="bw-mono"><%= Number(reportSummary.totalEGP).toLocaleString('en-US', { maximumFractionDigits: 0 }) %> <small>EGP</small></strong></article>
+    <article><span>التكلفة</span><strong class="bw-mono"><%= Number(reportSummary.totalLYD).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) %> <small>LYD</small></strong></article>
+    <article class="warning"><span>قيد التنفيذ</span><strong class="bw-mono"><%= reportSummary.pendingCount %></strong></article>
+    <article class="danger"><span>ملغية أو مرفوضة</span><strong class="bw-mono"><%= reportSummary.cancelledCount %></strong></article>
+</section>
+
+<section class="bw-report-grid">
+    <div class="bw-section">
+        <header class="bw-section-head"><div><span class="bw-section-kicker">تفصيل النتائج</span><h2><%= reportScopeLabel %></h2></div><span class="bw-meta-chip"><%= reportRows.length %> بند</span></header>
+        <div class="bw-table-wrap">
+            <table class="bw-table">
+                <thead><tr><th><%= reportScope === 'organization' ? 'التاريخ' : reportScope === 'customers' ? 'العميل' : 'الموظف' %></th><th>العمليات</th><th>الناجحة</th><th>قيد التنفيذ</th><th>الملغية</th><th>EGP</th><th>LYD</th><th>صافي الإيداع</th></tr></thead>
+                <tbody>
+                    <% if (!reportRows.length) { %><tr><td colspan="8"><div class="bw-empty"><i class="fa-solid fa-chart-column"></i><strong>لا توجد بيانات للتقرير</strong><span>غيّر الفترة الزمنية أو نوع التقرير.</span></div></td></tr><% } %>
+                    <% reportRows.forEach(row => { %><tr><td data-label="البند"><strong><%= row.key %></strong><small><%= row.lastActivity ? new Date(row.lastActivity).toLocaleDateString('ar-LY') : '' %></small></td><td data-label="العمليات" class="bw-mono"><%= row.totalCount %></td><td data-label="الناجحة" class="bw-mono text-success"><%= row.completedCount %></td><td data-label="قيد التنفيذ" class="bw-mono"><%= row.pendingCount %></td><td data-label="الملغية" class="bw-mono text-danger"><%= row.cancelledCount %></td><td data-label="EGP" class="bw-mono"><%= Number(row.totalEGP).toLocaleString('en-US', { maximumFractionDigits: 0 }) %></td><td data-label="LYD" class="bw-mono"><%= Number(row.totalLYD).toFixed(2) %></td><td data-label="صافي الإيداع" class="bw-mono"><%= Number(row.deposits - row.deductions).toFixed(2) %></td></tr><% }) %>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <aside class="bw-section bw-service-analysis">
+        <header class="bw-section-head"><div><span class="bw-section-kicker">توزيع الخدمات</span><h2>أداء القنوات</h2></div></header>
+        <% const maxServiceCount = Math.max(1, ...serviceBreakdown.map(item => item.count)); %>
+        <div class="bw-analysis-list">
+            <% if (!serviceBreakdown.length) { %><div class="bw-empty"><i class="fa-solid fa-chart-pie"></i><strong>لا توجد عمليات ناجحة</strong></div><% } %>
+            <% serviceBreakdown.forEach(item => { %>
+                <div class="bw-analysis-row"><header><strong><%= item.label %></strong><span class="bw-mono"><%= item.count %></span></header><div class="bw-progress"><span style="width:<%= Math.max(5, (item.count / maxServiceCount) * 100) %>%"></span></div><footer><span><%= Number(item.totalEGP).toLocaleString('en-US', { maximumFractionDigits: 0 }) %> EGP</span><span><%= Number(item.totalLYD).toFixed(2) %> LYD</span></footer></div>
+            <% }) %>
+        </div>
+    </aside>
+</section>
+
+<section class="bw-section bw-report-detail">
+    <header class="bw-section-head"><div><span class="bw-section-kicker">عينة التدقيق</span><h2>آخر العمليات داخل التقرير</h2></div><a href="/client/transactions" class="bw-text-link">السجل الكامل <i class="fa-solid fa-arrow-left"></i></a></header>
+    <div class="bw-table-wrap"><table class="bw-table"><thead><tr><th>العملية</th><th>الخدمة</th><th>الموظف / العميل</th><th>المبلغ</th><th>الحالة</th><th>التاريخ</th></tr></thead><tbody>
+        <% reportTransactions.slice(0, 12).forEach(tx => { const status = statusMeta[tx.status] || { label: tx.status, tone: 'neutral' }; const service = serviceCatalog.find(item => item.key === tx.transferType); %><tr><td data-label="العملية"><button type="button" class="bw-id-button bw-mono" data-transaction-id="<%= tx._id %>"><%= tx.customId %></button></td><td data-label="الخدمة"><%= service?.shortLabel || tx.transferType %></td><td data-label="الموظف / العميل"><strong><%= tx.employeeName || '---' %></strong><small><%= tx.subAccountName || 'الحساب الرئيسي' %></small></td><td data-label="المبلغ" class="bw-mono"><%= Number(tx.amount || 0).toLocaleString('en-US', { maximumFractionDigits: 0 }) %> EGP</td><td data-label="الحالة"><span class="bw-status <%= status.tone %>"><%= status.label %></span></td><td data-label="التاريخ" class="bw-mono"><%= new Date(tx.createdAt).toLocaleDateString('en-GB') %></td></tr><% }) %>
+    </tbody></table></div>
+</section>

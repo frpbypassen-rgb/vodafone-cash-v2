@@ -1,0 +1,155 @@
+<section class="bw-command-strip">
+    <div class="bw-command-copy">
+        <span class="bw-command-mark"><i class="fa-solid <%= workspace.isCompany ? 'fa-building-shield' : 'fa-map-location-dot' %>"></i></span>
+        <div>
+            <span class="bw-section-kicker"><%= workspace.isCompany ? 'مساحة أعمال الشركة' : 'مركز إدارة شبكة الوكيل' %></span>
+            <h2><%= workspace.entity.name %></h2>
+            <p>
+                <% if (workspace.persona === 'manager') { %>
+                    تابع التشغيل والعملاء والفريق والرصيد من مساحة واحدة منظمة.
+                <% } else if (workspace.persona === 'accountant') { %>
+                    راقب الحركات المالية والتقارير دون الوصول إلى تنفيذ التحويلات.
+                <% } else { %>
+                    واجهة يومية مبسطة لإرسال العمليات ومتابعة حالتها.
+                <% } %>
+            </p>
+        </div>
+    </div>
+    <div class="bw-command-actions">
+        <% if (workspace.permissions.canTransfer) { %>
+            <a href="/client/services" class="bw-button primary"><i class="fa-solid fa-paper-plane"></i>عملية جديدة</a>
+        <% } %>
+        <a href="/client/transactions" class="bw-button secondary"><i class="fa-solid fa-list-check"></i>متابعة العمليات</a>
+    </div>
+</section>
+
+<section class="bw-metric-grid" aria-label="المؤشرات الرئيسية">
+    <% if (workspace.permissions.canViewBalance) { %>
+        <article class="bw-metric-card accent-dark">
+            <span class="bw-metric-icon"><i class="fa-solid fa-wallet"></i></span>
+            <div>
+                <span>الرصيد المتاح</span>
+                <strong class="bw-mono"><%= Number(workspace.entity.balance || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) %></strong>
+                <small>دينار ليبي</small>
+            </div>
+        </article>
+    <% } %>
+    <article class="bw-metric-card accent-green">
+        <span class="bw-metric-icon"><i class="fa-solid fa-circle-check"></i></span>
+        <div>
+            <span>عمليات اليوم</span>
+            <strong class="bw-mono"><%= todaySummary.totalCount %></strong>
+            <small><%= todaySummary.completedCount %> عملية ناجحة</small>
+        </div>
+    </article>
+    <article class="bw-metric-card accent-blue">
+        <span class="bw-metric-icon"><i class="fa-solid fa-money-bill-trend-up"></i></span>
+        <div>
+            <span>حجم الشهر</span>
+            <strong class="bw-mono"><%= Number(monthSummary.totalEGP || 0).toLocaleString('en-US', { maximumFractionDigits: 0 }) %></strong>
+            <small>جنيه مصري منفّذ</small>
+        </div>
+    </article>
+    <article class="bw-metric-card accent-amber">
+        <span class="bw-metric-icon"><i class="fa-solid fa-hourglass-half"></i></span>
+        <div>
+            <span>قيد المتابعة</span>
+            <strong class="bw-mono"><%= monthSummary.pendingCount %></strong>
+            <small><%= currentMonthLabel %></small>
+        </div>
+    </article>
+</section>
+
+<section class="bw-dashboard-grid">
+    <div class="bw-section bw-recent-section">
+        <header class="bw-section-head">
+            <div>
+                <span class="bw-section-kicker">آخر النشاطات</span>
+                <h2>المعاملات الأخيرة</h2>
+            </div>
+            <a href="/client/transactions" class="bw-text-link">عرض السجل <i class="fa-solid fa-arrow-left"></i></a>
+        </header>
+        <div class="bw-table-wrap">
+            <table class="bw-table">
+                <thead>
+                    <tr>
+                        <th>رقم العملية</th>
+                        <th>الخدمة</th>
+                        <th>الوجهة</th>
+                        <th>القيمة</th>
+                        <th>الحالة</th>
+                        <th><span class="sr-only">التفاصيل</span></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <% if (!recentTransactions.length) { %>
+                        <tr><td colspan="6"><div class="bw-empty"><i class="fa-regular fa-folder-open"></i><strong>لا توجد معاملات بعد</strong><span>ستظهر العمليات الجديدة هنا فور إنشائها.</span></div></td></tr>
+                    <% } %>
+                    <% recentTransactions.forEach(tx => { const status = statusMeta[tx.status] || { label: tx.status, tone: 'neutral' }; const service = serviceCatalog.find(item => item.key === tx.transferType); %>
+                        <tr>
+                            <td data-label="رقم العملية"><button type="button" class="bw-id-button bw-mono" data-transaction-id="<%= tx._id %>"><%= tx.customId %></button><small><%= new Date(tx.createdAt).toLocaleDateString('ar-LY') %></small></td>
+                            <td data-label="الخدمة"><span class="bw-service-cell"><i class="fa-solid <%= service?.icon || 'fa-money-bill-transfer' %>"></i><%= service?.shortLabel || tx.transferType %></span></td>
+                            <td data-label="الوجهة" class="bw-mono"><%= tx.vodafoneNumber || tx.accountNumber || '---' %></td>
+                            <td data-label="القيمة"><strong class="bw-mono"><%= Number(tx.amount || 0).toLocaleString('en-US', { maximumFractionDigits: 0 }) %></strong><small>EGP</small></td>
+                            <td data-label="الحالة"><span class="bw-status <%= status.tone %>"><%= status.label %></span></td>
+                            <td><button type="button" class="bw-icon-button compact" data-transaction-id="<%= tx._id %>" title="عرض التفاصيل" aria-label="عرض تفاصيل العملية <%= tx.customId %>"><i class="fa-solid fa-arrow-up-left-from-square"></i></button></td>
+                        </tr>
+                    <% }) %>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <aside class="bw-section bw-priority-section">
+        <header class="bw-section-head">
+            <div>
+                <span class="bw-section-kicker">مركز المتابعة</span>
+                <h2>ما يحتاج انتباهك</h2>
+            </div>
+        </header>
+        <div class="bw-priority-list">
+            <a href="/client/transactions?status=pending" class="bw-priority-row warning">
+                <span><i class="fa-solid fa-clock-rotate-left"></i></span>
+                <div><strong><%= monthSummary.pendingCount %> عملية معلقة</strong><small>بانتظار التنفيذ أو تحديث الحالة</small></div>
+                <i class="fa-solid fa-chevron-left"></i>
+            </a>
+            <% if (workspace.permissions.canManageCustomers) { %>
+                <a href="/client/customers" class="bw-priority-row blue">
+                    <span><i class="fa-solid fa-users"></i></span>
+                    <div><strong><%= activeCustomersCount %> عميل نشط</strong><small>من إجمالي <%= customersCount %> حساب تابع</small></div>
+                    <i class="fa-solid fa-chevron-left"></i>
+                </a>
+            <% } %>
+            <% if (workspace.isAgent && workspace.permissions.canManageCustomers) { %>
+                <a href="/client/customers#registrationRequests" class="bw-priority-row danger">
+                    <span><i class="fa-solid fa-user-clock"></i></span>
+                    <div><strong><%= pendingRequests %> طلب تسجيل</strong><small>طلبات تحتاج موافقة الوكيل</small></div>
+                    <i class="fa-solid fa-chevron-left"></i>
+                </a>
+            <% } %>
+            <% if (workspace.permissions.manager || workspace.permissions.accountant) { %>
+                <a href="/client/staff" class="bw-priority-row green">
+                    <span><i class="fa-solid fa-user-group"></i></span>
+                    <div><strong><%= activeStaffCount %> حساب موظف نشط</strong><small>من إجمالي <%= staffCount %> حساب</small></div>
+                    <i class="fa-solid fa-chevron-left"></i>
+                </a>
+            <% } %>
+        </div>
+    </aside>
+</section>
+
+<section class="bw-section bw-shortcuts">
+    <header class="bw-section-head">
+        <div><span class="bw-section-kicker">وصول مباشر</span><h2>اختصارات العمل</h2></div>
+    </header>
+    <div class="bw-shortcut-grid">
+        <% navigation.filter(item => !['overview', 'support'].includes(item.key)).slice(0, 6).forEach(item => { %>
+            <a href="<%= item.href %>" class="bw-shortcut">
+                <span><i class="fa-solid <%= item.icon %>"></i></span>
+                <strong><%= item.label %></strong>
+                <small><%= item.group %></small>
+                <i class="fa-solid fa-arrow-left"></i>
+            </a>
+        <% }) %>
+    </div>
+</section>

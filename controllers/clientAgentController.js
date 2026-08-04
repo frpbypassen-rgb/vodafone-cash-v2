@@ -276,7 +276,7 @@ exports.renderAgentDashboard = async (req, res, preloadedAccount = null) => {
 exports.postAddStaff = async (req, res) => {
     try {
         const { actor, agent, actorModel } = await getAgentActor(req);
-        if (!canCreateAgentStaff(actor)) return res.status(403).redirect('/client/dashboard?staffError=forbidden#staff');
+        if (!canCreateAgentStaff(actor)) return res.status(403).redirect('/client/staff?staffError=forbidden');
 
         const name = String(req.body.name || '').trim();
         const phone = String(req.body.phone || '').trim();
@@ -285,9 +285,9 @@ exports.postAddStaff = async (req, res) => {
         const grantManagerAccess = isChecked(req.body.canManageAgent);
 
         if (!name || !phone || !webPassword || !['employee', 'accountant'].includes(role)) {
-            return res.redirect('/client/dashboard?staffError=missing#staff');
+            return res.redirect('/client/staff?staffError=missing');
         }
-        if (webPassword.length < 6) return res.redirect('/client/dashboard?staffError=password#staff');
+        if (webPassword.length < 6) return res.redirect('/client/staff?staffError=password');
 
         const webUsername = normalizeUsername(req.body.webUsername);
         await assertUsernameAvailable(webUsername);
@@ -317,7 +317,7 @@ exports.postAddStaff = async (req, res) => {
             metadata: { agentId: agent._id, role, canManageAgent: grantManagerAccess, webUsername }
         });
 
-        return res.redirect('/client/dashboard?staffSuccess=created#staff');
+        return res.redirect('/client/staff?staffSuccess=created');
     } catch (error) {
         const code = error.message === 'USERNAME_TAKEN'
             ? 'username'
@@ -325,18 +325,18 @@ exports.postAddStaff = async (req, res) => {
                 ? 'username_format'
                 : 'server';
         console.error('[Agent Staff] create failed:', error.message);
-        return res.redirect(`/client/dashboard?staffError=${code}#staff`);
+        return res.redirect(`/client/staff?staffError=${code}`);
     }
 };
 
 exports.postToggleStaff = async (req, res) => {
     try {
         const { actor, agent, actorModel } = await getAgentActor(req);
-        if (!canCreateAgentStaff(actor)) return res.status(403).redirect('/client/dashboard?staffError=forbidden#staff');
+        if (!canCreateAgentStaff(actor)) return res.status(403).redirect('/client/staff?staffError=forbidden');
 
         const target = await AgentEmployee.findOne({ _id: req.params.id, agentId: agent._id });
         if (!target || String(target._id) === String(actor._id)) {
-            return res.redirect('/client/dashboard?staffError=forbidden#staff');
+            return res.redirect('/client/staff?staffError=forbidden');
         }
 
         target.status = target.status === 'active' ? 'banned' : 'active';
@@ -354,24 +354,24 @@ exports.postToggleStaff = async (req, res) => {
             metadata: { agentId: agent._id, webUsername: target.webUsername }
         });
 
-        return res.redirect('/client/dashboard?staffSuccess=status#staff');
+        return res.redirect('/client/staff?staffSuccess=status');
     } catch (error) {
         console.error('[Agent Staff] toggle failed:', error.message);
-        return res.redirect('/client/dashboard?staffError=server#staff');
+        return res.redirect('/client/staff?staffError=server');
     }
 };
 
 exports.postResetStaffPassword = async (req, res) => {
     try {
         const { actor, agent, actorModel } = await getAgentActor(req);
-        if (!canCreateAgentStaff(actor)) return res.status(403).redirect('/client/dashboard?staffError=forbidden#staff');
+        if (!canCreateAgentStaff(actor)) return res.status(403).redirect('/client/staff?staffError=forbidden');
 
         const newPassword = String(req.body.newPassword || '').trim();
-        if (newPassword.length < 6) return res.redirect('/client/dashboard?staffError=password#staff');
+        if (newPassword.length < 6) return res.redirect('/client/staff?staffError=password');
 
         const target = await AgentEmployee.findOne({ _id: req.params.id, agentId: agent._id });
         if (!target || String(target._id) === String(actor._id)) {
-            return res.redirect('/client/dashboard?staffError=forbidden#staff');
+            return res.redirect('/client/staff?staffError=forbidden');
         }
 
         target.webPassword = newPassword;
@@ -389,17 +389,17 @@ exports.postResetStaffPassword = async (req, res) => {
             metadata: { agentId: agent._id, webUsername: target.webUsername }
         });
 
-        return res.redirect('/client/dashboard?staffSuccess=password#staff');
+        return res.redirect('/client/staff?staffSuccess=password');
     } catch (error) {
         console.error('[Agent Staff] reset failed:', error.message);
-        return res.redirect('/client/dashboard?staffError=server#staff');
+        return res.redirect('/client/staff?staffError=server');
     }
 };
 
 exports.postApproveClientRequest = async (req, res) => {
     try {
         const { actor, agent, actorModel } = await getAgentActor(req);
-        if (!canManageAgent(actor)) return res.status(403).redirect('/client/dashboard?requestError=forbidden#requests');
+        if (!canManageAgent(actor)) return res.status(403).redirect('/client/customers?requestError=forbidden');
 
         const regReq = await RegistrationRequest.findOne({
             _id: req.params.id,
@@ -407,7 +407,7 @@ exports.postApproveClientRequest = async (req, res) => {
             status: 'pending_agent',
             agentId: agent._id
         });
-        if (!regReq) return res.redirect('/client/dashboard?requestError=notfound#requests');
+        if (!regReq) return res.redirect('/client/customers?requestError=notfound');
 
         await assertClientIdentityAvailable({ phone: regReq.phone, webUsername: regReq.username });
 
@@ -446,20 +446,20 @@ exports.postApproveClientRequest = async (req, res) => {
             metadata: { regRequestId: regReq._id, refCode: regReq.refCode, agentId: agent._id }
         });
 
-        return res.redirect('/client/dashboard?requestSuccess=approved#requests');
+        return res.redirect('/client/customers?requestSuccess=approved');
     } catch (error) {
         console.error('[Agent Requests] approve failed:', error.message);
         if (['USERNAME_TAKEN', 'PHONE_TAKEN'].includes(error.message)) {
-            return res.redirect('/client/dashboard?requestError=duplicate#requests');
+            return res.redirect('/client/customers?requestError=duplicate');
         }
-        return res.redirect('/client/dashboard?requestError=server#requests');
+        return res.redirect('/client/customers?requestError=server');
     }
 };
 
 exports.postRejectClientRequest = async (req, res) => {
     try {
         const { actor, agent, actorModel } = await getAgentActor(req);
-        if (!canManageAgent(actor)) return res.status(403).redirect('/client/dashboard?requestError=forbidden#requests');
+        if (!canManageAgent(actor)) return res.status(403).redirect('/client/customers?requestError=forbidden');
 
         const regReq = await RegistrationRequest.findOne({
             _id: req.params.id,
@@ -467,7 +467,7 @@ exports.postRejectClientRequest = async (req, res) => {
             status: 'pending_agent',
             agentId: agent._id
         });
-        if (!regReq) return res.redirect('/client/dashboard?requestError=notfound#requests');
+        if (!regReq) return res.redirect('/client/customers?requestError=notfound');
 
         regReq.status = 'rejected';
         regReq.reviewedBy = actor.name || actor.webUsername;
@@ -485,10 +485,10 @@ exports.postRejectClientRequest = async (req, res) => {
             metadata: { regRequestId: regReq._id, refCode: regReq.refCode, agentId: agent._id }
         });
 
-        return res.redirect('/client/dashboard?requestSuccess=rejected#requests');
+        return res.redirect('/client/customers?requestSuccess=rejected');
     } catch (error) {
         console.error('[Agent Requests] reject failed:', error.message);
-        return res.redirect('/client/dashboard?requestError=server#requests');
+        return res.redirect('/client/customers?requestError=server');
     }
 };
 

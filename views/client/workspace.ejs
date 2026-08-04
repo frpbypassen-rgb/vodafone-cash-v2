@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<%- include('partials/workspace_head') %>
+<body class="bw-body" data-page="<%= page %>" data-persona="<%= workspace.persona %>">
+    <%- include('partials/workspace_sidebar') %>
+    <button class="bw-sidebar-overlay" type="button" data-sidebar-close aria-label="إغلاق القائمة"></button>
+
+    <div class="bw-frame">
+        <%- include('partials/workspace_topbar') %>
+        <main class="bw-main" id="mainContent">
+            <header class="bw-page-header">
+                <div>
+                    <span class="bw-eyebrow"><i class="fa-solid <%= pageMeta.icon %>"></i><%= pageMeta.eyebrow %></span>
+                    <h1><%= pageMeta.title %></h1>
+                    <p><%= workspace.entity.name %> <span aria-hidden="true">/</span> <%= workspace.roleLabel %></p>
+                </div>
+                <div class="bw-page-status" aria-label="حالة النظام">
+                    <span class="bw-live-dot <%= systemOpen ? '' : 'is-closed' %>"></span>
+                    <span><%= systemOpen ? 'الخدمة متاحة' : 'الخدمة متوقفة مؤقتاً' %></span>
+                </div>
+            </header>
+
+            <%- include('partials/workspace_feedback') %>
+
+            <% if (page === 'overview') { %>
+                <%- include('pages/workspace_overview') %>
+            <% } else if (page === 'services') { %>
+                <%- include('pages/workspace_services') %>
+            <% } else if (page === 'transactions') { %>
+                <%- include('pages/workspace_transactions') %>
+            <% } else if (page === 'finance') { %>
+                <%- include('pages/workspace_finance') %>
+            <% } else if (page === 'customers') { %>
+                <%- include('pages/workspace_customers') %>
+            <% } else if (page === 'staff') { %>
+                <%- include('pages/workspace_staff') %>
+            <% } else if (page === 'reports') { %>
+                <%- include('pages/workspace_reports') %>
+            <% } else if (page === 'settings') { %>
+                <%- include('pages/workspace_settings') %>
+            <% } else if (page === 'support') { %>
+                <%- include('pages/workspace_support') %>
+            <% } %>
+        </main>
+
+        <nav class="bw-mobile-dock" aria-label="التنقل السريع">
+            <% navigation.filter(item => ['overview', 'services', 'transactions', 'customers', 'reports'].includes(item.key)).slice(0, 5).forEach(item => { %>
+                <a href="<%= item.href %>" class="<%= item.active ? 'active' : '' %>">
+                    <i class="fa-solid <%= item.icon %>"></i>
+                    <span><%= item.label.replace('الخدمات والتحويل', 'تحويل').replace('المعاملات', 'العمليات') %></span>
+                </a>
+            <% }) %>
+        </nav>
+    </div>
+
+    <dialog class="bw-dialog bw-transaction-dialog" id="transactionDetailsDialog" aria-labelledby="transactionDetailsTitle">
+        <div class="bw-dialog-head">
+            <div>
+                <span class="bw-section-kicker">تفاصيل موثقة</span>
+                <h2 id="transactionDetailsTitle">تفاصيل العملية</h2>
+            </div>
+            <button type="button" class="bw-icon-button" data-dialog-close aria-label="إغلاق"><i class="fa-solid fa-xmark"></i></button>
+        </div>
+        <div class="bw-dialog-body" id="transactionDetailsBody">
+            <div class="bw-loading"><i class="fa-solid fa-circle-notch fa-spin"></i><span>جارٍ تحميل التفاصيل...</span></div>
+        </div>
+    </dialog>
+
+    <script>
+        window.businessPortal = <%- JSON.stringify({
+            page,
+            csrfToken,
+            workspaceType: workspace.type,
+            canViewBalance: workspace.permissions.canViewBalance,
+            services: serviceCatalog,
+            selectedService: typeof servicePage !== 'undefined' ? servicePage.selectedService : 'vodafone'
+        }).replace(/</g, '\\u003c') %>;
+    </script>
+    <script src="/js/client-workspace.js?v=20260805-1" defer></script>
+</body>
+</html>

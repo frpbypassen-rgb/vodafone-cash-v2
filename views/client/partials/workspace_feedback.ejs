@@ -1,0 +1,42 @@
+<%
+    const feedbackCode = query.customerSuccess || query.staffSuccess || query.requestSuccess || query.settingsSuccess || query.portalSuccess;
+    const errorCode = query.customerError || query.staffError || query.requestError || query.settingsError || query.portalError;
+    const feedbackMessages = {
+        created: 'تم إنشاء الحساب بنجاح.',
+        status: 'تم تحديث حالة الحساب.',
+        password: 'تم تحديث كلمة المرور بنجاح.',
+        profile: 'تم حفظ بيانات المنشأة.',
+        approved: 'تم قبول طلب العميل وإنشاء حسابه.',
+        rejected: 'تم رفض طلب التسجيل.',
+        deposit: 'تم تمويل حساب العميل وتسجيل الحركة المالية.',
+        withdraw: 'تم سحب المبلغ من حساب العميل وتسجيل الحركة المالية.'
+    };
+    const errorMessages = {
+        invalid: 'راجع البيانات المطلوبة ثم حاول مرة أخرى.',
+        duplicate: 'اسم المستخدم أو رقم الهاتف مستخدم بالفعل.',
+        username: 'اسم المستخدم غير صالح. استخدم حروفاً إنجليزية وأرقاماً فقط.',
+        forbidden: 'ليست لديك الصلاحية اللازمة لتنفيذ هذا الإجراء.',
+        notfound: 'تعذر العثور على الحساب المطلوب.',
+        amount: 'أدخل مبلغاً صحيحاً أكبر من صفر.',
+        funds: 'الرصيد المتاح للعميل لا يكفي لتنفيذ السحب.',
+        missing: 'أكمل جميع الحقول المطلوبة.',
+        username_format: 'صيغة اسم المستخدم غير صحيحة.',
+        current_password: 'كلمة المرور الحالية غير صحيحة.',
+        new_password: 'كلمة المرور الجديدة غير متطابقة أو أقل من 8 أحرف.',
+        server: 'تعذر تنفيذ الطلب حالياً. حاول مرة أخرى.'
+    };
+%>
+<% if (feedbackCode) { %>
+    <div class="bw-alert success" role="status">
+        <i class="fa-solid fa-circle-check"></i>
+        <span><%= feedbackMessages[feedbackCode] || 'تم تنفيذ الإجراء بنجاح.' %></span>
+        <button type="button" data-alert-close aria-label="إغلاق"><i class="fa-solid fa-xmark"></i></button>
+    </div>
+<% } %>
+<% if (errorCode) { %>
+    <div class="bw-alert danger" role="alert">
+        <i class="fa-solid fa-circle-exclamation"></i>
+        <span><%= errorMessages[errorCode] || 'تعذر تنفيذ الإجراء.' %></span>
+        <button type="button" data-alert-close aria-label="إغلاق"><i class="fa-solid fa-xmark"></i></button>
+    </div>
+<% } %>

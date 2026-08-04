@@ -1,0 +1,65 @@
+<section class="bw-mini-metrics">
+    <article><span>إجمالي الحسابات</span><strong class="bw-mono"><%= staffSummary.total %></strong></article>
+    <article class="success"><span>الحسابات النشطة</span><strong class="bw-mono"><%= staffSummary.active %></strong></article>
+    <article class="blue"><span>المديرون</span><strong class="bw-mono"><%= staffSummary.managers %></strong></article>
+    <article class="warning"><span>المحاسبون</span><strong class="bw-mono"><%= staffSummary.accountants %></strong></article>
+    <article><span>عمليات الشهر</span><strong class="bw-mono"><%= staffSummary.monthOperations %></strong></article>
+</section>
+
+<section class="bw-section">
+    <header class="bw-section-head">
+        <div><span class="bw-section-kicker">الفريق والصلاحيات</span><h2>حسابات الموظفين</h2></div>
+        <% if (workspace.permissions.canManageStaff) { %><button type="button" class="bw-button primary" data-dialog-open="createStaffDialog"><i class="fa-solid fa-user-plus"></i>موظف جديد</button><% } %>
+    </header>
+    <div class="bw-table-wrap">
+        <table class="bw-table">
+            <thead><tr><th>الموظف</th><th>الدخول</th><th>الدور والصلاحية</th><th>أداء الشهر</th><th>آخر نشاط</th><th>الحالة</th><th></th></tr></thead>
+            <tbody>
+                <% if (!staff.length) { %><tr><td colspan="7"><div class="bw-empty"><i class="fa-solid fa-user-group"></i><strong>لا توجد حسابات موظفين</strong><span>يمكن للمدير إنشاء أول حساب للفريق.</span></div></td></tr><% } %>
+                <% staff.forEach(member => { const isManager = member.role === 'owner' || member.canManageCompany || member.canManageAgent; const isSelf = String(member._id) === String(workspace.actor._id); %>
+                    <tr>
+                        <td data-label="الموظف"><span class="bw-person-cell"><span class="bw-avatar small"><%= String(member.name).charAt(0) %></span><span><strong><%= member.name %><%= isSelf ? ' (أنت)' : '' %></strong><small class="bw-mono"><%= member.phone || 'بدون هاتف' %></small></span></span></td>
+                        <td data-label="الدخول"><strong dir="ltr"><%= member.webUsername %></strong><small>كلمة المرور مشفرة</small></td>
+                        <td data-label="الدور"><span class="bw-role-badge"><i class="fa-solid <%= member.role === 'accountant' ? 'fa-calculator' : isManager ? 'fa-user-shield' : 'fa-user' %>"></i><%= member.role === 'accountant' ? 'محاسب' : isManager ? 'مدير تشغيل' : member.role === 'owner' ? 'مدير' : 'موظف' %></span><small><%= member.canViewAllReports ? 'تقارير كاملة' : 'عمليات اليوم' %></small></td>
+                        <td data-label="أداء الشهر"><strong class="bw-mono"><%= member.stats.transactionCount %> عملية</strong><small><%= Number(member.stats.totalEGP || 0).toLocaleString('en-US', { maximumFractionDigits: 0 }) %> EGP</small></td>
+                        <td data-label="آخر نشاط"><% if (member.stats.lastActivity) { %><strong class="bw-mono"><%= new Date(member.stats.lastActivity).toLocaleDateString('en-GB') %></strong><small><%= new Date(member.stats.lastActivity).toLocaleTimeString('ar-LY', { hour: '2-digit', minute: '2-digit' }) %></small><% } else { %><span class="bw-muted">لا يوجد</span><% } %></td>
+                        <td data-label="الحالة"><span class="bw-status <%= member.status === 'active' ? 'success' : 'danger' %>"><%= member.status === 'active' ? 'نشط' : 'موقوف' %></span></td>
+                        <td>
+                            <% if (workspace.permissions.canManageStaff && !isSelf && member.role !== 'owner') { %>
+                                <div class="bw-row-actions">
+                                    <button type="button" class="bw-icon-button compact" data-staff-password data-member-id="<%= member._id %>" data-member-name="<%= member.name %>" title="تغيير كلمة المرور" aria-label="تغيير كلمة مرور <%= member.name %>"><i class="fa-solid fa-key"></i></button>
+                                    <form method="POST" action="/client/<%= workspace.isCompany ? 'company' : 'agent' %>/staff/<%= member._id %>/toggle" data-confirm="<%= member.status === 'active' ? 'إيقاف حساب الموظف؟' : 'إعادة تنشيط حساب الموظف؟' %>"><button type="submit" class="bw-icon-button compact <%= member.status === 'active' ? 'danger' : 'success' %>" aria-label="تغيير حالة <%= member.name %>"><i class="fa-solid <%= member.status === 'active' ? 'fa-pause' : 'fa-play' %>"></i></button></form>
+                                </div>
+                            <% } %>
+                        </td>
+                    </tr>
+                <% }) %>
+            </tbody>
+        </table>
+    </div>
+</section>
+
+<% if (workspace.permissions.canManageStaff) { %>
+<dialog class="bw-dialog" id="createStaffDialog" aria-labelledby="createStaffTitle">
+    <form method="POST" action="/client/<%= workspace.isCompany ? 'company' : 'agent' %>/staff/add" class="bw-dialog-form">
+        <div class="bw-dialog-head"><div><span class="bw-section-kicker">حساب فريق جديد</span><h2 id="createStaffTitle">إضافة موظف</h2></div><button type="button" class="bw-icon-button" data-dialog-close aria-label="إغلاق"><i class="fa-solid fa-xmark"></i></button></div>
+        <div class="bw-dialog-body bw-form-grid">
+            <label class="bw-field span-2"><span>الاسم الكامل</span><input type="text" name="name" minlength="3" maxlength="120" required></label>
+            <label class="bw-field"><span>رقم الهاتف</span><input type="tel" name="phone" dir="ltr" required></label>
+            <label class="bw-field"><span>اسم المستخدم</span><div class="bw-input-suffix"><input type="text" name="webUsername" dir="ltr" pattern="[A-Za-z0-9_]{3,40}" required><b>@ahram.com</b></div></label>
+            <label class="bw-field"><span>كلمة المرور</span><input type="password" name="webPassword" minlength="8" autocomplete="new-password" required></label>
+            <label class="bw-field"><span>صفة الموظف</span><select name="role"><option value="employee">موظف</option><option value="accountant">محاسب</option></select></label>
+            <label class="bw-check-row span-2"><input type="checkbox" name="<%= workspace.isCompany ? 'canManageCompany' : 'canManageAgent' %>"><span><i class="fa-solid fa-user-shield"></i><strong>منحه صلاحية مدير تشغيل</strong><small>يتابع العملاء والعمليات دون إنشاء حسابات موظفين.</small></span></label>
+        </div>
+        <div class="bw-dialog-actions"><button type="button" class="bw-button secondary" data-dialog-close>إلغاء</button><button type="submit" class="bw-button primary"><i class="fa-solid fa-user-plus"></i>إنشاء الحساب</button></div>
+    </form>
+</dialog>
+
+<dialog class="bw-dialog compact-dialog" id="staffPasswordDialog" aria-labelledby="staffPasswordTitle">
+    <form method="POST" action="" class="bw-dialog-form" id="staffPasswordForm">
+        <div class="bw-dialog-head"><div><span class="bw-section-kicker">أمان الحساب</span><h2 id="staffPasswordTitle">تغيير كلمة المرور</h2></div><button type="button" class="bw-icon-button" data-dialog-close aria-label="إغلاق"><i class="fa-solid fa-xmark"></i></button></div>
+        <div class="bw-dialog-body"><p class="bw-dialog-note">سيتم تغيير كلمة مرور <strong id="staffPasswordName">الموظف</strong> فور الحفظ.</p><label class="bw-field"><span>كلمة المرور الجديدة</span><input type="password" name="newPassword" minlength="8" autocomplete="new-password" required></label></div>
+        <div class="bw-dialog-actions"><button type="button" class="bw-button secondary" data-dialog-close>إلغاء</button><button type="submit" class="bw-button primary"><i class="fa-solid fa-key"></i>حفظ كلمة المرور</button></div>
+    </form>
+</dialog>
+<% } %>

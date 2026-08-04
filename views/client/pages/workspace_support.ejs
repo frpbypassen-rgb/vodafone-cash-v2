@@ -1,0 +1,25 @@
+<section class="bw-support-layout">
+    <aside class="bw-support-summary">
+        <span class="bw-support-mark"><i class="fa-solid fa-headset"></i></span>
+        <span class="bw-section-kicker">فريق خدمة العملاء</span>
+        <h2>نحن هنا لمتابعة طلبك</h2>
+        <p>أرسل تفاصيل المشكلة أو رقم العملية، وستظهر ردود الإدارة داخل نفس المحادثة.</p>
+        <dl class="bw-definition-list">
+            <div><dt>صاحب الطلب</dt><dd><%= workspace.actor.name %></dd></div>
+            <div><dt>المنشأة</dt><dd><%= workspace.entity.name %></dd></div>
+            <div><dt>قناة المتابعة</dt><dd>محادثة داخلية آمنة</dd></div>
+        </dl>
+        <div class="bw-support-phone"><i class="fa-brands fa-whatsapp"></i><span><small>واتساب الدعم فقط</small><strong class="bw-mono">01108172258</strong></span></div>
+    </aside>
+
+    <section class="bw-support-chat" aria-label="محادثة الدعم الفني">
+        <header class="bw-section-head"><div><span class="bw-section-kicker">المحادثة الحالية</span><h2>الدعم الفني</h2></div><span class="bw-status success"><i class="fa-solid fa-circle"></i>متاح</span></header>
+        <div class="bw-chat-messages" id="supportMessages" aria-live="polite"><div class="bw-loading"><i class="fa-solid fa-circle-notch fa-spin"></i><span>جارٍ تحميل المحادثة...</span></div></div>
+        <form class="bw-chat-composer" id="supportMessageForm">
+            <label class="bw-chat-input"><span class="sr-only">نص الرسالة</span><textarea name="text" rows="2" maxlength="1000" placeholder="اكتب رسالتك أو رقم العملية..." required></textarea></label>
+            <label class="bw-icon-button" title="إرفاق صورة"><i class="fa-regular fa-image"></i><input type="file" name="image" accept="image/jpeg,image/png,image/webp" hidden></label>
+            <button type="submit" class="bw-button primary"><i class="fa-solid fa-paper-plane"></i><span>إرسال</span></button>
+        </form>
+        <div class="bw-form-result" id="supportMessageResult" hidden></div>
+    </section>
+</section>

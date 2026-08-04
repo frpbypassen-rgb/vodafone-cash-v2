@@ -1,0 +1,41 @@
+<section class="bw-filter-band">
+    <form method="GET" action="/client/finance" class="bw-filter-form">
+        <% if (!workspace.forceToday) { %>
+            <label><span>من</span><input type="date" name="from" value="<%= filters.from %>"></label>
+            <label><span>إلى</span><input type="date" name="to" value="<%= filters.to %>"></label>
+        <% } %>
+        <label><span>نوع الحركة</span><select name="type"><option value="">كل الحركات</option><option value="credit" <%= filters.type === 'credit' ? 'selected' : '' %>>دائنة</option><option value="debit" <%= filters.type === 'debit' ? 'selected' : '' %>>مدينة</option></select></label>
+        <button type="submit" class="bw-button primary compact"><i class="fa-solid fa-filter"></i>تطبيق</button>
+        <a href="/client/finance" class="bw-icon-button" title="مسح الفلاتر" aria-label="مسح الفلاتر"><i class="fa-solid fa-rotate-left"></i></a>
+    </form>
+</section>
+
+<section class="bw-metric-grid finance">
+    <article class="bw-metric-card accent-dark"><span class="bw-metric-icon"><i class="fa-solid fa-wallet"></i></span><div><span>الرصيد الحالي</span><strong class="bw-mono"><%= Number(workspace.entity.balance || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) %></strong><small>LYD</small></div></article>
+    <article class="bw-metric-card accent-green"><span class="bw-metric-icon"><i class="fa-solid fa-arrow-trend-up"></i></span><div><span>إجمالي الدائن</span><strong class="bw-mono"><%= Number(financeSummary.credits).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) %></strong><small>LYD</small></div></article>
+    <article class="bw-metric-card accent-red"><span class="bw-metric-icon"><i class="fa-solid fa-arrow-trend-down"></i></span><div><span>إجمالي المدين</span><strong class="bw-mono"><%= Number(financeSummary.debits).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) %></strong><small>LYD</small></div></article>
+    <article class="bw-metric-card accent-blue"><span class="bw-metric-icon"><i class="fa-solid fa-receipt"></i></span><div><span>عدد الحركات</span><strong class="bw-mono"><%= financeSummary.count %></strong><small><%= filters.label %></small></div></article>
+</section>
+
+<section class="bw-section">
+    <header class="bw-section-head"><div><span class="bw-section-kicker">كشف الحساب</span><h2>الحركات المالية الموثقة</h2></div><button type="button" class="bw-button secondary compact" onclick="window.print()"><i class="fa-solid fa-print"></i>طباعة</button></header>
+    <div class="bw-table-wrap">
+        <table class="bw-table">
+            <thead><tr><th>رقم الحركة</th><th>البيان</th><th>النوع</th><th>المبلغ</th><th>قبل الحركة</th><th>بعد الحركة</th><th>التاريخ</th></tr></thead>
+            <tbody>
+                <% if (!movements.length) { %><tr><td colspan="7"><div class="bw-empty"><i class="fa-solid fa-scale-balanced"></i><strong>لا توجد حركات مالية</strong><span>لا توجد قيود ضمن الفترة المحددة.</span></div></td></tr><% } %>
+                <% movements.filter(item => !filters.type || item.direction === filters.type).forEach(item => { %>
+                    <tr>
+                        <td data-label="رقم الحركة"><span class="bw-mono bw-strong"><%= item.transactionId %></span></td>
+                        <td data-label="البيان"><strong><%= item.description || 'حركة مالية' %></strong><small><%= item.source === 'ledger' ? 'قيد دفتر الأستاذ' : 'سجل المعاملة' %></small></td>
+                        <td data-label="النوع"><span class="bw-status <%= item.direction === 'credit' ? 'success' : 'danger' %>"><%= item.direction === 'credit' ? 'دائن' : 'مدين' %></span></td>
+                        <td data-label="المبلغ"><strong class="bw-mono <%= item.direction === 'credit' ? 'text-success' : 'text-danger' %>"><%= Number(item.amount || 0) >= 0 ? '+' : '-' %><%= Math.abs(Number(item.amount || 0)).toFixed(3) %></strong><small>LYD</small></td>
+                        <td data-label="قبل الحركة" class="bw-mono"><%= item.balanceBefore !== undefined ? Number(item.balanceBefore).toFixed(3) : '---' %></td>
+                        <td data-label="بعد الحركة" class="bw-mono"><%= item.balanceAfter !== undefined ? Number(item.balanceAfter).toFixed(3) : '---' %></td>
+                        <td data-label="التاريخ"><strong class="bw-mono"><%= new Date(item.createdAt).toLocaleDateString('en-GB') %></strong><small><%= new Date(item.createdAt).toLocaleTimeString('ar-LY', { hour: '2-digit', minute: '2-digit' }) %></small></td>
+                    </tr>
+                <% }) %>
+            </tbody>
+        </table>
+    </div>
+</section>

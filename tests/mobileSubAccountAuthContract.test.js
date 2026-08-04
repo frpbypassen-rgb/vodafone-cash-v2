@@ -32,6 +32,15 @@ jest.mock('../models/ClientEmployee', () => {
     return M;
 });
 
+jest.mock('../models/AgentEmployee', () => {
+    const M = jest.fn();
+    M.findOne = jest.fn().mockResolvedValue(null);
+    M.findById = jest.fn();
+    M.updateOne = jest.fn().mockResolvedValue({ modifiedCount: 0 });
+    M.modelName = 'AgentEmployee';
+    return M;
+});
+
 jest.mock('../models/ClientBot', () => {
     const M = jest.fn();
     M.findById = jest.fn();

@@ -31,6 +31,12 @@ const transactionSchema = new mongoose.Schema({
     accountNumber: { type: String },
     accountName: { type: String }, 
     amount: { type: Number, required: true, min: 0 }, // ✅ تحقق: لا قيم سالبة
+    serviceDetails: {
+        subtype: { type: String, trim: true },
+        city: { type: String, trim: true },
+        bankName: { type: String, trim: true },
+        destinationLabel: { type: String, trim: true }
+    },
 
     // 📊 البيانات المالية والمحاسبية 
     costLYD: { type: Number, default: 0, min: 0 }, // ✅ تحقق: لا قيم سالبة

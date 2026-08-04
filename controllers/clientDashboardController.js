@@ -12,15 +12,14 @@ const Card = require('../models/Card');
 const { updateBalanceWithLedger } = require('../services/walletService');
 const { getServiceRatesForTier, applyRateMargin } = require('../utils/rateHelper');
 const clientCompanyController = require('./clientCompanyController');
-const clientAgentController = require('./clientAgentController');
-const AgentEmployee = require('../models/AgentEmployee');
+const clientWorkspaceController = require('./clientWorkspaceController');
+
+const renderBusinessOverview = clientWorkspaceController.renderPage('overview');
 
 exports.getDashboard = async (req, res) => {
     try {
         if (req.session.accountType === 'agent_staff') {
-            const account = await AgentEmployee.findById(req.session.clientId);
-            if (!account || account.status !== 'active') return res.redirect('/client/logout');
-            return clientAgentController.renderAgentDashboard(req, res, account);
+            return renderBusinessOverview(req, res);
         }
 
         const isSubAccount = req.session.accountType === 'sub_client';
@@ -30,10 +29,10 @@ exports.getDashboard = async (req, res) => {
         if (account.status && account.status !== 'active') return res.redirect('/client/logout');
 
         if (req.session.accountType === 'company') {
-            return clientCompanyController.renderCompanyDashboard(req, res, account);
+            return renderBusinessOverview(req, res);
         }
         if (req.session.accountType === 'user' && account.role === 'agent') {
-            return clientAgentController.renderAgentDashboard(req, res, account);
+            return renderBusinessOverview(req, res);
         }
 
         const search = req.query.search ? req.query.search.trim() : '';

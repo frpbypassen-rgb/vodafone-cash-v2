@@ -18,6 +18,14 @@ const clientCompanySchema = new mongoose.Schema({
     
     // 🟢 تم التعديل: إضافة حقل سعر الصرف المخصص للشركة
     exchangeRate: { type: Number, default: 0 },
+
+    businessProfile: {
+        contactName: { type: String, trim: true, default: '' },
+        email: { type: String, trim: true, lowercase: true, default: '' },
+        city: { type: String, trim: true, default: '' },
+        address: { type: String, trim: true, default: '' },
+        registrationNumber: { type: String, trim: true, default: '' }
+    },
     
     // الحد الائتماني للشركات (السماح بالنزول تحت الصفر)
     creditLimit: { type: Number, default: 0 }, 

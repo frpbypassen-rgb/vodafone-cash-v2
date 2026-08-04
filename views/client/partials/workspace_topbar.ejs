@@ -1,0 +1,28 @@
+<header class="bw-topbar">
+    <div class="bw-topbar-start">
+        <button type="button" class="bw-icon-button bw-menu-button" data-sidebar-toggle aria-controls="businessSidebar" aria-expanded="false" title="فتح القائمة">
+            <i class="fa-solid fa-bars-staggered"></i>
+        </button>
+        <div class="bw-breadcrumbs">
+            <span><%= workspace.portalLabel %></span>
+            <i class="fa-solid fa-chevron-left"></i>
+            <strong><%= pageMeta.title %></strong>
+        </div>
+    </div>
+    <div class="bw-topbar-actions">
+        <time class="bw-topbar-date" datetime="<%= now.toISOString() %>">
+            <i class="fa-regular fa-calendar"></i>
+            <span><%= now.toLocaleDateString('ar-LY', { weekday: 'long', day: 'numeric', month: 'long' }) %></span>
+        </time>
+        <button type="button" class="bw-icon-button" data-theme-toggle title="تغيير المظهر" aria-label="تغيير المظهر">
+            <i class="fa-solid fa-moon"></i>
+        </button>
+        <div class="bw-user-menu">
+            <span class="bw-avatar"><%= String(workspace.actor.name || 'م').trim().charAt(0) %></span>
+            <span>
+                <strong><%= workspace.actor.name %></strong>
+                <small><%= workspace.roleLabel %></small>
+            </span>
+        </div>
+    </div>
+</header>

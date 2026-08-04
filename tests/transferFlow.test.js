@@ -226,6 +226,14 @@ jest.mock('../models/ClientEmployee', () => {
     return M;
 });
 // Employee mock — findOne يُرجع null (المستخدم ليس منفذاً) + يدعم .populate() chaining
+jest.mock('../models/AgentEmployee', () => {
+    const M = jest.fn();
+    M.findOne = jest.fn().mockResolvedValue(null);
+    M.findById = jest.fn().mockResolvedValue(null);
+    M.updateOne = jest.fn().mockResolvedValue({ modifiedCount: 0 });
+    M.modelName = 'AgentEmployee';
+    return M;
+});
 jest.mock('../models/Employee', () => {
     const M = jest.fn();
     M.findOne = jest.fn().mockImplementation(() => ({

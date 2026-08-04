@@ -1,6 +1,10 @@
 // routes/clientPortal.js
 const express = require('express');
 const router = express.Router();
+const crypto = require('crypto');
+const fs = require('fs');
+const path = require('path');
+const multer = require('multer');
 const SupportTicket = require('../models/SupportTicket');
 const User = require('../models/User');
 const ClientEmployee = require('../models/ClientEmployee');
@@ -60,12 +64,58 @@ const requireClientAuth = async (req, res, next) => {
     }
 };
 
+const getSupportIdentity = async (req) => {
+    if (req.session.accountType === 'company') {
+        return { account: await ClientEmployee.findById(req.session.clientId), entityType: 'client_company' };
+    }
+    if (req.session.accountType === 'agent_staff') {
+        return { account: await AgentEmployee.findById(req.session.clientId), entityType: 'client_user' };
+    }
+    if (req.session.accountType === 'sub_client') {
+        return { account: await SubAccount.findById(req.session.clientId), entityType: 'sub_client' };
+    }
+    return { account: await User.findById(req.session.clientId), entityType: 'client_user' };
+};
+
+const parseSupportImage = (imageBase64) => {
+    if (!imageBase64) return null;
+    const match = String(imageBase64).match(/^data:image\/(jpeg|jpg|png|webp);base64,([a-z0-9+/=\r\n]+)$/i);
+    if (!match) throw new Error('INVALID_SUPPORT_IMAGE');
+    const buffer = Buffer.from(match[2].replace(/\s/g, ''), 'base64');
+    if (!buffer.length || buffer.length > 4 * 1024 * 1024) throw new Error('INVALID_SUPPORT_IMAGE');
+    return {
+        buffer,
+        extension: ['jpeg', 'jpg'].includes(match[1].toLowerCase()) ? '.jpg' : `.${match[1].toLowerCase()}`
+    };
+};
+
 // Controllers
 const clientAuthController = require('../controllers/clientAuthController');
 const clientDashboardController = require('../controllers/clientDashboardController');
 const clientTransactionController = require('../controllers/clientTransactionController');
 const clientCompanyController = require('../controllers/clientCompanyController');
 const clientAgentController = require('../controllers/clientAgentController');
+const clientWorkspaceController = require('../controllers/clientWorkspaceController');
+
+const clientDocumentUpload = multer({
+    storage: multer.diskStorage({
+        destination: (_req, _file, callback) => callback(null, path.join(__dirname, '../uploads')),
+        filename: (_req, file, callback) => {
+            const extension = file.mimetype === 'image/png'
+                ? '.png'
+                : file.mimetype === 'image/webp'
+                    ? '.webp'
+                    : '.jpg';
+            callback(null, `client-document-${crypto.randomUUID()}${extension}`);
+        }
+    }),
+    limits: { fileSize: 5 * 1024 * 1024, files: 1 },
+    fileFilter: (_req, file, callback) => {
+        const allowed = new Set(['image/jpeg', 'image/jpg', 'image/png', 'image/webp']);
+        if (!allowed.has(file.mimetype)) return callback(new Error('INVALID_DOCUMENT_TYPE'));
+        return callback(null, true);
+    }
+});
 
 router.get('/', (req, res) => {
     if (req.session.isClientLoggedIn && req.session.clientId) {
@@ -96,6 +146,20 @@ router.get('/logout', clientAuthController.logout);
 // ===============================================
 router.get('/dashboard', requireClientAuth, clientDashboardController.getDashboard);
 router.get('/api/transactions', requireClientAuth, clientDashboardController.getApiTransactions);
+router.get('/services', requireClientAuth, clientWorkspaceController.renderPage('services'));
+router.get('/transactions', requireClientAuth, clientWorkspaceController.renderPage('transactions'));
+router.get('/finance', requireClientAuth, clientWorkspaceController.renderPage('finance'));
+router.get('/customers', requireClientAuth, clientWorkspaceController.renderPage('customers'));
+router.get('/staff', requireClientAuth, clientWorkspaceController.renderPage('staff'));
+router.get('/reports', requireClientAuth, clientWorkspaceController.renderPage('reports'));
+router.get('/settings', requireClientAuth, clientWorkspaceController.renderPage('settings'));
+router.get('/reports/export.csv', requireClientAuth, clientWorkspaceController.exportReportCsv);
+router.get('/transactions/:id/details', requireClientAuth, clientWorkspaceController.getTransactionDetails);
+router.post('/customers/add', requireClientAuth, clientWorkspaceController.postCreateCustomer);
+router.post('/customers/:id/toggle', requireClientAuth, clientWorkspaceController.postToggleCustomer);
+router.post('/customers/:id/balance', requireClientAuth, clientWorkspaceController.postAdjustCustomerBalance);
+router.post('/settings/profile', requireClientAuth, clientWorkspaceController.postUpdateSettings);
+router.post('/settings/password', requireClientAuth, clientWorkspaceController.postChangePassword);
 router.get('/company/staff', requireClientAuth, clientCompanyController.getStaffManagement);
 router.post('/company/staff/add', requireClientAuth, clientCompanyController.postAddStaff);
 router.post('/company/staff/:id/toggle', requireClientAuth, clientCompanyController.postToggleStaff);
@@ -179,7 +243,7 @@ router.post('/sub-accounts/toggle/:id', requireClientAuth, clientDashboardContro
 // ===============================================
 // 💸 Transaction Routes
 // ===============================================
-router.post('/transfer', requireClientAuth, clientTransactionController.postTransfer);
+router.post('/transfer', requireClientAuth, clientDocumentUpload.single('idCardImage'), clientTransactionController.postTransfer);
 router.post('/balance-transfer/lookup', requireClientAuth, clientTransactionController.lookupBalanceTransferTarget);
 router.post('/balance-transfer', requireClientAuth, clientTransactionController.postBalanceTransfer);
 router.post('/buy-card', requireClientAuth, clientTransactionController.postBuyCard);
@@ -189,25 +253,28 @@ router.get(['/proxy/image/:id', '/proxy/image/:id/:index'], requireClientAuth, c
 // ===============================================
 // 📞 Support Routes
 // ===============================================
-router.get('/support', requireClientAuth, async (req, res) => {
+router.get('/support', requireClientAuth, clientWorkspaceController.renderPage('support'), async (req, res) => {
     try {
-        const isEmployee = req.session.accountType === 'company';
-        const Model = isEmployee ? ClientEmployee : User;
-        const account = await Model.findById(req.session.clientId);
+        const { account } = await getSupportIdentity(req);
         res.render('client/support', { account, accountType: req.session.accountType });
     } catch (e) { res.status(500).send('Error'); }
 });
 
 router.get('/api/support/messages', requireClientAuth, async (req, res) => {
     try {
-        const isEmployee = req.session.accountType === 'company';
-        const Model = isEmployee ? ClientEmployee : User;
-        const account = await Model.findById(req.session.clientId);
-        const phone = account.phone || account.webUsername;
+        const { account, entityType } = await getSupportIdentity(req);
+        if (!account) return res.status(401).json({ success: false, error: 'Unauthorized' });
 
-        let ticket = await SupportTicket.findOne({ $or: [{ userPhone: phone }, { webUsername: phone }], status: { $ne: 'closed' } }).sort({ createdAt: -1 });
+        let ticket = await SupportTicket.findOne({ entityType, entityId: account._id, status: { $ne: 'closed' } }).sort({ createdAt: -1 });
         if (!ticket) {
-            ticket = new SupportTicket({ entityType: 'client', entityId: account._id, name: account.name, phone: account.phone || 'غير مسجل', webUsername: account.webUsername || 'غير مسجل', messages: [] });
+            ticket = new SupportTicket({
+                entityType,
+                entityId: account._id,
+                telegramId: account.phone || account.webUsername,
+                name: account.name || 'مستخدم البوابة',
+                phone: account.phone || 'غير مسجل',
+                messages: []
+            });
             await ticket.save();
         }
         ticket.unreadUser = 0; await ticket.save();
@@ -216,33 +283,59 @@ router.get('/api/support/messages', requireClientAuth, async (req, res) => {
 });
 
 router.post('/api/support/messages', requireClientAuth, async (req, res) => {
+    let storedImagePath = null;
     try {
-        const { text, imageBase64 } = req.body;
-        const isEmployee = req.session.accountType === 'company';
-        const Model = isEmployee ? ClientEmployee : User;
-        const account = await Model.findById(req.session.clientId);
-        const phone = account.phone || account.webUsername;
+        const text = String(req.body.text || '').trim().slice(0, 1000);
+        const parsedImage = parseSupportImage(req.body.imageBase64);
+        if (!text && !parsedImage) {
+            return res.status(400).json({ success: false, error: 'اكتب رسالة أو أرفق صورة.' });
+        }
 
-        let ticket = await SupportTicket.findOne({ $or: [{ userPhone: phone }, { webUsername: phone }], status: { $ne: 'closed' } });
+        const { account, entityType } = await getSupportIdentity(req);
+        if (!account) return res.status(401).json({ success: false, error: 'Unauthorized' });
+
+        let ticket = await SupportTicket.findOne({ entityType, entityId: account._id, status: { $ne: 'closed' } });
         if (!ticket) {
-            ticket = new SupportTicket({ entityType: 'client', entityId: account._id, name: account.name, phone: account.phone || 'غير مسجل', webUsername: account.webUsername || 'غير مسجل', messages: [] });
+            ticket = new SupportTicket({
+                entityType,
+                entityId: account._id,
+                telegramId: account.phone || account.webUsername,
+                name: account.name || 'مستخدم البوابة',
+                phone: account.phone || 'غير مسجل',
+                messages: []
+            });
         }
 
         let imageUrl = null;
-        if (imageBase64) {
-            const fs = require('fs'); const path = require('path');
-            const base64Data = imageBase64.replace(/^data:image\/\w+;base64,/, "");
-            const fileName = `support_${Date.now()}_${Math.round(Math.random()*1000)}.jpg`;
-            const uploadPath = path.join(__dirname, '../uploads/', fileName);
-            fs.writeFileSync(uploadPath, base64Data, 'base64');
+        if (parsedImage) {
+            const fileName = `support_${crypto.randomUUID()}${parsedImage.extension}`;
+            storedImagePath = path.join(__dirname, '../uploads/', fileName);
+            await fs.promises.writeFile(storedImagePath, parsedImage.buffer);
             imageUrl = `/uploads/${fileName}`;
         }
 
-        const newMessage = { sender: 'user', senderName: account.name, text: text, imageUrl, createdAt: new Date() };
-        ticket.messages.push(newMessage); ticket.status = 'pending'; ticket.unreadAdmin = (ticket.unreadAdmin || 0) + 1; ticket.updatedAt = new Date(); await ticket.save();
+        const newMessage = {
+            sender: 'user',
+            senderName: account.name || account.webUsername,
+            text,
+            imageUrl,
+            createdAt: new Date()
+        };
+        ticket.messages.push(newMessage);
+        ticket.status = 'open';
+        ticket.unreadAdmin = (ticket.unreadAdmin || 0) + 1;
+        ticket.updatedAt = new Date();
+        await ticket.save();
 
-        res.json({ success: true, message: newMessage });
-    } catch (e) { res.json({ success: false, error: e.message }); }
+        return res.json({ success: true, message: newMessage });
+    } catch (error) {
+        if (storedImagePath) fs.promises.unlink(storedImagePath).catch(() => {});
+        const invalidImage = error.message === 'INVALID_SUPPORT_IMAGE';
+        return res.status(invalidImage ? 400 : 500).json({
+            success: false,
+            error: invalidImage ? 'الصورة غير صالحة أو تتجاوز 4MB.' : 'تعذر إرسال الرسالة.'
+        });
+    }
 });
 
 module.exports = router;
