@@ -1,0 +1,55 @@
+<%
+    const actionTransfer = typeof showTransfer !== 'undefined' ? showTransfer : (typeof canTransfer !== 'undefined' && canTransfer);
+    const actionOperations = typeof showOperations !== 'undefined' ? showOperations : true;
+    const actionRequests = typeof showRequests !== 'undefined' ? showRequests : false;
+    const actionTeam = typeof showTeam !== 'undefined' ? showTeam : false;
+    const actionReports = typeof showReports !== 'undefined' ? showReports : true;
+    const actionSupport = typeof showSupport !== 'undefined' ? showSupport : true;
+%>
+
+<section class="portal-actions-panel no-print" aria-label="&#1575;&#1604;&#1573;&#1580;&#1585;&#1575;&#1569;&#1575;&#1578; &#1575;&#1604;&#1587;&#1585;&#1610;&#1593;&#1577;">
+    <div class="portal-actions-head">
+        <div>
+            <span class="portal-section-kicker">&#1575;&#1604;&#1578;&#1588;&#1594;&#1610;&#1604;</span>
+            <h2 class="portal-section-title">&#1575;&#1604;&#1573;&#1580;&#1585;&#1575;&#1569;&#1575;&#1578; &#1575;&#1604;&#1587;&#1585;&#1610;&#1593;&#1577;</h2>
+        </div>
+    </div>
+    <div class="portal-action-grid">
+        <% if (actionTransfer) { %>
+            <button type="button" class="portal-action-card portal-action-button" data-bs-toggle="modal" data-bs-target="#companyTransferModal">
+                <span class="portal-action-icon action-blue"><i class="fa-solid fa-paper-plane"></i></span>
+                <span class="portal-action-title">&#1578;&#1581;&#1608;&#1610;&#1604; &#1580;&#1583;&#1610;&#1583;</span>
+            </button>
+        <% } %>
+        <% if (actionOperations) { %>
+            <a href="#transactions" class="portal-action-card">
+                <span class="portal-action-icon action-green"><i class="fa-solid fa-list-check"></i></span>
+                <span class="portal-action-title">&#1587;&#1580;&#1604; &#1575;&#1604;&#1593;&#1605;&#1604;&#1610;&#1575;&#1578;</span>
+            </a>
+        <% } %>
+        <% if (actionRequests) { %>
+            <a href="#requests" class="portal-action-card">
+                <span class="portal-action-icon action-gold"><i class="fa-solid fa-user-check"></i></span>
+                <span class="portal-action-title">&#1591;&#1604;&#1576;&#1575;&#1578; &#1575;&#1604;&#1593;&#1605;&#1604;&#1575;&#1569;</span>
+            </a>
+        <% } %>
+        <% if (actionTeam) { %>
+            <a href="#staff" class="portal-action-card">
+                <span class="portal-action-icon action-purple"><i class="fa-solid fa-users-gear"></i></span>
+                <span class="portal-action-title">&#1575;&#1604;&#1601;&#1585;&#1610;&#1602;</span>
+            </a>
+        <% } %>
+        <% if (actionReports) { %>
+            <a href="/client/reports" class="portal-action-card">
+                <span class="portal-action-icon action-sky"><i class="fa-solid fa-chart-pie"></i></span>
+                <span class="portal-action-title">&#1575;&#1604;&#1578;&#1602;&#1575;&#1585;&#1610;&#1585;</span>
+            </a>
+        <% } %>
+        <% if (actionSupport) { %>
+            <a href="/client/support" class="portal-action-card">
+                <span class="portal-action-icon action-red"><i class="fa-solid fa-headset"></i></span>
+                <span class="portal-action-title">&#1575;&#1604;&#1583;&#1593;&#1605;</span>
+            </a>
+        <% } %>
+    </div>
+</section>

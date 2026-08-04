@@ -4,8 +4,8 @@
 <body>
     <%- include('partials/company_portal_nav') %>
 
-    <main class="shell">
-        <section class="role-hero">
+    <main class="shell portal-shell">
+        <section class="role-hero" id="overview">
             <div>
                 <div class="eyebrow"><i class="fa-solid fa-user-tie"></i>واجهة الموظف</div>
                 <h1 class="page-title">عمليات اليوم</h1>
@@ -19,8 +19,18 @@
             </div>
         </section>
 
+        <%- include('partials/company_portal_actions', { showTransfer: true, showOperations: true, showTeam: false, showReports: false, showSupport: true }) %>
         <%- include('partials/company_stats') %>
 
+        <section class="portal-section" id="operations">
+            <div class="portal-section-head">
+                <div>
+                    <span class="portal-section-kicker">&#1605;&#1587;&#1575;&#1581;&#1577; &#1575;&#1604;&#1605;&#1608;&#1592;&#1601;</span>
+                    <h2 class="portal-section-title">&#1576;&#1610;&#1575;&#1606;&#1575;&#1578; &#1575;&#1604;&#1581;&#1587;&#1575;&#1576; &#1608;&#1593;&#1605;&#1604;&#1610;&#1575;&#1578; &#1575;&#1604;&#1610;&#1608;&#1605;</h2>
+                </div>
+                <span class="portal-section-meta"><%= dateLabel %></span>
+            </div>
+            <div class="single-column-stack">
         <section class="panel mb-3">
             <div class="panel-heading">
                 <h2 class="panel-title"><i class="fa-solid fa-id-card text-primary"></i>بيانات الموظف</h2>
@@ -45,6 +55,8 @@
         </section>
 
         <%- include('partials/company_transactions_table', { showFilters: false }) %>
+            </div>
+        </section>
     </main>
 
     <%- include('partials/company_transfer_modal') %>

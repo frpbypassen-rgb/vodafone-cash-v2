@@ -4,8 +4,8 @@
 <body>
     <%- include('partials/company_portal_nav') %>
 
-    <main class="shell">
-        <section class="role-hero">
+    <main class="shell portal-shell">
+        <section class="role-hero" id="overview">
             <div>
                 <div class="eyebrow"><i class="fa-solid fa-calculator"></i>واجهة المحاسب</div>
                 <h1 class="page-title">المركز المالي للشركة</h1>
@@ -17,9 +17,18 @@
             </div>
         </section>
 
+        <%- include('partials/company_portal_actions', { showTransfer: false, showOperations: true, showTeam: false, showReports: true, showSupport: true }) %>
         <%- include('partials/company_stats') %>
 
-        <section class="layout-grid">
+        <section class="portal-section" id="operations">
+            <div class="portal-section-head">
+                <div>
+                    <span class="portal-section-kicker">&#1575;&#1604;&#1605;&#1585;&#1603;&#1586; &#1575;&#1604;&#1605;&#1575;&#1604;&#1610;</span>
+                    <h2 class="portal-section-title">&#1575;&#1604;&#1593;&#1605;&#1604;&#1610;&#1575;&#1578; &#1608;&#1575;&#1604;&#1605;&#1604;&#1582;&#1589; &#1575;&#1604;&#1605;&#1575;&#1604;&#1610;</h2>
+                </div>
+                <span class="portal-section-meta"><%= dateLabel %></span>
+            </div>
+            <div class="layout-grid portal-main-grid">
             <div>
                 <%- include('partials/company_transactions_table', { showFilters: true }) %>
             </div>
@@ -45,6 +54,7 @@
                     </div>
                 </div>
             </aside>
+            </div>
         </section>
     </main>
 
