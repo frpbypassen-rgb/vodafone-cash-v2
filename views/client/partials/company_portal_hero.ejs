@@ -1,0 +1,69 @@
+<%
+    const portalHeroEntity = typeof heroEntity !== 'undefined' && heroEntity ? heroEntity : (typeof company !== 'undefined' ? company : {});
+    const portalHeroEntityName = portalHeroEntity.name || heroTitle || 'Power Pay AL-Ahram';
+    const portalHeroCode = portalHeroEntity.accountCode || portalHeroEntity.agentCode || 'POWER-PAY';
+    const portalHeroIcon = typeof heroIcon !== 'undefined' ? heroIcon : 'fa-building';
+    const portalHeroShowTransfer = typeof showHeroTransfer !== 'undefined' && showHeroTransfer;
+    const portalHeroShowRequests = typeof showHeroRequests !== 'undefined' && showHeroRequests;
+    const portalHeroShowTeam = typeof showHeroTeam !== 'undefined' && showHeroTeam;
+    const portalHeroShowReports = typeof showHeroReports !== 'undefined' && showHeroReports;
+    const portalHeroShowSupport = typeof showHeroSupport !== 'undefined' && showHeroSupport;
+%>
+
+<section class="role-hero" id="overview">
+    <div class="portal-hero-copy">
+        <div class="eyebrow"><i class="fa-solid <%= portalHeroIcon %>"></i><%= heroEyebrow %></div>
+        <h1 class="page-title"><%= heroTitle %></h1>
+        <p class="page-subtitle"><%= heroSubtitle %></p>
+        <div class="toolbar">
+            <% if (portalHeroShowTransfer) { %>
+                <button type="button" class="primary-btn" data-bs-toggle="modal" data-bs-target="#companyTransferModal">
+                    <i class="fa-solid fa-paper-plane"></i>تحويل جديد
+                </button>
+            <% } %>
+            <% if (portalHeroShowRequests) { %>
+                <a href="#requests" class="secondary-btn"><i class="fa-solid fa-user-check"></i>طلبات العملاء</a>
+            <% } %>
+            <% if (portalHeroShowTeam) { %>
+                <a href="#staff" class="secondary-btn"><i class="fa-solid fa-users-gear"></i>إدارة الفريق</a>
+            <% } %>
+            <% if (portalHeroShowReports) { %>
+                <a href="/client/reports" class="secondary-btn"><i class="fa-solid fa-chart-line"></i>التقرير الشامل</a>
+            <% } %>
+            <% if (portalHeroShowSupport) { %>
+                <a href="/client/support" class="secondary-btn"><i class="fa-solid fa-headset"></i>الدعم</a>
+            <% } %>
+        </div>
+    </div>
+
+    <aside class="portal-command-console" aria-label="حالة مساحة العمل">
+        <div class="portal-command-top">
+            <div class="portal-command-identity">
+                <span class="portal-command-cube"><i class="fa-solid <%= portalHeroIcon %>"></i></span>
+                <span class="portal-command-identity-copy">
+                    <span>مساحة العمل الحالية</span>
+                    <strong><%= portalHeroEntityName %></strong>
+                </span>
+            </div>
+            <span class="portal-live-badge"><span class="portal-online-dot"></span>جاهز</span>
+        </div>
+        <div class="portal-command-grid">
+            <div class="portal-command-cell">
+                <span>نوع الصلاحية</span>
+                <strong><%= roleLabel %></strong>
+            </div>
+            <div class="portal-command-cell">
+                <span>الفترة المعروضة</span>
+                <strong><%= typeof dateLabel !== 'undefined' ? dateLabel : 'اليوم' %></strong>
+            </div>
+            <div class="portal-command-cell">
+                <span>رقم الحساب</span>
+                <strong class="mono-num" dir="ltr"><%= portalHeroCode %></strong>
+            </div>
+            <div class="portal-command-cell">
+                <span>حالة النظام</span>
+                <strong>متصل وآمن</strong>
+            </div>
+        </div>
+    </aside>
+</section>

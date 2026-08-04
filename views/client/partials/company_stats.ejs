@@ -1,31 +1,61 @@
-<div class="metric-grid" id="metrics">
+<section class="metric-grid" id="metrics" aria-label="مؤشرات الأداء">
     <% if (canViewBalance) { %>
-        <div class="metric-card">
-            <div class="metric-label"><i class="fa-solid fa-wallet ms-1"></i>الرصيد الحالي</div>
-            <div class="metric-value mono-num" dir="ltr"><%= Number(company.balance || 0).toFixed(2) %></div>
-            <div class="metric-foot">دينار ليبي</div>
-        </div>
+        <article class="metric-card metric-balance">
+            <div class="metric-card-head">
+                <span class="metric-icon"><i class="fa-solid fa-wallet"></i></span>
+                <span class="metric-state">متاح الآن</span>
+            </div>
+            <div>
+                <div class="metric-label">الرصيد الحالي</div>
+                <div class="metric-value mono-num" dir="ltr"><%= Number(company.balance || 0).toFixed(2) %></div>
+                <div class="metric-foot">دينار ليبي</div>
+            </div>
+        </article>
     <% } %>
-    <div class="metric-card">
-        <div class="metric-label"><i class="fa-solid fa-check-circle ms-1"></i>عمليات ناجحة</div>
-        <div class="metric-value mono-num"><%= totals.completedCount %></div>
-        <div class="metric-foot"><%= dateLabel %></div>
-    </div>
-    <div class="metric-card">
-        <div class="metric-label"><i class="fa-solid fa-money-bill-transfer ms-1"></i>إجمالي التحويلات</div>
-        <div class="metric-value mono-num" dir="ltr"><%= Number(totals.totalEGP || 0).toLocaleString('en-US', { maximumFractionDigits: 2 }) %></div>
-        <div class="metric-foot">جنيه مصري</div>
-    </div>
-    <div class="metric-card">
-        <div class="metric-label"><i class="fa-solid fa-hourglass-half ms-1"></i>قيد المتابعة</div>
-        <div class="metric-value mono-num"><%= totals.pendingCount %></div>
-        <div class="metric-foot">طلبات لم تكتمل بعد</div>
-    </div>
+    <article class="metric-card metric-success">
+        <div class="metric-card-head">
+            <span class="metric-icon"><i class="fa-solid fa-check"></i></span>
+            <span class="metric-state">مكتملة</span>
+        </div>
+        <div>
+            <div class="metric-label">العمليات الناجحة</div>
+            <div class="metric-value mono-num"><%= totals.completedCount %></div>
+            <div class="metric-foot"><%= dateLabel %></div>
+        </div>
+    </article>
+    <article class="metric-card metric-volume">
+        <div class="metric-card-head">
+            <span class="metric-icon"><i class="fa-solid fa-money-bill-transfer"></i></span>
+            <span class="metric-state">حجم التحويل</span>
+        </div>
+        <div>
+            <div class="metric-label">إجمالي التحويلات</div>
+            <div class="metric-value mono-num" dir="ltr"><%= Number(totals.totalEGP || 0).toLocaleString('en-US', { maximumFractionDigits: 2 }) %></div>
+            <div class="metric-foot">جنيه مصري</div>
+        </div>
+    </article>
+    <article class="metric-card metric-pending">
+        <div class="metric-card-head">
+            <span class="metric-icon"><i class="fa-solid fa-hourglass-half"></i></span>
+            <span class="metric-state">تحتاج متابعة</span>
+        </div>
+        <div>
+            <div class="metric-label">قيد المتابعة</div>
+            <div class="metric-value mono-num"><%= totals.pendingCount %></div>
+            <div class="metric-foot">طلبات لم تكتمل بعد</div>
+        </div>
+    </article>
     <% if (!canViewBalance) { %>
-        <div class="metric-card">
-            <div class="metric-label"><i class="fa-solid fa-user-check ms-1"></i>الموظفون النشطون</div>
-            <div class="metric-value mono-num"><%= staffCount %></div>
-            <div class="metric-foot"><%= company.name %></div>
-        </div>
+        <article class="metric-card metric-staff">
+            <div class="metric-card-head">
+                <span class="metric-icon"><i class="fa-solid fa-user-check"></i></span>
+                <span class="metric-state">نشطون</span>
+            </div>
+            <div>
+                <div class="metric-label">الموظفون النشطون</div>
+                <div class="metric-value mono-num"><%= staffCount %></div>
+                <div class="metric-foot"><%= company.name %></div>
+            </div>
+        </article>
     <% } %>
-</div>
+</section>

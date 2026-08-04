@@ -1,76 +1,153 @@
-<nav class="topbar company-client-nav no-print">
-    <div class="container topbar-inner">
-        <a href="/client/dashboard" class="brand-lockup text-decoration-none">
-            <img src="/images/logo.jpeg" alt="Power Pay AL-Ahram" class="brand-logo" onerror="this.onerror=null; this.src='/images/logo.jpg';">
-            <span>
-                <span class="brand-title d-block"><%= company.name %></span>
-                <span class="brand-subtitle d-block"><%= roleLabel %> - <%= account.name %></span>
-            </span>
-        </a>
-        <div class="nav-actions">
-            <% if (canViewBalance) { %>
-                <span class="balance-chip">
-                    <i class="fa-solid fa-wallet"></i>
-                    <span class="mono-num" dir="ltr"><%= Number(company.balance || 0).toFixed(2) %> LYD</span>
-                </span>
-            <% } %>
-            <% const showReportsNav = !(typeof entityLabel !== 'undefined' && entityLabel === 'الوكيل' && persona === 'employee'); %>
-            <% if (showReportsNav) { %>
-                <a href="/client/reports" class="nav-link-btn" title="التقارير">
-                    <i class="fa-solid fa-chart-pie"></i>
-                    <span>التقارير</span>
-                </a>
-            <% } %>
-            <a href="/client/support" class="nav-link-btn" title="الدعم الفني">
-                <i class="fa-solid fa-headset"></i>
-                <span>الدعم</span>
-            </a>
-            <button type="button" class="icon-btn" onclick="toggleTheme()" title="تغيير المظهر">
-                <i class="fa-solid fa-moon" id="themeIcon"></i>
-            </button>
-            <a href="/client/logout" class="icon-btn logout-btn" title="خروج">
-                <i class="fa-solid fa-power-off"></i>
-            </a>
-        </div>
-    </div>
-</nav>
+<%
+    const portalIsAgent = typeof entityLabel !== 'undefined' && entityLabel === 'الوكيل';
+    const portalPersona = typeof persona !== 'undefined' ? persona : 'manager';
+    const portalCanTransfer = typeof canTransfer !== 'undefined' && canTransfer;
+    const portalCanViewBalance = typeof canViewBalance !== 'undefined' && canViewBalance;
+    const portalShowReports = !(portalIsAgent && portalPersona === 'employee');
+    const portalShowTeam = portalPersona === 'manager';
+    const portalShowRequests = portalIsAgent && portalPersona === 'manager';
+    const portalEntity = typeof company !== 'undefined' && company ? company : (typeof agent !== 'undefined' ? agent : {});
+    const portalEntityName = portalEntity.name || (portalIsAgent ? 'حساب الوكيل' : 'حساب الشركة');
+    const portalEntityCode = portalEntity.accountCode || portalEntity.agentCode || 'POWER-PAY';
+    const portalWorkspaceTitle = portalIsAgent ? 'مركز إدارة الوكيل' : 'مركز إدارة الشركة';
+%>
 
-<header class="mobile-company-header no-print">
-    <a href="/client/dashboard" class="mobile-company-lockup text-decoration-none">
-        <img src="/images/logo.jpeg" alt="Power Pay AL-Ahram" onerror="this.onerror=null; this.src='/images/logo.jpg';">
-        <span>
-            <strong><%= company.name %></strong>
-            <small><%= roleLabel %></small>
+<aside class="portal-sidebar no-print" id="portalSidebar" aria-label="القائمة الرئيسية">
+    <a href="/client/dashboard" class="portal-sidebar-brand">
+        <img src="/images/logo.jpeg" alt="Power Pay AL-Ahram" class="portal-sidebar-logo" onerror="this.onerror=null; this.src='/images/logo.jpg';">
+        <span class="portal-sidebar-brand-copy">
+            <strong>Power Pay AL-Ahram</strong>
+            <small><%= portalWorkspaceTitle %></small>
         </span>
     </a>
-    <button type="button" class="mobile-theme-btn" onclick="toggleTheme()" title="&#1578;&#1594;&#1610;&#1610;&#1585; &#1575;&#1604;&#1605;&#1592;&#1607;&#1585;">
-        <i class="fa-solid fa-moon" id="themeIconMobile"></i>
-    </button>
-</header>
 
-<div class="bottom-nav-mobile company-bottom-nav no-print">
-    <a href="/client/dashboard" class="bottom-nav-item active">
-        <i class="fa-solid fa-user-circle"></i>
-        <span>&#1575;&#1604;&#1581;&#1587;&#1575;&#1576;</span>
-    </a>
-    <% if (typeof canTransfer !== 'undefined' && canTransfer) { %>
-        <a href="javascript:void(0)" class="bottom-nav-item" data-bs-toggle="modal" data-bs-target="#companyTransferModal">
-            <i class="fa-solid fa-paper-plane"></i>
-            <span>&#1578;&#1581;&#1608;&#1610;&#1604;</span>
-        </a>
-    <% } %>
-    <% if (showReportsNav) { %>
-        <a href="/client/reports" class="bottom-nav-item">
-            <i class="fa-solid fa-chart-pie"></i>
-            <span>&#1575;&#1604;&#1578;&#1602;&#1575;&#1585;&#1610;&#1585;</span>
-        </a>
-    <% } %>
-    <a href="/client/support" class="bottom-nav-item">
-        <i class="fa-solid fa-headset"></i>
-        <span>&#1575;&#1604;&#1583;&#1593;&#1605;</span>
-    </a>
-    <a href="/client/logout" class="bottom-nav-item">
-        <i class="fa-solid fa-power-off"></i>
-        <span>&#1582;&#1585;&#1608;&#1580;</span>
-    </a>
-</div>
+    <section class="portal-sidebar-account" aria-label="بيانات الحساب">
+        <span class="portal-account-cube">
+            <i class="fa-solid <%= portalIsAgent ? 'fa-location-dot' : 'fa-building' %>"></i>
+        </span>
+        <span class="portal-sidebar-account-copy">
+            <strong><%= portalEntityName %></strong>
+            <span><%= roleLabel %> - <%= account.name %></span>
+        </span>
+        <% if (portalCanViewBalance) { %>
+            <span class="portal-sidebar-balance">
+                <span>الرصيد المتاح</span>
+                <strong class="mono-num" dir="ltr"><%= Number(portalEntity.balance || 0).toFixed(2) %> LYD</strong>
+            </span>
+        <% } else { %>
+            <span class="portal-sidebar-balance">
+                <span>رقم الحساب</span>
+                <strong class="mono-num" dir="ltr"><%= portalEntityCode %></strong>
+            </span>
+        <% } %>
+    </section>
+
+    <nav class="portal-sidebar-nav">
+        <section class="portal-sidebar-group">
+            <span class="portal-sidebar-group-title">الرئيسية</span>
+            <a href="#overview" class="portal-sidebar-link active" data-portal-section="overview">
+                <span class="portal-sidebar-link-icon"><i class="fa-solid fa-table-cells-large"></i></span>
+                <span>الشاشة الرئيسية</span>
+                <i class="fa-solid fa-chevron-left portal-sidebar-link-arrow"></i>
+            </a>
+            <a href="#metrics" class="portal-sidebar-link" data-portal-section="metrics">
+                <span class="portal-sidebar-link-icon"><i class="fa-solid fa-chart-simple"></i></span>
+                <span>مؤشرات الأداء</span>
+                <i class="fa-solid fa-chevron-left portal-sidebar-link-arrow"></i>
+            </a>
+        </section>
+
+        <section class="portal-sidebar-group">
+            <span class="portal-sidebar-group-title">إدارة العمل</span>
+            <% if (portalCanTransfer) { %>
+                <button type="button" class="portal-sidebar-link" data-bs-toggle="modal" data-bs-target="#companyTransferModal">
+                    <span class="portal-sidebar-link-icon"><i class="fa-solid fa-paper-plane"></i></span>
+                    <span>تحويل جديد</span>
+                    <i class="fa-solid fa-plus portal-sidebar-link-arrow"></i>
+                </button>
+            <% } %>
+            <a href="#quick-actions" class="portal-sidebar-link" data-portal-section="quick-actions">
+                <span class="portal-sidebar-link-icon"><i class="fa-solid fa-bolt"></i></span>
+                <span>الإجراءات السريعة</span>
+                <i class="fa-solid fa-chevron-left portal-sidebar-link-arrow"></i>
+            </a>
+            <a href="#transactions" class="portal-sidebar-link" data-portal-section="transactions">
+                <span class="portal-sidebar-link-icon"><i class="fa-solid fa-list-check"></i></span>
+                <span>سجل العمليات</span>
+                <i class="fa-solid fa-chevron-left portal-sidebar-link-arrow"></i>
+            </a>
+            <% if (portalShowRequests) { %>
+                <a href="#requests" class="portal-sidebar-link" data-portal-section="requests">
+                    <span class="portal-sidebar-link-icon"><i class="fa-solid fa-user-check"></i></span>
+                    <span>طلبات العملاء</span>
+                    <i class="fa-solid fa-chevron-left portal-sidebar-link-arrow"></i>
+                </a>
+            <% } %>
+            <% if (portalShowTeam) { %>
+                <a href="#staff" class="portal-sidebar-link" data-portal-section="staff">
+                    <span class="portal-sidebar-link-icon"><i class="fa-solid fa-users-gear"></i></span>
+                    <span>الفريق والصلاحيات</span>
+                    <i class="fa-solid fa-chevron-left portal-sidebar-link-arrow"></i>
+                </a>
+            <% } %>
+            <% if (portalShowReports) { %>
+                <a href="/client/reports" class="portal-sidebar-link">
+                    <span class="portal-sidebar-link-icon"><i class="fa-solid fa-chart-pie"></i></span>
+                    <span>التقارير المالية</span>
+                    <i class="fa-solid fa-arrow-up-right-from-square portal-sidebar-link-arrow"></i>
+                </a>
+            <% } %>
+        </section>
+
+        <section class="portal-sidebar-group">
+            <span class="portal-sidebar-group-title">الحساب والنظام</span>
+            <a href="/client/support" class="portal-sidebar-link">
+                <span class="portal-sidebar-link-icon"><i class="fa-solid fa-headset"></i></span>
+                <span>الدعم الفني</span>
+                <i class="fa-solid fa-arrow-up-right-from-square portal-sidebar-link-arrow"></i>
+            </a>
+            <button type="button" class="portal-sidebar-link" onclick="toggleTheme()">
+                <span class="portal-sidebar-link-icon"><i class="fa-solid fa-moon" id="themeIconSidebar"></i></span>
+                <span>تغيير المظهر</span>
+                <i class="fa-solid fa-repeat portal-sidebar-link-arrow"></i>
+            </button>
+            <a href="/client/logout" class="portal-sidebar-link">
+                <span class="portal-sidebar-link-icon"><i class="fa-solid fa-power-off"></i></span>
+                <span>تسجيل الخروج</span>
+                <i class="fa-solid fa-chevron-left portal-sidebar-link-arrow"></i>
+            </a>
+        </section>
+    </nav>
+
+    <footer class="portal-sidebar-footer">
+        <span class="portal-online-state"><span class="portal-online-dot"></span>النظام متصل</span>
+        <span class="mono-num" dir="ltr">v2.0</span>
+    </footer>
+</aside>
+
+<button type="button" class="portal-sidebar-overlay no-print" data-sidebar-close aria-label="إغلاق القائمة"></button>
+
+<header class="portal-workspace-bar no-print">
+    <div class="portal-workspace-heading">
+        <button type="button" class="portal-menu-button" data-sidebar-toggle aria-controls="portalSidebar" aria-expanded="false" title="فتح القائمة">
+            <i class="fa-solid fa-bars-staggered"></i>
+        </button>
+        <span class="portal-workspace-title">
+            <strong><%= portalWorkspaceTitle %></strong>
+            <span><%= portalEntityName %> / <%= roleLabel %></span>
+        </span>
+    </div>
+    <div class="portal-workspace-actions">
+        <span class="portal-header-chip portal-header-date">
+            <i class="fa-regular fa-calendar"></i>
+            <strong><%= typeof dateLabel !== 'undefined' ? dateLabel : 'اليوم' %></strong>
+        </span>
+        <span class="portal-header-chip portal-header-role">
+            <i class="fa-solid fa-shield-halved"></i>
+            <strong><%= roleLabel %></strong>
+        </span>
+        <button type="button" class="portal-header-icon" onclick="toggleTheme()" title="تغيير المظهر">
+            <i class="fa-solid fa-moon" id="themeIconHeader"></i>
+        </button>
+    </div>
+</header>

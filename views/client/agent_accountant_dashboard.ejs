@@ -5,36 +5,30 @@
     <%- include('partials/company_portal_nav') %>
 
     <main class="shell portal-shell">
-        <section class="role-hero" id="overview">
-            <div>
-                <div class="eyebrow"><i class="fa-solid fa-calculator"></i>واجهة محاسب الوكيل</div>
-                <h1 class="page-title">المركز المالي للوكيل</h1>
-                <p class="page-subtitle"><%= agent.name %> - متابعة الرصيد، الإيداعات، وحركة العمليات حسب الفترة.</p>
-            </div>
-            <div class="toolbar">
-                <a href="/client/reports" class="primary-btn"><i class="fa-solid fa-chart-line"></i>التقرير الشامل</a>
-                <a href="/client/support" class="secondary-btn"><i class="fa-solid fa-headset"></i>الدعم</a>
-            </div>
-        </section>
+        <%- include('partials/company_portal_hero', {
+            heroEntity: agent,
+            heroIcon: 'fa-calculator',
+            heroEyebrow: 'مساحة محاسب الوكيل',
+            heroTitle: 'المركز المالي للوكيل',
+            heroSubtitle: agent.name + ' - متابعة الرصيد والإيداعات وحركة العمليات حسب الفترة.',
+            showHeroReports: true,
+            showHeroSupport: true
+        }) %>
 
-        <%- include('partials/company_portal_actions', { showTransfer: false, showOperations: true, showRequests: false, showTeam: false, showReports: true, showSupport: true }) %>
         <%- include('partials/company_stats') %>
+        <%- include('partials/company_portal_actions', { showTransfer: false, showOperations: true, showRequests: false, showTeam: false, showReports: true, showSupport: true }) %>
 
-        <section class="portal-section" id="operations">
+        <section class="portal-section" id="financial-summary">
             <div class="portal-section-head">
                 <div>
-                    <span class="portal-section-kicker">&#1575;&#1604;&#1605;&#1585;&#1603;&#1586; &#1575;&#1604;&#1605;&#1575;&#1604;&#1610;</span>
-                    <h2 class="portal-section-title">&#1575;&#1604;&#1593;&#1605;&#1604;&#1610;&#1575;&#1578; &#1608;&#1575;&#1604;&#1605;&#1604;&#1582;&#1589; &#1575;&#1604;&#1605;&#1575;&#1604;&#1610;</h2>
+                    <span class="portal-section-kicker"><i class="fa-solid fa-scale-balanced"></i>التحليل المالي</span>
+                    <h2 class="portal-section-title">الملخص المالي</h2>
                 </div>
                 <span class="portal-section-meta"><%= dateLabel %></span>
             </div>
-            <div class="layout-grid portal-main-grid">
-            <div>
-                <%- include('partials/company_transactions_table', { showFilters: true }) %>
-            </div>
-            <aside class="panel">
+            <section class="panel">
                 <div class="panel-heading">
-                    <h2 class="panel-title"><i class="fa-solid fa-scale-balanced text-primary"></i>ملخص مالي</h2>
+                    <h2 class="panel-title"><i class="fa-solid fa-scale-balanced"></i>ملخص مالي</h2>
                     <span class="small-muted"><%= dateLabel %></span>
                 </div>
                 <div class="panel-body">
@@ -53,8 +47,18 @@
                         </div>
                     </div>
                 </div>
-            </aside>
+            </section>
+        </section>
+
+        <section class="portal-section" id="operations">
+            <div class="portal-section-head">
+                <div>
+                    <span class="portal-section-kicker"><i class="fa-solid fa-list-check"></i>الحركة المالية</span>
+                    <h2 class="portal-section-title">سجل العمليات</h2>
+                </div>
+                <span class="portal-section-meta"><%= dateLabel %></span>
             </div>
+            <%- include('partials/company_transactions_table', { showFilters: true }) %>
         </section>
     </main>
 

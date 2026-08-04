@@ -5,48 +5,53 @@
     <%- include('partials/company_portal_nav') %>
 
     <main class="shell portal-shell">
-        <section class="role-hero" id="overview">
-            <div>
-                <div class="eyebrow"><i class="fa-solid fa-map-location-dot"></i><%= canCreateStaff ? 'مساحة مدير الوكيل' : 'مساحة مدير التشغيل' %></div>
-                <h1 class="page-title"><%= agent.name %></h1>
-                <p class="page-subtitle">
-                    إدارة فريق الوكيل، قبول العملاء الجدد، متابعة العمليات، وإرسال التحويلات من رصيد الوكيل.
-                </p>
-            </div>
-            <div class="toolbar">
-                <% if (canTransfer) { %>
-                    <button type="button" class="primary-btn" data-bs-toggle="modal" data-bs-target="#companyTransferModal">
-                        <i class="fa-solid fa-paper-plane"></i>تحويل جديد
-                    </button>
-                <% } %>
-                <a href="#requests" class="secondary-btn"><i class="fa-solid fa-user-check"></i>طلبات العملاء</a>
-                <a href="#staff" class="secondary-btn"><i class="fa-solid fa-users-gear"></i>الفريق</a>
-                <a href="/client/reports" class="secondary-btn"><i class="fa-solid fa-file-invoice"></i>التقارير</a>
-            </div>
-        </section>
+        <%- include('partials/company_portal_hero', {
+            heroEntity: agent,
+            heroIcon: 'fa-map-location-dot',
+            heroEyebrow: canCreateStaff ? 'مساحة مدير الوكيل' : 'مساحة مدير التشغيل',
+            heroTitle: agent.name,
+            heroSubtitle: 'إدارة الفريق واعتماد العملاء ومتابعة التحويلات من مركز تشغيل موحد.',
+            showHeroTransfer: canTransfer,
+            showHeroRequests: true,
+            showHeroTeam: true
+        }) %>
 
-        <%- include('partials/company_portal_actions', { showTransfer: canTransfer, showOperations: true, showRequests: true, showTeam: true, showReports: true, showSupport: true }) %>
         <%- include('partials/company_stats') %>
+        <%- include('partials/company_portal_actions', { showTransfer: canTransfer, showOperations: true, showRequests: true, showTeam: true, showReports: true, showSupport: true }) %>
 
         <section class="portal-section" id="operations">
             <div class="portal-section-head">
                 <div>
-                    <span class="portal-section-kicker">&#1605;&#1585;&#1603;&#1586; &#1575;&#1604;&#1608;&#1603;&#1610;&#1604;</span>
-                    <h2 class="portal-section-title">&#1575;&#1604;&#1593;&#1605;&#1604;&#1610;&#1575;&#1578; &#1608;&#1591;&#1604;&#1576;&#1575;&#1578; &#1575;&#1604;&#1593;&#1605;&#1604;&#1575;&#1569; &#1608;&#1575;&#1604;&#1601;&#1585;&#1610;&#1602;</h2>
+                    <span class="portal-section-kicker"><i class="fa-solid fa-list-check"></i>مركز الوكيل</span>
+                    <h2 class="portal-section-title">سجل العمليات والحالات</h2>
                 </div>
                 <span class="portal-section-meta"><%= dateLabel %></span>
             </div>
-            <div class="layout-grid portal-main-grid">
-                <div>
-                    <%- include('partials/company_transactions_table', { showFilters: true }) %>
-                </div>
-                <aside class="portal-side-stack">
-                    <%- include('partials/agent_requests_panel') %>
-                <div>
-                    <%- include('partials/agent_staff_panel') %>
-                </div>
-                </aside>
+            <div>
+                <%- include('partials/company_transactions_table', { showFilters: true }) %>
             </div>
+        </section>
+
+        <section class="portal-section">
+            <div class="portal-section-head">
+                <div>
+                    <span class="portal-section-kicker"><i class="fa-solid fa-user-check"></i>اعتماد العملاء</span>
+                    <h2 class="portal-section-title">طلبات التسجيل الجديدة</h2>
+                </div>
+                <span class="portal-section-meta"><%= pendingRequests.length %> طلب معلق</span>
+            </div>
+            <%- include('partials/agent_requests_panel') %>
+        </section>
+
+        <section class="portal-section">
+            <div class="portal-section-head">
+                <div>
+                    <span class="portal-section-kicker"><i class="fa-solid fa-users-gear"></i>إدارة الحسابات</span>
+                    <h2 class="portal-section-title">الفريق والصلاحيات</h2>
+                </div>
+                <span class="portal-section-meta"><%= staffCount %> حساب نشط</span>
+            </div>
+            <%- include('partials/agent_staff_panel') %>
         </section>
     </main>
 
