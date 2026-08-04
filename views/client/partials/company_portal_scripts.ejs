@@ -6,14 +6,16 @@
         document.documentElement.setAttribute('data-theme', next);
         document.documentElement.setAttribute('data-bs-theme', next);
         localStorage.setItem('ahram_company_theme', next);
-        const icon = document.getElementById('themeIcon');
-        if (icon) icon.className = next === 'dark' ? 'fa-solid fa-moon' : 'fa-solid fa-sun';
+        document.querySelectorAll('#themeIcon, #themeIconMobile').forEach((icon) => {
+            icon.className = next === 'dark' ? 'fa-solid fa-moon' : 'fa-solid fa-sun';
+        });
     }
 
     (function syncThemeIcon() {
-        const icon = document.getElementById('themeIcon');
         const theme = document.documentElement.getAttribute('data-theme') || 'light';
-        if (icon) icon.className = theme === 'dark' ? 'fa-solid fa-moon' : 'fa-solid fa-sun';
+        document.querySelectorAll('#themeIcon, #themeIconMobile').forEach((icon) => {
+            icon.className = theme === 'dark' ? 'fa-solid fa-moon' : 'fa-solid fa-sun';
+        });
     })();
 
     const transferForm = document.getElementById('companyTransferForm');

@@ -1,4 +1,4 @@
-<nav class="topbar">
+<nav class="topbar company-client-nav no-print">
     <div class="container topbar-inner">
         <a href="/client/dashboard" class="brand-lockup text-decoration-none">
             <img src="/images/logo.jpeg" alt="Power Pay AL-Ahram" class="brand-logo" onerror="this.onerror=null; this.src='/images/logo.jpg';">
@@ -34,3 +34,43 @@
         </div>
     </div>
 </nav>
+
+<header class="mobile-company-header no-print">
+    <a href="/client/dashboard" class="mobile-company-lockup text-decoration-none">
+        <img src="/images/logo.jpeg" alt="Power Pay AL-Ahram" onerror="this.onerror=null; this.src='/images/logo.jpg';">
+        <span>
+            <strong><%= company.name %></strong>
+            <small><%= roleLabel %></small>
+        </span>
+    </a>
+    <button type="button" class="mobile-theme-btn" onclick="toggleTheme()" title="&#1578;&#1594;&#1610;&#1610;&#1585; &#1575;&#1604;&#1605;&#1592;&#1607;&#1585;">
+        <i class="fa-solid fa-moon" id="themeIconMobile"></i>
+    </button>
+</header>
+
+<div class="bottom-nav-mobile company-bottom-nav no-print">
+    <a href="/client/dashboard" class="bottom-nav-item active">
+        <i class="fa-solid fa-user-circle"></i>
+        <span>&#1575;&#1604;&#1581;&#1587;&#1575;&#1576;</span>
+    </a>
+    <% if (typeof canTransfer !== 'undefined' && canTransfer) { %>
+        <a href="javascript:void(0)" class="bottom-nav-item" data-bs-toggle="modal" data-bs-target="#companyTransferModal">
+            <i class="fa-solid fa-paper-plane"></i>
+            <span>&#1578;&#1581;&#1608;&#1610;&#1604;</span>
+        </a>
+    <% } %>
+    <% if (showReportsNav) { %>
+        <a href="/client/reports" class="bottom-nav-item">
+            <i class="fa-solid fa-chart-pie"></i>
+            <span>&#1575;&#1604;&#1578;&#1602;&#1575;&#1585;&#1610;&#1585;</span>
+        </a>
+    <% } %>
+    <a href="/client/support" class="bottom-nav-item">
+        <i class="fa-solid fa-headset"></i>
+        <span>&#1575;&#1604;&#1583;&#1593;&#1605;</span>
+    </a>
+    <a href="/client/logout" class="bottom-nav-item">
+        <i class="fa-solid fa-power-off"></i>
+        <span>&#1582;&#1585;&#1608;&#1580;</span>
+    </a>
+</div>
