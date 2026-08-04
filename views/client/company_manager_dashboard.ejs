@@ -19,7 +19,7 @@
         <%- include('partials/company_stats') %>
         <%- include('partials/company_portal_actions', { showTransfer: canTransfer, showOperations: true, showTeam: true, showReports: true, showSupport: true }) %>
 
-        <section class="portal-section" id="operations">
+        <section class="portal-section portal-view" id="transactions" data-portal-view="transactions" data-portal-title="سجل العمليات" hidden>
             <div class="portal-section-head">
                 <div>
                     <span class="portal-section-kicker"><i class="fa-solid fa-list-check"></i>مركز التشغيل</span>
@@ -32,7 +32,7 @@
             </div>
         </section>
 
-        <section class="portal-section">
+        <section class="portal-section portal-view" id="staff" data-portal-view="staff" data-portal-title="الفريق والصلاحيات" hidden>
             <div class="portal-section-head">
                 <div>
                     <span class="portal-section-kicker"><i class="fa-solid fa-users-gear"></i>إدارة الحسابات</span>

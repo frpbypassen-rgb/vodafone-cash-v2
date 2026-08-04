@@ -23,10 +23,45 @@
         const toggles = document.querySelectorAll('[data-sidebar-toggle]');
         const closeTargets = document.querySelectorAll('[data-sidebar-close]');
         const sectionLinks = Array.from(document.querySelectorAll('.portal-sidebar-link[data-portal-section]'));
+        const portalViews = Array.from(document.querySelectorAll('[data-portal-view]'));
+        const viewMap = new Map(portalViews.map((view) => [view.dataset.portalView, view]));
+        const viewLabel = document.getElementById('portalCurrentViewLabel');
 
         const setSidebarState = (open) => {
             body.classList.toggle('portal-sidebar-open', open);
             toggles.forEach((toggle) => toggle.setAttribute('aria-expanded', open ? 'true' : 'false'));
+        };
+
+        const openPortalView = (target, updateHistory = true) => {
+            const nextView = viewMap.get(target) || viewMap.get('overview');
+            if (!nextView) return;
+
+            const nextTarget = nextView.dataset.portalView;
+            portalViews.forEach((view) => {
+                const active = view === nextView;
+                view.hidden = !active;
+                view.classList.toggle('is-active', active);
+                view.setAttribute('aria-hidden', active ? 'false' : 'true');
+            });
+
+            sectionLinks.forEach((link) => {
+                const active = link.dataset.portalSection === nextTarget;
+                link.classList.toggle('active', active);
+                if (active) link.setAttribute('aria-current', 'page');
+                else link.removeAttribute('aria-current');
+            });
+
+            if (viewLabel) {
+                const activeLink = sectionLinks.find((link) => link.dataset.portalSection === nextTarget);
+                viewLabel.textContent = activeLink?.dataset.portalLabel || nextView.dataset.portalTitle || 'الشاشة الرئيسية';
+            }
+
+            if (updateHistory && window.location.hash !== `#${nextTarget}`) {
+                window.history.pushState({ portalView: nextTarget }, '', `#${nextTarget}`);
+            }
+
+            setSidebarState(false);
+            window.scrollTo({ top: 0, behavior: 'smooth' });
         };
 
         toggles.forEach((toggle) => {
@@ -34,30 +69,29 @@
         });
         closeTargets.forEach((target) => target.addEventListener('click', () => setSidebarState(false)));
 
-        sectionLinks.forEach((link) => {
-            link.addEventListener('click', () => {
-                sectionLinks.forEach((item) => item.classList.remove('active'));
-                link.classList.add('active');
-                if (window.innerWidth <= 1024) setSidebarState(false);
+        document.querySelectorAll('a[href^="#"]').forEach((link) => {
+            const target = link.getAttribute('href').slice(1);
+            if (!viewMap.has(target)) return;
+            link.addEventListener('click', (event) => {
+                event.preventDefault();
+                openPortalView(target);
             });
         });
 
-        const observedSections = sectionLinks
-            .map((link) => document.getElementById(link.dataset.portalSection))
-            .filter(Boolean);
-
-        if ('IntersectionObserver' in window && observedSections.length) {
-            const observer = new IntersectionObserver((entries) => {
-                const visible = entries
-                    .filter((entry) => entry.isIntersecting)
-                    .sort((a, b) => b.intersectionRatio - a.intersectionRatio)[0];
-                if (!visible) return;
-                sectionLinks.forEach((link) => {
-                    link.classList.toggle('active', link.dataset.portalSection === visible.target.id);
-                });
-            }, { rootMargin: '-18% 0px -62% 0px', threshold: [0.08, 0.22, 0.45] });
-            observedSections.forEach((section) => observer.observe(section));
+        const query = new URLSearchParams(window.location.search);
+        const hashTarget = window.location.hash.slice(1);
+        let initialTarget = viewMap.has(hashTarget) ? hashTarget : 'overview';
+        if (!viewMap.has(hashTarget)) {
+            if (query.has('staffSuccess') || query.has('staffError')) initialTarget = 'staff';
+            else if (query.has('requestSuccess') || query.has('requestError')) initialTarget = 'requests';
+            else if (query.has('search') || query.has('month') || query.has('date')) initialTarget = 'transactions';
         }
+        openPortalView(viewMap.has(initialTarget) ? initialTarget : 'overview', false);
+
+        window.addEventListener('popstate', () => {
+            const target = window.location.hash.slice(1);
+            openPortalView(viewMap.has(target) ? target : 'overview', false);
+        });
 
         document.addEventListener('keydown', (event) => {
             if (event.key === 'Escape') setSidebarState(false);

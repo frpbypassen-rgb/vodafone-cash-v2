@@ -18,7 +18,7 @@
         <%- include('partials/company_stats') %>
         <%- include('partials/company_portal_actions', { showTransfer: true, showOperations: true, showRequests: false, showTeam: false, showReports: false, showSupport: true }) %>
 
-        <section class="portal-section">
+        <section class="portal-section portal-view" id="profile" data-portal-view="profile" data-portal-title="بيانات الموظف" hidden>
             <div class="portal-section-head">
                 <div>
                     <span class="portal-section-kicker"><i class="fa-solid fa-id-card"></i>ملف المستخدم</span>
@@ -50,7 +50,7 @@
             </section>
         </section>
 
-        <section class="portal-section" id="operations">
+        <section class="portal-section portal-view" id="transactions" data-portal-view="transactions" data-portal-title="عمليات اليوم" hidden>
             <div class="portal-section-head">
                 <div>
                     <span class="portal-section-kicker"><i class="fa-solid fa-list-check"></i>حركة اليوم</span>

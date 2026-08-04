@@ -391,6 +391,48 @@ button.portal-sidebar-link {
     max-width: 100%;
 }
 
+.portal-view {
+    min-width: 0;
+    min-height: calc(100vh - var(--portal-header-height) - 100px);
+    align-content: start;
+}
+
+.portal-view[hidden] {
+    display: none !important;
+}
+
+.portal-view.is-active {
+    animation: portalViewEnter 0.28s ease both;
+}
+
+.portal-view.portal-section {
+    padding-top: 0 !important;
+    border-top: 0 !important;
+}
+
+.portal-metrics-view {
+    display: grid;
+    gap: 22px;
+}
+
+.portal-view-intro {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 14px;
+}
+
+@keyframes portalViewEnter {
+    from {
+        opacity: 0;
+        transform: translateY(12px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
 .role-hero {
     min-height: 286px !important;
     margin: 0 !important;
@@ -946,6 +988,15 @@ button.portal-sidebar-link {
     .shell.portal-shell {
         padding: 88px 12px 48px;
         gap: 26px !important;
+    }
+
+    .portal-view {
+        min-height: calc(100vh - 118px);
+    }
+
+    .portal-view-intro {
+        align-items: flex-start;
+        flex-direction: column;
     }
 
     .role-hero {

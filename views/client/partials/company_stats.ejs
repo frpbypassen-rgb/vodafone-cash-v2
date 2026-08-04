@@ -1,4 +1,12 @@
-<section class="metric-grid" id="metrics" aria-label="مؤشرات الأداء">
+<section class="portal-view portal-metrics-view" id="metrics" data-portal-view="metrics" data-portal-title="مؤشرات الأداء" aria-label="مؤشرات الأداء" hidden>
+    <div class="portal-view-intro">
+        <div>
+            <span class="portal-section-kicker"><i class="fa-solid fa-chart-simple"></i>التحليل المباشر</span>
+            <h2 class="portal-section-title">مؤشرات الأداء</h2>
+        </div>
+        <span class="portal-section-meta"><%= dateLabel %></span>
+    </div>
+    <div class="metric-grid">
     <% if (canViewBalance) { %>
         <article class="metric-card metric-balance">
             <div class="metric-card-head">
@@ -58,4 +66,5 @@
             </div>
         </article>
     <% } %>
+    </div>
 </section>

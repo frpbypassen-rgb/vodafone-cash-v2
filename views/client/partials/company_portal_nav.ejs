@@ -45,12 +45,12 @@
     <nav class="portal-sidebar-nav">
         <section class="portal-sidebar-group">
             <span class="portal-sidebar-group-title">الرئيسية</span>
-            <a href="#overview" class="portal-sidebar-link active" data-portal-section="overview">
+            <a href="#overview" class="portal-sidebar-link active" data-portal-section="overview" data-portal-label="الشاشة الرئيسية">
                 <span class="portal-sidebar-link-icon"><i class="fa-solid fa-table-cells-large"></i></span>
                 <span>الشاشة الرئيسية</span>
                 <i class="fa-solid fa-chevron-left portal-sidebar-link-arrow"></i>
             </a>
-            <a href="#metrics" class="portal-sidebar-link" data-portal-section="metrics">
+            <a href="#metrics" class="portal-sidebar-link" data-portal-section="metrics" data-portal-label="مؤشرات الأداء">
                 <span class="portal-sidebar-link-icon"><i class="fa-solid fa-chart-simple"></i></span>
                 <span>مؤشرات الأداء</span>
                 <i class="fa-solid fa-chevron-left portal-sidebar-link-arrow"></i>
@@ -66,25 +66,39 @@
                     <i class="fa-solid fa-plus portal-sidebar-link-arrow"></i>
                 </button>
             <% } %>
-            <a href="#quick-actions" class="portal-sidebar-link" data-portal-section="quick-actions">
+            <a href="#quick-actions" class="portal-sidebar-link" data-portal-section="quick-actions" data-portal-label="الإجراءات السريعة">
                 <span class="portal-sidebar-link-icon"><i class="fa-solid fa-bolt"></i></span>
                 <span>الإجراءات السريعة</span>
                 <i class="fa-solid fa-chevron-left portal-sidebar-link-arrow"></i>
             </a>
-            <a href="#transactions" class="portal-sidebar-link" data-portal-section="transactions">
+            <a href="#transactions" class="portal-sidebar-link" data-portal-section="transactions" data-portal-label="سجل العمليات">
                 <span class="portal-sidebar-link-icon"><i class="fa-solid fa-list-check"></i></span>
                 <span>سجل العمليات</span>
                 <i class="fa-solid fa-chevron-left portal-sidebar-link-arrow"></i>
             </a>
+            <% if (portalPersona === 'employee') { %>
+                <a href="#profile" class="portal-sidebar-link" data-portal-section="profile" data-portal-label="بيانات الموظف">
+                    <span class="portal-sidebar-link-icon"><i class="fa-solid fa-id-card"></i></span>
+                    <span>بيانات الموظف</span>
+                    <i class="fa-solid fa-chevron-left portal-sidebar-link-arrow"></i>
+                </a>
+            <% } %>
+            <% if (portalPersona === 'accountant') { %>
+                <a href="#financial-summary" class="portal-sidebar-link" data-portal-section="financial-summary" data-portal-label="الملخص المالي">
+                    <span class="portal-sidebar-link-icon"><i class="fa-solid fa-scale-balanced"></i></span>
+                    <span>الملخص المالي</span>
+                    <i class="fa-solid fa-chevron-left portal-sidebar-link-arrow"></i>
+                </a>
+            <% } %>
             <% if (portalShowRequests) { %>
-                <a href="#requests" class="portal-sidebar-link" data-portal-section="requests">
+                <a href="#requests" class="portal-sidebar-link" data-portal-section="requests" data-portal-label="طلبات العملاء">
                     <span class="portal-sidebar-link-icon"><i class="fa-solid fa-user-check"></i></span>
                     <span>طلبات العملاء</span>
                     <i class="fa-solid fa-chevron-left portal-sidebar-link-arrow"></i>
                 </a>
             <% } %>
             <% if (portalShowTeam) { %>
-                <a href="#staff" class="portal-sidebar-link" data-portal-section="staff">
+                <a href="#staff" class="portal-sidebar-link" data-portal-section="staff" data-portal-label="الفريق والصلاحيات">
                     <span class="portal-sidebar-link-icon"><i class="fa-solid fa-users-gear"></i></span>
                     <span>الفريق والصلاحيات</span>
                     <i class="fa-solid fa-chevron-left portal-sidebar-link-arrow"></i>
@@ -133,8 +147,8 @@
             <i class="fa-solid fa-bars-staggered"></i>
         </button>
         <span class="portal-workspace-title">
-            <strong><%= portalWorkspaceTitle %></strong>
-            <span><%= portalEntityName %> / <%= roleLabel %></span>
+            <strong id="portalCurrentViewLabel">الشاشة الرئيسية</strong>
+            <span><%= portalWorkspaceTitle %> / <%= portalEntityName %> / <%= roleLabel %></span>
         </span>
     </div>
     <div class="portal-workspace-actions">

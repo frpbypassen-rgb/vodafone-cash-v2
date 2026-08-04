@@ -18,7 +18,7 @@
         <%- include('partials/company_stats') %>
         <%- include('partials/company_portal_actions', { showTransfer: false, showOperations: true, showTeam: false, showReports: true, showSupport: true }) %>
 
-        <section class="portal-section" id="financial-summary">
+        <section class="portal-section portal-view" id="financial-summary" data-portal-view="financial-summary" data-portal-title="الملخص المالي" hidden>
             <div class="portal-section-head">
                 <div>
                     <span class="portal-section-kicker"><i class="fa-solid fa-scale-balanced"></i>التحليل المالي</span>
@@ -50,7 +50,7 @@
             </section>
         </section>
 
-        <section class="portal-section" id="operations">
+        <section class="portal-section portal-view" id="transactions" data-portal-view="transactions" data-portal-title="سجل العمليات" hidden>
             <div class="portal-section-head">
                 <div>
                     <span class="portal-section-kicker"><i class="fa-solid fa-list-check"></i>الحركة المالية</span>
