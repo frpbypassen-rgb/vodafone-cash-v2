@@ -59,6 +59,7 @@ const { metricsMiddleware, metricsEndpoint } = require('./middlewares/metrics');
 const csrfProtection = require('./middlewares/csrfProtection');
 const logger = require('./utils/logger');
 const { startApiCompletionMonitor } = require('./services/apiExecutionLifecycleService');
+const systemMonitor = require('./services/systemMonitorService');
 
 // 🟢 استدعاء طابور المهام الجديد (Queue System)
 
@@ -101,6 +102,10 @@ const io = new Server(server, {
 
 // إتاحة السوكت في كامل التطبيق لتجنب تكرار الأحداث
 app.set('io', io);
+systemMonitor.attachSocketServer(io);
+io.on('connection', (socket) => {
+    systemMonitor.handleSocket(socket);
+});
 
 // ==========================================
 // 🛡️ التحديث الذكي للزمن الفعلي (Targeted Socket Updates)
@@ -108,7 +113,10 @@ app.set('io', io);
 // بربط الإشعارات فقط بجدول العمليات (Transaction) لتقليل الضغط بنسبة 90%
 // ==========================================
 const Transaction = require('./models/Transaction');
-const triggerUpdate = () => { if (app.get('io')) app.get('io').emit('update_data'); };
+const triggerUpdate = (doc) => {
+    if (app.get('io')) app.get('io').emit('update_data');
+    systemMonitor.recordTransactionChange(doc, 'تحديث');
+};
 Transaction.schema.post('save', triggerUpdate);
 Transaction.schema.post('findOneAndUpdate', triggerUpdate);
 Transaction.schema.post('updateOne', triggerUpdate);
@@ -190,6 +198,8 @@ app.get('/health/ready', async (req, res) => {
     }
 });
 
+app.use('/system-monitor', require('./routes/systemMonitor'));
+
 let sessionStore;
 try {
     if ((process.env.SESSION_STORE || '').toLowerCase() === 'memory') {
@@ -235,6 +245,8 @@ app.use(session({
         maxAge: 24 * 60 * 60 * 1000
     }
 }));
+
+app.use(systemMonitor.trackRequest);
 
 app.use('/uploads/proofs', (req, res, next) => {
     if (req.session && (req.session.isLoggedIn || req.session.isClientLoggedIn || req.session.isExecutorLoggedIn)) {
@@ -310,6 +322,7 @@ Promise.all([connectDB(), initRedis()]).then(async () => {
     server.listen(PORT, () => {
         logger.info(`🟢 Al-Ahram Pay v2.0 running on port ${PORT}`, { port: PORT, env: process.env.NODE_ENV || 'development' });
         console.log(`🟢 السيرفر يعمل بقوة الزمن الفعلي والحماية الشاملة على البورت ${PORT}`);
+        systemMonitor.recordActivity('system', `اكتمل تشغيل السيرفر المحلي على المنفذ ${PORT}.`, { level: 'success', silent: true });
 
         // تسجيل بدء تشغيل النظام في Audit Log
         if (process.env.ENABLE_STARTUP_AUDIT === 'true') {

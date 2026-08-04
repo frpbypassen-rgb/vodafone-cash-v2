@@ -1,0 +1,344 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>لوحة تشغيل المنظومة | Power Pay AL-Ahram</title>
+    <style>
+        :root {
+            --bg: #050b14;
+            --panel: rgba(8, 19, 34, 0.88);
+            --panel-2: rgba(11, 31, 58, 0.9);
+            --line: rgba(79, 209, 197, 0.18);
+            --green: #22c55e;
+            --cyan: #22d3ee;
+            --gold: #f4c64f;
+            --red: #ef4444;
+            --text: #e5f5ff;
+            --muted: #8ea6bb;
+        }
+        * { box-sizing: border-box; }
+        body {
+            margin: 0;
+            min-height: 100vh;
+            font-family: Tahoma, Arial, sans-serif;
+            color: var(--text);
+            background:
+                linear-gradient(rgba(34, 211, 238, 0.04) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(34, 211, 238, 0.04) 1px, transparent 1px),
+                radial-gradient(circle at 20% 20%, rgba(34, 197, 94, 0.12), transparent 28%),
+                radial-gradient(circle at 80% 5%, rgba(244, 198, 79, 0.10), transparent 24%),
+                var(--bg);
+            background-size: 34px 34px, 34px 34px, auto, auto, auto;
+            overflow-x: hidden;
+        }
+        .scanline {
+            position: fixed;
+            inset: 0;
+            pointer-events: none;
+            background: linear-gradient(to bottom, transparent, rgba(34, 211, 238, 0.05), transparent);
+            height: 150px;
+            animation: scan 4s linear infinite;
+            z-index: 1;
+        }
+        @keyframes scan { from { transform: translateY(-180px); } to { transform: translateY(calc(100vh + 180px)); } }
+        .shell {
+            position: relative;
+            z-index: 2;
+            width: min(1200px, calc(100% - 28px));
+            margin: 0 auto;
+            padding: 28px 0 34px;
+        }
+        .top {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 18px;
+            margin-bottom: 18px;
+        }
+        .brand {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            min-width: 0;
+        }
+        .mark {
+            width: 48px;
+            height: 48px;
+            border-radius: 8px;
+            display: grid;
+            place-items: center;
+            background: linear-gradient(135deg, var(--gold), #ffe08a);
+            color: #111827;
+            font-weight: 900;
+            box-shadow: 0 0 28px rgba(244, 198, 79, 0.28);
+            direction: ltr;
+        }
+        h1 { margin: 0; font-size: clamp(1.2rem, 3vw, 2rem); font-weight: 900; }
+        .subtitle { margin: 4px 0 0; color: var(--muted); font-weight: 700; }
+        .boot-orb {
+            width: 136px;
+            height: 136px;
+            border-radius: 24px;
+            border: 1px solid rgba(34, 211, 238, 0.28);
+            display: grid;
+            place-items: center;
+            background: rgba(8, 19, 34, 0.72);
+            box-shadow: 0 0 42px rgba(34, 211, 238, 0.18);
+            transition: all 0.9s cubic-bezier(.2,.8,.2,1);
+        }
+        .boot-orb .loader {
+            width: 68px;
+            height: 68px;
+            border-radius: 50%;
+            border: 5px solid rgba(34, 211, 238, 0.16);
+            border-top-color: var(--cyan);
+            animation: spin 0.9s linear infinite;
+        }
+        .boot-orb.ready {
+            position: fixed;
+            top: 18px;
+            left: 18px;
+            width: 68px;
+            height: 68px;
+            border-radius: 18px;
+            border-color: rgba(34, 197, 94, 0.45);
+            background: rgba(6, 36, 24, 0.95);
+            box-shadow: 0 0 32px rgba(34, 197, 94, 0.34);
+            z-index: 20;
+        }
+        .boot-orb.ready .loader {
+            animation: none;
+            border: 0;
+            width: 42px;
+            height: 42px;
+            display: grid;
+            place-items: center;
+        }
+        .boot-orb.ready .loader::before {
+            content: "✓";
+            color: var(--green);
+            font-size: 2.5rem;
+            font-weight: 900;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .status-card {
+            display: grid;
+            grid-template-columns: auto minmax(0, 1fr);
+            align-items: center;
+            gap: 20px;
+            background: var(--panel);
+            border: 1px solid var(--line);
+            border-radius: 8px;
+            padding: 18px;
+            box-shadow: 0 18px 50px rgba(0, 0, 0, 0.26);
+            margin-bottom: 16px;
+        }
+        .status-title { margin: 0 0 6px; font-size: 1.35rem; font-weight: 900; color: var(--cyan); }
+        .status-title.ready { color: var(--green); }
+        .status-text { margin: 0; color: var(--muted); font-weight: 700; line-height: 1.8; }
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 12px;
+            margin-bottom: 16px;
+        }
+        .stat {
+            background: var(--panel-2);
+            border: 1px solid var(--line);
+            border-radius: 8px;
+            padding: 18px;
+            min-height: 120px;
+            box-shadow: 0 14px 34px rgba(0, 0, 0, 0.22);
+        }
+        .stat-label { color: var(--muted); font-weight: 800; margin-bottom: 10px; }
+        .stat-value { font-size: clamp(2rem, 5vw, 3.4rem); font-weight: 900; color: var(--gold); direction: ltr; text-align: right; }
+        .terminal {
+            background: #020711;
+            border: 1px solid rgba(34, 211, 238, 0.22);
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 22px 60px rgba(0, 0, 0, 0.34);
+        }
+        .terminal-head {
+            height: 46px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 10px;
+            padding: 0 14px;
+            background: linear-gradient(90deg, rgba(34, 211, 238, 0.12), rgba(244, 198, 79, 0.08));
+            border-bottom: 1px solid rgba(34, 211, 238, 0.18);
+        }
+        .lights { display: flex; gap: 6px; direction: ltr; }
+        .lights span { width: 11px; height: 11px; border-radius: 50%; display: block; }
+        .r { background: #ef4444; } .y { background: #f59e0b; } .g { background: #22c55e; }
+        .terminal-title { color: var(--cyan); font-weight: 900; }
+        .terminal-body {
+            height: min(56vh, 560px);
+            overflow-y: auto;
+            padding: 16px;
+            font: 800 0.92rem/1.75 Tahoma, Arial, sans-serif;
+        }
+        .line {
+            display: grid;
+            grid-template-columns: 92px 92px minmax(0, 1fr);
+            gap: 10px;
+            border-bottom: 1px solid rgba(34, 211, 238, 0.06);
+            padding: 7px 0;
+            color: #b7f7c9;
+        }
+        .line .time { color: var(--muted); direction: ltr; text-align: left; }
+        .line .type { color: var(--cyan); }
+        .line.success .type { color: var(--green); }
+        .line.warning .type { color: var(--gold); }
+        .line.danger .type { color: var(--red); }
+        .empty { color: var(--muted); text-align: center; padding: 40px; font-weight: 900; }
+        @media (max-width: 760px) {
+            .top, .status-card { grid-template-columns: 1fr; align-items: stretch; }
+            .boot-orb { width: 100%; height: 110px; }
+            .stats { grid-template-columns: 1fr; }
+            .line { grid-template-columns: 76px 72px minmax(0, 1fr); font-size: 0.82rem; }
+        }
+    </style>
+</head>
+<body>
+    <div class="scanline"></div>
+    <main class="shell">
+        <section class="top">
+            <div class="brand">
+                <div class="mark">PP</div>
+                <div>
+                    <h1>لوحة تشغيل Power Pay AL-Ahram</h1>
+                    <p class="subtitle">مراقبة حية للتشغيل والزيارات والحركات داخل الموقع</p>
+                </div>
+            </div>
+        </section>
+
+        <section class="status-card">
+            <div class="boot-orb" id="bootOrb"><span class="loader"></span></div>
+            <div>
+                <h2 class="status-title" id="statusTitle">قيد التشغيل</h2>
+                <p class="status-text" id="statusText">يتم فحص جاهزية السيرفر وقاعدة البيانات وتجهيز شاشة الأحداث الحية. Cloudflare لا يعمل في هذا التشغيل.</p>
+            </div>
+        </section>
+
+        <section class="stats">
+            <div class="stat">
+                <div class="stat-label">عدد الزوار الحاليين</div>
+                <div class="stat-value" id="onlineVisitors">0</div>
+            </div>
+            <div class="stat">
+                <div class="stat-label">عدد العمليات التي تمت اليوم</div>
+                <div class="stat-value" id="transactionsToday">0</div>
+            </div>
+            <div class="stat">
+                <div class="stat-label">عدد الحركات على الموقع</div>
+                <div class="stat-value" id="siteMovements">0</div>
+            </div>
+        </section>
+
+        <section class="terminal">
+            <div class="terminal-head">
+                <div class="terminal-title">سجل الحركات الحية</div>
+                <div class="lights"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+            </div>
+            <div class="terminal-body" id="terminal">
+                <div class="empty">في انتظار أول حركة داخل المنظومة...</div>
+            </div>
+        </section>
+    </main>
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script>
+        const bootOrb = document.getElementById('bootOrb');
+        const statusTitle = document.getElementById('statusTitle');
+        const statusText = document.getElementById('statusText');
+        const terminal = document.getElementById('terminal');
+        const counters = {
+            onlineVisitors: document.getElementById('onlineVisitors'),
+            transactionsToday: document.getElementById('transactionsToday'),
+            siteMovements: document.getElementById('siteMovements')
+        };
+
+        const typeLabels = {
+            system: 'نظام',
+            request: 'حركة',
+            transaction: 'عملية',
+            activity: 'حدث'
+        };
+
+        function markReady() {
+            bootOrb.classList.add('ready');
+            statusTitle.classList.add('ready');
+            statusTitle.textContent = 'تم التشغيل بنجاح';
+            statusText.textContent = 'المنظومة تعمل الآن، ويتم بث الحركات المباشرة في هذه الشاشة.';
+        }
+
+        function formatNumber(value) {
+            return Number(value || 0).toLocaleString('ar-EG');
+        }
+
+        function formatTime(value) {
+            const date = value ? new Date(value) : new Date();
+            return date.toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+        }
+
+        function renderSnapshot(snapshot) {
+            markReady();
+            counters.onlineVisitors.textContent = formatNumber(snapshot.stats?.onlineVisitors);
+            counters.transactionsToday.textContent = formatNumber(snapshot.stats?.transactionsToday);
+            counters.siteMovements.textContent = formatNumber(snapshot.stats?.siteMovements);
+
+            const events = Array.isArray(snapshot.events) ? snapshot.events : [];
+            if (!events.length) {
+                terminal.innerHTML = '<div class="empty">لا توجد حركات مسجلة حتى الآن...</div>';
+                return;
+            }
+
+            terminal.innerHTML = events.slice().reverse().map((event) => {
+                const level = event.level || 'info';
+                const type = typeLabels[event.type] || 'حدث';
+                return `<div class="line ${level}">
+                    <span class="time">${formatTime(event.at)}</span>
+                    <span class="type">${type}</span>
+                    <span>${escapeHtml(event.message || '')}</span>
+                </div>`;
+            }).join('');
+            terminal.scrollTop = terminal.scrollHeight;
+        }
+
+        function escapeHtml(value) {
+            return String(value)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#039;');
+        }
+
+        async function refreshSnapshot() {
+            try {
+                const response = await fetch('/system-monitor/api/status', { cache: 'no-store' });
+                if (!response.ok) return;
+                renderSnapshot(await response.json());
+            } catch (error) {}
+        }
+
+        const socket = io({ query: { monitor: '1' }, transports: ['websocket', 'polling'] });
+        socket.on('connect', () => {
+            markReady();
+            refreshSnapshot();
+        });
+        socket.on('system-monitor:snapshot', renderSnapshot);
+        socket.on('disconnect', () => {
+            statusTitle.classList.remove('ready');
+            statusTitle.textContent = 'إعادة الاتصال';
+            statusText.textContent = 'تم فقد الاتصال اللحظي، يتم الآن إعادة المحاولة تلقائياً.';
+        });
+
+        refreshSnapshot();
+        setInterval(refreshSnapshot, 5000);
+    </script>
+</body>
+</html>

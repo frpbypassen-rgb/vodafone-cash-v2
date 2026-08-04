@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>تشغيل المنظومة | Power Pay AL-Ahram</title>
+    <style>
+        :root { --bg:#050b14; --panel:#081322; --cyan:#22d3ee; --green:#22c55e; --gold:#f4c64f; --muted:#8ea6bb; --text:#e5f5ff; }
+        * { box-sizing: border-box; }
+        body {
+            margin: 0;
+            min-height: 100vh;
+            display: grid;
+            place-items: center;
+            padding: 18px;
+            font-family: Tahoma, Arial, sans-serif;
+            color: var(--text);
+            background:
+                linear-gradient(rgba(34, 211, 238, 0.04) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(34, 211, 238, 0.04) 1px, transparent 1px),
+                radial-gradient(circle at 50% 20%, rgba(34, 211, 238, 0.16), transparent 32%),
+                var(--bg);
+            background-size: 34px 34px, 34px 34px, auto, auto;
+        }
+        .card {
+            width: min(720px, 100%);
+            min-height: 460px;
+            border-radius: 8px;
+            border: 1px solid rgba(34, 211, 238, 0.18);
+            background: rgba(8, 19, 34, 0.9);
+            box-shadow: 0 24px 70px rgba(0,0,0,0.35);
+            padding: 28px;
+            position: relative;
+            overflow: hidden;
+        }
+        .brand { direction: ltr; color: var(--gold); font-weight: 900; letter-spacing: .08em; text-transform: uppercase; margin-bottom: 22px; }
+        .orb {
+            width: 140px;
+            height: 140px;
+            margin: 10px auto 24px;
+            border-radius: 28px;
+            display: grid;
+            place-items: center;
+            border: 1px solid rgba(34, 211, 238, 0.28);
+            box-shadow: 0 0 44px rgba(34, 211, 238, 0.2);
+            transition: all .9s cubic-bezier(.2,.8,.2,1);
+        }
+        .spin {
+            width: 76px;
+            height: 76px;
+            border-radius: 50%;
+            border: 6px solid rgba(34, 211, 238, .15);
+            border-top-color: var(--cyan);
+            animation: spin .9s linear infinite;
+        }
+        .orb.ready {
+            position: fixed;
+            top: 18px;
+            left: 18px;
+            width: 70px;
+            height: 70px;
+            border-radius: 18px;
+            background: rgba(6, 36, 24, .95);
+            border-color: rgba(34, 197, 94, .45);
+            box-shadow: 0 0 34px rgba(34, 197, 94, .35);
+        }
+        .orb.ready .spin {
+            width: auto;
+            height: auto;
+            border: 0;
+            animation: none;
+        }
+        .orb.ready .spin::before { content: "✓"; color: var(--green); font-size: 2.7rem; font-weight: 900; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        h1 { margin: 0; text-align: center; font-size: clamp(1.5rem, 4vw, 2.3rem); color: var(--cyan); }
+        .ready h1 { color: var(--green); }
+        p { color: var(--muted); font-weight: 800; line-height: 1.9; text-align: center; }
+        .terminal {
+            direction: rtl;
+            margin-top: 24px;
+            min-height: 128px;
+            border-radius: 8px;
+            border: 1px solid rgba(34, 211, 238, .14);
+            background: #020711;
+            color: #b7f7c9;
+            padding: 14px;
+            font: 800 .9rem/1.8 Tahoma, Arial, sans-serif;
+        }
+        .terminal div { border-bottom: 1px solid rgba(34, 211, 238, .06); padding: 3px 0; }
+        .hint { color: var(--gold); }
+    </style>
+</head>
+<body>
+    <section class="card" id="card">
+        <div class="brand">Power Pay AL-Ahram</div>
+        <div class="orb" id="orb"><span class="spin"></span></div>
+        <h1 id="title">قيد التشغيل</h1>
+        <p id="message">تم إيقاف Cloudflare في هذا التشغيل. يتم الآن انتظار تشغيل السيرفر المحلي وتجهيز لوحة المراقبة الحية.</p>
+        <div class="terminal" id="terminal">
+            <div>بدء تشغيل مدير المنظومة...</div>
+            <div>Cloudflare: متوقف</div>
+            <div>انتظار السيرفر على http://localhost:3000</div>
+        </div>
+    </section>
+
+    <script>
+        const card = document.getElementById('card');
+        const orb = document.getElementById('orb');
+        const title = document.getElementById('title');
+        const message = document.getElementById('message');
+        const terminal = document.getElementById('terminal');
+        let attempts = 0;
+
+        function addLine(text) {
+            const line = document.createElement('div');
+            line.textContent = text;
+            terminal.appendChild(line);
+            terminal.scrollTop = terminal.scrollHeight;
+        }
+
+        async function probe() {
+            attempts += 1;
+            try {
+                const response = await fetch('http://127.0.0.1:3000/system-monitor/api/status', { cache: 'no-store' });
+                if (!response.ok) throw new Error('not-ready');
+                card.classList.add('ready');
+                orb.classList.add('ready');
+                title.textContent = 'تم التشغيل بنجاح';
+                message.innerHTML = 'السيرفر يعمل الآن. سيتم فتح لوحة المراقبة الحية خلال لحظات.';
+                addLine('تم الاتصال بالسيرفر بنجاح. يتم الانتقال إلى شاشة الحركات الحية...');
+                setTimeout(() => { window.location.href = 'http://127.0.0.1:3000/system-monitor'; }, 1200);
+            } catch (error) {
+                if (attempts % 2 === 0) addLine('السيرفر لم يكتمل بعد... محاولة رقم ' + attempts);
+                setTimeout(probe, 1500);
+            }
+        }
+
+        setTimeout(probe, 900);
+    </script>
+</body>
+</html>
