@@ -17,6 +17,7 @@ const { assignGeneratedAccountCode, CODE_LENGTHS } = require('../services/accoun
 const { updateBalanceWithLedger, isMongoTransactionFallbackError } = require('../services/walletService');
 const { notifyBalanceAdjustment } = require('../services/clientNotificationService');
 const { createDepositReceiptProof } = require('../services/depositReceiptService');
+const { buildClientReceiptImages } = require('../services/clientReceiptService');
 const { logAction } = require('../services/auditService');
 
 const USERNAME_DOMAIN = '@ahram.com';
@@ -383,6 +384,7 @@ exports.getTransactionDetails = async (req, res) => {
         const ownership = await businessPortalService.ownershipFilter(workspace);
         const transaction = await Transaction.findOne({ $and: [ownership, { _id: req.params.id }] }).lean();
         if (!transaction) return res.status(404).json({ success: false, error: 'العملية غير موجودة.' });
+        const receiptImages = buildClientReceiptImages(transaction);
 
         return res.json({
             success: true,
@@ -407,7 +409,8 @@ exports.getTransactionDetails = async (req, res) => {
                 cancellationReason: transaction.cancellationReason || '',
                 createdAt: transaction.createdAt,
                 updatedAt: transaction.updatedAt,
-                hasProof: Boolean(transaction.proofImage || (transaction.proofImages && transaction.proofImages.length)),
+                hasProof: receiptImages.length > 0,
+                receiptImages,
                 hasIdentityImage: Boolean(transaction.idCardImage)
             }
         });

@@ -22,6 +22,7 @@ const { logAction } = require('../services/auditService');
 const { getServiceRateForTier, resolveTransferServiceKey } = require('../utils/rateHelper');
 const { getTransferServiceDefinition } = require('../utils/mobileTransferServiceCatalog');
 const { validateTransferInput } = require('../utils/transferServiceRules');
+const { getClientReceiptProofIds } = require('../services/clientReceiptService');
 
 const createClientError = (message, statusCode = 400) => {
     const error = new Error(message);
@@ -493,30 +494,48 @@ exports.getProxyImage = async (req, res) => {
         else if (req.session.accountType === 'company') {
             const emp = await ClientEmployee.findById(accountId);
             if (emp && tx.companyId && tx.companyId.toString() === emp.companyId.toString()) hasAccess = true;
+            if (!hasAccess && emp && tx.subAccountId) {
+                hasAccess = Boolean(await SubAccount.exists({
+                    _id: tx.subAccountId,
+                    masterType: 'company',
+                    masterId: emp.companyId,
+                    status: { $ne: 'deleted' }
+                }));
+            }
         } else if (req.session.accountType === 'agent_staff') {
             const emp = await AgentEmployee.findById(accountId);
             if (emp) {
                 const agent = await User.findById(emp.agentId);
-                const agentUserId = agent ? (agent.phone || agent.webUsername) : '';
-                const subAccountIds = await SubAccount.find({ masterType: 'user', masterId: emp.agentId }).distinct('_id');
-                if (agent && tx.userId === agentUserId) hasAccess = true;
-                if (!hasAccess && tx.subAccountId && subAccountIds.some((id) => id.toString() === tx.subAccountId.toString())) hasAccess = true;
+                const agentUserIds = agent ? [agent.phone, agent.webUsername].filter(Boolean).map(String) : [];
+                if (agent && agentUserIds.includes(String(tx.userId || ''))) hasAccess = true;
+                if (!hasAccess && tx.subAccountId) {
+                    hasAccess = Boolean(await SubAccount.exists({
+                        _id: tx.subAccountId,
+                        masterType: 'user',
+                        masterId: emp.agentId,
+                        status: { $ne: 'deleted' }
+                    }));
+                }
             }
         } else if (req.session.accountType === 'user') {
             const user = await User.findById(accountId);
-            if (user && tx.userId === (user.phone || user.webUsername)) hasAccess = true;
+            const userIds = user ? [user.phone, user.webUsername].filter(Boolean).map(String) : [];
+            if (user && userIds.includes(String(tx.userId || ''))) hasAccess = true;
+            if (!hasAccess && user?.role === 'agent' && tx.subAccountId) {
+                hasAccess = Boolean(await SubAccount.exists({
+                    _id: tx.subAccountId,
+                    masterType: 'user',
+                    masterId: user._id,
+                    status: { $ne: 'deleted' }
+                }));
+            }
         }
 
         if (!hasAccess) return res.status(403).send('غير مصرح لك بعرض هذه الصورة أو الإيصال');
 
-        const index = req.params.index ? parseInt(req.params.index) : 0;
-        let photoId = null;
-        
-        if (tx.proofImages && tx.proofImages.length > index) {
-            photoId = tx.proofImages[index];
-        } else if (tx.proofImage && index === 0) {
-            photoId = tx.proofImage; 
-        }
+        const index = req.params.index === undefined ? 0 : Number.parseInt(req.params.index, 10);
+        if (!Number.isInteger(index) || index < 0) return res.status(400).send('رقم صورة الإيصال غير صالح');
+        const photoId = getClientReceiptProofIds(tx)[index];
 
         if (!photoId) return res.status(404).send('لا توجد صورة إثبات');
 

@@ -66,6 +66,15 @@
 <section class="bw-section bw-report-detail">
     <header class="bw-section-head"><div><span class="bw-section-kicker">عينة التدقيق</span><h2>آخر العمليات داخل التقرير</h2></div><a href="/client/transactions" class="bw-text-link">السجل الكامل <i class="fa-solid fa-arrow-left"></i></a></header>
     <div class="bw-table-wrap"><table class="bw-table"><thead><tr><th>العملية</th><th>الخدمة</th><th>الموظف / العميل</th><th>المبلغ</th><th>الحالة</th><th>التاريخ</th></tr></thead><tbody>
-        <% reportTransactions.slice(0, 12).forEach(tx => { const status = statusMeta[tx.status] || { label: tx.status, tone: 'neutral' }; const service = serviceCatalog.find(item => item.key === tx.transferType); %><tr><td data-label="العملية"><button type="button" class="bw-id-button bw-mono" data-transaction-id="<%= tx._id %>"><%= tx.customId %></button></td><td data-label="الخدمة"><%= service?.shortLabel || tx.transferType %></td><td data-label="الموظف / العميل"><strong><%= tx.employeeName || '---' %></strong><small><%= tx.subAccountName || 'الحساب الرئيسي' %></small></td><td data-label="المبلغ" class="bw-mono"><%= Number(tx.amount || 0).toLocaleString('en-US', { maximumFractionDigits: 0 }) %> EGP</td><td data-label="الحالة"><span class="bw-status <%= status.tone %>"><%= status.label %></span></td><td data-label="التاريخ" class="bw-mono"><%= new Date(tx.createdAt).toLocaleDateString('en-GB') %></td></tr><% }) %>
+        <% reportTransactions.slice(0, 12).forEach(tx => { const status = statusMeta[tx.status] || { label: tx.status, tone: 'neutral' }; const service = serviceCatalog.find(item => item.key === tx.transferType); const hasReceipt = Boolean(tx.proofImage || (Array.isArray(tx.proofImages) && tx.proofImages.some(Boolean))); %>
+            <tr>
+                <td data-label="العملية"><span class="bw-id-with-receipt"><button type="button" class="bw-id-button bw-mono" data-transaction-id="<%= tx._id %>"><%= tx.customId %></button><% if (hasReceipt) { %><button type="button" class="bw-receipt-indicator" data-transaction-id="<%= tx._id %>" data-receipt-focus title="عرض صور الإيصال" aria-label="عرض صور إيصال العملية <%= tx.customId %>"><i class="fa-solid fa-receipt"></i></button><% } %></span></td>
+                <td data-label="الخدمة"><%= service?.shortLabel || tx.transferType %></td>
+                <td data-label="الموظف / العميل"><strong><%= tx.employeeName || '---' %></strong><small><%= tx.subAccountName || 'الحساب الرئيسي' %></small></td>
+                <td data-label="المبلغ" class="bw-mono"><%= Number(tx.amount || 0).toLocaleString('en-US', { maximumFractionDigits: 0 }) %> EGP</td>
+                <td data-label="الحالة"><span class="bw-status <%= status.tone %>"><%= status.label %></span></td>
+                <td data-label="التاريخ" class="bw-mono"><%= new Date(tx.createdAt).toLocaleDateString('en-GB') %></td>
+            </tr>
+        <% }) %>
     </tbody></table></div>
 </section>

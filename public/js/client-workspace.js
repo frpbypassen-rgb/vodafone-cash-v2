@@ -407,6 +407,40 @@
         return `<div class="bw-detail-item"><span>${escapeHtml(label)}</span><strong class="${mono ? 'bw-mono' : ''}">${escapeHtml(value)}</strong></div>`;
     };
 
+    const renderReceiptGallery = (transaction) => {
+        const receiptImages = Array.isArray(transaction.receiptImages) ? transaction.receiptImages : [];
+        if (!receiptImages.length) return '';
+
+        return `
+            <section class="bw-receipt-section">
+                <header class="bw-receipt-section-head">
+                    <div><span>مستندات التنفيذ</span><strong><i class="fa-solid fa-receipt"></i> صور الإيصال</strong></div>
+                    <span class="bw-meta-chip">${formatNumber(receiptImages.length)} ${receiptImages.length === 1 ? 'صورة' : 'صور'}</span>
+                </header>
+                <div class="bw-receipt-gallery">
+                    ${receiptImages.map((image, index) => {
+                        const url = escapeHtml(image.url);
+                        const label = escapeHtml(image.label || `صورة الإيصال ${index + 1}`);
+                        return `
+                            <figure class="bw-receipt-figure">
+                                <a href="${url}" target="_blank" rel="noopener" class="bw-receipt-preview" title="فتح ${label} بالحجم الكامل">
+                                    <img src="${url}" alt="${label}" loading="eager" data-receipt-image>
+                                </a>
+                                <figcaption>
+                                    <strong>${label}</strong>
+                                    <span class="bw-receipt-actions">
+                                        <a href="${url}" target="_blank" rel="noopener" class="bw-icon-button compact" title="فتح بالحجم الكامل" aria-label="فتح ${label} بالحجم الكامل"><i class="fa-solid fa-up-right-from-square"></i></a>
+                                        <a href="${url}" download="receipt-${escapeHtml(transaction.customId || index + 1)}-${index + 1}" class="bw-icon-button compact receipt" title="تحميل الصورة" aria-label="تحميل ${label}"><i class="fa-solid fa-download"></i></a>
+                                    </span>
+                                </figcaption>
+                            </figure>
+                        `;
+                    }).join('')}
+                </div>
+            </section>
+        `;
+    };
+
     const renderTransactionDetails = (transaction) => {
         const serviceDetails = transaction.serviceDetails || {};
         const statusTone = ['completed', 'deposit'].includes(transaction.status)
@@ -417,7 +451,10 @@
         return `
             <div class="bw-detail-hero">
                 <div><small>رقم العملية</small><strong class="bw-mono">${escapeHtml(transaction.customId)}</strong></div>
-                <span class="bw-status ${statusTone}">${escapeHtml(transaction.statusLabel)}</span>
+                <div class="bw-detail-hero-state">
+                    <span class="bw-status ${statusTone}">${escapeHtml(transaction.statusLabel)}</span>
+                    ${transaction.hasProof ? '<span class="bw-receipt-chip"><i class="fa-solid fa-receipt"></i> إيصال متاح</span>' : ''}
+                </div>
             </div>
             <div class="bw-detail-grid">
                 ${detailItem('الخدمة', transaction.serviceLabel)}
@@ -439,11 +476,13 @@
                 ${detailItem('سبب الإلغاء', transaction.cancellationReason)}
             </div>
             <div class="bw-detail-notes"><span>ملاحظة العميل</span><p>${escapeHtml(transaction.notes || 'لا توجد ملاحظة')}</p></div>
+            ${renderReceiptGallery(transaction)}
         `;
     };
 
-    const openTransactionDetails = async (transactionId) => {
+    const openTransactionDetails = async (transactionId, focusReceipt = false) => {
         if (!transactionDialog || !transactionDetailsBody) return;
+        transactionDetailsBody.scrollTop = 0;
         transactionDetailsBody.innerHTML = '<div class="bw-loading"><i class="fa-solid fa-circle-notch fa-spin"></i><span>جارٍ تحميل التفاصيل...</span></div>';
         openDialog(transactionDialog);
         try {
@@ -451,13 +490,25 @@
             const payload = await parseJsonResponse(response);
             if (!response.ok || !payload.success) throw new Error(payload.error || 'تعذر تحميل التفاصيل.');
             transactionDetailsBody.innerHTML = renderTransactionDetails(payload.transaction);
+            if (focusReceipt) {
+                const receiptSection = transactionDetailsBody.querySelector('.bw-receipt-section');
+                if (receiptSection) {
+                    transactionDetailsBody.scrollTo({
+                        top: Math.max(0, receiptSection.offsetTop - transactionDetailsBody.offsetTop - 10),
+                        behavior: 'auto'
+                    });
+                }
+            }
         } catch (error) {
             transactionDetailsBody.innerHTML = `<div class="bw-empty"><i class="fa-solid fa-circle-exclamation"></i><strong>${escapeHtml(error.message)}</strong></div>`;
         }
     };
 
     document.querySelectorAll('[data-transaction-id]').forEach((button) => {
-        button.addEventListener('click', () => openTransactionDetails(button.dataset.transactionId));
+        button.addEventListener('click', () => openTransactionDetails(
+            button.dataset.transactionId,
+            button.hasAttribute('data-receipt-focus')
+        ));
     });
 
     const supportMessages = document.getElementById('supportMessages');

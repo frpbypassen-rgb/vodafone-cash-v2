@@ -85,14 +85,17 @@
                     <% if (!recentTransactions.length) { %>
                         <tr><td colspan="6"><div class="bw-empty"><i class="fa-regular fa-folder-open"></i><strong>لا توجد معاملات بعد</strong><span>ستظهر العمليات الجديدة هنا فور إنشائها.</span></div></td></tr>
                     <% } %>
-                    <% recentTransactions.forEach(tx => { const status = statusMeta[tx.status] || { label: tx.status, tone: 'neutral' }; const service = serviceCatalog.find(item => item.key === tx.transferType); %>
+                    <% recentTransactions.forEach(tx => { const status = statusMeta[tx.status] || { label: tx.status, tone: 'neutral' }; const service = serviceCatalog.find(item => item.key === tx.transferType); const hasReceipt = Boolean(tx.proofImage || (Array.isArray(tx.proofImages) && tx.proofImages.some(Boolean))); %>
                         <tr>
                             <td data-label="رقم العملية"><button type="button" class="bw-id-button bw-mono" data-transaction-id="<%= tx._id %>"><%= tx.customId %></button><small><%= new Date(tx.createdAt).toLocaleDateString('ar-LY') %></small></td>
                             <td data-label="الخدمة"><span class="bw-service-cell"><i class="fa-solid <%= service?.icon || 'fa-money-bill-transfer' %>"></i><%= service?.shortLabel || tx.transferType %></span></td>
                             <td data-label="الوجهة" class="bw-mono"><%= tx.vodafoneNumber || tx.accountNumber || '---' %></td>
                             <td data-label="القيمة"><strong class="bw-mono"><%= Number(tx.amount || 0).toLocaleString('en-US', { maximumFractionDigits: 0 }) %></strong><small>EGP</small></td>
                             <td data-label="الحالة"><span class="bw-status <%= status.tone %>"><%= status.label %></span></td>
-                            <td><button type="button" class="bw-icon-button compact" data-transaction-id="<%= tx._id %>" title="عرض التفاصيل" aria-label="عرض تفاصيل العملية <%= tx.customId %>"><i class="fa-solid fa-arrow-up-left-from-square"></i></button></td>
+                            <td><div class="bw-row-actions">
+                                <% if (hasReceipt) { %><button type="button" class="bw-icon-button compact receipt" data-transaction-id="<%= tx._id %>" data-receipt-focus title="عرض صور الإيصال" aria-label="عرض صور إيصال العملية <%= tx.customId %>"><i class="fa-solid fa-receipt"></i></button><% } %>
+                                <button type="button" class="bw-icon-button compact" data-transaction-id="<%= tx._id %>" title="عرض التفاصيل" aria-label="عرض تفاصيل العملية <%= tx.customId %>"><i class="fa-solid fa-arrow-up-left-from-square"></i></button>
+                            </div></td>
                         </tr>
                     <% }) %>
                 </tbody>

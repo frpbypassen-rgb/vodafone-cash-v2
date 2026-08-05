@@ -30,7 +30,7 @@
             <thead><tr><th>العملية</th><th>الخدمة والمستلم</th><th>العميل / الموظف</th><th>المبلغ</th><th>التكلفة</th><th>الحالة</th><th>التاريخ</th><th></th></tr></thead>
             <tbody>
                 <% if (!transactions.length) { %><tr><td colspan="8"><div class="bw-empty"><i class="fa-solid fa-magnifying-glass"></i><strong>لا توجد نتائج مطابقة</strong><span>غيّر خيارات البحث أو الفترة الزمنية.</span></div></td></tr><% } %>
-                <% transactions.forEach(tx => { const status = statusMeta[tx.status] || { label: tx.status, tone: 'neutral' }; const service = serviceCatalog.find(item => item.key === tx.transferType); %>
+                <% transactions.forEach(tx => { const status = statusMeta[tx.status] || { label: tx.status, tone: 'neutral' }; const service = serviceCatalog.find(item => item.key === tx.transferType); const hasReceipt = Boolean(tx.proofImage || (Array.isArray(tx.proofImages) && tx.proofImages.some(Boolean))); %>
                     <tr>
                         <td data-label="العملية"><button type="button" class="bw-id-button bw-mono" data-transaction-id="<%= tx._id %>"><%= tx.customId %></button><small><%= tx.accountName || 'بدون اسم مستفيد' %></small></td>
                         <td data-label="الخدمة"><span class="bw-service-cell"><i class="fa-solid <%= service?.icon || 'fa-money-bill-transfer' %>"></i><span><strong><%= service?.shortLabel || tx.transferType %></strong><small class="bw-mono"><%= tx.vodafoneNumber || tx.accountNumber || '---' %></small></span></span></td>
@@ -39,7 +39,10 @@
                         <td data-label="التكلفة"><% if (workspace.permissions.canViewBalance) { %><strong class="bw-mono"><%= Number(tx.costLYD || 0).toFixed(3) %></strong><small>LYD</small><% } else { %><span class="bw-muted">محجوبة</span><% } %></td>
                         <td data-label="الحالة"><span class="bw-status <%= status.tone %>"><%= status.label %></span></td>
                         <td data-label="التاريخ"><strong class="bw-mono"><%= new Date(tx.createdAt).toLocaleDateString('en-GB') %></strong><small><%= new Date(tx.createdAt).toLocaleTimeString('ar-LY', { hour: '2-digit', minute: '2-digit' }) %></small></td>
-                        <td><button type="button" class="bw-icon-button compact" data-transaction-id="<%= tx._id %>" title="التفاصيل" aria-label="عرض تفاصيل العملية <%= tx.customId %>"><i class="fa-solid fa-eye"></i></button></td>
+                        <td><div class="bw-row-actions">
+                            <% if (hasReceipt) { %><button type="button" class="bw-icon-button compact receipt" data-transaction-id="<%= tx._id %>" data-receipt-focus title="عرض صور الإيصال" aria-label="عرض صور إيصال العملية <%= tx.customId %>"><i class="fa-solid fa-receipt"></i></button><% } %>
+                            <button type="button" class="bw-icon-button compact" data-transaction-id="<%= tx._id %>" title="التفاصيل" aria-label="عرض تفاصيل العملية <%= tx.customId %>"><i class="fa-solid fa-eye"></i></button>
+                        </div></td>
                     </tr>
                 <% }) %>
             </tbody>
