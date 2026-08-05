@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>إدارة العملاء | الأهرام</title>
+    <title>دليل الحسابات | الأهرام</title>
 
     <script>
         const savedTheme = localStorage.getItem('ahram_theme') || 'dark';
@@ -17,6 +17,8 @@
     <style>
         html, body { max-width: 100%; overflow-x: hidden; }
         .main-content { overflow-x: hidden; }
+        .clients-page { transition: opacity 0.16s ease; }
+        .clients-page.directory-is-loading { opacity: 0.55; pointer-events: none; }
 
         /* =========================================
            ✨ 3D Modern Cards - التصميم ثلاثي الأبعاد
@@ -76,6 +78,17 @@
         }
 
         .client-card-3d:hover .profile-icon::after { filter: blur(18px); opacity: 0.9; }
+
+        .client-name {
+            display: -webkit-box;
+            min-height: 2.6em;
+            overflow: hidden;
+            line-height: 1.3;
+            white-space: normal;
+            overflow-wrap: anywhere;
+            -webkit-box-orient: vertical;
+            -webkit-line-clamp: 2;
+        }
 
         .user-icon { background: linear-gradient(135deg, #3b82f6, #2563eb); }
         .company-icon { background: linear-gradient(135deg, #8b5cf6, #6d28d9); }
@@ -152,7 +165,7 @@
             border: 1px solid var(--border-glass);
             color: var(--text-main);
             border-radius: 20px;
-            padding: 15px 50px 15px 25px;
+            padding: 15px 50px 15px 112px;
             font-size: 1.1rem;
             font-weight: 700;
             width: 100%;
@@ -188,6 +201,81 @@
         [data-theme="dark"] .search-input-3d:focus ~ .search-icon-3d {
             color: var(--brand-gold);
         }
+        .search-actions {
+            position: absolute;
+            left: 10px;
+            top: 50%;
+            transform: translateY(-50%);
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .search-action {
+            width: 38px;
+            height: 38px;
+            border: 0;
+            border-radius: 12px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            text-decoration: none;
+            transition: transform 0.2s ease, background-color 0.2s ease;
+        }
+        .search-action:hover { transform: translateY(-2px); }
+        .search-submit { background: var(--brand-primary); color: #fff; }
+        [data-theme="dark"] .search-submit { background: var(--brand-gold); color: #111827; }
+        .search-clear { background: rgba(148, 163, 184, 0.14); color: var(--text-muted); }
+        .section-count {
+            min-width: 24px;
+            height: 24px;
+            padding: 0 7px;
+            border-radius: 999px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            background: rgba(148, 163, 184, 0.15);
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.72rem;
+        }
+        .nav-link.active .section-count { background: rgba(255,255,255,0.2); }
+        [data-theme="dark"] .nav-link.active .section-count { background: rgba(0,0,0,0.14); }
+        .directory-summary {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            margin-top: -6px;
+            color: var(--text-muted);
+            font-size: 0.84rem;
+            font-weight: 800;
+        }
+        .directory-pagination {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 7px;
+            flex-wrap: wrap;
+            padding: 0 0 38px;
+        }
+        .directory-page-link {
+            min-width: 40px;
+            height: 40px;
+            padding: 0 12px;
+            border-radius: 12px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            border: 1px solid var(--border-glass);
+            background: var(--card-bg);
+            color: var(--text-main);
+            text-decoration: none;
+            font-weight: 900;
+            transition: transform 0.2s ease, border-color 0.2s ease;
+        }
+        .directory-page-link:hover { transform: translateY(-2px); border-color: var(--brand-primary); }
+        .directory-page-link.active { background: var(--brand-primary); color: #fff; border-color: var(--brand-primary); }
+        [data-theme="dark"] .directory-page-link.active { background: var(--brand-gold); color: #111827; border-color: var(--brand-gold); }
+        .directory-page-link.disabled { opacity: 0.42; pointer-events: none; }
 
         .clients-header {
             display: flex; justify-content: space-between; align-items: center; gap: 15px; flex-wrap: wrap;
@@ -295,11 +383,13 @@
             .clients-metric strong { font-size: 1rem; }
             .search-container { margin-bottom: 8px; }
             .search-input-3d {
-                height: 48px; border-radius: 16px; padding: 11px 44px 11px 14px;
+                height: 48px; border-radius: 16px; padding: 11px 44px 11px 102px;
                 font-size: 0.92rem; box-shadow: 0 6px 14px rgba(0,0,0,0.05);
             }
             .search-input-3d:focus { transform: none; }
             .search-icon-3d { right: 16px; font-size: 1rem; }
+            .search-actions { left: 6px; gap: 4px; }
+            .search-action { width: 36px; height: 36px; border-radius: 11px; }
             .nav-pills {
                 width: 100%; display: grid !important; grid-template-columns: repeat(2, minmax(0, 1fr));
                 gap: 8px; overflow: visible; padding: 0 !important; border: none !important;
@@ -342,6 +432,8 @@
             .mono-num { font-size: 1.18rem; white-space: nowrap; }
             .btn-3d { min-height: 44px; border-radius: 14px; padding: 10px; font-size: 0.88rem; }
             .client-actions { grid-template-columns: 1fr; }
+            .directory-summary { align-items: flex-start; flex-direction: column; }
+            .directory-pagination { padding-bottom: 88px; }
             .system-empty-placeholder, .no-results-placeholder { padding: 38px 14px !important; }
             .system-empty-placeholder h5, .no-results-placeholder h5 { font-size: 0.95rem; }
         }
@@ -359,18 +451,35 @@
 
 <%- include('partials/sidebar', { activePage: 'clients' }) %>
 
+<%
+    const directoryUrl = (section, page = 1, includeSearch = true) => {
+        const params = new URLSearchParams({ section });
+        if (includeSearch && search) params.set('search', search);
+        if (page > 1) params.set('page', String(page));
+        return `/clients?${params.toString()}`;
+    };
+    const firstVisiblePage = Math.max(1, pagination.page - 2);
+    const lastVisiblePage = Math.min(pagination.totalPages, pagination.page + 2);
+    const sectionLabels = {
+        users: 'العملاء المباشرون',
+        companies: 'الشركات',
+        agents: 'الوكلاء',
+        subaccounts: 'عملاء الوكلاء'
+    };
+%>
+
 <div class="main-content">
     <div class="container-fluid clients-page">
         <div class="admin-nav mb-4 d-flex flex-column gap-3">
             <div class="clients-header">
                 <div class="clients-title">
                     <div class="clients-title-icon"><i class="fa-solid fa-users"></i></div>
-                    <h3 class="fw-bold text-dark">إدارة العملاء والوكلاء</h3>
+                    <h3 class="fw-bold text-dark">دليل الحسابات</h3>
                 </div>
                 <div class="clients-total-pill">
                     <i class="fa-solid fa-database text-primary"></i>
                     <span>الإجمالي</span>
-                    <strong class="mono-num" style="font-size: 1rem;"><%= users.length + companies.length + agents.length + subAccounts.length %></strong>
+                    <strong class="mono-num" style="font-size: 1rem;"><%= directoryCounts.total %></strong>
                 </div>
             </div>
             <% if (query && query.codeSaved) { %>
@@ -384,58 +493,68 @@
             <% } %>
 
             <div class="clients-metrics">
-                <div class="clients-metric metric-users"><span>مباشر</span><strong><%= users.length %></strong></div>
-                <div class="clients-metric metric-companies"><span>شركات</span><strong><%= companies.length %></strong></div>
-                <div class="clients-metric metric-agents"><span>وكلاء</span><strong><%= agents.length %></strong></div>
-                <div class="clients-metric metric-subs"><span>تابعين</span><strong><%= subAccounts.length %></strong></div>
+                <div class="clients-metric metric-users"><span>عملاء مباشرون</span><strong><%= directoryCounts.users %></strong></div>
+                <div class="clients-metric metric-companies"><span>شركات</span><strong><%= directoryCounts.companies %></strong></div>
+                <div class="clients-metric metric-agents"><span>وكلاء</span><strong><%= directoryCounts.agents %></strong></div>
+                <div class="clients-metric metric-subs"><span>عملاء تابعون</span><strong><%= directoryCounts.subaccounts %></strong></div>
             </div>
 
-            <!-- Unified Search Input -->
-            <div class="search-container">
-                <input type="text" id="clientSearch" class="search-input-3d" placeholder="ابحث بالاسم، رقم الهاتف، ID، اسم المستخدم، أو اسم الوكيل الرئيسي..." oninput="searchClients()">
+            <form class="search-container" method="GET" action="/clients" role="search" data-directory-search>
+                <input type="hidden" name="section" value="<%= activeSection %>">
+                <input type="search" name="search" class="search-input-3d" value="<%= search %>" placeholder="ابحث في القسم الحالي بالاسم، الهاتف، ID أو اسم المستخدم..." autocomplete="off">
                 <i class="fa-solid fa-magnifying-glass search-icon-3d"></i>
-            </div>
+                <div class="search-actions">
+                    <% if (search) { %>
+                        <a href="<%= directoryUrl(activeSection, 1, false) %>" class="search-action search-clear" title="مسح البحث" aria-label="مسح البحث" data-directory-nav>
+                            <i class="fa-solid fa-xmark"></i>
+                        </a>
+                    <% } %>
+                    <button type="submit" class="search-action search-submit" title="تنفيذ البحث" aria-label="تنفيذ البحث">
+                        <i class="fa-solid fa-arrow-left"></i>
+                    </button>
+                </div>
+            </form>
 
-            <!-- Tab List -->
-            <ul class="nav nav-pills d-inline-flex m-0 p-1 rounded-4 border data-card" role="tablist">
-                <li class="nav-item" role="presentation">
-                    <button class="nav-link active" data-bs-toggle="pill" data-bs-target="#users-tab" type="button">
-                        <i class="fa-solid fa-user me-1"></i> عملاء مباشر
-                    </button>
+            <nav aria-label="أقسام دليل الحسابات">
+            <ul class="nav nav-pills d-inline-flex m-0 p-1 rounded-4 border data-card">
+                <li class="nav-item">
+                    <a class="nav-link <%= activeSection === 'users' ? 'active' : '' %>" href="<%= directoryUrl('users') %>" data-directory-nav>
+                        <i class="fa-solid fa-user me-1"></i> عملاء مباشرون <span class="section-count"><%= directoryCounts.users %></span>
+                    </a>
                 </li>
-                <li class="nav-item" role="presentation">
-                    <button class="nav-link" data-bs-toggle="pill" data-bs-target="#companies-tab" type="button">
-                        <i class="fa-solid fa-building me-1"></i> شركات
-                    </button>
+                <li class="nav-item">
+                    <a class="nav-link <%= activeSection === 'companies' ? 'active' : '' %>" href="<%= directoryUrl('companies') %>" data-directory-nav>
+                        <i class="fa-solid fa-building me-1"></i> شركات <span class="section-count"><%= directoryCounts.companies %></span>
+                    </a>
                 </li>
-                <li class="nav-item" role="presentation">
-                    <button class="nav-link" data-bs-toggle="pill" data-bs-target="#agents-tab" type="button">
-                        <i class="fa-solid fa-user-tie me-1"></i> وكلاء
-                    </button>
+                <li class="nav-item">
+                    <a class="nav-link <%= activeSection === 'agents' ? 'active' : '' %>" href="<%= directoryUrl('agents') %>" data-directory-nav>
+                        <i class="fa-solid fa-user-tie me-1"></i> وكلاء <span class="section-count"><%= directoryCounts.agents %></span>
+                    </a>
                 </li>
-                <li class="nav-item" role="presentation">
-                    <button class="nav-link" data-bs-toggle="pill" data-bs-target="#subaccounts-tab" type="button">
-                        <i class="fa-solid fa-users me-1"></i> عملاء الوكلاء
-                    </button>
+                <li class="nav-item">
+                    <a class="nav-link <%= activeSection === 'subaccounts' ? 'active' : '' %>" href="<%= directoryUrl('subaccounts') %>" data-directory-nav>
+                        <i class="fa-solid fa-users me-1"></i> عملاء الوكلاء <span class="section-count"><%= directoryCounts.subaccounts %></span>
+                    </a>
                 </li>
             </ul>
+            </nav>
+            <div class="directory-summary">
+                <span><i class="fa-solid fa-layer-group me-1"></i> <%= sectionLabels[activeSection] %></span>
+                <span>عرض <strong><%= pagination.startItem %></strong> - <strong><%= pagination.endItem %></strong> من <strong><%= pagination.totalItems %></strong></span>
+            </div>
         </div>
 
         <div class="tab-content mt-4">
             <!-- Direct Clients Tab -->
-            <div class="tab-pane fade show active" id="users-tab">
+            <div class="tab-pane fade <%= activeSection === 'users' ? 'show active' : '' %>" id="users-tab">
                 <div class="row g-4 pb-5">
                     <% if(users.length === 0) { %>
                         <div class="col-12 text-center py-5 system-empty-placeholder">
-                            <i class="fa-solid fa-user-slash fa-4x text-muted opacity-25 mb-3"></i>
-                            <h5 class="text-muted fw-bold">لا يوجد عملاء مباشرين مسجلين في المنظومة.</h5>
+                            <i class="fa-solid <%= search ? 'fa-magnifying-glass-minus' : 'fa-user-slash' %> fa-4x text-muted opacity-25 mb-3"></i>
+                            <h5 class="text-muted fw-bold"><%= search ? 'لا توجد نتائج مطابقة في العملاء المباشرين.' : 'لا يوجد عملاء مباشرون مسجلون في المنظومة.' %></h5>
                         </div>
                     <% } %>
-
-                    <div class="col-12 text-center py-5 no-results-placeholder d-none">
-                        <i class="fa-solid fa-magnifying-glass-minus fa-4x text-muted opacity-25 mb-3"></i>
-                        <h5 class="text-muted fw-bold">لا توجد نتائج تطابق بحثك.</h5>
-                    </div>
 
                     <% users.forEach(u => { %>
                         <div class="col-xl-3 col-lg-4 col-md-6 client-card-item" data-name="<%= u.name %>" data-phone="<%= u.phone || '' %>" data-username="<%= u.webUsername || '' %>" data-code="<%= u.accountCode || '' %>" data-master="">
@@ -448,7 +567,7 @@
                                                     <i class="fa-solid fa-user"></i>
                                                 </div>
                                                 <div style="width: calc(100% - 80px);">
-                                                    <h5 class="fw-bold m-0 text-dark mb-1 text-truncate" title="<%= u.name %>"><%= u.name %></h5>
+                                                     <h5 class="client-name fw-bold m-0 text-dark mb-1" title="<%= u.name %>"><%= u.name %></h5>
                                                     <span class="badge <%= u.status === 'active' ? 'bg-success' : 'bg-danger' %> bg-opacity-10 text-<%= u.status === 'active' ? 'success' : 'danger' %> border rounded-pill px-2 py-1 mt-1" style="font-size:0.75rem;">
                                                         <i class="fa-solid <%= u.status === 'active' ? 'fa-check-circle' : 'fa-ban' %> me-1"></i><%= u.status === 'active' ? 'نشط ومفعل' : 'محظور' %>
                                                     </span>
@@ -492,19 +611,14 @@
             </div>
 
             <!-- Companies Tab -->
-            <div class="tab-pane fade" id="companies-tab">
+            <div class="tab-pane fade <%= activeSection === 'companies' ? 'show active' : '' %>" id="companies-tab">
                 <div class="row g-4 pb-5">
                     <% if(companies.length === 0) { %>
                         <div class="col-12 text-center py-5 system-empty-placeholder">
-                            <i class="fa-solid fa-building-circle-xmark fa-4x text-muted opacity-25 mb-3"></i>
-                            <h5 class="text-muted fw-bold">لا يوجد شركات مسجلة في المنظومة.</h5>
+                            <i class="fa-solid <%= search ? 'fa-magnifying-glass-minus' : 'fa-building-circle-xmark' %> fa-4x text-muted opacity-25 mb-3"></i>
+                            <h5 class="text-muted fw-bold"><%= search ? 'لا توجد نتائج مطابقة في الشركات.' : 'لا توجد شركات مسجلة في المنظومة.' %></h5>
                         </div>
                     <% } %>
-
-                    <div class="col-12 text-center py-5 no-results-placeholder d-none">
-                        <i class="fa-solid fa-magnifying-glass-minus fa-4x text-muted opacity-25 mb-3"></i>
-                        <h5 class="text-muted fw-bold">لا توجد نتائج تطابق بحثك.</h5>
-                    </div>
 
                     <% companies.forEach(c => { %>
                         <div class="col-xl-3 col-lg-4 col-md-6 client-card-item" data-name="<%= c.name %>" data-phone="<%= c.phone || '' %>" data-username="<%= c.webUsername || '' %>" data-code="<%= c.accountCode || '' %>" data-master="">
@@ -517,7 +631,7 @@
                                                     <i class="fa-solid fa-building"></i>
                                                 </div>
                                                 <div style="width: calc(100% - 80px);">
-                                                    <h5 class="fw-bold m-0 text-dark mb-1 text-truncate" title="<%= c.name %>"><%= c.name %></h5>
+                                                    <h5 class="client-name fw-bold m-0 text-dark mb-1" title="<%= c.name %>"><%= c.name %></h5>
                                                     <span class="badge <%= c.status === 'active' ? 'bg-success' : 'bg-danger' %> bg-opacity-10 text-<%= c.status === 'active' ? 'success' : 'danger' %> border rounded-pill px-2 py-1 mt-1" style="font-size:0.75rem;">
                                                         <i class="fa-solid <%= c.status === 'active' ? 'fa-check-circle' : 'fa-ban' %> me-1"></i><%= c.status === 'active' ? 'يعمل' : 'مغلق' %>
                                                     </span>
@@ -565,19 +679,14 @@
             </div>
 
             <!-- Agents Tab -->
-            <div class="tab-pane fade" id="agents-tab">
+            <div class="tab-pane fade <%= activeSection === 'agents' ? 'show active' : '' %>" id="agents-tab">
                 <div class="row g-4 pb-5">
                     <% if(agents.length === 0) { %>
                         <div class="col-12 text-center py-5 system-empty-placeholder">
-                            <i class="fa-solid fa-user-tie fa-4x text-muted opacity-25 mb-3"></i>
-                            <h5 class="text-muted fw-bold">لا يوجد وكلاء مسجلين في المنظومة.</h5>
+                            <i class="fa-solid <%= search ? 'fa-magnifying-glass-minus' : 'fa-user-tie' %> fa-4x text-muted opacity-25 mb-3"></i>
+                            <h5 class="text-muted fw-bold"><%= search ? 'لا توجد نتائج مطابقة في الوكلاء.' : 'لا يوجد وكلاء مسجلون في المنظومة.' %></h5>
                         </div>
                     <% } %>
-
-                    <div class="col-12 text-center py-5 no-results-placeholder d-none">
-                        <i class="fa-solid fa-magnifying-glass-minus fa-4x text-muted opacity-25 mb-3"></i>
-                        <h5 class="text-muted fw-bold">لا توجد نتائج تطابق بحثك.</h5>
-                    </div>
 
                     <% agents.forEach(agent => { %>
                         <div class="col-xl-3 col-lg-4 col-md-6 client-card-item" data-name="<%= agent.name %>" data-phone="<%= agent.phone || '' %>" data-username="<%= agent.webUsername || '' %>" data-code="<%= agent.accountCode || '' %>" data-master="">
@@ -587,14 +696,10 @@
                                         <div class="d-flex justify-content-between align-items-start mb-4">
                                             <div class="d-flex align-items-center gap-3 w-100">
                                                 <div class="profile-icon agent-icon">
-                                                    <% if (agent.type === 'company') { %>
-                                                        <i class="fa-solid fa-building"></i>
-                                                    <% } else { %>
-                                                        <i class="fa-solid fa-user-tie"></i>
-                                                    <% } %>
+                                                    <i class="fa-solid fa-user-tie"></i>
                                                 </div>
                                                 <div style="width: calc(100% - 80px);">
-                                                    <h5 class="fw-bold m-0 text-dark mb-1 text-truncate" title="<%= agent.name %>"><%= agent.name %></h5>
+                                                    <h5 class="client-name fw-bold m-0 text-dark mb-1" title="<%= agent.name %>"><%= agent.name %></h5>
                                                     <span class="badge <%= agent.status === 'active' ? 'bg-success' : 'bg-danger' %> bg-opacity-10 text-<%= agent.status === 'active' ? 'success' : 'danger' %> border rounded-pill px-2 py-1 mt-1" style="font-size:0.75rem;">
                                                         <i class="fa-solid <%= agent.status === 'active' ? 'fa-check-circle' : 'fa-ban' %> me-1"></i><%= agent.status === 'active' ? 'نشط ومفعل' : 'محظور/مغلق' %>
                                                     </span>
@@ -607,15 +712,9 @@
                                             <span class="badge bg-secondary bg-opacity-10 text-secondary border border-secondary rounded-pill px-2">مستوى <%= agent.tier || 1 %></span>
                                         </div>
 
-                                        <% if (agent.type === 'company') { %>
-                                            <div class="text-muted small fw-bold mb-3 px-1 text-truncate" title="<%= agent.token %>">
-                                                <i class="fa-solid fa-key me-1 opacity-50" style="color: #f59e0b;"></i> <code class="text-muted" style="filter: blur(2px); transition: 0.3s; cursor: pointer;" onmouseover="this.style.filter='none'" onmouseout="this.style.filter='blur(2px)'"><%= agent.token %></code>
-                                            </div>
-                                        <% } else { %>
-                                            <div class="text-muted small fw-bold mb-3 px-1 text-truncate">
-                                                <i class="fa-solid fa-user-tag me-1 opacity-50" style="color: #f59e0b;"></i> نوع الحساب: <span class="badge bg-warning text-dark">فردي / وكيل</span>
-                                            </div>
-                                        <% } %>
+                                        <div class="text-muted small fw-bold mb-3 px-1 text-truncate">
+                                            <i class="fa-solid fa-user-tag me-1 opacity-50" style="color: #f59e0b;"></i> نوع الحساب: <span class="badge bg-warning text-dark">وكيل معتمد</span>
+                                        </div>
 
                                         <div class="text-muted small fw-bold mb-2 px-1 text-truncate">
                                             <i class="fa-solid fa-id-badge me-1 opacity-50" style="color: #f59e0b;"></i> ID:
@@ -631,25 +730,14 @@
                                     </div>
 
                                     <div class="client-actions">
-                                        <% if (agent.type === 'company') { %>
-                                            <a href="/company/<%= agent._id %>" class="btn-3d agent-btn">
-                                                <i class="fa-solid fa-folder-open me-2"></i> إدارة ملف الشركة
-                                            </a>
-                                            <form action="/company/<%= agent._id %>/delete" method="POST" class="delete-account-form" onsubmit="return confirm('هل أنت متأكد من حذف هذا الوكيل؟ سيتم إيقاف الحساب والعملاء التابعين له مع حفظ العمليات السابقة.');">
-                                                <button type="submit" class="btn-3d btn-delete-account">
-                                                    <i class="fa-solid fa-trash-can me-2"></i> حذف الحساب
-                                                </button>
-                                            </form>
-                                        <% } else { %>
-                                            <a href="/user/<%= agent._id %>" class="btn-3d agent-btn">
-                                                <i class="fa-solid fa-folder-open me-2"></i> إدارة ملف العميل
-                                            </a>
-                                            <form action="/user/<%= agent._id %>/delete" method="POST" class="delete-account-form" onsubmit="return confirm('هل أنت متأكد من حذف هذا الوكيل؟ سيتم إيقاف الحساب والعملاء التابعين له مع حفظ العمليات السابقة.');">
-                                                <button type="submit" class="btn-3d btn-delete-account">
-                                                    <i class="fa-solid fa-trash-can me-2"></i> حذف الحساب
-                                                </button>
-                                            </form>
-                                        <% } %>
+                                        <a href="/user/<%= agent._id %>" class="btn-3d agent-btn">
+                                            <i class="fa-solid fa-folder-open me-2"></i> إدارة ملف الوكيل
+                                        </a>
+                                        <form action="/user/<%= agent._id %>/delete" method="POST" class="delete-account-form" onsubmit="return confirm('هل أنت متأكد من حذف هذا الوكيل؟ سيتم إيقاف الحساب والعملاء التابعين له مع حفظ العمليات السابقة.');">
+                                            <button type="submit" class="btn-3d btn-delete-account">
+                                                <i class="fa-solid fa-trash-can me-2"></i> حذف الحساب
+                                            </button>
+                                        </form>
                                     </div>
                                 </div>
                             </div>
@@ -659,19 +747,14 @@
             </div>
 
             <!-- Sub accounts (Reseller-assigned clients) Tab -->
-            <div class="tab-pane fade" id="subaccounts-tab">
+            <div class="tab-pane fade <%= activeSection === 'subaccounts' ? 'show active' : '' %>" id="subaccounts-tab">
                 <div class="row g-4 pb-5">
                     <% if(subAccounts.length === 0) { %>
                         <div class="col-12 text-center py-5 system-empty-placeholder">
-                            <i class="fa-solid fa-network-wired fa-4x text-muted opacity-25 mb-3"></i>
-                            <h5 class="text-muted fw-bold">لا يوجد عملاء وكلاء (حسابات فرعية) مسجلين في المنظومة.</h5>
+                            <i class="fa-solid <%= search ? 'fa-magnifying-glass-minus' : 'fa-network-wired' %> fa-4x text-muted opacity-25 mb-3"></i>
+                            <h5 class="text-muted fw-bold"><%= search ? 'لا توجد نتائج مطابقة في عملاء الوكلاء.' : 'لا يوجد عملاء وكلاء مسجلون في المنظومة.' %></h5>
                         </div>
                     <% } %>
-
-                    <div class="col-12 text-center py-5 no-results-placeholder d-none">
-                        <i class="fa-solid fa-magnifying-glass-minus fa-4x text-muted opacity-25 mb-3"></i>
-                        <h5 class="text-muted fw-bold">لا توجد نتائج تطابق بحثك.</h5>
-                    </div>
 
                     <% subAccounts.forEach(sub => { %>
                         <div class="col-xl-3 col-lg-4 col-md-6 client-card-item" data-name="<%= sub.name %>" data-phone="<%= sub.phone || '' %>" data-username="<%= sub.webUsername %>" data-code="<%= sub.accountCode || '' %>" data-master="<%= sub.masterName || '' %>">
@@ -684,7 +767,7 @@
                                                     <i class="fa-solid fa-shop"></i>
                                                 </div>
                                                 <div style="width: calc(100% - 80px);">
-                                                    <h5 class="fw-bold m-0 text-dark mb-1 text-truncate" title="<%= sub.name %>"><%= sub.name %></h5>
+                                                    <h5 class="client-name fw-bold m-0 text-dark mb-1" title="<%= sub.name %>"><%= sub.name %></h5>
                                                     <span class="badge <%= sub.status === 'active' ? 'bg-success' : 'bg-danger' %> bg-opacity-10 text-<%= sub.status === 'active' ? 'success' : 'danger' %> border rounded-pill px-2 py-1 mt-1" style="font-size:0.75rem;">
                                                         <i class="fa-solid <%= sub.status === 'active' ? 'fa-check-circle' : 'fa-ban' %> me-1"></i><%= sub.status === 'active' ? 'نشط' : 'محظور' %>
                                                     </span>
@@ -749,6 +832,28 @@
                 </div>
             </div>
         </div>
+
+        <% if (pagination.totalPages > 1) { %>
+            <nav class="directory-pagination" aria-label="صفحات دليل الحسابات">
+                <a class="directory-page-link <%= pagination.page === 1 ? 'disabled' : '' %>" href="<%= directoryUrl(activeSection, pagination.page - 1) %>" aria-label="الصفحة السابقة" data-directory-nav>
+                    <i class="fa-solid fa-chevron-right"></i>
+                </a>
+                <% if (firstVisiblePage > 1) { %>
+                    <a class="directory-page-link" href="<%= directoryUrl(activeSection, 1) %>" data-directory-nav>1</a>
+                    <% if (firstVisiblePage > 2) { %><span class="text-muted fw-bold">...</span><% } %>
+                <% } %>
+                <% for (let pageNumber = firstVisiblePage; pageNumber <= lastVisiblePage; pageNumber += 1) { %>
+                    <a class="directory-page-link <%= pageNumber === pagination.page ? 'active' : '' %>" href="<%= directoryUrl(activeSection, pageNumber) %>" <% if (pageNumber === pagination.page) { %>aria-current="page"<% } %> data-directory-nav><%= pageNumber %></a>
+                <% } %>
+                <% if (lastVisiblePage < pagination.totalPages) { %>
+                    <% if (lastVisiblePage < pagination.totalPages - 1) { %><span class="text-muted fw-bold">...</span><% } %>
+                    <a class="directory-page-link" href="<%= directoryUrl(activeSection, pagination.totalPages) %>" data-directory-nav><%= pagination.totalPages %></a>
+                <% } %>
+                <a class="directory-page-link <%= pagination.page === pagination.totalPages ? 'disabled' : '' %>" href="<%= directoryUrl(activeSection, pagination.page + 1) %>" aria-label="الصفحة التالية" data-directory-nav>
+                    <i class="fa-solid fa-chevron-left"></i>
+                </a>
+            </nav>
+        <% } %>
     </div>
 </div>
 
@@ -758,45 +863,78 @@
         document.querySelector('.sidebar-overlay').classList.toggle('active');
     }
 
-    function searchClients() {
-        const query = document.getElementById('clientSearch').value.toLowerCase().trim();
-        const tabPanes = document.querySelectorAll('.tab-pane');
+    let directoryNavigationController = null;
 
-        tabPanes.forEach(pane => {
-            const items = pane.querySelectorAll('.client-card-item');
-            let visibleCount = 0;
+    async function navigateAccountDirectory(targetUrl, pushState = true) {
+        const currentPage = document.querySelector('.clients-page');
+        if (!currentPage) {
+            window.location.assign(targetUrl);
+            return;
+        }
 
-            items.forEach(item => {
-                const name = (item.getAttribute('data-name') || '').toLowerCase();
-                const phone = (item.getAttribute('data-phone') || '').toLowerCase();
-                const username = (item.getAttribute('data-username') || '').toLowerCase();
-                const code = (item.getAttribute('data-code') || '').toLowerCase();
-                const master = (item.getAttribute('data-master') || '').toLowerCase();
+        if (directoryNavigationController) directoryNavigationController.abort();
+        const navigationController = new AbortController();
+        directoryNavigationController = navigationController;
+        currentPage.classList.add('directory-is-loading');
+        currentPage.setAttribute('aria-busy', 'true');
 
-                if (name.includes(query) || phone.includes(query) || username.includes(query) || code.includes(query) || master.includes(query)) {
-                    item.classList.remove('d-none');
-                    visibleCount++;
-                } else {
-                    item.classList.add('d-none');
-                }
+        try {
+            const response = await fetch(targetUrl, {
+                credentials: 'same-origin',
+                headers: { 'X-Requested-With': 'XMLHttpRequest' },
+                signal: navigationController.signal
             });
+            if (!response.ok) throw new Error(`HTTP_${response.status}`);
 
-            const noResultsPlaceholder = pane.querySelector('.no-results-placeholder');
-            const systemEmptyPlaceholder = pane.querySelector('.system-empty-placeholder');
-
-            if (visibleCount === 0) {
-                if (systemEmptyPlaceholder) {
-                    systemEmptyPlaceholder.classList.remove('d-none');
-                    if (noResultsPlaceholder) noResultsPlaceholder.classList.add('d-none');
-                } else {
-                    if (noResultsPlaceholder) noResultsPlaceholder.classList.remove('d-none');
-                }
-            } else {
-                if (systemEmptyPlaceholder) systemEmptyPlaceholder.classList.add('d-none');
-                if (noResultsPlaceholder) noResultsPlaceholder.classList.add('d-none');
+            const html = await response.text();
+            const nextDocument = new DOMParser().parseFromString(html, 'text/html');
+            const nextPage = nextDocument.querySelector('.clients-page');
+            if (!nextPage) {
+                window.location.assign(response.url || targetUrl);
+                return;
             }
-        });
+
+            currentPage.replaceWith(nextPage);
+            document.title = nextDocument.title;
+            if (pushState) window.history.pushState({ accountDirectory: true }, '', targetUrl);
+            window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
+        } catch (error) {
+            if (error.name !== 'AbortError') window.location.assign(targetUrl);
+        } finally {
+            if (directoryNavigationController !== navigationController) return;
+            directoryNavigationController = null;
+            const activePage = document.querySelector('.clients-page');
+            if (activePage) {
+                activePage.classList.remove('directory-is-loading');
+                activePage.removeAttribute('aria-busy');
+            }
+        }
     }
+
+    document.addEventListener('click', (event) => {
+        const link = event.target.closest('a[data-directory-nav]');
+        if (!link || event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+
+        const target = new URL(link.href, window.location.href);
+        if (target.origin !== window.location.origin || target.pathname !== '/clients') return;
+        event.preventDefault();
+        navigateAccountDirectory(target.href);
+    });
+
+    document.addEventListener('submit', (event) => {
+        const form = event.target.closest('form[data-directory-search]');
+        if (!form) return;
+
+        event.preventDefault();
+        const target = new URL(form.action, window.location.href);
+        target.search = new URLSearchParams(new FormData(form)).toString();
+        navigateAccountDirectory(target.href);
+    });
+
+    window.addEventListener('popstate', () => {
+        if (window.location.pathname === '/clients') navigateAccountDirectory(window.location.href, false);
+    });
+
 </script>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
 </body>

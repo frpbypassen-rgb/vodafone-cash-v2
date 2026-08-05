@@ -162,12 +162,13 @@
 <%- include('partials/sidebar', { activePage: 'clients' }) %>
 
 <% const reversibleIds = new Set((typeof reversibleSettlements !== 'undefined' ? reversibleSettlements : []).map(String)); %>
+<% const isAgentAccount = user.role === 'agent'; %>
 
 <div class="main-content">
     <div class="container-fluid">
         <div class="d-flex justify-content-between align-items-center mb-4 client-detail-title">
-            <h3 class="fw-bold m-0" style="color: var(--text-main);"><i class="fa-solid fa-user-circle text-primary me-2"></i> بيانات العميل الفردي</h3>
-            <a href="/clients" class="btn btn-secondary fw-bold rounded-pill shadow-sm px-4 btn-3d-hover"><i class="fa-solid fa-arrow-right me-2"></i> عودة للقائمة</a>
+            <h3 class="fw-bold m-0" style="color: var(--text-main);"><i class="fa-solid <%= isAgentAccount ? 'fa-user-tie text-warning' : 'fa-user-circle text-primary' %> me-2"></i> <%= isAgentAccount ? 'بيانات الوكيل' : 'بيانات العميل الفردي' %></h3>
+            <a href="/clients?section=<%= isAgentAccount ? 'agents' : 'users' %>" class="btn btn-secondary fw-bold rounded-pill shadow-sm px-4 btn-3d-hover"><i class="fa-solid fa-arrow-right me-2"></i> عودة للقائمة</a>
         </div>
         <% if (query && query.codeSaved) { %>
             <div class="alert alert-success fw-bold rounded-4 shadow-sm"><i class="fa-solid fa-check-circle me-1"></i> تم حفظ ID الحساب بنجاح.</div>
@@ -186,12 +187,12 @@
 
         <div class="row g-4 mb-4">
             <div class="col-xl-4 col-lg-5">
-                <div class="glass-card h-100" style="border-top: 5px solid #3b82f6;">
-                    <div class="profile-icon mx-auto" style="background: linear-gradient(135deg, #3b82f6, #1e40af);">
-                        <i class="fa-solid fa-user"></i>
+                <div class="glass-card h-100" style="border-top: 5px solid <%= isAgentAccount ? '#f59e0b' : '#3b82f6' %>;">
+                    <div class="profile-icon mx-auto" style="background: <%= isAgentAccount ? 'linear-gradient(135deg, #f59e0b, #b45309)' : 'linear-gradient(135deg, #3b82f6, #1e40af)' %>;">
+                        <i class="fa-solid <%= isAgentAccount ? 'fa-user-tie' : 'fa-user' %>"></i>
                     </div>
                     <h4 class="fw-bold text-center mb-1" style="color: var(--text-main);"><%= user.name %></h4>
-                    <p class="text-center text-muted fw-bold mb-3 small">عميل فردي</p>
+                    <p class="text-center text-muted fw-bold mb-3 small"><%= isAgentAccount ? 'وكيل معتمد' : 'عميل فردي' %></p>
 
                     <div class="info-box d-block text-center border-0 shadow-sm py-3" style="background: rgba(59, 130, 246, 0.05); border-right: 4px solid #3b82f6 !important;">
                         <span class="d-block small text-muted fw-bold mb-1"><i class="fa-solid fa-wallet me-1"></i> الرصيد الحالي (LYD)</span>

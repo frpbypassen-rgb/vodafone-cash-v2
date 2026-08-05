@@ -14,6 +14,7 @@ const { createClientNotifications, notifyBalanceAdjustment } = require('../servi
 const { createDepositReceiptProof } = require('../services/depositReceiptService');
 const { voidBalanceAdjustment } = require('../services/balanceAdjustmentService');
 const { logAction } = require('../services/auditService');
+const { loadAdminAccountDirectory } = require('../services/adminAccountDirectoryService');
 const {
     CODE_LENGTHS,
     expectedUserCodeLength,
@@ -148,55 +149,11 @@ const reversibleSettlementIds = async ({ transactions, entityModel, entityId }) 
 
 router.get('/clients', requireAuth, async (req, res) => {
     try {
-        const users = await User.find(visibleAccountFilter).sort({ createdAt: -1 });
-        const companies = await ClientCompany.find(visibleAccountFilter).sort({ createdAt: -1 });
-        const subAccounts = await SubAccount.find(visibleAccountFilter).sort({ createdAt: -1 }).lean();
-
-        // Get distinct master IDs of sub-accounts to identify agents
-        const distinctMasterIds = await SubAccount.distinct('masterId', visibleAccountFilter);
-
-        // Categorize:
-        // 1. Agents (وكلاء) are users/companies who have subaccounts
-        const agentsList = [];
-        const directUsers = [];
-        const directCompanies = [];
-
-        users.forEach(u => {
-            if (distinctMasterIds.some(id => id.toString() === u._id.toString())) {
-                agentsList.push({ ...u.toObject(), type: 'user' });
-            } else {
-                directUsers.push(u);
-            }
-        });
-
-        companies.forEach(c => {
-            if (distinctMasterIds.some(id => id.toString() === c._id.toString())) {
-                agentsList.push({ ...c.toObject(), type: 'company' });
-            } else {
-                directCompanies.push(c);
-            }
-        });
-
-        // Link sub-accounts with their master agent name
-        for (const sub of subAccounts) {
-            let masterName = 'غير معروف';
-            if (sub.masterType === 'user') {
-                const u = users.find(x => x._id.toString() === sub.masterId.toString());
-                if (u) masterName = u.name;
-            } else if (sub.masterType === 'company') {
-                const c = companies.find(x => x._id.toString() === sub.masterId.toString());
-                if (c) masterName = c.name;
-            }
-            sub.masterName = masterName;
-        }
-
-        res.render('clients', {
-            users: directUsers,
-            companies: directCompanies,
-            agents: agentsList,
-            subAccounts: subAccounts,
-            query: req.query
-        });
+        const directory = await loadAdminAccountDirectory(
+            { User, ClientCompany, SubAccount },
+            req.query
+        );
+        res.render('clients', { ...directory, query: req.query });
     } catch (e) {
         console.error('[clients] خطأ في جلب بيانات العملاء:', e.message);
         res.status(500).send('خطأ داخلي في الخادم');
@@ -205,7 +162,7 @@ router.get('/clients', requireAuth, async (req, res) => {
 
 router.get('/user/:id', requireAuth, async (req, res) => {
     const user = await User.findOne({ _id: req.params.id, ...visibleAccountFilter });
-    if (!user) return res.redirect('/clients?deleteError=notfound');
+    if (!user) return res.redirect('/clients?section=users&deleteError=notfound');
     const transactions = await Transaction.find({ userId: user.phone || user.webUsername, companyId: null }).sort({ createdAt: -1 }).limit(50);
     const reversibleSettlements = await reversibleSettlementIds({ transactions, entityModel: 'User', entityId: user._id });
     const hasSubAccounts = await SubAccount.exists({ masterType: 'user', masterId: user._id, ...visibleAccountFilter });
@@ -214,7 +171,7 @@ router.get('/user/:id', requireAuth, async (req, res) => {
 
 router.get('/company/:id', requireAuth, async (req, res) => {
     const company = await ClientCompany.findOne({ _id: req.params.id, ...visibleAccountFilter });
-    if (!company) return res.redirect('/clients?deleteError=notfound');
+    if (!company) return res.redirect('/clients?section=companies&deleteError=notfound');
     const transactions = await Transaction.find({ companyId: company._id }).sort({ createdAt: -1 }).limit(50);
     const reversibleSettlements = await reversibleSettlementIds({ transactions, entityModel: 'ClientCompany', entityId: company._id });
     res.render('company_details', { company, transactions, reversibleSettlements, accountCodeLength: CODE_LENGTHS.company, query: req.query });
@@ -294,8 +251,9 @@ router.post('/user/:id/toggle-status', requireAuth, requireMaster, async (req, r
 
 router.post('/user/:id/delete', requireAuth, requireMaster, async (req, res) => {
     try {
-        const user = await User.findOne({ _id: req.params.id, ...visibleAccountFilter }).select('_id');
-        if (!user) return res.redirect('/clients?deleteError=notfound');
+        const user = await User.findOne({ _id: req.params.id, ...visibleAccountFilter }).select('_id role');
+        if (!user) return res.redirect('/clients?section=users&deleteError=notfound');
+        const returnSection = user.role === 'agent' ? 'agents' : 'users';
 
         const subAccounts = await SubAccount.find({ masterType: 'user', masterId: user._id, ...visibleAccountFilter }).select('_id').lean();
         await releaseAccountCodeReservation({ modelName: 'User', id: user._id });
@@ -310,10 +268,10 @@ router.post('/user/:id/delete', requireAuth, requireMaster, async (req, res) => 
             );
         }
 
-        res.redirect('/clients?deleted=1');
+        res.redirect(`/clients?section=${returnSection}&deleted=1`);
     } catch (error) {
         console.error('[clients/delete-user] خطأ في حذف حساب العميل:', error.message);
-        res.redirect('/clients?deleteError=1');
+        res.redirect('/clients?section=users&deleteError=1');
     }
 });
 
@@ -322,7 +280,7 @@ router.post('/user/:id/change-level', requireAuth, requireMaster, async (req, re
 });
 
 router.post('/user/:id/update-limit', requireAuth, requireMaster, async (req, res) => {
-    try { const limit = Math.abs(parseFloat(req.body.creditLimit) || 0); await User.findByIdAndUpdate(req.params.id, { creditLimit: limit }); res.redirect(`/user/${req.params.id}`); } catch (e) { res.redirect('/clients'); }
+    try { const limit = Math.abs(parseFloat(req.body.creditLimit) || 0); await User.findByIdAndUpdate(req.params.id, { creditLimit: limit }); res.redirect(`/user/${req.params.id}`); } catch (e) { res.redirect('/clients?section=users'); }
 });
 
 router.post('/user/:id/update-account-code', requireAuth, requireMaster, async (req, res) => {
@@ -487,7 +445,7 @@ router.post('/company/:id/update-rate', requireAuth, requireMaster, async (req, 
         await ClientCompany.findByIdAndUpdate(req.params.id, { exchangeRate: rate }, { strict: false });
         res.redirect(`/company/${req.params.id}`);
     } catch (e) {
-        res.redirect('/clients');
+        res.redirect('/clients?section=companies');
     }
 });
 
@@ -498,7 +456,7 @@ router.post('/company/:id/toggle-status', requireAuth, requireMaster, async (req
 router.post('/company/:id/delete', requireAuth, requireMaster, async (req, res) => {
     try {
         const company = await ClientCompany.findOne({ _id: req.params.id, ...visibleAccountFilter }).select('_id');
-        if (!company) return res.redirect('/clients?deleteError=notfound');
+        if (!company) return res.redirect('/clients?section=companies&deleteError=notfound');
 
         const subAccounts = await SubAccount.find({ masterType: 'company', masterId: company._id, ...visibleAccountFilter }).select('_id').lean();
         await releaseAccountCodeReservation({ modelName: 'ClientCompany', id: company._id });
@@ -521,10 +479,10 @@ router.post('/company/:id/delete', requireAuth, requireMaster, async (req, res) 
             );
         }
 
-        res.redirect('/clients?deleted=1');
+        res.redirect('/clients?section=companies&deleted=1');
     } catch (error) {
         console.error('[clients/delete-company] خطأ في حذف حساب الشركة:', error.message);
-        res.redirect('/clients?deleteError=1');
+        res.redirect('/clients?section=companies&deleteError=1');
     }
 });
 
@@ -533,7 +491,7 @@ router.post('/company/:id/change-level', requireAuth, requireMaster, async (req,
 });
 
 router.post('/company/:id/update-limit', requireAuth, requireMaster, async (req, res) => {
-    try { const limit = Math.abs(parseFloat(req.body.creditLimit) || 0); await ClientCompany.findByIdAndUpdate(req.params.id, { creditLimit: limit }); res.redirect(`/company/${req.params.id}`); } catch (e) { res.redirect('/clients'); }
+    try { const limit = Math.abs(parseFloat(req.body.creditLimit) || 0); await ClientCompany.findByIdAndUpdate(req.params.id, { creditLimit: limit }); res.redirect(`/company/${req.params.id}`); } catch (e) { res.redirect('/clients?section=companies'); }
 });
 
 router.post('/company/:id/update-account-code', requireAuth, requireMaster, async (req, res) => {
@@ -560,24 +518,24 @@ router.post('/sub-account/:id/update-account-code', requireAuth, requireMaster, 
             code: req.body.accountCode,
             expectedLength: CODE_LENGTHS.subAccount
         });
-        res.redirect('/clients?codeSaved=1');
+        res.redirect('/clients?section=subaccounts&codeSaved=1');
     } catch (error) {
-        res.redirect(`/clients?codeError=${accountCodeErrorQuery(error)}`);
+        res.redirect(`/clients?section=subaccounts&codeError=${accountCodeErrorQuery(error)}`);
     }
 });
 
 router.post('/sub-account/:id/delete', requireAuth, requireMaster, async (req, res) => {
     try {
         const subAccount = await SubAccount.findOne({ _id: req.params.id, ...visibleAccountFilter }).select('_id');
-        if (!subAccount) return res.redirect('/clients?deleteError=notfound');
+        if (!subAccount) return res.redirect('/clients?section=subaccounts&deleteError=notfound');
 
         await releaseAccountCodeReservation({ modelName: 'SubAccount', id: subAccount._id });
         await SubAccount.updateOne({ _id: subAccount._id }, deletedAccountUpdate(req), { strict: false });
 
-        res.redirect('/clients?deleted=1');
+        res.redirect('/clients?section=subaccounts&deleted=1');
     } catch (error) {
         console.error('[clients/delete-sub-account] خطأ في حذف حساب عميل الوكيل:', error.message);
-        res.redirect('/clients?deleteError=1');
+        res.redirect('/clients?section=subaccounts&deleteError=1');
     }
 });
 
