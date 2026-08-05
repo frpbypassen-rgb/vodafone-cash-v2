@@ -1,8 +1,8 @@
 <section class="bw-command-strip">
     <div class="bw-command-copy">
-        <span class="bw-command-mark"><i class="fa-solid <%= workspace.isCompany ? 'fa-building-shield' : 'fa-map-location-dot' %>"></i></span>
+        <span class="bw-command-mark"><i class="fa-solid <%= workspace.forceToday ? 'fa-user-check' : workspace.isCompany ? 'fa-building-shield' : 'fa-map-location-dot' %>"></i></span>
         <div>
-            <span class="bw-section-kicker"><%= workspace.isCompany ? 'مساحة أعمال الشركة' : 'مركز إدارة شبكة الوكيل' %></span>
+            <span class="bw-section-kicker"><%= workspace.forceToday ? 'حساب الموظف' : workspace.isCompany ? 'مساحة أعمال الشركة' : 'مركز إدارة شبكة الوكيل' %></span>
             <h2><%= workspace.entity.name %></h2>
             <p>
                 <% if (workspace.persona === 'manager') { %>
@@ -45,7 +45,7 @@
     <article class="bw-metric-card accent-blue">
         <span class="bw-metric-icon"><i class="fa-solid fa-money-bill-trend-up"></i></span>
         <div>
-            <span>حجم الشهر</span>
+            <span><%= workspace.forceToday ? 'حجم اليوم' : 'حجم الشهر' %></span>
             <strong class="bw-mono"><%= Number(monthSummary.totalEGP || 0).toLocaleString('en-US', { maximumFractionDigits: 0 }) %></strong>
             <small>جنيه مصري منفّذ</small>
         </div>

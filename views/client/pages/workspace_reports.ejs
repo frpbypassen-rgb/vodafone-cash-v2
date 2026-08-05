@@ -18,6 +18,8 @@
             <label><span>من</span><input type="date" name="from" value="<%= filters.from %>"></label>
             <label><span>إلى</span><input type="date" name="to" value="<%= filters.to %>"></label>
             <label><span>أو اختر شهراً</span><input type="month" name="month" value="<%= filters.month %>"></label>
+        <% } else { %>
+            <span class="bw-meta-chip"><i class="fa-regular fa-calendar-check"></i>اليوم فقط</span>
         <% } %>
         <button type="submit" class="bw-button primary compact"><i class="fa-solid fa-chart-simple"></i>إنشاء التقرير</button>
     </form>
@@ -32,7 +34,7 @@
     <article><span>إجمالي العمليات</span><strong class="bw-mono"><%= reportSummary.totalCount %></strong></article>
     <article class="success"><span>العمليات الناجحة</span><strong class="bw-mono"><%= reportSummary.completedCount %></strong></article>
     <article class="blue"><span>إجمالي التحويلات</span><strong class="bw-mono"><%= Number(reportSummary.totalEGP).toLocaleString('en-US', { maximumFractionDigits: 0 }) %> <small>EGP</small></strong></article>
-    <article><span>التكلفة</span><strong class="bw-mono"><%= Number(reportSummary.totalLYD).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) %> <small>LYD</small></strong></article>
+    <% if (workspace.permissions.canViewBalance) { %><article><span>التكلفة</span><strong class="bw-mono"><%= Number(reportSummary.totalLYD).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) %> <small>LYD</small></strong></article><% } %>
     <article class="warning"><span>قيد التنفيذ</span><strong class="bw-mono"><%= reportSummary.pendingCount %></strong></article>
     <article class="danger"><span>ملغية أو مرفوضة</span><strong class="bw-mono"><%= reportSummary.cancelledCount %></strong></article>
 </section>
@@ -42,10 +44,10 @@
         <header class="bw-section-head"><div><span class="bw-section-kicker">تفصيل النتائج</span><h2><%= reportScopeLabel %></h2></div><span class="bw-meta-chip"><%= reportRows.length %> بند</span></header>
         <div class="bw-table-wrap">
             <table class="bw-table">
-                <thead><tr><th><%= reportScope === 'organization' ? 'التاريخ' : reportScope === 'customers' ? 'العميل' : 'الموظف' %></th><th>العمليات</th><th>الناجحة</th><th>قيد التنفيذ</th><th>الملغية</th><th>EGP</th><th>LYD</th><th>صافي الإيداع</th></tr></thead>
+                <thead><tr><th><%= reportScope === 'organization' ? 'التاريخ' : reportScope === 'customers' ? 'العميل' : 'الموظف' %></th><th>العمليات</th><th>الناجحة</th><th>قيد التنفيذ</th><th>الملغية</th><th>EGP</th><% if (workspace.permissions.canViewBalance) { %><th>LYD</th><th>صافي الإيداع</th><% } %></tr></thead>
                 <tbody>
-                    <% if (!reportRows.length) { %><tr><td colspan="8"><div class="bw-empty"><i class="fa-solid fa-chart-column"></i><strong>لا توجد بيانات للتقرير</strong><span>غيّر الفترة الزمنية أو نوع التقرير.</span></div></td></tr><% } %>
-                    <% reportRows.forEach(row => { %><tr><td data-label="البند"><strong><%= row.key %></strong><small><%= row.lastActivity ? new Date(row.lastActivity).toLocaleDateString('ar-LY') : '' %></small></td><td data-label="العمليات" class="bw-mono"><%= row.totalCount %></td><td data-label="الناجحة" class="bw-mono text-success"><%= row.completedCount %></td><td data-label="قيد التنفيذ" class="bw-mono"><%= row.pendingCount %></td><td data-label="الملغية" class="bw-mono text-danger"><%= row.cancelledCount %></td><td data-label="EGP" class="bw-mono"><%= Number(row.totalEGP).toLocaleString('en-US', { maximumFractionDigits: 0 }) %></td><td data-label="LYD" class="bw-mono"><%= Number(row.totalLYD).toFixed(2) %></td><td data-label="صافي الإيداع" class="bw-mono"><%= Number(row.deposits - row.deductions).toFixed(2) %></td></tr><% }) %>
+                    <% if (!reportRows.length) { %><tr><td colspan="<%= workspace.permissions.canViewBalance ? 8 : 6 %>"><div class="bw-empty"><i class="fa-solid fa-chart-column"></i><strong>لا توجد بيانات للتقرير</strong><span>غيّر الفترة الزمنية أو نوع التقرير.</span></div></td></tr><% } %>
+                    <% reportRows.forEach(row => { %><tr><td data-label="البند"><strong><%= row.key %></strong><small><%= row.lastActivity ? new Date(row.lastActivity).toLocaleDateString('ar-LY') : '' %></small></td><td data-label="العمليات" class="bw-mono"><%= row.totalCount %></td><td data-label="الناجحة" class="bw-mono text-success"><%= row.completedCount %></td><td data-label="قيد التنفيذ" class="bw-mono"><%= row.pendingCount %></td><td data-label="الملغية" class="bw-mono text-danger"><%= row.cancelledCount %></td><td data-label="EGP" class="bw-mono"><%= Number(row.totalEGP).toLocaleString('en-US', { maximumFractionDigits: 0 }) %></td><% if (workspace.permissions.canViewBalance) { %><td data-label="LYD" class="bw-mono"><%= Number(row.totalLYD).toFixed(2) %></td><td data-label="صافي الإيداع" class="bw-mono"><%= Number(row.deposits - row.deductions).toFixed(2) %></td><% } %></tr><% }) %>
                 </tbody>
             </table>
         </div>
@@ -57,7 +59,7 @@
         <div class="bw-analysis-list">
             <% if (!serviceBreakdown.length) { %><div class="bw-empty"><i class="fa-solid fa-chart-pie"></i><strong>لا توجد عمليات ناجحة</strong></div><% } %>
             <% serviceBreakdown.forEach(item => { %>
-                <div class="bw-analysis-row"><header><strong><%= item.label %></strong><span class="bw-mono"><%= item.count %></span></header><div class="bw-progress"><span style="width:<%= Math.max(5, (item.count / maxServiceCount) * 100) %>%"></span></div><footer><span><%= Number(item.totalEGP).toLocaleString('en-US', { maximumFractionDigits: 0 }) %> EGP</span><span><%= Number(item.totalLYD).toFixed(2) %> LYD</span></footer></div>
+                <div class="bw-analysis-row"><header><strong><%= item.label %></strong><span class="bw-mono"><%= item.count %></span></header><div class="bw-progress"><span style="width:<%= Math.max(5, (item.count / maxServiceCount) * 100) %>%"></span></div><footer><span><%= Number(item.totalEGP).toLocaleString('en-US', { maximumFractionDigits: 0 }) %> EGP</span><% if (workspace.permissions.canViewBalance) { %><span><%= Number(item.totalLYD).toFixed(2) %> LYD</span><% } %></footer></div>
             <% }) %>
         </div>
     </aside>

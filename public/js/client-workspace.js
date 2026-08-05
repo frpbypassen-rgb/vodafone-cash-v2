@@ -156,14 +156,66 @@
     const transferGovernorate = document.getElementById('transferGovernorate');
     const transferClientPhone = document.getElementById('transferClientPhone');
     const transferIdentityImage = document.getElementById('transferIdentityImage');
+    const transferNotes = document.getElementById('transferNotes');
     const selectedServiceTitle = document.getElementById('selectedServiceTitle');
     const destinationFieldLabel = document.getElementById('destinationFieldLabel');
     const destinationFieldHint = document.getElementById('destinationFieldHint');
     const costServiceLabel = document.getElementById('costServiceLabel');
     const costRate = document.getElementById('costRate');
     const costEstimate = document.getElementById('costEstimate');
+    const transferRateBridge = document.getElementById('transferRateBridge');
     const transferResult = document.getElementById('transferFormResult');
+    const smartTransferMessage = document.getElementById('smartTransferMessage');
+    const smartTransferAnalyzeButton = document.getElementById('smartTransferAnalyzeButton');
+    const smartTransferStatus = document.getElementById('smartTransferStatus');
+    const smartTransferPreview = document.getElementById('smartTransferPreview');
+    const smartTransferSendButton = document.getElementById('smartTransferSendButton');
+    const smartPreviewPhone = document.getElementById('smartPreviewPhone');
+    const smartPreviewAmount = document.getElementById('smartPreviewAmount');
+    const smartPreviewRate = document.getElementById('smartPreviewRate');
+    const smartPreviewLyd = document.getElementById('smartPreviewLyd');
+    const smartPreviewNote = document.getElementById('smartPreviewNote');
+    const smartPreviewService = document.getElementById('smartPreviewService');
     let activeService = null;
+    let smartParsedData = null;
+    let smartParseTimer = null;
+    let smartParseController = null;
+
+    const formatExchangeRate = (rate) => `1 LYD = ${formatNumber(rate, 2)} EGP`;
+
+    const setSmartStatus = (message, tone = 'info') => {
+        if (!smartTransferStatus) return;
+        smartTransferStatus.hidden = !message;
+        smartTransferStatus.className = `bw-smart-transfer-status ${tone}`;
+        smartTransferStatus.innerHTML = message
+            ? `<i class="fa-solid ${tone === 'danger' ? 'fa-circle-exclamation' : tone === 'loading' ? 'fa-circle-notch fa-spin' : 'fa-circle-check'}"></i><span>${escapeHtml(message)}</span>`
+            : '';
+    };
+
+    const renderSmartPreview = () => {
+        if (!smartTransferPreview || !smartParsedData) return;
+        const rate = Number(activeService?.rate || 0);
+        const amount = Number(smartParsedData.amountEGP || 0);
+        const amountLyd = rate > 0 && amount > 0 ? amount / rate : 0;
+        smartTransferPreview.hidden = false;
+        if (smartPreviewPhone) smartPreviewPhone.textContent = smartParsedData.phone || 'غير متوفر';
+        if (smartPreviewAmount) smartPreviewAmount.textContent = amount > 0 ? `${formatNumber(amount, Number.isInteger(amount) ? 0 : 2)} EGP` : 'غير متوفر';
+        if (smartPreviewRate) smartPreviewRate.textContent = rate > 0 ? formatExchangeRate(rate) : 'غير متوفر';
+        if (smartPreviewLyd) smartPreviewLyd.textContent = amountLyd > 0 ? `${formatNumber(amountLyd, 3)} LYD` : '---';
+        if (smartPreviewNote) smartPreviewNote.textContent = smartParsedData.note || 'لا توجد ملاحظة';
+        if (smartPreviewService) {
+            smartPreviewService.innerHTML = `<i class="fa-solid ${escapeHtml(activeService?.icon || 'fa-mobile-screen-button')}"></i>${escapeHtml(activeService?.label || 'محافظ كاش')}`;
+        }
+        if (smartTransferSendButton) smartTransferSendButton.disabled = !smartParsedData.ready;
+    };
+
+    const resetSmartTransfer = (clearMessage = false) => {
+        smartParsedData = null;
+        if (smartTransferPreview) smartTransferPreview.hidden = true;
+        if (smartTransferSendButton) smartTransferSendButton.disabled = true;
+        if (clearMessage && smartTransferMessage) smartTransferMessage.value = '';
+        setSmartStatus('');
+    };
 
     const toggleConditionalField = (selector, enabled, input, clearWhenHidden = true) => {
         const field = document.querySelector(selector);
@@ -185,6 +237,7 @@
         const estimate = amount > 0 && rate > 0 ? amount / rate : 0;
         costEstimate.textContent = `${formatNumber(estimate, 3)} LYD`;
         if (syncLyd && transferAmountLyd) transferAmountLyd.value = estimate > 0 ? estimate.toFixed(2) : '';
+        if (smartParsedData) renderSmartPreview();
     };
 
     const updateCityRequirement = () => {
@@ -199,15 +252,15 @@
             if (input) input.value = '';
         });
         if (transferIdentityImage) transferIdentityImage.value = '';
-        const notes = transferForm?.querySelector('textarea[name="notes"]');
-        if (notes) notes.value = '';
+        if (transferNotes) transferNotes.value = '';
     };
 
-    const selectService = (serviceKey) => {
+    const selectService = (serviceKey, options = {}) => {
         const service = (config.services || []).find((item) => item.key === serviceKey) || config.services?.[0];
         if (!service) return;
         const serviceChanged = activeService && activeService.key !== service.key;
         if (serviceChanged) clearTransferValues();
+        if (serviceChanged && options.resetSmart) resetSmartTransfer(false);
         activeService = service;
         serviceButtons.forEach((button) => {
             const selected = button.dataset.serviceKey === service.key;
@@ -239,12 +292,13 @@
         if (transferAmount) transferAmount.step = service.amountStep || '0.01';
         updateCityRequirement();
         if (costServiceLabel) costServiceLabel.textContent = service.label;
-        if (costRate) costRate.textContent = formatNumber(service.rate, 2);
+        if (costRate) costRate.textContent = formatExchangeRate(service.rate);
+        if (transferRateBridge) transferRateBridge.textContent = formatExchangeRate(service.rate);
         updateCostEstimate();
     };
 
     serviceButtons.forEach((button) => {
-        button.addEventListener('click', () => selectService(button.dataset.serviceKey));
+        button.addEventListener('click', () => selectService(button.dataset.serviceKey, { resetSmart: true }));
     });
     transferAmount?.addEventListener('input', () => updateCostEstimate());
     transferAmountLyd?.addEventListener('input', () => {
@@ -266,6 +320,89 @@
     });
     transferSubtype?.addEventListener('change', updateCityRequirement);
     if (serviceButtons.length) selectService(config.selectedService || serviceButtons[0].dataset.serviceKey);
+
+    const applySmartTransferData = (parsed) => {
+        smartParsedData = parsed;
+        if (parsed.serviceKey && (config.services || []).some((service) => service.key === parsed.serviceKey)) {
+            selectService(parsed.serviceKey);
+        }
+        if (transferDestination) transferDestination.value = parsed.phone || '';
+        if (transferAccountNumber) transferAccountNumber.value = parsed.phone || '';
+        if (transferAmount) transferAmount.value = parsed.amountEGP || '';
+        if (transferNotes) transferNotes.value = parsed.note || '';
+        updateCostEstimate();
+        renderSmartPreview();
+
+        if (parsed.ready) {
+            setSmartStatus('تم تجهيز بيانات العملية للمراجعة.', 'success');
+        } else {
+            setSmartStatus(`بيانات ناقصة: ${(parsed.missing || []).join('، ') || 'راجع الرسالة'}.`, 'danger');
+        }
+    };
+
+    const analyzeSmartTransfer = async () => {
+        window.clearTimeout(smartParseTimer);
+        smartParseTimer = null;
+        const message = smartTransferMessage?.value.trim() || '';
+        if (message.length < 3) {
+            resetSmartTransfer(false);
+            setSmartStatus('أدخل رسالة التحويل أولاً.', 'danger');
+            return;
+        }
+
+        if (smartParseController) smartParseController.abort();
+        const controller = new AbortController();
+        smartParseController = controller;
+        const originalHtml = smartTransferAnalyzeButton?.innerHTML;
+        if (smartTransferAnalyzeButton) {
+            smartTransferAnalyzeButton.disabled = true;
+            smartTransferAnalyzeButton.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin"></i>جارٍ التحليل';
+        }
+        setSmartStatus('جارٍ قراءة بيانات الرسالة...', 'loading');
+
+        try {
+            const response = await fetch('/client/api/smart-transfer/parse', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    Accept: 'application/json',
+                    'x-csrf-token': config.csrfToken || ''
+                },
+                body: JSON.stringify({ message }),
+                signal: controller.signal
+            });
+            const payload = await parseJsonResponse(response);
+            if (!response.ok || !payload.success) throw new Error(payload.error || 'تعذر تحليل الرسالة.');
+            applySmartTransferData(payload.parsed || {});
+        } catch (error) {
+            if (error.name !== 'AbortError') {
+                resetSmartTransfer(false);
+                setSmartStatus(error.message || 'تعذر تحليل الرسالة.', 'danger');
+            }
+        } finally {
+            if (smartParseController === controller) {
+                smartParseController = null;
+                if (smartTransferAnalyzeButton) {
+                    smartTransferAnalyzeButton.disabled = false;
+                    smartTransferAnalyzeButton.innerHTML = originalHtml;
+                }
+            }
+        }
+    };
+
+    smartTransferAnalyzeButton?.addEventListener('click', analyzeSmartTransfer);
+    smartTransferMessage?.addEventListener('input', () => {
+        window.clearTimeout(smartParseTimer);
+        if (smartParseController) smartParseController.abort();
+        if (smartTransferMessage.value.trim().length < 3) {
+            resetSmartTransfer(false);
+            return;
+        }
+        smartParseTimer = window.setTimeout(analyzeSmartTransfer, 550);
+    });
+    smartTransferSendButton?.addEventListener('click', () => {
+        if (smartParsedData?.ready) transferForm?.requestSubmit();
+    });
 
     const showFormResult = (element, message, success) => {
         if (!element) return;
@@ -356,6 +493,7 @@
             if (!response.ok || payload.error) throw new Error(payload.error || 'تعذر إرسال العملية.');
             showFormResult(transferResult, `${payload.message || 'تم تسجيل العملية.'} يمكنك متابعتها من سجل المعاملات.`, true);
             clearTransferValues();
+            resetSmartTransfer(true);
             updateCostEstimate();
         } catch (error) {
             showFormResult(transferResult, error.message || 'تعذر إرسال العملية.', false);

@@ -18,7 +18,7 @@ describe('Business portal service', () => {
 
         expect(owner).toMatchObject({ owner: true, manager: true, canManageStaff: true, canManageCustomers: true });
         expect(manager).toMatchObject({ owner: false, manager: true, canManageStaff: false, canManageCustomers: true });
-        expect(employee).toMatchObject({ employee: true, canViewBalance: false, canViewReports: false, canTransfer: true });
+        expect(employee).toMatchObject({ employee: true, canViewBalance: false, canViewReports: true, canTransfer: true });
     });
 
     test('keeps accountants read-only and agent owners fully enabled', () => {
@@ -37,6 +37,16 @@ describe('Business portal service', () => {
         expect(range.start.getHours()).toBe(0);
         expect(range.end.getHours()).toBe(23);
         expect(range.end.getMinutes()).toBe(59);
+    });
+
+    test('ignores requested dates when an employee is restricted to today', () => {
+        const range = resolveDateRange({ from: '2020-01-01', to: '2030-12-31' }, { forceToday: true });
+        const today = new Date();
+        const expected = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+
+        expect(range).toMatchObject({ from: expected, to: expected, label: 'اليوم' });
+        expect(range.start.getHours()).toBe(0);
+        expect(range.end.getHours()).toBe(23);
     });
 
     test('builds role-aware navigation with real standalone routes', () => {

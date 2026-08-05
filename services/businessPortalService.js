@@ -205,7 +205,7 @@ const resolveCompanyPermissions = (actor) => {
         canViewBalance: owner || manager || accountant || actor.canViewAllReports === true,
         canManageCustomers: manager,
         canManageStaff: owner,
-        canViewReports: owner || manager || accountant || actor.canViewAllReports === true,
+        canViewReports: true,
         canEditSettings: owner || manager
     };
 };
@@ -223,7 +223,7 @@ const resolveAgentPermissions = (actor) => {
         canViewBalance: owner || manager || accountant || actor.canViewAllReports === true,
         canManageCustomers: manager,
         canManageStaff: owner || actor.canCreateAgentStaff === true,
-        canViewReports: owner || manager || accountant || actor.canViewAllReports === true,
+        canViewReports: true,
         canEditSettings: owner || manager
     };
 };
@@ -307,7 +307,7 @@ const buildWorkspaceResult = ({ type, actor, entity, actorModel, entityModel, pe
         persona,
         roleLabel,
         entityLabel: type === 'company' ? 'الشركة' : 'الوكيل',
-        portalLabel: type === 'company' ? 'بوابة الشركات' : 'بوابة الوكلاء',
+        portalLabel: permissions.employee ? 'واجهة العميل' : (type === 'company' ? 'بوابة الشركات' : 'بوابة الوكلاء'),
         permissions,
         masterType: type === 'company' ? 'company' : 'user',
         masterId: entity._id,
@@ -459,22 +459,32 @@ const loadOverview = async (workspace) => {
         end: new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999)
     };
     const todayRange = { start: startOfDay(now), end: endOfDay(now) };
+    const canSeeCustomerStats = workspace.permissions.canManageCustomers;
+    const canSeeStaffStats = workspace.permissions.manager || workspace.permissions.accountant;
     const [ownership, customersCount, activeCustomersCount, staffCount, activeStaffCount, pendingRequests] = await Promise.all([
         ownershipFilter(workspace),
-        SubAccount.countDocuments({ masterType: workspace.masterType, masterId: workspace.masterId, status: { $ne: 'deleted' } }),
-        SubAccount.countDocuments({ masterType: workspace.masterType, masterId: workspace.masterId, status: 'active' }),
-        staffModelForWorkspace(workspace).countDocuments(staffOwnerFilter(workspace)),
-        staffModelForWorkspace(workspace).countDocuments({ ...staffOwnerFilter(workspace), status: 'active' }),
-        workspace.isAgent
+        canSeeCustomerStats
+            ? SubAccount.countDocuments({ masterType: workspace.masterType, masterId: workspace.masterId, status: { $ne: 'deleted' } })
+            : Promise.resolve(0),
+        canSeeCustomerStats
+            ? SubAccount.countDocuments({ masterType: workspace.masterType, masterId: workspace.masterId, status: 'active' })
+            : Promise.resolve(0),
+        canSeeStaffStats
+            ? staffModelForWorkspace(workspace).countDocuments(staffOwnerFilter(workspace))
+            : Promise.resolve(0),
+        canSeeStaffStats
+            ? staffModelForWorkspace(workspace).countDocuments({ ...staffOwnerFilter(workspace), status: 'active' })
+            : Promise.resolve(0),
+        workspace.isAgent && canSeeCustomerStats
             ? RegistrationRequest.countDocuments({ accountType: 'new', status: 'pending_agent', agentId: workspace.entity._id })
             : Promise.resolve(0)
     ]);
     const monthFilter = { $and: [ownership, { createdAt: { $gte: monthRange.start, $lte: monthRange.end } }] };
     const todayFilter = { $and: [ownership, { createdAt: { $gte: todayRange.start, $lte: todayRange.end } }] };
     const [monthSummary, todaySummary, recentTransactions] = await Promise.all([
-        summarizeWithAggregation(monthFilter),
+        summarizeWithAggregation(workspace.forceToday ? todayFilter : monthFilter),
         summarizeWithAggregation(todayFilter),
-        Transaction.find(ownership).sort({ createdAt: -1 }).limit(8).lean()
+        Transaction.find(workspace.forceToday ? todayFilter : ownership).sort({ createdAt: -1 }).limit(8).lean()
     ]);
 
     return {
@@ -486,7 +496,7 @@ const loadOverview = async (workspace) => {
         staffCount,
         activeStaffCount,
         pendingRequests,
-        currentMonthLabel: `شهر ${now.getMonth() + 1} / ${now.getFullYear()}`
+        currentMonthLabel: workspace.forceToday ? 'اليوم' : `شهر ${now.getMonth() + 1} / ${now.getFullYear()}`
     };
 };
 
@@ -737,9 +747,15 @@ const loadReports = async (workspace, query = {}) => {
 
 const buildBaseContext = async (req, page, workspace) => {
     const rates = await getSettingsAndRates(workspace);
+    const pageMeta = { ...PAGE_META[page] };
+    if (workspace.forceToday) {
+        if (page === 'overview') Object.assign(pageMeta, { title: 'الرئيسية', eyebrow: 'عمل اليوم' });
+        if (page === 'transactions') Object.assign(pageMeta, { title: 'عمليات اليوم', eyebrow: 'المتابعة اليومية' });
+        if (page === 'reports') Object.assign(pageMeta, { title: 'تقارير اليوم', eyebrow: 'ملخص اليوم الحالي' });
+    }
     return {
         page,
-        pageMeta: PAGE_META[page],
+        pageMeta,
         workspace,
         navigation: buildNavigation(workspace, page),
         statusMeta: STATUS_META,

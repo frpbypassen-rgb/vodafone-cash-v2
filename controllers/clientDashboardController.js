@@ -13,6 +13,7 @@ const { updateBalanceWithLedger } = require('../services/walletService');
 const { getServiceRatesForTier, applyRateMargin } = require('../utils/rateHelper');
 const clientCompanyController = require('./clientCompanyController');
 const clientWorkspaceController = require('./clientWorkspaceController');
+const businessPortalService = require('../services/businessPortalService');
 
 const renderBusinessOverview = clientWorkspaceController.renderPage('overview');
 
@@ -279,6 +280,38 @@ exports.postToggleSubAccount = async (req, res) => {
 
 exports.getApiTransactions = async (req, res) => {
     try {
+        if (req.session.accountType === 'company' || req.session.accountType === 'agent_staff') {
+            const workspace = await businessPortalService.resolveWorkspace(req);
+            const query = { ...req.query };
+            if (!workspace.forceToday) {
+                if (query.month === 'true') {
+                    const now = new Date();
+                    query.month = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+                } else if (!query.date && !query.from && !query.to && !query.month) {
+                    query.date = businessPortalService.formatInputDate(new Date());
+                }
+            }
+
+            const { filter } = await businessPortalService.buildTransactionFilter(
+                workspace,
+                query,
+                { forceToday: workspace.forceToday }
+            );
+            const [transactions, settings] = await Promise.all([
+                Transaction.find(filter).sort({ createdAt: -1 }).limit(40).lean(),
+                Settings.findOne({}).lean()
+            ]);
+            const serviceRates = getServiceRatesForTier(workspace.entity.tier || 1, settings || {});
+
+            return res.json({
+                success: true,
+                transactions,
+                currentRate: serviceRates.vodafone,
+                serviceRates,
+                availableBalance: workspace.permissions.canViewBalance ? Number(workspace.entity.balance || 0) : null
+            });
+        }
+
         const isSubAccount = req.session.accountType === 'sub_client';
         const Model = isSubAccount ? SubAccount : (req.session.accountType === 'company' ? ClientEmployee : User);
         const account = await Model.findById(req.session.clientId);

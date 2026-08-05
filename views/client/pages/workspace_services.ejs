@@ -1,3 +1,36 @@
+<section class="bw-smart-transfer" aria-labelledby="smartTransferTitle">
+    <header class="bw-smart-transfer-head">
+        <div class="bw-smart-transfer-title">
+            <span class="bw-smart-transfer-icon"><i class="fa-solid fa-wand-magic-sparkles"></i></span>
+            <div><span class="bw-section-kicker">إدخال سريع</span><h2 id="smartTransferTitle">مساعد التحويل الذكي</h2></div>
+        </div>
+        <span class="bw-private-chip"><i class="fa-solid fa-shield-halved"></i>معالجة آمنة</span>
+    </header>
+    <div class="bw-smart-transfer-input">
+        <label class="bw-field">
+            <span>رسالة التحويل</span>
+            <textarea id="smartTransferMessage" rows="4" maxlength="2000" placeholder="01012345678 | 1,600 جنيه | ملاحظة: دفعة أحمد"></textarea>
+        </label>
+        <div class="bw-smart-transfer-command">
+            <button type="button" class="bw-button secondary" id="smartTransferAnalyzeButton"><i class="fa-solid fa-bolt"></i>تحليل الرسالة</button>
+            <div class="bw-smart-transfer-status" id="smartTransferStatus" aria-live="polite" hidden></div>
+        </div>
+    </div>
+    <div class="bw-smart-transfer-preview" id="smartTransferPreview" hidden>
+        <div class="bw-smart-preview-grid">
+            <div><span>رقم الهاتف</span><strong class="bw-mono" id="smartPreviewPhone">---</strong></div>
+            <div><span>القيمة بالجنيه</span><strong class="bw-mono" id="smartPreviewAmount">---</strong></div>
+            <div><span>سعر الصرف</span><strong class="bw-mono" id="smartPreviewRate">---</strong></div>
+            <div><span>المقابل بالدينار</span><strong class="bw-mono" id="smartPreviewLyd">---</strong></div>
+            <div class="wide"><span>ملاحظة العميل</span><strong id="smartPreviewNote">لا توجد ملاحظة</strong></div>
+        </div>
+        <div class="bw-smart-preview-actions">
+            <span id="smartPreviewService"><i class="fa-solid fa-mobile-screen-button"></i>محافظ كاش</span>
+            <button type="button" class="bw-button primary" id="smartTransferSendButton" disabled><i class="fa-solid fa-paper-plane"></i>إرسال العملية</button>
+        </div>
+    </div>
+</section>
+
 <section class="bw-service-layout">
     <div class="bw-service-catalog">
         <header class="bw-section-head">
@@ -9,7 +42,7 @@
                 <button type="button" class="bw-service-option <%= servicePage.selectedService === service.key ? 'active' : '' %>" data-service-key="<%= service.key %>" role="listitem" aria-pressed="<%= servicePage.selectedService === service.key ? 'true' : 'false' %>">
                     <span class="bw-service-icon tone-<%= service.tone %>"><i class="fa-solid <%= service.icon %>"></i></span>
                     <span class="bw-service-option-copy"><strong><%= service.label %></strong><small><%= service.description %></small></span>
-                    <span class="bw-service-rate"><strong class="bw-mono"><%= Number(service.rate).toFixed(2) %></strong><small>سعر الصرف</small></span>
+                    <span class="bw-service-rate"><strong class="bw-mono"><span>1 LYD</span><i>=</i><span><%= Number(service.rate).toFixed(2) %> EGP</span></strong><small>سعر الجنيه مقابل الدينار</small></span>
                     <i class="fa-solid fa-circle-check bw-selected-mark"></i>
                 </button>
             <% }) %>
@@ -63,27 +96,34 @@
                     <input type="file" name="idCardImage" id="transferIdentityImage" accept="image/jpeg,image/png,image/webp">
                     <small>JPG أو PNG أو WEBP، بحد أقصى 5MB.</small>
                 </label>
-                <label class="bw-field">
-                    <span>المبلغ بالمصري</span>
-                    <div class="bw-input-affix"><input type="number" name="amount" id="transferAmount" min="1" step="0.01" inputmode="decimal" placeholder="0.00" required><b>EGP</b></div>
-                </label>
-                <label class="bw-field">
-                    <span>المبلغ بالدينار الليبي</span>
-                    <div class="bw-input-affix"><input type="number" id="transferAmountLyd" min="0.01" step="0.01" inputmode="decimal" placeholder="0.00"><b>LYD</b></div>
-                </label>
+                <div class="bw-currency-pair span-2">
+                    <label class="bw-field">
+                        <span>المبلغ بالجنيه المصري</span>
+                        <div class="bw-input-affix"><input type="number" name="amount" id="transferAmount" min="1" step="0.01" inputmode="decimal" placeholder="0.00" required><b>EGP</b></div>
+                    </label>
+                    <div class="bw-fx-bridge" aria-live="polite">
+                        <span>سعر الصرف</span>
+                        <strong class="bw-mono" id="transferRateBridge">1 LYD = 0.00 EGP</strong>
+                        <small>EGP ÷ السعر = LYD</small>
+                    </div>
+                    <label class="bw-field">
+                        <span>المقابل بالدينار الليبي</span>
+                        <div class="bw-input-affix"><input type="number" id="transferAmountLyd" min="0.01" step="0.01" inputmode="decimal" placeholder="0.00"><b>LYD</b></div>
+                    </label>
+                </div>
                 <label class="bw-field span-2">
                     <span>رقم هاتف العميل <em>اختياري</em></span>
                     <input type="text" name="clientPhone" id="transferClientPhone" class="bw-mono" dir="ltr" inputmode="tel" autocomplete="off" maxlength="30" placeholder="رقم هاتف العميل">
                 </label>
                 <label class="bw-field span-2">
                     <span>ملاحظة العميل <em>اختياري</em></span>
-                    <textarea name="notes" rows="3" maxlength="500" placeholder="اكتب الملاحظة التي تريد ظهورها مع العملية فقط"></textarea>
+                    <textarea name="notes" id="transferNotes" rows="3" maxlength="500" placeholder="اكتب الملاحظة التي تريد ظهورها مع العملية فقط"></textarea>
                 </label>
             </div>
 
             <div class="bw-cost-preview">
                 <div><span>الخدمة</span><strong id="costServiceLabel">محافظ كاش</strong></div>
-                <div><span>سعر الصرف</span><strong class="bw-mono" id="costRate">0.00</strong></div>
+                <div><span>سعر الصرف</span><strong class="bw-mono" id="costRate">1 LYD = 0.00 EGP</strong></div>
                 <div><span>التكلفة التقديرية</span><strong class="bw-mono" id="costEstimate">0.000 LYD</strong></div>
             </div>
             <div class="bw-form-result" id="transferFormResult" hidden></div>

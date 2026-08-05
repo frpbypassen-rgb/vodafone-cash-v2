@@ -20,6 +20,7 @@ const { createDepositReceiptProof } = require('../services/depositReceiptService
 const { buildClientReceiptImages } = require('../services/clientReceiptService');
 const { logAction } = require('../services/auditService');
 const { customerNoteFromTransaction } = require('../utils/transactionNotes');
+const { parseTransferMessage } = require('../utils/smartTransferParser');
 
 const USERNAME_DOMAIN = '@ahram.com';
 
@@ -384,7 +385,12 @@ exports.getTransactionDetails = async (req, res) => {
     try {
         const workspace = await businessPortalService.resolveWorkspace(req);
         const ownership = await businessPortalService.ownershipFilter(workspace);
-        const transaction = await Transaction.findOne({ $and: [ownership, { _id: req.params.id }] }).lean();
+        const conditions = [ownership, { _id: req.params.id }];
+        if (workspace.forceToday) {
+            const range = businessPortalService.resolveDateRange({}, { forceToday: true });
+            conditions.push({ createdAt: { $gte: range.start, $lte: range.end } });
+        }
+        const transaction = await Transaction.findOne({ $and: conditions }).lean();
         if (!transaction) return res.status(404).json({ success: false, error: 'العملية غير موجودة.' });
         const receiptImages = buildClientReceiptImages(transaction);
 
@@ -423,6 +429,29 @@ exports.getTransactionDetails = async (req, res) => {
     }
 };
 
+exports.parseSmartTransferMessage = async (req, res) => {
+    try {
+        const workspace = await businessPortalService.resolveWorkspace(req);
+        if (!workspace.permissions.canTransfer) {
+            return res.status(403).json({ success: false, error: 'ليس لديك صلاحية إنشاء التحويلات.' });
+        }
+
+        const message = cleanText(req.body.message, 2000);
+        if (message.length < 3) {
+            return res.status(400).json({ success: false, error: 'أدخل رسالة التحويل أولاً.' });
+        }
+
+        return res.json({ success: true, parsed: parseTransferMessage(message) });
+    } catch (error) {
+        const statusCode = error.statusCode === 401 ? 401 : 500;
+        console.error('[Business Portal] smart transfer parse failed:', error.message);
+        return res.status(statusCode).json({
+            success: false,
+            error: statusCode === 401 ? 'انتهت الجلسة. سجل الدخول مرة أخرى.' : 'تعذر تحليل رسالة التحويل.'
+        });
+    }
+};
+
 const csvValue = (value) => `"${String(value ?? '').replace(/"/g, '""')}"`;
 
 exports.exportReportCsv = async (req, res) => {
@@ -430,21 +459,23 @@ exports.exportReportCsv = async (req, res) => {
         const workspace = await businessPortalService.resolveWorkspace(req);
         if (!workspace.permissions.canViewReports) return res.status(403).send('Forbidden');
         const report = await businessPortalService.loadReports(workspace, req.query);
-        const headers = ['البند', 'إجمالي العمليات', 'الناجحة', 'قيد التنفيذ', 'الملغية', 'إجمالي EGP', 'إجمالي LYD', 'الإيداعات', 'الخصومات', 'آخر حركة'];
+        const canViewBalance = workspace.permissions.canViewBalance;
+        const headers = canViewBalance
+            ? ['البند', 'إجمالي العمليات', 'الناجحة', 'قيد التنفيذ', 'الملغية', 'إجمالي EGP', 'إجمالي LYD', 'الإيداعات', 'الخصومات', 'آخر حركة']
+            : ['البند', 'إجمالي العمليات', 'الناجحة', 'قيد التنفيذ', 'الملغية', 'إجمالي EGP', 'آخر حركة'];
         const lines = [headers.map(csvValue).join(',')];
         report.reportRows.forEach((row) => {
-            lines.push([
+            const values = [
                 row.key,
                 row.totalCount,
                 row.completedCount,
                 row.pendingCount,
                 row.cancelledCount,
-                row.totalEGP,
-                row.totalLYD,
-                row.deposits,
-                row.deductions,
-                row.lastActivity ? new Date(row.lastActivity).toISOString() : ''
-            ].map(csvValue).join(','));
+                row.totalEGP
+            ];
+            if (canViewBalance) values.push(row.totalLYD, row.deposits, row.deductions);
+            values.push(row.lastActivity ? new Date(row.lastActivity).toISOString() : '');
+            lines.push(values.map(csvValue).join(','));
         });
         const fileName = `portal-report-${report.reportScope}-${Date.now()}.csv`;
         res.setHeader('Content-Type', 'text/csv; charset=utf-8');

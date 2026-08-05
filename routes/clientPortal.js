@@ -155,6 +155,7 @@ router.get('/reports', requireClientAuth, clientWorkspaceController.renderPage('
 router.get('/settings', requireClientAuth, clientWorkspaceController.renderPage('settings'));
 router.get('/reports/export.csv', requireClientAuth, clientWorkspaceController.exportReportCsv);
 router.get('/transactions/:id/details', requireClientAuth, clientWorkspaceController.getTransactionDetails);
+router.post('/api/smart-transfer/parse', requireClientAuth, clientWorkspaceController.parseSmartTransferMessage);
 router.post('/customers/add', requireClientAuth, clientWorkspaceController.postCreateCustomer);
 router.post('/customers/:id/toggle', requireClientAuth, clientWorkspaceController.postToggleCustomer);
 router.post('/customers/:id/balance', requireClientAuth, clientWorkspaceController.postAdjustCustomerBalance);

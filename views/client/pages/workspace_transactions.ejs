@@ -6,6 +6,8 @@
         <% if (!workspace.forceToday) { %>
             <label><span>من</span><input type="date" name="from" value="<%= filters.from %>"></label>
             <label><span>إلى</span><input type="date" name="to" value="<%= filters.to %>"></label>
+        <% } else { %>
+            <span class="bw-meta-chip"><i class="fa-regular fa-calendar-check"></i>اليوم فقط</span>
         <% } %>
         <button type="submit" class="bw-button primary compact"><i class="fa-solid fa-filter"></i>تطبيق</button>
         <a href="/client/transactions" class="bw-icon-button" title="مسح الفلاتر" aria-label="مسح الفلاتر"><i class="fa-solid fa-rotate-left"></i></a>
