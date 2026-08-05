@@ -35,6 +35,7 @@
         .type-TRANSFER { background: rgba(59,130,246,.12); color: #3b82f6; }
         .type-COMMISSION { background: rgba(212,175,55,.14); color: var(--brand-gold); }
         .type-REFUND { background: rgba(148,163,184,.16); color: #94a3b8; }
+        .type-REVERSAL { background: rgba(6,182,212,.13); color: #06b6d4; }
         .amount-in { color: #10b981; font-weight: 900; }
         .amount-out { color: #ef4444; font-weight: 900; }
         .muted-line { color: var(--text-muted); font-size: .75rem; font-weight: 700; }
@@ -70,7 +71,7 @@
         });
         return params.toString();
     };
-    const typeLabels = { DEPOSIT: 'إيداع', DEDUCTION: 'خصم', TRANSFER: 'تحويل', COMMISSION: 'عمولة', REFUND: 'استرجاع' };
+    const typeLabels = { DEPOSIT: 'إيداع', DEDUCTION: 'خصم', TRANSFER: 'تحويل', COMMISSION: 'عمولة', REFUND: 'استرجاع', REVERSAL: 'عكس قيد' };
     const entityLabels = { User: 'عميل فردي', ClientCompany: 'شركة', ClientBot: 'تاجر API', SubAccount: 'نقطة بيع', ExecutorBot: 'منفذ', ExecutorGroup: 'منفذ' };
     const statusLabels = { pending: 'معلقة', processing: 'قيد التنفيذ', accepted: 'مقبولة', completed: 'ناجحة', rejected: 'ملغية', cancelled_by_admin: 'ملغية من الإدارة', deposit: 'إيداع', deduction: 'خصم', deposit_pending: 'طلب إيداع' };
 %>

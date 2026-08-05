@@ -433,7 +433,7 @@ const executeSettlement = async (req, res) => {
             type === 'deposit' ? 'DEPOSIT' : 'DEDUCTION',
             txId,
             type === 'deposit' ? `تمويل نقطة بيع (${sub.name})` : `سحب رصيد من نقطة بيع (${sub.name})`,
-            { minBalance: 0, session }
+            { minBalance: 0, allowNegative: true, session }
         );
 
         const updatedSub = await withSession(SubAccount.findById(sub._id), session);
@@ -451,7 +451,13 @@ const executeSettlement = async (req, res) => {
             companyName: 'تسوية وكيل',
             employeeName: agent.name,
             idempotencyKey,
-            idempotencyFingerprint
+            idempotencyFingerprint,
+            balanceAdjustment: {
+                entityModel: 'SubAccount',
+                entityId: sub._id,
+                delta: type === 'deposit' ? val : -val,
+                reversible: true
+            }
         }], { session });
         const newTx = Array.isArray(created) ? created[0] : created;
 

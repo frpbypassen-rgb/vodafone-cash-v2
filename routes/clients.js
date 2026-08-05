@@ -5,12 +5,15 @@ const mongoose = require('mongoose');
 const User = require('../models/User');
 const ClientCompany = require('../models/ClientCompany');
 const Transaction = require('../models/Transaction');
+const Ledger = require('../models/Ledger');
 const ClientEmployee = require('../models/ClientEmployee');
 const SubAccount = require('../models/SubAccount');
 const { requireAuth, requireMaster } = require('../middlewares/auth');
 const { updateBalanceWithLedger, isMongoTransactionFallbackError } = require('../services/walletService');
-const { notifyBalanceAdjustment } = require('../services/clientNotificationService');
+const { createClientNotifications, notifyBalanceAdjustment } = require('../services/clientNotificationService');
 const { createDepositReceiptProof } = require('../services/depositReceiptService');
+const { voidBalanceAdjustment } = require('../services/balanceAdjustmentService');
+const { logAction } = require('../services/auditService');
 const {
     CODE_LENGTHS,
     expectedUserCodeLength,
@@ -78,14 +81,17 @@ const createManualAdjustmentId = (amount) => {
 };
 
 const runDbTransaction = async (callback) => {
-    const session = await mongoose.startSession();
+    let session;
     try {
+        session = await mongoose.startSession();
         session.startTransaction();
         const result = await callback(session);
         await session.commitTransaction();
         return result;
     } catch (error) {
-        try { await session.abortTransaction(); } catch (_) {}
+        if (session) {
+            try { await session.abortTransaction(); } catch (_) {}
+        }
         const message = error.message || '';
         if (
             isMongoTransactionFallbackError(error) ||
@@ -95,7 +101,7 @@ const runDbTransaction = async (callback) => {
         }
         throw error;
     } finally {
-        session.endSession();
+        if (session) session.endSession();
     }
 };
 
@@ -123,6 +129,21 @@ const attachBalanceAdjustmentReceipt = async ({ tx, account, amount, balanceAfte
     tx.proofImages = [proofId];
     await tx.save(session ? { session } : {});
     return proofId;
+};
+
+const reversibleSettlementIds = async ({ transactions, entityModel, entityId }) => {
+    const candidates = transactions
+        .filter((tx) => ['deposit', 'deduction'].includes(tx.status) && tx.customId)
+        .map((tx) => tx.customId);
+    if (!candidates.length) return [];
+
+    const ledgers = await Ledger.find({
+        transactionId: { $in: candidates },
+        entityModel,
+        entityId,
+        type: { $in: ['DEPOSIT', 'DEDUCTION'] }
+    }).select('transactionId').lean();
+    return [...new Set(ledgers.map((entry) => entry.transactionId))];
 };
 
 router.get('/clients', requireAuth, async (req, res) => {
@@ -186,22 +207,24 @@ router.get('/user/:id', requireAuth, async (req, res) => {
     const user = await User.findOne({ _id: req.params.id, ...visibleAccountFilter });
     if (!user) return res.redirect('/clients?deleteError=notfound');
     const transactions = await Transaction.find({ userId: user.phone || user.webUsername, companyId: null }).sort({ createdAt: -1 }).limit(50);
+    const reversibleSettlements = await reversibleSettlementIds({ transactions, entityModel: 'User', entityId: user._id });
     const hasSubAccounts = await SubAccount.exists({ masterType: 'user', masterId: user._id, ...visibleAccountFilter });
-    res.render('user_details', { user, transactions, accountCodeLength: expectedUserCodeLength(user, Boolean(hasSubAccounts)), query: req.query });
+    res.render('user_details', { user, transactions, reversibleSettlements, accountCodeLength: expectedUserCodeLength(user, Boolean(hasSubAccounts)), query: req.query });
 });
 
 router.get('/company/:id', requireAuth, async (req, res) => {
     const company = await ClientCompany.findOne({ _id: req.params.id, ...visibleAccountFilter });
     if (!company) return res.redirect('/clients?deleteError=notfound');
     const transactions = await Transaction.find({ companyId: company._id }).sort({ createdAt: -1 }).limit(50);
-    res.render('company_details', { company, transactions, accountCodeLength: CODE_LENGTHS.company, query: req.query });
+    const reversibleSettlements = await reversibleSettlementIds({ transactions, entityModel: 'ClientCompany', entityId: company._id });
+    res.render('company_details', { company, transactions, reversibleSettlements, accountCodeLength: CODE_LENGTHS.company, query: req.query });
 });
 
 router.post('/user/:id/add-balance', requireAuth, async (req, res) => {
     try {
         const amount = parseFloat(req.body.amount);
         const notes = req.body.notes ? req.body.notes.trim() : '';
-        if (isNaN(amount) || amount === 0) return res.redirect(`/user/${req.params.id}?balanceError=invalid`);
+        if (!Number.isFinite(amount) || amount === 0) return res.redirect(`/user/${req.params.id}?balanceError=invalid`);
 
         const { user, tx, balanceAfter } = await runDbTransaction(async (session) => {
             const accountQuery = User.findById(req.params.id);
@@ -213,7 +236,7 @@ router.post('/user/:id/add-balance', requireAuth, async (req, res) => {
             const status = amount > 0 ? 'deposit' : 'deduction';
             const description = `${amount > 0 ? 'Admin deposit' : 'Admin deduction'} for user ${account.name || account.webUsername || account.phone}`;
 
-            const balanceOptions = { minBalance: 0 };
+            const balanceOptions = { minBalance: 0, allowNegative: true };
             if (session) balanceOptions.session = session;
             const balanceResult = await updateBalanceWithLedger('User', account._id, amount, type, customId, description, balanceOptions);
 
@@ -226,7 +249,13 @@ router.post('/user/:id/add-balance', requireAuth, async (req, res) => {
                 customId,
                 companyName: 'عميل فردي',
                 employeeName: amount > 0 ? 'الإدارة (إيداع)' : 'الإدارة (خصم)',
-                notes
+                notes,
+                balanceAdjustment: {
+                    entityModel: 'User',
+                    entityId: account._id,
+                    delta: amount,
+                    reversible: true
+                }
             }], session ? { session } : {});
 
             await attachBalanceAdjustmentReceipt({
@@ -252,7 +281,7 @@ router.post('/user/:id/add-balance', requireAuth, async (req, res) => {
         const io = req.app && req.app.get('io');
         if (io) io.emit('update_data');
 
-        return res.redirect(`/user/${user._id}`);
+        return res.redirect(`/user/${user._id}?balanceSaved=${amount > 0 ? 'deposit' : 'deduction'}`);
     } catch (e) {
         console.error('[clients/add-balance:user] failed:', e.stack || e.message);
         return res.redirect(`/user/${req.params.id}?balanceError=${balanceErrorQuery(e)}`);
@@ -325,7 +354,7 @@ router.post('/company/:id/add-balance', requireAuth, async (req, res) => {
     try {
         const amount = parseFloat(req.body.amount);
         const notes = req.body.notes ? req.body.notes.trim() : '';
-        if (isNaN(amount) || amount === 0) return res.redirect(`/company/${req.params.id}?balanceError=invalid`);
+        if (!Number.isFinite(amount) || amount === 0) return res.redirect(`/company/${req.params.id}?balanceError=invalid`);
 
         const { company, tx, balanceAfter } = await runDbTransaction(async (session) => {
             const accountQuery = ClientCompany.findById(req.params.id);
@@ -337,7 +366,7 @@ router.post('/company/:id/add-balance', requireAuth, async (req, res) => {
             const status = amount > 0 ? 'deposit' : 'deduction';
             const description = `${amount > 0 ? 'Admin deposit' : 'Admin deduction'} for company ${account.name || account._id}`;
 
-            const balanceOptions = { minBalance: 0 };
+            const balanceOptions = { minBalance: 0, allowNegative: true };
             if (session) balanceOptions.session = session;
             const balanceResult = await updateBalanceWithLedger('ClientCompany', account._id, amount, type, customId, description, balanceOptions);
 
@@ -351,7 +380,13 @@ router.post('/company/:id/add-balance', requireAuth, async (req, res) => {
                 customId,
                 companyName: account.name,
                 employeeName: amount > 0 ? 'الإدارة (إيداع)' : 'الإدارة (خصم)',
-                notes
+                notes,
+                balanceAdjustment: {
+                    entityModel: 'ClientCompany',
+                    entityId: account._id,
+                    delta: amount,
+                    reversible: true
+                }
             }], session ? { session } : {});
 
             await attachBalanceAdjustmentReceipt({
@@ -377,10 +412,72 @@ router.post('/company/:id/add-balance', requireAuth, async (req, res) => {
         const io = req.app && req.app.get('io');
         if (io) io.emit('update_data');
 
-        return res.redirect(`/company/${company._id}`);
+        return res.redirect(`/company/${company._id}?balanceSaved=${amount > 0 ? 'deposit' : 'deduction'}`);
     } catch (e) {
         console.error('[clients/add-balance:company] failed:', e.stack || e.message);
         return res.redirect(`/company/${req.params.id}?balanceError=${balanceErrorQuery(e)}`);
+    }
+});
+
+router.post('/transaction/:id/void-balance-adjustment', requireAuth, async (req, res) => {
+    try {
+        const performedBy = req.session.adminName || req.session.adminUsername || 'الإدارة';
+        const result = await voidBalanceAdjustment({
+            transactionId: req.params.id,
+            performedBy,
+            reason: req.body.reason || 'حذف التسوية من الإدارة'
+        });
+        const originalStatus = result.transaction.balanceAdjustment?.originalStatus;
+        const originalLabel = originalStatus === 'deposit' ? 'الإيداع' : 'الخصم';
+
+        await createClientNotifications({
+            accountModel: result.entityModel,
+            account: result.account,
+            title: `إلغاء ${originalLabel}`,
+            message: `تم إلغاء حركة ${originalLabel} رقم ${result.transaction.customId}. الرصيد الحالي: ${Number(result.balanceAfter).toFixed(2)} LYD. رقم الإلغاء: ${result.voidNumber}.`,
+            type: 'system_alert',
+            txId: result.transaction.customId,
+            metadata: {
+                voidNumber: result.voidNumber,
+                reversalDelta: result.reversalDelta,
+                balanceAfter: result.balanceAfter
+            }
+        }).catch(() => {});
+
+        await logAction({
+            action: 'BALANCE_ADJUSTMENT_VOIDED',
+            req,
+            performedById: req.session.adminId,
+            performedByModel: 'Admin',
+            performedByName: performedBy,
+            targetId: result.entityId,
+            targetModel: result.entityModel,
+            oldData: { status: originalStatus, balance: result.balanceBefore },
+            newData: { status: 'cancelled_by_admin', balance: result.balanceAfter },
+            result: 'ناجح',
+            metadata: {
+                transactionId: result.transaction.customId,
+                voidNumber: result.voidNumber,
+                reversalDelta: result.reversalDelta
+            }
+        });
+
+        const io = req.app?.get('io');
+        if (io) io.emit('update_data');
+
+        if (result.entityModel === 'User') return res.redirect(`/user/${result.entityId}?settlementVoided=1`);
+        if (result.entityModel === 'ClientCompany') return res.redirect(`/company/${result.entityId}?settlementVoided=1`);
+        return res.redirect('/transactions?filterType=deposit_deduction&settlementVoided=1');
+    } catch (error) {
+        console.error('[clients/void-balance-adjustment] failed:', error.stack || error.message);
+        const knownErrors = {
+            ADJUSTMENT_NOT_FOUND: 'notfound',
+            ADJUSTMENT_ALREADY_VOIDED: 'already',
+            ADJUSTMENT_NOT_REVERSIBLE: 'unsupported',
+            ADJUSTMENT_LEDGER_NOT_FOUND: 'unsupported',
+            ADJUSTMENT_VOID_CONFLICT: 'conflict'
+        };
+        return res.redirect(`/transactions?filterType=deposit_deduction&voidError=${knownErrors[error.message] || 'failed'}`);
     }
 });
 

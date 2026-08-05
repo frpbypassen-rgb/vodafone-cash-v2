@@ -7,7 +7,7 @@ const Transaction = require('../models/Transaction');
 const { requireAuth } = require('../middlewares/auth');
 const { escapeRegex } = require('../middlewares/sanitize');
 
-const MOVEMENT_TYPES = ['DEPOSIT', 'DEDUCTION', 'TRANSFER', 'COMMISSION', 'REFUND'];
+const MOVEMENT_TYPES = ['DEPOSIT', 'DEDUCTION', 'TRANSFER', 'COMMISSION', 'REFUND', 'REVERSAL'];
 const ENTITY_MODELS = ['User', 'ClientCompany', 'ClientBot', 'SubAccount', 'ExecutorBot', 'ExecutorGroup'];
 const SORT_FIELDS = new Set(['createdAt', 'amount', 'balanceBefore', 'balanceAfter', 'type', 'entityModel']);
 

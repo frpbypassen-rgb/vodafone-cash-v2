@@ -282,6 +282,13 @@
             </a>
         </div>
 
+        <% if (query && query.settlementVoided) { %>
+            <div class="alert alert-info fw-bold rounded-3"><i class="fa-solid fa-rotate-left me-1"></i> تم حذف أثر التسوية من الرصيد، مع الاحتفاظ بالقيد الأصلي وحركة العكس في السجل المالي.</div>
+        <% } %>
+        <% if (query && query.voidError) { %>
+            <div class="alert alert-danger fw-bold rounded-3"><i class="fa-solid fa-triangle-exclamation me-1"></i> تعذر حذف التسوية أو سبق إلغاؤها. راجع القيد المالي ثم أعد المحاولة.</div>
+        <% } %>
+
         <div class="mobile-summary-strip d-lg-none mb-3">
             <div class="mobile-summary-item">
                 <span class="mobile-summary-label">التحويلات</span>
@@ -478,6 +485,7 @@
                         <% transactions.forEach(tx => {
                             const noteView = splitTxNotesForView(tx);
                             const apiLog = apiLogForView(tx);
+                            const canVoidBalanceAdjustment = ['deposit', 'deduction'].includes(tx.status) && Boolean(tx.balanceAdjustment && tx.balanceAdjustment.reversible);
                         %>
                             <tr style="<%= tx.status === 'deposit_pending' ? 'background: rgba(245, 158, 11, 0.05);' : (tx.status === 'deposit' ? 'background: rgba(16, 185, 129, 0.05);' : (tx.status === 'deduction' ? 'background: rgba(239, 68, 68, 0.05);' : '')) %>">
                             
@@ -598,6 +606,12 @@
                                         <% } %>
                                         
                                         <% if(['pending', 'processing', 'accepted', 'completed', 'deposit', 'deduction', 'rejected'].includes(tx.status)) { %>
+                                            <% if (canVoidBalanceAdjustment) { %>
+                                                <form action="/transaction/<%= tx._id %>/void-balance-adjustment" method="POST" class="m-0" onsubmit="return confirm('هل تريد حذف هذه التسوية؟ سيتم عكس أثرها من الرصيد مع الاحتفاظ بها في السجل المالي.');">
+                                                    <input type="hidden" name="reason" value="حذف التسوية من السجل المركزي">
+                                                    <button type="submit" class="btn-action-sm undo" title="حذف التسوية وعكس الرصيد" aria-label="حذف التسوية وعكس الرصيد"><i class="fa-solid fa-trash-can"></i></button>
+                                                </form>
+                                            <% } %>
                                              
                                             <% if (apiLog) { %>
                                                 <button class="btn-action-sm api-log" data-log="<%= encodeURIComponent(apiLog) %>" onclick="showApiLog(this)" title="سجل Terminal للـ API"><i class="fa-solid fa-terminal"></i></button>
@@ -652,6 +666,7 @@
                     let displayClass = isPendingGroup ? 'mobile-card-pending' : 'mobile-card-completed';
                     const mobileNoteView = splitTxNotesForView(tx);
                     const mobileApiLog = apiLogForView(tx);
+                    const canVoidMobileAdjustment = ['deposit', 'deduction'].includes(tx.status) && Boolean(tx.balanceAdjustment && tx.balanceAdjustment.reversible);
                 %>
                     <div class="data-card mb-3 p-3 mobile-tx-card <%= displayClass %>" 
                           data-status="<%= tx.status %>"
@@ -709,7 +724,7 @@
                         const hasApiLog = Boolean(mobileApiLog);
                         const isPendingOrProcessing = ['pending', 'processing', 'accepted'].includes(tx.status);
                         const canGlobalCancel = ['pending', 'processing', 'accepted', 'completed'].includes(tx.status) && tx.transferType !== 'balance_transfer';
-                        if (isPendingOrProcessing || hasApiLog || canGlobalCancel) {
+                        if (isPendingOrProcessing || hasApiLog || canGlobalCancel || canVoidMobileAdjustment) {
                         %>
                             <div class="d-flex gap-2 mt-3 pt-2" style="border-top: 1px dashed var(--border-glass);">
                                 <% if(tx.status === 'pending') { %>
@@ -743,6 +758,13 @@
                                     <form action="/transaction/<%= tx._id %>/global-cancel" method="POST" class="m-0" onsubmit="return promptGlobalCancel(this)">
                                         <input type="hidden" name="reason" class="cancel-reason-input">
                                         <button type="submit" class="btn btn-sm fw-bold rounded-3 px-3" style="background: rgba(239, 68, 68, 0.1); color: #ef4444; border: 1px solid rgba(239, 68, 68, 0.2);" title="إلغاء العملية"><i class="fa-solid fa-ban"></i></button>
+                                    </form>
+                                <% } %>
+
+                                <% if (canVoidMobileAdjustment) { %>
+                                    <form action="/transaction/<%= tx._id %>/void-balance-adjustment" method="POST" class="m-0 flex-fill" onsubmit="return confirm('هل تريد حذف هذه التسوية؟ سيتم عكس أثرها من الرصيد مع الاحتفاظ بها في السجل المالي.');">
+                                        <input type="hidden" name="reason" value="حذف التسوية من السجل المركزي">
+                                        <button type="submit" class="btn btn-sm btn-outline-danger fw-bold rounded-3 w-100"><i class="fa-solid fa-trash-can me-1"></i> حذف التسوية</button>
                                     </form>
                                 <% } %>
 

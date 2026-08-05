@@ -20,22 +20,23 @@ const isMongoTransactionFallbackError = (error) => {
  * @param {string} entityModel  - اسم النموذج (User / ClientBot / SubAccount / ExecutorBot)
  * @param {string} entityId     - معرّف الحساب
  * @param {number} amount       - المبلغ (موجب = إيداع، سالب = خصم)
- * @param {string} type         - نوع العملية (DEPOSIT / DEDUCTION / TRANSFER / COMMISSION / REFUND)
+ * @param {string} type         - نوع العملية (DEPOSIT / DEDUCTION / TRANSFER / COMMISSION / REFUND / REVERSAL)
  * @param {string} transactionId - رقم الفاتورة المرتبطة
  * @param {string} description  - بيان العملية
  * @param {Object} [options]
  * @param {number} [options.minBalance=0]  - الحد الأدنى المطلوب للرصيد قبل الخصم
+ * @param {boolean} [options.allowNegative=false] - يسمح بتجاوز الصفر للتسويات الإدارية فقط
  * @param {Object} [options.session]       - جلسة MongoDB موجودة (للعمليات المركبة)
  * @returns {Promise<{success: boolean, balanceAfter: number}>}
  */
 const updateBalanceWithLedger = async (entityModel, entityId, amount, type, transactionId, description, options = {}) => {
-    const { minBalance = 0, session: externalSession } = options;
+    const { minBalance = 0, allowNegative = false, session: externalSession } = options;
     const Model = mongoose.model(entityModel);
 
     // ── المسار الرئيسي: استخدام Transaction ذري ──────────────────────
     const runWithSession = async (session) => {
         // ✅ قفل ذري: يشترط وجود رصيد كافٍ قبل التعديل في عملية واحدة
-        const filter = amount < 0
+        const filter = amount < 0 && !allowNegative
             ? { _id: entityId, balance: { $gte: minBalance + Math.abs(amount) } }
             : { _id: entityId };
 
@@ -46,7 +47,7 @@ const updateBalanceWithLedger = async (entityModel, entityId, amount, type, tran
         );
 
         if (!account) {
-            throw new Error(amount < 0 ? 'INSUFFICIENT_BALANCE' : 'ACCOUNT_NOT_FOUND');
+            throw new Error(amount < 0 && !allowNegative ? 'INSUFFICIENT_BALANCE' : 'ACCOUNT_NOT_FOUND');
         }
 
         const balanceBefore = account.balance - amount;
@@ -90,7 +91,7 @@ const updateBalanceWithLedger = async (entityModel, entityId, amount, type, tran
         // 🛡️ وضع بديل للسيرفر المحلي الذي لا يدعم Transactions (Replica Set مطلوب)
         if (isMongoTransactionFallbackError(error)) {
             console.warn(`⚠️ [WalletService] السيرفر لا يدعم Transactions. تفعيل الوضع البديل للعملية: ${transactionId}`);
-            return executeFallback(Model, entityId, amount, type, transactionId, description, minBalance);
+            return executeFallback(Model, entityId, amount, type, transactionId, description, minBalance, allowNegative);
         }
 
         throw error;
@@ -101,9 +102,9 @@ const updateBalanceWithLedger = async (entityModel, entityId, amount, type, tran
  * الوضع البديل — يُستخدم فقط عند تعذّر Transactions
  * يستخدم findOneAndUpdate الذري لضمان عدم تكرار العملية
  */
-const executeFallback = async (Model, entityId, amount, type, transactionId, description, minBalance) => {
+const executeFallback = async (Model, entityId, amount, type, transactionId, description, minBalance, allowNegative = false) => {
     // ✅ قفل ذري: نفس الحماية من خلال شرط الرصيد في الـ filter
-    const filter = amount < 0
+    const filter = amount < 0 && !allowNegative
         ? { _id: entityId, balance: { $gte: minBalance + Math.abs(amount) } }
         : { _id: entityId };
 
@@ -114,7 +115,7 @@ const executeFallback = async (Model, entityId, amount, type, transactionId, des
     );
 
     if (!account) {
-        throw new Error(amount < 0 ? 'INSUFFICIENT_BALANCE' : 'ACCOUNT_NOT_FOUND');
+        throw new Error(amount < 0 && !allowNegative ? 'INSUFFICIENT_BALANCE' : 'ACCOUNT_NOT_FOUND');
     }
 
     const balanceBefore = account.balance - amount;

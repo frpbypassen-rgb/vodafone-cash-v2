@@ -221,7 +221,7 @@ exports.postAdjustCustomerBalance = async (req, res) => {
                 operation === 'deposit' ? 'DEPOSIT' : 'DEDUCTION',
                 transactionId,
                 note || (operation === 'deposit' ? `تمويل العميل ${customer.name}` : `سحب من رصيد العميل ${customer.name}`),
-                { minBalance: 0, ...(session ? { session } : {}) }
+                { minBalance: 0, allowNegative: true, ...(session ? { session } : {}) }
             );
 
             const [transaction] = await Transaction.create([{
@@ -238,7 +238,13 @@ exports.postAdjustCustomerBalance = async (req, res) => {
                 costLYD: 0,
                 status: operation === 'deposit' ? 'deposit' : 'deduction',
                 notes: note,
-                adminNotes: operation === 'deposit' ? 'تمويل عميل تابع' : 'سحب من عميل تابع'
+                adminNotes: operation === 'deposit' ? 'تمويل عميل تابع' : 'سحب من عميل تابع',
+                balanceAdjustment: {
+                    entityModel: 'SubAccount',
+                    entityId: customer._id,
+                    delta,
+                    reversible: true
+                }
             }], session ? { session } : {});
 
             const proofId = createDepositReceiptProof({

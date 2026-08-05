@@ -127,5 +127,30 @@ describe('Wallet Service Deep Tests', () => {
             updateBalanceWithLedger('User', 'user1', -200, 'TRANSFER', 'TX-001', 'خصم سيفشل في البديل')
         ).rejects.toThrow('INSUFFICIENT_BALANCE');
     });
+
+    test('يسمح للتسوية الإدارية بتجاوز الصفر عند تفعيل allowNegative', async () => {
+        mockModel.findOneAndUpdate.mockResolvedValue({
+            _id: 'user1',
+            balance: -50
+        });
+
+        const result = await updateBalanceWithLedger(
+            'User',
+            'user1',
+            -150,
+            'DEDUCTION',
+            'DED-NEGATIVE',
+            'خصم إداري يسمح بالرصيد السالب',
+            { allowNegative: true }
+        );
+
+        expect(result.balanceBefore).toBe(100);
+        expect(result.balanceAfter).toBe(-50);
+        expect(mockModel.findOneAndUpdate).toHaveBeenCalledWith(
+            { _id: 'user1' },
+            { $inc: { balance: -150 } },
+            { new: true, session: mockSession }
+        );
+    });
 });
 

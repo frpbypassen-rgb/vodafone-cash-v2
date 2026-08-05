@@ -176,7 +176,8 @@ router.get('/transactions', async (req, res) => {
             fromDate, 
             toDate, 
             filterType,
-            totals 
+            totals,
+            query: req.query
         });
     } catch (e) {
         console.error('[adminTransactions/GET transactions] خطأ:', e.message);

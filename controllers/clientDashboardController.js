@@ -229,17 +229,17 @@ exports.postSettleSubAccount = async (req, res) => {
     try {
         const sub = await SubAccount.findById(req.params.id);
         if(sub) {
-            if (type === 'withdraw' && sub.balance < val) return res.redirect('/client/sub-accounts?error=funds');
-
             const txId = `SET-${Date.now().toString().slice(-6)}`;
+            const delta = type === 'add' ? val : -val;
 
             await updateBalanceWithLedger(
                 'SubAccount',
                 sub._id,
-                type === 'add' ? val : -val,
+                delta,
                 type === 'add' ? 'DEPOSIT' : 'DEDUCTION',
                 txId,
-                type === 'add' ? `تمويل نقطة بيع (${sub.name})` : `سحب رصيد من نقطة بيع (${sub.name})`
+                type === 'add' ? `تمويل نقطة بيع (${sub.name})` : `سحب رصيد من نقطة بيع (${sub.name})`,
+                { allowNegative: true }
             );
 
             let parentUserId = null, parentClientCompanyId = null, empName = 'الوكيل';
@@ -247,7 +247,20 @@ exports.postSettleSubAccount = async (req, res) => {
             else { const user = await User.findById(req.session.clientId); parentUserId = user.phone || user.webUsername; empName = user.name; }
 
             const adminNotes = type === 'add' ? `تمويل نقطة بيع (${sub.name})` : `سحب رصيد من نقطة بيع (${sub.name})`;
-            await Transaction.create({ customId: txId, subAccountId: sub._id, userId: parentUserId, companyId: parentClientCompanyId, amount: Math.abs(val), costLYD: 0, status: type === 'add' ? 'deposit' : 'deduction', notes: '', adminNotes, companyName: 'تسوية وكيل', employeeName: empName });
+            await Transaction.create({
+                customId: txId,
+                subAccountId: sub._id,
+                userId: parentUserId,
+                companyId: parentClientCompanyId,
+                amount: Math.abs(val),
+                costLYD: 0,
+                status: type === 'add' ? 'deposit' : 'deduction',
+                notes: '',
+                adminNotes,
+                companyName: 'تسوية وكيل',
+                employeeName: empName,
+                balanceAdjustment: { entityModel: 'SubAccount', entityId: sub._id, delta, reversible: true }
+            });
         }
         res.redirect('/client/sub-accounts');
     } catch(e) { res.redirect('/client/sub-accounts?error=db'); }

@@ -40,6 +40,18 @@ const transactionSchema = new mongoose.Schema({
         clientPhone: { type: String, trim: true },
         destinationLabel: { type: String, trim: true }
     },
+    balanceAdjustment: {
+        entityModel: { type: String, trim: true },
+        entityId: { type: mongoose.Schema.Types.ObjectId },
+        delta: { type: Number },
+        reversible: { type: Boolean, default: false },
+        originalStatus: { type: String, trim: true },
+        voidedAt: { type: Date },
+        voidedBy: { type: String, trim: true },
+        voidReason: { type: String, trim: true },
+        voidToken: { type: String, trim: true },
+        voidStartedAt: { type: Date }
+    },
 
     // 📊 البيانات المالية والمحاسبية 
     costLYD: { type: Number, default: 0, min: 0 }, // ✅ تحقق: لا قيم سالبة
