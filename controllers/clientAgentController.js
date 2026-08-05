@@ -13,6 +13,7 @@ const {
     CODE_LENGTHS,
     assignGeneratedAccountCode
 } = require('../services/accountCodeService');
+const { prepareRegistrationIdentityForApproval } = require('../services/registrationIdentityService');
 
 const USERNAME_DOMAIN = '@ahram.com';
 
@@ -138,21 +139,6 @@ const assertUsernameAvailable = async (webUsername) => {
 
     if (user || subAccount || clientEmployee || agentEmployee || executor || admin) {
         throw new Error('USERNAME_TAKEN');
-    }
-};
-
-const assertClientIdentityAvailable = async ({ phone, webUsername }) => {
-    await assertUsernameAvailable(webUsername);
-    const [user, subAccount, clientEmployee, agentEmployee, executor] = await Promise.all([
-        User.exists({ phone }),
-        SubAccount.exists({ phone }),
-        ClientEmployee.exists({ phone }),
-        AgentEmployee.exists({ phone }),
-        Employee.exists({ phone })
-    ]);
-
-    if (user || subAccount || clientEmployee || agentEmployee || executor) {
-        throw new Error('PHONE_TAKEN');
     }
 };
 
@@ -409,7 +395,11 @@ exports.postApproveClientRequest = async (req, res) => {
         });
         if (!regReq) return res.redirect('/client/customers?requestError=notfound');
 
-        await assertClientIdentityAvailable({ phone: regReq.phone, webUsername: regReq.username });
+        await prepareRegistrationIdentityForApproval({
+            phone: regReq.phone,
+            username: regReq.username,
+            excludeRequestId: regReq._id
+        });
 
         const subAccount = await SubAccount.create({
             masterType: 'user',
@@ -449,7 +439,7 @@ exports.postApproveClientRequest = async (req, res) => {
         return res.redirect('/client/customers?requestSuccess=approved');
     } catch (error) {
         console.error('[Agent Requests] approve failed:', error.message);
-        if (['USERNAME_TAKEN', 'PHONE_TAKEN'].includes(error.message)) {
+        if (['USERNAME_TAKEN', 'PHONE_TAKEN', 'IDENTITY_PENDING', 'IDENTITY_TAKEN'].includes(error.message)) {
             return res.redirect('/client/customers?requestError=duplicate');
         }
         return res.redirect('/client/customers?requestError=server');
@@ -472,7 +462,7 @@ exports.postRejectClientRequest = async (req, res) => {
         regReq.status = 'rejected';
         regReq.reviewedBy = actor.name || actor.webUsername;
         regReq.reviewedAt = new Date();
-        regReq.adminNotes = req.body.notes || 'تم الرفض من الوكيل';
+        regReq.adminNotes = [regReq.adminNotes, req.body.notes || 'تم الرفض من الوكيل'].filter(Boolean).join('\n');
         await regReq.save();
 
         await logAction({

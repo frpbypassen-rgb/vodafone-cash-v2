@@ -15,7 +15,6 @@ const Ledger = require('../models/Ledger');
 const RegistrationRequest = require('../models/RegistrationRequest');
 const SupportTicket = require('../models/SupportTicket');
 const Notification = require('../models/Notification');
-const Admin = require('../models/Admin');
 
 const { authenticateJWT } = require('../middlewares/jwtAuth');
 const correlationId = require('../middlewares/correlationId');
@@ -65,6 +64,8 @@ const {
     agentRegisterValidator
 } = require('../validators/mobileRegistrationValidators');
 const { sendMobileError, mobileErrorHandler } = require('../mappers/mobileErrorMapper');
+const { checkRegistrationIdentityAvailability } = require('../services/registrationIdentityService');
+const { customerNoteFromTransaction } = require('../utils/transactionNotes');
 
 const router = express.Router();
 
@@ -218,68 +219,9 @@ router.use(apiLimiter);
  *       423:
  *         description: الحساب مقفل مؤقتاً لمحاولات خاطئة
  */
-const checkRegistrationUniqueness = async (phone, username) => {
-    const pendingRequest = await RegistrationRequest.findOne({
-        status: { $in: ['pending', 'pending_agent'] },
-        $or: [{ phone }, { username }]
-    });
-    if (pendingRequest) {
-        return {
-            success: false,
-            message: `يوجد طلب تسجيل سابق لهذا الرقم برقم مرجعي: ${pendingRequest.refCode}. يرجى انتظار المراجعة.`
-        };
-    }
-
-    const user = await User.findOne({ $or: [{ phone }, { webUsername: username }] });
-    if (user) {
-        return {
-            success: false,
-            message: 'رقم الهاتف أو اسم المستخدم مسجل بالفعل. يرجى تسجيل الدخول أو التواصل مع الإدارة.'
-        };
-    }
-
-    const subAccount = await SubAccount.findOne({ $or: [{ phone }, { webUsername: username }] });
-    if (subAccount) {
-        return {
-            success: false,
-            message: 'رقم الهاتف أو اسم المستخدم مسجل بالفعل. يرجى تسجيل الدخول أو التواصل مع الإدارة.'
-        };
-    }
-
-    const clientEmp = await ClientEmployee.findOne({ $or: [{ phone }, { webUsername: username }] });
-    if (clientEmp) {
-        return {
-            success: false,
-            message: 'رقم الهاتف أو اسم المستخدم مسجل بالفعل. يرجى تسجيل الدخول أو التواصل مع الإدارة.'
-        };
-    }
-
-    const agentEmp = await AgentEmployee.findOne({ $or: [{ phone }, { webUsername: username }] });
-    if (agentEmp) {
-        return {
-            success: false,
-            message: 'رقم الهاتف أو اسم المستخدم مسجل بالفعل. يرجى تسجيل الدخول أو التواصل مع الإدارة.'
-        };
-    }
-
-    const emp = await Employee.findOne({ $or: [{ phone }, { webUsername: username }] });
-    if (emp) {
-        return {
-            success: false,
-            message: 'رقم الهاتف أو اسم المستخدم مسجل بالفعل. يرجى تسجيل الدخول أو التواصل مع الإدارة.'
-        };
-    }
-
-    const admin = await Admin.findOne({ webUsername: username });
-    if (admin) {
-        return {
-            success: false,
-            message: 'رقم الهاتف أو اسم المستخدم مسجل بالفعل. يرجى تسجيل الدخول أو التواصل مع الإدارة.'
-        };
-    }
-
-    return { success: true };
-};
+const checkRegistrationUniqueness = (phone, username) => (
+    checkRegistrationIdentityAvailability({ phone, username })
+);
 
 const normalizeMobileAgentCode = (value) => String(value || '').replace(/\D/g, '').slice(0, 4);
 
@@ -351,6 +293,7 @@ router.post('/client/register/direct', directRegisterValidator, async (req, res)
             address,
             username,
             password,
+            ...uniqueCheck.requestMetadata,
             ipAddress: req.ip || req.headers['x-forwarded-for'] || 'unknown',
             userAgent: req.headers['user-agent'] || 'unknown',
             status: 'pending'
@@ -411,6 +354,7 @@ router.post('/client/register/new', newRegisterValidator, async (req, res) => {
             agentCode,
             agentId: agent._id,
             agentName: agent.name || agent.webUsername,
+            ...uniqueCheck.requestMetadata,
             ipAddress: req.ip || req.headers['x-forwarded-for'] || 'unknown',
             userAgent: req.headers['user-agent'] || 'unknown',
             status: 'pending_agent'
@@ -464,6 +408,7 @@ router.post('/client/register/company', companyRegisterValidator, async (req, re
             companyEmail,
             username,
             password,
+            ...uniqueCheck.requestMetadata,
             ipAddress: req.ip || req.headers['x-forwarded-for'] || 'unknown',
             userAgent: req.headers['user-agent'] || 'unknown',
             status: 'pending'
@@ -518,6 +463,7 @@ router.post('/client/register/agent', agentRegisterValidator, async (req, res) =
             companyEmail,
             username,
             password,
+            ...uniqueCheck.requestMetadata,
             ipAddress: req.ip || req.headers['x-forwarded-for'] || 'unknown',
             userAgent: req.headers['user-agent'] || 'unknown',
             status: 'pending'
@@ -1629,7 +1575,7 @@ router.get('/client/transactions', authenticateJWT, async (req, res) => {
                 exchangeRate: Number(tx.exchangeRate || 0),
                 status: tx.status,
                 createdAt: tx.createdAt ? new Date(tx.createdAt).toISOString() : null,
-                notes: customerFacingNotes(tx.notes, tx.executorSenderPhone),
+                notes: customerFacingNotes(customerNoteFromTransaction(tx), tx.executorSenderPhone),
                 hasProofImage: !!(tx.proofImage || (tx.proofImages && tx.proofImages.length > 0))
             })),
             pagination: {
@@ -1777,7 +1723,7 @@ router.get('/client/transactions/:id', authenticateJWT, async (req, res) => {
                 exchangeRate: Number(tx.exchangeRate || 0),
                 status: tx.status,
                 createdAt: tx.createdAt ? new Date(tx.createdAt).toISOString() : null,
-                notes: customerFacingNotes(tx.notes, tx.executorSenderPhone),
+                notes: customerFacingNotes(customerNoteFromTransaction(tx), tx.executorSenderPhone),
                 hasProofImage: !!(tx.proofImage || (tx.proofImages && tx.proofImages.length > 0))
             }
         });

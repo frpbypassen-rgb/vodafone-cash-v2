@@ -53,6 +53,9 @@
                         <div><dt>الجنسية</dt><dd><%= request.nationality === 'egyptian' ? 'مصري' : 'ليبي' %></dd></div>
                         <div><dt>اسم المستخدم</dt><dd dir="ltr"><%= request.username %></dd></div>
                     </dl>
+                    <% if (request.wasPreviouslyDeleted) { %>
+                        <div class="bw-form-result error" style="display:block;" role="alert"><i class="fa-solid fa-clock-rotate-left"></i> سبق حذف حساب يستخدم هذه البيانات. تحقق من الطلب قبل القبول.</div>
+                    <% } %>
                     <footer>
                         <form method="POST" action="/client/agent/registration-requests/<%= request._id %>/approve" data-confirm="قبول الطلب وإنشاء حساب العميل؟"><button type="submit" class="bw-button primary compact"><i class="fa-solid fa-check"></i>قبول</button></form>
                         <form method="POST" action="/client/agent/registration-requests/<%= request._id %>/reject" data-confirm="رفض طلب التسجيل؟"><input type="hidden" name="notes" value="تم الرفض من الوكيل"><button type="submit" class="bw-button danger compact"><i class="fa-solid fa-xmark"></i>رفض</button></form>

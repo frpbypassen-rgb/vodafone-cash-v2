@@ -19,6 +19,7 @@ const { notifyBalanceAdjustment } = require('../services/clientNotificationServi
 const { createDepositReceiptProof } = require('../services/depositReceiptService');
 const { buildClientReceiptImages } = require('../services/clientReceiptService');
 const { logAction } = require('../services/auditService');
+const { customerNoteFromTransaction } = require('../utils/transactionNotes');
 
 const USERNAME_DOMAIN = '@ahram.com';
 
@@ -239,6 +240,7 @@ exports.postAdjustCustomerBalance = async (req, res) => {
                 costLYD: 0,
                 status: operation === 'deposit' ? 'deposit' : 'deduction',
                 notes: note,
+                customerNotes: note,
                 adminNotes: operation === 'deposit' ? 'تمويل عميل تابع' : 'سحب من عميل تابع',
                 balanceAdjustment: {
                     entityModel: 'SubAccount',
@@ -402,7 +404,8 @@ exports.getTransactionDetails = async (req, res) => {
                 accountName: transaction.accountName,
                 accountNumber: transaction.accountNumber,
                 serviceDetails: transaction.serviceDetails || {},
-                notes: transaction.notes || '',
+                notes: customerNoteFromTransaction(transaction),
+                customerNotes: customerNoteFromTransaction(transaction),
                 employeeName: transaction.employeeName || '',
                 customerName: transaction.subAccountName || '',
                 cancellationNumber: transaction.cancellationNumber || '',

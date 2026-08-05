@@ -374,6 +374,7 @@ export class TransferService {
                 exchangeRate: isSubAccountTx ? masterRate : finalRate,
                 subClientRate: isSubAccountTx ? actualSubRate : 0,
                 notes: storedNotes,
+                customerNotes: notes || '',
                 status: 'pending',
                 isSubAccountTx,
                 masterProfit: isSubAccountTx ? commission : 0,

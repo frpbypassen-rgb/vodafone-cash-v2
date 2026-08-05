@@ -35,15 +35,28 @@ const registrationRequestSchema = new mongoose.Schema({
     status: {
         type: String,
         default: 'pending',
-        enum: ['pending', 'pending_agent', 'approved', 'rejected']
+        enum: ['pending', 'pending_agent', 'approved', 'rejected', 'deleted']
     },
 
     // ملاحظات الإدارة
     adminNotes: { type: String },
 
+    // توثيق إعادة التسجيل بعد حذف حساب سابق
+    wasPreviouslyDeleted: { type: Boolean, default: false },
+    previousDeletedAccounts: [{
+        _id: false,
+        modelName: { type: String },
+        accountId: { type: mongoose.Schema.Types.ObjectId },
+        accountName: { type: String },
+        accountTypeLabel: { type: String },
+        deletedAt: { type: Date }
+    }],
+
     // الأدمن الذي راجع الطلب
     reviewedBy: { type: String },
     reviewedAt: { type: Date },
+    deletedBy: { type: String },
+    deletedAt: { type: Date },
 
     // تتبع مصدر الطلب
     ipAddress: { type: String },

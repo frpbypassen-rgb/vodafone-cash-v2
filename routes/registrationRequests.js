@@ -4,7 +4,6 @@
 // =====================================================
 const express = require('express');
 const router = express.Router();
-const bcrypt = require('bcryptjs');
 const RegistrationRequest = require('../models/RegistrationRequest');
 const User = require('../models/User');
 const ClientCompany = require('../models/ClientCompany');
@@ -16,25 +15,30 @@ const {
     CODE_LENGTHS,
     assignGeneratedAccountCode
 } = require('../services/accountCodeService');
+const { prepareRegistrationIdentityForApproval } = require('../services/registrationIdentityService');
+
+const visibleRequestStatuses = new Set(['pending', 'pending_agent', 'approved', 'rejected']);
+const appendAdminNote = (current, note) => [current, String(note || '').trim()].filter(Boolean).join('\n');
 
 // ─────────────────────────────────────────────────
 // 📋 عرض جميع طلبات التسجيل
 // ─────────────────────────────────────────────────
 router.get('/registration-requests', requireAuth, async (req, res) => {
     try {
-        const statusFilter = req.query.status;
-        const filter = statusFilter ? { status: statusFilter } : {};
+        const statusFilter = visibleRequestStatuses.has(req.query.status) ? req.query.status : '';
+        const filter = statusFilter
+            ? { status: statusFilter }
+            : { status: { $in: ['pending', 'pending_agent'] } };
         
-        const requests = await RegistrationRequest.find(filter).sort({ createdAt: -1 }).lean();
-        
-        // إحصائيات سريعة
-        const counts = {
-            pending: await RegistrationRequest.countDocuments({ status: 'pending' }),
-            pendingAgent: await RegistrationRequest.countDocuments({ status: 'pending_agent' }),
-            approved: await RegistrationRequest.countDocuments({ status: 'approved' }),
-            rejected: await RegistrationRequest.countDocuments({ status: 'rejected' }),
-            total: await RegistrationRequest.countDocuments({})
-        };
+        const [requests, pending, pendingAgent, approved, rejected, total] = await Promise.all([
+            RegistrationRequest.find(filter).sort({ createdAt: -1 }).lean(),
+            RegistrationRequest.countDocuments({ status: 'pending' }),
+            RegistrationRequest.countDocuments({ status: 'pending_agent' }),
+            RegistrationRequest.countDocuments({ status: 'approved' }),
+            RegistrationRequest.countDocuments({ status: 'rejected' }),
+            RegistrationRequest.countDocuments({ status: { $ne: 'deleted' } })
+        ]);
+        const counts = { pending, pendingAgent, approved, rejected, total };
 
         res.render('registration_requests', { 
             requests, 
@@ -60,6 +64,12 @@ router.post('/registration-requests/:id/approve', requireAuth, requireMaster, as
         }
 
         const adminName = req.session.adminName || 'مدير';
+
+        await prepareRegistrationIdentityForApproval({
+            phone: regReq.phone || regReq.companyPhone,
+            username: regReq.username,
+            excludeRequestId: regReq._id
+        });
 
         // ─── إنشاء الحساب حسب نوع الطلب ───
         if (regReq.accountType === 'direct') {
@@ -185,7 +195,8 @@ router.post('/registration-requests/:id/approve', requireAuth, requireMaster, as
 
     } catch (error) {
         console.error('[RegistrationRequests] Approve Error:', error.message);
-        res.redirect('/registration-requests?error=approve_failed');
+        const duplicateIdentity = ['IDENTITY_PENDING', 'IDENTITY_TAKEN'].includes(error.message);
+        res.redirect(`/registration-requests?error=${duplicateIdentity ? 'duplicate' : 'approve_failed'}`);
     }
 });
 
@@ -204,7 +215,7 @@ router.post('/registration-requests/:id/reject', requireAuth, requireMaster, asy
         regReq.status = 'rejected';
         regReq.reviewedBy = adminName;
         regReq.reviewedAt = new Date();
-        regReq.adminNotes = req.body.notes || 'تم الرفض من الإدارة';
+        regReq.adminNotes = appendAdminNote(regReq.adminNotes, req.body.notes || 'تم الرفض من الإدارة');
         await regReq.save();
 
         // تسجيل في Audit Log
@@ -226,6 +237,44 @@ router.post('/registration-requests/:id/reject', requireAuth, requireMaster, asy
     } catch (error) {
         console.error('[RegistrationRequests] Reject Error:', error.message);
         res.redirect('/registration-requests?error=reject_failed');
+    }
+});
+
+// حذف منطقي للطلب مع الاحتفاظ بسجل التدقيق
+router.post('/registration-requests/:id/delete', requireAuth, requireMaster, async (req, res) => {
+    try {
+        const regReq = await RegistrationRequest.findOne({
+            _id: req.params.id,
+            status: { $in: ['pending', 'pending_agent'] }
+        });
+        if (!regReq) return res.redirect('/registration-requests?error=not_found');
+
+        const adminName = req.session.adminName || 'مدير';
+        regReq.status = 'deleted';
+        regReq.deletedBy = adminName;
+        regReq.deletedAt = new Date();
+        regReq.reviewedBy = adminName;
+        regReq.reviewedAt = regReq.deletedAt;
+        regReq.adminNotes = appendAdminNote(regReq.adminNotes, req.body.notes || 'تم حذف طلب الانضمام من الإدارة');
+        await regReq.save();
+
+        try {
+            const { logAction } = require('../services/auditService');
+            await logAction({
+                action: 'REGISTRATION_DELETED',
+                performedBy: adminName,
+                metadata: {
+                    requestId: regReq._id,
+                    refCode: regReq.refCode,
+                    accountType: regReq.accountType
+                }
+            });
+        } catch (e) { /* ignore audit errors */ }
+
+        return res.redirect('/registration-requests?success=deleted');
+    } catch (error) {
+        console.error('[RegistrationRequests] Delete Error:', error.message);
+        return res.redirect('/registration-requests?error=delete_failed');
     }
 });
 

@@ -725,6 +725,13 @@
         let lastReportData = null;
 
         function cleanTxNotes(tx = {}) {
+            const explicitCustomerNotes = String(tx.customerNotes || '').trim();
+            if (explicitCustomerNotes) {
+                const lines = explicitCustomerNotes.split(/\r?\n/).map(line => line.trim()).filter(Boolean);
+                String(tx.notes || '').split(/---\s*سجل\s+الـ\s+API/i)[0].split(/\r?\n/).map(line => line.trim()).filter(line => /رقم المحول|رقم المرسل|الرقم المرجعي|مرجع|reference|ref/i.test(line) && !lines.includes(line)).forEach(line => lines.push(line));
+                if (tx.executorSenderPhone && !lines.some(line => line.includes(tx.executorSenderPhone))) lines.push(`[رقم المرسل: ${tx.executorSenderPhone}]`);
+                return lines.join('\n');
+            }
             const raw = String(tx.notes || '').trim();
             const beforeApiLog = raw.split(/---\s*سجل\s+الـ\s+API/i)[0].trim();
             const legacyTransfer = beforeApiLog.match(/(?:تحويل رصيد صادر إلى|تحويل رصيد وارد من).*\|\s*(.+)$/);

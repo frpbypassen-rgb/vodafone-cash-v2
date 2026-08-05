@@ -15,7 +15,13 @@ const agentEmployeeSchema = new mongoose.Schema({
     canViewAllReports: { type: Boolean, default: false },
     canManageAgent: { type: Boolean, default: false },
     canCreateAgentStaff: { type: Boolean, default: false },
-    refreshToken: { type: String }
+    refreshToken: { type: String },
+    deletedCredentials: {
+        phone: { type: String },
+        webUsername: { type: String }
+    },
+    deletedAt: { type: Date },
+    deletedBy: { type: String }
 }, { timestamps: true });
 
 agentEmployeeSchema.pre('save', async function() {

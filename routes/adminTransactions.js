@@ -15,6 +15,7 @@ const SupportTicket = require('../models/SupportTicket');
 const { requireAuth } = require('../middlewares/auth');
 const { syncBotBalance } = require('../utils/helpers');
 const { escapeRegex } = require('../middlewares/sanitize');
+const { customerNoteFromTransaction } = require('../utils/transactionNotes');
 
 // 🚀 استدعاء محرك الـ API 
 const { executeTransferViaApi, saveApiReceiptProof } = require('../services/externalApiService');
@@ -615,7 +616,7 @@ router.get('/transactions/:id/details', async (req, res) => {
                     sourceBalanceAfter: sourceLedger?.balanceAfter,
                     targetBalanceBefore: targetLedger?.balanceBefore,
                     targetBalanceAfter: targetLedger?.balanceAfter,
-                    notes: customerFacingNotes(tx.notes),
+                    notes: customerFacingNotes(customerNoteFromTransaction(tx)),
                     createdAt: tx.createdAt
                 });
 

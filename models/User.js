@@ -24,6 +24,12 @@ const userSchema = new mongoose.Schema({
     otpCode: { type: String },
     otpExpires: { type: Date },
     lastOtpDate: { type: String },
+    deletedCredentials: {
+        phone: { type: String },
+        webUsername: { type: String }
+    },
+    deletedAt: { type: Date },
+    deletedBy: { type: String },
     tenantId: { type: mongoose.Schema.Types.ObjectId, ref: 'Tenant' }
 }, { timestamps: true });
 

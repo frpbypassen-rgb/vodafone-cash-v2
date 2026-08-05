@@ -63,6 +63,7 @@ const buildEntityTransactionFields = async (account, customId, status, amount, n
         costLYD: 0,
         status,
         notes,
+        customerNotes: notes,
         adminNotes
     };
 

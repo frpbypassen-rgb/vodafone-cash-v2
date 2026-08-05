@@ -93,6 +93,7 @@ const transactionSchema = new mongoose.Schema({
 
     // 📝 الملاحظات والتنبيهات
     notes: { type: String },
+    customerNotes: { type: String },
     adminNotes: { type: String },
     complaintText: { type: String },
     emergencyAlert: { type: String }, 

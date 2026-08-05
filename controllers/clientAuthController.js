@@ -1,14 +1,12 @@
 const User = require('../models/User');
 const ClientEmployee = require('../models/ClientEmployee');
-const ClientCompany = require('../models/ClientCompany');
 const SubAccount = require('../models/SubAccount');
 const AgentEmployee = require('../models/AgentEmployee');
-const Employee = require('../models/Employee');
-const Admin = require('../models/Admin');
 const RegistrationRequest = require('../models/RegistrationRequest');
 const { verifyAndUpgradePassword, escapeRegex, getTodayString } = require('../utils/helpers');
 const { generateOtp, hashOtp, verifyOtp } = require('../utils/otp');
 const { logAction } = require('../services/auditService');
+const { checkRegistrationIdentityAvailability } = require('../services/registrationIdentityService');
 
 const shouldBypassClientOtp = () => (
     process.env.FORCE_CLIENT_OTP !== 'true'
@@ -41,25 +39,6 @@ const findActiveAgentByCode = async (agentCode) => {
         status: 'active',
         $or: [{ accountCode: normalized }, { agentCode: normalized }]
     }).lean();
-};
-
-const ensureClientCredentialsAvailable = async ({ phone, username }) => {
-    const pendingRequest = await RegistrationRequest.findOne({
-        status: { $in: ['pending', 'pending_agent'] },
-        $or: [{ phone }, { username }]
-    });
-    if (pendingRequest) return false;
-
-    const [user, subAccount, clientEmployee, agentEmployee, executor, admin] = await Promise.all([
-        User.exists({ $or: [{ phone }, { webUsername: username }] }),
-        SubAccount.exists({ $or: [{ phone }, { webUsername: username }] }),
-        ClientEmployee.exists({ $or: [{ phone }, { webUsername: username }] }),
-        AgentEmployee.exists({ $or: [{ phone }, { webUsername: username }] }),
-        Employee.exists({ $or: [{ phone }, { webUsername: username }] }),
-        Admin.exists({ webUsername: username })
-    ]);
-
-    return !(user || subAccount || clientEmployee || agentEmployee || executor || admin);
 };
 
 // إشعار الأدمن بطلب تسجيل جديد
@@ -172,14 +151,12 @@ exports.postRegister = async (req, res) => {
             if (!password || password.length < 6) return fail('الرقم السري يجب أن يكون 6 أحرف على الأقل.');
             if (password !== passwordConfirm) return fail('الرقم السري غير متطابق.');
 
-            const existingRequest = await RegistrationRequest.findOne({ phone, status: 'pending' });
-            if (existingRequest) return fail(`يوجد طلب تسجيل سابق لهذا الرقم برقم مرجعي: ${existingRequest.refCode}. يرجى انتظار المراجعة.`);
-            
-            const existingUser = await User.findOne({ $or: [{ phone }, { webUsername: { $regex: new RegExp(`^${username}$`, 'i') } }] });
-            if (existingUser) return fail('رقم الهاتف أو اسم المستخدم مسجل بالفعل. يرجى اختيار اسم آخر أو تسجيل الدخول.');
+            const identityCheck = await checkRegistrationIdentityAvailability({ phone, username });
+            if (!identityCheck.success) return fail(identityCheck.message);
 
             const regRequest = await RegistrationRequest.create({
                 accountType, fullName, phone, storeName, address, username, password,
+                ...identityCheck.requestMetadata,
                 ipAddress: req.ip || req.headers['x-forwarded-for'] || 'unknown',
                 userAgent: req.headers['user-agent'] || 'unknown'
             });
@@ -219,8 +196,8 @@ exports.postRegister = async (req, res) => {
             const agent = await findActiveAgentByCode(agentCode);
             if (!agent) return fail('رقم الوكيل غير صحيح أو غير نشط.');
 
-            const credentialsAvailable = await ensureClientCredentialsAvailable({ phone, username });
-            if (!credentialsAvailable) return fail('رقم الهاتف أو اسم المستخدم لديه حساب أو طلب تسجيل سابق.', {
+            const identityCheck = await checkRegistrationIdentityAvailability({ phone, username });
+            if (!identityCheck.success) return fail(identityCheck.message, {
                 restoreNewAgentVerified: true,
                 restoredAgentName: agent.name || agent.webUsername || 'وكيل معتمد'
             });
@@ -237,6 +214,7 @@ exports.postRegister = async (req, res) => {
                 agentId: agent._id,
                 agentName: agent.name || agent.webUsername,
                 status: 'pending_agent',
+                ...identityCheck.requestMetadata,
                 ipAddress: req.ip || req.headers['x-forwarded-for'] || 'unknown',
                 userAgent: req.headers['user-agent'] || 'unknown'
             });
@@ -273,13 +251,12 @@ exports.postRegister = async (req, res) => {
             if (!password || password.length < 6) return fail('الرقم السري يجب أن يكون 6 أحرف على الأقل.');
             if (password !== passwordConfirm) return fail('الرقم السري غير متطابق.');
 
-            const existingRequest = await RegistrationRequest.findOne({ phone, status: 'pending' });
-            if (existingRequest) return fail('يوجد طلب تسجيل سابق لهذا الرقم. يرجى انتظار المراجعة.');
-            const existingUser = await User.findOne({ $or: [{ phone }, { webUsername: { $regex: new RegExp(`^${username}$`, 'i') } }] });
-            if (existingUser) return fail('رقم الهاتف أو اسم المستخدم مسجل بالفعل. يرجى اختيار بيانات أخرى.');
+            const identityCheck = await checkRegistrationIdentityAvailability({ phone, username });
+            if (!identityCheck.success) return fail(identityCheck.message);
 
             const regRequest = await RegistrationRequest.create({
                 accountType, companyName, fullName, phone, address, companyEmail, username, password,
+                ...identityCheck.requestMetadata,
                 ipAddress: req.ip || req.headers['x-forwarded-for'] || 'unknown',
                 userAgent: req.headers['user-agent'] || 'unknown'
             });
@@ -314,13 +291,12 @@ exports.postRegister = async (req, res) => {
             if (!password || password.length < 6) return fail('الرقم السري يجب أن يكون 6 أحرف على الأقل.');
             if (password !== passwordConfirm) return fail('الرقم السري غير متطابق.');
 
-            const existingCompanyReq = await RegistrationRequest.findOne({ companyPhone, status: 'pending' });
-            if (existingCompanyReq) return fail(`يوجد طلب تسجيل سابق لهذا الرقم. رقم الطلب: ${existingCompanyReq.refCode}`);
-            const existingUser = await User.findOne({ webUsername: { $regex: new RegExp(`^${username}$`, 'i') } });
-            if (existingUser) return fail('اسم المستخدم مسجل بالفعل. يرجى اختيار اسم آخر.');
+            const identityCheck = await checkRegistrationIdentityAvailability({ phone: companyPhone, username });
+            if (!identityCheck.success) return fail(identityCheck.message);
 
             const regRequest = await RegistrationRequest.create({
                 accountType, companyName, companyContact, companyPhone, companyEmail, username, password,
+                ...identityCheck.requestMetadata,
                 ipAddress: req.ip || req.headers['x-forwarded-for'] || 'unknown',
                 userAgent: req.headers['user-agent'] || 'unknown'
             });

@@ -16,7 +16,13 @@ const subAccountSchema = new mongoose.Schema({
     balance: { type: Number, default: 0 }, 
     accountCode: { type: String, trim: true, unique: true, sparse: true },
     creditLimit: { type: Number, default: 0 }, 
-    status: { type: String, default: 'active' } 
+    status: { type: String, default: 'active' },
+    deletedCredentials: {
+        phone: { type: String },
+        webUsername: { type: String }
+    },
+    deletedAt: { type: Date },
+    deletedBy: { type: String }
 }, { timestamps: true });
 
 subAccountSchema.pre('save', async function() {

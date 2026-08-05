@@ -447,6 +447,7 @@ const executeSettlement = async (req, res) => {
             costLYD: 0,
             status: type === 'deposit' ? 'deposit' : 'deduction',
             notes: notes || '',
+            customerNotes: notes || '',
             adminNotes,
             companyName: 'تسوية وكيل',
             employeeName: agent.name,

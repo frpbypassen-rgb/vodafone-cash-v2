@@ -23,6 +23,7 @@ const { getServiceRateForTier, resolveTransferServiceKey } = require('../utils/r
 const { getTransferServiceDefinition } = require('../utils/mobileTransferServiceCatalog');
 const { validateTransferInput } = require('../utils/transferServiceRules');
 const { getClientReceiptProofIds } = require('../services/clientReceiptService');
+const { normalizeCustomerNoteInput } = require('../utils/transactionNotes');
 
 const createClientError = (message, statusCode = 400) => {
     const error = new Error(message);
@@ -141,7 +142,7 @@ exports.postTransfer = async (req, res) => {
         const nationalId = String(req.body.nationalId || (serviceKey === 'post_card' ? req.body.number : '') || '').trim().slice(0, 20);
         const governorate = String(req.body.governorate || (serviceKey === 'post_card' ? submittedDestination : '') || '').trim().slice(0, 100);
         const phone = serviceKey === 'post_card' ? governorate : submittedDestination;
-        const notes = req.body.notes ? String(req.body.notes).trim().slice(0, 500) : '';
+        const notes = normalizeCustomerNoteInput(req.body);
         const accountName = String(req.body.name || '').trim().slice(0, 160);
         const accountNumber = String(serviceKey === 'post_card' ? nationalId : (req.body.number || phone)).trim().slice(0, 100);
         const serviceDetails = {
@@ -279,7 +280,7 @@ exports.postTransfer = async (req, res) => {
             employeeName: isSubAccount ? account.name : account.name, vodafoneNumber: phone, transferType: serviceKey,
             accountName, accountNumber, serviceDetails, amount: amount, costLYD: masterCostLYD,
             subAccountCostLYD: isSubAccount ? subCostLYD : 0, commission: commission, exchangeRate: masterRate, subClientRate: isSubAccount ? actualSubRate : 0,
-            notes: notes, status: 'pending', isSubAccountTx: isSubAccount, masterProfit: isSubAccount ? commission : 0,
+            notes, customerNotes: notes, status: 'pending', isSubAccountTx: isSubAccount, masterProfit: isSubAccount ? commission : 0,
             idCardImage: req.file ? `/uploads/${req.file.filename}` : undefined
         });
         if (autoRouteExecutor) applyAutoRouteFields(newTx, autoRouteExecutor);
@@ -414,7 +415,7 @@ exports.postBalanceTransfer = async (req, res) => {
             source,
             targetCode,
             amount: req.body.amount,
-            notes: req.body.notes || ''
+            notes: normalizeCustomerNoteInput(req.body)
         });
 
         // Log successful balance transfer to audit log

@@ -47,6 +47,9 @@
                             <div class="small-muted mt-1">
                                 <%= request.city || '---' %> - <%= request.nationality === 'egyptian' ? 'مصري' : 'ليبي' %>
                             </div>
+                            <% if (request.wasPreviouslyDeleted) { %>
+                                <div class="error-banner mt-2 mb-0"><i class="fa-solid fa-clock-rotate-left ms-1"></i>سبق حذف حساب يستخدم هذه البيانات.</div>
+                            <% } %>
                         </div>
                         <div class="text-start">
                             <span class="status-pill st-pending">قيد موافقة الوكيل</span>

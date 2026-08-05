@@ -30,7 +30,9 @@ const clientCompanySchema = new mongoose.Schema({
     // الحد الائتماني للشركات (السماح بالنزول تحت الصفر)
     creditLimit: { type: Number, default: 0 }, 
     
-    status: { type: String, default: 'active' } // active, inactive
+    status: { type: String, default: 'active' }, // active, inactive
+    deletedAt: { type: Date },
+    deletedBy: { type: String }
 }, { timestamps: true });
 
 module.exports = mongoose.model('ClientCompany', clientCompanySchema);
