@@ -10,6 +10,7 @@ jest.mock('../models/Ledger');
 jest.mock('../models/User');
 jest.mock('../models/ClientBot');
 jest.mock('../models/ExecutorGroup');
+jest.mock('../models/Settings');
 jest.mock('../utils/logger', () => ({
     financial: jest.fn(),
     error: jest.fn()
@@ -35,7 +36,7 @@ describe('Settlement Service Tests', () => {
 
     describe('generateDailySettlement', () => {
         test('يجب إرجاع التسوية الحالية إذا كانت منشأة مسبقاً لنفس اليوم', async () => {
-            const mockExisting = { _id: 'settlement-123', status: 'draft' };
+            const mockExisting = { _id: 'settlement-123', status: 'closed', closedAt: new Date() };
             Settlement.findOne = jest.fn().mockResolvedValue(mockExisting);
 
             const result = await generateDailySettlement();
@@ -44,6 +45,32 @@ describe('Settlement Service Tests', () => {
             expect(Settlement.findOne).toHaveBeenCalled();
             // لا يجب استدعاء Transaction.find لأننا لم نقم بإنشاء تسوية جديدة
             expect(Transaction.find).not.toHaveBeenCalled();
+        });
+
+        test('يجب ترقية التسوية اليومية القديمة وإعادة حسابها دون احتساب الملغيات', async () => {
+            const mockExisting = {
+                _id: 'settlement-old',
+                status: 'draft',
+                set: jest.fn(function (data) { Object.assign(this, data); }),
+                save: jest.fn().mockResolvedValue({})
+            };
+            Settlement.findOne = jest.fn().mockResolvedValue(mockExisting);
+            Transaction.find = jest.fn().mockReturnValue({
+                lean: jest.fn().mockResolvedValue([
+                    { status: 'completed', transferType: 'vodafone', amount: 640, costLYD: 100 },
+                    { status: 'cancelled_by_admin', transferType: 'vodafone', amount: 1280, costLYD: 200 }
+                ])
+            });
+
+            const result = await generateDailySettlement(new Date('2026-06-08'));
+
+            expect(result).toBe(mockExisting);
+            expect(mockExisting.set).toHaveBeenCalled();
+            expect(mockExisting.save).toHaveBeenCalled();
+            expect(result.status).toBe('closed');
+            expect(result.summary.totalAmountEGP).toBe(640);
+            expect(result.summary.totalCostLYD).toBe(100);
+            expect(result.summary.cancelledCount).toBe(1);
         });
 
         test('يجب توليد تسوية يومية جديدة وحساب الإجماليات بشكل صحيح', async () => {
@@ -73,19 +100,19 @@ describe('Settlement Service Tests', () => {
             const result = await generateDailySettlement(new Date('2026-06-08'));
 
             expect(result).toBeDefined();
-            expect(result.status).toBe('draft');
+            expect(result.status).toBe('closed');
             expect(result.summary.totalTransactions).toBe(4);
-            expect(result.summary.totalAmountEGP).toBe(500); // 100 + 200 + 150 + 50
-            expect(result.summary.totalCostLYD).toBe(3200); // 640 + 1280 + 960 + 320
+            expect(result.summary.totalAmountEGP).toBe(300); // العمليات الناجحة فقط
+            expect(result.summary.totalCostLYD).toBe(1920); // العمليات الناجحة فقط
             expect(result.summary.totalRefunds).toBe(960); // للعمليات الملغاة (status: rejected)
-            expect(result.summary.netAmount).toBe(2240); // totalCostLYD - totalRefunds = 3200 - 960
+            expect(result.summary.netAmount).toBe(-1920); // لا تدخل الملغيات في صافي الحساب
             expect(result.summary.completedCount).toBe(2);
             expect(result.summary.cancelledCount).toBe(1);
             expect(result.summary.pendingCount).toBe(1);
 
             // التحقق من التجميع بحسب النوع
             expect(result.details.transferTypes.vodafone).toEqual({ count: 2, amount: 300 });
-            expect(result.details.transferTypes.post_account).toEqual({ count: 1, amount: 150 });
+            expect(result.details.transferTypes.post_account).toBeUndefined();
 
             expect(saveMock).toHaveBeenCalled();
             expect(logger.financial).toHaveBeenCalled();

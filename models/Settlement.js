@@ -46,6 +46,7 @@ const settlementSchema = new mongoose.Schema({
         closingBalance: { type: Number, default: 0 },
         deposits: { type: Number, default: 0 },
         deductions: { type: Number, default: 0 },
+        netMovement: { type: Number, default: 0 },
         transferTypes: { type: mongoose.Schema.Types.Mixed } // { vodafone: X, post_account: Y, ... }
     },
 
@@ -53,8 +54,11 @@ const settlementSchema = new mongoose.Schema({
     status: {
         type: String,
         default: 'draft',
-        enum: ['draft', 'pending_approval', 'approved', 'paid', 'disputed']
+        enum: ['draft', 'pending_approval', 'approved', 'paid', 'disputed', 'closed']
     },
+
+    closedAt: { type: Date },
+    closedByName: { type: String },
 
     // الاعتماد
     approvedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'Admin' },
@@ -76,5 +80,9 @@ settlementSchema.index({ 'period.start': 1, 'period.end': 1 });
 settlementSchema.index({ entityType: 1, entityId: 1, 'period.start': -1 });
 settlementSchema.index({ status: 1, createdAt: -1 });
 settlementSchema.index({ tenantId: 1, createdAt: -1 });
+settlementSchema.index(
+    { type: 1, entityType: 1, 'period.start': 1 },
+    { unique: true, partialFilterExpression: { type: 'daily', entityType: 'system' } }
+);
 
 module.exports = mongoose.model('Settlement', settlementSchema);

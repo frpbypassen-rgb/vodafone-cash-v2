@@ -16,6 +16,7 @@ const { requireAuth } = require('../middlewares/auth');
 const { syncBotBalance } = require('../utils/helpers');
 const { escapeRegex } = require('../middlewares/sanitize');
 const { customerNoteFromTransaction } = require('../utils/transactionNotes');
+const { logAction } = require('../services/auditService');
 
 // 🚀 استدعاء محرك الـ API 
 const { executeTransferViaApi, saveApiReceiptProof } = require('../services/externalApiService');
@@ -43,6 +44,31 @@ const appendCustomerReference = (tx, label, value) => {
         tx.notes = appendNoteText(tx.notes, line);
     }
 };
+
+const reportAuditMetadata = (tx, extra = {}) => ({
+    transactionId: tx?.customId,
+    originalCreatedAt: tx?.createdAt,
+    companyId: tx?.companyId ? String(tx.companyId) : '',
+    userId: tx?.userId ? String(tx.userId) : '',
+    subAccountId: tx?.subAccountId ? String(tx.subAccountId) : '',
+    executorGroupId: tx?.executorGroupId ? String(tx.executorGroupId) : '',
+    employeeName: tx?.employeeName || '',
+    executorName: tx?.executorName || '',
+    ...extra
+});
+
+const logAdminFinancialChange = (req, action, tx, oldData, newData, metadata = {}) => logAction({
+    action,
+    req,
+    performedById: req.session.adminId,
+    performedByModel: 'Admin',
+    performedByName: req.session.adminName || 'الإدارة',
+    targetId: tx?._id,
+    targetModel: 'Transaction',
+    oldData,
+    newData,
+    metadata: reportAuditMetadata(tx, metadata)
+});
 
 const customerFacingNotes = (notes) => {
     const raw = String(notes || '').trim();
@@ -469,14 +495,26 @@ router.post('/transaction/:id/edit-rate', async (req, res) => {
         const tx = await Transaction.findById(txId);
         if (!tx || ['rejected', 'cancelled_by_admin'].includes(tx.status)) return res.redirect('/transactions');
 
-        const oldCost = tx.costLYD || 0; const newCost = tx.amount / newRate; const diff = newCost - oldCost; 
+        const oldCost = tx.costLYD || 0;
+        const oldRate = tx.exchangeRate || (oldCost > 0 ? tx.amount / oldCost : 0);
+        const newCost = tx.amount / newRate;
+        const diff = newCost - oldCost;
         if (tx.companyId) { const company = await ClientCompany.findById(tx.companyId); if (company) { company.balance -= diff; await company.save(); } } 
         else if (tx.userId) { const user = await User.findOne({ phone: tx.userId }); if (user) { user.balance -= diff; await user.save(); } }
 
         const adminName = req.session.adminName || 'الإدارة';
-        tx.costLYD = newCost; const oldRate = oldCost > 0 ? (tx.amount / oldCost).toFixed(3) : '0';
-        appendAdminNote(tx, `[تم تعديل السعر من ${oldRate} إلى ${newRate} بواسطة: ${adminName}]`);
-        await tx.save(); res.redirect('/transactions'); 
+        tx.costLYD = newCost;
+        tx.exchangeRate = newRate;
+        appendAdminNote(tx, `[تم تعديل السعر من ${Number(oldRate).toFixed(3)} إلى ${newRate} بواسطة: ${adminName}]`);
+        await tx.save();
+        await logAdminFinancialChange(
+            req,
+            'TRANSACTION_RATE_EDITED',
+            tx,
+            { amount: tx.amount, costLYD: oldCost, exchangeRate: oldRate, createdAt: tx.createdAt },
+            { amount: tx.amount, costLYD: newCost, exchangeRate: newRate, createdAt: tx.createdAt }
+        );
+        res.redirect('/transactions');
     } catch (error) { res.redirect('/transactions'); }
 });
 
@@ -487,22 +525,30 @@ router.post('/transaction/:id/edit-data', async (req, res) => {
         const tx = await Transaction.findById(req.params.id);
         if (!tx || ['rejected', 'cancelled_by_admin'].includes(tx.status)) return res.redirect('/transactions');
 
-        const oldAmountEGP = tx.amount; const newDate = new Date(newDateStr); const adminName = req.session.adminName || 'الإدارة';
+        const oldAmountEGP = tx.amount;
+        const oldCostLYD = tx.costLYD || 0;
+        const oldCreatedAt = tx.createdAt;
+        const newDate = new Date(newDateStr);
+        if (Number.isNaN(newDate.getTime())) return res.redirect('/transactions');
+        const changedAt = new Date();
+        const adminName = req.session.adminName || 'الإدارة';
+        let newCostLYD = oldCostLYD;
 
         if (tx.status === 'deposit' || tx.status === 'deduction') {
             const diffAmount = newAmount - oldAmountEGP; const diffDeposit = (tx.status === 'deposit') ? diffAmount : -diffAmount;
             if (tx.userId === 'admin' && tx.executorGroupId) {
                 const newAdminNotes = appendNoteText(tx.adminNotes, `[تم تعديل (المبلغ: ${newAmount}، التاريخ: ${newDate.toLocaleString('en-GB')}) بواسطة: ${adminName}]`);
-                await Transaction.updateOne({ _id: tx._id }, { $set: { amount: newAmount, createdAt: newDate, updatedAt: newDate, adminNotes: newAdminNotes } }, { timestamps: false });
+                await Transaction.updateOne({ _id: tx._id }, { $set: { amount: newAmount, createdAt: newDate, updatedAt: changedAt, adminNotes: newAdminNotes } }, { timestamps: false });
                 await syncBotBalance(tx.executorGroupId); if (tx.managerGroupId) await syncBotBalance(tx.managerGroupId);
             } else {
                 if (tx.companyId) { const comp = await ClientCompany.findById(tx.companyId); if (comp) { comp.balance += diffDeposit; await comp.save(); } } 
                 else if (tx.userId) { const user = await User.findOne({ phone: tx.userId }); if (user) { user.balance += diffDeposit; await user.save(); } }
                 const newAdminNotes = appendNoteText(tx.adminNotes, `[تم تعديل (المبلغ: ${newAmount}، التاريخ: ${newDate.toLocaleString('en-GB')}) بواسطة: ${adminName}]`);
-                await Transaction.updateOne({ _id: tx._id }, { $set: { amount: newAmount, createdAt: newDate, updatedAt: newDate, adminNotes: newAdminNotes } }, { timestamps: false });
+                await Transaction.updateOne({ _id: tx._id }, { $set: { amount: newAmount, createdAt: newDate, updatedAt: changedAt, adminNotes: newAdminNotes } }, { timestamps: false });
             }
         } else {
-            const oldCostLYD = tx.costLYD; const newCostLYD = parseFloat((newAmount / tx.exchangeRate).toFixed(3));
+            if (!Number.isFinite(Number(tx.exchangeRate)) || Number(tx.exchangeRate) <= 0) return res.redirect('/transactions');
+            newCostLYD = parseFloat((newAmount / tx.exchangeRate).toFixed(3));
             const diffEGP = newAmount - oldAmountEGP; const diffLYD = newCostLYD - oldCostLYD;
 
             if (tx.companyId) { const comp = await ClientCompany.findById(tx.companyId); if (comp) { comp.balance -= diffLYD; await comp.save(); } } 
@@ -514,10 +560,18 @@ router.post('/transaction/:id/edit-data', async (req, res) => {
             }
 
             const newAdminNotes = appendNoteText(tx.adminNotes, `[تم تعديل (المبلغ: ${newAmount}EGP، التاريخ: ${newDate.toLocaleString('en-GB')}) بواسطة: ${adminName}]`);
-            await Transaction.updateOne({ _id: tx._id }, { $set: { amount: newAmount, costLYD: newCostLYD, createdAt: newDate, updatedAt: newDate, adminNotes: newAdminNotes } }, { timestamps: false });
+            await Transaction.updateOne({ _id: tx._id }, { $set: { amount: newAmount, costLYD: newCostLYD, createdAt: newDate, updatedAt: changedAt, adminNotes: newAdminNotes } }, { timestamps: false });
 
             // 🟢 تم إزالة إشعارات التيليجرام للتعديلات
         }
+        await logAdminFinancialChange(
+            req,
+            'TRANSACTION_DATA_EDITED',
+            tx,
+            { amount: oldAmountEGP, costLYD: oldCostLYD, createdAt: oldCreatedAt, status: tx.status },
+            { amount: newAmount, costLYD: newCostLYD, createdAt: newDate, status: tx.status },
+            { originalCreatedAt: oldCreatedAt, newCreatedAt: newDate }
+        );
         res.redirect('/transactions');
     } catch (error) { res.redirect('/transactions'); }
 });
@@ -526,6 +580,7 @@ router.post('/transaction/:id/global-cancel', async (req, res) => {
     try {
         const reason = req.body.reason || 'إلغاء من الإدارة';
         const adminName = req.session.adminName || 'الإدارة';
+        const originalTx = await Transaction.findById(req.params.id).lean();
         
         // 🟢 استخدام خدمة الاسترجاع الموحدة لضمان الدبل إنتري والأحداث المتسلسلة
         const result = await reversalService.reverseTransaction(req.params.id, reason, adminName, { status: 'cancelled_by_admin' });
@@ -536,6 +591,24 @@ router.post('/transaction/:id/global-cancel', async (req, res) => {
                 const managerGroupId = tx.managerGroupId;
                 if (groupId) await syncBotBalance(groupId); 
                 if (managerGroupId) await syncBotBalance(managerGroupId);
+                await logAdminFinancialChange(
+                    req,
+                    'TRANSACTION_CANCELLED_BY_ADMIN',
+                    tx,
+                    {
+                        status: originalTx?.status,
+                        amount: originalTx?.amount,
+                        costLYD: originalTx?.costLYD,
+                        createdAt: originalTx?.createdAt
+                    },
+                    {
+                        status: tx.status,
+                        amount: tx.amount,
+                        costLYD: tx.costLYD,
+                        createdAt: tx.createdAt
+                    },
+                    { reason, originalCreatedAt: originalTx?.createdAt }
+                );
             }
         }
         res.redirect('/transactions');
@@ -549,6 +622,8 @@ router.post('/transaction/:id/change-bot', async (req, res) => {
         const tx = await Transaction.findById(req.params.id);
         if (!tx || tx.status !== 'completed') return res.redirect('/transactions');
         if (tx.executorGroupId && tx.executorGroupId.toString() === newGroupId.toString()) return res.redirect('/transactions');
+        const oldExecutorGroupId = tx.executorGroupId;
+        const oldExecutorName = tx.executorName;
 
         if (tx.executorGroupId) { const oldGroup = await ExecutorGroup.findById(tx.executorGroupId); if (oldGroup) { oldGroup.balance += tx.amount; await oldGroup.save(); } }
         if (tx.managerGroupId) { const oldManager = await ExecutorGroup.findById(tx.managerGroupId); if (oldManager) { oldManager.balance += tx.amount; await oldManager.save(); } }
@@ -562,7 +637,15 @@ router.post('/transaction/:id/change-bot', async (req, res) => {
 
         tx.executorGroupId = newGroupId; tx.managerGroupId = newManagerId; tx.executorName = newGroup ? newGroup.name : 'غير محدد';
         appendAdminNote(tx, `[تم النقل محاسبياً إلى بوت: ${newGroup ? newGroup.name : 'غير معروف'}]`);
-        await tx.save(); res.redirect('/transactions');
+        await tx.save();
+        await logAdminFinancialChange(
+            req,
+            'TRANSACTION_EXECUTOR_CHANGED',
+            tx,
+            { executorGroupId: oldExecutorGroupId, executorName: oldExecutorName, createdAt: tx.createdAt },
+            { executorGroupId: tx.executorGroupId, executorName: tx.executorName, createdAt: tx.createdAt }
+        );
+        res.redirect('/transactions');
     } catch (error) { res.redirect('/transactions'); }
 });
 

@@ -416,7 +416,12 @@ router.post('/transaction/:id/void-balance-adjustment', requireAuth, async (req,
             metadata: {
                 transactionId: result.transaction.customId,
                 voidNumber: result.voidNumber,
-                reversalDelta: result.reversalDelta
+                reversalDelta: result.reversalDelta,
+                originalCreatedAt: result.transaction.createdAt,
+                companyId: result.transaction.companyId ? String(result.transaction.companyId) : '',
+                userId: result.transaction.userId ? String(result.transaction.userId) : '',
+                subAccountId: result.transaction.subAccountId ? String(result.transaction.subAccountId) : '',
+                employeeName: result.transaction.employeeName || ''
             }
         });
 

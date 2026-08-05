@@ -1,0 +1,351 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <title>التقرير المالي الشامل</title>
+    <style>
+        @page { size: A4 landscape; margin: 11mm 9mm 15mm; }
+        * { box-sizing: border-box; }
+        body {
+            margin: 0;
+            color: #17202a;
+            background: #fff;
+            font-family: Tahoma, Arial, sans-serif;
+            font-size: 10px;
+            line-height: 1.55;
+        }
+        .mono { direction: ltr; unicode-bidi: embed; font-family: Consolas, "Courier New", monospace; }
+        .report-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding-bottom: 9px;
+            border-bottom: 3px solid #121820;
+        }
+        .brand { display: flex; align-items: center; gap: 10px; }
+        .brand img { width: 46px; height: 46px; object-fit: contain; border: 1px solid #d9dde2; }
+        .brand-mark {
+            width: 46px;
+            height: 46px;
+            display: grid;
+            place-items: center;
+            background: #121820;
+            color: #fff;
+            font-size: 20px;
+            font-weight: 900;
+        }
+        .brand h1 { margin: 0; font-size: 18px; }
+        .brand p { margin: 1px 0 0; color: #5d6772; font-size: 9px; }
+        .document-id { text-align: left; }
+        .document-id strong { display: block; font-size: 12px; }
+        .document-id span { color: #5d6772; font-size: 8px; }
+        .profile {
+            display: grid;
+            grid-template-columns: 1.5fr repeat(4, 1fr);
+            gap: 0;
+            margin-top: 10px;
+            border: 1px solid #d9dde2;
+        }
+        .profile div { min-height: 48px; padding: 7px 9px; border-left: 1px solid #d9dde2; }
+        .profile div:last-child { border-left: 0; }
+        .profile span, .metric span, .section-heading span { display: block; color: #66717d; font-size: 8px; font-weight: 700; }
+        .profile strong { display: block; margin-top: 2px; font-size: 10px; }
+        .metrics {
+            display: grid;
+            grid-template-columns: repeat(6, 1fr);
+            gap: 7px;
+            margin-top: 9px;
+        }
+        .metric {
+            min-height: 67px;
+            padding: 8px 9px;
+            border: 1px solid #d9dde2;
+            border-top: 3px solid #53606d;
+            background: #fff;
+        }
+        .metric strong { display: block; margin-top: 5px; font-size: 15px; line-height: 1.15; }
+        .metric small { display: block; margin-top: 4px; color: #66717d; font-size: 7.5px; }
+        .metric.deposit { border-top-color: #087b55; }
+        .metric.deduction { border-top-color: #b02a37; }
+        .metric.net { border-top-color: #b07908; }
+        .metric.closing { color: #fff; background: #121820; border-color: #121820; }
+        .metric.closing span, .metric.closing small { color: #d8dde3; }
+        .closure-bar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 10px;
+            margin-top: 8px;
+            padding: 7px 9px;
+            border: 1px solid #cfd5db;
+            background: #f5f7f9;
+        }
+        .closure-bar strong { font-size: 9px; }
+        .closure-bar span { color: #5d6772; font-size: 8px; }
+        .closure-bar.warning { border-color: #d6a238; background: #fff8e7; }
+        .section { margin-top: 12px; break-inside: auto; }
+        .section.keep { break-inside: avoid; }
+        .section-heading {
+            display: flex;
+            justify-content: space-between;
+            align-items: end;
+            margin-bottom: 5px;
+            padding-right: 7px;
+            border-right: 4px solid #121820;
+        }
+        .section-heading h2 { margin: 0; font-size: 12px; }
+        .section-heading strong { font-size: 9px; }
+        table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+        thead { display: table-header-group; }
+        tr { break-inside: avoid; page-break-inside: avoid; }
+        th {
+            padding: 6px 4px;
+            color: #fff;
+            background: #202832;
+            border: 1px solid #202832;
+            font-size: 8px;
+            font-weight: 800;
+        }
+        td {
+            padding: 5px 4px;
+            border: 1px solid #dfe3e7;
+            text-align: center;
+            vertical-align: middle;
+            font-size: 8px;
+            overflow-wrap: anywhere;
+        }
+        tbody tr:nth-child(even) td { background: #f7f8fa; }
+        td.note { text-align: right; }
+        .status {
+            display: inline-block;
+            min-width: 46px;
+            padding: 2px 5px;
+            border: 1px solid #abb3bc;
+            font-size: 7px;
+            font-weight: 800;
+        }
+        .status.success { color: #075f43; border-color: #78b9a2; background: #edf9f4; }
+        .status.pending { color: #7b5200; border-color: #d8b66d; background: #fff9e9; }
+        .status.cancelled { color: #9a202c; border-color: #d49aa0; background: #fff1f2; }
+        .empty { padding: 14px; color: #68727d; text-align: center; }
+        .two-columns { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; align-items: start; }
+        .audit-list { margin: 0; padding: 0; list-style: none; border: 1px solid #d6a238; }
+        .audit-list li { display: grid; grid-template-columns: 105px 105px 130px 1fr; gap: 7px; padding: 6px 8px; border-bottom: 1px solid #ead7aa; background: #fffaf0; }
+        .audit-list li:last-child { border-bottom: 0; }
+        .audit-list strong { font-size: 8px; }
+        .audit-list span { color: #5d6772; font-size: 7.5px; }
+        .cancelled-section { break-before: page; page-break-before: always; margin-top: 0; }
+        .cancelled-notice { margin-bottom: 7px; padding: 7px 9px; border: 1px solid #d49aa0; background: #fff4f5; color: #861b27; }
+        .cancelled-notice strong { display: block; font-size: 9px; }
+        .cancelled-notice span { font-size: 8px; }
+        .report-end { margin-top: 10px; padding-top: 7px; border-top: 1px solid #d9dde2; color: #68727d; font-size: 8px; }
+    </style>
+</head>
+<body>
+<%
+    const info = report.entityInfo || {};
+    const stats = report.stats || {};
+    const currency = stats.accountingCurrency || 'LYD';
+    const formatMoney = (value, digits = 2) => Number(value || 0).toLocaleString('en-US', { minimumFractionDigits: digits, maximumFractionDigits: digits });
+    const formatEGP = (value) => Number(value || 0).toLocaleString('en-US', { maximumFractionDigits: 0 });
+    const formatDate = (value) => {
+        const date = value ? new Date(value) : null;
+        return date && !Number.isNaN(date.getTime()) ? date.toLocaleDateString('en-GB') : '---';
+    };
+    const formatDateTime = (value) => {
+        const date = value ? new Date(value) : null;
+        return date && !Number.isNaN(date.getTime())
+            ? `${date.toLocaleDateString('en-GB')} ${date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true })}`
+            : '---';
+    };
+    const compact = (value, max = 90) => {
+        const text = String(value || '').replace(/\s+/g, ' ').trim();
+        if (!text) return '---';
+        return text.length > max ? `${text.slice(0, max - 3)}...` : text;
+    };
+    const serviceName = (type) => ({
+        vodafone: 'محافظ كاش',
+        cash: 'محافظ كاش',
+        post_account: 'البريد - حساب',
+        post_card: 'البريد - بطاقة',
+        bank_account: 'تحويل بنكي',
+        sefa_niger: 'السفا - النيجر',
+        bankak_sudan: 'بنكك - السودان',
+        balance_transfer: 'تحويل داخلي'
+    }[type] || type || 'تحويل مالي');
+    const targetNumber = (transaction) => transaction.vodafoneNumber || transaction.accountNumber || transaction.serviceDetails?.clientPhone || '---';
+    const actorName = (transaction) => transaction.operatorName || transaction.executorName || transaction.employeeName || transaction.subAccountName || 'الإدارة';
+    const customerNote = (transaction) => transaction.customerNotes || transaction.notes || transaction.adminNotes || transaction.cancellationReason || '---';
+    const movementLabel = (type) => ({
+        DEPOSIT: 'إيداع', DEDUCTION: 'خصم', TRANSFER: 'تحويل', COMMISSION: 'عمولة', REFUND: 'استرجاع', REVERSAL: 'قيد عكسي'
+    }[type] || type || 'حركة');
+    const periodLabel = report.range.dateType === 'day'
+        ? formatDate(report.range.start)
+        : `${formatDate(report.range.start)} - ${formatDate(report.range.end)}`;
+    const reportNumber = `RPT-${new Date(generatedAt).toISOString().slice(0, 10).replace(/-/g, '')}-${String(report.scope.subId || '').slice(-6).toUpperCase()}`;
+%>
+
+<header class="report-header">
+    <div class="brand">
+        <% if (logoDataUri) { %><img src="<%= logoDataUri %>" alt="Power Pay AL-Ahram"><% } else { %><div class="brand-mark">P</div><% } %>
+        <div>
+            <h1>التقرير المالي الشامل</h1>
+            <p>Power Pay AL-Ahram | كشف حساب تفصيلي وسجل تدقيق مالي</p>
+        </div>
+    </div>
+    <div class="document-id">
+        <strong class="mono"><%= reportNumber %></strong>
+        <span>تاريخ الإصدار: <b class="mono"><%= formatDateTime(generatedAt) %></b></span>
+    </div>
+</header>
+
+<section class="profile">
+    <div><span>الحساب</span><strong><%= info.name || '---' %></strong></div>
+    <div><span>التصنيف</span><strong><%= info.status || '---' %></strong></div>
+    <div><span>الهاتف</span><strong class="mono"><%= info.phone || '---' %></strong></div>
+    <div><span>الفترة</span><strong class="mono"><%= periodLabel %></strong></div>
+    <div><span>أصدره</span><strong><%= adminName || 'الإدارة' %></strong></div>
+</section>
+
+<section class="metrics">
+    <article class="metric">
+        <span>الرصيد السابق</span>
+        <strong class="mono"><%= formatMoney(stats.previousBalance) %> <small><%= currency %></small></strong>
+        <small>الرصيد قبل بداية الفترة المحددة</small>
+    </article>
+    <article class="metric">
+        <span>التحويلات الناجحة</span>
+        <strong class="mono"><%= formatMoney(stats.operationsCost) %> <small><%= currency %></small></strong>
+        <small class="mono"><%= formatEGP(stats.totalEGP) %> EGP إجمالي مصري</small>
+    </article>
+    <article class="metric deposit">
+        <span>إجمالي الإيداعات</span>
+        <strong class="mono"><%= formatMoney(stats.totalDeposits) %> <small><%= currency %></small></strong>
+        <small><%= report.deposits.length %> حركة معتمدة</small>
+    </article>
+    <article class="metric deduction">
+        <span>إجمالي الخصومات</span>
+        <strong class="mono"><%= formatMoney(stats.totalDeductions) %> <small><%= currency %></small></strong>
+        <small><%= report.deductions.length %> حركة معتمدة</small>
+    </article>
+    <article class="metric net">
+        <span>إجمالي اليوم - صافي الحركة</span>
+        <strong class="mono"><%= formatMoney(stats.dailyNet) %> <small><%= currency %></small></strong>
+        <small>الإيداع - الخصم - التحويلات الناجحة</small>
+    </article>
+    <article class="metric closing">
+        <span>الرصيد الختامي</span>
+        <strong class="mono"><%= formatMoney(stats.endingBalance) %> <small><%= currency %></small></strong>
+        <small class="mono"><%= formatEGP(stats.totalEGP) %> EGP تحويلات ناجحة</small>
+    </article>
+</section>
+
+<div class="closure-bar <%= report.closure.hasPostCloseChanges ? 'warning' : '' %>">
+    <strong><%= report.closure.closedDayCount ? `تم إقفال ${report.closure.closedDayCount} يوم مالي ضمن الفترة` : 'الفترة ما زالت مفتوحة مالياً' %></strong>
+    <span><%= report.closure.hasPostCloseChanges ? `تنبيه: توجد ${report.closedDayChanges.length} حركة معدلة بعد الإقفال، موضحة في سجل التدقيق.` : 'لم تُرصد تعديلات مالية بعد الإقفال ضمن البيانات الحالية.' %></span>
+</div>
+
+<section class="section">
+    <div class="section-heading"><div><span>الحركات المحتسبة فقط</span><h2>التحويلات الناجحة</h2></div><strong><%= report.completedOperations.length %> عملية</strong></div>
+    <table>
+        <thead><tr><th style="width:3%">#</th><th style="width:11%">رقم العملية</th><th style="width:10%">الخدمة</th><th style="width:11%">الرقم المستفيد</th><th style="width:10%">المبلغ EGP</th><th style="width:8%">السعر</th><th style="width:10%">القيمة LYD</th><th style="width:11%">المنفذ</th><th style="width:11%">التاريخ</th><th style="width:15%">الملاحظة / المرجع</th></tr></thead>
+        <tbody>
+        <% if (!report.completedOperations.length) { %><tr><td colspan="10" class="empty">لا توجد تحويلات ناجحة في الفترة المحددة.</td></tr><% } %>
+        <% report.completedOperations.forEach((transaction, index) => { %>
+            <tr>
+                <td><%= index + 1 %></td><td class="mono"><%= transaction.customId || transaction._id %></td><td><%= serviceName(transaction.transferType) %></td>
+                <td class="mono"><%= targetNumber(transaction) %></td><td class="mono"><%= formatEGP(transaction.amount) %></td><td class="mono"><%= Number(transaction.exchangeRate || 0).toFixed(3) %></td>
+                <td class="mono"><%= formatMoney(transaction.costLYD, 3) %></td><td><%= compact(actorName(transaction), 35) %></td><td class="mono"><%= formatDateTime(transaction.createdAt) %></td><td class="note"><%= compact(customerNote(transaction)) %></td>
+            </tr>
+        <% }) %>
+        </tbody>
+    </table>
+</section>
+
+<% if (report.pendingOperations.length || report.pendingDeposits.length) { %>
+<section class="section">
+    <div class="section-heading"><div><span>غير داخلة في الإجماليات النهائية</span><h2>الحركات المعلقة وقيد التنفيذ</h2></div><strong><%= report.pendingOperations.length + report.pendingDeposits.length %> حركة</strong></div>
+    <table>
+        <thead><tr><th>#</th><th>رقم الحركة</th><th>النوع</th><th>القيمة</th><th>المسؤول</th><th>التاريخ</th><th>الحالة</th><th>الملاحظة</th></tr></thead>
+        <tbody>
+        <% [...report.pendingOperations, ...report.pendingDeposits].forEach((transaction, index) => { %>
+            <tr><td><%= index + 1 %></td><td class="mono"><%= transaction.customId || transaction._id %></td><td><%= serviceName(transaction.transferType) %></td><td class="mono"><%= formatEGP(transaction.amount) %> EGP</td><td><%= compact(actorName(transaction), 45) %></td><td class="mono"><%= formatDateTime(transaction.createdAt) %></td><td><span class="status pending">قيد التنفيذ</span></td><td class="note"><%= compact(customerNote(transaction)) %></td></tr>
+        <% }) %>
+        </tbody>
+    </table>
+</section>
+<% } %>
+
+<section class="section two-columns">
+    <div>
+        <div class="section-heading"><div><span>إضافة مستقلة إلى الرصيد</span><h2>الإيداعات</h2></div><strong class="mono"><%= formatMoney(stats.totalDeposits) %> <%= currency %></strong></div>
+        <table>
+            <thead><tr><th>#</th><th>رقم الحركة</th><th>القيمة</th><th>الرصيد بعد الحركة</th><th>التاريخ</th><th>الملاحظة</th></tr></thead>
+            <tbody>
+            <% if (!report.deposits.length) { %><tr><td colspan="6" class="empty">لا توجد إيداعات معتمدة.</td></tr><% } %>
+            <% report.deposits.forEach((transaction, index) => { const ledger = report.movements.find((item) => item.transactionId === transaction.customId && item.type === 'DEPOSIT'); %>
+                <tr><td><%= index + 1 %></td><td class="mono"><%= transaction.customId || transaction._id %></td><td class="mono"><%= formatMoney(transaction.amount) %></td><td class="mono"><%= ledger ? formatMoney(ledger.balanceAfter) : '---' %></td><td class="mono"><%= formatDateTime(transaction.createdAt) %></td><td class="note"><%= compact(customerNote(transaction), 65) %></td></tr>
+            <% }) %>
+            </tbody>
+        </table>
+    </div>
+    <div>
+        <div class="section-heading"><div><span>خصم مستقل من الرصيد</span><h2>الخصومات</h2></div><strong class="mono"><%= formatMoney(stats.totalDeductions) %> <%= currency %></strong></div>
+        <table>
+            <thead><tr><th>#</th><th>رقم الحركة</th><th>القيمة</th><th>الرصيد بعد الحركة</th><th>التاريخ</th><th>الملاحظة</th></tr></thead>
+            <tbody>
+            <% if (!report.deductions.length) { %><tr><td colspan="6" class="empty">لا توجد خصومات معتمدة.</td></tr><% } %>
+            <% report.deductions.forEach((transaction, index) => { const ledger = report.movements.find((item) => item.transactionId === transaction.customId && item.type === 'DEDUCTION'); %>
+                <tr><td><%= index + 1 %></td><td class="mono"><%= transaction.customId || transaction._id %></td><td class="mono"><%= formatMoney(transaction.amount) %></td><td class="mono"><%= ledger ? formatMoney(ledger.balanceAfter) : '---' %></td><td class="mono"><%= formatDateTime(transaction.createdAt) %></td><td class="note"><%= compact(customerNote(transaction), 65) %></td></tr>
+            <% }) %>
+            </tbody>
+        </table>
+    </div>
+</section>
+
+<section class="section">
+    <div class="section-heading"><div><span>تتبع القيد من الرصيد قبل الحركة إلى الرصيد بعدها</span><h2>سجل الحركات المالية</h2></div><strong><%= report.movements.length %> قيد</strong></div>
+    <table>
+        <thead><tr><th>#</th><th>رقم العملية</th><th>نوع القيد</th><th>الجهة</th><th>القيمة</th><th>الرصيد السابق</th><th>الرصيد اللاحق</th><th>مدين</th><th>دائن</th><th>وقت التسجيل</th><th>البيان</th></tr></thead>
+        <tbody>
+        <% if (!report.movements.length) { %><tr><td colspan="11" class="empty">لا توجد قيود دفتر مرتبطة بحركات الفترة.</td></tr><% } %>
+        <% report.movements.forEach((movement, index) => { %>
+            <tr><td><%= index + 1 %></td><td class="mono"><%= movement.transactionId || '---' %></td><td><%= movementLabel(movement.type) %></td><td><%= movement.entityModel || '---' %></td><td class="mono"><%= formatMoney(movement.amount, 3) %></td><td class="mono"><%= formatMoney(movement.balanceBefore, 3) %></td><td class="mono"><%= formatMoney(movement.balanceAfter, 3) %></td><td><%= compact(movement.debitAccount, 28) %></td><td><%= compact(movement.creditAccount, 28) %></td><td class="mono"><%= formatDateTime(movement.createdAt) %></td><td class="note"><%= compact(movement.description, 85) %></td></tr>
+        <% }) %>
+        </tbody>
+    </table>
+</section>
+
+<% if (report.closedDayChanges.length) { %>
+<section class="section keep">
+    <div class="section-heading"><div><span>تعديلات تمت بعد إغلاق اليوم المالي</span><h2>ملاحظات ما بعد الإقفال</h2></div><strong><%= report.closedDayChanges.length %> ملاحظة</strong></div>
+    <ul class="audit-list">
+        <% report.closedDayChanges.forEach((change) => { %>
+            <li><strong class="mono"><%= change.transactionId %></strong><span><%= change.action %></span><span><%= change.actor %> | <b class="mono"><%= formatDateTime(change.changedAt) %></b></span><span><b>اليوم المقفل:</b> <span class="mono"><%= change.affectedDay %></span> | <%= change.details || 'تم تعديل الحركة بعد الإقفال.' %></span></li>
+        <% }) %>
+    </ul>
+</section>
+<% } %>
+
+<% if (report.cancelledOperations.length) { %>
+<section class="section cancelled-section">
+    <div class="section-heading"><div><span>قسم مستقل في نهاية التقرير</span><h2>العمليات الملغية والمرفوضة</h2></div><strong><%= report.cancelledOperations.length %> عملية</strong></div>
+    <div class="cancelled-notice">
+        <strong>هذه العمليات مستبعدة بالكامل من الرصيد السابق وإجمالي التحويلات والإيداعات والخصومات وصافي اليوم والرصيد الختامي.</strong>
+        <span class="mono">قيمة مرجعية فقط: <%= formatEGP(stats.cancelledEGP) %> EGP / <%= formatMoney(stats.cancelledLYD) %> LYD</span>
+    </div>
+    <table>
+        <thead><tr><th>#</th><th>رقم العملية</th><th>رقم الإلغاء</th><th>الخدمة / أصل الحركة</th><th>الرقم المستفيد</th><th>القيمة EGP</th><th>القيمة LYD</th><th>تاريخ العملية</th><th>تاريخ الإلغاء</th><th>سبب الإلغاء</th><th>بواسطة</th></tr></thead>
+        <tbody>
+        <% if (!report.cancelledOperations.length) { %><tr><td colspan="11" class="empty">لا توجد عمليات ملغية أو مرفوضة في الفترة المحددة.</td></tr><% } %>
+        <% report.cancelledOperations.forEach((transaction, index) => { %>
+            <tr><td><%= index + 1 %></td><td class="mono"><%= transaction.customId || transaction._id %></td><td class="mono"><%= transaction.cancellationNumber || '---' %></td><td><%= transaction.balanceAdjustment?.originalStatus === 'deposit' ? 'إيداع ملغي' : transaction.balanceAdjustment?.originalStatus === 'deduction' ? 'خصم ملغي' : serviceName(transaction.transferType) %></td><td class="mono"><%= targetNumber(transaction) %></td><td class="mono"><%= formatEGP(transaction.amount) %></td><td class="mono"><%= formatMoney(transaction.costLYD, 3) %></td><td class="mono"><%= formatDateTime(transaction.createdAt) %></td><td class="mono"><%= formatDateTime(transaction.cancelledAt || transaction.updatedAt) %></td><td class="note"><%= compact(transaction.cancellationReason || transaction.adminNotes || transaction.notes, 90) %></td><td><%= transaction.cancelledBy || actorName(transaction) %></td></tr>
+        <% }) %>
+        </tbody>
+    </table>
+</section>
+<% } %>
+
+<div class="report-end">تم إنشاء هذا التقرير من البيانات المسجلة في منظومة Power Pay AL-Ahram. العمليات الملغية معروضة لأغراض التتبع فقط ولا تدخل في الحسابات المالية.</div>
+</body>
+</html>

@@ -1,1062 +1,426 @@
 <!DOCTYPE html>
 <html lang="ar" dir="rtl" data-theme="dark">
-
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>التقارير الشاملة - الأهرام باي</title>
+    <meta name="csrf-token" content="<%= typeof csrfToken !== 'undefined' ? csrfToken : '' %>">
+    <title>التقارير المالية - Power Pay AL-Ahram</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&display=swap" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
     <style>
-        body {
-            font-family: 'Cairo', sans-serif;
-            background-color: var(--bg-body);
-            color: var(--text-main);
+        * { box-sizing: border-box; }
+        body { margin: 0; background: var(--bg-body); color: var(--text-main); font-family: "Cairo", sans-serif; }
+        button, input, select { font: inherit; }
+        .main-content { margin-right: 260px; min-height: 100vh; padding: 24px; transition: margin .2s ease; }
+        .report-page { width: min(100%, 1600px); margin: 0 auto; }
+        .page-head { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 18px; }
+        .page-title { display: flex; align-items: center; gap: 11px; }
+        .page-title-icon { width: 42px; height: 42px; display: grid; place-items: center; border: 1px solid var(--border-glass); border-radius: 8px; color: var(--brand-gold); background: var(--card-bg); }
+        .page-title h1 { margin: 0; font-size: 1.3rem; font-weight: 800; }
+        .page-title p { margin: 2px 0 0; color: var(--text-muted); font-size: .78rem; }
+        .mobile-menu { display: none; width: 40px; height: 40px; border: 1px solid var(--border-glass); border-radius: 8px; color: var(--text-main); background: var(--card-bg); }
+        .report-panel { margin-bottom: 16px; padding: 18px; border: 1px solid var(--border-glass); border-radius: 8px; background: var(--card-bg); box-shadow: var(--shadow-soft); }
+        .filter-grid { display: grid; grid-template-columns: 1.2fr 1.4fr 1.2fr .8fr 1fr auto; gap: 12px; align-items: end; }
+        .field { min-width: 0; }
+        .field[hidden] { display: none; }
+        .field label { display: block; margin-bottom: 6px; color: var(--text-muted); font-size: .74rem; font-weight: 700; }
+        .form-control, .form-select { min-height: 43px; border: 1px solid var(--border-glass); border-radius: 6px; background: var(--input-bg); color: var(--text-main); font-size: .84rem; }
+        .form-control:focus, .form-select:focus { border-color: var(--brand-gold); background: var(--input-bg); color: var(--text-main); box-shadow: 0 0 0 3px rgba(212,175,55,.13); }
+        .filter-actions { display: flex; gap: 8px; }
+        .command { min-height: 43px; display: inline-flex; align-items: center; justify-content: center; gap: 8px; padding: 0 15px; border: 1px solid transparent; border-radius: 6px; font-size: .82rem; font-weight: 800; white-space: nowrap; }
+        .command.primary { color: #17130a; background: var(--brand-gold); }
+        .command.pdf { color: #fff; background: #b4232f; }
+        .command:disabled { cursor: wait; opacity: .65; }
+        .report-state { display: none; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 14px; padding: 11px 13px; border: 1px solid #578d78; border-radius: 6px; background: rgba(16,185,129,.08); }
+        .report-state.visible { display: flex; }
+        .report-state.warning { border-color: #b48628; background: rgba(245,158,11,.1); }
+        .report-state strong { display: block; font-size: .82rem; }
+        .report-state span { color: var(--text-muted); font-size: .72rem; }
+        .metrics { display: grid; grid-template-columns: repeat(6, minmax(0,1fr)); gap: 10px; margin-bottom: 16px; }
+        .metric { min-height: 110px; padding: 15px; border: 1px solid var(--border-glass); border-top: 3px solid #64748b; border-radius: 8px; background: var(--card-bg); }
+        .metric i { color: #64748b; }
+        .metric span { display: block; margin-top: 9px; color: var(--text-muted); font-size: .7rem; font-weight: 700; }
+        .metric strong { display: block; margin-top: 3px; font: 800 1.15rem/1.3 Consolas, monospace; direction: ltr; text-align: right; }
+        .metric small { display: block; margin-top: 4px; color: var(--text-muted); font-size: .64rem; }
+        .metric.success { border-top-color: #16805d; } .metric.success i { color: #16805d; }
+        .metric.danger { border-top-color: #bd3944; } .metric.danger i { color: #bd3944; }
+        .metric.gold { border-top-color: #b48628; } .metric.gold i { color: #b48628; }
+        .metric.closing { border-color: #24303c; background: #18212b; color: #fff; }
+        .metric.closing span, .metric.closing small { color: #b9c1c9; }
+        .report-section { margin-bottom: 16px; border: 1px solid var(--border-glass); border-radius: 8px; background: var(--card-bg); overflow: hidden; }
+        .section-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 16px; border-bottom: 1px solid var(--border-glass); }
+        .section-head h2 { margin: 0; font-size: .95rem; font-weight: 800; }
+        .section-head p { margin: 3px 0 0; color: var(--text-muted); font-size: .68rem; }
+        .section-count { padding: 4px 8px; border: 1px solid var(--border-glass); border-radius: 5px; color: var(--text-muted); font: 700 .68rem Consolas, monospace; white-space: nowrap; }
+        .table-wrap { width: 100%; overflow-x: auto; }
+        .report-table { width: 100%; min-width: 920px; border-collapse: collapse; }
+        .report-table th { padding: 10px 9px; color: var(--text-muted); background: rgba(127,127,127,.045); border-bottom: 1px solid var(--border-glass); font-size: .68rem; font-weight: 800; text-align: center; white-space: nowrap; }
+        .report-table td { padding: 10px 9px; border-bottom: 1px solid var(--border-glass); color: var(--text-main); font-size: .73rem; text-align: center; vertical-align: middle; }
+        .report-table tbody tr:last-child td { border-bottom: 0; }
+        .report-table tbody tr:hover td { background: rgba(127,127,127,.045); }
+        .report-table td.note { max-width: 280px; text-align: right; white-space: normal; }
+        .mono { font-family: Consolas, "Courier New", monospace; direction: ltr; unicode-bidi: embed; }
+        .status { display: inline-flex; align-items: center; gap: 5px; min-width: 70px; justify-content: center; padding: 4px 7px; border: 1px solid var(--border-glass); border-radius: 5px; font-size: .65rem; font-weight: 800; }
+        .status.success { color: #13a371; border-color: rgba(19,163,113,.35); background: rgba(19,163,113,.08); }
+        .status.pending { color: #d39b29; border-color: rgba(211,155,41,.35); background: rgba(211,155,41,.08); }
+        .status.cancelled { color: #dc4c58; border-color: rgba(220,76,88,.35); background: rgba(220,76,88,.08); }
+        .empty { padding: 25px !important; color: var(--text-muted) !important; text-align: center !important; }
+        .split-sections { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+        .audit-note { display: grid; grid-template-columns: 120px 115px 150px 1fr; gap: 10px; padding: 11px 14px; border-bottom: 1px solid var(--border-glass); align-items: center; }
+        .audit-note:last-child { border-bottom: 0; }
+        .audit-note strong { font-size: .72rem; }
+        .audit-note span { color: var(--text-muted); font-size: .68rem; }
+        .cancelled-section { border-color: rgba(220,76,88,.35); }
+        .cancelled-section .section-head { background: rgba(220,76,88,.055); }
+        .excluded-notice { margin: 12px 14px 0; padding: 9px 11px; border-right: 3px solid #dc4c58; color: #dc4c58; background: rgba(220,76,88,.06); font-size: .7rem; font-weight: 700; }
+        #reportResults[hidden] { display: none; }
+        @media (max-width: 1250px) {
+            .filter-grid { grid-template-columns: repeat(3, 1fr); }
+            .filter-actions { grid-column: span 3; justify-content: flex-end; }
+            .metrics { grid-template-columns: repeat(3, 1fr); }
         }
-
-        .main-content {
-            margin-right: 260px;
-            padding: 20px;
-            transition: 0.3s;
-        }
-
         @media (max-width: 991px) {
-            .main-content {
-                margin-right: 0;
-                padding: 15px;
-            }
+            .main-content { margin-right: 0; padding: 14px; }
+            .mobile-menu { display: grid; place-items: center; }
+            .split-sections { grid-template-columns: 1fr; }
         }
-
-        .card-glass {
-            background: var(--card-bg);
-            border: 1px solid var(--border-glass);
-            border-radius: 16px;
-            box-shadow: var(--shadow-soft);
-            padding: 20px;
-            margin-bottom: 20px;
-        }
-
-        .form-select,
-        .form-control {
-            background-color: var(--input-bg);
-            color: var(--text-main);
-            border: 1px solid var(--border-glass);
-            border-radius: 10px;
-            padding: 10px;
-        }
-
-        .form-select:focus,
-        .form-control:focus {
-            background-color: var(--input-bg);
-            color: var(--text-main);
-            border-color: var(--brand-gold);
-            box-shadow: 0 0 0 0.25rem rgba(212, 175, 55, 0.25);
-        }
-
-        .stat-card {
-            background: linear-gradient(135deg, rgba(212, 175, 55, 0.1), rgba(212, 175, 55, 0.02));
-            border: 1px solid rgba(212, 175, 55, 0.2);
-            border-radius: 16px;
-            padding: 20px;
-            text-align: center;
-            color: var(--brand-gold);
-        }
-
-        .table-custom {
-            width: 100%;
-            border-collapse: separate;
-            border-spacing: 0 12px;
-        }
-
-        .table-custom th {
-            color: var(--text-muted);
-            font-weight: 700;
-            padding: 14px 16px;
-            font-size: 0.85rem;
-            border: none;
-            text-align: center;
-        }
-
-        .table-custom tr {
-            transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1);
-        }
-
-        .table-custom td {
-            background: var(--card-bg);
-            border-top: 1px solid var(--border-glass);
-            border-bottom: 1px solid var(--border-glass);
-            padding: 16px 14px;
-            vertical-align: middle;
-            text-align: center;
-            font-size: 0.9rem;
-            color: var(--text-main);
-            transition: background 0.25s, box-shadow 0.25s, border-color 0.25s;
-            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.03), 0 2px 4px -1px rgba(0, 0, 0, 0.02);
-        }
-
-        [data-theme="dark"] .table-custom td {
-            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.15);
-        }
-
-        .table-custom tr td:first-child {
-            border-right: 1px solid var(--border-glass);
-            border-top-right-radius: 14px;
-            border-bottom-right-radius: 14px;
-        }
-
-        .table-custom tr td:last-child {
-            border-left: 1px solid var(--border-glass);
-            border-top-left-radius: 14px;
-            border-bottom-left-radius: 14px;
-        }
-
-        /* Hover */
-        .table-custom tbody tr:hover {
-            transform: translateY(-3px) scale(1.005);
-        }
-
-        .table-custom tbody tr:hover td {
-            background: rgba(255, 255, 255, 0.98);
-            border-color: rgba(14, 165, 233, 0.3);
-            box-shadow: 0 12px 20px -5px rgba(0, 0, 0, 0.08), 0 8px 10px -6px rgba(0, 0, 0, 0.06);
-        }
-
-        [data-theme="dark"] .table-custom tbody tr:hover td {
-            background: rgba(30, 41, 59, 0.98);
-            border-color: rgba(251, 191, 36, 0.3);
-            box-shadow: 0 12px 25px -5px rgba(0, 0, 0, 0.4), 0 8px 15px -6px rgba(0, 0, 0, 0.35);
-        }
-
-        .badge-st {
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            padding: 6px 14px;
-            border-radius: 30px;
-            font-size: 0.78rem;
-            font-weight: 700;
-            line-height: 1;
-        }
-
-        .st-done {
-            background: rgba(16, 185, 129, 0.1);
-            color: #10b981;
-            border: 1px solid rgba(16, 185, 129, 0.2);
-        }
-
-        .st-fail {
-            background: rgba(239, 68, 68, 0.1);
-            color: #ef4444;
-            border: 1px solid rgba(239, 68, 68, 0.2);
-        }
-
-        /* Indicator dots for badges */
-        .indicator-dot {
-            display: inline-block;
-            width: 7px;
-            height: 7px;
-            border-radius: 50%;
-            margin-left: 6px;
-            vertical-align: middle;
-        }
-        .dot-done {
-            background-color: #10b981;
-            box-shadow: 0 0 6px #10b981;
-        }
-        .dot-fail {
-            background-color: #ef4444;
-            box-shadow: 0 0 6px #ef4444;
+        @media (max-width: 680px) {
+            .page-head { align-items: flex-start; }
+            .page-title p { display: none; }
+            .filter-grid { grid-template-columns: 1fr; }
+            .filter-actions { grid-column: auto; display: grid; grid-template-columns: 1fr 1fr; }
+            .metrics { grid-template-columns: repeat(2, minmax(0,1fr)); }
+            .metric { min-height: 105px; padding: 12px; }
+            .metric strong { font-size: .95rem; }
+            .report-state { align-items: flex-start; flex-direction: column; }
+            .audit-note { grid-template-columns: 1fr 1fr; }
+            .audit-note span:last-child { grid-column: 1 / -1; }
         }
     </style>
-
-    <!-- PWA Setup -->
     <link rel="manifest" href="/manifest.json">
     <meta name="theme-color" content="#001a4d">
-    <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <meta name="apple-mobile-web-app-title" content="Al-Ahram">
-    <!-- End PWA Setup -->
 </head>
-
 <body>
     <div class="sidebar-overlay" onclick="toggleSidebar()"></div>
     <%- include('partials/sidebar', { activePage: 'reports' }) %>
 
-        <div class="main-content">
-            <div class="d-flex justify-content-between align-items-center mb-4">
-                <h4 class="fw-bold m-0" style="color: var(--brand-gold);"><i class="fa-solid fa-chart-line me-2"></i>
-                    التقارير الشاملة والديناميكية</h4>
-            </div>
+    <main class="main-content">
+        <div class="report-page">
+            <header class="page-head">
+                <div class="page-title">
+                    <div class="page-title-icon"><i class="fa-solid fa-chart-column"></i></div>
+                    <div><h1>التقارير المالية الشاملة</h1><p>كشف حساب دقيق، إقفال يومي، وتتبع كامل للحركات والتعديلات</p></div>
+                </div>
+                <button type="button" class="mobile-menu" onclick="toggleSidebar()" aria-label="فتح القائمة"><i class="fa-solid fa-bars"></i></button>
+            </header>
 
-            <!-- فلاتر التقرير -->
-            <div class="card-glass">
-                <div class="row g-3 align-items-end">
-                    <div class="col-md-3">
-                        <label class="form-label text-muted fw-bold">القسم الرئيسي</label>
+            <section class="report-panel" aria-label="مرشحات التقرير">
+                <div class="filter-grid">
+                    <div class="field">
+                        <label for="mainCategory">نوع الحساب</label>
                         <select id="mainCategory" class="form-select" onchange="updateSubCategory()">
-                            <option value="">-- اختر القسم --</option>
+                            <option value="">اختر نوع الحساب</option>
                             <option value="direct_client">عميل مباشر</option>
                             <option value="company">شركة</option>
                             <option value="agent">وكيل</option>
-                            <option value="executor">المنفذين</option>
+                            <option value="executor">منفذ</option>
                             <option value="api_executor">منفذ API</option>
                         </select>
                     </div>
-
-                    <div class="col-md-3" id="subEntityCol" style="display:none;">
-                        <label class="form-label text-muted fw-bold" id="subEntityLabel">الجهة</label>
-                        <select id="subEntity" class="form-select" onchange="updateThirdCategory()">
-                            <option value="">-- اختر --</option>
-                        </select>
+                    <div class="field" id="subEntityCol" hidden>
+                        <label id="subEntityLabel" for="subEntity">الحساب</label>
+                        <select id="subEntity" class="form-select" onchange="updateThirdCategory()"><option value="">اختر الحساب</option></select>
                     </div>
-
-                    <div class="col-md-2" id="thirdCategoryCol" style="display:none;">
-                        <label class="form-label text-muted fw-bold" id="thirdCategoryLabel">التقسيم الداخلي</label>
-                        <select id="thirdCategory" class="form-select">
-                            <option value="all">تقارير عامة (الكل)</option>
-                        </select>
+                    <div class="field" id="thirdCategoryCol" hidden>
+                        <label for="thirdCategory">التقسيم الداخلي</label>
+                        <select id="thirdCategory" class="form-select"><option value="all">الحساب بالكامل</option></select>
                     </div>
-
-                    <div class="col-md-2">
-                        <label class="form-label text-muted fw-bold">الفترة الزمنية</label>
-                        <select id="dateType" class="form-select" onchange="toggleDateInput()">
-                            <option value="day">يوم محدد</option>
-                            <option value="month">شهر محدد</option>
-                        </select>
+                    <div class="field">
+                        <label for="dateType">الفترة</label>
+                        <select id="dateType" class="form-select" onchange="toggleDateInput()"><option value="day">يوم</option><option value="month">شهر</option></select>
                     </div>
-
-                    <div class="col-md-2">
-                        <label class="form-label text-muted fw-bold">&nbsp;</label>
+                    <div class="field">
+                        <label for="dateValueDay">التاريخ</label>
                         <input type="date" id="dateValueDay" class="form-control">
-                        <input type="month" id="dateValueMonth" class="form-control" style="display:none;">
+                        <input type="month" id="dateValueMonth" class="form-control" hidden>
                     </div>
-
-                    <div class="col-md-12 mt-3 text-end">
-                        <button class="btn btn-warning fw-bold px-4" onclick="fetchReport()"><i
-                                class="fa-solid fa-search"></i> عرض التقرير</button>
-                        <button id="btnDownloadPdf" class="btn btn-danger fw-bold px-4 ms-2 d-none"
-                            onclick="generatePDF()"><i class="fa-solid fa-file-pdf"></i> تحميل تقرير PDF</button>
+                    <div class="filter-actions">
+                        <button id="btnViewReport" type="button" class="command primary" onclick="fetchReport()"><i class="fa-solid fa-magnifying-glass"></i><span>عرض التقرير</span></button>
+                        <button id="btnDownloadPdf" type="button" class="command pdf" onclick="downloadReportPdf()" disabled><i class="fa-solid fa-file-pdf"></i><span>تحميل PDF</span></button>
                     </div>
                 </div>
+            </section>
+
+            <div id="reportResults" hidden>
+                <div id="closureState" class="report-state"><div><strong id="closureTitle"></strong><span id="closureText"></span></div><span id="reportAccount"></span></div>
+
+                <section class="metrics" aria-label="الملخص المالي">
+                    <article class="metric"><i class="fa-solid fa-arrow-rotate-left"></i><span>الرصيد السابق</span><strong id="statPrevious">0.00</strong><small>قبل بداية الفترة</small></article>
+                    <article class="metric"><i class="fa-solid fa-money-bill-transfer"></i><span>التحويلات الناجحة</span><strong id="statTransfers">0.00</strong><small id="statTransfersEgp">0 EGP</small></article>
+                    <article class="metric success"><i class="fa-solid fa-arrow-down"></i><span>الإيداعات</span><strong id="statDeposits">0.00</strong><small id="statDepositCount">0 حركة</small></article>
+                    <article class="metric danger"><i class="fa-solid fa-arrow-up"></i><span>الخصومات</span><strong id="statDeductions">0.00</strong><small id="statDeductionCount">0 حركة</small></article>
+                    <article class="metric gold"><i class="fa-solid fa-scale-balanced"></i><span>إجمالي اليوم - صافي الحركة</span><strong id="statDailyNet">0.00</strong><small>الإيداع - الخصم - التحويل</small></article>
+                    <article class="metric closing"><i class="fa-solid fa-wallet"></i><span>الرصيد الختامي</span><strong id="statClosing">0.00</strong><small id="statClosingEgp">0 EGP تحويلات</small></article>
+                </section>
+
+                <section class="report-section">
+                    <div class="section-head"><div><h2>التحويلات الناجحة</h2><p>هذه العمليات فقط تدخل في إجمالي التحويلات والحسابات</p></div><span id="completedCount" class="section-count">0</span></div>
+                    <div class="table-wrap"><table class="report-table"><thead><tr><th>#</th><th>رقم العملية</th><th>الخدمة</th><th>رقم المستفيد</th><th>EGP</th><th>السعر</th><th>LYD</th><th>المنفذ</th><th>التاريخ</th><th>الملاحظة</th></tr></thead><tbody id="completedBody"></tbody></table></div>
+                </section>
+
+                <section id="pendingSection" class="report-section">
+                    <div class="section-head"><div><h2>الحركات المعلقة</h2><p>معروضة للمتابعة وغير محسوبة ضمن الإجماليات النهائية</p></div><span id="pendingCount" class="section-count">0</span></div>
+                    <div class="table-wrap"><table class="report-table"><thead><tr><th>#</th><th>رقم الحركة</th><th>النوع</th><th>القيمة</th><th>المسؤول</th><th>التاريخ</th><th>الحالة</th><th>الملاحظة</th></tr></thead><tbody id="pendingBody"></tbody></table></div>
+                </section>
+
+                <div class="split-sections">
+                    <section class="report-section">
+                        <div class="section-head"><div><h2>الإيداعات</h2><p>إضافات معتمدة إلى الرصيد</p></div><span id="depositCount" class="section-count">0</span></div>
+                        <div class="table-wrap"><table class="report-table"><thead><tr><th>#</th><th>رقم الحركة</th><th>القيمة</th><th>الرصيد التالي</th><th>التاريخ</th><th>الملاحظة</th></tr></thead><tbody id="depositBody"></tbody></table></div>
+                    </section>
+                    <section class="report-section">
+                        <div class="section-head"><div><h2>الخصومات</h2><p>خصومات معتمدة من الرصيد</p></div><span id="deductionCount" class="section-count">0</span></div>
+                        <div class="table-wrap"><table class="report-table"><thead><tr><th>#</th><th>رقم الحركة</th><th>القيمة</th><th>الرصيد التالي</th><th>التاريخ</th><th>الملاحظة</th></tr></thead><tbody id="deductionBody"></tbody></table></div>
+                    </section>
+                </div>
+
+                <section class="report-section">
+                    <div class="section-head"><div><h2>سجل الحركات المالية</h2><p>تتبع الرصيد قبل وبعد كل قيد مالي مرتبط بالفترة</p></div><span id="movementCount" class="section-count">0</span></div>
+                    <div class="table-wrap"><table class="report-table"><thead><tr><th>#</th><th>رقم العملية</th><th>القيد</th><th>القيمة</th><th>الرصيد السابق</th><th>الرصيد التالي</th><th>وقت التسجيل</th><th>البيان</th></tr></thead><tbody id="movementBody"></tbody></table></div>
+                </section>
+
+                <section id="auditSection" class="report-section">
+                    <div class="section-head"><div><h2>ملاحظات ما بعد الإقفال</h2><p>أي تعديل تم على حركة تعود إلى يوم مقفل مالياً</p></div><span id="auditCount" class="section-count">0</span></div>
+                    <div id="auditBody"></div>
+                </section>
+
+                <section class="report-section cancelled-section">
+                    <div class="section-head"><div><h2>العمليات الملغية والمرفوضة</h2><p>قسم مستقل في نهاية التقرير</p></div><span id="cancelledCount" class="section-count">0</span></div>
+                    <div class="excluded-notice">هذه العمليات مستبعدة من الرصيد السابق والتحويلات والإيداعات والخصومات وصافي اليوم والرصيد الختامي.</div>
+                    <div class="table-wrap"><table class="report-table"><thead><tr><th>#</th><th>رقم العملية</th><th>رقم الإلغاء</th><th>النوع</th><th>رقم المستفيد</th><th>EGP</th><th>LYD</th><th>تاريخ العملية</th><th>تاريخ الإلغاء</th><th>السبب</th></tr></thead><tbody id="cancelledBody"></tbody></table></div>
+                </section>
             </div>
-
-            <!-- الإحصائيات -->
-            <div class="row g-3 mb-4 d-none" id="statsSection">
-                <div class="col-md-3">
-                    <div class="stat-card"
-                        style="background: linear-gradient(135deg, rgba(59,130,246,0.1), rgba(59,130,246,0.02)); border-color: rgba(59,130,246,0.2);">
-                        <h5 class="fw-bold mb-2 text-primary" id="statPrevBalance">0.00</h5>
-                        <small class="text-primary fw-bold">الرصيد السابق</small>
-                    </div>
-                </div>
-                <div class="col-md-3">
-                    <div class="stat-card"
-                        style="background: linear-gradient(135deg, rgba(239,68,68,0.1), rgba(239,68,68,0.02)); border-color: rgba(239,68,68,0.2);">
-                        <h5 class="fw-bold mb-2 text-danger" id="statTotalOps">0.00</h5>
-                        <small class="text-danger fw-bold">إجمالي عمليات اليوم</small>
-                    </div>
-                </div>
-                <div class="col-md-3">
-                    <div class="stat-card"
-                        style="background: linear-gradient(135deg, rgba(16,185,129,0.1), rgba(16,185,129,0.02)); border-color: rgba(16,185,129,0.2);">
-                        <h5 class="fw-bold mb-2 text-success" id="statTotalDeposits">0.00</h5>
-                        <small class="text-success fw-bold">إجمالي إيداعات اليوم</small>
-                    </div>
-                </div>
-                <div class="col-md-3">
-                    <div class="stat-card"
-                        style="background: linear-gradient(135deg, rgba(212,175,55,0.1), rgba(212,175,55,0.02)); border-color: rgba(212,175,55,0.2);">
-                        <h5 class="fw-bold mb-2 text-warning" id="statEndingBalance">0.00</h5>
-                        <small class="text-warning fw-bold">الرصيد الختامي</small>
-                    </div>
-                </div>
-            </div>
-
-            <!-- جدول العمليات -->
-            <div class="card-glass d-none" id="tableSection">
-                <h5 class="fw-bold mb-3"><i class="fa-solid fa-list text-muted me-1"></i> تفاصيل العمليات</h5>
-                <div class="table-responsive">
-                    <table class="table-custom">
-                        <thead>
-                            <tr>
-                                <th>#</th>
-                                <th>رقم العملية</th>
-                                <th>المبلغ</th>
-                                <th>التكلفة</th>
-                                <th>الحالة</th>
-                                <th>التاريخ</th>
-                                <th>المنفذ</th>
-                            </tr>
-                        </thead>
-                        <tbody id="reportTableBody">
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-
-            <!-- جدول الإيداعات -->
-            <div class="card-glass d-none mt-4" id="depositsSection">
-                <h5 class="fw-bold mb-3"><i class="fa-solid fa-money-bill-wave text-success me-1"></i> عمليات الإيداع
-                    والتسوية</h5>
-                <div class="table-responsive">
-                    <table class="table-custom">
-                        <thead>
-                            <tr>
-                                <th>#</th>
-                                <th>رقم العملية</th>
-                                <th>القيمة (LYD)</th>
-                                <th>الملاحظة</th>
-                                <th>التاريخ</th>
-                                <th>الحالة والمسؤول</th>
-                            </tr>
-                        </thead>
-                        <tbody id="depositsTableBody">
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-
         </div>
+    </main>
 
-        <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
-        <script>
-            // حقن البيانات من الخادم
-            const dbUsers = <%- JSON.stringify(users) %>;
-            const dbCompanies = <%- JSON.stringify(companies) %>;
-            const dbAgents = <%- JSON.stringify(agents) %>;
-            const dbExecutors = <%- JSON.stringify(executors) %>;
-            const dbApiExecutors = <%- JSON.stringify(apiExecutors) %>;
-            const csrfToken = <%- JSON.stringify(typeof csrfToken !== 'undefined' ? csrfToken : '') %>;
+    <script type="application/json" id="reportDataUsers"><%- JSON.stringify(users).replace(/</g, '\\u003c') %></script>
+    <script type="application/json" id="reportDataCompanies"><%- JSON.stringify(companies).replace(/</g, '\\u003c') %></script>
+    <script type="application/json" id="reportDataAgents"><%- JSON.stringify(agents).replace(/</g, '\\u003c') %></script>
+    <script type="application/json" id="reportDataExecutors"><%- JSON.stringify(executors).replace(/</g, '\\u003c') %></script>
+    <script type="application/json" id="reportDataApiExecutors"><%- JSON.stringify(apiExecutors).replace(/</g, '\\u003c') %></script>
+    <script>
+        const parseData = (id) => JSON.parse(document.getElementById(id).textContent || '[]');
+        const dbUsers = parseData('reportDataUsers');
+        const dbCompanies = parseData('reportDataCompanies');
+        const dbAgents = parseData('reportDataAgents');
+        const dbExecutors = parseData('reportDataExecutors');
+        const dbApiExecutors = parseData('reportDataApiExecutors');
+        const csrfToken = document.querySelector('meta[name="csrf-token"]').content;
+        let lastReportData = null;
+        let lastReportPayload = null;
 
-            (function() {
-                const originalFetch = window.fetch;
-                window.fetch = function(url, options) {
-                    options = options || {};
-                    options.headers = options.headers || {};
-                    const method = String(options.method || 'GET').toUpperCase();
-                    if (csrfToken && !['GET', 'HEAD', 'OPTIONS'].includes(method)) {
-                        if (options.headers instanceof Headers) {
-                            options.headers.set('x-csrf-token', csrfToken);
-                        } else {
-                            options.headers['x-csrf-token'] = csrfToken;
-                        }
-                    }
-                    return originalFetch.call(this, url, options);
-                };
-            })();
+        const escapeHtml = (value) => String(value ?? '')
+            .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;').replace(/'/g, '&#039;');
+        const compact = (value, max = 110) => {
+            const text = String(value || '').replace(/\s+/g, ' ').trim();
+            return text.length > max ? `${text.slice(0, max - 3)}...` : text || '---';
+        };
+        const money = (value, digits = 2) => Number(value || 0).toLocaleString('en-US', { minimumFractionDigits: digits, maximumFractionDigits: digits });
+        const egp = (value) => Number(value || 0).toLocaleString('en-US', { maximumFractionDigits: 0 });
+        const dateTime = (value) => {
+            const date = value ? new Date(value) : null;
+            return date && !Number.isNaN(date.getTime())
+                ? `${date.toLocaleDateString('en-GB')} ${date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true })}`
+                : '---';
+        };
+        const localDateValue = (date) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+        const serviceName = (type) => ({ vodafone: 'محافظ كاش', cash: 'محافظ كاش', post_account: 'البريد - حساب', post_card: 'البريد - بطاقة', bank_account: 'تحويل بنكي', sefa_niger: 'السفا - النيجر', bankak_sudan: 'بنكك - السودان', balance_transfer: 'تحويل داخلي' }[type] || type || 'تحويل مالي');
+        const movementName = (type) => ({ DEPOSIT: 'إيداع', DEDUCTION: 'خصم', TRANSFER: 'تحويل', COMMISSION: 'عمولة', REFUND: 'استرجاع', REVERSAL: 'قيد عكسي' }[type] || type || 'حركة');
+        const targetNumber = (tx) => tx.vodafoneNumber || tx.accountNumber || tx.serviceDetails?.clientPhone || '---';
+        const actorName = (tx) => tx.operatorName || tx.executorName || tx.employeeName || tx.subAccountName || 'الإدارة';
+        const visibleNote = (tx) => compact(tx.customerNotes || tx.notes || tx.adminNotes || tx.cancellationReason || '---');
+        const emptyRow = (columns, text) => `<tr><td colspan="${columns}" class="empty">${escapeHtml(text)}</td></tr>`;
 
-            // تهيئة التواريخ
-            document.getElementById('dateValueDay').valueAsDate = new Date();
-            const yyyyMM = new Date().toISOString().substring(0, 7);
-            document.getElementById('dateValueMonth').value = yyyyMM;
+        document.getElementById('dateValueDay').value = localDateValue(new Date());
+        document.getElementById('dateValueMonth').value = localDateValue(new Date()).slice(0, 7);
 
-            function toggleSidebar() {
-                document.querySelector('.sidebar').classList.toggle('active');
-                document.querySelector('.sidebar-overlay').classList.toggle('active');
+        function toggleSidebar() {
+            document.querySelector('.sidebar')?.classList.toggle('active');
+            document.querySelector('.sidebar-overlay')?.classList.toggle('active');
+        }
+
+        function toggleDateInput() {
+            const isDay = document.getElementById('dateType').value === 'day';
+            document.getElementById('dateValueDay').hidden = !isDay;
+            document.getElementById('dateValueMonth').hidden = isDay;
+        }
+
+        function addOption(select, value, label) {
+            const option = document.createElement('option');
+            option.value = value;
+            option.textContent = label;
+            select.appendChild(option);
+        }
+
+        function updateSubCategory() {
+            const main = document.getElementById('mainCategory').value;
+            const column = document.getElementById('subEntityCol');
+            const select = document.getElementById('subEntity');
+            const third = document.getElementById('thirdCategoryCol');
+            select.replaceChildren();
+            addOption(select, '', 'اختر الحساب');
+            third.hidden = true;
+            if (!main) { column.hidden = true; return; }
+            column.hidden = false;
+            let list = [];
+            let label = 'الحساب';
+            if (main === 'direct_client') { list = dbUsers; label = 'العميل المباشر'; }
+            if (main === 'company') { list = dbCompanies; label = 'الشركة'; }
+            if (main === 'agent') { list = dbAgents; label = 'الوكيل'; }
+            if (main === 'executor') { list = dbExecutors; label = 'مجموعة التنفيذ'; }
+            if (main === 'api_executor') { list = dbApiExecutors; label = 'منفذ API'; }
+            document.getElementById('subEntityLabel').textContent = label;
+            list.forEach((item) => addOption(select, item._id, `${item.name}${item.phone ? ` (${item.phone})` : ''}`));
+        }
+
+        function updateThirdCategory() {
+            const main = document.getElementById('mainCategory').value;
+            const subId = document.getElementById('subEntity').value;
+            const column = document.getElementById('thirdCategoryCol');
+            const select = document.getElementById('thirdCategory');
+            select.replaceChildren();
+            addOption(select, 'all', 'الحساب بالكامل');
+            if (!subId) { column.hidden = true; return; }
+            let items = [];
+            if (main === 'company') items = (dbCompanies.find((item) => item._id === subId)?.employees || []).filter(Boolean).map((name) => ({ value: name, label: `موظف: ${name}` }));
+            if (main === 'agent') items = (dbAgents.find((item) => item._id === subId)?.subAccounts || []).map((item) => ({ value: item._id, label: `عميل الوكيل: ${item.name}` }));
+            if (main === 'executor') items = (dbExecutors.find((item) => item._id === subId)?.employees || []).filter(Boolean).map((name) => ({ value: name, label: `منفذ: ${name}` }));
+            items.forEach((item) => addOption(select, item.value, item.label));
+            column.hidden = items.length === 0;
+        }
+
+        function currentPayload() {
+            const dateType = document.getElementById('dateType').value;
+            return {
+                mainCategory: document.getElementById('mainCategory').value,
+                subId: document.getElementById('subEntity').value,
+                subType: document.getElementById('thirdCategory').value || 'all',
+                dateType,
+                dateValue: document.getElementById(dateType === 'day' ? 'dateValueDay' : 'dateValueMonth').value
+            };
+        }
+
+        function setButtonLoading(button, loading, label) {
+            if (!button) return;
+            if (!button.dataset.label) button.dataset.label = button.querySelector('span')?.textContent || '';
+            button.disabled = loading;
+            const icon = button.querySelector('i');
+            const span = button.querySelector('span');
+            if (icon) icon.className = loading ? 'fa-solid fa-spinner fa-spin' : button.id === 'btnDownloadPdf' ? 'fa-solid fa-file-pdf' : 'fa-solid fa-magnifying-glass';
+            if (span) span.textContent = loading ? label : button.dataset.label;
+        }
+
+        function renderReport(data) {
+            const stats = data.stats;
+            const currency = stats.accountingCurrency;
+            const unit = (value) => `${money(value)} ${currency}`;
+            document.getElementById('statPrevious').textContent = unit(stats.previousBalance);
+            document.getElementById('statTransfers').textContent = unit(stats.operationsCost);
+            document.getElementById('statTransfersEgp').textContent = `${egp(stats.totalEGP)} EGP إجمالي مصري`;
+            document.getElementById('statDeposits').textContent = unit(stats.totalDeposits);
+            document.getElementById('statDepositCount').textContent = `${data.deposits.length} حركة معتمدة`;
+            document.getElementById('statDeductions').textContent = unit(stats.totalDeductions);
+            document.getElementById('statDeductionCount').textContent = `${data.deductions.length} حركة معتمدة`;
+            document.getElementById('statDailyNet').textContent = unit(stats.dailyNet);
+            document.getElementById('statClosing').textContent = unit(stats.endingBalance);
+            document.getElementById('statClosingEgp').textContent = `${egp(stats.totalEGP)} EGP تحويلات ناجحة`;
+
+            const closure = document.getElementById('closureState');
+            closure.classList.add('visible');
+            closure.classList.toggle('warning', data.closure.hasPostCloseChanges);
+            document.getElementById('closureTitle').textContent = data.closure.closedDayCount ? `تم إقفال ${data.closure.closedDayCount} يوم مالي` : 'الفترة مفتوحة مالياً';
+            document.getElementById('closureText').textContent = data.closure.hasPostCloseChanges ? `تم رصد ${data.closedDayChanges.length} تعديل بعد الإقفال وسيظهر في التقرير.` : 'لا توجد تعديلات مالية مرصودة بعد الإقفال.';
+            document.getElementById('reportAccount').textContent = `${data.entityInfo.name} - ${data.entityInfo.status}`;
+
+            document.getElementById('completedCount').textContent = data.completedOperations.length;
+            document.getElementById('completedBody').innerHTML = data.completedOperations.map((tx, index) => `<tr><td>${index + 1}</td><td class="mono">${escapeHtml(tx.customId || tx._id)}</td><td>${escapeHtml(serviceName(tx.transferType))}</td><td class="mono">${escapeHtml(targetNumber(tx))}</td><td class="mono">${egp(tx.amount)}</td><td class="mono">${Number(tx.exchangeRate || 0).toFixed(3)}</td><td class="mono">${money(tx.costLYD, 3)}</td><td>${escapeHtml(compact(actorName(tx), 38))}</td><td class="mono">${escapeHtml(dateTime(tx.createdAt))}</td><td class="note" title="${escapeHtml(visibleNote(tx))}">${escapeHtml(visibleNote(tx))}</td></tr>`).join('') || emptyRow(10, 'لا توجد تحويلات ناجحة في الفترة المحددة.');
+
+            const pending = [...data.pendingOperations, ...data.pendingDeposits];
+            document.getElementById('pendingCount').textContent = pending.length;
+            document.getElementById('pendingSection').hidden = pending.length === 0;
+            document.getElementById('pendingBody').innerHTML = pending.map((tx, index) => `<tr><td>${index + 1}</td><td class="mono">${escapeHtml(tx.customId || tx._id)}</td><td>${escapeHtml(tx.status === 'deposit_pending' ? 'إيداع معلق' : serviceName(tx.transferType))}</td><td class="mono">${egp(tx.amount)} EGP</td><td>${escapeHtml(compact(actorName(tx), 45))}</td><td class="mono">${escapeHtml(dateTime(tx.createdAt))}</td><td><span class="status pending"><i class="fa-solid fa-clock"></i>معلقة</span></td><td class="note">${escapeHtml(visibleNote(tx))}</td></tr>`).join('');
+
+            const ledgerFor = (tx, type) => data.movements.find((movement) => movement.transactionId === tx.customId && movement.type === type);
+            document.getElementById('depositCount').textContent = data.deposits.length;
+            document.getElementById('depositBody').innerHTML = data.deposits.map((tx, index) => { const ledger = ledgerFor(tx, 'DEPOSIT'); return `<tr><td>${index + 1}</td><td class="mono">${escapeHtml(tx.customId || tx._id)}</td><td class="mono">${money(tx.amount)}</td><td class="mono">${ledger ? money(ledger.balanceAfter) : '---'}</td><td class="mono">${escapeHtml(dateTime(tx.createdAt))}</td><td class="note">${escapeHtml(visibleNote(tx))}</td></tr>`; }).join('') || emptyRow(6, 'لا توجد إيداعات معتمدة.');
+            document.getElementById('deductionCount').textContent = data.deductions.length;
+            document.getElementById('deductionBody').innerHTML = data.deductions.map((tx, index) => { const ledger = ledgerFor(tx, 'DEDUCTION'); return `<tr><td>${index + 1}</td><td class="mono">${escapeHtml(tx.customId || tx._id)}</td><td class="mono">${money(tx.amount)}</td><td class="mono">${ledger ? money(ledger.balanceAfter) : '---'}</td><td class="mono">${escapeHtml(dateTime(tx.createdAt))}</td><td class="note">${escapeHtml(visibleNote(tx))}</td></tr>`; }).join('') || emptyRow(6, 'لا توجد خصومات معتمدة.');
+
+            document.getElementById('movementCount').textContent = data.movements.length;
+            document.getElementById('movementBody').innerHTML = data.movements.slice(0, 250).map((movement, index) => `<tr><td>${index + 1}</td><td class="mono">${escapeHtml(movement.transactionId || '---')}</td><td>${escapeHtml(movementName(movement.type))}</td><td class="mono">${money(movement.amount, 3)}</td><td class="mono">${money(movement.balanceBefore, 3)}</td><td class="mono">${money(movement.balanceAfter, 3)}</td><td class="mono">${escapeHtml(dateTime(movement.createdAt))}</td><td class="note">${escapeHtml(compact(movement.description, 100))}</td></tr>`).join('') || emptyRow(8, 'لا توجد قيود دفتر مرتبطة بالفترة.');
+
+            document.getElementById('auditCount').textContent = data.closedDayChanges.length;
+            document.getElementById('auditSection').hidden = data.closedDayChanges.length === 0;
+            document.getElementById('auditBody').innerHTML = data.closedDayChanges.map((change) => `<div class="audit-note"><strong class="mono">${escapeHtml(change.transactionId)}</strong><span>${escapeHtml(change.action)}</span><span>${escapeHtml(change.actor)}<br><b class="mono">${escapeHtml(dateTime(change.changedAt))}</b></span><span><b>اليوم المقفل:</b> <span class="mono">${escapeHtml(change.affectedDay)}</span><br>${escapeHtml(change.details || 'تم تعديل الحركة بعد الإقفال.')}</span></div>`).join('');
+
+            document.getElementById('cancelledCount').textContent = data.cancelledOperations.length;
+            document.getElementById('cancelledBody').innerHTML = data.cancelledOperations.map((tx, index) => `<tr><td>${index + 1}</td><td class="mono">${escapeHtml(tx.customId || tx._id)}</td><td class="mono">${escapeHtml(tx.cancellationNumber || '---')}</td><td>${escapeHtml(tx.balanceAdjustment?.originalStatus === 'deposit' ? 'إيداع ملغي' : tx.balanceAdjustment?.originalStatus === 'deduction' ? 'خصم ملغي' : serviceName(tx.transferType))}</td><td class="mono">${escapeHtml(targetNumber(tx))}</td><td class="mono">${egp(tx.amount)}</td><td class="mono">${money(tx.costLYD, 3)}</td><td class="mono">${escapeHtml(dateTime(tx.createdAt))}</td><td class="mono">${escapeHtml(dateTime(tx.cancelledAt || tx.updatedAt))}</td><td class="note">${escapeHtml(compact(tx.cancellationReason || tx.adminNotes || tx.notes, 110))}</td></tr>`).join('') || emptyRow(10, 'لا توجد عمليات ملغية أو مرفوضة.');
+
+            document.getElementById('reportResults').hidden = false;
+            document.getElementById('btnDownloadPdf').disabled = false;
+        }
+
+        async function fetchReport() {
+            const payload = currentPayload();
+            if (!payload.mainCategory || !payload.subId || !payload.dateValue) return Swal.fire({ icon: 'warning', title: 'بيانات ناقصة', text: 'اختر نوع الحساب والحساب والفترة الزمنية.' });
+            const button = document.getElementById('btnViewReport');
+            setButtonLoading(button, true, 'جاري إعداد التقرير');
+            document.getElementById('btnDownloadPdf').disabled = true;
+            try {
+                const response = await fetch('/api/reports/filter', { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-csrf-token': csrfToken }, body: JSON.stringify(payload) });
+                const data = await response.json().catch(() => ({}));
+                if (!response.ok || !data.success) throw new Error(data.error || 'تعذر جلب التقرير.');
+                lastReportData = data;
+                lastReportPayload = payload;
+                renderReport(data);
+            } catch (error) {
+                Swal.fire({ icon: 'error', title: 'تعذر عرض التقرير', text: error.message });
+            } finally {
+                setButtonLoading(button, false);
             }
+        }
 
-            function toggleDateInput() {
-                const type = document.getElementById('dateType').value;
-                if (type === 'day') {
-                    document.getElementById('dateValueDay').style.display = 'block';
-                    document.getElementById('dateValueMonth').style.display = 'none';
-                } else {
-                    document.getElementById('dateValueDay').style.display = 'none';
-                    document.getElementById('dateValueMonth').style.display = 'block';
-                }
+        async function downloadReportPdf() {
+            if (!lastReportData || !lastReportPayload) return;
+            const button = document.getElementById('btnDownloadPdf');
+            setButtonLoading(button, true, 'جاري إنشاء PDF');
+            try {
+                const query = new URLSearchParams(lastReportPayload);
+                const response = await fetch(`/reports/download.pdf?${query.toString()}`, { credentials: 'same-origin' });
+                if (!response.ok) throw new Error(await response.text() || 'تعذر إنشاء ملف PDF.');
+                const blob = await response.blob();
+                if (blob.type !== 'application/pdf' || blob.size < 1000) throw new Error('استجابة PDF غير صالحة.');
+                const disposition = response.headers.get('content-disposition') || '';
+                const encodedName = disposition.match(/filename\*=UTF-8''([^;]+)/i)?.[1];
+                const filename = encodedName ? decodeURIComponent(encodedName) : 'financial-report.pdf';
+                const url = URL.createObjectURL(blob);
+                const link = document.createElement('a');
+                link.href = url;
+                link.download = filename;
+                document.body.appendChild(link);
+                link.click();
+                link.remove();
+                setTimeout(() => URL.revokeObjectURL(url), 2000);
+            } catch (error) {
+                Swal.fire({ icon: 'error', title: 'فشل تحميل PDF', text: error.message });
+            } finally {
+                setButtonLoading(button, false);
+                button.disabled = false;
             }
-
-            function updateSubCategory() {
-                const main = document.getElementById('mainCategory').value;
-                const subCol = document.getElementById('subEntityCol');
-                const subSel = document.getElementById('subEntity');
-                const thirdCol = document.getElementById('thirdCategoryCol');
-
-                subSel.innerHTML = '<option value="">-- اختر --</option>';
-                thirdCol.style.display = 'none';
-
-                if (!main) { subCol.style.display = 'none'; return; }
-                subCol.style.display = 'block';
-
-                let list = [];
-                if (main === 'direct_client') { document.getElementById('subEntityLabel').innerText = 'اسم العميل المباشر'; list = dbUsers; }
-                else if (main === 'company') { document.getElementById('subEntityLabel').innerText = 'اسم الشركة'; list = dbCompanies; }
-                else if (main === 'agent') { document.getElementById('subEntityLabel').innerText = 'اسم الوكيل'; list = dbAgents; }
-                else if (main === 'executor') { document.getElementById('subEntityLabel').innerText = 'مجموعة التنفيذ'; list = dbExecutors; }
-                else if (main === 'api_executor') { document.getElementById('subEntityLabel').innerText = 'شركة API'; list = dbApiExecutors; }
-
-                list.forEach(item => {
-                    const opt = document.createElement('option');
-                    opt.value = item._id;
-                    opt.textContent = item.name + (item.phone ? ' (' + item.phone + ')' : '');
-                    subSel.appendChild(opt);
-                });
-            }
-
-            function updateThirdCategory() {
-                const main = document.getElementById('mainCategory').value;
-                const subId = document.getElementById('subEntity').value;
-                const thirdCol = document.getElementById('thirdCategoryCol');
-                const thirdSel = document.getElementById('thirdCategory');
-
-                thirdSel.innerHTML = '<option value="all">تقارير عامة (الكل)</option>';
-
-                if (!subId) { thirdCol.style.display = 'none'; return; }
-
-                let hasOptions = false;
-
-                if (main === 'company') {
-                    const comp = dbCompanies.find(c => c._id === subId);
-                    if (comp && comp.employees && comp.employees.length > 0) {
-                        comp.employees.forEach(emp => {
-                            if (emp) thirdSel.innerHTML += `<option value="${emp}">موظف: ${emp}</option>`;
-                        });
-                        hasOptions = true;
-                    }
-                }
-                else if (main === 'agent') {
-                    const agent = dbAgents.find(a => a._id === subId);
-                    if (agent && agent.subAccounts && agent.subAccounts.length > 0) {
-                        agent.subAccounts.forEach(sub => {
-                            thirdSel.innerHTML += `<option value="${sub._id}">عميل الوكيل: ${sub.name}</option>`;
-                        });
-                        hasOptions = true;
-                    }
-                }
-                else if (main === 'executor') {
-                    const exec = dbExecutors.find(e => e._id === subId);
-                    if (exec && exec.employees && exec.employees.length > 0) {
-                        exec.employees.forEach(emp => {
-                            if (emp) thirdSel.innerHTML += `<option value="${emp}">منفذ: ${emp}</option>`;
-                        });
-                        hasOptions = true;
-                    }
-                }
-
-                thirdCol.style.display = hasOptions ? 'block' : 'none';
-            }
-
-            let lastReportData = null;
-
-            function cleanTxNotes(tx = {}) {
-                const raw = String(tx.notes || '').trim();
-                const beforeApiLog = raw.split(/---\s*سجل\s+الـ\s+API/i)[0].trim();
-                const legacyTransfer = beforeApiLog.match(/(?:تحويل رصيد صادر إلى|تحويل رصيد وارد من).*\|\s*(.+)$/);
-                const systemPatterns = [/^سبب الرفض:/, /^\[تم /, /^\[فشل /, /^\[معلقة /, /^\[رقم الإلغاء:/, /^تحويل رصيد صادر إلى/, /^تحويل رصيد وارد من/, /^تمويل نقطة بيع/, /^سحب رصيد من نقطة بيع/, /^\[طلب وارد عبر API/];
-                const lines = legacyTransfer ? [legacyTransfer[1].trim()] : beforeApiLog.split(/\r?\n/).map(line => line.trim()).filter(Boolean).filter(line => {
-                    if (/رقم المحول|رقم المرسل|الرقم المرجعي|مرجع|reference|ref/i.test(line)) return true;
-                    return !systemPatterns.some(pattern => pattern.test(line));
-                });
-                if (tx.executorSenderPhone && !lines.some(line => line.includes(tx.executorSenderPhone))) lines.push(`[رقم المرسل: ${tx.executorSenderPhone}]`);
-                return lines.filter(Boolean).join('\n').trim();
-            }
-
-            async function fetchReport() {
-                const mainCategory = document.getElementById('mainCategory').value;
-                const subId = document.getElementById('subEntity').value;
-                const subType = document.getElementById('thirdCategory').value;
-                const dateType = document.getElementById('dateType').value;
-                const dateValue = dateType === 'day' ? document.getElementById('dateValueDay').value : document.getElementById('dateValueMonth').value;
-
-                if (!mainCategory || !subId || !dateValue) {
-                    return Swal.fire({ icon: 'warning', title: 'تنبيه', text: 'يرجى اختيار القسم والجهة والتاريخ.' });
-                }
-
-                const btn = document.querySelector('button.btn-warning');
-                btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> جاري التحميل...';
-                btn.disabled = true;
-
-                try {
-                    const res = await fetch('/api/reports/filter', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ mainCategory, subId, subType, dateType, dateValue })
-                    });
-                    const data = await res.json();
-
-                    if (!data.success) throw new Error(data.error);
-
-                    const curr = data.stats.isExecutor ? 'EGP' : 'LYD';
-
-                    // Update Stats
-                    document.getElementById('statPrevBalance').innerHTML = `${(data.stats.previousBalance).toFixed(2)} <span class="fs-6">${curr}</span>`;
-                    const opsCost = data.stats.isExecutor ? data.stats.totalEGP : data.stats.totalLYD;
-                    document.getElementById('statTotalOps').innerHTML = `${(opsCost).toFixed(2)} <span class="fs-6">${curr}</span>`;
-                    document.getElementById('statTotalDeposits').innerHTML = `${(data.stats.totalDeposits).toFixed(2)} <span class="fs-6">${curr}</span>`;
-                    document.getElementById('statEndingBalance').innerHTML = `${(data.stats.endingBalance).toFixed(2)} <span class="fs-6">${curr}</span>`;
-
-                    lastReportData = data;
-                    document.getElementById('statsSection').classList.remove('d-none');
-                    document.getElementById('tableSection').classList.remove('d-none');
-                    document.getElementById('depositsSection').classList.remove('d-none');
-                    document.getElementById('btnDownloadPdf').classList.remove('d-none');
-
-                    // ترتيب العمليات: الناجح أولاً، والملغي أخيراً
-                    data.operations.sort((a, b) => {
-                        if (a.status === 'completed' && b.status !== 'completed') return -1;
-                        if (b.status === 'completed' && a.status !== 'completed') return 1;
-                        const aFail = (a.status === 'rejected' || a.status === 'cancelled_by_admin');
-                        const bFail = (b.status === 'rejected' || b.status === 'cancelled_by_admin');
-                        if (aFail && !bFail) return 1;
-                        if (bFail && !aFail) return -1;
-                        return new Date(b.createdAt) - new Date(a.createdAt);
-                    });
-
-                    // Render Operations Table
-                    const tbody = document.getElementById('reportTableBody');
-                    tbody.innerHTML = '';
-                    if (data.operations.length === 0) {
-                        tbody.innerHTML = '<tr><td colspan="7" class="text-center text-muted py-4">لا توجد عمليات</td></tr>';
-                    } else {
-                        data.operations.forEach((tx, i) => {
-                            let stHtml = '';
-                            if (tx.status === 'completed') stHtml = '<span class="badge-st st-done"><span class="indicator-dot dot-done"></span>مكتمل</span>';
-                            else if (tx.status === 'rejected' || tx.status === 'cancelled_by_admin') stHtml = '<span class="badge-st st-fail"><span class="indicator-dot dot-fail"></span>مرفوض</span>';
-                            else stHtml = '<span class="badge-st bg-secondary text-white"><span class="indicator-dot bg-light"></span>' + tx.status + '</span>';
-
-                            let by = tx.operatorName || tx.executorName || tx.employeeName || tx.subAccountName || '---';
-                            if (by === 'بوت تنفيذ' && tx.executorGroupName) {
-                                by = by + ' - ' + tx.executorGroupName;
-                            }
-
-                            const dateObj = new Date(tx.createdAt);
-                            const dateStr = dateObj.toLocaleDateString('en-GB');
-                            const timeStr = dateObj.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
-
-                            tbody.innerHTML += `
-                            <tr>
-                                <td class="text-muted fw-bold">${i + 1}</td>
-                                <td dir="ltr" class="fw-bold text-end">#${tx.customId || tx._id.toString().slice(-6)}</td>
-                                <td class="fw-bold">${tx.amount} <small class="text-muted">EGP</small></td>
-                                <td>
-                                    <div class="fw-bold text-warning">${(tx.costLYD || 0).toFixed(2)} <small class="text-muted">LYD</small></div>
-                                    <div style="font-size: 0.75rem; color: #94a3b8;">السعر: ${tx.exchangeRate || 0}</div>
-                                </td>
-                                <td>${stHtml}</td>
-                                <td>
-                                    <div dir="ltr" style="font-size:0.85em;" class="text-end">${dateStr}</div>
-                                    <div dir="ltr" style="font-size:0.75rem; color: #94a3b8;" class="text-end">${timeStr}</div>
-                                </td>
-                                <td>${by}</td>
-                            </tr>
-                        `;
-                        });
-                    }
-
-                    // Render Deposits Table
-                    const dtbody = document.getElementById('depositsTableBody');
-                    dtbody.innerHTML = '';
-                    if (data.deposits.length === 0) {
-                        dtbody.innerHTML = '<tr><td colspan="6" class="text-center text-muted py-4">لا توجد إيداعات</td></tr>';
-                    } else {
-                        data.deposits.forEach((tx, i) => {
-                            let stHtml = '';
-                            if (tx.status === 'deposit') stHtml = '<span class="badge-st bg-success text-white"><span class="indicator-dot bg-light"></span>إيداع</span>';
-                            else if (tx.status === 'deduction') stHtml = '<span class="badge-st bg-danger text-white"><span class="indicator-dot bg-light"></span>خصم</span>';
-                            else stHtml = '<span class="badge-st bg-secondary text-white"><span class="indicator-dot bg-light"></span>' + tx.status + '</span>';
-
-                            const dateObj = new Date(tx.createdAt);
-                            const dateStr = dateObj.toLocaleDateString('en-GB');
-                            const timeStr = dateObj.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
-
-                            const adminName = tx.employeeName || 'الإدارة';
-                            const visibleNotes = cleanTxNotes(tx) || '-';
-
-                            dtbody.innerHTML += `
-                            <tr>
-                                <td class="text-muted fw-bold">${i + 1}</td>
-                                <td dir="ltr" class="fw-bold text-end">#${tx.customId || tx._id.toString().slice(-6)}</td>
-                                <td class="fw-bold" style="color: ${tx.status === 'deposit' ? '#10b981' : '#ef4444'};">${tx.amount}</td>
-                                <td style="max-width: 200px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="${visibleNotes}">${visibleNotes}</td>
-                                <td>
-                                    <div dir="ltr" style="font-size:0.85em;" class="text-end">${dateStr}</div>
-                                    <div dir="ltr" style="font-size:0.75rem; color: #94a3b8;" class="text-end">${timeStr}</div>
-                                </td>
-                                <td>
-                                    <div>${stHtml}</div>
-                                    <div style="font-size: 0.75rem; color: #94a3b8; margin-top: 4px;">بواسطة: ${adminName}</div>
-                                </td>
-                            </tr>
-                        `;
-                        });
-                    }
-
-                } catch (e) {
-                    Swal.fire({ icon: 'error', title: 'خطأ', text: e.message || 'فشل جلب التقرير' });
-                } finally {
-                    btn.innerHTML = '<i class="fa-solid fa-search"></i> عرض التقرير';
-                    btn.disabled = false;
-                }
-            }
-
-            function generatePDF() {
-                if (!lastReportData) return;
-
-                const data = lastReportData;
-                const ei = data.entityInfo || {};
-                const generatedAt = new Date();
-                const currency = data.stats.isExecutor ? 'EGP' : 'LYD';
-                const operationsTotal = data.stats.isExecutor ? data.stats.totalEGP : data.stats.totalLYD;
-
-                const escapePdf = (value) => String(value ?? '---')
-                    .replace(/&/g, '&amp;')
-                    .replace(/</g, '&lt;')
-                    .replace(/>/g, '&gt;')
-                    .replace(/"/g, '&quot;')
-                    .replace(/'/g, '&#039;');
-
-                const compactPdf = (value, max = 62) => {
-                    const text = String(value || '---').trim() || '---';
-                    return text.length > max ? `${text.slice(0, max - 3)}...` : text;
-                };
-
-                const formatNumber = (value, digits = 2) => {
-                    const parsed = Number(value || 0);
-                    return Number.isFinite(parsed)
-                        ? parsed.toLocaleString('en-US', { minimumFractionDigits: digits, maximumFractionDigits: digits })
-                        : '0.00';
-                };
-
-                const formatDate = (value) => {
-                    const date = value ? new Date(value) : null;
-                    return date && !Number.isNaN(date.getTime()) ? date.toLocaleDateString('en-GB') : '---';
-                };
-
-                const formatTime = (value) => {
-                    const date = value ? new Date(value) : null;
-                    return date && !Number.isNaN(date.getTime())
-                        ? date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true })
-                        : '---';
-                };
-
-                const statusMeta = (status) => {
-                    if (status === 'completed' || status === 'deposit') {
-                        return { text: status === 'deposit' ? 'إيداع' : 'ناجحة', className: 'status-success' };
-                    }
-                    if (status === 'deduction') return { text: 'خصم', className: 'status-danger' };
-                    if (status === 'rejected' || status === 'cancelled_by_admin') return { text: 'ملغية', className: 'status-danger' };
-                    if (status === 'deposit_pending') return { text: 'قيد المراجعة', className: 'status-warning' };
-                    return { text: status || 'قيد التنفيذ', className: 'status-neutral' };
-                };
-
-                const infoCell = (label, value, ltr = false) => `
-                    <div class="info-cell">
-                        <span>${escapePdf(label)}</span>
-                        <strong ${ltr ? 'dir="ltr"' : ''}>${escapePdf(value || '---')}</strong>
-                    </div>
-                `;
-
-                const metricCard = (label, value, tone, unit = currency) => `
-                    <div class="metric-card ${tone}">
-                        <span>${escapePdf(label)}</span>
-                        <strong dir="ltr">${escapePdf(formatNumber(value))}</strong>
-                        <small>${escapePdf(unit)}</small>
-                    </div>
-                `;
-
-                const emptyRow = (colspan, label) => `
-                    <tr>
-                        <td colspan="${colspan}" class="empty-row">${escapePdf(label)}</td>
-                    </tr>
-                `;
-
-                const operationRows = [...(data.operations || [])]
-                    .sort((a, b) => {
-                        const cancelledA = ['rejected', 'cancelled_by_admin'].includes(a.status) ? 1 : 0;
-                        const cancelledB = ['rejected', 'cancelled_by_admin'].includes(b.status) ? 1 : 0;
-                        if (cancelledA !== cancelledB) return cancelledA - cancelledB;
-                        return new Date(b.createdAt) - new Date(a.createdAt);
-                    })
-                    .map((tx, index) => {
-                        const status = statusMeta(tx.status);
-                        let by = tx.operatorName || tx.executorName || tx.employeeName || 'الإدارة';
-                        if (by === 'بوت تنفيذ' && tx.executorGroupName) by = `${by} - ${tx.executorGroupName}`;
-                        return `
-                            <tr>
-                                <td>${index + 1}</td>
-                                <td dir="ltr" class="mono">${escapePdf(tx.customId || tx._id?.toString?.().slice(-6) || '---')}</td>
-                                <td dir="ltr" class="amount-cell">${escapePdf(formatNumber(tx.amount))} EGP</td>
-                                <td dir="ltr">${escapePdf(tx.exchangeRate || '-')}</td>
-                                <td dir="ltr" class="amount-cell">${escapePdf(formatNumber(tx.costLYD || 0))} LYD</td>
-                                <td>${escapePdf(compactPdf(by, 34))}</td>
-                                <td dir="ltr">
-                                    <strong>${escapePdf(formatDate(tx.createdAt))}</strong>
-                                    <small>${escapePdf(formatTime(tx.createdAt))}</small>
-                                </td>
-                                <td><span class="status-pill ${status.className}">${escapePdf(status.text)}</span></td>
-                            </tr>
-                        `;
-                    }).join('') || emptyRow(8, 'لا توجد عمليات في الفترة المحددة');
-
-                const depositRows = [...(data.deposits || [])].map((tx, index) => {
-                    const status = statusMeta(tx.status);
-                    const visibleNotes = cleanTxNotes(tx) || '-';
-                    return `
-                        <tr>
-                            <td>${index + 1}</td>
-                            <td dir="ltr" class="mono">${escapePdf(tx.customId || tx._id?.toString?.().slice(-6) || '---')}</td>
-                            <td dir="ltr" class="amount-cell">${escapePdf(formatNumber(tx.amount))} LYD</td>
-                            <td>${escapePdf(compactPdf(visibleNotes, 50))}</td>
-                            <td>${escapePdf(compactPdf(tx.employeeName || 'الإدارة', 30))}</td>
-                            <td dir="ltr">
-                                <strong>${escapePdf(formatDate(tx.createdAt))}</strong>
-                                <small>${escapePdf(formatTime(tx.createdAt))}</small>
-                            </td>
-                            <td><span class="status-pill ${status.className}">${escapePdf(status.text)}</span></td>
-                        </tr>
-                    `;
-                }).join('') || emptyRow(7, 'لا توجد إيداعات أو تسويات في الفترة المحددة');
-
-                const html = `
-                    <div class="pdf-report" dir="rtl">
-                        <style>
-                            .pdf-report {
-                                width: 780px;
-                                min-height: 1100px;
-                                box-sizing: border-box;
-                                padding: 26px;
-                                font-family: 'Cairo', Tahoma, Arial, sans-serif;
-                                color: #101828;
-                                background:
-                                    radial-gradient(circle at 8% 4%, rgba(245, 184, 61, 0.16), transparent 26%),
-                                    linear-gradient(145deg, #f8fcff 0%, #edf8fb 100%);
-                            }
-                            .pdf-cover {
-                                position: relative;
-                                overflow: hidden;
-                                border-radius: 24px;
-                                padding: 28px 30px;
-                                color: #fff;
-                                background: linear-gradient(135deg, #101828 0%, #14546a 58%, #00a6a6 100%);
-                                box-shadow: 0 18px 34px rgba(16, 24, 40, 0.18);
-                                page-break-inside: avoid;
-                            }
-                            .pdf-cover:before {
-                                content: '';
-                                position: absolute;
-                                left: -70px;
-                                bottom: -96px;
-                                width: 240px;
-                                height: 240px;
-                                border-radius: 50%;
-                                background: rgba(245, 184, 61, 0.18);
-                            }
-                            .brand-row {
-                                position: relative;
-                                display: flex;
-                                align-items: center;
-                                justify-content: space-between;
-                                gap: 18px;
-                                z-index: 1;
-                            }
-                            .brand-copy h1 {
-                                margin: 0;
-                                font-size: 30px;
-                                line-height: 1.35;
-                                font-weight: 900;
-                            }
-                            .brand-copy p {
-                                margin: 8px 0 0;
-                                color: #d8fffb;
-                                font-size: 14px;
-                                font-weight: 800;
-                            }
-                            .brand-mark {
-                                width: 74px;
-                                height: 74px;
-                                border-radius: 24px;
-                                background: rgba(255,255,255,0.13);
-                                display: grid;
-                                place-items: center;
-                                box-shadow: inset 0 1px 0 rgba(255,255,255,0.2);
-                            }
-                            .brand-mark span {
-                                width: 44px;
-                                height: 44px;
-                                border-radius: 50%;
-                                display: grid;
-                                place-items: center;
-                                background: #f5b83d;
-                                color: #101828;
-                                font-size: 34px;
-                                font-weight: 900;
-                                line-height: 1;
-                            }
-                            .cover-meta {
-                                position: relative;
-                                z-index: 1;
-                                display: flex;
-                                justify-content: space-between;
-                                margin-top: 22px;
-                                padding-top: 18px;
-                                border-top: 1px solid rgba(255,255,255,0.22);
-                                font-size: 12px;
-                                font-weight: 800;
-                                color: #e8fffb;
-                            }
-                            .section-card {
-                                margin-top: 18px;
-                                padding: 20px;
-                                border: 1px solid #d9e4ea;
-                                border-radius: 22px;
-                                background: rgba(255,255,255,0.94);
-                                box-shadow: 0 12px 24px rgba(16,24,40,0.08);
-                                page-break-inside: avoid;
-                            }
-                            .section-title {
-                                display: flex;
-                                align-items: center;
-                                justify-content: space-between;
-                                margin: 0 0 14px;
-                                padding-bottom: 10px;
-                                border-bottom: 1px solid #d9e4ea;
-                                color: #101828;
-                                font-size: 18px;
-                                font-weight: 900;
-                            }
-                            .section-title span {
-                                color: #00a6a6;
-                                font-size: 12px;
-                                font-weight: 900;
-                            }
-                            .info-grid {
-                                display: grid;
-                                grid-template-columns: repeat(2, 1fr);
-                                gap: 12px;
-                            }
-                            .info-cell {
-                                padding: 13px 15px;
-                                border: 1px solid #e3edf2;
-                                border-radius: 16px;
-                                background: linear-gradient(145deg, #ffffff, #f5fbfd);
-                            }
-                            .info-cell span,
-                            .metric-card span {
-                                display: block;
-                                color: #667085;
-                                font-size: 11px;
-                                font-weight: 800;
-                                margin-bottom: 5px;
-                            }
-                            .info-cell strong {
-                                display: block;
-                                color: #101828;
-                                font-size: 15px;
-                                font-weight: 900;
-                                overflow-wrap: anywhere;
-                            }
-                            .metric-grid {
-                                display: grid;
-                                grid-template-columns: repeat(4, 1fr);
-                                gap: 12px;
-                                margin-top: 18px;
-                                page-break-inside: avoid;
-                            }
-                            .metric-card {
-                                padding: 16px 12px;
-                                border-radius: 18px;
-                                border: 1px solid #d9e4ea;
-                                background: #fff;
-                                text-align: center;
-                                box-shadow: 0 10px 18px rgba(16,24,40,0.07);
-                            }
-                            .metric-card strong {
-                                display: block;
-                                color: #101828;
-                                font-size: 19px;
-                                line-height: 1.25;
-                                font-weight: 900;
-                            }
-                            .metric-card small {
-                                display: block;
-                                margin-top: 2px;
-                                color: #667085;
-                                font-size: 10px;
-                                font-weight: 900;
-                            }
-                            .metric-card.teal { border-color: #bdebe4; background: linear-gradient(145deg, #ffffff, #ecfffb); }
-                            .metric-card.gold { border-color: #f5d18b; background: linear-gradient(145deg, #ffffff, #fff8e6); }
-                            .metric-card.red { border-color: #ffd0cc; background: linear-gradient(145deg, #ffffff, #fff4f2); }
-                            .metric-card.navy { background: linear-gradient(135deg, #101828, #14546a); border-color: #101828; }
-                            .metric-card.navy span,
-                            .metric-card.navy strong,
-                            .metric-card.navy small { color: #fff; }
-                            .report-table-wrap {
-                                margin-top: 18px;
-                                border: 1px solid #d9e4ea;
-                                border-radius: 18px;
-                                overflow: hidden;
-                                background: #fff;
-                            }
-                            .report-table {
-                                width: 100%;
-                                border-collapse: collapse;
-                                font-size: 11px;
-                                text-align: center;
-                            }
-                            .report-table th {
-                                padding: 11px 8px;
-                                background: #101828;
-                                color: #ffffff;
-                                font-weight: 900;
-                                white-space: nowrap;
-                            }
-                            .report-table td {
-                                padding: 10px 8px;
-                                border-bottom: 1px solid #e6edf2;
-                                color: #101828;
-                                font-weight: 800;
-                                vertical-align: middle;
-                                page-break-inside: avoid;
-                            }
-                            .report-table tbody tr:nth-child(even) td { background: #f7fbfd; }
-                            .report-table small {
-                                display: block;
-                                margin-top: 2px;
-                                color: #667085;
-                                font-size: 10px;
-                            }
-                            .mono {
-                                font-family: Consolas, 'Courier New', monospace;
-                                font-weight: 900;
-                            }
-                            .amount-cell {
-                                color: #00a6a6;
-                                font-weight: 900;
-                                white-space: nowrap;
-                            }
-                            .status-pill {
-                                display: inline-block;
-                                min-width: 58px;
-                                padding: 5px 9px;
-                                border-radius: 999px;
-                                font-size: 10px;
-                                line-height: 1;
-                                font-weight: 900;
-                                white-space: nowrap;
-                            }
-                            .status-success { color: #067647; background: #d1fadf; }
-                            .status-danger { color: #b42318; background: #fee4e2; }
-                            .status-warning { color: #93370d; background: #fef0c7; }
-                            .status-neutral { color: #344054; background: #eaecf0; }
-                            .empty-row {
-                                padding: 22px !important;
-                                color: #667085 !important;
-                                background: #fff !important;
-                                font-size: 13px;
-                            }
-                            .pdf-footer {
-                                margin-top: 18px;
-                                padding-top: 14px;
-                                border-top: 1px solid #d9e4ea;
-                                display: flex;
-                                justify-content: space-between;
-                                color: #667085;
-                                font-size: 11px;
-                                font-weight: 800;
-                            }
-                        </style>
-
-                        <section class="pdf-cover">
-                            <div class="brand-row">
-                                <div class="brand-copy">
-                                    <h1>تقرير الحساب الشامل</h1>
-                                    <p>Power Pay AL-Ahram - منظومة مالية موحدة لإدارة الحركات والتحويلات</p>
-                                </div>
-                                <div class="brand-mark"><span>+</span></div>
-                            </div>
-                            <div class="cover-meta">
-                                <div>تاريخ الإصدار: <span dir="ltr">${escapePdf(formatDate(generatedAt))}</span></div>
-                                <div>وقت الإصدار: <span dir="ltr">${escapePdf(formatTime(generatedAt))}</span></div>
-                                <div>عملة التقرير: ${escapePdf(currency)}</div>
-                            </div>
-                        </section>
-
-                        <section class="section-card">
-                            <h2 class="section-title">بيانات الحساب <span>ACCOUNT PROFILE</span></h2>
-                            <div class="info-grid">
-                                ${infoCell('اسم الحساب', ei.name)}
-                                ${infoCell('رقم الهاتف', ei.phone, true)}
-                                ${infoCell('اسم المستخدم', ei.username)}
-                                ${infoCell('تاريخ الانضمام', ei.joinDate ? formatDate(ei.joinDate) : '---', true)}
-                                ${infoCell('التصنيف', ei.status)}
-                                ${infoCell('عدد العمليات', data.stats.totalCount || 0, true)}
-                            </div>
-                        </section>
-
-                        <section class="metric-grid">
-                            ${metricCard('الرصيد السابق', data.stats.previousBalance, 'teal')}
-                            ${metricCard('إجمالي العمليات', operationsTotal, 'red')}
-                            ${metricCard('إجمالي الإيداعات', data.stats.totalDeposits, 'gold')}
-                            ${metricCard('الرصيد الختامي', data.stats.endingBalance, 'navy')}
-                        </section>
-
-                        <section class="section-card">
-                            <h2 class="section-title">كشف العمليات <span>TRANSFERS LEDGER</span></h2>
-                            <div class="report-table-wrap">
-                                <table class="report-table">
-                                    <thead>
-                                        <tr>
-                                            <th>#</th>
-                                            <th>رقم العملية</th>
-                                            <th>المبلغ</th>
-                                            <th>السعر</th>
-                                            <th>القيمة</th>
-                                            <th>بواسطة</th>
-                                            <th>التاريخ</th>
-                                            <th>الحالة</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>${operationRows}</tbody>
-                                </table>
-                            </div>
-                        </section>
-
-                        <section class="section-card">
-                            <h2 class="section-title">الإيداعات والتسويات <span>ACCOUNT MOVEMENTS</span></h2>
-                            <div class="report-table-wrap">
-                                <table class="report-table">
-                                    <thead>
-                                        <tr>
-                                            <th>#</th>
-                                            <th>رقم الحركة</th>
-                                            <th>القيمة</th>
-                                            <th>الملاحظة</th>
-                                            <th>بواسطة</th>
-                                            <th>التاريخ</th>
-                                            <th>الحالة</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>${depositRows}</tbody>
-                                </table>
-                            </div>
-                        </section>
-
-                        <footer class="pdf-footer">
-                            <span>Power Pay AL-Ahram</span>
-                            <span>تم إصدار هذا التقرير إلكترونيا من لوحة الإدارة</span>
-                            <span dir="ltr">${escapePdf(formatDate(generatedAt))}</span>
-                        </footer>
-                    </div>
-                `;
-
-                const opt = {
-                    margin: 6,
-                    filename: 'تقرير_حساب_الاهرام_باي.pdf',
-                    image: { type: 'jpeg', quality: 0.98 },
-                    html2canvas: { scale: 2, useCORS: true, letterRendering: true, backgroundColor: '#f8fcff' },
-                    jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
-                    pagebreak: { mode: ['avoid-all', 'css', 'legacy'], avoid: ['tr', '.section-card', '.metric-grid'] }
-                };
-
-                const container = document.createElement('div');
-                container.innerHTML = html;
-                html2pdf().set(opt).from(container).save();
-            }
-        </script>
+        }
+    </script>
 </body>
-
 </html>

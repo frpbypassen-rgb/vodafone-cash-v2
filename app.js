@@ -59,6 +59,7 @@ const { metricsMiddleware, metricsEndpoint } = require('./middlewares/metrics');
 const csrfProtection = require('./middlewares/csrfProtection');
 const logger = require('./utils/logger');
 const { startApiCompletionMonitor } = require('./services/apiExecutionLifecycleService');
+const { closeEligibleDailySettlement } = require('./services/settlementService');
 const systemMonitor = require('./services/systemMonitorService');
 
 // 🟢 استدعاء طابور المهام الجديد (Queue System)
@@ -318,6 +319,14 @@ app.use(errorHandler);
 const PORT = process.env.PORT || 3000;
 Promise.all([connectDB(), initRedis()]).then(async () => {
     startApiCompletionMonitor();
+    closeEligibleDailySettlement().catch((error) => {
+        logger.error('Initial financial day close failed', { error: error.message });
+    });
+    cron.schedule('*/15 * * * *', () => {
+        closeEligibleDailySettlement().catch((error) => {
+            logger.error('Scheduled financial day close failed', { error: error.message });
+        });
+    }, { timezone: process.env.APP_TIMEZONE || 'Africa/Tripoli' });
     // 🟢 التأكد من وجود الإعدادات الافتراضية في قاعدة البيانات لتفادي أخطاء null pointer
     server.listen(PORT, () => {
         logger.info(`🟢 Al-Ahram Pay v2.0 running on port ${PORT}`, { port: PORT, env: process.env.NODE_ENV || 'development' });
