@@ -147,10 +147,14 @@
     const transferDestination = document.getElementById('transferDestination');
     const transferAccountNumber = document.getElementById('transferAccountNumber');
     const transferAmount = document.getElementById('transferAmount');
+    const transferAmountLyd = document.getElementById('transferAmountLyd');
     const transferBeneficiary = document.getElementById('transferBeneficiary');
-    const transferBankName = document.getElementById('transferBankName');
+    const beneficiaryFieldLabel = document.getElementById('beneficiaryFieldLabel');
     const transferSubtype = document.getElementById('transferSubtype');
     const transferCity = document.getElementById('transferCity');
+    const transferNationalId = document.getElementById('transferNationalId');
+    const transferGovernorate = document.getElementById('transferGovernorate');
+    const transferClientPhone = document.getElementById('transferClientPhone');
     const transferIdentityImage = document.getElementById('transferIdentityImage');
     const selectedServiceTitle = document.getElementById('selectedServiceTitle');
     const destinationFieldLabel = document.getElementById('destinationFieldLabel');
@@ -161,24 +165,49 @@
     const transferResult = document.getElementById('transferFormResult');
     let activeService = null;
 
-    const toggleConditionalField = (selector, enabled, input) => {
+    const toggleConditionalField = (selector, enabled, input, clearWhenHidden = true) => {
         const field = document.querySelector(selector);
         if (field) field.hidden = !enabled;
         if (input) input.required = Boolean(enabled);
-        if (!enabled && input) input.value = '';
+        if (!enabled && clearWhenHidden && input) input.value = '';
     };
 
-    const updateCostEstimate = () => {
+    const setOptionalAttribute = (element, attribute, value) => {
+        if (!element) return;
+        if (value === undefined || value === null || value === '') element.removeAttribute(attribute);
+        else element.setAttribute(attribute, String(value));
+    };
+
+    const updateCostEstimate = (syncLyd = true) => {
         if (!activeService || !costEstimate) return;
         const amount = Number(transferAmount?.value || 0);
         const rate = Number(activeService.rate || 0);
         const estimate = amount > 0 && rate > 0 ? amount / rate : 0;
         costEstimate.textContent = `${formatNumber(estimate, 3)} LYD`;
+        if (syncLyd && transferAmountLyd) transferAmountLyd.value = estimate > 0 ? estimate.toFixed(2) : '';
+    };
+
+    const updateCityRequirement = () => {
+        const requiredSubtypes = activeService?.cityRequiredForSubtypes || [];
+        const cityRequired = Boolean(activeService?.requiresSubtype && requiredSubtypes.includes(transferSubtype?.value));
+        toggleConditionalField('[data-city-field]', cityRequired, transferCity);
+    };
+
+    const clearTransferValues = () => {
+        [transferDestination, transferAccountNumber, transferAmount, transferAmountLyd, transferBeneficiary,
+            transferCity, transferNationalId, transferGovernorate, transferClientPhone].forEach((input) => {
+            if (input) input.value = '';
+        });
+        if (transferIdentityImage) transferIdentityImage.value = '';
+        const notes = transferForm?.querySelector('textarea[name="notes"]');
+        if (notes) notes.value = '';
     };
 
     const selectService = (serviceKey) => {
         const service = (config.services || []).find((item) => item.key === serviceKey) || config.services?.[0];
         if (!service) return;
+        const serviceChanged = activeService && activeService.key !== service.key;
+        if (serviceChanged) clearTransferValues();
         activeService = service;
         serviceButtons.forEach((button) => {
             const selected = button.dataset.serviceKey === service.key;
@@ -189,12 +218,26 @@
         if (selectedServiceTitle) selectedServiceTitle.textContent = `تحويل ${service.label}`;
         if (destinationFieldLabel) destinationFieldLabel.textContent = service.numberLabel;
         if (destinationFieldHint) destinationFieldHint.textContent = service.numberPlaceholder || 'أدخل بيانات المستلم بدقة.';
-        if (transferDestination) transferDestination.placeholder = service.numberPlaceholder || '';
-        if (transferBeneficiary) transferBeneficiary.required = Boolean(service.beneficiaryRequired);
-        toggleConditionalField('[data-bank-field]', Boolean(service.requiresBankName), transferBankName);
+        toggleConditionalField('[data-destination-field]', service.destinationRequired !== false, transferDestination);
+        if (transferDestination) {
+            transferDestination.placeholder = service.numberPlaceholder || '';
+            transferDestination.inputMode = service.destinationInputMode || 'text';
+            setOptionalAttribute(transferDestination, 'pattern', service.destinationPattern);
+            setOptionalAttribute(transferDestination, 'minlength', service.destinationMinLength);
+            setOptionalAttribute(transferDestination, 'maxlength', service.destinationMaxLength);
+        }
+        toggleConditionalField('[data-beneficiary-field]', Boolean(service.beneficiaryRequired), transferBeneficiary);
+        if (beneficiaryFieldLabel) beneficiaryFieldLabel.textContent = service.beneficiaryLabel || 'اسم المستفيد';
+        if (transferBeneficiary) transferBeneficiary.placeholder = service.beneficiaryPlaceholder || 'أدخل اسم المستفيد';
         toggleConditionalField('[data-subtype-field]', Boolean(service.requiresSubtype), transferSubtype);
-        toggleConditionalField('[data-city-field]', Boolean(service.requiresCity), transferCity);
+        if (service.requiresSubtype && transferSubtype && !transferSubtype.value) {
+            transferSubtype.value = service.allowedSubtypes?.[0] || 'nita';
+        }
+        toggleConditionalField('[data-national-id-field]', Boolean(service.requiresNationalId), transferNationalId);
+        toggleConditionalField('[data-governorate-field]', Boolean(service.requiresGovernorate), transferGovernorate);
         toggleConditionalField('[data-identity-field]', Boolean(service.requiresIdentityImage), transferIdentityImage);
+        if (transferAmount) transferAmount.step = service.amountStep || '0.01';
+        updateCityRequirement();
         if (costServiceLabel) costServiceLabel.textContent = service.label;
         if (costRate) costRate.textContent = formatNumber(service.rate, 2);
         updateCostEstimate();
@@ -203,10 +246,25 @@
     serviceButtons.forEach((button) => {
         button.addEventListener('click', () => selectService(button.dataset.serviceKey));
     });
-    transferAmount?.addEventListener('input', updateCostEstimate);
+    transferAmount?.addEventListener('input', () => updateCostEstimate());
+    transferAmountLyd?.addEventListener('input', () => {
+        if (!activeService || !transferAmount) return;
+        const rate = Number(activeService.rate || 0);
+        const amountLyd = Number(transferAmountLyd.value || 0);
+        const amountEgp = amountLyd > 0 && rate > 0 ? amountLyd * rate : 0;
+        transferAmount.value = amountEgp > 0
+            ? (activeService.integerAmount ? String(Math.round(amountEgp)) : amountEgp.toFixed(2))
+            : '';
+        updateCostEstimate(false);
+    });
     transferDestination?.addEventListener('input', () => {
         if (transferAccountNumber) transferAccountNumber.value = transferDestination.value.trim();
     });
+    transferNationalId?.addEventListener('input', () => {
+        transferNationalId.value = transferNationalId.value.replace(/\D/g, '').slice(0, 14);
+        if (activeService?.key === 'post_card' && transferAccountNumber) transferAccountNumber.value = transferNationalId.value;
+    });
+    transferSubtype?.addEventListener('change', updateCityRequirement);
     if (serviceButtons.length) selectService(config.selectedService || serviceButtons[0].dataset.serviceKey);
 
     const showFormResult = (element, message, success) => {
@@ -216,13 +274,72 @@
         element.innerHTML = `<i class="fa-solid ${success ? 'fa-circle-check' : 'fa-circle-exclamation'}"></i> ${escapeHtml(message)}`;
     };
 
+    const validateTransfer = () => {
+        const amount = Number(transferAmount?.value || 0);
+        if (!Number.isFinite(amount) || amount <= 0) return { message: 'أدخل مبلغ تحويل صحيحًا.', input: transferAmount };
+        if (activeService?.integerAmount && !Number.isInteger(amount)) {
+            return { message: 'خدمة سيفا لا تقبل كسورًا في المبلغ المصري.', input: transferAmount };
+        }
+
+        const destination = transferDestination?.value.trim() || '';
+        if (activeService?.destinationRequired !== false && !destination) {
+            return { message: activeService?.destinationError || 'أدخل بيانات المستلم.', input: transferDestination };
+        }
+        if (activeService?.destinationPattern && !new RegExp(activeService.destinationPattern).test(destination)) {
+            return { message: activeService.destinationError || 'بيانات المستلم غير صحيحة.', input: transferDestination };
+        }
+
+        const beneficiaryName = transferBeneficiary?.value.trim() || '';
+        if (activeService?.beneficiaryRequired && !beneficiaryName) {
+            return { message: 'اسم المستفيد مطلوب.', input: transferBeneficiary };
+        }
+        if (activeService?.beneficiaryMinWords && beneficiaryName.split(/\s+/).filter(Boolean).length < activeService.beneficiaryMinWords) {
+            return { message: 'اسم المستفيد الرباعي مطلوب لهذه الخدمة.', input: transferBeneficiary };
+        }
+
+        const subtype = transferSubtype?.value || '';
+        if (activeService?.requiresSubtype && !subtype) return { message: 'اختر نوع خدمة سيفا.', input: transferSubtype };
+        if (activeService?.cityRequiredForSubtypes?.includes(subtype) && !transferCity?.value.trim()) {
+            return { message: 'اسم المدينة مطلوب لخدمة NITA.', input: transferCity };
+        }
+        if (activeService?.requiresNationalId && !/^\d{14}$/.test(transferNationalId?.value.trim() || '')) {
+            return { message: 'الرقم القومي يجب أن يكون 14 رقمًا.', input: transferNationalId };
+        }
+        if (activeService?.requiresGovernorate && !transferGovernorate?.value) {
+            return { message: 'اختر المحافظة.', input: transferGovernorate };
+        }
+        if (activeService?.requiresIdentityImage) {
+            const file = transferIdentityImage?.files?.[0];
+            if (!file) return { message: 'أرفق صورة البطاقة من الأمام.', input: transferIdentityImage };
+            if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type) || file.size > 5 * 1024 * 1024) {
+                return { message: 'صورة البطاقة يجب أن تكون JPG أو PNG أو WEBP وبحجم لا يتجاوز 5MB.', input: transferIdentityImage };
+            }
+        }
+
+        return null;
+    };
+
     transferForm?.addEventListener('submit', async (event) => {
         event.preventDefault();
-        if (!transferForm.reportValidity()) return;
-        if (activeService?.requiresIdentityImage && !transferIdentityImage?.files?.length) {
-            showFormResult(transferResult, 'أرفق صورة بطاقة الهوية لهذه الخدمة.', false);
+        const validationError = validateTransfer();
+        if (validationError) {
+            showFormResult(transferResult, validationError.message, false);
+            validationError.input?.focus();
             return;
         }
+        if (!transferForm.reportValidity()) return;
+
+        const destination = activeService?.key === 'post_card'
+            ? transferGovernorate.value
+            : transferDestination.value.trim();
+        const accountNumber = activeService?.key === 'post_card'
+            ? transferNationalId.value.trim()
+            : destination;
+        if (transferAccountNumber) transferAccountNumber.value = accountNumber;
+        const formData = new FormData(transferForm);
+        formData.set('phone', destination);
+        formData.set('number', accountNumber);
+
         const submitButton = document.getElementById('transferSubmitButton');
         const originalHtml = submitButton?.innerHTML;
         if (submitButton) {
@@ -233,13 +350,12 @@
             const response = await fetch('/client/transfer', {
                 method: 'POST',
                 headers: { Accept: 'application/json', 'x-csrf-token': config.csrfToken || '' },
-                body: new FormData(transferForm)
+                body: formData
             });
             const payload = await parseJsonResponse(response);
             if (!response.ok || payload.error) throw new Error(payload.error || 'تعذر إرسال العملية.');
             showFormResult(transferResult, `${payload.message || 'تم تسجيل العملية.'} يمكنك متابعتها من سجل المعاملات.`, true);
-            transferAmount.value = '';
-            transferForm.querySelector('textarea[name="notes"]').value = '';
+            clearTransferValues();
             updateCostEstimate();
         } catch (error) {
             showFormResult(transferResult, error.message || 'تعذر إرسال العملية.', false);
@@ -314,6 +430,9 @@
                 ${detailItem('أرسلها الموظف', transaction.employeeName)}
                 ${detailItem('نوع سيفا', serviceDetails.subtype)}
                 ${detailItem('المدينة', serviceDetails.city)}
+                ${detailItem('الرقم القومي', serviceDetails.nationalId, true)}
+                ${detailItem('المحافظة', serviceDetails.governorate)}
+                ${detailItem('رقم هاتف العميل', serviceDetails.clientPhone, true)}
                 ${detailItem('البنك', serviceDetails.bankName)}
                 ${detailItem('تاريخ الإنشاء', formatDateTime(transaction.createdAt), true)}
                 ${detailItem('رقم الإلغاء', transaction.cancellationNumber, true)}

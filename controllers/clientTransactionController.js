@@ -21,6 +21,7 @@ const { normalizeAccountCode, resolveAccountByCode } = require('../services/acco
 const { logAction } = require('../services/auditService');
 const { getServiceRateForTier, resolveTransferServiceKey } = require('../utils/rateHelper');
 const { getTransferServiceDefinition } = require('../utils/mobileTransferServiceCatalog');
+const { validateTransferInput } = require('../utils/transferServiceRules');
 
 const createClientError = (message, statusCode = 400) => {
     const error = new Error(message);
@@ -132,29 +133,37 @@ exports.postTransfer = async (req, res) => {
         }
 
         const amount = parseFloat(req.body.amount);
-        const phone = String(req.body.phone || '').trim();
-        const notes = req.body.notes ? String(req.body.notes).trim().slice(0, 500) : '';
         const serviceKey = resolveTransferServiceKey(req.body.type || 'كاش');
-        const transferType = req.body.type || 'كاش'; 
+        const transferType = req.body.type || 'كاش';
         const serviceDefinition = getTransferServiceDefinition(serviceKey);
+        const submittedDestination = String(req.body.phone || '').trim();
+        const nationalId = String(req.body.nationalId || (serviceKey === 'post_card' ? req.body.number : '') || '').trim().slice(0, 20);
+        const governorate = String(req.body.governorate || (serviceKey === 'post_card' ? submittedDestination : '') || '').trim().slice(0, 100);
+        const phone = serviceKey === 'post_card' ? governorate : submittedDestination;
+        const notes = req.body.notes ? String(req.body.notes).trim().slice(0, 500) : '';
         const accountName = String(req.body.name || '').trim().slice(0, 160);
-        const accountNumber = String(req.body.number || phone).trim().slice(0, 100);
+        const accountNumber = String(serviceKey === 'post_card' ? nationalId : (req.body.number || phone)).trim().slice(0, 100);
         const serviceDetails = {
             subtype: String(req.body.serviceSubtype || '').trim().slice(0, 40),
             city: String(req.body.city || '').trim().slice(0, 100),
-            bankName: String(req.body.bankName || '').trim().slice(0, 120),
+            nationalId,
+            governorate,
+            clientPhone: String(req.body.clientPhone || '').trim().slice(0, 30),
             destinationLabel: serviceDefinition ? serviceDefinition.numberLabel : ''
         };
 
-        if (isNaN(amount) || amount <= 0 || !phone || !serviceKey) throw new Error('INVALID_DATA');
-        if (serviceDefinition?.requiredFields?.includes('name') && !accountName) throw new Error('INVALID_DATA');
-        if (serviceDefinition?.requiredFields?.includes('idCardImage') && !req.file) throw new Error('INVALID_DATA');
-        if (serviceDefinition?.requiredFields?.includes('serviceSubtype') && !serviceDetails.subtype) throw new Error('INVALID_DATA');
-        if (serviceDefinition?.allowedSubtypes && !serviceDefinition.allowedSubtypes.includes(serviceDetails.subtype)) {
-            throw new Error('INVALID_DATA');
-        }
-        if (serviceKey === 'bank_account' && !serviceDetails.bankName) throw new Error('INVALID_DATA');
-        if (serviceKey === 'sefa_niger' && !serviceDetails.city) throw new Error('INVALID_DATA');
+        const validationError = validateTransferInput({
+            serviceKey,
+            amount,
+            destination: phone,
+            beneficiaryName: accountName,
+            subtype: serviceDetails.subtype,
+            city: serviceDetails.city,
+            nationalId,
+            governorate,
+            hasIdentityImage: Boolean(req.file)
+        });
+        if (validationError) throw createClientError(validationError, 400);
 
         let settings = await withSess(Settings.findOne({}));
         if (!settings) settings = await Settings.create({}, sessionOpts);
@@ -354,6 +363,7 @@ exports.postTransfer = async (req, res) => {
         if (error.message === 'AGENT_NOT_FOUND') return isAjax ? res.status(404).json({ error: 'حساب الوكيل غير موجود أو غير نشط.' }) : null;
         if (error.message === 'INVALID_DATA') return isAjax ? res.status(400).json({ error: '❌ بيانات التحويل غير صحيحة.' }) : null;
         if (error.message.includes('INSUFFICIENT_BALANCE')) return isAjax ? res.status(400).json({ error: '❌ الرصيد غير كافٍ أو تغير أثناء العملية.' }) : null;
+        if (error.statusCode) return isAjax ? res.status(error.statusCode).json({ error: error.message }) : null;
 
         return isAjax ? res.status(500).json({ error: '❌ خطأ داخلي.' }) : null;
     }

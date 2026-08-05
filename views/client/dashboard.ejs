@@ -1712,16 +1712,16 @@
                     if (currentTransferType === 'سيفا النيجر' && !/^\d{8}$/.test(phoneVal)) return Swal.fire({ icon: 'warning', title: 'تنبيه', text: 'رقم الحساب يجب أن يكون مكوناً من 8 أرقام.', customClass: { popup: 'swal2-popup' } });
                 }
                 
-                let finalNotes = document.getElementById('tf_notes').value.trim();
-                let prefix = `[${currentTransferType}]`; let base64Image = null;
+                const finalNotes = document.getElementById('tf_notes').value.trim();
+                const beneficiaryName = document.getElementById('tf_beneficiary').value.trim();
                 if (currentTransferType === 'بريد حساب' || currentTransferType === 'بريد بطاقة') { 
-                    const benName = document.getElementById('tf_beneficiary').value.trim();
-                    if (benName.split(/\s+/).filter(n => n.length > 0).length < 4) return Swal.fire({ icon: 'warning', title: 'تنبيه', text: 'الاسم رباعي إجباري.', customClass: { popup: 'swal2-popup' } });
-                    prefix += ` - ${benName}`; 
+                    if (beneficiaryName.split(/\s+/).filter(n => n.length > 0).length < 4) return Swal.fire({ icon: 'warning', title: 'تنبيه', text: 'الاسم رباعي إجباري.', customClass: { popup: 'swal2-popup' } });
+                }
+                if (['حساب بنكي', 'بنكك السودان'].includes(currentTransferType) && !beneficiaryName) {
+                    return Swal.fire({ icon: 'warning', title: 'تنبيه', text: 'اسم المستفيد إجباري.', customClass: { popup: 'swal2-popup' } });
                 }
                 if (currentTransferType === 'سيفا النيجر') {
-                    const benName = document.getElementById('tf_beneficiary').value.trim();
-                    if (!benName) return Swal.fire({ icon: 'warning', title: 'تنبيه', text: 'الاسم إجباري.', customClass: { popup: 'swal2-popup' } });
+                    if (!beneficiaryName) return Swal.fire({ icon: 'warning', title: 'تنبيه', text: 'الاسم إجباري.', customClass: { popup: 'swal2-popup' } });
                     
                     const amountVal = parseFloat(document.getElementById('tf_amount').value);
                     if (isNaN(amountVal) || amountVal <= 0 || amountVal % 1 !== 0) {
@@ -1736,41 +1736,49 @@
                     if (currentSefaSubtype === 'nita') {
                         const cityName = document.getElementById('tf_city').value.trim();
                         if (!cityName) return Swal.fire({ icon: 'warning', title: 'تنبيه', text: 'اسم المدينة إجباري.', customClass: { popup: 'swal2-popup' } });
-                        prefix = `[سيفا النيجر - NITA] - الاسم: ${benName} - المدينة: ${cityName}`;
-                    } else {
-                        prefix = `[سيفا النيجر - NITA ACCOUNT] - الاسم: ${benName}`;
                     }
                 }
+                let nationalId = '';
+                let idCardFile = null;
                 if (currentTransferType === 'بريد بطاقة') { 
-                    const natId = document.getElementById('tf_national_id').value.trim();
-                    if (!/^\d{14}$/.test(natId)) return Swal.fire({ icon: 'warning', title: 'تنبيه', text: 'الرقم القومي يجب أن يكون 14 رقم.', customClass: { popup: 'swal2-popup' } });
-                    prefix += ` - ${natId}`; const fileInput = document.getElementById('tf_id_image'); if (!fileInput.files || fileInput.files.length === 0) return Swal.fire({ icon: 'warning', title: 'تنبيه', text: 'أرفق صورة البطاقة.', customClass: { popup: 'swal2-popup' } });
-                    const file = fileInput.files[0]; base64Image = await new Promise((resolve) => { const reader = new FileReader(); reader.onload = () => resolve(reader.result); reader.readAsDataURL(file); });
+                    nationalId = document.getElementById('tf_national_id').value.trim();
+                    if (!/^\d{14}$/.test(nationalId)) return Swal.fire({ icon: 'warning', title: 'تنبيه', text: 'الرقم القومي يجب أن يكون 14 رقم.', customClass: { popup: 'swal2-popup' } });
+                    const fileInput = document.getElementById('tf_id_image');
+                    if (!fileInput.files || fileInput.files.length === 0) return Swal.fire({ icon: 'warning', title: 'تنبيه', text: 'أرفق صورة البطاقة.', customClass: { popup: 'swal2-popup' } });
+                    idCardFile = fileInput.files[0];
                 }
                 
                 const btn = document.getElementById('btnSubmitTransfer');
                 const originalText = btn.innerHTML; btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> إرسال...'; btn.disabled = true;
                 
-                let clientPhoneStr = '';
                 const cPhoneInput = document.getElementById('tf_client_phone');
-                if (cPhoneInput && cPhoneInput.value.trim() !== '') {
-                    clientPhoneStr = ` | رقم العميل: ${cPhoneInput.value.trim()}`;
-                }
-                finalNotes = `${prefix} ` + (finalNotes ? `| ${finalNotes}` : '') + clientPhoneStr;
+                const clientPhone = cPhoneInput ? cPhoneInput.value.trim() : '';
+                const city = currentTransferType === 'سيفا النيجر' && currentSefaSubtype === 'nita'
+                    ? document.getElementById('tf_city').value.trim()
+                    : '';
+                const governorate = currentTransferType === 'بريد بطاقة'
+                    ? document.getElementById('tf_governorate').value
+                    : '';
+                const accountNumber = currentTransferType === 'بريد بطاقة' ? nationalId : phoneVal;
+                const transferData = new FormData();
+                transferData.set('phone', phoneVal);
+                transferData.set('number', accountNumber);
+                transferData.set('amount', document.getElementById('tf_amount').value);
+                transferData.set('notes', finalNotes);
+                transferData.set('type', currentTransferType);
+                transferData.set('name', beneficiaryName);
+                transferData.set('serviceSubtype', currentTransferType === 'سيفا النيجر' ? currentSefaSubtype : '');
+                transferData.set('city', city);
+                transferData.set('nationalId', nationalId);
+                transferData.set('governorate', governorate);
+                transferData.set('clientPhone', clientPhone);
+                if (idCardFile) transferData.set('idCardImage', idCardFile);
                 
                 try {
                     const response = await fetch('/client/transfer', { 
                         method: 'POST', 
-                        headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' }, 
-                        body: JSON.stringify({ 
-                            phone: phoneVal, 
-                            amount: document.getElementById('tf_amount').value, 
-                            notes: finalNotes, 
-                            type: currentTransferType, 
-                            imageBase64: base64Image,
-                            name: currentTransferType === 'سيفا النيجر' ? document.getElementById('tf_beneficiary').value.trim() : '',
-                            number: currentTransferType === 'سيفا النيجر' ? phoneVal : ''
-                        }) 
+                        headers: { 'Accept': 'application/json' },
+                        body: transferData
                     });
                     const result = await response.json();
                     

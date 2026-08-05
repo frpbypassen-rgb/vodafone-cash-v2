@@ -6,7 +6,8 @@ const {
     resolveAgentPermissions,
     buildNavigation,
     buildReportGroups,
-    summarizeTransactions
+    summarizeTransactions,
+    SERVICE_CATALOG
 } = require('../services/businessPortalService');
 
 describe('Business portal service', () => {
@@ -54,6 +55,22 @@ describe('Business portal service', () => {
         expect(navigation.some((item) => item.href === '/client/customers')).toBe(false);
         expect(navigation.find((item) => item.key === 'reports')).toMatchObject({ active: true, href: '/client/reports' });
         expect(navigation.some((item) => item.href.startsWith('#'))).toBe(false);
+    });
+
+    test('uses the client transfer fields for company and agent services', () => {
+        const byKey = Object.fromEntries(SERVICE_CATALOG.map((service) => [service.key, service]));
+
+        expect(byKey.vodafone).toMatchObject({ destinationMaxLength: 11, beneficiaryRequired: false });
+        expect(byKey.post_account).toMatchObject({ destinationMaxLength: 16, beneficiaryMinWords: 4 });
+        expect(byKey.post_card).toMatchObject({
+            destinationRequired: false,
+            requiresNationalId: true,
+            requiresGovernorate: true,
+            requiresIdentityImage: true
+        });
+        expect(byKey.bank_account.requiresBankName).toBeUndefined();
+        expect(byKey.sefa_niger).toMatchObject({ integerAmount: true, destinationMaxLength: 8 });
+        expect(byKey.sefa_niger.cityRequiredForSubtypes).toEqual(['nita']);
     });
 
     test('summarizes and groups organization, customer, and staff reports', () => {

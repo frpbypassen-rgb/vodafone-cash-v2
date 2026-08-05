@@ -10,6 +10,7 @@ const RegistrationRequest = require('../models/RegistrationRequest');
 const Settings = require('../models/Settings');
 const Ledger = require('../models/Ledger');
 const { getServiceRatesForTier } = require('../utils/rateHelper');
+const { getTransferServiceRules } = require('../utils/transferServiceRules');
 
 const STATUS_META = Object.freeze({
     pending: { label: 'قيد الانتظار', tone: 'warning' },
@@ -34,7 +35,7 @@ const SERVICE_CATALOG = Object.freeze([
         description: 'تحويل مباشر إلى المحافظ الإلكترونية المصرية.',
         numberLabel: 'رقم المحفظة',
         numberPlaceholder: '01XXXXXXXXX',
-        beneficiaryRequired: false
+        ...getTransferServiceRules('vodafone')
     }),
     Object.freeze({
         key: 'post_account',
@@ -46,7 +47,7 @@ const SERVICE_CATALOG = Object.freeze([
         description: 'تحويل إلى حساب بريدي باسم المستفيد.',
         numberLabel: 'رقم الحساب البريدي',
         numberPlaceholder: 'أدخل رقم الحساب',
-        beneficiaryRequired: true
+        ...getTransferServiceRules('post_account')
     }),
     Object.freeze({
         key: 'post_card',
@@ -58,8 +59,7 @@ const SERVICE_CATALOG = Object.freeze([
         description: 'تحويل بالرقم القومي مع مستند الهوية.',
         numberLabel: 'الرقم القومي',
         numberPlaceholder: '14 رقماً',
-        beneficiaryRequired: true,
-        requiresIdentityImage: true
+        ...getTransferServiceRules('post_card')
     }),
     Object.freeze({
         key: 'bank_account',
@@ -71,8 +71,7 @@ const SERVICE_CATALOG = Object.freeze([
         description: 'تحويل إلى حساب مصرفي أو رقم IBAN.',
         numberLabel: 'رقم الحساب أو IBAN',
         numberPlaceholder: 'رقم الحساب البنكي',
-        beneficiaryRequired: true,
-        requiresBankName: true
+        ...getTransferServiceRules('bank_account')
     }),
     Object.freeze({
         key: 'sefa_niger',
@@ -84,9 +83,7 @@ const SERVICE_CATALOG = Object.freeze([
         description: 'تحويل NITA أو NITA Account داخل النيجر.',
         numberLabel: 'رقم حساب NITA',
         numberPlaceholder: 'رقم الحساب أو الهاتف',
-        beneficiaryRequired: true,
-        requiresSubtype: true,
-        requiresCity: true
+        ...getTransferServiceRules('sefa_niger')
     }),
     Object.freeze({
         key: 'bankak_sudan',
@@ -98,7 +95,7 @@ const SERVICE_CATALOG = Object.freeze([
         description: 'تحويل إلى حساب بنكك داخل السودان.',
         numberLabel: 'رقم حساب بنكك',
         numberPlaceholder: 'أدخل رقم الحساب',
-        beneficiaryRequired: true
+        ...getTransferServiceRules('bankak_sudan')
     })
 ]);
 

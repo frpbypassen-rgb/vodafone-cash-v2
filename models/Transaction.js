@@ -35,6 +35,9 @@ const transactionSchema = new mongoose.Schema({
         subtype: { type: String, trim: true },
         city: { type: String, trim: true },
         bankName: { type: String, trim: true },
+        nationalId: { type: String, trim: true },
+        governorate: { type: String, trim: true },
+        clientPhone: { type: String, trim: true },
         destinationLabel: { type: String, trim: true }
     },
 
