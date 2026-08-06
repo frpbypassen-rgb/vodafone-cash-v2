@@ -393,33 +393,19 @@
             }
         }
 
-        async function downloadReportPdf() {
+        function downloadReportPdf() {
             if (!lastReportData || !lastReportPayload) return;
             const button = document.getElementById('btnDownloadPdf');
             setButtonLoading(button, true, 'جاري إنشاء PDF');
-            try {
-                const query = new URLSearchParams(lastReportPayload);
-                const response = await fetch(`/reports/download.pdf?${query.toString()}`, { credentials: 'same-origin' });
-                if (!response.ok) throw new Error(await response.text() || 'تعذر إنشاء ملف PDF.');
-                const blob = await response.blob();
-                if (blob.type !== 'application/pdf' || blob.size < 1000) throw new Error('استجابة PDF غير صالحة.');
-                const disposition = response.headers.get('content-disposition') || '';
-                const encodedName = disposition.match(/filename\*=UTF-8''([^;]+)/i)?.[1];
-                const filename = encodedName ? decodeURIComponent(encodedName) : 'financial-report.pdf';
-                const url = URL.createObjectURL(blob);
-                const link = document.createElement('a');
-                link.href = url;
-                link.download = filename;
-                document.body.appendChild(link);
-                link.click();
-                link.remove();
-                setTimeout(() => URL.revokeObjectURL(url), 2000);
-            } catch (error) {
-                Swal.fire({ icon: 'error', title: 'فشل تحميل PDF', text: error.message });
-            } finally {
+            const query = new URLSearchParams(lastReportPayload);
+
+            // A native attachment navigation preserves the browser download event.
+            window.location.assign(`/reports/download.pdf?${query.toString()}`);
+
+            window.setTimeout(() => {
                 setButtonLoading(button, false);
                 button.disabled = false;
-            }
+            }, 5000);
         }
     </script>
 </body>
