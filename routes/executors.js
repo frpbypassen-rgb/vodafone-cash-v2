@@ -8,6 +8,8 @@ const { requireAuth, requireMaster } = require('../middlewares/auth');
 const { syncBotBalance } = require('../utils/helpers');
 const { DEFAULT_API_PROVIDER_KEY, getApiProviderPreset, getApiProviderPresets } = require('../utils/apiProviderPresets');
 const { getApiProviderBalance } = require('../services/externalApiService');
+const { createExecutorAccount, ExecutorAccountError } = require('../services/executorAccountService');
+const { logAction } = require('../services/auditService');
 
 const normalizeText = (value) => String(value || '').trim();
 const parseNumberOrDefault = (value, fallback) => {
@@ -23,7 +25,15 @@ router.get('/executors', requireAuth, async (req, res) => {
             let txCount = 0; if (group.isManagerBot) txCount = await Transaction.countDocuments({ managerGroupId: group._id, status: 'completed' }); else txCount = await Transaction.countDocuments({ executorGroupId: group._id, status: 'completed' });
             return { ...group._doc, balance: syncedBalance, txCount };
         }));
-        res.render('executors', { bots: groupsWithStats, apiProviderPresets: getApiProviderPresets(), adminName: req.session.adminName, query: req.query });
+        const origin = `${req.protocol}://${req.get('host')}`;
+        res.render('executors', {
+            bots: groupsWithStats,
+            apiProviderPresets: getApiProviderPresets(),
+            adminName: req.session.adminName,
+            query: req.query,
+            executorRegistrationUrl: `${origin}/executor-portal/register`,
+            executorLoginUrl: `${origin}/login`
+        });
     } catch (e) { res.redirect('/'); }
 });
 
@@ -31,7 +41,7 @@ router.post('/executors/add', requireAuth, requireMaster, async (req, res) => {
     try {
         const body = req.body || {};
         const name = normalizeText(body.name);
-        if (!name) return res.redirect('/executors?createError=missing');
+        if (!name) return res.redirect('/executors?createError=MISSING_NAME&openCreate=1');
 
         const botType = normalizeText(body.botType) || 'normal';
         const isApiBot = botType === 'api' || body.isApiBot === 'on' || body.isApiBot === 'true';
@@ -41,48 +51,57 @@ router.post('/executors/add', requireAuth, requireMaster, async (req, res) => {
         const apiProviderKey = isApiBot ? (normalizeText(body.apiProviderKey) || DEFAULT_API_PROVIDER_KEY) : '';
         const apiPreset = getApiProviderPreset(apiProviderKey);
 
-        const group = await ExecutorGroup.create({
-            name,
-            status: normalizeText(body.status) || 'active',
-            balance: Number.isFinite(balance) ? balance : 0,
-            isManagerGroup: isManagerBot,
-            isManagerBot,
-            isApiGroup: isApiBot,
-            isApiBot,
-            parentGroupId: parentId && parentId !== 'none' ? parentId : null,
-            parentBotId: parentId && parentId !== 'none' ? parentId : null,
-            apiProviderKey: isApiBot ? apiPreset.key : '',
-            apiUrl: isApiBot ? (normalizeText(body.apiUrl) || apiPreset.apiUrl) : '',
-            apiToken: isApiBot ? normalizeText(body.apiToken) : '',
-            apiUsername: isApiBot ? normalizeText(body.apiUsername) : '',
-            apiPassword: isApiBot ? normalizeText(body.apiPassword) : '',
-            apiServiceId: isApiBot ? parseNumberOrDefault(body.apiServiceId, apiPreset.serviceId) : apiPreset.serviceId,
-            apiProviderId: isApiBot ? parseNumberOrDefault(body.apiProviderId, apiPreset.providerId) : apiPreset.providerId,
-            apiFieldId: isApiBot ? parseNumberOrDefault(body.apiFieldId, apiPreset.fieldId) : apiPreset.fieldId,
-            apiMachineSerial: isApiBot ? (normalizeText(body.apiMachineSerial) || apiPreset.machineSerial) : apiPreset.machineSerial
+        const { group, employee } = await createExecutorAccount({
+            groupData: {
+                name,
+                status: normalizeText(body.status) || 'active',
+                isManagerGroup: isManagerBot,
+                isManagerBot,
+                isApiGroup: isApiBot,
+                isApiBot,
+                parentGroupId: parentId && parentId !== 'none' ? parentId : null,
+                parentBotId: parentId && parentId !== 'none' ? parentId : null,
+                apiProviderKey: isApiBot ? apiPreset.key : '',
+                apiUrl: isApiBot ? (normalizeText(body.apiUrl) || apiPreset.apiUrl) : '',
+                apiToken: isApiBot ? normalizeText(body.apiToken) : '',
+                apiUsername: isApiBot ? normalizeText(body.apiUsername) : '',
+                apiPassword: isApiBot ? normalizeText(body.apiPassword) : '',
+                apiServiceId: isApiBot ? parseNumberOrDefault(body.apiServiceId, apiPreset.serviceId) : apiPreset.serviceId,
+                apiProviderId: isApiBot ? parseNumberOrDefault(body.apiProviderId, apiPreset.providerId) : apiPreset.providerId,
+                apiFieldId: isApiBot ? parseNumberOrDefault(body.apiFieldId, apiPreset.fieldId) : apiPreset.fieldId,
+                apiMachineSerial: isApiBot ? (normalizeText(body.apiMachineSerial) || apiPreset.machineSerial) : apiPreset.machineSerial
+            },
+            managerData: isApiBot ? null : {
+                name: body.managerName,
+                phone: body.managerPhone,
+                webUsername: body.webUsername,
+                webPassword: body.webPassword
+            },
+            openingBalance: Number.isFinite(balance) ? balance : NaN,
+            tenantId: req.tenantId
         });
 
-        const managerName = normalizeText(body.managerName);
-        const webUsername = normalizeText(body.webUsername).toLowerCase();
-        const webPassword = normalizeText(body.webPassword);
-        if (managerName && webUsername && webPassword) {
-            await Employee.create({
-                name: managerName,
-                phone: normalizeText(body.managerPhone),
-                role: 'manager',
-                status: 'active',
-                groupId: group._id,
-                webUsername,
-                webPassword,
-                canViewAllReports: true,
-                tenantId: req.tenantId || undefined
-            });
-        }
+        await logAction({
+            action: 'EXECUTOR_CREATED',
+            req,
+            performedById: req.session.adminId,
+            performedByModel: 'Admin',
+            performedByName: req.session.adminName || 'الإدارة',
+            targetId: group._id,
+            targetModel: 'ExecutorGroup',
+            metadata: {
+                executorName: group.name,
+                executorType: isApiBot ? 'api' : (isManagerBot ? 'manager' : 'manual'),
+                managerId: employee?._id || null,
+                openingBalance: balance
+            }
+        }).catch(() => {});
 
         return res.redirect('/executors?created=1');
     } catch (e) {
         console.error('[executors/add] failed:', e.stack || e.message);
-        return res.redirect('/executors?createError=1');
+        const errorCode = e instanceof ExecutorAccountError ? e.code : 'CREATE_FAILED';
+        return res.redirect(`/executors?createError=${encodeURIComponent(errorCode)}&openCreate=1`);
     }
 });
 

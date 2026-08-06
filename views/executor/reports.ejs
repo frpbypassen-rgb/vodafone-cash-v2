@@ -6,6 +6,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>تقارير المنفذ | الأهرام</title>
 
+    <script>window.executorCsrfToken = <%- JSON.stringify(typeof csrfToken !== 'undefined' ? csrfToken : '') %>;</script>
+    <script src="/js/executor-api.js"></script>
+
     <script>
         const savedTheme = localStorage.getItem('ahram_theme') || 'dark';
         document.documentElement.setAttribute('data-theme', savedTheme);
@@ -730,7 +733,7 @@
             btn.disabled = true;
 
             try {
-                const res = await fetch('/executor-portal/reports/filter', {
+                const res = await executorApiFetch('/executor-portal/reports/filter', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ dateType, dateValue })

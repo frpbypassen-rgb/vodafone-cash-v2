@@ -132,6 +132,13 @@
             color: var(--bg-navy); border-color: var(--theme-gold); background: #fffdf7;
             transform: translateY(-2px); box-shadow: 0 10px 22px rgba(0, 26, 77, 0.1);
         }
+        .btn-executor-account {
+            margin-top: 8px;
+            color: #fff;
+            background: rgba(255,255,255,0.08);
+            border-color: rgba(255,255,255,0.2);
+        }
+        .btn-executor-account:hover { color: #fff; background: rgba(255,255,255,0.14); }
 
         .custom-alert { background: #fef2f2; border-right: 4px solid #ef4444; color: #b91c1c; border-radius: 12px; padding: 12px 15px; font-weight: 800; font-size: 0.9rem; margin-bottom: 25px; display: flex; align-items: center; gap: 10px; border-left: 0; border-top: 0; border-bottom: 0;}
         .footer-text { text-align: center; margin-top: 25px; font-size: 0.85rem; color: rgba(255,255,255,0.5); font-weight: 600; }
@@ -264,7 +271,10 @@
                 </button>
             </form>
             <a href="/client/register" class="btn-create-account">
-                إنشاء حساب جديد <i class="fa-solid fa-user-plus"></i>
+                إنشاء حساب عميل <i class="fa-solid fa-user-plus"></i>
+            </a>
+            <a href="/executor-portal/register" class="btn-create-account btn-executor-account">
+                التسجيل كمنفذ تنفيذ <i class="fa-solid fa-user-gear"></i>
             </a>
         </div>
         

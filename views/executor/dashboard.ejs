@@ -17,6 +17,8 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800;900&family=JetBrains+Mono:wght@700&display=swap" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <script>window.executorCsrfToken = <%- JSON.stringify(typeof csrfToken !== 'undefined' ? csrfToken : '') %>;</script>
+    <script src="/js/executor-api.js"></script>
     
     <style>
         /* 🎨 المتغيرات (الوضع النهاري) */
@@ -317,7 +319,7 @@
     </button>
 </div>
 
-<script>const myTelegramId = '<%= emp.telegramId || emp._id %>';</script>
+<script>const myExecutorId = '<%= emp._id %>';</script>
 
 <nav class="navbar-glass">
     <div class="executor-info">
@@ -649,8 +651,8 @@
     // 📡 جلب البيانات وفرز الكروت الديناميكي (Smart Sorting FIFO)
     async function refreshTasks() {
         try {
-            const res = await fetch('/executor-portal/api/live-tasks');
-            const data = await res.json();
+            const res = await executorApiFetch('/executor-portal/api/live-tasks');
+            const data = await readExecutorApiResponse(res);
             
             // 📊 تحديث إحصائيات المعاملات المنجزة اليوم في صفحة حسابي
             if (data.completedToday) {
@@ -713,12 +715,12 @@
             }
             
             // 🚨 الطوارئ الذكية: تحديد إذا كان الموظف مشغولاً أم لا
-            const amIBusy = data.tasks.some(t => t.operatorId === myTelegramId && t.status === 'accepted');
+            const amIBusy = data.tasks.some(t => t.operatorId === myExecutorId && t.status === 'accepted');
             let targetAlert = null;
             if (data.alerts && data.alerts.length > 0) {
                 targetAlert = data.alerts.find(a => {
                     if (dismissedAlertsIds.has(a._id)) return false;
-                    if (amIBusy) return a.operatorId === myTelegramId;
+                    if (amIBusy) return a.operatorId === myExecutorId;
                     else return a.status === 'processing';
                 });
             }
@@ -747,7 +749,7 @@
                 for (const alertTx of data.depAlerts) {
                     const alertData = alertTx.executorWebAlert;
                     await Swal.fire({ title: alertData.type === 'success' ? 'إشعار إيداع' : 'تم الرفض', html: `<div class="fw-bold text-${alertData.type === 'success' ? 'success' : 'danger'}">${alertData.text}</div>`, icon: alertData.type, confirmButtonText: 'حسناً', confirmButtonColor: '#10b981' });
-                    await fetch('/executor-portal/api/clear-dep-alert/' + alertTx._id, { method: 'POST' });
+                    await executorApiFetch('/executor-portal/api/clear-dep-alert/' + alertTx._id, { method: 'POST' });
                 }
             }
 
@@ -767,7 +769,7 @@
                 let othersTasks = [];
 
                 data.tasks.forEach(t => {
-                    if (t.operatorId === myTelegramId && t.status === 'accepted') myTasks.push(t); 
+                    if (t.operatorId === myExecutorId && t.status === 'accepted') myTasks.push(t);
                     else if (t.status === 'processing') pendingTasks.push(t); 
                     else othersTasks.push(t); 
                 });
@@ -776,7 +778,7 @@
                 let html = '';
                 
                 smartSortedTasks.forEach(t => {
-                    const isMine = t.operatorId === myTelegramId;
+                    const isMine = t.operatorId === myExecutorId;
                     const acceptedByOther = t.status === 'accepted' && !isMine;
 
                     let cardClass = isMine ? 'task-mine' : (acceptedByOther ? 'task-locked' : 'task-pending');
@@ -894,27 +896,43 @@
         document.getElementById('emergencyOverlay').style.display = 'none'; 
         currentEmergencyId = null; 
 
-        try { await fetch('/executor-portal/api/clear-alert/' + tempId, { method: 'POST' }); } catch(e) {}
+        try { await executorApiFetch('/executor-portal/api/clear-alert/' + tempId, { method: 'POST' }); } catch(e) {}
     }
 
 
 
-    async function acceptTask(id) { await fetch('/executor-portal/api/accept-task/' + id, { method: 'POST' }); refreshTasks(); }
+    async function acceptTask(id) {
+        try {
+            const response = await executorApiFetch('/executor-portal/api/accept-task/' + id, { method: 'POST' });
+            await readExecutorApiResponse(response);
+            await refreshTasks();
+        } catch (error) {
+            Swal.fire('تعذر سحب العملية', error.message, 'error');
+            await refreshTasks();
+        }
+    }
     function openUpload(id) { currentCompletingId = id; resetUploadModal(); new bootstrap.Modal(document.getElementById('uploadModal')).show(); }
 
     document.getElementById('btnFinish').onclick = async function() {
+        if (selectedFilesArray.length === 0) {
+            return Swal.fire('الإثبات مطلوب', 'أرفق صورة إثبات واحدة على الأقل قبل إنهاء العملية.', 'warning');
+        }
         const senderPhone = document.getElementById('senderPhoneInput').value.trim();
         const btn = this; btn.disabled = true; btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> ضغط وإرسال...';
         try {
             const compressedImagesBase64 = [];
             for (let i = 0; i < selectedFilesArray.length; i++) { compressedImagesBase64.push(await compressSingleImagePromise(selectedFilesArray[i])); }
-            const res = await fetch('/executor-portal/api/complete-task/' + currentCompletingId, {
+            const res = await executorApiFetch('/executor-portal/api/complete-task/' + currentCompletingId, {
                 method: 'POST', headers: {'Content-Type': 'application/json'},
                 body: JSON.stringify({ imageBase64: compressedImagesBase64[0], imagesBase64: compressedImagesBase64, senderPhone: senderPhone })
             });
-            if((await res.json()).success) window.location.reload(); 
-            else { Swal.fire('خطأ', 'فشل الإرسال', 'error'); btn.disabled = false; btn.innerHTML = '<i class="fa-solid fa-check-double me-2"></i> تأكيد التنفيذ والإرسال <kbd class="ms-2 bg-dark bg-opacity-25 border-0 text-white px-2 py-1 rounded" style="font-size: 0.75rem; font-family: sans-serif;">Enter ↵</kbd>'; }
-        } catch(e) { btn.disabled = false; btn.innerHTML = '<i class="fa-solid fa-check-double me-2"></i> تأكيد التنفيذ والإرسال <kbd class="ms-2 bg-dark bg-opacity-25 border-0 text-white px-2 py-1 rounded" style="font-size: 0.75rem; font-family: sans-serif;">Enter ↵</kbd>'; }
+            await readExecutorApiResponse(res);
+            window.location.reload();
+        } catch(e) {
+            Swal.fire('تعذر إنهاء العملية', e.message || 'فشل إرسال الإثبات.', 'error');
+            btn.disabled = false;
+            btn.innerHTML = '<i class="fa-solid fa-check-double me-2"></i> تأكيد التنفيذ والإرسال <kbd class="ms-2 bg-dark bg-opacity-25 border-0 text-white px-2 py-1 rounded" style="font-size: 0.75rem; font-family: sans-serif;">Enter ↵</kbd>';
+        }
     };
 
     async function editAmount(id) {
@@ -927,60 +945,33 @@
             }
         });
         if (formValues) {
-            const res = await fetch('/executor-portal/api/edit-amount/' + id, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ newAmount: formValues[0], reason: formValues[1] }) });
-            if((await res.json()).success) Swal.fire('تم', 'تم التعديل بنجاح', 'success').then(refreshTasks);
+            try {
+                const res = await executorApiFetch('/executor-portal/api/edit-amount/' + id, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ newAmount: formValues[0], reason: formValues[1] }) });
+                await readExecutorApiResponse(res);
+                Swal.fire('تم', 'تم التعديل بنجاح', 'success').then(refreshTasks);
+            } catch (error) { Swal.fire('تعذر تعديل المبلغ', error.message, 'error'); }
         }
     }
 
     async function cancelTask(id) {
         const { value: reason } = await Swal.fire({ title: 'إلغاء العملية', input: 'text', inputPlaceholder: 'السبب (سيظهر للعميل)...', showCancelButton: true, confirmButtonText: 'إلغاء نهائي', confirmButtonColor: '#ef4444', cancelButtonText: 'تراجع', inputValidator: (val) => { if (!val) return 'مطلوب السبب!'; } });
-        if (reason) { const res = await fetch('/executor-portal/api/cancel-task/' + id, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ reason }) });
-        if((await res.json()).success) refreshTasks(); }
+        if (reason) {
+            try {
+                const res = await executorApiFetch('/executor-portal/api/cancel-task/' + id, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ reason }) });
+                await readExecutorApiResponse(res);
+                await refreshTasks();
+            } catch (error) { Swal.fire('تعذر إلغاء العملية', error.message, 'error'); }
+        }
     }
 
     async function returnTask(id) {
         const { value: reason } = await Swal.fire({ title: 'إرجاع للإدارة', input: 'text', inputPlaceholder: 'السبب...', showCancelButton: true, confirmButtonText: 'إرجاع', confirmButtonColor: '#0ea5e9', cancelButtonText: 'تراجع', inputValidator: (val) => { if (!val) return 'مطلوب السبب!'; } });
-        if (reason) { const res = await fetch('/executor-portal/api/return-task/' + id, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ reason }) });
-        if((await res.json()).success) refreshTasks(); }
-    }
-
-    async function activateTelegram() {
-        try {
-            Swal.fire({ title: 'جاري التوليد...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
-            const response = await fetch('/executor-portal/link-telegram-token', { method: 'POST' });
-            const data = await response.json();
-            if (data.success && data.link) {
-                const payload = data.link.split('?start=')[1];
-                
-                // Copy the payload to clipboard
-                try {
-                    await navigator.clipboard.writeText(payload);
-                } catch (err) {
-                    console.error('Failed to copy', err);
-                }
-
-                Swal.fire({
-                    title: '<i class="fa-brands fa-telegram" style="color:#0ea5e9;font-size:2.5rem;"></i>',
-                    html: `<h5 class="fw-bold mb-2">تفعيل التليجرام</h5>
-                           <p class="small text-muted">تم نسخ رسالة التفعيل المشفرة تلقائياً.<br>سيتم تحويلك إلى بوت التليجرام لربط حسابك، قم بلصق الرسالة هناك.</p>
-                           <div class="p-2 mb-3 rounded" style="background: rgba(0,0,0,0.05); border: 1px dashed #0ea5e9; font-family: monospace; font-size: 0.9rem; word-break: break-all;">
-                               ${payload}
-                           </div>`,
-                    confirmButtonText: '<i class="fa-brands fa-telegram me-1"></i> افتح التليجرام والصق الرسالة',
-                    confirmButtonColor: '#0ea5e9',
-                    showCancelButton: true,
-                    cancelButtonText: 'إلغاء',
-                    allowOutsideClick: false
-                }).then((result) => {
-                    if (result.isConfirmed) {
-                        window.location.href = data.link;
-                    }
-                });
-            } else {
-                Swal.fire('خطأ', data.error || 'حدث خطأ أثناء توليد الرابط', 'error');
-            }
-        } catch (error) {
-            Swal.fire('خطأ', 'تعذر الاتصال بالخادم', 'error');
+        if (reason) {
+            try {
+                const res = await executorApiFetch('/executor-portal/api/return-task/' + id, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ reason }) });
+                await readExecutorApiResponse(res);
+                await refreshTasks();
+            } catch (error) { Swal.fire('تعذر إرجاع العملية', error.message, 'error'); }
         }
     }
 

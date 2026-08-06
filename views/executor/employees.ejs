@@ -15,6 +15,8 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800;900&family=JetBrains+Mono:wght@700&display=swap" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <script>window.executorCsrfToken = <%- JSON.stringify(typeof csrfToken !== 'undefined' ? csrfToken : '') %>;</script>
+    <script src="/js/executor-api.js"></script>
     
     <style>
         :root { 
@@ -316,7 +318,7 @@
                 </div>
                 <div class="col-md-4">
                     <label class="form-label"><i class="fa-solid fa-phone me-1"></i> رقم الهاتف</label>
-                    <input type="text" id="empPhone" class="form-control" placeholder="01xxxxxxxxx" dir="ltr">
+                    <input type="tel" id="empPhone" class="form-control" placeholder="01xxxxxxxxx" autocomplete="tel" inputmode="tel" dir="ltr" required>
                 </div>
                 <div class="col-md-4">
                     <label class="form-label"><i class="fa-solid fa-briefcase me-1"></i> الوظيفة</label>
@@ -331,13 +333,13 @@
                 <div class="col-md-4">
                     <label class="form-label"><i class="fa-solid fa-at me-1"></i> اسم المستخدم</label>
                     <div class="input-group" dir="ltr">
-                        <input type="text" id="empUsername" class="form-control text-end border-end-0" placeholder="username" required>
+                        <input type="text" id="empUsername" class="form-control text-end border-end-0" placeholder="username" autocomplete="username" pattern="[A-Za-z0-9_]+" minlength="3" required>
                         <span class="input-group-text border-start-0">@ahram.com</span>
                     </div>
                 </div>
                 <div class="col-md-4">
                     <label class="form-label"><i class="fa-solid fa-lock me-1"></i> كلمة المرور</label>
-                    <input type="password" id="empPassword" class="form-control" placeholder="••••••••" dir="ltr" required>
+                    <input type="password" id="empPassword" class="form-control" placeholder="••••••••" autocomplete="new-password" minlength="6" dir="ltr" required>
                 </div>
                 <div class="col-md-4 d-flex align-items-end">
                     <button type="submit" class="btn-create w-100"><i class="fa-solid fa-plus me-2"></i> إنشاء الحساب</button>
@@ -402,19 +404,19 @@
         const username = document.getElementById('empUsername').value.trim();
         const password = document.getElementById('empPassword').value.trim();
 
-        if (!name || !username || !password) {
+        if (!name || !phone || !username || !password) {
             return Swal.fire('تنبيه', 'يرجى ملء جميع الحقول المطلوبة', 'warning');
         }
 
         Swal.fire({ title: 'جاري الإنشاء...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
 
         try {
-            const res = await fetch('/executor-portal/api/employees/create', {
+            const res = await executorApiFetch('/executor-portal/api/employees/create', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ name, phone, role, webUsername: username, webPassword: password })
             });
-            const data = await res.json();
+            const data = await readExecutorApiResponse(res);
             if (data.success) {
                 Swal.fire({
                     icon: 'success',
@@ -431,7 +433,7 @@
                 Swal.fire('خطأ', data.error || 'حدث خطأ أثناء الإنشاء', 'error');
             }
         } catch (e) {
-            Swal.fire('خطأ', 'تعذر الاتصال بالخادم', 'error');
+            Swal.fire('خطأ', e.message || 'تعذر الاتصال بالخادم', 'error');
         }
     });
 
@@ -439,8 +441,8 @@
     // تحميل قائمة الموظفين
     async function loadEmployees() {
         try {
-            const res = await fetch('/executor-portal/api/employees');
-            const data = await res.json();
+            const res = await executorApiFetch('/executor-portal/api/employees');
+            const data = await readExecutorApiResponse(res);
             const tbody = document.getElementById('empTableBody');
             const mobileList = document.getElementById('mobileEmpList');
             const emptyState = document.getElementById('emptyState');
@@ -522,19 +524,21 @@
 
     // تعليق / تفعيل موظف
     async function toggleEmployee(id) {
-        const res = await fetch('/executor-portal/api/employees/toggle/' + id, { method: 'POST' });
-        const data = await res.json();
-        if (data.success) {
-            Swal.fire({ icon: 'success', title: 'تم التحديث', timer: 1200, showConfirmButton: false });
-            loadEmployees();
-        }
+        const res = await executorApiFetch('/executor-portal/api/employees/toggle/' + id, { method: 'POST' });
+        try {
+            const data = await readExecutorApiResponse(res);
+            if (data.success) {
+                Swal.fire({ icon: 'success', title: 'تم التحديث', timer: 1200, showConfirmButton: false });
+                loadEmployees();
+            }
+        } catch (error) { Swal.fire('تعذر تحديث الموظف', error.message, 'error'); }
     }
 
     // تفعيل / تعطيل التقارير الشاملة
     async function toggleReports(id) {
         try {
-            const res = await fetch('/executor-portal/api/employees/toggle-reports/' + id, { method: 'POST' });
-            const data = await res.json();
+            const res = await executorApiFetch('/executor-portal/api/employees/toggle-reports/' + id, { method: 'POST' });
+            const data = await readExecutorApiResponse(res);
             if (data.success) {
                 Swal.fire({ icon: 'success', title: 'تم تحديث صلاحية التقارير', timer: 1200, showConfirmButton: false });
                 loadEmployees();
@@ -542,7 +546,7 @@
                 Swal.fire('خطأ', data.error || 'حدث خطأ', 'error');
             }
         } catch (e) {
-            Swal.fire('خطأ', 'تعذر الاتصال بالخادم', 'error');
+            Swal.fire('خطأ', e.message || 'تعذر الاتصال بالخادم', 'error');
         }
     }
 
@@ -557,15 +561,15 @@
             confirmButtonText: 'تغيير',
             cancelButtonText: 'إلغاء',
             confirmButtonColor: '#0ea5e9',
-            inputValidator: (val) => { if (!val || val.length < 4) return 'كلمة المرور يجب أن تكون 4 أحرف على الأقل'; }
+            inputValidator: (val) => { if (!val || val.length < 6) return 'كلمة المرور يجب أن تكون 6 أحرف على الأقل'; }
         });
         if (newPass) {
-            const res = await fetch('/executor-portal/api/employees/reset-password/' + id, {
+            const res = await executorApiFetch('/executor-portal/api/employees/reset-password/' + id, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ newPassword: newPass })
             });
-            const data = await res.json();
+            const data = await readExecutorApiResponse(res);
             if (data.success) Swal.fire({ icon: 'success', title: 'تم تغيير كلمة المرور', timer: 1500, showConfirmButton: false });
         }
     }
@@ -582,8 +586,8 @@
             confirmButtonColor: '#ef4444'
         });
         if (result.isConfirmed) {
-            const res = await fetch('/executor-portal/api/employees/delete/' + id, { method: 'POST' });
-            const data = await res.json();
+            const res = await executorApiFetch('/executor-portal/api/employees/delete/' + id, { method: 'POST' });
+            const data = await readExecutorApiResponse(res);
             if (data.success) {
                 Swal.fire({ icon: 'success', title: 'تم الحذف', timer: 1200, showConfirmButton: false });
                 loadEmployees();

@@ -8,14 +8,13 @@ const RegistrationRequest = require('../models/RegistrationRequest');
 const User = require('../models/User');
 const ClientCompany = require('../models/ClientCompany');
 const ClientEmployee = require('../models/ClientEmployee');
-const ExecutorGroup = require('../models/ExecutorGroup');
-const Employee = require('../models/Employee');
 const { requireAuth, requireMaster } = require('../middlewares/auth');
 const {
     CODE_LENGTHS,
     assignGeneratedAccountCode
 } = require('../services/accountCodeService');
 const { prepareRegistrationIdentityForApproval } = require('../services/registrationIdentityService');
+const { createRegisteredExecutorAccount } = require('../services/executorAccountService');
 
 const visibleRequestStatuses = new Set(['pending', 'pending_agent', 'approved', 'rejected']);
 const appendAdminNote = (current, note) => [current, String(note || '').trim()].filter(Boolean).join('\n');
@@ -151,20 +150,11 @@ router.post('/registration-requests/:id/approve', requireAuth, requireMaster, as
             regReq.agentCode = accountCode;
 
         } else if (regReq.accountType === 'executor') {
-            // منفذ → إنشاء ExecutorGroup + Employee (مدير)
-            const newGroup = await ExecutorGroup.create({
-                name: regReq.companyName,
-                isManagerBot: true,
-                isApiBot: false,
-                status: 'active'
-            });
-
-            await Employee.create({
-                name: regReq.fullName,
+            // الحساب المسجل ذاتياً هو منفذ بشري قابل للتوجيه، ومديره يدير الموظفين داخله.
+            await createRegisteredExecutorAccount({
+                companyName: regReq.companyName,
+                managerName: regReq.fullName,
                 phone: regReq.phone,
-                role: 'manager',
-                status: 'active',
-                groupId: newGroup._id,
                 webUsername: regReq.username,
                 webPassword: regReq.password
             });

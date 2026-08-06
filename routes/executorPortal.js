@@ -12,20 +12,44 @@ const reportsController = require('../controllers/executorReportsController');
 const Employee = require('../models/Employee');
 
 // Middlewares
-const requireExecutorAuth = (req, res, next) => {
-    if (req.session.isExecutorLoggedIn && req.session.executorId) return next();
-    res.redirect('/login');
+const rejectExecutorSession = (req, res) => {
+    if (req.path.startsWith('/api/')) {
+        return res.status(401).json({ success: false, error: 'انتهت جلسة الدخول.' });
+    }
+    return res.redirect('/login');
+};
+
+const requireExecutorAuth = async (req, res, next) => {
+    if (!req.session.isExecutorLoggedIn || !req.session.executorId) {
+        return rejectExecutorSession(req, res);
+    }
+    try {
+        const employee = await Employee.findById(req.session.executorId).populate('groupId');
+        if (!employee || employee.status !== 'active' || !employee.groupId || employee.groupId.status !== 'active') {
+            delete req.session.isExecutorLoggedIn;
+            delete req.session.executorId;
+            delete req.session.executorGroupId;
+            return rejectExecutorSession(req, res);
+        }
+        req.executorEmployee = employee;
+        return next();
+    } catch (_) {
+        return rejectExecutorSession(req, res);
+    }
 };
 
 const requireExecutorManager = async (req, res, next) => {
-    if (!req.session.isExecutorLoggedIn || !req.session.executorId) return res.status(401).json({ success: false, error: 'Unauthorized' });
+    if (!req.session.isExecutorLoggedIn || !req.session.executorId) return rejectExecutorSession(req, res);
     try {
-        const emp = await Employee.findById(req.session.executorId);
-        if (!emp || emp.role !== 'manager') return res.status(403).json({ success: false, error: 'Forbidden' });
+        const emp = await Employee.findById(req.session.executorId).populate('groupId');
+        if (!emp || emp.status !== 'active' || !emp.groupId || emp.groupId.status !== 'active') {
+            return rejectExecutorSession(req, res);
+        }
+        if (emp.role !== 'manager') return res.status(403).json({ success: false, error: 'هذه الصفحة متاحة لمدير المنفذ فقط.' });
         req.managerEmp = emp;
-        next();
+        return next();
     } catch (e) {
-        res.status(500).json({ success: false, error: 'Server error' });
+        return res.status(500).json({ success: false, error: 'حدث خطأ أثناء التحقق من الصلاحية.' });
     }
 };
 
@@ -52,9 +76,9 @@ router.get('/logout', authController.logout);
 
 // --- Dashboard Routes ---
 router.get('/dashboard', requireExecutorAuth, dashboardController.getDashboard);
-router.get('/proxy/image/:id', dashboardController.getProxyImage);
-router.get('/proxy/image/:id/:index', dashboardController.getProxyImage);
-router.get('/api/live-tasks', dashboardController.getLiveTasks);
+router.get('/proxy/image/:id', requireExecutorAuth, dashboardController.getProxyImage);
+router.get('/proxy/image/:id/:index', requireExecutorAuth, dashboardController.getProxyImage);
+router.get('/api/live-tasks', requireExecutorAuth, dashboardController.getLiveTasks);
 router.post('/api/clear-alert/:id', requireExecutorAuth, dashboardController.postClearAlert);
 router.post('/api/clear-dep-alert/:id', requireExecutorAuth, dashboardController.postClearDepAlert);
 

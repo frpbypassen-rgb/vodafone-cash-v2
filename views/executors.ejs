@@ -169,6 +169,25 @@
             border-color: var(--brand-gold);
             box-shadow: 0 10px 25px rgba(212, 175, 55, 0.3);
         }
+
+        .executor-access-bar {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+            gap: 14px;
+            padding: 18px;
+            margin-bottom: 18px;
+            background: var(--input-bg);
+            border: 1px solid var(--border-glass);
+            border-radius: 8px;
+        }
+        .executor-link-label { color: var(--text-muted); font-size: 0.78rem; font-weight: 800; margin-bottom: 7px; }
+        .executor-link-input { min-width: 0; direction: ltr; text-align: left; font-family: 'JetBrains Mono', monospace; font-size: 0.78rem; }
+        .copy-link-btn { width: 44px; flex: 0 0 44px; }
+        @media (max-width: 767px) {
+            .executor-access-bar { grid-template-columns: 1fr; padding: 14px; }
+            .admin-nav { align-items: stretch !important; gap: 12px; }
+            .admin-nav .btn { width: 100%; }
+        }
     </style>
 
     <!-- PWA Setup -->
@@ -189,17 +208,47 @@
 <div class="main-content">
     <div class="container-fluid">
         <div class="admin-nav mb-4">
-            <h3 class="fw-bold m-0 text-dark"><i class="fa-solid fa-network-wired text-primary me-2"></i> وكلاء وبوتات التنفيذ (الكاشير)</h3>
-            <button type="button" class="btn btn-primary fw-bold shadow-sm rounded-pill px-4" data-bs-toggle="modal" data-bs-target="#createExecutorModal"><i class="fa-solid fa-plus me-1"></i> إضافة بوت جديد</button>
+            <h3 class="fw-bold m-0 text-dark"><i class="fa-solid fa-network-wired text-primary me-2"></i> منفذو العمليات</h3>
+            <button type="button" class="btn btn-primary fw-bold shadow-sm px-4" data-bs-toggle="modal" data-bs-target="#createExecutorModal"><i class="fa-solid fa-user-plus me-1"></i> إضافة منفذ يدوياً</button>
+        </div>
+
+        <div class="executor-access-bar" aria-label="روابط المنفذين">
+            <div>
+                <div class="executor-link-label"><i class="fa-solid fa-user-pen me-1"></i> رابط تقديم طلب منفذ جديد</div>
+                <div class="input-group">
+                    <input id="executorRegistrationUrl" class="form-control executor-link-input" value="<%= executorRegistrationUrl %>" readonly aria-label="رابط تسجيل المنفذين">
+                    <a class="btn btn-outline-primary copy-link-btn" href="<%= executorRegistrationUrl %>" target="_blank" rel="noopener" title="فتح رابط التسجيل"><i class="fa-solid fa-arrow-up-right-from-square"></i></a>
+                    <button type="button" class="btn btn-primary copy-link-btn" onclick="copyExecutorLink('executorRegistrationUrl', 'تم نسخ رابط التسجيل')" title="نسخ رابط التسجيل"><i class="fa-regular fa-copy"></i></button>
+                </div>
+            </div>
+            <div>
+                <div class="executor-link-label"><i class="fa-solid fa-right-to-bracket me-1"></i> رابط دخول المنفذين بعد التفعيل</div>
+                <div class="input-group">
+                    <input id="executorLoginUrl" class="form-control executor-link-input" value="<%= executorLoginUrl %>" readonly aria-label="رابط دخول المنفذين">
+                    <a class="btn btn-outline-primary copy-link-btn" href="<%= executorLoginUrl %>" target="_blank" rel="noopener" title="فتح رابط الدخول"><i class="fa-solid fa-arrow-up-right-from-square"></i></a>
+                    <button type="button" class="btn btn-primary copy-link-btn" onclick="copyExecutorLink('executorLoginUrl', 'تم نسخ رابط الدخول')" title="نسخ رابط الدخول"><i class="fa-regular fa-copy"></i></button>
+                </div>
+            </div>
         </div>
 
         <% if (typeof query !== 'undefined' && query.created) { %>
             <div class="alert alert-success fw-bold rounded-4 border-0 shadow-sm">
                 <i class="fa-solid fa-check-circle me-1"></i> تم إنشاء منفذ التنفيذ بنجاح.
             </div>
-        <% } else if (typeof query !== 'undefined' && query.createError) { %>
+        <% } else if (typeof query !== 'undefined' && query.createError) {
+            const createErrors = {
+                MISSING_NAME: 'اسم المنفذ مطلوب.',
+                MISSING_LOGIN: 'بيانات دخول مسؤول المنفذ مطلوبة.',
+                INVALID_MANAGER_NAME: 'يرجى إدخال اسم مسؤول المنفذ كاملاً.',
+                INVALID_USERNAME: 'اسم الدخول غير صالح. استخدم حروفاً إنجليزية وأرقاماً فقط.',
+                USERNAME_TAKEN: 'اسم الدخول مستخدم بالفعل.',
+                INVALID_PHONE: 'رقم الهاتف غير صالح.',
+                WEAK_PASSWORD: 'كلمة المرور يجب ألا تقل عن 6 أحرف.',
+                INVALID_BALANCE: 'الرصيد الافتتاحي غير صالح.'
+            };
+        %>
             <div class="alert alert-danger fw-bold rounded-4 border-0 shadow-sm">
-                <i class="fa-solid fa-triangle-exclamation me-1"></i> تعذر إنشاء المنفذ. تأكد من البيانات وحاول مرة أخرى.
+                <i class="fa-solid fa-triangle-exclamation me-1"></i> <%= createErrors[query.createError] || 'تعذر إنشاء المنفذ. تأكد من البيانات وحاول مرة أخرى.' %>
             </div>
         <% } %>
 
@@ -280,7 +329,7 @@
             <form action="/executors/add" method="POST">
                 <div class="modal-header border-0 pb-0">
                     <h5 class="modal-title fw-bold">
-                        <i class="fa-solid fa-plus-circle text-primary me-2"></i> إضافة منفذ تنفيذ
+                    <i class="fa-solid fa-user-plus text-primary me-2"></i> إضافة منفذ تنفيذ يدوي
                     </h5>
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
@@ -288,13 +337,13 @@
                     <div class="row g-3">
                         <div class="col-md-6">
                             <label class="form-label fw-bold small text-muted">اسم المنفذ</label>
-                            <input type="text" name="name" class="form-control fw-bold" required placeholder="مثال: منفذ API النيجر">
+                            <input type="text" name="name" class="form-control fw-bold" required placeholder="مثال: منفذ طرابلس 1" autocomplete="organization">
                         </div>
                         <div class="col-md-3">
                             <label class="form-label fw-bold small text-muted">نوع المنفذ</label>
                             <select name="botType" id="botType" class="form-select fw-bold">
-                                <option value="normal">منفذ عادي</option>
-                                <option value="manager">منفذ مدير</option>
+                                <option value="normal">منفذ يدوي</option>
+                                <option value="manager">مجموعة إشراف</option>
                                 <option value="api">منفذ API</option>
                             </select>
                         </div>
@@ -303,21 +352,28 @@
                             <input type="number" step="any" name="balance" class="form-control fw-bold text-center" value="0" dir="ltr">
                         </div>
 
-                        <div class="col-12">
+                        <div class="col-12" id="humanLoginFields">
                             <div class="p-3 rounded-4 border" style="background: var(--input-bg); border-color: var(--border-glass) !important;">
-                                <div class="fw-bold mb-2"><i class="fa-solid fa-user-tie text-success me-1"></i> حساب دخول اختياري للمنفذ</div>
+                                <div class="fw-bold mb-3"><i class="fa-solid fa-user-tie text-success me-1"></i> حساب مسؤول المنفذ</div>
                                 <div class="row g-3">
                                     <div class="col-md-3">
-                                        <input type="text" name="managerName" class="form-control" placeholder="اسم المستخدم">
+                                        <label class="form-label fw-bold small text-muted">اسم المسؤول</label>
+                                        <input type="text" name="managerName" class="form-control human-required" placeholder="الاسم الثلاثي" autocomplete="name" minlength="3" required>
                                     </div>
                                     <div class="col-md-3">
-                                        <input type="text" name="managerPhone" class="form-control" placeholder="الهاتف" dir="ltr">
+                                        <label class="form-label fw-bold small text-muted">رقم الهاتف</label>
+                                        <input type="tel" name="managerPhone" class="form-control human-required" placeholder="0910000000" autocomplete="tel" inputmode="tel" dir="ltr" required>
                                     </div>
                                     <div class="col-md-3">
-                                        <input type="text" name="webUsername" class="form-control" placeholder="اسم الدخول" dir="ltr">
+                                        <label class="form-label fw-bold small text-muted">اسم الدخول</label>
+                                        <div class="input-group" dir="ltr">
+                                            <input type="text" name="webUsername" class="form-control human-required" placeholder="executor_1" autocomplete="username" pattern="[A-Za-z0-9_]+" minlength="3" required>
+                                            <span class="input-group-text">@ahram.com</span>
+                                        </div>
                                     </div>
                                     <div class="col-md-3">
-                                        <input type="password" name="webPassword" class="form-control" placeholder="كلمة المرور">
+                                        <label class="form-label fw-bold small text-muted">كلمة المرور</label>
+                                        <input type="password" name="webPassword" class="form-control human-required" placeholder="6 أحرف على الأقل" autocomplete="new-password" minlength="6" required>
                                     </div>
                                 </div>
                             </div>
@@ -385,7 +441,7 @@
                 <div class="modal-footer border-0 pt-0">
                     <button type="button" class="btn btn-light fw-bold px-4" data-bs-dismiss="modal">إلغاء</button>
                     <button type="submit" class="btn btn-primary fw-bold px-4">
-                        <i class="fa-solid fa-floppy-disk me-1"></i> حفظ المنفذ
+                        <i class="fa-solid fa-floppy-disk me-1"></i> إنشاء المنفذ
                     </button>
                 </div>
             </form>
@@ -402,8 +458,29 @@
     function toggleExecutorApiFields() {
         const typeField = document.getElementById('botType');
         const apiFields = document.getElementById('apiFields');
-        if (!typeField || !apiFields) return;
-        apiFields.classList.toggle('d-none', typeField.value !== 'api');
+        const humanFields = document.getElementById('humanLoginFields');
+        if (!typeField || !apiFields || !humanFields) return;
+        const isApi = typeField.value === 'api';
+        apiFields.classList.toggle('d-none', !isApi);
+        humanFields.classList.toggle('d-none', isApi);
+        humanFields.querySelectorAll('.human-required').forEach((input) => {
+            input.required = !isApi;
+            input.disabled = isApi;
+        });
+    }
+
+    async function copyExecutorLink(inputId, successMessage) {
+        const input = document.getElementById(inputId);
+        if (!input) return;
+        try {
+            await navigator.clipboard.writeText(input.value);
+            Swal.fire({ icon: 'success', title: successMessage, timer: 1300, showConfirmButton: false });
+        } catch (_) {
+            input.focus();
+            input.select();
+            document.execCommand('copy');
+            Swal.fire({ icon: 'success', title: successMessage, timer: 1300, showConfirmButton: false });
+        }
     }
 
     function applyApiProviderPreset() {

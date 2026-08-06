@@ -3,7 +3,22 @@ const RegistrationRequest = require('../models/RegistrationRequest');
 const Admin = require('../models/Admin');
 const { escapeRegex, verifyAndUpgradePassword, getTodayString } = require('../utils/helpers');
 const { verifyOtp } = require('../utils/otp');
+const {
+    ExecutorAccountError,
+    normalizeExecutorPhone,
+    normalizeExecutorUsername
+} = require('../services/executorAccountService');
 
+const executorRegistrationFormData = (body = {}) => ({
+    companyName: String(body.companyName || '').trim(),
+    managerName: String(body.managerName || '').trim(),
+    phone: String(body.phone || '').trim(),
+    webUsername: String(body.webUsername || '').trim().replace(/@ahram\.com$/i, '')
+});
+
+const renderExecutorRegistration = (res, { error = null, success = null, formData = {} } = {}) => (
+    res.render('executor/register', { error, success, formData })
+);
 
 
 exports.getLogin = (req, res) => {
@@ -30,7 +45,9 @@ exports.postLogin = async (req, res) => {
             const isMatch = await verifyAndUpgradePassword(password, executor.webPassword, Employee, executor._id);
 
             if (isMatch) {
-                if (executor.status !== 'active') return res.render('executor/login', { error: 'حسابك معلق حالياً من قبل الإدارة.' });
+                if (executor.status !== 'active' || !executor.groupId || executor.groupId.status !== 'active') {
+                    return res.render('executor/login', { error: 'حسابك أو مجموعة التنفيذ غير مفعلة حالياً.' });
+                }
 
                 // دخول مباشر بدون OTP (بعد إلغاء التيليجرام)
                 req.session.isExecutorLoggedIn = true; 
@@ -50,40 +67,46 @@ exports.postLogin = async (req, res) => {
 
 exports.getRegister = (req, res) => {
     if (req.session.isExecutorLoggedIn) return res.redirect('/executor-portal/dashboard');
-    res.render('executor/register', { error: null, success: null });
+    renderExecutorRegistration(res);
 };
 
 exports.postRegister = async (req, res) => {
+    const formData = executorRegistrationFormData(req.body);
     try {
-        const { companyName, managerName, phone, webUsername, webPassword, confirmPassword } = req.body;
+        const companyName = formData.companyName;
+        const managerName = formData.managerName;
+        const { webPassword, confirmPassword } = req.body;
         
-        if (!companyName || !managerName || !phone || !webUsername || !webPassword || !confirmPassword) {
-            return res.render('executor/register', { error: 'يرجى ملء جميع الحقول المطلوبة.', success: null });
+        if (!companyName || !managerName || !formData.phone || !formData.webUsername || !webPassword || !confirmPassword) {
+            return renderExecutorRegistration(res, { error: 'يرجى ملء جميع الحقول المطلوبة.', formData });
         }
-        
+        if (companyName.length < 3 || managerName.length < 3) {
+            return renderExecutorRegistration(res, { error: 'يرجى إدخال اسم المنفذ واسم المسؤول بشكل كامل.', formData });
+        }
         if (webPassword !== confirmPassword) {
-            return res.render('executor/register', { error: 'كلمات المرور غير متطابقة.', success: null });
+            return renderExecutorRegistration(res, { error: 'كلمات المرور غير متطابقة.', formData });
         }
-        
-        let finalUsername = webUsername.trim();
-        const prefix = finalUsername.endsWith('@ahram.com') ? finalUsername.split('@ahram.com')[0] : finalUsername;
+        if (String(webPassword).length < 6) {
+            return renderExecutorRegistration(res, { error: 'كلمة المرور يجب ألا تقل عن 6 أحرف.', formData });
+        }
 
-        if (!/^[a-zA-Z0-9_]+$/.test(prefix)) {
-            return res.render('executor/register', { error: 'اسم المستخدم يجب أن يحتوي على أحرف إنجليزية وأرقام فقط.', success: null });
-        }
+        const finalUsername = normalizeExecutorUsername(formData.webUsername);
+        const phone = normalizeExecutorPhone(formData.phone);
+        const usernameRegex = new RegExp(`^${escapeRegex(finalUsername)}$`, 'i');
         
-        finalUsername = prefix + '@ahram.com';
-        
-        const existingEmployee = await Employee.findOne({ webUsername: finalUsername });
+        const existingEmployee = await Employee.exists({ webUsername: usernameRegex });
         if (existingEmployee) {
-            return res.render('executor/register', { error: 'اسم المستخدم مسجل مسبقاً، يرجى اختيار اسم آخر.', success: null });
+            return renderExecutorRegistration(res, { error: 'اسم المستخدم مسجل مسبقاً، يرجى اختيار اسم آخر.', formData });
         }
         
-        const existingRequest = await RegistrationRequest.findOne({ phone, status: 'pending' });
+        const existingRequest = await RegistrationRequest.findOne({
+            status: 'pending',
+            $or: [{ phone }, { username: usernameRegex }]
+        }).lean();
         if (existingRequest) {
-            return res.render('executor/register', { 
-                error: `يوجد طلب تسجيل سابق لهذا الرقم برقم مرجعي: ${existingRequest.refCode}. يرجى انتظار المراجعة.`, 
-                success: null 
+            return renderExecutorRegistration(res, {
+                error: `يوجد طلب تسجيل سابق بهذه البيانات برقم مرجعي: ${existingRequest.refCode}. يرجى انتظار المراجعة.`,
+                formData
             });
         }
 
@@ -111,12 +134,16 @@ exports.postRegister = async (req, res) => {
             }
         } catch (err) { }
         
-        const successMsg = `تم تسجيل طلبك بنجاح! حسابك قيد المراجعة.<br><br><div class="text-start p-3 mt-2 rounded" style="background: rgba(0,0,0,0.2); border: 1px dashed var(--brand-neon);"><div class="mb-2"><span class="text-muted small d-block">رقم الطلب المرجعي:</span><span class="fs-5 text-warning font-monospace" dir="ltr">${regRequest.refCode}</span></div><div class="mb-2"><span class="text-muted small d-block">اسم المستخدم:</span><span class="fs-5 text-white font-monospace" dir="ltr">${finalUsername}</span></div><div><span class="text-muted small d-block">كلمة المرور:</span><span class="fs-5 text-white font-monospace" dir="ltr">${webPassword}</span></div></div><div class="mt-3 small">يرجى الاحتفاظ ببيانات الدخول. سيتم تفعيل حسابك بعد موافقة الإدارة.</div>`; 
-        
-        res.render('executor/register', { error: null, success: successMsg });
+        return renderExecutorRegistration(res, {
+            success: { refCode: regRequest.refCode, username: finalUsername },
+            formData: {}
+        });
     } catch (e) {
         console.error(e);
-        res.render('executor/register', { error: 'حدث خطأ داخلي، يرجى المحاولة لاحقاً.', success: null });
+        const errorMessage = e instanceof ExecutorAccountError
+            ? e.message
+            : 'حدث خطأ داخلي، يرجى المحاولة لاحقاً.';
+        return renderExecutorRegistration(res, { error: errorMessage, formData });
     }
 };
 

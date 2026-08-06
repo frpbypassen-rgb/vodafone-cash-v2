@@ -357,9 +357,9 @@ router.post('/login', loginLimiter, async (req, res) => {
         if (executor?.webPassword) {
             const isMatch = await verifyAndUpgradePassword(password, executor.webPassword, Employee, executor._id);
             if (isMatch) {
-                if (executor.status !== 'active') {
-                    await logLoginFailure(req, username, 'SUSPENDED', 'حساب التنفيذ غير مفعل حالياً');
-                    return renderLogin(res, 'حساب التنفيذ غير مفعل حالياً.');
+                if (executor.status !== 'active' || !executor.groupId || executor.groupId.status !== 'active') {
+                    await logLoginFailure(req, username, 'SUSPENDED', 'حساب التنفيذ أو مجموعته غير مفعلة حالياً');
+                    return renderLogin(res, 'حساب التنفيذ أو مجموعة التنفيذ غير مفعلة حالياً.');
                 }
                 return loginAsExecutor(req, res, executor);
             }

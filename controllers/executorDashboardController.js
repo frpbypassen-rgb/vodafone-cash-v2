@@ -1,6 +1,7 @@
 const mongoose = require('mongoose');
 const { logAction } = require('../services/auditService');
 const { proofSourceUrl, streamProofImage } = require('../services/proofStorageService');
+const { escapeRegex } = require('../utils/helpers');
 
 const Employee = require('../models/Employee');
 const Transaction = require('../models/Transaction');
@@ -9,13 +10,26 @@ const ClientCompany = require('../models/ClientCompany');
 const Admin = require('../models/Admin');
 const User = require('../models/User');
 const ClientEmployee = require('../models/ClientEmployee');
+const {
+    ExecutorAccountError,
+    normalizeExecutorPhone,
+    normalizeExecutorUsername
+} = require('../services/executorAccountService');
+
+const objectIdString = (value) => String(value?._id || value || '');
+const belongsToGroup = (employee, group) => (
+    Boolean(employee) && objectIdString(employee.groupId) === objectIdString(group)
+);
 
 exports.getProxyImage = async (req, res) => {
     try {
         const tx = await Transaction.findById(req.params.id);
         if (!tx) return res.status(404).send('Not found');
-        const emp = await Employee.findById(req.session.executorId);
-        if (!emp || (tx.executorGroupId && tx.executorGroupId.toString() !== emp.groupId.toString() && (!tx.managerGroupId || tx.managerGroupId.toString() !== emp.groupId.toString()))) {
+        const emp = req.executorEmployee || await Employee.findById(req.session.executorId);
+        const employeeGroupId = objectIdString(emp?.groupId);
+        const ownsExecutorTask = objectIdString(tx.executorGroupId) === employeeGroupId;
+        const ownsManagerTask = objectIdString(tx.managerGroupId) === employeeGroupId;
+        if (!emp || (!ownsExecutorTask && !ownsManagerTask)) {
              return res.status(403).send('Forbidden');
         }
         const index = req.params.index ? parseInt(req.params.index) : 0;
@@ -30,7 +44,7 @@ exports.getProxyImage = async (req, res) => {
 };
 
 exports.getDashboard = async (req, res) => {
-    const emp = await Employee.findById(req.session.executorId).populate('groupId');
+    const emp = req.executorEmployee || await Employee.findById(req.session.executorId).populate('groupId');
     res.render('executor/dashboard', { emp });
 };
 
@@ -38,7 +52,7 @@ exports.getDashboard = async (req, res) => {
 // 👥 إدارة الموظفين (للمدير فقط)
 // ===============================================
 exports.getEmployees = async (req, res) => {
-    const emp = await Employee.findById(req.session.executorId).populate('groupId');
+    const emp = req.managerEmp || await Employee.findById(req.session.executorId).populate('groupId');
     res.render('executor/employees', { emp });
 };
 
@@ -52,14 +66,30 @@ exports.getEmployeesList = async (req, res) => {
 exports.postEmployeesCreate = async (req, res) => {
     try {
         const { name, phone, role, webUsername, webPassword } = req.body;
-        if (!name || !webUsername || !webPassword) return res.json({ success: false, error: 'Missing fields' });
-        if (!['operator', 'accountant'].includes(role)) return res.json({ success: false, error: 'Invalid role' });
-        const prefix = webUsername.replace(/@ahram\.com$/i, '').trim();
-        if (!/^[a-zA-Z0-9_]+$/.test(prefix)) return res.json({ success: false, error: 'Invalid username' });
-        const finalUsername = prefix + '@ahram.com';
-        const existing = await Employee.findOne({ webUsername: finalUsername });
-        if (existing) return res.json({ success: false, error: 'Username taken' });
-        const createdEmp = await Employee.create({ name, phone: phone || '', role, status: 'active', groupId: req.managerEmp.groupId, webUsername: finalUsername, webPassword });
+        const cleanName = String(name || '').trim();
+        if (cleanName.length < 3 || !phone || !webUsername || !webPassword) {
+            return res.status(400).json({ success: false, error: 'يرجى إدخال جميع البيانات المطلوبة.' });
+        }
+        if (!['operator', 'accountant'].includes(role)) {
+            return res.status(400).json({ success: false, error: 'نوع الحساب غير صالح.' });
+        }
+        if (String(webPassword).length < 6) {
+            return res.status(400).json({ success: false, error: 'كلمة المرور يجب ألا تقل عن 6 أحرف.' });
+        }
+
+        const finalUsername = normalizeExecutorUsername(webUsername);
+        const finalPhone = normalizeExecutorPhone(phone);
+        const existing = await Employee.exists({ webUsername: new RegExp(`^${escapeRegex(finalUsername)}$`, 'i') });
+        if (existing) return res.status(409).json({ success: false, error: 'اسم الدخول مستخدم بالفعل.' });
+        const createdEmp = await Employee.create({
+            name: cleanName,
+            phone: finalPhone,
+            role,
+            status: 'active',
+            groupId: req.managerEmp.groupId,
+            webUsername: finalUsername,
+            webPassword
+        });
         
         await logAction({
             action: 'USER_CREATED',
@@ -78,14 +108,21 @@ exports.postEmployeesCreate = async (req, res) => {
             }
         });
 
-        res.json({ success: true, username: finalUsername });
-    } catch (e) { console.error(e); res.json({ success: false, error: e.message }); }
+        return res.json({ success: true, username: finalUsername });
+    } catch (e) {
+        console.error(e);
+        const message = e instanceof ExecutorAccountError ? e.message : 'تعذر إنشاء حساب الموظف.';
+        return res.status(400).json({ success: false, error: message });
+    }
 };
 
 exports.postEmployeesToggle = async (req, res) => {
     try {
         const emp = await Employee.findById(req.params.id);
-        if (!emp || emp.groupId.toString() !== req.managerEmp.groupId.toString()) return res.json({ success: false });
+        if (!emp) return res.status(404).json({ success: false, error: 'الموظف غير موجود.' });
+        if (!belongsToGroup(emp, req.managerEmp.groupId)) {
+            return res.status(403).json({ success: false, error: 'لا يمكن تعديل موظف تابع لمنفذ آخر.' });
+        }
         if (emp.role === 'manager') return res.json({ success: false, error: 'Cannot toggle manager' });
         emp.status = emp.status === 'active' ? 'suspended' : 'active';
         await emp.save();
@@ -96,7 +133,10 @@ exports.postEmployeesToggle = async (req, res) => {
 exports.postEmployeesToggleReports = async (req, res) => {
     try {
         const emp = await Employee.findById(req.params.id);
-        if (!emp || emp.groupId.toString() !== req.managerEmp.groupId.toString()) return res.json({ success: false });
+        if (!emp) return res.status(404).json({ success: false, error: 'الموظف غير موجود.' });
+        if (!belongsToGroup(emp, req.managerEmp.groupId)) {
+            return res.status(403).json({ success: false, error: 'لا يمكن تعديل موظف تابع لمنفذ آخر.' });
+        }
         if (emp.role === 'manager') return res.json({ success: false, error: 'Manager always has access' });
         emp.canViewAllReports = !emp.canViewAllReports;
         await emp.save();
@@ -106,10 +146,15 @@ exports.postEmployeesToggleReports = async (req, res) => {
 
 exports.postEmployeesResetPassword = async (req, res) => {
     try {
+        const newPassword = String(req.body.newPassword || '');
+        if (newPassword.length < 6) return res.status(400).json({ success: false, error: 'كلمة المرور يجب ألا تقل عن 6 أحرف.' });
         const emp = await Employee.findById(req.params.id);
-        if (!emp || emp.groupId.toString() !== req.managerEmp.groupId.toString()) return res.json({ success: false });
+        if (!emp) return res.status(404).json({ success: false, error: 'الموظف غير موجود.' });
+        if (!belongsToGroup(emp, req.managerEmp.groupId)) {
+            return res.status(403).json({ success: false, error: 'لا يمكن تعديل موظف تابع لمنفذ آخر.' });
+        }
         if (emp.role === 'manager') return res.json({ success: false, error: 'Not allowed' });
-        emp.webPassword = req.body.newPassword;
+        emp.webPassword = newPassword;
         await emp.save();
         res.json({ success: true });
     } catch (e) { res.json({ success: false, error: e.message }); }
@@ -118,7 +163,10 @@ exports.postEmployeesResetPassword = async (req, res) => {
 exports.postEmployeesDelete = async (req, res) => {
     try {
         const emp = await Employee.findById(req.params.id);
-        if (!emp || emp.groupId.toString() !== req.managerEmp.groupId.toString()) return res.json({ success: false });
+        if (!emp) return res.status(404).json({ success: false, error: 'الموظف غير موجود.' });
+        if (!belongsToGroup(emp, req.managerEmp.groupId)) {
+            return res.status(403).json({ success: false, error: 'لا يمكن حذف موظف تابع لمنفذ آخر.' });
+        }
         if (emp.role === 'manager') return res.json({ success: false, error: 'Cannot delete manager' });
         await Employee.findByIdAndDelete(req.params.id);
         res.json({ success: true });
@@ -130,7 +178,7 @@ exports.postEmployeesDelete = async (req, res) => {
 // ===============================================
 exports.getLiveTasks = async (req, res) => {
     try {
-        const emp = await Employee.findById(req.session.executorId);
+        const emp = req.executorEmployee || await Employee.findById(req.session.executorId);
         if (!emp) return res.status(401).json({ success: false, error: 'Unauthorized' });
         const filter = {
             $or: [ { executorGroupId: emp.groupId }, { managerGroupId: emp.groupId } ],
@@ -204,11 +252,31 @@ exports.getLiveTasks = async (req, res) => {
 };
 
 exports.postClearAlert = async (req, res) => {
-    try { await Transaction.updateOne({ _id: req.params.id }, { $unset: { emergencyAlert: 1 } }, { strict: false }); res.json({ success: true }); }
-    catch (e) { res.json({ success: false }); }
+    try {
+        const emp = req.executorEmployee || await Employee.findById(req.session.executorId);
+        if (!emp) return res.status(401).json({ success: false, error: 'انتهت جلسة الدخول.' });
+        const result = await Transaction.updateOne({
+            _id: req.params.id,
+            $or: [{ executorGroupId: emp.groupId }, { managerGroupId: emp.groupId }]
+        }, { $unset: { emergencyAlert: 1 } }, { strict: false });
+        if (!result.matchedCount) return res.status(403).json({ success: false, error: 'لا تملك صلاحية تعديل هذا التنبيه.' });
+        return res.json({ success: true });
+    } catch (e) { return res.status(500).json({ success: false, error: 'تعذر إغلاق التنبيه.' }); }
 };
 
 exports.postClearDepAlert = async (req, res) => {
-    try { await Transaction.updateOne({ _id: req.params.id }, { $unset: { executorWebAlert: 1 } }, { strict: false }); res.json({ success: true }); }
-    catch (e) { res.json({ success: false }); }
+    try {
+        const emp = req.executorEmployee || await Employee.findById(req.session.executorId);
+        if (!emp) return res.status(401).json({ success: false, error: 'انتهت جلسة الدخول.' });
+        const result = await Transaction.updateOne({
+            _id: req.params.id,
+            $or: [
+                { operatorId: emp._id.toString() },
+                { executorGroupId: emp.groupId },
+                { managerGroupId: emp.groupId }
+            ]
+        }, { $unset: { executorWebAlert: 1 } }, { strict: false });
+        if (!result.matchedCount) return res.status(403).json({ success: false, error: 'لا تملك صلاحية تعديل هذا التنبيه.' });
+        return res.json({ success: true });
+    } catch (e) { return res.status(500).json({ success: false, error: 'تعذر إغلاق التنبيه.' }); }
 };

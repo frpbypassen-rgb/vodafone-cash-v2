@@ -10,6 +10,30 @@ const Admin = require('../models/Admin');
 const User = require('../models/User');
 const ClientEmployee = require('../models/ClientEmployee');
 const SupportTicket = require('../models/SupportTicket');
+const { syncBotBalance } = require('../utils/helpers');
+const { logAction } = require('../services/auditService');
+const { acquireLock, releaseLock } = require('../services/lockService');
+
+const MAX_PROOF_IMAGES = 5;
+const MAX_PROOF_BYTES = 8 * 1024 * 1024;
+
+const parseProofImage = (value) => {
+    const match = String(value || '').match(/^data:image\/(jpeg|jpg|png|webp);base64,([A-Za-z0-9+/=\r\n]+)$/i);
+    if (!match) throw new Error('INVALID_PROOF_IMAGE');
+    const buffer = Buffer.from(match[2], 'base64');
+    if (!buffer.length || buffer.length > MAX_PROOF_BYTES) throw new Error('INVALID_PROOF_IMAGE');
+    const extension = match[1].toLowerCase() === 'jpeg' ? 'jpg' : match[1].toLowerCase();
+    return { buffer, extension };
+};
+
+const getProofImages = (body = {}) => {
+    const rawImages = Array.isArray(body.imagesBase64) && body.imagesBase64.length
+        ? body.imagesBase64
+        : (body.imageBase64 ? [body.imageBase64] : []);
+    if (rawImages.length === 0) throw new Error('PROOF_REQUIRED');
+    if (rawImages.length > MAX_PROOF_IMAGES) throw new Error('TOO_MANY_PROOFS');
+    return rawImages.map(parseProofImage);
+};
 
 const appendNoteText = (current, note) => {
     const cleanNote = String(note || '').trim();
@@ -79,7 +103,7 @@ exports.postRequestDeposit = async (req, res) => {
         const { amount } = req.body;
         const parsedAmount = parseFloat(amount);
         if (isNaN(parsedAmount) || parsedAmount <= 0) return res.json({ success: false, error: 'مبلغ غير صالح' });
-        const emp = await Employee.findById(req.session.executorId).populate('groupId');
+        const emp = req.executorEmployee || await Employee.findById(req.session.executorId).populate('groupId');
         const tx = await Transaction.create({ userId: 'admin', executorGroupId: emp.groupId._id, operatorId: emp._id.toString(), amount: parsedAmount, costLYD: 0, vodafoneNumber: 'طلب إيداع', status: 'deposit_pending', customId: 'DEPREQ-' + Date.now().toString().slice(-6), companyName: 'طلب إيداع من منفذ', employeeName: emp.name, executorName: emp.name });
         
         const Notification = require('../models/Notification');
@@ -99,10 +123,11 @@ exports.postRequestDeposit = async (req, res) => {
 
 exports.postAcceptTask = async (req, res) => {
     try {
-        const emp = await Employee.findById(req.session.executorId).populate('groupId');
+        const emp = req.executorEmployee || await Employee.findById(req.session.executorId).populate('groupId');
+        if (!emp || !emp.groupId) return res.status(401).json({ success: false, error: 'حساب المنفذ غير صالح.' });
         const operatorIdentifier = emp._id.toString();
         const groupId = emp.groupId && (emp.groupId._id || emp.groupId);
-        if (!groupId) return res.json({ success: false, error: 'Ø§Ù„Ù…Ù†ÙØ° ØºÙŠØ± Ù…Ø±Ø¨ÙˆØ· Ø¨Ù…Ø¬Ù…ÙˆØ¹Ø© ØµØ§Ù„Ø­Ø©' });
+        if (!groupId) return res.status(400).json({ success: false, error: 'المنفذ غير مربوط بمجموعة صالحة.' });
 
         const tx = await Transaction.findOneAndUpdate(
             {
@@ -114,9 +139,9 @@ exports.postAcceptTask = async (req, res) => {
             { new: true }
         );
 
-        if (!tx) return res.json({ success: false, error: 'تم قبول الطلب مسبقاً من زميل آخر أو لم يعد متاحاً' });
-        res.json({ success: true });
-    } catch(e) { res.json({ success: false, error: e.message }); }
+        if (!tx) return res.status(409).json({ success: false, error: 'تم قبول الطلب مسبقاً من زميل آخر أو لم يعد متاحاً.' });
+        return res.json({ success: true });
+    } catch(e) { return res.status(500).json({ success: false, error: 'تعذر سحب العملية.' }); }
 };
 
 exports.postEditAmount = async (req, res) => {
@@ -212,105 +237,91 @@ exports.postReturnTask = async (req, res) => {
 };
 
 exports.postCompleteTask = async (req, res) => {
+    let lock = null;
+    const savedPaths = [];
+    let transactionCompleted = false;
     try {
-        const { imageBase64, imagesBase64, senderPhone } = req.body;
-        const tx = await Transaction.findById(req.params.id);
-        const emp = await Employee.findById(req.session.executorId).populate('groupId');
-
-        if (!tx) return res.json({ success: false, error: 'الطلب غير موجود' });
-
-        let imagesArray = [];
-        if (imagesBase64 && Array.isArray(imagesBase64) && imagesBase64.length > 0) {
-            imagesArray = imagesBase64;
-        } else if (imageBase64) {
-            imagesArray = [imageBase64]; 
+        lock = await acquireLock(`executor-complete:${req.params.id}`, 30000, { retryCount: 1 });
+        const proofs = getProofImages(req.body);
+        const senderPhone = String(req.body.senderPhone || '').trim();
+        const emp = req.executorEmployee || await Employee.findById(req.session.executorId).populate('groupId');
+        if (!emp || emp.status !== 'active' || !emp.groupId || emp.groupId.status !== 'active') {
+            return res.status(401).json({ success: false, error: 'حساب المنفذ غير مفعل.' });
         }
 
-        if (imagesArray.length === 0) {
-            let maskedPhone = senderPhone ? senderPhone.trim() : '';
-            if (maskedPhone.length === 11) {
-                maskedPhone = maskedPhone.substring(0, 4) + '****' + maskedPhone.substring(8);
-            } else if (maskedPhone.length > 0 && maskedPhone.length <= 4) {
-                maskedPhone = '01******' + maskedPhone;
-            } else if (maskedPhone.length > 4) {
-                const firstPart = Math.floor(maskedPhone.length / 3);
-                const lastPart = Math.floor(maskedPhone.length / 3);
-                const middlePart = maskedPhone.length - firstPart - lastPart;
-                maskedPhone = maskedPhone.substring(0, firstPart) + '*'.repeat(middlePart) + maskedPhone.substring(maskedPhone.length - lastPart);
-            } else {
-                maskedPhone = '---';
-            }
-
-            const { generateReceiptBase64 } = require('../utils/receiptGenerator');
-            const receiptBase64 = await generateReceiptBase64({
-                amount: tx.amount,
-                walletNumber: tx.vodafoneNumber || tx.accountNumber || '---',
-                senderPhone: maskedPhone,
-                customId: tx.customId || tx._id.toString().slice(-6),
-                accountName: tx.companyName || tx.employeeName || 'غير محدد',
-                date: new Date().toLocaleDateString('en-GB')
-            });
-            imagesArray = [receiptBase64];
+        const groupId = emp.groupId._id || emp.groupId;
+        const tx = await Transaction.findOne({
+            _id: req.params.id,
+            status: 'accepted',
+            operatorId: emp._id.toString(),
+            $or: [{ executorGroupId: groupId }, { managerGroupId: groupId }]
+        });
+        if (!tx) {
+            return res.status(409).json({ success: false, error: 'العملية غير متاحة للإنهاء أو تم إنهاؤها مسبقاً.' });
         }
 
-        const parentGroupId = emp.groupId.parentGroupId || emp.groupId.parentBotId;
-        if (parentGroupId) { await ExecutorGroup.findByIdAndUpdate(parentGroupId, { $inc: { balance: -tx.amount } }); }
-        await ExecutorGroup.findByIdAndUpdate(emp.groupId._id, { $inc: { balance: -tx.amount } });
-
-        let typeLabel = 'فودافون كاش';
-        if(tx.transferType === 'post_account') typeLabel = 'حساب بريد';
-        if(tx.transferType === 'post_card') typeLabel = 'بطاقة عميل';
-
-        let senderPhoneDisplay = '';
-        if (senderPhone && senderPhone.trim() !== '') {
-            appendCustomerReference(tx, 'رقم المحول', senderPhone.trim());
-            senderPhoneDisplay = `\n📞 <b>رقم المُرسل:</b> <code>${senderPhone.trim()}</code>`;
-        }
-
-        let clientNoteDisplay = tx.notes ? `\n📝 <b>ملاحظة:</b> ${tx.notes}` : '';
-        let accDetails = `📞 <b>الرقم/الحساب:</b> <code>${tx.vodafoneNumber || tx.accountNumber || '---'}</code>\n`;
-        if (tx.accountName) accDetails += `👤 <b>الاسم:</b> ${tx.accountName}\n`;
-
-        const clientMsg = `✅ <b>تـم تـنـفـيـذ طـلـبـك بـنـجـاح! (${typeLabel})</b> 🎉\n\n` +
-                          `🧾 <b>رقم الطلب:</b> <code>${tx.customId || tx._id}</code>\n` + accDetails +
-                          `💵 <b>المبلغ:</b> ${tx.amount} EGP\n💸 <b>التكلفة:</b> ${tx.costLYD.toFixed(2)} LYD` + senderPhoneDisplay + clientNoteDisplay + `\n\n👇 <b>إثبات التحويل:</b>`;
-
-        const sourceInfo = tx.companyId ? `🏢 <b>الشركة:</b> ${tx.companyName}\n👤 <b>الموظف المحول:</b> ${tx.employeeName}` : `👤 <b>العميل الفردي:</b> ${tx.employeeName}`;
-        const adminMsgCaption = `✅ <b>تم تنفيذ طلب تحويل (${typeLabel}) بنجاح!</b>\n\n${sourceInfo}\n━━━━━━━━━━━━━━\n🧾 <b>رقم الطلب:</b> <code>${tx.customId || tx._id}</code>\n${accDetails}💵 <b>المبلغ:</b> ${tx.amount} EGP\n🇱🇾 <b>التكلفة:</b> ${tx.costLYD.toFixed(2)} LYD\n👨‍💻 <b>المنفذ:</b> ${emp.name}\n🤖 <b>البوت:</b> ${emp.groupId.name}${senderPhoneDisplay}${clientNoteDisplay}`;
-
-        const buffers = imagesArray.slice(0, 10).map(base64 => Buffer.from(base64.replace(/^data:image\/\w+;base64,/, ""), 'base64'));
         const localFileNames = [];
         const proofsDir = path.join(process.cwd(), 'uploads', 'proofs');
         if (!fs.existsSync(proofsDir)) { fs.mkdirSync(proofsDir, { recursive: true }); }
-        for (let i = 0; i < buffers.length; i++) {
+        for (let i = 0; i < proofs.length; i++) {
             const safeId = (tx.customId || tx._id.toString().slice(-6)).toString().replace(/[^a-zA-Z0-9_-]/g, '');
-            const suffix = buffers.length > 1 ? `_${i}` : '';
-            const fileName = `${safeId}${suffix}.jpg`;
-            fs.writeFileSync(path.join(proofsDir, fileName), buffers[i]);
+            const suffix = proofs.length > 1 ? `_${i + 1}` : '';
+            const fileName = `${safeId}_${Date.now().toString(36)}${suffix}.${proofs[i].extension}`;
+            const filePath = path.join(proofsDir, fileName);
+            fs.writeFileSync(filePath, proofs[i].buffer);
+            savedPaths.push(filePath);
             localFileNames.push(fileName);
         }
 
-        const mediaGroupClient = buffers.map((buf, index) => ({ type: 'photo', media: { source: buf }, caption: index === 0 ? clientMsg : undefined, parse_mode: 'HTML' }));
-        const mediaGroupAdmin = buffers.map((buf, index) => ({ type: 'photo', media: { source: buf }, caption: index === 0 ? adminMsgCaption : undefined, parse_mode: 'HTML' }));
-
-        // WhatsApp notification removed
-        const clientFileIds = [];
-
-        tx.status = 'completed'; 
-        if (typeof localFileNames !== 'undefined' && localFileNames.length > 0) { tx.proofImage = localFileNames[0]; tx.proofImages = localFileNames; } 
-        else if (clientFileIds && clientFileIds.length > 0) { tx.proofImage = clientFileIds[0]; tx.proofImages = clientFileIds; }
-        tx.updatedAt = new Date();
-
-        const execTime = new Date().toLocaleString('en-GB');
-        const completionMsg = `✅ <b>تـم الـتـنـفـيـذ بـنـجـاح</b>\n\n🧾 <b>الطلب:</b> <code>${tx.customId || tx._id}</code>\n📞 <b>الرقم/الحساب:</b> <code>${tx.vodafoneNumber || tx.accountNumber || '---'}</code>\n💵 <b>المبلغ:</b> ${tx.amount} EGP\n👨‍💻 <b>المنفذ:</b> ${tx.executorName}${senderPhoneDisplay}\n⏱️ <b>الوقت:</b> ${execTime}`;
-
-        // Telegram broadcast and admin messages removed
+        if (senderPhone) appendCustomerReference(tx, 'رقم المحول', senderPhone);
+        tx.status = 'completed';
+        tx.proofImage = localFileNames[0];
+        tx.proofImages = localFileNames;
+        tx.executorSenderPhone = senderPhone || undefined;
+        tx.completedAt = new Date();
+        tx.completedBy = emp._id;
         tx.broadcastMessages = [];
         tx.adminMessages = [];
-
         await tx.save();
-        res.json({ success: true });
-    } catch (e) { res.json({ success: false, error: e.message }); }
+        transactionCompleted = true;
+
+        const parentGroupId = emp.groupId.parentGroupId || emp.groupId.parentBotId;
+        await syncBotBalance(groupId).catch(() => {});
+        if (parentGroupId) await syncBotBalance(parentGroupId).catch(() => {});
+
+        await logAction({
+            action: 'TRANSFER_COMPLETED',
+            req,
+            performedById: emp._id,
+            performedByModel: 'Employee',
+            performedByName: emp.name,
+            targetId: tx._id,
+            targetModel: 'Transaction',
+            oldData: { status: 'accepted' },
+            newData: { status: 'completed', proofCount: localFileNames.length },
+            metadata: { customId: tx.customId, amount: tx.amount, transferType: tx.transferType }
+        }).catch(() => {});
+
+        try {
+            require('../services/eventBus').publish('transfer:completed', { tx, emp });
+        } catch (_) {}
+
+        return res.json({ success: true, message: 'تم إنهاء العملية وحفظ الإثبات بنجاح.' });
+    } catch (e) {
+        if (!transactionCompleted) {
+            savedPaths.forEach((filePath) => {
+                try { fs.unlinkSync(filePath); } catch (_) {}
+            });
+        }
+        if (e.message === 'PROOF_REQUIRED') return res.status(400).json({ success: false, error: 'يرجى إرفاق صورة إثبات واحدة على الأقل.' });
+        if (e.message === 'TOO_MANY_PROOFS') return res.status(400).json({ success: false, error: `الحد الأقصى ${MAX_PROOF_IMAGES} صور.` });
+        if (e.message === 'INVALID_PROOF_IMAGE') return res.status(400).json({ success: false, error: 'صيغة صورة الإثبات غير صالحة أو حجمها كبير.' });
+        if (String(e.message || '').includes('LOCK')) return res.status(409).json({ success: false, error: 'العملية قيد المعالجة حالياً.' });
+        console.error('[executor/complete-task] failed:', e.stack || e.message);
+        return res.status(500).json({ success: false, error: 'تعذر إنهاء العملية.' });
+    } finally {
+        await releaseLock(lock);
+    }
 };
 
 // ===============================================

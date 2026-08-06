@@ -22,21 +22,36 @@ function getDateRange(dateStr, monthStr) {
     return { start, end };
 }
 
-const requireExecutorAuth = (req, res, next) => {
-    if (req.session.isExecutorLoggedIn && req.session.executorId) return next();
-    res.redirect('/executor-portal/login');
+const requireExecutorAuth = async (req, res, next) => {
+    if (!req.session.isExecutorLoggedIn || !req.session.executorId) {
+        return req.path.includes('/filter')
+            ? res.status(401).json({ success: false, error: 'انتهت جلسة الدخول.' })
+            : res.redirect('/login');
+    }
+    try {
+        const employee = await Employee.findById(req.session.executorId).populate('groupId');
+        if (!employee || employee.status !== 'active' || !employee.groupId || employee.groupId.status !== 'active') {
+            return req.path.includes('/filter')
+                ? res.status(401).json({ success: false, error: 'حساب المنفذ غير مفعل.' })
+                : res.redirect('/login');
+        }
+        req.executorEmployee = employee;
+        return next();
+    } catch (_) {
+        return res.status(500).json({ success: false, error: 'تعذر التحقق من الحساب.' });
+    }
 };
 
 router.get('/reports', requireExecutorAuth, async (req, res) => {
     try {
-        const emp = await Employee.findById(req.session.executorId).populate('groupId');
+        const emp = req.executorEmployee;
         res.render('executor/reports', { emp });
     } catch (e) { res.status(500).send('Error'); }
 });
 
 router.post('/reports/filter', requireExecutorAuth, async (req, res) => {
     try {
-        const emp = await Employee.findById(req.session.executorId);
+        const emp = req.executorEmployee;
         if (!emp) return res.status(401).json({ error: 'Unauthorized' });
 
         const { dateType, dateValue } = req.body;
