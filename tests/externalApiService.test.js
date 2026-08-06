@@ -5,7 +5,12 @@ jest.mock('axios', () => ({
 }));
 
 const axios = require('axios');
-const { executeTransferViaApi, getApiProviderBalance } = require('../services/externalApiService');
+const {
+    executeTransferViaApi,
+    getApiProviderBalance,
+    getApiProviderTransactions,
+    isReturnedProviderStatus
+} = require('../services/externalApiService');
 
 describe('externalApiService', () => {
     beforeEach(() => {
@@ -183,5 +188,65 @@ describe('externalApiService', () => {
                 timeout: 20000
             })
         );
+    });
+
+    test('reviews provider transactions with one authentication and detects returned statuses', async () => {
+        axios.post
+            .mockResolvedValueOnce({
+                data: { Code: 200, Data: { Access_Token: 'review-token' } }
+            })
+            .mockResolvedValueOnce({
+                data: {
+                    Code: 200,
+                    Message: 'عمليه ناجحه',
+                    Data: {
+                        TransactionId: 9001,
+                        RefNumber: 'REF-9001',
+                        TransactionStatus: 'عملية مسترجعة',
+                        Amount: 150,
+                        PrintServiceDetailes: [{ Key: 'رقم الموبايل', Value: '01000000001' }]
+                    }
+                }
+            })
+            .mockResolvedValueOnce({
+                data: {
+                    Code: 200,
+                    Data: {
+                        TransactionId: 9002,
+                        TransactionStatus: 'عمليه ناجحه',
+                        Amount: 200,
+                        PhoneNumber: '01000000002'
+                    }
+                }
+            });
+
+        const result = await getApiProviderTransactions({
+            apiUrl: 'https://zayn.example',
+            apiUsername: 'api-user',
+            apiPassword: 'api-pass'
+        }, ['9001', '9002']);
+
+        expect(result.success).toBe(true);
+        expect(result.checkedCount).toBe(2);
+        expect(result.operations[0]).toMatchObject({
+            success: true,
+            requestedTransactionId: '9001',
+            providerTransactionId: '9001',
+            referenceNumber: 'REF-9001',
+            phone: '01000000001',
+            isReturned: true
+        });
+        expect(result.operations[1].isReturned).toBe(false);
+        expect(axios.post).toHaveBeenCalledTimes(3);
+        expect(axios.post).toHaveBeenNthCalledWith(
+            2,
+            'https://zayn.example/api/V1/Transactions/Print',
+            { TransactionNumber: '9001' },
+            expect.objectContaining({
+                headers: expect.objectContaining({ Authorization: 'Bearer review-token' })
+            })
+        );
+        expect(isReturnedProviderStatus('تم إلغاء العملية وردها')).toBe(true);
+        expect(isReturnedProviderStatus('عملية ناجحة')).toBe(false);
     });
 });

@@ -33,6 +33,19 @@
         .text-rose { color: #f43f5e; }
         .text-sky { color: #0ea5e9; }
         .main-content { padding: 20px; }
+        .recon-value { font-family: 'JetBrains Mono', monospace; direction: ltr; display: inline-block; }
+        .recon-alert { border: 1px solid rgba(244, 63, 94, .45); background: rgba(244, 63, 94, .08); color: #fecdd3; }
+        .recon-ok { border: 1px solid rgba(16, 185, 129, .35); background: rgba(16, 185, 129, .08); color: #a7f3d0; }
+        .section-note { color: #94a3b8; font-size: .86rem; line-height: 1.7; }
+        .table-actions { display: flex; justify-content: center; gap: 7px; flex-wrap: wrap; }
+        .audit-alerts { max-width: 320px; white-space: normal; text-align: right; font-size: .8rem; line-height: 1.55; }
+        .sync-state { display: inline-flex; align-items: center; gap: 6px; padding: 6px 10px; border-radius: 8px; background: #0f172a; border: 1px solid #334155; color: #cbd5e1; font-size: .78rem; }
+        @media (max-width: 767px) {
+            .main-content { padding: 12px; }
+            .api-card-header { align-items: flex-start !important; gap: 10px; flex-direction: column; }
+            .api-card-header .btn { width: 100%; }
+            .table-actions { min-width: 170px; }
+        }
         
         /* 🟢 تنسيق زر الـ API */
         .btn-api-log { display: inline-flex; align-items: center; justify-content: center; padding: 6px 12px; border-radius: 8px; font-size: 0.85rem; font-weight: bold; transition: 0.2s; background: rgba(16, 185, 129, 0.1); color: #10b981; border: 1px solid rgba(16, 185, 129, 0.3); cursor: pointer; text-decoration: none; }
@@ -63,22 +76,34 @@
         </div>
 
         <div class="row g-3 mb-4">
-            <div class="col-md-4">
+            <div class="col-6 col-xl">
                 <div class="stat-box">
                     <p class="text-muted mb-2">عمليات مرفوضة (من الشركة)</p>
                     <h2 class="text-rose fw-bold mb-0"><%= stats.failedCount %></h2>
                 </div>
             </div>
-            <div class="col-md-4">
+            <div class="col-6 col-xl">
                 <div class="stat-box">
                     <p class="text-muted mb-2">عمليات ناجحة</p>
                     <h2 class="text-sky fw-bold mb-0"><%= stats.successCount %></h2>
                 </div>
             </div>
-            <div class="col-md-4">
+            <div class="col-12 col-md-4 col-xl">
                 <div class="stat-box">
-                    <p class="text-muted mb-2">الرصيد / العهدة المتاحة للـ API</p>
-                    <h2 class="text-emerald fw-bold mb-0"><%= bot.balance.toFixed(2) %> <span class="fs-6">EGP</span></h2>
+                    <p class="text-muted mb-2">رصيد المزود المباشر</p>
+                    <h2 class="text-emerald fw-bold mb-0"><%= bot.lastApiAvailableBalance !== null && bot.lastApiAvailableBalance !== undefined ? Number(bot.lastApiAvailableBalance).toFixed(2) : '---' %> <span class="fs-6">EGP</span></h2>
+                </div>
+            </div>
+            <div class="col-6 col-md-4 col-xl">
+                <div class="stat-box <%= stats.balanceAlertCount ? 'recon-alert' : '' %>">
+                    <p class="text-muted mb-2">فروقات تنتظر المراجعة</p>
+                    <h2 class="<%= stats.balanceAlertCount ? 'text-rose' : 'text-emerald' %> fw-bold mb-0"><%= stats.balanceAlertCount %></h2>
+                </div>
+            </div>
+            <div class="col-6 col-md-4 col-xl">
+                <div class="stat-box <%= stats.providerReturnCount ? 'recon-alert' : '' %>">
+                    <p class="text-muted mb-2">مرتجعات المزود</p>
+                    <h2 class="<%= stats.providerReturnCount ? 'text-rose' : 'text-emerald' %> fw-bold mb-0"><%= stats.providerReturnCount %></h2>
                 </div>
             </div>
         </div>
@@ -100,7 +125,7 @@
                         </div>
                         <div class="mb-4">
                             <label class="form-label text-muted small">مفتاح المصادقة (Secret Token)</label>
-                            <input type="text" class="form-control text-rose" value="Bearer <%= bot.apiToken || 'AutoLogin' %>" readonly>
+                            <input type="text" class="form-control text-rose" value="<%= bot.apiToken ? 'Bearer ********' : 'AutoLogin' %>" readonly>
                         </div>
                         <div class="row g-3 mb-4">
                             <div class="col-md-6">
@@ -200,6 +225,152 @@
                             </button>
                         </form>
                     </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="api-card" id="balance-reconciliation">
+            <div class="api-card-header text-info d-flex justify-content-between align-items-center">
+                <div>
+                    <span><i class="fa-solid fa-scale-balanced me-2"></i> مطابقة رصيد المزود قبل وبعد كل عملية</span>
+                </div>
+                <span class="sync-state"><i class="fa-solid fa-rotate"></i> فحص تلقائي مع كل عملية</span>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover table-dark-custom text-center mb-0">
+                        <thead>
+                            <tr>
+                                <th class="py-3">الوقت</th>
+                                <th class="py-3">رقم العملية</th>
+                                <th class="py-3">آخر رصيد بعد التنفيذ</th>
+                                <th class="py-3">الرصيد قبل</th>
+                                <th class="py-3">الرصيد بعد</th>
+                                <th class="py-3">الخصم الفعلي / المتوقع</th>
+                                <th class="py-3">نتيجة المطابقة</th>
+                                <th class="py-3">الإجراء</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <% if (!balanceAudits.length) { %>
+                                <tr><td colspan="8" class="py-5 text-muted">سيظهر أول سجل مطابقة عند تنفيذ العملية التالية عبر هذا المنفذ.</td></tr>
+                            <% } %>
+                            <% balanceAudits.forEach(audit => {
+                                const beforeBalance = audit.beforeCheck && audit.beforeCheck.availableBalance !== null ? audit.beforeCheck.availableBalance : null;
+                                const afterBalance = audit.afterCheck && audit.afterCheck.availableBalance !== null ? audit.afterCheck.availableBalance : null;
+                                const previousAfter = audit.previousPostAvailableBalance !== null && audit.previousPostAvailableBalance !== undefined ? audit.previousPostAvailableBalance : null;
+                                const statusClass = audit.checkStatus === 'matched' ? 'success' : (audit.checkStatus === 'pending' ? 'warning' : 'danger');
+                                const statusText = audit.checkStatus === 'matched' ? 'متطابق' : (audit.checkStatus === 'discrepancy' ? 'يوجد فرق' : (audit.checkStatus === 'check_failed' ? 'فشل الفحص' : 'جارٍ الفحص'));
+                            %>
+                                <tr>
+                                    <td class="text-muted small"><%= new Date(audit.createdAt).toLocaleString('ar-EG') %></td>
+                                    <td>
+                                        <a class="text-light fw-bold text-decoration-none" href="/transactions?search=<%= encodeURIComponent(audit.transactionCustomId) %>"><%= audit.transactionCustomId %></a>
+                                        <% if (audit.providerTransactionId) { %><small class="d-block text-muted" dir="ltr"><%= audit.providerTransactionId %></small><% } %>
+                                    </td>
+                                    <td><span class="recon-value"><%= previousAfter !== null ? Number(previousAfter).toFixed(2) : '---' %></span></td>
+                                    <td><span class="recon-value"><%= beforeBalance !== null ? Number(beforeBalance).toFixed(2) : '---' %></span></td>
+                                    <td><span class="recon-value"><%= afterBalance !== null ? Number(afterBalance).toFixed(2) : '---' %></span></td>
+                                    <td>
+                                        <span class="recon-value"><%= audit.observedDebit !== null && audit.observedDebit !== undefined ? Number(audit.observedDebit).toFixed(2) : '---' %></span>
+                                        <small class="d-block text-muted">المتوقع: <span dir="ltr"><%= audit.expectedDebit !== null && audit.expectedDebit !== undefined ? Number(audit.expectedDebit).toFixed(2) : '---' %></span></small>
+                                    </td>
+                                    <td>
+                                        <span class="badge border border-<%= statusClass %> text-<%= statusClass %> bg-transparent px-3 py-2"><%= statusText %></span>
+                                        <% if (audit.alerts && audit.alerts.length) { %>
+                                            <div class="audit-alerts text-danger mt-2"><%= audit.alerts.join(' | ') %></div>
+                                        <% } %>
+                                    </td>
+                                    <td>
+                                        <% if (audit.reviewStatus === 'pending') { %>
+                                            <button type="button" class="btn btn-sm btn-outline-info" onclick="reviewBalanceAudit('<%= audit._id %>', this)"><i class="fa-solid fa-check me-1"></i> تمت المراجعة</button>
+                                        <% } else if (audit.reviewStatus === 'reviewed') { %>
+                                            <span class="text-success small"><i class="fa-solid fa-user-check me-1"></i> <%= audit.reviewedBy || 'تمت المراجعة' %></span>
+                                        <% } else { %>
+                                            <span class="text-muted small">لا يحتاج إجراء</span>
+                                        <% } %>
+                                    </td>
+                                </tr>
+                            <% }) %>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <div class="api-card" id="provider-returns">
+            <div class="api-card-header text-warning d-flex justify-content-between align-items-center">
+                <div>
+                    <span><i class="fa-solid fa-arrow-rotate-left me-2"></i> العمليات المسترجعة من مزود الـ API</span>
+                </div>
+                <div class="d-flex align-items-center gap-2 flex-wrap">
+                    <span class="sync-state">
+                        <i class="fa-solid fa-clock-rotate-left"></i>
+                        <% if (bot.lastApiReturnSyncAt) { %>
+                            آخر مراجعة: <%= new Date(bot.lastApiReturnSyncAt).toLocaleString('ar-EG') %>
+                        <% } else { %>
+                            لم تتم المراجعة بعد
+                        <% } %>
+                    </span>
+                    <button type="button" class="btn btn-warning fw-bold" data-api-bot-id="<%= bot._id %>" onclick="syncProviderReturns(this)">
+                        <i class="fa-solid fa-arrows-rotate me-1"></i> مراجعة الآن
+                    </button>
+                </div>
+            </div>
+            <div class="card-body p-0">
+                <% if (bot.lastApiReturnSyncMessage) { %>
+                    <div class="px-3 py-2 border-bottom border-secondary section-note"><i class="fa-solid fa-circle-info me-1"></i> <%= bot.lastApiReturnSyncMessage %></div>
+                <% } %>
+                <div class="table-responsive">
+                    <table class="table table-hover table-dark-custom text-center mb-0">
+                        <thead>
+                            <tr>
+                                <th class="py-3">اكتشاف الاسترجاع</th>
+                                <th class="py-3">رقم عملية المزود</th>
+                                <th class="py-3">رقم عمليتنا</th>
+                                <th class="py-3">المستفيد</th>
+                                <th class="py-3">المبلغ</th>
+                                <th class="py-3">حالة المزود</th>
+                                <th class="py-3">حالة المراجعة</th>
+                                <th class="py-3">الإجراء</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <% if (!providerReturns.length) { %>
+                                <tr><td colspan="8" class="py-5 text-muted"><i class="fa-solid fa-circle-check text-success d-block fs-3 mb-2"></i> لا توجد عمليات مسترجعة مسجلة لهذا المنفذ.</td></tr>
+                            <% } %>
+                            <% providerReturns.forEach(item => {
+                                const reviewLabel = item.status === 'cancelled' ? 'تم الإلغاء ورد الرصيد' : (item.status === 'reviewed' ? 'تمت المراجعة' : 'تنتظر الإدارة');
+                                const reviewTone = item.status === 'cancelled' ? 'success' : (item.status === 'reviewed' ? 'info' : 'warning');
+                            %>
+                                <tr>
+                                    <td class="text-muted small"><%= new Date(item.firstDetectedAt).toLocaleString('ar-EG') %></td>
+                                    <td>
+                                        <strong class="text-warning" dir="ltr"><%= item.providerTransactionId %></strong>
+                                        <% if (item.referenceNumber) { %><small class="d-block text-muted" dir="ltr">Ref: <%= item.referenceNumber %></small><% } %>
+                                    </td>
+                                    <td><a class="text-light fw-bold text-decoration-none" href="/transactions?search=<%= encodeURIComponent(item.transactionCustomId) %>"><%= item.transactionCustomId || '---' %></a></td>
+                                    <td class="font-monospace" dir="ltr"><%= item.phone || '---' %></td>
+                                    <td><strong class="recon-value"><%= item.amount !== null && item.amount !== undefined ? Number(item.amount).toFixed(2) : '---' %></strong> <small>EGP</small></td>
+                                    <td><span class="badge border border-danger text-danger bg-transparent px-3 py-2"><%= item.providerStatus || 'مسترجعة' %></span></td>
+                                    <td>
+                                        <span class="badge bg-<%= reviewTone %> text-<%= reviewTone === 'warning' ? 'dark' : 'light' %>"><%= reviewLabel %></span>
+                                        <% if (item.cancellationNumber) { %><small class="d-block text-success mt-1" dir="ltr"><%= item.cancellationNumber %></small><% } %>
+                                    </td>
+                                    <td>
+                                        <div class="table-actions">
+                                            <% if (item.status === 'pending_review') { %>
+                                                <button type="button" class="btn btn-sm btn-outline-info" onclick="reviewProviderReturn('<%= item._id %>', this)"><i class="fa-solid fa-eye me-1"></i> مراجعة</button>
+                                            <% } %>
+                                            <% if (item.status !== 'cancelled') { %>
+                                                <button type="button" class="btn btn-sm btn-danger" onclick="cancelProviderReturn('<%= item._id %>', '<%= String(item.providerTransactionId).replace(/'/g, '') %>', this)"><i class="fa-solid fa-ban me-1"></i> إلغاء ورد الرصيد</button>
+                                            <% } %>
+                                        </div>
+                                    </td>
+                                </tr>
+                            <% }) %>
+                        </tbody>
+                    </table>
                 </div>
             </div>
         </div>
@@ -353,6 +524,125 @@
         } finally {
             button.disabled = false;
             button.innerHTML = originalHtml;
+        }
+    }
+
+    async function postApiAction(url, body = {}) {
+        const response = await fetch(url, {
+            method: 'POST',
+            headers: {
+                'Accept': 'application/json',
+                'Content-Type': 'application/json',
+                'x-csrf-token': csrfToken
+            },
+            body: JSON.stringify(body)
+        });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok || !data.success) {
+            throw new Error(data.message || data.error || 'تعذر تنفيذ الطلب');
+        }
+        return data;
+    }
+
+    async function syncProviderReturns(button) {
+        const botId = button?.dataset?.apiBotId;
+        if (!botId) return;
+        const originalHtml = button.innerHTML;
+        button.disabled = true;
+        button.innerHTML = '<i class="fa-solid fa-spinner fa-spin me-1"></i> جارٍ فحص العمليات...';
+        try {
+            const data = await postApiAction(`/executor/${encodeURIComponent(botId)}/sync-provider-returns`);
+            await Swal.fire({
+                icon: data.returnedCount ? 'warning' : 'success',
+                title: 'اكتملت مراجعة المزود',
+                html: `<div style="direction:rtl;text-align:right;line-height:1.9">${escapeHtml(data.message)}<br>عمليات مسترجعة جديدة: <b>${Number(data.newAlerts || 0)}</b></div>`,
+                background: '#1e293b',
+                color: '#fff',
+                confirmButtonColor: '#f59e0b',
+                confirmButtonText: 'عرض النتائج'
+            });
+            window.location.hash = 'provider-returns';
+            window.location.reload();
+        } catch (error) {
+            Swal.fire({ icon: 'error', title: 'تعذر فحص العمليات', text: error.message, background: '#1e293b', color: '#fff' });
+        } finally {
+            button.disabled = false;
+            button.innerHTML = originalHtml;
+        }
+    }
+
+    async function reviewBalanceAudit(auditId, button) {
+        button.disabled = true;
+        try {
+            await postApiAction(`/executor/<%= bot._id %>/balance-audit/${encodeURIComponent(auditId)}/review`);
+            window.location.hash = 'balance-reconciliation';
+            window.location.reload();
+        } catch (error) {
+            button.disabled = false;
+            Swal.fire({ icon: 'error', title: 'تعذر حفظ المراجعة', text: error.message, background: '#1e293b', color: '#fff' });
+        }
+    }
+
+    async function reviewProviderReturn(returnId, button) {
+        const result = await Swal.fire({
+            icon: 'question',
+            title: 'تسجيل المراجعة فقط؟',
+            text: 'لن يتم إلغاء العملية ولن يتغير رصيد العميل.',
+            showCancelButton: true,
+            confirmButtonText: 'نعم، تمت المراجعة',
+            cancelButtonText: 'رجوع',
+            background: '#1e293b',
+            color: '#fff',
+            confirmButtonColor: '#0ea5e9'
+        });
+        if (!result.isConfirmed) return;
+        button.disabled = true;
+        try {
+            await postApiAction(`/executor/<%= bot._id %>/provider-return/${encodeURIComponent(returnId)}/review`);
+            window.location.hash = 'provider-returns';
+            window.location.reload();
+        } catch (error) {
+            button.disabled = false;
+            Swal.fire({ icon: 'error', title: 'تعذر حفظ المراجعة', text: error.message, background: '#1e293b', color: '#fff' });
+        }
+    }
+
+    async function cancelProviderReturn(returnId, providerTransactionId, button) {
+        const result = await Swal.fire({
+            icon: 'warning',
+            title: 'إلغاء العملية ورد رصيد العميل',
+            html: `<div style="direction:rtl;text-align:right;line-height:1.8">سيتم إنشاء رقم إلغاء وقيد عكسي للعملية المرتبطة برقم المزود <b dir="ltr">${escapeHtml(providerTransactionId)}</b>.</div>`,
+            input: 'text',
+            inputLabel: 'سبب الإلغاء',
+            inputValue: `استرجاع مؤكد من مزود API - ${providerTransactionId}`,
+            inputValidator: value => value && value.trim() ? undefined : 'اكتب سبب الإلغاء',
+            showCancelButton: true,
+            confirmButtonText: 'تأكيد الإلغاء ورد الرصيد',
+            cancelButtonText: 'رجوع',
+            background: '#1e293b',
+            color: '#fff',
+            confirmButtonColor: '#dc2626'
+        });
+        if (!result.isConfirmed) return;
+        button.disabled = true;
+        try {
+            const data = await postApiAction(
+                `/executor/<%= bot._id %>/provider-return/${encodeURIComponent(returnId)}/cancel`,
+                { reason: result.value }
+            );
+            await Swal.fire({
+                icon: 'success',
+                title: 'تم الإلغاء ورد الرصيد',
+                html: `<div>رقم الإلغاء: <b dir="ltr">${escapeHtml(data.cancellationNumber || '---')}</b></div>`,
+                background: '#1e293b',
+                color: '#fff',
+                confirmButtonColor: '#10b981'
+            });
+            window.location.hash = 'provider-returns';
+            window.location.reload();
+        } catch (error) {
+            button.disabled = false;
+            Swal.fire({ icon: 'error', title: 'لم يتم إلغاء العملية', text: error.message, background: '#1e293b', color: '#fff' });
         }
     }
 </script>

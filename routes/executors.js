@@ -4,12 +4,16 @@ const ExecutorGroup = require('../models/ExecutorGroup');
 const Transaction = require('../models/Transaction');
 const Employee = require('../models/Employee');
 const Notification = require('../models/Notification');
+const ApiBalanceAudit = require('../models/ApiBalanceAudit');
+const ApiProviderReturn = require('../models/ApiProviderReturn');
 const { requireAuth, requireMaster } = require('../middlewares/auth');
 const { syncBotBalance } = require('../utils/helpers');
 const { DEFAULT_API_PROVIDER_KEY, getApiProviderPreset, getApiProviderPresets } = require('../utils/apiProviderPresets');
 const { getApiProviderBalance } = require('../services/externalApiService');
+const { syncProviderReturnedOperations } = require('../services/apiProviderReconciliationService');
 const { createExecutorAccount, ExecutorAccountError } = require('../services/executorAccountService');
 const { logAction } = require('../services/auditService');
+const { reversalService } = require('../src/Application/Services/ReversalService');
 
 const normalizeText = (value) => String(value || '').trim();
 const parseNumberOrDefault = (value, fallback) => {
@@ -109,21 +113,193 @@ router.get('/executor/:id', requireAuth, async (req, res) => {
     try {
         await syncBotBalance(req.params.id); 
         const bot = await ExecutorGroup.findById(req.params.id).populate('parentGroupId parentBotId');
+        if (!bot) return res.redirect('/executors');
         let queryFilter = bot.isManagerBot ? { managerGroupId: bot._id } : { executorGroupId: bot._id };
         const transactions = await Transaction.find(queryFilter).sort({ updatedAt: -1 }).limit(100);
         
         const managerBots = await ExecutorGroup.find({ isManagerBot: true, status: 'active', _id: { $ne: bot._id } });
 
         if (bot.isApiBot) {
+            const [balanceAudits, providerReturns] = await Promise.all([
+                ApiBalanceAudit.find({ executorGroupId: bot._id }).sort({ createdAt: -1 }).limit(100).lean(),
+                ApiProviderReturn.find({ executorGroupId: bot._id }).sort({ firstDetectedAt: -1 }).limit(100).lean()
+            ]);
             const stats = {
                 successCount: transactions.filter(t => t.status === 'completed').length,
                 failedCount: transactions.filter(t => t.status === 'pending' && t.adminNotes && t.adminNotes.includes('فشل')).length,
+                balanceAlertCount: balanceAudits.filter(item => item.reviewStatus === 'pending').length,
+                providerReturnCount: providerReturns.filter(item => item.status === 'pending_review').length
             };
-            return res.render('api_room', { bot, apiProviderPreset: getApiProviderPreset(bot.apiProviderKey), transactions, stats, managerBots, adminName: req.session.adminName });
+            return res.render('api_room', {
+                bot,
+                apiProviderPreset: getApiProviderPreset(bot.apiProviderKey),
+                transactions,
+                balanceAudits,
+                providerReturns,
+                stats,
+                managerBots,
+                adminName: req.session.adminName,
+                query: req.query
+            });
         }
 
         res.render('executor_details', { bot, transactions, managerBots, adminName: req.session.adminName });
     } catch (e) { res.redirect('/executors'); }
+});
+
+router.post('/executor/:id/sync-provider-returns', requireAuth, async (req, res) => {
+    try {
+        const bot = await ExecutorGroup.findById(req.params.id);
+        if (!bot || !bot.isApiBot) {
+            return res.status(404).json({ success: false, message: 'لم يتم العثور على منفذ API صالح للمراجعة' });
+        }
+
+        const result = await syncProviderReturnedOperations(bot, { force: true, limit: 100 });
+        return res.status(result.success ? 200 : 502).json({
+            ...result,
+            message: result.success
+                ? `تم فحص ${result.checkedCount} عملية، والعمليات المسترجعة ${result.returnedCount}، والتنبيهات الجديدة ${result.newAlerts}`
+                : (result.message || 'تعذر إكمال مراجعة عمليات المزود')
+        });
+    } catch (error) {
+        console.error('[executor/sync-provider-returns] failed:', error.stack || error.message);
+        return res.status(500).json({ success: false, message: 'حدث خطأ أثناء مراجعة عمليات المزود' });
+    }
+});
+
+router.post('/executor/:id/balance-audit/:auditId/review', requireAuth, async (req, res) => {
+    try {
+        const audit = await ApiBalanceAudit.findOneAndUpdate(
+            { _id: req.params.auditId, executorGroupId: req.params.id },
+            {
+                $set: {
+                    reviewStatus: 'reviewed',
+                    reviewedAt: new Date(),
+                    reviewedBy: req.session.adminName || 'الإدارة',
+                    reviewNotes: normalizeText(req.body.notes)
+                }
+            },
+            { new: true }
+        );
+        if (!audit) return res.status(404).json({ success: false, message: 'سجل المطابقة غير موجود' });
+
+        await Notification.updateMany(
+            { type: 'api_balance_discrepancy', 'metadata.auditId': String(audit._id) },
+            { $set: { isRead: true } }
+        ).catch(() => {});
+        return res.json({ success: true, message: 'تم تسجيل مراجعة فرق الرصيد' });
+    } catch (error) {
+        return res.status(500).json({ success: false, message: 'تعذر تسجيل مراجعة فرق الرصيد' });
+    }
+});
+
+router.post('/executor/:id/provider-return/:returnId/review', requireAuth, async (req, res) => {
+    try {
+        const item = await ApiProviderReturn.findOneAndUpdate(
+            { _id: req.params.returnId, executorGroupId: req.params.id, status: { $ne: 'cancelled' } },
+            {
+                $set: {
+                    status: 'reviewed',
+                    reviewedAt: new Date(),
+                    reviewedBy: req.session.adminName || 'الإدارة',
+                    reviewNotes: normalizeText(req.body.notes)
+                }
+            },
+            { new: true }
+        );
+        if (!item) return res.status(404).json({ success: false, message: 'سجل العملية المسترجعة غير موجود' });
+        await Notification.updateMany(
+            { type: 'api_provider_return', 'metadata.providerTransactionId': item.providerTransactionId },
+            { $set: { isRead: true } }
+        ).catch(() => {});
+        return res.json({ success: true, message: 'تم تسجيل مراجعة العملية دون إلغائها' });
+    } catch (error) {
+        return res.status(500).json({ success: false, message: 'تعذر تحديث سجل العملية المسترجعة' });
+    }
+});
+
+router.post('/executor/:id/provider-return/:returnId/cancel', requireAuth, requireMaster, async (req, res) => {
+    try {
+        const item = await ApiProviderReturn.findOne({
+            _id: req.params.returnId,
+            executorGroupId: req.params.id
+        });
+        if (!item || !item.transactionId) {
+            return res.status(404).json({ success: false, message: 'لا توجد عملية محلية مرتبطة بهذا الاسترجاع' });
+        }
+
+        if (item.status === 'cancelled') {
+            return res.json({ success: true, message: 'سبق إلغاء العملية وإرجاع الرصيد', cancellationNumber: item.cancellationNumber });
+        }
+
+        const localTransaction = await Transaction.findById(item.transactionId);
+        if (!localTransaction) {
+            return res.status(404).json({ success: false, message: 'العملية المحلية المرتبطة لم تعد موجودة' });
+        }
+        if (localTransaction.status === 'cancelled_by_admin') {
+            item.status = 'cancelled';
+            item.reviewedAt = localTransaction.cancelledAt || new Date();
+            item.reviewedBy = localTransaction.cancelledBy || req.session.adminName || 'الإدارة';
+            item.cancellationNumber = localTransaction.cancellationNumber || '';
+            await item.save();
+            return res.json({
+                success: true,
+                message: 'سبق إلغاء العملية وإرجاع الرصيد',
+                cancellationNumber: item.cancellationNumber
+            });
+        }
+
+        const reason = normalizeText(req.body.reason)
+            || `إلغاء بعد تأكيد استرجاع مزود API للعملية ${item.providerTransactionId}`;
+        const adminName = req.session.adminName || 'الإدارة';
+        const result = await reversalService.reverseTransaction(
+            String(item.transactionId),
+            reason,
+            adminName,
+            { status: 'cancelled_by_admin' }
+        );
+        if (!result.success) {
+            return res.status(409).json(result);
+        }
+
+        item.status = 'cancelled';
+        item.reviewedAt = new Date();
+        item.reviewedBy = adminName;
+        item.reviewNotes = reason;
+        item.cancellationNumber = result.cancellationNumber || '';
+        await item.save();
+        await syncBotBalance(req.params.id);
+        await Notification.updateMany(
+            { type: 'api_provider_return', 'metadata.providerTransactionId': item.providerTransactionId },
+            { $set: { isRead: true } }
+        ).catch(() => {});
+
+        await logAction({
+            action: 'API_PROVIDER_RETURN_CANCELLED',
+            req,
+            performedById: req.session.adminId,
+            performedByModel: 'Admin',
+            performedByName: adminName,
+            targetId: item.transactionId,
+            targetModel: 'Transaction',
+            metadata: {
+                executorGroupId: String(item.executorGroupId),
+                providerTransactionId: item.providerTransactionId,
+                transactionCustomId: item.transactionCustomId,
+                cancellationNumber: result.cancellationNumber,
+                reason
+            }
+        }).catch(() => {});
+
+        return res.json({
+            success: true,
+            message: 'تم إلغاء العملية وإرجاع رصيد العميل بنجاح',
+            cancellationNumber: result.cancellationNumber
+        });
+    } catch (error) {
+        console.error('[executor/provider-return/cancel] failed:', error.stack || error.message);
+        return res.status(500).json({ success: false, message: 'تعذر إلغاء العملية المسترجعة' });
+    }
 });
 
 router.post('/executor/:id/test-api', requireAuth, async (req, res) => {

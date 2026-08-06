@@ -8,6 +8,11 @@ const {
     completeApiTransactionWithReference,
     resolveApiReferenceNumber
 } = require('./apiExecutionLifecycleService');
+const {
+    startApiBalanceAudit,
+    finishApiBalanceAudit,
+    withApiExecutorSerialization
+} = require('./apiProviderReconciliationService');
 const eventBus = require('./eventBus');
 const logger = require('../utils/logger');
 
@@ -42,14 +47,49 @@ class ApiTransferQueue {
     }
 
     async processSingleJob(txId, apiGroupId) {
+        return withApiExecutorSerialization(apiGroupId, () => this.processSingleJobSerialized(txId, apiGroupId));
+    }
+
+    async processSingleJobSerialized(txId, apiGroupId) {
         try {
             const tx = await Transaction.findById(txId);
             const executorGroup = await ExecutorGroup.findById(apiGroupId);
 
             if (!tx || !executorGroup || tx.status !== 'processing') return;
 
+            let balanceAudit = null;
+            try {
+                balanceAudit = await startApiBalanceAudit({ tx, executorGroup });
+            } catch (auditError) {
+                logger.error('API pre-execution balance audit failed without blocking execution', {
+                    txId: tx.customId,
+                    executorGroupId: String(executorGroup._id),
+                    error: auditError.message
+                });
+            }
+
             const apiResult = await executeTransferViaApi(tx, executorGroup);
-            const detailedLog = apiResult.processLog ? `--- سجل الـ API ---\n${apiResult.processLog}` : '';
+            try {
+                balanceAudit = await finishApiBalanceAudit({
+                    audit: balanceAudit,
+                    tx,
+                    executorGroup,
+                    apiResult
+                });
+            } catch (auditError) {
+                logger.error('API post-execution balance audit failed without blocking completion', {
+                    txId: tx.customId,
+                    executorGroupId: String(executorGroup._id),
+                    error: auditError.message
+                });
+            }
+
+            const balanceLog = balanceAudit
+                ? `\n--- مطابقة رصيد المزود ---\nالحالة: ${balanceAudit.checkStatus}\nقبل: ${balanceAudit.beforeCheck?.availableBalance ?? '---'}\nبعد: ${balanceAudit.afterCheck?.availableBalance ?? '---'}\nالفرق عن المتوقع: ${balanceAudit.debitDifference ?? '---'}`
+                : '';
+            const detailedLog = apiResult.processLog
+                ? `--- سجل الـ API ---\n${apiResult.processLog}${balanceLog}`
+                : balanceLog.trim();
 
             if (apiResult.success === true) {
                 const exactRefNumber = resolveApiReferenceNumber(apiResult);

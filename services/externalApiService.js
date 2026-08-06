@@ -24,6 +24,57 @@ const numberOrZero = (value) => {
     return Number.isFinite(parsed) ? parsed : 0;
 };
 
+const normalizeProviderStatus = (value) => String(value || '')
+    .normalize('NFKC')
+    .toLowerCase()
+    .replace(/[أإآ]/g, 'ا')
+    .replace(/ة/g, 'ه')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+const isReturnedProviderStatus = (value) => {
+    const status = normalizeProviderStatus(value);
+    if (!status) return false;
+    return [
+        'مسترجع',
+        'مسترد',
+        'مرتجع',
+        'مرتد',
+        'مردود',
+        'معكوس',
+        'تم رد',
+        'ملغ',
+        'الغاء',
+        'refund',
+        'revers',
+        'return',
+        'cancel'
+    ].some((marker) => status.includes(marker));
+};
+
+const extractProviderPhone = (data = {}) => {
+    if (data.PhoneNumber) return String(data.PhoneNumber).trim();
+    const details = Array.isArray(data.PrintServiceDetailes) ? data.PrintServiceDetailes : [];
+    const phoneEntry = details.find((entry) => {
+        const key = normalizeProviderStatus(entry && entry.Key);
+        return key.includes('موبايل') || key.includes('هاتف') || key.includes('رقم المحمول');
+    });
+    return phoneEntry && phoneEntry.Value ? String(phoneEntry.Value).trim() : '';
+};
+
+const normalizeProviderTransaction = (data = {}, fallbackTransactionNumber = '') => ({
+    providerTransactionId: String(data.TransactionId || fallbackTransactionNumber || '').trim(),
+    referenceNumber: String(data.RefNumber || data.PaymentServiceProviderTransactionId || '').trim(),
+    providerStatus: String(data.TransactionStatus || '').trim(),
+    amount: Number.isFinite(Number(data.Amount)) ? Number(data.Amount) : null,
+    phone: extractProviderPhone(data),
+    serviceName: String(data.ServiceName || '').trim(),
+    providerDate: String(data.Date || '').trim(),
+    providerTime: String(data.Time || '').trim(),
+    isReturned: isReturnedProviderStatus(data.TransactionStatus),
+    rawData: data
+});
+
 const formatAmount = (value) => {
     const parsed = Number(value);
     if (!Number.isFinite(parsed)) return String(value || '0');
@@ -252,6 +303,98 @@ const getApiProviderBalance = async (apiBot) => {
     }
 };
 
+const getApiProviderTransactions = async (apiBot, transactionNumbers = []) => {
+    const processLog = [];
+    const addLog = (step, detail) => {
+        const timeStr = new Date().toLocaleTimeString('en-GB', { hour12: false });
+        processLog.push(`[${timeStr}] ${step}: ${detail}`);
+    };
+    const uniqueNumbers = [...new Set(
+        (Array.isArray(transactionNumbers) ? transactionNumbers : [transactionNumbers])
+            .map((value) => String(value || '').trim())
+            .filter(Boolean)
+    )].slice(0, 100);
+
+    if (!uniqueNumbers.length) {
+        return { success: true, operations: [], processLog: '' };
+    }
+
+    try {
+        const config = resolveApiProviderConfig(apiBot || {});
+        const auth = await authorizeApiProvider(config, addLog);
+        if (!auth.success) {
+            return { success: false, message: auth.message, operations: [], processLog: processLog.join('\n') };
+        }
+
+        const operations = [];
+        for (const transactionNumber of uniqueNumbers) {
+            try {
+                const printRes = await axios.post(
+                    `${config.baseUrl}/api/V1/Transactions/Print`,
+                    { TransactionNumber: transactionNumber },
+                    { headers: auth.headers, timeout: 20000 }
+                );
+                const responseData = printRes.data || {};
+                if (responseData.Code !== 200 || !responseData.Data) {
+                    operations.push({
+                        success: false,
+                        providerTransactionId: transactionNumber,
+                        requestedTransactionId: transactionNumber,
+                        message: responseData.Message || 'تعذر استرجاع تفاصيل العملية من المزود'
+                    });
+                    continue;
+                }
+
+                operations.push({
+                    success: true,
+                    ...normalizeProviderTransaction(responseData.Data, transactionNumber),
+                    requestedTransactionId: transactionNumber,
+                    message: responseData.Message || 'تمت مراجعة العملية'
+                });
+            } catch (error) {
+                const providerMessage = error.response && error.response.data
+                    ? (error.response.data.Message || JSON.stringify(error.response.data))
+                    : error.message;
+                operations.push({
+                    success: false,
+                    providerTransactionId: transactionNumber,
+                    requestedTransactionId: transactionNumber,
+                    message: providerMessage || 'تعذر الاتصال بمسار مراجعة العمليات'
+                });
+            }
+        }
+
+        const failedCount = operations.filter((operation) => !operation.success).length;
+        addLog('TRANSACTION_REVIEW', `Checked=${operations.length} | Failed=${failedCount}`);
+        return {
+            success: failedCount < operations.length,
+            operations,
+            checkedCount: operations.length,
+            failedCount,
+            processLog: processLog.join('\n')
+        };
+    } catch (error) {
+        const providerMessage = error.response && error.response.data
+            ? (error.response.data.Message || JSON.stringify(error.response.data))
+            : error.message;
+        addLog('SYSTEM_ERROR', providerMessage);
+        return {
+            success: false,
+            message: providerMessage || 'خطأ في الاتصال بمسار مراجعة عمليات المزود',
+            operations: [],
+            processLog: processLog.join('\n')
+        };
+    }
+};
+
+const getApiProviderTransaction = async (apiBot, transactionNumber) => {
+    const result = await getApiProviderTransactions(apiBot, [transactionNumber]);
+    if (!result.operations.length) {
+        return { success: false, message: result.message || 'العملية غير موجودة لدى المزود' };
+    }
+    return result.operations[0];
+};
+
 // 🧾 صانع إيصالات الـ API الذكي
 const generateCustomReceipt = async (tx, apiResult) => {
     let browser;
@@ -358,4 +501,12 @@ const saveApiReceiptProof = async (tx, apiResult) => {
     return `proofs/${fileName}`;
 };
 
-module.exports = { executeTransferViaApi, getApiProviderBalance, generateCustomReceipt, saveApiReceiptProof };
+module.exports = {
+    executeTransferViaApi,
+    getApiProviderBalance,
+    getApiProviderTransaction,
+    getApiProviderTransactions,
+    isReturnedProviderStatus,
+    generateCustomReceipt,
+    saveApiReceiptProof
+};

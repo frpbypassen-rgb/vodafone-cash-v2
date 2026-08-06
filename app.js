@@ -59,6 +59,10 @@ const { metricsMiddleware, metricsEndpoint } = require('./middlewares/metrics');
 const csrfProtection = require('./middlewares/csrfProtection');
 const logger = require('./utils/logger');
 const { startApiCompletionMonitor } = require('./services/apiExecutionLifecycleService');
+const {
+    ensureApiReconciliationIndexes,
+    startApiProviderReturnMonitor
+} = require('./services/apiProviderReconciliationService');
 const { closeEligibleDailySettlement } = require('./services/settlementService');
 const systemMonitor = require('./services/systemMonitorService');
 
@@ -318,7 +322,9 @@ app.use(errorHandler);
 
 const PORT = process.env.PORT || 3000;
 Promise.all([connectDB(), initRedis()]).then(async () => {
+    await ensureApiReconciliationIndexes();
     startApiCompletionMonitor();
+    startApiProviderReturnMonitor();
     closeEligibleDailySettlement().catch((error) => {
         logger.error('Initial financial day close failed', { error: error.message });
     });

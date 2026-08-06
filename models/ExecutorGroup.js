@@ -26,7 +26,20 @@ const executorGroupSchema = new mongoose.Schema({
     lastApiTestMessage: { type: String, default: '' },
     lastApiServiceCredit: { type: Number, default: null },
     lastApiCashCredit: { type: Number, default: null },
-    lastApiAvailableBalance: { type: Number, default: null }
+    lastApiAvailableBalance: { type: Number, default: null },
+    lastApiBalanceCheckAt: { type: Date, default: null },
+    lastApiBalanceCheckStatus: {
+        type: String,
+        enum: ['pending', 'matched', 'discrepancy', 'check_failed'],
+        default: undefined
+    },
+    lastApiReturnSyncAt: { type: Date, default: null },
+    lastApiReturnSyncStatus: {
+        type: String,
+        enum: ['success', 'failed'],
+        default: undefined
+    },
+    lastApiReturnSyncMessage: { type: String, default: '' }
 }, { timestamps: true });
 
 module.exports = mongoose.model('ExecutorGroup', executorGroupSchema);
