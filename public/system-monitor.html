@@ -281,7 +281,7 @@
 
         function formatTime(value) {
             const date = value ? new Date(value) : new Date();
-            return date.toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+            return date.toLocaleTimeString('ar-LY', { timeZone: 'Africa/Tripoli', hour: '2-digit', minute: '2-digit', second: '2-digit' });
         }
 
         function renderSnapshot(snapshot) {

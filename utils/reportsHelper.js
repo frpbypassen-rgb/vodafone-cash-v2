@@ -5,6 +5,7 @@ const ExecutorGroup = require('../models/ExecutorGroup');
 const Transaction = require('../models/Transaction');
 const Employee = require('../models/Employee');
 const ClientEmployee = require('../models/ClientEmployee');
+const { systemDayEnd, systemDayStart } = require('../config/systemTime');
 
 const renderHtmlPromisified = (appInstance, view, data) => {
     return new Promise((resolve, reject) => {
@@ -18,7 +19,8 @@ const sendBulkReportsInBg = async (periodType, dateValue, appReq) => {
         browser = await puppeteer.launch({ headless: 'new', args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage'] });
         let start, end, dateLabel;
         if (periodType === 'daily') {
-            start = new Date(`${dateValue}T00:00:00.000Z`); end = new Date(`${dateValue}T23:59:59.999Z`); dateLabel = `يوم ${dateValue}`;
+            start = systemDayStart(dateValue); end = systemDayEnd(dateValue); dateLabel = `يوم ${dateValue}`;
+            if (!start || !end) throw new Error('INVALID_REPORT_DATE');
         } else {
             const [year, month] = dateValue.split('-'); start = new Date(year, parseInt(month) - 1, 1); end = new Date(year, parseInt(month), 0, 23, 59, 59, 999); dateLabel = `شهر ${month}-${year}`;
         }

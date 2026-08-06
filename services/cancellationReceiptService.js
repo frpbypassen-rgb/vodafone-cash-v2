@@ -4,6 +4,7 @@ const fs = require('fs');
 const path = require('path');
 const Transaction = require('../models/Transaction');
 const Counter = require('../models/Counter');
+const { SYSTEM_TIME_ZONE } = require('../config/systemTime');
 const { proofFilePath } = require('./proofStorageService');
 
 const BRAND = {
@@ -40,7 +41,7 @@ const formatMoney = (value, currency = '') => {
 const formatDate = (value) => {
     const date = value ? new Date(value) : new Date();
     if (Number.isNaN(date.getTime())) return '-';
-    return date.toLocaleString('ar-EG-u-nu-latn', { hour12: true });
+    return date.toLocaleString('ar-LY-u-nu-latn', { timeZone: SYSTEM_TIME_ZONE, hour12: true });
 };
 
 const compactText = (value, maxLength = 56) => {

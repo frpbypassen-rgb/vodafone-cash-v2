@@ -59,7 +59,7 @@
 
 <%
     const money = (value, digits = 3) => Number(value || 0).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: digits });
-    const dateText = (value) => value ? new Date(value).toLocaleString('en-GB', { hour12: true }) : '-';
+    const dateText = (value) => value ? new Date(value).toLocaleString('en-GB', { timeZone: 'Africa/Tripoli', hour12: true }) : '-';
     const queryParams = (extra = {}) => {
         const params = new URLSearchParams();
         Object.entries(filters || {}).forEach(([key, value]) => {
@@ -302,7 +302,7 @@
     const typeLabels = <%- JSON.stringify(typeLabels) %>;
     const statusLabels = <%- JSON.stringify(statusLabels) %>;
     const entityLabels = <%- JSON.stringify(entityLabels) %>;
-    const formatDate = (value) => value ? new Date(value).toLocaleString('en-GB', { hour12: true }) : '-';
+    const formatDate = (value) => value ? new Date(value).toLocaleString('en-GB', { timeZone: 'Africa/Tripoli', hour12: true }) : '-';
     const formatMoney = (value) => Number(value || 0).toLocaleString('en-US', { maximumFractionDigits: 3 });
     const esc = (value) => String(value ?? '-').replace(/[&<>"']/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
     function detail(label, value, mono = false) {

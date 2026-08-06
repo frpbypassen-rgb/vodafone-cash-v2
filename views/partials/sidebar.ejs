@@ -921,7 +921,7 @@
             const badgeMobile = document.getElementById('notifBadgeMobile'); const listMobile = document.getElementById('notifListMobile');
             
             if (data.count > 0) {
-                let html = ''; data.notifications.forEach(n => { html += `<li class="dropdown-item border-bottom p-3" style="cursor:pointer; border-color: var(--border-glass) !important;" onclick="markRead('${n._id}')"><div class="fw-bold small mb-1" style="color: var(--text-main);"><i class="fa-solid fa-circle-info text-primary me-1"></i> ${n.title}</div><div class="text-muted" style="font-size: 0.85rem;">${n.message}</div><div class="text-end text-muted mt-2 mono-num opacity-50" style="font-size: 0.75rem;">${new Date(n.createdAt).toLocaleTimeString('en-US')}</div></li>`; });
+                let html = ''; data.notifications.forEach(n => { html += `<li class="dropdown-item border-bottom p-3" style="cursor:pointer; border-color: var(--border-glass) !important;" onclick="markRead('${n._id}')"><div class="fw-bold small mb-1" style="color: var(--text-main);"><i class="fa-solid fa-circle-info text-primary me-1"></i> ${n.title}</div><div class="text-muted" style="font-size: 0.85rem;">${n.message}</div><div class="text-end text-muted mt-2 mono-num opacity-50" style="font-size: 0.75rem;">${new Date(n.createdAt).toLocaleTimeString('en-US', { timeZone: 'Africa/Tripoli' })}</div></li>`; });
                 
                 if(badge && list) { badge.innerText = data.count; badge.classList.remove('d-none'); list.innerHTML = html; }
                 if(badgeMobile && listMobile) { badgeMobile.innerText = data.count; badgeMobile.classList.remove('d-none'); listMobile.innerHTML = html; }

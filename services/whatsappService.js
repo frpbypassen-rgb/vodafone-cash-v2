@@ -1,4 +1,5 @@
 const axios = require('axios');
+const { SYSTEM_TIME_ZONE } = require('../config/systemTime');
 
 /**
  * خدمة إرسال رسائل الواتساب عبر WP Sender
@@ -89,7 +90,7 @@ exports.sendWhatsAppAlert = async (tx, apiResult) => {
 - الرصيد بعد     : ${apiResult.balance_after !== undefined ? apiResult.balance_after : '---'} EGP
 - الحالة         : ${apiResult.status || 'عمليه ناجحه'}
 - رقم العملية    : ${apiResult.external_transaction_id || '---'}
-- وقت العملية    : ${apiResult.transaction_time || new Date().toLocaleString('ar-EG')}
+- وقت العملية    : ${apiResult.transaction_time || new Date().toLocaleString('ar-LY', { timeZone: SYSTEM_TIME_ZONE })}
 - الرقم المرجعي  : ${apiResult.sender_number || '---'}`;
 
         await exports.sendWhatsAppMessage(groupTarget, message, true);

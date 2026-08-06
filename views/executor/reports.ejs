@@ -771,17 +771,17 @@
                         let by = tx.operatorName || tx.executorName || tx.employeeName || '---';
                         
                         const dateObj = new Date(tx.createdAt);
-                        const dateStr = dateObj.toLocaleDateString('en-GB');
-                        const timeStr = dateObj.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
+                        const dateStr = dateObj.toLocaleDateString('en-GB', { timeZone: 'Africa/Tripoli' });
+                        const timeStr = dateObj.toLocaleTimeString('en-US', { timeZone: 'Africa/Tripoli', hour: '2-digit', minute: '2-digit', hour12: true });
 
                         // وقت وصول العملية
-                        const arrivalTimeStr = dateObj.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true });
+                        const arrivalTimeStr = dateObj.toLocaleTimeString('en-US', { timeZone: 'Africa/Tripoli', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true });
 
                         // وقت إكمال العملية
                         let completionTimeStr = '---';
                         if (tx.status === 'completed' && tx.updatedAt) {
                             const completedDate = new Date(tx.updatedAt);
-                            completionTimeStr = completedDate.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true });
+                            completionTimeStr = completedDate.toLocaleTimeString('en-US', { timeZone: 'Africa/Tripoli', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true });
                         }
 
                         // مدة إكمال العملية
@@ -877,7 +877,7 @@
                     <h1 style="color: #000; margin: 0; font-size: 28px; font-weight: 900;">شركة الأهرام للخدمات المالية</h1>
                     <h2 style="color: #000; margin: 5px 0 0 0; font-size: 18px; font-weight: 800;">تقرير حساب العميل الشامل</h2>
                     <div style="margin-top: 10px; font-size: 12px; color: #000; font-weight: 600;">
-                        تاريخ الإصدار: ${new Date().toLocaleDateString('en-GB')} | الوقت: ${new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true })}
+                        تاريخ الإصدار: ${new Date().toLocaleDateString('en-GB', { timeZone: 'Africa/Tripoli' })} | الوقت: ${new Date().toLocaleTimeString('en-US', { timeZone: 'Africa/Tripoli', hour: '2-digit', minute: '2-digit', hour12: true })}
                     </div>
                 </div>
                 
@@ -904,7 +904,7 @@
                             </td>
                             <td>
                                 <div style="color: #333; font-size: 12px; margin-bottom: 2px;">تاريخ الانضمام</div>
-                                <strong style="color: #000; font-size: 16px;">${ei.joinDate ? new Date(ei.joinDate).toLocaleDateString('en-GB') : '---'}</strong>
+                                <strong style="color: #000; font-size: 16px;">${ei.joinDate ? new Date(ei.joinDate).toLocaleDateString('en-GB', { timeZone: 'Africa/Tripoli' }) : '---'}</strong>
                             </td>
                         </tr>
                         <tr>
@@ -988,12 +988,12 @@
                         else if (['rejected', 'cancelled_by_admin'].includes(tx.status)) { stTxt = 'ملغية'; stCol = '#fff'; stBg = '#000'; }
 
                         const dt = new Date(tx.createdAt);
-                        const arrivalTimeStr = dt.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true });
+                        const arrivalTimeStr = dt.toLocaleTimeString('en-US', { timeZone: 'Africa/Tripoli', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true });
 
                         let completionTimeStr = '---';
                         if (tx.status === 'completed' && tx.updatedAt) {
                             const completedDate = new Date(tx.updatedAt);
-                            completionTimeStr = completedDate.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true });
+                            completionTimeStr = completedDate.toLocaleTimeString('en-US', { timeZone: 'Africa/Tripoli', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true });
                         }
 
                         let durationText = '---';
@@ -1021,8 +1021,8 @@
                                 <span style="background: ${stBg}; color: ${stCol}; padding: 3px 6px; border-radius: 4px; font-size: 11px; font-weight: 800; border: 2px solid #000;">${stTxt}</span>
                             </td>
                             <td style="padding: 8px 4px; border-bottom: 1px solid #000;" dir="ltr">
-                                <div style="color: #000; font-weight: 800;">${dt.toLocaleDateString('en-GB')}</div>
-                                <div style="font-size: 10px; color: #000; font-weight: 700;">${dt.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true })}</div>
+                                <div style="color: #000; font-weight: 800;">${dt.toLocaleDateString('en-GB', { timeZone: 'Africa/Tripoli' })}</div>
+                                <div style="font-size: 10px; color: #000; font-weight: 700;">${dt.toLocaleTimeString('en-US', { timeZone: 'Africa/Tripoli', hour: '2-digit', minute: '2-digit', hour12: true })}</div>
                             </td>
                             <td style="padding: 8px 4px; border-bottom: 1px solid #000; color: #000; font-weight: 800;">${by}</td>
                         </tr>

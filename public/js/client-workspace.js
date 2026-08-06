@@ -25,7 +25,7 @@
         if (!value) return '---';
         const date = new Date(value);
         if (Number.isNaN(date.getTime())) return '---';
-        return `${date.toLocaleDateString('en-GB')} - ${date.toLocaleTimeString('ar-LY', { hour: '2-digit', minute: '2-digit' })}`;
+        return `${date.toLocaleDateString('en-GB', { timeZone: 'Africa/Tripoli' })} - ${date.toLocaleTimeString('ar-LY', { timeZone: 'Africa/Tripoli', hour: '2-digit', minute: '2-digit' })}`;
     };
 
     const parseJsonResponse = async (response) => {

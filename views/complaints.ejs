@@ -546,7 +546,7 @@
                                 </div>
                                 <div class="detail-row">
                                     <span class="detail-label"><i class="fa-regular fa-clock text-muted"></i> وقت الشكوى:</span>
-                                    <span class="detail-value opacity-75 small" dir="ltr"><%= new Date(tx.updatedAt || tx.createdAt).toLocaleString('en-GB') %></span>
+                                    <span class="detail-value opacity-75 small" dir="ltr"><%= new Date(tx.updatedAt || tx.createdAt).toLocaleString('en-GB', { timeZone: 'Africa/Tripoli' }) %></span>
                                 </div>
                             </div>
                             

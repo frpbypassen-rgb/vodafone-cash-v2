@@ -89,7 +89,7 @@
         deduction: 'خصم', deposit_pending: 'طلب إيداع'
     };
     const money = (value, digits = 2) => Number(value || 0).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: digits });
-    const dateText = (value) => value ? new Date(value).toLocaleString('ar-EG') : '---';
+    const dateText = (value) => value ? new Date(value).toLocaleString('ar-LY', { timeZone: 'Africa/Tripoli' }) : '---';
     const pageUrl = (pageNumber) => {
         const params = new URLSearchParams();
         Object.entries(filters || {}).forEach(([key, value]) => { if (value) params.set(key, value); });

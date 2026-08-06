@@ -6,8 +6,8 @@
     const formatDate = (value) => {
         const dt = new Date(value);
         return {
-            date: dt.toLocaleDateString('en-GB'),
-            time: dt.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true })
+            date: dt.toLocaleDateString('en-GB', { timeZone: 'Africa/Tripoli' }),
+            time: dt.toLocaleTimeString('en-US', { timeZone: 'Africa/Tripoli', hour: '2-digit', minute: '2-digit', hour12: true })
         };
     };
 %>

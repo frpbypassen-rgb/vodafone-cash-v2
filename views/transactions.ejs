@@ -562,8 +562,8 @@
                                     <%= noteView.customerText || '---' %>
                                 </div>
                                 <div class="text-muted mono-num" style="font-size: 0.75rem;">
-                                    <i class="fa-regular fa-clock me-1"></i> <%= tx.createdAt.toLocaleTimeString('en-US', {hour:'2-digit', minute:'2-digit'}) %><br>
-                                    <span class="opacity-75"><%= tx.createdAt.toLocaleDateString('en-GB') %></span>
+                                    <i class="fa-regular fa-clock me-1"></i> <%= tx.createdAt.toLocaleTimeString('en-US', {timeZone:'Africa/Tripoli', hour:'2-digit', minute:'2-digit'}) %><br>
+                                    <span class="opacity-75"><%= tx.createdAt.toLocaleDateString('en-GB', {timeZone:'Africa/Tripoli'}) %></span>
                                 </div>
                             </td>
 
@@ -694,7 +694,7 @@
                                 <% if (tx.cancellationNumber) { %>
                                     <div class="badge bg-danger-subtle text-danger mono-num mt-1" style="font-size: 0.7rem;"><i class="fa-solid fa-ban me-1"></i><%= tx.cancellationNumber %></div>
                                 <% } %>
-                                <div class="text-muted small mt-1"><i class="fa-regular fa-clock me-1"></i> <%= tx.createdAt.toLocaleTimeString('en-US', {hour:'2-digit', minute:'2-digit'}) %></div>
+                                <div class="text-muted small mt-1"><i class="fa-regular fa-clock me-1"></i> <%= tx.createdAt.toLocaleTimeString('en-US', {timeZone:'Africa/Tripoli', hour:'2-digit', minute:'2-digit'}) %></div>
                             </div>
                             <div class="text-end">
                                 <div class="fs-5 fw-bold mono-num" style="color: <%= isPendingGroup ? '#f59e0b' : (tx.status === 'rejected' || tx.status === 'cancelled_by_admin' || tx.status === 'deduction' ? '#ef4444' : '#10b981') %>;">
@@ -1249,7 +1249,7 @@
         
         window.currentTxToPrint = tx; 
         window.currentLedgerInfo = ledgerInfo;
-        const f = (d) => d ? new Date(d).toLocaleString('en-GB').replace(',', '') : '---';
+        const f = (d) => d ? new Date(d).toLocaleString('en-GB', { timeZone: 'Africa/Tripoli' }).replace(',', '') : '---';
         const entityName = (tx.companyName && tx.companyName !== 'عميل فردي') ? tx.companyName : (tx.employeeName || 'عميل فردي');
         
         const executorBotsElement = document.getElementById('executorBotsData');
@@ -1523,7 +1523,7 @@
         if (!window.currentTxToPrint) return;
         const tx = window.currentTxToPrint;
         const printNoteView = splitTransactionNotes(tx);
-        const f = (d) => d ? new Date(d).toLocaleString('ar-EG', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }) : '---';
+        const f = (d) => d ? new Date(d).toLocaleString('ar-EG', { timeZone: 'Africa/Tripoli', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }) : '---';
         
         if (tx.transferType === 'balance_transfer') {
             // Show alert box to ask whether to include client balances

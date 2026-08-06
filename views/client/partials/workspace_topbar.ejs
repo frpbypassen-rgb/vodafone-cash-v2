@@ -12,7 +12,7 @@
     <div class="bw-topbar-actions">
         <time class="bw-topbar-date" datetime="<%= now.toISOString() %>">
             <i class="fa-regular fa-calendar"></i>
-            <span><%= now.toLocaleDateString('ar-LY', { weekday: 'long', day: 'numeric', month: 'long' }) %></span>
+            <span><%= now.toLocaleDateString('ar-LY', { timeZone: 'Africa/Tripoli', weekday: 'long', day: 'numeric', month: 'long' }) %></span>
         </time>
         <button type="button" class="bw-icon-button" data-theme-toggle title="تغيير المظهر" aria-label="تغيير المظهر">
             <i class="fa-solid fa-moon"></i>

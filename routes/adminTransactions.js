@@ -13,6 +13,7 @@ const Admin = require('../models/Admin');
 const Notification = require('../models/Notification');
 const SupportTicket = require('../models/SupportTicket');
 const { requireAuth } = require('../middlewares/auth');
+const { systemDateRange } = require('../config/systemTime');
 const { syncBotBalance } = require('../utils/helpers');
 const { escapeRegex } = require('../middlewares/sanitize');
 const { customerNoteFromTransaction } = require('../utils/transactionNotes');
@@ -146,9 +147,8 @@ router.get('/transactions', async (req, res) => {
         }
         if (statusFilter) query.status = statusFilter;
         if (fromDate || toDate) {
-            query.createdAt = {};
-            if (fromDate) query.createdAt.$gte = new Date(`${fromDate}T00:00:00.000Z`);
-            if (toDate) query.createdAt.$lte = new Date(`${toDate}T23:59:59.999Z`);
+            const createdAt = systemDateRange(fromDate, toDate);
+            if (createdAt) query.createdAt = createdAt;
         }
 
         // Apply quick category filters
@@ -259,9 +259,8 @@ router.get('/transactions/print', async (req, res) => {
         }
         if (statusFilter) query.status = statusFilter;
         if (fromDate || toDate) {
-            query.createdAt = {};
-            if (fromDate) query.createdAt.$gte = new Date(`${fromDate}T00:00:00.000Z`);
-            if (toDate) query.createdAt.$lte = new Date(`${toDate}T23:59:59.999Z`);
+            const createdAt = systemDateRange(fromDate, toDate);
+            if (createdAt) query.createdAt = createdAt;
         }
 
         // Apply quick category filters

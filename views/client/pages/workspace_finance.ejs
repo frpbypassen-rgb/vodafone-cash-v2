@@ -32,7 +32,7 @@
                         <td data-label="المبلغ"><strong class="bw-mono <%= item.direction === 'credit' ? 'text-success' : 'text-danger' %>"><%= Number(item.amount || 0) >= 0 ? '+' : '-' %><%= Math.abs(Number(item.amount || 0)).toFixed(3) %></strong><small>LYD</small></td>
                         <td data-label="قبل الحركة" class="bw-mono"><%= item.balanceBefore !== undefined ? Number(item.balanceBefore).toFixed(3) : '---' %></td>
                         <td data-label="بعد الحركة" class="bw-mono"><%= item.balanceAfter !== undefined ? Number(item.balanceAfter).toFixed(3) : '---' %></td>
-                        <td data-label="التاريخ"><strong class="bw-mono"><%= new Date(item.createdAt).toLocaleDateString('en-GB') %></strong><small><%= new Date(item.createdAt).toLocaleTimeString('ar-LY', { hour: '2-digit', minute: '2-digit' }) %></small></td>
+                        <td data-label="التاريخ"><strong class="bw-mono"><%= new Date(item.createdAt).toLocaleDateString('en-GB', { timeZone: 'Africa/Tripoli' }) %></strong><small><%= new Date(item.createdAt).toLocaleTimeString('ar-LY', { timeZone: 'Africa/Tripoli', hour: '2-digit', minute: '2-digit' }) %></small></td>
                     </tr>
                 <% }) %>
             </tbody>

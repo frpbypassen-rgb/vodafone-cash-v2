@@ -434,7 +434,7 @@
                                                         <div class="text-muted small fw-bold mt-2"><i class="fa-solid fa-plug me-1"></i><%= bot.apiProviderKey === 'zayn_external_aggregator' ? 'Zayn External Aggregator' : (bot.apiProviderKey || 'API Provider') %></div>
                                                         <% if (bot.lastApiTestAt) { %>
                                                             <div class="small mt-2 <%= bot.lastApiTestStatus === 'success' ? 'text-success' : 'text-danger' %>">
-                                                                <i class="fa-solid <%= bot.lastApiTestStatus === 'success' ? 'fa-circle-check' : 'fa-triangle-exclamation' %> me-1"></i>آخر اختبار: <%= new Date(bot.lastApiTestAt).toLocaleString('ar-EG') %>
+                                                                <i class="fa-solid <%= bot.lastApiTestStatus === 'success' ? 'fa-circle-check' : 'fa-triangle-exclamation' %> me-1"></i>آخر اختبار: <%= new Date(bot.lastApiTestAt).toLocaleString('ar-LY', { timeZone: 'Africa/Tripoli' }) %>
                                                             </div>
                                                         <% } %>
                                                     <% } %>
@@ -498,7 +498,7 @@
                                 </div>
                                 <div class="archive-reason"><i class="fa-solid fa-note-sticky me-1"></i><%= bot.archiveReason || 'لم تسجل ملاحظة للأرشفة.' %></div>
                                 <div class="archive-meta">
-                                    <i class="fa-regular fa-calendar me-1"></i><%= bot.archivedAt ? new Date(bot.archivedAt).toLocaleString('ar-EG') : '---' %>
+                                    <i class="fa-regular fa-calendar me-1"></i><%= bot.archivedAt ? new Date(bot.archivedAt).toLocaleString('ar-LY', { timeZone: 'Africa/Tripoli' }) : '---' %>
                                     <span class="mx-1">•</span><%= bot.archivedBy || 'الإدارة' %>
                                 </div>
                                 <a class="archive-open-btn" href="/executor/<%= bot._id %>"><i class="fa-solid fa-clock-rotate-left"></i> فتح العمليات المحفوظة</a>

@@ -626,7 +626,7 @@
         delay += step;
 
         const d = log.createdAt ? new Date(log.createdAt) : null;
-        const formattedDate = d ? d.toLocaleString('ar-EG') : '—';
+        const formattedDate = d ? d.toLocaleString('ar-LY', { timeZone: 'Africa/Tripoli' }) : '—';
         addLine(`[PROCESS] Launching process payload data execution...`, 'info', delay);
         delay += step;
         addLine(`   | Action Name:      ${escHtml(log.action)}`, 'default', delay);

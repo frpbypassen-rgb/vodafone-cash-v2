@@ -173,7 +173,7 @@
                     if(!text) return; input.value = '';
                     
                     const box = document.getElementById('chatMessages');
-                    const now = new Date().toLocaleTimeString('en-US', {hour:'2-digit', minute:'2-digit'});
+                    const now = new Date().toLocaleTimeString('en-US', {timeZone:'Africa/Tripoli', hour:'2-digit', minute:'2-digit'});
                     box.innerHTML += `<div class="msg-bubble msg-admin"><div class="fw-bold text-success mb-1" style="font-size: 0.75rem;"><i class="fa-solid fa-headset me-1"></i> الإدارة</div>${text}<span class="msg-time opacity-75">${now}</span></div>`;
                     box.scrollTop = box.scrollHeight;
 
@@ -196,7 +196,7 @@
                 let html = '';
                 data.ticket.messages.forEach(msg => {
                     const isAdmin = msg.sender === 'admin';
-                    const time = new Date(msg.createdAt).toLocaleTimeString('en-US', {hour:'2-digit', minute:'2-digit'});
+                    const time = new Date(msg.createdAt).toLocaleTimeString('en-US', {timeZone:'Africa/Tripoli', hour:'2-digit', minute:'2-digit'});
                     
                     let imgHtml = '';
                     if(msg.imageUrl) {

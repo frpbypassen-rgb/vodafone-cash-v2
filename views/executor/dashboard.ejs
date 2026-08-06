@@ -673,7 +673,7 @@
                         typeBadge = '<span class="badge bg-danger bg-opacity-10 text-danger border border-danger border-opacity-25" style="font-size: 0.72rem;"><i class="fa-solid fa-mobile-screen me-1"></i> كاش</span>';
                     }
                     
-                    const timeStr = tx.updatedAt ? new Date(tx.updatedAt).toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : '---';
+                    const timeStr = tx.updatedAt ? new Date(tx.updatedAt).toLocaleTimeString('ar-LY', { timeZone: 'Africa/Tripoli', hour: '2-digit', minute: '2-digit', second: '2-digit' }) : '---';
                     
                     listHtml += `
                         <div class="d-flex justify-content-between align-items-center p-2.5 rounded-3 border mb-1" style="background: rgba(128,128,128,0.03); border-color: var(--glass-border) !important;">

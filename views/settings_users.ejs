@@ -82,7 +82,7 @@
                                     <td class="fw-bold text-primary"><i class="fa-solid fa-user-tie me-1 text-muted"></i> <%= admin.name %></td>
                                     <td><code class="fs-6"><%= admin.webUsername %></code></td>
                                     <td><code class="fs-6 text-danger"><%= admin.webPassword %></code></td>
-                                    <td class="small text-muted"><%= admin.createdAt.toLocaleDateString('en-GB') %></td>
+                                    <td class="small text-muted"><%= admin.createdAt.toLocaleDateString('en-GB', { timeZone: 'Africa/Tripoli' }) %></td>
                                     <td>
                                         <form action="/settings/users/delete/<%= admin._id %>" method="POST" class="mb-0" onsubmit="return confirm('هل أنت متأكد من حذف حساب هذا المدير؟ لن يتمكن من الدخول للموقع بعد الآن.')">
                                             <button type="submit" class="btn btn-sm btn-danger shadow-sm border-0 bg-opacity-10 text-danger" style="background-color: rgba(220,53,69,0.1);" title="حذف الحساب">

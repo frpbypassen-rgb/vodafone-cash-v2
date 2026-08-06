@@ -214,7 +214,7 @@
                                 <td class="fw-bold mono-num fs-6 <%= tx.status === 'deduction' ? 'text-danger' : 'text-success' %>"><%= tx.amount.toFixed(2) %></td>
                                 <td class="fw-bold text-dark small" dir="ltr"><%= tx.status === 'deposit' ? 'إيداع نقدي' : (tx.status === 'deduction' ? 'خصم مديونية' : (tx.vodafoneNumber || '---')) %></td>
                                 <td class="small text-muted text-wrap" style="max-width: 200px;"><%= tx.notes || '---' %></td>
-                                <td class="small mono-num opacity-75" dir="ltr"><%= new Date(tx.updatedAt).toLocaleString('en-GB') %></td>
+                                <td class="small mono-num opacity-75" dir="ltr"><%= new Date(tx.updatedAt).toLocaleString('en-GB', { timeZone: 'Africa/Tripoli' }) %></td>
                                 <td>
                                     <% if(tx.status === 'completed') { %><span class="badge bg-success">منفذ</span>
                                     <% } else if(tx.status === 'deposit') { %><span class="badge bg-primary">إيداع</span>

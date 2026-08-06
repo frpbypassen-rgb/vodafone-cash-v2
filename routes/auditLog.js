@@ -10,6 +10,7 @@ const User = require('../models/User');
 const ClientEmployee = require('../models/ClientEmployee');
 const Employee = require('../models/Employee');
 const Admin = require('../models/Admin');
+const { systemDateRange } = require('../config/systemTime');
 
 // ── عرض صفحة Audit Log ──────────────────────────────────────
 router.get('/', requireAuth, async (req, res) => {
@@ -30,9 +31,8 @@ router.get('/', requireAuth, async (req, res) => {
         if (performedBy)  filter.performedByName = { $regex: performedBy, $options: 'i' };
         if (success !== undefined && success !== '') filter.success = success === 'true';
         if (dateFrom || dateTo) {
-            filter.createdAt = {};
-            if (dateFrom) filter.createdAt.$gte = new Date(dateFrom + 'T00:00:00.000Z');
-            if (dateTo)   filter.createdAt.$lte = new Date(dateTo   + 'T23:59:59.999Z');
+            const createdAt = systemDateRange(dateFrom, dateTo);
+            if (createdAt) filter.createdAt = createdAt;
         }
 
         const [logs, total] = await Promise.all([
@@ -99,9 +99,8 @@ router.get('/export', requireAuth, async (req, res) => {
         const filter = {};
         if (action) filter.action = action;
         if (dateFrom || dateTo) {
-            filter.createdAt = {};
-            if (dateFrom) filter.createdAt.$gte = new Date(dateFrom + 'T00:00:00.000Z');
-            if (dateTo)   filter.createdAt.$lte = new Date(dateTo   + 'T23:59:59.999Z');
+            const createdAt = systemDateRange(dateFrom, dateTo);
+            if (createdAt) filter.createdAt = createdAt;
         }
 
         const logs = await AuditLog.find(filter).sort({ createdAt: -1 }).limit(5000).lean();

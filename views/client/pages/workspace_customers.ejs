@@ -22,7 +22,7 @@
                         <td data-label="بيانات الحساب"><strong class="bw-mono"><%= customer.accountCode || 'قيد التوليد' %></strong><small dir="ltr"><%= customer.webUsername %></small></td>
                         <td data-label="الرصيد والحد"><strong class="bw-mono"><%= Number(customer.balance || 0).toFixed(2) %> LYD</strong><small>حد ائتماني: <%= Number(customer.creditLimit || 0).toFixed(2) %></small></td>
                         <td data-label="نشاط الشهر"><strong class="bw-mono"><%= customer.stats.transactionCount %> عملية</strong><small><%= Number(customer.stats.totalEGP || 0).toLocaleString('en-US', { maximumFractionDigits: 0 }) %> EGP</small></td>
-                        <td data-label="آخر نشاط"><% if (customer.stats.lastActivity) { %><strong class="bw-mono"><%= new Date(customer.stats.lastActivity).toLocaleDateString('en-GB') %></strong><small><%= new Date(customer.stats.lastActivity).toLocaleTimeString('ar-LY', { hour: '2-digit', minute: '2-digit' }) %></small><% } else { %><span class="bw-muted">لا يوجد</span><% } %></td>
+                        <td data-label="آخر نشاط"><% if (customer.stats.lastActivity) { %><strong class="bw-mono"><%= new Date(customer.stats.lastActivity).toLocaleDateString('en-GB', { timeZone: 'Africa/Tripoli' }) %></strong><small><%= new Date(customer.stats.lastActivity).toLocaleTimeString('ar-LY', { timeZone: 'Africa/Tripoli', hour: '2-digit', minute: '2-digit' }) %></small><% } else { %><span class="bw-muted">لا يوجد</span><% } %></td>
                         <td data-label="الحالة"><span class="bw-status <%= customer.status === 'active' ? 'success' : 'danger' %>"><%= customer.status === 'active' ? 'نشط' : 'موقوف' %></span></td>
                         <td>
                             <div class="bw-row-actions">
@@ -46,7 +46,7 @@
             <% if (!pendingRequests.length) { %><div class="bw-empty wide"><i class="fa-solid fa-user-check"></i><strong>لا توجد طلبات معلقة</strong><span>ستظهر طلبات العملاء المرتبطة برقم وكالتك هنا.</span></div><% } %>
             <% pendingRequests.forEach(request => { %>
                 <article class="bw-request-item">
-                    <header><span class="bw-avatar"><%= String(request.fullName || 'ع').charAt(0) %></span><div><strong><%= request.fullName %></strong><small class="bw-mono"><%= request.refCode %></small></div><time><%= new Date(request.createdAt).toLocaleDateString('ar-LY') %></time></header>
+                    <header><span class="bw-avatar"><%= String(request.fullName || 'ع').charAt(0) %></span><div><strong><%= request.fullName %></strong><small class="bw-mono"><%= request.refCode %></small></div><time><%= new Date(request.createdAt).toLocaleDateString('ar-LY', { timeZone: 'Africa/Tripoli' }) %></time></header>
                     <dl>
                         <div><dt>الهاتف</dt><dd class="bw-mono"><%= request.phone %></dd></div>
                         <div><dt>المدينة</dt><dd><%= request.city || '---' %></dd></div>

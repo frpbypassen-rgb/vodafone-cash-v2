@@ -2256,7 +2256,7 @@
                 
                 // Time in 12h format
                 let dateObj = new Date(tx.createdAt);
-                let timeStr = dateObj.toLocaleTimeString('en-US', { hour12: true, hour: '2-digit', minute: '2-digit' });
+                let timeStr = dateObj.toLocaleTimeString('en-US', { timeZone: 'Africa/Tripoli', hour12: true, hour: '2-digit', minute: '2-digit' });
                 
                 // Cost and rate
                 let costDisplay = isSubAccount ? (tx.subAccountCostLYD || tx.costLYD || 0).toFixed(2) : (tx.costLYD ? tx.costLYD.toFixed(2) : '0.00');

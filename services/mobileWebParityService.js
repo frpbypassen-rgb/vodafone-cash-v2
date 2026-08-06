@@ -818,7 +818,7 @@ async function executeZaynPayIdempotent({ executorId, taskId, req }) {
             senderPhone: maskedPhone,
             customId: tx.customId || tx._id.toString().slice(-6),
             accountName: tx.companyName || tx.employeeName || 'غير محدد',
-            date: new Date().toLocaleDateString('en-GB')
+            date: new Date().toLocaleDateString('en-GB', { timeZone: 'Africa/Tripoli' })
         });
 
         const buffers = [Buffer.from(receiptBase64.replace(/^data:image\/\w+;base64,/, ""), 'base64')];

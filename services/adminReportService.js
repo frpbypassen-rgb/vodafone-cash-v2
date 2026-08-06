@@ -8,6 +8,7 @@ const Ledger = require('../models/Ledger');
 const SubAccount = require('../models/SubAccount');
 const Transaction = require('../models/Transaction');
 const User = require('../models/User');
+const { systemDateKey } = require('../config/systemTime');
 const { buildReportSummary } = require('../utils/adminReportCalculations');
 const { ensureDailySettlements } = require('./settlementService');
 
@@ -60,9 +61,7 @@ const getDateRange = (dateType, dateValue) => {
 };
 
 const dateKey = (value) => {
-    const date = new Date(value);
-    if (Number.isNaN(date.getTime())) return '';
-    return [date.getFullYear(), String(date.getMonth() + 1).padStart(2, '0'), String(date.getDate()).padStart(2, '0')].join('-');
+    return systemDateKey(value);
 };
 
 const compactText = (value, max = 220) => {

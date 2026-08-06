@@ -7,6 +7,7 @@ const Notification = require('../models/Notification');
 const ApiBalanceAudit = require('../models/ApiBalanceAudit');
 const ApiProviderReturn = require('../models/ApiProviderReturn');
 const { requireAuth, requireMaster } = require('../middlewares/auth');
+const { systemDateRange } = require('../config/systemTime');
 const { syncBotBalance, escapeRegex } = require('../utils/helpers');
 const { DEFAULT_API_PROVIDER_KEY, getApiProviderPreset, getApiProviderPresets } = require('../utils/apiProviderPresets');
 const { getApiProviderBalance } = require('../services/externalApiService');
@@ -215,10 +216,8 @@ router.get('/executor/:id', requireAuth, async (req, res) => {
             }
             if (status) filters.push({ status });
             if (fromDate || toDate) {
-                const createdAt = {};
-                if (fromDate) createdAt.$gte = new Date(`${fromDate}T00:00:00.000Z`);
-                if (toDate) createdAt.$lte = new Date(`${toDate}T23:59:59.999Z`);
-                filters.push({ createdAt });
+                const createdAt = systemDateRange(fromDate, toDate);
+                if (createdAt) filters.push({ createdAt });
             }
 
             const archiveFilter = filters.length === 1 ? filters[0] : { $and: filters };

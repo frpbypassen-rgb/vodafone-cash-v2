@@ -1,4 +1,5 @@
 require('dotenv').config();
+const { SYSTEM_TIME_ZONE } = require('./config/systemTime');
 require('ts-node').register({
     transpileOnly: true,
     compilerOptions: { module: 'CommonJS' }
@@ -70,6 +71,7 @@ const systemMonitor = require('./services/systemMonitorService');
 
 const app = express();
 const isProduction = process.env.NODE_ENV === 'production';
+app.locals.systemTimeZone = SYSTEM_TIME_ZONE;
 
 // ==========================================
 // 🛡️ درع حماية السيرفر من الانهيار
@@ -332,7 +334,7 @@ Promise.all([connectDB(), initRedis()]).then(async () => {
         closeEligibleDailySettlement().catch((error) => {
             logger.error('Scheduled financial day close failed', { error: error.message });
         });
-    }, { timezone: process.env.APP_TIMEZONE || 'Africa/Tripoli' });
+    }, { timezone: SYSTEM_TIME_ZONE });
     // 🟢 التأكد من وجود الإعدادات الافتراضية في قاعدة البيانات لتفادي أخطاء null pointer
     server.listen(PORT, () => {
         logger.info(`🟢 Al-Ahram Pay v2.0 running on port ${PORT}`, { port: PORT, env: process.env.NODE_ENV || 'development' });

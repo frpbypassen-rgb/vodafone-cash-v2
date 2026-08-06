@@ -261,8 +261,8 @@
 
     function updateRealTimeClock() {
         const now = new Date();
-        const timeStr = now.toLocaleTimeString('en-US', { hour12: true, hour: '2-digit', minute: '2-digit', second: '2-digit' });
-        const dateStr = now.toLocaleDateString('en-GB', { year: 'numeric', month: '2-digit', day: '2-digit' });
+        const timeStr = now.toLocaleTimeString('en-US', { timeZone: 'Africa/Tripoli', hour12: true, hour: '2-digit', minute: '2-digit', second: '2-digit' });
+        const dateStr = now.toLocaleDateString('en-GB', { timeZone: 'Africa/Tripoli', year: 'numeric', month: '2-digit', day: '2-digit' });
         if(document.getElementById('realtime-clock')) document.getElementById('realtime-clock').innerText = timeStr;
         if(document.getElementById('realtime-date')) document.getElementById('realtime-date').innerText = dateStr;
     }

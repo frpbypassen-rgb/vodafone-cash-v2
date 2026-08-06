@@ -376,7 +376,7 @@
                                 <td class="fw-bold text-danger mono-num fs-6"><%= tx.costLYD ? tx.costLYD.toFixed(2) : '---' %></td>
                                 <td class="fw-bold text-dark small" dir="ltr"><%= settlementStatus === 'deposit' ? 'إيداع نقدي' : (settlementStatus === 'deduction' ? 'خصم مديونية' : (tx.vodafoneNumber || '---')) %></td>
                                 <td class="small text-muted text-wrap" style="max-width: 200px;"><%= tx.notes || '---' %></td>
-                                <td class="small mono-num opacity-75" dir="ltr"><%= new Date(tx.updatedAt).toLocaleString('en-GB') %></td>
+                                <td class="small mono-num opacity-75" dir="ltr"><%= new Date(tx.updatedAt).toLocaleString('en-GB', { timeZone: 'Africa/Tripoli' }) %></td>
                                 <td>
                                     <% if(isVoidedSettlement) { %><span class="badge bg-secondary">محذوف ومعكوس</span>
                                     <% } else if(tx.status === 'completed') { %><span class="badge bg-success">منفذ</span>
@@ -442,7 +442,7 @@
                             </div>
                             <div>
                                 <span class="statement-label">الوقت</span>
-                                <span class="statement-value mono-num" dir="ltr"><%= new Date(tx.updatedAt).toLocaleString('en-GB') %></span>
+                                <span class="statement-value mono-num" dir="ltr"><%= new Date(tx.updatedAt).toLocaleString('en-GB', { timeZone: 'Africa/Tripoli' }) %></span>
                             </div>
                         </div>
                         <% if (tx.notes) { %>

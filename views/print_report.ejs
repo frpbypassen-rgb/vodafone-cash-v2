@@ -111,8 +111,8 @@
                 
                 <td style="font-size: 10px; color: #555;"><%= tx.notes || ((tx.status === 'deposit') ? 'تسديد من الإدارة' : (tx.status === 'deduction' ? 'خصم وتعديل رصيد' : '---')) %></td>
                 <td style="font-size: 10px;">
-                    <%= tx.createdAt.toLocaleTimeString('en-GB', {hour:'2-digit', minute:'2-digit'}) %><br>
-                    <span style="color: #666;"><%= tx.createdAt.toLocaleDateString('en-GB') %></span>
+                    <%= tx.createdAt.toLocaleTimeString('en-GB', {timeZone:'Africa/Tripoli', hour:'2-digit', minute:'2-digit'}) %><br>
+                    <span style="color: #666;"><%= tx.createdAt.toLocaleDateString('en-GB', {timeZone:'Africa/Tripoli'}) %></span>
                 </td>
             </tr>
             <% }) %>
@@ -121,7 +121,7 @@
     </table>
 
     <div style="text-align: center; margin-top: 30px; font-size: 10px; color: #777; font-weight:bold;">
-        تم استخراج هذا التقرير إلكترونياً من نظام الأهرام للخدمات الرقمية بتاريخ: <%= new Date().toLocaleString('ar-EG') %>
+        تم استخراج هذا التقرير إلكترونياً من نظام الأهرام للخدمات الرقمية بتاريخ: <%= new Date().toLocaleString('ar-LY', { timeZone: 'Africa/Tripoli' }) %>
     </div>
     <script>
         window.onload = function() { setTimeout(() => { window.print(); window.close(); }, 800); }

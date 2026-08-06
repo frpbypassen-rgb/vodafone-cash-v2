@@ -160,7 +160,7 @@
                                     <div class="fw-bold text-light"><i class="fa-solid fa-signal text-info me-1"></i> اختبار اتصال المزود</div>
                                     <small class="<%= bot.lastApiTestStatus === 'success' ? 'text-success' : (bot.lastApiTestStatus === 'failed' ? 'text-danger' : 'text-muted') %>">
                                         <% if (bot.lastApiTestAt) { %>
-                                            آخر اختبار: <%= new Date(bot.lastApiTestAt).toLocaleString('ar-EG') %>
+                                            آخر اختبار: <%= new Date(bot.lastApiTestAt).toLocaleString('ar-LY', { timeZone: 'Africa/Tripoli' }) %>
                                             <% if (bot.lastApiAvailableBalance !== null && bot.lastApiAvailableBalance !== undefined) { %>
                                                 | المتاح: <span dir="ltr"><%= Number(bot.lastApiAvailableBalance).toFixed(2) %></span>
                                             <% } %>
@@ -263,7 +263,7 @@
                                 const statusText = audit.checkStatus === 'matched' ? 'متطابق' : (audit.checkStatus === 'discrepancy' ? 'يوجد فرق' : (audit.checkStatus === 'check_failed' ? 'فشل الفحص' : 'جارٍ الفحص'));
                             %>
                                 <tr>
-                                    <td class="text-muted small"><%= new Date(audit.createdAt).toLocaleString('ar-EG') %></td>
+                                    <td class="text-muted small"><%= new Date(audit.createdAt).toLocaleString('ar-LY', { timeZone: 'Africa/Tripoli' }) %></td>
                                     <td>
                                         <a class="text-light fw-bold text-decoration-none" href="/transactions?search=<%= encodeURIComponent(audit.transactionCustomId) %>"><%= audit.transactionCustomId %></a>
                                         <% if (audit.providerTransactionId) { %><small class="d-block text-muted" dir="ltr"><%= audit.providerTransactionId %></small><% } %>
@@ -307,7 +307,7 @@
                     <span class="sync-state">
                         <i class="fa-solid fa-clock-rotate-left"></i>
                         <% if (bot.lastApiReturnSyncAt) { %>
-                            آخر مراجعة: <%= new Date(bot.lastApiReturnSyncAt).toLocaleString('ar-EG') %>
+                            آخر مراجعة: <%= new Date(bot.lastApiReturnSyncAt).toLocaleString('ar-LY', { timeZone: 'Africa/Tripoli' }) %>
                         <% } else { %>
                             لم تتم المراجعة بعد
                         <% } %>
@@ -344,7 +344,7 @@
                                 const reviewTone = item.status === 'cancelled' ? 'success' : (item.status === 'reviewed' ? 'info' : 'warning');
                             %>
                                 <tr>
-                                    <td class="text-muted small"><%= new Date(item.firstDetectedAt).toLocaleString('ar-EG') %></td>
+                                    <td class="text-muted small"><%= new Date(item.firstDetectedAt).toLocaleString('ar-LY', { timeZone: 'Africa/Tripoli' }) %></td>
                                     <td>
                                         <strong class="text-warning" dir="ltr"><%= item.providerTransactionId %></strong>
                                         <% if (item.referenceNumber) { %><small class="d-block text-muted" dir="ltr">Ref: <%= item.referenceNumber %></small><% } %>
@@ -402,7 +402,7 @@
                                 const hasApiLog = apiLogText.includes('--- سجل الـ API');
                             %>
                                 <tr>
-                                    <td class="text-muted small"><%= new Date(tx.updatedAt).toLocaleString('en-GB') %></td>
+                                    <td class="text-muted small"><%= new Date(tx.updatedAt).toLocaleString('en-GB', { timeZone: 'Africa/Tripoli' }) %></td>
                                     <td class="fw-bold text-light"><%= tx.customId || tx._id.toString().slice(-6) %></td>
                                     <td class="font-monospace text-warning"><%= tx.vodafoneNumber || 'تسديد حساب' %></td>
                                     <td class="fw-bold fs-5"><%= tx.amount %></td>

@@ -220,6 +220,7 @@
         const csrfToken = document.querySelector('meta[name="csrf-token"]').content;
         let lastReportData = null;
         let lastReportPayload = null;
+        const SYSTEM_TIME_ZONE = 'Africa/Tripoli';
 
         const escapeHtml = (value) => String(value ?? '')
             .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
@@ -233,10 +234,18 @@
         const dateTime = (value) => {
             const date = value ? new Date(value) : null;
             return date && !Number.isNaN(date.getTime())
-                ? `${date.toLocaleDateString('en-GB')} ${date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true })}`
+                ? `${date.toLocaleDateString('en-GB', { timeZone: SYSTEM_TIME_ZONE })} ${date.toLocaleTimeString('en-US', { timeZone: SYSTEM_TIME_ZONE, hour: '2-digit', minute: '2-digit', hour12: true })}`
                 : '---';
         };
-        const localDateValue = (date) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+        const localDateValue = (date) => {
+            const parts = Object.fromEntries(new Intl.DateTimeFormat('en-GB', {
+                timeZone: SYSTEM_TIME_ZONE,
+                year: 'numeric',
+                month: '2-digit',
+                day: '2-digit'
+            }).formatToParts(date).filter((part) => part.type !== 'literal').map((part) => [part.type, part.value]));
+            return `${parts.year}-${parts.month}-${parts.day}`;
+        };
         const serviceName = (type) => ({ vodafone: 'محافظ كاش', cash: 'محافظ كاش', post_account: 'البريد - حساب', post_card: 'البريد - بطاقة', bank_account: 'تحويل بنكي', sefa_niger: 'السفا - النيجر', bankak_sudan: 'بنكك - السودان', balance_transfer: 'تحويل داخلي' }[type] || type || 'تحويل مالي');
         const movementName = (type) => ({ DEPOSIT: 'إيداع', DEDUCTION: 'خصم', TRANSFER: 'تحويل', COMMISSION: 'عمولة', REFUND: 'استرجاع', REVERSAL: 'قيد عكسي' }[type] || type || 'حركة');
         const targetNumber = (tx) => tx.vodafoneNumber || tx.accountNumber || tx.serviceDetails?.clientPhone || '---';
@@ -342,7 +351,7 @@
             closure.classList.add('visible');
             closure.classList.toggle('warning', data.closure.hasPostCloseChanges);
             document.getElementById('closureTitle').textContent = data.closure.closedDayCount ? `تم إقفال ${data.closure.closedDayCount} يوم مالي` : 'الفترة مفتوحة مالياً';
-            document.getElementById('closureText').textContent = data.closure.hasPostCloseChanges ? `تم رصد ${data.closedDayChanges.length} تعديل بعد الإقفال وسيظهر في التقرير.` : 'لا توجد تعديلات مالية مرصودة بعد الإقفال.';
+            document.getElementById('closureText').textContent = data.closure.hasPostCloseChanges ? `تم رصد ${data.closedDayChanges.length} تعديل بعد الإقفال ويظهر في العرض الإلكتروني فقط.` : 'لا توجد تعديلات مالية مرصودة بعد الإقفال.';
             document.getElementById('reportAccount').textContent = `${data.entityInfo.name} - ${data.entityInfo.status}`;
 
             document.getElementById('completedCount').textContent = data.completedOperations.length;

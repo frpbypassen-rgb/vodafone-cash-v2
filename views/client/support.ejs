@@ -335,7 +335,7 @@
             chatBox.innerHTML = '';
             messages.forEach(msg => {
                 const isUser = msg.sender === 'user';
-                const time = new Date(msg.createdAt).toLocaleTimeString('en-GB', {hour:'2-digit', minute:'2-digit'});
+                const time = new Date(msg.createdAt).toLocaleTimeString('en-GB', {timeZone:'Africa/Tripoli', hour:'2-digit', minute:'2-digit'});
                 const imgHtml = msg.imageUrl ? `<img src="${msg.imageUrl}" class="img-fluid rounded mb-2 d-block shadow-sm" style="max-height: 200px; border: 1px solid var(--border-glass); cursor: pointer;" onclick="window.open('${msg.imageUrl}')">` : '';
                 chatBox.innerHTML += `
                     <div class="msg-bubble ${isUser ? 'msg-user' : 'msg-admin'}">

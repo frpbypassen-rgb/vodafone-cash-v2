@@ -129,11 +129,6 @@
         .status.cancelled { color: #9a202c; border-color: #d49aa0; background: #fff1f2; }
         .empty { padding: 14px; color: #68727d; text-align: center; }
         .two-columns { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; align-items: start; }
-        .audit-list { margin: 0; padding: 0; list-style: none; border: 1px solid #d6a238; }
-        .audit-list li { display: grid; grid-template-columns: 105px 105px 130px 1fr; gap: 7px; padding: 6px 8px; border-bottom: 1px solid #ead7aa; background: #fffaf0; }
-        .audit-list li:last-child { border-bottom: 0; }
-        .audit-list strong { font-size: 8px; }
-        .audit-list span { color: #5d6772; font-size: 7.5px; }
         .cancelled-section { break-before: page; page-break-before: always; margin-top: 0; }
         .cancelled-notice { margin-bottom: 7px; padding: 7px 9px; border: 1px solid #d49aa0; background: #fff4f5; color: #861b27; }
         .cancelled-notice strong { display: block; font-size: 9px; }
@@ -146,16 +141,17 @@
     const info = report.entityInfo || {};
     const stats = report.stats || {};
     const currency = stats.accountingCurrency || 'LYD';
+    const reportTimeZone = 'Africa/Tripoli';
     const formatMoney = (value, digits = 2) => Number(value || 0).toLocaleString('en-US', { minimumFractionDigits: digits, maximumFractionDigits: digits });
     const formatEGP = (value) => Number(value || 0).toLocaleString('en-US', { maximumFractionDigits: 0 });
     const formatDate = (value) => {
         const date = value ? new Date(value) : null;
-        return date && !Number.isNaN(date.getTime()) ? date.toLocaleDateString('en-GB') : '---';
+        return date && !Number.isNaN(date.getTime()) ? date.toLocaleDateString('en-GB', { timeZone: reportTimeZone }) : '---';
     };
     const formatDateTime = (value) => {
         const date = value ? new Date(value) : null;
         return date && !Number.isNaN(date.getTime())
-            ? `${date.toLocaleDateString('en-GB')} ${date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true })}`
+            ? `${date.toLocaleDateString('en-GB', { timeZone: reportTimeZone })} ${date.toLocaleTimeString('en-US', { timeZone: reportTimeZone, hour: '2-digit', minute: '2-digit', hour12: true })}`
             : '---';
     };
     const compact = (value, max = 90) => {
@@ -240,9 +236,9 @@
     </article>
 </section>
 
-<div class="closure-bar <%= report.closure.hasPostCloseChanges ? 'warning' : '' %>">
+<div class="closure-bar">
     <strong><%= report.closure.closedDayCount ? `تم إقفال ${report.closure.closedDayCount} يوم مالي ضمن الفترة` : 'الفترة ما زالت مفتوحة مالياً' %></strong>
-    <span><%= report.closure.hasPostCloseChanges ? `تنبيه: توجد ${report.closedDayChanges.length} حركة معدلة بعد الإقفال، موضحة في سجل التدقيق.` : 'لم تُرصد تعديلات مالية بعد الإقفال ضمن البيانات الحالية.' %></span>
+    <span>يعرض هذا الملف الحركات المالية المحتسبة ضمن الفترة المحددة.</span>
 </div>
 
 <section class="section">
@@ -315,17 +311,6 @@
         </tbody>
     </table>
 </section>
-
-<% if (report.closedDayChanges.length) { %>
-<section class="section keep">
-    <div class="section-heading"><div><span>تعديلات تمت بعد إغلاق اليوم المالي</span><h2>ملاحظات ما بعد الإقفال</h2></div><strong><%= report.closedDayChanges.length %> ملاحظة</strong></div>
-    <ul class="audit-list">
-        <% report.closedDayChanges.forEach((change) => { %>
-            <li><strong class="mono"><%= change.transactionId %></strong><span><%= change.action %></span><span><%= change.actor %> | <b class="mono"><%= formatDateTime(change.changedAt) %></b></span><span><b>اليوم المقفل:</b> <span class="mono"><%= change.affectedDay %></span> | <%= change.details || 'تم تعديل الحركة بعد الإقفال.' %></span></li>
-        <% }) %>
-    </ul>
-</section>
-<% } %>
 
 <% if (report.cancelledOperations.length) { %>
 <section class="section cancelled-section">

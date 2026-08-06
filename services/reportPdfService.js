@@ -86,6 +86,15 @@ const closeReportPdfBrowser = async () => {
     if (browser) await browser.close().catch(() => {});
 };
 
+const preparePdfReport = (report = {}) => ({
+    ...report,
+    closedDayChanges: [],
+    closure: {
+        ...(report.closure || {}),
+        hasPostCloseChanges: false
+    }
+});
+
 const generateAdminReportPdf = async (app, data) => {
     const executablePath = findBrowserExecutable();
     if (!executablePath) {
@@ -96,6 +105,7 @@ const generateAdminReportPdf = async (app, data) => {
 
     const html = await renderView(app, 'reports_pdf', {
         ...data,
+        report: preparePdfReport(data.report),
         logoDataUri: logoDataUri()
     });
     let page;
@@ -130,5 +140,6 @@ module.exports = {
     findBrowserExecutable,
     generateAdminReportPdf,
     getSharedBrowser,
+    preparePdfReport,
     renderView
 };

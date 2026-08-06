@@ -6,6 +6,7 @@ const Ledger = require('../models/Ledger');
 const Transaction = require('../models/Transaction');
 const { requireAuth } = require('../middlewares/auth');
 const { escapeRegex } = require('../middlewares/sanitize');
+const { systemDayEnd, systemDayStart } = require('../config/systemTime');
 
 const MOVEMENT_TYPES = ['DEPOSIT', 'DEDUCTION', 'TRANSFER', 'COMMISSION', 'REFUND', 'REVERSAL'];
 const ENTITY_MODELS = ['User', 'ClientCompany', 'ClientBot', 'SubAccount', 'ExecutorBot', 'ExecutorGroup'];
@@ -14,12 +15,12 @@ const SORT_FIELDS = new Set(['createdAt', 'amount', 'balanceBefore', 'balanceAft
 const parseDateRange = (query) => {
     const range = {};
     if (query.fromDate) {
-        const from = new Date(`${query.fromDate}T00:00:00.000`);
-        if (!Number.isNaN(from.getTime())) range.$gte = from;
+        const from = systemDayStart(query.fromDate);
+        if (from) range.$gte = from;
     }
     if (query.toDate) {
-        const to = new Date(`${query.toDate}T23:59:59.999`);
-        if (!Number.isNaN(to.getTime())) range.$lte = to;
+        const to = systemDayEnd(query.toDate);
+        if (to) range.$lte = to;
     }
     return Object.keys(range).length ? range : null;
 };

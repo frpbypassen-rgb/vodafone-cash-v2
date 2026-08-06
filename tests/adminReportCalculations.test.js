@@ -75,6 +75,8 @@ describe('Admin financial report calculations', () => {
         const day = getDateRange('day', '2026-08-05');
         expect(day.start.getHours()).toBe(0);
         expect(day.end.getHours()).toBe(23);
+        expect(day.start.toISOString()).toBe('2026-08-04T22:00:00.000Z');
+        expect(day.end.toISOString()).toBe('2026-08-05T21:59:59.999Z');
         expect(() => getDateRange('day', '2026-02-30')).toThrow('INVALID_REPORT_DATE');
         expect(() => getDateRange('month', '2026-13')).toThrow('INVALID_REPORT_DATE');
     });

@@ -4,6 +4,7 @@ const fs = require('fs');
 const https = require('https');
 const path = require('path');
 const puppeteer = require('puppeteer');
+const { SYSTEM_TIME_ZONE } = require('../config/systemTime');
 const { getApiProviderPreset } = require('../utils/apiProviderPresets');
 
 const SUPPORT_PHONE = '01108172258';
@@ -151,7 +152,7 @@ const authorizeApiProvider = async (config, addLog) => {
 const executeTransferViaApi = async (tx, apiBot) => {
     let processLog = [];
     const addLog = (step, detail) => {
-        const timeStr = new Date().toLocaleTimeString('en-GB', { hour12: false });
+        const timeStr = new Date().toLocaleTimeString('en-GB', { timeZone: SYSTEM_TIME_ZONE, hour12: false });
         processLog.push(`[${timeStr}] ${step}: ${detail}`);
     };
 
@@ -209,7 +210,7 @@ const executeTransferViaApi = async (tx, apiBot) => {
 - الرصيد بعد     : ${pd.BalanceAfter !== undefined ? pd.BalanceAfter + ' EGP' : '---'}
 - الحالة         : ${pd.Status || paymentRes.data.Message || '---'}
 - رقم العملية    : ${extRef}
-- وقت العملية    : ${pd.TransactionTime || new Date().toLocaleString('ar-EG')}
+- وقت العملية    : ${pd.TransactionTime || new Date().toLocaleString('ar-LY', { timeZone: SYSTEM_TIME_ZONE })}
 - الرقم المرجعي  : ${refTxNum || 'غير متوفر'}
 =========================================
 [ الاستجابة البرمجية الخام - Raw JSON ]\n${JSON.stringify(paymentRes.data, null, 2)}`;
@@ -231,7 +232,7 @@ const executeTransferViaApi = async (tx, apiBot) => {
                 sender_number: refTxNum,
                 balance_before: pd.BalanceBefore,
                 balance_after: pd.BalanceAfter,
-                transaction_time: pd.TransactionTime || new Date().toLocaleString('ar-EG'),
+                transaction_time: pd.TransactionTime || new Date().toLocaleString('ar-LY', { timeZone: SYSTEM_TIME_ZONE }),
                 status: pd.Status || paymentRes.data.Message || 'عمليه ناجحه',
                 processLog: processLog.join('\n')
             };
@@ -253,7 +254,7 @@ const executeTransferViaApi = async (tx, apiBot) => {
 const getApiProviderBalance = async (apiBot) => {
     const processLog = [];
     const addLog = (step, detail) => {
-        const timeStr = new Date().toLocaleTimeString('en-GB', { hour12: false });
+        const timeStr = new Date().toLocaleTimeString('en-GB', { timeZone: SYSTEM_TIME_ZONE, hour12: false });
         processLog.push(`[${timeStr}] ${step}: ${detail}`);
     };
 
@@ -306,7 +307,7 @@ const getApiProviderBalance = async (apiBot) => {
 const getApiProviderTransactions = async (apiBot, transactionNumbers = []) => {
     const processLog = [];
     const addLog = (step, detail) => {
-        const timeStr = new Date().toLocaleTimeString('en-GB', { hour12: false });
+        const timeStr = new Date().toLocaleTimeString('en-GB', { timeZone: SYSTEM_TIME_ZONE, hour12: false });
         processLog.push(`[${timeStr}] ${step}: ${detail}`);
     };
     const uniqueNumbers = [...new Set(
@@ -404,7 +405,7 @@ const generateCustomReceipt = async (tx, apiResult) => {
         await page.setViewport({ width: 520, height: 860 });
         
         const now = new Date();
-        const dateStr = apiResult.transaction_time || now.toLocaleString('ar-EG-u-nu-latn', { hour12: true });
+        const dateStr = apiResult.transaction_time || now.toLocaleString('ar-LY-u-nu-latn', { timeZone: SYSTEM_TIME_ZONE, hour12: true });
         const targetNumber = tx.vodafoneNumber || tx.accountNumber || '---';
         const referenceNumber = apiResult.reference_number || apiResult.sender_number || '---';
         const providerTxId = apiResult.provider_transaction_id || apiResult.external_transaction_id || '---';
@@ -487,7 +488,7 @@ const saveApiReceiptProof = async (tx, apiResult) => {
             customId: apiResult.external_transaction_id || tx.customId || tx._id?.toString?.() || '---',
             accountName: tx.companyName || tx.employeeName || tx.accountName || '---',
             serviceName: 'محافظ كاش',
-            date: apiResult.transaction_time || new Date().toLocaleString('en-GB')
+            date: apiResult.transaction_time || new Date().toLocaleString('en-GB', { timeZone: SYSTEM_TIME_ZONE })
         });
         receiptBuffer = Buffer.from(receiptBase64.replace(/^data:image\/\w+;base64,/, ''), 'base64');
     }

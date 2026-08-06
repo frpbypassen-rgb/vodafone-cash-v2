@@ -2,6 +2,7 @@
 
 const fs = require('fs');
 const path = require('path');
+const { SYSTEM_TIME_ZONE } = require('../config/systemTime');
 const { proofFilePath } = require('./proofStorageService');
 
 const escapeXml = (value) => String(value ?? '')
@@ -25,7 +26,7 @@ const formatAmount = (value) => {
 
 const formatDate = (value) => {
     const date = value ? new Date(value) : new Date();
-    return date.toLocaleString('en-GB', { hour12: true });
+    return date.toLocaleString('en-GB', { timeZone: SYSTEM_TIME_ZONE, hour12: true });
 };
 
 const rtlText = (x, y, value, className, anchor = 'end') => (
