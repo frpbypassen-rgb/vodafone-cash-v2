@@ -9,7 +9,7 @@ const Transaction = require('../models/Transaction');
 const RegistrationRequest = require('../models/RegistrationRequest');
 const Settings = require('../models/Settings');
 const Ledger = require('../models/Ledger');
-const { getServiceRatesForTier } = require('../utils/rateHelper');
+const { getServiceRatesForTier, getCompanyServiceRates } = require('../utils/rateHelper');
 const { getTransferServiceRules } = require('../utils/transferServiceRules');
 
 const STATUS_META = Object.freeze({
@@ -439,7 +439,9 @@ const summarizeWithAggregation = async (filter) => {
 
 const getSettingsAndRates = async (workspace) => {
     const settings = await Settings.findOne({}).lean() || {};
-    const serviceRates = getServiceRatesForTier(workspace.entity.tier || 1, settings);
+    const serviceRates = workspace.isCompany
+        ? getCompanyServiceRates(workspace.entity, settings)
+        : getServiceRatesForTier(workspace.entity.tier || 1, settings);
     return {
         settings,
         serviceRates,
@@ -802,6 +804,7 @@ module.exports = {
     buildNavigation,
     ownershipFilter,
     buildTransactionFilter,
+    getSettingsAndRates,
     summarizeTransactions,
     buildReportGroups,
     loadPageContext,

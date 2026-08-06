@@ -25,7 +25,7 @@ const authController = require('../controllers/auth/authController');
 const transferService = require('../services/transferService');
 const { deviceTrustMiddleware } = require('../src/Presentation/Middlewares/deviceTrustMiddleware');
 const { mfaMiddleware } = require('../src/Presentation/Middlewares/mfaMiddleware');
-const { buildMobileRateContract, applyRateMargin } = require('../utils/rateHelper');
+const { buildMobileRateContract, buildCompanyRateContract, applyRateMargin } = require('../utils/rateHelper');
 const { getTransferServiceLabel } = require('../utils/mobileTransferServiceCatalog');
 const agentService = require('../services/mobileAgentSubAccountService');
 const {
@@ -590,6 +590,8 @@ const buildHomeRateResponse = async (req, res, userId, accountType, settings) =>
     let balance = 0;
     let tier = 1;
     let subAccount = null;
+    let companyForRates = null;
+    let masterForRates = null;
 
     if (accountType === 'client_company') {
         const emp = await ClientEmployee.findById(userId);
@@ -598,6 +600,7 @@ const buildHomeRateResponse = async (req, res, userId, accountType, settings) =>
             if (company) {
                 balance = company.balance || 0;
                 tier = company.tier || 1;
+                companyForRates = company;
             }
         }
     } else if (accountType === 'client_user') {
@@ -622,19 +625,20 @@ const buildHomeRateResponse = async (req, res, userId, accountType, settings) =>
         subAccount = await SubAccount.findById(userId);
         if (subAccount) {
             balance = subAccount.balance || 0;
-            let masterObj;
             if (subAccount.masterType === 'user') {
-                masterObj = await User.findById(subAccount.masterId);
+                masterForRates = await User.findById(subAccount.masterId);
             } else {
-                masterObj = await ClientCompany.findById(subAccount.masterId);
+                masterForRates = await ClientCompany.findById(subAccount.masterId);
             }
-            tier = masterObj ? (masterObj.tier || 1) : 1;
+            tier = masterForRates ? (masterForRates.tier || 1) : 1;
         }
     }
 
     let rateContract;
     if (accountType === 'sub_client' && subAccount) {
-        const masterContract = buildMobileRateContract(tier, settings);
+        const masterContract = subAccount.masterType === 'company' && masterForRates
+            ? buildCompanyRateContract(masterForRates, settings)
+            : buildMobileRateContract(tier, settings);
         const subServiceRates = applyRateMargin(masterContract.serviceRates, subAccount.customMargin);
         const subBaseRate = subServiceRates.vodafone || masterContract.baseExchangeRate;
 
@@ -646,6 +650,8 @@ const buildHomeRateResponse = async (req, res, userId, accountType, settings) =>
             serviceRates: subServiceRates,
             serviceCatalog: masterContract.serviceCatalog
         };
+    } else if (companyForRates) {
+        rateContract = buildCompanyRateContract(companyForRates, settings);
     } else {
         rateContract = buildMobileRateContract(tier, settings);
     }
@@ -659,18 +665,19 @@ const buildHomeRateResponse = async (req, res, userId, accountType, settings) =>
     };
 
     if (accountType === 'sub_client' && subAccount) {
-        let masterObj;
-        if (subAccount.masterType === 'user') {
-            masterObj = await User.findById(subAccount.masterId);
-        } else {
-            masterObj = await ClientCompany.findById(subAccount.masterId);
+        if (!masterForRates) {
+            if (subAccount.masterType === 'user') {
+                masterForRates = await User.findById(subAccount.masterId);
+            } else {
+                masterForRates = await ClientCompany.findById(subAccount.masterId);
+            }
         }
         const { buildContext } = require('../mappers/mobileAuthMapper');
         responseData.creditLimit = subAccount.creditLimit || 0;
         responseData.debt = balance < 0 ? Math.abs(balance) : 0;
         responseData.availableToSpend = balance + (subAccount.creditLimit || 0);
         responseData.context = buildContext(accountType, {
-            masterName: masterObj ? masterObj.name : null,
+            masterName: masterForRates ? masterForRates.name : null,
             accountCode: subAccount.accountCode || ''
         });
     }

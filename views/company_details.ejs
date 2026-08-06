@@ -292,18 +292,44 @@
                             </div>
                         </div>
 
-                        <!-- 🟢 الإضافة الجديدة: مربع تخصيص سعر الصرف بتصميم متوافق 100% -->
-                        <div class="col-12">
+                        <div class="col-12" id="company-pricing">
                             <div class="info-box border-0 m-0 shadow-sm d-block control-card-3d" style="background: rgba(139, 92, 246, 0.05); border-right: 4px solid var(--brand-primary) !important;">
-                                <label class="form-label fw-bold text-dark small mb-2"><i class="fa-solid fa-exchange-alt me-1" style="color: var(--brand-primary)"></i> تخصيص سعر الصرف للشركة (للربط الآلي API)</label>
-                                <form action="/company/<%= company._id %>/update-rate" method="POST" class="row g-2 align-items-center">
-                                    <div class="col-8">
-                                        <input type="number" step="0.001" name="exchangeRate" class="form-control text-center fw-bold mono-num unified-height border-0 shadow-sm" value="<%= company.exchangeRate || '' %>" placeholder="مثال: 6.10" required>
+                                <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+                                    <label class="form-label fw-bold text-dark mb-0"><i class="fa-solid fa-exchange-alt me-1" style="color: var(--brand-primary)"></i> أسعار الصرف الخاصة بالشركة</label>
+                                    <span class="badge <%= companyRateConfig.mode === 'custom' ? 'bg-primary' : 'bg-success' %>"><%= companyRateConfig.mode === 'custom' ? 'مرتبطة بالعام بفروق خاصة' : 'تتبع السعر العام' %></span>
+                                </div>
+                                <% if (query && query.rateUpdated) { %><div class="alert alert-success py-2 fw-bold"><i class="fa-solid fa-circle-check me-1"></i>تم حفظ أسعار الشركة.</div><% } %>
+                                <% if (query && query.rateError) { %><div class="alert alert-danger py-2 fw-bold"><i class="fa-solid fa-circle-exclamation me-1"></i>تعذر حفظ الأسعار. راجع القيم المدخلة.</div><% } %>
+                                <form action="/company/<%= company._id %>/update-rate" method="POST" class="row g-3 align-items-end" data-company-detail-rate-form>
+                                    <div class="col-12 col-lg-4">
+                                        <label class="form-label small fw-bold text-muted">سياسة التسعير</label>
+                                        <select name="rateMode" class="form-select fw-bold text-center unified-height" data-company-detail-rate-mode>
+                                            <option value="general" <%= companyRateConfig.mode === 'general' ? 'selected' : '' %>>السعر العام التلقائي</option>
+                                            <option value="custom" <%= companyRateConfig.mode === 'custom' ? 'selected' : '' %>>سعر خاص مرتبط بالعام</option>
+                                        </select>
                                     </div>
-                                    <div class="col-4">
-                                        <button type="submit" class="btn text-white w-100 fw-bold btn-3d-hover unified-height justify-content-center shadow-sm" style="background: var(--brand-primary);">حفظ السعر</button>
+                                    <% rateServices.forEach((service) => { %>
+                                        <div class="col-6 col-md-4 col-xl-2">
+                                            <label class="form-label small fw-bold text-muted"><%= service.label %></label>
+                                            <input type="number" min="0.01" step="0.01" name="companyRate_<%= service.key %>" class="form-control text-center fw-bold mono-num unified-height" value="<%= Number(companyRateConfig.effectiveRates[service.key]).toFixed(2) %>" data-company-detail-rate-input <%= companyRateConfig.mode === 'general' ? 'disabled' : '' %>>
+                                            <small class="text-muted">العام: <%= Number(companyRateConfig.generalRates[service.key]).toFixed(2) %></small>
+                                        </div>
+                                    <% }) %>
+                                    <div class="col-12 col-lg-4 ms-auto">
+                                        <button type="submit" class="btn text-white w-100 fw-bold btn-3d-hover unified-height justify-content-center shadow-sm" style="background: var(--brand-primary);"><i class="fa-solid fa-floppy-disk me-1"></i>حفظ أسعار الشركة</button>
                                     </div>
                                 </form>
+                                <script>
+                                    (() => {
+                                        const form = document.querySelector('[data-company-detail-rate-form]');
+                                        const mode = form?.querySelector('[data-company-detail-rate-mode]');
+                                        const syncMode = () => form?.querySelectorAll('[data-company-detail-rate-input]').forEach((input) => {
+                                            input.disabled = mode.value !== 'custom';
+                                        });
+                                        mode?.addEventListener('change', syncMode);
+                                        syncMode();
+                                    })();
+                                </script>
                             </div>
                         </div>
 

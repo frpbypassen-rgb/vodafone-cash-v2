@@ -7,7 +7,7 @@ const Settings = require('../models/Settings');
 const Ledger = require('../models/Ledger');
 const Counter = require('../models/Counter');
 const {
-    getServiceRateForTier,
+    getCompanyServiceRates,
     resolveTransferServiceKey
 } = require('../utils/rateHelper');
 const {
@@ -101,8 +101,7 @@ const merchantApiAuth = async (req, res, next) => {
 
 router.get('/balance', merchantApiAuth, async (req, res) => {
     const settings = await Settings.findOne({}).lean();
-    const serviceRate = getServiceRateForTier('vodafone', req.merchant.tier || 1, settings);
-    const customRate = Number(req.merchant.exchangeRate) > 0 ? Number(req.merchant.exchangeRate) : serviceRate;
+    const customRate = getCompanyServiceRates(req.merchant, settings).vodafone;
 
     res.json({
         status: 'success',
@@ -136,8 +135,7 @@ router.post('/transfer', merchantApiAuth, async (req, res) => {
             const settingsQuery = Settings.findOne({});
             const settings = session ? await settingsQuery.session(session).lean() : await settingsQuery.lean();
             const autoRouteExecutor = await resolveAutoRouteExecutor(settings, session);
-            const serviceRate = getServiceRateForTier(serviceKey, req.merchant.tier || 1, settings);
-            const exchangeRate = Number(req.merchant.exchangeRate) > 0 ? Number(req.merchant.exchangeRate) : serviceRate;
+            const exchangeRate = getCompanyServiceRates(req.merchant, settings)[serviceKey];
             if (!Number.isFinite(exchangeRate) || exchangeRate <= 0) {
                 throw merchantRequestError(400, 'سعر الصرف غير صالح');
             }

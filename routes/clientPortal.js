@@ -146,6 +146,7 @@ router.get('/logout', clientAuthController.logout);
 // ===============================================
 router.get('/dashboard', requireClientAuth, clientDashboardController.getDashboard);
 router.get('/api/transactions', requireClientAuth, clientDashboardController.getApiTransactions);
+router.get('/api/rates', requireClientAuth, clientWorkspaceController.getCurrentRates);
 router.get('/services', requireClientAuth, clientWorkspaceController.renderPage('services'));
 router.get('/transactions', requireClientAuth, clientWorkspaceController.renderPage('transactions'));
 router.get('/finance', requireClientAuth, clientWorkspaceController.renderPage('finance'));

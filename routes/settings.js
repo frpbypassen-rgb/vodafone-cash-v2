@@ -5,6 +5,7 @@ const bcrypt = require('bcryptjs');
 const Settings = require('../models/Settings');
 const ExecutorBot = require('../models/ExecutorGroup');
 const ClientBot = require('../models/ClientBot');
+const ClientCompany = require('../models/ClientCompany');
 const User = require('../models/User');
 const ClientEmployee = require('../models/ClientEmployee');
 const Employee = require('../models/Employee');
@@ -12,7 +13,11 @@ const Admin = require('../models/Admin');
 const { requireAuth, requireMaster } = require('../middlewares/auth');
 const { pickAllowed } = require('../middlewares/sanitize');
 const { hashPassword } = require('../services/passwordService');
-const { SERVICE_RATE_ADMIN_FIELDS, getAdminRateServices } = require('../utils/rateHelper');
+const {
+    SERVICE_RATE_ADMIN_FIELDS,
+    getAdminRateServices,
+    getCompanyRateConfig
+} = require('../utils/rateHelper');
 
 router.use(requireAuth);
 
@@ -41,8 +46,16 @@ const ALLOWED_CLIENT_BOT_FIELDS = [
 // =========================================================
 router.get('/', async (req, res) => {
     const settings = await Settings.findOne({}) || await Settings.create({});
-    const executorBots = await ExecutorBot.find({ status: 'active' });
-    res.render('settings', { settings, executorBots, rateServices: getAdminRateServices() });
+    const [executorBots, companies] = await Promise.all([
+        ExecutorBot.find({ status: 'active' }),
+        ClientCompany.find({ status: { $ne: 'deleted' } }).sort({ name: 1 }).lean()
+    ]);
+    const rateServices = getAdminRateServices();
+    const companyRateRows = companies.map((company) => ({
+        company,
+        rateConfig: getCompanyRateConfig(company, settings)
+    }));
+    res.render('settings', { settings, executorBots, rateServices, companyRateRows, query: req.query });
 });
 
 router.get('/bots', requireMaster, (req, res) => {
@@ -66,7 +79,12 @@ router.post('/update', requireMaster, async (req, res) => {
         if (data.rateLevel2 !== undefined && data.cashRateLevel2 === undefined) data.cashRateLevel2 = data.rateLevel2;
         if (data.rateLevel3 !== undefined && data.cashRateLevel3 === undefined) data.cashRateLevel3 = data.rateLevel3;
         await Settings.updateOne({}, data, { upsert: true });
-        res.redirect('/settings');
+        const io = req.app?.get('io');
+        if (io) {
+            io.emit('exchange_rates_updated', { source: 'general' });
+            io.emit('update_data');
+        }
+        res.redirect('/settings?ratesUpdated=1#company-rates');
     } catch (e) {
         console.error('[settings/update] خطأ:', e.message);
         res.redirect('/settings');

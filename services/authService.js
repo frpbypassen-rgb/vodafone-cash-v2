@@ -9,7 +9,7 @@ const { JWT_SECRET, JWT_REFRESH_SECRET } = require('../middlewares/jwtAuth');
 const userRepo = require('../repositories/userRepository');
 const settingsRepo = require('../repositories/settingsRepository');
 const { logAction } = require('./auditService');
-const { buildMobileRateContract, applyRateMargin } = require('../utils/rateHelper');
+const { buildMobileRateContract, buildCompanyRateContract, applyRateMargin } = require('../utils/rateHelper');
 const {
     recordFailedLogin,
     resetFailedAttempts,
@@ -308,7 +308,9 @@ const login = async (username, password, req) => {
         tier = (company && company.tier) ? company.tier : 1;
         companyId = account.companyId;
         companyName = company ? company.name : null;
-        rateContract = buildMobileRateContract(tier, settings);
+        rateContract = company
+            ? buildCompanyRateContract(company, settings)
+            : buildMobileRateContract(tier, settings);
         const identity = resolveCompanyIdentity(account);
         persona = identity.persona;
         mobileRole = identity.role;
@@ -352,7 +354,9 @@ const login = async (username, password, req) => {
         companyName = masterObj ? masterObj.name : null;
         companyId = account.masterType === 'company' ? account.masterId : null;
 
-        const masterContract = buildMobileRateContract(tier, settings);
+        const masterContract = account.masterType === 'company' && masterObj
+            ? buildCompanyRateContract(masterObj, settings)
+            : buildMobileRateContract(tier, settings);
         const customMargin = finiteNumberOr(account.customMargin, 0);
         const subServiceRates = applyRateMargin(masterContract.serviceRates, customMargin);
         const subBaseRate = subServiceRates.vodafone || masterContract.baseExchangeRate;

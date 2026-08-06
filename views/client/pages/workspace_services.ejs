@@ -42,7 +42,7 @@
                 <button type="button" class="bw-service-option <%= servicePage.selectedService === service.key ? 'active' : '' %>" data-service-key="<%= service.key %>" role="listitem" aria-pressed="<%= servicePage.selectedService === service.key ? 'true' : 'false' %>">
                     <span class="bw-service-icon tone-<%= service.tone %>"><i class="fa-solid <%= service.icon %>"></i></span>
                     <span class="bw-service-option-copy"><strong><%= service.label %></strong><small><%= service.description %></small></span>
-                    <span class="bw-service-rate"><strong class="bw-mono"><span>1 LYD</span><i>=</i><span><%= Number(service.rate).toFixed(2) %> EGP</span></strong><small>سعر الجنيه مقابل الدينار</small></span>
+                    <span class="bw-service-rate"><strong class="bw-mono"><span>1 LYD</span><i>=</i><span data-service-rate-value><%= Number(service.rate).toFixed(2) %> EGP</span></strong><small>سعر الجنيه مقابل الدينار</small></span>
                     <i class="fa-solid fa-circle-check bw-selected-mark"></i>
                 </button>
             <% }) %>

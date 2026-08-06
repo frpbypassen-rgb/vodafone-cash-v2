@@ -21,6 +21,27 @@
         .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
         .min-w-fit { min-width: fit-content; }
         .mono-num { font-family: 'JetBrains Mono', monospace; font-size: 1.2rem;}
+        .company-rates-band { margin-top: 26px; padding: 26px; border-top: 1px solid var(--border-glass); }
+        .company-rates-head { display: flex; align-items: end; justify-content: space-between; gap: 18px; margin-bottom: 18px; }
+        .company-rates-head h4 { margin: 0; font-weight: 900; color: var(--text-main); }
+        .company-rates-head p { margin: 6px 0 0; color: var(--text-muted); font-size: .88rem; }
+        .company-rate-search { width: min(340px, 100%); }
+        .company-rate-list { display: grid; gap: 12px; }
+        .company-rate-row { padding: 18px; border: 1px solid var(--border-glass); border-radius: 8px; background: var(--card-bg); }
+        .company-rate-row-head { display: grid; grid-template-columns: minmax(220px, 1fr) minmax(230px, .55fr) auto; gap: 14px; align-items: end; }
+        .company-rate-identity strong { display: block; color: var(--text-main); font-size: 1rem; }
+        .company-rate-identity span { display: block; color: var(--text-muted); font-size: .78rem; margin-top: 4px; }
+        .company-rate-grid { display: grid; grid-template-columns: repeat(6, minmax(130px, 1fr)); gap: 10px; margin-top: 15px; }
+        .company-rate-field { display: grid; gap: 6px; }
+        .company-rate-field span { color: var(--text-muted); font-size: .76rem; font-weight: 800; }
+        .company-rate-field small { color: var(--text-muted); font-size: .66rem; }
+        .company-rate-field input:disabled { opacity: .65; cursor: not-allowed; }
+        @media (max-width: 1100px) { .company-rate-grid { grid-template-columns: repeat(3, minmax(140px, 1fr)); } }
+        @media (max-width: 767px) {
+            .company-rates-band { padding: 20px 0; }
+            .company-rates-head, .company-rate-row-head { display: grid; grid-template-columns: 1fr; align-items: stretch; }
+            .company-rate-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+        }
     </style>
 </head>
 <body>
@@ -164,10 +185,78 @@
                 </div>
             </form>
         </div>
+
+        <section class="company-rates-band" id="company-rates" aria-labelledby="companyRatesTitle">
+            <header class="company-rates-head">
+                <div>
+                    <h4 id="companyRatesTitle"><i class="fa-solid fa-building-circle-check text-primary me-2"></i>أسعار الشركات</h4>
+                    <p>إدارة سعر كل خدمة للشركة وربطه بحركة السعر العام.</p>
+                </div>
+                <div class="company-rate-search input-group">
+                    <span class="input-group-text"><i class="fa-solid fa-magnifying-glass"></i></span>
+                    <input type="search" id="companyRateSearch" class="form-control" placeholder="بحث باسم الشركة أو الهاتف">
+                </div>
+            </header>
+
+            <% if (query && query.ratesUpdated) { %>
+                <div class="alert alert-success fw-bold"><i class="fa-solid fa-circle-check me-2"></i>تم تحديث الأسعار العامة، وتم احتساب أسعار الشركات المرتبطة بها تلقائياً.</div>
+            <% } %>
+
+            <div class="company-rate-list" id="companyRateList">
+                <% if (!(companyRateRows || []).length) { %>
+                    <div class="text-center text-muted py-5"><i class="fa-solid fa-building-circle-xmark fs-2 d-block mb-3"></i>لا توجد شركات متاحة.</div>
+                <% } %>
+                <% (companyRateRows || []).forEach((row) => { const company = row.company; const rateConfig = row.rateConfig; %>
+                    <form action="/company/<%= company._id %>/update-rate" method="POST" class="company-rate-row" data-company-rate-form data-company-search="<%= `${company.name || ''} ${company.phone || ''}`.toLowerCase() %>">
+                        <div class="company-rate-row-head">
+                            <div class="company-rate-identity">
+                                <strong><%= company.name %></strong>
+                                <span><%= company.phone || 'بدون هاتف' %> · المستوى <%= company.tier || 1 %> · <%= company.status === 'active' ? 'نشطة' : 'موقوفة' %></span>
+                            </div>
+                            <label>
+                                <span class="form-label small fw-bold text-muted">سياسة التسعير</span>
+                                <select name="rateMode" class="form-select fw-bold" data-company-rate-mode>
+                                    <option value="general" <%= rateConfig.mode === 'general' ? 'selected' : '' %>>السعر العام التلقائي</option>
+                                    <option value="custom" <%= rateConfig.mode === 'custom' ? 'selected' : '' %>>سعر خاص مرتبط بالعام</option>
+                                </select>
+                            </label>
+                            <button type="submit" class="btn btn-primary fw-bold"><i class="fa-solid fa-floppy-disk me-1"></i>حفظ</button>
+                        </div>
+                        <div class="company-rate-grid">
+                            <% rateServices.forEach((service) => { %>
+                                <label class="company-rate-field">
+                                    <span><%= service.label %></span>
+                                    <input type="number" min="0.01" step="0.01" name="companyRate_<%= service.key %>" class="form-control text-center fw-bold mono-num" value="<%= Number(rateConfig.effectiveRates[service.key]).toFixed(2) %>" data-company-rate-input <%= rateConfig.mode === 'general' ? 'disabled' : '' %>>
+                                    <small>العام: <b><%= Number(rateConfig.generalRates[service.key]).toFixed(2) %></b></small>
+                                </label>
+                            <% }) %>
+                        </div>
+                    </form>
+                <% }) %>
+            </div>
+        </section>
     </div>
 </div>
 
-<script>function toggleSidebar() { document.querySelector('.sidebar').classList.toggle('active'); document.querySelector('.sidebar-overlay').classList.toggle('active'); }</script>
+<script>
+    function toggleSidebar() { document.querySelector('.sidebar').classList.toggle('active'); document.querySelector('.sidebar-overlay').classList.toggle('active'); }
+
+    document.querySelectorAll('[data-company-rate-form]').forEach((form) => {
+        const mode = form.querySelector('[data-company-rate-mode]');
+        const syncMode = () => form.querySelectorAll('[data-company-rate-input]').forEach((input) => {
+            input.disabled = mode.value !== 'custom';
+        });
+        mode.addEventListener('change', syncMode);
+        syncMode();
+    });
+
+    document.getElementById('companyRateSearch')?.addEventListener('input', (event) => {
+        const query = event.target.value.trim().toLowerCase();
+        document.querySelectorAll('[data-company-rate-form]').forEach((row) => {
+            row.hidden = query && !row.dataset.companySearch.includes(query);
+        });
+    });
+</script>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>

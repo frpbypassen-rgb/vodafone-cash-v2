@@ -6,7 +6,7 @@ const User = require('../models/User');
 const SubAccount = require('../models/SubAccount');
 const Employee = require('../models/Employee');
 const Admin = require('../models/Admin');
-const { getServiceRatesForTier } = require('../utils/rateHelper');
+const { getCompanyServiceRates } = require('../utils/rateHelper');
 const { logAction } = require('../services/auditService');
 
 const COMPANY_USERNAME_DOMAIN = '@ahram.com';
@@ -226,7 +226,7 @@ const buildCompanyContext = async ({ req, account, company, forceToday = false }
     ]);
 
     const effectiveSettings = settings || {};
-    const serviceRates = getServiceRatesForTier(company.tier || 1, effectiveSettings);
+    const serviceRates = getCompanyServiceRates(company, effectiveSettings);
     const persona = dashboardPersona(account);
     const owner = isCompanyOwner(account);
     const staffCount = staff.filter(item => item.status === 'active').length;

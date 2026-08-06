@@ -16,7 +16,7 @@ const Counter = require('../../../models/Counter');
 const Settings = require('../../../models/Settings');
 const SubAccount = require('../../../models/SubAccount');
 const { logAction } = require('../../../services/auditService');
-const { getRateForTier, getServiceRatesForTier } = require('../../../utils/rateHelper');
+const { getRateForTier, getServiceRatesForTier, getCompanyServiceRates } = require('../../../utils/rateHelper');
 const { getTransferServiceDefinition } = require('../../../utils/mobileTransferServiceCatalog');
 const { acquireLock, releaseLock } = require('../../../services/lockService');
 const { resolveAutoRouteExecutor, applyAutoRouteFields, enqueueAutoRouteIfNeeded } = require('../../../services/autoRouteService');
@@ -247,7 +247,9 @@ export class TransferService {
 
             // 5. حساب الرسوم والأسعار
             let isSubAccountTx = !!clientInfo.isSubAccount;
-            const serviceRates = getServiceRatesForTier(clientInfo.tier || 1, settings);
+            const serviceRates = clientInfo.companyForRates
+                ? getCompanyServiceRates(clientInfo.companyForRates, settings)
+                : getServiceRatesForTier(clientInfo.tier || 1, settings);
             let finalRate = serviceRates[transferType] || currentRate;
 
             let masterRate = 0;
@@ -259,9 +261,12 @@ export class TransferService {
             if (isSubAccountTx) {
                 const masterObj = clientInfo.masterObj;
                 const clientTier = masterObj.tier || 1;
-                const tierRate = getRateForTier(clientTier, settings);
-                const masterServiceRates = getServiceRatesForTier(clientTier, settings);
-                masterRate = masterServiceRates[transferType] || tierRate;
+                const masterServiceRates = clientInfo.masterType === 'company'
+                    ? getCompanyServiceRates(masterObj, settings)
+                    : getServiceRatesForTier(clientTier, settings);
+                masterRate = masterServiceRates[transferType]
+                    || masterServiceRates.vodafone
+                    || getRateForTier(clientTier, settings);
 
                 actualSubRate = Number((masterRate - clientInfo.customMargin).toFixed(2));
                 if (actualSubRate <= 0) actualSubRate = masterRate;
@@ -734,6 +739,7 @@ export class TransferService {
         let clientDoc: any, currentRate = 0, companyName = 'عميل فردي', employeeName = 'غير محدد';
         let TargetModel: any, targetId: any, creditLimit = 0, tier = 1;
         let userIdForTx = null, companyIdForTx = null;
+        let companyForRates: any = null;
 
         if (accountType === 'client_user') {
             if (req && req.tenant) {
@@ -768,7 +774,10 @@ export class TransferService {
                     employeeName = clientDoc.name;
                     companyName = masterObj.name;
                     tier = masterObj.tier || 1;
-                    currentRate = getRateForTier(tier, settings);
+                    companyForRates = clientDoc.masterType === 'company' ? masterObj : null;
+                    currentRate = companyForRates
+                        ? getCompanyServiceRates(companyForRates, settings).vodafone
+                        : getRateForTier(tier, settings);
                     creditLimit = clientDoc.creditLimit || 0;
                     TargetModel = SubAccount;
                     targetId = clientDoc._id;
@@ -784,6 +793,8 @@ export class TransferService {
                         subAccount: clientDoc,
                         masterObj,
                         MasterModel,
+                        masterType: clientDoc.masterType,
+                        companyForRates,
                         customMargin: clientDoc.customMargin || 0
                     };
                 }
@@ -812,7 +823,8 @@ export class TransferService {
                 if (clientDoc) {
                     companyName = clientDoc.name;
                     tier = clientDoc.tier || 1;
-                    currentRate = getRateForTier(tier, settings);
+                    companyForRates = clientDoc;
+                    currentRate = getCompanyServiceRates(companyForRates, settings).vodafone;
                     creditLimit = clientDoc.creditLimit || 0;
                     TargetModel = ClientCompany;
                     targetId = clientDoc._id;
@@ -827,7 +839,8 @@ export class TransferService {
             clientDoc, currentRate, companyName, employeeName,
             TargetModel, targetId, creditLimit,
             userIdForTx, companyIdForTx,
-            tier
+            tier,
+            companyForRates
         };
     }
 }

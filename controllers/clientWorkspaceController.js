@@ -102,6 +102,22 @@ exports.renderPage = (page) => async (req, res, next) => {
     }
 };
 
+exports.getCurrentRates = async (req, res) => {
+    try {
+        const workspace = await businessPortalService.resolveWorkspace(req);
+        const { serviceRates } = await businessPortalService.getSettingsAndRates(workspace);
+        res.set('Cache-Control', 'no-store');
+        return res.json({ success: true, serviceRates, updatedAt: new Date().toISOString() });
+    } catch (error) {
+        const statusCode = error.statusCode === 401 ? 401 : 500;
+        console.error('[Business Portal] current rates failed:', error.message);
+        return res.status(statusCode).json({
+            success: false,
+            error: statusCode === 401 ? 'انتهت الجلسة. سجل الدخول مرة أخرى.' : 'تعذر تحديث أسعار الصرف.'
+        });
+    }
+};
+
 exports.postCreateCustomer = async (req, res) => {
     try {
         const workspace = await businessPortalService.resolveWorkspace(req);

@@ -18,6 +18,17 @@ const clientCompanySchema = new mongoose.Schema({
     
     // 🟢 تم التعديل: إضافة حقل سعر الصرف المخصص للشركة
     exchangeRate: { type: Number, default: 0 },
+    rateMode: { type: String, enum: ['general', 'custom'] },
+    rateOffsets: {
+        vodafone: { type: Number, default: 0 },
+        post_account: { type: Number, default: 0 },
+        post_card: { type: Number, default: 0 },
+        bank_account: { type: Number, default: 0 },
+        sefa_niger: { type: Number, default: 0 },
+        bankak_sudan: { type: Number, default: 0 }
+    },
+    rateUpdatedAt: { type: Date },
+    rateUpdatedBy: { type: String, trim: true, default: '' },
 
     businessProfile: {
         contactName: { type: String, trim: true, default: '' },

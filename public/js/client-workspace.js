@@ -321,6 +321,55 @@
     transferSubtype?.addEventListener('change', updateCityRequirement);
     if (serviceButtons.length) selectService(config.selectedService || serviceButtons[0].dataset.serviceKey);
 
+    let rateRefreshController = null;
+    const applyServiceRates = (serviceRates) => {
+        let changed = false;
+        (config.services || []).forEach((service) => {
+            const nextRate = Number(serviceRates?.[service.key]);
+            if (!Number.isFinite(nextRate) || nextRate <= 0) return;
+            if (Number(service.rate) !== nextRate) changed = true;
+            service.rate = nextRate;
+
+            const button = serviceButtons.find((item) => item.dataset.serviceKey === service.key);
+            const rateValue = button?.querySelector('[data-service-rate-value]');
+            if (rateValue) rateValue.textContent = `${formatNumber(nextRate, 2)} EGP`;
+        });
+
+        if (activeService) selectService(activeService.key, { resetSmart: false });
+        return changed;
+    };
+
+    const refreshServiceRates = async () => {
+        if (!serviceButtons.length) return;
+        if (rateRefreshController) rateRefreshController.abort();
+        const controller = new AbortController();
+        rateRefreshController = controller;
+        try {
+            const response = await fetch('/client/api/rates', {
+                headers: { Accept: 'application/json' },
+                cache: 'no-store',
+                signal: controller.signal
+            });
+            const payload = await parseJsonResponse(response);
+            if (response.ok && payload.success) applyServiceRates(payload.serviceRates);
+        } catch (error) {
+            if (error.name !== 'AbortError') console.warn('[Business Portal] rate refresh failed');
+        } finally {
+            if (rateRefreshController === controller) rateRefreshController = null;
+        }
+    };
+
+    if (serviceButtons.length) {
+        if (typeof window.io === 'function') {
+            const rateSocket = window.io();
+            rateSocket.on('exchange_rates_updated', refreshServiceRates);
+        }
+        window.setInterval(refreshServiceRates, 30000);
+        document.addEventListener('visibilitychange', () => {
+            if (!document.hidden) refreshServiceRates();
+        });
+    }
+
     const applySmartTransferData = (parsed) => {
         smartParsedData = parsed;
         if (parsed.serviceKey && (config.services || []).some((service) => service.key === parsed.serviceKey)) {

@@ -8,7 +8,7 @@ const User = require('../../models/User');
 const ClientEmployee = require('../../models/ClientEmployee');
 const ClientCompany = require('../../models/ClientCompany');
 const Settings = require('../../models/Settings');
-const { getRateForTier } = require('../../utils/rateHelper');
+const { getRateForTier, getCompanyServiceRates } = require('../../utils/rateHelper');
 const transferService = require('../../services/transferService');
 
 /**
@@ -17,13 +17,13 @@ const transferService = require('../../services/transferService');
 const getHome = async (req, res) => {
     try {
         const { userId, accountType } = req.user;
-        let balance = 0, tier = 1;
+        let balance = 0, tier = 1, company = null;
 
         if (accountType === 'client_company') {
             const emp = await ClientEmployee.findById(userId);
             if (emp) {
                 const comp = await ClientCompany.findById(emp.companyId);
-                if (comp) { balance = comp.balance || 0; tier = comp.tier || 1; }
+                if (comp) { company = comp; balance = comp.balance || 0; tier = comp.tier || 1; }
             }
         } else if (accountType === 'client_user') {
             const user = await User.findById(userId);
@@ -31,7 +31,9 @@ const getHome = async (req, res) => {
         }
 
         const settings = await Settings.findOne({});
-        const currentRate = getRateForTier(tier, settings);
+        const currentRate = company
+            ? getCompanyServiceRates(company, settings).vodafone
+            : getRateForTier(tier, settings);
         res.json({ success: true, balance: Number(balance), rate: Number(currentRate), isOpen: !(settings && settings.isManualClosed) });
     } catch (e) {
         res.status(500).json({ success: false, code: 'SERVER_ERROR', message: 'خطأ داخلي' });
@@ -52,7 +54,7 @@ const getExchangeRate = async (req, res) => {
             const emp = await ClientEmployee.findById(userId);
             if (emp) {
                 const comp = await ClientCompany.findById(emp.companyId);
-                if (comp) { finalRate = getRateForTier(comp.tier || 1, settings); balance = comp.balance || 0; }
+                if (comp) { finalRate = getCompanyServiceRates(comp, settings).vodafone; balance = comp.balance || 0; }
             }
         } else if (accountType === 'client_user') {
             const user = await User.findById(userId);

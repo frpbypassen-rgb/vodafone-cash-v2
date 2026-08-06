@@ -19,7 +19,11 @@ const {
 } = require('../services/autoRouteService');
 const { normalizeAccountCode, resolveAccountByCode } = require('../services/accountCodeService');
 const { logAction } = require('../services/auditService');
-const { getServiceRateForTier, resolveTransferServiceKey } = require('../utils/rateHelper');
+const {
+    getServiceRateForTier,
+    getCompanyServiceRates,
+    resolveTransferServiceKey
+} = require('../utils/rateHelper');
 const { getTransferServiceDefinition } = require('../utils/mobileTransferServiceCatalog');
 const { validateTransferInput } = require('../utils/transferServiceRules');
 const { getClientReceiptProofIds } = require('../services/clientReceiptService');
@@ -190,7 +194,10 @@ exports.postTransfer = async (req, res) => {
         if (isSubAccount) {
             masterObj = account.masterType === 'user' ? await withSess(User.findById(account.masterId)) : await withSess(ClientCompany.findById(account.masterId));
             let clientTier = masterObj.tier || 1;
-            masterRate = getServiceRateForTier(serviceKey, clientTier, settings);
+            const masterRates = account.masterType === 'company'
+                ? getCompanyServiceRates(masterObj, settings)
+                : null;
+            masterRate = masterRates?.[serviceKey] || getServiceRateForTier(serviceKey, clientTier, settings);
             actualSubRate = masterRate - account.customMargin; if (actualSubRate <= 0) actualSubRate = masterRate;
             subCostLYD = parseFloat((amount / actualSubRate).toFixed(3)); masterCostLYD = parseFloat((amount / masterRate).toFixed(3)); commission = parseFloat((subCostLYD - masterCostLYD).toFixed(3));
 
@@ -236,7 +243,7 @@ exports.postTransfer = async (req, res) => {
         } else {
             if (req.session.accountType === 'company') {
                 const company = await withSess(ClientCompany.findById(account.companyId));
-                masterRate = getServiceRateForTier(serviceKey, company.tier || 1, settings);
+                masterRate = getCompanyServiceRates(company, settings)[serviceKey];
                 masterCostLYD = parseFloat((amount / masterRate).toFixed(3));
                 balanceModel = company; companyId = company._id; companyName = company.name; telegramId = account.phone || account.webUsername;
             } else if (isAgentStaff) {

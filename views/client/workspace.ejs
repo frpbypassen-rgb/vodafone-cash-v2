@@ -76,6 +76,7 @@
             selectedService: typeof servicePage !== 'undefined' ? servicePage.selectedService : 'vodafone'
         }).replace(/</g, '\\u003c') %>;
     </script>
-    <script src="/js/client-workspace.js?v=20260805-5" defer></script>
+    <% if (page === 'services') { %><script src="/socket.io/socket.io.js" defer></script><% } %>
+    <script src="/js/client-workspace.js?v=20260806-1" defer></script>
 </body>
 </html>

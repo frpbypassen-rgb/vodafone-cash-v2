@@ -6,7 +6,11 @@ const {
     normalizeRate,
     normalizeBaseRate,
     getServiceRatesForBaseRate,
-    buildMobileRateContract
+    buildMobileRateContract,
+    getCompanyServiceRates,
+    buildCompanyRateOffsets,
+    getCompanyRateConfig,
+    buildCompanyRateContract
 } = require('../utils/rateHelper');
 const {
     getEnabledMobileTransferServiceKeys
@@ -102,5 +106,88 @@ describe('rateHelper mobile service rate contract', () => {
         const nullSettings = buildMobileRateContract(2, null);
         expect(nullSettings.baseExchangeRate).toBe(6.40);
         expect(nullSettings.serviceRates).toEqual(expectedServiceRates(6.40));
+    });
+
+    test('company custom rates keep their offsets when general rates change', () => {
+        const initialSettings = {
+            cashRateLevel2: 6.45,
+            postAccountRateLevel2: 6.40,
+            postCardRateLevel2: 6.30,
+            bankAccountRateLevel2: 6.45,
+            sefaNigerRateLevel2: 6.55,
+            bankakSudanRateLevel2: 6.65
+        };
+        const company = { tier: 2 };
+        const desiredRates = {
+            vodafone: 6.30,
+            post_account: 6.22,
+            post_card: 6.10,
+            bank_account: 6.28,
+            sefa_niger: 6.40,
+            bankak_sudan: 6.48
+        };
+        company.rateMode = 'custom';
+        company.rateOffsets = buildCompanyRateOffsets(company, initialSettings, desiredRates);
+
+        expect(getCompanyServiceRates(company, initialSettings)).toEqual(desiredRates);
+
+        const updatedSettings = {
+            cashRateLevel2: 6.55,
+            postAccountRateLevel2: 6.50,
+            postCardRateLevel2: 6.40,
+            bankAccountRateLevel2: 6.55,
+            sefaNigerRateLevel2: 6.65,
+            bankakSudanRateLevel2: 6.75
+        };
+
+        expect(getCompanyServiceRates(company, updatedSettings)).toEqual({
+            vodafone: 6.40,
+            post_account: 6.32,
+            post_card: 6.20,
+            bank_account: 6.38,
+            sefa_niger: 6.50,
+            bankak_sudan: 6.58
+        });
+    });
+
+    test('company can return to general pricing without stored offsets affecting it', () => {
+        const company = {
+            tier: 3,
+            rateMode: 'general',
+            rateOffsets: { vodafone: -0.5, post_account: -0.5 }
+        };
+        const config = getCompanyRateConfig(company, mockSettings);
+        expect(config.mode).toBe('general');
+        expect(config.effectiveRates).toEqual(expectedServiceRates(6.50));
+    });
+
+    test('legacy company exchange rate remains compatible until pricing is saved', () => {
+        const company = { tier: 2, exchangeRate: 6.20 };
+        expect(getCompanyServiceRates(company, mockSettings)).toEqual({
+            vodafone: 6.20,
+            post_account: 6.20,
+            post_card: 6.20,
+            bank_account: 6.20,
+            sefa_niger: 6.20,
+            bankak_sudan: 6.20
+        });
+    });
+
+    test('mobile company contract exposes the effective company prices', () => {
+        const company = {
+            tier: 2,
+            rateMode: 'custom',
+            rateOffsets: {
+                vodafone: -0.10,
+                post_account: -0.10,
+                post_card: -0.10,
+                bank_account: -0.10,
+                sefa_niger: -0.10,
+                bankak_sudan: -0.10
+            }
+        };
+        const contract = buildCompanyRateContract(company, mockSettings);
+        expect(contract.exchangeRate).toBe(6.35);
+        expect(contract.serviceRates).toEqual(expectedServiceRates(6.35));
     });
 });

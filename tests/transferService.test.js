@@ -252,6 +252,15 @@ describe('Transfer Service Deep Tests', () => {
                 _id: 'company-123',
                 name: 'شركة A',
                 tier: 1,
+                rateMode: 'custom',
+                rateOffsets: {
+                    vodafone: 0.20,
+                    post_account: 0.20,
+                    post_card: 0.20,
+                    bank_account: 0.20,
+                    sefa_niger: 0.20,
+                    bankak_sudan: 0.20
+                },
                 creditLimit: 2000,
                 balance: 10000
             };
@@ -309,6 +318,11 @@ describe('Transfer Service Deep Tests', () => {
             expect(result.success).toBe(true);
             expect(result.statusCode).toBe(200);
             expect(result.code).toBe('SUCCESS');
+            expect(Transaction).toHaveBeenCalledWith(expect.objectContaining({
+                transferType: 'post_account',
+                exchangeRate: 6.55,
+                costLYD: 15.267
+            }));
             expect(mockSession.commitTransaction).toHaveBeenCalled();
         });
     });

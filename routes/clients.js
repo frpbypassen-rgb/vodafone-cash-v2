@@ -4,6 +4,7 @@ const crypto = require('crypto');
 const mongoose = require('mongoose');
 const User = require('../models/User');
 const ClientCompany = require('../models/ClientCompany');
+const Settings = require('../models/Settings');
 const Transaction = require('../models/Transaction');
 const Ledger = require('../models/Ledger');
 const ClientEmployee = require('../models/ClientEmployee');
@@ -15,6 +16,14 @@ const { createDepositReceiptProof } = require('../services/depositReceiptService
 const { voidBalanceAdjustment } = require('../services/balanceAdjustmentService');
 const { logAction } = require('../services/auditService');
 const { loadAdminAccountDirectory } = require('../services/adminAccountDirectoryService');
+const {
+    SERVICE_RATE_KEYS,
+    COMPANY_RATE_INPUT_FIELDS,
+    COMPANY_RATE_MODES,
+    getAdminRateServices,
+    getCompanyRateConfig,
+    buildCompanyRateOffsets
+} = require('../utils/rateHelper');
 const {
     CODE_LENGTHS,
     expectedUserCodeLength,
@@ -172,9 +181,20 @@ router.get('/user/:id', requireAuth, async (req, res) => {
 router.get('/company/:id', requireAuth, async (req, res) => {
     const company = await ClientCompany.findOne({ _id: req.params.id, ...visibleAccountFilter });
     if (!company) return res.redirect('/clients?section=companies&deleteError=notfound');
-    const transactions = await Transaction.find({ companyId: company._id }).sort({ createdAt: -1 }).limit(50);
+    const [transactions, settings] = await Promise.all([
+        Transaction.find({ companyId: company._id }).sort({ createdAt: -1 }).limit(50),
+        Settings.findOne({}).lean()
+    ]);
     const reversibleSettlements = await reversibleSettlementIds({ transactions, entityModel: 'ClientCompany', entityId: company._id });
-    res.render('company_details', { company, transactions, reversibleSettlements, accountCodeLength: CODE_LENGTHS.company, query: req.query });
+    res.render('company_details', {
+        company,
+        transactions,
+        reversibleSettlements,
+        accountCodeLength: CODE_LENGTHS.company,
+        rateServices: getAdminRateServices(),
+        companyRateConfig: getCompanyRateConfig(company, settings || {}),
+        query: req.query
+    });
 });
 
 router.post('/user/:id/add-balance', requireAuth, async (req, res) => {
@@ -446,11 +466,82 @@ router.post('/transaction/:id/void-balance-adjustment', requireAuth, async (req,
 
 router.post('/company/:id/update-rate', requireAuth, requireMaster, async (req, res) => {
     try {
-        const rate = Math.abs(parseFloat(req.body.exchangeRate) || 0);
-        await ClientCompany.findByIdAndUpdate(req.params.id, { exchangeRate: rate }, { strict: false });
-        res.redirect(`/company/${req.params.id}`);
+        const company = await ClientCompany.findOne({ _id: req.params.id, ...visibleAccountFilter }).lean();
+        if (!company) return res.redirect('/clients?section=companies&rateError=notfound');
+
+        const settings = await Settings.findOne({}).lean() || {};
+        const oldConfig = getCompanyRateConfig(company, settings);
+        const legacyRate = Number(req.body.exchangeRate);
+        const mode = req.body.rateMode === COMPANY_RATE_MODES.CUSTOM
+            || (req.body.rateMode === undefined && Number.isFinite(legacyRate) && legacyRate > 0)
+            ? COMPANY_RATE_MODES.CUSTOM
+            : COMPANY_RATE_MODES.GENERAL;
+        let rateOffsets = SERVICE_RATE_KEYS.reduce((offsets, serviceKey) => {
+            offsets[serviceKey] = 0;
+            return offsets;
+        }, {});
+        let effectiveRates = oldConfig.generalRates;
+
+        if (mode === COMPANY_RATE_MODES.CUSTOM) {
+            const desiredRates = {};
+            const hasServiceInputs = SERVICE_RATE_KEYS.some((serviceKey) => (
+                req.body[COMPANY_RATE_INPUT_FIELDS[serviceKey]] !== undefined
+            ));
+
+            SERVICE_RATE_KEYS.forEach((serviceKey) => {
+                const submitted = Number(req.body[COMPANY_RATE_INPUT_FIELDS[serviceKey]]);
+                if (hasServiceInputs) {
+                    desiredRates[serviceKey] = submitted;
+                } else if (Number.isFinite(legacyRate) && legacyRate > 0) {
+                    const commonOffset = legacyRate - oldConfig.generalRates.vodafone;
+                    desiredRates[serviceKey] = oldConfig.generalRates[serviceKey] + commonOffset;
+                }
+            });
+
+            const invalidRate = SERVICE_RATE_KEYS.some((serviceKey) => (
+                !Number.isFinite(desiredRates[serviceKey]) || desiredRates[serviceKey] <= 0
+            ));
+            if (invalidRate) return res.redirect(`/company/${req.params.id}?rateError=invalid#company-pricing`);
+
+            rateOffsets = buildCompanyRateOffsets(company, settings, desiredRates);
+            effectiveRates = SERVICE_RATE_KEYS.reduce((rates, serviceKey) => {
+                rates[serviceKey] = Number(desiredRates[serviceKey].toFixed(2));
+                return rates;
+            }, {});
+        }
+
+        await ClientCompany.findByIdAndUpdate(req.params.id, {
+            $set: {
+                rateMode: mode,
+                rateOffsets,
+                exchangeRate: mode === COMPANY_RATE_MODES.CUSTOM ? effectiveRates.vodafone : 0,
+                rateUpdatedAt: new Date(),
+                rateUpdatedBy: req.session.adminName || req.session.adminId || 'admin'
+            }
+        }, { runValidators: true });
+
+        await logAction({
+            action: 'COMPANY_RATES_UPDATED',
+            req,
+            performedById: req.session.adminId,
+            performedByModel: 'Admin',
+            performedByName: req.session.adminName || 'الإدارة',
+            targetId: company._id,
+            targetModel: 'ClientCompany',
+            oldData: { mode: oldConfig.mode, rates: oldConfig.effectiveRates },
+            newData: { mode, rates: effectiveRates },
+            metadata: { companyName: company.name, followsGeneralRates: mode === COMPANY_RATE_MODES.GENERAL }
+        });
+
+        const io = req.app?.get('io');
+        if (io) {
+            io.emit('exchange_rates_updated', { source: 'company', companyId: String(company._id) });
+            io.emit('update_data');
+        }
+        res.redirect(`/company/${req.params.id}?rateUpdated=1#company-pricing`);
     } catch (e) {
-        res.redirect('/clients?section=companies');
+        console.error('[clients/update-company-rate] failed:', e.message);
+        res.redirect(`/company/${req.params.id}?rateError=failed#company-pricing`);
     }
 });
 

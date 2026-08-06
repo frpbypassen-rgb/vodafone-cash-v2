@@ -59,6 +59,18 @@ const SERVICE_RATE_CONFIG = Object.freeze({
 
 const SERVICE_RATE_KEYS = Object.freeze(Object.keys(SERVICE_RATE_CONFIG));
 
+const COMPANY_RATE_MODES = Object.freeze({
+    GENERAL: 'general',
+    CUSTOM: 'custom'
+});
+
+const COMPANY_RATE_INPUT_FIELDS = Object.freeze(
+    SERVICE_RATE_KEYS.reduce((fields, serviceKey) => {
+        fields[serviceKey] = `companyRate_${serviceKey}`;
+        return fields;
+    }, {})
+);
+
 const SERVICE_RATE_ADMIN_FIELDS = Object.freeze(
     SERVICE_RATE_KEYS.flatMap((key) => {
         const prefix = SERVICE_RATE_CONFIG[key].fieldPrefix;
@@ -154,6 +166,77 @@ const getServiceRatesForTier = (tier, settings) =>
         return rates;
     }, {});
 
+const getCompanyRateMode = (company) => {
+    const explicitMode = String(company?.rateMode || '').trim().toLowerCase();
+    if (explicitMode === COMPANY_RATE_MODES.CUSTOM) return COMPANY_RATE_MODES.CUSTOM;
+    if (explicitMode === COMPANY_RATE_MODES.GENERAL) return COMPANY_RATE_MODES.GENERAL;
+
+    const legacyRate = Number(company?.exchangeRate);
+    return Number.isFinite(legacyRate) && legacyRate > 0
+        ? COMPANY_RATE_MODES.CUSTOM
+        : COMPANY_RATE_MODES.GENERAL;
+};
+
+const getCompanyRateOffsets = (company, settings) => {
+    const baseRates = getServiceRatesForTier(company?.tier || 1, settings);
+    const explicitMode = String(company?.rateMode || '').trim().toLowerCase();
+
+    if (explicitMode === COMPANY_RATE_MODES.GENERAL) {
+        return SERVICE_RATE_KEYS.reduce((offsets, serviceKey) => {
+            offsets[serviceKey] = 0;
+            return offsets;
+        }, {});
+    }
+
+    if (explicitMode === COMPANY_RATE_MODES.CUSTOM) {
+        return SERVICE_RATE_KEYS.reduce((offsets, serviceKey) => {
+            const value = Number(company?.rateOffsets?.[serviceKey]);
+            offsets[serviceKey] = Number.isFinite(value) ? Number(value.toFixed(2)) : 0;
+            return offsets;
+        }, {});
+    }
+
+    const legacyRate = Number(company?.exchangeRate);
+    // Legacy API companies used one absolute rate for every service.
+    return SERVICE_RATE_KEYS.reduce((offsets, serviceKey) => {
+        offsets[serviceKey] = Number.isFinite(legacyRate) && legacyRate > 0
+            ? Number((legacyRate - baseRates[serviceKey]).toFixed(2))
+            : 0;
+        return offsets;
+    }, {});
+};
+
+const getCompanyServiceRates = (company, settings) => {
+    const baseRates = getServiceRatesForTier(company?.tier || 1, settings);
+    if (getCompanyRateMode(company) === COMPANY_RATE_MODES.GENERAL) return baseRates;
+
+    const offsets = getCompanyRateOffsets(company, settings);
+    return SERVICE_RATE_KEYS.reduce((rates, serviceKey) => {
+        const adjusted = Number((baseRates[serviceKey] + offsets[serviceKey]).toFixed(2));
+        rates[serviceKey] = adjusted > 0 ? adjusted : baseRates[serviceKey];
+        return rates;
+    }, {});
+};
+
+const buildCompanyRateOffsets = (company, settings, desiredRates = {}) => {
+    const baseRates = getServiceRatesForTier(company?.tier || 1, settings);
+    return SERVICE_RATE_KEYS.reduce((offsets, serviceKey) => {
+        const desiredRate = Number(desiredRates[serviceKey]);
+        const effectiveRate = Number.isFinite(desiredRate) && desiredRate > 0
+            ? desiredRate
+            : baseRates[serviceKey];
+        offsets[serviceKey] = Number((effectiveRate - baseRates[serviceKey]).toFixed(2));
+        return offsets;
+    }, {});
+};
+
+const getCompanyRateConfig = (company, settings) => ({
+    mode: getCompanyRateMode(company),
+    generalRates: getServiceRatesForTier(company?.tier || 1, settings),
+    effectiveRates: getCompanyServiceRates(company, settings),
+    offsets: getCompanyRateOffsets(company, settings)
+});
+
 const getServiceRatesForBaseRate = (baseExchangeRate) => {
     const base = normalizeBaseRate(baseExchangeRate);
     return getEnabledMobileTransferServices().reduce((rates, service) => {
@@ -209,6 +292,21 @@ const buildMobileRateContract = (tier, settings) => {
     };
 };
 
+const buildCompanyRateContract = (company, settings) => {
+    const tier = normalizeTier(company?.tier || 1);
+    const serviceRates = getCompanyServiceRates(company, settings);
+    const exchangeRate = serviceRates.vodafone || getServiceRateForTier('vodafone', tier, settings);
+
+    return {
+        tier,
+        tierLabel: `مستوى ${tier}`,
+        baseExchangeRate: exchangeRate,
+        exchangeRate,
+        serviceRates,
+        serviceCatalog: buildMobileServiceCatalogDto()
+    };
+};
+
 module.exports = {
     getRateForTier,
     normalizeTier,
@@ -217,11 +315,20 @@ module.exports = {
     getServiceRatesForBaseRate,
     getServiceRateForTier,
     getServiceRatesForTier,
+    getCompanyRateMode,
+    getCompanyRateOffsets,
+    getCompanyServiceRates,
+    buildCompanyRateOffsets,
+    getCompanyRateConfig,
     applyRateMargin,
     resolveTransferServiceKey,
     getAdminRateServices,
     SERVICE_RATE_ADMIN_FIELDS,
     SERVICE_RATE_CONFIG,
+    SERVICE_RATE_KEYS,
+    COMPANY_RATE_MODES,
+    COMPANY_RATE_INPUT_FIELDS,
     buildMobileRateContract,
+    buildCompanyRateContract,
     buildMobileServiceCatalogDto
 };

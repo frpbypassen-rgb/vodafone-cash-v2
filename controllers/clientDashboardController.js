@@ -10,7 +10,7 @@ const StoreCategory = require('../models/StoreCategory');
 const StoreProduct = require('../models/StoreProduct');
 const Card = require('../models/Card');
 const { updateBalanceWithLedger } = require('../services/walletService');
-const { getServiceRatesForTier, applyRateMargin } = require('../utils/rateHelper');
+const { getServiceRatesForTier, getCompanyServiceRates, applyRateMargin } = require('../utils/rateHelper');
 const clientCompanyController = require('./clientCompanyController');
 const clientWorkspaceController = require('./clientWorkspaceController');
 const businessPortalService = require('../services/businessPortalService');
@@ -95,14 +95,17 @@ exports.getDashboard = async (req, res) => {
             balance = account.balance;
             let master = account.masterType === 'user' ? await User.findById(account.masterId) : await ClientCompany.findById(account.masterId);
             clientTier = master ? (master.tier || 1) : 1;
-            serviceRates = applyRateMargin(getServiceRatesForTier(clientTier, set), account.customMargin);
+            const masterRates = account.masterType === 'company'
+                ? getCompanyServiceRates(master, set)
+                : getServiceRatesForTier(clientTier, set);
+            serviceRates = applyRateMargin(masterRates, account.customMargin);
             currentRate = serviceRates.vodafone;
         } else if (req.session.accountType === 'company') {
             const company = await ClientCompany.findById(account.companyId);
             if (!company || company.status !== 'active') return res.redirect('/client/logout');
             balance = company.balance; clientTier = company.tier || 1;
             accountCode = company.accountCode || '';
-            serviceRates = getServiceRatesForTier(clientTier, set);
+            serviceRates = getCompanyServiceRates(company, set);
             currentRate = serviceRates.vodafone;
         } else {
             balance = account.balance; clientTier = account.tier || 1;
@@ -301,7 +304,9 @@ exports.getApiTransactions = async (req, res) => {
                 Transaction.find(filter).sort({ createdAt: -1 }).limit(40).lean(),
                 Settings.findOne({}).lean()
             ]);
-            const serviceRates = getServiceRatesForTier(workspace.entity.tier || 1, settings || {});
+            const serviceRates = workspace.isCompany
+                ? getCompanyServiceRates(workspace.entity, settings || {})
+                : getServiceRatesForTier(workspace.entity.tier || 1, settings || {});
 
             return res.json({
                 success: true,
@@ -350,7 +355,10 @@ exports.getApiTransactions = async (req, res) => {
         if (isSubAccount) {
             let master = account.masterType === 'user' ? await User.findById(account.masterId) : await ClientCompany.findById(account.masterId);
             const tier = master ? (master.tier || 1) : 1;
-            serviceRates = applyRateMargin(getServiceRatesForTier(tier, set), account.customMargin);
+            const masterRates = account.masterType === 'company'
+                ? getCompanyServiceRates(master, set)
+                : getServiceRatesForTier(tier, set);
+            serviceRates = applyRateMargin(masterRates, account.customMargin);
             currentRate = serviceRates.vodafone;
         } else {
             let tier = 1;
@@ -358,9 +366,10 @@ exports.getApiTransactions = async (req, res) => {
                 const comp = await ClientCompany.findById(account.companyId);
                 tier = comp ? (comp.tier || 1) : 1;
                 availableBalance = comp ? Number(comp.balance || 0) : 0;
+                serviceRates = comp ? getCompanyServiceRates(comp, set) : getServiceRatesForTier(tier, set);
             }
             else { tier = account.tier || 1; }
-            serviceRates = getServiceRatesForTier(tier, set);
+            if (!serviceRates.vodafone) serviceRates = getServiceRatesForTier(tier, set);
             currentRate = serviceRates.vodafone;
         }
 
