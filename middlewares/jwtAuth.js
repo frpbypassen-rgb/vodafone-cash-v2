@@ -13,13 +13,28 @@ if (!process.env.JWT_REFRESH_SECRET || process.env.JWT_REFRESH_SECRET.length < 3
 const JWT_SECRET = process.env.JWT_SECRET;
 const JWT_REFRESH_SECRET = process.env.JWT_REFRESH_SECRET;
 
+const ensureActiveExecutor = async (decodedUser) => {
+    if (!decodedUser || decodedUser.accountType !== 'executor') return true;
+
+    const Employee = require('../models/Employee');
+    const employee = await Employee.findById(decodedUser.userId)
+        .select('status groupId')
+        .populate('groupId', 'status');
+    return Boolean(
+        employee
+        && employee.status === 'active'
+        && employee.groupId
+        && employee.groupId.status === 'active'
+    );
+};
+
 const authenticateJWT = (req, res, next) => {
     const authHeader = req.headers.authorization;
 
     if (authHeader && authHeader.startsWith('Bearer ')) {
         const token = authHeader.split(' ')[1];
 
-        jwt.verify(token, JWT_SECRET, (err, decodedUser) => {
+        jwt.verify(token, JWT_SECRET, async (err, decodedUser) => {
             if (err) {
                 const code = err.name === 'TokenExpiredError' ? 'TOKEN_EXPIRED' : 'TOKEN_INVALID';
                 const message = code === 'TOKEN_EXPIRED'
@@ -32,8 +47,25 @@ const authenticateJWT = (req, res, next) => {
                     correlationId: req.correlationId || null
                 });
             }
-            req.user = decodedUser;
-            next();
+            try {
+                if (!await ensureActiveExecutor(decodedUser)) {
+                    return res.status(401).json({
+                        success: false,
+                        code: 'ACCOUNT_INACTIVE',
+                        message: 'حساب المنفذ موقوف أو مؤرشف',
+                        correlationId: req.correlationId || null
+                    });
+                }
+                req.user = decodedUser;
+                next();
+            } catch (_) {
+                return res.status(401).json({
+                    success: false,
+                    code: 'ACCOUNT_INACTIVE',
+                    message: 'تعذر التحقق من حالة حساب المنفذ',
+                    correlationId: req.correlationId || null
+                });
+            }
         });
     } else {
         res.status(401).json({
@@ -45,4 +77,4 @@ const authenticateJWT = (req, res, next) => {
     }
 };
 
-module.exports = { authenticateJWT, JWT_SECRET, JWT_REFRESH_SECRET };
+module.exports = { authenticateJWT, ensureActiveExecutor, JWT_SECRET, JWT_REFRESH_SECRET };

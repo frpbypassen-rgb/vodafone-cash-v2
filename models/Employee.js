@@ -15,7 +15,9 @@ const employeeSchema = new mongoose.Schema({
     lastOtpDate: { type: String },
     telegramId: { type: String }, // معرف التليجرام للموظف
     canViewAllReports: { type: Boolean, default: false }, // السماح برؤية جميع تقارير المجموعة
-    tenantId: { type: mongoose.Schema.Types.ObjectId, ref: 'Tenant' }
+    tenantId: { type: mongoose.Schema.Types.ObjectId, ref: 'Tenant' },
+    archivedAt: { type: Date, default: null },
+    archivedBy: { type: String, default: '' }
 }, { timestamps: true });
 
 employeeSchema.index({ webUsername: 1, groupId: 1 }, { unique: true });

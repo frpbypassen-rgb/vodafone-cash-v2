@@ -299,7 +299,7 @@ router.post('/transaction/:id/assign-executor', async (req, res) => {
 
         const executorGroup = await ExecutorGroup.findById(executorGroupId);
 
-        if (executorGroup && !executorGroup.isManagerBot) { 
+        if (executorGroup && executorGroup.status === 'active' && !executorGroup.isManagerBot) {
             
             // 🤖====================================================🤖
             // 🚀 المسار الذكي: إذا كان هذا البوت آلياً (API Integration)

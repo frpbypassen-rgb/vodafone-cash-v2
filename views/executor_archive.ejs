@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>أرشيف <%= bot.name %> | الأهرام</title>
+    <script>
+        const savedTheme = localStorage.getItem('ahram_theme') || 'dark';
+        document.documentElement.setAttribute('data-theme', savedTheme);
+    </script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.rtl.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800;900&family=JetBrains+Mono:wght@600;700&display=swap" rel="stylesheet">
+    <style>
+        * { box-sizing: border-box; letter-spacing: 0; }
+        body { margin: 0; color: var(--text-main, #142033); background: var(--bg-body, #edf2f7); font-family: 'Tajawal', Arial, sans-serif; }
+        .archive-page { min-width: 0; }
+        .page-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 18px; margin-bottom: 18px; }
+        .page-heading { min-width: 0; }
+        .page-kicker { margin-bottom: 5px; color: var(--brand-gold, #d4af37); font-size: .76rem; font-weight: 900; }
+        .page-heading h1 { margin: 0; color: var(--text-main, #142033); font-size: clamp(1.35rem, 2.2vw, 1.9rem); font-weight: 900; line-height: 1.35; overflow-wrap: anywhere; }
+        .page-heading p { margin: 7px 0 0; color: var(--text-muted, #64748b); font-size: .8rem; font-weight: 700; }
+        .back-button { min-height: 42px; display: inline-flex; align-items: center; justify-content: center; gap: 8px; flex: 0 0 auto; padding: 0 14px; color: var(--text-main, #142033); background: var(--card-bg, #fff); border: 1px solid var(--border-glass, #d8e0ea); border-radius: 6px; text-decoration: none; font-size: .8rem; font-weight: 900; }
+        .back-button:hover { color: #fff; background: #475569; border-color: #475569; }
+        .archive-banner { display: grid; grid-template-columns: 46px minmax(0, 1fr); align-items: center; gap: 13px; padding: 14px 16px; margin-bottom: 16px; color: var(--text-main, #142033); background: rgba(100, 116, 139, .1); border: 1px solid rgba(100, 116, 139, .3); border-right: 4px solid #64748b; border-radius: 8px; }
+        .archive-banner-icon { width: 42px; height: 42px; display: grid; place-items: center; color: #64748b; background: rgba(100, 116, 139, .14); border-radius: 6px; }
+        .archive-banner strong { display: block; font-size: .9rem; font-weight: 900; }
+        .archive-banner span { display: block; margin-top: 3px; color: var(--text-muted, #64748b); font-size: .75rem; font-weight: 700; line-height: 1.6; }
+        .metrics { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin-bottom: 16px; }
+        .metric { min-width: 0; min-height: 108px; display: flex; flex-direction: column; justify-content: space-between; padding: 14px; background: var(--card-bg, #fff); border: 1px solid var(--border-glass, #d8e0ea); border-radius: 8px; }
+        .metric-label { display: flex; align-items: center; justify-content: space-between; gap: 8px; color: var(--text-muted, #64748b); font-size: .72rem; font-weight: 900; }
+        .metric-label i { color: var(--brand-gold, #d4af37); }
+        .metric strong { color: var(--text-main, #142033); font-family: 'JetBrains Mono', monospace; font-size: clamp(1rem, 1.6vw, 1.35rem); overflow-wrap: anywhere; }
+        .archive-info { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0; margin-bottom: 16px; background: var(--card-bg, #fff); border: 1px solid var(--border-glass, #d8e0ea); border-radius: 8px; }
+        .info-item { min-width: 0; padding: 13px 15px; }
+        .info-item + .info-item { border-right: 1px solid var(--border-glass, #d8e0ea); }
+        .info-item span { display: block; margin-bottom: 4px; color: var(--text-muted, #64748b); font-size: .68rem; font-weight: 900; }
+        .info-item strong { display: block; color: var(--text-main, #142033); font-size: .8rem; font-weight: 800; line-height: 1.6; overflow-wrap: anywhere; }
+        .filter-bar { padding: 15px; margin-bottom: 16px; background: var(--card-bg, #fff); border: 1px solid var(--border-glass, #d8e0ea); border-radius: 8px; }
+        .form-label { margin-bottom: 5px; color: var(--text-muted, #64748b); font-size: .7rem; font-weight: 900; }
+        .form-control, .form-select { min-height: 42px; color: var(--text-main, #142033); background: var(--input-bg, #f8fafc); border: 1px solid var(--border-glass, #d8e0ea); border-radius: 6px; font-size: .82rem; font-weight: 700; }
+        .form-control:focus, .form-select:focus { color: var(--text-main, #142033); background: var(--input-bg, #fff); border-color: var(--brand-gold, #d4af37); box-shadow: 0 0 0 3px rgba(212, 175, 55, .14); }
+        .filter-button { min-height: 42px; border-radius: 6px; font-size: .8rem; font-weight: 900; }
+        .data-surface { overflow: hidden; background: var(--card-bg, #fff); border: 1px solid var(--border-glass, #d8e0ea); border-radius: 8px; }
+        .data-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 15px 16px; border-bottom: 1px solid var(--border-glass, #d8e0ea); }
+        .data-header h2 { margin: 0; color: var(--text-main, #142033); font-size: .95rem; font-weight: 900; }
+        .result-count { color: var(--text-muted, #64748b); font-family: 'JetBrains Mono', monospace; font-size: .72rem; font-weight: 700; }
+        .table-wrap { overflow-x: auto; }
+        .archive-table { min-width: 1120px; margin: 0; color: var(--text-main, #142033); }
+        .archive-table th { padding: 13px 11px; color: var(--text-muted, #64748b); background: var(--input-bg, #f8fafc); border-bottom: 1px solid var(--border-glass, #d8e0ea); font-size: .7rem; font-weight: 900; white-space: nowrap; }
+        .archive-table td { padding: 12px 11px; color: var(--text-main, #142033); border-bottom: 1px solid var(--border-glass, #d8e0ea); font-size: .78rem; vertical-align: middle; }
+        .archive-table tbody tr:last-child td { border-bottom: 0; }
+        .archive-table tbody tr:hover td { background: rgba(100, 116, 139, .05); }
+        .mono { font-family: 'JetBrains Mono', monospace; direction: ltr; unicode-bidi: plaintext; }
+        .muted { color: var(--text-muted, #64748b); font-size: .69rem; font-weight: 700; }
+        .transaction-link { color: var(--brand-primary, #16456f); font-family: 'JetBrains Mono', monospace; font-weight: 800; text-decoration: none; }
+        .transaction-link:hover { color: var(--brand-gold, #d4af37); }
+        .status-pill { display: inline-flex; align-items: center; gap: 5px; padding: 5px 8px; border-radius: 12px; font-size: .68rem; font-weight: 900; white-space: nowrap; }
+        .status-completed, .status-deposit { color: #047857; background: rgba(16, 185, 129, .12); }
+        .status-deduction, .status-cancelled_by_admin, .status-rejected { color: #b91c1c; background: rgba(239, 68, 68, .1); }
+        .status-pending, .status-processing, .status-accepted, .status-deposit_pending { color: #a16207; background: rgba(245, 158, 11, .12); }
+        .empty-state { padding: 54px 20px; color: var(--text-muted, #64748b); text-align: center; font-weight: 800; }
+        .empty-state i { display: block; margin-bottom: 12px; font-size: 2rem; opacity: .35; }
+        .pagination-wrap { display: flex; align-items: center; justify-content: center; padding: 15px; border-top: 1px solid var(--border-glass, #d8e0ea); }
+        .pagination { margin: 0; }
+        .pagination .page-link { color: var(--text-main, #142033); background: var(--input-bg, #f8fafc); border-color: var(--border-glass, #d8e0ea); }
+        .pagination .active .page-link { color: #fff; background: var(--brand-primary, #16456f); border-color: var(--brand-primary, #16456f); }
+        @media (max-width: 991px) { .metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+        @media (max-width: 640px) {
+            .page-header { align-items: stretch; flex-direction: column; }
+            .back-button { width: 100%; }
+            .metrics { grid-template-columns: 1fr 1fr; }
+            .metric { min-height: 96px; padding: 11px; }
+            .archive-info { grid-template-columns: 1fr; }
+            .info-item + .info-item { border-top: 1px solid var(--border-glass, #d8e0ea); border-right: 0; }
+            .data-header { align-items: flex-start; flex-direction: column; }
+        }
+    </style>
+</head>
+<body>
+<button class="mobile-nav-toggle" type="button" onclick="toggleSidebar()" aria-label="فتح القائمة"><i class="fa-solid fa-bars"></i></button>
+<div class="sidebar-overlay" onclick="toggleSidebar()"></div>
+<%- include('partials/sidebar', { activePage: 'executors' }) %>
+
+<%
+    const statusLabels = {
+        pending: 'معلقة', processing: 'قيد التنفيذ', accepted: 'مقبولة', completed: 'ناجحة',
+        rejected: 'مرفوضة', cancelled_by_admin: 'ملغية من الإدارة', deposit: 'إيداع',
+        deduction: 'خصم', deposit_pending: 'طلب إيداع'
+    };
+    const money = (value, digits = 2) => Number(value || 0).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: digits });
+    const dateText = (value) => value ? new Date(value).toLocaleString('ar-EG') : '---';
+    const pageUrl = (pageNumber) => {
+        const params = new URLSearchParams();
+        Object.entries(filters || {}).forEach(([key, value]) => { if (value) params.set(key, value); });
+        params.set('page', pageNumber);
+        return `/executor/${bot._id}?${params.toString()}`;
+    };
+%>
+
+<main class="main-content archive-page">
+    <header class="page-header">
+        <div class="page-heading">
+            <div class="page-kicker"><i class="fa-solid fa-box-archive ms-1"></i>أرشيف المنفذين</div>
+            <h1><%= bot.name %></h1>
+            <p>ملف محفوظ للقراءة والتدقيق، ولا يقبل أي عمليات تشغيلية جديدة.</p>
+        </div>
+        <a class="back-button" href="/executors?tab=archive"><i class="fa-solid fa-arrow-right"></i> العودة إلى الأرشيف</a>
+    </header>
+
+    <section class="archive-banner" aria-label="حالة الحساب">
+        <div class="archive-banner-icon"><i class="fa-solid fa-lock"></i></div>
+        <div><strong>الحساب مؤرشف وموقوف</strong><span>تم تعطيل حسابات موظفي المنفذ وإيقاف التوجيه إليه، بينما بقيت العمليات والسجلات المالية محفوظة.</span></div>
+    </section>
+
+    <section class="metrics" aria-label="ملخص الأرشيف">
+        <div class="metric"><div class="metric-label"><span>كل العمليات عند الأرشفة</span><i class="fa-solid fa-receipt"></i></div><strong><%= bot.archiveTransactionCount ?? totalTransactions %></strong></div>
+        <div class="metric"><div class="metric-label"><span>نتائج العرض الحالي</span><i class="fa-solid fa-filter"></i></div><strong><%= totalTransactions %></strong></div>
+        <div class="metric"><div class="metric-label"><span>حسابات الموظفين</span><i class="fa-solid fa-users"></i></div><strong><%= bot.archiveEmployeeCount ?? 0 %></strong></div>
+        <div class="metric"><div class="metric-label"><span>الرصيد الختامي EGP</span><i class="fa-solid fa-wallet"></i></div><strong dir="ltr"><%= money(bot.archiveBalance ?? bot.balance) %></strong></div>
+    </section>
+
+    <section class="archive-info" aria-label="بيانات الأرشفة">
+        <div class="info-item"><span>تاريخ الأرشفة</span><strong><%= dateText(bot.archivedAt) %></strong></div>
+        <div class="info-item"><span>نفذ الإجراء</span><strong><%= bot.archivedBy || 'الإدارة' %></strong></div>
+        <div class="info-item"><span>سبب الأرشفة</span><strong><%= bot.archiveReason || 'أرشفة حساب غير نشط' %></strong></div>
+    </section>
+
+    <section class="filter-bar">
+        <form method="GET" action="/executor/<%= bot._id %>" class="row g-3 align-items-end">
+            <div class="col-12 col-lg-4">
+                <label class="form-label" for="archiveSearch">بحث في العمليات</label>
+                <input id="archiveSearch" class="form-control" name="search" value="<%= filters.search || '' %>" placeholder="رقم العملية، الهاتف، الشركة أو الموظف">
+            </div>
+            <div class="col-12 col-md-4 col-lg-2">
+                <label class="form-label" for="archiveStatus">الحالة</label>
+                <select id="archiveStatus" class="form-select" name="status">
+                    <option value="">كل الحالات</option>
+                    <% Object.entries(statusLabels).forEach(([value, label]) => { %><option value="<%= value %>" <%= filters.status === value ? 'selected' : '' %>><%= label %></option><% }) %>
+                </select>
+            </div>
+            <div class="col-6 col-md-3 col-lg-2">
+                <label class="form-label" for="archiveFrom">من تاريخ</label>
+                <input id="archiveFrom" class="form-control" type="date" name="fromDate" value="<%= filters.fromDate || '' %>">
+            </div>
+            <div class="col-6 col-md-3 col-lg-2">
+                <label class="form-label" for="archiveTo">إلى تاريخ</label>
+                <input id="archiveTo" class="form-control" type="date" name="toDate" value="<%= filters.toDate || '' %>">
+            </div>
+            <div class="col-12 col-md-2 col-lg-2 d-grid">
+                <button class="btn btn-primary filter-button" type="submit"><i class="fa-solid fa-magnifying-glass ms-1"></i> تطبيق</button>
+            </div>
+        </form>
+    </section>
+
+    <section class="data-surface">
+        <header class="data-header">
+            <h2><i class="fa-solid fa-clock-rotate-left ms-2 text-secondary"></i>العمليات المحفوظة</h2>
+            <span class="result-count" dir="ltr"><%= totalTransactions %> RECORDS</span>
+        </header>
+        <div class="table-wrap">
+            <table class="table archive-table text-center align-middle">
+                <thead><tr><th>رقم العملية</th><th>الجهة / الموظف</th><th>المستفيد</th><th>المبلغ EGP</th><th>القيمة LYD</th><th>الحالة</th><th>المنفذ المسجل</th><th>التاريخ</th><th>فتح</th></tr></thead>
+                <tbody>
+                    <% if (!transactions.length) { %>
+                        <tr><td colspan="9"><div class="empty-state"><i class="fa-solid fa-folder-open"></i>لا توجد عمليات مطابقة للفلاتر الحالية.</div></td></tr>
+                    <% } %>
+                    <% transactions.forEach(tx => { %>
+                        <tr>
+                            <td><a class="transaction-link" href="/transactions?search=<%= encodeURIComponent(tx.customId || tx._id) %>"><%= tx.customId || tx._id %></a></td>
+                            <td><strong><%= tx.companyName || 'عميل فردي' %></strong><span class="muted d-block"><%= tx.employeeName || tx.subAccountName || '---' %></span></td>
+                            <td><strong dir="ltr"><%= tx.vodafoneNumber || tx.accountNumber || '---' %></strong><span class="muted d-block"><%= tx.accountName || tx.transferType || '---' %></span></td>
+                            <td class="mono fw-bold"><%= money(tx.amount) %></td>
+                            <td class="mono"><%= money(tx.costLYD, 3) %></td>
+                            <td><span class="status-pill status-<%= tx.status %>"><%= statusLabels[tx.status] || tx.status %></span></td>
+                            <td><strong><%= tx.executorName || bot.name %></strong><span class="muted d-block mono"><%= tx.operatorId || '---' %></span></td>
+                            <td><span class="mono"><%= dateText(tx.updatedAt || tx.createdAt) %></span></td>
+                            <td><a class="btn btn-sm btn-outline-secondary" href="/transactions?search=<%= encodeURIComponent(tx.customId || tx._id) %>" title="فتح تفاصيل العملية" aria-label="فتح تفاصيل العملية"><i class="fa-solid fa-arrow-up-right-from-square"></i></a></td>
+                        </tr>
+                    <% }) %>
+                </tbody>
+            </table>
+        </div>
+        <% if (totalPages > 1) { %>
+            <nav class="pagination-wrap" aria-label="صفحات الأرشيف">
+                <ul class="pagination pagination-sm">
+                    <li class="page-item <%= currentPage <= 1 ? 'disabled' : '' %>"><a class="page-link" href="<%= pageUrl(currentPage - 1) %>" aria-label="السابق"><i class="fa-solid fa-chevron-right"></i></a></li>
+                    <% const startPage = Math.max(1, currentPage - 2); const endPage = Math.min(totalPages, currentPage + 2); %>
+                    <% for (let pageNumber = startPage; pageNumber <= endPage; pageNumber += 1) { %><li class="page-item <%= pageNumber === currentPage ? 'active' : '' %>"><a class="page-link" href="<%= pageUrl(pageNumber) %>"><%= pageNumber %></a></li><% } %>
+                    <li class="page-item <%= currentPage >= totalPages ? 'disabled' : '' %>"><a class="page-link" href="<%= pageUrl(currentPage + 1) %>" aria-label="التالي"><i class="fa-solid fa-chevron-left"></i></a></li>
+                </ul>
+            </nav>
+        <% } %>
+    </section>
+</main>
+
+<script>
+    function toggleSidebar() {
+        document.querySelector('.sidebar')?.classList.toggle('active');
+        document.querySelector('.sidebar-overlay')?.classList.toggle('active');
+    }
+</script>
+</body>
+</html>

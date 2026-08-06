@@ -183,10 +183,142 @@
         .executor-link-label { color: var(--text-muted); font-size: 0.78rem; font-weight: 800; margin-bottom: 7px; }
         .executor-link-input { min-width: 0; direction: ltr; text-align: left; font-family: 'JetBrains Mono', monospace; font-size: 0.78rem; }
         .copy-link-btn { width: 44px; flex: 0 0 44px; }
+        .executor-tabs {
+            display: inline-flex;
+            gap: 4px;
+            padding: 4px;
+            margin-top: 6px;
+            background: var(--input-bg);
+            border: 1px solid var(--border-glass);
+            border-radius: 8px;
+        }
+        .executor-tab {
+            min-height: 42px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            padding: 0 16px;
+            color: var(--text-muted);
+            background: transparent;
+            border: 0;
+            border-radius: 6px;
+            font-size: 0.84rem;
+            font-weight: 900;
+        }
+        .executor-tab.active {
+            color: #fff;
+            background: var(--brand-primary);
+            box-shadow: 0 4px 12px rgba(0, 26, 77, 0.2);
+        }
+        .executor-tab .tab-count {
+            min-width: 24px;
+            height: 24px;
+            display: inline-grid;
+            place-items: center;
+            padding: 0 6px;
+            color: inherit;
+            background: rgba(127, 127, 127, 0.16);
+            border-radius: 12px;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.7rem;
+        }
+        .executor-archive-btn {
+            width: 40px;
+            height: 40px;
+            display: inline-grid;
+            place-items: center;
+            flex: 0 0 40px;
+            padding: 0;
+            color: #dc2626;
+            background: rgba(220, 38, 38, 0.08);
+            border: 1px solid rgba(220, 38, 38, 0.28);
+            border-radius: 6px;
+            cursor: pointer;
+        }
+        .executor-archive-btn:hover,
+        .executor-archive-btn:focus-visible {
+            color: #fff;
+            background: #dc2626;
+            outline: none;
+        }
+        .executor-archive-btn.is-locked {
+            color: var(--text-muted);
+            background: var(--input-bg);
+            border-color: var(--border-glass);
+        }
+        .archive-card {
+            height: 100%;
+            padding: 20px;
+            background: var(--card-bg);
+            border: 1px solid var(--border-glass);
+            border-right: 4px solid #64748b;
+            border-radius: 8px;
+            box-shadow: var(--shadow-soft);
+        }
+        .archive-card-header {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 14px;
+        }
+        .archive-identity { display: flex; align-items: center; gap: 12px; min-width: 0; }
+        .archive-icon {
+            width: 48px;
+            height: 48px;
+            display: grid;
+            place-items: center;
+            flex: 0 0 48px;
+            color: #64748b;
+            background: rgba(100, 116, 139, 0.12);
+            border-radius: 6px;
+            font-size: 1.1rem;
+        }
+        .archive-metrics {
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            margin: 18px 0;
+            padding: 14px 0;
+            border-top: 1px solid var(--border-glass);
+            border-bottom: 1px solid var(--border-glass);
+        }
+        .archive-metric { min-width: 0; padding: 0 10px; text-align: center; }
+        .archive-metric + .archive-metric { border-right: 1px solid var(--border-glass); }
+        .archive-metric span { display: block; color: var(--text-muted); font-size: 0.68rem; font-weight: 800; }
+        .archive-metric strong { display: block; margin-top: 5px; color: var(--text-main); font-size: 0.86rem; overflow-wrap: anywhere; }
+        .archive-reason {
+            min-height: 44px;
+            margin-bottom: 15px;
+            color: var(--text-muted);
+            font-size: 0.78rem;
+            font-weight: 700;
+            line-height: 1.7;
+        }
+        .archive-meta { color: var(--text-muted); font-size: 0.72rem; font-weight: 700; }
+        .archive-open-btn {
+            min-height: 42px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            width: 100%;
+            margin-top: 14px;
+            color: var(--text-main);
+            background: var(--input-bg);
+            border: 1px solid var(--border-glass);
+            border-radius: 6px;
+            text-decoration: none;
+            font-size: 0.8rem;
+            font-weight: 900;
+        }
+        .archive-open-btn:hover { color: #fff; background: #475569; border-color: #475569; }
         @media (max-width: 767px) {
             .executor-access-bar { grid-template-columns: 1fr; padding: 14px; }
             .admin-nav { align-items: stretch !important; gap: 12px; }
             .admin-nav .btn { width: 100%; }
+            .executor-tabs { width: 100%; }
+            .executor-tab { flex: 1; padding: 0 10px; }
+            .archive-metric { padding: 0 5px; }
         }
     </style>
 
@@ -252,73 +384,129 @@
             </div>
         <% } %>
 
-        <div class="row g-4 mt-2 pb-5">
-            <% if (bots.length === 0) { %>
-                <div class="col-12 text-center py-5">
-                    <i class="fa-solid fa-robot fa-4x text-muted opacity-25 mb-3"></i>
-                    <h5 class="text-muted fw-bold">لا يوجد أي بوتات تنفيذ مسجلة حتى الآن.</h5>
-                </div>
-            <% } %>
-            
-            <% bots.forEach(bot => { %>
-                <div class="col-xl-4 col-md-6">
-                    <div class="card-3d-wrapper">
-                        <div class="bot-card-3d" style="border-top: 5px solid <%= bot.isApiBot ? '#f59e0b' : (bot.isManagerBot ? '#3b82f6' : '#10b981') %>;">
-                            
-                            <div>
-                                <div class="d-flex justify-content-between align-items-start mb-3">
-                                    <div class="d-flex align-items-center gap-3">
-                                        <div class="bot-icon-3d <%= bot.isApiBot ? 'api-bot-icon' : (bot.isManagerBot ? 'manager-bot-icon' : 'normal-bot-icon') %>">
-                                            <i class="fa-solid <%= bot.isApiBot ? 'fa-plug-circle-bolt' : (bot.isManagerBot ? 'fa-building' : 'fa-robot') %>"></i>
-                                        </div>
-                                        <div>
-                                            <h5 class="fw-bold m-0 text-dark mb-1"><%= bot.name %></h5>
-                                            <span class="badge <%= bot.status === 'active' ? 'bg-success text-success border-success' : 'bg-danger text-danger border-danger' %> bg-opacity-10 border rounded-pill px-3 py-1 mt-1" style="font-size:0.75rem;">
-                                                <i class="fa-solid <%= bot.status === 'active' ? 'fa-check-circle' : 'fa-ban' %> me-1"></i><%= bot.status === 'active' ? 'مفعل ونشط' : 'متوقف' %>
-                                            </span>
-                                            <% if (bot.isApiBot) { %>
-                                                <div class="text-muted small fw-bold mt-2">
-                                                    <i class="fa-solid fa-plug me-1"></i>
-                                                    <%= bot.apiProviderKey === 'zayn_external_aggregator' ? 'Zayn External Aggregator' : (bot.apiProviderKey || 'API Provider') %>
+        <% if (typeof query !== 'undefined' && query.archived) { %>
+            <div class="alert alert-success fw-bold border-0 shadow-sm" style="border-radius:8px;">
+                <i class="fa-solid fa-box-archive me-1"></i> تم نقل حساب المنفذ إلى الأرشيف وحفظ جميع عملياته.
+            </div>
+        <% } %>
+        <% if (typeof query !== 'undefined' && query.archiveError === 'READ_ONLY') { %>
+            <div class="alert alert-warning fw-bold border-0 shadow-sm" style="border-radius:8px;">
+                <i class="fa-solid fa-lock me-1"></i> الحساب المؤرشف متاح للقراءة فقط ولا يقبل تعديلات تشغيلية.
+            </div>
+        <% } %>
+
+        <% const showArchiveTab = typeof query !== 'undefined' && query.tab === 'archive'; %>
+        <div class="executor-tabs" role="tablist" aria-label="أقسام حسابات المنفذين">
+            <button class="executor-tab <%= showArchiveTab ? '' : 'active' %>" id="current-executors-tab" data-bs-toggle="tab" data-bs-target="#current-executors-pane" type="button" role="tab" aria-controls="current-executors-pane" aria-selected="<%= showArchiveTab ? 'false' : 'true' %>">
+                <i class="fa-solid fa-signal"></i> المنفذون الحاليون <span class="tab-count"><%= bots.length %></span>
+            </button>
+            <button class="executor-tab <%= showArchiveTab ? 'active' : '' %>" id="archived-executors-tab" data-bs-toggle="tab" data-bs-target="#archived-executors-pane" type="button" role="tab" aria-controls="archived-executors-pane" aria-selected="<%= showArchiveTab ? 'true' : 'false' %>">
+                <i class="fa-solid fa-box-archive"></i> الأرشيف <span class="tab-count"><%= archivedBots.length %></span>
+            </button>
+        </div>
+
+        <div class="tab-content pb-5">
+            <section class="tab-pane fade <%= showArchiveTab ? '' : 'show active' %>" id="current-executors-pane" role="tabpanel" aria-labelledby="current-executors-tab" tabindex="0">
+                <div class="row g-4 mt-2">
+                    <% if (bots.length === 0) { %>
+                        <div class="col-12 text-center py-5">
+                            <i class="fa-solid fa-robot fa-4x text-muted opacity-25 mb-3"></i>
+                            <h5 class="text-muted fw-bold">لا توجد حسابات منفذين حالية.</h5>
+                        </div>
+                    <% } %>
+
+                    <% bots.forEach(bot => { %>
+                        <div class="col-xl-4 col-md-6">
+                            <div class="card-3d-wrapper">
+                                <div class="bot-card-3d" style="border-top: 5px solid <%= bot.isApiBot ? '#f59e0b' : (bot.isManagerBot ? '#3b82f6' : '#10b981') %>;">
+                                    <div>
+                                        <div class="d-flex justify-content-between align-items-start gap-2 mb-3">
+                                            <div class="d-flex align-items-center gap-3 min-w-0">
+                                                <div class="bot-icon-3d <%= bot.isApiBot ? 'api-bot-icon' : (bot.isManagerBot ? 'manager-bot-icon' : 'normal-bot-icon') %>">
+                                                    <i class="fa-solid <%= bot.isApiBot ? 'fa-plug-circle-bolt' : (bot.isManagerBot ? 'fa-building' : 'fa-robot') %>"></i>
                                                 </div>
-                                                <% if (bot.lastApiTestAt) { %>
-                                                    <div class="small mt-2 <%= bot.lastApiTestStatus === 'success' ? 'text-success' : 'text-danger' %>">
-                                                        <i class="fa-solid <%= bot.lastApiTestStatus === 'success' ? 'fa-circle-check' : 'fa-triangle-exclamation' %> me-1"></i>
-                                                        آخر اختبار: <%= new Date(bot.lastApiTestAt).toLocaleString('ar-EG') %>
-                                                    </div>
-                                                <% } %>
+                                                <div class="min-w-0">
+                                                    <h5 class="fw-bold m-0 text-dark mb-1 text-break"><%= bot.name %></h5>
+                                                    <span class="badge <%= bot.status === 'active' ? 'bg-success text-success border-success' : 'bg-danger text-danger border-danger' %> bg-opacity-10 border rounded-pill px-3 py-1 mt-1" style="font-size:0.75rem;">
+                                                        <i class="fa-solid <%= bot.status === 'active' ? 'fa-check-circle' : 'fa-ban' %> me-1"></i><%= bot.status === 'active' ? 'مفعل ونشط' : 'متوقف' %>
+                                                    </span>
+                                                    <% if (bot.isApiBot) { %>
+                                                        <div class="text-muted small fw-bold mt-2"><i class="fa-solid fa-plug me-1"></i><%= bot.apiProviderKey === 'zayn_external_aggregator' ? 'Zayn External Aggregator' : (bot.apiProviderKey || 'API Provider') %></div>
+                                                        <% if (bot.lastApiTestAt) { %>
+                                                            <div class="small mt-2 <%= bot.lastApiTestStatus === 'success' ? 'text-success' : 'text-danger' %>">
+                                                                <i class="fa-solid <%= bot.lastApiTestStatus === 'success' ? 'fa-circle-check' : 'fa-triangle-exclamation' %> me-1"></i>آخر اختبار: <%= new Date(bot.lastApiTestAt).toLocaleString('ar-EG') %>
+                                                            </div>
+                                                        <% } %>
+                                                    <% } %>
+                                                </div>
+                                            </div>
+                                            <% if (isMaster) { %>
+                                                <button type="button" class="executor-archive-btn <%= bot.status === 'active' ? 'is-locked' : '' %>" data-executor-id="<%= bot._id %>" data-executor-name="<%= bot.name %>" data-executor-status="<%= bot.status %>" onclick="archiveExecutor(this)" title="<%= bot.status === 'active' ? 'أوقف المنفذ أولاً قبل حذفه' : 'حذف الحساب ونقله إلى الأرشيف' %>" aria-label="حذف حساب <%= bot.name %>">
+                                                    <i class="fa-solid fa-box-archive"></i>
+                                                </button>
                                             <% } %>
                                         </div>
-                                    </div>
-                                </div>
 
-                                <div class="balance-box text-center">
-                                    <div class="text-muted small fw-bold mb-2"><i class="fa-solid fa-wallet me-1 opacity-50"></i> الرصيد / المديونية الحالية</div>
-                                    <div class="mono-num <%= bot.balance < 0 ? 'text-danger' : 'text-success' %>" dir="ltr">
-                                        <%= bot.balance.toFixed(2) %> <span class="fs-6 text-muted">EGP</span>
+                                        <div class="balance-box text-center">
+                                            <div class="text-muted small fw-bold mb-2"><i class="fa-solid fa-wallet me-1 opacity-50"></i> الرصيد / المديونية الحالية</div>
+                                            <div class="mono-num <%= bot.balance < 0 ? 'text-danger' : 'text-success' %>" dir="ltr"><%= bot.balance.toFixed(2) %> <span class="fs-6 text-muted">EGP</span></div>
+                                        </div>
+                                    </div>
+
+                                    <div>
+                                        <div class="d-flex justify-content-between align-items-center p-3 rounded-4 mb-3 border" style="background: rgba(0,0,0,0.02);">
+                                            <span class="fw-bold small text-muted"><i class="fa-solid fa-check-double me-1 opacity-50"></i> إجمالي العمليات المنجزة</span>
+                                            <span class="badge bg-primary fs-6 rounded-pill px-3 shadow-sm"><%= bot.txCount %> طلب</span>
+                                        </div>
+                                        <% if (bot.isApiBot) { %>
+                                            <button type="button" class="btn-3d w-100 mb-2 api-test-btn" data-api-bot-id="<%= bot._id %>" onclick="testApiExecutor(this)"><i class="fa-solid fa-signal me-2"></i> اختبار اتصال API والرصيد</button>
+                                        <% } %>
+                                        <a href="/executor/<%= bot._id %>" class="btn-3d w-100"><i class="fa-solid fa-folder-open me-2"></i> إدارة التفاصيل والملف المحاسبي</a>
                                     </div>
                                 </div>
                             </div>
-
-                            <div>
-                                <div class="d-flex justify-content-between align-items-center p-3 rounded-4 mb-3 border" style="background: rgba(0,0,0,0.02);">
-                                    <span class="fw-bold small text-muted"><i class="fa-solid fa-check-double me-1 opacity-50"></i> إجمالي العمليات المنجزة</span>
-                                    <span class="badge bg-primary fs-6 rounded-pill px-3 shadow-sm"><%= bot.txCount %> طلب</span>
-                                </div>
-                                <% if (bot.isApiBot) { %>
-                                    <button type="button" class="btn-3d w-100 mb-2 api-test-btn" data-api-bot-id="<%= bot._id %>" onclick="testApiExecutor(this)">
-                                        <i class="fa-solid fa-signal me-2"></i> اختبار اتصال API والرصيد
-                                    </button>
-                                <% } %>
-                                <a href="/executor/<%= bot._id %>" class="btn-3d w-100">
-                                    <i class="fa-solid fa-folder-open me-2"></i> إدارة التفاصيل والملف المحاسبي
-                                </a>
-                            </div>
-
                         </div>
-                    </div>
+                    <% }) %>
                 </div>
-            <% }) %>
+            </section>
+
+            <section class="tab-pane fade <%= showArchiveTab ? 'show active' : '' %>" id="archived-executors-pane" role="tabpanel" aria-labelledby="archived-executors-tab" tabindex="0">
+                <div class="row g-3 mt-2">
+                    <% if (archivedBots.length === 0) { %>
+                        <div class="col-12 text-center py-5">
+                            <i class="fa-solid fa-box-open fa-4x text-muted opacity-25 mb-3"></i>
+                            <h5 class="text-muted fw-bold">أرشيف المنفذين فارغ.</h5>
+                        </div>
+                    <% } %>
+                    <% archivedBots.forEach(bot => { %>
+                        <div class="col-xl-4 col-md-6">
+                            <article class="archive-card">
+                                <div class="archive-card-header">
+                                    <div class="archive-identity">
+                                        <div class="archive-icon"><i class="fa-solid fa-box-archive"></i></div>
+                                        <div class="min-w-0">
+                                            <h5 class="fw-bold text-dark m-0 text-break"><%= bot.name %></h5>
+                                            <div class="text-muted small mt-1"><%= bot.isApiBot ? 'منفذ API' : (bot.isManagerBot ? 'وكالة إدارية' : 'منفذ يدوي') %></div>
+                                        </div>
+                                    </div>
+                                    <span class="badge bg-secondary bg-opacity-10 text-secondary border border-secondary">مؤرشف</span>
+                                </div>
+                                <div class="archive-metrics">
+                                    <div class="archive-metric"><span>العمليات</span><strong><%= bot.txCount || 0 %></strong></div>
+                                    <div class="archive-metric"><span>الحسابات</span><strong><%= bot.archiveEmployeeCount || 0 %></strong></div>
+                                    <div class="archive-metric"><span>الرصيد الختامي</span><strong dir="ltr"><%= Number(bot.balance || 0).toFixed(2) %></strong></div>
+                                </div>
+                                <div class="archive-reason"><i class="fa-solid fa-note-sticky me-1"></i><%= bot.archiveReason || 'لم تسجل ملاحظة للأرشفة.' %></div>
+                                <div class="archive-meta">
+                                    <i class="fa-regular fa-calendar me-1"></i><%= bot.archivedAt ? new Date(bot.archivedAt).toLocaleString('ar-EG') : '---' %>
+                                    <span class="mx-1">•</span><%= bot.archivedBy || 'الإدارة' %>
+                                </div>
+                                <a class="archive-open-btn" href="/executor/<%= bot._id %>"><i class="fa-solid fa-clock-rotate-left"></i> فتح العمليات المحفوظة</a>
+                            </article>
+                        </div>
+                    <% }) %>
+                </div>
+            </section>
         </div>
     </div>
 </div>
@@ -550,6 +738,74 @@
                 confirmButtonText: 'إغلاق'
             });
         } finally {
+            button.disabled = false;
+            button.innerHTML = originalHtml;
+        }
+    }
+
+    async function archiveExecutor(button) {
+        const executorId = button?.dataset?.executorId;
+        const executorName = button?.dataset?.executorName || 'المنفذ';
+        const executorStatus = button?.dataset?.executorStatus;
+        if (!executorId) return;
+
+        if (executorStatus === 'active') {
+            await Swal.fire({
+                icon: 'info',
+                title: 'أوقف المنفذ أولاً',
+                text: 'ادخل إلى ملف المنفذ وأوقف استقبال العمليات، ثم ارجع لتنقل الحساب إلى الأرشيف.',
+                confirmButtonText: 'فهمت'
+            });
+            return;
+        }
+
+        const confirmation = await Swal.fire({
+            icon: 'warning',
+            title: 'نقل الحساب إلى الأرشيف؟',
+            text: `سيتم تعطيل حساب ${executorName} وجميع موظفيه، مع الاحتفاظ بكل العمليات والتقارير المالية.`,
+            input: 'textarea',
+            inputLabel: 'سبب الحذف أو الأرشفة',
+            inputPlaceholder: 'مثال: الحساب غير نشط منذ فترة',
+            inputAttributes: { maxlength: '500' },
+            showCancelButton: true,
+            confirmButtonColor: '#dc2626',
+            cancelButtonColor: '#64748b',
+            confirmButtonText: 'نعم، احذف الحساب',
+            cancelButtonText: 'تراجع',
+            reverseButtons: true
+        });
+        if (!confirmation.isConfirmed) return;
+
+        const originalHtml = button.innerHTML;
+        button.disabled = true;
+        button.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i>';
+        try {
+            const response = await fetch(`/executor/${encodeURIComponent(executorId)}/archive`, {
+                method: 'POST',
+                headers: {
+                    'Accept': 'application/json',
+                    'Content-Type': 'application/json',
+                    'x-csrf-token': csrfToken
+                },
+                body: JSON.stringify({ reason: confirmation.value || '' })
+            });
+            const data = await response.json().catch(() => ({}));
+            if (!response.ok || !data.success) throw new Error(data.message || 'تعذر أرشفة حساب المنفذ.');
+
+            await Swal.fire({
+                icon: 'success',
+                title: 'تم نقل الحساب إلى الأرشيف',
+                text: data.message,
+                confirmButtonText: 'فتح الأرشيف'
+            });
+            window.location.assign(data.redirectUrl || '/executors?tab=archive');
+        } catch (error) {
+            await Swal.fire({
+                icon: 'error',
+                title: 'لم يتم حذف الحساب',
+                text: error.message,
+                confirmButtonText: 'إغلاق'
+            });
             button.disabled = false;
             button.innerHTML = originalHtml;
         }

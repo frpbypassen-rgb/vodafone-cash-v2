@@ -7,11 +7,16 @@ const Notification = require('../models/Notification');
 const ApiBalanceAudit = require('../models/ApiBalanceAudit');
 const ApiProviderReturn = require('../models/ApiProviderReturn');
 const { requireAuth, requireMaster } = require('../middlewares/auth');
-const { syncBotBalance } = require('../utils/helpers');
+const { syncBotBalance, escapeRegex } = require('../utils/helpers');
 const { DEFAULT_API_PROVIDER_KEY, getApiProviderPreset, getApiProviderPresets } = require('../utils/apiProviderPresets');
 const { getApiProviderBalance } = require('../services/externalApiService');
 const { syncProviderReturnedOperations } = require('../services/apiProviderReconciliationService');
 const { createExecutorAccount, ExecutorAccountError } = require('../services/executorAccountService');
+const {
+    archiveExecutorAccount,
+    ExecutorArchiveError,
+    executorTransactionFilter
+} = require('../services/executorArchiveService');
 const { logAction } = require('../services/auditService');
 const { reversalService } = require('../src/Application/Services/ReversalService');
 
@@ -23,22 +28,42 @@ const parseNumberOrDefault = (value, fallback) => {
 
 router.get('/executors', requireAuth, async (req, res) => {
     try {
-        const groups = await ExecutorGroup.find({}).sort({ createdAt: -1 });
+        const [groups, archivedGroups] = await Promise.all([
+            ExecutorGroup.find({ status: { $ne: 'archived' } }).sort({ createdAt: -1 }),
+            ExecutorGroup.find({ status: 'archived' }).sort({ archivedAt: -1 })
+        ]);
         const groupsWithStats = await Promise.all(groups.map(async (group) => {
             const syncedBalance = await syncBotBalance(group._id); 
             let txCount = 0; if (group.isManagerBot) txCount = await Transaction.countDocuments({ managerGroupId: group._id, status: 'completed' }); else txCount = await Transaction.countDocuments({ executorGroupId: group._id, status: 'completed' });
             return { ...group._doc, balance: syncedBalance, txCount };
         }));
+        const archivedGroupsWithStats = await Promise.all(archivedGroups.map(async (group) => {
+            const txCount = group.archiveTransactionCount === null || group.archiveTransactionCount === undefined
+                ? await Transaction.countDocuments(executorTransactionFilter(group._id))
+                : group.archiveTransactionCount;
+            return {
+                ...group._doc,
+                balance: group.archiveBalance === null || group.archiveBalance === undefined
+                    ? group.balance
+                    : group.archiveBalance,
+                txCount
+            };
+        }));
         const origin = `${req.protocol}://${req.get('host')}`;
         res.render('executors', {
             bots: groupsWithStats,
+            archivedBots: archivedGroupsWithStats,
             apiProviderPresets: getApiProviderPresets(),
             adminName: req.session.adminName,
+            isMaster: req.session.adminRole === 'master',
             query: req.query,
             executorRegistrationUrl: `${origin}/executor-portal/register`,
             executorLoginUrl: `${origin}/login`
         });
-    } catch (e) { res.redirect('/'); }
+    } catch (e) {
+        console.error('[executors/list] failed:', e.stack || e.message);
+        res.redirect('/');
+    }
 });
 
 router.post('/executors/add', requireAuth, requireMaster, async (req, res) => {
@@ -109,11 +134,114 @@ router.post('/executors/add', requireAuth, requireMaster, async (req, res) => {
     }
 });
 
+router.post('/executor/:id/archive', requireAuth, requireMaster, async (req, res) => {
+    try {
+        const result = await archiveExecutorAccount({
+            executorId: req.params.id,
+            archivedBy: req.session.adminName || 'الإدارة',
+            reason: req.body?.reason
+        });
+
+        await logAction({
+            action: 'EXECUTOR_ARCHIVED',
+            req,
+            performedById: req.session.adminId,
+            performedByModel: 'Admin',
+            performedByName: req.session.adminName || 'الإدارة',
+            targetId: result.group._id,
+            targetModel: 'ExecutorGroup',
+            oldData: { status: 'paused' },
+            newData: { status: 'archived', archivedAt: result.group.archivedAt },
+            metadata: {
+                executorName: result.group.name,
+                reason: result.group.archiveReason,
+                archiveBalance: result.archiveBalance ?? result.group.archiveBalance,
+                archiveTransactionCount: result.archiveTransactionCount ?? result.group.archiveTransactionCount,
+                archiveEmployeeCount: result.archiveEmployeeCount ?? result.group.archiveEmployeeCount,
+                alreadyArchived: result.alreadyArchived
+            }
+        }).catch(() => {});
+
+        const io = req.app?.get('io');
+        if (io) io.emit('update_data');
+
+        return res.json({
+            success: true,
+            message: result.alreadyArchived
+                ? 'الحساب موجود بالفعل في الأرشيف.'
+                : 'تم حذف حساب المنفذ من التشغيل ونقله إلى الأرشيف مع حفظ عملياته.',
+            redirectUrl: '/executors?tab=archive&archived=1'
+        });
+    } catch (error) {
+        if (error instanceof ExecutorArchiveError) {
+            const statusCode = error.code === 'EXECUTOR_NOT_FOUND' ? 404 : 409;
+            return res.status(statusCode).json({
+                success: false,
+                code: error.code,
+                message: error.message,
+                details: error.details
+            });
+        }
+        console.error('[executor/archive] failed:', error.stack || error.message);
+        return res.status(500).json({ success: false, message: 'تعذر نقل حساب المنفذ إلى الأرشيف.' });
+    }
+});
+
 router.get('/executor/:id', requireAuth, async (req, res) => {
     try {
-        await syncBotBalance(req.params.id); 
         const bot = await ExecutorGroup.findById(req.params.id).populate('parentGroupId parentBotId');
         if (!bot) return res.redirect('/executors');
+
+        if (bot.status === 'archived') {
+            const page = Math.max(1, Number.parseInt(req.query.page, 10) || 1);
+            const limit = 50;
+            const search = normalizeText(req.query.search);
+            const status = normalizeText(req.query.status);
+            const fromDate = normalizeText(req.query.fromDate);
+            const toDate = normalizeText(req.query.toDate);
+            const filters = [executorTransactionFilter(bot._id)];
+
+            if (search) {
+                const safeSearch = escapeRegex(search);
+                filters.push({
+                    $or: [
+                        { customId: { $regex: safeSearch, $options: 'i' } },
+                        { vodafoneNumber: { $regex: safeSearch, $options: 'i' } },
+                        { accountNumber: { $regex: safeSearch, $options: 'i' } },
+                        { companyName: { $regex: safeSearch, $options: 'i' } },
+                        { employeeName: { $regex: safeSearch, $options: 'i' } }
+                    ]
+                });
+            }
+            if (status) filters.push({ status });
+            if (fromDate || toDate) {
+                const createdAt = {};
+                if (fromDate) createdAt.$gte = new Date(`${fromDate}T00:00:00.000Z`);
+                if (toDate) createdAt.$lte = new Date(`${toDate}T23:59:59.999Z`);
+                filters.push({ createdAt });
+            }
+
+            const archiveFilter = filters.length === 1 ? filters[0] : { $and: filters };
+            const [transactions, totalTransactions] = await Promise.all([
+                Transaction.find(archiveFilter)
+                    .sort({ updatedAt: -1 })
+                    .skip((page - 1) * limit)
+                    .limit(limit),
+                Transaction.countDocuments(archiveFilter)
+            ]);
+
+            return res.render('executor_archive', {
+                bot,
+                transactions,
+                totalTransactions,
+                currentPage: page,
+                totalPages: Math.max(1, Math.ceil(totalTransactions / limit)),
+                filters: { search, status, fromDate, toDate },
+                adminName: req.session.adminName
+            });
+        }
+
+        bot.balance = await syncBotBalance(req.params.id);
         let queryFilter = bot.isManagerBot ? { managerGroupId: bot._id } : { executorGroupId: bot._id };
         const transactions = await Transaction.find(queryFilter).sort({ updatedAt: -1 }).limit(100);
         
@@ -152,6 +280,9 @@ router.post('/executor/:id/sync-provider-returns', requireAuth, async (req, res)
         const bot = await ExecutorGroup.findById(req.params.id);
         if (!bot || !bot.isApiBot) {
             return res.status(404).json({ success: false, message: 'لم يتم العثور على منفذ API صالح للمراجعة' });
+        }
+        if (bot.status === 'archived') {
+            return res.status(409).json({ success: false, message: 'الحساب مؤرشف ومتاح للقراءة فقط.' });
         }
 
         const result = await syncProviderReturnedOperations(bot, { force: true, limit: 100 });
@@ -308,6 +439,9 @@ router.post('/executor/:id/test-api', requireAuth, async (req, res) => {
         if (!bot || !bot.isApiBot) {
             return res.status(404).json({ success: false, message: 'لم يتم العثور على منفذ API صالح للاختبار' });
         }
+        if (bot.status === 'archived') {
+            return res.status(409).json({ success: false, message: 'الحساب مؤرشف ولا يمكن تشغيل اختبار API عليه.' });
+        }
 
         bot.lastApiTestStatus = 'pending';
         bot.lastApiTestAt = new Date();
@@ -332,6 +466,7 @@ router.post('/executor/:id/test-api', requireAuth, async (req, res) => {
 router.post('/executor/:id/settle', requireAuth, async (req, res) => {
     try {
         const bot = await ExecutorGroup.findById(req.params.id); const amount = parseFloat(req.body.amount); const notes = req.body.notes ? req.body.notes.trim() : ''; 
+        if (!bot || bot.status === 'archived') return res.redirect('/executors?tab=archive&archiveError=READ_ONLY');
         let targetBotId = bot._id; let targetBotName = bot.name;
 
         const parentGroupId = bot.parentGroupId || bot.parentBotId;
@@ -369,7 +504,7 @@ router.post('/executor/:id/settle', requireAuth, async (req, res) => {
 router.post('/executor/:id/link-manager', requireAuth, async (req, res) => {
     try {
         const botId = req.params.id; const parentId = req.body.parentGroupId || req.body.parentBotId; const bot = await ExecutorGroup.findById(botId);
-        if (bot) {
+        if (bot && bot.status !== 'archived') {
             if (parentId === 'none') {
                 bot.parentGroupId = null;
                 bot.parentBotId = null;
@@ -386,6 +521,7 @@ router.post('/executor/:id/link-manager', requireAuth, async (req, res) => {
 router.post('/executor/:id/toggle-status', requireAuth, async (req, res) => {
     try {
         const botId = req.params.id; const bot = await ExecutorGroup.findById(botId); if (!bot) return res.redirect('/executors');
+        if (bot.status === 'archived') return res.redirect('/executors?tab=archive&archiveError=READ_ONLY');
         bot.status = bot.status === 'active' ? 'paused' : 'active'; await bot.save();
         
         if (!bot.isApiBot) {

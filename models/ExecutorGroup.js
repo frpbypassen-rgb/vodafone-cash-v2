@@ -2,8 +2,15 @@ const mongoose = require('mongoose');
 
 const executorGroupSchema = new mongoose.Schema({
     name: { type: String, required: true },
-    status: { type: String, default: 'active' }, // active, inactive, paused
+    status: { type: String, default: 'active' }, // active, inactive, paused, archived
     balance: { type: Number, default: 0 },
+
+    archivedAt: { type: Date, default: null },
+    archivedBy: { type: String, default: '' },
+    archiveReason: { type: String, default: '' },
+    archiveBalance: { type: Number, default: null },
+    archiveTransactionCount: { type: Number, default: null },
+    archiveEmployeeCount: { type: Number, default: null },
 
     isManagerGroup: { type: Boolean, default: false },
     isManagerBot: { type: Boolean, default: false },
@@ -41,5 +48,7 @@ const executorGroupSchema = new mongoose.Schema({
     },
     lastApiReturnSyncMessage: { type: String, default: '' }
 }, { timestamps: true });
+
+executorGroupSchema.index({ status: 1, archivedAt: -1 });
 
 module.exports = mongoose.model('ExecutorGroup', executorGroupSchema);
