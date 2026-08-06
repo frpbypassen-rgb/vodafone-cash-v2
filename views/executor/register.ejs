@@ -3,140 +3,1187 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>إنشاء حساب منفذ | الأهرام</title>
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.rtl.min.css">
+    <title>إنشاء حساب منفذ | Power Pay AL-Ahram</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
-    <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;900&display=swap" rel="stylesheet">
-    <style>
-        :root { --brand-dark: #0f172a; --brand-neon: #10b981; }
-        body { font-family: 'Tajawal', sans-serif; background: linear-gradient(135deg, #0f172a 0%, #1e1e2f 100%); min-height: 100vh; display: flex; align-items: center; justify-content: center; margin:0; padding: 20px;}
-        .login-card { background: rgba(31, 41, 55, 0.95); border-radius: 8px; box-shadow: 0 15px 35px rgba(0,0,0,0.5); width: 100%; max-width: 560px; padding: 36px 30px; border-bottom: 5px solid var(--brand-neon); }
-        .logo-container { text-align: center; margin-bottom: 30px; }
-        .logo-icon { font-size: 3.5rem; color: var(--brand-neon); margin-bottom: 10px; filter: drop-shadow(0 0 10px rgba(16, 185, 129, 0.4)); }
-        .form-control, .form-select { border-radius: 8px; padding: 12px 15px; border: 1px solid #374151; background: #111827; color: white; }
-        .form-control:focus, .form-select:focus { border-color: var(--brand-neon); box-shadow: 0 0 0 0.25rem rgba(16, 185, 129, 0.25); color: white; background: #111827;}
-        .form-control::placeholder { color: #6b7280; }
-        .input-group-text { background: #374151; border-color: #374151; color: #9ca3af; }
-        .btn-login { background: var(--brand-neon); border: none; border-radius: 8px; padding: 12px; font-weight: bold; font-size: 1.1rem; transition: 0.3s; color: #fff; }
-        .btn-login:hover { background: #059669; transform: translateY(-2px); box-shadow: 0 5px 15px rgba(16, 185, 129, 0.3); color: #fff;}
-        .alert-danger { background: rgba(239, 68, 68, 0.1); border: 1px solid #ef4444; color: #ef4444; }
-        .alert-success { background: rgba(16, 185, 129, 0.1); border: 1px solid #10b981; color: #10b981; }
-    </style>
-    <link rel="stylesheet" href="/css/brand-ui.css?v=20260804-brand1">
-
-    <!-- PWA Setup -->
+    <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800&display=swap" rel="stylesheet">
     <link rel="manifest" href="/manifest.json">
-    <meta name="theme-color" content="#001a4d">
+    <meta name="theme-color" content="#071a33">
     <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
     <meta name="apple-mobile-web-app-title" content="Al-Ahram">
-    <!-- End PWA Setup -->
+    <style>
+        :root {
+            --navy-950: #071a33;
+            --navy-900: #0c2748;
+            --navy-700: #16456f;
+            --teal-600: #087f74;
+            --teal-100: #d9f3ee;
+            --amber-500: #f59e0b;
+            --ink-900: #142033;
+            --ink-700: #34445c;
+            --ink-500: #66758a;
+            --line: #d8e0ea;
+            --surface: #ffffff;
+            --page: #edf2f7;
+            --danger: #c62828;
+            --danger-soft: #fff1f1;
+            --success: #087f5b;
+            --success-soft: #e8f7f1;
+        }
+
+        * {
+            box-sizing: border-box;
+            letter-spacing: 0;
+        }
+
+        html {
+            background: var(--page);
+        }
+
+        body {
+            min-height: 100vh;
+            min-height: 100dvh;
+            margin: 0;
+            padding: 18px;
+            display: grid;
+            place-items: center;
+            color: var(--ink-900);
+            background: var(--page);
+            font-family: "Tajawal", Arial, sans-serif;
+        }
+
+        button,
+        input {
+            font: inherit;
+        }
+
+        a {
+            color: inherit;
+        }
+
+        .registration-shell {
+            width: min(1120px, 100%);
+            min-height: 650px;
+            display: grid;
+            grid-template-columns: minmax(280px, 32%) minmax(0, 1fr);
+            overflow: hidden;
+            background: var(--surface);
+            border: 1px solid #ced8e5;
+            border-radius: 8px;
+            box-shadow: 0 18px 48px rgba(7, 26, 51, 0.13);
+        }
+
+        .identity-panel {
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            min-width: 0;
+            padding: 34px 30px 28px;
+            overflow: hidden;
+            color: #ffffff;
+            background: var(--navy-950);
+            border-left: 4px solid var(--amber-500);
+        }
+
+        .identity-panel::after {
+            content: "";
+            position: absolute;
+            inset: auto 0 0;
+            height: 5px;
+            background: var(--teal-600);
+        }
+
+        .brand-lockup {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            min-width: 0;
+        }
+
+        .brand-mark {
+            width: 78px;
+            height: 78px;
+            flex: 0 0 78px;
+            overflow: hidden;
+            background: #ffffff;
+            border: 1px solid rgba(255, 255, 255, 0.45);
+            border-radius: 6px;
+        }
+
+        .brand-mark img {
+            width: 100%;
+            height: 100%;
+            display: block;
+            object-fit: cover;
+        }
+
+        .brand-name {
+            min-width: 0;
+        }
+
+        .brand-name strong {
+            display: block;
+            margin-bottom: 3px;
+            font-size: 1.02rem;
+            font-weight: 800;
+            line-height: 1.35;
+        }
+
+        .brand-name span {
+            display: block;
+            color: #b7c9dd;
+            font-size: 0.78rem;
+            font-weight: 500;
+            direction: ltr;
+            text-align: right;
+        }
+
+        .identity-intro {
+            margin-top: 48px;
+        }
+
+        .identity-kicker {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin: 0 0 12px;
+            color: #8fd8cd;
+            font-size: 0.78rem;
+            font-weight: 700;
+        }
+
+        .identity-kicker i {
+            font-size: 0.7rem;
+        }
+
+        .identity-intro h1 {
+            margin: 0;
+            font-size: clamp(1.65rem, 2.4vw, 2.2rem);
+            font-weight: 800;
+            line-height: 1.45;
+        }
+
+        .identity-intro p {
+            max-width: 270px;
+            margin: 12px 0 0;
+            color: #b7c9dd;
+            font-size: 0.9rem;
+            line-height: 1.8;
+        }
+
+        .process-list {
+            display: grid;
+            gap: 14px;
+            margin: 38px 0 0;
+            padding: 0;
+            list-style: none;
+        }
+
+        .process-item {
+            display: grid;
+            grid-template-columns: 34px minmax(0, 1fr);
+            align-items: center;
+            gap: 11px;
+            min-width: 0;
+        }
+
+        .process-icon {
+            width: 34px;
+            height: 34px;
+            display: grid;
+            place-items: center;
+            color: #ffffff;
+            background: #143a61;
+            border: 1px solid #31587d;
+            border-radius: 50%;
+            font-size: 0.78rem;
+        }
+
+        .process-item:first-child .process-icon {
+            color: #06332f;
+            background: #8fd8cd;
+            border-color: #8fd8cd;
+        }
+
+        .process-copy strong,
+        .process-copy span {
+            display: block;
+        }
+
+        .process-copy strong {
+            font-size: 0.88rem;
+            font-weight: 700;
+        }
+
+        .process-copy span {
+            margin-top: 2px;
+            color: #91a9c1;
+            font-size: 0.73rem;
+        }
+
+        .identity-footer {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-top: auto;
+            padding-top: 28px;
+            color: #a8bdd2;
+            font-size: 0.75rem;
+            line-height: 1.5;
+        }
+
+        .identity-footer i {
+            color: var(--amber-500);
+            font-size: 1rem;
+        }
+
+        .form-panel {
+            min-width: 0;
+            padding: 30px 42px 32px;
+            background: var(--surface);
+        }
+
+        .form-toolbar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 16px;
+            margin-bottom: 24px;
+        }
+
+        .page-heading {
+            min-width: 0;
+        }
+
+        .page-heading span {
+            display: block;
+            margin-bottom: 4px;
+            color: var(--teal-600);
+            font-size: 0.76rem;
+            font-weight: 800;
+        }
+
+        .page-heading h2 {
+            margin: 0;
+            color: var(--navy-950);
+            font-size: 1.65rem;
+            font-weight: 800;
+            line-height: 1.35;
+        }
+
+        .login-link {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            flex: 0 0 auto;
+            min-height: 40px;
+            padding: 0 13px;
+            color: var(--navy-700);
+            border: 1px solid var(--line);
+            border-radius: 6px;
+            text-decoration: none;
+            font-size: 0.82rem;
+            font-weight: 700;
+            transition: border-color 160ms ease, background-color 160ms ease;
+        }
+
+        .login-link:hover,
+        .login-link:focus-visible {
+            background: #f4f7fa;
+            border-color: #9eafc2;
+            outline: none;
+        }
+
+        .server-alert {
+            display: grid;
+            grid-template-columns: 36px minmax(0, 1fr);
+            align-items: center;
+            gap: 11px;
+            margin: 0 0 22px;
+            padding: 11px 13px;
+            color: #8d1f1f;
+            background: var(--danger-soft);
+            border: 1px solid #efb8b8;
+            border-right: 4px solid var(--danger);
+            border-radius: 6px;
+            font-size: 0.86rem;
+            font-weight: 700;
+        }
+
+        .server-alert i {
+            font-size: 1.05rem;
+            text-align: center;
+        }
+
+        .form-section + .form-section {
+            margin-top: 23px;
+            padding-top: 22px;
+            border-top: 1px solid var(--line);
+        }
+
+        .section-heading {
+            display: flex;
+            align-items: center;
+            gap: 9px;
+            margin: 0 0 15px;
+            color: var(--navy-900);
+        }
+
+        .section-heading i {
+            width: 26px;
+            height: 26px;
+            display: grid;
+            place-items: center;
+            color: var(--teal-600);
+            background: var(--teal-100);
+            border-radius: 5px;
+            font-size: 0.75rem;
+        }
+
+        .section-heading h3 {
+            margin: 0;
+            font-size: 0.94rem;
+            font-weight: 800;
+        }
+
+        .form-grid {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 15px 18px;
+        }
+
+        .field {
+            min-width: 0;
+        }
+
+        .field-full {
+            grid-column: 1 / -1;
+        }
+
+        .field label {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            margin-bottom: 7px;
+            color: var(--ink-700);
+            font-size: 0.79rem;
+            font-weight: 700;
+        }
+
+        .required-mark {
+            color: var(--danger);
+        }
+
+        .input-frame {
+            position: relative;
+            min-width: 0;
+        }
+
+        .input-frame > i {
+            position: absolute;
+            z-index: 2;
+            top: 50%;
+            right: 14px;
+            color: #718096;
+            font-size: 0.86rem;
+            transform: translateY(-50%);
+            pointer-events: none;
+        }
+
+        .input-frame input {
+            width: 100%;
+            height: 46px;
+            min-width: 0;
+            padding: 0 42px 0 13px;
+            color: var(--ink-900);
+            background: #fbfcfe;
+            border: 1px solid #cbd5e1;
+            border-radius: 6px;
+            outline: none;
+            font-size: 0.9rem;
+            font-weight: 500;
+            transition: border-color 160ms ease, box-shadow 160ms ease, background-color 160ms ease;
+        }
+
+        .input-frame input::placeholder {
+            color: #97a3b3;
+            opacity: 1;
+        }
+
+        .input-frame input:hover {
+            border-color: #aab8c8;
+        }
+
+        .input-frame input:focus {
+            background: #ffffff;
+            border-color: var(--teal-600);
+            box-shadow: 0 0 0 3px rgba(8, 127, 116, 0.12);
+        }
+
+        .field.is-invalid .input-frame input {
+            background: #fffafa;
+            border-color: var(--danger);
+            box-shadow: 0 0 0 3px rgba(198, 40, 40, 0.08);
+        }
+
+        .field.is-valid .input-frame input {
+            border-color: #52a990;
+        }
+
+        .ltr-input {
+            direction: ltr;
+            text-align: left;
+        }
+
+        .username-frame input {
+            padding-left: 118px;
+        }
+
+        .username-domain {
+            position: absolute;
+            top: 1px;
+            bottom: 1px;
+            left: 1px;
+            z-index: 2;
+            display: flex;
+            align-items: center;
+            padding: 0 12px;
+            color: #52657b;
+            background: #eef3f7;
+            border-right: 1px solid #d3dce7;
+            border-radius: 5px 0 0 5px;
+            font-size: 0.78rem;
+            font-weight: 700;
+            direction: ltr;
+        }
+
+        .password-frame input {
+            padding-left: 45px;
+        }
+
+        .visibility-button {
+            position: absolute;
+            top: 50%;
+            left: 5px;
+            z-index: 3;
+            width: 36px;
+            height: 36px;
+            display: grid;
+            place-items: center;
+            padding: 0;
+            color: #5d6c7e;
+            background: transparent;
+            border: 0;
+            border-radius: 5px;
+            cursor: pointer;
+            transform: translateY(-50%);
+        }
+
+        .visibility-button:hover,
+        .visibility-button:focus-visible {
+            color: var(--navy-900);
+            background: #eaf0f5;
+            outline: none;
+        }
+
+        .field-help,
+        .validation-message {
+            display: block;
+            min-height: 16px;
+            margin-top: 5px;
+            font-size: 0.69rem;
+            line-height: 1.45;
+        }
+
+        .field-help {
+            color: var(--ink-500);
+        }
+
+        .validation-message {
+            color: var(--danger);
+            font-weight: 700;
+        }
+
+        .validation-message:empty {
+            display: none;
+        }
+
+        .password-strength {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            min-height: 16px;
+            margin-top: 5px;
+        }
+
+        .strength-bars {
+            width: 72px;
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 3px;
+        }
+
+        .strength-bars span {
+            height: 3px;
+            background: #d8e0e9;
+            border-radius: 3px;
+        }
+
+        .password-strength[data-level="1"] .strength-bars span:nth-child(1) {
+            background: var(--danger);
+        }
+
+        .password-strength[data-level="2"] .strength-bars span:nth-child(-n+2) {
+            background: var(--amber-500);
+        }
+
+        .password-strength[data-level="3"] .strength-bars span {
+            background: var(--success);
+        }
+
+        .strength-label {
+            color: var(--ink-500);
+            font-size: 0.68rem;
+            font-weight: 700;
+        }
+
+        .form-actions {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 14px;
+            margin-top: 24px;
+        }
+
+        .agreement-note {
+            max-width: 310px;
+            margin: 0;
+            color: var(--ink-500);
+            font-size: 0.71rem;
+            line-height: 1.65;
+        }
+
+        .submit-button,
+        .success-login-button {
+            min-height: 48px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            padding: 0 21px;
+            color: #ffffff;
+            background: var(--navy-900);
+            border: 1px solid var(--navy-900);
+            border-radius: 6px;
+            font-size: 0.88rem;
+            font-weight: 800;
+            text-decoration: none;
+            cursor: pointer;
+            transition: background-color 160ms ease, border-color 160ms ease, transform 160ms ease;
+        }
+
+        .submit-button:hover,
+        .submit-button:focus-visible,
+        .success-login-button:hover,
+        .success-login-button:focus-visible {
+            background: var(--teal-600);
+            border-color: var(--teal-600);
+            outline: none;
+            transform: translateY(-1px);
+        }
+
+        .submit-button:disabled {
+            cursor: wait;
+            opacity: 0.7;
+            transform: none;
+        }
+
+        .submit-button .loading-icon {
+            display: none;
+        }
+
+        .submit-button.is-loading .default-icon {
+            display: none;
+        }
+
+        .submit-button.is-loading .loading-icon {
+            display: inline-block;
+        }
+
+        .success-state {
+            min-height: 500px;
+            display: grid;
+            align-content: center;
+            justify-items: center;
+            text-align: center;
+        }
+
+        .success-icon {
+            width: 72px;
+            height: 72px;
+            display: grid;
+            place-items: center;
+            margin-bottom: 18px;
+            color: var(--success);
+            background: var(--success-soft);
+            border: 1px solid #a9d9c8;
+            border-radius: 50%;
+            font-size: 1.8rem;
+        }
+
+        .success-state h2 {
+            margin: 0;
+            color: var(--navy-950);
+            font-size: 1.65rem;
+            font-weight: 800;
+        }
+
+        .success-state > p {
+            max-width: 500px;
+            margin: 9px 0 22px;
+            color: var(--ink-500);
+            font-size: 0.88rem;
+            line-height: 1.7;
+        }
+
+        .request-summary {
+            width: min(500px, 100%);
+            margin-bottom: 22px;
+            border: 1px solid var(--line);
+            border-right: 4px solid var(--amber-500);
+            border-radius: 6px;
+            text-align: right;
+        }
+
+        .summary-row {
+            display: grid;
+            grid-template-columns: 150px minmax(0, 1fr);
+            align-items: center;
+            gap: 12px;
+            min-height: 58px;
+            padding: 10px 15px;
+        }
+
+        .summary-row + .summary-row {
+            border-top: 1px solid var(--line);
+        }
+
+        .summary-row span {
+            color: var(--ink-500);
+            font-size: 0.76rem;
+            font-weight: 700;
+        }
+
+        .summary-value {
+            display: flex;
+            align-items: center;
+            justify-content: flex-end;
+            gap: 7px;
+            min-width: 0;
+        }
+
+        .summary-value strong {
+            overflow-wrap: anywhere;
+            color: var(--navy-900);
+            font-family: Consolas, "Courier New", monospace;
+            font-size: 0.92rem;
+            direction: ltr;
+        }
+
+        .copy-button {
+            width: 34px;
+            height: 34px;
+            display: grid;
+            place-items: center;
+            flex: 0 0 34px;
+            padding: 0;
+            color: var(--navy-700);
+            background: #f2f6f9;
+            border: 1px solid var(--line);
+            border-radius: 5px;
+            cursor: pointer;
+        }
+
+        .copy-button:hover,
+        .copy-button:focus-visible {
+            color: var(--teal-600);
+            border-color: #8ebdb5;
+            outline: none;
+        }
+
+        .copy-status {
+            min-height: 18px;
+            margin: -12px 0 10px;
+            color: var(--success);
+            font-size: 0.72rem;
+            font-weight: 700;
+        }
+
+        @media (max-width: 860px) {
+            body {
+                padding: 12px;
+                place-items: start center;
+            }
+
+            .registration-shell {
+                grid-template-columns: 1fr;
+                min-height: 0;
+            }
+
+            .identity-panel {
+                min-height: 156px;
+                padding: 22px 24px;
+                border-left: 0;
+                border-bottom: 4px solid var(--amber-500);
+            }
+
+            .brand-mark {
+                width: 62px;
+                height: 62px;
+                flex-basis: 62px;
+            }
+
+            .identity-intro {
+                margin-top: 18px;
+            }
+
+            .identity-intro h1 {
+                font-size: 1.35rem;
+            }
+
+            .identity-intro p,
+            .process-list,
+            .identity-footer,
+            .identity-kicker {
+                display: none;
+            }
+
+            .form-panel {
+                padding: 27px 28px 30px;
+            }
+        }
+
+        @media (max-width: 620px) {
+            body {
+                padding: 0;
+                background: #ffffff;
+            }
+
+            .registration-shell {
+                width: 100%;
+                border: 0;
+                border-radius: 0;
+                box-shadow: none;
+            }
+
+            .identity-panel {
+                min-height: 132px;
+                padding: 18px 20px;
+            }
+
+            .brand-mark {
+                width: 54px;
+                height: 54px;
+                flex-basis: 54px;
+            }
+
+            .identity-intro {
+                margin-top: 13px;
+            }
+
+            .identity-intro h1 {
+                font-size: 1.14rem;
+            }
+
+            .form-panel {
+                padding: 23px 18px 28px;
+            }
+
+            .form-toolbar {
+                align-items: flex-start;
+                margin-bottom: 21px;
+            }
+
+            .page-heading h2 {
+                font-size: 1.35rem;
+            }
+
+            .login-link span {
+                display: none;
+            }
+
+            .login-link {
+                width: 40px;
+                padding: 0;
+            }
+
+            .form-grid {
+                grid-template-columns: 1fr;
+                gap: 13px;
+            }
+
+            .field-full {
+                grid-column: auto;
+            }
+
+            .form-actions {
+                align-items: stretch;
+                flex-direction: column-reverse;
+            }
+
+            .agreement-note {
+                max-width: none;
+                text-align: center;
+            }
+
+            .submit-button,
+            .success-login-button {
+                width: 100%;
+            }
+
+            .success-state {
+                min-height: 430px;
+            }
+
+            .summary-row {
+                grid-template-columns: 1fr;
+                gap: 4px;
+            }
+
+            .summary-value {
+                justify-content: space-between;
+            }
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+            *,
+            *::before,
+            *::after {
+                scroll-behavior: auto !important;
+                transition: none !important;
+            }
+        }
+    </style>
 </head>
 <body>
-    <div class="login-card">
-        <div class="logo-container">
-            <i class="fa-solid fa-user-plus logo-icon"></i>
-            <h3 class="fw-bold text-white mb-0">انضم كمنفذ جديد</h3>
-            <p class="text-muted small mt-1" style="color: #9ca3af !important;">أنشئ حساب وكالتك للبدء في تلقي وتنفيذ الطلبات</p>
-        </div>
-        
-        <% if (error) { %>
-            <div class="alert alert-danger text-center fw-bold small rounded-3 mb-4"><i class="fa-solid fa-circle-exclamation me-1"></i> <%= error %></div>
-        <% } %>
-        <% if (success) { %>
-            <div class="alert alert-success text-center fw-bold small rounded-3 mb-4">
-                <i class="fa-solid fa-check-circle me-1"></i>
-                <div class="fs-6 mb-3">تم إرسال طلب الانضمام إلى الإدارة بنجاح</div>
-                <div class="text-start p-3 border rounded-2" style="background: rgba(0,0,0,0.12); border-style: dashed !important;">
-                    <span class="text-muted small d-block">رقم الطلب المرجعي</span>
-                    <strong class="fs-5 text-warning font-monospace" dir="ltr"><%= success.refCode %></strong>
-                    <span class="text-muted small d-block mt-3">اسم الدخول بعد التفعيل</span>
-                    <strong class="fs-6 text-white font-monospace" dir="ltr"><%= success.username %></strong>
+    <main class="registration-shell">
+        <aside class="identity-panel" aria-label="هوية بوابة المنفذين">
+            <div class="brand-lockup">
+                <div class="brand-mark">
+                    <img src="/images/logo.jpg" alt="شعار شركة الأهرام للاتصالات والتقنية">
                 </div>
-                <div class="mt-3 text-muted">يمكن تسجيل الدخول بعد موافقة الإدارة على الطلب.</div>
+                <div class="brand-name">
+                    <strong>شركة الأهرام للاتصالات والتقنية</strong>
+                    <span>Power Pay AL-Ahram</span>
+                </div>
             </div>
-        <% } %>
 
-        <% if (!success) { %>
-        <form action="/executor-portal/register" method="POST">
-            <div class="row">
-                <div class="col-md-6 mb-3">
-                    <label class="form-label fw-bold small text-muted">اسم الشركة/المنفذ</label>
-                    <div class="input-group">
-                        <span class="input-group-text border-end-0"><i class="fa-solid fa-building"></i></span>
-                        <input type="text" name="companyName" class="form-control border-start-0" placeholder="مثال: شركة النور" value="<%= formData.companyName || '' %>" autocomplete="organization" minlength="3" required>
+            <div class="identity-intro">
+                <p class="identity-kicker"><i class="fa-solid fa-circle"></i> بوابة المنفذين</p>
+                <h1>حساب منفذ جديد</h1>
+                <p>أرسل بيانات الجهة والمسؤول لمراجعتها وتفعيل الوصول إلى منصة التنفيذ.</p>
+            </div>
+
+            <ol class="process-list" aria-label="مراحل تفعيل الحساب">
+                <li class="process-item">
+                    <span class="process-icon"><i class="fa-solid fa-pen-to-square"></i></span>
+                    <span class="process-copy"><strong>بيانات الحساب</strong><span>إدخال بيانات الجهة والدخول</span></span>
+                </li>
+                <li class="process-item">
+                    <span class="process-icon"><i class="fa-solid fa-shield-halved"></i></span>
+                    <span class="process-copy"><strong>مراجعة الإدارة</strong><span>التحقق من الطلب وبيانات التواصل</span></span>
+                </li>
+                <li class="process-item">
+                    <span class="process-icon"><i class="fa-solid fa-circle-check"></i></span>
+                    <span class="process-copy"><strong>تفعيل المنفذ</strong><span>إتاحة الدخول بعد الموافقة</span></span>
+                </li>
+            </ol>
+
+            <div class="identity-footer">
+                <i class="fa-solid fa-lock"></i>
+                <span>تُحفظ بيانات الطلب بصورة آمنة حتى اكتمال المراجعة.</span>
+            </div>
+        </aside>
+
+        <section class="form-panel">
+            <% if (!success) { %>
+                <header class="form-toolbar">
+                    <div class="page-heading">
+                        <span>طلب انضمام جديد</span>
+                        <h2>إنشاء حساب منفذ</h2>
                     </div>
-                </div>
-                <div class="col-md-6 mb-3">
-                    <label class="form-label fw-bold small text-muted">اسم المدير الثلاثي</label>
-                    <div class="input-group">
-                        <span class="input-group-text border-end-0"><i class="fa-solid fa-user-tie"></i></span>
-                        <input type="text" name="managerName" class="form-control border-start-0" placeholder="اسمك بالكامل" value="<%= formData.managerName || '' %>" autocomplete="name" minlength="3" required>
+                    <a href="/executor-portal/login" class="login-link" aria-label="تسجيل الدخول إلى بوابة المنفذين">
+                        <i class="fa-solid fa-arrow-right-to-bracket"></i>
+                        <span>تسجيل الدخول</span>
+                    </a>
+                </header>
+
+                <% if (error) { %>
+                    <div class="server-alert" role="alert">
+                        <i class="fa-solid fa-circle-exclamation"></i>
+                        <span><%= error %></span>
                     </div>
-                </div>
-            </div>
+                <% } %>
 
-            <div class="row">
-                <div class="col-md-6 mb-3">
-                    <label class="form-label fw-bold small text-muted">رقم الهاتف</label>
-                    <div class="input-group">
-                        <span class="input-group-text border-end-0"><i class="fa-solid fa-phone"></i></span>
-                        <input type="tel" name="phone" class="form-control border-start-0" placeholder="01xxxxxxxxx" value="<%= formData.phone || '' %>" autocomplete="tel" inputmode="tel" required dir="ltr">
+                <form id="executorRegistrationForm" action="/executor-portal/register" method="POST" novalidate>
+                    <section class="form-section" aria-labelledby="organizationSectionTitle">
+                        <div class="section-heading">
+                            <i class="fa-solid fa-building"></i>
+                            <h3 id="organizationSectionTitle">بيانات الجهة</h3>
+                        </div>
+                        <div class="form-grid">
+                            <div class="field" data-field="companyName">
+                                <label for="companyName">اسم الشركة أو المنفذ <span class="required-mark">*</span></label>
+                                <div class="input-frame">
+                                    <i class="fa-solid fa-briefcase"></i>
+                                    <input id="companyName" type="text" name="companyName" value="<%= (formData && formData.companyName) || '' %>" placeholder="مثال: شركة النور" autocomplete="organization" minlength="3" maxlength="100" required>
+                                </div>
+                                <span class="validation-message" data-error-for="companyName" aria-live="polite"></span>
+                            </div>
+
+                            <div class="field" data-field="managerName">
+                                <label for="managerName">اسم المدير الثلاثي <span class="required-mark">*</span></label>
+                                <div class="input-frame">
+                                    <i class="fa-solid fa-user-tie"></i>
+                                    <input id="managerName" type="text" name="managerName" value="<%= (formData && formData.managerName) || '' %>" placeholder="الاسم بالكامل" autocomplete="name" minlength="3" maxlength="100" required>
+                                </div>
+                                <span class="validation-message" data-error-for="managerName" aria-live="polite"></span>
+                            </div>
+
+                            <div class="field field-full" data-field="phone">
+                                <label for="phone">رقم الهاتف <span class="required-mark">*</span></label>
+                                <div class="input-frame">
+                                    <i class="fa-solid fa-phone"></i>
+                                    <input id="phone" class="ltr-input" type="tel" name="phone" value="<%= (formData && formData.phone) || '' %>" placeholder="01xxxxxxxxx" autocomplete="tel" inputmode="tel" maxlength="20" required>
+                                </div>
+                                <span class="validation-message" data-error-for="phone" aria-live="polite"></span>
+                            </div>
+                        </div>
+                    </section>
+
+                    <section class="form-section" aria-labelledby="accessSectionTitle">
+                        <div class="section-heading">
+                            <i class="fa-solid fa-key"></i>
+                            <h3 id="accessSectionTitle">بيانات الدخول</h3>
+                        </div>
+                        <div class="form-grid">
+                            <div class="field field-full" data-field="webUsername">
+                                <label for="webUsername">اسم المستخدم <span class="required-mark">*</span></label>
+                                <div class="input-frame username-frame">
+                                    <i class="fa-solid fa-at"></i>
+                                    <input id="webUsername" class="ltr-input" type="text" name="webUsername" value="<%= (formData && formData.webUsername) || '' %>" placeholder="username" autocomplete="username" minlength="3" maxlength="40" pattern="[A-Za-z0-9_]+" required>
+                                    <span class="username-domain">@ahram.com</span>
+                                </div>
+                                <span class="field-help">حروف إنجليزية وأرقام والشرطة السفلية فقط.</span>
+                                <span class="validation-message" data-error-for="webUsername" aria-live="polite"></span>
+                            </div>
+
+                            <div class="field" data-field="webPassword">
+                                <label for="webPassword">كلمة المرور <span class="required-mark">*</span></label>
+                                <div class="input-frame password-frame">
+                                    <i class="fa-solid fa-lock"></i>
+                                    <input id="webPassword" class="ltr-input" type="password" name="webPassword" placeholder="••••••••" autocomplete="new-password" minlength="6" maxlength="128" required>
+                                    <button class="visibility-button" type="button" data-password-toggle="webPassword" aria-label="إظهار كلمة المرور" title="إظهار كلمة المرور">
+                                        <i class="fa-solid fa-eye"></i>
+                                    </button>
+                                </div>
+                                <div id="passwordStrength" class="password-strength" data-level="0" aria-live="polite">
+                                    <span class="strength-bars" aria-hidden="true"><span></span><span></span><span></span></span>
+                                    <span class="strength-label">6 أحرف على الأقل</span>
+                                </div>
+                                <span class="validation-message" data-error-for="webPassword" aria-live="polite"></span>
+                            </div>
+
+                            <div class="field" data-field="confirmPassword">
+                                <label for="confirmPassword">تأكيد كلمة المرور <span class="required-mark">*</span></label>
+                                <div class="input-frame password-frame">
+                                    <i class="fa-solid fa-lock"></i>
+                                    <input id="confirmPassword" class="ltr-input" type="password" name="confirmPassword" placeholder="••••••••" autocomplete="new-password" minlength="6" maxlength="128" required>
+                                    <button class="visibility-button" type="button" data-password-toggle="confirmPassword" aria-label="إظهار تأكيد كلمة المرور" title="إظهار تأكيد كلمة المرور">
+                                        <i class="fa-solid fa-eye"></i>
+                                    </button>
+                                </div>
+                                <span class="field-help">أعد إدخال كلمة المرور نفسها.</span>
+                                <span class="validation-message" data-error-for="confirmPassword" aria-live="polite"></span>
+                            </div>
+                        </div>
+                    </section>
+
+                    <div class="form-actions">
+                        <p class="agreement-note">بإرسال الطلب ستتم مراجعته من الإدارة قبل تفعيل الحساب وإتاحة تسجيل الدخول.</p>
+                        <button id="submitBtn" class="submit-button" type="submit">
+                            <span>إرسال طلب الانضمام</span>
+                            <i class="fa-solid fa-arrow-left default-icon"></i>
+                            <i class="fa-solid fa-spinner fa-spin loading-icon"></i>
+                        </button>
                     </div>
-                </div>
-            </div>
+                </form>
+            <% } else { %>
+                <div class="success-state" role="status">
+                    <div class="success-icon"><i class="fa-solid fa-check"></i></div>
+                    <h2>تم إرسال طلب الانضمام</h2>
+                    <p>استلمت الإدارة طلبك بنجاح. احتفظ بالرقم المرجعي لمتابعة حالة التفعيل.</p>
 
-            <hr style="border-color: #374151;">
-            
-            <div class="mb-3">
-                <label class="form-label fw-bold small text-muted">اسم المستخدم للدخول</label>
-                <div class="input-group" dir="ltr">
-                    <input type="text" name="webUsername" class="form-control text-end border-end-0" placeholder="Username" value="<%= formData.webUsername || '' %>" autocomplete="username" minlength="3" pattern="[A-Za-z0-9_]+" required>
-                    <span class="input-group-text border-start-0 text-muted" style="background: #1f2937;">@ahram.com</span>
+                    <div class="request-summary">
+                        <div class="summary-row">
+                            <span>الرقم المرجعي</span>
+                            <div class="summary-value">
+                                <strong id="registrationRef"><%= success.refCode %></strong>
+                                <button class="copy-button" type="button" data-copy-target="registrationRef" aria-label="نسخ الرقم المرجعي" title="نسخ الرقم المرجعي">
+                                    <i class="fa-regular fa-copy"></i>
+                                </button>
+                            </div>
+                        </div>
+                        <div class="summary-row">
+                            <span>اسم الدخول بعد التفعيل</span>
+                            <div class="summary-value">
+                                <strong id="registrationUsername"><%= success.username %></strong>
+                                <button class="copy-button" type="button" data-copy-target="registrationUsername" aria-label="نسخ اسم المستخدم" title="نسخ اسم المستخدم">
+                                    <i class="fa-regular fa-copy"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    <div id="copyStatus" class="copy-status" aria-live="polite"></div>
+                    <a href="/executor-portal/login" class="success-login-button">
+                        <span>الانتقال إلى تسجيل الدخول</span>
+                        <i class="fa-solid fa-arrow-left"></i>
+                    </a>
                 </div>
-                <small class="text-muted" style="font-size: 0.7rem;">يجب أن يكون باللغة الإنجليزية وبدون مسافات</small>
-            </div>
-            <div class="mb-3">
-                <label class="form-label fw-bold small text-muted">كلمة المرور</label>
-                <div class="input-group">
-                    <span class="input-group-text border-end-0"><i class="fa-solid fa-lock"></i></span>
-                    <input type="password" id="webPassword" name="webPassword" class="form-control border-start-0" placeholder="••••••••" autocomplete="new-password" minlength="6" required dir="ltr">
-                </div>
-            </div>
-            
-            <div class="mb-4">
-                <label class="form-label fw-bold small text-muted">تأكيد كلمة المرور</label>
-                <div class="input-group">
-                    <span class="input-group-text border-end-0"><i class="fa-solid fa-lock"></i></span>
-                    <input type="password" id="confirmPassword" name="confirmPassword" class="form-control border-start-0" placeholder="••••••••" autocomplete="new-password" minlength="6" required dir="ltr">
-                </div>
-                <small id="passwordError" class="text-danger d-none mt-1 fw-bold">كلمات المرور غير متطابقة</small>
-            </div>
+            <% } %>
+        </section>
+    </main>
 
-            <button type="submit" id="submitBtn" class="btn btn-login w-100 shadow mb-3">إنشاء الحساب <i class="fa-solid fa-arrow-left ms-1"></i></button>
-            <div class="text-center">
-                <a href="/executor-portal/login" class="text-decoration-none small text-muted">لديك حساب بالفعل؟ <span style="color: var(--brand-neon);">تسجيل الدخول</span></a>
-            </div>
-        </form>
-        <% } else { %>
-            <a href="/login" class="btn btn-login w-100 shadow text-decoration-none">الانتقال إلى تسجيل الدخول <i class="fa-solid fa-arrow-left ms-1"></i></a>
-        <% } %>
-    </div>
-    
     <script>
-        const registrationForm = document.querySelector('form[action="/executor-portal/register"]');
-        registrationForm?.addEventListener('submit', function(e) {
-            const pwd = document.getElementById('webPassword').value;
-            const confirmPwd = document.getElementById('confirmPassword').value;
-            const errorText = document.getElementById('passwordError');
-            
-            if (pwd !== confirmPwd) {
-                e.preventDefault();
-                errorText.classList.remove('d-none');
-            } else {
-                errorText.classList.add('d-none');
-            }
-        });
+        (() => {
+            const form = document.getElementById('executorRegistrationForm');
+
+            document.querySelectorAll('[data-password-toggle]').forEach((button) => {
+                button.addEventListener('click', () => {
+                    const input = document.getElementById(button.dataset.passwordToggle);
+                    const icon = button.querySelector('i');
+                    const shouldShow = input.type === 'password';
+                    input.type = shouldShow ? 'text' : 'password';
+                    icon.classList.toggle('fa-eye', !shouldShow);
+                    icon.classList.toggle('fa-eye-slash', shouldShow);
+                    button.setAttribute('aria-label', shouldShow ? 'إخفاء كلمة المرور' : 'إظهار كلمة المرور');
+                    button.setAttribute('title', shouldShow ? 'إخفاء كلمة المرور' : 'إظهار كلمة المرور');
+                });
+            });
+
+            const copyStatus = document.getElementById('copyStatus');
+            document.querySelectorAll('[data-copy-target]').forEach((button) => {
+                button.addEventListener('click', async () => {
+                    const target = document.getElementById(button.dataset.copyTarget);
+                    try {
+                        await navigator.clipboard.writeText(target.textContent.trim());
+                        copyStatus.textContent = 'تم النسخ بنجاح';
+                        button.querySelector('i').className = 'fa-solid fa-check';
+                        window.setTimeout(() => {
+                            copyStatus.textContent = '';
+                            button.querySelector('i').className = 'fa-regular fa-copy';
+                        }, 1800);
+                    } catch (error) {
+                        copyStatus.textContent = 'تعذر النسخ تلقائياً';
+                    }
+                });
+            });
+
+            if (!form) return;
+
+            const fields = {
+                companyName: document.getElementById('companyName'),
+                managerName: document.getElementById('managerName'),
+                phone: document.getElementById('phone'),
+                webUsername: document.getElementById('webUsername'),
+                webPassword: document.getElementById('webPassword'),
+                confirmPassword: document.getElementById('confirmPassword')
+            };
+            const passwordStrength = document.getElementById('passwordStrength');
+            const strengthLabel = passwordStrength.querySelector('.strength-label');
+
+            const setFieldState = (name, message) => {
+                const wrapper = form.querySelector(`[data-field="${name}"]`);
+                const error = form.querySelector(`[data-error-for="${name}"]`);
+                wrapper.classList.toggle('is-invalid', Boolean(message));
+                wrapper.classList.toggle('is-valid', !message && Boolean(fields[name].value.trim()));
+                fields[name].setAttribute('aria-invalid', message ? 'true' : 'false');
+                error.textContent = message;
+                return !message;
+            };
+
+            const validateField = (name) => {
+                const input = fields[name];
+                const value = input.value.trim();
+                let message = '';
+
+                if (!value) {
+                    message = 'هذا الحقل مطلوب.';
+                } else if ((name === 'companyName' || name === 'managerName') && value.length < 3) {
+                    message = 'يجب إدخال 3 أحرف على الأقل.';
+                } else if (name === 'phone' && value.replace(/\D/g, '').length < 8) {
+                    message = 'أدخل رقم هاتف صحيحاً.';
+                } else if (name === 'webUsername' && !/^[A-Za-z0-9_]{3,}$/.test(value)) {
+                    message = 'استخدم 3 أحرف إنجليزية أو أرقام على الأقل.';
+                } else if (name === 'webPassword' && value.length < 6) {
+                    message = 'يجب ألا تقل كلمة المرور عن 6 أحرف.';
+                } else if (name === 'confirmPassword' && value !== fields.webPassword.value) {
+                    message = 'كلمتا المرور غير متطابقتين.';
+                }
+
+                return setFieldState(name, message);
+            };
+
+            const updatePasswordStrength = () => {
+                const value = fields.webPassword.value;
+                let level = 0;
+                let label = '6 أحرف على الأقل';
+
+                if (value) {
+                    const variety = [/[a-z]/, /[A-Z]/, /\d/, /[^A-Za-z0-9]/].filter((rule) => rule.test(value)).length;
+                    level = value.length < 6 ? 1 : (value.length >= 10 && variety >= 3 ? 3 : 2);
+                    label = level === 1 ? 'ضعيفة' : (level === 2 ? 'متوسطة' : 'قوية');
+                }
+
+                passwordStrength.dataset.level = String(level);
+                strengthLabel.textContent = label;
+            };
+
+            fields.webUsername.addEventListener('input', () => {
+                const withoutDomain = fields.webUsername.value.replace(/@ahram\.com$/i, '');
+                fields.webUsername.value = withoutDomain.replace(/[^A-Za-z0-9_]/g, '');
+            });
+
+            Object.entries(fields).forEach(([name, input]) => {
+                input.addEventListener('blur', () => validateField(name));
+                input.addEventListener('input', () => {
+                    if (form.querySelector(`[data-field="${name}"]`).classList.contains('is-invalid')) {
+                        validateField(name);
+                    }
+                    if (name === 'webPassword') {
+                        updatePasswordStrength();
+                        if (fields.confirmPassword.value) validateField('confirmPassword');
+                    }
+                });
+            });
+
+            form.addEventListener('submit', (event) => {
+                const validity = Object.keys(fields).map(validateField);
+                if (validity.includes(false)) {
+                    event.preventDefault();
+                    const firstInvalid = form.querySelector('.field.is-invalid input');
+                    firstInvalid?.focus();
+                    return;
+                }
+
+                const submitButton = document.getElementById('submitBtn');
+                submitButton.disabled = true;
+                submitButton.classList.add('is-loading');
+            });
+
+            updatePasswordStrength();
+        })();
     </script>
 </body>
 </html>
