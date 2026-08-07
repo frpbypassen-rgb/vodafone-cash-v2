@@ -11,6 +11,8 @@ const Settings = require('../models/Settings');
 const Ledger = require('../models/Ledger');
 const { getServiceRatesForTier, getCompanyServiceRates } = require('../utils/rateHelper');
 const { getTransferServiceRules } = require('../utils/transferServiceRules');
+const agencyFinanceService = require('./agencyFinanceService');
+const { resolveMarginPiasters, pricingFromTransaction, roundMoney } = require('../utils/agencyPricing');
 const {
     sanitizeStatementMovement,
     sanitizeStatementTransaction
@@ -108,6 +110,12 @@ const PAGE_META = Object.freeze({
     services: { title: 'الخدمات والتحويل', eyebrow: 'إنشاء عملية', icon: 'fa-paper-plane' },
     transactions: { title: 'المعاملات', eyebrow: 'المتابعة والتنفيذ', icon: 'fa-list-check' },
     finance: { title: 'الحركات المالية', eyebrow: 'كشف الحساب', icon: 'fa-scale-balanced' },
+    agency_balances: { title: 'أرصدة العملاء', eyebrow: 'حسابات الوكالة', icon: 'fa-wallet' },
+    agency_debts: { title: 'ديون العملاء', eyebrow: 'التحصيل والمتابعة', icon: 'fa-file-invoice-dollar' },
+    agency_account: { title: 'حساب الوكالة', eyebrow: 'الرصيد لدى الشركة', icon: 'fa-building-columns' },
+    agency_position: { title: 'المركز المالي', eyebrow: 'تغطية الوكالة', icon: 'fa-scale-balanced' },
+    agency_profits: { title: 'أرباح العملاء', eyebrow: 'هوامش سعر الصرف', icon: 'fa-chart-line' },
+    customer_profile: { title: 'ملف العميل', eyebrow: 'إدارة مالية كاملة', icon: 'fa-user-gear' },
     customers: { title: 'العملاء', eyebrow: 'إدارة الحسابات التابعة', icon: 'fa-users' },
     staff: { title: 'الموظفون والصلاحيات', eyebrow: 'إدارة الفريق', icon: 'fa-user-group' },
     reports: { title: 'التقارير والتحليلات', eyebrow: 'قرارات مبنية على البيانات', icon: 'fa-chart-column' },
@@ -325,6 +333,11 @@ const buildNavigation = (workspace, activePage) => {
         { key: 'services', href: '/client/services', label: 'الخدمات والتحويل', icon: 'fa-paper-plane', group: 'العمل اليومي', visible: workspace.permissions.canTransfer },
         { key: 'transactions', href: '/client/transactions', label: 'المعاملات', icon: 'fa-list-check', group: 'العمل اليومي', visible: true },
         { key: 'finance', href: '/client/finance', label: 'الحركات المالية', icon: 'fa-scale-balanced', group: 'العمل اليومي', visible: workspace.permissions.canViewBalance },
+        { key: 'agency_balances', href: '/client/finance/customer-balances', label: 'أرصدة العملاء', icon: 'fa-wallet', group: 'محاسبة الوكالة', visible: workspace.isAgent && workspace.permissions.canViewBalance },
+        { key: 'agency_debts', href: '/client/finance/customer-debts', label: 'ديون العملاء', icon: 'fa-file-invoice-dollar', group: 'محاسبة الوكالة', visible: workspace.isAgent && workspace.permissions.canViewBalance },
+        { key: 'agency_account', href: '/client/finance/agency-account', label: 'حساب الوكالة', icon: 'fa-building-columns', group: 'محاسبة الوكالة', visible: workspace.isAgent && workspace.permissions.canViewBalance },
+        { key: 'agency_position', href: '/client/finance/position', label: 'المركز المالي', icon: 'fa-scale-balanced', group: 'محاسبة الوكالة', visible: workspace.isAgent && workspace.permissions.canViewBalance },
+        { key: 'agency_profits', href: '/client/finance/profits', label: 'أرباح العملاء', icon: 'fa-chart-line', group: 'محاسبة الوكالة', visible: workspace.isAgent && workspace.permissions.canViewBalance },
         { key: 'customers', href: '/client/customers', label: 'العملاء', icon: 'fa-users', group: 'الإدارة', visible: workspace.permissions.canManageCustomers },
         { key: 'staff', href: '/client/staff', label: 'الموظفون', icon: 'fa-user-group', group: 'الإدارة', visible: workspace.permissions.manager || workspace.permissions.accountant },
         { key: 'reports', href: '/client/reports', label: 'التقارير', icon: 'fa-chart-column', group: 'التحليل', visible: workspace.permissions.canViewReports },
@@ -332,13 +345,22 @@ const buildNavigation = (workspace, activePage) => {
         { key: 'support', href: '/client/support', label: 'الدعم الفني', icon: 'fa-headset', group: 'الحساب والنظام', visible: true }
     ];
 
-    return items.filter((item) => item.visible).map((item) => ({ ...item, active: item.key === activePage }));
+    return items.filter((item) => item.visible).map((item) => ({
+        ...item,
+        active: item.key === activePage || (activePage === 'customer_profile' && item.key === 'customers')
+    }));
 };
 
 const canAccessPage = (workspace, page) => {
     if (['overview', 'transactions', 'settings', 'support'].includes(page)) return true;
     if (page === 'services') return workspace.permissions.canTransfer;
     if (page === 'finance') return workspace.permissions.canViewBalance;
+    if (['agency_balances', 'agency_debts', 'agency_account', 'agency_position', 'agency_profits'].includes(page)) {
+        return workspace.isAgent && workspace.permissions.canViewBalance;
+    }
+    if (page === 'customer_profile') {
+        return workspace.isAgent && (workspace.permissions.canViewBalance || workspace.permissions.canManageCustomers);
+    }
     if (page === 'customers') return workspace.permissions.canManageCustomers;
     if (page === 'staff') return workspace.permissions.manager || workspace.permissions.accountant;
     if (page === 'reports') return workspace.permissions.canViewReports;
@@ -396,14 +418,18 @@ const buildTransactionFilter = async (workspace, query = {}, options = {}) => {
 
 const summarizeTransactions = (transactions = []) => transactions.reduce((totals, tx) => {
     totals.totalCount += 1;
+    const agencyProfit = tx.isSubAccountTx ? pricingFromTransaction(tx).profitLYD : 0;
     if (tx.status === 'completed') {
         totals.completedCount += 1;
         totals.totalEGP += safeNumber(tx.amount);
         totals.totalLYD += safeNumber(tx.costLYD);
+        totals.realizedProfit += agencyProfit;
     } else if (['pending', 'processing', 'accepted'].includes(tx.status)) {
         totals.pendingCount += 1;
+        totals.expectedProfit += agencyProfit;
     } else if (['rejected', 'cancelled_by_admin'].includes(tx.status)) {
         totals.cancelledCount += 1;
+        totals.reversedProfit += agencyProfit;
     } else if (tx.status === 'deposit') {
         totals.depositTotal += safeNumber(tx.amount);
     } else if (tx.status === 'deduction') {
@@ -418,7 +444,10 @@ const summarizeTransactions = (transactions = []) => transactions.reduce((totals
     totalEGP: 0,
     totalLYD: 0,
     depositTotal: 0,
-    deductionTotal: 0
+    deductionTotal: 0,
+    realizedProfit: 0,
+    expectedProfit: 0,
+    reversedProfit: 0
 });
 
 const summarizeWithAggregation = async (filter) => {
@@ -563,6 +592,9 @@ const loadCustomers = async (workspace) => {
     const statsById = new Map(stats.map((item) => [String(item._id), item]));
     const enrichedCustomers = customers.map((customer) => ({
         ...customer,
+        positiveBalance: Math.max(0, safeNumber(customer.balance)),
+        debt: Math.max(0, -safeNumber(customer.balance)),
+        marginPiasters: resolveMarginPiasters(customer, 'vodafone'),
         stats: statsById.get(String(customer._id)) || {
             transactionCount: 0,
             completedCount: 0,
@@ -582,6 +614,8 @@ const loadCustomers = async (workspace) => {
             total: customers.length,
             active: customers.filter((customer) => customer.status === 'active').length,
             totalBalance: customers.reduce((sum, customer) => sum + safeNumber(customer.balance), 0),
+            positiveBalances: customers.reduce((sum, customer) => sum + Math.max(0, safeNumber(customer.balance)), 0),
+            totalDebt: customers.reduce((sum, customer) => sum + Math.max(0, -safeNumber(customer.balance)), 0),
             totalCredit: customers.reduce((sum, customer) => sum + safeNumber(customer.creditLimit), 0),
             monthVolumeEGP: stats.reduce((sum, item) => sum + safeNumber(item.totalEGP), 0)
         },
@@ -699,17 +733,24 @@ const buildReportGroups = (transactions, scope) => {
             totalLYD: 0,
             deposits: 0,
             deductions: 0,
+            realizedProfit: 0,
+            expectedProfit: 0,
+            reversedProfit: 0,
             lastActivity: tx.createdAt
         };
         current.totalCount += 1;
+        const agencyProfit = tx.isSubAccountTx ? pricingFromTransaction(tx).profitLYD : 0;
         if (tx.status === 'completed') {
             current.completedCount += 1;
             current.totalEGP += safeNumber(tx.amount);
             current.totalLYD += safeNumber(tx.costLYD);
+            current.realizedProfit += agencyProfit;
         } else if (['pending', 'processing', 'accepted'].includes(tx.status)) {
             current.pendingCount += 1;
+            current.expectedProfit += agencyProfit;
         } else if (['rejected', 'cancelled_by_admin'].includes(tx.status)) {
             current.cancelledCount += 1;
+            current.reversedProfit += agencyProfit;
         } else if (tx.status === 'deposit') {
             current.deposits += safeNumber(tx.amount);
         } else if (tx.status === 'deduction') {
@@ -735,7 +776,8 @@ const loadReports = async (workspace, query = {}) => {
             label: service.shortLabel,
             count: serviceTransactions.length,
             totalEGP: serviceTransactions.reduce((sum, tx) => sum + safeNumber(tx.amount), 0),
-            totalLYD: serviceTransactions.reduce((sum, tx) => sum + safeNumber(tx.costLYD), 0)
+            totalLYD: serviceTransactions.reduce((sum, tx) => sum + safeNumber(tx.costLYD), 0),
+            realizedProfit: roundMoney(serviceTransactions.reduce((sum, tx) => sum + (tx.isSubAccountTx ? pricingFromTransaction(tx).profitLYD : 0), 0))
         };
     }).filter((item) => item.count > 0);
 
@@ -746,6 +788,9 @@ const loadReports = async (workspace, query = {}) => {
         reportSummary,
         reportRows,
         serviceBreakdown,
+        agencyProfitRows: workspace.isAgent && workspace.permissions.canViewBalance
+            ? agencyFinanceService.buildProfitRows(transactions, new Map())
+            : [],
         reportTransactions: transactions.slice(0, 100).map(sanitizeStatementTransaction),
         filters: { ...range, scope }
     };
@@ -788,6 +833,24 @@ const loadPageContext = async (req, page) => {
     if (page === 'services') context.servicePage = { selectedService: req.query.service || 'vodafone' };
     if (page === 'transactions') Object.assign(context, await loadTransactions(workspace, req.query));
     if (page === 'finance') Object.assign(context, await loadFinance(workspace, req.query));
+    if (['agency_balances', 'agency_debts', 'agency_account', 'agency_position', 'agency_profits'].includes(page)) {
+        const range = resolveDateRange(req.query, { forceToday: workspace.forceToday });
+        context.agencyFinance = await agencyFinanceService.loadAgencyFinance(workspace, { range });
+        context.filters = range;
+    }
+    if (page === 'customer_profile') {
+        const range = resolveDateRange(req.query, { forceToday: workspace.forceToday });
+        context.customerProfile = await agencyFinanceService.loadCustomerProfile(workspace, req.params.id, {
+            range,
+            masterRates: context.serviceRates
+        });
+        if (!context.customerProfile) {
+            const error = new Error('CUSTOMER_NOT_FOUND');
+            error.statusCode = 404;
+            throw error;
+        }
+        context.filters = range;
+    }
     if (page === 'customers') Object.assign(context, await loadCustomers(workspace));
     if (page === 'staff') Object.assign(context, await loadStaff(workspace));
     if (page === 'reports') Object.assign(context, await loadReports(workspace, req.query));

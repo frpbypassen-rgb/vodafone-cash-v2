@@ -50,6 +50,9 @@ const createSubAccountValidator = [
     body('customMargin')
         .optional()
         .isFloat({ min: 0 }).withMessage('Ù‡Ø§Ù…Ø´ Ø§Ù„Ø±Ø¨Ø­ Ù„Ù„ØªØ­ÙˆÙŠÙ„ ÙŠØ¬Ø¨ Ø£Ù† ÙŠÙƒÙˆÙ† Ø£ÙƒØ¨Ø± Ù…Ù† Ø£Ùˆ ÙŠØ³Ø§ÙˆÙŠ Ø§Ù„ØµÙØ±'),
+    body('marginPiasters')
+        .optional()
+        .isInt({ min: 0, max: 500 }).withMessage('Ù‡Ø§Ù…Ø´ Ø§Ù„Ø±Ø¨Ø­ Ø¨Ø§Ù„Ù‚Ø±ÙˆØ´ ÙŠØ¬Ø¨ Ø£Ù† ÙŠÙƒÙˆÙ† Ø¨ÙŠÙ† 0 Ùˆ500'),
     validate
 ];
 

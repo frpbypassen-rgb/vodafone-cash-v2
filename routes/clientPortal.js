@@ -150,7 +150,13 @@ router.get('/api/rates', requireClientAuth, clientWorkspaceController.getCurrent
 router.get('/services', requireClientAuth, clientWorkspaceController.renderPage('services'));
 router.get('/transactions', requireClientAuth, clientWorkspaceController.renderPage('transactions'));
 router.get('/finance', requireClientAuth, clientWorkspaceController.renderPage('finance'));
+router.get('/finance/customer-balances', requireClientAuth, clientWorkspaceController.renderPage('agency_balances'));
+router.get('/finance/customer-debts', requireClientAuth, clientWorkspaceController.renderPage('agency_debts'));
+router.get('/finance/agency-account', requireClientAuth, clientWorkspaceController.renderPage('agency_account'));
+router.get('/finance/position', requireClientAuth, clientWorkspaceController.renderPage('agency_position'));
+router.get('/finance/profits', requireClientAuth, clientWorkspaceController.renderPage('agency_profits'));
 router.get('/customers', requireClientAuth, clientWorkspaceController.renderPage('customers'));
+router.get('/customers/:id', requireClientAuth, clientWorkspaceController.renderPage('customer_profile'));
 router.get('/staff', requireClientAuth, clientWorkspaceController.renderPage('staff'));
 router.get('/reports', requireClientAuth, clientWorkspaceController.renderPage('reports'));
 router.get('/settings', requireClientAuth, clientWorkspaceController.renderPage('settings'));
@@ -160,6 +166,7 @@ router.post('/api/smart-transfer/parse', requireClientAuth, clientWorkspaceContr
 router.post('/customers/add', requireClientAuth, clientWorkspaceController.postCreateCustomer);
 router.post('/customers/:id/toggle', requireClientAuth, clientWorkspaceController.postToggleCustomer);
 router.post('/customers/:id/balance', requireClientAuth, clientWorkspaceController.postAdjustCustomerBalance);
+router.post('/customers/:id/pricing', requireClientAuth, clientWorkspaceController.postUpdateCustomerPricing);
 router.post('/settings/profile', requireClientAuth, clientWorkspaceController.postUpdateSettings);
 router.post('/settings/password', requireClientAuth, clientWorkspaceController.postChangePassword);
 router.get('/company/staff', requireClientAuth, clientCompanyController.getStaffManagement);
@@ -239,7 +246,10 @@ router.post('/api/notifications/read-all', requireClientAuth, async (req, res) =
 // ===============================================
 router.get('/sub-accounts', requireClientAuth, clientDashboardController.getSubAccounts);
 router.post('/sub-accounts/add', requireClientAuth, clientDashboardController.postAddSubAccount);
-router.post('/sub-accounts/settle/:id', requireClientAuth, clientDashboardController.postSettleSubAccount);
+router.post('/sub-accounts/settle/:id', requireClientAuth, (req, _res, next) => {
+    req.body.operation = req.body.type === 'add' ? 'customer_payment' : 'customer_payout';
+    next();
+}, clientWorkspaceController.postAdjustCustomerBalance);
 router.post('/sub-accounts/toggle/:id', requireClientAuth, clientDashboardController.postToggleSubAccount);
 
 // ===============================================

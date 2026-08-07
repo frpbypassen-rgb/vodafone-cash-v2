@@ -17,6 +17,8 @@ const Settings = require('../../../models/Settings');
 const SubAccount = require('../../../models/SubAccount');
 const { logAction } = require('../../../services/auditService');
 const { getRateForTier, getServiceRatesForTier, getCompanyServiceRates } = require('../../../utils/rateHelper');
+const { calculateAgencyPricing } = require('../../../utils/agencyPricing');
+const { recordTransferReservation } = require('../../../services/agencyJournalService');
 const { getTransferServiceDefinition } = require('../../../utils/mobileTransferServiceCatalog');
 const { acquireLock, releaseLock } = require('../../../services/lockService');
 const { resolveAutoRouteExecutor, applyAutoRouteFields, enqueueAutoRouteIfNeeded } = require('../../../services/autoRouteService');
@@ -257,6 +259,7 @@ export class TransferService {
             let subCostLYD = 0;
             let masterCostLYD = 0;
             let commission = 0;
+            let agencyPricing: any = undefined;
 
             if (isSubAccountTx) {
                 const masterObj = clientInfo.masterObj;
@@ -268,12 +271,17 @@ export class TransferService {
                     || masterServiceRates.vodafone
                     || getRateForTier(clientTier, settings);
 
-                actualSubRate = Number((masterRate - clientInfo.customMargin).toFixed(2));
-                if (actualSubRate <= 0) actualSubRate = masterRate;
-
-                subCostLYD = parseFloat((amount / actualSubRate).toFixed(3));
-                masterCostLYD = parseFloat((amount / masterRate).toFixed(3));
-                commission = parseFloat((subCostLYD - masterCostLYD).toFixed(3));
+                agencyPricing = calculateAgencyPricing({
+                    amountEGP: amount,
+                    masterRates: masterServiceRates,
+                    serviceKey: transferType,
+                    subAccount: clientInfo.subAccount
+                });
+                masterRate = agencyPricing.agentRate;
+                actualSubRate = agencyPricing.customerRate;
+                subCostLYD = agencyPricing.customerChargeLYD;
+                masterCostLYD = agencyPricing.agentCostLYD;
+                commission = agencyPricing.profitLYD;
             }
 
             const costLYD = isSubAccountTx ? masterCostLYD : parseFloat((amount / finalRate).toFixed(3));
@@ -378,6 +386,7 @@ export class TransferService {
                 commission: isSubAccountTx ? commission : 0,
                 exchangeRate: isSubAccountTx ? masterRate : finalRate,
                 subClientRate: isSubAccountTx ? actualSubRate : 0,
+                agencyPricing: isSubAccountTx ? agencyPricing : undefined,
                 notes: storedNotes,
                 customerNotes: notes || '',
                 status: 'pending',
@@ -391,6 +400,19 @@ export class TransferService {
                 tenantId: (req && req.tenant) ? req.tenant._id : undefined
             });
             if (autoRouteExecutor) applyAutoRouteFields(newTx, autoRouteExecutor);
+
+            if (isSubAccountTx) {
+                await recordTransferReservation({
+                    transaction: newTx,
+                    subAccount: clientInfo.subAccount,
+                    ownerId: clientInfo.masterObj._id,
+                    actor: {
+                        _id: clientDoc._id,
+                        model: 'SubAccount',
+                        name: clientDoc.name
+                    }
+                }, session);
+            }
 
             // 9. القيد المزدوج في دفتر الأستاذ (Double-Entry Ledger)
             if (isSubAccountTx) {

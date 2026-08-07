@@ -3354,6 +3354,353 @@ a {
     }
 }
 
+.bw-agency-period {
+    margin-bottom: 14px;
+}
+
+.bw-mini-metrics.agency article {
+    min-width: 0;
+}
+
+.bw-agency-account-strip {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 72px minmax(0, 1fr);
+    align-items: center;
+    gap: 20px;
+    margin-bottom: 16px;
+    padding: 26px;
+    color: #f8fafc;
+    border: 1px solid #111827;
+    border-radius: 8px;
+    background: #111827;
+    box-shadow: 0 18px 42px rgba(17, 24, 39, .18);
+}
+
+.bw-agency-account-strip > div {
+    display: grid;
+    gap: 5px;
+}
+
+.bw-agency-account-strip > div:last-child {
+    text-align: left;
+}
+
+.bw-agency-account-strip > i {
+    display: grid;
+    width: 64px;
+    height: 64px;
+    place-items: center;
+    font-size: 24px;
+    color: #111827;
+    border-radius: 50%;
+    background: #f8fafc;
+}
+
+.bw-agency-account-strip span,
+.bw-agency-account-strip small {
+    color: #cbd5e1;
+}
+
+.bw-agency-account-strip strong {
+    font-size: clamp(24px, 3vw, 36px);
+    line-height: 1.15;
+}
+
+.bw-agency-account-strip strong small {
+    font-size: 13px;
+}
+
+.bw-position-equation {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(150px, 1fr) 28px) minmax(190px, 1.2fr);
+    align-items: stretch;
+    gap: 8px;
+    margin-bottom: 16px;
+}
+
+.bw-position-equation > div {
+    display: grid;
+    align-content: center;
+    min-height: 108px;
+    gap: 7px;
+    padding: 18px;
+    border: 1px solid var(--bw-border);
+    border-radius: 8px;
+    background: var(--bw-surface);
+}
+
+.bw-position-equation > b {
+    display: grid;
+    place-items: center;
+    font-size: 24px;
+    color: var(--bw-muted);
+}
+
+.bw-position-equation span {
+    color: var(--bw-muted);
+    font-size: 12px;
+    font-weight: 800;
+}
+
+.bw-position-equation strong {
+    font-size: 22px;
+}
+
+.bw-position-equation .result.positive {
+    color: #065f46;
+    border-color: #6ee7b7;
+    background: #ecfdf5;
+}
+
+.bw-position-equation .result.negative {
+    color: #991b1b;
+    border-color: #fca5a5;
+    background: #fef2f2;
+}
+
+.bw-position-list {
+    display: grid;
+}
+
+.bw-position-list > div {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 18px;
+    padding: 15px 0;
+    border-bottom: 1px solid var(--bw-border);
+}
+
+.bw-position-list > div:last-child {
+    border-bottom: 0;
+}
+
+.bw-position-gauge {
+    display: grid;
+    min-height: 230px;
+    place-items: center;
+    align-content: center;
+    gap: 10px;
+    padding: 24px;
+    text-align: center;
+    border: 1px solid var(--bw-border);
+    border-radius: 8px;
+}
+
+.bw-position-gauge i {
+    font-size: 44px;
+}
+
+.bw-position-gauge strong {
+    font-size: 20px;
+}
+
+.bw-position-gauge span {
+    max-width: 310px;
+    color: var(--bw-muted);
+}
+
+.bw-position-gauge.positive {
+    color: #047857;
+    background: #ecfdf5;
+}
+
+.bw-position-gauge.negative {
+    color: #b91c1c;
+    background: #fef2f2;
+}
+
+.bw-profit-hero {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 1px;
+    margin-bottom: 16px;
+    overflow: hidden;
+    color: #f8fafc;
+    border: 1px solid #111827;
+    border-radius: 8px;
+    background: #334155;
+}
+
+.bw-profit-hero > div {
+    display: grid;
+    min-height: 150px;
+    align-content: center;
+    gap: 8px;
+    padding: 24px;
+    background: #111827;
+}
+
+.bw-profit-hero > div:nth-child(2) {
+    background: #164e63;
+}
+
+.bw-profit-hero > div:nth-child(3) {
+    background: #7f1d1d;
+}
+
+.bw-profit-hero span,
+.bw-profit-hero small {
+    color: rgba(255, 255, 255, .76);
+}
+
+.bw-profit-hero strong {
+    font-size: clamp(25px, 3vw, 36px);
+}
+
+.bw-profit-hero strong small {
+    font-size: 13px;
+}
+
+.bw-customer-profile-head {
+    display: grid;
+    grid-template-columns: minmax(0, 1.5fr) minmax(230px, .7fr) auto;
+    align-items: center;
+    gap: 22px;
+    margin-bottom: 16px;
+    padding: 22px;
+    border: 1px solid var(--bw-border);
+    border-radius: 8px;
+    background: var(--bw-surface);
+}
+
+.bw-customer-identity {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    min-width: 0;
+}
+
+.bw-customer-identity h2 {
+    margin: 3px 0;
+    font-size: 24px;
+}
+
+.bw-customer-identity p {
+    margin: 0;
+    color: var(--bw-muted);
+}
+
+.bw-customer-balance {
+    display: grid;
+    gap: 4px;
+    padding-inline-start: 20px;
+    border-inline-start: 3px solid currentColor;
+}
+
+.bw-customer-balance.positive {
+    color: #047857;
+}
+
+.bw-customer-balance.negative {
+    color: #b91c1c;
+}
+
+.bw-customer-balance span,
+.bw-customer-balance small {
+    color: var(--bw-muted);
+}
+
+.bw-customer-balance strong {
+    font-size: 25px;
+}
+
+.bw-customer-profile-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 16px;
+    margin-bottom: 16px;
+}
+
+.bw-customer-profile-grid > .bw-section {
+    margin-top: 0;
+}
+
+.bw-section-icon {
+    color: var(--bw-muted);
+    font-size: 20px;
+}
+
+.bw-pricing-form {
+    align-content: start;
+}
+
+.bw-meta-chip.danger {
+    color: #b91c1c;
+    border-color: #fecaca;
+    background: #fef2f2;
+}
+
+@media (max-width: 1100px) {
+    .bw-position-equation {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+
+    .bw-position-equation > b {
+        display: none;
+    }
+
+    .bw-position-equation .result {
+        grid-column: 1 / -1;
+    }
+
+    .bw-customer-profile-head {
+        grid-template-columns: minmax(0, 1fr) minmax(220px, .7fr);
+    }
+
+    .bw-customer-profile-head > .bw-row-actions {
+        grid-column: 1 / -1;
+    }
+}
+
+@media (max-width: 760px) {
+    .bw-agency-account-strip,
+    .bw-profit-hero,
+    .bw-customer-profile-grid,
+    .bw-customer-profile-head {
+        grid-template-columns: 1fr;
+    }
+
+    .bw-agency-account-strip {
+        gap: 14px;
+        padding: 20px;
+    }
+
+    .bw-agency-account-strip > i {
+        grid-row: 1;
+        width: 48px;
+        height: 48px;
+        font-size: 19px;
+    }
+
+    .bw-agency-account-strip > div:last-child {
+        text-align: right;
+    }
+
+    .bw-position-equation {
+        grid-template-columns: 1fr;
+    }
+
+    .bw-position-equation .result {
+        grid-column: auto;
+    }
+
+    .bw-profit-hero > div {
+        min-height: 120px;
+    }
+
+    .bw-customer-profile-head > .bw-row-actions {
+        grid-column: auto;
+    }
+
+    .bw-customer-balance {
+        padding-inline-start: 0;
+        padding-top: 14px;
+        border-inline-start: 0;
+        border-top: 3px solid currentColor;
+    }
+}
+
 @media print {
     :root {
         --bw-bg: #fff;

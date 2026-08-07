@@ -23,6 +23,7 @@ const {
     getExecutorServiceOptions,
     normalizeExecutorServiceKey
 } = require('../utils/executorServiceCatalog');
+const { buildMarginStorage } = require('../utils/agencyPricing');
 
 class AdminAccountManagementError extends Error {
     constructor(code, field = null) {
@@ -328,7 +329,10 @@ const updateSubAccount = async ({ definition, account, payload }) => {
     setStatus('subaccount', account, payload);
     const passwordChanged = await setLoginIdentity({ definition, account, payload });
     account.creditLimit = parseNumber(payload.creditLimit || 0, 'creditLimit', { min: 0, max: 1e12 });
-    account.customMargin = parseNumber(payload.customMargin || 0, 'customMargin', { min: -100, max: 100 });
+    const marginStorage = buildMarginStorage({ customMargin: parseNumber(payload.customMargin || 0, 'customMargin', { min: 0, max: 5 }) });
+    account.customMargin = marginStorage.customMargin;
+    account.marginPiasters = marginStorage.marginPiasters;
+    account.pricingVersion = marginStorage.pricingVersion;
     account.cardMargin = parseNumber(payload.cardMargin || 0, 'cardMargin', { min: -100, max: 100 });
     return { passwordChanged };
 };

@@ -30,8 +30,12 @@
                 <%- include('pages/workspace_transactions') %>
             <% } else if (page === 'finance') { %>
                 <%- include('pages/workspace_finance') %>
+            <% } else if (['agency_balances', 'agency_debts', 'agency_account', 'agency_position', 'agency_profits'].includes(page)) { %>
+                <%- include('pages/workspace_agency_finance') %>
             <% } else if (page === 'customers') { %>
                 <%- include('pages/workspace_customers') %>
+            <% } else if (page === 'customer_profile') { %>
+                <%- include('pages/workspace_customer_profile') %>
             <% } else if (page === 'staff') { %>
                 <%- include('pages/workspace_staff') %>
             <% } else if (page === 'reports') { %>
@@ -77,6 +81,6 @@
         }).replace(/</g, '\\u003c') %>;
     </script>
     <% if (page === 'services') { %><script src="/socket.io/socket.io.js" defer></script><% } %>
-    <script src="/js/client-workspace.js?v=20260806-1" defer></script>
+    <script src="/js/client-workspace.js?v=20260807-1" defer></script>
 </body>
 </html>

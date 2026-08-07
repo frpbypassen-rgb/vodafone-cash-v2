@@ -10,6 +10,7 @@ const SubAccount = require('../models/SubAccount');
 const AgentEmployee = require('../models/AgentEmployee');
 const Counter = require('../models/Counter'); 
 const Ledger = require('../models/Ledger'); 
+const AgencyJournal = require('../models/AgencyJournal');
 const Admin = require('../models/Admin');
 const { executeBalanceTransfer } = require('../services/balanceTransferService');
 const {
@@ -28,6 +29,8 @@ const { getTransferServiceDefinition } = require('../utils/mobileTransferService
 const { validateTransferInput } = require('../utils/transferServiceRules');
 const { getClientReceiptProofIds } = require('../services/clientReceiptService');
 const { normalizeCustomerNoteInput } = require('../utils/transactionNotes');
+const { calculateAgencyPricing } = require('../utils/agencyPricing');
+const { recordTransferReservation } = require('../services/agencyJournalService');
 
 const createClientError = (message, statusCode = 400) => {
     const error = new Error(message);
@@ -102,6 +105,7 @@ exports.postTransfer = async (req, res) => {
     const isAjax = req.xhr || (req.headers.accept && req.headers.accept.includes('application/json'));
     let auditAccount = null;
     let auditIsSubAccount = false;
+    let standaloneCompensations = [];
     
     // 🟢 بدء المعاملة الذرية (Transaction) — تدعم الوضع بدون Replica Set
     let session = null;
@@ -177,6 +181,7 @@ exports.postTransfer = async (req, res) => {
         const autoRouteExecutor = await resolveAutoRouteExecutor(settings, serviceKey, useTransaction ? session : null);
 
         let masterRate, actualSubRate, subCostLYD, masterCostLYD, commission = 0;
+        let agencyPricing;
         let balanceModel, companyId = null, companyName = 'عميل فردي (ويب)';
         let masterObj, telegramId = null;
         let finalCustomId = '';
@@ -197,9 +202,20 @@ exports.postTransfer = async (req, res) => {
             const masterRates = account.masterType === 'company'
                 ? getCompanyServiceRates(masterObj, settings)
                 : null;
-            masterRate = masterRates?.[serviceKey] || getServiceRateForTier(serviceKey, clientTier, settings);
-            actualSubRate = masterRate - account.customMargin; if (actualSubRate <= 0) actualSubRate = masterRate;
-            subCostLYD = parseFloat((amount / actualSubRate).toFixed(3)); masterCostLYD = parseFloat((amount / masterRate).toFixed(3)); commission = parseFloat((subCostLYD - masterCostLYD).toFixed(3));
+            const effectiveMasterRates = masterRates || Object.fromEntries([
+                [serviceKey, getServiceRateForTier(serviceKey, clientTier, settings)]
+            ]);
+            agencyPricing = calculateAgencyPricing({
+                amountEGP: amount,
+                masterRates: effectiveMasterRates,
+                serviceKey,
+                subAccount: account
+            });
+            masterRate = agencyPricing.agentRate;
+            actualSubRate = agencyPricing.customerRate;
+            subCostLYD = agencyPricing.customerChargeLYD;
+            masterCostLYD = agencyPricing.agentCostLYD;
+            commission = agencyPricing.profitLYD;
 
             if (account.masterType === 'company') { companyId = masterObj._id; companyName = masterObj.name; telegramId = null; }
             else { companyName = masterObj.name; telegramId = masterObj.telegramId; }
@@ -214,6 +230,12 @@ exports.postTransfer = async (req, res) => {
                 { new: true, ...sessionOpts }
             );
             if (!updatedSub) throw new Error('SUB_INSUFFICIENT_BALANCE');
+            if (!useTransaction) {
+                standaloneCompensations.push(async () => {
+                    await Ledger.deleteMany({ transactionId: finalCustomId, entityId: account._id });
+                    await SubAccount.updateOne({ _id: account._id }, { $inc: { balance: subCostLYD } });
+                });
+            }
             
             await new Ledger({
                 entityId: account._id, entityModel: 'SubAccount', transactionId: finalCustomId,
@@ -230,6 +252,12 @@ exports.postTransfer = async (req, res) => {
             );
 
             if (!updatedMaster) throw new Error('MASTER_INSUFFICIENT_BALANCE');
+            if (!useTransaction) {
+                standaloneCompensations.push(async () => {
+                    await Ledger.deleteMany({ transactionId: finalCustomId, entityId: masterObj._id });
+                    await MasterModel.updateOne({ _id: masterObj._id }, { $inc: { balance: masterCostLYD } });
+                });
+            }
             
             await new Ledger({
                 entityId: masterObj._id, entityModel: MasterModel.modelName, transactionId: finalCustomId,
@@ -287,11 +315,26 @@ exports.postTransfer = async (req, res) => {
             employeeName: isSubAccount ? account.name : account.name, vodafoneNumber: phone, transferType: serviceKey,
             accountName, accountNumber, serviceDetails, amount: amount, costLYD: masterCostLYD,
             subAccountCostLYD: isSubAccount ? subCostLYD : 0, commission: commission, exchangeRate: masterRate, subClientRate: isSubAccount ? actualSubRate : 0,
+            agencyPricing: isSubAccount ? agencyPricing : undefined,
             notes, customerNotes: notes, status: 'pending', isSubAccountTx: isSubAccount, masterProfit: isSubAccount ? commission : 0,
             idCardImage: req.file ? `/uploads/${req.file.filename}` : undefined
         });
         if (autoRouteExecutor) applyAutoRouteFields(newTx, autoRouteExecutor);
+        if (isSubAccount) {
+            await recordTransferReservation({
+                transaction: newTx,
+                subAccount: account,
+                ownerId: masterObj._id,
+                actor: { _id: account._id, model: 'SubAccount', name: account.name }
+            }, useTransaction ? session : null);
+            if (!useTransaction) {
+                standaloneCompensations.push(() => AgencyJournal.deleteMany({ transactionId: finalCustomId }));
+            }
+        }
         await newTx.save(sessionOpts);
+        if (!useTransaction) {
+            standaloneCompensations.push(() => Transaction.deleteOne({ _id: newTx._id }));
+        }
 
         // Log successful transfer to audit log
         await logAction({
@@ -308,6 +351,7 @@ exports.postTransfer = async (req, res) => {
 
         // ✅ تأكيد العملية بنجاح (Commit)
         if (useTransaction) { await session.commitTransaction(); session.endSession(); }
+        standaloneCompensations = [];
 
         if (autoRouteExecutor) {
             setImmediate(() => {
@@ -349,6 +393,14 @@ exports.postTransfer = async (req, res) => {
         // 🔴 في حال أي خطأ يتم التراجع عن خصم الأرصدة وإلغاء الفواتير والدفتر
         console.error('[Transfer] خطأ:', error.message, error.stack);
         if (useTransaction) { try { await session.abortTransaction(); session.endSession(); } catch(e) {} }
+        if (!useTransaction && standaloneCompensations.length) {
+            for (const compensate of standaloneCompensations.reverse()) {
+                try { await compensate(); } catch (compensationError) {
+                    console.error('[Transfer] فشل التعويض:', compensationError.message);
+                }
+            }
+            standaloneCompensations = [];
+        }
         if (req.file?.path) {
             fs.promises.unlink(req.file.path).catch(() => {});
         }

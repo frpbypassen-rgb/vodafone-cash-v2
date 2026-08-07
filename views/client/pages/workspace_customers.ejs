@@ -1,8 +1,8 @@
 <section class="bw-mini-metrics">
     <article><span>إجمالي العملاء</span><strong class="bw-mono"><%= customerSummary.total %></strong></article>
     <article class="success"><span>الحسابات النشطة</span><strong class="bw-mono"><%= customerSummary.active %></strong></article>
-    <article><span>أرصدة العملاء</span><strong class="bw-mono"><%= Number(customerSummary.totalBalance).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) %> <small>LYD</small></strong></article>
-    <article class="warning"><span>الحدود الائتمانية</span><strong class="bw-mono"><%= Number(customerSummary.totalCredit).toLocaleString('en-US', { maximumFractionDigits: 2 }) %> <small>LYD</small></strong></article>
+    <article><span>الأرصدة الموجبة</span><strong class="bw-mono"><%= Number(customerSummary.positiveBalances).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) %> <small>LYD</small></strong></article>
+    <article class="danger"><span>ديون العملاء</span><strong class="bw-mono"><%= Number(customerSummary.totalDebt).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) %> <small>LYD</small></strong></article>
     <article class="blue"><span>حجم الشهر</span><strong class="bw-mono"><%= Number(customerSummary.monthVolumeEGP).toLocaleString('en-US', { maximumFractionDigits: 0 }) %> <small>EGP</small></strong></article>
 </section>
 
@@ -13,7 +13,7 @@
     </header>
     <div class="bw-table-wrap">
         <table class="bw-table bw-customer-table">
-            <thead><tr><th>العميل</th><th>بيانات الحساب</th><th>الرصيد والحد</th><th>نشاط الشهر</th><th>آخر نشاط</th><th>الحالة</th><th></th></tr></thead>
+            <thead><tr><th>العميل</th><th>بيانات الحساب</th><th>الرصيد والحد</th><th>هامش السعر</th><th>نشاط الشهر</th><th>الحالة</th><th></th></tr></thead>
             <tbody>
                 <% if (!customers.length) { %><tr><td colspan="7"><div class="bw-empty"><i class="fa-solid fa-users"></i><strong>لا توجد حسابات عملاء</strong><span>أنشئ أول حساب عميل لبدء إدارة شبكتك.</span></div></td></tr><% } %>
                 <% customers.forEach(customer => { %>
@@ -21,11 +21,12 @@
                         <td data-label="العميل"><span class="bw-person-cell"><span class="bw-avatar small"><%= String(customer.name).charAt(0) %></span><span><strong><%= customer.name %></strong><small class="bw-mono"><%= customer.phone || 'بدون هاتف' %></small></span></span></td>
                         <td data-label="بيانات الحساب"><strong class="bw-mono"><%= customer.accountCode || 'قيد التوليد' %></strong><small dir="ltr"><%= customer.webUsername %></small></td>
                         <td data-label="الرصيد والحد"><strong class="bw-mono"><%= Number(customer.balance || 0).toFixed(2) %> LYD</strong><small>حد ائتماني: <%= Number(customer.creditLimit || 0).toFixed(2) %></small></td>
+                        <td data-label="هامش السعر"><strong class="bw-mono"><%= customer.marginPiasters %> قرش</strong><small>السعر ينخفض <%= (Number(customer.marginPiasters) / 100).toFixed(2) %></small></td>
                         <td data-label="نشاط الشهر"><strong class="bw-mono"><%= customer.stats.transactionCount %> عملية</strong><small><%= Number(customer.stats.totalEGP || 0).toLocaleString('en-US', { maximumFractionDigits: 0 }) %> EGP</small></td>
-                        <td data-label="آخر نشاط"><% if (customer.stats.lastActivity) { %><strong class="bw-mono"><%= new Date(customer.stats.lastActivity).toLocaleDateString('en-GB', { timeZone: 'Africa/Tripoli' }) %></strong><small><%= new Date(customer.stats.lastActivity).toLocaleTimeString('ar-LY', { timeZone: 'Africa/Tripoli', hour: '2-digit', minute: '2-digit' }) %></small><% } else { %><span class="bw-muted">لا يوجد</span><% } %></td>
                         <td data-label="الحالة"><span class="bw-status <%= customer.status === 'active' ? 'success' : 'danger' %>"><%= customer.status === 'active' ? 'نشط' : 'موقوف' %></span></td>
                         <td>
                             <div class="bw-row-actions">
+                                <a class="bw-icon-button compact" href="/client/customers/<%= customer._id %>" title="فتح الملف المالي" aria-label="فتح ملف <%= customer.name %>"><i class="fa-solid fa-arrow-up-right-from-square"></i></a>
                                 <button type="button" class="bw-icon-button compact" data-customer-balance data-customer-id="<%= customer._id %>" data-customer-name="<%= customer.name %>" title="تمويل أو سحب" aria-label="إدارة رصيد <%= customer.name %>"><i class="fa-solid fa-wallet"></i></button>
                                 <form method="POST" action="/client/customers/<%= customer._id %>/toggle" data-confirm="<%= customer.status === 'active' ? 'إيقاف حساب هذا العميل؟' : 'إعادة تنشيط حساب هذا العميل؟' %>">
                                     <button type="submit" class="bw-icon-button compact <%= customer.status === 'active' ? 'danger' : 'success' %>" title="<%= customer.status === 'active' ? 'إيقاف' : 'تنشيط' %>" aria-label="<%= customer.status === 'active' ? 'إيقاف' : 'تنشيط' %> حساب <%= customer.name %>"><i class="fa-solid <%= customer.status === 'active' ? 'fa-pause' : 'fa-play' %>"></i></button>
@@ -74,7 +75,7 @@
             <label class="bw-field"><span>رقم الهاتف</span><input type="tel" name="phone" dir="ltr" inputmode="tel" required></label>
             <label class="bw-field"><span>اسم المستخدم</span><div class="bw-input-suffix"><input type="text" name="webUsername" dir="ltr" pattern="[A-Za-z0-9_]{3,40}" required><b>@ahram.com</b></div></label>
             <label class="bw-field"><span>كلمة المرور</span><input type="password" name="webPassword" minlength="8" autocomplete="new-password" required></label>
-            <label class="bw-field"><span>هامش الخدمة</span><input type="number" name="customMargin" min="0" step="0.001" value="0"></label>
+            <label class="bw-field"><span>هامش الربح بالقروش</span><div class="bw-input-affix"><input type="number" name="marginPiasters" min="0" max="500" step="1" value="0"><b>قرش</b></div><small>مثال: 3 يخفض السعر من 5.98 إلى 5.95</small></label>
             <label class="bw-field span-2"><span>الحد الائتماني</span><div class="bw-input-affix"><input type="number" name="creditLimit" min="0" step="0.01" value="0"><b>LYD</b></div></label>
         </div>
         <div class="bw-dialog-actions"><button type="button" class="bw-button secondary" data-dialog-close>إلغاء</button><button type="submit" class="bw-button primary"><i class="fa-solid fa-user-plus"></i>إنشاء الحساب</button></div>
@@ -86,9 +87,11 @@
         <div class="bw-dialog-head"><div><span class="bw-section-kicker">حركة مالية</span><h2 id="customerBalanceTitle">إدارة رصيد العميل</h2></div><button type="button" class="bw-icon-button" data-dialog-close aria-label="إغلاق"><i class="fa-solid fa-xmark"></i></button></div>
         <div class="bw-dialog-body bw-form-grid">
             <div class="bw-selected-customer span-2"><span class="bw-avatar"><i class="fa-solid fa-user"></i></span><div><small>الحساب المحدد</small><strong id="customerBalanceName">---</strong></div></div>
-            <label class="bw-field"><span>نوع الحركة</span><select name="operation"><option value="deposit">تمويل - إضافة رصيد</option><option value="withdraw">سحب - خصم رصيد</option></select></label>
-            <label class="bw-field"><span>المبلغ</span><div class="bw-input-affix"><input type="number" name="amount" min="0.01" step="0.01" required><b>LYD</b></div></label>
-            <label class="bw-field span-2"><span>البيان</span><input type="text" name="note" maxlength="240" placeholder="سبب التمويل أو السحب"></label>
+            <label class="bw-field span-2"><span>نوع الحركة</span><select name="operation"><option value="customer_payment">تحصيل من العميل وإضافة رصيد</option><option value="debt_payment">سداد دين مستحق</option><option value="customer_payout">دفع أو سحب للعميل</option><option value="balance_credit">تصحيح بالزيادة</option><option value="balance_debit">تصحيح بالنقص</option></select></label>
+            <label class="bw-field"><span>المبلغ</span><div class="bw-input-affix"><input type="number" name="amount" min="0.001" step="0.001" required><b>LYD</b></div></label>
+            <label class="bw-field"><span>طريقة التسوية</span><select name="paymentMethod"><option value="cash">نقدي</option><option value="bank">تحويل مصرفي</option><option value="wallet">محفظة إلكترونية</option><option value="other">أخرى</option></select></label>
+            <label class="bw-field span-2"><span>الرقم المرجعي</span><input type="text" name="externalReference" maxlength="100" placeholder="رقم الإيصال أو مرجع التحصيل"></label>
+            <label class="bw-field span-2"><span>البيان</span><input type="text" name="note" maxlength="240" placeholder="بيان واضح للحركة"></label>
         </div>
         <div class="bw-dialog-actions"><button type="button" class="bw-button secondary" data-dialog-close>إلغاء</button><button type="submit" class="bw-button primary"><i class="fa-solid fa-check"></i>تسجيل الحركة</button></div>
     </form>

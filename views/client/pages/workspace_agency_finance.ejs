@@ -1,0 +1,133 @@
+<% const af = agencyFinance; const metrics = af.metrics; %>
+
+<section class="bw-filter-band bw-agency-period">
+    <form method="GET" class="bw-filter-form">
+        <% if (!workspace.forceToday) { %>
+            <label><span>من</span><input type="date" name="from" value="<%= filters.from %>"></label>
+            <label><span>إلى</span><input type="date" name="to" value="<%= filters.to %>"></label>
+            <label><span>أو اختر شهراً</span><input type="month" name="month" value="<%= filters.month %>"></label>
+        <% } %>
+        <button type="submit" class="bw-button primary compact"><i class="fa-solid fa-filter"></i>تحديث الفترة</button>
+        <span class="bw-meta-chip"><i class="fa-regular fa-calendar"></i><%= filters.label %></span>
+    </form>
+</section>
+
+<section class="bw-mini-metrics agency">
+    <article class="success"><span>رصيد الوكالة المتاح</span><strong class="bw-mono"><%= Number(metrics.availableWallet).toFixed(3) %> <small>LYD</small></strong></article>
+    <article><span>أرصدة العملاء</span><strong class="bw-mono"><%= Number(metrics.positiveBalances).toFixed(3) %> <small>LYD</small></strong></article>
+    <article class="danger"><span>ديون العملاء</span><strong class="bw-mono"><%= Number(metrics.debts).toFixed(3) %> <small>LYD</small></strong></article>
+    <article class="warning"><span>محجوز لدى الشركة</span><strong class="bw-mono"><%= Number(metrics.reservedAgency).toFixed(3) %> <small>LYD</small></strong></article>
+    <article class="blue"><span>الربح المحقق</span><strong class="bw-mono"><%= Number(metrics.realizedProfit).toFixed(3) %> <small>LYD</small></strong></article>
+</section>
+
+<% if (page === 'agency_balances') { %>
+    <section class="bw-section">
+        <header class="bw-section-head"><div><span class="bw-section-kicker">حسابات موجبة</span><h2>أرصدة العملاء المتاحة</h2></div><span class="bw-meta-chip"><%= af.positiveCustomers.length %> عميل</span></header>
+        <div class="bw-table-wrap"><table class="bw-table">
+            <thead><tr><th>العميل</th><th>الرصيد</th><th>المتاح مع الحد</th><th>محجوز</th><th>عمليات الفترة</th><th>ربح الفترة</th><th></th></tr></thead>
+            <tbody>
+                <% if (!af.positiveCustomers.length) { %><tr><td colspan="7"><div class="bw-empty"><i class="fa-solid fa-wallet"></i><strong>لا توجد أرصدة موجبة</strong></div></td></tr><% } %>
+                <% af.positiveCustomers.forEach(customer => { %><tr>
+                    <td data-label="العميل"><span class="bw-person-cell"><span class="bw-avatar small"><%= String(customer.name).charAt(0) %></span><span><strong><%= customer.name %></strong><small class="bw-mono"><%= customer.accountCode || customer.phone %></small></span></span></td>
+                    <td data-label="الرصيد" class="bw-mono text-success"><strong><%= Number(customer.positiveBalance).toFixed(3) %> LYD</strong></td>
+                    <td data-label="المتاح مع الحد" class="bw-mono"><%= Number(customer.availableToSpend).toFixed(3) %> LYD</td>
+                    <td data-label="محجوز" class="bw-mono"><%= Number(customer.reserved).toFixed(3) %> LYD</td>
+                    <td data-label="عمليات الفترة" class="bw-mono"><%= customer.completedCount %><small><%= Number(customer.totalEGP).toLocaleString('en-US', { maximumFractionDigits: 0 }) %> EGP</small></td>
+                    <td data-label="ربح الفترة" class="bw-mono"><%= Number(customer.realizedProfit).toFixed(3) %> LYD</td>
+                    <td><a class="bw-icon-button compact" href="/client/customers/<%= customer._id %>" title="فتح الملف المالي" aria-label="فتح ملف <%= customer.name %>"><i class="fa-solid fa-arrow-up-right-from-square"></i></a></td>
+                </tr><% }) %>
+            </tbody>
+        </table></div>
+    </section>
+<% } %>
+
+<% if (page === 'agency_debts') { %>
+    <section class="bw-section">
+        <header class="bw-section-head"><div><span class="bw-section-kicker">متابعة التحصيل</span><h2>ديون العملاء</h2></div><span class="bw-meta-chip danger"><%= Number(metrics.debts).toFixed(3) %> LYD</span></header>
+        <div class="bw-table-wrap"><table class="bw-table">
+            <thead><tr><th>العميل</th><th>الدين الحالي</th><th>الحد الائتماني</th><th>المتاح</th><th>هامش السعر</th><th>آخر نشاط</th><th></th></tr></thead>
+            <tbody>
+                <% if (!af.debtCustomers.length) { %><tr><td colspan="7"><div class="bw-empty"><i class="fa-solid fa-circle-check"></i><strong>لا توجد ديون مستحقة حالياً</strong></div></td></tr><% } %>
+                <% af.debtCustomers.forEach(customer => { %><tr>
+                    <td data-label="العميل"><span class="bw-person-cell"><span class="bw-avatar small"><%= String(customer.name).charAt(0) %></span><span><strong><%= customer.name %></strong><small class="bw-mono"><%= customer.phone || customer.accountCode %></small></span></span></td>
+                    <td data-label="الدين الحالي" class="bw-mono text-danger"><strong><%= Number(customer.debt).toFixed(3) %> LYD</strong></td>
+                    <td data-label="الحد الائتماني" class="bw-mono"><%= Number(customer.creditLimit || 0).toFixed(3) %> LYD</td>
+                    <td data-label="المتاح" class="bw-mono"><%= Number(customer.availableToSpend).toFixed(3) %> LYD</td>
+                    <td data-label="هامش السعر" class="bw-mono"><%= customer.marginPiasters %> قرش</td>
+                    <td data-label="عمليات الفترة" class="bw-mono"><%= customer.completedCount %> عملية</td>
+                    <td><a class="bw-button danger compact" href="/client/customers/<%= customer._id %>#settlement"><i class="fa-solid fa-hand-holding-dollar"></i>تحصيل</a></td>
+                </tr><% }) %>
+            </tbody>
+        </table></div>
+    </section>
+<% } %>
+
+<% if (page === 'agency_account') { %>
+    <section class="bw-agency-account-strip">
+        <div><span>الرصيد المتاح للتنفيذ</span><strong class="bw-mono"><%= Number(metrics.availableWallet).toFixed(3) %> <small>LYD</small></strong><small>الرصيد الفعلي بعد خصم العمليات المعلقة</small></div>
+        <i class="fa-solid fa-building-columns"></i>
+        <div><span>الرصيد الدفتري قبل الحجز</span><strong class="bw-mono"><%= Number(metrics.bookWallet).toFixed(3) %> <small>LYD</small></strong><small>المتاح + <%= Number(metrics.reservedAgency).toFixed(3) %> LYD محجوز</small></div>
+    </section>
+    <section class="bw-mini-metrics">
+        <article class="success"><span>تحصيلات العملاء</span><strong class="bw-mono"><%= Number(af.settlementSummary.received).toFixed(3) %> <small>LYD</small></strong></article>
+        <article class="danger"><span>مدفوعات وخصومات</span><strong class="bw-mono"><%= Number(af.settlementSummary.paid).toFixed(3) %> <small>LYD</small></strong></article>
+        <article class="blue"><span>صافي التسويات</span><strong class="bw-mono"><%= Number(af.settlementSummary.net).toFixed(3) %> <small>LYD</small></strong></article>
+        <article><span>العمليات المفتوحة</span><strong class="bw-mono"><%= metrics.pendingCount %></strong></article>
+    </section>
+    <section class="bw-section">
+        <header class="bw-section-head"><div><span class="bw-section-kicker">دفتر الوكالة</span><h2>حركات الحساب لدى الشركة</h2></div><a href="/client/finance" class="bw-text-link">كشف الحساب الكامل <i class="fa-solid fa-arrow-left"></i></a></header>
+        <div class="bw-table-wrap"><table class="bw-table"><thead><tr><th>العملية</th><th>النوع</th><th>البيان</th><th>قبل</th><th>الحركة</th><th>بعد</th><th>التاريخ</th></tr></thead><tbody>
+            <% if (!af.agencyLedger.length) { %><tr><td colspan="7"><div class="bw-empty"><i class="fa-solid fa-book"></i><strong>لا توجد قيود في الفترة</strong></div></td></tr><% } %>
+            <% af.agencyLedger.forEach(row => { %><tr><td data-label="العملية" class="bw-mono"><%= row.transactionId %></td><td data-label="النوع"><span class="bw-status <%= Number(row.amount) >= 0 ? 'success' : 'danger' %>"><%= row.type %></span></td><td data-label="البيان"><%= row.description || 'حركة مالية' %></td><td data-label="قبل" class="bw-mono"><%= Number(row.balanceBefore).toFixed(3) %></td><td data-label="الحركة" class="bw-mono <%= Number(row.amount) >= 0 ? 'text-success' : 'text-danger' %>"><%= Number(row.amount) >= 0 ? '+' : '' %><%= Number(row.amount).toFixed(3) %></td><td data-label="بعد" class="bw-mono"><%= Number(row.balanceAfter).toFixed(3) %></td><td data-label="التاريخ" class="bw-mono"><%= new Date(row.createdAt).toLocaleString('ar-LY', { timeZone: 'Africa/Tripoli' }) %></td></tr><% }) %>
+        </tbody></table></div>
+    </section>
+<% } %>
+
+<% if (page === 'agency_position') { %>
+    <section class="bw-position-equation" aria-label="معادلة المركز المالي">
+        <div><span>رصيد الوكالة</span><strong class="bw-mono"><%= Number(metrics.availableWallet).toFixed(3) %></strong></div><b>−</b>
+        <div><span>أرصدة العملاء</span><strong class="bw-mono"><%= Number(metrics.positiveBalances).toFixed(3) %></strong></div><b>+</b>
+        <div><span>ديون العملاء</span><strong class="bw-mono"><%= Number(metrics.debts).toFixed(3) %></strong></div><b>=</b>
+        <div class="result <%= metrics.coveragePosition >= 0 ? 'positive' : 'negative' %>"><span>صافي التغطية</span><strong class="bw-mono"><%= Number(metrics.coveragePosition).toFixed(3) %> LYD</strong></div>
+    </section>
+    <section class="bw-report-grid">
+        <div class="bw-section">
+            <header class="bw-section-head"><div><span class="bw-section-kicker">جودة المحفظة</span><h2>توزيع حسابات العملاء</h2></div></header>
+            <div class="bw-position-list">
+                <div><span>عملاء نشطون</span><strong class="bw-mono"><%= metrics.activeCustomers %> / <%= metrics.customerCount %></strong></div>
+                <div><span>صافي علاقة العملاء</span><strong class="bw-mono"><%= Number(metrics.customerNet).toFixed(3) %> LYD</strong></div>
+                <div><span>إجمالي الحدود الائتمانية</span><strong class="bw-mono"><%= Number(metrics.creditLimits).toFixed(3) %> LYD</strong></div>
+                <div><span>التزامات العملاء المحجوزة</span><strong class="bw-mono"><%= Number(metrics.reservedCustomers).toFixed(3) %> LYD</strong></div>
+            </div>
+        </div>
+        <aside class="bw-section">
+            <header class="bw-section-head"><div><span class="bw-section-kicker">حالة التغطية</span><h2>قراءة فورية</h2></div></header>
+            <div class="bw-position-gauge <%= metrics.coveragePosition >= 0 ? 'positive' : 'negative' %>"><i class="fa-solid <%= metrics.coveragePosition >= 0 ? 'fa-shield-check' : 'fa-triangle-exclamation' %>"></i><strong><%= metrics.coveragePosition >= 0 ? 'تغطية موجبة' : 'عجز في التغطية' %></strong><span><%= metrics.coveragePosition >= 0 ? 'رصيد الوكالة يغطي صافي أرصدة العملاء.' : 'راجع التحصيل أو أضف رصيداً إلى حساب الوكالة.' %></span></div>
+        </aside>
+    </section>
+<% } %>
+
+<% if (page === 'agency_profits') { %>
+    <section class="bw-profit-hero">
+        <div><span>الأرباح المحققة</span><strong class="bw-mono"><%= Number(metrics.realizedProfit).toFixed(3) %> <small>LYD</small></strong><small>عمليات مكتملة فقط</small></div>
+        <div><span>أرباح متوقعة</span><strong class="bw-mono"><%= Number(metrics.expectedProfit).toFixed(3) %> <small>LYD</small></strong><small>لا تدخل في الربح حتى اكتمال العملية</small></div>
+        <div><span>أرباح عمليات ملغية</span><strong class="bw-mono"><%= Number(metrics.reversedProfit).toFixed(3) %> <small>LYD</small></strong><small>مستبعدة من الإجمالي</small></div>
+    </section>
+    <section class="bw-report-grid">
+        <div class="bw-section">
+            <header class="bw-section-head"><div><span class="bw-section-kicker">حسب العميل</span><h2>ربحية شبكة العملاء</h2></div><span class="bw-meta-chip"><%= af.profitRows.length %> عميل</span></header>
+            <div class="bw-table-wrap"><table class="bw-table"><thead><tr><th>العميل</th><th>العمليات</th><th>حجم EGP</th><th>محقق</th><th>متوقع</th><th>مستبعد</th><th></th></tr></thead><tbody>
+                <% if (!af.profitRows.length) { %><tr><td colspan="7"><div class="bw-empty"><i class="fa-solid fa-chart-line"></i><strong>لا توجد أرباح في الفترة</strong></div></td></tr><% } %>
+                <% af.profitRows.forEach(row => { %><tr><td data-label="العميل"><strong><%= row.customerName %></strong></td><td data-label="العمليات" class="bw-mono"><%= row.completedCount %> / <%= row.operationCount %></td><td data-label="حجم EGP" class="bw-mono"><%= Number(row.totalEGP).toLocaleString('en-US', { maximumFractionDigits: 0 }) %></td><td data-label="محقق" class="bw-mono text-success"><%= Number(row.realizedProfit).toFixed(3) %></td><td data-label="متوقع" class="bw-mono"><%= Number(row.expectedProfit).toFixed(3) %></td><td data-label="مستبعد" class="bw-mono text-danger"><%= Number(row.reversedProfit).toFixed(3) %></td><td><a class="bw-icon-button compact" href="/client/customers/<%= row.customerId %>" title="ملف العميل"><i class="fa-solid fa-arrow-up-right-from-square"></i></a></td></tr><% }) %>
+            </tbody></table></div>
+        </div>
+        <aside class="bw-section bw-service-analysis">
+            <header class="bw-section-head"><div><span class="bw-section-kicker">حسب الخدمة</span><h2>مصادر الربح</h2></div></header>
+            <div class="bw-analysis-list">
+                <% if (!af.serviceProfitRows.length) { %><div class="bw-empty"><i class="fa-solid fa-chart-pie"></i><strong>لا توجد بيانات</strong></div><% } %>
+                <% const maxProfit = Math.max(0.001, ...af.serviceProfitRows.map(row => row.realizedProfit)); %>
+                <% af.serviceProfitRows.forEach(row => { const service = serviceCatalog.find(item => item.key === row.serviceKey); %><div class="bw-analysis-row"><header><strong><%= service?.shortLabel || row.serviceKey %></strong><span class="bw-mono"><%= Number(row.realizedProfit).toFixed(3) %> LYD</span></header><div class="bw-progress"><span style="width:<%= Math.max(4, row.realizedProfit / maxProfit * 100) %>%"></span></div><footer><span><%= row.operationCount %> عملية</span><span><%= Number(row.totalEGP).toLocaleString('en-US', { maximumFractionDigits: 0 }) %> EGP</span></footer></div><% }) %>
+            </div>
+        </aside>
+    </section>
+<% } %>

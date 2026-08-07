@@ -7,6 +7,8 @@ const Employee = require('../models/Employee');
 const SubAccount = require('../models/SubAccount');
 const Transaction = require('../models/Transaction');
 const { updateBalanceWithLedger } = require('./walletService');
+const { buildMarginStorage } = require('../utils/agencyPricing');
+const { recordCustomerSettlement } = require('./agencyJournalService');
 const { logAction } = require('./auditService');
 const { sendMobileError } = require('../mappers/mobileErrorMapper');
 const {
@@ -73,19 +75,23 @@ const createSubAccountFingerprintPayload = (agentId, body) => ({
     phone: String(body.phone || '').trim(),
     password: String(body.password || ''),
     customMargin: normalizeNumber(body.customMargin),
+    marginPiasters: Number.isFinite(Number(body.marginPiasters)) ? Math.round(Number(body.marginPiasters)) : undefined,
     creditLimit: normalizeNumber(body.creditLimit)
 });
 
-const existingSubAccountMatchesPayload = (sub, agentId, body) => (
-    sub &&
-    sub.masterType === 'user' &&
-    String(sub.masterId) === String(agentId) &&
-    String(sub.webUsername || '').trim() === String(body.username || '').trim() &&
-    String(sub.name || '').trim() === String(body.name || '').trim() &&
-    String(sub.phone || '').trim() === String(body.phone || '').trim() &&
-    normalizeNumber(sub.customMargin) === normalizeNumber(body.customMargin) &&
-    normalizeNumber(sub.creditLimit) === normalizeNumber(body.creditLimit)
-);
+const existingSubAccountMatchesPayload = (sub, agentId, body) => {
+    const requestedPricing = buildMarginStorage(body);
+    return Boolean(
+        sub &&
+        sub.masterType === 'user' &&
+        String(sub.masterId) === String(agentId) &&
+        String(sub.webUsername || '').trim() === String(body.username || '').trim() &&
+        String(sub.name || '').trim() === String(body.name || '').trim() &&
+        String(sub.phone || '').trim() === String(body.phone || '').trim() &&
+        normalizeNumber(sub.customMargin) === normalizeNumber(requestedPricing.customMargin) &&
+        normalizeNumber(sub.creditLimit) === normalizeNumber(body.creditLimit)
+    );
+};
 
 const settlementFingerprintPayload = (agentId, subAccountId, body) => ({
     agentId: String(agentId),
@@ -183,7 +189,7 @@ const createSubAccount = async (req, res) => {
         const agent = await checkAgentAuth(req, res);
         if (!agent) return;
 
-        const { username, name, phone, password, customMargin, creditLimit } = req.body;
+        const { username, name, phone, password, customMargin, marginPiasters, creditLimit } = req.body;
         const idempotencyKey = req.headers['idempotency-key'];
         const creationPayload = createSubAccountFingerprintPayload(agent._id, req.body);
         const creationFingerprint = buildRequestFingerprint('agent_sub_account_create', creationPayload);
@@ -232,6 +238,7 @@ const createSubAccount = async (req, res) => {
             return sendMobileError(res, 409, 'USERNAME_ALREADY_EXISTS', 'اسم المستخدم مسجل بالفعل في المنظومة', req.correlationId);
         }
 
+        const pricing = buildMarginStorage({ marginPiasters, customMargin });
         const sub = await SubAccount.create({
             masterType: 'user',
             masterId: agent._id,
@@ -241,7 +248,7 @@ const createSubAccount = async (req, res) => {
             webPassword: password,
             creationIdempotencyKey: idempotencyKey,
             creationIdempotencyFingerprint: creationFingerprint,
-            customMargin: parseFloat(customMargin) || 0,
+            ...pricing,
             creditLimit: parseFloat(creditLimit) || 0,
             status: 'active'
         });
@@ -385,6 +392,11 @@ const executeSettlement = async (req, res) => {
 
         const { type, amount, notes } = req.body;
         const val = parseFloat(amount);
+        const category = type === 'deposit' ? 'customer_payment' : 'customer_payout';
+        const paymentMethod = ['cash', 'bank', 'wallet', 'other'].includes(req.body.paymentMethod)
+            ? req.body.paymentMethod
+            : 'cash';
+        const externalReference = String(req.body.externalReference || '').trim().slice(0, 100);
         const idempotencyKey = req.headers['idempotency-key'];
         const idempotencyFingerprint = buildRequestFingerprint(
             'agent_sub_account_settlement',
@@ -458,9 +470,27 @@ const executeSettlement = async (req, res) => {
                 entityId: sub._id,
                 delta: type === 'deposit' ? val : -val,
                 reversible: true
+            },
+            settlementDetails: {
+                category,
+                paymentMethod,
+                externalReference,
+                statement: notes || '',
+                settledBy: agent.name
             }
         }], { session });
         const newTx = Array.isArray(created) ? created[0] : created;
+
+        await recordCustomerSettlement({
+            transactionId: txId,
+            subAccount: sub,
+            category,
+            amount: val,
+            delta: type === 'deposit' ? val : -val,
+            idempotencyKey,
+            actor: { _id: agent._id, model: 'User', name: agent.name },
+            metadata: { paymentMethod, externalReference, notes: notes || '' }
+        }, session);
 
         await session.commitTransaction();
         session.endSession();

@@ -124,12 +124,30 @@ export class ReversalService {
             if (targetDoc) targetId = targetDoc._id;
         }
 
+        if (!targetDoc && tx.isSubAccountTx && tx.subAccountId) {
+            const SubAccount = require('../../../models/SubAccount');
+            const subAccount = await this.withSession(SubAccount.findById(tx.subAccountId), session);
+            if (subAccount?.masterId) {
+                if (subAccount.masterType === 'company') {
+                    try {
+                        TargetModel = mongoose.model('ClientCompany');
+                    } catch (_) {
+                        TargetModel = require('../../../models/ClientCompany');
+                    }
+                } else {
+                    TargetModel = User;
+                }
+                targetDoc = await this.withSession(TargetModel.findById(subAccount.masterId), session);
+                if (targetDoc) targetId = targetDoc._id;
+            }
+        }
+
         return { targetId, TargetModel, targetDoc };
     }
 
-    private async saveWithOptionalSession(doc: any, session?: any): Promise<void> {
-        if (session) await doc.save({ session });
-        else await doc.save();
+    private async saveWithOptionalSession(doc: any, session?: any): Promise<any> {
+        if (session) return doc.save({ session });
+        return doc.save();
     }
 
     private appendAdminNoteText(current: any, note: string): string {
@@ -147,7 +165,14 @@ export class ReversalService {
         return lastEvent ? lastEvent.sequenceNumber + 1 : 1;
     }
 
-    private async refundTransactionBalances(tx: any, reason: string, performedBy: string, cancellationNumber: string, session?: any): Promise<void> {
+    private async refundTransactionBalances(
+        tx: any,
+        reason: string,
+        performedBy: string,
+        cancellationNumber: string,
+        session?: any,
+        compensations: Array<() => Promise<any>> = []
+    ): Promise<void> {
         const currency = 'EGP';
         const cost = tx.costLYD || 0;
         const { targetId, TargetModel, targetDoc } = await this.resolveTarget(tx, session);
@@ -164,8 +189,14 @@ export class ReversalService {
                 { new: true, ...(session ? { session } : {}) }
             );
             if (!updatedSub) throw new Error('SUB_ACCOUNT_NOT_FOUND');
+            if (!session) {
+                compensations.push(() => SubAccount.updateOne(
+                    { _id: tx.subAccountId },
+                    { $inc: { balance: -(tx.subAccountCostLYD || 0) } }
+                ));
+            }
 
-            await this.saveWithOptionalSession(new Ledger({
+            const subLedger = new Ledger({
                 entityId: tx.subAccountId,
                 entityModel: 'SubAccount',
                 transactionId: tx.customId,
@@ -176,9 +207,13 @@ export class ReversalService {
                 balanceBefore: subBalanceBefore,
                 balanceAfter: updatedSub.balance || 0,
                 description: `استرجاع تكلفة حوالة ملغاة رقم ${tx.customId} (رقم الإلغاء: ${cancellationNumber} | السبب: ${reason})`
-            }), session);
+            });
+            await this.saveWithOptionalSession(subLedger, session);
+            if (!session && subLedger._id && typeof (Ledger as any).deleteOne === 'function') {
+                compensations.push(() => (Ledger as any).deleteOne({ _id: subLedger._id }));
+            }
 
-            await this.saveWithOptionalSession(new JournalEvent({
+            const subEvent = new JournalEvent({
                 eventType: 'TransferReversed',
                 entityId: tx.subAccountId,
                 entityModel: 'SubAccount',
@@ -186,15 +221,26 @@ export class ReversalService {
                 currency,
                 sequenceNumber: await this.nextSequence(tx.subAccountId, session),
                 metadata: { transactionId: tx.customId, reason, performedBy, cancellationNumber }
-            }), session);
+            });
+            await this.saveWithOptionalSession(subEvent, session);
+            if (!session && subEvent._id && typeof (JournalEvent as any).deleteOne === 'function') {
+                compensations.push(() => (JournalEvent as any).deleteOne({ _id: subEvent._id }));
+            }
 
             if (!targetDoc) throw new Error('CLIENT_NOT_FOUND');
             const masterBalanceBefore = this.getWalletBalance(targetDoc, currency);
             const updatedMaster = await this.applyRefund(TargetModel, targetDoc, targetId, currency, cost, session);
             if (!updatedMaster) throw new Error('CLIENT_NOT_FOUND');
             const masterBalanceAfter = this.getWalletBalance(updatedMaster, currency);
+            if (!session && typeof TargetModel.updateOne === 'function') {
+                const masterBalancePath = this.balancePath(targetDoc, currency);
+                compensations.push(() => TargetModel.updateOne(
+                    { _id: targetId },
+                    { $inc: { [masterBalancePath]: -cost } }
+                ));
+            }
 
-            await this.saveWithOptionalSession(new Ledger({
+            const masterLedger = new Ledger({
                 entityId: targetId,
                 entityModel: TargetModel.modelName,
                 transactionId: tx.customId,
@@ -205,9 +251,13 @@ export class ReversalService {
                 balanceBefore: masterBalanceBefore,
                 balanceAfter: masterBalanceAfter,
                 description: `استرجاع تكلفة حوالة ملغاة من نقطة بيع (${tx.subAccountName || '---'}) رقم ${tx.customId} (رقم الإلغاء: ${cancellationNumber} | السبب: ${reason})`
-            }), session);
+            });
+            await this.saveWithOptionalSession(masterLedger, session);
+            if (!session && masterLedger._id && typeof (Ledger as any).deleteOne === 'function') {
+                compensations.push(() => (Ledger as any).deleteOne({ _id: masterLedger._id }));
+            }
 
-            await this.saveWithOptionalSession(new JournalEvent({
+            const masterEvent = new JournalEvent({
                 eventType: 'TransferReversed',
                 entityId: targetId,
                 entityModel: TargetModel.modelName,
@@ -215,7 +265,11 @@ export class ReversalService {
                 currency,
                 sequenceNumber: await this.nextSequence(targetId, session),
                 metadata: { transactionId: tx.customId, reason, performedBy, cancellationNumber }
-            }), session);
+            });
+            await this.saveWithOptionalSession(masterEvent, session);
+            if (!session && masterEvent._id && typeof (JournalEvent as any).deleteOne === 'function') {
+                compensations.push(() => (JournalEvent as any).deleteOne({ _id: masterEvent._id }));
+            }
             return;
         }
 
@@ -225,8 +279,15 @@ export class ReversalService {
         const updatedTarget = await this.applyRefund(TargetModel, targetDoc, targetId, currency, cost, session);
         if (!updatedTarget) throw new Error('CLIENT_NOT_FOUND');
         const balanceAfter = this.getWalletBalance(updatedTarget, currency);
+        if (!session && typeof TargetModel.updateOne === 'function') {
+            const balancePath = this.balancePath(targetDoc, currency);
+            compensations.push(() => TargetModel.updateOne(
+                { _id: targetId },
+                { $inc: { [balancePath]: -cost } }
+            ));
+        }
 
-        await this.saveWithOptionalSession(new Ledger({
+        const ledgerEntry = new Ledger({
             entityId: targetId,
             entityModel: tx.companyId ? 'ClientCompany' : 'User',
             transactionId: tx.customId,
@@ -237,9 +298,13 @@ export class ReversalService {
             balanceBefore,
             balanceAfter,
             description: `استرجاع تكلفة الحوالة رقم ${tx.customId} (رقم الإلغاء: ${cancellationNumber} | السبب: ${reason})`
-        }), session);
+        });
+        await this.saveWithOptionalSession(ledgerEntry, session);
+        if (!session && ledgerEntry._id && typeof (Ledger as any).deleteOne === 'function') {
+            compensations.push(() => (Ledger as any).deleteOne({ _id: ledgerEntry._id }));
+        }
 
-        await this.saveWithOptionalSession(new JournalEvent({
+        const refundEvent = new JournalEvent({
             eventType: 'TransferReversed',
             entityId: targetId,
             entityModel: tx.companyId ? 'ClientCompany' : 'User',
@@ -247,7 +312,11 @@ export class ReversalService {
             currency,
             sequenceNumber: await this.nextSequence(targetId, session),
             metadata: { transactionId: tx.customId, reason, performedBy, cancellationNumber }
-        }), session);
+        });
+        await this.saveWithOptionalSession(refundEvent, session);
+        if (!session && refundEvent._id && typeof (JournalEvent as any).deleteOne === 'function') {
+            compensations.push(() => (JournalEvent as any).deleteOne({ _id: refundEvent._id }));
+        }
     }
 
     private async reverseTransactionWithoutMongoTransaction(txId: string, reason: string, performedBy: string, options: ReversalOptions): Promise<ReversalResult> {
@@ -286,14 +355,22 @@ export class ReversalService {
             return { success: false, message: 'العملية قيد الإلغاء حالياً، يرجى المحاولة بعد لحظات' };
         }
 
+        let standaloneCompensations: Array<() => Promise<any>> = [];
         try {
-            await this.refundTransactionBalances(tx, reason, performedBy, cancellationNumber);
+            await this.refundTransactionBalances(
+                tx,
+                reason,
+                performedBy,
+                cancellationNumber,
+                undefined,
+                standaloneCompensations
+            );
             const adminNotes = this.appendAdminNoteText(tx.adminNotes,
                 `[تم الاسترجاع بواسطة: ${performedBy} | السبب: ${reason}]\n`
                 + `[رقم الإلغاء: ${cancellationNumber} | تاريخ الإلغاء: ${cancelledAt.toISOString()}]`
             );
 
-            await TransactionModel.updateOne(
+            const finalizeResult = await TransactionModel.updateOne(
                 { _id: tx._id, reversalLock },
                 {
                     $set: {
@@ -308,12 +385,22 @@ export class ReversalService {
                 },
                 { strict: false }
             );
+            if (!finalizeResult?.modifiedCount) throw new Error('REVERSAL_FINALIZE_CONFLICT');
+            standaloneCompensations = [];
 
-            const freshTx = await TransactionModel.findById(tx._id);
+            const freshTx = await TransactionModel.findById(tx._id).catch(() => null);
             eventBus.publish('transfer:cancelled', { tx: freshTx || tx, reason, cancellationNumber });
             logger.info(`Transaction ${tx.customId} reversed without Mongo transaction by ${performedBy} with cancellation ${cancellationNumber}`);
             return { success: true, message: 'تم إلغاء العملية واسترداد الرصيد بنجاح', cancellationNumber };
         } catch (error: any) {
+            for (const compensate of standaloneCompensations.reverse()) {
+                try {
+                    await compensate();
+                } catch (compensationError: any) {
+                    logger.error(`Failed fallback reversal compensation ${txId}`, { error: compensationError.message });
+                }
+            }
+            standaloneCompensations = [];
             await TransactionModel.updateOne(
                 { _id: tx._id, reversalLock },
                 {
@@ -375,6 +462,24 @@ export class ReversalService {
                 TargetModel = User;
                 targetDoc = await User.findOne(this.userLookup(tx.userId)).session(session);
                 if (targetDoc) targetId = targetDoc._id;
+            }
+
+            if (!targetDoc && tx.isSubAccountTx && tx.subAccountId) {
+                const SubAccountOwner = require('../../../models/SubAccount');
+                const ownerLink = await SubAccountOwner.findById(tx.subAccountId).session(session);
+                if (ownerLink?.masterId) {
+                    if (ownerLink.masterType === 'company') {
+                        try {
+                            TargetModel = mongoose.model('ClientCompany');
+                        } catch (_) {
+                            TargetModel = require('../../../models/ClientCompany');
+                        }
+                    } else {
+                        TargetModel = User;
+                    }
+                    targetDoc = await TargetModel.findById(ownerLink.masterId).session(session);
+                    if (targetDoc) targetId = targetDoc._id;
+                }
             }
 
             const cost = tx.costLYD;

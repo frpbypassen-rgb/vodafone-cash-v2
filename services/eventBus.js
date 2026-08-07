@@ -57,6 +57,11 @@ eventBus.on('transfer:completed', async (data) => {
     try {
         const { tx, emp } = data;
         logger.financial('Transfer Completed Event Received', { customId: tx.customId, status: tx.status });
+
+        const { recordTransferRealization } = require('./agencyJournalService');
+        await recordTransferRealization(tx).catch((error) => {
+            logger.error('Failed to realize agency journal transfer', { customId: tx.customId, error: error.message });
+        });
         
         const { addNotificationJob } = require('./bullQueueService');
         const msg = `✅ تم إتمام الحوالة رقم ${tx.customId} بقيمة ${tx.amount} EGP بنجاح عبر المنفذ ${emp.name}`;
@@ -75,6 +80,11 @@ eventBus.on('transfer:cancelled', async (data) => {
     try {
         const { tx, emp, reason, cancellationNumber } = data;
         logger.financial('Transfer Cancelled Event Received', { customId: tx.customId, refund: tx.costLYD });
+
+        const { recordTransferReversal } = require('./agencyJournalService');
+        await recordTransferReversal(tx, { reason, cancellationNumber }).catch((error) => {
+            logger.error('Failed to reverse agency journal transfer', { customId: tx.customId, error: error.message });
+        });
 
         const { addNotificationJob } = require('./bullQueueService');
         const { attachCancellationReceipt } = require('./cancellationReceiptService');

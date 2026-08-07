@@ -29,6 +29,8 @@ export interface ITransaction extends Document {
     masterProfit: number;
     exchangeRate: number;
     subClientRate: number;
+    agencyPricing?: any;
+    settlementDetails?: any;
     status: 'pending' | 'processing' | 'accepted' | 'completed' | 'rejected' | 'deposit_pending' | 'deposit' | 'deduction' | 'cancelled_by_admin';
     executorGroupId?: mongoose.Types.ObjectId;
     managerGroupId?: mongoose.Types.ObjectId;
@@ -83,7 +85,26 @@ const transactionSchema = new Schema<ITransaction>({
     commission: { type: Number, default: 0 },
     masterProfit: { type: Number, default: 0 }, 
     exchangeRate: { type: Number, default: 0 }, 
-    subClientRate: { type: Number, default: 0 }, 
+    subClientRate: { type: Number, default: 0 },
+    agencyPricing: {
+        serviceKey: { type: String, trim: true },
+        pricingVersion: { type: Number },
+        amountEGP: { type: Number },
+        agentRate: { type: Number },
+        customerRate: { type: Number },
+        marginPiasters: { type: Number },
+        rateDelta: { type: Number },
+        agentCostLYD: { type: Number },
+        customerChargeLYD: { type: Number },
+        profitLYD: { type: Number }
+    },
+    settlementDetails: {
+        category: { type: String, trim: true },
+        paymentMethod: { type: String, trim: true },
+        externalReference: { type: String, trim: true },
+        statement: { type: String, trim: true },
+        settledBy: { type: String, trim: true }
+    },
     status: { 
         type: String, 
         enum: [

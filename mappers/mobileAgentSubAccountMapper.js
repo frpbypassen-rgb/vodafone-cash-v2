@@ -3,6 +3,7 @@
 'use strict';
 
 const { encodeOpaqueId } = require('../utils/mobileOpaqueId');
+const { resolveMarginPiasters } = require('../utils/agencyPricing');
 
 const toSubAccountListItemDto = (sub) => {
     if (!sub) return null;
@@ -22,6 +23,8 @@ const toSubAccountListItemDto = (sub) => {
         debt,
         availableToSpend,
         customMargin: Number(sub.customMargin) || 0,
+        marginPiasters: resolveMarginPiasters(sub, 'vodafone'),
+        serviceMarginPiasters: sub.serviceMarginPiasters || {},
         createdAt: sub.createdAt ? new Date(sub.createdAt).toISOString() : null
     };
 };
@@ -45,6 +48,8 @@ const toSubAccountDetailsDto = (sub) => {
         debt,
         availableToSpend,
         customMargin: Number(sub.customMargin) || 0,
+        marginPiasters: resolveMarginPiasters(sub, 'vodafone'),
+        serviceMarginPiasters: sub.serviceMarginPiasters || {},
         createdAt: sub.createdAt ? new Date(sub.createdAt).toISOString() : null
     };
 };

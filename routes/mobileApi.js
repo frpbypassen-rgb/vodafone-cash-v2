@@ -25,7 +25,8 @@ const authController = require('../controllers/auth/authController');
 const transferService = require('../services/transferService');
 const { deviceTrustMiddleware } = require('../src/Presentation/Middlewares/deviceTrustMiddleware');
 const { mfaMiddleware } = require('../src/Presentation/Middlewares/mfaMiddleware');
-const { buildMobileRateContract, buildCompanyRateContract, applyRateMargin } = require('../utils/rateHelper');
+const { buildMobileRateContract, buildCompanyRateContract } = require('../utils/rateHelper');
+const { applyCustomerRateMargins } = require('../utils/agencyPricing');
 const { getTransferServiceLabel } = require('../utils/mobileTransferServiceCatalog');
 const agentService = require('../services/mobileAgentSubAccountService');
 const {
@@ -636,7 +637,7 @@ const buildHomeRateResponse = async (req, res, userId, accountType, settings) =>
         const masterContract = subAccount.masterType === 'company' && masterForRates
             ? buildCompanyRateContract(masterForRates, settings)
             : buildMobileRateContract(tier, settings);
-        const subServiceRates = applyRateMargin(masterContract.serviceRates, subAccount.customMargin);
+        const subServiceRates = applyCustomerRateMargins(masterContract.serviceRates, subAccount);
         const subBaseRate = subServiceRates.vodafone || masterContract.baseExchangeRate;
 
         rateContract = {

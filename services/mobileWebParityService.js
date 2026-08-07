@@ -23,6 +23,8 @@ const { resolveAccountByCode, normalizeAccountCode } = require('./accountCodeSer
 const { logAction } = require('./auditService');
 const { acquireLock, releaseLock } = require('./lockService');
 const { sanitizeStatementTransaction } = require('../utils/accountStatementPrivacy');
+const { pricingFromTransaction, roundMoney } = require('../utils/agencyPricing');
+const { recordTransferRepricing } = require('./agencyJournalService');
 
 const appendNoteText = (current, note) => {
     const cleanNote = String(note || '').trim();
@@ -612,9 +614,10 @@ async function editTaskAmount({ executorId, taskId, newAmount, reason, req }) {
         if (isNaN(parsedAmount) || parsedAmount <= 0) throw new Error('INVALID_AMOUNT');
 
         const oldAmount = numberOrNull(tx.amount) || 0;
-        const oldMasterCost = numberOrNull(tx.costLYD) || 0;
+        const oldAgencyPricing = tx.isSubAccountTx ? pricingFromTransaction(tx) : null;
+        const oldMasterCost = oldAgencyPricing?.agentCostLYD ?? numberOrNull(tx.costLYD) ?? 0;
         const masterRate = assertPositiveRate(
-            tx.exchangeRate || (oldAmount > 0 && oldMasterCost > 0 ? oldAmount / oldMasterCost : null)
+            oldAgencyPricing?.agentRate || tx.exchangeRate || (oldAmount > 0 && oldMasterCost > 0 ? oldAmount / oldMasterCost : null)
         );
         const newMasterCost = parseFloat((parsedAmount / masterRate).toFixed(3));
         const diffMasterCost = parseFloat((newMasterCost - oldMasterCost).toFixed(3));
@@ -622,9 +625,9 @@ async function editTaskAmount({ executorId, taskId, newAmount, reason, req }) {
         let newSubCost = null;
         let diffSubCost = 0;
         if (tx.isSubAccountTx && tx.subAccountId) {
-            const oldSubCost = numberOrNull(tx.subAccountCostLYD) ?? oldMasterCost;
+            const oldSubCost = oldAgencyPricing?.customerChargeLYD ?? numberOrNull(tx.subAccountCostLYD) ?? oldMasterCost;
             const subRate = assertPositiveRate(
-                tx.subClientRate || (oldAmount > 0 && oldSubCost > 0 ? oldAmount / oldSubCost : null) || masterRate
+                oldAgencyPricing?.customerRate || tx.subClientRate || (oldAmount > 0 && oldSubCost > 0 ? oldAmount / oldSubCost : null) || masterRate
             );
             newSubCost = parseFloat((parsedAmount / subRate).toFixed(3));
             diffSubCost = parseFloat((newSubCost - oldSubCost).toFixed(3));
@@ -632,11 +635,13 @@ async function editTaskAmount({ executorId, taskId, newAmount, reason, req }) {
 
         const session = await mongoose.startSession();
         session.startTransaction();
+        let pricingSubAccount = null;
 
         try {
             if (tx.isSubAccountTx && tx.subAccountId) {
                 const subAccount = await SubAccount.findById(tx.subAccountId).session(session);
                 if (!subAccount) throw new Error('ACCOUNT_NOT_FOUND');
+                pricingSubAccount = subAccount;
 
                 await updateBalanceWithCreditLimit({
                     Model: SubAccount,
@@ -678,6 +683,14 @@ async function editTaskAmount({ executorId, taskId, newAmount, reason, req }) {
                 tx.subAccountCostLYD = newSubCost;
                 tx.commission = parseFloat((newSubCost - newMasterCost).toFixed(3));
                 tx.masterProfit = tx.commission;
+                tx.agencyPricing = {
+                    ...(tx.agencyPricing?.toObject ? tx.agencyPricing.toObject() : tx.agencyPricing || {}),
+                    ...oldAgencyPricing,
+                    amountEGP: roundMoney(parsedAmount, 2),
+                    agentCostLYD: newMasterCost,
+                    customerChargeLYD: newSubCost,
+                    profitLYD: tx.commission
+                };
             }
             appendAdminNote(tx, `[تعديل المبلغ من ${oldAmount} إلى ${parsedAmount} | السبب: ${reason}]`);
             
@@ -691,6 +704,17 @@ async function editTaskAmount({ executorId, taskId, newAmount, reason, req }) {
             tx.editIdempotencyKey = idempotencyKey;
             tx.editIdempotencyFingerprint = fingerprint;
             tx.editIdempotencyResponse = successResponse;
+
+            if (newSubCost !== null && pricingSubAccount) {
+                await recordTransferRepricing({
+                    transaction: tx,
+                    subAccount: pricingSubAccount,
+                    oldPricing: oldAgencyPricing,
+                    newPricing: tx.agencyPricing,
+                    actor: { _id: emp._id, model: 'Employee', name: emp.name },
+                    idempotencyKey
+                }, session);
+            }
 
             await tx.save({ session });
             await session.commitTransaction();

@@ -121,16 +121,21 @@ const executeFallback = async (Model, entityId, amount, type, transactionId, des
     const balanceBefore = account.balance - amount;
     const balanceAfter = account.balance;
 
-    await Ledger.create({
-        entityId,
-        entityModel: Model.modelName,
-        transactionId: transactionId || 'SYS-SYNC',
-        type,
-        amount,
-        balanceBefore,
-        balanceAfter,
-        description
-    });
+    try {
+        await Ledger.create({
+            entityId,
+            entityModel: Model.modelName,
+            transactionId: transactionId || 'SYS-SYNC',
+            type,
+            amount,
+            balanceBefore,
+            balanceAfter,
+            description
+        });
+    } catch (error) {
+        await Model.updateOne({ _id: entityId }, { $inc: { balance: -amount } });
+        throw error;
+    }
 
     return { success: true, balanceBefore, balanceAfter };
 };

@@ -1,0 +1,60 @@
+<% const profile = customerProfile; const customer = profile.customer; %>
+
+<section class="bw-customer-profile-head">
+    <div class="bw-customer-identity"><span class="bw-avatar"><%= String(customer.name).charAt(0) %></span><div><span class="bw-section-kicker">ملف مالي موحد</span><h2><%= customer.name %></h2><p><span class="bw-mono"><%= customer.accountCode || 'بدون رقم حساب' %></span> · <span dir="ltr"><%= customer.phone || customer.webUsername %></span></p></div></div>
+    <div class="bw-customer-balance <%= Number(customer.balance) < 0 ? 'negative' : 'positive' %>"><span><%= Number(customer.balance) < 0 ? 'الدين الحالي' : 'الرصيد الحالي' %></span><strong class="bw-mono"><%= Math.abs(Number(customer.balance || 0)).toFixed(3) %> <small>LYD</small></strong><small>المتاح مع الحد: <%= Number(customer.availableToSpend).toFixed(3) %> LYD</small></div>
+    <div class="bw-row-actions"><a href="/client/customers" class="bw-button secondary"><i class="fa-solid fa-arrow-right"></i>العملاء</a><a href="/client/transactions?customer=<%= customer._id %>" class="bw-button primary"><i class="fa-solid fa-list-check"></i>كل العمليات</a></div>
+</section>
+
+<section class="bw-mini-metrics">
+    <article><span>الحد الائتماني</span><strong class="bw-mono"><%= Number(customer.creditLimit || 0).toFixed(3) %> <small>LYD</small></strong></article>
+    <article class="warning"><span>مبالغ محجوزة</span><strong class="bw-mono"><%= Number(customer.reserved).toFixed(3) %> <small>LYD</small></strong></article>
+    <article class="success"><span>ربح الفترة</span><strong class="bw-mono"><%= Number(customer.realizedProfit).toFixed(3) %> <small>LYD</small></strong></article>
+    <article class="blue"><span>عمليات ناجحة</span><strong class="bw-mono"><%= customer.completedCount %></strong></article>
+    <article><span>هامش افتراضي</span><strong class="bw-mono"><%= customer.marginPiasters %> <small>قرش</small></strong></article>
+</section>
+
+<section class="bw-customer-profile-grid">
+    <% if (workspace.permissions.canManageCustomers) { %>
+        <div class="bw-section" id="settlement">
+            <header class="bw-section-head"><div><span class="bw-section-kicker">تحصيل وتسوية</span><h2>تسجيل حركة على العميل</h2></div><i class="fa-solid fa-cash-register bw-section-icon"></i></header>
+            <form method="POST" action="/client/customers/<%= customer._id %>/balance" class="bw-form-grid">
+                <input type="hidden" name="returnTo" value="profile">
+                <label class="bw-field span-2"><span>نوع الحركة</span><select name="operation" required><option value="customer_payment">تحصيل من العميل وإضافة رصيد</option><option value="debt_payment">سداد دين مستحق</option><option value="customer_payout">دفع أو سحب للعميل</option><option value="balance_credit">تصحيح رصيد بالزيادة</option><option value="balance_debit">تصحيح رصيد بالنقص</option></select></label>
+                <label class="bw-field"><span>المبلغ</span><div class="bw-input-affix"><input type="number" name="amount" min="0.001" step="0.001" required><b>LYD</b></div></label>
+                <label class="bw-field"><span>طريقة التسوية</span><select name="paymentMethod"><option value="cash">نقدي</option><option value="bank">تحويل مصرفي</option><option value="wallet">محفظة إلكترونية</option><option value="other">أخرى</option></select></label>
+                <label class="bw-field span-2"><span>الرقم المرجعي</span><input type="text" name="externalReference" maxlength="100" placeholder="رقم إيصال أو مرجع التحصيل"></label>
+                <label class="bw-field span-2"><span>البيان</span><textarea name="note" rows="3" maxlength="240" placeholder="بيان واضح للحركة المالية"></textarea></label>
+                <button type="submit" class="bw-button primary span-2"><i class="fa-solid fa-check"></i>تسجيل التسوية وإصدار الإيصال</button>
+            </form>
+        </div>
+    <% } %>
+
+    <div class="bw-section">
+        <header class="bw-section-head"><div><span class="bw-section-kicker">عقد التسعير</span><h2>هامش العميل بالقروش</h2></div><span class="bw-meta-chip">3 = 0.03</span></header>
+        <% if (workspace.permissions.canManageCustomers) { %>
+            <form method="POST" action="/client/customers/<%= customer._id %>/pricing" class="bw-form-grid bw-pricing-form">
+                <label class="bw-field span-2"><span>الهامش الافتراضي لكل الخدمات</span><div class="bw-input-affix"><input type="number" name="marginPiasters" min="0" max="500" step="1" value="<%= customer.marginPiasters %>" required><b>قرش</b></div></label>
+                <% profile.pricingRows.forEach(row => { const service = serviceCatalog.find(item => item.key === row.serviceKey); const override = customer.serviceMarginPiasters && customer.serviceMarginPiasters[row.serviceKey]; %>
+                    <label class="bw-field"><span><%= service?.shortLabel || row.serviceKey %></span><div class="bw-input-affix"><input type="number" name="margin_<%= row.serviceKey %>" min="0" max="500" step="1" value="<%= override === undefined || override === null ? '' : override %>" placeholder="افتراضي"><b>قرش</b></div></label>
+                <% }) %>
+                <button type="submit" class="bw-button primary span-2"><i class="fa-solid fa-floppy-disk"></i>حفظ عقد التسعير</button>
+            </form>
+        <% } %>
+    </div>
+</section>
+
+<section class="bw-section">
+    <header class="bw-section-head"><div><span class="bw-section-kicker">معاينة قبل التطبيق</span><h2>أسعار العميل وربح مثال 1,000 EGP</h2></div><small>هذه البيانات داخلية للوكيل ولا تظهر للعميل.</small></header>
+    <div class="bw-table-wrap"><table class="bw-table"><thead><tr><th>الخدمة</th><th>سعر الوكالة</th><th>الهامش</th><th>سعر العميل</th><th>تكلفة الوكالة</th><th>تكلفة العميل</th><th>الربح</th></tr></thead><tbody>
+        <% profile.pricingRows.forEach(row => { const service = serviceCatalog.find(item => item.key === row.serviceKey); %><tr><td data-label="الخدمة"><strong><%= service?.shortLabel || row.serviceKey %></strong></td><td data-label="سعر الوكالة" class="bw-mono"><%= Number(row.agentRate).toFixed(2) %></td><td data-label="الهامش" class="bw-mono"><%= row.marginPiasters %> قرش</td><td data-label="سعر العميل" class="bw-mono"><strong><%= Number(row.customerRate).toFixed(2) %></strong></td><td data-label="تكلفة الوكالة" class="bw-mono"><%= Number(row.example.agentCostLYD).toFixed(3) %></td><td data-label="تكلفة العميل" class="bw-mono"><%= Number(row.example.customerChargeLYD).toFixed(3) %></td><td data-label="الربح" class="bw-mono text-success"><strong><%= Number(row.example.profitLYD).toFixed(3) %> LYD</strong></td></tr><% }) %>
+    </tbody></table></div>
+</section>
+
+<section class="bw-section">
+    <header class="bw-section-head"><div><span class="bw-section-kicker">التدقيق المالي</span><h2>آخر الحركات والعمليات</h2></div><span class="bw-meta-chip"><%= filters.label %></span></header>
+    <div class="bw-table-wrap"><table class="bw-table"><thead><tr><th>العملية</th><th>النوع</th><th>القيمة</th><th>التكلفة</th><th>الربح</th><th>الحالة</th><th>التاريخ</th></tr></thead><tbody>
+        <% if (!profile.transactions.length) { %><tr><td colspan="7"><div class="bw-empty"><i class="fa-solid fa-receipt"></i><strong>لا توجد حركات في الفترة</strong></div></td></tr><% } %>
+        <% profile.transactions.slice(0, 100).forEach(tx => { const status = statusMeta[tx.status] || { label: tx.status, tone: 'neutral' }; const service = serviceCatalog.find(item => item.key === tx.transferType); const profit = Number(tx.agencyPricing?.profitLYD ?? tx.masterProfit ?? tx.commission ?? 0); %><tr><td data-label="العملية"><button type="button" class="bw-id-button bw-mono" data-transaction-id="<%= tx._id %>"><%= tx.customId %></button></td><td data-label="النوع"><%= ['deposit', 'deduction'].includes(tx.status) ? (tx.settlementDetails?.category || status.label) : (service?.shortLabel || tx.transferType) %></td><td data-label="القيمة" class="bw-mono"><%= Number(tx.amount || 0).toLocaleString('en-US', { maximumFractionDigits: 2 }) %> <%= ['deposit', 'deduction'].includes(tx.status) ? 'LYD' : 'EGP' %></td><td data-label="التكلفة" class="bw-mono"><%= Number(tx.subAccountCostLYD || 0).toFixed(3) %> LYD</td><td data-label="الربح" class="bw-mono <%= tx.status === 'completed' ? 'text-success' : '' %>"><%= tx.status === 'completed' ? profit.toFixed(3) : '---' %></td><td data-label="الحالة"><span class="bw-status <%= status.tone %>"><%= status.label %></span></td><td data-label="التاريخ" class="bw-mono"><%= new Date(tx.createdAt).toLocaleString('ar-LY', { timeZone: 'Africa/Tripoli' }) %></td></tr><% }) %>
+    </tbody></table></div>
+</section>

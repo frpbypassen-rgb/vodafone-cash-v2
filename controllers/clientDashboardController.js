@@ -10,7 +10,8 @@ const StoreCategory = require('../models/StoreCategory');
 const StoreProduct = require('../models/StoreProduct');
 const Card = require('../models/Card');
 const { updateBalanceWithLedger } = require('../services/walletService');
-const { getServiceRatesForTier, getCompanyServiceRates, applyRateMargin } = require('../utils/rateHelper');
+const { getServiceRatesForTier, getCompanyServiceRates } = require('../utils/rateHelper');
+const { applyCustomerRateMargins, buildMarginStorage } = require('../utils/agencyPricing');
 const clientCompanyController = require('./clientCompanyController');
 const clientWorkspaceController = require('./clientWorkspaceController');
 const businessPortalService = require('../services/businessPortalService');
@@ -99,7 +100,7 @@ exports.getDashboard = async (req, res) => {
             const masterRates = account.masterType === 'company'
                 ? getCompanyServiceRates(master, set)
                 : getServiceRatesForTier(clientTier, set);
-            serviceRates = applyRateMargin(masterRates, account.customMargin);
+            serviceRates = applyCustomerRateMargins(masterRates, account);
             currentRate = serviceRates.vodafone;
         } else if (req.session.accountType === 'company') {
             const company = await ClientCompany.findById(account.companyId);
@@ -211,14 +212,15 @@ exports.getSubAccounts = async (req, res) => {
 
 exports.postAddSubAccount = async (req, res) => {
     if (req.session.accountType === 'sub_client') return res.status(403).send('Unauthorized');
-    const { name, phone, webUsername, webPassword, customMargin, creditLimit, cardMargin } = req.body;
+    const { name, phone, webUsername, webPassword, customMargin, marginPiasters, creditLimit, cardMargin } = req.body;
     const isEmployee = req.session.accountType === 'company';
     const account = isEmployee ? await ClientEmployee.findById(req.session.clientId) : await User.findById(req.session.clientId);
     if (isEmployee || !account || account.role !== 'agent') return res.status(403).send('Unauthorized');
     let masterType = isEmployee ? 'company' : 'user'; let masterId = isEmployee ? account.companyId : account._id;
 
     try {
-        await SubAccount.create({ masterType, masterId, name, phone, webUsername, webPassword, customMargin: parseFloat(customMargin) || 0, cardMargin: parseFloat(cardMargin) || 0, creditLimit: parseFloat(creditLimit) || 0 });
+        const pricing = buildMarginStorage({ marginPiasters, customMargin });
+        await SubAccount.create({ masterType, masterId, name, phone, webUsername, webPassword, ...pricing, cardMargin: parseFloat(cardMargin) || 0, creditLimit: parseFloat(creditLimit) || 0 });
         res.redirect('/client/sub-accounts?success=1');
     } catch(e) { res.redirect('/client/sub-accounts?error=1'); }
 };
@@ -359,7 +361,7 @@ exports.getApiTransactions = async (req, res) => {
             const masterRates = account.masterType === 'company'
                 ? getCompanyServiceRates(master, set)
                 : getServiceRatesForTier(tier, set);
-            serviceRates = applyRateMargin(masterRates, account.customMargin);
+            serviceRates = applyCustomerRateMargins(masterRates, account);
             currentRate = serviceRates.vodafone;
         } else {
             let tier = 1;

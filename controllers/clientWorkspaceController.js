@@ -22,6 +22,10 @@ const { logAction } = require('../services/auditService');
 const { customerNoteFromTransaction } = require('../utils/transactionNotes');
 const { sanitizeStatementText } = require('../utils/accountStatementPrivacy');
 const { parseTransferMessage } = require('../utils/smartTransferParser');
+const { buildMarginStorage } = require('../utils/agencyPricing');
+const { SERVICE_RATE_KEYS } = require('../utils/rateHelper');
+const { recordCustomerSettlement } = require('../services/agencyJournalService');
+const AgencyJournal = require('../models/AgencyJournal');
 
 const USERNAME_DOMAIN = '@ahram.com';
 
@@ -98,6 +102,7 @@ exports.renderPage = (page) => async (req, res, next) => {
     } catch (error) {
         if (error.message === 'NOT_BUSINESS_PORTAL' && typeof next === 'function') return next();
         if (error.message === 'FORBIDDEN_PAGE') return res.status(403).redirect('/client/dashboard?portalError=forbidden');
+        if (error.message === 'CUSTOMER_NOT_FOUND') return res.status(404).redirect('/client/customers?customerError=notfound');
         console.error(`[Business Portal] ${page} render failed:`, error.message);
         return res.redirect('/client/logout');
     }
@@ -128,7 +133,10 @@ exports.postCreateCustomer = async (req, res) => {
         const phone = cleanText(req.body.phone, 32);
         const webPassword = String(req.body.webPassword || '');
         const webUsername = normalizeUsername(req.body.webUsername);
-        const customMargin = Math.max(0, Number(req.body.customMargin) || 0);
+        const pricing = buildMarginStorage({
+            marginPiasters: req.body.marginPiasters,
+            customMargin: req.body.customMargin
+        });
         const creditLimit = Math.max(0, Number(req.body.creditLimit) || 0);
 
         if (name.length < 3 || !/^\+?[0-9]{8,15}$/.test(phone) || webPassword.length < 8) {
@@ -143,7 +151,7 @@ exports.postCreateCustomer = async (req, res) => {
             phone,
             webUsername,
             webPassword,
-            customMargin,
+            ...pricing,
             creditLimit,
             status: 'active'
         });
@@ -208,11 +216,11 @@ exports.postToggleCustomer = async (req, res) => {
     }
 };
 
-const nextSettlementId = async () => {
+const nextSettlementId = async (session) => {
     const counter = await Counter.findOneAndUpdate(
         { name: 'portal_customer_settlement' },
         { $inc: { value: 1 } },
-        { upsert: true, new: true }
+        { upsert: true, new: true, ...(session ? { session } : {}) }
     );
     const now = new Date();
     return `SET-${String(now.getFullYear()).slice(-2)}${String(now.getMonth() + 1).padStart(2, '0')}-${String(counter.value).padStart(5, '0')}`;
@@ -226,25 +234,38 @@ exports.postAdjustCustomerBalance = async (req, res) => {
         if (!customer) return redirectWithMessage(res, '/client/customers', 'customerError', 'notfound');
 
         const amount = Number(req.body.amount);
-        const operation = req.body.operation === 'withdraw' ? 'withdraw' : 'deposit';
+        const aliases = { deposit: 'customer_payment', withdraw: 'customer_payout' };
+        const requestedCategory = aliases[req.body.operation] || String(req.body.operation || 'customer_payment');
+        const allowedCategories = new Set(['customer_payment', 'customer_payout', 'debt_payment', 'balance_credit', 'balance_debit']);
+        const category = allowedCategories.has(requestedCategory) ? requestedCategory : 'customer_payment';
+        const creditCategories = new Set(['customer_payment', 'debt_payment', 'balance_credit']);
+        const isCredit = creditCategories.has(category);
+        const operation = isCredit ? 'deposit' : 'withdraw';
         const note = cleanText(req.body.note, 240);
+        const paymentMethod = ['cash', 'bank', 'wallet', 'other'].includes(req.body.paymentMethod)
+            ? req.body.paymentMethod
+            : 'cash';
+        const externalReference = cleanText(req.body.externalReference, 100);
         if (!Number.isFinite(amount) || amount <= 0) {
             return redirectWithMessage(res, '/client/customers', 'customerError', 'amount');
         }
-        const transactionId = await nextSettlementId();
         const delta = operation === 'deposit' ? amount : -amount;
         const adjustment = await runDbTransaction(async (session) => {
-            const balanceResult = await updateBalanceWithLedger(
-                'SubAccount',
-                customer._id,
-                delta,
-                operation === 'deposit' ? 'DEPOSIT' : 'DEDUCTION',
-                transactionId,
-                note || (operation === 'deposit' ? `تمويل العميل ${customer.name}` : `سحب من رصيد العميل ${customer.name}`),
-                { minBalance: 0, allowNegative: true, ...(session ? { session } : {}) }
-            );
+            const transactionId = await nextSettlementId(session);
+            let balanceApplied = false;
+            try {
+                const balanceResult = await updateBalanceWithLedger(
+                    'SubAccount',
+                    customer._id,
+                    delta,
+                    operation === 'deposit' ? 'DEPOSIT' : 'DEDUCTION',
+                    transactionId,
+                    note || (operation === 'deposit' ? `تمويل العميل ${customer.name}` : `سحب من رصيد العميل ${customer.name}`),
+                    { minBalance: 0, allowNegative: true, ...(session ? { session } : {}) }
+                );
+                balanceApplied = true;
 
-            const [transaction] = await Transaction.create([{
+                const [transaction] = await Transaction.create([{
                 customId: transactionId,
                 userId: workspace.isAgent ? (workspace.entity.phone || workspace.entity.webUsername) : null,
                 companyId: workspace.isCompany ? workspace.entity._id : null,
@@ -265,8 +286,15 @@ exports.postAdjustCustomerBalance = async (req, res) => {
                     entityId: customer._id,
                     delta,
                     reversible: true
+                },
+                settlementDetails: {
+                    category,
+                    paymentMethod,
+                    externalReference,
+                    statement: note,
+                    settledBy: workspace.actor.name
                 }
-            }], session ? { session } : {});
+                }], session ? { session } : {});
 
             const proofId = createDepositReceiptProof({
                 customId: transactionId,
@@ -280,9 +308,34 @@ exports.postAdjustCustomerBalance = async (req, res) => {
             });
             transaction.proofImage = proofId;
             transaction.proofImages = [proofId];
-            await transaction.save(session ? { session } : {});
+                await transaction.save(session ? { session } : {});
 
-            return { transaction, balanceAfter: balanceResult.balanceAfter };
+                await recordCustomerSettlement({
+                transactionId,
+                subAccount: customer,
+                category,
+                amount,
+                delta,
+                actor: {
+                    _id: workspace.actor._id,
+                    model: workspace.actorModel,
+                    name: workspace.actor.name
+                },
+                metadata: { paymentMethod, externalReference, note }
+                }, session);
+
+                return { transaction, transactionId, balanceAfter: balanceResult.balanceAfter };
+            } catch (error) {
+                if (!session) {
+                    await AgencyJournal.deleteMany({ transactionId }).catch(() => {});
+                    await Transaction.deleteOne({ customId: transactionId }).catch(() => {});
+                    await require('../models/Ledger').deleteMany({ transactionId }).catch(() => {});
+                    if (balanceApplied) {
+                        await SubAccount.updateOne({ _id: customer._id }, { $inc: { balance: -delta } }).catch(() => {});
+                    }
+                }
+                throw error;
+            }
         });
 
         await notifyBalanceAdjustment({
@@ -290,7 +343,7 @@ exports.postAdjustCustomerBalance = async (req, res) => {
             account: customer,
             amount: delta,
             balanceAfter: adjustment.balanceAfter,
-            customId: transactionId,
+            customId: adjustment.transactionId,
             notes: note
         }).catch(() => {});
         const io = req.app?.get('io');
@@ -305,10 +358,13 @@ exports.postAdjustCustomerBalance = async (req, res) => {
             targetId: customer._id,
             targetModel: 'SubAccount',
             result: 'ناجح',
-            metadata: { amount, transactionId, portal: workspace.type }
+            metadata: { amount, transactionId: adjustment.transactionId, portal: workspace.type, category, paymentMethod, externalReference }
         });
 
-        return redirectWithMessage(res, '/client/customers', 'customerSuccess', operation);
+        const returnPath = req.body.returnTo === 'profile'
+            ? `/client/customers/${customer._id}`
+            : '/client/customers';
+        return redirectWithMessage(res, returnPath, 'customerSuccess', category);
     } catch (error) {
         console.error('[Business Portal] customer balance failed:', error.message);
         const code = error.message === 'FORBIDDEN'
@@ -319,6 +375,56 @@ exports.postAdjustCustomerBalance = async (req, res) => {
                     ? 'notfound'
                     : 'server';
         return redirectWithMessage(res, '/client/customers', 'customerError', code);
+    }
+};
+
+exports.postUpdateCustomerPricing = async (req, res) => {
+    try {
+        const workspace = await businessPortalService.resolveWorkspace(req);
+        requireCustomerManager(workspace);
+        const customer = await SubAccount.findOne(customerOwnerFilter(workspace, req.params.id));
+        if (!customer) return redirectWithMessage(res, '/client/customers', 'customerError', 'notfound');
+
+        const serviceMarginPiasters = SERVICE_RATE_KEYS.reduce((result, serviceKey) => {
+            result[serviceKey] = req.body[`margin_${serviceKey}`];
+            return result;
+        }, {});
+        const pricing = buildMarginStorage({
+            marginPiasters: req.body.marginPiasters,
+            customMargin: req.body.customMargin,
+            serviceMarginPiasters
+        });
+        const oldPricing = {
+            marginPiasters: customer.marginPiasters,
+            customMargin: customer.customMargin,
+            serviceMarginPiasters: customer.serviceMarginPiasters
+        };
+        customer.marginPiasters = pricing.marginPiasters;
+        customer.customMargin = pricing.customMargin;
+        customer.serviceMarginPiasters = pricing.serviceMarginPiasters;
+        customer.pricingVersion = pricing.pricingVersion;
+        customer.marginUpdatedAt = new Date();
+        customer.marginUpdatedBy = workspace.actor.name;
+        await customer.save();
+
+        await logAction({
+            action: 'SETTINGS_UPDATED',
+            req,
+            performedById: workspace.actor._id,
+            performedByModel: workspace.actorModel,
+            performedByName: workspace.actor.name,
+            targetId: customer._id,
+            targetModel: 'SubAccount',
+            oldData: oldPricing,
+            newData: pricing,
+            result: 'ناجح',
+            metadata: { portal: workspace.type, section: 'customer_pricing' }
+        });
+
+        return redirectWithMessage(res, `/client/customers/${customer._id}`, 'customerSuccess', 'pricing');
+    } catch (error) {
+        console.error('[Business Portal] customer pricing failed:', error.message);
+        return redirectWithMessage(res, '/client/customers', 'customerError', error.message === 'FORBIDDEN' ? 'forbidden' : 'server');
     }
 };
 
@@ -477,8 +583,9 @@ exports.exportReportCsv = async (req, res) => {
         if (!workspace.permissions.canViewReports) return res.status(403).send('Forbidden');
         const report = await businessPortalService.loadReports(workspace, req.query);
         const canViewBalance = workspace.permissions.canViewBalance;
+        const canViewAgencyProfit = workspace.isAgent && canViewBalance;
         const headers = canViewBalance
-            ? ['البند', 'إجمالي العمليات', 'الناجحة', 'قيد التنفيذ', 'الملغية', 'إجمالي EGP', 'إجمالي LYD', 'الإيداعات', 'الخصومات', 'آخر حركة']
+            ? ['البند', 'إجمالي العمليات', 'الناجحة', 'قيد التنفيذ', 'الملغية', 'إجمالي EGP', 'إجمالي LYD', 'الإيداعات', 'الخصومات', ...(canViewAgencyProfit ? ['ربح الوكالة المحقق', 'ربح متوقع', 'ربح مستبعد'] : []), 'آخر حركة']
             : ['البند', 'إجمالي العمليات', 'الناجحة', 'قيد التنفيذ', 'الملغية', 'إجمالي EGP', 'آخر حركة'];
         const lines = [headers.map(csvValue).join(',')];
         report.reportRows.forEach((row) => {
@@ -491,6 +598,7 @@ exports.exportReportCsv = async (req, res) => {
                 row.totalEGP
             ];
             if (canViewBalance) values.push(row.totalLYD, row.deposits, row.deductions);
+            if (canViewAgencyProfit) values.push(row.realizedProfit || 0, row.expectedProfit || 0, row.reversedProfit || 0);
             values.push(row.lastActivity ? new Date(row.lastActivity).toISOString() : '');
             lines.push(values.map(csvValue).join(','));
         });
