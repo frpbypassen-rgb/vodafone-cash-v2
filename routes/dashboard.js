@@ -39,9 +39,6 @@ router.get(['/proxy/image/:id', '/proxy/image/:id/:index'], requireAuth, async (
 
 router.get('/', requireAuth, async (req, res) => {
     try {
-        const usersCount = await User.countDocuments(); const companiesCount = await ClientCompany.countDocuments(); const executorsCount = await Employee.countDocuments();
-        const pendingTxs = await Transaction.countDocuments({ status: 'pending' }); const processingTxs = await Transaction.countDocuments({ status: { $in: ['processing', 'accepted'] } }); const completedTxs = await Transaction.countDocuments({ status: 'completed' });
-        
         // --- إحصائيات اليوم المخصصة للهاتف المحمول ---
         const startOfDay = new Date();
         startOfDay.setHours(0, 0, 0, 0);
@@ -49,17 +46,36 @@ router.get('/', requireAuth, async (req, res) => {
         endOfDay.setHours(23, 59, 59, 999);
 
         const todayQuery = { createdAt: { $gte: startOfDay, $lte: endOfDay } };
-        
-        const todayCompleted = await Transaction.countDocuments({ ...todayQuery, status: 'completed' });
-        const todayPending = await Transaction.countDocuments({ ...todayQuery, status: 'pending' });
-        const todayProcessing = await Transaction.countDocuments({ ...todayQuery, status: { $in: ['processing', 'accepted'] } });
-        const todayCancelled = await Transaction.countDocuments({ ...todayQuery, status: { $in: ['rejected', 'cancelled_by_admin'] } });
-        const todayTotal = await Transaction.countDocuments(todayQuery);
 
-        // حساب مبالغ العمليات المكتملة لليوم
-        const sums = await Transaction.aggregate([
-            { $match: { ...todayQuery, status: 'completed' } },
-            { $group: { _id: null, totalEGP: { $sum: '$amount' }, totalLYD: { $sum: '$costLYD' } } }
+        const [
+            usersCount,
+            companiesCount,
+            executorsCount,
+            pendingTxs,
+            processingTxs,
+            completedTxs,
+            todayCompleted,
+            todayPending,
+            todayProcessing,
+            todayCancelled,
+            todayTotal,
+            sums
+        ] = await Promise.all([
+            User.countDocuments(),
+            ClientCompany.countDocuments(),
+            Employee.countDocuments(),
+            Transaction.countDocuments({ status: 'pending' }),
+            Transaction.countDocuments({ status: { $in: ['processing', 'accepted'] } }),
+            Transaction.countDocuments({ status: 'completed' }),
+            Transaction.countDocuments({ ...todayQuery, status: 'completed' }),
+            Transaction.countDocuments({ ...todayQuery, status: 'pending' }),
+            Transaction.countDocuments({ ...todayQuery, status: { $in: ['processing', 'accepted'] } }),
+            Transaction.countDocuments({ ...todayQuery, status: { $in: ['rejected', 'cancelled_by_admin'] } }),
+            Transaction.countDocuments(todayQuery),
+            Transaction.aggregate([
+                { $match: { ...todayQuery, status: 'completed' } },
+                { $group: { _id: null, totalEGP: { $sum: '$amount' }, totalLYD: { $sum: '$costLYD' } } }
+            ])
         ]);
 
         const todayEGP = sums.length > 0 ? sums[0].totalEGP : 0;
@@ -74,15 +90,17 @@ router.get('/', requireAuth, async (req, res) => {
 
 router.get('/api/sidebar-stats', requireAuth, async (req, res) => {
     try {
-        const complaintsCount = await Transaction.countDocuments({
-            $or: [
-                { complaintText: { $exists: true, $ne: '' } },
-                { emergencyAlert: { $exists: true, $ne: '' } }
-            ]
-        });
-        const regRequestsCount = await RegistrationRequest.countDocuments({ status: 'pending' });
-        const supportCount = await SupportTicket.countDocuments({ unreadAdmin: { $gt: 0 } });
-        const pendingCount = await Transaction.countDocuments({ status: 'pending' });
+        const [complaintsCount, regRequestsCount, supportCount, pendingCount] = await Promise.all([
+            Transaction.countDocuments({
+                $or: [
+                    { complaintText: { $exists: true, $ne: '' } },
+                    { emergencyAlert: { $exists: true, $ne: '' } }
+                ]
+            }),
+            RegistrationRequest.countDocuments({ status: 'pending' }),
+            SupportTicket.countDocuments({ unreadAdmin: { $gt: 0 } }),
+            Transaction.countDocuments({ status: 'pending' })
+        ]);
         res.json({
             success: true,
             complaintsCount,
@@ -99,14 +117,18 @@ const Notification = require('../models/Notification');
 
 router.get('/api/notifications/unread', requireAuth, async (req, res) => {
     try {
-        const notifs = await Notification.find({
+        const unreadFilter = {
             isRead: false,
             $or: [
                 { audience: { $in: ['admin', 'all'] } },
                 { audience: { $exists: false } }
             ]
-        }).sort({ createdAt: -1 });
-        res.json({ count: notifs.length, notifications: notifs });
+        };
+        const [count, notifications] = await Promise.all([
+            Notification.countDocuments(unreadFilter),
+            Notification.find(unreadFilter).sort({ createdAt: -1 }).limit(50).lean()
+        ]);
+        res.json({ count, notifications });
     } catch (e) { res.status(500).json({ error: true }); }
 });
 

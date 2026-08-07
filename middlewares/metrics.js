@@ -23,14 +23,40 @@ const metrics = {
     errors: 0
 };
 
+const QUIET_PATH_RE = /\.(?:css|js|map|png|jpe?g|gif|svg|ico|webp|woff2?|ttf)$/i;
+const QUIET_ENDPOINTS = new Set([
+    '/health',
+    '/health/ready',
+    '/metrics',
+    '/executor-portal/api/live-tasks',
+    '/api/sidebar-stats',
+    '/api/notifications/unread',
+    '/client/api/transactions',
+    '/client/api/notifications/unread'
+]);
+
+const shouldSkipMetrics = (requestPath = '') => {
+    const path = String(requestPath).split('?')[0];
+    return (
+        QUIET_PATH_RE.test(path)
+        || path.startsWith('/css/')
+        || path.startsWith('/images/')
+        || path.startsWith('/uploads/')
+        || path.startsWith('/socket.io/')
+        || path.startsWith('/favicon')
+        || QUIET_ENDPOINTS.has(path)
+    );
+};
+
 /**
  * Middleware لتسجيل مقاييس كل طلب
  */
 const metricsMiddleware = (req, res, next) => {
+    if (shouldSkipMetrics(req.originalUrl || req.url)) return next();
+
     const startTime = process.hrtime.bigint();
 
-    const originalEnd = res.end;
-    res.end = function (...args) {
+    res.once('finish', () => {
         const durationMs = Number(process.hrtime.bigint() - startTime) / 1_000_000;
 
         // تجميع حسب method + path مبسط + status
@@ -44,9 +70,7 @@ const metricsMiddleware = (req, res, next) => {
         metrics.httpRequestDurationCount[durationKey] = (metrics.httpRequestDurationCount[durationKey] || 0) + 1;
 
         if (res.statusCode >= 500) metrics.errors++;
-
-        originalEnd.apply(res, args);
-    };
+    });
 
     next();
 };
@@ -158,4 +182,4 @@ const metricsEndpoint = (req, res) => {
     res.send(output);
 };
 
-module.exports = { metricsMiddleware, metricsEndpoint, recordEvent };
+module.exports = { metricsMiddleware, metricsEndpoint, recordEvent, shouldSkipMetrics };

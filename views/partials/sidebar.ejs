@@ -838,7 +838,12 @@
         }
     }
 
+    let sidebarStatsRequestInFlight = false;
+    let sidebarNotificationsRequestInFlight = false;
+
     async function updateSidebarStats() {
+        if (document.hidden || sidebarStatsRequestInFlight) return;
+        sidebarStatsRequestInFlight = true;
         try {
             const res = await fetch('/api/sidebar-stats');
             const data = await res.json();
@@ -908,10 +913,14 @@
             }
         } catch (e) {
             console.error('Error fetching sidebar stats:', e);
+        } finally {
+            sidebarStatsRequestInFlight = false;
         }
     }
 
     async function fetchNotifications() {
+        if (document.hidden || sidebarNotificationsRequestInFlight) return;
+        sidebarNotificationsRequestInFlight = true;
         try {
             const res = await fetch('/api/notifications/unread'); const data = await res.json();
             
@@ -930,7 +939,10 @@
                 if(badge && list) { badge.classList.add('d-none'); list.innerHTML = emptyHtml; }
                 if(badgeMobile && listMobile) { badgeMobile.classList.add('d-none'); listMobile.innerHTML = emptyHtml; }
             }
-        } catch (e) {}
+        } catch (e) {
+        } finally {
+            sidebarNotificationsRequestInFlight = false;
+        }
     }
     async function markRead(id) { await fetch(`/api/notifications/${id}/read`, { method: 'POST' }); fetchNotifications(); }
     async function markAllRead() { await fetch(`/api/notifications/read-all`, { method: 'POST' }); fetchNotifications(); }
@@ -955,10 +967,16 @@
         const savedTheme = localStorage.getItem('ahram_theme') || 'light';
         updateSidebarThemeIcon(savedTheme);
         updateSidebarStats();
-        setInterval(updateSidebarStats, 10000);
+        setInterval(updateSidebarStats, 15000);
         
         fetchNotifications();
-        setInterval(fetchNotifications, 5000);
+        setInterval(fetchNotifications, 10000);
+        document.addEventListener('visibilitychange', () => {
+            if (!document.hidden) {
+                updateSidebarStats();
+                fetchNotifications();
+            }
+        });
         
         if ('serviceWorker' in navigator) {
             navigator.serviceWorker.register('/sw.js').catch(err => console.log('SW registration failed:', err));

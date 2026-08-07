@@ -157,6 +157,10 @@ transactionSchema.index({ status: 1, updatedAt: -1 });
 transactionSchema.index({ executorGroupId: 1, createdAt: -1 });
 transactionSchema.index({ executorGroupId: 1, executorReceivedAt: 1 });
 transactionSchema.index({ managerGroupId: 1, status: 1 });
+transactionSchema.index({ executorGroupId: 1, status: 1, executorReceivedAt: 1 });
+transactionSchema.index({ managerGroupId: 1, status: 1, executorReceivedAt: 1 });
+transactionSchema.index({ executorGroupId: 1, status: 1, updatedAt: -1 });
+transactionSchema.index({ managerGroupId: 1, status: 1, updatedAt: -1 });
 transactionSchema.index({ tenantId: 1, createdAt: -1 });
 
 export default (mongoose.models.Transaction as mongoose.Model<ITransaction>) || mongoose.model<ITransaction>('Transaction', transactionSchema);

@@ -1959,10 +1959,15 @@
         if (btn) btn.classList.add('active');
     }
 
-    setInterval(() => {
+    let transactionsAutoRefreshInFlight = false;
+    async function refreshTransactionsList() {
+        if (document.hidden || transactionsAutoRefreshInFlight) return;
         const isModalOpen = document.querySelector('.modal.show'); const isDropdownOpen = document.querySelector('.dropdown-menu.show'); 
         if (isModalOpen || isDropdownOpen) return;
-        fetch(window.location.href).then(res => res.text()).then(htmlText => {
+        transactionsAutoRefreshInFlight = true;
+        try {
+            const response = await fetch(window.location.href);
+            const htmlText = await response.text();
             const doc = new DOMParser().parseFromString(htmlText, 'text/html');
             const newTbody = doc.querySelector('tbody'); if (newTbody) document.querySelector('tbody').innerHTML = newTbody.innerHTML;
             
@@ -1982,8 +1987,15 @@
             }
             
             const newPagination = doc.querySelector('.pagination'); const currentPagination = document.querySelector('.pagination'); if (newPagination && currentPagination) currentPagination.innerHTML = newPagination.innerHTML;
-        }).catch(()=>{});
-    }, 5000);
+        } catch (error) {
+        } finally {
+            transactionsAutoRefreshInFlight = false;
+        }
+    }
+    setInterval(refreshTransactionsList, 5000);
+    document.addEventListener('visibilitychange', () => {
+        if (!document.hidden) refreshTransactionsList();
+    });
 
     function filterMobileCards(group, btn) {
         if (btn) {

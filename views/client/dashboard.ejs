@@ -2076,6 +2076,8 @@
         // 📡 نظام التحديث اللحظي للعميل (Smart Diffing & Live Notifications)
         let lastRenderedDataHash = '';
         const shownClientNotificationIds = new Set(JSON.parse(sessionStorage.getItem('shownClientNotificationIds') || '[]'));
+        let clientLiveRefreshInFlight = false;
+        let clientNotificationsRefreshInFlight = false;
 
         function saveShownClientNotificationIds() {
             sessionStorage.setItem('shownClientNotificationIds', JSON.stringify([...shownClientNotificationIds].slice(-100)));
@@ -2088,6 +2090,8 @@
         }
 
         async function fetchClientNotifications() {
+            if (document.hidden || clientNotificationsRefreshInFlight) return;
+            clientNotificationsRefreshInFlight = true;
             try {
                 const response = await fetch('/client/api/notifications/unread');
                 if (!response.ok) return;
@@ -2114,9 +2118,14 @@
 
                     fetch(`/client/api/notifications/${notification._id}/read`, { method: 'POST' }).catch(() => {});
                 }
-            } catch (error) {}
+            } catch (error) {
+            } finally {
+                clientNotificationsRefreshInFlight = false;
+            }
         }
         async function fetchLiveClientPortalData() {
+            if (document.hidden || clientLiveRefreshInFlight) return;
+            clientLiveRefreshInFlight = true;
             try {
                 const response = await fetch('/client/api/transactions' + window.location.search);
                 if (!response.ok) return; 
@@ -2179,7 +2188,10 @@
                         renderClientTransactionsTable(data.transactions);
                     }
                 }
-            } catch (error) {}
+            } catch (error) {
+            } finally {
+                clientLiveRefreshInFlight = false;
+            }
         }
 
         function renderClientTransactionsTable(transactions) {
@@ -2487,12 +2499,17 @@
             } catch(e){}
         }
 
-        fetchLiveClientPortalData();
-        fetchClientNotifications();
-        setInterval(() => {
+        const refreshClientDashboard = () => {
+            if (document.hidden) return;
             fetchLiveClientPortalData();
             fetchClientNotifications();
-        }, 3000);
+        };
+
+        refreshClientDashboard();
+        setInterval(refreshClientDashboard, 5000);
+        document.addEventListener('visibilitychange', () => {
+            if (!document.hidden) refreshClientDashboard();
+        });
 
         
 

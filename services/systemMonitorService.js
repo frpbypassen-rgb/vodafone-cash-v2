@@ -5,6 +5,13 @@ const Transaction = require('../models/Transaction');
 const EVENT_LIMIT = 140;
 const VISITOR_TTL_MS = 2 * 60 * 1000;
 const STATIC_PATH_RE = /\.(?:css|js|png|jpg|jpeg|gif|svg|ico|webp|woff2?|ttf|map)$/i;
+const QUIET_ENDPOINTS = new Set([
+    '/executor-portal/api/live-tasks',
+    '/api/sidebar-stats',
+    '/api/notifications/unread',
+    '/client/api/transactions',
+    '/client/api/notifications/unread'
+]);
 
 let io = null;
 let movementCount = 0;
@@ -49,6 +56,7 @@ function isStaticOrNoisePath(path = '') {
         || cleanPath.startsWith('/health')
         || cleanPath.startsWith('/system-monitor')
         || cleanPath.startsWith('/api-docs')
+        || QUIET_ENDPOINTS.has(cleanPath)
     );
 }
 
@@ -237,5 +245,6 @@ module.exports = {
     trackRequest,
     recordActivity,
     recordTransactionChange,
-    getSnapshot
+    getSnapshot,
+    isStaticOrNoisePath
 };

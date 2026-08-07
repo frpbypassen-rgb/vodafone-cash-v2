@@ -148,6 +148,10 @@ transactionSchema.index({ status: 1, updatedAt: -1 });           // التقار
 transactionSchema.index({ executorGroupId: 1, createdAt: -1 });    // رصيد المنفذ
 transactionSchema.index({ executorGroupId: 1, executorReceivedAt: 1 }); // ترتيب قائمة مهام المنفذ
 transactionSchema.index({ managerGroupId: 1, status: 1 });         // مهام المدير
+transactionSchema.index({ executorGroupId: 1, status: 1, executorReceivedAt: 1 });
+transactionSchema.index({ managerGroupId: 1, status: 1, executorReceivedAt: 1 });
+transactionSchema.index({ executorGroupId: 1, status: 1, updatedAt: -1 });
+transactionSchema.index({ managerGroupId: 1, status: 1, updatedAt: -1 });
 transactionSchema.index({ tenantId: 1, createdAt: -1 });
 transactionSchema.index({
     status: 1,

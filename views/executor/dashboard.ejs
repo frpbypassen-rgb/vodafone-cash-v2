@@ -643,20 +643,25 @@
     }
 
     // 📡 جلب البيانات وفرز الكروت الديناميكي (Smart Sorting FIFO)
+    let tasksRefreshInFlight = false;
     async function refreshTasks() {
+        if (document.hidden || tasksRefreshInFlight) return;
+        tasksRefreshInFlight = true;
         try {
             const res = await executorApiFetch('/executor-portal/api/live-tasks');
             const data = await readExecutorApiResponse(res);
             
             // 📊 تحديث إحصائيات المعاملات المنجزة اليوم في صفحة حسابي
             if (data.completedToday) {
-                const count = data.completedToday.length;
-                let sum = 0;
+                const summary = data.completedTodaySummary || {};
+                const hasServerSummary = Number.isFinite(Number(summary.amount));
+                const count = Number.isFinite(Number(summary.count)) ? Number(summary.count) : data.completedToday.length;
+                let sum = hasServerSummary ? Number(summary.amount) : 0;
                 let listHtml = '';
                 
                 data.completedToday.forEach(tx => {
                     const txAmt = parseFloat(tx.amount) || 0;
-                    sum += txAmt;
+                    if (!hasServerSummary) sum += txAmt;
                     
                     let typeBadge = '';
                     if (tx.transferType === 'post_account') {
@@ -857,7 +862,10 @@
                 });
                 container.innerHTML = html || '<div class="col-12"><div class="empty-state"><i class="fa-solid fa-satellite-dish"></i><p>الرادار هادئ... في انتظار طلبات جديدة</p></div></div>';
             }
-        } catch(e) {}
+        } catch(e) {
+        } finally {
+            tasksRefreshInFlight = false;
+        }
     }
 
     // ⏱️ تحديث العدادات الزمنية بشكل حي في الشاشة
@@ -998,7 +1006,12 @@
         });
     }
 
-    setInterval(refreshTasks, 3000); refreshTasks();
+    const refreshVisibleExecutorTasks = () => {
+        if (!document.hidden) refreshTasks();
+    };
+    setInterval(refreshVisibleExecutorTasks, 4000);
+    document.addEventListener('visibilitychange', refreshVisibleExecutorTasks);
+    refreshVisibleExecutorTasks();
 </script>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
 </body>

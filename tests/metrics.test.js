@@ -2,7 +2,7 @@
 
 const request = require('supertest');
 const express = require('express');
-const { metricsMiddleware, metricsEndpoint } = require('../middlewares/metrics');
+const { metricsMiddleware, metricsEndpoint, shouldSkipMetrics } = require('../middlewares/metrics');
 
 describe('Prometheus Metrics Tests', () => {
     let app;
@@ -26,5 +26,12 @@ describe('Prometheus Metrics Tests', () => {
         expect(res.text).toContain('process_cpu_user_seconds_total');
         expect(res.text).toContain('process_cpu_system_seconds_total');
         expect(res.text).toContain('active_transfers_count');
+    });
+
+    test('skips static and high-frequency refresh paths', () => {
+        expect(shouldSkipMetrics('/css/app.css')).toBe(true);
+        expect(shouldSkipMetrics('/executor-portal/api/live-tasks')).toBe(true);
+        expect(shouldSkipMetrics('/client/api/transactions?date=2026-08-08')).toBe(true);
+        expect(shouldSkipMetrics('/transactions')).toBe(false);
     });
 });

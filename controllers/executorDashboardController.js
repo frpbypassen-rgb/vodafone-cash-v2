@@ -16,6 +16,8 @@ const {
     normalizeExecutorUsername
 } = require('../services/executorAccountService');
 
+const COMPLETED_TODAY_LIMIT = 60;
+
 const objectIdString = (value) => String(value?._id || value || '');
 const belongsToGroup = (employee, group) => (
     Boolean(employee) && objectIdString(employee.groupId) === objectIdString(group)
@@ -189,44 +191,33 @@ exports.getLiveTasks = async (req, res) => {
             return Number.isFinite(value) ? value : 0;
         };
 
-        const tasks = await Transaction.find(filter).sort({ createdAt: 1 }).lean();
+        const tasks = await Transaction.find(filter).lean();
         tasks.sort((first, second) => taskArrivalTime(first) - taskArrivalTime(second));
 
-        for (let tx of tasks) {
-            if (tx.status === 'processing' && !tx.notifiedExecutors) {
-                try {
-                    await Transaction.updateOne({ _id: tx._id }, { $set: { notifiedExecutors: true } }, { strict: false });
-                } catch (e) {}
-            }
-        }
-
-        const busyOperators = await Transaction.distinct('operatorId', {
-            $or: [ { executorGroupId: emp.groupId }, { managerGroupId: emp.groupId } ],
-            status: 'accepted', operatorId: { $ne: null }
-        });
         const now = Date.now();
-        for (let tx of tasks) {
-            if (tx.status === 'processing' && !tx.autoAlertFired) {
-                const diffMs = now - taskArrivalTime(tx);
-                if (diffMs >= 120000) {
-                    await Transaction.findOneAndUpdate(
-                        { _id: tx._id, autoAlertFired: { $ne: true } },
-                        { $set: { emergencyAlert: 'تأخير استجابة! الطلب تخطى 120 ثانية ولم يقبله أحد، يرجى سحبه فوراً!', autoAlertFired: true } },
-                        { new: true, strict: false }
-                    );
-                }
-            }
-        }
+        const notificationIds = tasks
+            .filter((tx) => tx.status === 'processing' && !tx.notifiedExecutors)
+            .map((tx) => tx._id);
+        const delayedTaskIds = tasks
+            .filter((tx) => tx.status === 'processing' && !tx.autoAlertFired && now - taskArrivalTime(tx) >= 120000)
+            .map((tx) => tx._id);
 
-        const alerts = await Transaction.find({
-            $or: [ { executorGroupId: emp.groupId }, { managerGroupId: emp.groupId } ],
-            emergencyAlert: { $exists: true, $ne: null },
-            status: { $in: ['processing', 'accepted'] }
-        }).lean();
-        const depAlerts = await Transaction.find({
-            $or: [ { operatorId: emp._id.toString() }, { executorGroupId: emp.groupId }, { managerGroupId: emp.groupId } ],
-            executorWebAlert: { $exists: true, $ne: null }
-        }).lean();
+        await Promise.all([
+            notificationIds.length
+                ? Transaction.updateMany(
+                    { _id: { $in: notificationIds }, notifiedExecutors: { $ne: true } },
+                    { $set: { notifiedExecutors: true } },
+                    { strict: false }
+                )
+                : Promise.resolve(),
+            delayedTaskIds.length
+                ? Transaction.updateMany(
+                    { _id: { $in: delayedTaskIds }, autoAlertFired: { $ne: true } },
+                    { $set: { emergencyAlert: 'تأخير استجابة! الطلب تخطى 120 ثانية ولم يقبله أحد، يرجى سحبه فوراً!', autoAlertFired: true } },
+                    { strict: false }
+                )
+                : Promise.resolve()
+        ]);
 
         // 🟢 جلب العمليات التي تم تنفيذها اليوم
         const startOfToday = new Date();
@@ -248,12 +239,29 @@ exports.getLiveTasks = async (req, res) => {
             completedTodayQuery.operatorId = emp._id.toString();
         }
 
-        const completedToday = await Transaction.find(completedTodayQuery)
-            .sort({ updatedAt: -1 })
-            .select('customId amount transferType vodafoneNumber accountNumber updatedAt executorName')
-            .lean();
+        const [alerts, depAlerts, completedToday, completedTodayStats] = await Promise.all([
+            Transaction.find({
+                $or: [ { executorGroupId: emp.groupId }, { managerGroupId: emp.groupId } ],
+                emergencyAlert: { $exists: true, $ne: null },
+                status: { $in: ['processing', 'accepted'] }
+            }).lean(),
+            Transaction.find({
+                $or: [ { operatorId: emp._id.toString() }, { executorGroupId: emp.groupId }, { managerGroupId: emp.groupId } ],
+                executorWebAlert: { $exists: true, $ne: null }
+            }).lean(),
+            Transaction.find(completedTodayQuery)
+                .sort({ updatedAt: -1 })
+                .limit(COMPLETED_TODAY_LIMIT)
+                .select('customId amount transferType vodafoneNumber accountNumber updatedAt executorName')
+                .lean(),
+            Transaction.aggregate([
+                { $match: completedTodayQuery },
+                { $group: { _id: null, count: { $sum: 1 }, amount: { $sum: '$amount' } } }
+            ])
+        ]);
 
-        res.json({ tasks, alerts, depAlerts, completedToday });
+        const completedTodaySummary = completedTodayStats[0] || { count: 0, amount: 0 };
+        res.json({ tasks, alerts, depAlerts, completedToday, completedTodaySummary });
     } catch (e) { res.status(500).json({ error: true }); }
 };
 

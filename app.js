@@ -64,6 +64,7 @@ const {
     ensureApiReconciliationIndexes,
     startApiProviderReturnMonitor
 } = require('./services/apiProviderReconciliationService');
+const { ensurePerformanceIndexes } = require('./services/performanceIndexService');
 const { closeEligibleDailySettlement } = require('./services/settlementService');
 const systemMonitor = require('./services/systemMonitorService');
 
@@ -157,6 +158,9 @@ app.use(helmet({
 
 app.use(cors({ origin: allowedOrigins, credentials: true }));
 
+// Serve public files before request processing, session checks, and metrics.
+app.use(express.static(path.join(__dirname, 'public')));
+
 const limiter = rateLimit({
     windowMs: 5 * 60 * 1000, 
     max: Number(process.env.GLOBAL_RATE_LIMIT_MAX || (isProduction ? 1000 : 5000)),
@@ -175,8 +179,6 @@ app.use(requireIp);
 
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
-
-app.use(express.static(path.join(__dirname, 'public')));
 
 // 🚫 منع تخزين الصفحات في الكاش المؤقت لضمان تحديث البيانات فوراً (حل مشكلة عدم تحديث البيانات بعد الإرسال)
 app.use((req, res, next) => {
@@ -325,7 +327,7 @@ app.use(errorHandler);
 
 const PORT = process.env.PORT || 3000;
 Promise.all([connectDB(), initRedis()]).then(async () => {
-    await ensureApiReconciliationIndexes();
+    await Promise.all([ensureApiReconciliationIndexes(), ensurePerformanceIndexes()]);
     startApiCompletionMonitor();
     startApiProviderReturnMonitor();
     closeEligibleDailySettlement().catch((error) => {

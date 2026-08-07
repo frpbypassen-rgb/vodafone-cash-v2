@@ -85,4 +85,46 @@ describe('Executor dashboard group ownership', () => {
         expect(streamProofImage).toHaveBeenCalledWith('/proofs/proof.png', res);
         expect(res.status).not.toHaveBeenCalledWith(403);
     });
+
+    test('batches live-task housekeeping and keeps the completed list bounded', async () => {
+        const task = {
+            _id: 'task-1',
+            status: 'processing',
+            notifiedExecutors: false,
+            autoAlertFired: false,
+            executorReceivedAt: new Date(Date.now() - 130000),
+            createdAt: new Date(Date.now() - 130000)
+        };
+        const taskQuery = { lean: jest.fn().mockResolvedValue([task]) };
+        const alertsQuery = { lean: jest.fn().mockResolvedValue([]) };
+        const depositAlertsQuery = { lean: jest.fn().mockResolvedValue([]) };
+        const completedQuery = {
+            sort: jest.fn().mockReturnThis(),
+            limit: jest.fn().mockReturnThis(),
+            select: jest.fn().mockReturnThis(),
+            lean: jest.fn().mockResolvedValue([{ customId: 'ATT-1', amount: 100 }])
+        };
+        Transaction.find
+            .mockReturnValueOnce(taskQuery)
+            .mockReturnValueOnce(alertsQuery)
+            .mockReturnValueOnce(depositAlertsQuery)
+            .mockReturnValueOnce(completedQuery);
+        Transaction.updateMany.mockResolvedValue({ modifiedCount: 1 });
+        Transaction.aggregate.mockResolvedValue([{ count: 125, amount: 40000 }]);
+
+        const req = {
+            session: { executorId: 'employee-1' },
+            executorEmployee: { _id: 'employee-1', role: 'operator', groupId: 'group-1' }
+        };
+        const res = response();
+
+        await controller.getLiveTasks(req, res);
+
+        expect(Transaction.updateMany).toHaveBeenCalledTimes(2);
+        expect(completedQuery.limit).toHaveBeenCalledWith(60);
+        expect(res.json).toHaveBeenCalledWith(expect.objectContaining({
+            completedToday: [{ customId: 'ATT-1', amount: 100 }],
+            completedTodaySummary: { count: 125, amount: 40000 }
+        }));
+    });
 });
