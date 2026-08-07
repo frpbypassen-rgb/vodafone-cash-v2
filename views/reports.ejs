@@ -167,12 +167,12 @@
 
                 <section class="report-section">
                     <div class="section-head"><div><h2>التحويلات الناجحة</h2><p>هذه العمليات فقط تدخل في إجمالي التحويلات والحسابات</p></div><span id="completedCount" class="section-count">0</span></div>
-                    <div class="table-wrap"><table class="report-table"><thead><tr><th>#</th><th>رقم العملية</th><th>الخدمة</th><th>رقم المستفيد</th><th>EGP</th><th>السعر</th><th>LYD</th><th>المنفذ</th><th>التاريخ</th><th>الملاحظة</th></tr></thead><tbody id="completedBody"></tbody></table></div>
+                    <div class="table-wrap"><table class="report-table"><thead><tr><th>#</th><th>رقم العملية</th><th>الخدمة</th><th>رقم المستفيد</th><th>EGP</th><th>السعر</th><th>LYD</th><th id="completedExecutorHeader">المنفذ</th><th>التاريخ</th><th>الملاحظة</th></tr></thead><tbody id="completedBody"></tbody></table></div>
                 </section>
 
                 <section id="pendingSection" class="report-section">
                     <div class="section-head"><div><h2>الحركات المعلقة</h2><p>معروضة للمتابعة وغير محسوبة ضمن الإجماليات النهائية</p></div><span id="pendingCount" class="section-count">0</span></div>
-                    <div class="table-wrap"><table class="report-table"><thead><tr><th>#</th><th>رقم الحركة</th><th>النوع</th><th>القيمة</th><th>المسؤول</th><th>التاريخ</th><th>الحالة</th><th>الملاحظة</th></tr></thead><tbody id="pendingBody"></tbody></table></div>
+                    <div class="table-wrap"><table class="report-table"><thead><tr><th>#</th><th>رقم الحركة</th><th>النوع</th><th>القيمة</th><th id="pendingExecutorHeader">المسؤول</th><th>التاريخ</th><th>الحالة</th><th>الملاحظة</th></tr></thead><tbody id="pendingBody"></tbody></table></div>
                 </section>
 
                 <div class="split-sections">
@@ -335,7 +335,10 @@
         function renderReport(data) {
             const stats = data.stats;
             const currency = stats.accountingCurrency;
+            const isExecutorStatement = ['executor', 'api_executor'].includes(data.scope?.mainCategory);
             const unit = (value) => `${money(value)} ${currency}`;
+            document.getElementById('completedExecutorHeader').hidden = !isExecutorStatement;
+            document.getElementById('pendingExecutorHeader').hidden = !isExecutorStatement;
             document.getElementById('statPrevious').textContent = unit(stats.previousBalance);
             document.getElementById('statTransfers').textContent = unit(stats.operationsCost);
             document.getElementById('statTransfersEgp').textContent = `${egp(stats.totalEGP)} EGP إجمالي مصري`;
@@ -355,12 +358,12 @@
             document.getElementById('reportAccount').textContent = `${data.entityInfo.name} - ${data.entityInfo.status}`;
 
             document.getElementById('completedCount').textContent = data.completedOperations.length;
-            document.getElementById('completedBody').innerHTML = data.completedOperations.map((tx, index) => `<tr><td>${index + 1}</td><td class="mono">${escapeHtml(tx.customId || tx._id)}</td><td>${escapeHtml(serviceName(tx.transferType))}</td><td class="mono">${escapeHtml(targetNumber(tx))}</td><td class="mono">${egp(tx.amount)}</td><td class="mono">${Number(tx.exchangeRate || 0).toFixed(3)}</td><td class="mono">${money(tx.costLYD, 3)}</td><td>${escapeHtml(compact(actorName(tx), 38))}</td><td class="mono">${escapeHtml(dateTime(tx.createdAt))}</td><td class="note" title="${escapeHtml(visibleNote(tx))}">${escapeHtml(visibleNote(tx))}</td></tr>`).join('') || emptyRow(10, 'لا توجد تحويلات ناجحة في الفترة المحددة.');
+            document.getElementById('completedBody').innerHTML = data.completedOperations.map((tx, index) => `<tr><td>${index + 1}</td><td class="mono">${escapeHtml(tx.customId || tx._id)}</td><td>${escapeHtml(serviceName(tx.transferType))}</td><td class="mono">${escapeHtml(targetNumber(tx))}</td><td class="mono">${egp(tx.amount)}</td><td class="mono">${Number(tx.exchangeRate || 0).toFixed(3)}</td><td class="mono">${money(tx.costLYD, 3)}</td>${isExecutorStatement ? `<td>${escapeHtml(compact(actorName(tx), 38))}</td>` : ''}<td class="mono">${escapeHtml(dateTime(tx.createdAt))}</td><td class="note" title="${escapeHtml(visibleNote(tx))}">${escapeHtml(visibleNote(tx))}</td></tr>`).join('') || emptyRow(isExecutorStatement ? 10 : 9, 'لا توجد تحويلات ناجحة في الفترة المحددة.');
 
             const pending = [...data.pendingOperations, ...data.pendingDeposits];
             document.getElementById('pendingCount').textContent = pending.length;
             document.getElementById('pendingSection').hidden = pending.length === 0;
-            document.getElementById('pendingBody').innerHTML = pending.map((tx, index) => `<tr><td>${index + 1}</td><td class="mono">${escapeHtml(tx.customId || tx._id)}</td><td>${escapeHtml(tx.status === 'deposit_pending' ? 'إيداع معلق' : serviceName(tx.transferType))}</td><td class="mono">${egp(tx.amount)} EGP</td><td>${escapeHtml(compact(actorName(tx), 45))}</td><td class="mono">${escapeHtml(dateTime(tx.createdAt))}</td><td><span class="status pending"><i class="fa-solid fa-clock"></i>معلقة</span></td><td class="note">${escapeHtml(visibleNote(tx))}</td></tr>`).join('');
+            document.getElementById('pendingBody').innerHTML = pending.map((tx, index) => `<tr><td>${index + 1}</td><td class="mono">${escapeHtml(tx.customId || tx._id)}</td><td>${escapeHtml(tx.status === 'deposit_pending' ? 'إيداع معلق' : serviceName(tx.transferType))}</td><td class="mono">${egp(tx.amount)} EGP</td>${isExecutorStatement ? `<td>${escapeHtml(compact(actorName(tx), 45))}</td>` : ''}<td class="mono">${escapeHtml(dateTime(tx.createdAt))}</td><td><span class="status pending"><i class="fa-solid fa-clock"></i>معلقة</span></td><td class="note">${escapeHtml(visibleNote(tx))}</td></tr>`).join('');
 
             const ledgerFor = (tx, type) => data.movements.find((movement) => movement.transactionId === tx.customId && movement.type === type);
             document.getElementById('depositCount').textContent = data.deposits.length;

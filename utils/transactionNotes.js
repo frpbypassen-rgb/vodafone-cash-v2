@@ -14,7 +14,11 @@ const SYSTEM_NOTE_PATTERNS = Object.freeze([
 ]);
 
 const normalizeCustomerNote = (value, maxLength = 500) => String(value || '').trim().slice(0, maxLength);
-const isCustomerReferenceLine = (line) => /رقم المحول|رقم المرسل|الرقم المرجعي|مرجع|reference|ref/i.test(line);
+const isExecutorReferenceLine = (line) => /رقم\s*المرسل|المنفذ|executor|operator/i.test(line);
+const isCustomerReferenceLine = (line) => (
+    !isExecutorReferenceLine(line)
+    && /رقم المحول|الرقم المرجعي|مرجع|reference|ref/i.test(line)
+);
 
 const normalizeCustomerNoteInput = (body = {}, maxLength = 500) => normalizeCustomerNote(
     body.customerNotes ?? body.customerNote ?? body.clientNotes ?? body.clientNote ?? body.notes ?? body.note ?? '',
@@ -50,9 +54,6 @@ const customerNoteFromTransaction = (transaction = {}) => {
         .map((line) => line.trim())
         .filter((line) => isCustomerReferenceLine(line) && !lines.includes(line))
         .forEach((line) => lines.push(line));
-    if (transaction.executorSenderPhone && !lines.some((line) => line.includes(transaction.executorSenderPhone))) {
-        lines.push(`[رقم المرسل: ${transaction.executorSenderPhone}]`);
-    }
     return lines.join('\n').trim();
 };
 
@@ -60,6 +61,7 @@ module.exports = {
     SYSTEM_NOTE_PATTERNS,
     normalizeCustomerNote,
     normalizeCustomerNoteInput,
+    isExecutorReferenceLine,
     isCustomerReferenceLine,
     extractLegacyCustomerNote,
     customerNoteFromTransaction

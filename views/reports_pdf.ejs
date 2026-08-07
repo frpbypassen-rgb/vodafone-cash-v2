@@ -141,6 +141,7 @@
     const info = report.entityInfo || {};
     const stats = report.stats || {};
     const currency = stats.accountingCurrency || 'LYD';
+    const isExecutorStatement = ['executor', 'api_executor'].includes(report.scope?.mainCategory);
     const reportTimeZone = 'Africa/Tripoli';
     const formatMoney = (value, digits = 2) => Number(value || 0).toLocaleString('en-US', { minimumFractionDigits: digits, maximumFractionDigits: digits });
     const formatEGP = (value) => Number(value || 0).toLocaleString('en-US', { maximumFractionDigits: 0 });
@@ -244,14 +245,14 @@
 <section class="section">
     <div class="section-heading"><div><span>الحركات المحتسبة فقط</span><h2>التحويلات الناجحة</h2></div><strong><%= report.completedOperations.length %> عملية</strong></div>
     <table>
-        <thead><tr><th style="width:3%">#</th><th style="width:11%">رقم العملية</th><th style="width:10%">الخدمة</th><th style="width:11%">الرقم المستفيد</th><th style="width:10%">المبلغ EGP</th><th style="width:8%">السعر</th><th style="width:10%">القيمة LYD</th><th style="width:11%">المنفذ</th><th style="width:11%">التاريخ</th><th style="width:15%">الملاحظة / المرجع</th></tr></thead>
+        <thead><tr><th style="width:3%">#</th><th style="width:11%">رقم العملية</th><th style="width:10%">الخدمة</th><th style="width:11%">الرقم المستفيد</th><th style="width:10%">المبلغ EGP</th><th style="width:8%">السعر</th><th style="width:10%">القيمة LYD</th><% if (isExecutorStatement) { %><th style="width:11%">المنفذ</th><% } %><th style="width:11%">التاريخ</th><th style="width:15%">الملاحظة / المرجع</th></tr></thead>
         <tbody>
-        <% if (!report.completedOperations.length) { %><tr><td colspan="10" class="empty">لا توجد تحويلات ناجحة في الفترة المحددة.</td></tr><% } %>
+        <% if (!report.completedOperations.length) { %><tr><td colspan="<%= isExecutorStatement ? 10 : 9 %>" class="empty">لا توجد تحويلات ناجحة في الفترة المحددة.</td></tr><% } %>
         <% report.completedOperations.forEach((transaction, index) => { %>
             <tr>
                 <td><%= index + 1 %></td><td class="mono"><%= transaction.customId || transaction._id %></td><td><%= serviceName(transaction.transferType) %></td>
                 <td class="mono"><%= targetNumber(transaction) %></td><td class="mono"><%= formatEGP(transaction.amount) %></td><td class="mono"><%= Number(transaction.exchangeRate || 0).toFixed(3) %></td>
-                <td class="mono"><%= formatMoney(transaction.costLYD, 3) %></td><td><%= compact(actorName(transaction), 35) %></td><td class="mono"><%= formatDateTime(transaction.createdAt) %></td><td class="note"><%= compact(customerNote(transaction)) %></td>
+                <td class="mono"><%= formatMoney(transaction.costLYD, 3) %></td><% if (isExecutorStatement) { %><td><%= compact(actorName(transaction), 35) %></td><% } %><td class="mono"><%= formatDateTime(transaction.createdAt) %></td><td class="note"><%= compact(customerNote(transaction)) %></td>
             </tr>
         <% }) %>
         </tbody>
@@ -262,10 +263,10 @@
 <section class="section">
     <div class="section-heading"><div><span>غير داخلة في الإجماليات النهائية</span><h2>الحركات المعلقة وقيد التنفيذ</h2></div><strong><%= report.pendingOperations.length + report.pendingDeposits.length %> حركة</strong></div>
     <table>
-        <thead><tr><th>#</th><th>رقم الحركة</th><th>النوع</th><th>القيمة</th><th>المسؤول</th><th>التاريخ</th><th>الحالة</th><th>الملاحظة</th></tr></thead>
+        <thead><tr><th>#</th><th>رقم الحركة</th><th>النوع</th><th>القيمة</th><% if (isExecutorStatement) { %><th>المسؤول</th><% } %><th>التاريخ</th><th>الحالة</th><th>الملاحظة</th></tr></thead>
         <tbody>
         <% [...report.pendingOperations, ...report.pendingDeposits].forEach((transaction, index) => { %>
-            <tr><td><%= index + 1 %></td><td class="mono"><%= transaction.customId || transaction._id %></td><td><%= serviceName(transaction.transferType) %></td><td class="mono"><%= formatEGP(transaction.amount) %> EGP</td><td><%= compact(actorName(transaction), 45) %></td><td class="mono"><%= formatDateTime(transaction.createdAt) %></td><td><span class="status pending">قيد التنفيذ</span></td><td class="note"><%= compact(customerNote(transaction)) %></td></tr>
+            <tr><td><%= index + 1 %></td><td class="mono"><%= transaction.customId || transaction._id %></td><td><%= serviceName(transaction.transferType) %></td><td class="mono"><%= formatEGP(transaction.amount) %> EGP</td><% if (isExecutorStatement) { %><td><%= compact(actorName(transaction), 45) %></td><% } %><td class="mono"><%= formatDateTime(transaction.createdAt) %></td><td><span class="status pending">قيد التنفيذ</span></td><td class="note"><%= compact(customerNote(transaction)) %></td></tr>
         <% }) %>
         </tbody>
     </table>
@@ -320,11 +321,11 @@
         <span class="mono">قيمة مرجعية فقط: <%= formatEGP(stats.cancelledEGP) %> EGP / <%= formatMoney(stats.cancelledLYD) %> LYD</span>
     </div>
     <table>
-        <thead><tr><th>#</th><th>رقم العملية</th><th>رقم الإلغاء</th><th>الخدمة / أصل الحركة</th><th>الرقم المستفيد</th><th>القيمة EGP</th><th>القيمة LYD</th><th>تاريخ العملية</th><th>تاريخ الإلغاء</th><th>سبب الإلغاء</th><th>بواسطة</th></tr></thead>
+        <thead><tr><th>#</th><th>رقم العملية</th><th>رقم الإلغاء</th><th>الخدمة / أصل الحركة</th><th>الرقم المستفيد</th><th>القيمة EGP</th><th>القيمة LYD</th><th>تاريخ العملية</th><th>تاريخ الإلغاء</th><th>سبب الإلغاء</th><% if (isExecutorStatement) { %><th>بواسطة</th><% } %></tr></thead>
         <tbody>
         <% if (!report.cancelledOperations.length) { %><tr><td colspan="11" class="empty">لا توجد عمليات ملغية أو مرفوضة في الفترة المحددة.</td></tr><% } %>
         <% report.cancelledOperations.forEach((transaction, index) => { %>
-            <tr><td><%= index + 1 %></td><td class="mono"><%= transaction.customId || transaction._id %></td><td class="mono"><%= transaction.cancellationNumber || '---' %></td><td><%= transaction.balanceAdjustment?.originalStatus === 'deposit' ? 'إيداع ملغي' : transaction.balanceAdjustment?.originalStatus === 'deduction' ? 'خصم ملغي' : serviceName(transaction.transferType) %></td><td class="mono"><%= targetNumber(transaction) %></td><td class="mono"><%= formatEGP(transaction.amount) %></td><td class="mono"><%= formatMoney(transaction.costLYD, 3) %></td><td class="mono"><%= formatDateTime(transaction.createdAt) %></td><td class="mono"><%= formatDateTime(transaction.cancelledAt || transaction.updatedAt) %></td><td class="note"><%= compact(transaction.cancellationReason || transaction.adminNotes || transaction.notes, 90) %></td><td><%= transaction.cancelledBy || actorName(transaction) %></td></tr>
+            <tr><td><%= index + 1 %></td><td class="mono"><%= transaction.customId || transaction._id %></td><td class="mono"><%= transaction.cancellationNumber || '---' %></td><td><%= transaction.balanceAdjustment?.originalStatus === 'deposit' ? 'إيداع ملغي' : transaction.balanceAdjustment?.originalStatus === 'deduction' ? 'خصم ملغي' : serviceName(transaction.transferType) %></td><td class="mono"><%= targetNumber(transaction) %></td><td class="mono"><%= formatEGP(transaction.amount) %></td><td class="mono"><%= formatMoney(transaction.costLYD, 3) %></td><td class="mono"><%= formatDateTime(transaction.createdAt) %></td><td class="mono"><%= formatDateTime(transaction.cancelledAt || transaction.updatedAt) %></td><td class="note"><%= compact(transaction.cancellationReason || transaction.notes, 90) %></td><% if (isExecutorStatement) { %><td><%= transaction.cancelledBy || actorName(transaction) %></td><% } %></tr>
         <% }) %>
         </tbody>
     </table>

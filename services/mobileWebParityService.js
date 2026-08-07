@@ -22,6 +22,7 @@ const { executeBalanceTransfer } = require('./balanceTransferService');
 const { resolveAccountByCode, normalizeAccountCode } = require('./accountCodeService');
 const { logAction } = require('./auditService');
 const { acquireLock, releaseLock } = require('./lockService');
+const { sanitizeStatementTransaction } = require('../utils/accountStatementPrivacy');
 
 const appendNoteText = (current, note) => {
     const cleanNote = String(note || '').trim();
@@ -292,9 +293,9 @@ async function getClientReports({ userId, accountType, dateType, dateValue, tena
 
     return {
         previousBalance,
-        currentTransactions,
-        operations,
-        deposits,
+        currentTransactions: currentTransactions.map(sanitizeStatementTransaction),
+        operations: operations.map(sanitizeStatementTransaction),
+        deposits: deposits.map(sanitizeStatementTransaction),
         totalLYD,
         totalEGP,
         completedCount,

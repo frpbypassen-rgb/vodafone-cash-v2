@@ -75,9 +75,9 @@ const appendAdminNoteText = (current, note) => {
     return current ? `${current}\n${cleanNote}` : cleanNote;
 };
 
-const customerFacingNotes = (notes, senderPhone = '') => {
+const customerFacingNotes = (notes) => {
     const raw = String(notes || '').trim();
-    if (!raw && !senderPhone) return null;
+    if (!raw) return null;
     const beforeApiLog = raw.split(/---\s*سجل\s+الـ\s+API/i)[0].trim();
     const legacyTransferMatch = beforeApiLog.match(/(?:تحويل رصيد صادر إلى|تحويل رصيد وارد من).*\|\s*(.+)$/);
     const systemPatterns = [
@@ -95,12 +95,9 @@ const customerFacingNotes = (notes, senderPhone = '') => {
     const lines = legacyTransferMatch
         ? [legacyTransferMatch[1].trim()]
         : beforeApiLog.split(/\r?\n/).map((line) => line.trim()).filter(Boolean).filter((line) => {
-            if (/رقم المحول|رقم المرسل|الرقم المرجعي|مرجع|reference|ref/i.test(line)) return true;
+            if (/رقم المحول|الرقم المرجعي|مرجع|reference|ref/i.test(line)) return true;
             return !systemPatterns.some((pattern) => pattern.test(line));
         });
-    if (senderPhone && !lines.some((line) => line.includes(senderPhone))) {
-        lines.push(`[رقم المرسل: ${senderPhone}]`);
-    }
     return lines.filter(Boolean).join('\n').trim() || null;
 };
 
@@ -1582,7 +1579,7 @@ router.get('/client/transactions', authenticateJWT, async (req, res) => {
                 exchangeRate: Number(tx.exchangeRate || 0),
                 status: tx.status,
                 createdAt: tx.createdAt ? new Date(tx.createdAt).toISOString() : null,
-                notes: customerFacingNotes(customerNoteFromTransaction(tx), tx.executorSenderPhone),
+                notes: customerFacingNotes(customerNoteFromTransaction(tx)),
                 hasProofImage: !!(tx.proofImage || (tx.proofImages && tx.proofImages.length > 0))
             })),
             pagination: {
@@ -1730,7 +1727,7 @@ router.get('/client/transactions/:id', authenticateJWT, async (req, res) => {
                 exchangeRate: Number(tx.exchangeRate || 0),
                 status: tx.status,
                 createdAt: tx.createdAt ? new Date(tx.createdAt).toISOString() : null,
-                notes: customerFacingNotes(customerNoteFromTransaction(tx), tx.executorSenderPhone),
+                notes: customerFacingNotes(customerNoteFromTransaction(tx)),
                 hasProofImage: !!(tx.proofImage || (tx.proofImages && tx.proofImages.length > 0))
             }
         });

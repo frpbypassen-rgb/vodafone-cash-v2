@@ -728,8 +728,7 @@
             const explicitCustomerNotes = String(tx.customerNotes || '').trim();
             if (explicitCustomerNotes) {
                 const lines = explicitCustomerNotes.split(/\r?\n/).map(line => line.trim()).filter(Boolean);
-                String(tx.notes || '').split(/---\s*سجل\s+الـ\s+API/i)[0].split(/\r?\n/).map(line => line.trim()).filter(line => /رقم المحول|رقم المرسل|الرقم المرجعي|مرجع|reference|ref/i.test(line) && !lines.includes(line)).forEach(line => lines.push(line));
-                if (tx.executorSenderPhone && !lines.some(line => line.includes(tx.executorSenderPhone))) lines.push(`[رقم المرسل: ${tx.executorSenderPhone}]`);
+                String(tx.notes || '').split(/---\s*سجل\s+الـ\s+API/i)[0].split(/\r?\n/).map(line => line.trim()).filter(line => /رقم المحول|الرقم المرجعي|مرجع|reference|ref/i.test(line) && !lines.includes(line)).forEach(line => lines.push(line));
                 return lines.join('\n');
             }
             const raw = String(tx.notes || '').trim();
@@ -737,10 +736,9 @@
             const legacyTransfer = beforeApiLog.match(/(?:تحويل رصيد صادر إلى|تحويل رصيد وارد من).*\|\s*(.+)$/);
             const systemPatterns = [/^سبب الرفض:/, /^\[تم /, /^\[فشل /, /^\[معلقة /, /^\[رقم الإلغاء:/, /^تحويل رصيد صادر إلى/, /^تحويل رصيد وارد من/, /^تمويل نقطة بيع/, /^سحب رصيد من نقطة بيع/, /^\[طلب وارد عبر API/];
             const lines = legacyTransfer ? [legacyTransfer[1].trim()] : beforeApiLog.split(/\r?\n/).map(line => line.trim()).filter(Boolean).filter(line => {
-                if (/رقم المحول|رقم المرسل|الرقم المرجعي|مرجع|reference|ref/i.test(line)) return true;
+                if (/رقم المحول|الرقم المرجعي|مرجع|reference|ref/i.test(line)) return true;
                 return !systemPatterns.some(pattern => pattern.test(line));
             });
-            if (tx.executorSenderPhone && !lines.some(line => line.includes(tx.executorSenderPhone))) lines.push(`[رقم المرسل: ${tx.executorSenderPhone}]`);
             return lines.filter(Boolean).join('\n').trim();
         }
 

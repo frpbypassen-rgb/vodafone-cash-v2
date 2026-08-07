@@ -11,6 +11,10 @@ const Settings = require('../models/Settings');
 const Ledger = require('../models/Ledger');
 const { getServiceRatesForTier, getCompanyServiceRates } = require('../utils/rateHelper');
 const { getTransferServiceRules } = require('../utils/transferServiceRules');
+const {
+    sanitizeStatementMovement,
+    sanitizeStatementTransaction
+} = require('../utils/accountStatementPrivacy');
 
 const STATUS_META = Object.freeze({
     pending: { label: 'قيد الانتظار', tone: 'warning' },
@@ -622,10 +626,10 @@ const loadStaff = async (workspace) => {
 
 const movementFromTransaction = (tx) => {
     if (tx.status === 'deposit') {
-        return { transactionId: tx.customId, type: 'DEPOSIT', amount: safeNumber(tx.amount), direction: 'credit', description: tx.adminNotes || 'إيداع رصيد', createdAt: tx.createdAt, source: 'transaction' };
+        return { transactionId: tx.customId, type: 'DEPOSIT', amount: safeNumber(tx.amount), direction: 'credit', description: 'إيداع رصيد', createdAt: tx.createdAt, source: 'transaction' };
     }
     if (tx.status === 'deduction') {
-        return { transactionId: tx.customId, type: 'DEDUCTION', amount: -Math.abs(safeNumber(tx.amount)), direction: 'debit', description: tx.adminNotes || 'خصم رصيد', createdAt: tx.createdAt, source: 'transaction' };
+        return { transactionId: tx.customId, type: 'DEDUCTION', amount: -Math.abs(safeNumber(tx.amount)), direction: 'debit', description: 'خصم رصيد', createdAt: tx.createdAt, source: 'transaction' };
     }
     if (tx.status === 'completed') {
         return { transactionId: tx.customId, type: 'TRANSFER', amount: -Math.abs(safeNumber(tx.costLYD)), direction: 'debit', description: `تحويل ${safeNumber(tx.amount).toLocaleString('en-US')} EGP`, createdAt: tx.createdAt, source: 'transaction' };
@@ -655,11 +659,11 @@ const loadFinance = async (workspace, query = {}) => {
         .map(movementFromTransaction)
         .filter(Boolean);
     const movements = [
-        ...ledgerRows.map((row) => ({
+        ...ledgerRows.map((row) => sanitizeStatementMovement({
             ...row,
             direction: safeNumber(row.amount) >= 0 ? 'credit' : 'debit',
             source: 'ledger'
-        })),
+        })).filter(Boolean),
         ...fallbackRows
     ].sort((left, right) => new Date(right.createdAt) - new Date(left.createdAt));
     const financeSummary = movements.reduce((summary, movement) => {
@@ -742,7 +746,7 @@ const loadReports = async (workspace, query = {}) => {
         reportSummary,
         reportRows,
         serviceBreakdown,
-        reportTransactions: transactions.slice(0, 100),
+        reportTransactions: transactions.slice(0, 100).map(sanitizeStatementTransaction),
         filters: { ...range, scope }
     };
 };

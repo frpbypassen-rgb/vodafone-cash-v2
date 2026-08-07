@@ -22,7 +22,7 @@ describe('Transaction customer notes', () => {
         expect(customerNoteFromTransaction(transaction)).toBe('ملاحظة العميل الأصلية');
     });
 
-    test('keeps allowed reference data beside the explicit customer note', () => {
+    test('keeps the operation reference but removes executor sender data', () => {
         const transaction = {
             customerNotes: 'ملاحظة العميل',
             notes: 'ملاحظة العميل\n[الرقم المرجعي: REF-778]\n[تم التنفيذ]',
@@ -30,7 +30,7 @@ describe('Transaction customer notes', () => {
         };
 
         expect(customerNoteFromTransaction(transaction)).toBe(
-            'ملاحظة العميل\n[الرقم المرجعي: REF-778]\n[رقم المرسل: 01100000000]'
+            'ملاحظة العميل\n[الرقم المرجعي: REF-778]'
         );
     });
 

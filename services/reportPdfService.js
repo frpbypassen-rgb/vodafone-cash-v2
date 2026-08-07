@@ -3,6 +3,7 @@
 const fs = require('fs');
 const path = require('path');
 const puppeteer = require('puppeteer');
+const { sanitizeAccountStatementReport } = require('../utils/accountStatementPrivacy');
 
 let sharedBrowserPromise = null;
 
@@ -86,14 +87,17 @@ const closeReportPdfBrowser = async () => {
     if (browser) await browser.close().catch(() => {});
 };
 
-const preparePdfReport = (report = {}) => ({
-    ...report,
-    closedDayChanges: [],
-    closure: {
-        ...(report.closure || {}),
-        hasPostCloseChanges: false
-    }
-});
+const preparePdfReport = (report = {}) => {
+    const sanitized = sanitizeAccountStatementReport(report);
+    return {
+        ...sanitized,
+        closedDayChanges: [],
+        closure: {
+            ...(sanitized.closure || {}),
+            hasPostCloseChanges: false
+        }
+    };
+};
 
 const generateAdminReportPdf = async (app, data) => {
     const executablePath = findBrowserExecutable();

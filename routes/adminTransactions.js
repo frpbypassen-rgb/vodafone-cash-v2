@@ -17,6 +17,7 @@ const { systemDateRange } = require('../config/systemTime');
 const { syncBotBalance } = require('../utils/helpers');
 const { escapeRegex } = require('../middlewares/sanitize');
 const { customerNoteFromTransaction } = require('../utils/transactionNotes');
+const { sanitizeStatementTransaction } = require('../utils/accountStatementPrivacy');
 const { logAction } = require('../services/auditService');
 const {
     executorSupportsTransferType,
@@ -295,7 +296,13 @@ router.get('/transactions/print', async (req, res) => {
             else if (tx.status === 'deduction') { totals.deductionsEGP += (tx.amount || 0); }
         });
 
-        res.render('print_report', { transactions, fromDate, toDate, filterType, totals });
+        res.render('print_report', {
+            transactions: transactions.map(sanitizeStatementTransaction),
+            fromDate,
+            toDate,
+            filterType,
+            totals
+        });
     } catch (e) {
         console.error('[adminTransactions/print] خطأ:', e.message);
         res.status(500).send('حدث خطأ أثناء إعداد التقرير.');

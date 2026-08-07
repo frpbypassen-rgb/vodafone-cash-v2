@@ -10,6 +10,10 @@ const Transaction = require('../models/Transaction');
 const User = require('../models/User');
 const { systemDateKey } = require('../config/systemTime');
 const { buildReportSummary } = require('../utils/adminReportCalculations');
+const {
+    EXECUTOR_LEDGER_MODELS,
+    sanitizeAccountStatementReport
+} = require('../utils/accountStatementPrivacy');
 const { ensureDailySettlements } = require('./settlementService');
 
 const REPORT_CHANGE_ACTIONS = [
@@ -71,6 +75,13 @@ const compactText = (value, max = 220) => {
 };
 
 const toStringId = (value) => value == null ? '' : String(value);
+
+const buildStatementLedgerQuery = (transactionIds = [], isExecutor = false) => ({
+    transactionId: { $in: transactionIds },
+    entityModel: isExecutor
+        ? { $in: EXECUTOR_LEDGER_MODELS }
+        : { $nin: EXECUTOR_LEDGER_MODELS }
+});
 
 const buildScopeMetadata = (transaction = {}) => ({
     companyId: toStringId(transaction.companyId),
@@ -341,9 +352,10 @@ const loadAdminReport = async (input = {}) => {
         isExecutor: scope.isExecutor
     });
     const transactionCustomIds = currentTransactions.map((transaction) => transaction.customId).filter(Boolean);
+    const ledgerQuery = buildStatementLedgerQuery(transactionCustomIds, scope.isExecutor);
     const [movements, auditLogs] = await Promise.all([
         transactionCustomIds.length
-            ? Ledger.find({ transactionId: { $in: transactionCustomIds } })
+            ? Ledger.find(ledgerQuery)
                 .sort({ createdAt: -1 })
                 .lean()
             : [],
@@ -370,7 +382,7 @@ const loadAdminReport = async (input = {}) => {
         closedBy: settlement.closedByName || settlement.approvedByName || 'الإقفال المالي الآلي'
     })).sort((left, right) => left.day.localeCompare(right.day));
 
-    return {
+    return sanitizeAccountStatementReport({
         success: true,
         entityInfo: scope.entityInfo,
         range,
@@ -388,12 +400,13 @@ const loadAdminReport = async (input = {}) => {
             hasPostCloseChanges: closedDayChanges.length > 0,
             status: closedDays.length ? 'closed' : 'open'
         }
-    };
+    });
 };
 
 module.exports = {
     ACTION_LABELS,
     REPORT_CHANGE_ACTIONS,
+    buildStatementLedgerQuery,
     buildPostCloseChanges,
     buildScopeMetadata,
     dateKey,

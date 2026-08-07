@@ -14,6 +14,7 @@ const { getServiceRatesForTier, getCompanyServiceRates, applyRateMargin } = requ
 const clientCompanyController = require('./clientCompanyController');
 const clientWorkspaceController = require('./clientWorkspaceController');
 const businessPortalService = require('../services/businessPortalService');
+const { sanitizeStatementTransaction } = require('../utils/accountStatementPrivacy');
 
 const renderBusinessOverview = clientWorkspaceController.renderPage('overview');
 
@@ -182,7 +183,7 @@ exports.getDashboard = async (req, res) => {
 
         res.render('client/dashboard', {
             user: { name: account.name, phone: account.phone || account.webUsername, balance: balance, role: account.role || 'user', accountType: req.session.accountType, accountCode, canViewBalance },
-            isSubAccount, isMaster: !isSubAccount, masterTotalProfit, transactions: combinedTransactions, currentRate, serviceRates, totals, targetDate, dateLabel, showMonth, search, query: req.query, storeCatalog,
+            isSubAccount, isMaster: !isSubAccount, masterTotalProfit, transactions: combinedTransactions.map(sanitizeStatementTransaction), currentRate, serviceRates, totals, targetDate, dateLabel, showMonth, search, query: req.query, storeCatalog,
             isSystemOpen,
             profile
         });

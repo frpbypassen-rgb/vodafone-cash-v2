@@ -20,6 +20,7 @@ const { createDepositReceiptProof } = require('../services/depositReceiptService
 const { buildClientReceiptImages } = require('../services/clientReceiptService');
 const { logAction } = require('../services/auditService');
 const { customerNoteFromTransaction } = require('../utils/transactionNotes');
+const { sanitizeStatementText } = require('../utils/accountStatementPrivacy');
 const { parseTransferMessage } = require('../utils/smartTransferParser');
 
 const USERNAME_DOMAIN = '@ahram.com';
@@ -431,7 +432,7 @@ exports.getTransactionDetails = async (req, res) => {
                 employeeName: transaction.employeeName || '',
                 customerName: transaction.subAccountName || '',
                 cancellationNumber: transaction.cancellationNumber || '',
-                cancellationReason: transaction.cancellationReason || '',
+                cancellationReason: sanitizeStatementText(transaction.cancellationReason, transaction.cancellationReason ? 'تم إلغاء العملية' : ''),
                 createdAt: transaction.createdAt,
                 updatedAt: transaction.updatedAt,
                 hasProof: receiptImages.length > 0,
