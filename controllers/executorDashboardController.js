@@ -184,7 +184,13 @@ exports.getLiveTasks = async (req, res) => {
             $or: [ { executorGroupId: emp.groupId }, { managerGroupId: emp.groupId } ],
             status: { $in: ['processing', 'accepted'] }
         };
+        const taskArrivalTime = (tx) => {
+            const value = new Date(tx.executorReceivedAt || tx.createdAt || 0).getTime();
+            return Number.isFinite(value) ? value : 0;
+        };
+
         const tasks = await Transaction.find(filter).sort({ createdAt: 1 }).lean();
+        tasks.sort((first, second) => taskArrivalTime(first) - taskArrivalTime(second));
 
         for (let tx of tasks) {
             if (tx.status === 'processing' && !tx.notifiedExecutors) {
@@ -201,7 +207,7 @@ exports.getLiveTasks = async (req, res) => {
         const now = Date.now();
         for (let tx of tasks) {
             if (tx.status === 'processing' && !tx.autoAlertFired) {
-                const diffMs = now - new Date(tx.createdAt).getTime();
+                const diffMs = now - taskArrivalTime(tx);
                 if (diffMs >= 120000) {
                     await Transaction.findOneAndUpdate(
                         { _id: tx._id, autoAlertFired: { $ne: true } },

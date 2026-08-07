@@ -433,8 +433,8 @@
             <div class="modal-body p-4">
                 <div id="dropZone" class="drop-zone mb-3">
                     <i class="fa-solid fa-images fs-2 mb-2" style="color: var(--accent-green); filter: drop-shadow(0 0 10px rgba(16,185,129,0.3));"></i>
-                    <h6 class="mb-1 fw-bold">اضغط أو الصق الصورة (Paste)</h6>
-                    <p class="text-muted small m-0" style="font-size: 0.75rem;">يمكنك إرفاق صور متعددة</p>
+                    <h6 class="mb-1 fw-bold">إرفاق الصورة اختياري</h6>
+                    <p class="text-muted small m-0" style="font-size: 0.75rem;">يمكنك إرفاق صور متعددة، أو المتابعة لإنشاء إيصال نظام تلقائي</p>
                     <input type="file" id="proofInput" class="d-none" accept="image/*" multiple>
                 </div>
                 
@@ -575,13 +575,7 @@
                 e.preventDefault(); 
                 const btnFinish = document.getElementById('btnFinish');
                 if (btnFinish && !btnFinish.disabled) {
-                    if (selectedFilesArray.length > 0) {
-                        btnFinish.click();
-                    } else {
-                        Swal.fire({
-                            title: 'تنبيه', text: 'يجب إرفاق صورة إثبات واحدة على الأقل قبل التأكيد', icon: 'warning', customClass: { popup: 'swal2-popup' }
-                        });
-                    }
+                    btnFinish.click();
                 }
             }
         }
@@ -810,6 +804,7 @@
                         return !(/^سبب الرفض:|^\[تم |^\[فشل |^\[معلقة |^\[رقم الإلغاء:|^تحويل رصيد صادر إلى|^تحويل رصيد وارد من/.test(line));
                     }).join('\n');
 
+                    const taskArrivalAt = t.executorReceivedAt || t.createdAt;
                     html += `
                         <div class="col-12 col-md-6 col-lg-4 col-xl-3">
                             <div class="task-card ${cardClass}">
@@ -821,7 +816,7 @@
                                     
                                     <div class="mb-3 d-flex justify-content-between align-items-center p-2 rounded-3" style="background: rgba(128,128,128,0.05); border: 1px solid var(--glass-border);">
                                         <span class="data-label m-0"><i class="fa-solid fa-stopwatch text-warning me-1"></i> وقت الانتظار:</span>
-                                        <span class="fw-bold fs-5 live-timer" data-time="${t.createdAt}" style="color: var(--text-main); font-family: monospace;">0s</span>
+                                        <span class="fw-bold fs-5 live-timer" data-time="${taskArrivalAt}" style="color: var(--text-main); font-family: monospace;">0s</span>
                                     </div>
 
                                     <div class="mb-2">
@@ -848,7 +843,7 @@
                                     ${hasApiLog ? `<button data-log="${rawLog}" onclick="showApiLogBtn(this)" class="btn-cyber-main mb-2" style="background: linear-gradient(45deg, #0f172a, #1e293b); color: #10b981; border: 1px solid rgba(16, 185, 129, 0.4);"><i class="fa-solid fa-terminal"></i> سجل السيرفر (API)</button>` : ''}
                                     ${acceptedByOther ? `<div class="p-2 rounded-3 text-center fw-bold text-muted border w-100 small" style="background: rgba(0,0,0,0.05);"><i class="fa-solid fa-user-gear me-1"></i> يُنفذ بواسطة: ${t.executorName}</div>` : 
                                       isMine ? `
-                                         <button onclick="openUpload('${t._id}')" class="btn-cyber-main mb-1"><i class="fa-solid fa-cloud-arrow-up"></i> إرفاق وإنهاء</button>
+                                         <button onclick="openUpload('${t._id}')" class="btn-cyber-main mb-1"><i class="fa-solid fa-check-double"></i> إنهاء العملية</button>
                                          <div class="horizontal-actions">
                                             <button onclick="editAmount('${t._id}')" class="btn-cyber-sub btn-warning-neon" title="تعديل المبلغ"><i class="fa-solid fa-pen-to-square"></i> <span class="btn-text-hide ms-1">تعديل</span></button>
                                             <button onclick="returnTask('${t._id}')" class="btn-cyber-sub btn-info-neon" title="إرجاع الطلب للإدارة"><i class="fa-solid fa-reply"></i> <span class="btn-text-hide ms-1">إرجاع</span></button>
@@ -914,9 +909,6 @@
     function openUpload(id) { currentCompletingId = id; resetUploadModal(); new bootstrap.Modal(document.getElementById('uploadModal')).show(); }
 
     document.getElementById('btnFinish').onclick = async function() {
-        if (selectedFilesArray.length === 0) {
-            return Swal.fire('الإثبات مطلوب', 'أرفق صورة إثبات واحدة على الأقل قبل إنهاء العملية.', 'warning');
-        }
         const senderPhone = document.getElementById('senderPhoneInput').value.trim();
         const btn = this; btn.disabled = true; btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> ضغط وإرسال...';
         try {
@@ -929,7 +921,7 @@
             await readExecutorApiResponse(res);
             window.location.reload();
         } catch(e) {
-            Swal.fire('تعذر إنهاء العملية', e.message || 'فشل إرسال الإثبات.', 'error');
+            Swal.fire('تعذر إنهاء العملية', e.message || 'فشل حفظ الإيصال.', 'error');
             btn.disabled = false;
             btn.innerHTML = '<i class="fa-solid fa-check-double me-2"></i> تأكيد التنفيذ والإرسال <kbd class="ms-2 bg-dark bg-opacity-25 border-0 text-white px-2 py-1 rounded" style="font-size: 0.75rem; font-family: sans-serif;">Enter ↵</kbd>';
         }

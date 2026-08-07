@@ -30,9 +30,45 @@ const getProofImages = (body = {}) => {
     const rawImages = Array.isArray(body.imagesBase64) && body.imagesBase64.length
         ? body.imagesBase64
         : (body.imageBase64 ? [body.imageBase64] : []);
-    if (rawImages.length === 0) throw new Error('PROOF_REQUIRED');
+    if (rawImages.length === 0) return [];
     if (rawImages.length > MAX_PROOF_IMAGES) throw new Error('TOO_MANY_PROOFS');
     return rawImages.map(parseProofImage);
+};
+
+const getTransferServiceLabel = (transferType) => {
+    const labels = {
+        post_account: 'بريد حساب',
+        post_card: 'بريد بطاقة',
+        bank_account: 'حساب بنكي',
+        bank_transfer: 'تحويل بنكي',
+        instapay: 'إنستاباي',
+        safa_niger: 'سفا النيجر',
+        bankak_sudan: 'بنكك السودان'
+    };
+    return labels[String(transferType || '').trim().toLowerCase()] || 'محافظ كاش';
+};
+
+const generateSystemReceiptProof = async ({ tx, proofsDir, savedPaths }) => {
+    const { generateReceiptBase64 } = require('../utils/receiptGenerator');
+    const receiptBase64 = await generateReceiptBase64({
+        amount: tx.amount,
+        walletNumber: tx.vodafoneNumber || tx.accountNumber || '---',
+        customId: tx.customId || tx._id.toString().slice(-6),
+        serviceName: getTransferServiceLabel(tx.transferType),
+        date: new Date().toLocaleString('ar-LY', { timeZone: 'Africa/Tripoli' }),
+        documentTitle: 'إيصال نظام تلقائي',
+        documentSubtitle: 'تم إنشاؤه تلقائياً من المنظومة'
+    });
+    const imageData = String(receiptBase64 || '').replace(/^data:image\/(?:jpeg|jpg);base64,/i, '');
+    const buffer = Buffer.from(imageData, 'base64');
+    if (!buffer.length) throw new Error('AUTO_RECEIPT_GENERATION_FAILED');
+
+    const safeId = (tx.customId || tx._id.toString().slice(-6)).toString().replace(/[^a-zA-Z0-9_-]/g, '');
+    const fileName = `${safeId}_system_${Date.now().toString(36)}.jpg`;
+    const filePath = path.join(proofsDir, fileName);
+    fs.writeFileSync(filePath, buffer);
+    savedPaths.push(filePath);
+    return fileName;
 };
 
 const appendNoteText = (current, note) => {
@@ -273,6 +309,12 @@ exports.postCompleteTask = async (req, res) => {
             localFileNames.push(fileName);
         }
 
+        const proofSource = localFileNames.length ? 'executor-upload' : 'system-generated';
+        if (localFileNames.length === 0) {
+            localFileNames.push(await generateSystemReceiptProof({ tx, proofsDir, savedPaths }));
+            appendAdminNote(tx, '[تم توليد إيصال نظام تلقائي لأن المنفذ لم يرفق صورة إثبات.]');
+        }
+
         if (senderPhone) appendCustomerReference(tx, 'رقم المحول', senderPhone);
         tx.status = 'completed';
         tx.proofImage = localFileNames[0];
@@ -298,7 +340,7 @@ exports.postCompleteTask = async (req, res) => {
             targetId: tx._id,
             targetModel: 'Transaction',
             oldData: { status: 'accepted' },
-            newData: { status: 'completed', proofCount: localFileNames.length },
+            newData: { status: 'completed', proofCount: localFileNames.length, proofSource },
             metadata: { customId: tx.customId, amount: tx.amount, transferType: tx.transferType }
         }).catch(() => {});
 
@@ -306,16 +348,16 @@ exports.postCompleteTask = async (req, res) => {
             require('../services/eventBus').publish('transfer:completed', { tx, emp });
         } catch (_) {}
 
-        return res.json({ success: true, message: 'تم إنهاء العملية وحفظ الإثبات بنجاح.' });
+        return res.json({ success: true, message: 'تم إنهاء العملية وحفظ الإيصال بنجاح.' });
     } catch (e) {
         if (!transactionCompleted) {
             savedPaths.forEach((filePath) => {
                 try { fs.unlinkSync(filePath); } catch (_) {}
             });
         }
-        if (e.message === 'PROOF_REQUIRED') return res.status(400).json({ success: false, error: 'يرجى إرفاق صورة إثبات واحدة على الأقل.' });
         if (e.message === 'TOO_MANY_PROOFS') return res.status(400).json({ success: false, error: `الحد الأقصى ${MAX_PROOF_IMAGES} صور.` });
         if (e.message === 'INVALID_PROOF_IMAGE') return res.status(400).json({ success: false, error: 'صيغة صورة الإثبات غير صالحة أو حجمها كبير.' });
+        if (e.message === 'AUTO_RECEIPT_GENERATION_FAILED') return res.status(500).json({ success: false, error: 'تعذر توليد الإيصال التلقائي، يرجى إعادة المحاولة.' });
         if (String(e.message || '').includes('LOCK')) return res.status(409).json({ success: false, error: 'العملية قيد المعالجة حالياً.' });
         console.error('[executor/complete-task] failed:', e.stack || e.message);
         return res.status(500).json({ success: false, error: 'تعذر إنهاء العملية.' });

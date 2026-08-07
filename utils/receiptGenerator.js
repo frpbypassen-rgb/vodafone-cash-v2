@@ -150,10 +150,10 @@ async function generateReceiptBase64(data) {
     ctx.textAlign = 'right';
     ctx.fillStyle = '#fff';
     setFont(34, '900');
-    ctx.fillText('إيصال تحويل', width - 84, 126);
+    ctx.fillText(data.documentTitle || 'إيصال تحويل', width - 84, 126);
     setFont(17, 'bold');
     ctx.fillStyle = '#d8fffb';
-    ctx.fillText('مستند تنفيذ إلكتروني معتمد', width - 84, 158);
+    ctx.fillText(data.documentSubtitle || 'مستند تنفيذ إلكتروني معتمد', width - 84, 158);
 
     fillCard(190, 202, 260, 52, 26, '#ffffff', null, true);
     ctx.fillStyle = BRAND.green;

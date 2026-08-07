@@ -58,6 +58,7 @@ describe('autoRouteService', () => {
         expect(tx.status).toBe('processing');
         expect(tx.executorGroupId).toBe('api-group-1');
         expect(tx.managerGroupId).toBe('manager-1');
+        expect(tx.executorReceivedAt).toBeInstanceOf(Date);
         expect(tx.executorName).toBe('Zayn API');
         expect(addTransferJob).toHaveBeenCalledWith('tx-1', 'api-group-1');
     });

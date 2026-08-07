@@ -330,6 +330,7 @@ router.post('/transaction/:id/assign-executor', async (req, res) => {
                 tx.status = 'processing';
                 tx.executorGroupId = executorGroup._id;
                 tx.managerGroupId = getParentGroupId(executorGroup);
+                tx.executorReceivedAt = new Date();
                 tx.executorName = executorGroup.name;
                 await tx.save();
 
@@ -416,6 +417,7 @@ router.post('/transaction/:id/assign-executor', async (req, res) => {
                             // تغيير مسؤولية الطلب ليكون من نصيب الفريق البشري
                             tx.executorGroupId = monitorGroup._id;
                             tx.managerGroupId = getParentGroupId(monitorGroup);
+                            tx.executorReceivedAt = new Date();
                             tx.executorName = monitorGroup.name;
                             tx.status = 'processing';
                             appendAdminNote(tx, `[فشل API - تم التحويل للمراقبة البشرية | السبب: ${apiResult.message}]`);
@@ -444,7 +446,7 @@ router.post('/transaction/:id/assign-executor', async (req, res) => {
             // 👨‍💻====================================================👨‍💻
             // المسار الكلاسيكي: للبوت البشري العادي
             // 👨‍💻====================================================👨‍💻
-            tx.executorGroupId = executorGroup._id; tx.managerGroupId = getParentGroupId(executorGroup); tx.executorName = executorGroup.name; tx.status = 'processing'; tx.broadcastMessages = []; 
+            tx.executorGroupId = executorGroup._id; tx.managerGroupId = getParentGroupId(executorGroup); tx.executorReceivedAt = new Date(); tx.executorName = executorGroup.name; tx.status = 'processing'; tx.broadcastMessages = [];
 
             // 🟢 الإشعارات ستكون عبر Socket.IO
 

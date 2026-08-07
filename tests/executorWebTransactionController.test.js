@@ -9,12 +9,16 @@ jest.mock('../services/lockService', () => ({
     releaseLock: jest.fn().mockResolvedValue(true)
 }));
 jest.mock('../services/eventBus', () => ({ publish: jest.fn() }));
+jest.mock('../utils/receiptGenerator', () => ({
+    generateReceiptBase64: jest.fn().mockResolvedValue('data:image/jpeg;base64,AAECAwQ=')
+}));
 
 const fs = require('fs');
 const Transaction = require('../models/Transaction');
 const { syncBotBalance } = require('../utils/helpers');
 const { acquireLock, releaseLock } = require('../services/lockService');
 const eventBus = require('../services/eventBus');
+const { generateReceiptBase64 } = require('../utils/receiptGenerator');
 const controller = require('../controllers/executorTransactionController');
 
 describe('Executor web transaction completion', () => {
@@ -64,15 +68,25 @@ describe('Executor web transaction completion', () => {
         jest.restoreAllMocks();
     });
 
-    test('requires a proof image before completing the task', async () => {
+    test('generates a system receipt when the executor completes without a proof image', async () => {
         await controller.postCompleteTask(req, res);
 
-        expect(res.status).toHaveBeenCalledWith(400);
-        expect(res.json).toHaveBeenCalledWith(expect.objectContaining({
-            success: false,
-            error: expect.stringContaining('إرفاق صورة')
+        expect(Transaction.findOne).toHaveBeenCalledWith(expect.objectContaining({
+            _id: 'tx-1',
+            status: 'accepted',
+            operatorId: 'employee-1'
         }));
-        expect(Transaction.findOne).not.toHaveBeenCalled();
+        expect(generateReceiptBase64).toHaveBeenCalledWith(expect.objectContaining({
+            amount: 250,
+            customId: 'EXEC-TEST-001',
+            documentTitle: 'إيصال نظام تلقائي'
+        }));
+        expect(fs.writeFileSync).toHaveBeenCalledTimes(1);
+        expect(tx.status).toBe('completed');
+        expect(tx.proofImage).toMatch(/^EXEC-TEST-001_system_[a-z0-9]+\.jpg$/);
+        expect(tx.proofImages).toEqual([tx.proofImage]);
+        expect(tx.adminNotes).toContain('إيصال نظام تلقائي');
+        expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ success: true }));
         expect(releaseLock).toHaveBeenCalled();
     });
 
@@ -108,6 +122,7 @@ describe('Executor web transaction completion', () => {
         expect(tx.proofImages).toHaveLength(1);
         expect(tx.executorSenderPhone).toBe('01000000000');
         expect(tx.save).toHaveBeenCalledTimes(1);
+        expect(generateReceiptBase64).not.toHaveBeenCalled();
         expect(syncBotBalance).toHaveBeenCalledWith('group-1');
         expect(syncBotBalance).toHaveBeenCalledWith('parent-1');
         expect(eventBus.publish).toHaveBeenCalledWith('transfer:completed', { tx, emp: req.executorEmployee });

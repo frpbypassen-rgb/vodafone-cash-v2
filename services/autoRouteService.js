@@ -48,6 +48,7 @@ const applyAutoRouteFields = (tx, executorGroup) => {
 
     tx.executorGroupId = executorGroup._id;
     tx.managerGroupId = getParentGroupId(executorGroup);
+    tx.executorReceivedAt = new Date();
     tx.executorName = executorGroup.name;
     tx.status = 'processing';
     tx.broadcastMessages = [];

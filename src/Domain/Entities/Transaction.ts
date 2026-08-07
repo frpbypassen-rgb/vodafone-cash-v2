@@ -34,6 +34,7 @@ export interface ITransaction extends Document {
     status: 'pending' | 'processing' | 'accepted' | 'completed' | 'rejected' | 'deposit_pending' | 'deposit' | 'deduction' | 'cancelled_by_admin';
     executorGroupId?: mongoose.Types.ObjectId;
     managerGroupId?: mongoose.Types.ObjectId;
+    executorReceivedAt?: Date;
     executorGroupName?: string;
     operatorId?: string;
     executorName: string;
@@ -122,6 +123,7 @@ const transactionSchema = new Schema<ITransaction>({
     },
     executorGroupId: { type: Schema.Types.ObjectId, ref: 'ExecutorGroup' },
     managerGroupId: { type: Schema.Types.ObjectId, ref: 'ExecutorGroup' },
+    executorReceivedAt: { type: Date },
     executorGroupName: { type: String },
     operatorId: { type: String }, 
     executorName: { type: String, default: '---' },
@@ -153,6 +155,7 @@ transactionSchema.index({ companyId: 1, createdAt: -1 });
 transactionSchema.index({ executorGroupId: 1, status: 1 });
 transactionSchema.index({ status: 1, updatedAt: -1 });
 transactionSchema.index({ executorGroupId: 1, createdAt: -1 });
+transactionSchema.index({ executorGroupId: 1, executorReceivedAt: 1 });
 transactionSchema.index({ managerGroupId: 1, status: 1 });
 transactionSchema.index({ tenantId: 1, createdAt: -1 });
 

@@ -100,6 +100,8 @@ const transactionSchema = new mongoose.Schema({
     // 👨‍💻 بيانات الموظف المنفذ
     executorGroupId: { type: mongoose.Schema.Types.ObjectId, ref: 'ExecutorGroup' },
     managerGroupId: { type: mongoose.Schema.Types.ObjectId, ref: 'ExecutorGroup' },
+    // وقت وصول العملية إلى قائمة مهام المنفذ، مستقل عن وقت إنشائها لدى العميل.
+    executorReceivedAt: { type: Date },
     executorGroupName: { type: String },
     operatorId: { type: String }, 
     executorName: { type: String, default: '---' },
@@ -144,6 +146,7 @@ transactionSchema.index({ companyId: 1, createdAt: -1 });      // معاملات
 transactionSchema.index({ executorGroupId: 1, status: 1 });        // مهام المنفذ
 transactionSchema.index({ status: 1, updatedAt: -1 });           // التقارير والإحصاءات
 transactionSchema.index({ executorGroupId: 1, createdAt: -1 });    // رصيد المنفذ
+transactionSchema.index({ executorGroupId: 1, executorReceivedAt: 1 }); // ترتيب قائمة مهام المنفذ
 transactionSchema.index({ managerGroupId: 1, status: 1 });         // مهام المدير
 transactionSchema.index({ tenantId: 1, createdAt: -1 });
 transactionSchema.index({
