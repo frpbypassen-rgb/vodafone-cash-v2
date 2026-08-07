@@ -10,7 +10,9 @@ const {
     getCompanyServiceRates,
     buildCompanyRateOffsets,
     getCompanyRateConfig,
-    buildCompanyRateContract
+    buildCompanyRateContract,
+    getServiceRatesForTier,
+    synchronizeVodafoneLinkedRateFields
 } = require('../utils/rateHelper');
 const {
     getEnabledMobileTransferServiceKeys
@@ -21,7 +23,7 @@ const expectedServiceRates = (base) => ({
     vodafone: roundRate(base),
     post_account: roundRate(base - 0.05),
     post_card: roundRate(base - 0.15),
-    bank_account: roundRate(base),
+    bank_account: roundRate(base - 0.10),
     sefa_niger: roundRate(base + 0.10),
     bankak_sudan: roundRate(base + 0.20)
 });
@@ -83,6 +85,41 @@ describe('rateHelper mobile service rate contract', () => {
         expect(getServiceRatesForBaseRate(0.10)).toEqual(expectedServiceRates(6.40));
     });
 
+    test('synchronizes the linked rates from a Vodafone rate of 4.80', () => {
+        const synchronized = synchronizeVodafoneLinkedRateFields({
+            cashRateLevel1: 4.80,
+            cashRateLevel2: 4.80,
+            cashRateLevel3: 4.80
+        });
+
+        expect(synchronized).toMatchObject({
+            cashRateLevel1: 4.80,
+            postAccountRateLevel1: 4.75,
+            postCardRateLevel1: 4.65,
+            bankAccountRateLevel1: 4.70
+        });
+    });
+
+    test('does not reset rates when saving unrelated settings', () => {
+        expect(synchronizeVodafoneLinkedRateFields({ closingTime: '23:00' })).toEqual({
+            closingTime: '23:00'
+        });
+    });
+
+    test('linked postal and bank rates ignore stale direct fields', () => {
+        expect(getServiceRatesForTier(2, {
+            cashRateLevel2: 4.80,
+            postAccountRateLevel2: 9.99,
+            postCardRateLevel2: 9.99,
+            bankAccountRateLevel2: 9.99
+        })).toMatchObject({
+            vodafone: 4.80,
+            post_account: 4.75,
+            post_card: 4.65,
+            bank_account: 4.70
+        });
+    });
+
     test('buildMobileRateContract builds complete contract for all tiers', () => {
         for (const [tier, base] of [[1, 6.40], [2, 6.45], [3, 6.50]]) {
             const contract = buildMobileRateContract(tier, mockSettings);
@@ -113,7 +150,7 @@ describe('rateHelper mobile service rate contract', () => {
             cashRateLevel2: 6.45,
             postAccountRateLevel2: 6.40,
             postCardRateLevel2: 6.30,
-            bankAccountRateLevel2: 6.45,
+            bankAccountRateLevel2: 6.35,
             sefaNigerRateLevel2: 6.55,
             bankakSudanRateLevel2: 6.65
         };
@@ -135,7 +172,7 @@ describe('rateHelper mobile service rate contract', () => {
             cashRateLevel2: 6.55,
             postAccountRateLevel2: 6.50,
             postCardRateLevel2: 6.40,
-            bankAccountRateLevel2: 6.55,
+            bankAccountRateLevel2: 6.45,
             sefaNigerRateLevel2: 6.65,
             bankakSudanRateLevel2: 6.75
         };

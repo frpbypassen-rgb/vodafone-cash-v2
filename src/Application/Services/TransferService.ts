@@ -187,7 +187,7 @@ export class TransferService {
             }
 
             const settings = await Settings.findOne({}).session(session);
-            const autoRouteExecutor = await resolveAutoRouteExecutor(settings, session);
+            const autoRouteExecutor = await resolveAutoRouteExecutor(settings, transferType, session);
             if (settings && settings.isManualClosed) {
                 await session.abortTransaction();
                 session.endSession();

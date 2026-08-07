@@ -866,7 +866,7 @@
                         <div class="d-flex justify-content-between align-items-center p-2 rounded" style="background: rgba(99, 102, 241, 0.05);">
                             <span><i class="fa-solid fa-building-columns text-indigo me-2 w-15px text-center" style="color: #6366f1;"></i> تحويل حساب بنكي</span> 
                             <div class="d-flex align-items-center gap-2">
-                                <span class="fw-bold fs-5 mono-num" id="liveRateBank"><%= (serviceRates && serviceRates.bank_account ? serviceRates.bank_account : currentRate).toFixed(2) %></span>
+                                <span class="fw-bold fs-5 mono-num" id="liveRateBank"><%= (serviceRates && serviceRates.bank_account ? serviceRates.bank_account : (currentRate - 0.10)).toFixed(2) %></span>
                                 <span class="badge bg-success-subtle text-success d-flex align-items-center gap-1 py-1 px-2 rounded-pill" style="font-size: 0.72rem; border: 1px solid rgba(16,185,129,0.2); font-weight: 800;"><i class="fa-solid fa-arrow-trend-up"></i> 0.30%+</span>
                             </div>
                         </div>

@@ -299,6 +299,9 @@
         <% if (query && query.voidError) { %>
             <div class="alert alert-danger fw-bold rounded-3"><i class="fa-solid fa-triangle-exclamation me-1"></i> تعذر حذف التسوية أو سبق إلغاؤها. راجع القيد المالي ثم أعد المحاولة.</div>
         <% } %>
+        <% if (query && query.routeError) { %>
+            <div class="alert alert-danger fw-bold rounded-3"><i class="fa-solid fa-route me-1"></i> لا يمكن توجيه العملية إلى هذا المنفذ لأن خدمته لا تطابق نوع العملية.</div>
+        <% } %>
 
         <div class="mobile-summary-strip d-lg-none mb-3">
             <div class="mobile-summary-item">
@@ -497,6 +500,7 @@
                             const noteView = splitTxNotesForView(tx);
                             const apiLog = apiLogForView(tx);
                             const canVoidBalanceAdjustment = ['deposit', 'deduction'].includes(tx.status) && Boolean(tx.balanceAdjustment && tx.balanceAdjustment.reversible);
+                            const eligibleExecutorBots = (executorBots || []).filter((bot) => (bot.supportedTransferTypes || ['vodafone']).includes(tx.transferType || 'vodafone'));
                         %>
                             <tr style="<%= tx.status === 'deposit_pending' ? 'background: rgba(245, 158, 11, 0.05);' : (tx.status === 'deposit' ? 'background: rgba(16, 185, 129, 0.05);' : (tx.status === 'deduction' ? 'background: rgba(239, 68, 68, 0.05);' : '')) %>">
                             
@@ -594,15 +598,17 @@
                                                 <button class="btn btn-sm btn-primary fw-bold rounded-3 dropdown-toggle" type="button" data-bs-toggle="dropdown">توجيه</button>
                                                 <ul class="dropdown-menu border-0 shadow-lg" style="border-radius: 12px; min-width: 180px;">
                                                     <li class="px-3 py-2 text-muted small fw-bold border-bottom mb-1">اختر البوت:</li>
-                                                    <% if(typeof executorBots !== 'undefined' && executorBots.length > 0) { %>
-                                                        <% executorBots.forEach(bot => { %>
+                                                    <% if(eligibleExecutorBots.length > 0) { %>
+                                                        <% eligibleExecutorBots.forEach(bot => { %>
                                                             <li>
                                                                 <form action="/transaction/<%= tx._id %>/assign-executor" method="POST" class="m-0 p-0">
                                                                     <input type="hidden" name="executorBotId" value="<%= bot._id %>">
-                                                                    <button type="submit" class="dropdown-item py-2 fw-bold text-dark d-flex align-items-center"><i class="fa-solid fa-robot text-primary me-2"></i> <%= bot.name %></button>
+                                                                    <button type="submit" class="dropdown-item py-2 fw-bold text-dark d-flex align-items-center"><i class="fa-solid fa-robot text-primary me-2"></i> <span><%= bot.name %><small class="d-block text-muted"><%= bot.serviceLabel %></small></span></button>
                                                                 </form>
                                                             </li>
                                                         <% }) %>
+                                                    <% } else { %>
+                                                        <li class="px-3 py-2 text-danger small fw-bold">لا يوجد منفذ نشط لهذه الخدمة.</li>
                                                     <% } %>
                                                 </ul>
                                             </div>
@@ -678,6 +684,7 @@
                     const mobileNoteView = splitTxNotesForView(tx);
                     const mobileApiLog = apiLogForView(tx);
                     const canVoidMobileAdjustment = ['deposit', 'deduction'].includes(tx.status) && Boolean(tx.balanceAdjustment && tx.balanceAdjustment.reversible);
+                    const mobileEligibleExecutorBots = (executorBots || []).filter((bot) => (bot.supportedTransferTypes || ['vodafone']).includes(tx.transferType || 'vodafone'));
                 %>
                     <div class="data-card mb-3 p-3 mobile-tx-card <%= displayClass %>" 
                           data-status="<%= tx.status %>"
@@ -743,15 +750,17 @@
                                         <button class="btn btn-sm btn-primary fw-bold rounded-3 dropdown-toggle w-100" type="button" data-bs-toggle="dropdown" data-bs-boundary="viewport"><i class="fa-solid fa-paper-plane me-1"></i> توجيه</button>
                                         <ul class="dropdown-menu border-0 shadow-lg" style="border-radius: 12px; min-width: 200px; z-index: 9999;">
                                             <li class="px-3 py-2 text-muted small fw-bold border-bottom mb-1">اختر البوت لتنفيذ العملية:</li>
-                                            <% if(typeof executorBots !== 'undefined' && executorBots.length > 0) { %>
-                                                <% executorBots.forEach(bot => { %>
+                                            <% if(mobileEligibleExecutorBots.length > 0) { %>
+                                                <% mobileEligibleExecutorBots.forEach(bot => { %>
                                                     <li>
                                                         <form action="/transaction/<%= tx._id %>/assign-executor" method="POST" class="m-0 p-0">
                                                             <input type="hidden" name="executorBotId" value="<%= bot._id %>">
-                                                            <button type="submit" class="dropdown-item py-2 fw-bold text-dark d-flex align-items-center"><i class="fa-solid fa-robot text-primary me-2"></i> <%= bot.name %></button>
+                                                            <button type="submit" class="dropdown-item py-2 fw-bold text-dark d-flex align-items-center"><i class="fa-solid fa-robot text-primary me-2"></i> <span><%= bot.name %><small class="d-block text-muted"><%= bot.serviceLabel %></small></span></button>
                                                         </form>
                                                     </li>
                                                 <% }) %>
+                                            <% } else { %>
+                                                <li class="px-3 py-2 text-danger small fw-bold">لا يوجد منفذ نشط لهذه الخدمة.</li>
                                             <% } %>
                                         </ul>
                                     </div>
@@ -1414,7 +1423,10 @@
                 typeHtml = `<span class="badge px-3 py-2 fw-bold text-white" style="background: ${networkColor};"><i class="fa-solid fa-mobile-screen me-1"></i> ${networkName}</span>`;
             }
             
-            const botOptions = executorBots.map(bot => `<option value="${bot._id}">${bot.name}</option>`).join('');
+            const botOptions = executorBots
+                .filter(bot => (bot.supportedTransferTypes || ['vodafone']).includes(tx.transferType || 'vodafone'))
+                .map(bot => `<option value="${bot._id}">${bot.name} - ${bot.serviceLabel || ''}</option>`)
+                .join('');
             
             htmlContent += `
                 <div class="panel-title text-primary mb-3"><i class="fa-solid fa-mobile-screen ms-2"></i> تفاصيل تحويل كاش / بريد</div>

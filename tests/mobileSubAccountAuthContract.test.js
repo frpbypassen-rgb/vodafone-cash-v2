@@ -152,7 +152,7 @@ describe('Mobile SubClient Auth Contract', () => {
         expect(res.body.serviceRates.vodafone).toBe(6.35);
         expect(res.body.serviceRates.post_account).toBe(6.30); // 6.35 - 0.05
         expect(res.body.serviceRates.post_card).toBe(6.20); // 6.35 - 0.15
-        expect(res.body.serviceRates.bank_account).toBe(6.35);
+        expect(res.body.serviceRates.bank_account).toBe(6.25);
         expect(res.body.serviceRates.sefa_niger).toBe(6.45);
         expect(res.body.serviceRates.bankak_sudan).toBe(6.55);
         expect(res.body.serviceCatalog.map(service => service.key).sort()).toEqual([
@@ -225,7 +225,7 @@ describe('Mobile SubClient Auth Contract', () => {
             vodafone: 6.45,
             post_account: 6.40,
             post_card: 6.30,
-            bank_account: 6.45,
+            bank_account: 6.35,
             sefa_niger: 6.55,
             bankak_sudan: 6.65
         });

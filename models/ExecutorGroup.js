@@ -1,9 +1,11 @@
 const mongoose = require('mongoose');
+const { EXECUTOR_SERVICE_KEYS } = require('../utils/executorServiceCatalog');
 
 const executorGroupSchema = new mongoose.Schema({
     name: { type: String, required: true },
     status: { type: String, default: 'active' }, // active, inactive, paused, archived
     balance: { type: Number, default: 0 },
+    serviceKey: { type: String, enum: EXECUTOR_SERVICE_KEYS, default: 'vodafone' },
 
     archivedAt: { type: Date, default: null },
     archivedBy: { type: String, default: '' },

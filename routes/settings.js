@@ -16,8 +16,18 @@ const { hashPassword } = require('../services/passwordService');
 const {
     SERVICE_RATE_ADMIN_FIELDS,
     getAdminRateServices,
-    getCompanyRateConfig
+    getCompanyRateConfig,
+    getServiceRateForTier,
+    SERVICE_RATE_KEYS,
+    synchronizeVodafoneLinkedRateFields
 } = require('../utils/rateHelper');
+const { getEnabledMobileTransferServices } = require('../utils/mobileTransferServiceCatalog');
+const {
+    executorSupportsTransferType,
+    getExecutorServiceLabel
+} = require('../utils/executorServiceCatalog');
+
+const AUTO_ROUTE_INPUT_FIELDS = SERVICE_RATE_KEYS.map((serviceKey) => `autoRouteExecutor_${serviceKey}`);
 
 router.use(requireAuth);
 
@@ -28,7 +38,8 @@ const ALLOWED_MAIN_SETTINGS = [
     'rateLevel1', 'rateLevel2', 'rateLevel3',
     ...SERVICE_RATE_ADMIN_FIELDS,
     'openingTime', 'closingTime', 'isManualClosed',
-    'supportContact', 'autoRouteEnabled', 'autoRouteBotId'
+    'supportContact', 'autoRouteEnabled', 'autoRouteBotId',
+    ...AUTO_ROUTE_INPUT_FIELDS
 ];
 
 const ALLOWED_CONTENT_SETTINGS = [
@@ -47,15 +58,45 @@ const ALLOWED_CLIENT_BOT_FIELDS = [
 router.get('/', async (req, res) => {
     const settings = await Settings.findOne({}) || await Settings.create({});
     const [executorBots, companies] = await Promise.all([
-        ExecutorBot.find({ status: 'active' }),
+        ExecutorBot.find({ status: 'active', isManagerBot: { $ne: true } }),
         ClientCompany.find({ status: { $ne: 'deleted' } }).sort({ name: 1 }).lean()
     ]);
-    const rateServices = getAdminRateServices();
+    const rateServices = getAdminRateServices().map((service) => ({
+        ...service,
+        values: {
+            level1: getServiceRateForTier(service.key, 1, settings),
+            level2: getServiceRateForTier(service.key, 2, settings),
+            level3: getServiceRateForTier(service.key, 3, settings)
+        }
+    }));
+    const explicitRules = Array.isArray(settings.autoRouteRules) ? settings.autoRouteRules : [];
+    const legacyExecutor = explicitRules.length === 0 && settings.autoRouteBotId
+        ? executorBots.find((bot) => String(bot._id) === String(settings.autoRouteBotId))
+        : null;
+    const autoRouteRows = getEnabledMobileTransferServices().map((service) => {
+        const rule = explicitRules.find((item) => item.serviceKey === service.key);
+        const legacySelected = legacyExecutor && executorSupportsTransferType(legacyExecutor, service.key)
+            ? legacyExecutor._id
+            : null;
+        return {
+            key: service.key,
+            label: service.label,
+            selectedExecutorId: rule?.executorGroupId || legacySelected || null,
+            executors: executorBots
+                .filter((bot) => executorSupportsTransferType(bot, service.key))
+                .map((bot) => ({
+                    _id: bot._id,
+                    name: bot.name,
+                    isApiBot: bot.isApiBot,
+                    serviceLabel: getExecutorServiceLabel(bot)
+                }))
+        };
+    });
     const companyRateRows = companies.map((company) => ({
         company,
         rateConfig: getCompanyRateConfig(company, settings)
     }));
-    res.render('settings', { settings, executorBots, rateServices, companyRateRows, query: req.query });
+    res.render('settings', { settings, executorBots, rateServices, companyRateRows, autoRouteRows, query: req.query });
 });
 
 router.get('/bots', requireMaster, (req, res) => {
@@ -72,13 +113,45 @@ router.post('/update', requireMaster, async (req, res) => {
         ['rateLevel1', 'rateLevel2', 'rateLevel3', ...SERVICE_RATE_ADMIN_FIELDS].forEach(field => {
             if (data[field] !== undefined) data[field] = parseFloat(data[field]) || 0;
         });
-        if (data.cashRateLevel1 !== undefined) data.rateLevel1 = data.cashRateLevel1;
-        if (data.cashRateLevel2 !== undefined) data.rateLevel2 = data.cashRateLevel2;
-        if (data.cashRateLevel3 !== undefined) data.rateLevel3 = data.cashRateLevel3;
-        if (data.rateLevel1 !== undefined && data.cashRateLevel1 === undefined) data.cashRateLevel1 = data.rateLevel1;
-        if (data.rateLevel2 !== undefined && data.cashRateLevel2 === undefined) data.cashRateLevel2 = data.rateLevel2;
-        if (data.rateLevel3 !== undefined && data.cashRateLevel3 === undefined) data.cashRateLevel3 = data.rateLevel3;
-        await Settings.updateOne({}, data, { upsert: true });
+        const synchronizedData = synchronizeVodafoneLinkedRateFields(data);
+
+        const requestedRules = SERVICE_RATE_KEYS.map((serviceKey) => ({
+            serviceKey,
+            executorGroupId: String(synchronizedData[`autoRouteExecutor_${serviceKey}`] || '').trim()
+        })).filter((rule) => rule.executorGroupId);
+        AUTO_ROUTE_INPUT_FIELDS.forEach((field) => delete synchronizedData[field]);
+
+        if (requestedRules.length === 0 && synchronizedData.autoRouteBotId) {
+            const legacyExecutor = await ExecutorBot.findById(synchronizedData.autoRouteBotId);
+            if (legacyExecutor) {
+                SERVICE_RATE_KEYS.forEach((serviceKey) => {
+                    if (executorSupportsTransferType(legacyExecutor, serviceKey)) {
+                        requestedRules.push({ serviceKey, executorGroupId: String(legacyExecutor._id) });
+                    }
+                });
+            }
+        }
+
+        const selectedExecutorIds = [...new Set(requestedRules.map((rule) => rule.executorGroupId))];
+        const selectedExecutors = selectedExecutorIds.length
+            ? await ExecutorBot.find({
+                _id: { $in: selectedExecutorIds },
+                status: 'active',
+                isManagerBot: { $ne: true }
+            })
+            : [];
+        const executorById = new Map(selectedExecutors.map((executor) => [String(executor._id), executor]));
+        const invalidRule = requestedRules.find((rule) => {
+            const executor = executorById.get(rule.executorGroupId);
+            return !executor || !executorSupportsTransferType(executor, rule.serviceKey);
+        });
+        if (invalidRule) {
+            return res.redirect('/settings?autoRouteError=service_mismatch#auto-routing');
+        }
+
+        synchronizedData.autoRouteRules = requestedRules;
+        synchronizedData.autoRouteBotId = requestedRules[0]?.executorGroupId || null;
+        await Settings.updateOne({}, synchronizedData, { upsert: true });
         const io = req.app?.get('io');
         if (io) {
             io.emit('exchange_rates_updated', { source: 'general' });

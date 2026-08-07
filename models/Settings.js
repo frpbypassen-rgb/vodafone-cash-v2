@@ -17,9 +17,9 @@ const settingsSchema = new mongoose.Schema({
     postCardRateLevel2: { type: Number, default: 6.30 },
     postCardRateLevel3: { type: Number, default: 6.35 },
 
-    bankAccountRateLevel1: { type: Number, default: 6.40 },
-    bankAccountRateLevel2: { type: Number, default: 6.45 },
-    bankAccountRateLevel3: { type: Number, default: 6.50 },
+    bankAccountRateLevel1: { type: Number, default: 6.30 },
+    bankAccountRateLevel2: { type: Number, default: 6.35 },
+    bankAccountRateLevel3: { type: Number, default: 6.40 },
 
     sefaNigerRateLevel1: { type: Number, default: 6.50 },
     sefaNigerRateLevel2: { type: Number, default: 6.55 },
@@ -40,6 +40,11 @@ const settingsSchema = new mongoose.Schema({
 
     autoRouteEnabled: { type: Boolean, default: false },
     autoRouteBotId: { type: mongoose.Schema.Types.ObjectId, ref: 'ExecutorGroup', default: null },
+    autoRouteRules: [{
+        _id: false,
+        serviceKey: { type: String, required: true },
+        executorGroupId: { type: mongoose.Schema.Types.ObjectId, ref: 'ExecutorGroup', required: true }
+    }],
 
     executorWelcomeMessage: { type: String, default: 'أهلاً بك في لوحة تحكم التنفيذ الخاصة بشركة الأهرام.' },
     executorPendingMessage: { type: String, default: '⏳ حسابك لا يزال قيد المراجعة من قبل الإدارة.' },

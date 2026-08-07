@@ -18,6 +18,12 @@ const { syncBotBalance } = require('../utils/helpers');
 const { escapeRegex } = require('../middlewares/sanitize');
 const { customerNoteFromTransaction } = require('../utils/transactionNotes');
 const { logAction } = require('../services/auditService');
+const {
+    executorSupportsTransferType,
+    getExecutorServiceLabel,
+    getExecutorSupportedTransferTypes,
+    normalizeExecutorServiceKey
+} = require('../utils/executorServiceCatalog');
 
 // 🚀 استدعاء محرك الـ API 
 const { executeTransferViaApi, saveApiReceiptProof } = require('../services/externalApiService');
@@ -185,15 +191,20 @@ router.get('/transactions', async (req, res) => {
         });
 
         const executorGroups = await ExecutorGroup.find({ status: 'active', isManagerBot: { $ne: true } });
-        console.log('DEBUG: executorGroups fetched:', executorGroups.map(g => ({ name: g.name, id: g._id, status: g.status })));
+        const executorGroupsForView = executorGroups.map((group) => ({
+            ...(typeof group.toObject === 'function' ? group.toObject() : group),
+            serviceKey: normalizeExecutorServiceKey(group.serviceKey),
+            serviceLabel: getExecutorServiceLabel(group),
+            supportedTransferTypes: getExecutorSupportedTransferTypes(group)
+        }));
         const allGroups = await ExecutorGroup.find({});
         const allGroupsMap = {};
         allGroups.forEach(b => { allGroupsMap[b._id.toString()] = b.name; });
 
         res.render('transactions', { 
             transactions, 
-            executorGroups, 
-            executorBots: executorGroups, 
+            executorGroups: executorGroupsForView,
+            executorBots: executorGroupsForView,
             allGroupsMap, 
             allBotsMap: allGroupsMap, 
             currentPage: page, 
@@ -298,7 +309,12 @@ router.post('/transaction/:id/assign-executor', async (req, res) => {
 
         const executorGroup = await ExecutorGroup.findById(executorGroupId);
 
-        if (executorGroup && executorGroup.status === 'active' && !executorGroup.isManagerBot) {
+        if (
+            executorGroup
+            && executorGroup.status === 'active'
+            && !executorGroup.isManagerBot
+            && executorSupportsTransferType(executorGroup, tx.transferType)
+        ) {
             
             // 🤖====================================================🤖
             // 🚀 المسار الذكي: إذا كان هذا البوت آلياً (API Integration)
@@ -426,6 +442,8 @@ router.post('/transaction/:id/assign-executor', async (req, res) => {
             // 🟢 الإشعارات ستكون عبر Socket.IO
 
             await tx.save();
+        } else if (executorGroup) {
+            return res.redirect('/transactions?routeError=service_mismatch');
         }
         res.redirect('/transactions');
     } catch (e) { res.redirect('/transactions'); }
@@ -624,10 +642,19 @@ router.post('/transaction/:id/change-bot', async (req, res) => {
         const oldExecutorGroupId = tx.executorGroupId;
         const oldExecutorName = tx.executorName;
 
+        const newGroup = await ExecutorGroup.findById(newGroupId); let newManagerId = null;
+        if (
+            !newGroup
+            || newGroup.status !== 'active'
+            || newGroup.isManagerBot
+            || !executorSupportsTransferType(newGroup, tx.transferType)
+        ) {
+            return res.redirect('/transactions?routeError=service_mismatch');
+        }
+
         if (tx.executorGroupId) { const oldGroup = await ExecutorGroup.findById(tx.executorGroupId); if (oldGroup) { oldGroup.balance += tx.amount; await oldGroup.save(); } }
         if (tx.managerGroupId) { const oldManager = await ExecutorGroup.findById(tx.managerGroupId); if (oldManager) { oldManager.balance += tx.amount; await oldManager.save(); } }
 
-        const newGroup = await ExecutorGroup.findById(newGroupId); let newManagerId = null;
         if (newGroup) {
             newGroup.balance -= tx.amount; await newGroup.save();
             const parentGroupId = getParentGroupId(newGroup);

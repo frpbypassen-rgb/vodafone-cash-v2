@@ -42,7 +42,7 @@ describe('Executor account service', () => {
 
     test('creates a manual executor with normalized login and persistent opening balance', async () => {
         const result = await createExecutorAccount({
-            groupData: { name: 'منفذ طرابلس', status: 'active', isApiBot: false },
+            groupData: { name: 'منفذ طرابلس', status: 'active', isApiBot: false, serviceKey: 'postal' },
             managerData: {
                 name: 'مدير منفذ طرابلس',
                 phone: '091-123-4567',
@@ -59,6 +59,7 @@ describe('Executor account service', () => {
             groupId: 'group-1',
             canViewAllReports: true
         }));
+        expect(ExecutorGroup.create).toHaveBeenCalledWith(expect.objectContaining({ serviceKey: 'postal' }));
         expect(Transaction.create).toHaveBeenCalledWith(expect.objectContaining({
             executorGroupId: 'group-1',
             status: 'deposit',
@@ -99,6 +100,7 @@ describe('Executor account service', () => {
 
         expect(ExecutorGroup.create).toHaveBeenCalledWith(expect.objectContaining({
             name: 'منفذ التسجيل',
+            serviceKey: 'vodafone',
             isManagerGroup: false,
             isManagerBot: false,
             isApiGroup: false,
@@ -134,6 +136,14 @@ describe('Executor account service', () => {
             },
             openingBalance: Number.NaN
         })).rejects.toMatchObject({ code: 'INVALID_BALANCE' });
+
+        expect(ExecutorGroup.create).not.toHaveBeenCalled();
+    });
+
+    test('rejects an unknown executor service before creating a group', async () => {
+        await expect(createExecutorAccount({
+            groupData: { name: 'منفذ خدمة غير صالحة', isApiBot: true, serviceKey: 'unknown_service' }
+        })).rejects.toMatchObject({ code: 'INVALID_SERVICE' });
 
         expect(ExecutorGroup.create).not.toHaveBeenCalled();
     });

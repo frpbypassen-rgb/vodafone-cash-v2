@@ -13,9 +13,15 @@ const LEGACY_SERVICE_RATE_DELTAS = Object.freeze({
     vodafone: 0,
     post_account: -0.05,
     post_card: -0.15,
-    bank_account: 0,
+    bank_account: -0.10,
     sefa_niger: 0.10,
     bankak_sudan: 0.20
+});
+
+const VODAFONE_LINKED_SERVICE_DELTAS = Object.freeze({
+    post_account: -0.05,
+    post_card: -0.15,
+    bank_account: -0.10
 });
 
 const SERVICE_RATE_CONFIG = Object.freeze({
@@ -41,7 +47,7 @@ const SERVICE_RATE_CONFIG = Object.freeze({
         key: 'bank_account',
         label: 'تحويل بنكي',
         fieldPrefix: 'bankAccountRate',
-        defaults: Object.freeze({ level1: 6.40, level2: 6.45, level3: 6.50 })
+        defaults: Object.freeze({ level1: 6.30, level2: 6.35, level3: 6.40 })
     }),
     sefa_niger: Object.freeze({
         key: 'sefa_niger',
@@ -150,6 +156,16 @@ const getLegacyServiceRateForTier = (serviceKey, tier, settings) => {
 const getServiceRateForTier = (serviceKey, tier, settings) => {
     const normalizedKey = SERVICE_RATE_CONFIG[serviceKey] ? serviceKey : 'vodafone';
     const normalizedTier = normalizeTier(tier);
+
+    if (VODAFONE_LINKED_SERVICE_DELTAS[normalizedKey] !== undefined) {
+        const cashFieldName = getRateFieldName('vodafone', normalizedTier);
+        const directCashRate = settings ? Number(settings[cashFieldName]) : NaN;
+        const cashRate = Number.isFinite(directCashRate) && directCashRate > 0
+            ? normalizeBaseRate(directCashRate)
+            : getRateForTier(normalizedTier, settings);
+        return normalizeRate(cashRate + VODAFONE_LINKED_SERVICE_DELTAS[normalizedKey]);
+    }
+
     const fieldName = getRateFieldName(normalizedKey, normalizedTier);
     const directRate = settings ? Number(settings[fieldName]) : NaN;
 
@@ -278,6 +294,26 @@ const getAdminRateServices = () =>
         };
     });
 
+const synchronizeVodafoneLinkedRateFields = (input = {}) => {
+    const rates = { ...input };
+    for (const tier of [1, 2, 3]) {
+        const cashField = `cashRateLevel${tier}`;
+        const legacyField = `rateLevel${tier}`;
+        if (rates[cashField] === undefined && rates[legacyField] === undefined) continue;
+
+        const submittedCashRate = rates[cashField] !== undefined ? rates[cashField] : rates[legacyField];
+        const cashRate = normalizeBaseRate(submittedCashRate);
+
+        rates[cashField] = cashRate;
+        rates[legacyField] = cashRate;
+        for (const [serviceKey, delta] of Object.entries(VODAFONE_LINKED_SERVICE_DELTAS)) {
+            const fieldName = getRateFieldName(serviceKey, tier);
+            rates[fieldName] = normalizeRate(cashRate + delta);
+        }
+    }
+    return rates;
+};
+
 const buildMobileRateContract = (tier, settings) => {
     const normalizedTier = normalizeTier(tier);
     const baseExchangeRate = getServiceRateForTier('vodafone', normalizedTier, settings);
@@ -323,9 +359,11 @@ module.exports = {
     applyRateMargin,
     resolveTransferServiceKey,
     getAdminRateServices,
+    synchronizeVodafoneLinkedRateFields,
     SERVICE_RATE_ADMIN_FIELDS,
     SERVICE_RATE_CONFIG,
     SERVICE_RATE_KEYS,
+    VODAFONE_LINKED_SERVICE_DELTAS,
     COMPANY_RATE_MODES,
     COMPANY_RATE_INPUT_FIELDS,
     buildMobileRateContract,

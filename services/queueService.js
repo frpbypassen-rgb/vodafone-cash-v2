@@ -15,6 +15,7 @@ const {
 } = require('./apiProviderReconciliationService');
 const eventBus = require('./eventBus');
 const logger = require('../utils/logger');
+const { executorSupportsTransferType } = require('../utils/executorServiceCatalog');
 
 const appendNoteText = (current, note) => {
     const cleanNote = String(note || '').trim();
@@ -56,6 +57,22 @@ class ApiTransferQueue {
             const executorGroup = await ExecutorGroup.findById(apiGroupId);
 
             if (!tx || !executorGroup || tx.status !== 'processing') return;
+
+            if (!executorSupportsTransferType(executorGroup, tx.transferType)) {
+                tx.status = 'pending';
+                tx.executorGroupId = undefined;
+                tx.managerGroupId = undefined;
+                tx.executorName = undefined;
+                appendAdminNote(tx, '[أوقف التنفيذ الآلي: خدمة العملية لا تطابق خدمة المنفذ]');
+                await tx.save();
+                logger.warn('API executor service mismatch', {
+                    txId: tx.customId,
+                    transferType: tx.transferType,
+                    executorGroupId: String(executorGroup._id),
+                    executorServiceKey: executorGroup.serviceKey || 'vodafone'
+                });
+                return;
+            }
 
             let balanceAudit = null;
             try {

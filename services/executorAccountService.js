@@ -6,6 +6,7 @@ const Employee = require('../models/Employee');
 const ExecutorGroup = require('../models/ExecutorGroup');
 const Transaction = require('../models/Transaction');
 const { escapeRegex } = require('../utils/helpers');
+const { normalizeExecutorServiceKey } = require('../utils/executorServiceCatalog');
 
 class ExecutorAccountError extends Error {
     constructor(code, message) {
@@ -74,6 +75,10 @@ const createExecutorAccount = async ({ groupData, managerData, openingBalance = 
     if (!name) {
         throw new ExecutorAccountError('MISSING_NAME', 'اسم المنفذ مطلوب.');
     }
+    const serviceKey = normalizeExecutorServiceKey(groupData?.serviceKey || 'vodafone', null);
+    if (!serviceKey) {
+        throw new ExecutorAccountError('INVALID_SERVICE', 'خدمة المنفذ المحددة غير صالحة.');
+    }
 
     const isApiBot = Boolean(groupData?.isApiBot || groupData?.isApiGroup);
     const preparedManager = managerData ? assertManagerData(managerData) : null;
@@ -94,7 +99,7 @@ const createExecutorAccount = async ({ groupData, managerData, openingBalance = 
     let openingTransaction = null;
 
     try {
-        group = await ExecutorGroup.create({ ...groupData, name });
+        group = await ExecutorGroup.create({ ...groupData, name, serviceKey });
 
         if (preparedManager) {
             employee = await Employee.create({
@@ -137,7 +142,7 @@ const createExecutorAccount = async ({ groupData, managerData, openingBalance = 
     }
 };
 
-const createRegisteredExecutorAccount = ({ companyName, managerName, phone, webUsername, webPassword, tenantId }) => (
+const createRegisteredExecutorAccount = ({ companyName, managerName, phone, webUsername, webPassword, executorServiceKey, tenantId }) => (
     createExecutorAccount({
         groupData: {
             name: companyName,
@@ -145,7 +150,8 @@ const createRegisteredExecutorAccount = ({ companyName, managerName, phone, webU
             isManagerGroup: false,
             isManagerBot: false,
             isApiGroup: false,
-            isApiBot: false
+            isApiBot: false,
+            serviceKey: executorServiceKey || 'vodafone'
         },
         managerData: {
             name: managerName,

@@ -398,7 +398,7 @@ describe('🏠 المرحلة 3: جلب الشاشة الرئيسية (GET /clie
             vodafone: 6.45,
             post_account: 6.40,
             post_card: 6.30,
-            bank_account: 6.45,
+            bank_account: 6.35,
             sefa_niger: 6.55,
             bankak_sudan: 6.65
         });

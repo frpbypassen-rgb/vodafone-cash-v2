@@ -389,6 +389,16 @@
                 <i class="fa-solid fa-box-archive me-1"></i> تم نقل حساب المنفذ إلى الأرشيف وحفظ جميع عملياته.
             </div>
         <% } %>
+        <% if (typeof query !== 'undefined' && query.serviceUpdated) { %>
+            <div class="alert alert-success fw-bold border-0 shadow-sm" style="border-radius:8px;">
+                <i class="fa-solid fa-circle-check me-1"></i> تم تحديث خدمة المنفذ. أعد اختياره من إعدادات التوجيه التلقائي للخدمة الجديدة.
+            </div>
+        <% } %>
+        <% if (typeof query !== 'undefined' && query.serviceError) { %>
+            <div class="alert alert-danger fw-bold border-0 shadow-sm" style="border-radius:8px;">
+                <i class="fa-solid fa-triangle-exclamation me-1"></i> <%= query.serviceError === 'ACTIVE_TASKS' ? 'لا يمكن تغيير الخدمة بينما توجد عمليات قيد التنفيذ لدى هذا المنفذ.' : 'تعذر تحديث خدمة المنفذ.' %>
+            </div>
+        <% } %>
         <% if (typeof query !== 'undefined' && query.archiveError === 'READ_ONLY') { %>
             <div class="alert alert-warning fw-bold border-0 shadow-sm" style="border-radius:8px;">
                 <i class="fa-solid fa-lock me-1"></i> الحساب المؤرشف متاح للقراءة فقط ولا يقبل تعديلات تشغيلية.
@@ -430,6 +440,7 @@
                                                     <span class="badge <%= bot.status === 'active' ? 'bg-success text-success border-success' : 'bg-danger text-danger border-danger' %> bg-opacity-10 border rounded-pill px-3 py-1 mt-1" style="font-size:0.75rem;">
                                                         <i class="fa-solid <%= bot.status === 'active' ? 'fa-check-circle' : 'fa-ban' %> me-1"></i><%= bot.status === 'active' ? 'مفعل ونشط' : 'متوقف' %>
                                                     </span>
+                                                    <div class="text-primary small fw-bold mt-2"><i class="fa-solid fa-layer-group me-1"></i><%= bot.serviceLabel %></div>
                                                     <% if (bot.isApiBot) { %>
                                                         <div class="text-muted small fw-bold mt-2"><i class="fa-solid fa-plug me-1"></i><%= bot.apiProviderKey === 'zayn_external_aggregator' ? 'Zayn External Aggregator' : (bot.apiProviderKey || 'API Provider') %></div>
                                                         <% if (bot.lastApiTestAt) { %>
@@ -454,6 +465,17 @@
                                     </div>
 
                                     <div>
+                                        <% if (isMaster && !bot.isManagerBot) { %>
+                                            <form action="/executor/<%= bot._id %>/service" method="POST" class="input-group mb-2" onsubmit="return confirm('سيتم إزالة تعيينات التوجيه التلقائي القديمة لهذا المنفذ. متابعة؟');">
+                                                <span class="input-group-text" title="خدمة المنفذ"><i class="fa-solid fa-layer-group"></i></span>
+                                                <select name="serviceKey" class="form-select fw-bold" aria-label="خدمة المنفذ">
+                                                    <% (executorServiceOptions || []).forEach((service) => { %>
+                                                        <option value="<%= service.key %>" <%= bot.serviceKey === service.key ? 'selected' : '' %>><%= service.label %></option>
+                                                    <% }) %>
+                                                </select>
+                                                <button type="submit" class="btn btn-primary" title="حفظ خدمة المنفذ" aria-label="حفظ خدمة المنفذ"><i class="fa-solid fa-floppy-disk"></i></button>
+                                            </form>
+                                        <% } %>
                                         <div class="d-flex justify-content-between align-items-center p-3 rounded-4 mb-3 border" style="background: rgba(0,0,0,0.02);">
                                             <span class="fw-bold small text-muted"><i class="fa-solid fa-check-double me-1 opacity-50"></i> إجمالي العمليات المنجزة</span>
                                             <span class="badge bg-primary fs-6 rounded-pill px-3 shadow-sm"><%= bot.txCount %> طلب</span>
@@ -523,7 +545,7 @@
                 </div>
                 <div class="modal-body">
                     <div class="row g-3">
-                        <div class="col-md-6">
+                        <div class="col-md-3">
                             <label class="form-label fw-bold small text-muted">اسم المنفذ</label>
                             <input type="text" name="name" class="form-control fw-bold" required placeholder="مثال: منفذ طرابلس 1" autocomplete="organization">
                         </div>
@@ -533,6 +555,14 @@
                                 <option value="normal">منفذ يدوي</option>
                                 <option value="manager">مجموعة إشراف</option>
                                 <option value="api">منفذ API</option>
+                            </select>
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label fw-bold small text-muted">الخدمة المخصصة</label>
+                            <select name="serviceKey" class="form-select fw-bold" required>
+                                <% (executorServiceOptions || []).forEach((service) => { %>
+                                    <option value="<%= service.key %>"><%= service.label %></option>
+                                <% }) %>
                             </select>
                         </div>
                         <div class="col-md-3">

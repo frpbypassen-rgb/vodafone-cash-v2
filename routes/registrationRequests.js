@@ -156,7 +156,8 @@ router.post('/registration-requests/:id/approve', requireAuth, requireMaster, as
                 managerName: regReq.fullName,
                 phone: regReq.phone,
                 webUsername: regReq.username,
-                webPassword: regReq.password
+                webPassword: regReq.password,
+                executorServiceKey: regReq.executorServiceKey || 'vodafone'
             });
         }
 

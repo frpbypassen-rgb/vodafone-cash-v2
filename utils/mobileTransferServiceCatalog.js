@@ -38,7 +38,7 @@ const MOBILE_TRANSFER_SERVICES = Object.freeze([
         webType: 'حساب بنكي',
         label: 'حساب بنكي مصري',
         shortLabel: 'حساب بنكي',
-        rateOffset: 0,
+        rateOffset: -0.10,
         numberLabel: 'رقم الحساب البنكي أو IBAN',
         requiredFields: Object.freeze(['amount', 'number', 'name']),
         mobileEnabled: true
@@ -113,4 +113,3 @@ module.exports = {
     isEnabledMobileTransferService,
     buildMobileServiceCatalogDto
 };
-

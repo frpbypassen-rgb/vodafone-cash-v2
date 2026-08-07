@@ -17,6 +17,7 @@ jest.mock('../utils/logger', () => ({
 const ExecutorGroup = require('../models/ExecutorGroup');
 const { addTransferJob } = require('../services/bullQueueService');
 const {
+    getConfiguredAutoRouteExecutorId,
     resolveAutoRouteExecutor,
     applyAutoRouteFields,
     enqueueAutoRouteIfNeeded
@@ -34,6 +35,7 @@ describe('autoRouteService', () => {
             status: 'active',
             isApiBot: true,
             isManagerBot: false,
+            serviceKey: 'vodafone',
             parentGroupId: 'manager-1'
         };
         const tx = {
@@ -47,8 +49,8 @@ describe('autoRouteService', () => {
 
         const resolved = await resolveAutoRouteExecutor({
             autoRouteEnabled: true,
-            autoRouteBotId: 'api-group-1'
-        });
+            autoRouteRules: [{ serviceKey: 'vodafone', executorGroupId: 'api-group-1' }]
+        }, 'vodafone');
         applyAutoRouteFields(tx, resolved);
         await enqueueAutoRouteIfNeeded(tx, resolved);
 
@@ -58,5 +60,50 @@ describe('autoRouteService', () => {
         expect(tx.managerGroupId).toBe('manager-1');
         expect(tx.executorName).toBe('Zayn API');
         expect(addTransferJob).toHaveBeenCalledWith('tx-1', 'api-group-1');
+    });
+
+    test('selects the postal executor for both postal operation types', async () => {
+        const postalExecutor = {
+            _id: 'postal-group-1',
+            name: 'منفذ البريد',
+            status: 'active',
+            isApiBot: false,
+            isManagerBot: false,
+            serviceKey: 'postal'
+        };
+        ExecutorGroup.findById.mockResolvedValue(postalExecutor);
+        const settings = {
+            autoRouteEnabled: true,
+            autoRouteRules: [
+                { serviceKey: 'post_account', executorGroupId: 'postal-group-1' },
+                { serviceKey: 'post_card', executorGroupId: 'postal-group-1' }
+            ]
+        };
+
+        expect(getConfiguredAutoRouteExecutorId(settings, 'post_account')).toBe('postal-group-1');
+        expect(await resolveAutoRouteExecutor(settings, 'post_card')).toBe(postalExecutor);
+    });
+
+    test('refuses an executor whose assigned service does not match the transaction', async () => {
+        ExecutorGroup.findById.mockResolvedValue({
+            _id: 'postal-group-1',
+            status: 'active',
+            isManagerBot: false,
+            serviceKey: 'postal'
+        });
+
+        const result = await resolveAutoRouteExecutor({
+            autoRouteEnabled: true,
+            autoRouteRules: [{ serviceKey: 'vodafone', executorGroupId: 'postal-group-1' }]
+        }, 'vodafone');
+
+        expect(result).toBeNull();
+    });
+
+    test('does not fall back to the legacy executor when service rules exist', () => {
+        expect(getConfiguredAutoRouteExecutorId({
+            autoRouteBotId: 'legacy-group',
+            autoRouteRules: [{ serviceKey: 'vodafone', executorGroupId: 'cash-group' }]
+        }, 'bank_account')).toBeNull();
     });
 });

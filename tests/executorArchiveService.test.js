@@ -102,9 +102,15 @@ describe('Executor archive service', () => {
                 $unset: expect.objectContaining({ refreshToken: 1 })
             })
         );
-        expect(Settings.updateMany).toHaveBeenCalledWith(
+        expect(Settings.updateMany).toHaveBeenNthCalledWith(
+            1,
+            {},
+            { $pull: { autoRouteRules: { executorGroupId: group._id } } }
+        );
+        expect(Settings.updateMany).toHaveBeenNthCalledWith(
+            2,
             { autoRouteBotId: group._id },
-            { $set: { autoRouteEnabled: false, autoRouteBotId: null } }
+            { $set: { autoRouteBotId: null } }
         );
         expect(result).toEqual(expect.objectContaining({
             group: archivedGroup,

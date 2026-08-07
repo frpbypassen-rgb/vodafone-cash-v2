@@ -172,4 +172,30 @@ describe('queueService API execution', () => {
         expect(tx.adminNotes).toContain('الحالة: discrepancy');
         expect(eventBus.publish).toHaveBeenCalledWith('transfer:completed', expect.objectContaining({ tx }));
     });
+
+    test('returns a mismatched API task to administration without calling the provider', async () => {
+        const tx = {
+            _id: 'tx-postal',
+            customId: 'ATT-2608-POST',
+            status: 'processing',
+            transferType: 'post_account',
+            adminNotes: '',
+            save: jest.fn().mockResolvedValue(true)
+        };
+        const executorGroup = {
+            _id: 'cash-api',
+            name: 'Cash API',
+            serviceKey: 'vodafone'
+        };
+        Transaction.findById.mockResolvedValue(tx);
+        ExecutorGroup.findById.mockResolvedValue(executorGroup);
+
+        await queueService.processSingleJob('tx-postal', 'cash-api');
+
+        expect(tx.status).toBe('pending');
+        expect(tx.executorGroupId).toBeUndefined();
+        expect(tx.adminNotes).toContain('لا تطابق خدمة المنفذ');
+        expect(executeTransferViaApi).not.toHaveBeenCalled();
+        expect(startApiBalanceAudit).not.toHaveBeenCalled();
+    });
 });

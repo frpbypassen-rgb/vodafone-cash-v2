@@ -123,8 +123,12 @@ const archiveExecutorAccount = async ({ executorId, archivedBy, reason }) => {
     );
 
     await Settings.updateMany(
+        {},
+        { $pull: { autoRouteRules: { executorGroupId: group._id } } }
+    ).catch(() => {});
+    await Settings.updateMany(
         { autoRouteBotId: group._id },
-        { $set: { autoRouteEnabled: false, autoRouteBotId: null } }
+        { $set: { autoRouteBotId: null } }
     ).catch(() => {});
 
     return {

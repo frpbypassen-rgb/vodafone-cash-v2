@@ -8,16 +8,26 @@ const {
     normalizeExecutorPhone,
     normalizeExecutorUsername
 } = require('../services/executorAccountService');
+const {
+    getExecutorServiceOptions,
+    normalizeExecutorServiceKey
+} = require('../utils/executorServiceCatalog');
 
 const executorRegistrationFormData = (body = {}) => ({
     companyName: String(body.companyName || '').trim(),
     managerName: String(body.managerName || '').trim(),
     phone: String(body.phone || '').trim(),
-    webUsername: String(body.webUsername || '').trim().replace(/@ahram\.com$/i, '')
+    webUsername: String(body.webUsername || '').trim().replace(/@ahram\.com$/i, ''),
+    executorServiceKey: normalizeExecutorServiceKey(body.executorServiceKey || 'vodafone')
 });
 
 const renderExecutorRegistration = (res, { error = null, success = null, formData = {} } = {}) => (
-    res.render('executor/register', { error, success, formData })
+    res.render('executor/register', {
+        error,
+        success,
+        formData,
+        executorServiceOptions: getExecutorServiceOptions()
+    })
 );
 
 
@@ -77,7 +87,7 @@ exports.postRegister = async (req, res) => {
         const managerName = formData.managerName;
         const { webPassword, confirmPassword } = req.body;
         
-        if (!companyName || !managerName || !formData.phone || !formData.webUsername || !webPassword || !confirmPassword) {
+        if (!companyName || !managerName || !formData.phone || !formData.webUsername || !formData.executorServiceKey || !webPassword || !confirmPassword) {
             return renderExecutorRegistration(res, { error: 'يرجى ملء جميع الحقول المطلوبة.', formData });
         }
         if (companyName.length < 3 || managerName.length < 3) {
@@ -117,6 +127,7 @@ exports.postRegister = async (req, res) => {
             username: finalUsername,
             password: webPassword,
             companyName: companyName,
+            executorServiceKey: formData.executorServiceKey,
             ipAddress: req.ip || req.headers['x-forwarded-for'] || 'unknown',
             userAgent: req.headers['user-agent'] || 'unknown'
         });
@@ -128,7 +139,7 @@ exports.postRegister = async (req, res) => {
                 await Notification.create({
                     userId: admin.webUsername || 'admin',
                     title: 'طلب تسجيل منفذ جديد',
-                    message: `🚨 طلب تسجيل منفذ جديد!\n\nالشركة: ${companyName}\nالمدير: ${managerName}\nالهاتف: ${phone}\nرقم الطلب: ${regRequest.refCode}`,
+                    message: `🚨 طلب تسجيل منفذ جديد!\n\nالشركة: ${companyName}\nالمدير: ${managerName}\nالهاتف: ${phone}\nالخدمة: ${formData.executorServiceKey}\nرقم الطلب: ${regRequest.refCode}`,
                     type: 'registration'
                 }).catch(() => {});
             }

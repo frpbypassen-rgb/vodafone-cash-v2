@@ -41,7 +41,11 @@ describe('Executor public registration', () => {
         expect(res.render).toHaveBeenCalledWith('executor/register', {
             error: null,
             success: null,
-            formData: {}
+            formData: {},
+            executorServiceOptions: expect.arrayContaining([
+                expect.objectContaining({ key: 'vodafone' }),
+                expect.objectContaining({ key: 'postal' })
+            ])
         });
     });
 
@@ -51,6 +55,7 @@ describe('Executor public registration', () => {
             managerName: 'مدير التسجيل التجريبي',
             phone: '091-123-4567',
             webUsername: 'REGISTERED_01',
+            executorServiceKey: 'postal',
             webPassword: 'secret1',
             confirmPassword: 'secret1'
         };
@@ -61,6 +66,7 @@ describe('Executor public registration', () => {
             accountType: 'executor',
             phone: '0911234567',
             username: 'registered_01@ahram.com',
+            executorServiceKey: 'postal',
             password: 'secret1'
         }));
         const viewData = res.render.mock.calls[0][1];
@@ -77,6 +83,7 @@ describe('Executor public registration', () => {
             managerName: 'مدير التسجيل التجريبي',
             phone: '0911234567',
             webUsername: 'registered_01',
+            executorServiceKey: 'bank_account',
             webPassword: 'secret1',
             confirmPassword: 'different'
         };
@@ -89,8 +96,10 @@ describe('Executor public registration', () => {
                 companyName: 'منفذ التسجيل التجريبي',
                 managerName: 'مدير التسجيل التجريبي',
                 phone: '0911234567',
-                webUsername: 'registered_01'
-            }
+                webUsername: 'registered_01',
+                executorServiceKey: 'bank_account'
+            },
+            executorServiceOptions: expect.any(Array)
         }));
         expect(RegistrationRequest.create).not.toHaveBeenCalled();
     });

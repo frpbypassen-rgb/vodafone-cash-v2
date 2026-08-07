@@ -6,6 +6,7 @@ const Employee = require('../models/Employee');
 const Notification = require('../models/Notification');
 const ApiBalanceAudit = require('../models/ApiBalanceAudit');
 const ApiProviderReturn = require('../models/ApiProviderReturn');
+const Settings = require('../models/Settings');
 const { requireAuth, requireMaster } = require('../middlewares/auth');
 const { systemDateRange } = require('../config/systemTime');
 const { syncBotBalance, escapeRegex } = require('../utils/helpers');
@@ -20,6 +21,12 @@ const {
 } = require('../services/executorArchiveService');
 const { logAction } = require('../services/auditService');
 const { reversalService } = require('../src/Application/Services/ReversalService');
+const {
+    getExecutorServiceOptions,
+    getExecutorServiceLabel,
+    getExecutorSupportedTransferTypes,
+    normalizeExecutorServiceKey
+} = require('../utils/executorServiceCatalog');
 
 const normalizeText = (value) => String(value || '').trim();
 const parseNumberOrDefault = (value, fallback) => {
@@ -36,7 +43,13 @@ router.get('/executors', requireAuth, async (req, res) => {
         const groupsWithStats = await Promise.all(groups.map(async (group) => {
             const syncedBalance = await syncBotBalance(group._id); 
             let txCount = 0; if (group.isManagerBot) txCount = await Transaction.countDocuments({ managerGroupId: group._id, status: 'completed' }); else txCount = await Transaction.countDocuments({ executorGroupId: group._id, status: 'completed' });
-            return { ...group._doc, balance: syncedBalance, txCount };
+            return {
+                ...group._doc,
+                balance: syncedBalance,
+                txCount,
+                serviceKey: normalizeExecutorServiceKey(group.serviceKey),
+                serviceLabel: getExecutorServiceLabel(group)
+            };
         }));
         const archivedGroupsWithStats = await Promise.all(archivedGroups.map(async (group) => {
             const txCount = group.archiveTransactionCount === null || group.archiveTransactionCount === undefined
@@ -47,7 +60,9 @@ router.get('/executors', requireAuth, async (req, res) => {
                 balance: group.archiveBalance === null || group.archiveBalance === undefined
                     ? group.balance
                     : group.archiveBalance,
-                txCount
+                txCount,
+                serviceKey: normalizeExecutorServiceKey(group.serviceKey),
+                serviceLabel: getExecutorServiceLabel(group)
             };
         }));
         const origin = `${req.protocol}://${req.get('host')}`;
@@ -59,7 +74,8 @@ router.get('/executors', requireAuth, async (req, res) => {
             isMaster: req.session.adminRole === 'master',
             query: req.query,
             executorRegistrationUrl: `${origin}/executor-portal/register`,
-            executorLoginUrl: `${origin}/login`
+            executorLoginUrl: `${origin}/login`,
+            executorServiceOptions: getExecutorServiceOptions()
         });
     } catch (e) {
         console.error('[executors/list] failed:', e.stack || e.message);
@@ -84,6 +100,7 @@ router.post('/executors/add', requireAuth, requireMaster, async (req, res) => {
         const { group, employee } = await createExecutorAccount({
             groupData: {
                 name,
+                serviceKey: body.serviceKey,
                 status: normalizeText(body.status) || 'active',
                 isManagerGroup: isManagerBot,
                 isManagerBot,
@@ -122,6 +139,7 @@ router.post('/executors/add', requireAuth, requireMaster, async (req, res) => {
             metadata: {
                 executorName: group.name,
                 executorType: isApiBot ? 'api' : (isManagerBot ? 'manager' : 'manual'),
+                serviceKey: group.serviceKey,
                 managerId: employee?._id || null,
                 openingBalance: balance
             }
@@ -132,6 +150,58 @@ router.post('/executors/add', requireAuth, requireMaster, async (req, res) => {
         console.error('[executors/add] failed:', e.stack || e.message);
         const errorCode = e instanceof ExecutorAccountError ? e.code : 'CREATE_FAILED';
         return res.redirect(`/executors?createError=${encodeURIComponent(errorCode)}&openCreate=1`);
+    }
+});
+
+router.post('/executor/:id/service', requireAuth, requireMaster, async (req, res) => {
+    try {
+        const serviceKey = normalizeExecutorServiceKey(req.body?.serviceKey, null);
+        if (!serviceKey) return res.redirect('/executors?serviceError=INVALID_SERVICE');
+
+        const group = await ExecutorGroup.findById(req.params.id);
+        if (!group || group.status === 'archived') return res.redirect('/executors?serviceError=NOT_FOUND');
+
+        const previousServiceKey = normalizeExecutorServiceKey(group.serviceKey);
+        if (previousServiceKey === serviceKey) return res.redirect('/executors?serviceUpdated=1');
+
+        const inFlightCount = await Transaction.countDocuments({
+            $or: [{ executorGroupId: group._id }, { managerGroupId: group._id }],
+            status: { $in: ['processing', 'accepted'] }
+        });
+        if (inFlightCount > 0) return res.redirect('/executors?serviceError=ACTIVE_TASKS');
+
+        group.serviceKey = serviceKey;
+        await group.save();
+
+        await Settings.updateMany(
+            {},
+            { $pull: { autoRouteRules: { executorGroupId: group._id } } }
+        ).catch(() => {});
+        await Settings.updateMany(
+            { autoRouteBotId: group._id },
+            { $set: { autoRouteBotId: null } }
+        ).catch(() => {});
+
+        await logAction({
+            action: 'EXECUTOR_SERVICE_UPDATED',
+            req,
+            performedById: req.session.adminId,
+            performedByModel: 'Admin',
+            performedByName: req.session.adminName || 'الإدارة',
+            targetId: group._id,
+            targetModel: 'ExecutorGroup',
+            oldData: { serviceKey: previousServiceKey },
+            newData: {
+                serviceKey,
+                serviceLabel: getExecutorServiceLabel(group),
+                supportedTransferTypes: getExecutorSupportedTransferTypes(group)
+            }
+        }).catch(() => {});
+
+        return res.redirect('/executors?serviceUpdated=1');
+    } catch (error) {
+        console.error('[executors/service] failed:', error.stack || error.message);
+        return res.redirect('/executors?serviceError=UPDATE_FAILED');
     }
 });
 

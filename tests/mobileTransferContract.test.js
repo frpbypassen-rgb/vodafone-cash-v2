@@ -278,7 +278,7 @@ describe('💸 Contract Tests: Transfer (Mobile API)', () => {
                 name: 'Bank Recipient',
                 notes: 'bank transfer test'
             },
-            6.45,
+            6.35,
             '550e8400-e29b-41d4-a716-446655440010'
         ],
         [

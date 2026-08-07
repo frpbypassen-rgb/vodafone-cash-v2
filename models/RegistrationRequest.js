@@ -1,5 +1,6 @@
 const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
+const { EXECUTOR_SERVICE_KEYS } = require('../utils/executorServiceCatalog');
 
 const registrationRequestSchema = new mongoose.Schema({
     // نوع الحساب: direct (عميل مباشر)، company (شركة)، new (عميل جديد)، agent (وكيل منطقة)
@@ -30,6 +31,7 @@ const registrationRequestSchema = new mongoose.Schema({
     agentCode: { type: String, sparse: true }, // رقم حساب الوكيل (4 أرقام)
     agentId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
     agentName: { type: String },
+    executorServiceKey: { type: String, enum: EXECUTOR_SERVICE_KEYS, default: undefined },
 
     // حالة الطلب
     status: {
