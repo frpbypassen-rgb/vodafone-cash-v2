@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>تعديل <%= accountLabel %> | Power Pay AL-Ahram</title>
+    <script>
+        const savedTheme = localStorage.getItem('ahram_theme') || 'dark';
+        document.documentElement.setAttribute('data-theme', savedTheme);
+    </script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.rtl.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800;900&family=JetBrains+Mono:wght@700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Tajawal', sans-serif; }
+        .editor-shell { max-width: 1180px; margin: 0 auto; padding: 28px 20px 56px; }
+        .editor-header { display: flex; align-items: center; justify-content: space-between; gap: 18px; margin-bottom: 22px; }
+        .editor-title { display: flex; align-items: center; gap: 14px; min-width: 0; }
+        .editor-title-icon { width: 48px; height: 48px; border-radius: 8px; display: grid; place-items: center; color: #fff; background: #087f74; font-size: 1.2rem; box-shadow: 0 8px 18px rgba(8,127,116,.22); flex: 0 0 auto; }
+        .editor-title h1 { margin: 0; font-size: 1.35rem; font-weight: 900; }
+        .editor-title p { margin: 3px 0 0; color: var(--text-muted); font-size: .82rem; font-weight: 700; }
+        .editor-back { width: 42px; height: 42px; border-radius: 8px; display: grid; place-items: center; border: 1px solid var(--border-glass); color: var(--text-main); background: var(--card-bg); text-decoration: none; }
+        .editor-back:hover { color: #087f74; border-color: #087f74; }
+        .account-strip { display: grid; grid-template-columns: minmax(0,1.5fr) repeat(3,minmax(120px,.65fr)); gap: 1px; border: 1px solid var(--border-glass); border-radius: 8px; overflow: hidden; margin-bottom: 18px; background: var(--border-glass); }
+        .strip-item { background: var(--card-bg); padding: 14px 16px; min-width: 0; }
+        .strip-item span, .strip-item strong { display: block; }
+        .strip-item span { color: var(--text-muted); font-size: .72rem; font-weight: 800; }
+        .strip-item strong { margin-top: 4px; color: var(--text-main); font-size: .92rem; overflow-wrap: anywhere; }
+        .mono { font-family: 'JetBrains Mono', monospace; direction: ltr; text-align: right; }
+        .editor-form { border: 1px solid var(--border-glass); border-radius: 8px; overflow: hidden; background: var(--card-bg); box-shadow: var(--shadow-soft); }
+        .form-section { padding: 22px; border-bottom: 1px solid var(--border-glass); }
+        .form-section:last-of-type { border-bottom: 0; }
+        .section-heading { display: flex; align-items: center; gap: 9px; margin-bottom: 17px; color: var(--text-main); font-size: .96rem; font-weight: 900; }
+        .section-heading i { color: #087f74; }
+        .field-grid { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 16px; }
+        .field-grid.two { grid-template-columns: repeat(2,minmax(0,1fr)); }
+        .field-grid.one { grid-template-columns: 1fr; }
+        .field { min-width: 0; }
+        .field.full { grid-column: 1 / -1; }
+        .field label { display: block; margin-bottom: 7px; color: var(--text-muted); font-size: .76rem; font-weight: 900; }
+        .form-control, .form-select { min-height: 44px; border-radius: 6px; border: 1px solid var(--border-glass); background: var(--input-bg); color: var(--text-main); font-weight: 800; box-shadow: none !important; }
+        .form-control:focus, .form-select:focus { border-color: #087f74; }
+        .form-control[readonly] { opacity: .72; cursor: default; }
+        textarea.form-control { min-height: 90px; resize: vertical; }
+        .password-control { position: relative; }
+        .password-control .form-control { padding-left: 44px; }
+        .password-toggle { position: absolute; left: 5px; top: 5px; width: 34px; height: 34px; border: 0; background: transparent; color: var(--text-muted); border-radius: 6px; }
+        .permission-grid { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 10px; }
+        .permission-option { display: flex; align-items: center; gap: 10px; min-height: 48px; padding: 10px 12px; border: 1px solid var(--border-glass); border-radius: 6px; background: var(--input-bg); cursor: pointer; }
+        .permission-option input { width: 18px; height: 18px; accent-color: #087f74; }
+        .permission-option span { color: var(--text-main); font-size: .8rem; font-weight: 800; }
+        .security-note { display: flex; align-items: flex-start; gap: 10px; margin-bottom: 16px; padding: 12px 14px; border-right: 3px solid #d4af37; background: rgba(212,175,55,.08); color: var(--text-main); font-size: .78rem; font-weight: 700; }
+        .editor-actions { display: flex; align-items: center; justify-content: flex-end; gap: 10px; padding: 18px 22px; background: var(--input-bg); border-top: 1px solid var(--border-glass); }
+        .editor-actions .btn { min-height: 42px; border-radius: 6px; padding: 9px 18px; font-weight: 900; }
+        .save-button { background: #087f74; border-color: #087f74; color: #fff; }
+        .save-button:hover { background: #066a61; border-color: #066a61; color: #fff; }
+        .error-banner { border-radius: 6px; border: 1px solid rgba(220,38,38,.35); background: rgba(220,38,38,.09); color: #dc2626; padding: 12px 14px; margin-bottom: 16px; font-weight: 800; }
+        .required { color: #dc2626; }
+        @media (max-width: 991px) {
+            .field-grid, .permission-grid { grid-template-columns: repeat(2,minmax(0,1fr)); }
+            .account-strip { grid-template-columns: repeat(2,minmax(0,1fr)); }
+        }
+        @media (max-width: 767px) {
+            .editor-shell { padding: 78px 12px 92px; }
+            .editor-header { align-items: flex-start; }
+            .field-grid, .field-grid.two, .permission-grid, .account-strip { grid-template-columns: 1fr; }
+            .form-section { padding: 18px 14px; }
+            .editor-actions { position: sticky; bottom: 0; z-index: 5; padding: 12px; }
+            .editor-actions .btn { flex: 1; padding-inline: 10px; }
+        }
+    </style>
+</head>
+<body>
+<button class="mobile-nav-toggle" onclick="toggleSidebar()" aria-label="فتح القائمة"><i class="fa-solid fa-bars"></i></button>
+<div class="sidebar-overlay" onclick="toggleSidebar()"></div>
+<%- include('partials/sidebar', { activePage }) %>
+
+<%
+    const identityTypes = ['user', 'agent', 'subaccount', 'client-employee', 'agent-employee', 'executor-employee'];
+    const employeeTypes = ['client-employee', 'agent-employee', 'executor-employee'];
+    const profileTypes = ['user', 'agent', 'company'];
+    const hasLogin = identityTypes.includes(accountType);
+    const isEmployee = employeeTypes.includes(accountType);
+    const isExecutor = accountType === 'executor';
+    const hasFinancialConfig = ['user', 'agent', 'company', 'subaccount'].includes(accountType);
+    const value = (key, fallback = '') => formData[key] !== undefined && formData[key] !== null ? formData[key] : fallback;
+    const checked = (key) => Boolean(formData[key]);
+    const statusLabels = { active: 'نشط', inactive: 'غير نشط', banned: 'محظور', pending: 'قيد المراجعة', suspended: 'موقوف', paused: 'متوقف مؤقتاً' };
+    const roleLabels = { owner: 'مدير الشركة', employee: 'موظف', accountant: 'محاسب', operator: 'منفذ عمليات', manager: 'مدير منفذ' };
+    const iconClass = accountType === 'company' ? 'fa-building' : accountType === 'agent' ? 'fa-user-tie' : isExecutor ? 'fa-gears' : isEmployee ? 'fa-id-badge' : 'fa-user';
+%>
+
+<main class="main-content">
+    <div class="editor-shell">
+        <header class="editor-header">
+            <div class="editor-title">
+                <div class="editor-title-icon"><i class="fa-solid <%= iconClass %>"></i></div>
+                <div>
+                    <h1>تعديل بيانات <%= accountLabel %></h1>
+                    <p><%= account.name || account.webUsername || account._id %></p>
+                </div>
+            </div>
+            <a href="<%= returnUrl %>" class="editor-back" title="رجوع" aria-label="رجوع"><i class="fa-solid fa-arrow-right"></i></a>
+        </header>
+
+        <% if (error) { %>
+            <div class="error-banner"><i class="fa-solid fa-triangle-exclamation ms-2"></i><%= error %></div>
+        <% } %>
+
+        <section class="account-strip" aria-label="ملخص الحساب">
+            <div class="strip-item"><span>نوع الحساب</span><strong><%= accountLabel %></strong></div>
+            <div class="strip-item"><span>الحالة</span><strong><%= statusLabels[account.status] || account.status %></strong></div>
+            <div class="strip-item"><span>الرصيد الحالي</span><strong class="mono"><%= account.balance !== undefined ? Number(account.balance).toFixed(2) + ' LYD' : 'غير مطبق' %></strong></div>
+            <div class="strip-item"><span>معرف النظام</span><strong class="mono"><%= account._id %></strong></div>
+        </section>
+
+        <form class="editor-form" action="/admin/accounts/<%= accountType %>/<%= account._id %>/edit" method="POST" autocomplete="off">
+            <section class="form-section">
+                <h2 class="section-heading"><i class="fa-solid fa-address-card"></i> البيانات الأساسية</h2>
+                <div class="field-grid">
+                    <div class="field">
+                        <label for="name">الاسم <span class="required">*</span></label>
+                        <input id="name" name="name" class="form-control" value="<%= value('name') %>" maxlength="120" required>
+                    </div>
+                    <% if (!isExecutor) { %>
+                        <div class="field">
+                            <label for="phone">رقم الهاتف <% if (['user', 'agent'].includes(accountType)) { %><span class="required">*</span><% } %></label>
+                            <input id="phone" name="phone" class="form-control mono" value="<%= value('phone') %>" maxlength="24" inputmode="tel" <%= ['user', 'agent'].includes(accountType) ? 'required' : '' %>>
+                        </div>
+                    <% } %>
+                    <div class="field">
+                        <label for="status">حالة الحساب <span class="required">*</span></label>
+                        <select id="status" name="status" class="form-select" required>
+                            <% options.statuses.forEach((status) => { %>
+                                <option value="<%= status %>" <%= value('status') === status ? 'selected' : '' %>><%= statusLabels[status] || status %></option>
+                            <% }) %>
+                        </select>
+                    </div>
+                </div>
+            </section>
+
+            <% if (hasLogin) { %>
+                <section class="form-section">
+                    <h2 class="section-heading"><i class="fa-solid fa-shield-halved"></i> بيانات الدخول</h2>
+                    <div class="security-note"><i class="fa-solid fa-lock"></i><span>كلمة المرور الحالية محفوظة بصورة مشفرة ولا تظهر في لوحة الإدارة.</span></div>
+                    <div class="field-grid two">
+                        <div class="field">
+                            <label for="webUsername">اسم المستخدم <span class="required">*</span></label>
+                            <input id="webUsername" name="webUsername" class="form-control mono" value="<%= value('webUsername') %>" maxlength="100" required autocomplete="off">
+                        </div>
+                        <div class="field">
+                            <label for="newPassword">كلمة مرور جديدة</label>
+                            <div class="password-control">
+                                <input id="newPassword" name="newPassword" type="password" class="form-control mono" minlength="6" maxlength="128" autocomplete="new-password">
+                                <button type="button" class="password-toggle" data-password-toggle="newPassword" title="إظهار كلمة المرور" aria-label="إظهار كلمة المرور"><i class="fa-solid fa-eye"></i></button>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+            <% } %>
+
+            <% if (hasFinancialConfig) { %>
+                <section class="form-section">
+                    <h2 class="section-heading"><i class="fa-solid fa-sliders"></i> إعدادات الحساب</h2>
+                    <div class="field-grid">
+                        <% if (accountType !== 'subaccount') { %>
+                            <div class="field">
+                                <label for="tier">مستوى السعر</label>
+                                <select id="tier" name="tier" class="form-select">
+                                    <% [1, 2, 3].forEach((tier) => { %><option value="<%= tier %>" <%= Number(value('tier')) === tier ? 'selected' : '' %>>المستوى <%= tier %></option><% }) %>
+                                </select>
+                            </div>
+                        <% } %>
+                        <div class="field">
+                            <label for="creditLimit">الحد الائتماني</label>
+                            <input id="creditLimit" name="creditLimit" type="number" step="0.01" min="0" class="form-control mono" value="<%= value('creditLimit', 0) %>">
+                        </div>
+                        <div class="field">
+                            <label for="accountCode">رقم الحساب <%= options.accountCodeLength ? '(' + options.accountCodeLength + ' أرقام)' : '' %></label>
+                            <input id="accountCode" name="accountCode" class="form-control mono" value="<%= value('accountCode') %>" inputmode="numeric" pattern="<%= options.accountCodeLength ? '\\d{' + options.accountCodeLength + '}' : '\\d+' %>" maxlength="<%= options.accountCodeLength || 12 %>">
+                        </div>
+                        <% if (accountType === 'subaccount') { %>
+                            <div class="field">
+                                <label>الحساب الرئيسي</label>
+                                <input class="form-control" value="<%= options.ownerName %>" readonly>
+                            </div>
+                            <div class="field">
+                                <label for="customMargin">هامش الخدمة</label>
+                                <input id="customMargin" name="customMargin" type="number" step="0.01" class="form-control mono" value="<%= value('customMargin', 0) %>">
+                            </div>
+                            <div class="field">
+                                <label for="cardMargin">هامش البطاقات</label>
+                                <input id="cardMargin" name="cardMargin" type="number" step="0.01" class="form-control mono" value="<%= value('cardMargin', 0) %>">
+                            </div>
+                        <% } %>
+                    </div>
+                </section>
+            <% } %>
+
+            <% if (profileTypes.includes(accountType)) { %>
+                <section class="form-section">
+                    <h2 class="section-heading"><i class="fa-solid fa-building-circle-check"></i> الملف التجاري والتواصل</h2>
+                    <div class="field-grid">
+                        <div class="field"><label for="contactName">اسم مسؤول التواصل</label><input id="contactName" name="contactName" class="form-control" value="<%= value('contactName') %>" maxlength="120"></div>
+                        <div class="field"><label for="email">البريد الإلكتروني</label><input id="email" name="email" type="email" class="form-control mono" value="<%= value('email') %>" maxlength="120"></div>
+                        <div class="field"><label for="city">المدينة</label><input id="city" name="city" class="form-control" value="<%= value('city') %>" maxlength="120"></div>
+                        <div class="field"><label for="registrationNumber">رقم التسجيل</label><input id="registrationNumber" name="registrationNumber" class="form-control mono" value="<%= value('registrationNumber') %>" maxlength="120"></div>
+                        <div class="field full"><label for="address">العنوان</label><textarea id="address" name="address" class="form-control" maxlength="240"><%= value('address') %></textarea></div>
+                    </div>
+                </section>
+            <% } %>
+
+            <% if (isEmployee) { %>
+                <section class="form-section">
+                    <h2 class="section-heading"><i class="fa-solid fa-sitemap"></i> الجهة والصفة</h2>
+                    <div class="field-grid">
+                        <div class="field">
+                            <label for="role">صفة الموظف</label>
+                            <select id="role" name="role" class="form-select" required>
+                                <% options.roles.forEach((role) => { %><option value="<%= role %>" <%= value('role') === role ? 'selected' : '' %>><%= roleLabels[role] || role %></option><% }) %>
+                            </select>
+                        </div>
+                        <% if (accountType === 'client-employee') { %>
+                            <div class="field"><label for="companyId">الشركة</label><select id="companyId" name="companyId" class="form-select" required><% options.companies.forEach((company) => { %><option value="<%= company._id %>" <%= String(value('companyId')) === String(company._id) ? 'selected' : '' %>><%= company.name %></option><% }) %></select></div>
+                        <% } else if (accountType === 'agent-employee') { %>
+                            <div class="field"><label for="agentId">الوكيل</label><select id="agentId" name="agentId" class="form-select" required><% options.agents.forEach((agent) => { %><option value="<%= agent._id %>" <%= String(value('agentId')) === String(agent._id) ? 'selected' : '' %>><%= agent.name %> <%= agent.accountCode ? '(' + agent.accountCode + ')' : '' %></option><% }) %></select></div>
+                        <% } else { %>
+                            <div class="field"><label for="groupId">المنفذ</label><select id="groupId" name="groupId" class="form-select" required><% options.executors.forEach((executor) => { %><option value="<%= executor._id %>" <%= String(value('groupId')) === String(executor._id) ? 'selected' : '' %>><%= executor.name %></option><% }) %></select></div>
+                            <div class="field"><label for="telegramId">معرف تليجرام</label><input id="telegramId" name="telegramId" class="form-control mono" value="<%= value('telegramId') %>" maxlength="80"></div>
+                        <% } %>
+                    </div>
+                </section>
+
+                <section class="form-section">
+                    <h2 class="section-heading"><i class="fa-solid fa-user-shield"></i> صلاحيات الموظف</h2>
+                    <div class="permission-grid">
+                        <label class="permission-option"><input type="checkbox" name="canViewAllReports" value="true" <%= checked('canViewAllReports') ? 'checked' : '' %>><span>عرض جميع التقارير</span></label>
+                        <% if (accountType === 'client-employee') { %>
+                            <label class="permission-option"><input type="checkbox" name="canManageCompany" value="true" <%= checked('canManageCompany') ? 'checked' : '' %>><span>إدارة الشركة</span></label>
+                            <label class="permission-option"><input type="checkbox" name="canCreateCompanyStaff" value="true" <%= checked('canCreateCompanyStaff') ? 'checked' : '' %>><span>إنشاء حسابات موظفين</span></label>
+                        <% } %>
+                        <% if (accountType === 'agent-employee') { %>
+                            <label class="permission-option"><input type="checkbox" name="canManageAgent" value="true" <%= checked('canManageAgent') ? 'checked' : '' %>><span>إدارة الوكيل</span></label>
+                            <label class="permission-option"><input type="checkbox" name="canCreateAgentStaff" value="true" <%= checked('canCreateAgentStaff') ? 'checked' : '' %>><span>إنشاء حسابات موظفين</span></label>
+                        <% } %>
+                    </div>
+                </section>
+            <% } %>
+
+            <% if (isExecutor) { %>
+                <section class="form-section">
+                    <h2 class="section-heading"><i class="fa-solid fa-gears"></i> إعدادات المنفذ</h2>
+                    <div class="field-grid two">
+                        <div class="field"><label for="serviceKey">الخدمة المخصصة</label><select id="serviceKey" name="serviceKey" class="form-select" required><% options.executorServices.forEach((service) => { %><option value="<%= service.key %>" <%= value('serviceKey') === service.key ? 'selected' : '' %>><%= service.label %></option><% }) %></select></div>
+                        <% if (!account.isManagerBot) { %>
+                            <div class="field"><label for="parentGroupId">مجموعة الإشراف</label><select id="parentGroupId" name="parentGroupId" class="form-select"><option value="">بدون مجموعة إشراف</option><% options.managerGroups.forEach((manager) => { %><option value="<%= manager._id %>" <%= String(value('parentGroupId')) === String(manager._id) ? 'selected' : '' %>><%= manager.name %></option><% }) %></select></div>
+                        <% } %>
+                    </div>
+                </section>
+
+                <% if (account.isApiBot) { %>
+                    <section class="form-section">
+                        <h2 class="section-heading"><i class="fa-solid fa-plug-circle-bolt"></i> اتصال API</h2>
+                        <div class="field-grid">
+                            <div class="field full"><label for="apiUrl">رابط API</label><input id="apiUrl" name="apiUrl" type="url" class="form-control mono" value="<%= value('apiUrl') %>" maxlength="400"></div>
+                            <div class="field"><label for="apiUsername">اسم مستخدم المزود</label><input id="apiUsername" name="apiUsername" class="form-control mono" value="<%= value('apiUsername') %>" maxlength="160"></div>
+                            <div class="field"><label for="apiPassword">كلمة مرور المزود</label><div class="password-control"><input id="apiPassword" name="apiPassword" type="password" class="form-control mono" autocomplete="new-password"><button type="button" class="password-toggle" data-password-toggle="apiPassword" title="إظهار كلمة المرور" aria-label="إظهار كلمة المرور"><i class="fa-solid fa-eye"></i></button></div></div>
+                            <div class="field"><label for="apiToken">رمز API</label><div class="password-control"><input id="apiToken" name="apiToken" type="password" class="form-control mono" autocomplete="off"><button type="button" class="password-toggle" data-password-toggle="apiToken" title="إظهار الرمز" aria-label="إظهار الرمز"><i class="fa-solid fa-eye"></i></button></div></div>
+                            <div class="field"><label for="apiServiceId">رقم الخدمة</label><input id="apiServiceId" name="apiServiceId" type="number" min="0" class="form-control mono" value="<%= value('apiServiceId', 85) %>" required></div>
+                            <div class="field"><label for="apiProviderId">رقم المزود</label><input id="apiProviderId" name="apiProviderId" type="number" min="0" class="form-control mono" value="<%= value('apiProviderId', 16) %>" required></div>
+                            <div class="field"><label for="apiFieldId">رقم الحقل</label><input id="apiFieldId" name="apiFieldId" type="number" min="0" class="form-control mono" value="<%= value('apiFieldId', 5488) %>" required></div>
+                            <div class="field"><label for="apiMachineSerial">رقم الجهاز</label><input id="apiMachineSerial" name="apiMachineSerial" class="form-control mono" value="<%= value('apiMachineSerial', 'XP1') %>" maxlength="80" required></div>
+                        </div>
+                    </section>
+                <% } %>
+            <% } %>
+
+            <footer class="editor-actions">
+                <a href="<%= returnUrl %>" class="btn btn-outline-secondary"><i class="fa-solid fa-xmark ms-1"></i>إلغاء</a>
+                <button type="submit" class="btn save-button"><i class="fa-solid fa-floppy-disk ms-1"></i>حفظ التعديلات</button>
+            </footer>
+        </form>
+    </div>
+</main>
+
+<script>
+    function toggleSidebar() {
+        document.querySelector('.sidebar')?.classList.toggle('active');
+        document.querySelector('.sidebar-overlay')?.classList.toggle('active');
+    }
+    document.querySelectorAll('[data-password-toggle]').forEach((button) => {
+        button.addEventListener('click', () => {
+            const input = document.getElementById(button.dataset.passwordToggle);
+            if (!input) return;
+            input.type = input.type === 'password' ? 'text' : 'password';
+            button.querySelector('i')?.classList.toggle('fa-eye-slash', input.type === 'text');
+            button.querySelector('i')?.classList.toggle('fa-eye', input.type !== 'text');
+        });
+    });
+</script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

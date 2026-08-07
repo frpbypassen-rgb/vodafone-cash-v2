@@ -131,16 +131,20 @@
             
             <ul class="nav nav-pills" role="tablist">
                 <li class="nav-item" role="presentation">
-                    <button class="nav-link active" data-bs-toggle="pill" data-bs-target="#executors-tab" type="button"><i class="fa-solid fa-gears me-1"></i> موظفو التنفيذ</button>
+                    <button class="nav-link <%= activeEmployeeSection === 'executors' ? 'active' : '' %>" data-bs-toggle="pill" data-bs-target="#executors-tab" type="button"><i class="fa-solid fa-gears me-1"></i> موظفو التنفيذ</button>
                 </li>
                 <li class="nav-item" role="presentation">
-                    <button class="nav-link" data-bs-toggle="pill" data-bs-target="#clients-tab" type="button"><i class="fa-solid fa-building-user me-1"></i> موظفو الشركات</button>
+                    <button class="nav-link <%= activeEmployeeSection === 'clients' ? 'active' : '' %>" data-bs-toggle="pill" data-bs-target="#clients-tab" type="button"><i class="fa-solid fa-building-user me-1"></i> موظفو الشركات والوكلاء</button>
                 </li>
             </ul>
         </div>
 
+        <% if (query && query.profileUpdated) { %>
+            <div class="alert alert-success fw-bold border-0 shadow-sm" style="border-radius:8px;"><i class="fa-solid fa-circle-check me-1"></i> تم تحديث بيانات الموظف وتسجيل التغيير في سجل التدقيق.</div>
+        <% } %>
+
         <div class="tab-content mt-4">
-            <div class="tab-pane fade show active" id="executors-tab">
+            <div class="tab-pane fade <%= activeEmployeeSection === 'executors' ? 'show active' : '' %>" id="executors-tab">
                 <% if(execEmployees.length === 0) { %>
                     <div class="col-12 text-center py-5">
                         <i class="fa-solid fa-users-slash fa-4x text-muted opacity-25 mb-3"></i>
@@ -203,6 +207,11 @@
                                                 </div>
 
                                                 <div class="mt-auto pt-2">
+                                                    <% if (typeof isMaster !== 'undefined' && isMaster) { %>
+                                                        <a href="/admin/accounts/executor-employee/<%= e._id %>/edit" class="btn-3d mb-2 text-decoration-none" style="color:#087f74; border:1px solid rgba(8,127,116,.35);">
+                                                            <i class="fa-solid fa-pen-to-square me-2"></i> تعديل بيانات الموظف
+                                                        </a>
+                                                    <% } %>
                                                     <form action="/employees/executor/<%= e._id %>/toggle" method="POST" class="m-0" onsubmit="return confirm('تأكيد تعديل حالة الموظف؟');">
                                                         <button type="submit" class="btn-3d text-white" style="background: <%= e.status === 'active' ? '#ef4444' : '#10b981' %>; border: none;">
                                                             <i class="fa-solid <%= e.status === 'active' ? 'fa-ban' : 'fa-power-off' %> me-2"></i> <%= e.status === 'active' ? 'إيقاف وحظر الموظف' : 'تنشيط الحساب' %>
@@ -219,7 +228,7 @@
                 <% } %>
             </div>
 
-            <div class="tab-pane fade" id="clients-tab">
+            <div class="tab-pane fade <%= activeEmployeeSection === 'clients' ? 'show active' : '' %>" id="clients-tab">
                 <% if(clientEmployees.length === 0) { %>
                     <div class="col-12 text-center py-5">
                         <i class="fa-solid fa-building-circle-xmark fa-4x text-muted opacity-25 mb-3"></i>
@@ -277,11 +286,21 @@
 
                                                 <div class="info-box">
                                                     <span class="small text-muted fw-bold"><i class="fa-solid fa-briefcase me-1"></i> الصلاحية</span>
-                                                    <span class="badge <%= e.role === 'manager' ? 'bg-dark' : 'bg-secondary' %> rounded-pill px-2"><%= e.role === 'manager' ? 'مدير حساب' : 'موظف / طالب' %></span>
+                                                    <span class="badge <%= e.role === 'owner' ? 'bg-dark' : 'bg-secondary' %> rounded-pill px-2"><%= e.role === 'owner' ? 'مدير حساب' : (e.role === 'accountant' ? 'محاسب' : 'موظف') %></span>
+                                                </div>
+
+                                                <div class="info-box">
+                                                    <span class="small text-muted fw-bold"><i class="fa-solid fa-layer-group me-1"></i> نوع الحساب</span>
+                                                    <span class="badge bg-info bg-opacity-10 text-info border border-info rounded-pill px-2"><%= e.accountTypeLabel %></span>
                                                 </div>
 
                                                 <div class="mt-auto pt-2">
-                                                    <form action="/employees/client/<%= e._id %>/toggle" method="POST" class="m-0" onsubmit="return confirm('تأكيد تعديل حالة الموظف؟');">
+                                                    <% if (typeof isMaster !== 'undefined' && isMaster) { %>
+                                                        <a href="/admin/accounts/<%= e.editType %>/<%= e._id %>/edit" class="btn-3d mb-2 text-decoration-none" style="color:#087f74; border:1px solid rgba(8,127,116,.35);">
+                                                            <i class="fa-solid fa-pen-to-square me-2"></i> تعديل بيانات الموظف
+                                                        </a>
+                                                    <% } %>
+                                                    <form action="/employees/<%= e.editType === 'agent-employee' ? 'agent' : 'client' %>/<%= e._id %>/toggle" method="POST" class="m-0" onsubmit="return confirm('تأكيد تعديل حالة الموظف؟');">
                                                         <button type="submit" class="btn-3d text-white" style="background: <%= e.status === 'active' ? '#ef4444' : '#10b981' %>; border: none;">
                                                             <i class="fa-solid <%= e.status === 'active' ? 'fa-ban' : 'fa-power-off' %> me-2"></i> <%= e.status === 'active' ? 'إيقاف وحظر الموظف' : 'تنشيط الحساب' %>
                                                         </button>

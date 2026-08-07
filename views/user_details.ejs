@@ -168,10 +168,17 @@
     <div class="container-fluid">
         <div class="d-flex justify-content-between align-items-center mb-4 client-detail-title">
             <h3 class="fw-bold m-0" style="color: var(--text-main);"><i class="fa-solid <%= isAgentAccount ? 'fa-user-tie text-warning' : 'fa-user-circle text-primary' %> me-2"></i> <%= isAgentAccount ? 'بيانات الوكيل' : 'بيانات العميل الفردي' %></h3>
-            <a href="/clients?section=<%= isAgentAccount ? 'agents' : 'users' %>" class="btn btn-secondary fw-bold rounded-pill shadow-sm px-4 btn-3d-hover"><i class="fa-solid fa-arrow-right me-2"></i> عودة للقائمة</a>
+            <div class="d-flex flex-wrap gap-2">
+                <% if (typeof isMaster !== 'undefined' && isMaster) { %>
+                    <a href="/admin/accounts/<%= isAgentAccount ? 'agent' : 'user' %>/<%= user._id %>/edit" class="btn btn-success fw-bold rounded-3 shadow-sm px-3 btn-3d-hover"><i class="fa-solid fa-pen-to-square me-1"></i> تعديل البيانات</a>
+                <% } %>
+                <a href="/clients?section=<%= isAgentAccount ? 'agents' : 'users' %>" class="btn btn-secondary fw-bold rounded-3 shadow-sm px-3 btn-3d-hover"><i class="fa-solid fa-arrow-right me-1"></i> عودة للقائمة</a>
+            </div>
         </div>
         <% if (query && query.codeSaved) { %>
             <div class="alert alert-success fw-bold rounded-4 shadow-sm"><i class="fa-solid fa-check-circle me-1"></i> تم حفظ ID الحساب بنجاح.</div>
+        <% } else if (query && query.profileUpdated) { %>
+            <div class="alert alert-success fw-bold rounded-4 shadow-sm"><i class="fa-solid fa-circle-check me-1"></i> تم تحديث بيانات الحساب وتسجيل التغيير في سجل التدقيق.</div>
         <% } else if (query && query.codeError) { %>
             <div class="alert alert-danger fw-bold rounded-4 shadow-sm"><i class="fa-solid fa-triangle-exclamation me-1"></i> لم يتم حفظ ID الحساب. تأكد من عدد الأرقام وعدم تكرار الرقم.</div>
         <% } %>

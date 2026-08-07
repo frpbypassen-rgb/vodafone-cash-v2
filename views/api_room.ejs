@@ -67,13 +67,22 @@
 <div class="main-content">
     <div class="container-fluid py-2" dir="rtl">
         
-        <div class="d-flex justify-content-between align-items-center mb-4">
+        <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-4">
             <div>
                 <h3 class="fw-bold mb-1"><i class="fa-solid fa-network-wired text-success me-2"></i> غرفة عمليات الـ API (الربط الآلي)</h3>
                 <p class="text-muted mb-0">مراقبة اتصال السيرفر مع شركة: <span class="text-sky fw-bold"><%= bot.name %></span></p>
             </div>
-            <a href="/executors" class="btn btn-outline-light rounded-pill px-4"><i class="fa-solid fa-arrow-right me-2"></i> عودة لإدارة التنفيذ</a>
+            <div class="d-flex gap-2 flex-wrap">
+                <% if (typeof isMaster !== 'undefined' && isMaster) { %>
+                    <a href="/admin/accounts/executor/<%= bot._id %>/edit" class="btn btn-primary rounded-pill px-4"><i class="fa-solid fa-pen-to-square me-2"></i> تعديل بيانات المنفذ</a>
+                <% } %>
+                <a href="/executors" class="btn btn-outline-light rounded-pill px-4"><i class="fa-solid fa-arrow-right me-2"></i> عودة لإدارة التنفيذ</a>
+            </div>
         </div>
+
+        <% if (typeof query !== 'undefined' && query.profileUpdated === '1') { %>
+            <div class="alert alert-success fw-bold"><i class="fa-solid fa-circle-check me-2"></i> تم تحديث بيانات المنفذ بنجاح.</div>
+        <% } %>
 
         <div class="row g-3 mb-4">
             <div class="col-6 col-xl">

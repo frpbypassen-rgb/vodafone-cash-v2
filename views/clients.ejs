@@ -484,6 +484,10 @@
             </div>
             <% if (query && query.codeSaved) { %>
                 <div class="alert alert-success fw-bold rounded-4 shadow-sm m-0"><i class="fa-solid fa-check-circle me-1"></i> تم حفظ ID الحساب بنجاح.</div>
+            <% } else if (query && query.profileUpdated) { %>
+                <div class="alert alert-success fw-bold rounded-4 shadow-sm m-0"><i class="fa-solid fa-circle-check me-1"></i> تم تحديث بيانات الحساب وتسجيل التغيير في سجل التدقيق.</div>
+            <% } else if (query && query.editError) { %>
+                <div class="alert alert-danger fw-bold rounded-4 shadow-sm m-0"><i class="fa-solid fa-triangle-exclamation me-1"></i> تعذر فتح محرر الحساب المطلوب.</div>
             <% } else if (query && query.codeError) { %>
                 <div class="alert alert-danger fw-bold rounded-4 shadow-sm m-0"><i class="fa-solid fa-triangle-exclamation me-1"></i> لم يتم حفظ ID الحساب. تأكد من عدد الأرقام وعدم تكرار الرقم.</div>
             <% } else if (query && query.deleted) { %>
@@ -597,6 +601,11 @@
                                         <a href="/user/<%= u._id %>" class="btn-3d user-btn">
                                             <i class="fa-solid fa-folder-open me-2"></i> إدارة ملف العميل
                                         </a>
+                                        <% if (typeof isMaster !== 'undefined' && isMaster) { %>
+                                            <a href="/admin/accounts/user/<%= u._id %>/edit" class="btn-3d" style="color:#087f74; border-color:rgba(8,127,116,.35);">
+                                                <i class="fa-solid fa-pen-to-square me-2"></i> تعديل بيانات العميل
+                                            </a>
+                                        <% } %>
                                         <form action="/user/<%= u._id %>/delete" method="POST" class="delete-account-form" onsubmit="return confirm('هل أنت متأكد من حذف هذا الحساب؟ سيتم إيقاف الدخول وإخفاؤه من القائمة مع حفظ العمليات السابقة.');">
                                             <button type="submit" class="btn-3d btn-delete-account">
                                                 <i class="fa-solid fa-trash-can me-2"></i> حذف الحساب
@@ -665,6 +674,11 @@
                                         <a href="/company/<%= c._id %>" class="btn-3d company-btn">
                                             <i class="fa-solid fa-folder-open me-2"></i> إدارة ملف الشركة
                                         </a>
+                                        <% if (typeof isMaster !== 'undefined' && isMaster) { %>
+                                            <a href="/admin/accounts/company/<%= c._id %>/edit" class="btn-3d" style="color:#087f74; border-color:rgba(8,127,116,.35);">
+                                                <i class="fa-solid fa-pen-to-square me-2"></i> تعديل بيانات الشركة
+                                            </a>
+                                        <% } %>
                                         <form action="/company/<%= c._id %>/delete" method="POST" class="delete-account-form" onsubmit="return confirm('هل أنت متأكد من حذف هذه الشركة؟ سيتم إيقاف دخول موظفيها وإخفاؤها من القائمة مع حفظ العمليات السابقة.');">
                                             <button type="submit" class="btn-3d btn-delete-account">
                                                 <i class="fa-solid fa-trash-can me-2"></i> حذف الحساب
@@ -733,6 +747,11 @@
                                         <a href="/user/<%= agent._id %>" class="btn-3d agent-btn">
                                             <i class="fa-solid fa-folder-open me-2"></i> إدارة ملف الوكيل
                                         </a>
+                                        <% if (typeof isMaster !== 'undefined' && isMaster) { %>
+                                            <a href="/admin/accounts/agent/<%= agent._id %>/edit" class="btn-3d" style="color:#087f74; border-color:rgba(8,127,116,.35);">
+                                                <i class="fa-solid fa-pen-to-square me-2"></i> تعديل بيانات الوكيل
+                                            </a>
+                                        <% } %>
                                         <form action="/user/<%= agent._id %>/delete" method="POST" class="delete-account-form" onsubmit="return confirm('هل أنت متأكد من حذف هذا الوكيل؟ سيتم إيقاف الحساب والعملاء التابعين له مع حفظ العمليات السابقة.');">
                                             <button type="submit" class="btn-3d btn-delete-account">
                                                 <i class="fa-solid fa-trash-can me-2"></i> حذف الحساب
@@ -810,6 +829,11 @@
                                     </div>
 
                                     <div class="client-actions">
+                                        <% if (typeof isMaster !== 'undefined' && isMaster) { %>
+                                            <a href="/admin/accounts/subaccount/<%= sub._id %>/edit" class="btn-3d" style="color:#087f74; border-color:rgba(8,127,116,.35);">
+                                                <i class="fa-solid fa-pen-to-square me-2"></i> تعديل بيانات الحساب
+                                            </a>
+                                        <% } %>
                                         <% if (sub.masterType === 'user') { %>
                                             <a href="/user/<%= sub.masterId %>" class="btn-3d subaccount-btn">
                                                 <i class="fa-solid fa-user-tie me-2"></i> ملف الوكيل الرئيسي

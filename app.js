@@ -295,6 +295,7 @@ app.use('/', require('./routes/adminTransactions'));
 app.use('/', require('./routes/financialMovements'));
 app.use('/', require('./routes/executors'));
 app.use('/', require('./routes/clients'));
+app.use('/', require('./routes/adminAccounts'));
 app.use('/settings', require('./routes/settings'));
 app.use('/', require('./routes/employees'));
 app.use('/', require('./routes/broadcast'));

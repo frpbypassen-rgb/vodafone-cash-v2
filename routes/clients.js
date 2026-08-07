@@ -162,7 +162,11 @@ router.get('/clients', requireAuth, async (req, res) => {
             { User, ClientCompany, SubAccount },
             req.query
         );
-        res.render('clients', { ...directory, query: req.query });
+        res.render('clients', {
+            ...directory,
+            query: req.query,
+            isMaster: req.session.adminRole === 'master'
+        });
     } catch (e) {
         console.error('[clients] خطأ في جلب بيانات العملاء:', e.message);
         res.status(500).send('خطأ داخلي في الخادم');
@@ -175,7 +179,14 @@ router.get('/user/:id', requireAuth, async (req, res) => {
     const transactions = await Transaction.find({ userId: user.phone || user.webUsername, companyId: null }).sort({ createdAt: -1 }).limit(50);
     const reversibleSettlements = await reversibleSettlementIds({ transactions, entityModel: 'User', entityId: user._id });
     const hasSubAccounts = await SubAccount.exists({ masterType: 'user', masterId: user._id, ...visibleAccountFilter });
-    res.render('user_details', { user, transactions, reversibleSettlements, accountCodeLength: expectedUserCodeLength(user, Boolean(hasSubAccounts)), query: req.query });
+    res.render('user_details', {
+        user,
+        transactions,
+        reversibleSettlements,
+        accountCodeLength: expectedUserCodeLength(user, Boolean(hasSubAccounts)),
+        query: req.query,
+        isMaster: req.session.adminRole === 'master'
+    });
 });
 
 router.get('/company/:id', requireAuth, async (req, res) => {
@@ -193,7 +204,8 @@ router.get('/company/:id', requireAuth, async (req, res) => {
         accountCodeLength: CODE_LENGTHS.company,
         rateServices: getAdminRateServices(),
         companyRateConfig: getCompanyRateConfig(company, settings || {}),
-        query: req.query
+        query: req.query,
+        isMaster: req.session.adminRole === 'master'
     });
 });
 

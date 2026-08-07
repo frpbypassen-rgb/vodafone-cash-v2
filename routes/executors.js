@@ -336,11 +336,19 @@ router.get('/executor/:id', requireAuth, async (req, res) => {
                 stats,
                 managerBots,
                 adminName: req.session.adminName,
+                isMaster: req.session.adminRole === 'master',
                 query: req.query
             });
         }
 
-        res.render('executor_details', { bot, transactions, managerBots, adminName: req.session.adminName });
+        res.render('executor_details', {
+            bot,
+            transactions,
+            managerBots,
+            adminName: req.session.adminName,
+            isMaster: req.session.adminRole === 'master',
+            query: req.query
+        });
     } catch (e) { res.redirect('/executors'); }
 });
 
