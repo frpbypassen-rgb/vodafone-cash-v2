@@ -5,6 +5,8 @@ const ExecutorGroup = require('../models/ExecutorGroup');
 const { updateBalanceWithLedger } = require('./walletService');
 const eventBus = require('./eventBus');
 const logger = require('../utils/logger');
+const { generateExecutorReceiptBase64 } = require('../utils/manualExecutorReceipt');
+const { saveProofImage } = require('./proofStorageService');
 
 const DEFAULT_API_COMPLETION_DELAY_MS = 25000;
 const MONITOR_INTERVAL_MS = 5000;
@@ -53,6 +55,64 @@ const resolveApiReferenceNumber = (apiResult = {}) => {
     return String(referenceNumber || '').trim();
 };
 
+const uniqueProofIds = (values = []) => {
+    const seen = new Set();
+    return values.reduce((result, value) => {
+        const proofId = String(value || '').trim();
+        if (proofId && !seen.has(proofId)) {
+            seen.add(proofId);
+            result.push(proofId);
+        }
+        return result;
+    }, []);
+};
+
+const createApiExecutorReceiptProof = ({ tx, apiResult = {}, completedAt = new Date() }) => {
+    const existingReceipt = tx.apiResultData?.executorReceiptProof;
+    if (existingReceipt) return existingReceipt;
+
+    const referenceNumber = resolveApiReferenceNumber(apiResult)
+        || String(tx.apiResultData?.referenceNumber || '').trim();
+    const providerTransactionId = String(
+        apiResult.external_transaction_id
+        || apiResult.provider_transaction_id
+        || tx.apiResultData?.externalTransactionId
+        || tx.apiResultData?.providerTransactionId
+        || referenceNumber
+        || ''
+    ).trim();
+    if (!referenceNumber && !providerTransactionId) return null;
+
+    const receiptBase64 = generateExecutorReceiptBase64({
+        amount: tx.amount,
+        customerPhone: tx.vodafoneNumber || tx.accountNumber || tx.serviceDetails?.clientPhone || '---',
+        executionNumber: referenceNumber || providerTransactionId,
+        executorReference: providerTransactionId || referenceNumber,
+        executionReferenceLabel: 'مرجع تنفيذ API',
+        customId: tx.customId || tx._id?.toString?.() || '---',
+        serviceName: 'محافظ كاش',
+        completedAt
+    });
+    return saveProofImage(receiptBase64, `${tx.customId || tx._id || 'api'}_api_execution`);
+};
+
+const attachApiReceiptProofs = ({ tx, systemReceiptProof, providerReceiptProof }) => {
+    const existingImages = Array.isArray(tx.proofImages) ? tx.proofImages : [];
+    const proofs = uniqueProofIds([
+        systemReceiptProof,
+        providerReceiptProof,
+        ...existingImages,
+        tx.proofImage
+    ]);
+    if (!proofs.length) return;
+
+    tx.proofImage = systemReceiptProof || proofs[0];
+    tx.proofImages = proofs;
+    if (typeof tx.set === 'function') {
+        tx.set('localProofImage', tx.proofImage, { strict: false });
+    }
+};
+
 const prepareApiTransactionForDelayedCompletion = ({
     tx,
     executorGroup,
@@ -83,13 +143,7 @@ const prepareApiTransactionForDelayedCompletion = ({
     );
     if (detailedLog) appendAdminNote(tx, detailedLog);
 
-    if (receiptProof) {
-        tx.proofImage = receiptProof;
-        tx.proofImages = [receiptProof];
-        if (typeof tx.set === 'function') {
-            tx.set('localProofImage', receiptProof, { strict: false });
-        }
-    }
+    if (receiptProof) attachApiReceiptProofs({ tx, providerReceiptProof: receiptProof });
 
     tx.apiResultData = {
         ...(tx.apiResultData || {}),
@@ -98,7 +152,8 @@ const prepareApiTransactionForDelayedCompletion = ({
         referenceNumber,
         externalTransactionId: apiResult.external_transaction_id || null,
         providerTransactionId: apiResult.provider_transaction_id || null,
-        completionDelayMs: delayMs
+        completionDelayMs: delayMs,
+        apiProviderReceiptProof: receiptProof || tx.apiResultData?.apiProviderReceiptProof || null
     };
 
     return { referenceNumber, autoCompleteAt, delayMs };
@@ -136,11 +191,13 @@ const completeApiTransactionWithReference = async ({
         });
     }
 
+    const completedAt = new Date();
     tx.status = 'completed';
     tx.executorGroupId = executorGroup._id;
     tx.managerGroupId = getParentGroupId(executorGroup);
     tx.executorName = 'تنفيذ آلي (API)';
     tx.executorSenderPhone = referenceNumber;
+    tx.completedAt = completedAt;
 
     appendCustomerReference(tx, 'الرقم المرجعي', referenceNumber);
     if (apiResult.external_transaction_id && apiResult.external_transaction_id !== referenceNumber) {
@@ -153,12 +210,18 @@ const completeApiTransactionWithReference = async ({
     );
     if (detailedLog) appendAdminNote(tx, detailedLog);
 
-    if (receiptProof) {
-        tx.proofImage = receiptProof;
-        tx.proofImages = [receiptProof];
-        if (typeof tx.set === 'function') {
-            tx.set('localProofImage', receiptProof, { strict: false });
-        }
+    let systemReceiptProof = null;
+    try {
+        systemReceiptProof = createApiExecutorReceiptProof({ tx, apiResult, completedAt });
+        attachApiReceiptProofs({ tx, systemReceiptProof, providerReceiptProof: receiptProof });
+    } catch (receiptError) {
+        appendAdminNote(tx, `[تعذر توليد الإيصال النظامي لتنفيذ API: ${receiptError.message}]`);
+        logger.error('API executor receipt generation failed', {
+            txId: tx.customId,
+            executorGroupId: String(executorGroup._id),
+            error: receiptError.message
+        });
+        if (receiptProof) attachApiReceiptProofs({ tx, providerReceiptProof: receiptProof });
     }
 
     tx.apiResultData = {
@@ -168,10 +231,12 @@ const completeApiTransactionWithReference = async ({
         referenceNumber,
         externalTransactionId: apiResult.external_transaction_id || null,
         providerTransactionId: apiResult.provider_transaction_id || null,
-        completedAt: new Date(),
+        completedAt,
         completionMode: 'immediate_reference',
         ledgerPosted: Boolean(ledgerResult),
-        ledgerError: ledgerError ? ledgerError.message : null
+        ledgerError: ledgerError ? ledgerError.message : null,
+        executorReceiptProof: systemReceiptProof || tx.apiResultData?.executorReceiptProof || null,
+        apiProviderReceiptProof: receiptProof || tx.apiResultData?.apiProviderReceiptProof || null
     };
 
     return {
@@ -225,12 +290,39 @@ const completeApiTransaction = async (txId, executorGroupId) => {
         return { completed: false, reason: 'balance_update_failed' };
     }
 
+    const completedAt = new Date();
     tx.status = 'completed';
     tx.executorName = 'تنفيذ آلي (API)';
+    tx.completedAt = completedAt;
+    let systemReceiptProof = null;
+    try {
+        systemReceiptProof = createApiExecutorReceiptProof({
+            tx,
+            apiResult: {
+                reference_number: tx.apiResultData?.referenceNumber,
+                external_transaction_id: tx.apiResultData?.externalTransactionId,
+                provider_transaction_id: tx.apiResultData?.providerTransactionId
+            },
+            completedAt
+        });
+        attachApiReceiptProofs({
+            tx,
+            systemReceiptProof,
+            providerReceiptProof: tx.apiResultData?.apiProviderReceiptProof
+        });
+    } catch (receiptError) {
+        appendAdminNote(tx, `[تعذر توليد الإيصال النظامي لتنفيذ API: ${receiptError.message}]`);
+        logger.error('Delayed API executor receipt generation failed', {
+            txId: tx.customId,
+            executorGroupId: String(executorGroup._id),
+            error: receiptError.message
+        });
+    }
     tx.apiResultData = {
         ...(tx.apiResultData || {}),
         waitingApiAutoCompletion: false,
-        completedAt: new Date()
+        completedAt,
+        executorReceiptProof: systemReceiptProof || tx.apiResultData?.executorReceiptProof || null
     };
     appendAdminNote(tx, `[تم اعتماد نجاح API بعد انتظار ${Math.round(getApiCompletionDelayMs() / 1000)} ثانية]`);
     await tx.save();
@@ -298,6 +390,8 @@ module.exports = {
     DEFAULT_API_COMPLETION_DELAY_MS,
     getApiCompletionDelayMs,
     resolveApiReferenceNumber,
+    createApiExecutorReceiptProof,
+    attachApiReceiptProofs,
     completeApiTransactionWithReference,
     prepareApiTransactionForDelayedCompletion,
     scheduleApiCompletion,

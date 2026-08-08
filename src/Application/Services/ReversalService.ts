@@ -157,6 +157,28 @@ export class ReversalService {
         return cleanCurrent ? `${cleanCurrent}\n${cleanNote}` : cleanNote;
     }
 
+    private async attachCancellationReceiptSafely(
+        tx: any,
+        reason: string,
+        performedBy: string,
+        cancellationNumber: string,
+        cancelledAt: Date
+    ): Promise<void> {
+        try {
+            const { attachCancellationReceipt } = require('../../../services/cancellationReceiptService');
+            await attachCancellationReceipt(tx?._id || tx, {
+                reason,
+                performedBy,
+                cancellationNumber,
+                cancelledAt
+            });
+        } catch (error: any) {
+            logger.error(`Failed to generate cancellation receipt for ${tx?.customId || tx?._id || 'transaction'}`, {
+                error: error.message
+            });
+        }
+    }
+
     private async nextSequence(entityId: any, session?: any): Promise<number> {
         const lastEvent = await this.withSession(
             JournalEvent.findOne({ entityId }).sort({ sequenceNumber: -1 }),
@@ -389,7 +411,9 @@ export class ReversalService {
             standaloneCompensations = [];
 
             const freshTx = await TransactionModel.findById(tx._id).catch(() => null);
-            eventBus.publish('transfer:cancelled', { tx: freshTx || tx, reason, cancellationNumber });
+            const receiptTx = freshTx || tx;
+            await this.attachCancellationReceiptSafely(receiptTx, reason, performedBy, cancellationNumber, cancelledAt);
+            eventBus.publish('transfer:cancelled', { tx: receiptTx, reason, cancellationNumber });
             logger.info(`Transaction ${tx.customId} reversed without Mongo transaction by ${performedBy} with cancellation ${cancellationNumber}`);
             return { success: true, message: 'تم إلغاء العملية واسترداد الرصيد بنجاح', cancellationNumber };
         } catch (error: any) {
@@ -654,6 +678,8 @@ export class ReversalService {
 
             await session.commitTransaction();
             session.endSession();
+
+            await this.attachCancellationReceiptSafely(tx, reason, performedBy, cancellationNumber, cancelledAt);
 
             // نشر الأحداث للمنظومة
             eventBus.publish('transfer:cancelled', { tx, reason, cancellationNumber });

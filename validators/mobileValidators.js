@@ -204,8 +204,12 @@ const cancelTaskValidator = [
 // â”€â”€ Ø¥ØªÙ…Ø§Ù… Ù…Ù‡Ù…Ø© â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const completeTaskValidator = [
     body('imageBase64')
-        .notEmpty().withMessage('ØµÙˆØ±Ø© Ø§Ù„Ø¥Ø«Ø¨Ø§Øª Ù…Ø·Ù„ÙˆØ¨Ø©')
+        .optional({ checkFalsy: true })
         .isString().withMessage('ØµÙˆØ±Ø© Ø§Ù„Ø¥Ø«Ø¨Ø§Øª ÙŠØ¬Ø¨ Ø£Ù† ØªÙƒÙˆÙ† Ù†Øµ Base64'),
+    body('executionNumber')
+        .optional()
+        .trim()
+        .isLength({ min: 3, max: 20 }).withMessage('رقم التنفيذ غير صالح'),
     body('senderPhone')
         .optional()
         .trim()

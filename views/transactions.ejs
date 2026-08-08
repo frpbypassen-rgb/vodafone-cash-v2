@@ -262,8 +262,9 @@
             });
         }
 
-        if (tx.executorSenderPhone && !customerLines.some(line => line.includes(tx.executorSenderPhone))) {
-            customerLines.push(`[رقم المرسل: ${tx.executorSenderPhone}]`);
+        const executionNumberForView = tx.executorExecutionNumberMasked || tx.executorSenderPhone;
+        if (executionNumberForView && !systemParts.some(line => line.includes(executionNumberForView))) {
+            systemParts.push(`[رقم التنفيذ: ${executionNumberForView}]`);
         }
         if (tx.adminNotes) systemParts.push(String(tx.adminNotes).trim());
 
@@ -994,8 +995,9 @@
             });
         }
 
-        if (tx.executorSenderPhone && !customerLines.some((line) => line.includes(tx.executorSenderPhone))) {
-            customerLines.push(`[رقم المرسل: ${tx.executorSenderPhone}]`);
+        const executionNumberForView = tx.executorExecutionNumberMasked || tx.executorSenderPhone;
+        if (executionNumberForView && !systemParts.some((line) => line.includes(executionNumberForView))) {
+            systemParts.push(`[رقم التنفيذ: ${executionNumberForView}]`);
         }
         if (tx.adminNotes) systemParts.push(String(tx.adminNotes).trim());
         if (tx.cancellationReason) systemParts.push(`[سبب الإلغاء: ${tx.cancellationReason}]`);

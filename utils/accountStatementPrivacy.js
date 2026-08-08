@@ -12,6 +12,8 @@ const EXECUTOR_PRIVATE_FIELDS = Object.freeze([
     'operatorName',
     'executorName',
     'executorSenderPhone',
+    'executorExecutionNumberMasked',
+    'manualExecutorReceiptReference',
     'executorBotId',
     'parentGroupId',
     'parentBotId',

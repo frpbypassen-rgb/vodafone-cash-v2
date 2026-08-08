@@ -27,6 +27,10 @@ const {
     getExecutorSupportedTransferTypes,
     normalizeExecutorServiceKey
 } = require('../utils/executorServiceCatalog');
+const {
+    ManualExecutorReceiptReferenceError,
+    normalizeManualExecutorReceiptPrefix
+} = require('../services/manualExecutorReceiptReferenceService');
 
 const normalizeText = (value) => String(value || '').trim();
 const parseNumberOrDefault = (value, fallback) => {
@@ -101,6 +105,7 @@ router.post('/executors/add', requireAuth, requireMaster, async (req, res) => {
             groupData: {
                 name,
                 serviceKey: body.serviceKey,
+                manualReceiptPrefix: body.manualReceiptPrefix,
                 status: normalizeText(body.status) || 'active',
                 isManagerGroup: isManagerBot,
                 isManagerBot,
@@ -148,7 +153,9 @@ router.post('/executors/add', requireAuth, requireMaster, async (req, res) => {
         return res.redirect('/executors?created=1');
     } catch (e) {
         console.error('[executors/add] failed:', e.stack || e.message);
-        const errorCode = e instanceof ExecutorAccountError ? e.code : 'CREATE_FAILED';
+        const errorCode = e instanceof ExecutorAccountError || e instanceof ManualExecutorReceiptReferenceError
+            ? e.code
+            : (e.code || 'CREATE_FAILED');
         return res.redirect(`/executors?createError=${encodeURIComponent(errorCode)}&openCreate=1`);
     }
 });
@@ -576,6 +583,47 @@ router.post('/executor/:id/settle', requireAuth, async (req, res) => {
         }
         res.redirect(`/executor/${bot._id}`);
     } catch (e) { res.redirect('/executors'); }
+});
+
+router.post('/executor/:id/receipt-prefix', requireAuth, requireMaster, async (req, res) => {
+    try {
+        const bot = await ExecutorGroup.findById(req.params.id);
+        if (!bot || bot.status === 'archived' || bot.isApiBot) {
+            return res.redirect('/executors?receiptPrefixError=NOT_AVAILABLE');
+        }
+
+        const prefix = normalizeManualExecutorReceiptPrefix(req.body?.manualReceiptPrefix);
+        const alreadyUsed = await ExecutorGroup.exists({
+            _id: { $ne: bot._id },
+            manualReceiptPrefix: prefix
+        });
+        if (alreadyUsed) {
+            return res.redirect(`/executor/${bot._id}?receiptPrefixError=TAKEN`);
+        }
+
+        const previousPrefix = bot.manualReceiptPrefix || '';
+        bot.manualReceiptPrefix = prefix;
+        await bot.save();
+        await logAction({
+            action: 'EXECUTOR_RECEIPT_PREFIX_UPDATED',
+            req,
+            performedById: req.session.adminId,
+            performedByModel: 'Admin',
+            performedByName: req.session.adminName || 'الإدارة',
+            targetId: bot._id,
+            targetModel: 'ExecutorGroup',
+            oldData: { manualReceiptPrefix: previousPrefix },
+            newData: { manualReceiptPrefix: prefix },
+            metadata: { executorName: bot.name }
+        }).catch(() => {});
+
+        return res.redirect(`/executor/${bot._id}?receiptPrefixUpdated=1`);
+    } catch (error) {
+        const code = error instanceof ManualExecutorReceiptReferenceError
+            ? 'INVALID'
+            : 'UPDATE_FAILED';
+        return res.redirect(`/executor/${req.params.id}?receiptPrefixError=${code}`);
+    }
 });
 
 router.post('/executor/:id/link-manager', requireAuth, async (req, res) => {

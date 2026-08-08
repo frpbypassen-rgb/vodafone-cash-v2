@@ -572,6 +572,11 @@
                             <label class="form-label fw-bold small text-muted">الرصيد الافتتاحي</label>
                             <input type="number" step="any" name="balance" class="form-control fw-bold text-center" value="0" dir="ltr">
                         </div>
+                        <div class="col-md-3" id="manualReceiptPrefixField">
+                            <label class="form-label fw-bold small text-muted">رمز مرجع الإيصال</label>
+                            <input type="text" id="manualReceiptPrefixInput" name="manualReceiptPrefix" class="form-control fw-bold text-center" placeholder="مثال: 999" inputmode="numeric" pattern="\d{3}" maxlength="3" dir="ltr">
+                            <div class="form-text">3 أرقام، ويُولد تلقائياً عند تركه فارغاً.</div>
+                        </div>
 
                         <div class="col-12" id="humanLoginFields">
                             <div class="p-3 rounded-4 border" style="background: var(--input-bg); border-color: var(--border-glass) !important;">
@@ -680,10 +685,14 @@
         const typeField = document.getElementById('botType');
         const apiFields = document.getElementById('apiFields');
         const humanFields = document.getElementById('humanLoginFields');
+        const receiptPrefixField = document.getElementById('manualReceiptPrefixField');
+        const receiptPrefixInput = document.getElementById('manualReceiptPrefixInput');
         if (!typeField || !apiFields || !humanFields) return;
         const isApi = typeField.value === 'api';
         apiFields.classList.toggle('d-none', !isApi);
         humanFields.classList.toggle('d-none', isApi);
+        receiptPrefixField?.classList.toggle('d-none', isApi);
+        if (receiptPrefixInput) receiptPrefixInput.disabled = isApi;
         humanFields.querySelectorAll('.human-required').forEach((input) => {
             input.required = !isApi;
             input.disabled = isApi;

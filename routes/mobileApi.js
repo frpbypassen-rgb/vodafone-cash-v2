@@ -67,6 +67,13 @@ const {
 const { sendMobileError, mobileErrorHandler } = require('../mappers/mobileErrorMapper');
 const { checkRegistrationIdentityAvailability } = require('../services/registrationIdentityService');
 const { customerNoteFromTransaction } = require('../utils/transactionNotes');
+const {
+    ManualExecutionNumberError,
+    maskManualExecutionNumber,
+    generateManualExecutorReceiptBase64
+} = require('../utils/manualExecutorReceipt');
+const { reserveManualExecutorReceiptReference } = require('../services/manualExecutorReceiptReferenceService');
+const { attachCancellationReceipt } = require('../services/cancellationReceiptService');
 
 const router = express.Router();
 
@@ -1068,12 +1075,27 @@ router.post('/executor/cancel-task/:id', authenticateJWT, cancelTaskValidator, a
         });
         await ledgerEntry.save({ session });
 
+        const cancelledAt = new Date();
         tx.status = 'rejected';
+        tx.cancellationReason = reason;
+        tx.cancelledBy = emp.name || 'المنفذ';
+        tx.cancelledAt = cancelledAt;
         tx.adminNotes = appendAdminNoteText(tx.adminNotes, `[تم الإلغاء | المنفذ: ${emp.name} | السبب: ${reason}]`);
         await tx.save({ session });
 
         await session.commitTransaction();
         session.endSession();
+
+        try {
+            await attachCancellationReceipt(tx._id, {
+                reason,
+                performedBy: emp.name || 'المنفذ',
+                cancelledAt
+            });
+        } catch (receiptError) {
+            tx.adminNotes = appendAdminNoteText(tx.adminNotes, `[تعذر توليد إيصال الإلغاء: ${receiptError.message}]`);
+            await tx.save();
+        }
 
         await logAction({
             action: 'TRANSFER_CANCELLED',
@@ -1146,13 +1168,20 @@ router.post('/executor/cancel-task/:id', authenticateJWT, cancelTaskValidator, a
  */
 router.post('/executor/complete-task/:id', authenticateJWT, completeTaskValidator, async (req, res) => {
     try {
-        const { imageBase64, senderPhone } = req.body;
+        const { imageBase64, executionNumber: requestedExecutionNumber, senderPhone } = req.body;
+        const executionNumber = String(requestedExecutionNumber ?? senderPhone ?? '').trim();
         const { userId, accountType } = req.user;
         if (accountType !== 'executor') {
             return sendMobileError(res, 403, 'FORBIDDEN', 'صلاحيات غير كافية', req.correlationId);
         }
-        if (!imageBase64) {
-            return sendMobileError(res, 400, 'MALFORMED_IMAGE', 'يرجى إرفاق صورة الإثبات', req.correlationId);
+        let maskedExecutionNumber = '';
+        try {
+            maskedExecutionNumber = maskManualExecutionNumber(executionNumber);
+        } catch (error) {
+            if (error instanceof ManualExecutionNumberError) {
+                return sendMobileError(res, 400, error.code, error.message, req.correlationId);
+            }
+            throw error;
         }
 
         let tx;
@@ -1171,6 +1200,19 @@ router.post('/executor/complete-task/:id', authenticateJWT, completeTaskValidato
             return sendMobileError(res, 409, 'INVALID_STATE', 'الطلب غير متاح للإنهاء', req.correlationId);
         }
 
+        const executorReceipt = await reserveManualExecutorReceiptReference({ group: emp.groupId });
+        const completedAt = new Date();
+        const receiptBase64 = await generateManualExecutorReceiptBase64({
+            amount: tx.amount,
+            customerPhone: tx.vodafoneNumber || tx.accountNumber || tx.serviceDetails?.clientPhone || '---',
+            executionNumber: maskedExecutionNumber,
+            customId: tx.customId || tx._id.toString(),
+            executorReference: executorReceipt.reference,
+            serviceName: 'محافظ كاش',
+            completedAt
+        });
+        const systemReceiptId = saveProofImage(receiptBase64, `${tx.customId || tx._id}_manual`);
+
         if (emp.groupId && emp.groupId.parentGroupId) {
             await ExecutorGroup.findByIdAndUpdate(emp.groupId.parentGroupId, { $inc: { balance: -tx.amount } });
         }
@@ -1178,13 +1220,18 @@ router.post('/executor/complete-task/:id', authenticateJWT, completeTaskValidato
             await ExecutorGroup.findByIdAndUpdate(emp.groupId._id, { $inc: { balance: -tx.amount } });
         }
 
-        const savedFileId = saveProofImage(imageBase64, tx.customId || tx._id);
+        const savedFileId = imageBase64
+            ? saveProofImage(imageBase64, `${tx.customId || tx._id}_executor`)
+            : null;
 
         tx.status = 'completed';
-        tx.proofImage = savedFileId;
-        tx.proofImages = Array.isArray(tx.proofImages) ? tx.proofImages : [];
-        tx.proofImages.push(savedFileId);
-        if (senderPhone) tx.executorSenderPhone = senderPhone;
+        tx.proofImage = systemReceiptId;
+        tx.proofImages = [systemReceiptId, savedFileId].filter(Boolean);
+        tx.executorSenderPhone = executionNumber || undefined;
+        tx.executorExecutionNumberMasked = maskedExecutionNumber || undefined;
+        tx.manualExecutorReceiptReference = executorReceipt.reference;
+        tx.completedAt = completedAt;
+        tx.adminNotes = appendAdminNoteText(tx.adminNotes, `[تم توليد إيصال تنفيذ يدوي | مرجع المنفذ: ${executorReceipt.reference}]`);
         await tx.save();
 
         await logAction({
@@ -1196,7 +1243,12 @@ router.post('/executor/complete-task/:id', authenticateJWT, completeTaskValidato
             targetId: tx._id,
             targetModel: 'Transaction',
             oldData: { status: 'accepted' },
-            newData: { status: 'completed', hasProofImage: Boolean(savedFileId), senderPhone: senderPhone || null },
+            newData: {
+                status: 'completed',
+                hasProofImage: true,
+                manualExecutorReceiptReference: executorReceipt.reference,
+                executorExecutionNumberMasked: maskedExecutionNumber || null
+            },
             metadata: { customId: tx.customId, amount: tx.amount, transferType: tx.transferType }
         });
 

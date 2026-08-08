@@ -27,6 +27,14 @@ jest.mock('../services/eventBus', () => ({
     publish: jest.fn()
 }));
 
+jest.mock('../utils/manualExecutorReceipt', () => ({
+    generateExecutorReceiptBase64: jest.fn(() => 'data:image/jpeg;base64,cmVjZWlwdA==')
+}));
+
+jest.mock('../services/proofStorageService', () => ({
+    saveProofImage: jest.fn(() => 'proofs/system-api-receipt.jpg')
+}));
+
 jest.mock('../utils/logger', () => ({
     info: jest.fn(),
     financial: jest.fn(),
@@ -108,8 +116,11 @@ describe('queueService API execution', () => {
         expect(tx.status).toBe('completed');
         expect(tx.executorName).toBe('تنفيذ آلي (API)');
         expect(tx.executorSenderPhone).toBe('28059087');
-        expect(tx.proofImage).toBe('proofs/ATT-2608-0001_api.jpg');
-        expect(tx.proofImages).toEqual(['proofs/ATT-2608-0001_api.jpg']);
+        expect(tx.proofImage).toBe('proofs/system-api-receipt.jpg');
+        expect(tx.proofImages).toEqual([
+            'proofs/system-api-receipt.jpg',
+            'proofs/ATT-2608-0001_api.jpg'
+        ]);
         expect(tx.notes).toContain('[الرقم المرجعي: 28059087]');
         expect(tx.notes).toContain('[رقم عملية المزود: 50011611]');
         expect(tx.apiResultData).toMatchObject({

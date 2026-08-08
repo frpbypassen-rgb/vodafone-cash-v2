@@ -7,6 +7,7 @@ const ExecutorGroup = require('../models/ExecutorGroup');
 const Transaction = require('../models/Transaction');
 const { escapeRegex } = require('../utils/helpers');
 const { normalizeExecutorServiceKey } = require('../utils/executorServiceCatalog');
+const { reserveManualExecutorReceiptPrefix } = require('./manualExecutorReceiptReferenceService');
 
 class ExecutorAccountError extends Error {
     constructor(code, message) {
@@ -99,7 +100,10 @@ const createExecutorAccount = async ({ groupData, managerData, openingBalance = 
     let openingTransaction = null;
 
     try {
-        group = await ExecutorGroup.create({ ...groupData, name, serviceKey });
+        const manualReceiptPrefix = isApiBot
+            ? undefined
+            : await reserveManualExecutorReceiptPrefix(groupData?.manualReceiptPrefix);
+        group = await ExecutorGroup.create({ ...groupData, name, serviceKey, manualReceiptPrefix });
 
         if (preparedManager) {
             employee = await Employee.create({

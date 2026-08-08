@@ -25,6 +25,7 @@ const { acquireLock, releaseLock } = require('./lockService');
 const { sanitizeStatementTransaction } = require('../utils/accountStatementPrivacy');
 const { pricingFromTransaction, roundMoney } = require('../utils/agencyPricing');
 const { recordTransferRepricing } = require('./agencyJournalService');
+const { generateExecutorReceiptBase64 } = require('../utils/manualExecutorReceipt');
 
 const appendNoteText = (current, note) => {
     const cleanNote = String(note || '').trim();
@@ -831,19 +832,19 @@ async function executeZaynPayIdempotent({ executorId, taskId, req }) {
             throw new Error(paymentRes.error || 'ZaynPay payment failed');
         }
 
-        // Generate receipt
-        const { generateReceiptBase64 } = require('../utils/receiptGenerator');
-        const trimmedWallet = walletNumber.trim();
-        const maskedPhone = trimmedWallet.length > 8
-            ? trimmedWallet.substring(0, 4) + '****' + trimmedWallet.substring(trimmedWallet.length - 3)
-            : '****';
-        const receiptBase64 = await generateReceiptBase64({
+        // Generate the standard Power Pay receipt for API executions as well.
+        const completedAt = new Date();
+        const apiReference = paymentRes.refNumber || paymentRes.transactionNumber || tx.customId || tx._id.toString();
+        const receiptBase64 = await generateExecutorReceiptBase64({
             amount: tx.amount,
-            walletNumber: walletNumber,
-            senderPhone: maskedPhone,
+            customerPhone: walletNumber,
+            executionNumber: apiReference,
+            executorReference: paymentRes.transactionNumber || apiReference,
+            executionReferenceLabel: 'مرجع تنفيذ API',
+            executionNumberLabel: 'رقم تنفيذ API',
             customId: tx.customId || tx._id.toString().slice(-6),
-            accountName: tx.companyName || tx.employeeName || 'غير محدد',
-            date: new Date().toLocaleDateString('en-GB', { timeZone: 'Africa/Tripoli' })
+            serviceName: 'محافظ كاش',
+            completedAt
         });
 
         const buffers = [Buffer.from(receiptBase64.replace(/^data:image\/\w+;base64,/, ""), 'base64')];
@@ -885,7 +886,7 @@ async function executeZaynPayIdempotent({ executorId, taskId, req }) {
             appendCustomerReference(tx, 'الرقم المرجعي', paymentRes.refNumber);
             appendCustomerReference(tx, 'رقم العملية الخارجي', paymentRes.transactionNumber);
             appendAdminNote(tx, `[ZaynPay Auto-Executed | Ref: ${paymentRes.refNumber} | TxNo: ${paymentRes.transactionNumber}]`);
-            tx.completedAt = new Date();
+            tx.completedAt = completedAt;
             tx.completedBy = emp._id;
             tx.zaynpayIdempotencyKey = idempotencyKey;
             tx.zaynpayIdempotencyFingerprint = fingerprint;

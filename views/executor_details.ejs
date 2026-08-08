@@ -114,6 +114,12 @@
         <% if (typeof query !== 'undefined' && query.profileUpdated === '1') { %>
             <div class="alert alert-success fw-bold shadow-sm"><i class="fa-solid fa-circle-check me-2"></i> تم تحديث بيانات المنفذ بنجاح.</div>
         <% } %>
+        <% if (typeof query !== 'undefined' && query.receiptPrefixUpdated === '1') { %>
+            <div class="alert alert-success fw-bold shadow-sm"><i class="fa-solid fa-circle-check me-2"></i> تم تحديث رمز مرجع إيصالات المنفذ بنجاح.</div>
+        <% } %>
+        <% if (typeof query !== 'undefined' && query.receiptPrefixError) { %>
+            <div class="alert alert-danger fw-bold shadow-sm"><i class="fa-solid fa-triangle-exclamation me-2"></i> تعذر حفظ رمز المرجع. تأكد أنه مكون من 3 أرقام وغير مستخدم لدى منفذ آخر.</div>
+        <% } %>
 
         <div class="row g-4 mb-4">
             <div class="col-xl-4 col-lg-5">
@@ -158,6 +164,22 @@
                     </div>
                     
                     <div class="row g-3">
+                        <% if (!bot.isApiBot && typeof isMaster !== 'undefined' && isMaster) { %>
+                            <div class="col-12">
+                                <div class="info-box border-0 m-0 shadow-sm control-card-3d d-block" style="background: rgba(16, 185, 129, 0.06); border-right: 4px solid #10b981 !important;">
+                                    <label class="form-label fw-bold text-dark small mb-2"><i class="fa-solid fa-receipt text-success me-1"></i> رمز مرجع الإيصالات اليدوية</label>
+                                    <form action="/executor/<%= bot._id %>/receipt-prefix" method="POST" class="row g-2 align-items-center">
+                                        <div class="col-md-7">
+                                            <input type="text" name="manualReceiptPrefix" class="form-control fw-bold text-center font-monospace" value="<%= bot.manualReceiptPrefix || '' %>" placeholder="مثال: 999" inputmode="numeric" pattern="\d{3}" maxlength="3" required dir="ltr">
+                                            <small class="text-muted d-block mt-1">يظهر المرجع بهذه الصيغة: <span dir="ltr"><%= bot.manualReceiptPrefix || '999' %>001</span> ثم يتسلسل تلقائياً لكل عملية.</small>
+                                        </div>
+                                        <div class="col-md-5 d-grid">
+                                            <button type="submit" class="btn btn-success fw-bold"><i class="fa-solid fa-floppy-disk me-1"></i> حفظ الرمز</button>
+                                        </div>
+                                    </form>
+                                </div>
+                            </div>
+                        <% } %>
                         <div class="col-12">
                             <div class="info-box border-0 m-0 shadow-sm control-card-3d d-block" style="background: rgba(245, 158, 11, 0.05); border-right: 4px solid #f59e0b !important;">
                                 <label class="form-label fw-bold text-dark small mb-2"><i class="fa-solid fa-money-bill-transfer text-warning me-1"></i> تسوية الرصيد (موجب للإيداع / سالب للخصم)</label>

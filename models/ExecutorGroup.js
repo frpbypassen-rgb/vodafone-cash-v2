@@ -6,6 +6,7 @@ const executorGroupSchema = new mongoose.Schema({
     status: { type: String, default: 'active' }, // active, inactive, paused, archived
     balance: { type: Number, default: 0 },
     serviceKey: { type: String, enum: EXECUTOR_SERVICE_KEYS, default: 'vodafone' },
+    manualReceiptPrefix: { type: String, trim: true, match: /^\d{3}$/ },
 
     archivedAt: { type: Date, default: null },
     archivedBy: { type: String, default: '' },
@@ -52,5 +53,6 @@ const executorGroupSchema = new mongoose.Schema({
 }, { timestamps: true });
 
 executorGroupSchema.index({ status: 1, archivedAt: -1 });
+executorGroupSchema.index({ manualReceiptPrefix: 1 }, { unique: true, sparse: true });
 
 module.exports = mongoose.model('ExecutorGroup', executorGroupSchema);

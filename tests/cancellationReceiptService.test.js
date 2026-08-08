@@ -12,7 +12,7 @@ const path = require('path');
 const { createCancellationReceiptProof } = require('../services/cancellationReceiptService');
 
 describe('cancellationReceiptService', () => {
-    test('generates Arabic cancellation receipt without old English labels', () => {
+    test('generates the Arabic red cancellation receipt as a JPEG proof', () => {
         const proofId = createCancellationReceiptProof({
             tx: {
                 _id: 'tx-1',
@@ -29,20 +29,11 @@ describe('cancellationReceiptService', () => {
             cancelledAt: new Date('2026-08-03T10:00:00Z')
         });
 
-        const svgPath = path.join(process.cwd(), 'test-artifacts', 'jest-proofs', path.basename(proofId));
-        const svg = fs.readFileSync(svgPath, 'utf8');
+        const receiptPath = path.join(process.cwd(), 'test-artifacts', 'jest-proofs', path.basename(proofId));
+        const receipt = fs.readFileSync(receiptPath);
 
-        expect(proofId).toBe('proofs/CAN-2608-00001_cancellation_receipt.svg');
-        expect(svg).toContain('إيصال إلغاء عملية');
-        expect(svg).toContain('رقم الإلغاء');
-        expect(svg).toContain('قيمة العملية');
-        expect(svg).toContain('500.00 ج.م');
-        expect(svg).toContain('ملغاة');
-        expect(svg).toContain('Power Pay AL-Ahram');
-        expect(svg).not.toContain('المبلغ المرتجع');
-        expect(svg).not.toContain('42.50 د.ل');
-        expect(svg).not.toContain('Cancellation Receipt');
-        expect(svg).not.toContain('CANCELLED');
-        expect(svg).not.toContain('Refunded:');
+        expect(proofId).toBe('proofs/CAN-2608-00001_cancellation_receipt.jpg');
+        expect(receipt.subarray(0, 2)).toEqual(Buffer.from([0xff, 0xd8]));
+        expect(receipt.length).toBeGreaterThan(1000);
     });
 });

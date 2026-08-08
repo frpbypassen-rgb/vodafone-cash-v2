@@ -13,6 +13,13 @@ const SupportTicket = require('../models/SupportTicket');
 const { syncBotBalance } = require('../utils/helpers');
 const { logAction } = require('../services/auditService');
 const { acquireLock, releaseLock } = require('../services/lockService');
+const {
+    ManualExecutionNumberError,
+    maskManualExecutionNumber,
+    generateManualExecutorReceiptBase64
+} = require('../utils/manualExecutorReceipt');
+const { reserveManualExecutorReceiptReference } = require('../services/manualExecutorReceiptReferenceService');
+const { attachCancellationReceipt } = require('../services/cancellationReceiptService');
 
 const MAX_PROOF_IMAGES = 5;
 const MAX_PROOF_BYTES = 8 * 1024 * 1024;
@@ -48,23 +55,22 @@ const getTransferServiceLabel = (transferType) => {
     return labels[String(transferType || '').trim().toLowerCase()] || 'محافظ كاش';
 };
 
-const generateSystemReceiptProof = async ({ tx, proofsDir, savedPaths }) => {
-    const { generateReceiptBase64 } = require('../utils/receiptGenerator');
-    const receiptBase64 = await generateReceiptBase64({
+const generateManualExecutorReceiptProof = async ({ tx, executionNumber, executorReference, proofsDir, savedPaths }) => {
+    const receiptBase64 = await generateManualExecutorReceiptBase64({
         amount: tx.amount,
-        walletNumber: tx.vodafoneNumber || tx.accountNumber || '---',
+        customerPhone: tx.vodafoneNumber || tx.accountNumber || tx.serviceDetails?.clientPhone || '---',
+        executionNumber,
         customId: tx.customId || tx._id.toString().slice(-6),
-        serviceName: getTransferServiceLabel(tx.transferType),
-        date: new Date().toLocaleString('ar-LY', { timeZone: 'Africa/Tripoli' }),
-        documentTitle: 'إيصال نظام تلقائي',
-        documentSubtitle: 'تم إنشاؤه تلقائياً من المنظومة'
+        executorReference,
+        serviceName: 'محافظ كاش',
+        completedAt: tx.completedAt || new Date()
     });
     const imageData = String(receiptBase64 || '').replace(/^data:image\/(?:jpeg|jpg);base64,/i, '');
     const buffer = Buffer.from(imageData, 'base64');
     if (!buffer.length) throw new Error('AUTO_RECEIPT_GENERATION_FAILED');
 
     const safeId = (tx.customId || tx._id.toString().slice(-6)).toString().replace(/[^a-zA-Z0-9_-]/g, '');
-    const fileName = `${safeId}_system_${Date.now().toString(36)}.jpg`;
+    const fileName = `${safeId}_manual_${Date.now().toString(36)}.jpg`;
     const filePath = path.join(proofsDir, fileName);
     fs.writeFileSync(filePath, buffer);
     savedPaths.push(filePath);
@@ -244,9 +250,23 @@ exports.postCancelTask = async (req, res) => {
             if (tx.companyId) await ClientCompany.findByIdAndUpdate(tx.companyId, { $inc: { balance: tx.costLYD } });
             else if (tx.userId) await User.findOneAndUpdate({ $or: [{ phone: tx.userId }, { webUsername: tx.userId }] }, { $inc: { balance: tx.costLYD } });
 
+            const cancelledAt = new Date();
             tx.status = 'rejected';
+            tx.cancellationReason = reason;
+            tx.cancelledBy = emp.name || 'المنفذ';
+            tx.cancelledAt = cancelledAt;
             appendAdminNote(tx, `[تم الإلغاء | المنفذ: ${emp.name} | السبب: ${reason}]`);
             await tx.save();
+            try {
+                await attachCancellationReceipt(tx, {
+                    reason,
+                    performedBy: emp.name || 'المنفذ',
+                    cancelledAt
+                });
+            } catch (receiptError) {
+                appendAdminNote(tx, `[تعذر توليد إيصال الإلغاء: ${receiptError.message}]`);
+                await tx.save();
+            }
 
             // WhatsApp notification removed
 
@@ -282,7 +302,16 @@ exports.postCompleteTask = async (req, res) => {
     try {
         lock = await acquireLock(`executor-complete:${req.params.id}`, 30000, { retryCount: 1 });
         const proofs = getProofImages(req.body);
-        const senderPhone = String(req.body.senderPhone || '').trim();
+        const executionNumber = String(req.body.executionNumber ?? req.body.senderPhone ?? '').trim();
+        let maskedExecutionNumber = '';
+        try {
+            maskedExecutionNumber = maskManualExecutionNumber(executionNumber);
+        } catch (error) {
+            if (error instanceof ManualExecutionNumberError) {
+                return res.status(400).json({ success: false, error: error.message });
+            }
+            throw error;
+        }
         const emp = req.executorEmployee || await Employee.findById(req.session.executorId).populate('groupId');
         if (!emp || emp.status !== 'active' || !emp.groupId || emp.groupId.status !== 'active') {
             return res.status(401).json({ success: false, error: 'حساب المنفذ غير مفعل.' });
@@ -299,9 +328,20 @@ exports.postCompleteTask = async (req, res) => {
             return res.status(409).json({ success: false, error: 'العملية غير متاحة للإنهاء أو تم إنهاؤها مسبقاً.' });
         }
 
+        const executorReceipt = await reserveManualExecutorReceiptReference({ group: emp.groupId });
+        const completedAt = new Date();
+        tx.completedAt = completedAt;
+
         const localFileNames = [];
         const proofsDir = path.join(process.cwd(), 'uploads', 'proofs');
         if (!fs.existsSync(proofsDir)) { fs.mkdirSync(proofsDir, { recursive: true }); }
+        localFileNames.push(await generateManualExecutorReceiptProof({
+            tx,
+            executionNumber: maskedExecutionNumber,
+            executorReference: executorReceipt.reference,
+            proofsDir,
+            savedPaths
+        }));
         for (let i = 0; i < proofs.length; i++) {
             const safeId = (tx.customId || tx._id.toString().slice(-6)).toString().replace(/[^a-zA-Z0-9_-]/g, '');
             const suffix = proofs.length > 1 ? `_${i + 1}` : '';
@@ -312,18 +352,16 @@ exports.postCompleteTask = async (req, res) => {
             localFileNames.push(fileName);
         }
 
-        const proofSource = localFileNames.length ? 'executor-upload' : 'system-generated';
-        if (localFileNames.length === 0) {
-            localFileNames.push(await generateSystemReceiptProof({ tx, proofsDir, savedPaths }));
-            appendAdminNote(tx, '[تم توليد إيصال نظام تلقائي لأن المنفذ لم يرفق صورة إثبات.]');
-        }
+        const proofSource = proofs.length ? 'system-generated-with-executor-upload' : 'system-generated';
+        appendAdminNote(tx, `[تم توليد إيصال تنفيذ يدوي | مرجع المنفذ: ${executorReceipt.reference}]`);
 
-        if (senderPhone) appendCustomerReference(tx, 'رقم المحول', senderPhone);
         tx.status = 'completed';
         tx.proofImage = localFileNames[0];
         tx.proofImages = localFileNames;
-        tx.executorSenderPhone = senderPhone || undefined;
-        tx.completedAt = new Date();
+        tx.executorSenderPhone = executionNumber || undefined;
+        tx.executorExecutionNumberMasked = maskedExecutionNumber || undefined;
+        tx.manualExecutorReceiptReference = executorReceipt.reference;
+        tx.completedAt = completedAt;
         tx.completedBy = emp._id;
         tx.broadcastMessages = [];
         tx.adminMessages = [];
@@ -343,7 +381,13 @@ exports.postCompleteTask = async (req, res) => {
             targetId: tx._id,
             targetModel: 'Transaction',
             oldData: { status: 'accepted' },
-            newData: { status: 'completed', proofCount: localFileNames.length, proofSource },
+            newData: {
+                status: 'completed',
+                proofCount: localFileNames.length,
+                proofSource,
+                manualExecutorReceiptReference: executorReceipt.reference,
+                executorExecutionNumberMasked: maskedExecutionNumber || null
+            },
             metadata: { customId: tx.customId, amount: tx.amount, transferType: tx.transferType }
         }).catch(() => {});
 
@@ -361,6 +405,9 @@ exports.postCompleteTask = async (req, res) => {
         if (e.message === 'TOO_MANY_PROOFS') return res.status(400).json({ success: false, error: `الحد الأقصى ${MAX_PROOF_IMAGES} صور.` });
         if (e.message === 'INVALID_PROOF_IMAGE') return res.status(400).json({ success: false, error: 'صيغة صورة الإثبات غير صالحة أو حجمها كبير.' });
         if (e.message === 'AUTO_RECEIPT_GENERATION_FAILED') return res.status(500).json({ success: false, error: 'تعذر توليد الإيصال التلقائي، يرجى إعادة المحاولة.' });
+        if (e.code && String(e.code).startsWith('MANUAL_RECEIPT_')) {
+            return res.status(500).json({ success: false, error: 'تعذر إنشاء المرجع التسلسلي للإيصال.' });
+        }
         if (String(e.message || '').includes('LOCK')) return res.status(409).json({ success: false, error: 'العملية قيد المعالجة حالياً.' });
         console.error('[executor/complete-task] failed:', e.stack || e.message);
         return res.status(500).json({ success: false, error: 'تعذر إنهاء العملية.' });
@@ -461,31 +508,19 @@ exports.executeViaZaynPay = async (req, res) => {
             return res.json({ success: false, error: paymentRes.error });
         }
 
-        // 3. Success - Mark completed and generate receipt
-        const { generateReceiptBase64 } = require('../utils/receiptGenerator');
-        
-        // Use masked phone for receipt
-        let maskedPhone = walletNumber.trim();
-        if (maskedPhone.length === 11) {
-            maskedPhone = maskedPhone.substring(0, 4) + '****' + maskedPhone.substring(8);
-        } else if (maskedPhone.length > 0 && maskedPhone.length <= 4) {
-            maskedPhone = '01******' + maskedPhone;
-        } else if (maskedPhone.length > 4) {
-            const firstPart = Math.floor(maskedPhone.length / 3);
-            const lastPart = Math.floor(maskedPhone.length / 3);
-            const middlePart = maskedPhone.length - firstPart - lastPart;
-            maskedPhone = maskedPhone.substring(0, firstPart) + '*'.repeat(middlePart) + maskedPhone.substring(maskedPhone.length - lastPart);
-        } else {
-            maskedPhone = '---';
-        }
-
-        const receiptBase64 = await generateReceiptBase64({
+        // 3. Success - use the same system receipt for API and manual executors.
+        const completedAt = new Date();
+        const apiReference = paymentRes.refNumber || paymentRes.transactionNumber || tx.customId || tx._id.toString();
+        const receiptBase64 = await generateManualExecutorReceiptBase64({
             amount: tx.amount,
-            walletNumber: walletNumber,
-            senderPhone: maskedPhone,
+            customerPhone: walletNumber,
+            executionNumber: apiReference,
+            executorReference: paymentRes.transactionNumber || apiReference,
+            executionReferenceLabel: 'مرجع تنفيذ API',
+            executionNumberLabel: 'رقم تنفيذ API',
             customId: tx.customId || tx._id.toString().slice(-6),
-            accountName: tx.companyName || tx.employeeName || 'غير محدد',
-            date: new Date().toLocaleDateString('en-GB')
+            serviceName: 'محافظ كاش',
+            completedAt
         });
 
         const buffers = [Buffer.from(receiptBase64.replace(/^data:image\/\w+;base64,/, ""), 'base64')];
@@ -508,7 +543,7 @@ exports.executeViaZaynPay = async (req, res) => {
         appendCustomerReference(tx, 'الرقم المرجعي', paymentRes.refNumber);
         appendCustomerReference(tx, 'رقم العملية الخارجي', paymentRes.transactionNumber);
         appendAdminNote(tx, `[ZaynPay Auto-Executed | Ref: ${paymentRes.refNumber} | TxNo: ${paymentRes.transactionNumber}]`);
-        tx.completedAt = new Date();
+        tx.completedAt = completedAt;
         tx.completedBy = emp._id;
         tx.executorBotId = emp.groupId.token;
         await tx.save();

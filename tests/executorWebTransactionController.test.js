@@ -12,6 +12,25 @@ jest.mock('../services/eventBus', () => ({ publish: jest.fn() }));
 jest.mock('../utils/receiptGenerator', () => ({
     generateReceiptBase64: jest.fn().mockResolvedValue('data:image/jpeg;base64,AAECAwQ=')
 }));
+jest.mock('../utils/manualExecutorReceipt', () => ({
+    generateManualExecutorReceiptBase64: jest.fn().mockResolvedValue('data:image/jpeg;base64,AAECAwQ='),
+    maskManualExecutionNumber: jest.fn((value) => {
+        const input = String(value || '');
+        if (!input) return '';
+        if (input === '01108172258') return '011****2258';
+        if (input === '899') return '01******899';
+        if (input === '2258') return '01*****2258';
+        return `masked:${input}`;
+    }),
+    ManualExecutionNumberError: class ManualExecutionNumberError extends Error {}
+}));
+jest.mock('../services/manualExecutorReceiptReferenceService', () => ({
+    reserveManualExecutorReceiptReference: jest.fn().mockResolvedValue({
+        prefix: '999',
+        sequence: 1,
+        reference: '999001'
+    })
+}));
 
 const fs = require('fs');
 const Transaction = require('../models/Transaction');
@@ -19,6 +38,8 @@ const { syncBotBalance } = require('../utils/helpers');
 const { acquireLock, releaseLock } = require('../services/lockService');
 const eventBus = require('../services/eventBus');
 const { generateReceiptBase64 } = require('../utils/receiptGenerator');
+const { generateManualExecutorReceiptBase64, maskManualExecutionNumber } = require('../utils/manualExecutorReceipt');
+const { reserveManualExecutorReceiptReference } = require('../services/manualExecutorReceiptReferenceService');
 const controller = require('../controllers/executorTransactionController');
 
 describe('Executor web transaction completion', () => {
@@ -44,6 +65,7 @@ describe('Executor web transaction completion', () => {
                     _id: 'group-1',
                     name: 'مجموعة الاختبار',
                     status: 'active',
+                    manualReceiptPrefix: '999',
                     parentGroupId: 'parent-1'
                 }
             }
@@ -58,6 +80,7 @@ describe('Executor web transaction completion', () => {
             status: 'accepted',
             amount: 250,
             transferType: 'vodafone',
+            vodafoneNumber: '01108172258',
             notes: 'ملاحظة العميل',
             save: jest.fn().mockResolvedValue(true)
         };
@@ -76,16 +99,20 @@ describe('Executor web transaction completion', () => {
             status: 'accepted',
             operatorId: 'employee-1'
         }));
-        expect(generateReceiptBase64).toHaveBeenCalledWith(expect.objectContaining({
+        expect(reserveManualExecutorReceiptReference).toHaveBeenCalledWith({ group: req.executorEmployee.groupId });
+        expect(generateManualExecutorReceiptBase64).toHaveBeenCalledWith(expect.objectContaining({
             amount: 250,
             customId: 'EXEC-TEST-001',
-            documentTitle: 'إيصال نظام تلقائي'
+            customerPhone: '01108172258',
+            executorReference: '999001',
+            serviceName: 'محافظ كاش'
         }));
         expect(fs.writeFileSync).toHaveBeenCalledTimes(1);
         expect(tx.status).toBe('completed');
-        expect(tx.proofImage).toMatch(/^EXEC-TEST-001_system_[a-z0-9]+\.jpg$/);
+        expect(tx.proofImage).toMatch(/^EXEC-TEST-001_manual_[a-z0-9]+\.jpg$/);
         expect(tx.proofImages).toEqual([tx.proofImage]);
-        expect(tx.adminNotes).toContain('إيصال نظام تلقائي');
+        expect(tx.manualExecutorReceiptReference).toBe('999001');
+        expect(tx.adminNotes).toContain('999001');
         expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ success: true }));
         expect(releaseLock).toHaveBeenCalled();
     });
@@ -113,7 +140,7 @@ describe('Executor web transaction completion', () => {
         req.body = {
             imageBase64: 'data:image/png;base64,iVBORw0KGgo=',
             imagesBase64: ['data:image/png;base64,iVBORw0KGgo='],
-            senderPhone: '01000000000'
+            executionNumber: '01108172258'
         };
 
         await controller.postCompleteTask(req, res);
@@ -124,13 +151,16 @@ describe('Executor web transaction completion', () => {
             status: 'accepted',
             operatorId: 'employee-1'
         }));
-        expect(fs.writeFileSync).toHaveBeenCalledTimes(1);
+        expect(fs.writeFileSync).toHaveBeenCalledTimes(2);
         expect(tx.status).toBe('completed');
-        expect(tx.proofImage).toMatch(/EXEC-TEST-001_.+\.png$/);
-        expect(tx.proofImages).toHaveLength(1);
-        expect(tx.executorSenderPhone).toBe('01000000000');
+        expect(tx.proofImage).toMatch(/^EXEC-TEST-001_manual_[a-z0-9]+\.jpg$/);
+        expect(tx.proofImages).toHaveLength(2);
+        expect(tx.executorSenderPhone).toBe('01108172258');
+        expect(tx.executorExecutionNumberMasked).toBe('011****2258');
+        expect(tx.manualExecutorReceiptReference).toBe('999001');
         expect(tx.save).toHaveBeenCalledTimes(1);
-        expect(generateReceiptBase64).not.toHaveBeenCalled();
+        expect(maskManualExecutionNumber).toHaveBeenCalledWith('01108172258');
+        expect(generateManualExecutorReceiptBase64).toHaveBeenCalled();
         expect(syncBotBalance).toHaveBeenCalledWith('group-1');
         expect(syncBotBalance).toHaveBeenCalledWith('parent-1');
         expect(eventBus.publish).toHaveBeenCalledWith('transfer:completed', { tx, emp: req.executorEmployee });

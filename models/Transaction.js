@@ -106,6 +106,8 @@ const transactionSchema = new mongoose.Schema({
     operatorId: { type: String }, 
     executorName: { type: String, default: '---' },
     executorSenderPhone: { type: String },
+    executorExecutionNumberMasked: { type: String },
+    manualExecutorReceiptReference: { type: String, unique: true, sparse: true },
 
     // 🤖 متغيرات نظام الربط الآلي (API)
     isApiReview: { type: Boolean }, 

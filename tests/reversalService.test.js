@@ -71,6 +71,10 @@ jest.mock('../services/eventBus', () => ({
     publish: jest.fn()
 }));
 
+jest.mock('../services/cancellationReceiptService', () => ({
+    attachCancellationReceipt: jest.fn().mockResolvedValue('proofs/cancellation-receipt.jpg')
+}));
+
 jest.mock('../models/Counter', () => ({
     findOneAndUpdate: (...args) => mockCounterFindOneAndUpdate(...args)
 }));
@@ -80,6 +84,7 @@ const User = require('../src/Domain/Entities/User');
 const Ledger = require('../src/Domain/Entities/Ledger');
 const JournalEvent = require('../src/Domain/Entities/JournalEvent');
 const eventBus = require('../services/eventBus');
+const { attachCancellationReceipt } = require('../services/cancellationReceiptService');
 const mongoose = require('mongoose');
 const { reversalService } = require('../src/Application/Services/ReversalService');
 
@@ -140,6 +145,10 @@ describe('Reversal Service Tests', () => {
         expect(mockEventSave).toHaveBeenCalled();
         expect(eventBus.publish).toHaveBeenCalledWith(
             'transfer:cancelled',
+            expect.objectContaining({ cancellationNumber: expectedCancellationNumber })
+        );
+        expect(attachCancellationReceipt).toHaveBeenCalledWith(
+            mockTx._id,
             expect.objectContaining({ cancellationNumber: expectedCancellationNumber })
         );
     });

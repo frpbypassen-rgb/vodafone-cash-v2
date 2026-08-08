@@ -13,10 +13,14 @@ jest.mock('../models/Transaction', () => ({
     create: jest.fn(),
     deleteOne: jest.fn()
 }));
+jest.mock('../services/manualExecutorReceiptReferenceService', () => ({
+    reserveManualExecutorReceiptPrefix: jest.fn()
+}));
 
 const Employee = require('../models/Employee');
 const ExecutorGroup = require('../models/ExecutorGroup');
 const Transaction = require('../models/Transaction');
+const { reserveManualExecutorReceiptPrefix } = require('../services/manualExecutorReceiptReferenceService');
 const {
     createExecutorAccount,
     createRegisteredExecutorAccount,
@@ -38,6 +42,7 @@ describe('Executor account service', () => {
         Employee.deleteOne.mockResolvedValue({ deletedCount: 1 });
         Transaction.create.mockResolvedValue({ _id: 'opening-1' });
         Transaction.deleteOne.mockResolvedValue({ deletedCount: 1 });
+        reserveManualExecutorReceiptPrefix.mockResolvedValue('999');
     });
 
     test('creates a manual executor with normalized login and persistent opening balance', async () => {
@@ -59,7 +64,10 @@ describe('Executor account service', () => {
             groupId: 'group-1',
             canViewAllReports: true
         }));
-        expect(ExecutorGroup.create).toHaveBeenCalledWith(expect.objectContaining({ serviceKey: 'postal' }));
+        expect(ExecutorGroup.create).toHaveBeenCalledWith(expect.objectContaining({
+            serviceKey: 'postal',
+            manualReceiptPrefix: '999'
+        }));
         expect(Transaction.create).toHaveBeenCalledWith(expect.objectContaining({
             executorGroupId: 'group-1',
             status: 'deposit',
