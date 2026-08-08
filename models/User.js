@@ -10,6 +10,8 @@ const userSchema = new mongoose.Schema({
     creditLimit: { type: Number, default: 0 },
     accountCode: { type: String, trim: true, unique: true, sparse: true },
     agentCode: { type: String, trim: true, sparse: true },
+    // مفتاح الربط الخارجي للوكيل. لا يعاد ضمن الاستعلامات العادية.
+    apiToken: { type: String, trim: true, unique: true, sparse: true, select: false },
     webUsername: { type: String, unique: true, required: true },
     webPassword: { type: String, required: true },
     role: { type: String, default: 'user' }, // user | accountant

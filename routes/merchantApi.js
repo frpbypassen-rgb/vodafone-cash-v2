@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const mongoose = require('mongoose');
 const ClientBot = require('../models/ClientBot');
+const User = require('../models/User');
 const Transaction = require('../models/Transaction');
 const Settings = require('../models/Settings');
 const Ledger = require('../models/Ledger');
@@ -88,11 +89,31 @@ const merchantApiAuth = async (req, res, next) => {
         }
 
         const company = await ClientBot.findOne({ token: apiKey, status: 'active' }).lean();
-        if (!company) {
+        if (company) {
+            req.merchant = {
+                ...company,
+                merchantType: 'company',
+                entityModel: 'ClientCompany',
+                transactionUserId: 'api_merchant'
+            };
+            return next();
+        }
+
+        const agent = await User.findOne({
+            apiToken: apiKey,
+            role: 'agent',
+            status: 'active'
+        }).lean();
+        if (!agent) {
             return res.status(401).json({ status: 'failed', message: 'مفتاح المصادقة غير صحيح أو الحساب موقوف' });
         }
 
-        req.merchant = company;
+        req.merchant = {
+            ...agent,
+            merchantType: 'agent',
+            entityModel: 'User',
+            transactionUserId: agent.phone || agent.webUsername || String(agent._id)
+        };
         return next();
     } catch (_error) {
         return res.status(500).json({ status: 'failed', message: 'حدث خطأ داخلي أثناء التحقق من التاجر' });
@@ -144,8 +165,18 @@ router.post('/transfer', merchantApiAuth, async (req, res) => {
             const merchantUpdateOptions = { new: true };
             if (session) merchantUpdateOptions.session = session;
 
-            const updatedMerchant = await ClientBot.findOneAndUpdate(
-                { _id: req.merchant._id, status: 'active', balance: { $gte: costLYD } },
+            const isAgentMerchant = req.merchant.merchantType === 'agent';
+            const MerchantModel = isAgentMerchant ? User : ClientBot;
+            const minBalance = Number((costLYD - Math.max(0, Number(req.merchant.creditLimit) || 0)).toFixed(3));
+            const merchantQuery = {
+                _id: req.merchant._id,
+                status: 'active',
+                balance: { $gte: minBalance }
+            };
+            if (isAgentMerchant) merchantQuery.role = 'agent';
+
+            const updatedMerchant = await MerchantModel.findOneAndUpdate(
+                merchantQuery,
                 { $inc: { balance: -costLYD } },
                 merchantUpdateOptions
             );
@@ -168,8 +199,8 @@ router.post('/transfer', merchantApiAuth, async (req, res) => {
             const customId = `ATT-${yy}${mm}-${counter.value.toString().padStart(4, '0')}`;
 
             const txData = {
-                userId: 'api_merchant',
-                companyId: req.merchant._id,
+                userId: req.merchant.transactionUserId,
+                companyId: isAgentMerchant ? undefined : req.merchant._id,
                 amount: amountValue,
                 costLYD,
                 exchangeRate,
@@ -191,7 +222,7 @@ router.post('/transfer', merchantApiAuth, async (req, res) => {
             const balanceAfter = Number(updatedMerchant.balance || 0);
             const ledgerEntry = new Ledger({
                 entityId: req.merchant._id,
-                entityModel: 'ClientCompany',
+                entityModel: req.merchant.entityModel,
                 transactionId: customId,
                 type: 'TRANSFER',
                 amount: -costLYD,
@@ -240,7 +271,17 @@ router.post('/transfer', merchantApiAuth, async (req, res) => {
 
 router.get('/status/:reference_id', merchantApiAuth, async (req, res) => {
     try {
-        const tx = await Transaction.findOne({ companyId: req.merchant._id, customId: req.params.reference_id }).lean();
+        const ownershipFilter = req.merchant.merchantType === 'agent'
+            ? {
+                userId: req.merchant.transactionUserId,
+                companyId: null,
+                isSubAccountTx: { $ne: true }
+            }
+            : { companyId: req.merchant._id };
+        const tx = await Transaction.findOne({
+            ...ownershipFilter,
+            customId: req.params.reference_id
+        }).lean();
         if (!tx) {
             return res.status(404).json({ status: 'failed', message: 'لا يوجد طلب بهذا الرقم المرجعي' });
         }

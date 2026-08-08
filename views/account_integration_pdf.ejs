@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <style>
+        @page { size: A4; margin: 0; }
+        * { box-sizing: border-box; }
+        body { margin: 0; color: #17212b; background: #f4f7f9; font-family: Arial, Tahoma, sans-serif; font-size: 11px; line-height: 1.7; }
+        .page { min-height: 277mm; padding: 14mm 14mm 12mm; background: #ffffff; page-break-after: always; }
+        .page:last-child { page-break-after: auto; }
+        .brand-line { height: 5px; width: 100%; background: linear-gradient(90deg, #00a6a6 0%, #14546a 50%, #101828 100%); margin-bottom: 8mm; }
+        .cover { min-height: 249mm; display: flex; flex-direction: column; }
+        .cover-top { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+        .brand { display: flex; align-items: center; gap: 11px; }
+        .brand-logo { width: 46px; height: 46px; object-fit: contain; border-radius: 8px; border: 1px solid #d6e2e7; padding: 3px; }
+        .brand-mark { width: 46px; height: 46px; border-radius: 8px; background: #14546a; color: #fff; display: flex; align-items: center; justify-content: center; font-size: 17px; font-weight: 700; }
+        .brand-name { font-size: 16px; font-weight: 700; color: #101828; }
+        .brand-subtitle { font-size: 9px; color: #64748b; letter-spacing: .2px; }
+        .document-chip { border: 1px solid #cbdde1; background: #f4fbfb; color: #14546a; border-radius: 5px; padding: 5px 9px; font-size: 9px; direction: ltr; }
+        .cover-hero { margin-top: 24mm; padding: 16mm; border: 1px solid #cbdde1; border-right: 7px solid #00a6a6; background: linear-gradient(145deg, #f5fcfc, #ffffff 65%); }
+        .eyebrow { color: #0f766e; font-size: 10px; font-weight: 700; letter-spacing: .4px; margin: 0 0 4mm; }
+        h1 { margin: 0; color: #101828; font-size: 28px; line-height: 1.25; }
+        .partner-name { margin-top: 8mm; color: #14546a; font-size: 20px; font-weight: 700; }
+        .lead { margin: 7mm 0 0; max-width: 145mm; color: #4b5d67; font-size: 12px; }
+        .status { display: inline-block; margin-top: 8mm; padding: 5px 10px; border-radius: 4px; background: <%= account.statusLabel.includes('نشط') ? '#e7f8f5' : '#fff5e5' %>; color: <%= account.statusLabel.includes('نشط') ? '#0f766e' : '#9a6700' %>; font-size: 10px; font-weight: 700; }
+        .cover-footer { margin-top: auto; display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+        .cover-card { padding: 9px 10px; border-top: 2px solid #14546a; background: #f8fafc; }
+        .cover-card span { display: block; color: #64748b; font-size: 9px; }
+        .cover-card strong { display: block; color: #17212b; font-size: 11px; direction: ltr; text-align: right; overflow-wrap: anywhere; }
+        h2 { display: flex; align-items: center; gap: 8px; margin: 0 0 5mm; color: #101828; font-size: 16px; }
+        h2::before { content: ''; display: inline-block; width: 5px; height: 21px; background: #00a6a6; }
+        h3 { margin: 6mm 0 3mm; color: #14546a; font-size: 12px; }
+        .section-intro { margin: -2mm 0 6mm; color: #52616b; }
+        .data-grid { display: grid; grid-template-columns: repeat(2, 1fr); border-top: 1px solid #d9e3e7; border-right: 1px solid #d9e3e7; }
+        .data-cell { min-height: 17mm; padding: 4mm; border-left: 1px solid #d9e3e7; border-bottom: 1px solid #d9e3e7; background: #fff; }
+        .data-cell:nth-child(4n + 1), .data-cell:nth-child(4n + 2) { background: #f8fbfc; }
+        .data-label { display: block; color: #718096; font-size: 9px; margin-bottom: 1mm; }
+        .data-value { display: block; color: #17212b; font-size: 11px; font-weight: 700; overflow-wrap: anywhere; }
+        .ltr { direction: ltr; text-align: left; }
+        .credential { margin-top: 7mm; border: 1px solid #f0c36a; background: #fffaf0; padding: 5mm; }
+        .credential-title { color: #8a5400; font-size: 11px; font-weight: 700; }
+        .credential-value { margin-top: 3mm; padding: 3mm; background: #101828; color: #f8fafc; font-family: Consolas, 'Courier New', monospace; font-size: 10px; word-break: break-all; direction: ltr; text-align: left; }
+        .notice { margin-top: 4mm; color: #7a4b00; font-size: 9px; }
+        .endpoint-table, .field-table, .status-table { width: 100%; border-collapse: collapse; }
+        .endpoint-table th, .endpoint-table td, .field-table th, .field-table td, .status-table th, .status-table td { border: 1px solid #d9e3e7; padding: 3mm; vertical-align: top; }
+        th { background: #14546a; color: #fff; text-align: right; font-size: 10px; }
+        tr:nth-child(even) td { background: #f8fbfc; }
+        code { direction: ltr; unicode-bidi: plaintext; font-family: Consolas, 'Courier New', monospace; color: #0f4c5c; font-size: 9px; }
+        .code-block { direction: ltr; text-align: left; unicode-bidi: plaintext; white-space: pre-wrap; margin: 3mm 0 6mm; padding: 4mm; overflow-wrap: anywhere; background: #101828; color: #e6fffb; border-right: 4px solid #00a6a6; font-family: Consolas, 'Courier New', monospace; font-size: 8.5px; line-height: 1.55; }
+        .split { display: grid; grid-template-columns: 1.05fr .95fr; gap: 8mm; }
+        .callout { padding: 4mm; border-right: 4px solid #00a6a6; background: #edfafa; color: #174c56; }
+        .steps { margin: 0; padding: 0; list-style: none; counter-reset: step; }
+        .steps li { position: relative; min-height: 15mm; padding: 3mm 13mm 3mm 3mm; border-bottom: 1px solid #e2e8f0; }
+        .steps li::before { counter-increment: step; content: counter(step); position: absolute; right: 0; top: 3mm; display: flex; align-items: center; justify-content: center; width: 8mm; height: 8mm; border-radius: 50%; background: #14546a; color: #fff; font-size: 9px; font-weight: 700; }
+        .service-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 3mm; }
+        .service-card { padding: 4mm; border: 1px solid #d9e3e7; border-top: 3px solid #00a6a6; background: #fff; }
+        .service-card small { display: block; color: #64748b; }
+        .service-card strong { display: block; margin-top: 1mm; color: #17212b; }
+        .service-rate { margin-top: 2mm; color: #14546a; font-size: 12px; font-weight: 700; direction: ltr; text-align: right; }
+        .muted { color: #64748b; }
+        .small { font-size: 9px; }
+    </style>
+</head>
+<body>
+    <section class="page cover">
+        <div class="brand-line"></div>
+        <div class="cover-top">
+            <div class="brand">
+                <% if (logoDataUri) { %><img class="brand-logo" src="<%= logoDataUri %>" alt="Power Pay AL-Ahram"><% } else { %><div class="brand-mark">PP</div><% } %>
+                <div><div class="brand-name">Power Pay AL-Ahram</div><div class="brand-subtitle">منظومة التحويلات والخدمات المالية</div></div>
+            </div>
+            <div class="document-chip"><%= documentNumber %></div>
+        </div>
+        <div class="cover-hero">
+            <p class="eyebrow">وثيقة تشغيل مخصصة للربط الخارجي</p>
+            <h1>وثيقة ربط واجهة API</h1>
+            <div class="partner-name"><%= account.name %></div>
+            <p class="lead">أُعدت هذه الوثيقة خصيصًا لجهة الربط المذكورة، وتحتوي على بيانات التعريف ومفتاح المصادقة والمسارات الفنية والخطوات المطلوبة لإرسال التحويلات ومتابعتها عبر النظام.</p>
+            <span class="status"><%= account.statusLabel %></span>
+        </div>
+        <div class="cover-footer">
+            <div class="cover-card"><span>نوع الحساب</span><strong><%= account.typeLabel %></strong></div>
+            <div class="cover-card"><span>رقم الحساب</span><strong><%= account.accountCode %></strong></div>
+            <div class="cover-card"><span>تاريخ الإصدار</span><strong><%= new Intl.DateTimeFormat('ar-LY', { timeZone: 'Africa/Tripoli', dateStyle: 'medium', timeStyle: 'short' }).format(generatedAt) %></strong></div>
+        </div>
+    </section>
+
+    <section class="page">
+        <div class="brand-line"></div>
+        <h2>بيانات جهة الربط</h2>
+        <p class="section-intro">تُستخدم البيانات التالية لمطابقة الحساب أثناء الإعداد والدعم الفني. لا تشارك هذه الوثيقة أو مفتاحها مع جهات غير مخولة.</p>
+        <div class="data-grid">
+            <div class="data-cell"><span class="data-label">الاسم التجاري</span><span class="data-value"><%= account.name %></span></div>
+            <div class="data-cell"><span class="data-label">نوع الجهة</span><span class="data-value"><%= account.typeLabel %></span></div>
+            <div class="data-cell"><span class="data-label">رقم الحساب</span><span class="data-value ltr"><%= account.accountCode %></span></div>
+            <div class="data-cell"><span class="data-label">رقم الهاتف</span><span class="data-value ltr"><%= account.phone %></span></div>
+            <div class="data-cell"><span class="data-label">مسؤول التواصل</span><span class="data-value"><%= account.contactName %></span></div>
+            <div class="data-cell"><span class="data-label">البريد الإلكتروني</span><span class="data-value ltr"><%= account.email %></span></div>
+            <div class="data-cell"><span class="data-label">المدينة</span><span class="data-value"><%= account.city %></span></div>
+            <div class="data-cell"><span class="data-label">رقم التسجيل</span><span class="data-value ltr"><%= account.registrationNumber %></span></div>
+            <div class="data-cell" style="grid-column: span 2;"><span class="data-label">العنوان</span><span class="data-value"><%= account.address %></span></div>
+        </div>
+        <h2 style="margin-top: 9mm;">بيانات الاتصال والمصادقة</h2>
+        <table class="endpoint-table">
+            <thead><tr><th>البند</th><th>القيمة المعتمدة</th></tr></thead>
+            <tbody>
+                <tr><td>رابط الإنتاج</td><td><code><%= api.origin %></code></td></tr>
+                <tr><td>المسار الأساسي</td><td><code><%= api.basePath %></code></td></tr>
+                <tr><td>طريقة المصادقة</td><td><code>x-api-key: &lt;API_KEY&gt;</code></td></tr>
+                <tr><td>صيغة البيانات</td><td><code>Content-Type: application/json</code></td></tr>
+                <tr><td>متابعة النتيجة</td><td>استعلام دوري عبر مسار الحالة. لا يوجد Webhook في الإصدار الحالي.</td></tr>
+            </tbody>
+        </table>
+        <div class="credential">
+            <div class="credential-title">مفتاح API الخاص بهذه الجهة</div>
+            <div class="credential-value"><%= account.apiKey %></div>
+            <div class="notice">هذا المفتاح يمنح صلاحية الاستعلام عن الرصيد وإرسال التحويلات لهذا الحساب فقط. احفظه في متغير بيئة أو Secret Manager، ولا ترسله في رابط أو رسالة عامة أو سجلات التطبيق.</div>
+        </div>
+    </section>
+
+    <section class="page">
+        <div class="brand-line"></div>
+        <h2>الخدمات والأسعار المعتمدة</h2>
+        <p class="section-intro">تُحسب تكلفة العملية بالدينار الليبي وفق المعادلة: <code>cost_lyd = amount / exchange_rate</code>. الأسعار التالية تعكس إعدادات الحساب وقت إصدار الوثيقة.</p>
+        <div class="service-grid">
+            <% services.forEach((service) => { %><div class="service-card"><small><code><%= service.key %></code></small><strong><%= service.label %></strong><div class="service-rate"><%= service.rate %> LYD</div></div><% }) %>
+        </div>
+        <h2 style="margin-top: 9mm;">المسارات الفنية</h2>
+        <table class="endpoint-table">
+            <thead><tr><th>العملية</th><th>الطلب</th><th>المسار</th><th>الغرض</th></tr></thead>
+            <tbody>
+                <tr><td>الاستعلام عن الرصيد</td><td><code>GET</code></td><td><code><%= api.balanceUrl %></code></td><td>إرجاع اسم الجهة والرصيد وسعر الكاش الحالي.</td></tr>
+                <tr><td>إنشاء تحويل</td><td><code>POST</code></td><td><code><%= api.transferUrl %></code></td><td>استلام التحويل وخصم تكلفته عند قبول الطلب.</td></tr>
+                <tr><td>متابعة التحويل</td><td><code>GET</code></td><td><code><%= api.statusUrl %></code></td><td>الاستعلام عن حالة فاتورة سبق إنشاؤها.</td></tr>
+            </tbody>
+        </table>
+        <div class="split" style="margin-top: 8mm;">
+            <div><h3>1. اختبار الاتصال والرصيد</h3><pre class="code-block"><%= examples.balanceCurl %></pre><div class="callout">يجب أن تكون الاستجابة <code>status: success</code> قبل بدء الإرسال الفعلي. استخدم الرصيد المعاد لتحديد قدرة الحساب على استقبال الطلبات.</div></div>
+            <div><h3>2. إرسال تحويل جديد</h3><pre class="code-block"><%= examples.transferCurl %></pre></div>
+        </div>
+    </section>
+
+    <section class="page">
+        <div class="brand-line"></div>
+        <h2>حقول طلب التحويل</h2>
+        <table class="field-table">
+            <thead><tr><th>الحقل</th><th>النوع</th><th>إلزامي</th><th>الوصف والقيود</th></tr></thead>
+            <tbody>
+                <tr><td><code>target_number</code></td><td><code>string</code></td><td>نعم</td><td>رقم المستفيد، ويجب أن يتكون من 11 رقمًا.</td></tr>
+                <tr><td><code>amount</code></td><td><code>number</code></td><td>نعم</td><td>قيمة التحويل بالجنيه المصري، ويجب أن تكون أكبر من صفر.</td></tr>
+                <tr><td><code>transfer_type</code></td><td><code>string</code></td><td>لا</td><td>نوع الخدمة. القيمة الافتراضية <code>vodafone</code> عند عدم إرساله.</td></tr>
+            </tbody>
+        </table>
+        <h3>جسم طلب نموذجي</h3>
+        <pre class="code-block"><%= examples.transferJson %></pre>
+        <h3>استجابة قبول نموذجية</h3>
+        <pre class="code-block"><%= examples.transferResponse %></pre>
+        <h3>متابعة فاتورة سابقة</h3>
+        <pre class="code-block"><%= examples.statusCurl %></pre>
+        <div class="callout">احفظ <code>invoice_number</code> مباشرة عند قبول الطلب. لا تعيد إرسال طلب تحويل جديد إذا وصل الرقم المرجعي، واستخدم مسار الحالة بدلًا من ذلك.</div>
+    </section>
+
+    <section class="page">
+        <div class="brand-line"></div>
+        <h2>دورة التنفيذ والمتابعة</h2>
+        <ol class="steps">
+            <li><strong>تحقق من الرصيد.</strong> اطلب <code>/balance</code> عند بدء الوردية أو قبل دفعات التحويل الكبيرة.</li>
+            <li><strong>أرسل طلب التحويل مرة واحدة.</strong> احتفظ بالقيمة <code>invoice_number</code> التي يعيدها النظام؛ فهي الرقم المرجعي الرسمي للطلب.</li>
+            <li><strong>تابع الحالة.</strong> استعلم عن <code>/status/{invoice_number}</code> حتى تصل العملية إلى حالة نهائية.</li>
+            <li><strong>أغلق الطلب داخليًا.</strong> تعتبر الحالة <code>completed</code> فقط نجاحًا نهائيًا. الحالات الأخرى تحتاج متابعة أو معالجة داخلية.</li>
+        </ol>
+        <h2 style="margin-top: 9mm;">حالات العملية</h2>
+        <table class="status-table">
+            <thead><tr><th>الحالة</th><th>المعنى التشغيلي</th><th>الإجراء لدى جهة الربط</th></tr></thead>
+            <tbody>
+                <tr><td><code>pending</code></td><td>تم استلام الطلب وينتظر المعالجة أو التوجيه.</td><td>تابع الحالة ولا تعيد إنشاء طلب جديد.</td></tr>
+                <tr><td><code>processing</code></td><td>الطلب تحت التنفيذ.</td><td>استمر في الاستعلام الدوري.</td></tr>
+                <tr><td><code>accepted</code></td><td>استلمه منفذ أو موظف تنفيذ.</td><td>استمر في المتابعة حتى النتيجة النهائية.</td></tr>
+                <tr><td><code>completed</code></td><td>اكتمل التحويل بنجاح.</td><td>اعتمد العملية ناجحة في نظامك.</td></tr>
+                <tr><td><code>rejected</code></td><td>رُفض الطلب أثناء التنفيذ.</td><td>اعرض النتيجة للمستخدم وراجع الملاحظات.</td></tr>
+                <tr><td><code>cancelled_by_admin</code></td><td>ألغيت العملية من الإدارة.</td><td>اعتبرها ملغاة وتابع التسوية بحسب الإشعار الإداري.</td></tr>
+            </tbody>
+        </table>
+        <h2 style="margin-top: 9mm;">سياسة الإرسال الآمن والدعم</h2>
+        <div class="split">
+            <div><ul class="muted" style="margin:0; padding-right: 5mm;"><li>استخدم HTTPS في بيئة الإنتاج فقط.</li><li>لا تضع مفتاح API داخل الواجهة أو مستودع الكود أو سجلات الأخطاء.</li><li>لا تعيد إرسال نفس الطلب عند انقطاع الشبكة بعد استلام <code>invoice_number</code>.</li><li>اضبط مهلة الاتصال على 30 ثانية على الأقل، واجعل إعادة المحاولة للاستعلام عن الحالة فقط.</li><li>لا يوجد <code>Idempotency-Key</code> مفعل حاليًا في هذه الواجهة.</li></ul></div>
+            <div class="callout"><strong>الدعم الفني</strong><br>واتساب فقط: <code>01108172258</code><br><span class="small">عند التواصل أرسل رقم الحساب ورقم الفاتورة <code>invoice_number</code> ووصفًا مختصرًا للمشكلة. لا ترسل مفتاح API في الرسائل.</span></div>
+        </div>
+        <p class="small muted" style="margin-top: 10mm;">هذه وثيقة تشغيل مخصصة لحساب <strong><%= account.name %></strong>. أي تغيير على حالة الحساب أو مفتاحه أو أسعار خدماته يتطلب إصدار نسخة محدثة من الوثيقة.</p>
+    </section>
+</body>
+</html>

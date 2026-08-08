@@ -32,6 +32,11 @@ const {
     reserveAccountCode,
     releaseAccountCodeReservation
 } = require('../services/accountCodeService');
+const {
+    buildIntegrationDocumentData,
+    generateAccountIntegrationPdf,
+    resolvePublicApiOrigin
+} = require('../services/accountIntegrationPdfService');
 
 const accountCodeErrorQuery = (error) => {
     if (error.message === 'ACCOUNT_CODE_DUPLICATE') return 'duplicate';
@@ -40,6 +45,68 @@ const accountCodeErrorQuery = (error) => {
 };
 
 const visibleAccountFilter = { status: { $ne: 'deleted' } };
+
+const createIntegrationApiKey = () => crypto.randomBytes(24).toString('hex');
+
+const ensureIntegrationApiKey = async (account, field) => {
+    if (account[field]) return account[field];
+
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+        account[field] = createIntegrationApiKey();
+        try {
+            await account.save();
+            return account[field];
+        } catch (error) {
+            if (error && error.code === 11000 && attempt < 2) continue;
+            throw error;
+        }
+    }
+
+    throw new Error('INTEGRATION_KEY_PROVISION_FAILED');
+};
+
+const safeIntegrationFileReference = (value) => String(value || 'account')
+    .replace(/[^a-zA-Z0-9_-]/g, '')
+    .slice(0, 40) || 'account';
+
+const sendIntegrationDocument = async (req, res, { account, accountType }) => {
+    const apiKey = await ensureIntegrationApiKey(account, accountType === 'agent' ? 'apiToken' : 'token');
+    const settings = await Settings.findOne({}).lean() || {};
+    const documentData = buildIntegrationDocumentData({
+        account,
+        accountType,
+        apiKey,
+        apiOrigin: resolvePublicApiOrigin(req),
+        serviceRates: getCompanyRateConfig(account, settings).effectiveRates,
+        generatedAt: new Date()
+    });
+    const pdf = await generateAccountIntegrationPdf(req.app, documentData);
+    const fileReference = safeIntegrationFileReference(documentData.account.accountCode);
+
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Length', pdf.length);
+    res.setHeader('Content-Disposition', `attachment; filename="api-integration-${accountType}-${fileReference}.pdf"`);
+    res.setHeader('Cache-Control', 'private, no-store, max-age=0');
+
+    await logAction({
+        action: 'MERCHANT_API_DOCUMENT_EXPORTED',
+        req,
+        performedById: req.session.adminId,
+        performedByModel: 'Admin',
+        performedByName: req.session.adminName || req.session.adminUsername || 'الإدارة',
+        targetId: account._id,
+        targetModel: accountType === 'agent' ? 'User' : 'ClientCompany',
+        result: 'نجاح',
+        metadata: {
+            accountType,
+            accountName: account.name,
+            accountCode: documentData.account.accountCode,
+            apiBasePath: documentData.api.basePath
+        }
+    }).catch(() => {});
+
+    return res.end(pdf);
+};
 
 const saveAccountCode = async ({ Model, modelName, id, code, expectedLength }) => {
     const normalized = String(code || '').trim();
@@ -207,6 +274,38 @@ router.get('/company/:id', requireAuth, async (req, res) => {
         query: req.query,
         isMaster: req.session.adminRole === 'master'
     });
+});
+
+router.get('/company/:id/integration-guide.pdf', requireAuth, requireMaster, async (req, res) => {
+    try {
+        const company = await ClientCompany.findOne({ _id: req.params.id, ...visibleAccountFilter });
+        if (!company) return res.status(404).send('الحساب غير موجود.');
+        return await sendIntegrationDocument(req, res, { account: company, accountType: 'company' });
+    } catch (error) {
+        console.error('[clients/company-integration-guide] failed:', error.message);
+        if (error.code === 'PDF_BROWSER_NOT_FOUND') {
+            return res.status(503).send('تعذر إنشاء ملف PDF لعدم وجود متصفح للطباعة على الخادم.');
+        }
+        return res.status(500).send('تعذر إنشاء وثيقة الربط.');
+    }
+});
+
+router.get('/user/:id/integration-guide.pdf', requireAuth, requireMaster, async (req, res) => {
+    try {
+        const agent = await User.findOne({
+            _id: req.params.id,
+            role: 'agent',
+            ...visibleAccountFilter
+        }).select('+apiToken');
+        if (!agent) return res.status(404).send('حساب الوكيل غير موجود.');
+        return await sendIntegrationDocument(req, res, { account: agent, accountType: 'agent' });
+    } catch (error) {
+        console.error('[clients/agent-integration-guide] failed:', error.message);
+        if (error.code === 'PDF_BROWSER_NOT_FOUND') {
+            return res.status(503).send('تعذر إنشاء ملف PDF لعدم وجود متصفح للطباعة على الخادم.');
+        }
+        return res.status(500).send('تعذر إنشاء وثيقة الربط.');
+    }
 });
 
 router.post('/user/:id/add-balance', requireAuth, async (req, res) => {

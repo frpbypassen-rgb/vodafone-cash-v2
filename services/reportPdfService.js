@@ -144,6 +144,7 @@ module.exports = {
     findBrowserExecutable,
     generateAdminReportPdf,
     getSharedBrowser,
+    logoDataUri,
     preparePdfReport,
     renderView
 };
