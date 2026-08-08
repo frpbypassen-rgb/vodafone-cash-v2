@@ -233,7 +233,10 @@ exports.postEditAmount = async (req, res) => {
 
 exports.postCancelTask = async (req, res) => {
     try {
-        const { reason } = req.body;
+        const reason = String(req.body?.reason || '').trim();
+        if (!reason) {
+            return res.status(400).json({ success: false, error: 'سبب الإلغاء مطلوب.' });
+        }
         const tx = await Transaction.findById(req.params.id);
         const emp = await Employee.findById(req.session.executorId);
 

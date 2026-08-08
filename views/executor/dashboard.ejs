@@ -954,7 +954,53 @@
     }
 
     async function cancelTask(id) {
-        const { value: reason } = await Swal.fire({ title: 'إلغاء العملية', input: 'text', inputPlaceholder: 'السبب (سيظهر للعميل)...', showCancelButton: true, confirmButtonText: 'إلغاء نهائي', confirmButtonColor: '#ef4444', cancelButtonText: 'تراجع', inputValidator: (val) => { if (!val) return 'مطلوب السبب!'; } });
+        const { value: reason } = await Swal.fire({
+            title: 'إلغاء العملية',
+            html: `
+                <div class="text-end" dir="rtl">
+                    <label for="swal-cancel-reason" class="form-label fw-bold w-100">سبب الإلغاء</label>
+                    <select id="swal-cancel-reason" class="swal2-select" style="width: 100%; margin: 0;">
+                        <option value="" selected disabled>اختر سبب الإلغاء</option>
+                        <option value="لا يوجد محفظة">لا يوجد محفظة</option>
+                        <option value="محفظة ليميت">محفظة ليميت</option>
+                        <option value="الخدمة متوقفة حاليا">الخدمة متوقفة حاليا</option>
+                        <option value="الرقم غير صحيح">الرقم غير صحيح</option>
+                        <option value="other">سبب آخر</option>
+                    </select>
+                    <div id="swal-cancel-other-reason-wrap" class="mt-3" style="display: none;">
+                        <label for="swal-cancel-other-reason" class="form-label fw-bold w-100">اكتب السبب</label>
+                        <textarea id="swal-cancel-other-reason" class="swal2-textarea" rows="3" placeholder="اكتب سبب الإلغاء..."></textarea>
+                    </div>
+                </div>`,
+            showCancelButton: true,
+            confirmButtonText: 'إلغاء نهائي',
+            confirmButtonColor: '#ef4444',
+            cancelButtonText: 'تراجع',
+            focusConfirm: false,
+            didOpen: () => {
+                const select = document.getElementById('swal-cancel-reason');
+                const otherReasonWrap = document.getElementById('swal-cancel-other-reason-wrap');
+                const otherReason = document.getElementById('swal-cancel-other-reason');
+                select.addEventListener('change', () => {
+                    const isOther = select.value === 'other';
+                    otherReasonWrap.style.display = isOther ? 'block' : 'none';
+                    if (isOther) otherReason.focus();
+                });
+            },
+            preConfirm: () => {
+                const selectedReason = document.getElementById('swal-cancel-reason').value;
+                const customReason = document.getElementById('swal-cancel-other-reason').value.trim();
+                if (!selectedReason) {
+                    Swal.showValidationMessage('يرجى اختيار سبب الإلغاء.');
+                    return false;
+                }
+                if (selectedReason === 'other' && !customReason) {
+                    Swal.showValidationMessage('يرجى كتابة سبب الإلغاء.');
+                    return false;
+                }
+                return selectedReason === 'other' ? customReason : selectedReason;
+            }
+        });
         if (reason) {
             try {
                 const res = await executorApiFetch('/executor-portal/api/cancel-task/' + id, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ reason }) });

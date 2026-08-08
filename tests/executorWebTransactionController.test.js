@@ -101,6 +101,14 @@ describe('Executor web transaction completion', () => {
         expect(fs.writeFileSync).not.toHaveBeenCalled();
     });
 
+    test('requires a cancellation reason before changing the transaction', async () => {
+        await controller.postCancelTask(req, res);
+
+        expect(res.status).toHaveBeenCalledWith(400);
+        expect(res.json).toHaveBeenCalledWith({ success: false, error: 'سبب الإلغاء مطلوب.' });
+        expect(Transaction.findById).not.toHaveBeenCalled();
+    });
+
     test('stores proof, completes once, recalculates balances, and publishes notification', async () => {
         req.body = {
             imageBase64: 'data:image/png;base64,iVBORw0KGgo=',
