@@ -21,6 +21,11 @@ const { calculateAgencyPricing } = require('../../../utils/agencyPricing');
 const { recordTransferReservation } = require('../../../services/agencyJournalService');
 const { getTransferServiceDefinition } = require('../../../utils/mobileTransferServiceCatalog');
 const { acquireLock, releaseLock } = require('../../../services/lockService');
+const {
+    TransferCooldownError,
+    acquireTransferCooldown,
+    releaseTransferCooldown
+} = require('../../../services/transferCooldownService');
 const { minimumBalanceForDebit } = require('../../../services/agencyCreditLimitService');
 const { resolveAutoRouteExecutor, applyAutoRouteFields, enqueueAutoRouteIfNeeded } = require('../../../services/autoRouteService');
 const eventBus = require('../../../services/eventBus');
@@ -131,6 +136,7 @@ export class TransferService {
         const idempotencyKey = req && req.headers ? req.headers['idempotency-key'] : null;
         const lockKey = idempotencyKey ? `idemp:${idempotencyKey}` : `user:${userId}`;
         let lock: any;
+        let cooldownLock: any;
 
         try {
             lock = await acquireLock(lockKey, 10000);
@@ -288,6 +294,15 @@ export class TransferService {
             const costLYD = isSubAccountTx ? masterCostLYD : parseFloat((amount / finalRate).toFixed(3));
             const minRequiredBalance = minimumBalanceForDebit(costLYD, creditLimit);
 
+            const cooldown = await acquireTransferCooldown({
+                ownerModel: TargetModel.modelName || (isSubAccountTx ? 'SubAccount' : (accountType === 'client_company' ? 'ClientCompany' : 'User')),
+                ownerId: targetId,
+                serviceKey: transferType,
+                recipient: number,
+                amount
+            });
+            cooldownLock = cooldown.lock;
+
             // 6. التحقق من الرصيد والخصم (Multi-Currency Wallet)
             let updatedClient: any;
             let updatedMaster: any;
@@ -382,6 +397,7 @@ export class TransferService {
                 accountName: name,
                 accountNumber: number,
                 amount,
+                ...cooldown.guardFields,
                 costLYD: isSubAccountTx ? masterCostLYD : costLYD,
                 subAccountCostLYD: isSubAccountTx ? subCostLYD : 0,
                 commission: isSubAccountTx ? commission : 0,
@@ -528,9 +544,21 @@ export class TransferService {
             };
         } catch (error: any) {
             try { await session.abortTransaction(); session.endSession(); } catch (_) {}
+            if (error instanceof TransferCooldownError) {
+                return {
+                    success: false,
+                    statusCode: error.statusCode,
+                    code: error.code,
+                    message: error.message,
+                    cooldownType: error.cooldownType,
+                    retryAfterSeconds: error.retryAfterSeconds,
+                    retryAt: error.retryAt
+                };
+            }
             logger.error('Transfer creation failed', { error: error.message, accountType });
             return { success: false, statusCode: 500, code: 'SERVER_ERROR', message: 'حدث خطأ داخلي أثناء معالجة طلب التحويل' };
         } finally {
+            await releaseTransferCooldown(cooldownLock);
             await releaseLock(lock);
         }
     }

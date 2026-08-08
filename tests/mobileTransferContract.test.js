@@ -126,6 +126,22 @@ jest.mock('../middlewares/jwtAuth', () => ({
 jest.mock('../services/auditService', () => ({
     logAction: jest.fn().mockResolvedValue(undefined)
 }));
+jest.mock('../services/transferCooldownService', () => {
+    class TransferCooldownError extends Error {
+        constructor(details) {
+            super(details.message);
+            Object.assign(this, details);
+            this.name = 'TransferCooldownError';
+            this.statusCode = this.statusCode || 429;
+        }
+    }
+
+    return {
+        TransferCooldownError,
+        acquireTransferCooldown: jest.fn(),
+        releaseTransferCooldown: jest.fn()
+    };
+});
 
 jest.mock('../utils/logger', () => ({
     error: jest.fn(),
@@ -143,6 +159,11 @@ const Settings = require('../models/Settings');
 const Transaction = require('../models/Transaction');
 const Ledger = require('../models/Ledger');
 const { logAction } = require('../services/auditService');
+const {
+    TransferCooldownError,
+    acquireTransferCooldown,
+    releaseTransferCooldown
+} = require('../services/transferCooldownService');
 
 const app = express();
 app.use(express.json());
@@ -204,6 +225,15 @@ describe('💸 Contract Tests: Transfer (Mobile API)', () => {
         }));
         User.findOneAndUpdate.mockResolvedValue({ balance: 4984.496, balances: { EGP: 4984.496, LYD: 4984.496, USD: 4984.496, EUR: 4984.496, SAR: 4984.496 } });
         Transaction.findOne.mockReturnValue(chainResolve(null));
+        acquireTransferCooldown.mockResolvedValue({
+            lock: {},
+            guardFields: {
+                requestOwnerKey: 'wallet:User:user-id-123',
+                canonicalServiceKey: 'vodafone',
+                canonicalRecipient: '01012345678'
+            }
+        });
+        releaseTransferCooldown.mockResolvedValue(undefined);
     });
 
     test('T022: rejects POST /client/new-transfer without Idempotency-Key', async () => {
@@ -256,7 +286,10 @@ describe('💸 Contract Tests: Transfer (Mobile API)', () => {
             amount: 100,
             exchangeRate: 6.45,
             costLYD: 15.504,
-            status: 'pending'
+            status: 'pending',
+            requestOwnerKey: 'wallet:User:user-id-123',
+            canonicalServiceKey: 'vodafone',
+            canonicalRecipient: '01012345678'
         });
         expect(Ledger).toHaveBeenCalledTimes(1);
         expect(Ledger.mock.calls[0][0].description).toContain(res.body.txId);
@@ -266,6 +299,32 @@ describe('💸 Contract Tests: Transfer (Mobile API)', () => {
         expect(auditPayload.newData.number).toBeUndefined();
         expect(auditPayload.newData.notes).toBeUndefined();
         expect(auditPayload.newData.idempotencyKey).toBeUndefined();
+    });
+
+    test('returns a cooldown response before any balance debit', async () => {
+        acquireTransferCooldown.mockRejectedValueOnce(new TransferCooldownError({
+            code: 'TRANSFER_COOLDOWN_ACTIVE',
+            cooldownType: 'same_amount',
+            retryAfterSeconds: 180,
+            retryAt: '2026-08-09T12:03:00.000Z',
+            message: 'لا يمكن إعادة تحويل المبلغ نفسه إلى هذا الرقم الآن. أعد المحاولة بعد 180 ثانية.'
+        }));
+
+        const res = await request(app)
+            .post('/client/new-transfer')
+            .set('Idempotency-Key', uuid)
+            .send(validPayload);
+
+        expect(res.status).toBe(429);
+        expect(res.body).toMatchObject({
+            success: false,
+            code: 'TRANSFER_COOLDOWN_ACTIVE',
+            cooldownType: 'same_amount',
+            retryAfterSeconds: 180,
+            retryAt: '2026-08-09T12:03:00.000Z'
+        });
+        expect(User.findOneAndUpdate).not.toHaveBeenCalled();
+        expect(Transaction).not.toHaveBeenCalled();
     });
 
     test.each([

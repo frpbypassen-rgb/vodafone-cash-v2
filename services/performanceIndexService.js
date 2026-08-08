@@ -22,13 +22,47 @@ const executorTaskIndexes = [
     }
 ];
 
+const transferCooldownIndexes = [
+    {
+        key: {
+            requestOwnerKey: 1,
+            canonicalServiceKey: 1,
+            canonicalRecipient: 1,
+            amount: 1,
+            status: 1,
+            createdAt: -1
+        },
+        name: 'transferCooldownExact_v1',
+        partialFilterExpression: {
+            requestOwnerKey: { $exists: true },
+            canonicalServiceKey: { $exists: true },
+            canonicalRecipient: { $exists: true }
+        }
+    },
+    {
+        key: {
+            requestOwnerKey: 1,
+            canonicalServiceKey: 1,
+            canonicalRecipient: 1,
+            status: 1,
+            createdAt: -1
+        },
+        name: 'transferCooldownRecipient_v1',
+        partialFilterExpression: {
+            requestOwnerKey: { $exists: true },
+            canonicalServiceKey: { $exists: true },
+            canonicalRecipient: { $exists: true }
+        }
+    }
+];
+
 const ensurePerformanceIndexes = async () => {
     try {
-        await Transaction.collection.createIndexes(executorTaskIndexes);
-        logger.info('Executor task performance indexes are ready');
+        await Transaction.collection.createIndexes([...executorTaskIndexes, ...transferCooldownIndexes]);
+        logger.info('Transaction performance indexes are ready');
         return true;
     } catch (error) {
-        logger.error('Failed to create executor task performance indexes', { error: error.message });
+        logger.error('Failed to create transaction performance indexes', { error: error.message });
         return false;
     }
 };

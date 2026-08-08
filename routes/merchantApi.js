@@ -16,6 +16,10 @@ const {
     applyAutoRouteFields,
     enqueueAutoRouteIfNeeded
 } = require('../services/autoRouteService');
+const {
+    acquireTransferCooldown,
+    releaseTransferCooldown
+} = require('../services/transferCooldownService');
 
 const isTransactionUnsupportedError = (error) => {
     const message = error && error.message ? error.message : '';
@@ -135,6 +139,7 @@ router.get('/balance', merchantApiAuth, async (req, res) => {
 });
 
 router.post('/transfer', merchantApiAuth, async (req, res) => {
+    let cooldownLock = null;
     try {
         const { target_number, amount, transfer_type } = req.body;
         const amountValue = Number(amount);
@@ -151,6 +156,15 @@ router.post('/transfer', merchantApiAuth, async (req, res) => {
         if (!serviceKey) {
             return res.status(400).json({ status: 'failed', message: 'نوع التحويل غير مدعوم' });
         }
+
+        const cooldown = await acquireTransferCooldown({
+            ownerModel: req.merchant.entityModel,
+            ownerId: req.merchant._id,
+            serviceKey,
+            recipient: phoneStr,
+            amount: amountValue
+        });
+        cooldownLock = cooldown.lock;
 
         const result = await withOptionalTransaction(async (session) => {
             const settingsQuery = Settings.findOne({});
@@ -210,6 +224,7 @@ router.post('/transfer', merchantApiAuth, async (req, res) => {
                 companyName: req.merchant.name,
                 employeeName: 'ربط آلي (Merchant API)',
                 transferType: serviceKey,
+                ...cooldown.guardFields,
                 notes: '',
                 adminNotes: '[طلب وارد عبر API التاجر الخارجي]',
                 executorGroupId: undefined
@@ -262,10 +277,16 @@ router.post('/transfer', merchantApiAuth, async (req, res) => {
         if (error && error.statusCode) {
             return res.status(error.statusCode).json({
                 status: 'failed',
-                message: error.clientMessage || error.message
+                code: error.code,
+                message: error.clientMessage || error.message,
+                cooldown_type: error.cooldownType,
+                retry_after_seconds: error.retryAfterSeconds,
+                retry_at: error.retryAt
             });
         }
         return res.status(500).json({ status: 'failed', message: 'حدث خطأ داخلي أثناء معالجة الطلب' });
+    } finally {
+        await releaseTransferCooldown(cooldownLock);
     }
 });
 

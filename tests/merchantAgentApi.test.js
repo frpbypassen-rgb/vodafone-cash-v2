@@ -17,6 +17,10 @@ jest.mock('../services/autoRouteService', () => ({
     applyAutoRouteFields: jest.fn(),
     enqueueAutoRouteIfNeeded: jest.fn()
 }));
+jest.mock('../services/transferCooldownService', () => ({
+    acquireTransferCooldown: jest.fn(),
+    releaseTransferCooldown: jest.fn()
+}));
 jest.mock('mongoose', () => ({ startSession: jest.fn() }));
 
 const ClientBot = require('../models/ClientBot');
@@ -27,6 +31,7 @@ const Transaction = require('../models/Transaction');
 const Ledger = require('../models/Ledger');
 const mongoose = require('mongoose');
 const { resolveAutoRouteExecutor } = require('../services/autoRouteService');
+const { acquireTransferCooldown, releaseTransferCooldown } = require('../services/transferCooldownService');
 const merchantApi = require('../routes/merchantApi');
 
 const leanResult = (value) => ({ lean: jest.fn().mockResolvedValue(value) });
@@ -43,6 +48,15 @@ describe('Merchant API agent authentication', () => {
         app = express();
         app.use(express.json());
         app.use('/api/v1/merchant', merchantApi);
+        acquireTransferCooldown.mockResolvedValue({
+            lock: {},
+            guardFields: {
+                requestOwnerKey: 'wallet:User:66a112233445566778899002',
+                canonicalServiceKey: 'vodafone',
+                canonicalRecipient: '01012345678'
+            }
+        });
+        releaseTransferCooldown.mockResolvedValue(undefined);
     });
 
     test('accepts an active agent API key for a balance request', async () => {
@@ -141,7 +155,10 @@ describe('Merchant API agent authentication', () => {
                 userId: agent.phone,
                 companyId: undefined,
                 companyName: agent.name,
-                costLYD: 168.067
+                costLYD: 168.067,
+                requestOwnerKey: 'wallet:User:66a112233445566778899002',
+                canonicalServiceKey: 'vodafone',
+                canonicalRecipient: '01012345678'
             })],
             { session }
         );
@@ -152,5 +169,43 @@ describe('Merchant API agent authentication', () => {
         }));
         expect(session.commitTransaction).toHaveBeenCalledTimes(1);
         expect(session.endSession).toHaveBeenCalledTimes(1);
+    });
+
+    test('returns a cooldown response before debiting an agent merchant', async () => {
+        const agent = {
+            _id: '66a112233445566778899002',
+            name: 'وكالة الاختبار',
+            phone: '0912345678',
+            role: 'agent',
+            status: 'active',
+            balance: 850
+        };
+        const cooldownError = Object.assign(new Error('لا يمكن إعادة تحويل المبلغ نفسه إلى هذا الرقم الآن.'), {
+            statusCode: 429,
+            code: 'TRANSFER_COOLDOWN_ACTIVE',
+            cooldownType: 'same_amount',
+            retryAfterSeconds: 180,
+            retryAt: '2026-08-09T12:03:00.000Z'
+        });
+
+        ClientBot.findOne.mockReturnValue(leanResult(null));
+        User.findOne.mockReturnValue(leanResult(agent));
+        acquireTransferCooldown.mockRejectedValueOnce(cooldownError);
+
+        const response = await request(app)
+            .post('/api/v1/merchant/transfer')
+            .set('x-api-key', 'agent-private-api-key')
+            .send({ target_number: '01012345678', amount: 1000, transfer_type: 'vodafone' });
+
+        expect(response.status).toBe(429);
+        expect(response.body).toMatchObject({
+            status: 'failed',
+            code: 'TRANSFER_COOLDOWN_ACTIVE',
+            cooldown_type: 'same_amount',
+            retry_after_seconds: 180,
+            retry_at: '2026-08-09T12:03:00.000Z'
+        });
+        expect(User.findOneAndUpdate).not.toHaveBeenCalled();
+        expect(Transaction.create).not.toHaveBeenCalled();
     });
 });

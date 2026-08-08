@@ -31,6 +31,9 @@ const transactionSchema = new mongoose.Schema({
     accountNumber: { type: String },
     accountName: { type: String }, 
     amount: { type: Number, required: true, min: 0 }, // ✅ تحقق: لا قيم سالبة
+    requestOwnerKey: { type: String, trim: true },
+    canonicalServiceKey: { type: String, trim: true },
+    canonicalRecipient: { type: String, trim: true },
     serviceDetails: {
         subtype: { type: String, trim: true },
         city: { type: String, trim: true },
@@ -155,6 +158,35 @@ transactionSchema.index({ managerGroupId: 1, status: 1, executorReceivedAt: 1 })
 transactionSchema.index({ executorGroupId: 1, status: 1, updatedAt: -1 });
 transactionSchema.index({ managerGroupId: 1, status: 1, updatedAt: -1 });
 transactionSchema.index({ tenantId: 1, createdAt: -1 });
+transactionSchema.index({
+    requestOwnerKey: 1,
+    canonicalServiceKey: 1,
+    canonicalRecipient: 1,
+    amount: 1,
+    status: 1,
+    createdAt: -1
+}, {
+    name: 'transferCooldownExact_v1',
+    partialFilterExpression: {
+        requestOwnerKey: { $exists: true },
+        canonicalServiceKey: { $exists: true },
+        canonicalRecipient: { $exists: true }
+    }
+});
+transactionSchema.index({
+    requestOwnerKey: 1,
+    canonicalServiceKey: 1,
+    canonicalRecipient: 1,
+    status: 1,
+    createdAt: -1
+}, {
+    name: 'transferCooldownRecipient_v1',
+    partialFilterExpression: {
+        requestOwnerKey: { $exists: true },
+        canonicalServiceKey: { $exists: true },
+        canonicalRecipient: { $exists: true }
+    }
+});
 transactionSchema.index({
     status: 1,
     'apiResultData.waitingApiAutoCompletion': 1,

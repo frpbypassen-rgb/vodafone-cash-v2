@@ -23,6 +23,9 @@ export interface ITransaction extends Document {
     accountNumber?: string;
     accountName?: string;
     amount: number;
+    requestOwnerKey?: string;
+    canonicalServiceKey?: string;
+    canonicalRecipient?: string;
     costLYD: number;
     subAccountCostLYD: number;
     commission: number;
@@ -81,6 +84,9 @@ const transactionSchema = new Schema<ITransaction>({
     accountNumber: { type: String },
     accountName: { type: String }, 
     amount: { type: Number, required: true, min: 0 },
+    requestOwnerKey: { type: String, trim: true },
+    canonicalServiceKey: { type: String, trim: true },
+    canonicalRecipient: { type: String, trim: true },
     costLYD: { type: Number, default: 0, min: 0 },
     subAccountCostLYD: { type: Number, default: 0 },
     commission: { type: Number, default: 0 },
@@ -162,5 +168,34 @@ transactionSchema.index({ managerGroupId: 1, status: 1, executorReceivedAt: 1 })
 transactionSchema.index({ executorGroupId: 1, status: 1, updatedAt: -1 });
 transactionSchema.index({ managerGroupId: 1, status: 1, updatedAt: -1 });
 transactionSchema.index({ tenantId: 1, createdAt: -1 });
+transactionSchema.index({
+    requestOwnerKey: 1,
+    canonicalServiceKey: 1,
+    canonicalRecipient: 1,
+    amount: 1,
+    status: 1,
+    createdAt: -1
+}, {
+    name: 'transferCooldownExact_v1',
+    partialFilterExpression: {
+        requestOwnerKey: { $exists: true },
+        canonicalServiceKey: { $exists: true },
+        canonicalRecipient: { $exists: true }
+    }
+});
+transactionSchema.index({
+    requestOwnerKey: 1,
+    canonicalServiceKey: 1,
+    canonicalRecipient: 1,
+    status: 1,
+    createdAt: -1
+}, {
+    name: 'transferCooldownRecipient_v1',
+    partialFilterExpression: {
+        requestOwnerKey: { $exists: true },
+        canonicalServiceKey: { $exists: true },
+        canonicalRecipient: { $exists: true }
+    }
+});
 
 export default (mongoose.models.Transaction as mongoose.Model<ITransaction>) || mongoose.model<ITransaction>('Transaction', transactionSchema);

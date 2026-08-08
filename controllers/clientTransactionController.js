@@ -32,6 +32,11 @@ const { normalizeCustomerNoteInput } = require('../utils/transactionNotes');
 const { calculateAgencyPricing } = require('../utils/agencyPricing');
 const { recordTransferReservation } = require('../services/agencyJournalService');
 const { minimumBalanceForDebit } = require('../services/agencyCreditLimitService');
+const {
+    TransferCooldownError,
+    acquireTransferCooldown,
+    releaseTransferCooldown
+} = require('../services/transferCooldownService');
 
 const createClientError = (message, statusCode = 400) => {
     const error = new Error(message);
@@ -107,6 +112,8 @@ exports.postTransfer = async (req, res) => {
     let auditAccount = null;
     let auditIsSubAccount = false;
     let standaloneCompensations = [];
+    let cooldownLock = null;
+    let cooldownGuardFields = null;
     
     // 🟢 بدء المعاملة الذرية (Transaction) — تدعم الوضع بدون Replica Set
     let session = null;
@@ -223,6 +230,15 @@ exports.postTransfer = async (req, res) => {
 
             const minSubBalance = minimumBalanceForDebit(subCostLYD, account.creditLimit);
             const minMasterBalance = minimumBalanceForDebit(masterCostLYD, masterObj.creditLimit);
+            const cooldown = await acquireTransferCooldown({
+                ownerModel: 'SubAccount',
+                ownerId: account._id,
+                serviceKey,
+                recipient: accountNumber,
+                amount
+            });
+            cooldownLock = cooldown.lock;
+            cooldownGuardFields = cooldown.guardFields;
 
             // 🟢 الخصم الذري لنقطة البيع + القيد المالي
             const updatedSub = await SubAccount.findOneAndUpdate(
@@ -291,6 +307,15 @@ exports.postTransfer = async (req, res) => {
 
             const minBalance = minimumBalanceForDebit(masterCostLYD, balanceModel.creditLimit);
             const BModel = req.session.accountType === 'company' ? ClientCompany : User;
+            const cooldown = await acquireTransferCooldown({
+                ownerModel: BModel.modelName || (req.session.accountType === 'company' ? 'ClientCompany' : 'User'),
+                ownerId: balanceModel._id,
+                serviceKey,
+                recipient: accountNumber,
+                amount
+            });
+            cooldownLock = cooldown.lock;
+            cooldownGuardFields = cooldown.guardFields;
             
             // 🟢 الخصم الذري للرئيسي + القيد المالي
             const updatedClient = await BModel.findOneAndUpdate(
@@ -315,6 +340,7 @@ exports.postTransfer = async (req, res) => {
             subAccountName: isSubAccount ? account.name : '', companyName: isSubAccount ? masterObj.name : companyName, 
             employeeName: isSubAccount ? account.name : account.name, vodafoneNumber: phone, transferType: serviceKey,
             accountName, accountNumber, serviceDetails, amount: amount, costLYD: masterCostLYD,
+            ...(cooldownGuardFields || {}),
             subAccountCostLYD: isSubAccount ? subCostLYD : 0, commission: commission, exchangeRate: masterRate, subClientRate: isSubAccount ? actualSubRate : 0,
             agencyPricing: isSubAccount ? agencyPricing : undefined,
             notes, customerNotes: notes, status: 'pending', isSubAccountTx: isSubAccount, masterProfit: isSubAccount ? commission : 0,
@@ -392,7 +418,9 @@ exports.postTransfer = async (req, res) => {
 
     } catch (error) {
         // 🔴 في حال أي خطأ يتم التراجع عن خصم الأرصدة وإلغاء الفواتير والدفتر
-        console.error('[Transfer] خطأ:', error.message, error.stack);
+        if (!(error instanceof TransferCooldownError)) {
+            console.error('[Transfer] خطأ:', error.message, error.stack);
+        }
         if (useTransaction) { try { await session.abortTransaction(); session.endSession(); } catch(e) {} }
         if (!useTransaction && standaloneCompensations.length) {
             for (const compensate of standaloneCompensations.reverse()) {
@@ -420,6 +448,17 @@ exports.postTransfer = async (req, res) => {
             });
         } catch (_) {}
 
+        if (error instanceof TransferCooldownError) {
+            return res.status(error.statusCode).json({
+                success: false,
+                code: error.code,
+                error: error.message,
+                message: error.message,
+                cooldownType: error.cooldownType,
+                retryAfterSeconds: error.retryAfterSeconds,
+                retryAt: error.retryAt
+            });
+        }
         if (error.message === 'SYSTEM_CLOSED') return isAjax ? res.status(403).json({ error: '⛔ النظام مغلق.' }) : null;
         if (error.message === 'SESSION_EXPIRED') return isAjax ? res.status(401).json({ error: 'انتهت الجلسة. يرجى تسجيل الدخول مرة أخرى.' }) : res.redirect('/client/logout');
         if (error.message === 'AGENT_NOT_FOUND') return isAjax ? res.status(404).json({ error: 'حساب الوكيل غير موجود أو غير نشط.' }) : null;
@@ -428,6 +467,8 @@ exports.postTransfer = async (req, res) => {
         if (error.statusCode) return isAjax ? res.status(error.statusCode).json({ error: error.message }) : null;
 
         return isAjax ? res.status(500).json({ error: '❌ خطأ داخلي.' }) : null;
+    } finally {
+        await releaseTransferCooldown(cooldownLock);
     }
 };
 

@@ -23,6 +23,22 @@ jest.mock('../models/Notification', () => ({
 }));
 jest.mock('../services/transferService');
 jest.mock('../services/auditService');
+jest.mock('../services/transferCooldownService', () => {
+    class TransferCooldownError extends Error {
+        constructor(details) {
+            super(details.message);
+            Object.assign(this, details);
+            this.name = 'TransferCooldownError';
+            this.statusCode = this.statusCode || 429;
+        }
+    }
+
+    return {
+        TransferCooldownError,
+        acquireTransferCooldown: jest.fn(),
+        releaseTransferCooldown: jest.fn()
+    };
+});
 
 const User = require('../models/User');
 const ClientEmployee = require('../models/ClientEmployee');
@@ -35,6 +51,11 @@ const Ledger = require('../models/Ledger');
 const Employee = require('../models/Employee');
 const ExecutorGroup = require('../models/ExecutorGroup');
 const transferService = require('../services/transferService');
+const {
+    TransferCooldownError,
+    acquireTransferCooldown,
+    releaseTransferCooldown
+} = require('../services/transferCooldownService');
 
 // محاكاة الاتصال بقاعدة البيانات لتجنب البحث الفعلي عن الـ Replica Set
 mongoose.connection = {
@@ -258,6 +279,15 @@ describe('Client Transaction Controller Tests', () => {
             json: jest.fn(),
             status: jest.fn().mockReturnThis()
         };
+        acquireTransferCooldown.mockResolvedValue({
+            lock: {},
+            guardFields: {
+                requestOwnerKey: 'wallet:User:client123',
+                canonicalServiceKey: 'vodafone',
+                canonicalRecipient: '01012345678'
+            }
+        });
+        releaseTransferCooldown.mockResolvedValue(undefined);
     });
 
     test('postComplaint - يجب تحديث نص الشكوى وحفظ العملية بنجاح', async () => {
@@ -312,5 +342,43 @@ describe('Client Transaction Controller Tests', () => {
             success: true,
             message: '✅ تم الإرسال بنجاح!'
         }));
+    });
+
+    test('postTransfer - يرجع مهلة التكرار قبل خصم الرصيد', async () => {
+        req.body = {
+            amount: '100',
+            phone: '01012345678',
+            type: 'كاش',
+            name: 'Recipient Name',
+            number: '01012345678'
+        };
+        User.findById = jest.fn().mockResolvedValue({
+            _id: 'client123',
+            name: 'Client User Name',
+            tier: 1,
+            balance: 1000,
+            creditLimit: 0,
+            phone: '01012345678'
+        });
+        Settings.findOne = jest.fn().mockResolvedValue({ rateLevel1: 6.4 });
+        Counter.findOneAndUpdate = jest.fn().mockResolvedValue({ value: 43 });
+        acquireTransferCooldown.mockRejectedValueOnce(new TransferCooldownError({
+            code: 'TRANSFER_COOLDOWN_ACTIVE',
+            cooldownType: 'different_amount',
+            retryAfterSeconds: 90,
+            retryAt: '2026-08-09T12:01:30.000Z',
+            message: 'تم إدخال تحويل سابق إلى الرقم نفسه بقيمة مختلفة. أعد المحاولة بعد 90 ثانية.'
+        }));
+
+        await clientTransactionController.postTransfer(req, res);
+
+        expect(res.status).toHaveBeenCalledWith(429);
+        expect(res.json).toHaveBeenCalledWith(expect.objectContaining({
+            success: false,
+            code: 'TRANSFER_COOLDOWN_ACTIVE',
+            cooldownType: 'different_amount',
+            retryAfterSeconds: 90
+        }));
+        expect(User.findOneAndUpdate).not.toHaveBeenCalled();
     });
 });
