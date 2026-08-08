@@ -2,12 +2,15 @@
 
 <section class="bw-customer-profile-head">
     <div class="bw-customer-identity"><span class="bw-avatar"><%= String(customer.name).charAt(0) %></span><div><span class="bw-section-kicker">ملف مالي موحد</span><h2><%= customer.name %></h2><p><span class="bw-mono"><%= customer.accountCode || 'بدون رقم حساب' %></span> · <span dir="ltr"><%= customer.phone || customer.webUsername %></span></p></div></div>
-    <div class="bw-customer-balance <%= Number(customer.balance) < 0 ? 'negative' : 'positive' %>"><span><%= Number(customer.balance) < 0 ? 'الدين الحالي' : 'الرصيد الحالي' %></span><strong class="bw-mono"><%= Math.abs(Number(customer.balance || 0)).toFixed(3) %> <small>LYD</small></strong><small>المتاح مع الحد: <%= Number(customer.availableToSpend).toFixed(3) %> LYD</small></div>
+    <div class="bw-customer-balance <%= Number(customer.balance) < 0 ? 'negative' : 'positive' %>"><span><%= Number(customer.balance) < 0 ? 'الدين الحالي' : 'الرصيد الحالي' %></span><strong class="bw-mono"><%= Math.abs(Number(customer.balance || 0)).toFixed(3) %> <small>LYD</small></strong><small>المتاح للتحويل: <%= Number(customer.availableToSpend).toFixed(3) %> LYD</small></div>
     <div class="bw-row-actions"><a href="/client/customers" class="bw-button secondary"><i class="fa-solid fa-arrow-right"></i>العملاء</a><a href="/client/transactions?customer=<%= customer._id %>" class="bw-button primary"><i class="fa-solid fa-list-check"></i>كل العمليات</a></div>
 </section>
 
 <section class="bw-mini-metrics">
-    <article><span>الحد الائتماني</span><strong class="bw-mono"><%= Number(customer.creditLimit || 0).toFixed(3) %> <small>LYD</small></strong></article>
+    <article><span>حد المديونية</span><strong class="bw-mono"><%= Number(customer.creditLimit || 0).toFixed(3) %> <small>LYD</small></strong></article>
+    <article class="danger"><span>أدنى رصيد مسموح</span><strong class="bw-mono"><%= Number(customer.minimumBalance || 0).toFixed(3) %> <small>LYD</small></strong></article>
+    <article class="warning"><span>المستخدم من الحد</span><strong class="bw-mono"><%= Number(customer.usedCredit || 0).toFixed(3) %> <small>LYD</small></strong></article>
+    <article class="success"><span>المتبقي من الحد</span><strong class="bw-mono"><%= Number(customer.remainingCredit || 0).toFixed(3) %> <small>LYD</small></strong></article>
     <article class="warning"><span>مبالغ محجوزة</span><strong class="bw-mono"><%= Number(customer.reserved).toFixed(3) %> <small>LYD</small></strong></article>
     <article class="success"><span>ربح الفترة</span><strong class="bw-mono"><%= Number(customer.realizedProfit).toFixed(3) %> <small>LYD</small></strong></article>
     <article class="blue"><span>عمليات ناجحة</span><strong class="bw-mono"><%= customer.completedCount %></strong></article>
@@ -26,6 +29,18 @@
                 <label class="bw-field span-2"><span>الرقم المرجعي</span><input type="text" name="externalReference" maxlength="100" placeholder="رقم إيصال أو مرجع التحصيل"></label>
                 <label class="bw-field span-2"><span>البيان</span><textarea name="note" rows="3" maxlength="240" placeholder="بيان واضح للحركة المالية"></textarea></label>
                 <button type="submit" class="bw-button primary span-2"><i class="fa-solid fa-check"></i>تسجيل التسوية وإصدار الإيصال</button>
+            </form>
+        </div>
+    <% } %>
+
+    <% if (workspace.isAgent && workspace.permissions.canManageCustomers) { %>
+        <div class="bw-section" id="credit-limit">
+            <header class="bw-section-head"><div><span class="bw-section-kicker">سياسة المديونية</span><h2>حد مديونية العميل</h2></div><i class="fa-solid fa-credit-card bw-section-icon"></i></header>
+            <form method="POST" action="/client/customers/<%= customer._id %>/credit-limit" class="bw-form-grid">
+                <input type="hidden" name="returnTo" value="profile">
+                <label class="bw-field span-2"><span>الحد المسموح بالدينار الليبي</span><div class="bw-input-affix"><input type="number" name="creditLimit" min="0" max="1000000000" step="0.001" value="<%= Number(customer.creditLimit || 0).toFixed(3) %>" required><b>LYD</b></div><small>القيمة 1,000 تعني أن أقل رصيد مسموح للعميل هو -1,000 د.ل.</small></label>
+                <div class="bw-definition-list span-2"><div><dt>الدين الحالي</dt><dd class="bw-mono text-danger"><%= Number(customer.debt || 0).toFixed(3) %> LYD</dd></div><div><dt>المتاح للتحويل</dt><dd class="bw-mono"><%= Number(customer.availableToSpend || 0).toFixed(3) %> LYD</dd></div><% if (customer.creditLimitUpdatedAt) { %><div><dt>آخر تعديل</dt><dd><%= new Date(customer.creditLimitUpdatedAt).toLocaleString('ar-LY', { timeZone: 'Africa/Tripoli' }) %></dd></div><% } %></div>
+                <button type="submit" class="bw-button primary span-2"><i class="fa-solid fa-floppy-disk"></i>حفظ حد المديونية</button>
             </form>
         </div>
     <% } %>

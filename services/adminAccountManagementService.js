@@ -24,6 +24,10 @@ const {
     normalizeExecutorServiceKey
 } = require('../utils/executorServiceCatalog');
 const { buildMarginStorage } = require('../utils/agencyPricing');
+const {
+    normalizeCreditLimit,
+    assertCreditLimitCanCoverBalance
+} = require('./agencyCreditLimitService');
 
 class AdminAccountManagementError extends Error {
     constructor(code, field = null) {
@@ -86,6 +90,8 @@ const ERROR_MESSAGES = Object.freeze({
     INVALID_STATUS: 'حالة الحساب المحددة غير صالحة.',
     INVALID_ROLE: 'صفة الموظف المحددة غير صالحة.',
     INVALID_TIER: 'مستوى السعر يجب أن يكون بين 1 و3.',
+    INVALID_CREDIT_LIMIT: 'حد المديونية يجب أن يكون رقماً موجباً أو صفراً.',
+    CREDIT_LIMIT_BELOW_OUTSTANDING_DEBT: 'لا يمكن خفض حد المديونية إلى أقل من الدين الحالي للحساب.',
     INVALID_NUMBER: 'إحدى القيم الرقمية المدخلة غير صالحة.',
     INVALID_COMPANY: 'الشركة المحددة غير موجودة أو محذوفة.',
     INVALID_AGENT: 'الوكيل المحدد غير موجود أو غير صالح.',
@@ -328,7 +334,14 @@ const updateSubAccount = async ({ definition, account, payload }) => {
     setName(account, payload);
     setStatus('subaccount', account, payload);
     const passwordChanged = await setLoginIdentity({ definition, account, payload });
-    account.creditLimit = parseNumber(payload.creditLimit || 0, 'creditLimit', { min: 0, max: 1e12 });
+    const creditLimit = normalizeCreditLimit(payload.creditLimit || 0, { required: true });
+    try {
+        assertCreditLimitCanCoverBalance({ balance: account.balance, creditLimit });
+    } catch (error) {
+        if (error && error.code) throw new AdminAccountManagementError(error.code, 'creditLimit');
+        throw error;
+    }
+    account.creditLimit = creditLimit;
     const marginStorage = buildMarginStorage({ customMargin: parseNumber(payload.customMargin || 0, 'customMargin', { min: 0, max: 5 }) });
     account.customMargin = marginStorage.customMargin;
     account.marginPiasters = marginStorage.marginPiasters;

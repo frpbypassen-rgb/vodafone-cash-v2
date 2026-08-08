@@ -13,6 +13,7 @@ const { getServiceRatesForTier, getCompanyServiceRates } = require('../utils/rat
 const { getTransferServiceRules } = require('../utils/transferServiceRules');
 const agencyFinanceService = require('./agencyFinanceService');
 const { resolveMarginPiasters, pricingFromTransaction, roundMoney } = require('../utils/agencyPricing');
+const { calculateCreditState } = require('./agencyCreditLimitService');
 const {
     sanitizeStatementMovement,
     sanitizeStatementTransaction
@@ -590,19 +591,22 @@ const loadCustomers = async (workspace) => {
         }
     ]) : [];
     const statsById = new Map(stats.map((item) => [String(item._id), item]));
-    const enrichedCustomers = customers.map((customer) => ({
-        ...customer,
-        positiveBalance: Math.max(0, safeNumber(customer.balance)),
-        debt: Math.max(0, -safeNumber(customer.balance)),
-        marginPiasters: resolveMarginPiasters(customer, 'vodafone'),
-        stats: statsById.get(String(customer._id)) || {
-            transactionCount: 0,
-            completedCount: 0,
-            totalEGP: 0,
-            totalLYD: 0,
-            lastActivity: null
-        }
-    }));
+    const enrichedCustomers = customers.map((customer) => {
+        const creditState = calculateCreditState(customer);
+        return {
+            ...customer,
+            ...creditState,
+            positiveBalance: Math.max(0, creditState.balance),
+            marginPiasters: resolveMarginPiasters(customer, 'vodafone'),
+            stats: statsById.get(String(customer._id)) || {
+                transactionCount: 0,
+                completedCount: 0,
+                totalEGP: 0,
+                totalLYD: 0,
+                lastActivity: null
+            }
+        };
+    });
     const pendingRequests = workspace.isAgent
         ? await RegistrationRequest.find({ accountType: 'new', status: 'pending_agent', agentId: workspace.entity._id }).sort({ createdAt: -1 }).lean()
         : [];
@@ -613,10 +617,10 @@ const loadCustomers = async (workspace) => {
         customerSummary: {
             total: customers.length,
             active: customers.filter((customer) => customer.status === 'active').length,
-            totalBalance: customers.reduce((sum, customer) => sum + safeNumber(customer.balance), 0),
-            positiveBalances: customers.reduce((sum, customer) => sum + Math.max(0, safeNumber(customer.balance)), 0),
-            totalDebt: customers.reduce((sum, customer) => sum + Math.max(0, -safeNumber(customer.balance)), 0),
-            totalCredit: customers.reduce((sum, customer) => sum + safeNumber(customer.creditLimit), 0),
+            totalBalance: enrichedCustomers.reduce((sum, customer) => sum + customer.balance, 0),
+            positiveBalances: enrichedCustomers.reduce((sum, customer) => sum + customer.positiveBalance, 0),
+            totalDebt: enrichedCustomers.reduce((sum, customer) => sum + customer.debt, 0),
+            totalCredit: enrichedCustomers.reduce((sum, customer) => sum + customer.creditLimit, 0),
             monthVolumeEGP: stats.reduce((sum, item) => sum + safeNumber(item.totalEGP), 0)
         },
         periodLabel: month.label

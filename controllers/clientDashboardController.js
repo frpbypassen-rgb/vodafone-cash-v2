@@ -16,6 +16,7 @@ const clientCompanyController = require('./clientCompanyController');
 const clientWorkspaceController = require('./clientWorkspaceController');
 const businessPortalService = require('../services/businessPortalService');
 const { sanitizeStatementTransaction } = require('../utils/accountStatementPrivacy');
+const { normalizeCreditLimit } = require('../services/agencyCreditLimitService');
 
 const renderBusinessOverview = clientWorkspaceController.renderPage('overview');
 
@@ -220,7 +221,22 @@ exports.postAddSubAccount = async (req, res) => {
 
     try {
         const pricing = buildMarginStorage({ marginPiasters, customMargin });
-        await SubAccount.create({ masterType, masterId, name, phone, webUsername, webPassword, ...pricing, cardMargin: parseFloat(cardMargin) || 0, creditLimit: parseFloat(creditLimit) || 0 });
+        const normalizedCreditLimit = normalizeCreditLimit(creditLimit);
+        await SubAccount.create({
+            masterType,
+            masterId,
+            name,
+            phone,
+            webUsername,
+            webPassword,
+            ...pricing,
+            cardMargin: parseFloat(cardMargin) || 0,
+            creditLimit: normalizedCreditLimit,
+            creditLimitUpdatedAt: normalizedCreditLimit > 0 ? new Date() : undefined,
+            creditLimitUpdatedBy: normalizedCreditLimit > 0 ? account.name : undefined,
+            creditLimitUpdatedByModel: normalizedCreditLimit > 0 ? 'User' : undefined,
+            creditLimitUpdatedById: normalizedCreditLimit > 0 ? account._id : undefined
+        });
         res.redirect('/client/sub-accounts?success=1');
     } catch(e) { res.redirect('/client/sub-accounts?error=1'); }
 };

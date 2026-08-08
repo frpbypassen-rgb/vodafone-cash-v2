@@ -22,6 +22,10 @@ const {
     decodeOpaqueId,
     buildRequestFingerprint
 } = require('../utils/mobileOpaqueId');
+const {
+    normalizeCreditLimit,
+    assertCreditLimitCanCoverBalance
+} = require('./agencyCreditLimitService');
 
 const escapeRegExp = (value) => String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 const normalizeNumber = (value) => Number(Number(value || 0).toFixed(3));
@@ -238,6 +242,7 @@ const createSubAccount = async (req, res) => {
             return sendMobileError(res, 409, 'USERNAME_ALREADY_EXISTS', 'اسم المستخدم مسجل بالفعل في المنظومة', req.correlationId);
         }
 
+        const normalizedCreditLimit = normalizeCreditLimit(creditLimit);
         const pricing = buildMarginStorage({ marginPiasters, customMargin });
         const sub = await SubAccount.create({
             masterType: 'user',
@@ -249,7 +254,11 @@ const createSubAccount = async (req, res) => {
             creationIdempotencyKey: idempotencyKey,
             creationIdempotencyFingerprint: creationFingerprint,
             ...pricing,
-            creditLimit: parseFloat(creditLimit) || 0,
+            creditLimit: normalizedCreditLimit,
+            creditLimitUpdatedAt: normalizedCreditLimit > 0 ? new Date() : undefined,
+            creditLimitUpdatedBy: normalizedCreditLimit > 0 ? agent.name : undefined,
+            creditLimitUpdatedByModel: normalizedCreditLimit > 0 ? 'User' : undefined,
+            creditLimitUpdatedById: normalizedCreditLimit > 0 ? agent._id : undefined,
             status: 'active'
         });
 
@@ -275,6 +284,9 @@ const createSubAccount = async (req, res) => {
         if (error && error.code === 11000) {
             return sendMobileError(res, 409, 'IDEMPOTENCY_CONFLICT', 'طلب الإنشاء مكرر أو متعارض', req.correlationId);
         }
+        if (error && error.code === 'INVALID_CREDIT_LIMIT') {
+            return sendMobileError(res, 400, 'INVALID_CREDIT_LIMIT', 'حد المديونية يجب أن يكون رقماً موجباً أو صفراً.', req.correlationId);
+        }
         return sendMobileError(res, 500, 'SERVER_ERROR', 'خطأ داخلي أثناء إنشاء الحساب التابع', req.correlationId);
     }
 };
@@ -292,8 +304,9 @@ const updateCreditLimit = async (req, res) => {
             return sendMobileError(res, 404, 'SUB_ACCOUNT_NOT_FOUND', 'الحساب التابع غير موجود أو غير تابع لك', req.correlationId);
         }
 
-        const newLimit = parseFloat(req.body.creditLimit);
-        if (sub.creditLimit === newLimit) {
+        const newLimit = normalizeCreditLimit(req.body.creditLimit, { required: true });
+        assertCreditLimitCanCoverBalance({ balance: sub.balance, creditLimit: newLimit });
+        if (Number(sub.creditLimit || 0) === newLimit) {
             return res.status(200).json({
                 success: true,
                 message: 'تم تحديث الحد التأميني (Idempotent)',
@@ -304,6 +317,10 @@ const updateCreditLimit = async (req, res) => {
 
         const oldLimit = sub.creditLimit;
         sub.creditLimit = newLimit;
+        sub.creditLimitUpdatedAt = new Date();
+        sub.creditLimitUpdatedBy = agent.name;
+        sub.creditLimitUpdatedByModel = 'User';
+        sub.creditLimitUpdatedById = agent._id;
         await sub.save();
 
         await logAction({
@@ -325,7 +342,13 @@ const updateCreditLimit = async (req, res) => {
             subAccount: toSubAccountDetailsDto(sub),
             serverTime: new Date().toISOString()
         });
-    } catch (_) {
+    } catch (error) {
+        if (error && error.code === 'INVALID_CREDIT_LIMIT') {
+            return sendMobileError(res, 400, 'INVALID_CREDIT_LIMIT', 'حد المديونية يجب أن يكون رقماً موجباً أو صفراً.', req.correlationId);
+        }
+        if (error && error.code === 'CREDIT_LIMIT_BELOW_OUTSTANDING_DEBT') {
+            return sendMobileError(res, 409, 'CREDIT_LIMIT_BELOW_OUTSTANDING_DEBT', 'لا يمكن خفض حد المديونية إلى أقل من الدين الحالي للعميل.', req.correlationId);
+        }
         return sendMobileError(res, 500, 'SERVER_ERROR', 'خطأ داخلي أثناء تحديث الحد التأميني', req.correlationId);
     }
 };

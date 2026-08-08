@@ -166,6 +166,7 @@ router.post('/api/smart-transfer/parse', requireClientAuth, clientWorkspaceContr
 router.post('/customers/add', requireClientAuth, clientWorkspaceController.postCreateCustomer);
 router.post('/customers/:id/toggle', requireClientAuth, clientWorkspaceController.postToggleCustomer);
 router.post('/customers/:id/balance', requireClientAuth, clientWorkspaceController.postAdjustCustomerBalance);
+router.post('/customers/:id/credit-limit', requireClientAuth, clientWorkspaceController.postUpdateCustomerCreditLimit);
 router.post('/customers/:id/pricing', requireClientAuth, clientWorkspaceController.postUpdateCustomerPricing);
 router.post('/settings/profile', requireClientAuth, clientWorkspaceController.postUpdateSettings);
 router.post('/settings/password', requireClientAuth, clientWorkspaceController.postChangePassword);

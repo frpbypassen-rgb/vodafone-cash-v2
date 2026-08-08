@@ -367,6 +367,39 @@ describe('Mobile Agent SubAccounts Contract', () => {
         expect(resRetry.body.message).toContain('Idempotent');
     });
 
+    it("should reject lowering the credit limit below the customer's outstanding debt", async () => {
+        const mockAgent = {
+            _id: 'agent-user-id-123',
+            name: 'Agent User',
+            role: 'agent',
+            status: 'active'
+        };
+        const mockSub = {
+            _id: 'sub-credit-debt-id',
+            masterType: 'user',
+            masterId: 'agent-user-id-123',
+            name: 'Credit Customer',
+            webUsername: 'creditcustomer',
+            status: 'active',
+            creditLimit: 1000,
+            balance: -100,
+            save: jest.fn().mockResolvedValue(true)
+        };
+
+        User.findById.mockResolvedValue(mockAgent);
+        SubAccount.findById.mockResolvedValue(mockSub);
+
+        const res = await request(app)
+            .patch(`/api/mobile/agent/sub-accounts/${mockSub._id}/credit-limit`)
+            .set('Idempotency-Key', '22222222-2222-2222-2222-222222222223')
+            .send({ creditLimit: 99 })
+            .expect(409);
+
+        expect(res.body.code).toBe('CREDIT_LIMIT_BELOW_OUTSTANDING_DEBT');
+        expect(mockSub.save).not.toHaveBeenCalled();
+        expect(mockSub.creditLimit).toBe(1000);
+    });
+
     it('should update status to explicit value active or banned', async () => {
         const mockAgent = {
             _id: 'agent-user-id-123',

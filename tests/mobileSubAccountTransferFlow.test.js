@@ -272,6 +272,39 @@ describe('Mobile SubAccount Transfer Flow', () => {
         expect(User.findOneAndUpdate).toHaveBeenCalled();
     });
 
+    it('should let a customer use the agent-approved debt limit while debiting the agent too', async () => {
+        const updatedSub = { ...MOCK_SUB, balance: -47.244 };
+        const updatedMaster = { ...MOCK_USER, balance: 953.488 };
+
+        SubAccount.findOneAndUpdate.mockResolvedValue(updatedSub);
+        User.findOneAndUpdate.mockResolvedValue(updatedMaster);
+
+        await request(app)
+            .post('/api/mobile/client/new-transfer')
+            .set('Idempotency-Key', '55555555-5555-5555-5555-555555555553')
+            .send({
+                transferType: 'vodafone',
+                amount: 300,
+                number: '01055555555',
+                name: 'Recipient Name'
+            })
+            .expect(200);
+
+        const [subFilter, subUpdate] = SubAccount.findOneAndUpdate.mock.calls[0];
+        const [agentFilter, agentUpdate] = User.findOneAndUpdate.mock.calls[0];
+
+        expect(subFilter).toMatchObject({
+            _id: MOCK_SUB._id,
+            balance: { $gte: -52.756 }
+        });
+        expect(subUpdate).toEqual({ $inc: { balance: -47.244 } });
+        expect(agentFilter).toMatchObject({
+            _id: MOCK_USER._id,
+            balance: { $gte: 46.512 }
+        });
+        expect(agentUpdate).toEqual({ $inc: { balance: -46.512 } });
+    });
+
     it('should rollback transaction if sub-account has insufficient balance', async () => {
         // Mock findOneAndUpdate returning null (simulating insufficient balance check failure)
         SubAccount.findOneAndUpdate.mockResolvedValue(null);

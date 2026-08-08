@@ -28,6 +28,7 @@ const { mfaMiddleware } = require('../src/Presentation/Middlewares/mfaMiddleware
 const { buildMobileRateContract, buildCompanyRateContract } = require('../utils/rateHelper');
 const { applyCustomerRateMargins } = require('../utils/agencyPricing');
 const { getTransferServiceLabel } = require('../utils/mobileTransferServiceCatalog');
+const { calculateCreditState } = require('../services/agencyCreditLimitService');
 const agentService = require('../services/mobileAgentSubAccountService');
 const {
     createSubAccountValidator,
@@ -678,9 +679,8 @@ const buildHomeRateResponse = async (req, res, userId, accountType, settings) =>
             }
         }
         const { buildContext } = require('../mappers/mobileAuthMapper');
-        responseData.creditLimit = subAccount.creditLimit || 0;
-        responseData.debt = balance < 0 ? Math.abs(balance) : 0;
-        responseData.availableToSpend = balance + (subAccount.creditLimit || 0);
+        const creditState = calculateCreditState({ balance, creditLimit: subAccount.creditLimit });
+        Object.assign(responseData, creditState, { minimumAllowedBalance: creditState.minimumBalance });
         responseData.context = buildContext(accountType, {
             masterName: masterForRates ? masterForRates.name : null,
             accountCode: subAccount.accountCode || ''

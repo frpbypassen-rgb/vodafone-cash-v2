@@ -21,6 +21,7 @@ const { calculateAgencyPricing } = require('../../../utils/agencyPricing');
 const { recordTransferReservation } = require('../../../services/agencyJournalService');
 const { getTransferServiceDefinition } = require('../../../utils/mobileTransferServiceCatalog');
 const { acquireLock, releaseLock } = require('../../../services/lockService');
+const { minimumBalanceForDebit } = require('../../../services/agencyCreditLimitService');
 const { resolveAutoRouteExecutor, applyAutoRouteFields, enqueueAutoRouteIfNeeded } = require('../../../services/autoRouteService');
 const eventBus = require('../../../services/eventBus');
 import logger from '../../../utils/logger';
@@ -285,7 +286,7 @@ export class TransferService {
             }
 
             const costLYD = isSubAccountTx ? masterCostLYD : parseFloat((amount / finalRate).toFixed(3));
-            const minRequiredBalance = costLYD - creditLimit;
+            const minRequiredBalance = minimumBalanceForDebit(costLYD, creditLimit);
 
             // 6. التحقق من الرصيد والخصم (Multi-Currency Wallet)
             let updatedClient: any;
@@ -298,8 +299,8 @@ export class TransferService {
                 const masterObj = clientInfo.masterObj;
                 const MasterModel = clientInfo.MasterModel;
 
-                const minSubBalance = subCostLYD - (subAccount.creditLimit || 0);
-                const minMasterBalance = masterCostLYD - (masterObj.creditLimit || 0);
+                const minSubBalance = minimumBalanceForDebit(subCostLYD, subAccount.creditLimit);
+                const minMasterBalance = minimumBalanceForDebit(masterCostLYD, masterObj.creditLimit);
 
                 // 🟢 الخصم الذري لنقطة البيع
                 const updatedSub = await SubAccount.findOneAndUpdate(

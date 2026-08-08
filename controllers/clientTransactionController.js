@@ -31,6 +31,7 @@ const { getClientReceiptProofIds } = require('../services/clientReceiptService')
 const { normalizeCustomerNoteInput } = require('../utils/transactionNotes');
 const { calculateAgencyPricing } = require('../utils/agencyPricing');
 const { recordTransferReservation } = require('../services/agencyJournalService');
+const { minimumBalanceForDebit } = require('../services/agencyCreditLimitService');
 
 const createClientError = (message, statusCode = 400) => {
     const error = new Error(message);
@@ -220,8 +221,8 @@ exports.postTransfer = async (req, res) => {
             if (account.masterType === 'company') { companyId = masterObj._id; companyName = masterObj.name; telegramId = null; }
             else { companyName = masterObj.name; telegramId = masterObj.telegramId; }
 
-            const minSubBalance = subCostLYD - (account.creditLimit || 0);
-            const minMasterBalance = masterCostLYD - (masterObj.creditLimit || 0);
+            const minSubBalance = minimumBalanceForDebit(subCostLYD, account.creditLimit);
+            const minMasterBalance = minimumBalanceForDebit(masterCostLYD, masterObj.creditLimit);
 
             // 🟢 الخصم الذري لنقطة البيع + القيد المالي
             const updatedSub = await SubAccount.findOneAndUpdate(
@@ -288,7 +289,7 @@ exports.postTransfer = async (req, res) => {
                 balanceModel = account; telegramId = account.phone || account.webUsername;
             }
 
-            const minBalance = masterCostLYD - (balanceModel.creditLimit || 0);
+            const minBalance = minimumBalanceForDebit(masterCostLYD, balanceModel.creditLimit);
             const BModel = req.session.accountType === 'company' ? ClientCompany : User;
             
             // 🟢 الخصم الذري للرئيسي + القيد المالي

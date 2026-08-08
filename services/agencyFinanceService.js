@@ -12,6 +12,7 @@ const {
     roundMoney
 } = require('../utils/agencyPricing');
 const { SERVICE_RATE_KEYS } = require('../utils/rateHelper');
+const { calculateCreditState } = require('./agencyCreditLimitService');
 
 const OPEN_STATUSES = Object.freeze(['pending', 'processing', 'accepted']);
 const CANCELLED_STATUSES = Object.freeze(['rejected', 'cancelled_by_admin']);
@@ -36,10 +37,10 @@ const transactionProfit = (transaction) => {
 
 const calculateAgencyMetrics = ({ walletBalance = 0, customers = [], transactions = [] } = {}) => {
     const customerTotals = customers.reduce((totals, customer) => {
-        const balance = safeNumber(customer.balance);
-        totals.positiveBalances += Math.max(0, balance);
-        totals.debts += Math.max(0, -balance);
-        totals.creditLimits += Math.max(0, safeNumber(customer.creditLimit));
+        const creditState = calculateCreditState(customer);
+        totals.positiveBalances += Math.max(0, creditState.balance);
+        totals.debts += creditState.debt;
+        totals.creditLimits += creditState.creditLimit;
         totals.activeCustomers += customer.status === 'active' ? 1 : 0;
         return totals;
     }, { positiveBalances: 0, debts: 0, creditLimits: 0, activeCustomers: 0 });
@@ -163,14 +164,13 @@ const enrichCustomers = (customers, openTransactions, periodTransactions) => {
     });
 
     return customers.map((customer) => {
-        const balance = safeNumber(customer.balance);
+        const creditState = calculateCreditState(customer);
         const open = openByCustomer.get(String(customer._id)) || { reserved: 0, expectedProfit: 0, count: 0 };
         const period = periodByCustomer.get(String(customer._id)) || { completedCount: 0, totalEGP: 0, realizedProfit: 0 };
         return {
             ...customer,
-            positiveBalance: Math.max(0, balance),
-            debt: Math.max(0, -balance),
-            availableToSpend: roundMoney(balance + safeNumber(customer.creditLimit)),
+            ...creditState,
+            positiveBalance: Math.max(0, creditState.balance),
             reserved: roundMoney(open.reserved),
             expectedProfit: roundMoney(open.expectedProfit),
             openOperationCount: open.count,

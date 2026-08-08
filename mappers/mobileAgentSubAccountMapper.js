@@ -4,13 +4,11 @@
 
 const { encodeOpaqueId } = require('../utils/mobileOpaqueId');
 const { resolveMarginPiasters } = require('../utils/agencyPricing');
+const { calculateCreditState } = require('../services/agencyCreditLimitService');
 
 const toSubAccountListItemDto = (sub) => {
     if (!sub) return null;
-    const balance = Number(sub.balance) || 0;
-    const creditLimit = Number(sub.creditLimit) || 0;
-    const debt = balance < 0 ? Math.abs(balance) : 0;
-    const availableToSpend = balance + creditLimit;
+    const creditState = calculateCreditState({ balance: sub.balance, creditLimit: sub.creditLimit });
 
     return {
         id: encodeOpaqueId('sub_account', sub._id),
@@ -18,10 +16,8 @@ const toSubAccountListItemDto = (sub) => {
         name: sub.name || '',
         phone: sub.phone || '',
         status: sub.status || 'active',
-        balance,
-        creditLimit,
-        debt,
-        availableToSpend,
+        ...creditState,
+        minimumAllowedBalance: creditState.minimumBalance,
         customMargin: Number(sub.customMargin) || 0,
         marginPiasters: resolveMarginPiasters(sub, 'vodafone'),
         serviceMarginPiasters: sub.serviceMarginPiasters || {},
@@ -31,10 +27,7 @@ const toSubAccountListItemDto = (sub) => {
 
 const toSubAccountDetailsDto = (sub) => {
     if (!sub) return null;
-    const balance = Number(sub.balance) || 0;
-    const creditLimit = Number(sub.creditLimit) || 0;
-    const debt = balance < 0 ? Math.abs(balance) : 0;
-    const availableToSpend = balance + creditLimit;
+    const creditState = calculateCreditState({ balance: sub.balance, creditLimit: sub.creditLimit });
 
     return {
         id: encodeOpaqueId('sub_account', sub._id),
@@ -43,10 +36,8 @@ const toSubAccountDetailsDto = (sub) => {
         phone: sub.phone || '',
         webUsername: sub.webUsername || '',
         status: sub.status || 'active',
-        balance,
-        creditLimit,
-        debt,
-        availableToSpend,
+        ...creditState,
+        minimumAllowedBalance: creditState.minimumBalance,
         customMargin: Number(sub.customMargin) || 0,
         marginPiasters: resolveMarginPiasters(sub, 'vodafone'),
         serviceMarginPiasters: sub.serviceMarginPiasters || {},
@@ -68,14 +59,11 @@ const toAgentOverviewDto = (agent, subAccounts = []) => {
         if (sub.status === 'active') {
             activeSubAccountsCount++;
         }
-        const subLimit = Number(sub.creditLimit) || 0;
-        const subBalance = Number(sub.balance) || 0;
+        const creditState = calculateCreditState({ balance: sub.balance, creditLimit: sub.creditLimit });
         
-        totalCreditLimit += subLimit;
-        if (subBalance < 0) {
-            totalDebt += Math.abs(subBalance);
-        }
-        totalAvailableToSpend += (subBalance + subLimit);
+        totalCreditLimit += creditState.creditLimit;
+        totalDebt += creditState.debt;
+        totalAvailableToSpend += creditState.availableToSpend;
     });
 
     return {
@@ -97,10 +85,7 @@ const toAgentOverviewDto = (agent, subAccounts = []) => {
 
 const toSubAccountSettlementDto = (tx, sub) => {
     if (!tx) return null;
-    const balance = Number(sub.balance) || 0;
-    const creditLimit = Number(sub.creditLimit) || 0;
-    const debt = balance < 0 ? Math.abs(balance) : 0;
-    const availableToSpend = balance + creditLimit;
+    const creditState = calculateCreditState({ balance: sub.balance, creditLimit: sub.creditLimit });
 
     return {
         transaction: {
@@ -110,10 +95,8 @@ const toSubAccountSettlementDto = (tx, sub) => {
         },
         subAccount: {
             id: encodeOpaqueId('sub_account', sub._id),
-            balance,
-            creditLimit,
-            debt,
-            availableToSpend
+            ...creditState,
+            minimumAllowedBalance: creditState.minimumBalance
         }
     };
 };

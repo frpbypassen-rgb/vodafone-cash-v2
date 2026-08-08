@@ -30,6 +30,10 @@ const subAccountSchema = new mongoose.Schema({
     balance: { type: Number, default: 0 }, 
     accountCode: { type: String, trim: true, unique: true, sparse: true },
     creditLimit: { type: Number, default: 0 }, 
+    creditLimitUpdatedAt: { type: Date },
+    creditLimitUpdatedBy: { type: String, trim: true },
+    creditLimitUpdatedByModel: { type: String, trim: true },
+    creditLimitUpdatedById: { type: mongoose.Schema.Types.ObjectId },
     status: { type: String, default: 'active' },
     deletedCredentials: {
         phone: { type: String },

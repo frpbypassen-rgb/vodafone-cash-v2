@@ -45,14 +45,14 @@
     <section class="bw-section">
         <header class="bw-section-head"><div><span class="bw-section-kicker">متابعة التحصيل</span><h2>ديون العملاء</h2></div><span class="bw-meta-chip danger"><%= Number(metrics.debts).toFixed(3) %> LYD</span></header>
         <div class="bw-table-wrap"><table class="bw-table">
-            <thead><tr><th>العميل</th><th>الدين الحالي</th><th>الحد الائتماني</th><th>المتاح</th><th>هامش السعر</th><th>آخر نشاط</th><th></th></tr></thead>
+            <thead><tr><th>العميل</th><th>الدين الحالي</th><th>حد المديونية</th><th>المتبقي</th><th>هامش السعر</th><th>آخر نشاط</th><th></th></tr></thead>
             <tbody>
                 <% if (!af.debtCustomers.length) { %><tr><td colspan="7"><div class="bw-empty"><i class="fa-solid fa-circle-check"></i><strong>لا توجد ديون مستحقة حالياً</strong></div></td></tr><% } %>
                 <% af.debtCustomers.forEach(customer => { %><tr>
                     <td data-label="العميل"><span class="bw-person-cell"><span class="bw-avatar small"><%= String(customer.name).charAt(0) %></span><span><strong><%= customer.name %></strong><small class="bw-mono"><%= customer.phone || customer.accountCode %></small></span></span></td>
                     <td data-label="الدين الحالي" class="bw-mono text-danger"><strong><%= Number(customer.debt).toFixed(3) %> LYD</strong></td>
-                    <td data-label="الحد الائتماني" class="bw-mono"><%= Number(customer.creditLimit || 0).toFixed(3) %> LYD</td>
-                    <td data-label="المتاح" class="bw-mono"><%= Number(customer.availableToSpend).toFixed(3) %> LYD</td>
+                    <td data-label="حد المديونية" class="bw-mono"><%= Number(customer.creditLimit || 0).toFixed(3) %> LYD</td>
+                    <td data-label="المتبقي" class="bw-mono"><%= Number(customer.remainingCredit || 0).toFixed(3) %> LYD</td>
                     <td data-label="هامش السعر" class="bw-mono"><%= customer.marginPiasters %> قرش</td>
                     <td data-label="عمليات الفترة" class="bw-mono"><%= customer.completedCount %> عملية</td>
                     <td><a class="bw-button danger compact" href="/client/customers/<%= customer._id %>#settlement"><i class="fa-solid fa-hand-holding-dollar"></i>تحصيل</a></td>

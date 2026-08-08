@@ -26,6 +26,10 @@ const { buildMarginStorage } = require('../utils/agencyPricing');
 const { SERVICE_RATE_KEYS } = require('../utils/rateHelper');
 const { recordCustomerSettlement } = require('../services/agencyJournalService');
 const AgencyJournal = require('../models/AgencyJournal');
+const {
+    normalizeCreditLimit,
+    assertCreditLimitCanCoverBalance
+} = require('../services/agencyCreditLimitService');
 
 const USERNAME_DOMAIN = '@ahram.com';
 
@@ -137,7 +141,7 @@ exports.postCreateCustomer = async (req, res) => {
             marginPiasters: req.body.marginPiasters,
             customMargin: req.body.customMargin
         });
-        const creditLimit = Math.max(0, Number(req.body.creditLimit) || 0);
+        const creditLimit = normalizeCreditLimit(req.body.creditLimit);
 
         if (name.length < 3 || !/^\+?[0-9]{8,15}$/.test(phone) || webPassword.length < 8) {
             return redirectWithMessage(res, '/client/customers', 'customerError', 'invalid');
@@ -153,6 +157,10 @@ exports.postCreateCustomer = async (req, res) => {
             webPassword,
             ...pricing,
             creditLimit,
+            creditLimitUpdatedAt: creditLimit > 0 ? new Date() : undefined,
+            creditLimitUpdatedBy: creditLimit > 0 ? workspace.actor.name : undefined,
+            creditLimitUpdatedByModel: creditLimit > 0 ? workspace.actorModel : undefined,
+            creditLimitUpdatedById: creditLimit > 0 ? workspace.actor._id : undefined,
             status: 'active'
         });
 
@@ -181,7 +189,9 @@ exports.postCreateCustomer = async (req, res) => {
             ? 'duplicate'
             : error.message === 'INVALID_USERNAME'
                 ? 'username'
-                : error.message === 'FORBIDDEN'
+                : error.code === 'INVALID_CREDIT_LIMIT'
+                    ? 'credit_limit'
+                    : error.message === 'FORBIDDEN'
                     ? 'forbidden'
                     : 'server';
         console.error('[Business Portal] create customer failed:', error.message);
@@ -213,6 +223,68 @@ exports.postToggleCustomer = async (req, res) => {
     } catch (error) {
         console.error('[Business Portal] toggle customer failed:', error.message);
         return redirectWithMessage(res, '/client/customers', 'customerError', error.message === 'FORBIDDEN' ? 'forbidden' : 'server');
+    }
+};
+
+exports.postUpdateCustomerCreditLimit = async (req, res) => {
+    let returnPath = '/client/customers';
+    try {
+        const workspace = await businessPortalService.resolveWorkspace(req);
+        requireCustomerManager(workspace);
+        if (!workspace.isAgent) throw new Error('FORBIDDEN');
+
+        const customer = await SubAccount.findOne(customerOwnerFilter(workspace, req.params.id));
+        if (!customer) return redirectWithMessage(res, returnPath, 'customerError', 'notfound');
+
+        returnPath = req.body.returnTo === 'customers'
+            ? '/client/customers'
+            : `/client/customers/${customer._id}`;
+
+        const creditLimit = normalizeCreditLimit(req.body.creditLimit, { required: true });
+        assertCreditLimitCanCoverBalance({ balance: customer.balance, creditLimit });
+
+        const oldCreditLimit = Number(customer.creditLimit || 0);
+        if (oldCreditLimit === creditLimit) {
+            return redirectWithMessage(res, returnPath, 'customerSuccess', 'credit_limit');
+        }
+
+        customer.creditLimit = creditLimit;
+        customer.creditLimitUpdatedAt = new Date();
+        customer.creditLimitUpdatedBy = workspace.actor.name;
+        customer.creditLimitUpdatedByModel = workspace.actorModel;
+        customer.creditLimitUpdatedById = workspace.actor._id;
+        await customer.save();
+
+        await logAction({
+            action: 'SUB_ACCOUNT_CREDIT_LIMIT_UPDATED',
+            req,
+            performedById: workspace.actor._id,
+            performedByModel: workspace.actorModel,
+            performedByName: workspace.actor.name,
+            targetId: customer._id,
+            targetModel: 'SubAccount',
+            oldData: { creditLimit: oldCreditLimit },
+            newData: { creditLimit, minimumBalance: -creditLimit },
+            result: 'SUCCESS',
+            metadata: {
+                portal: workspace.type,
+                customerBalance: Number(customer.balance || 0)
+            }
+        });
+
+        const io = req.app?.get('io');
+        if (io) io.emit('update_data');
+        return redirectWithMessage(res, returnPath, 'customerSuccess', 'credit_limit');
+    } catch (error) {
+        const code = error.code === 'INVALID_CREDIT_LIMIT'
+            ? 'credit_limit'
+            : error.code === 'CREDIT_LIMIT_BELOW_OUTSTANDING_DEBT'
+                ? 'limit_below_debt'
+                : error.message === 'FORBIDDEN'
+                    ? 'forbidden'
+                    : 'server';
+        console.error('[Business Portal] customer credit limit update failed:', error.message);
+        return redirectWithMessage(res, returnPath, 'customerError', code);
     }
 };
 
