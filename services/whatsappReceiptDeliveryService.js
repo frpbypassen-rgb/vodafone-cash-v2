@@ -5,7 +5,6 @@ const User = require('../models/User');
 const ClientCompany = require('../models/ClientCompany');
 const ClientEmployee = require('../models/ClientEmployee');
 const SubAccount = require('../models/SubAccount');
-const AgentEmployee = require('../models/AgentEmployee');
 const WhatsAppDelivery = require('../models/WhatsAppDelivery');
 const { acquireLock, releaseLock } = require('./lockService');
 const { logAction } = require('./auditService');
@@ -83,11 +82,6 @@ const resolveReceiptRecipient = async (transaction) => {
         const user = await safelyFind(() => User.findOne({ $or: [{ phone: userId }, { webUsername: userId }] }));
         if (user?.phone) {
             return { phone: user.phone, name: user.name || transaction.employeeName || '', model: 'User', id: user._id };
-        }
-
-        const employee = await safelyFind(() => AgentEmployee.findOne({ $or: [{ phone: userId }, { webUsername: userId }] }));
-        if (employee?.phone) {
-            return { phone: employee.phone, name: employee.name || transaction.employeeName || '', model: 'AgentEmployee', id: employee._id };
         }
 
         return { phone: userId, name: transaction.employeeName || '', model: 'Unknown', id: null };

