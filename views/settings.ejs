@@ -210,6 +210,54 @@
             </form>
         </div>
 
+        <section class="data-card p-4 mt-4" id="whatsapp-integration" aria-labelledby="whatsappIntegrationTitle">
+            <div class="d-flex flex-wrap align-items-center justify-content-between gap-3 mb-4">
+                <div>
+                    <h5 id="whatsappIntegrationTitle" class="fw-bold mb-1 text-dark"><i class="fa-brands fa-whatsapp text-success me-2"></i>ربط WhatsApp عبر WhatChimp</h5>
+                    <div class="text-muted small">حالة إرسال رموز التحقق وإيصالات العمليات للعملاء.</div>
+                </div>
+                <span class="badge <%= whatsAppStatus && whatsAppStatus.receiptReady && whatsAppStatus.otpReady && whatsAppStatus.receiptLinkReady ? 'bg-success' : 'bg-warning text-dark' %> px-3 py-2">
+                    <i class="fa-solid <%= whatsAppStatus && whatsAppStatus.receiptReady && whatsAppStatus.otpReady && whatsAppStatus.receiptLinkReady ? 'fa-circle-check' : 'fa-triangle-exclamation' %> me-1"></i>
+                    <%= whatsAppStatus && whatsAppStatus.receiptReady && whatsAppStatus.otpReady && whatsAppStatus.receiptLinkReady ? 'جاهز للتشغيل' : 'إعداد غير مكتمل' %>
+                </span>
+            </div>
+
+            <% if (query && query.whatsAppTest === 'success') { %>
+                <div class="alert alert-success py-2 mb-3"><i class="fa-solid fa-circle-check me-1"></i>تم الاتصال بحساب WhatChimp وقراءة القوالب بنجاح.</div>
+            <% } else if (query && query.whatsAppTest === 'failed') { %>
+                <div class="alert alert-danger py-2 mb-3"><i class="fa-solid fa-circle-xmark me-1"></i>تعذر الاتصال بـ WhatChimp. راجع بيانات الربط والقوالب.</div>
+            <% } %>
+
+            <div class="row g-3">
+                <div class="col-md-4">
+                    <div class="border p-3 h-100">
+                        <div class="small text-muted mb-1">بيانات حساب المنصة</div>
+                        <strong class="<%= whatsAppStatus && whatsAppStatus.credentialsReady ? 'text-success' : 'text-danger' %>"><%= whatsAppStatus && whatsAppStatus.credentialsReady ? 'مكتملة' : 'مطلوبة' %></strong>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="border p-3 h-100">
+                        <div class="small text-muted mb-1">قالب رمز التحقق</div>
+                        <strong class="<%= whatsAppStatus && whatsAppStatus.otpReady ? 'text-success' : 'text-danger' %>"><%= whatsAppStatus && whatsAppStatus.otpReady ? 'جاهز' : 'مطلوب' %></strong>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="border p-3 h-100">
+                        <div class="small text-muted mb-1">قالب الإيصال والرابط الموقّع</div>
+                        <strong class="<%= whatsAppStatus && whatsAppStatus.receiptReady && whatsAppStatus.receiptLinkReady ? 'text-success' : 'text-danger' %>"><%= whatsAppStatus && whatsAppStatus.receiptReady && whatsAppStatus.receiptLinkReady ? 'جاهز' : 'مطلوب' %></strong>
+                    </div>
+                </div>
+            </div>
+
+            <% if (whatsAppStatus && whatsAppStatus.missing && whatsAppStatus.missing.length) { %>
+                <div class="small text-muted mt-3">النواقص: <span class="mono-num"><%= whatsAppStatus.missing.join(' · ') %></span></div>
+            <% } %>
+
+            <form action="/settings/whatsapp/test" method="POST" class="mt-4">
+                <button type="submit" class="btn btn-outline-success fw-bold"><i class="fa-solid fa-plug-circle-check me-1"></i> اختبار الاتصال</button>
+            </form>
+        </section>
+
         <section class="company-rates-band" id="company-rates" aria-labelledby="companyRatesTitle">
             <header class="company-rates-head">
                 <div>

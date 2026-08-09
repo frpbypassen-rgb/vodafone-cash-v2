@@ -265,6 +265,9 @@ app.use('/uploads/proofs', (req, res, next) => {
 });
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
+// روابط الإيصالات الموقعة المخصصة لقوالب واتساب. لا تتطلب جلسة، لكنها تنتهي تلقائياً.
+app.use('/public', require('./routes/publicReceipts'));
+
 app.use(csrfProtection);
 
 const { tenantResolver } = require('./middlewares/tenantResolver');

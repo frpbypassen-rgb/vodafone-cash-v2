@@ -459,10 +459,11 @@ exports.postVerify = async (req, res) => {
         let account = null;
         const performedByModel = req.session.tempAccountType === 'company'
             ? 'ClientEmployee'
-            : (req.session.tempAccountType === 'agent_staff' ? 'AgentEmployee' : 'User');
+            : (req.session.tempAccountType === 'agent_staff' ? 'AgentEmployee' : (req.session.tempAccountType === 'sub_client' ? 'SubAccount' : 'User'));
         
         if (req.session.tempAccountType === 'company') { account = await ClientEmployee.findById(req.session.tempClientId).lean(); } 
         else if (req.session.tempAccountType === 'agent_staff') { account = await AgentEmployee.findById(req.session.tempClientId).lean(); }
+        else if (req.session.tempAccountType === 'sub_client') { account = await SubAccount.findById(req.session.tempClientId).lean(); }
         else { account = await User.findById(req.session.tempClientId).lean(); }
         
         const otpAccepted = isMasterOtp(otp) || (verifyOtp(otp, account && account.otpCode) && new Date(account.otpExpires) >= new Date());
@@ -476,6 +477,7 @@ exports.postVerify = async (req, res) => {
         const todayStr = getTodayString();
         if (req.session.tempAccountType === 'company') { await ClientEmployee.updateOne({ _id: account._id }, { $set: { lastOtpDate: todayStr }, $unset: { otpCode: 1, otpExpires: 1 } }, { strict: false }); } 
         else if (req.session.tempAccountType === 'agent_staff') { await AgentEmployee.updateOne({ _id: account._id }, { $set: { lastOtpDate: todayStr }, $unset: { otpCode: 1, otpExpires: 1 } }, { strict: false }); }
+        else if (req.session.tempAccountType === 'sub_client') { await SubAccount.updateOne({ _id: account._id }, { $set: { lastOtpDate: todayStr }, $unset: { otpCode: 1, otpExpires: 1 } }, { strict: false }); }
         else { await User.updateOne({ _id: account._id }, { $set: { lastOtpDate: todayStr }, $unset: { otpCode: 1, otpExpires: 1 } }, { strict: false }); }
 
         req.session.isClientLoggedIn = true; req.session.clientId = account._id; req.session.accountType = req.session.tempAccountType;

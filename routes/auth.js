@@ -188,12 +188,45 @@ const startClientOtp = async (req, res, account, accountType, Model) => {
         { strict: false }
     );
 
+    const accountLabel = ({
+        user: 'العميل',
+        company: 'الشركة',
+        agent_staff: 'موظف الوكيل',
+        sub_client: 'عميل الوكالة'
+    })[accountType] || 'الحساب';
+    let delivery;
     try {
-        const whatsappService = require('../services/whatsappService');
-        const otpMsg = `رمز الدخول الخاص بك هو:\n\n*${otp}*\n\nالرمز صالح لمدة 5 دقائق.`;
-        whatsappService.sendWhatsAppMessage(account.phone, otpMsg).catch(() => {});
+        const { sendOtp } = require('../services/whatsappService');
+        delivery = await sendOtp({
+            phone: account.phone,
+            otp,
+            expiresMinutes: 5,
+            accountName: account.name || account.webUsername || '',
+            accountType: accountLabel
+        });
     } catch (error) {
-        console.warn('[Unified Login] WhatsApp OTP send skipped:', error.message);
+        delivery = { success: false, code: 'WHATSAPP_OTP_FAILED', message: error.message };
+    }
+
+    if (!delivery?.success) {
+        await Model.updateOne(
+            { _id: account._id },
+            { $unset: { otpCode: 1, otpExpires: 1 } },
+            { strict: false }
+        );
+        await logAction({
+            action: 'LOGIN_FAILED',
+            req,
+            performedById: account._id,
+            performedByModel: accountType === 'company'
+                ? 'ClientEmployee'
+                : (accountType === 'agent_staff' ? 'AgentEmployee' : (accountType === 'sub_client' ? 'SubAccount' : 'User')),
+            performedByName: account.name,
+            success: false,
+            errorCode: delivery?.code || 'WHATSAPP_OTP_FAILED',
+            metadata: { accountType, reason: 'OTP_DELIVERY_FAILED', provider: delivery?.provider || 'whatchimp' }
+        });
+        return renderLogin(res, 'تعذر إرسال رمز التحقق عبر واتساب. تحقق من رقمك أو حاول بعد قليل.');
     }
 
     clearLoginState(req.session);
@@ -202,7 +235,7 @@ const startClientOtp = async (req, res, account, accountType, Model) => {
 
     const performedByModel = accountType === 'company'
         ? 'ClientEmployee'
-        : (accountType === 'agent_staff' ? 'AgentEmployee' : 'User');
+        : (accountType === 'agent_staff' ? 'AgentEmployee' : (accountType === 'sub_client' ? 'SubAccount' : 'User'));
     await logAction({
         action: 'LOGIN_FAILED',
         req,
@@ -210,7 +243,12 @@ const startClientOtp = async (req, res, account, accountType, Model) => {
         performedByModel,
         performedByName: account.name,
         result: 'معلق',
-        metadata: { accountType, reason: 'OTP_REQUIRED' }
+        metadata: {
+            accountType,
+            reason: 'OTP_REQUIRED',
+            whatsappProvider: delivery.provider,
+            whatsappMessageId: delivery.messageId || null
+        }
     });
 
     return saveAndRedirect(req, res, '/client/verify');
@@ -373,7 +411,11 @@ router.post('/login', loginLimiter, async (req, res) => {
                     await logLoginFailure(req, username, 'SUSPENDED', 'حساب العميل الفرعي معلق حالياً');
                     return renderLogin(res, 'حساب العميل الفرعي معلق حالياً.');
                 }
-                return loginAsClient(req, res, subAccount, 'sub_client');
+                const todayStr = getTodayString();
+                if (subAccount.lastOtpDate === todayStr || shouldBypassClientOtp()) {
+                    return loginAsClient(req, res, subAccount, 'sub_client');
+                }
+                return startClientOtp(req, res, subAccount, 'sub_client', SubAccount);
             }
         }
 
@@ -490,12 +532,29 @@ router.post('/api/password-reset/start', passwordResetLimiter, async (req, res) 
             }
         });
 
+        let delivery;
         try {
-            const whatsappService = require('../services/whatsappService');
-            const otpMsg = `رمز تحقق استعادة كلمة المرور في Ahram Pay هو:\n\n*${otp}*\n\nالرمز صالح لمدة 10 دقائق.`;
-            whatsappService.sendWhatsAppMessage(resetAccount.phone, otpMsg).catch(() => {});
+            const { sendOtp } = require('../services/whatsappService');
+            delivery = await sendOtp({
+                phone: resetAccount.phone,
+                otp,
+                expiresMinutes: 10,
+                accountName: resetAccount.name,
+                accountType: 'استعادة كلمة المرور'
+            });
         } catch (error) {
-            console.warn('[Password Reset] WhatsApp OTP send skipped:', error.message);
+            delivery = { success: false, code: 'WHATSAPP_OTP_FAILED', message: error.message };
+        }
+
+        if (!delivery?.success) {
+            resetRequest.status = 'expired';
+            resetRequest.otpCode = undefined;
+            await resetRequest.save();
+            return res.status(503).json({
+                success: false,
+                error: 'تعذر إرسال رمز الاستعادة عبر واتساب. حاول لاحقاً أو راجع الدعم.',
+                code: delivery?.code || 'WHATSAPP_OTP_FAILED'
+            });
         }
 
         return res.json({

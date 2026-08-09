@@ -20,6 +20,9 @@ const subAccountSchema = new mongoose.Schema({
     creationIdempotencyKey: { type: String, unique: true, sparse: true },
     creationIdempotencyFingerprint: { type: String },
     refreshToken: { type: String }, // 🟢 مخصص لتطبيق الموبايل
+    otpCode: { type: String },
+    otpExpires: { type: Date },
+    lastOtpDate: { type: String },
     customMargin: { type: Number, default: 0 },
     marginPiasters: { type: Number, min: 0, max: 500 },
     serviceMarginPiasters: { type: serviceMarginPiastersSchema, default: undefined },

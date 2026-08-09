@@ -70,6 +70,12 @@ eventBus.on('transfer:completed', async (data) => {
         if (tx.userId) {
             await addNotificationJob(tx.userId, 'تم إتمام الحوالة بنجاح', msg, 'transfer_complete');
         }
+
+        // الإيصال الخارجي غير حرج لمسار التحويل؛ أي تعذر في الإرسال يُسجّل ولا يعطل العملية المالية.
+        const { sendCompletedTransactionReceipt } = require('./whatsappReceiptDeliveryService');
+        await sendCompletedTransactionReceipt(tx).catch((error) => {
+            logger.error('Failed to send WhatsApp receipt', { customId: tx.customId, error: error.message });
+        });
     } catch (err) {
         logger.error('Failed to handle transfer:completed event', { error: err.message });
     }
