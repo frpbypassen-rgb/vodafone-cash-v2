@@ -332,9 +332,17 @@ router.post('/api/support/messages', requireClientAuth, async (req, res) => {
             senderName: account.name || account.webUsername,
             text,
             imageUrl,
+            channel: 'portal',
+            direction: 'inbound',
             createdAt: new Date()
         };
         ticket.messages.push(newMessage);
+        ticket.channel = 'portal';
+        ticket.metadata = {
+            ...(ticket.metadata || {}),
+            replyChannel: 'portal'
+        };
+        if (typeof ticket.markModified === 'function') ticket.markModified('metadata');
         ticket.status = 'open';
         ticket.unreadAdmin = (ticket.unreadAdmin || 0) + 1;
         ticket.updatedAt = new Date();

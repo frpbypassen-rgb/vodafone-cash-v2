@@ -72,6 +72,26 @@ describe('WhatChimp WhatsApp service', () => {
         expect(payload).toContain('variable2=5');
     });
 
+    test('sends a free-text support reply through the WhatChimp session endpoint', async () => {
+        configureWhatChimp();
+        axios.post.mockResolvedValue({ data: { status: '1', wa_message_id: 'wamid.support.1' } });
+
+        const result = await whatsappService.sendWhatChimpText({
+            phone: '01108172258',
+            message: 'Support reply'
+        });
+
+        expect(result).toMatchObject({ success: true, provider: 'whatchimp', messageId: 'wamid.support.1', phone: '201108172258' });
+        expect(axios.post).toHaveBeenCalledWith(
+            'https://app.whatchimp.com/api/v1/whatsapp/send',
+            expect.stringContaining('message=Support+reply'),
+            expect.any(Object)
+        );
+        const payload = axios.post.mock.calls[0][1];
+        expect(payload).toContain('phone_number=201108172258');
+        expect(payload).not.toContain('template_name=');
+    });
+
     test('sends a receipt through the media-template endpoint', async () => {
         configureWhatChimp();
         process.env.WHATCHIMP_RECEIPT_MEDIA_TEMPLATE_ID = '44';

@@ -18,6 +18,19 @@ const QUIET_ENDPOINTS = new Set([
     '/client/api/transactions',
     '/client/api/notifications/unread'
 ]);
+const SENSITIVE_QUERY_KEY_RE = /(?:token|secret|api[_-]?key|authorization|signature|sig)/i;
+
+const redactRequestUrl = (requestUrl = '') => {
+    try {
+        const parsed = new URL(String(requestUrl), 'http://request.local');
+        for (const key of parsed.searchParams.keys()) {
+            if (SENSITIVE_QUERY_KEY_RE.test(key)) parsed.searchParams.set(key, '[REDACTED]');
+        }
+        return `${parsed.pathname}${parsed.search}${parsed.hash}`;
+    } catch (_error) {
+        return String(requestUrl).replace(/([?&](?:token|secret|api[_-]?key|authorization|signature|sig)=)[^&]*/gi, '$1[REDACTED]');
+    }
+};
 
 const shouldLogRequest = (requestUrl = '') => {
     const path = String(requestUrl).split('?')[0];
@@ -50,7 +63,7 @@ const requestLogger = (req, res, next) => {
     const requestInfo = {
         correlationId,
         method: req.method,
-        url: req.originalUrl || req.url,
+        url: redactRequestUrl(req.originalUrl || req.url),
         ip: req.headers['x-forwarded-for']?.split(',')[0]?.trim() || req.ip,
         userAgent: req.headers['user-agent']?.substring(0, 100) || 'unknown'
     };

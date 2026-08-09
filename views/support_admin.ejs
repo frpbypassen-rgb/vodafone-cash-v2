@@ -87,11 +87,35 @@
     let currentTicketId = null;
     let fetchInterval = null;
 
+    const escapeHtml = (value) => String(value ?? '').replace(/[&<>"']/g, (character) => ({
+        '&': '&amp;',
+        '<': '&lt;',
+        '>': '&gt;',
+        '"': '&quot;',
+        "'": '&#39;'
+    }[character]));
+
+    const safeMediaUrl = (value) => {
+        const raw = String(value || '').trim();
+        if (/^data:image\/(png|jpe?g|webp);base64,/i.test(raw)) return raw;
+        try {
+            const target = new URL(raw, window.location.origin);
+            return ['http:', 'https:'].includes(target.protocol) ? target.href : '';
+        } catch (_error) {
+            return '';
+        }
+    };
+
+    const getTicketChannelBadge = (ticket) => ticket.channel === 'whatsapp'
+        ? '<span class="badge bg-success px-2 py-1"><i class="fa-brands fa-whatsapp me-1"></i>واتساب</span>'
+        : '<span class="badge bg-secondary px-2 py-1"><i class="fa-solid fa-window-maximize me-1"></i>البوابة</span>';
+
     const entityTypeLabels = {
         'client_user': '<span class="badge bg-primary px-2 py-1"><i class="fa-solid fa-user me-1"></i> عميل فردي</span>',
         'sub_client': '<span class="badge bg-info text-dark px-2 py-1"><i class="fa-solid fa-store me-1"></i> عميل تابع</span>',
         'client_company': '<span class="badge" style="background:#6f42c1;"><i class="fa-solid fa-building me-1"></i> شركة/وكيل</span>',
-        'executor': '<span class="badge bg-dark"><i class="fa-solid fa-robot me-1"></i> طاقم التنفيذ</span>'
+        'executor': '<span class="badge bg-dark"><i class="fa-solid fa-robot me-1"></i> طاقم التنفيذ</span>',
+        'whatsapp': '<span class="badge bg-success"><i class="fa-brands fa-whatsapp me-1"></i> جهة واتساب</span>'
     };
 
     function toggleSidebar() { document.querySelector('.sidebar').classList.toggle('active'); document.querySelector('.sidebar-overlay').classList.toggle('active'); }
@@ -109,6 +133,8 @@
                 
                 let html = '';
                 data.tickets.forEach(t => {
+                    const name = escapeHtml(t.name || 'عميل');
+                    const phone = escapeHtml(t.phone || '');
                     const unreadBadge = t.unreadAdmin > 0 ? `<span class="badge bg-danger rounded-pill shadow-sm" style="font-size: 0.8rem;">${t.unreadAdmin}</span>` : '';
                     let statusIcon = '';
                     if (t.status === 'closed') statusIcon = '<i class="fa-solid fa-lock text-danger ms-1" title="مغلق"></i>';
@@ -116,10 +142,10 @@
                     else statusIcon = '<i class="fa-solid fa-circle text-warning ms-1" style="font-size:10px;" title="بانتظار الرد"></i>';
                     
                     html += `
-                        <div class="ticket-item ${currentTicketId === t._id ? 'active' : ''}" onclick="openTicket('${t._id}', '${t.name}', '${t.status}', '${t.entityType}')">
+                        <div class="ticket-item ${currentTicketId === t._id ? 'active' : ''}" onclick="openTicket('${t._id}')">
                             <div>
-                                <div class="ticket-name">${statusIcon} ${t.name}</div>
-                                <div class="mt-1">${entityTypeLabels[t.entityType] || ''} <small class="text-muted fw-bold ms-1" dir="ltr">${t.phone || ''}</small></div>
+                                <div class="ticket-name">${statusIcon} ${name}</div>
+                                <div class="mt-1">${entityTypeLabels[t.entityType] || ''} ${getTicketChannelBadge(t)} <small class="text-muted fw-bold ms-1" dir="ltr">${phone}</small></div>
                             </div>
                             <div>${unreadBadge}</div>
                         </div>
@@ -130,15 +156,31 @@
         } catch(e) {}
     }
 
-    async function openTicket(id, name, status, type) {
-        currentTicketId = id; loadTickets(); 
-        
+    async function openTicket(id) {
+        currentTicketId = id;
+        loadTickets();
+
         const chatArea = document.getElementById('chatArea');
+        chatArea.innerHTML = '<div class="empty-chat"><i class="fa-solid fa-spinner fa-spin fs-1 mb-3"></i><h5 class="fw-bold opacity-50">جاري تحميل المحادثة...</h5></div>';
+
+        let ticket;
+        try {
+            const response = await fetch('/api/support/tickets/' + id);
+            const data = await response.json();
+            if (!response.ok || !data.success) throw new Error(data.error || 'تعذر تحميل المحادثة.');
+            ticket = data.ticket;
+        } catch (error) {
+            chatArea.innerHTML = '<div class="empty-chat text-danger"><i class="fa-solid fa-circle-exclamation fs-1 mb-3"></i><h5 class="fw-bold">تعذر تحميل المحادثة.</h5></div>';
+            return;
+        }
+
+        const name = escapeHtml(ticket.name || 'عميل');
+        const status = ticket.status || 'open';
         chatArea.innerHTML = `
             <div class="chat-header">
                 <div>
                     <h5 class="fw-bold m-0 text-primary">${name}</h5>
-                    <small class="text-muted fw-bold">رقم التذكرة: <code style="font-family: monospace;">${id.slice(-6)}</code></small>
+                    <small class="text-muted fw-bold">رقم التذكرة: <code style="font-family: monospace;">${escapeHtml(ticket.ticketId || id.slice(-6))}</code> ${getTicketChannelBadge(ticket)}</small>
                 </div>
                 <div>
                     ${status !== 'closed' ? `<button class="btn btn-danger fw-bold shadow-sm rounded-3" onclick="closeTicket('${id}')"><i class="fa-solid fa-lock me-1"></i> إغلاق التذكرة</button>` : `<span class="badge bg-secondary fs-6 rounded-pill"><i class="fa-solid fa-lock me-1"></i> تذكرة مغلقة</span>`}
@@ -170,14 +212,29 @@
                     e.preventDefault();
                     const input = document.getElementById('replyInput');
                     const text = input.value.trim();
-                    if(!text) return; input.value = '';
-                    
-                    const box = document.getElementById('chatMessages');
-                    const now = new Date().toLocaleTimeString('en-US', {timeZone:'Africa/Tripoli', hour:'2-digit', minute:'2-digit'});
-                    box.innerHTML += `<div class="msg-bubble msg-admin"><div class="fw-bold text-success mb-1" style="font-size: 0.75rem;"><i class="fa-solid fa-headset me-1"></i> الإدارة</div>${text}<span class="msg-time opacity-75">${now}</span></div>`;
-                    box.scrollTop = box.scrollHeight;
+                    if(!text) return;
 
-                    try { await fetch('/api/support/tickets/' + currentTicketId + '/reply', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({text}) }); fetchMessages(); loadTickets(); } catch(err){}
+                    const submitButton = form.querySelector('button[type="submit"]');
+                    input.disabled = true;
+                    submitButton.disabled = true;
+                    try {
+                        const response = await fetch('/api/support/tickets/' + currentTicketId + '/reply', {
+                            method: 'POST',
+                            headers: {'Content-Type': 'application/json'},
+                            body: JSON.stringify({text})
+                        });
+                        const data = await response.json();
+                        if (!response.ok || !data.success) throw new Error(data.error || 'تعذر إرسال الرد.');
+                        input.value = '';
+                        await fetchMessages();
+                        await loadTickets();
+                    } catch(err) {
+                        Swal.fire({ icon: 'error', title: 'تعذر إرسال الرد', text: err.message || 'تعذر إرسال الرد حالياً.' });
+                    } finally {
+                        input.disabled = false;
+                        submitButton.disabled = false;
+                        input.focus();
+                    }
                 };
             }
         }, 100);
@@ -195,23 +252,30 @@
                 
                 let html = '';
                 data.ticket.messages.forEach(msg => {
-                    const isAdmin = msg.sender === 'admin';
+                    const isAdmin = msg.sender === 'admin' || msg.sender === 'ai';
                     const time = new Date(msg.createdAt).toLocaleTimeString('en-US', {timeZone:'Africa/Tripoli', hour:'2-digit', minute:'2-digit'});
-                    
+                    const senderHtml = msg.sender === 'ai'
+                        ? '<div class="fw-bold text-success mb-1" style="font-size: 0.75rem;"><i class="fa-solid fa-wand-magic-sparkles me-1"></i> المساعد الآلي</div>'
+                        : isAdmin
+                            ? '<div class="fw-bold text-success mb-1" style="font-size: 0.75rem;"><i class="fa-solid fa-headset me-1"></i> الإدارة</div>'
+                            : '<div class="fw-bold text-primary mb-1" style="font-size: 0.75rem;"><i class="fa-solid fa-user me-1"></i> العميل</div>';
+                    const channelHtml = msg.channel === 'whatsapp'
+                        ? '<span class="badge bg-success-subtle text-success-emphasis border border-success-subtle ms-1"><i class="fa-brands fa-whatsapp me-1"></i>واتساب</span>'
+                        : '';
+
                     let imgHtml = '';
-                    if(msg.imageUrl) {
-                        if(msg.imageUrl.startsWith('data:image')) {
-                            imgHtml = `<div class="mb-2"><img src="${msg.imageUrl}" class="img-fluid rounded shadow-sm border" style="max-height: 250px; cursor: pointer;" onclick="window.open('${msg.imageUrl}')"></div>`;
-                        } else {
-                            imgHtml = `<div class="mb-2"><span class="badge bg-secondary p-2"><i class="fa-solid fa-image me-1"></i> صورة من التيليجرام (يرجى مراجعة البوت)</span></div>`;
-                        }
+                    const mediaUrl = safeMediaUrl(msg.imageUrl);
+                    if (mediaUrl) {
+                        imgHtml = `<div class="mb-2"><a href="${escapeHtml(mediaUrl)}" target="_blank" rel="noopener noreferrer"><img src="${escapeHtml(mediaUrl)}" class="img-fluid rounded shadow-sm border" style="max-height: 250px;"></a></div>`;
+                    } else if (msg.imageUrl) {
+                        imgHtml = `<div class="mb-2"><span class="badge bg-secondary p-2"><i class="fa-solid fa-image me-1"></i> مرفق يحتاج مراجعة من واتساب</span></div>`;
                     }
 
                     html += `
                         <div class="msg-bubble ${isAdmin ? 'msg-admin' : 'msg-user'}">
-                            ${isAdmin ? `<div class="fw-bold text-success mb-1" style="font-size: 0.75rem;"><i class="fa-solid fa-headset me-1"></i> الإدارة</div>` : `<div class="fw-bold text-primary mb-1" style="font-size: 0.75rem;"><i class="fa-solid fa-user me-1"></i> العميل</div>`}
+                            ${senderHtml}${channelHtml}
                             ${imgHtml}
-                            ${msg.text || ''}
+                            ${escapeHtml(msg.text || '')}
                             <span class="msg-time opacity-75">${time}</span>
                         </div>
                     `;
@@ -302,7 +366,17 @@
         Swal.fire({
             title: 'إغلاق التذكرة؟', text: "لن يتمكن العميل من الرد على هذه المحادثة بعد إغلاقها.", icon: 'warning', showCancelButton: true, confirmButtonColor: '#dc3545', cancelButtonColor: '#6c757d', confirmButtonText: 'نعم، أغلقها!', cancelButtonText: 'تراجع', customClass: {popup: 'rounded-4'}
         }).then(async (result) => {
-            if (result.isConfirmed) { try { await fetch('/api/support/tickets/' + id + '/close', { method: 'POST' }); openTicket(id, 'مغلقة', 'closed', 'closed'); loadTickets(); } catch(e){} }
+            if (result.isConfirmed) {
+                try {
+                    const response = await fetch('/api/support/tickets/' + id + '/close', { method: 'POST' });
+                    const data = await response.json();
+                    if (!response.ok || !data.success) throw new Error(data.error || 'تعذر إغلاق التذكرة.');
+                    await openTicket(id);
+                    await loadTickets();
+                } catch (error) {
+                    Swal.fire({ icon: 'error', title: 'تعذر إغلاق التذكرة', text: error.message || 'تعذر إغلاق التذكرة حالياً.' });
+                }
+            }
         });
     }
 

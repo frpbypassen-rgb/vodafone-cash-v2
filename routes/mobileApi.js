@@ -1559,10 +1559,18 @@ router.post('/client/tickets/:id/reply', authenticateJWT, async (req, res) => {
             sender: 'user',
             senderName: ticket.name,
             text: text.trim(),
+            channel: 'portal',
+            direction: 'inbound',
             createdAt: new Date()
         };
 
         ticket.messages.push(newMessage);
+        ticket.channel = 'portal';
+        ticket.metadata = {
+            ...(ticket.metadata || {}),
+            replyChannel: 'portal'
+        };
+        if (typeof ticket.markModified === 'function') ticket.markModified('metadata');
         ticket.status = 'open';
         ticket.unreadAdmin = (ticket.unreadAdmin || 0) + 1;
         await ticket.save();

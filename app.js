@@ -268,6 +268,9 @@ app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 // روابط الإيصالات الموقعة المخصصة لقوالب واتساب. لا تتطلب جلسة، لكنها تنتهي تلقائياً.
 app.use('/public', require('./routes/publicReceipts'));
 
+// WhatChimp delivers external messages here. This must remain before CSRF protection.
+app.use('/webhooks/whatchimp', require('./routes/whatChimpWebhook'));
+
 app.use(csrfProtection);
 
 const { tenantResolver } = require('./middlewares/tenantResolver');

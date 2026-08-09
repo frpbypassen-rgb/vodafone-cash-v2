@@ -785,6 +785,28 @@
 </div>
 
 <script>
+    window.__csrfToken = <%- JSON.stringify(csrfToken || '') %>;
+    (() => {
+        const nativeFetch = window.fetch.bind(window);
+        const safeMethods = new Set(['GET', 'HEAD', 'OPTIONS']);
+
+        window.fetch = (input, init = {}) => {
+            const method = String(init.method || (typeof input === 'object' && input.method) || 'GET').toUpperCase();
+            const requestUrl = typeof input === 'string' ? input : input?.url;
+
+            if (!safeMethods.has(method) && window.__csrfToken && requestUrl) {
+                const target = new URL(requestUrl, window.location.origin);
+                if (target.origin === window.location.origin) {
+                    const headers = new Headers(init.headers || (typeof input === 'object' ? input.headers : undefined));
+                    if (!headers.has('x-csrf-token')) headers.set('x-csrf-token', window.__csrfToken);
+                    init = { ...init, headers };
+                }
+            }
+
+            return nativeFetch(input, init);
+        };
+    })();
+
     function setAdminSidebarState(forceOpen) {
         const primarySidebar = document.getElementById('sidebarMenu') || document.querySelector('.sidebar');
         if (!primarySidebar) return false;

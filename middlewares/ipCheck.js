@@ -10,6 +10,7 @@ const requireIp = (req, res, next) => {
         path.startsWith('/metrics') ||
         path.includes('.') ||
         path.startsWith('/uploads') ||
+        path.startsWith('/webhooks/whatchimp') ||
         process.env.NODE_ENV === 'test'
     ) {
         return next();

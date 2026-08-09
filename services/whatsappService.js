@@ -58,6 +58,7 @@ const getWhatChimpConfigurationStatus = () => {
         receiptReady: config.enabled
             && credentialIssues.length === 0
             && Boolean(config.receiptMediaTemplateId || config.receiptTemplate),
+        supportReplyReady: config.enabled && credentialIssues.length === 0,
         receiptMode: config.receiptMediaTemplateId ? 'media-template' : (config.receiptTemplate ? 'template' : 'none'),
         missing: [
             ...(!config.enabled ? ['WHATCHIMP_ENABLED=true'] : []),
@@ -211,6 +212,37 @@ const sendWhatChimpMediaTemplate = async ({ phone, templateId, headerMediaUrl })
         template_header_media_url: headerMediaUrl
     }, config);
     return { ...result, phone: phoneNumber, templateId };
+};
+
+// WhatChimp only permits free-text support replies within the active WhatsApp conversation window.
+const sendWhatChimpText = async ({ phone, message }) => {
+    const config = getWhatChimpConfig();
+    if (!config.enabled) {
+        return { success: false, provider: 'whatchimp', code: 'WHATCHIMP_DISABLED', message: 'WhatChimp integration is disabled.' };
+    }
+    if (!config.apiToken || !config.phoneNumberId) {
+        return { success: false, provider: 'whatchimp', code: 'WHATCHIMP_CONFIG_MISSING', message: 'WhatChimp credentials are incomplete.' };
+    }
+
+    const text = cleanText(message).slice(0, 4096);
+    if (!text) {
+        return { success: false, provider: 'whatchimp', code: 'WHATCHIMP_TEXT_REQUIRED', message: 'A support reply is required.' };
+    }
+
+    let phoneNumber;
+    try {
+        phoneNumber = normalizeWhatsAppPhone(phone);
+    } catch (error) {
+        return { success: false, provider: 'whatchimp', code: error.code || 'WHATSAPP_PHONE_INVALID', message: error.message };
+    }
+
+    const result = await postWhatChimp('/send', {
+        apiToken: config.apiToken,
+        phone_number_id: config.phoneNumberId,
+        phone_number: phoneNumber,
+        message: text
+    }, config);
+    return { ...result, phone: phoneNumber };
 };
 
 const sendOtp = async ({ phone, otp, expiresMinutes = 5, accountName = '', accountType = '' }) => {
@@ -370,6 +402,7 @@ module.exports = {
     normalizeWhatsAppPhone,
     sendOtp,
     sendReceipt,
+    sendWhatChimpText,
     sendWhatChimpTemplate,
     sendWhatChimpMediaTemplate,
     sendWhatsAppAlert,

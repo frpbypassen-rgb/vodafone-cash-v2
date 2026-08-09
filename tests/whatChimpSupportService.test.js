@@ -1,0 +1,99 @@
+'use strict';
+
+const SupportTicket = require('../models/SupportTicket');
+const {
+    buildPhoneLookupCandidates,
+    normalizeWhatChimpWebhookPayload,
+    verifyWhatChimpWebhookRequest
+} = require('../services/whatChimpSupportService');
+
+describe('WhatChimp support bridge', () => {
+    const originalSecret = process.env.WHATCHIMP_WEBHOOK_SECRET;
+
+    afterAll(() => {
+        if (originalSecret === undefined) delete process.env.WHATCHIMP_WEBHOOK_SECRET;
+        else process.env.WHATCHIMP_WEBHOOK_SECRET = originalSecret;
+    });
+
+    test('normalizes an inbound WhatsApp message for the support inbox', () => {
+        const event = normalizeWhatChimpWebhookPayload({
+            data: {
+                direction: 'incoming',
+                subscriber_phone: '01108172258',
+                subscriber_name: 'Test customer',
+                message: 'Need help',
+                wa_message_id: 'wamid.incoming.1',
+                timestamp: 1786276800
+            }
+        });
+
+        expect(event).toMatchObject({
+            direction: 'inbound',
+            sender: 'user',
+            phoneNormalized: '201108172258',
+            name: 'Test customer',
+            text: 'Need help',
+            providerMessageId: 'wamid.incoming.1',
+            deliveryStatus: 'received'
+        });
+        expect(event.createdAt).toBeInstanceOf(Date);
+    });
+
+    test('keeps outbound AI messages distinct from administrator replies', () => {
+        const event = normalizeWhatChimpWebhookPayload({
+            message: {
+                direction: 'outgoing',
+                phone_number: '218912345678',
+                text: { body: 'Automatic reply' },
+                message_id: 'wamid.outgoing.1',
+                source: 'ai_agent'
+            }
+        });
+
+        expect(event).toMatchObject({
+            direction: 'outbound',
+            sender: 'ai',
+            phoneNormalized: '218912345678',
+            text: 'Automatic reply',
+            providerMessageId: 'wamid.outgoing.1'
+        });
+    });
+
+    test('builds national and international phone variants for linked accounts', () => {
+        expect(buildPhoneLookupCandidates('01108172258')).toEqual(expect.arrayContaining([
+            '01108172258',
+            '201108172258',
+            '+201108172258'
+        ]));
+    });
+
+    test('requires a valid secret for the WhatChimp webhook', () => {
+        process.env.WHATCHIMP_WEBHOOK_SECRET = 'support-secret';
+        const request = {
+            get: (name) => (name === 'x-whatchimp-webhook-secret' ? 'support-secret' : ''),
+            query: {},
+            body: {}
+        };
+
+        expect(verifyWhatChimpWebhookRequest(request)).toBe(true);
+        expect(verifyWhatChimpWebhookRequest({ get: () => '', query: {}, body: {} })).toBe(false);
+    });
+
+    test('allows an unlinked WhatsApp contact to create a support ticket', async () => {
+        const ticket = new SupportTicket({
+            entityType: 'whatsapp',
+            name: 'WhatsApp 201108172258',
+            phone: '201108172258',
+            phoneNormalized: '201108172258',
+            channel: 'whatsapp',
+            messages: [{
+                sender: 'user',
+                text: 'Need help',
+                channel: 'whatsapp',
+                direction: 'inbound'
+            }]
+        });
+
+        await expect(ticket.validate()).resolves.toBeUndefined();
+    });
+});

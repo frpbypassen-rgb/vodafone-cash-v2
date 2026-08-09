@@ -978,10 +978,18 @@ async function sendExecutorSupportReply({ executorId, text, imageBase64 }) {
         sender: 'user',
         text: text || '',
         imageUrl: imageUrl || '',
+        channel: 'portal',
+        direction: 'inbound',
         createdAt: new Date()
     };
 
     ticket.messages.push(newMsg);
+    ticket.channel = 'portal';
+    ticket.metadata = {
+        ...(ticket.metadata || {}),
+        replyChannel: 'portal'
+    };
+    if (typeof ticket.markModified === 'function') ticket.markModified('metadata');
     ticket.status = 'open';
     ticket.unreadAdmin = (ticket.unreadAdmin || 0) + 1;
     await ticket.save();

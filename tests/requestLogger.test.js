@@ -51,4 +51,22 @@ describe('requestLogger', () => {
             statusCode: 200
         }));
     });
+
+    test('redacts webhook secrets and API credentials from request logs', async () => {
+        const req = {
+            originalUrl: '/webhooks/whatchimp/messages?token=very-secret-value&keep=1',
+            url: '/webhooks/whatchimp/messages?token=very-secret-value&keep=1',
+            headers: {},
+            ip: '127.0.0.1'
+        };
+        const res = createResponse();
+
+        requestLogger(req, res, jest.fn());
+        res.end('ok');
+        await new Promise((resolve) => setImmediate(resolve));
+
+        expect(logger.info).toHaveBeenCalledWith('HTTP Request', expect.objectContaining({
+            url: '/webhooks/whatchimp/messages?token=%5BREDACTED%5D&keep=1'
+        }));
+    });
 });
