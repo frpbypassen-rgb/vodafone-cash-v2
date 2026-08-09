@@ -50,6 +50,22 @@ describe('agency pricing contract', () => {
         expect(rates.post_card).toBe(5.71);
     });
 
+    test('charges Sefa as source currency multiplied by the LYD rate and preserves agent margin', () => {
+        const pricing = calculateAgencyPricing({
+            amountEGP: 5,
+            masterRates: { ...masterRates, sefa_niger: 15 },
+            serviceKey: 'sefa_niger',
+            subAccount: { marginPiasters: 3, pricingVersion: 2 }
+        });
+
+        expect(pricing.amountCurrency).toBe('XOF');
+        expect(pricing.agentRate).toBe(15);
+        expect(pricing.customerRate).toBe(15.03);
+        expect(pricing.agentCostLYD).toBe(75);
+        expect(pricing.customerChargeLYD).toBe(75.15);
+        expect(pricing.profitLYD).toBe(0.15);
+    });
+
     test('stores new piaster input while synchronizing the legacy field', () => {
         expect(buildMarginStorage({ marginPiasters: 3 })).toEqual({
             marginPiasters: 3,

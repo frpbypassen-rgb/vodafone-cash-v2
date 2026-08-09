@@ -11,6 +11,7 @@ const Settings = require('../models/Settings');
 const Ledger = require('../models/Ledger');
 const { getServiceRatesForTier, getCompanyServiceRates } = require('../utils/rateHelper');
 const { getTransferServiceRules } = require('../utils/transferServiceRules');
+const { getTransferPricingDefinition } = require('../utils/transferPricing');
 const agencyFinanceService = require('./agencyFinanceService');
 const { resolveMarginPiasters, pricingFromTransaction, roundMoney } = require('../utils/agencyPricing');
 const { calculateCreditState } = require('./agencyCreditLimitService');
@@ -42,7 +43,8 @@ const SERVICE_CATALOG = Object.freeze([
         description: 'تحويل مباشر إلى المحافظ الإلكترونية المصرية.',
         numberLabel: 'رقم المحفظة',
         numberPlaceholder: '01XXXXXXXXX',
-        ...getTransferServiceRules('vodafone')
+        ...getTransferServiceRules('vodafone'),
+        ...getTransferPricingDefinition('vodafone')
     }),
     Object.freeze({
         key: 'post_account',
@@ -54,7 +56,8 @@ const SERVICE_CATALOG = Object.freeze([
         description: 'تحويل إلى حساب بريدي باسم المستفيد.',
         numberLabel: 'رقم الحساب البريدي',
         numberPlaceholder: 'أدخل رقم الحساب',
-        ...getTransferServiceRules('post_account')
+        ...getTransferServiceRules('post_account'),
+        ...getTransferPricingDefinition('post_account')
     }),
     Object.freeze({
         key: 'post_card',
@@ -66,7 +69,8 @@ const SERVICE_CATALOG = Object.freeze([
         description: 'تحويل بالرقم القومي مع مستند الهوية.',
         numberLabel: 'الرقم القومي',
         numberPlaceholder: '14 رقماً',
-        ...getTransferServiceRules('post_card')
+        ...getTransferServiceRules('post_card'),
+        ...getTransferPricingDefinition('post_card')
     }),
     Object.freeze({
         key: 'bank_account',
@@ -78,7 +82,8 @@ const SERVICE_CATALOG = Object.freeze([
         description: 'تحويل إلى حساب مصرفي أو رقم IBAN.',
         numberLabel: 'رقم الحساب أو IBAN',
         numberPlaceholder: 'رقم الحساب البنكي',
-        ...getTransferServiceRules('bank_account')
+        ...getTransferServiceRules('bank_account'),
+        ...getTransferPricingDefinition('bank_account')
     }),
     Object.freeze({
         key: 'sefa_niger',
@@ -89,8 +94,9 @@ const SERVICE_CATALOG = Object.freeze([
         tone: 'cyan',
         description: 'تحويل NITA أو NITA Account داخل النيجر.',
         numberLabel: 'رقم حساب NITA',
-        numberPlaceholder: 'رقم الحساب أو الهاتف',
-        ...getTransferServiceRules('sefa_niger')
+        numberPlaceholder: 'رقم الحساب من 8 إلى 10 أرقام',
+        ...getTransferServiceRules('sefa_niger'),
+        ...getTransferPricingDefinition('sefa_niger')
     }),
     Object.freeze({
         key: 'bankak_sudan',
@@ -102,7 +108,8 @@ const SERVICE_CATALOG = Object.freeze([
         description: 'تحويل إلى حساب بنكك داخل السودان.',
         numberLabel: 'رقم حساب بنكك',
         numberPlaceholder: 'أدخل رقم الحساب',
-        ...getTransferServiceRules('bankak_sudan')
+        ...getTransferServiceRules('bankak_sudan'),
+        ...getTransferPricingDefinition('bankak_sudan')
     })
 ]);
 
@@ -778,6 +785,7 @@ const loadReports = async (workspace, query = {}) => {
         return {
             key: service.key,
             label: service.shortLabel,
+            amountCurrencyLabel: service.amountCurrencyLabel,
             count: serviceTransactions.length,
             totalEGP: serviceTransactions.reduce((sum, tx) => sum + safeNumber(tx.amount), 0),
             totalLYD: serviceTransactions.reduce((sum, tx) => sum + safeNumber(tx.costLYD), 0),

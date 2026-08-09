@@ -318,9 +318,9 @@
                                     </div>
                                     <% rateServices.forEach((service) => { %>
                                         <div class="col-6 col-md-4 col-xl-2">
-                                            <label class="form-label small fw-bold text-muted"><%= service.label %></label>
+                                            <label class="form-label small fw-bold text-muted"><%= service.label %><% if (service.rateDirection === 'source_to_lyd') { %><small class="d-block">1 سيفا = د.ل</small><% } %></label>
                                             <input type="number" min="0.01" step="0.01" name="companyRate_<%= service.key %>" class="form-control text-center fw-bold mono-num unified-height" value="<%= Number(companyRateConfig.effectiveRates[service.key]).toFixed(2) %>" data-company-detail-rate-input <%= companyRateConfig.mode === 'general' ? 'disabled' : '' %>>
-                                            <small class="text-muted">العام: <%= Number(companyRateConfig.generalRates[service.key]).toFixed(2) %></small>
+                                            <small class="text-muted"><%= service.rateDirection === 'source_to_lyd' ? 'العام: 1 سيفا = ' : 'العام: ' %><%= Number(companyRateConfig.generalRates[service.key]).toFixed(2) %><%= service.rateDirection === 'source_to_lyd' ? ' د.ل' : '' %></small>
                                         </div>
                                     <% }) %>
                                     <div class="col-12 col-lg-4 ms-auto">

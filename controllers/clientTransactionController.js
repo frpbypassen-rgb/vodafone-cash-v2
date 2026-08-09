@@ -30,6 +30,7 @@ const { validateTransferInput } = require('../utils/transferServiceRules');
 const { getClientReceiptProofIds } = require('../services/clientReceiptService');
 const { normalizeCustomerNoteInput } = require('../utils/transactionNotes');
 const { calculateAgencyPricing } = require('../utils/agencyPricing');
+const { calculateTransferCostLYD, getTransferPricingDefinition } = require('../utils/transferPricing');
 const { recordTransferReservation } = require('../services/agencyJournalService');
 const { minimumBalanceForDebit } = require('../services/agencyCreditLimitService');
 const {
@@ -154,6 +155,9 @@ exports.postTransfer = async (req, res) => {
         const serviceKey = resolveTransferServiceKey(req.body.type || 'كاش');
         const transferType = req.body.type || 'كاش';
         const serviceDefinition = getTransferServiceDefinition(serviceKey);
+        const pricingDefinition = getTransferPricingDefinition(serviceKey);
+        const dataEntryAcknowledged = req.body.dataEntryAcknowledged === true
+            || ['true', '1', 'on', 'yes'].includes(String(req.body.dataEntryAcknowledged || '').trim().toLowerCase());
         const submittedDestination = String(req.body.phone || '').trim();
         const nationalId = String(req.body.nationalId || (serviceKey === 'post_card' ? req.body.number : '') || '').trim().slice(0, 20);
         const governorate = String(req.body.governorate || (serviceKey === 'post_card' ? submittedDestination : '') || '').trim().slice(0, 100);
@@ -167,7 +171,11 @@ exports.postTransfer = async (req, res) => {
             nationalId,
             governorate,
             clientPhone: String(req.body.clientPhone || '').trim().slice(0, 30),
-            destinationLabel: serviceDefinition ? serviceDefinition.numberLabel : ''
+            destinationLabel: serviceDefinition ? serviceDefinition.numberLabel : '',
+            amountCurrency: pricingDefinition.amountCurrencyCode,
+            rateDirection: pricingDefinition.rateDirection,
+            dataEntryAcknowledged: serviceKey === 'sefa_niger' ? dataEntryAcknowledged : false,
+            dataEntryAcknowledgedAt: serviceKey === 'sefa_niger' && dataEntryAcknowledged ? new Date() : undefined
         };
 
         const validationError = validateTransferInput({
@@ -179,7 +187,9 @@ exports.postTransfer = async (req, res) => {
             city: serviceDetails.city,
             nationalId,
             governorate,
-            hasIdentityImage: Boolean(req.file)
+            hasIdentityImage: Boolean(req.file),
+            enforceDataEntryAcknowledgement: true,
+            dataEntryAcknowledged
         });
         if (validationError) throw createClientError(validationError, 400);
 
@@ -257,7 +267,7 @@ exports.postTransfer = async (req, res) => {
             await new Ledger({
                 entityId: account._id, entityModel: 'SubAccount', transactionId: finalCustomId,
                 type: 'TRANSFER', amount: -subCostLYD, balanceBefore: updatedSub.balance + subCostLYD,
-                balanceAfter: updatedSub.balance, description: `تحويل ${amount} EGP إلى ${phone}`
+                balanceAfter: updatedSub.balance, description: `تحويل ${amount} ${pricingDefinition.amountCurrencyLabel} إلى ${phone}`
             }).save(sessionOpts);
 
             // 🟢 الخصم الذري للرئيسي + القيد المالي
@@ -279,7 +289,7 @@ exports.postTransfer = async (req, res) => {
             await new Ledger({
                 entityId: masterObj._id, entityModel: MasterModel.modelName, transactionId: finalCustomId,
                 type: 'TRANSFER', amount: -masterCostLYD, balanceBefore: updatedMaster.balance + masterCostLYD,
-                balanceAfter: updatedMaster.balance, description: `تحويل من نقطة بيع (${account.name}): ${amount} EGP إلى ${phone}`
+                balanceAfter: updatedMaster.balance, description: `تحويل من نقطة بيع (${account.name}): ${amount} ${pricingDefinition.amountCurrencyLabel} إلى ${phone}`
             }).save(sessionOpts);
 
             balanceModel = updatedSub;
@@ -289,19 +299,19 @@ exports.postTransfer = async (req, res) => {
             if (req.session.accountType === 'company') {
                 const company = await withSess(ClientCompany.findById(account.companyId));
                 masterRate = getCompanyServiceRates(company, settings)[serviceKey];
-                masterCostLYD = parseFloat((amount / masterRate).toFixed(3));
+                masterCostLYD = calculateTransferCostLYD({ serviceKey, amount, exchangeRate: masterRate });
                 balanceModel = company; companyId = company._id; companyName = company.name; telegramId = account.phone || account.webUsername;
             } else if (isAgentStaff) {
                 const agent = await withSess(User.findById(account.agentId));
                 if (!agent || agent.status !== 'active' || agent.role !== 'agent') throw new Error('AGENT_NOT_FOUND');
                 masterRate = getServiceRateForTier(serviceKey, agent.tier || 1, settings);
-                masterCostLYD = parseFloat((amount / masterRate).toFixed(3));
+                masterCostLYD = calculateTransferCostLYD({ serviceKey, amount, exchangeRate: masterRate });
                 balanceModel = agent;
                 companyName = agent.name;
                 telegramId = agent.phone || agent.webUsername;
             } else {
                 masterRate = getServiceRateForTier(serviceKey, account.tier || 1, settings);
-                masterCostLYD = parseFloat((amount / masterRate).toFixed(3));
+                masterCostLYD = calculateTransferCostLYD({ serviceKey, amount, exchangeRate: masterRate });
                 balanceModel = account; telegramId = account.phone || account.webUsername;
             }
 
@@ -330,7 +340,7 @@ exports.postTransfer = async (req, res) => {
             await new Ledger({
                 entityId: balanceModel._id, entityModel: BModel.modelName, transactionId: finalCustomId,
                 type: 'TRANSFER', amount: -masterCostLYD, balanceBefore: balanceModel.balance + masterCostLYD,
-                balanceAfter: balanceModel.balance, description: `تحويل ${amount} EGP إلى ${phone}`
+                balanceAfter: balanceModel.balance, description: `تحويل ${amount} ${pricingDefinition.amountCurrencyLabel} إلى ${phone}`
             }).save(sessionOpts);
         }
 

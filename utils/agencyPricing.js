@@ -1,6 +1,11 @@
 'use strict';
 
 const { SERVICE_RATE_KEYS, normalizeRate } = require('./rateHelper');
+const {
+    calculateTransferCostLYD,
+    getTransferPricingDefinition,
+    isSourceToLydRate
+} = require('./transferPricing');
 
 const MAX_MARGIN_PIASTERS = 500;
 
@@ -67,7 +72,8 @@ const applyCustomerRateMargins = (masterRates, subAccount) =>
     SERVICE_RATE_KEYS.reduce((rates, serviceKey) => {
         const baseRate = normalizeRate(masterRates?.[serviceKey]);
         const marginPiasters = resolveMarginPiasters(subAccount, serviceKey);
-        const adjustedRate = Number((baseRate - marginPiastersToRateDelta(marginPiasters)).toFixed(2));
+        const rateDelta = marginPiastersToRateDelta(marginPiasters);
+        const adjustedRate = Number((baseRate + (isSourceToLydRate(serviceKey) ? rateDelta : -rateDelta)).toFixed(2));
         rates[serviceKey] = adjustedRate > 0 ? adjustedRate : baseRate;
         return rates;
     }, {});
@@ -77,17 +83,19 @@ const calculateAgencyPricing = ({ amountEGP, masterRates, serviceKey, subAccount
     const agentRate = normalizeRate(masterRates?.[serviceKey]);
     const marginPiasters = resolveMarginPiasters(subAccount, serviceKey);
     const rateDelta = marginPiastersToRateDelta(marginPiasters);
-    const proposedCustomerRate = Number((agentRate - rateDelta).toFixed(2));
+    const proposedCustomerRate = Number((agentRate + (isSourceToLydRate(serviceKey) ? rateDelta : -rateDelta)).toFixed(2));
     const customerRate = proposedCustomerRate > 0 ? proposedCustomerRate : agentRate;
     const effectiveMarginPiasters = customerRate === agentRate ? 0 : marginPiasters;
-    const agentCostLYD = roundMoney(amount / agentRate);
-    const customerChargeLYD = roundMoney(amount / customerRate);
+    const agentCostLYD = calculateTransferCostLYD({ serviceKey, amount, exchangeRate: agentRate });
+    const customerChargeLYD = calculateTransferCostLYD({ serviceKey, amount, exchangeRate: customerRate });
     const profitLYD = roundMoney(Math.max(0, customerChargeLYD - agentCostLYD));
+    const pricing = getTransferPricingDefinition(serviceKey);
 
     return {
         serviceKey,
         pricingVersion: Number(subAccount?.pricingVersion) || 2,
         amountEGP: roundMoney(amount, 2),
+        amountCurrency: pricing.amountCurrencyCode,
         agentRate,
         customerRate,
         marginPiasters: effectiveMarginPiasters,
@@ -106,6 +114,7 @@ const pricingFromTransaction = (transaction = {}) => {
         serviceKey: snapshot.serviceKey || transaction.transferType || 'vodafone',
         pricingVersion: Number(snapshot.pricingVersion) || 1,
         amountEGP: roundMoney(transaction.amount, 2),
+        amountCurrency: snapshot.amountCurrency || getTransferPricingDefinition(snapshot.serviceKey || transaction.transferType).amountCurrencyCode,
         agentRate: finiteNumber(snapshot.agentRate ?? transaction.exchangeRate),
         customerRate: finiteNumber(snapshot.customerRate ?? transaction.subClientRate ?? transaction.exchangeRate),
         marginPiasters: Number.isFinite(Number(snapshot.marginPiasters))

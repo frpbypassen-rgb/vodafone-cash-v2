@@ -60,7 +60,7 @@
         <div class="bw-analysis-list">
             <% if (!serviceBreakdown.length) { %><div class="bw-empty"><i class="fa-solid fa-chart-pie"></i><strong>لا توجد عمليات ناجحة</strong></div><% } %>
             <% serviceBreakdown.forEach(item => { %>
-                <div class="bw-analysis-row"><header><strong><%= item.label %></strong><span class="bw-mono"><%= item.count %></span></header><div class="bw-progress"><span style="width:<%= Math.max(5, (item.count / maxServiceCount) * 100) %>%"></span></div><footer><span><%= Number(item.totalEGP).toLocaleString('en-US', { maximumFractionDigits: 0 }) %> EGP</span><% if (workspace.permissions.canViewBalance) { %><span><%= Number(item.totalLYD).toFixed(2) %> LYD</span><% } %><% if (workspace.isAgent && workspace.permissions.canViewBalance && item.realizedProfit > 0) { %><span class="text-success">ربح <%= Number(item.realizedProfit).toFixed(3) %></span><% } %></footer></div>
+                <div class="bw-analysis-row"><header><strong><%= item.label %></strong><span class="bw-mono"><%= item.count %></span></header><div class="bw-progress"><span style="width:<%= Math.max(5, (item.count / maxServiceCount) * 100) %>%"></span></div><footer><span><%= Number(item.totalEGP).toLocaleString('en-US', { maximumFractionDigits: 0 }) %> <%= item.amountCurrencyLabel || 'EGP' %></span><% if (workspace.permissions.canViewBalance) { %><span><%= Number(item.totalLYD).toFixed(2) %> LYD</span><% } %><% if (workspace.isAgent && workspace.permissions.canViewBalance && item.realizedProfit > 0) { %><span class="text-success">ربح <%= Number(item.realizedProfit).toFixed(3) %></span><% } %></footer></div>
             <% }) %>
         </div>
     </aside>
@@ -83,7 +83,7 @@
                 <td data-label="العملية"><span class="bw-id-with-receipt"><button type="button" class="bw-id-button bw-mono" data-transaction-id="<%= tx._id %>"><%= tx.customId %></button><% if (hasReceipt) { %><button type="button" class="bw-receipt-indicator" data-transaction-id="<%= tx._id %>" data-receipt-focus title="عرض صور الإيصال" aria-label="عرض صور إيصال العملية <%= tx.customId %>"><i class="fa-solid fa-receipt"></i></button><% } %></span></td>
                 <td data-label="الخدمة"><%= service?.shortLabel || tx.transferType %></td>
                 <td data-label="الموظف / العميل"><strong><%= tx.employeeName || '---' %></strong><small><%= tx.subAccountName || 'الحساب الرئيسي' %></small></td>
-                <td data-label="المبلغ" class="bw-mono"><%= Number(tx.amount || 0).toLocaleString('en-US', { maximumFractionDigits: 0 }) %> EGP</td>
+                <td data-label="المبلغ" class="bw-mono"><%= Number(tx.amount || 0).toLocaleString('en-US', { maximumFractionDigits: 0 }) %> <%= service?.amountCurrencyLabel || 'EGP' %></td>
                 <td data-label="الحالة"><span class="bw-status <%= status.tone %>"><%= status.label %></span></td>
                 <td data-label="التاريخ" class="bw-mono"><%= new Date(tx.createdAt).toLocaleDateString('en-GB', { timeZone: 'Africa/Tripoli' }) %></td>
             </tr>

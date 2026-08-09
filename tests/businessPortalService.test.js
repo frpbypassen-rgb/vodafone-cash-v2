@@ -79,7 +79,12 @@ describe('Business portal service', () => {
             requiresIdentityImage: true
         });
         expect(byKey.bank_account.requiresBankName).toBeUndefined();
-        expect(byKey.sefa_niger).toMatchObject({ integerAmount: true, destinationMaxLength: 8 });
+        expect(byKey.sefa_niger).toMatchObject({
+            integerAmount: true,
+            destinationMaxLength: 10,
+            amountCurrencyLabel: 'سيفا',
+            rateDirection: 'source_to_lyd'
+        });
         expect(byKey.sefa_niger.cityRequiredForSubtypes).toEqual(['nita']);
     });
 

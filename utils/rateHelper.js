@@ -6,6 +6,7 @@ const {
     getEnabledMobileTransferServices,
     buildMobileServiceCatalogDto
 } = require('./mobileTransferServiceCatalog');
+const { getTransferPricingDefinition, isSourceToLydRate } = require('./transferPricing');
 
 const DEFAULT_RATE = 6.40;
 
@@ -14,7 +15,7 @@ const LEGACY_SERVICE_RATE_DELTAS = Object.freeze({
     post_account: -0.05,
     post_card: -0.15,
     bank_account: -0.10,
-    sefa_niger: 0.10,
+    sefa_niger: 0,
     bankak_sudan: 0.20
 });
 
@@ -53,7 +54,8 @@ const SERVICE_RATE_CONFIG = Object.freeze({
         key: 'sefa_niger',
         label: 'سيفا النيجر',
         fieldPrefix: 'sefaNigerRate',
-        defaults: Object.freeze({ level1: 6.50, level2: 6.55, level3: 6.60 })
+        defaults: Object.freeze({ level1: 15.00, level2: 15.00, level3: 15.00 }),
+        rateHint: '1 سيفا = القيمة بالدينار الليبي'
     }),
     bankak_sudan: Object.freeze({
         key: 'bankak_sudan',
@@ -147,7 +149,14 @@ const getRateFieldName = (serviceKey, tier) => {
     return `${config.fieldPrefix}Level${normalizeTier(tier)}`;
 };
 
+const getServiceDefaultRate = (serviceKey, tier) => {
+    const config = SERVICE_RATE_CONFIG[serviceKey] || SERVICE_RATE_CONFIG.vodafone;
+    const fallback = config.defaults[`level${normalizeTier(tier)}`];
+    return normalizeRate(fallback);
+};
+
 const getLegacyServiceRateForTier = (serviceKey, tier, settings) => {
+    if (isSourceToLydRate(serviceKey)) return getServiceDefaultRate(serviceKey, tier);
     const base = getRateForTier(tier, settings);
     const delta = LEGACY_SERVICE_RATE_DELTAS[serviceKey] || 0;
     return normalizeRate(base + delta);
@@ -256,6 +265,10 @@ const getCompanyRateConfig = (company, settings) => ({
 const getServiceRatesForBaseRate = (baseExchangeRate) => {
     const base = normalizeBaseRate(baseExchangeRate);
     return getEnabledMobileTransferServices().reduce((rates, service) => {
+        if (isSourceToLydRate(service.key)) {
+            rates[service.key] = getServiceDefaultRate(service.key, 1);
+            return rates;
+        }
         const delta = LEGACY_SERVICE_RATE_DELTAS[service.key] || 0;
         rates[service.key] = normalizeRate(base + delta);
         return rates;
@@ -282,9 +295,14 @@ const resolveTransferServiceKey = (transferType) => {
 const getAdminRateServices = () =>
     SERVICE_RATE_KEYS.map((serviceKey) => {
         const config = SERVICE_RATE_CONFIG[serviceKey];
+        const pricing = getTransferPricingDefinition(serviceKey);
         return {
             key: serviceKey,
             label: config.label,
+            amountCurrencyCode: pricing.amountCurrencyCode,
+            amountCurrencyLabel: pricing.amountCurrencyLabel,
+            rateDirection: pricing.rateDirection,
+            rateHint: config.rateHint || `1 LYD = القيمة بعملة ${pricing.amountCurrencyLabel}`,
             fields: {
                 level1: `${config.fieldPrefix}Level1`,
                 level2: `${config.fieldPrefix}Level2`,

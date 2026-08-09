@@ -351,7 +351,7 @@ describe('💸 Contract Tests: Transfer (Mobile API)', () => {
                 city: 'Niamey',
                 notes: 'nita transfer test'
             },
-            6.55,
+            15,
             '550e8400-e29b-41d4-a716-446655440011'
         ],
         [
@@ -382,7 +382,10 @@ describe('💸 Contract Tests: Transfer (Mobile API)', () => {
             exchangeRate: expectedRate
         });
         expect(res.body.transferTypeLabel).toEqual(expect.any(String));
-        expect(res.body.costLYD).toBeCloseTo(payload.amount / expectedRate, 3);
+        const expectedCost = payload.transferType === 'sefa_niger'
+            ? payload.amount * expectedRate
+            : payload.amount / expectedRate;
+        expect(res.body.costLYD).toBeCloseTo(expectedCost, 3);
         expect(Transaction).toHaveBeenCalledTimes(1);
         expect(Transaction.mock.calls[0][0]).toMatchObject({
             idempotencyKey: key,

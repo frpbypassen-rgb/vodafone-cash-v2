@@ -588,6 +588,7 @@ exports.getTransactionDetails = async (req, res) => {
         const transaction = await Transaction.findOne({ $and: conditions }).lean();
         if (!transaction) return res.status(404).json({ success: false, error: 'العملية غير موجودة.' });
         const receiptImages = buildClientReceiptImages(transaction);
+        const service = businessPortalService.SERVICE_CATALOG.find((item) => item.key === transaction.transferType);
 
         return res.json({
             success: true,
@@ -597,10 +598,14 @@ exports.getTransactionDetails = async (req, res) => {
                 status: transaction.status,
                 statusLabel: businessPortalService.STATUS_META[transaction.status]?.label || transaction.status,
                 transferType: transaction.transferType,
-                serviceLabel: businessPortalService.SERVICE_CATALOG.find((service) => service.key === transaction.transferType)?.label || transaction.transferType,
+                serviceLabel: service?.label || transaction.transferType,
                 amount: transaction.amount,
+                amountCurrencyLabel: transaction.serviceDetails?.amountCurrency === 'XOF'
+                    ? 'سيفا'
+                    : (service?.amountCurrencyLabel || 'EGP'),
                 costLYD: transaction.costLYD,
                 exchangeRate: transaction.exchangeRate,
+                rateDirection: transaction.serviceDetails?.rateDirection || service?.rateDirection || 'lyd_to_source',
                 destination: transaction.vodafoneNumber || transaction.accountNumber,
                 accountName: transaction.accountName,
                 accountNumber: transaction.accountNumber,

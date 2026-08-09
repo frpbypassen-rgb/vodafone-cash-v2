@@ -95,4 +95,20 @@ describe('API executor receipt lifecycle', () => {
         ]);
         expect(eventBus.publish).toHaveBeenCalledWith('transfer:completed', expect.any(Object));
     });
+
+    test('uses the Sefa service and currency labels for an API Sefa receipt', async () => {
+        const tx = createTransaction({ transferType: 'sefa_niger', amount: 5 });
+
+        await completeApiTransactionWithReference({
+            tx,
+            executorGroup,
+            apiResult: { reference_number: 'SEFA-7788' }
+        });
+
+        expect(generateExecutorReceiptBase64).toHaveBeenCalledWith(expect.objectContaining({
+            serviceName: 'سيفا النيجر',
+            amountCurrencyLabel: 'سيفا',
+            transferType: 'sefa_niger'
+        }));
+    });
 });

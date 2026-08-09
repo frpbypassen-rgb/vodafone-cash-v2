@@ -104,7 +104,7 @@
                                                 <td class="text-start fw-bold">
                                                     <span class="rate-service-name">
                                                         <i class="fa-solid <%= service.key === 'vodafone' ? 'fa-mobile-screen-button text-danger' : service.key.startsWith('post_') ? 'fa-building-columns text-warning' : service.key === 'bank_account' ? 'fa-landmark text-info' : 'fa-money-bill-transfer text-success' %>"></i>
-                                                        <span><%= service.label %><% if (linkedDelta !== undefined) { %><small>أقل من فودافون بمقدار <%= Math.abs(linkedDelta).toFixed(2) %></small><% } %></span>
+                                                        <span><%= service.label %><% if (service.rateDirection === 'source_to_lyd') { %><small><%= service.rateHint %></small><% } else if (linkedDelta !== undefined) { %><small>أقل من فودافون بمقدار <%= Math.abs(linkedDelta).toFixed(2) %></small><% } %></span>
                                                     </span>
                                                 </td>
                                                 <% ['level1', 'level2', 'level3'].forEach(level => {
@@ -251,7 +251,7 @@
                                 <label class="company-rate-field">
                                     <span><%= service.label %></span>
                                     <input type="number" min="0.01" step="0.01" name="companyRate_<%= service.key %>" class="form-control text-center fw-bold mono-num" value="<%= Number(rateConfig.effectiveRates[service.key]).toFixed(2) %>" data-company-rate-input <%= rateConfig.mode === 'general' ? 'disabled' : '' %>>
-                                    <small>العام: <b><%= Number(rateConfig.generalRates[service.key]).toFixed(2) %></b></small>
+                                    <small><%= service.rateDirection === 'source_to_lyd' ? '1 سيفا = ' : 'العام: ' %><b><%= Number(rateConfig.generalRates[service.key]).toFixed(2) %></b><%= service.rateDirection === 'source_to_lyd' ? ' د.ل' : '' %></small>
                                 </label>
                             <% }) %>
                         </div>

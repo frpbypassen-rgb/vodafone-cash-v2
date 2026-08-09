@@ -3,7 +3,8 @@
 const {
     normalizeExecutorServiceKey,
     getExecutorSupportedTransferTypes,
-    executorSupportsTransferType
+    executorSupportsTransferType,
+    executorTransferRequiresProof
 } = require('../utils/executorServiceCatalog');
 
 describe('executor service catalog', () => {
@@ -23,5 +24,11 @@ describe('executor service catalog', () => {
     test('legacy executors without a service remain Vodafone-only', () => {
         expect(executorSupportsTransferType({}, 'vodafone')).toBe(true);
         expect(executorSupportsTransferType({}, 'bank_account')).toBe(false);
+    });
+
+    test('requires a completion proof for Sefa Niger only', () => {
+        expect(executorTransferRequiresProof('sefa_niger')).toBe(true);
+        expect(executorTransferRequiresProof('vodafone')).toBe(false);
+        expect(executorTransferRequiresProof('post_account')).toBe(false);
     });
 });

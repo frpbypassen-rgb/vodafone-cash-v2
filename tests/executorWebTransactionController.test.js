@@ -128,6 +128,40 @@ describe('Executor web transaction completion', () => {
         expect(fs.writeFileSync).not.toHaveBeenCalled();
     });
 
+    test('requires an uploaded proof image before completing a Sefa Niger task', async () => {
+        tx.transferType = 'sefa_niger';
+
+        await controller.postCompleteTask(req, res);
+
+        expect(res.status).toHaveBeenCalledWith(400);
+        expect(res.json).toHaveBeenCalledWith({
+            success: false,
+            error: 'إرفاق صورة إثبات إلزامي لعمليات سيفا النيجر.'
+        });
+        expect(reserveManualExecutorReceiptReference).not.toHaveBeenCalled();
+        expect(fs.writeFileSync).not.toHaveBeenCalled();
+    });
+
+    test('puts the Sefa executor proof before the system receipt for client visibility', async () => {
+        tx.transferType = 'sefa_niger';
+        req.body = {
+            imageBase64: 'data:image/png;base64,iVBORw0KGgo=',
+            executionNumber: '2258'
+        };
+
+        await controller.postCompleteTask(req, res);
+
+        expect(generateManualExecutorReceiptBase64).toHaveBeenCalledWith(expect.objectContaining({
+            serviceName: 'سيفا النيجر',
+            amountCurrencyLabel: 'سيفا',
+            transferType: 'sefa_niger'
+        }));
+        expect(tx.proofImages).toHaveLength(2);
+        expect(tx.proofImage).toMatch(/^EXEC-TEST-001_[a-z0-9]+\.png$/);
+        expect(tx.proofImages[1]).toMatch(/^EXEC-TEST-001_manual_[a-z0-9]+\.jpg$/);
+        expect(tx.executorExecutionNumberMasked).toBe('01*****2258');
+    });
+
     test('requires a cancellation reason before changing the transaction', async () => {
         await controller.postCancelTask(req, res);
 

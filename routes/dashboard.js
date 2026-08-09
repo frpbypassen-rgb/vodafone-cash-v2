@@ -13,6 +13,7 @@ const { requireAuth } = require('../middlewares/auth');
 const { syncBotBalance } = require('../utils/helpers');
 const { proofSourceUrl, streamProofImage } = require('../services/proofStorageService');
 const { reversalService } = require('../src/Application/Services/ReversalService');
+const { calculateTransferCostLYD, isSourceToLydRate } = require('../utils/transferPricing');
 
 const appendAdminNoteText = (current, note) => {
     const cleanNote = String(note || '').trim();
@@ -209,8 +210,14 @@ router.post('/api/complaints/:id/edit-amount', requireAuth, async (req, res) => 
             }
         } else {
             const oldCostLYD = tx.costLYD || 0;
-            const currentRate = tx.exchangeRate || (oldCostLYD > 0 ? (oldAmountEGP / oldCostLYD) : 1);
-            const newCostLYD = parseFloat((newAmount / currentRate).toFixed(3));
+            const currentRate = tx.exchangeRate || (oldCostLYD > 0 && oldAmountEGP > 0
+                ? (isSourceToLydRate(tx.transferType) ? oldCostLYD / oldAmountEGP : oldAmountEGP / oldCostLYD)
+                : 1);
+            const newCostLYD = calculateTransferCostLYD({
+                serviceKey: tx.transferType,
+                amount: newAmount,
+                exchangeRate: currentRate
+            });
             const diffEGP = newAmount - oldAmountEGP;
             const diffLYD = newCostLYD - oldCostLYD;
 
@@ -255,7 +262,11 @@ router.post('/api/complaints/:id/edit-rate', requireAuth, async (req, res) => {
         }
 
         const oldCost = tx.costLYD || 0;
-        const newCost = tx.amount / newRate;
+        const newCost = calculateTransferCostLYD({
+            serviceKey: tx.transferType,
+            amount: tx.amount,
+            exchangeRate: newRate
+        });
         const diff = newCost - oldCost;
 
         if (tx.companyId) {
@@ -267,7 +278,9 @@ router.post('/api/complaints/:id/edit-rate', requireAuth, async (req, res) => {
         }
 
         const adminName = req.session.adminName || 'الإدارة';
-        const oldRate = oldCost > 0 ? (tx.amount / oldCost).toFixed(3) : (tx.exchangeRate || 0).toString();
+        const oldRate = oldCost > 0 && tx.amount > 0
+            ? (isSourceToLydRate(tx.transferType) ? oldCost / tx.amount : tx.amount / oldCost).toFixed(3)
+            : (tx.exchangeRate || 0).toString();
         tx.costLYD = newCost;
         tx.exchangeRate = newRate;
         tx.adminNotes = appendAdminNoteText(tx.adminNotes, `[تم تعديل السعر من ${oldRate} إلى ${newRate} بواسطة: ${adminName}${reason ? ' | السبب: ' + reason : ''}]`);

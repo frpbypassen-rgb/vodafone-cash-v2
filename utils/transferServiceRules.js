@@ -48,16 +48,17 @@ const TRANSFER_SERVICE_RULES = Object.freeze({
     sefa_niger: Object.freeze({
         destinationRequired: true,
         destinationInputMode: 'numeric',
-        destinationPattern: '^\\d{8}$',
+        destinationPattern: '^\\d{8,10}$',
         destinationMinLength: 8,
-        destinationMaxLength: 8,
-        destinationError: 'رقم حساب سيفا يجب أن يكون 8 أرقام.',
+        destinationMaxLength: 10,
+        destinationError: 'رقم حساب سيفا يجب أن يتكون من 8 إلى 10 أرقام.',
         beneficiaryRequired: true,
         beneficiaryLabel: 'الاسم',
         beneficiaryPlaceholder: 'أدخل الاسم',
         requiresSubtype: true,
         allowedSubtypes: Object.freeze(['nita', 'nita_account']),
         cityRequiredForSubtypes: Object.freeze(['nita']),
+        requiresDataEntryAcknowledgement: true,
         integerAmount: true,
         amountStep: '1'
     }),
@@ -85,14 +86,16 @@ const validateTransferInput = ({
     city,
     nationalId,
     governorate,
-    hasIdentityImage
+    hasIdentityImage,
+    enforceDataEntryAcknowledgement = false,
+    dataEntryAcknowledged
 }) => {
     const rules = getTransferServiceRules(serviceKey);
     if (!rules) return 'نوع خدمة التحويل غير صحيح.';
 
     const numericAmount = Number(amount);
     if (!Number.isFinite(numericAmount) || numericAmount <= 0) return 'أدخل مبلغ تحويل صحيحًا.';
-    if (rules.integerAmount && !Number.isInteger(numericAmount)) return 'خدمة سيفا لا تقبل كسورًا في المبلغ المصري.';
+    if (rules.integerAmount && !Number.isInteger(numericAmount)) return 'خدمة سيفا لا تقبل كسورًا في قيمة السيفا.';
 
     const normalizedDestination = String(destination || '').trim();
     if (rules.destinationRequired && !normalizedDestination) return rules.destinationError || 'أدخل بيانات المستلم.';
@@ -111,6 +114,11 @@ const validateTransferInput = ({
     if (rules.allowedSubtypes && !rules.allowedSubtypes.includes(normalizedSubtype)) return 'نوع خدمة سيفا غير صحيح.';
     if (rules.cityRequiredForSubtypes?.includes(normalizedSubtype) && !String(city || '').trim()) {
         return 'اسم المدينة مطلوب لخدمة NITA.';
+    }
+    const acknowledged = dataEntryAcknowledged === true
+        || ['true', '1', 'on', 'yes'].includes(String(dataEntryAcknowledged || '').trim().toLowerCase());
+    if (enforceDataEntryAcknowledgement && rules.requiresDataEntryAcknowledgement && !acknowledged) {
+        return 'يجب تأكيد مسؤوليتك عن صحة بيانات تحويل سيفا قبل الإرسال.';
     }
 
     if (rules.requiresNationalId && !new RegExp(`^\\d{${rules.nationalIdLength || 14}}$`).test(String(nationalId || '').trim())) {

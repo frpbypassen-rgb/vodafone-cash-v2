@@ -18,6 +18,7 @@ const SubAccount = require('../../../models/SubAccount');
 const { logAction } = require('../../../services/auditService');
 const { getRateForTier, getServiceRatesForTier, getCompanyServiceRates } = require('../../../utils/rateHelper');
 const { calculateAgencyPricing } = require('../../../utils/agencyPricing');
+const { calculateTransferCostLYD, getTransferPricingDefinition } = require('../../../utils/transferPricing');
 const { recordTransferReservation } = require('../../../services/agencyJournalService');
 const { getTransferServiceDefinition } = require('../../../utils/mobileTransferServiceCatalog');
 const { acquireLock, releaseLock } = require('../../../services/lockService');
@@ -150,6 +151,7 @@ export class TransferService {
         try {
             const transferType = transferData.transferType;
             const serviceDefinition = getTransferServiceDefinition(transferType);
+            const pricingDefinition = getTransferPricingDefinition(transferType);
             if (!serviceDefinition || !serviceDefinition.mobileEnabled) {
                 await session.abortTransaction();
                 session.endSession();
@@ -291,7 +293,9 @@ export class TransferService {
                 commission = agencyPricing.profitLYD;
             }
 
-            const costLYD = isSubAccountTx ? masterCostLYD : parseFloat((amount / finalRate).toFixed(3));
+            const costLYD = isSubAccountTx
+                ? masterCostLYD
+                : calculateTransferCostLYD({ serviceKey: transferType, amount, exchangeRate: finalRate });
             const minRequiredBalance = minimumBalanceForDebit(costLYD, creditLimit);
 
             const cooldown = await acquireTransferCooldown({
@@ -396,6 +400,13 @@ export class TransferService {
                 transferType,
                 accountName: name,
                 accountNumber: number,
+                serviceDetails: {
+                    subtype: serviceSubtype || '',
+                    city: city || '',
+                    destinationLabel: serviceDefinition.numberLabel || '',
+                    amountCurrency: pricingDefinition.amountCurrencyCode,
+                    rateDirection: pricingDefinition.rateDirection
+                },
                 amount,
                 ...cooldown.guardFields,
                 costLYD: isSubAccountTx ? masterCostLYD : costLYD,
@@ -444,7 +455,7 @@ export class TransferService {
                     creditAccount: 'Assets:Receivables',
                     balanceBefore: clientInfo.subAccount.balance,
                     balanceAfter: updatedClient.balance,
-                    description: `تحويل حوالة مالية بقيمة ${amount} EGP إلى ${number}`
+                    description: `تحويل حوالة مالية بقيمة ${amount} ${pricingDefinition.amountCurrencyLabel} إلى ${number}`
                 });
                 await ledgerSub.save({ session });
 
@@ -459,7 +470,7 @@ export class TransferService {
                     creditAccount: 'Assets:Receivables',
                     balanceBefore: clientInfo.masterObj.balance,
                     balanceAfter: updatedMaster.balance,
-                    description: `تحويل من نقطة بيع (${clientInfo.subAccount.name}): ${amount} EGP إلى ${number}`
+                    description: `تحويل من نقطة بيع (${clientInfo.subAccount.name}): ${amount} ${pricingDefinition.amountCurrencyLabel} إلى ${number}`
                 });
                 await ledgerMaster.save({ session });
             } else {
@@ -469,7 +480,7 @@ export class TransferService {
                     debitAccount: 'Liabilities:ClientDeposits',
                     creditAccount: 'Assets:Receivables',
                     balanceBefore: currentBalance, balanceAfter: this.getWalletBalance(updatedClient, currency),
-                    description: `تحويل حوالة مالية بقيمة ${amount} EGP - رقم العملية ${customId}`
+                    description: `تحويل حوالة مالية بقيمة ${amount} ${pricingDefinition.amountCurrencyLabel} - رقم العملية ${customId}`
                 });
                 await ledgerEntry.save({ session });
             }

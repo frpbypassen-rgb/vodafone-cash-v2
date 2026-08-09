@@ -399,7 +399,7 @@ describe('🏠 المرحلة 3: جلب الشاشة الرئيسية (GET /clie
             post_account: 6.40,
             post_card: 6.30,
             bank_account: 6.35,
-            sefa_niger: 6.55,
+            sefa_niger: 15,
             bankak_sudan: 6.65
         });
         expect(res.body.serviceCatalog.map(service => service.key).sort()).toEqual([

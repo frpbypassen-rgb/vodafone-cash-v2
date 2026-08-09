@@ -1272,11 +1272,12 @@
                                     <div class="p-2 rounded-3 mb-3 text-center" id="rateDisplayBox" style="background: rgba(14, 165, 233, 0.08); border: 1px dashed rgba(14, 165, 233, 0.3);">
                                         <span class="small text-muted fw-bold">سعر الصرف للخدمة:</span>
                                         <span class="fw-bold fs-5 ms-2" style="color: #0ea5e9;" id="tf_service_rate">0.00</span>
+                                        <span class="d-block small fw-bold text-muted mt-1" id="tf_rate_formula">1 د.ل = 0.00 EGP</span>
                                     </div>
 
-                                    <!-- المبلغ بالمصري -->
+                                    <!-- مبلغ الخدمة -->
                                     <div class="mb-3">
-                                        <label class="form-label small fw-bold text-muted">المبلغ بالمصري (EGP)</label>
+                                        <label class="form-label small fw-bold text-muted" id="tf_amount_label">المبلغ بالمصري (EGP)</label>
                                         <input type="number" step="0.01" class="form-control text-center fs-4 mono-num" style="color: var(--accent-green) !important; border-color: rgba(16, 185, 129, 0.4); background: rgba(16, 185, 129, 0.05);" id="tf_amount" placeholder="0.00" oninput="calcFromEGP()">
                                     </div>
 
@@ -1284,6 +1285,15 @@
                                     <div class="mb-3">
                                         <label class="form-label small fw-bold text-muted">المبلغ بالدينار الليبي (LYD)</label>
                                         <input type="number" step="0.01" class="form-control text-center fs-4 mono-num" style="color: var(--brand-gold) !important; border-color: rgba(212, 175, 55, 0.4); background: rgba(212, 175, 55, 0.05);" id="tf_amount_lyd" placeholder="0.00" oninput="calcFromLYD()">
+                                    </div>
+
+                                    <div class="mb-3 p-3 rounded-3 border border-warning-subtle bg-warning-subtle" id="sefa_data_acknowledgement_div" style="display: none;" dir="rtl">
+                                        <div class="d-flex gap-2 align-items-start">
+                                            <input class="form-check-input mt-1 flex-shrink-0" type="checkbox" id="tf_sefa_data_acknowledgement">
+                                            <label class="form-check-label small fw-bold text-dark" for="tf_sefa_data_acknowledgement">
+                                                أقر أن بيانات المستفيد المدخلة صحيحة، وأن العميل مسؤول عن أي خطأ ناتج عن هذه البيانات.
+                                            </label>
+                                        </div>
                                     </div>
 
                                     <!-- رقم هاتف العميل (اختياري) -->
@@ -1502,13 +1512,36 @@
         function updateServiceRateDisplay() {
             const rateEl = document.getElementById('tf_service_rate');
             if (rateEl) rateEl.innerText = getServiceRate().toFixed(2);
+
+            const isSefa = currentTransferType === 'سيفا النيجر';
+            const rateFormula = document.getElementById('tf_rate_formula');
+            if (rateFormula) rateFormula.innerText = isSefa
+                ? `1 سيفا = ${getServiceRate().toFixed(2)} د.ل`
+                : `1 د.ل = ${getServiceRate().toFixed(2)} EGP`;
+            const amountLabel = document.getElementById('tf_amount_label');
+            if (amountLabel) amountLabel.innerText = isSefa ? 'المبلغ بالسيفا (XOF)' : 'المبلغ بالمصري (EGP)';
+            const amountInput = document.getElementById('tf_amount');
+            if (amountInput) {
+                amountInput.step = isSefa ? '1' : '0.01';
+                amountInput.placeholder = isSefa ? '0' : '0.00';
+            }
+            const acknowledgementDiv = document.getElementById('sefa_data_acknowledgement_div');
+            const acknowledgement = document.getElementById('tf_sefa_data_acknowledgement');
+            if (acknowledgementDiv) acknowledgementDiv.style.display = isSefa ? 'block' : 'none';
+            if (acknowledgement) {
+                acknowledgement.required = isSefa;
+                if (!isSefa) acknowledgement.checked = false;
+            }
         }
 
         function calcFromEGP() {
             if (!currentTransferType) return;
             const rate = getServiceRate();
-            const egp = parseFloat(document.getElementById('tf_amount').value) || 0;
-            document.getElementById('tf_amount_lyd').value = egp > 0 ? (egp / rate).toFixed(2) : '';
+            const sourceAmount = parseFloat(document.getElementById('tf_amount').value) || 0;
+            const costLyd = currentTransferType === 'سيفا النيجر'
+                ? sourceAmount * rate
+                : sourceAmount / rate;
+            document.getElementById('tf_amount_lyd').value = sourceAmount > 0 ? costLyd.toFixed(2) : '';
         }
 
         function calcFromLYD() {
@@ -1516,8 +1549,10 @@
             const rate = getServiceRate();
             const lyd = parseFloat(document.getElementById('tf_amount_lyd').value) || 0;
             if (currentTransferType === 'سيفا النيجر') {
-                const egpCalculated = Math.round(lyd * rate);
-                document.getElementById('tf_amount').value = lyd > 0 ? egpCalculated.toFixed(3) : '';
+                const sefaCalculated = lyd / rate;
+                document.getElementById('tf_amount').value = lyd > 0
+                    ? (Number.isInteger(sefaCalculated) ? String(sefaCalculated) : sefaCalculated.toFixed(3))
+                    : '';
             } else {
                 document.getElementById('tf_amount').value = lyd > 0 ? (lyd * rate).toFixed(2) : '';
             }
@@ -1543,7 +1578,7 @@
             document.getElementById('beneficiary_name_div').style.display = 'block';
             document.getElementById('phone_div').style.display = 'block';
             document.getElementById('tf_phone').required = true;
-            document.getElementById('tf_phone').setAttribute('maxlength', '8');
+            document.getElementById('tf_phone').setAttribute('maxlength', '10');
             document.getElementById('tf_phone').setAttribute('minlength', '8');
 
             // Sefa Niger does not require quadruple name
@@ -1553,15 +1588,15 @@
             if (benInput) benInput.placeholder = 'أدخل الاسم';
 
             if (subtype === 'nita') {
-                document.getElementById('lbl_tf_phone').innerText = 'رقم حساب NITA (8 أرقام)';
-                document.getElementById('tf_phone').placeholder = 'أدخل 8 أرقام';
+                document.getElementById('lbl_tf_phone').innerText = 'رقم حساب NITA (8 إلى 10 أرقام)';
+                document.getElementById('tf_phone').placeholder = 'أدخل 8 إلى 10 أرقام';
                 
                 // Show city input for NITA
                 document.getElementById('city_div').style.display = 'block';
                 document.getElementById('tf_city').required = true;
             } else if (subtype === 'nita_account') {
-                document.getElementById('lbl_tf_phone').innerText = 'رقم حساب NITA ACCOUNT (8 أرقام)';
-                document.getElementById('tf_phone').placeholder = 'أدخل 8 أرقام';
+                document.getElementById('lbl_tf_phone').innerText = 'رقم حساب NITA ACCOUNT (8 إلى 10 أرقام)';
+                document.getElementById('tf_phone').placeholder = 'أدخل 8 إلى 10 أرقام';
                 
                 // Hide city input for NITA ACCOUNT
                 document.getElementById('city_div').style.display = 'none';
@@ -1693,14 +1728,14 @@
                             Swal.fire({
                                 icon: 'error',
                                 title: 'كسور غير مسموح بها',
-                                text: 'يمنع كتابة أي كسور في القيمة لخدمة سيفا النيجر. الأصفار ثابتة لا تتغير (مثال: 1.000).',
+                                text: 'يمنع كتابة أي كسور في قيمة السيفا. مثال: 5 سيفا.',
                                 customClass: { popup: 'swal2-popup' }
                             });
                             this.value = '';
                             const lydInput = document.getElementById('tf_amount_lyd');
                             if (lydInput) lydInput.value = '';
                         } else {
-                            this.value = val.toFixed(3);
+                            this.value = String(val);
                         }
                     }
                 }
@@ -1719,7 +1754,7 @@
                     phoneVal = document.getElementById('tf_phone').value.trim(); 
                     if (currentTransferType === 'بريد حساب' && !/^\d{16}$/.test(phoneVal)) return Swal.fire({ icon: 'warning', title: 'تنبيه', text: 'حساب البريد يجب أن يكون 16 رقم.', customClass: { popup: 'swal2-popup' } }); 
                     if (currentTransferType === 'كاش' && !/^(010|011|012|015)\d{8}$/.test(phoneVal)) return Swal.fire({ icon: 'error', title: 'رقم خاطئ', text: 'رقم المحفظة غير صحيح.', customClass: { popup: 'swal2-popup' } }); 
-                    if (currentTransferType === 'سيفا النيجر' && !/^\d{8}$/.test(phoneVal)) return Swal.fire({ icon: 'warning', title: 'تنبيه', text: 'رقم الحساب يجب أن يكون مكوناً من 8 أرقام.', customClass: { popup: 'swal2-popup' } });
+                    if (currentTransferType === 'سيفا النيجر' && !/^\d{8,10}$/.test(phoneVal)) return Swal.fire({ icon: 'warning', title: 'تنبيه', text: 'رقم الحساب يجب أن يتكون من 8 إلى 10 أرقام.', customClass: { popup: 'swal2-popup' } });
                 }
                 
                 const finalNotes = document.getElementById('tf_notes').value.trim();
@@ -1738,7 +1773,7 @@
                         return Swal.fire({
                             icon: 'error',
                             title: 'خطأ في القيمة',
-                            text: 'يمنع كتابة أي كسور في القيمة لخدمة سيفا النيجر. الأصفار ثابتة لا تتغير (مثال: 1.000).',
+                            text: 'يمنع كتابة أي كسور في قيمة السيفا. مثال: 5 سيفا.',
                             customClass: { popup: 'swal2-popup' }
                         });
                     }
@@ -1746,6 +1781,9 @@
                     if (currentSefaSubtype === 'nita') {
                         const cityName = document.getElementById('tf_city').value.trim();
                         if (!cityName) return Swal.fire({ icon: 'warning', title: 'تنبيه', text: 'اسم المدينة إجباري.', customClass: { popup: 'swal2-popup' } });
+                    }
+                    if (!document.getElementById('tf_sefa_data_acknowledgement').checked) {
+                        return Swal.fire({ icon: 'warning', title: 'تنبيه', text: 'يجب تأكيد مسؤوليتك عن صحة بيانات المستفيد قبل الإرسال.', customClass: { popup: 'swal2-popup' } });
                     }
                 }
                 let nationalId = '';
@@ -1778,6 +1816,7 @@
                 transferData.set('type', currentTransferType);
                 transferData.set('name', beneficiaryName);
                 transferData.set('serviceSubtype', currentTransferType === 'سيفا النيجر' ? currentSefaSubtype : '');
+                transferData.set('dataEntryAcknowledged', currentTransferType === 'سيفا النيجر' && document.getElementById('tf_sefa_data_acknowledgement').checked ? 'true' : 'false');
                 transferData.set('city', city);
                 transferData.set('nationalId', nationalId);
                 transferData.set('governorate', governorate);

@@ -20,6 +20,8 @@ const {
 } = require('../utils/manualExecutorReceipt');
 const { reserveManualExecutorReceiptReference } = require('../services/manualExecutorReceiptReferenceService');
 const { attachCancellationReceipt } = require('../services/cancellationReceiptService');
+const { executorTransferRequiresProof } = require('../utils/executorServiceCatalog');
+const { calculateTransferCostLYD, isSourceToLydRate } = require('../utils/transferPricing');
 
 const MAX_PROOF_IMAGES = 5;
 const MAX_PROOF_BYTES = 8 * 1024 * 1024;
@@ -49,7 +51,7 @@ const getTransferServiceLabel = (transferType) => {
         bank_account: 'حساب بنكي',
         bank_transfer: 'تحويل بنكي',
         instapay: 'إنستاباي',
-        safa_niger: 'سفا النيجر',
+        sefa_niger: 'سيفا النيجر',
         bankak_sudan: 'بنكك السودان'
     };
     return labels[String(transferType || '').trim().toLowerCase()] || 'محافظ كاش';
@@ -62,7 +64,9 @@ const generateManualExecutorReceiptProof = async ({ tx, executionNumber, executo
         executionNumber,
         customId: tx.customId || tx._id.toString().slice(-6),
         executorReference,
-        serviceName: 'محافظ كاش',
+        serviceName: tx.transferType === 'sefa_niger' ? 'سيفا النيجر' : 'محافظ كاش',
+        amountCurrencyLabel: tx.transferType === 'sefa_niger' ? 'سيفا' : 'ج.م',
+        transferType: tx.transferType,
         completedAt: tx.completedAt || new Date()
     });
     const imageData = String(receiptBase64 || '').replace(/^data:image\/(?:jpeg|jpg);base64,/i, '');
@@ -198,8 +202,15 @@ exports.postEditAmount = async (req, res) => {
 
         const oldAmount = tx.amount || 0;
         const oldCost = tx.costLYD || 0;
-        const actualRate = tx.exchangeRate || (oldAmount / oldCost);
-        const newCost = parseFloat((parsedAmount / actualRate).toFixed(3));
+        const actualRate = tx.exchangeRate || (oldAmount > 0 && oldCost > 0
+            ? (isSourceToLydRate(tx.transferType) ? oldCost / oldAmount : oldAmount / oldCost)
+            : 0);
+        const newCost = calculateTransferCostLYD({
+            serviceKey: tx.transferType,
+            amount: parsedAmount,
+            exchangeRate: actualRate
+        });
+        if (!actualRate) return res.json({ success: false, error: 'تعذر احتساب سعر الصرف للعملية' });
         const diffCost = newCost - oldCost; 
 
         if (tx.companyId) {
@@ -327,6 +338,10 @@ exports.postCompleteTask = async (req, res) => {
         if (!tx) {
             return res.status(409).json({ success: false, error: 'العملية غير متاحة للإنهاء أو تم إنهاؤها مسبقاً.' });
         }
+        const proofRequired = executorTransferRequiresProof(tx.transferType);
+        if (proofRequired && proofs.length === 0) {
+            return res.status(400).json({ success: false, error: 'إرفاق صورة إثبات إلزامي لعمليات سيفا النيجر.' });
+        }
 
         const executorReceipt = await reserveManualExecutorReceiptReference({ group: emp.groupId });
         const completedAt = new Date();
@@ -352,12 +367,17 @@ exports.postCompleteTask = async (req, res) => {
             localFileNames.push(fileName);
         }
 
-        const proofSource = proofs.length ? 'system-generated-with-executor-upload' : 'system-generated';
+        const proofSource = proofRequired
+            ? 'sefa-executor-proof-required'
+            : (proofs.length ? 'system-generated-with-executor-upload' : 'system-generated');
+        const clientProofImages = proofRequired
+            ? [...localFileNames.slice(1), localFileNames[0]]
+            : localFileNames;
         appendAdminNote(tx, `[تم توليد إيصال تنفيذ يدوي | مرجع المنفذ: ${executorReceipt.reference}]`);
 
         tx.status = 'completed';
-        tx.proofImage = localFileNames[0];
-        tx.proofImages = localFileNames;
+        tx.proofImage = clientProofImages[0];
+        tx.proofImages = clientProofImages;
         tx.executorSenderPhone = executionNumber || undefined;
         tx.executorExecutionNumberMasked = maskedExecutionNumber || undefined;
         tx.manualExecutorReceiptReference = executorReceipt.reference;
@@ -383,8 +403,9 @@ exports.postCompleteTask = async (req, res) => {
             oldData: { status: 'accepted' },
             newData: {
                 status: 'completed',
-                proofCount: localFileNames.length,
+                proofCount: clientProofImages.length,
                 proofSource,
+                proofRequired,
                 manualExecutorReceiptReference: executorReceipt.reference,
                 executorExecutionNumberMasked: maskedExecutionNumber || null
             },

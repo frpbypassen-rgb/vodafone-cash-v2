@@ -344,6 +344,59 @@ describe('Client Transaction Controller Tests', () => {
         }));
     });
 
+    test('postTransfer - يحسب تحويل سيفا بقيمة 5 وسعر 15 على أنه 75 دينار', async () => {
+        req.body = {
+            amount: '5',
+            phone: '123456789',
+            number: '123456789',
+            type: 'سيفا النيجر',
+            name: 'Nita Recipient',
+            serviceSubtype: 'nita',
+            city: 'Niamey',
+            dataEntryAcknowledged: 'true'
+        };
+
+        const mockUser = {
+            _id: 'client123',
+            name: 'Client User Name',
+            tier: 1,
+            balance: 1000,
+            creditLimit: 0,
+            phone: '01012345678'
+        };
+        User.findById = jest.fn().mockResolvedValue(mockUser);
+        User.findOneAndUpdate = jest.fn().mockResolvedValue(mockUser);
+        Settings.findOne = jest.fn().mockResolvedValue({
+            rateLevel1: 6.40,
+            sefaNigerRateLevel1: 15
+        });
+        Counter.findOneAndUpdate = jest.fn().mockResolvedValue({ value: 44 });
+        Ledger.prototype.save = jest.fn().mockResolvedValue({});
+        Transaction.prototype.save = jest.fn().mockResolvedValue({});
+
+        await clientTransactionController.postTransfer(req, res);
+
+        expect(User.findOneAndUpdate).toHaveBeenCalledWith(
+            expect.objectContaining({ _id: 'client123', balance: { $gte: 75 } }),
+            expect.objectContaining({ $inc: { balance: -75 } }),
+            expect.any(Object)
+        );
+        expect(Transaction).toHaveBeenCalledWith(expect.objectContaining({
+            amount: 5,
+            costLYD: 75,
+            exchangeRate: 15,
+            transferType: 'sefa_niger',
+            serviceDetails: expect.objectContaining({
+                subtype: 'nita',
+                city: 'Niamey',
+                amountCurrency: 'XOF',
+                rateDirection: 'source_to_lyd',
+                dataEntryAcknowledged: true
+            })
+        }));
+        expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ success: true }));
+    });
+
     test('postTransfer - يرجع مهلة التكرار قبل خصم الرصيد', async () => {
         req.body = {
             amount: '100',

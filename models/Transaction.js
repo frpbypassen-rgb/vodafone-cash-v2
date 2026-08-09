@@ -41,7 +41,11 @@ const transactionSchema = new mongoose.Schema({
         nationalId: { type: String, trim: true },
         governorate: { type: String, trim: true },
         clientPhone: { type: String, trim: true },
-        destinationLabel: { type: String, trim: true }
+        destinationLabel: { type: String, trim: true },
+        amountCurrency: { type: String, trim: true },
+        rateDirection: { type: String, trim: true },
+        dataEntryAcknowledged: { type: Boolean, default: false },
+        dataEntryAcknowledgedAt: { type: Date }
     },
     balanceAdjustment: {
         entityModel: { type: String, trim: true },
@@ -67,6 +71,7 @@ const transactionSchema = new mongoose.Schema({
         serviceKey: { type: String, trim: true },
         pricingVersion: { type: Number },
         amountEGP: { type: Number },
+        amountCurrency: { type: String, trim: true },
         agentRate: { type: Number },
         customerRate: { type: Number },
         marginPiasters: { type: Number },

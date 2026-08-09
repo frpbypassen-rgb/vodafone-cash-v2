@@ -356,6 +356,9 @@ function generateExecutorReceiptBase64(data = {}) {
     const reference = String(data.executorReference || data.referenceNumber || '---').trim() || '---';
     const cancellationNumber = String(data.cancellationNumber || '---').trim() || '---';
     const cancellationReason = String(data.cancellationReason || data.reason || 'غير محدد').trim() || 'غير محدد';
+    const amountCurrencyLabel = String(
+        data.amountCurrencyLabel || (String(data.transferType || '').toLowerCase() === 'sefa_niger' ? 'سيفا' : 'ج.م')
+    ).trim() || 'ج.م';
 
     ctx.fillStyle = colors.page;
     ctx.fillRect(0, 0, width, height);
@@ -410,7 +413,7 @@ function generateExecutorReceiptBase64(data = {}) {
     drawIconCircle(ctx, 120, 594, receiptIcons.wallet, colors);
     drawRight(ctx, 'القيمة', 620, 574, { size: 21, color: colors.muted, weight: '800' });
     drawLeft(ctx, formatAmount(data.amount), 620, 626, { align: 'right', size: 38, weight: '900', color: colors.accent });
-    drawRight(ctx, 'ج.م', 480, 626, { size: 25, weight: '900', color: colors.accent });
+    drawRight(ctx, amountCurrencyLabel, 480, 626, { size: 25, weight: '900', color: colors.accent });
 
     const rows = cancelled
         ? [

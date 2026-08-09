@@ -90,7 +90,9 @@ const createApiExecutorReceiptProof = ({ tx, apiResult = {}, completedAt = new D
         executorReference: providerTransactionId || referenceNumber,
         executionReferenceLabel: 'مرجع تنفيذ API',
         customId: tx.customId || tx._id?.toString?.() || '---',
-        serviceName: 'محافظ كاش',
+        serviceName: tx.transferType === 'sefa_niger' ? 'سيفا النيجر' : 'محافظ كاش',
+        amountCurrencyLabel: tx.transferType === 'sefa_niger' ? 'سيفا' : 'ج.م',
+        transferType: tx.transferType,
         completedAt
     });
     return saveProofImage(receiptBase64, `${tx.customId || tx._id || 'api'}_api_execution`);

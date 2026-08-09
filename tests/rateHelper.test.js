@@ -24,7 +24,7 @@ const expectedServiceRates = (base) => ({
     post_account: roundRate(base - 0.05),
     post_card: roundRate(base - 0.15),
     bank_account: roundRate(base - 0.10),
-    sefa_niger: roundRate(base + 0.10),
+    sefa_niger: 15,
     bankak_sudan: roundRate(base + 0.20)
 });
 
@@ -225,6 +225,9 @@ describe('rateHelper mobile service rate contract', () => {
         };
         const contract = buildCompanyRateContract(company, mockSettings);
         expect(contract.exchangeRate).toBe(6.35);
-        expect(contract.serviceRates).toEqual(expectedServiceRates(6.35));
+        expect(contract.serviceRates).toEqual({
+            ...expectedServiceRates(6.35),
+            sefa_niger: 14.90
+        });
     });
 });

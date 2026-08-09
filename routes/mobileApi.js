@@ -75,6 +75,7 @@ const {
 } = require('../utils/manualExecutorReceipt');
 const { reserveManualExecutorReceiptReference } = require('../services/manualExecutorReceiptReferenceService');
 const { attachCancellationReceipt } = require('../services/cancellationReceiptService');
+const { executorTransferRequiresProof } = require('../utils/executorServiceCatalog');
 
 const router = express.Router();
 
@@ -1151,12 +1152,10 @@ router.post('/executor/cancel-task/:id', authenticateJWT, cancelTaskValidator, a
  *         application/json:
  *           schema:
  *             type: object
- *             required:
- *               - imageBase64
  *             properties:
  *               imageBase64:
  *                 type: string
- *                 description: صورة الإثبات بصيغة Base64
+ *                 description: صورة الإثبات بصيغة Base64. إلزامية لعمليات سيفا النيجر فقط.
  *                 example: "data:image/jpeg;base64,/9j/4AAQSkZJR..."
  *               senderPhone:
  *                 type: string
@@ -1199,6 +1198,10 @@ router.post('/executor/complete-task/:id', authenticateJWT, completeTaskValidato
         if (!tx || tx.status !== 'accepted' || tx.operatorId !== emp._id.toString()) {
             return sendMobileError(res, 409, 'INVALID_STATE', 'الطلب غير متاح للإنهاء', req.correlationId);
         }
+        const proofRequired = executorTransferRequiresProof(tx.transferType);
+        if (proofRequired && !imageBase64) {
+            return sendMobileError(res, 400, 'SEFA_PROOF_REQUIRED', 'إرفاق صورة إثبات إلزامي لعمليات سيفا النيجر', req.correlationId);
+        }
 
         const executorReceipt = await reserveManualExecutorReceiptReference({ group: emp.groupId });
         const completedAt = new Date();
@@ -1208,7 +1211,9 @@ router.post('/executor/complete-task/:id', authenticateJWT, completeTaskValidato
             executionNumber: maskedExecutionNumber,
             customId: tx.customId || tx._id.toString(),
             executorReference: executorReceipt.reference,
-            serviceName: 'محافظ كاش',
+            serviceName: tx.transferType === 'sefa_niger' ? 'سيفا النيجر' : 'محافظ كاش',
+            amountCurrencyLabel: tx.transferType === 'sefa_niger' ? 'سيفا' : 'ج.م',
+            transferType: tx.transferType,
             completedAt
         });
         const systemReceiptId = saveProofImage(receiptBase64, `${tx.customId || tx._id}_manual`);
@@ -1225,8 +1230,10 @@ router.post('/executor/complete-task/:id', authenticateJWT, completeTaskValidato
             : null;
 
         tx.status = 'completed';
-        tx.proofImage = systemReceiptId;
-        tx.proofImages = [systemReceiptId, savedFileId].filter(Boolean);
+        tx.proofImages = proofRequired
+            ? [savedFileId, systemReceiptId].filter(Boolean)
+            : [systemReceiptId, savedFileId].filter(Boolean);
+        tx.proofImage = tx.proofImages[0];
         tx.executorSenderPhone = executionNumber || undefined;
         tx.executorExecutionNumberMasked = maskedExecutionNumber || undefined;
         tx.manualExecutorReceiptReference = executorReceipt.reference;
@@ -1246,6 +1253,7 @@ router.post('/executor/complete-task/:id', authenticateJWT, completeTaskValidato
             newData: {
                 status: 'completed',
                 hasProofImage: true,
+                proofRequired,
                 manualExecutorReceiptReference: executorReceipt.reference,
                 executorExecutionNumberMasked: maskedExecutionNumber || null
             },

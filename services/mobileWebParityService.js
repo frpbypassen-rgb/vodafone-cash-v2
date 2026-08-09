@@ -26,6 +26,7 @@ const { sanitizeStatementTransaction } = require('../utils/accountStatementPriva
 const { pricingFromTransaction, roundMoney } = require('../utils/agencyPricing');
 const { recordTransferRepricing } = require('./agencyJournalService');
 const { generateExecutorReceiptBase64 } = require('../utils/manualExecutorReceipt');
+const { calculateTransferCostLYD, isSourceToLydRate } = require('../utils/transferPricing');
 
 const appendNoteText = (current, note) => {
     const cleanNote = String(note || '').trim();
@@ -618,9 +619,15 @@ async function editTaskAmount({ executorId, taskId, newAmount, reason, req }) {
         const oldAgencyPricing = tx.isSubAccountTx ? pricingFromTransaction(tx) : null;
         const oldMasterCost = oldAgencyPricing?.agentCostLYD ?? numberOrNull(tx.costLYD) ?? 0;
         const masterRate = assertPositiveRate(
-            oldAgencyPricing?.agentRate || tx.exchangeRate || (oldAmount > 0 && oldMasterCost > 0 ? oldAmount / oldMasterCost : null)
+            oldAgencyPricing?.agentRate || tx.exchangeRate || (oldAmount > 0 && oldMasterCost > 0
+                ? (isSourceToLydRate(tx.transferType) ? oldMasterCost / oldAmount : oldAmount / oldMasterCost)
+                : null)
         );
-        const newMasterCost = parseFloat((parsedAmount / masterRate).toFixed(3));
+        const newMasterCost = calculateTransferCostLYD({
+            serviceKey: tx.transferType,
+            amount: parsedAmount,
+            exchangeRate: masterRate
+        });
         const diffMasterCost = parseFloat((newMasterCost - oldMasterCost).toFixed(3));
 
         let newSubCost = null;
@@ -628,9 +635,15 @@ async function editTaskAmount({ executorId, taskId, newAmount, reason, req }) {
         if (tx.isSubAccountTx && tx.subAccountId) {
             const oldSubCost = oldAgencyPricing?.customerChargeLYD ?? numberOrNull(tx.subAccountCostLYD) ?? oldMasterCost;
             const subRate = assertPositiveRate(
-                oldAgencyPricing?.customerRate || tx.subClientRate || (oldAmount > 0 && oldSubCost > 0 ? oldAmount / oldSubCost : null) || masterRate
+                oldAgencyPricing?.customerRate || tx.subClientRate || (oldAmount > 0 && oldSubCost > 0
+                    ? (isSourceToLydRate(tx.transferType) ? oldSubCost / oldAmount : oldAmount / oldSubCost)
+                    : null) || masterRate
             );
-            newSubCost = parseFloat((parsedAmount / subRate).toFixed(3));
+            newSubCost = calculateTransferCostLYD({
+                serviceKey: tx.transferType,
+                amount: parsedAmount,
+                exchangeRate: subRate
+            });
             diffSubCost = parseFloat((newSubCost - oldSubCost).toFixed(3));
         }
 

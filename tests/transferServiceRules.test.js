@@ -49,7 +49,7 @@ describe('Transfer service rules', () => {
         expect(validateTransferInput({ ...postalCard, hasIdentityImage: false })).toContain('صورة البطاقة');
     });
 
-    test('requires city only for NITA and rejects fractional Sefa amounts', () => {
+    test('requires city only for NITA, accepts 8-10 digit accounts, and rejects fractional Sefa amounts', () => {
         const sefa = {
             ...validInput,
             serviceKey: 'sefa_niger',
@@ -60,8 +60,23 @@ describe('Transfer service rules', () => {
 
         expect(validateTransferInput(sefa)).toContain('المدينة');
         expect(validateTransferInput({ ...sefa, city: 'نيامي' })).toBeNull();
+        expect(validateTransferInput({ ...sefa, destination: '123456789', city: 'نيامي' })).toBeNull();
+        expect(validateTransferInput({ ...sefa, destination: '1234567890', city: 'نيامي' })).toBeNull();
+        expect(validateTransferInput({ ...sefa, destination: '1234567', city: 'نيامي' })).toContain('8 إلى 10');
+        expect(validateTransferInput({ ...sefa, destination: '12345678901', city: 'نيامي' })).toContain('8 إلى 10');
         expect(validateTransferInput({ ...sefa, subtype: 'nita_account' })).toBeNull();
         expect(validateTransferInput({ ...sefa, subtype: 'nita_account', amount: 1000.5 })).toContain('كسور');
-        expect(getTransferServiceRules('sefa_niger').destinationMaxLength).toBe(8);
+        expect(validateTransferInput({
+            ...sefa,
+            subtype: 'nita_account',
+            enforceDataEntryAcknowledgement: true
+        })).toContain('تأكيد مسؤوليتك');
+        expect(validateTransferInput({
+            ...sefa,
+            subtype: 'nita_account',
+            enforceDataEntryAcknowledgement: true,
+            dataEntryAcknowledged: true
+        })).toBeNull();
+        expect(getTransferServiceRules('sefa_niger').destinationMaxLength).toBe(10);
     });
 });

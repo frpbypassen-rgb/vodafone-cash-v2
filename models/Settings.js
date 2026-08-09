@@ -21,9 +21,10 @@ const settingsSchema = new mongoose.Schema({
     bankAccountRateLevel2: { type: Number, default: 6.35 },
     bankAccountRateLevel3: { type: Number, default: 6.40 },
 
-    sefaNigerRateLevel1: { type: Number, default: 6.50 },
-    sefaNigerRateLevel2: { type: Number, default: 6.55 },
-    sefaNigerRateLevel3: { type: Number, default: 6.60 },
+    // سعر السيفا مقابل الدينار الليبي: 1 سيفا = السعر بالدينار.
+    sefaNigerRateLevel1: { type: Number, default: 15.00 },
+    sefaNigerRateLevel2: { type: Number, default: 15.00 },
+    sefaNigerRateLevel3: { type: Number, default: 15.00 },
 
     bankakSudanRateLevel1: { type: Number, default: 6.60 },
     bankakSudanRateLevel2: { type: Number, default: 6.65 },

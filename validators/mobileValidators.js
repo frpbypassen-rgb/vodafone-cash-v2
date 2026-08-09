@@ -166,8 +166,8 @@ const transferValidator = [
             if (!name || name.trim().length < 3) {
                 throw new Error('اسم المستفيد مطلوب لسيفا النيجر');
             }
-            if (!number || !/^\d{8}$/.test(number)) {
-                throw new Error('رقم حساب NITA يجب أن يكون 8 أرقام');
+            if (!number || !/^\d{8,10}$/.test(number)) {
+                throw new Error('رقم حساب NITA يجب أن يتكون من 8 إلى 10 أرقام');
             }
             if (subtype === 'nita' && (!city || city.trim().length < 2)) {
                 throw new Error('اسم المدينة مطلوب لخدمة NITA');

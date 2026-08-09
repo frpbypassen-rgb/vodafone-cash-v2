@@ -25,6 +25,7 @@ const {
     getExecutorSupportedTransferTypes,
     normalizeExecutorServiceKey
 } = require('../utils/executorServiceCatalog');
+const { calculateTransferCostLYD, isSourceToLydRate } = require('../utils/transferPricing');
 
 // 🚀 استدعاء محرك الـ API 
 const { executeTransferViaApi, saveApiReceiptProof } = require('../services/externalApiService');
@@ -522,8 +523,14 @@ router.post('/transaction/:id/edit-rate', async (req, res) => {
         if (!tx || ['rejected', 'cancelled_by_admin'].includes(tx.status)) return res.redirect('/transactions');
 
         const oldCost = tx.costLYD || 0;
-        const oldRate = tx.exchangeRate || (oldCost > 0 ? tx.amount / oldCost : 0);
-        const newCost = tx.amount / newRate;
+        const oldRate = tx.exchangeRate || (oldCost > 0 && tx.amount > 0
+            ? (isSourceToLydRate(tx.transferType) ? oldCost / tx.amount : tx.amount / oldCost)
+            : 0);
+        const newCost = calculateTransferCostLYD({
+            serviceKey: tx.transferType,
+            amount: tx.amount,
+            exchangeRate: newRate
+        });
         const diff = newCost - oldCost;
         if (tx.companyId) { const company = await ClientCompany.findById(tx.companyId); if (company) { company.balance -= diff; await company.save(); } } 
         else if (tx.userId) { const user = await User.findOne({ phone: tx.userId }); if (user) { user.balance -= diff; await user.save(); } }
@@ -574,7 +581,11 @@ router.post('/transaction/:id/edit-data', async (req, res) => {
             }
         } else {
             if (!Number.isFinite(Number(tx.exchangeRate)) || Number(tx.exchangeRate) <= 0) return res.redirect('/transactions');
-            newCostLYD = parseFloat((newAmount / tx.exchangeRate).toFixed(3));
+            newCostLYD = calculateTransferCostLYD({
+                serviceKey: tx.transferType,
+                amount: newAmount,
+                exchangeRate: tx.exchangeRate
+            });
             const diffEGP = newAmount - oldAmountEGP; const diffLYD = newCostLYD - oldCostLYD;
 
             if (tx.companyId) { const comp = await ClientCompany.findById(tx.companyId); if (comp) { comp.balance -= diffLYD; await comp.save(); } } 

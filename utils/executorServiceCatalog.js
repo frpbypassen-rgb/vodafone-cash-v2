@@ -23,6 +23,7 @@ const EXECUTOR_SERVICE_CATALOG = Object.freeze([
         key: 'sefa_niger',
         label: 'سيفا النيجر',
         shortLabel: 'سيفا',
+        requiresProofOnCompletion: true,
         transferTypes: Object.freeze(['sefa_niger'])
     }),
     Object.freeze({
@@ -80,10 +81,14 @@ const executorSupportsTransferType = (executorOrKey, transferType) => {
     return getExecutorSupportedTransferTypes(executorOrKey).includes(normalizedTransferType);
 };
 
+const executorTransferRequiresProof = (transferType) =>
+    Boolean(getExecutorServiceDefinition(transferType)?.requiresProofOnCompletion);
+
 const getExecutorServiceOptions = () => EXECUTOR_SERVICE_CATALOG.map((service) => ({
     key: service.key,
     label: service.label,
     shortLabel: service.shortLabel,
+    requiresProofOnCompletion: Boolean(service.requiresProofOnCompletion),
     transferTypes: [...service.transferTypes]
 }));
 
@@ -95,5 +100,6 @@ module.exports = {
     getExecutorServiceLabel,
     getExecutorSupportedTransferTypes,
     executorSupportsTransferType,
+    executorTransferRequiresProof,
     getExecutorServiceOptions
 };

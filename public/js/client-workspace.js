@@ -148,10 +148,13 @@
     const transferAccountNumber = document.getElementById('transferAccountNumber');
     const transferAmount = document.getElementById('transferAmount');
     const transferAmountLyd = document.getElementById('transferAmountLyd');
+    const transferAmountLabel = document.getElementById('transferAmountLabel');
+    const transferAmountCurrency = document.getElementById('transferAmountCurrency');
     const transferBeneficiary = document.getElementById('transferBeneficiary');
     const beneficiaryFieldLabel = document.getElementById('beneficiaryFieldLabel');
     const transferSubtype = document.getElementById('transferSubtype');
     const transferCity = document.getElementById('transferCity');
+    const transferSefaAcknowledgement = document.getElementById('transferSefaAcknowledgement');
     const transferNationalId = document.getElementById('transferNationalId');
     const transferGovernorate = document.getElementById('transferGovernorate');
     const transferClientPhone = document.getElementById('transferClientPhone');
@@ -164,6 +167,7 @@
     const costRate = document.getElementById('costRate');
     const costEstimate = document.getElementById('costEstimate');
     const transferRateBridge = document.getElementById('transferRateBridge');
+    const transferRateFormula = document.getElementById('transferRateFormula');
     const transferResult = document.getElementById('transferFormResult');
     const smartTransferMessage = document.getElementById('smartTransferMessage');
     const smartTransferAnalyzeButton = document.getElementById('smartTransferAnalyzeButton');
@@ -181,7 +185,22 @@
     let smartParseTimer = null;
     let smartParseController = null;
 
-    const formatExchangeRate = (rate) => `1 LYD = ${formatNumber(rate, 2)} EGP`;
+    const isSourceToLydRate = (service) => service?.rateDirection === 'source_to_lyd';
+    const sourceCurrencyLabel = (service) => service?.amountCurrencyLabel || 'EGP';
+    const calculateCostLyd = (amount, rate, service) => {
+        if (!(amount > 0 && rate > 0)) return 0;
+        return isSourceToLydRate(service) ? amount * rate : amount / rate;
+    };
+    const calculateSourceAmount = (costLyd, rate, service) => {
+        if (!(costLyd > 0 && rate > 0)) return 0;
+        return isSourceToLydRate(service) ? costLyd / rate : costLyd * rate;
+    };
+    const formatExchangeRate = (rate, service = activeService) => isSourceToLydRate(service)
+        ? `1 ${sourceCurrencyLabel(service)} = ${formatNumber(rate, 2)} LYD`
+        : `1 LYD = ${formatNumber(rate, 2)} ${sourceCurrencyLabel(service)}`;
+    const formatRateFormula = (service = activeService) => isSourceToLydRate(service)
+        ? `${sourceCurrencyLabel(service)} × السعر = LYD`
+        : `${sourceCurrencyLabel(service)} ÷ السعر = LYD`;
 
     const setSmartStatus = (message, tone = 'info') => {
         if (!smartTransferStatus) return;
@@ -196,10 +215,10 @@
         if (!smartTransferPreview || !smartParsedData) return;
         const rate = Number(activeService?.rate || 0);
         const amount = Number(smartParsedData.amountEGP || 0);
-        const amountLyd = rate > 0 && amount > 0 ? amount / rate : 0;
+        const amountLyd = calculateCostLyd(amount, rate, activeService);
         smartTransferPreview.hidden = false;
         if (smartPreviewPhone) smartPreviewPhone.textContent = smartParsedData.phone || 'غير متوفر';
-        if (smartPreviewAmount) smartPreviewAmount.textContent = amount > 0 ? `${formatNumber(amount, Number.isInteger(amount) ? 0 : 2)} EGP` : 'غير متوفر';
+        if (smartPreviewAmount) smartPreviewAmount.textContent = amount > 0 ? `${formatNumber(amount, Number.isInteger(amount) ? 0 : 2)} ${sourceCurrencyLabel(activeService)}` : 'غير متوفر';
         if (smartPreviewRate) smartPreviewRate.textContent = rate > 0 ? formatExchangeRate(rate) : 'غير متوفر';
         if (smartPreviewLyd) smartPreviewLyd.textContent = amountLyd > 0 ? `${formatNumber(amountLyd, 3)} LYD` : '---';
         if (smartPreviewNote) smartPreviewNote.textContent = smartParsedData.note || 'لا توجد ملاحظة';
@@ -234,7 +253,7 @@
         if (!activeService || !costEstimate) return;
         const amount = Number(transferAmount?.value || 0);
         const rate = Number(activeService.rate || 0);
-        const estimate = amount > 0 && rate > 0 ? amount / rate : 0;
+        const estimate = calculateCostLyd(amount, rate, activeService);
         costEstimate.textContent = `${formatNumber(estimate, 3)} LYD`;
         if (syncLyd && transferAmountLyd) transferAmountLyd.value = estimate > 0 ? estimate.toFixed(2) : '';
         if (smartParsedData) renderSmartPreview();
@@ -246,6 +265,16 @@
         toggleConditionalField('[data-city-field]', cityRequired, transferCity);
     };
 
+    const updateSefaAcknowledgement = () => {
+        const required = Boolean(activeService?.requiresDataEntryAcknowledgement);
+        const field = document.querySelector('[data-sefa-acknowledgement-field]');
+        if (field) field.hidden = !required;
+        if (transferSefaAcknowledgement) {
+            transferSefaAcknowledgement.required = required;
+            if (!required) transferSefaAcknowledgement.checked = false;
+        }
+    };
+
     const clearTransferValues = () => {
         [transferDestination, transferAccountNumber, transferAmount, transferAmountLyd, transferBeneficiary,
             transferCity, transferNationalId, transferGovernorate, transferClientPhone].forEach((input) => {
@@ -253,6 +282,7 @@
         });
         if (transferIdentityImage) transferIdentityImage.value = '';
         if (transferNotes) transferNotes.value = '';
+        if (transferSefaAcknowledgement) transferSefaAcknowledgement.checked = false;
     };
 
     const selectService = (serviceKey, options = {}) => {
@@ -291,9 +321,13 @@
         toggleConditionalField('[data-identity-field]', Boolean(service.requiresIdentityImage), transferIdentityImage);
         if (transferAmount) transferAmount.step = service.amountStep || '0.01';
         updateCityRequirement();
+        updateSefaAcknowledgement();
+        if (transferAmountLabel) transferAmountLabel.textContent = isSourceToLydRate(service) ? 'المبلغ بالسيفا' : 'المبلغ بالجنيه المصري';
+        if (transferAmountCurrency) transferAmountCurrency.textContent = sourceCurrencyLabel(service);
         if (costServiceLabel) costServiceLabel.textContent = service.label;
-        if (costRate) costRate.textContent = formatExchangeRate(service.rate);
-        if (transferRateBridge) transferRateBridge.textContent = formatExchangeRate(service.rate);
+        if (costRate) costRate.textContent = formatExchangeRate(service.rate, service);
+        if (transferRateBridge) transferRateBridge.textContent = formatExchangeRate(service.rate, service);
+        if (transferRateFormula) transferRateFormula.textContent = formatRateFormula(service);
         updateCostEstimate();
     };
 
@@ -305,9 +339,9 @@
         if (!activeService || !transferAmount) return;
         const rate = Number(activeService.rate || 0);
         const amountLyd = Number(transferAmountLyd.value || 0);
-        const amountEgp = amountLyd > 0 && rate > 0 ? amountLyd * rate : 0;
-        transferAmount.value = amountEgp > 0
-            ? (activeService.integerAmount ? String(Math.round(amountEgp)) : amountEgp.toFixed(2))
+        const sourceAmount = calculateSourceAmount(amountLyd, rate, activeService);
+        transferAmount.value = sourceAmount > 0
+            ? (activeService.integerAmount && Number.isInteger(sourceAmount) ? String(sourceAmount) : sourceAmount.toFixed(2))
             : '';
         updateCostEstimate(false);
     });
@@ -332,7 +366,7 @@
 
             const button = serviceButtons.find((item) => item.dataset.serviceKey === service.key);
             const rateValue = button?.querySelector('[data-service-rate-value]');
-            if (rateValue) rateValue.textContent = `${formatNumber(nextRate, 2)} EGP`;
+            if (rateValue) rateValue.textContent = formatExchangeRate(nextRate, service);
         });
 
         if (activeService) selectService(activeService.key, { resetSmart: false });
@@ -464,7 +498,7 @@
         const amount = Number(transferAmount?.value || 0);
         if (!Number.isFinite(amount) || amount <= 0) return { message: 'أدخل مبلغ تحويل صحيحًا.', input: transferAmount };
         if (activeService?.integerAmount && !Number.isInteger(amount)) {
-            return { message: 'خدمة سيفا لا تقبل كسورًا في المبلغ المصري.', input: transferAmount };
+            return { message: 'خدمة سيفا لا تقبل كسورًا في قيمة السيفا.', input: transferAmount };
         }
 
         const destination = transferDestination?.value.trim() || '';
@@ -487,6 +521,9 @@
         if (activeService?.requiresSubtype && !subtype) return { message: 'اختر نوع خدمة سيفا.', input: transferSubtype };
         if (activeService?.cityRequiredForSubtypes?.includes(subtype) && !transferCity?.value.trim()) {
             return { message: 'اسم المدينة مطلوب لخدمة NITA.', input: transferCity };
+        }
+        if (activeService?.requiresDataEntryAcknowledgement && !transferSefaAcknowledgement?.checked) {
+            return { message: 'أكد مسؤوليتك عن صحة بيانات سيفا قبل الإرسال.', input: transferSefaAcknowledgement };
         }
         if (activeService?.requiresNationalId && !/^\d{14}$/.test(transferNationalId?.value.trim() || '')) {
             return { message: 'الرقم القومي يجب أن يكون 14 رقمًا.', input: transferNationalId };
@@ -645,15 +682,16 @@
             </div>
             <div class="bw-detail-grid">
                 ${detailItem('الخدمة', transaction.serviceLabel)}
-                ${detailItem('المبلغ', `${formatNumber(transaction.amount, 0)} EGP`, true)}
+                ${detailItem('المبلغ', `${formatNumber(transaction.amount, 0)} ${transaction.amountCurrencyLabel || 'EGP'}`, true)}
                 ${config.canViewBalance ? detailItem('التكلفة', `${formatNumber(transaction.costLYD, 3)} LYD`, true) : ''}
-                ${config.canViewBalance ? detailItem('سعر الصرف', formatNumber(transaction.exchangeRate, 2), true) : ''}
+                ${config.canViewBalance ? detailItem('سعر الصرف', formatExchangeRate(transaction.exchangeRate, transaction), true) : ''}
                 ${detailItem('رقم المستلم / الحساب', transaction.destination, true)}
                 ${detailItem('اسم المستفيد', transaction.accountName)}
                 ${detailItem('العميل', transaction.customerName || 'الحساب الرئيسي')}
                 ${detailItem('أرسلها الموظف', transaction.employeeName)}
                 ${detailItem('نوع سيفا', serviceDetails.subtype)}
                 ${detailItem('المدينة', serviceDetails.city)}
+                ${detailItem('تأكيد صحة بيانات سيفا', serviceDetails.dataEntryAcknowledged ? 'تم التأكيد قبل الإرسال' : '')}
                 ${detailItem('الرقم القومي', serviceDetails.nationalId, true)}
                 ${detailItem('المحافظة', serviceDetails.governorate)}
                 ${detailItem('رقم هاتف العميل', serviceDetails.clientPhone, true)}

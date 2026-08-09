@@ -32,6 +32,7 @@ export interface ITransaction extends Document {
     masterProfit: number;
     exchangeRate: number;
     subClientRate: number;
+    serviceDetails?: any;
     agencyPricing?: any;
     settlementDetails?: any;
     status: 'pending' | 'processing' | 'accepted' | 'completed' | 'rejected' | 'deposit_pending' | 'deposit' | 'deduction' | 'cancelled_by_admin';
@@ -87,6 +88,19 @@ const transactionSchema = new Schema<ITransaction>({
     requestOwnerKey: { type: String, trim: true },
     canonicalServiceKey: { type: String, trim: true },
     canonicalRecipient: { type: String, trim: true },
+    serviceDetails: {
+        subtype: { type: String, trim: true },
+        city: { type: String, trim: true },
+        bankName: { type: String, trim: true },
+        nationalId: { type: String, trim: true },
+        governorate: { type: String, trim: true },
+        clientPhone: { type: String, trim: true },
+        destinationLabel: { type: String, trim: true },
+        amountCurrency: { type: String, trim: true },
+        rateDirection: { type: String, trim: true },
+        dataEntryAcknowledged: { type: Boolean, default: false },
+        dataEntryAcknowledgedAt: { type: Date }
+    },
     costLYD: { type: Number, default: 0, min: 0 },
     subAccountCostLYD: { type: Number, default: 0 },
     commission: { type: Number, default: 0 },
@@ -97,6 +111,7 @@ const transactionSchema = new Schema<ITransaction>({
         serviceKey: { type: String, trim: true },
         pricingVersion: { type: Number },
         amountEGP: { type: Number },
+        amountCurrency: { type: String, trim: true },
         agentRate: { type: Number },
         customerRate: { type: Number },
         marginPiasters: { type: Number },
