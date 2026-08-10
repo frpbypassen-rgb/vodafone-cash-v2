@@ -176,6 +176,7 @@
 
         const name = escapeHtml(ticket.name || 'عميل');
         const status = ticket.status || 'open';
+        const isWhatsAppTicket = ticket.channel === 'whatsapp' || ticket.metadata?.replyChannel === 'whatsapp';
         chatArea.innerHTML = `
             <div class="chat-header">
                 <div>
@@ -183,7 +184,10 @@
                     <small class="text-muted fw-bold">رقم التذكرة: <code style="font-family: monospace;">${escapeHtml(ticket.ticketId || id.slice(-6))}</code> ${getTicketChannelBadge(ticket)}</small>
                 </div>
                 <div>
-                    ${status !== 'closed' ? `<button class="btn btn-danger fw-bold shadow-sm rounded-3" onclick="closeTicket('${id}')"><i class="fa-solid fa-lock me-1"></i> إغلاق التذكرة</button>` : `<span class="badge bg-secondary fs-6 rounded-pill"><i class="fa-solid fa-lock me-1"></i> تذكرة مغلقة</span>`}
+                    ${status !== 'closed' ? `
+                        ${isWhatsAppTicket ? `<button class="btn btn-outline-success fw-bold shadow-sm rounded-3 me-2" onclick="sendWhatsAppTest('${id}')"><i class="fa-brands fa-whatsapp me-1"></i> اختبار واتساب</button>` : ''}
+                        <button class="btn btn-danger fw-bold shadow-sm rounded-3" onclick="closeTicket('${id}')"><i class="fa-solid fa-lock me-1"></i> إغلاق التذكرة</button>
+                    ` : `<span class="badge bg-secondary fs-6 rounded-pill"><i class="fa-solid fa-lock me-1"></i> تذكرة مغلقة</span>`}
                 </div>
             </div>
             <div id="passwordResetActions"></div>
@@ -248,6 +252,45 @@
                 };
             }
         }, 100);
+    }
+
+    async function sendWhatsAppTest(ticketId) {
+        const confirmation = await Swal.fire({
+            icon: 'question',
+            title: 'إرسال رسالة اختبار واتساب؟',
+            text: 'ستُرسل رسالة قصيرة إلى رقم العميل المرتبط بهذه التذكرة فقط.',
+            showCancelButton: true,
+            confirmButtonColor: '#198754',
+            cancelButtonColor: '#6c757d',
+            confirmButtonText: 'إرسال الاختبار',
+            cancelButtonText: 'إلغاء',
+            customClass: { popup: 'rounded-4' }
+        });
+        if (!confirmation.isConfirmed) return;
+
+        try {
+            const response = await fetch(`/api/support/tickets/${ticketId}/whatsapp-test`, { method: 'POST' });
+            const data = await response.json();
+            if (!response.ok || !data.success) throw new Error(data.error || 'تعذر إرسال رسالة الاختبار.');
+
+            await fetchMessages();
+            await loadTickets();
+            await Swal.fire({
+                icon: 'success',
+                title: 'قَبِل WhatChimp رسالة الاختبار',
+                text: 'تم تسجيل الرسالة في المحادثة. تأكد من وصولها على واتساب العميل.',
+                timer: 3500,
+                showConfirmButton: false,
+                customClass: { popup: 'rounded-4' }
+            });
+        } catch (error) {
+            await Swal.fire({
+                icon: 'error',
+                title: 'فشل اختبار واتساب',
+                text: error.message || 'تعذر إرسال رسالة الاختبار حالياً.',
+                customClass: { popup: 'rounded-4' }
+            });
+        }
     }
 
     async function fetchMessages() {

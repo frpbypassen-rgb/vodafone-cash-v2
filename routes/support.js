@@ -103,6 +103,85 @@ router.post('/api/support/tickets/:id/reply', requireAuth, async (req, res) => {
     } catch (e) { res.json({ success: false, error: e.message }); }
 });
 
+router.post('/api/support/tickets/:id/whatsapp-test', requireAuth, async (req, res) => {
+    try {
+        const ticket = await SupportTicket.findById(req.params.id);
+        if (!ticket) return res.status(404).json({ success: false, error: 'التذكرة غير موجودة.' });
+        if (ticket.status === 'closed') return res.status(409).json({ success: false, error: 'لا يمكن اختبار تذكرة مغلقة.' });
+        if (!isWhatsAppSupportTicket(ticket)) {
+            return res.status(409).json({
+                success: false,
+                code: 'WHATSAPP_TICKET_REQUIRED',
+                error: 'زر الاختبار متاح بعد أن يبدأ العميل محادثة عبر واتساب.'
+            });
+        }
+        if (!hasActiveWhatsAppWindow(ticket)) {
+            return res.status(409).json({
+                success: false,
+                code: 'WHATSAPP_WINDOW_EXPIRED',
+                error: 'انتهت نافذة محادثة واتساب. يرسل العميل رسالة جديدة عبر واتساب قبل الاختبار.'
+            });
+        }
+
+        const phone = ticket.phoneNormalized || ticket.phone;
+        if (!phone) {
+            return res.status(422).json({
+                success: false,
+                code: 'WHATSAPP_PHONE_MISSING',
+                error: 'رقم واتساب غير متاح لهذه التذكرة.'
+            });
+        }
+
+        const testText = 'رسالة اختبار من منظومة Power Pay AL-Ahram. إذا وصلتك هذه الرسالة، فإن ربط الدعم عبر واتساب يعمل بنجاح.';
+        let delivery;
+        try {
+            delivery = await sendWhatChimpText({ phone, message: testText });
+        } catch (_error) {
+            delivery = { success: false, code: 'WHATCHIMP_REQUEST_FAILED' };
+        }
+
+        if (!delivery?.success) {
+            return res.status(422).json({
+                success: false,
+                code: delivery?.code || 'WHATCHIMP_REQUEST_FAILED',
+                error: delivery?.message || 'تعذر إرسال رسالة اختبار واتساب.'
+            });
+        }
+
+        const newMessage = {
+            sender: 'admin',
+            senderName: 'اختبار المنظومة',
+            text: testText,
+            channel: 'whatsapp',
+            direction: 'outbound',
+            providerMessageId: delivery.messageId || '',
+            deliveryStatus: 'sent',
+            createdAt: new Date()
+        };
+        ticket.messages.push(newMessage);
+        ticket.status = 'answered';
+        ticket.unreadUser = (ticket.unreadUser || 0) + 1;
+        ticket.lastWhatsAppOutboundAt = newMessage.createdAt;
+        await ticket.save();
+        emitTicketUpdate(req, ticket);
+        try { await createSupportReplyNotifications({ ticket, channel: 'whatsapp' }); } catch (_error) {}
+
+        return res.json({
+            success: true,
+            message: newMessage,
+            whatsapp: {
+                eligible: true,
+                attempted: true,
+                delivered: true,
+                code: delivery.code || 'WHATCHIMP_SENT',
+                messageId: delivery.messageId || ''
+            }
+        });
+    } catch (error) {
+        return res.status(500).json({ success: false, error: 'تعذر تنفيذ اختبار واتساب.' });
+    }
+});
+
 router.post('/api/support/tickets/:id/close', requireAuth, async (req, res) => {
     try {
         const ticket = await SupportTicket.findById(req.params.id); if (!ticket) return res.json({ success: false, error: 'التذكرة غير موجودة' });

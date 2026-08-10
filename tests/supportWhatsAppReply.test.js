@@ -134,4 +134,49 @@ describe('WhatsApp support replies', () => {
         expect(ticket.messages[0]).toMatchObject({ channel: 'portal', deliveryStatus: 'portal_only' });
         expect(createSupportReplyNotifications).toHaveBeenCalledWith({ ticket, channel: 'portal' });
     });
+
+    test('sends and records a WhatsApp test message for an active WhatsApp ticket', async () => {
+        const ticket = createTicket();
+        SupportTicket.findById.mockResolvedValue(ticket);
+        sendWhatChimpText.mockResolvedValue({ success: true, code: 'WHATCHIMP_SENT', messageId: 'wamid.test.1' });
+
+        const response = await request(app)
+            .post('/api/support/tickets/ticket-1/whatsapp-test');
+
+        expect(response.status).toBe(200);
+        expect(response.body).toMatchObject({
+            success: true,
+            whatsapp: {
+                attempted: true,
+                delivered: true,
+                code: 'WHATCHIMP_SENT',
+                messageId: 'wamid.test.1'
+            }
+        });
+        expect(sendWhatChimpText).toHaveBeenCalledWith(expect.objectContaining({ phone: '201108172258' }));
+        expect(ticket.messages).toHaveLength(1);
+        expect(ticket.messages[0]).toMatchObject({
+            sender: 'admin',
+            senderName: 'اختبار المنظومة',
+            channel: 'whatsapp',
+            direction: 'outbound',
+            providerMessageId: 'wamid.test.1',
+            deliveryStatus: 'sent'
+        });
+        expect(createSupportReplyNotifications).toHaveBeenCalledWith({ ticket, channel: 'whatsapp' });
+    });
+
+    test('does not send a WhatsApp test message after the conversation window expires', async () => {
+        const ticket = createTicket({ whatsappWindowExpiresAt: new Date(Date.now() - 1) });
+        SupportTicket.findById.mockResolvedValue(ticket);
+
+        const response = await request(app)
+            .post('/api/support/tickets/ticket-1/whatsapp-test');
+
+        expect(response.status).toBe(409);
+        expect(response.body).toMatchObject({ success: false, code: 'WHATSAPP_WINDOW_EXPIRED' });
+        expect(sendWhatChimpText).not.toHaveBeenCalled();
+        expect(ticket.messages).toHaveLength(0);
+        expect(ticket.save).not.toHaveBeenCalled();
+    });
 });
