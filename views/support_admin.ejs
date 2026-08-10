@@ -59,8 +59,11 @@
 <%- include('partials/sidebar', { activePage: 'support' }) %>
 
 <div class="main-content">
-    <div class="admin-nav mb-4">
+    <div class="admin-nav mb-4 d-flex justify-content-between align-items-center gap-2 flex-wrap">
         <h3 class="fw-bold m-0 text-dark"><i class="fa-solid fa-headset text-primary me-2"></i> مركز الدعم الفني</h3>
+        <button type="button" class="btn btn-success fw-bold shadow-sm rounded-3" onclick="openWhatsAppTestSelector()">
+            <i class="fa-brands fa-whatsapp me-1"></i> اختبار واتساب
+        </button>
     </div>
     
     <div class="support-container data-card p-0">
@@ -86,6 +89,7 @@
 <script>
     let currentTicketId = null;
     let fetchInterval = null;
+    let supportTickets = [];
 
     const escapeHtml = (value) => String(value ?? '').replace(/[&<>"']/g, (character) => ({
         '&': '&amp;',
@@ -125,14 +129,15 @@
             const res = await fetch('/api/support/tickets');
             const data = await res.json();
             if(data.success) {
+                supportTickets = Array.isArray(data.tickets) ? data.tickets : [];
                 const container = document.getElementById('ticketsContainer');
-                if (data.tickets.length === 0) {
+                if (supportTickets.length === 0) {
                     container.innerHTML = '<div class="text-center p-5 text-muted fw-bold"><i class="fa-solid fa-box-open fs-1 mb-3 opacity-50"></i><br>لا توجد تذاكر حالياً.</div>';
                     return;
                 }
                 
                 let html = '';
-                data.tickets.forEach(t => {
+                supportTickets.forEach(t => {
                     const name = escapeHtml(t.name || 'عميل');
                     const phone = escapeHtml(t.phone || '');
                     const unreadBadge = t.unreadAdmin > 0 ? `<span class="badge bg-danger rounded-pill shadow-sm" style="font-size: 0.8rem;">${t.unreadAdmin}</span>` : '';
@@ -154,6 +159,62 @@
                 container.innerHTML = html;
             }
         } catch(e) {}
+    }
+
+    const isEligibleWhatsAppTestTicket = (ticket) => {
+        if (!ticket || ticket.status === 'closed') return false;
+
+        const isWhatsAppTicket = ticket.channel === 'whatsapp'
+            || ticket.metadata?.replyChannel === 'whatsapp'
+            || ticket.lastWhatsAppInboundAt
+            || ticket.whatsappWindowExpiresAt
+            || ticket.metadata?.whatsapp?.phoneNormalized;
+        const expiresAt = new Date(ticket.whatsappWindowExpiresAt || 0).getTime();
+
+        return Boolean(
+            isWhatsAppTicket
+            && (ticket.phoneNormalized || ticket.phone)
+            && Number.isFinite(expiresAt)
+            && expiresAt > Date.now()
+        );
+    };
+
+    async function openWhatsAppTestSelector() {
+        await loadTickets();
+        const eligibleTickets = supportTickets.filter(isEligibleWhatsAppTestTicket);
+
+        if (!eligibleTickets.length) {
+            await Swal.fire({
+                icon: 'info',
+                title: 'لا توجد محادثة واتساب نشطة',
+                text: 'يرسل العميل رسالة جديدة إلى رقم واتساب المنظومة، ثم اختر تذكرته لإرسال الاختبار.',
+                customClass: { popup: 'rounded-4' }
+            });
+            return;
+        }
+
+        const options = eligibleTickets.map((ticket) => {
+            const label = `${ticket.name || 'عميل'} - ${ticket.phone || ticket.phoneNormalized || ''} - ${ticket.ticketId || ''}`;
+            return `<option value="${escapeHtml(ticket._id)}">${escapeHtml(label)}</option>`;
+        }).join('');
+
+        const selection = await Swal.fire({
+            icon: 'question',
+            title: 'اختر محادثة واتساب',
+            html: `<select id="whatsappTestTicketSelect" class="form-select text-end" dir="rtl">${options}</select>`,
+            showCancelButton: true,
+            confirmButtonColor: '#198754',
+            cancelButtonColor: '#6c757d',
+            confirmButtonText: 'متابعة',
+            cancelButtonText: 'إلغاء',
+            preConfirm: () => document.getElementById('whatsappTestTicketSelect')?.value || '',
+            customClass: { popup: 'rounded-4' }
+        });
+
+        if (selection.isConfirmed && selection.value) {
+            await openTicket(selection.value);
+            await sendWhatsAppTest(selection.value);
+        }
     }
 
     async function openTicket(id) {
