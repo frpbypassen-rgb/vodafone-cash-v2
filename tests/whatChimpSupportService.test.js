@@ -90,6 +90,29 @@ describe('WhatChimp support bridge', () => {
         });
     });
 
+    test('normalizes the native WhatChimp incoming webhook payload used in production', () => {
+        const event = normalizeWhatChimpWebhookPayload({
+            whatsapp_bot_name: 'Ahram Pay',
+            whatsapp_bot_id: '446787',
+            subscriber_id: 'subscriber-1',
+            wa_message_id: 'whatchimp.incoming.1',
+            first_name: 'WhatsApp customer',
+            chat_id: '218940719000@c.us',
+            user_message: 'رسالة اختبار من واتساب'
+        });
+
+        expect(event).toMatchObject({
+            direction: 'inbound',
+            sender: 'user',
+            phoneNormalized: '218940719000',
+            name: 'WhatsApp customer',
+            text: 'رسالة اختبار من واتساب',
+            providerMessageId: 'whatchimp.incoming.1',
+            messageType: 'text',
+            deliveryStatus: 'received'
+        });
+    });
+
     test('builds national and international phone variants for linked accounts', () => {
         expect(buildPhoneLookupCandidates('01108172258')).toEqual(expect.arrayContaining([
             '01108172258',

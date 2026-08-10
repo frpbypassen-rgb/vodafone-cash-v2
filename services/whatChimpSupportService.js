@@ -138,12 +138,13 @@ const normalizeWhatChimpWebhookPayload = (payload) => {
     const rawPhone = firstText(sources, [
         'phone_number', 'phone', 'subscriber_phone', 'subscriber_phone_number', 'subscriber.phone',
         'subscriber.phone_number', 'contact.phone', 'sender.phone', 'from', 'wa_id', 'subscriber.wa_id',
-        'contact.wa_id', 'sender.wa_id'
+        'contact.wa_id', 'sender.wa_id', 'chat_id', 'chat.id', 'remote_jid', 'remoteJid'
     ], 64);
     const phoneNormalized = normalizeExternalPhone(rawPhone);
     const text = firstText(sources, [
         'text.body', 'text', 'message_text', 'body', 'content.text', 'content', 'message.body', 'message',
-        'button.text', 'interactive.button_reply.title', 'interactive.list_reply.title'
+        'user_message', 'chat_message', 'message_body', 'button.text',
+        'interactive.button_reply.title', 'interactive.list_reply.title'
     ]);
     const mediaUrl = firstText(sources, [
         'image.url', 'media.url', 'media_url', 'image_url', 'attachment.url', 'file.url'
@@ -165,7 +166,7 @@ const normalizeWhatChimpWebhookPayload = (payload) => {
         phone: rawPhone || phoneNormalized,
         phoneNormalized,
         name: firstText(sources, [
-            'subscriber_name', 'name', 'subscriber.name', 'contact.name', 'sender.name', 'profile.name'
+            'subscriber_name', 'first_name', 'name', 'subscriber.name', 'contact.name', 'sender.name', 'profile.name'
         ], 200),
         externalContactId: firstText(sources, [
             'subscriber_id', 'subscriber.id', 'contact_id', 'contact.id', 'sender.id', 'user_id', 'wa_id'
