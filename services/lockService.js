@@ -8,6 +8,17 @@ const { getRedisClient, isRedis } = require('../config/redis');
 const logger = require('../utils/logger');
 
 let redlock = null;
+let hasWarnedAboutMemoryFallback = false;
+
+const isRedisRequired = () => ['1', 'true', 'yes', 'on'].includes(
+    String(process.env.REDIS_REQUIRED || '').trim().toLowerCase()
+);
+
+const warnAboutMemoryFallback = (message, metadata = {}) => {
+    if (hasWarnedAboutMemoryFallback) return;
+    hasWarnedAboutMemoryFallback = true;
+    logger.warn(message, metadata);
+};
 
 // تهيئة Redlock إذا كان Redis متاحاً
 const _initRedlock = () => {
@@ -91,17 +102,18 @@ const acquireLock = async (key, ttlMs = 5000, options = {}) => {
                 return lock;
             }
         } catch (err) {
-            if (process.env.NODE_ENV === 'production') {
+            if (isRedisRequired()) {
                 logger.error('CRITICAL: Redlock acquisition failed in production!', { key, error: err.message });
                 throw new Error('REDIS_LOCK_FAILED: Failed to acquire distributed lock in production');
             }
-            logger.warn('Redlock acquisition failed, falling back to In-Memory lock', { key, error: err.message });
+            warnAboutMemoryFallback('Redlock acquisition failed, using in-memory locks', { key, error: err.message });
         }
     } else {
-        if (process.env.NODE_ENV === 'production') {
+        if (isRedisRequired()) {
             logger.error('CRITICAL: Redis is not configured but running in production!');
             throw new Error('REDIS_NOT_CONFIGURED: Redis is mandatory in production mode');
         }
+        warnAboutMemoryFallback('Redis is unavailable, using in-memory locks in this single-process deployment');
     }
     
     // Fallback لـ In-Memory

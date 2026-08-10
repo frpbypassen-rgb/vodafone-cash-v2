@@ -62,6 +62,30 @@ describe('Lock Service Tests (In-Memory Fallback)', () => {
         };
         await expect(releaseLock(badLock)).resolves.not.toThrow();
     });
+
+    test('uses in-memory locks in production when Redis is explicitly optional', async () => {
+        const originalNodeEnv = process.env.NODE_ENV;
+        const originalRedisRequired = process.env.REDIS_REQUIRED;
+        process.env.NODE_ENV = 'production';
+        process.env.REDIS_REQUIRED = 'false';
+
+        jest.resetModules();
+        jest.doMock('../config/redis', () => ({
+            isRedis: () => false,
+            getRedisClient: () => ({})
+        }));
+
+        const { acquireLock, releaseLock } = require('../services/lockService');
+        const lock = await acquireLock('optional-redis-production', 5000);
+
+        expect(lock.__inMemory).toBe(true);
+        await releaseLock(lock);
+
+        if (originalNodeEnv === undefined) delete process.env.NODE_ENV;
+        else process.env.NODE_ENV = originalNodeEnv;
+        if (originalRedisRequired === undefined) delete process.env.REDIS_REQUIRED;
+        else process.env.REDIS_REQUIRED = originalRedisRequired;
+    });
 });
 
 describe('Lock Service Tests (Redis Redlock)', () => {
