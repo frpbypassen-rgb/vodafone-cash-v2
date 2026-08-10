@@ -62,6 +62,83 @@ const resolveClientNotificationUserIds = async ({ accountType, clientId }) => {
     return unique([user.phone, user.webUsername, user._id]);
 };
 
+const resolveSupportTicketNotificationUserIds = async (ticket) => {
+    const fallback = unique([ticket?.phone, ticket?.telegramId, ticket?.phoneNormalized]);
+    const entityId = ticket?.entityId;
+    if (!entityId) return fallback;
+
+    if (ticket.entityType === 'client_company') {
+        const employee = await ClientEmployee.findById(entityId)
+            .select('_id webUsername phone companyId')
+            .lean();
+        return unique([
+            ...fallback,
+            employee?.webUsername,
+            employee?.phone,
+            employee?._id,
+            employee?.companyId
+        ]);
+    }
+
+    if (ticket.entityType === 'sub_client') {
+        const subAccount = await SubAccount.findById(entityId)
+            .select('_id webUsername phone')
+            .lean();
+        return unique([
+            ...fallback,
+            subAccount?.webUsername,
+            subAccount?.phone,
+            subAccount?._id
+        ]);
+    }
+
+    if (ticket.entityType === 'client_user') {
+        const agentEmployee = await AgentEmployee.findById(entityId)
+            .select('_id webUsername phone agentId')
+            .lean();
+        if (agentEmployee) {
+            return unique([
+                ...fallback,
+                agentEmployee.webUsername,
+                agentEmployee.phone,
+                agentEmployee._id,
+                agentEmployee.agentId
+            ]);
+        }
+
+        const user = await User.findById(entityId)
+            .select('_id webUsername phone')
+            .lean();
+        return unique([
+            ...fallback,
+            user?.webUsername,
+            user?.phone,
+            user?._id
+        ]);
+    }
+
+    return fallback;
+};
+
+const createSupportReplyNotifications = async ({ ticket, channel }) => {
+    const userIds = await resolveSupportTicketNotificationUserIds(ticket);
+    const docs = await Promise.all(userIds.map((userId) => Notification.create({
+        userId,
+        audience: 'client',
+        targetModel: 'SupportTicket',
+        targetId: ticket._id,
+        title: 'رد جديد من الدعم الفني',
+        message: 'لديك رد جديد داخل محادثة الدعم.',
+        type: 'support_reply',
+        metadata: {
+            ticketId: String(ticket._id),
+            channel
+        }
+    }).catch(() => null)));
+
+    return docs.filter(Boolean);
+};
+
 const createClientNotifications = async ({
     accountModel,
     account,
@@ -114,7 +191,9 @@ const notifyBalanceAdjustment = async ({ accountModel, account, amount, balanceA
 };
 
 module.exports = {
+    createSupportReplyNotifications,
     createClientNotifications,
     notifyBalanceAdjustment,
-    resolveClientNotificationUserIds
+    resolveClientNotificationUserIds,
+    resolveSupportTicketNotificationUserIds
 };

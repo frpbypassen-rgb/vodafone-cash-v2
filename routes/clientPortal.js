@@ -13,6 +13,7 @@ const SubAccount = require('../models/SubAccount');
 const AgentEmployee = require('../models/AgentEmployee');
 const Notification = require('../models/Notification');
 const { resolveClientNotificationUserIds } = require('../services/clientNotificationService');
+const { setPortalSupportReplyChannel } = require('../services/whatChimpSupportService');
 
 // Middleware
 const endUnauthorizedClientSession = (req, res) => {
@@ -290,7 +291,10 @@ router.get('/api/support/messages', requireClientAuth, async (req, res) => {
             });
             await ticket.save();
         }
-        ticket.unreadUser = 0; await ticket.save();
+        if (ticket.unreadUser > 0) {
+            ticket.unreadUser = 0;
+            await ticket.save();
+        }
         res.json({ success: true, messages: ticket.messages });
     } catch (e) { res.json({ success: false, error: e.message }); }
 });
@@ -337,16 +341,17 @@ router.post('/api/support/messages', requireClientAuth, async (req, res) => {
             createdAt: new Date()
         };
         ticket.messages.push(newMessage);
-        ticket.channel = 'portal';
-        ticket.metadata = {
-            ...(ticket.metadata || {}),
-            replyChannel: 'portal'
-        };
-        if (typeof ticket.markModified === 'function') ticket.markModified('metadata');
+        setPortalSupportReplyChannel(ticket);
         ticket.status = 'open';
         ticket.unreadAdmin = (ticket.unreadAdmin || 0) + 1;
         ticket.updatedAt = new Date();
         await ticket.save();
+        req.app.get('io')?.emit('support:ticket-updated', {
+            ticketId: String(ticket._id),
+            channel: ticket.channel || 'portal',
+            direction: 'inbound',
+            status: ticket.status
+        });
 
         return res.json({ success: true, message: newMessage });
     } catch (error) {

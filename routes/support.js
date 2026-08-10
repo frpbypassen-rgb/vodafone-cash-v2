@@ -1,6 +1,5 @@
 const express = require('express');
 const router = express.Router();
-const Notification = require('../models/Notification');
 
 const SupportTicket = require('../models/SupportTicket');
 const PasswordResetRequest = require('../models/PasswordResetRequest');
@@ -8,6 +7,11 @@ const User = require('../models/User');
 const SubAccount = require('../models/SubAccount');
 const { requireAuth, requireMaster } = require('../middlewares/auth');
 const { sendWhatChimpText } = require('../services/whatsappService');
+const {
+    hasActiveWhatsAppWindow,
+    isWhatsAppSupportTicket
+} = require('../services/whatChimpSupportService');
+const { createSupportReplyNotifications } = require('../services/clientNotificationService');
 
 const emitTicketUpdate = (req, ticket) => {
     req.app.get('io')?.emit('support:ticket-updated', {
@@ -16,10 +20,6 @@ const emitTicketUpdate = (req, ticket) => {
         status: ticket.status
     });
 };
-
-const isWhatsAppTicket = (ticket) => (
-    ticket.channel === 'whatsapp' || ticket.metadata?.replyChannel === 'whatsapp'
-);
 
 router.get('/support', requireAuth, async (req, res) => {
     try { res.render('support_admin', { adminName: req.session.adminName }); } catch (e) { res.redirect('/'); }
@@ -44,27 +44,40 @@ router.post('/api/support/tickets/:id/reply', requireAuth, async (req, res) => {
 
         let delivery = null;
         let channel = 'portal';
-        if (isWhatsAppTicket(ticket)) {
-            const expiresAt = ticket.whatsappWindowExpiresAt ? new Date(ticket.whatsappWindowExpiresAt) : null;
-            if (!expiresAt || Number.isNaN(expiresAt.getTime()) || expiresAt.getTime() <= Date.now()) {
-                return res.status(422).json({
-                    success: false,
-                    error: 'انتهت نافذة محادثة واتساب. يجب أن يرسل العميل رسالة جديدة قبل إرسال رد نصي.'
-                });
-            }
+        const whatsapp = {
+            eligible: isWhatsAppSupportTicket(ticket),
+            attempted: false,
+            delivered: false,
+            code: ''
+        };
+        let warning = '';
 
-            delivery = await sendWhatChimpText({
-                phone: ticket.phoneNormalized || ticket.phone,
-                message: text
-            });
-            if (!delivery.success) {
-                return res.status(422).json({
-                    success: false,
-                    code: delivery.code || 'WHATCHIMP_REQUEST_FAILED',
-                    error: delivery.message || 'تعذر إرسال رد واتساب.'
-                });
+        if (whatsapp.eligible) {
+            if (!hasActiveWhatsAppWindow(ticket)) {
+                whatsapp.code = 'WHATSAPP_WINDOW_EXPIRED';
+                warning = 'تم حفظ الرد في صفحة الدعم فقط لأن نافذة محادثة واتساب انتهت. يرسل العميل رسالة جديدة عبر واتساب لاستئناف الرد المباشر.';
+            } else if (!ticket.phoneNormalized && !ticket.phone) {
+                whatsapp.code = 'WHATSAPP_PHONE_MISSING';
+                warning = 'تم حفظ الرد في صفحة الدعم فقط لأن رقم واتساب غير متاح لهذه المحادثة.';
+            } else {
+                whatsapp.attempted = true;
+                try {
+                    delivery = await sendWhatChimpText({
+                        phone: ticket.phoneNormalized || ticket.phone,
+                        message: text
+                    });
+                } catch (_error) {
+                    delivery = { success: false, code: 'WHATCHIMP_REQUEST_FAILED' };
+                }
+
+                if (delivery?.success) {
+                    channel = 'whatsapp';
+                    whatsapp.delivered = true;
+                } else {
+                    whatsapp.code = delivery?.code || 'WHATCHIMP_REQUEST_FAILED';
+                    warning = 'تم حفظ الرد في صفحة الدعم فقط، وتعذر تسليمه عبر واتساب حالياً.';
+                }
             }
-            channel = 'whatsapp';
         }
 
         const newMessage = {
@@ -74,7 +87,7 @@ router.post('/api/support/tickets/:id/reply', requireAuth, async (req, res) => {
             channel,
             direction: 'outbound',
             providerMessageId: delivery?.messageId || '',
-            deliveryStatus: delivery ? 'sent' : '',
+            deliveryStatus: whatsapp.delivered ? 'sent' : (whatsapp.eligible ? 'portal_only' : ''),
             createdAt: new Date()
         };
         ticket.messages.push(newMessage);
@@ -84,18 +97,9 @@ router.post('/api/support/tickets/:id/reply', requireAuth, async (req, res) => {
         await ticket.save();
         emitTicketUpdate(req, ticket);
 
-        if (channel === 'portal') {
-            try {
-                await Notification.create({
-                    userId: ticket.userPhone || ticket.webUsername,
-                    title: 'رد من الدعم الفني',
-                    message: `لديك رد جديد على التذكرة.`,
-                    type: 'system_alert'
-                });
-            } catch(e) {}
-        }
+        try { await createSupportReplyNotifications({ ticket, channel }); } catch (_error) {}
         
-        res.json({ success: true, message: newMessage, channel });
+        res.json({ success: true, message: newMessage, channel, whatsapp, warning });
     } catch (e) { res.json({ success: false, error: e.message }); }
 });
 

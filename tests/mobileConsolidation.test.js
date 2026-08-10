@@ -597,6 +597,34 @@ describe('📱 Automated Tests: Mobile API Consolidation & Safety', () => {
             expect(mockTicket.status).toBe('open');
             expect(mockTicket.unreadAdmin).toBe(1);
         });
+
+        test('POST /client/tickets/:id/reply preserves an active WhatsApp support channel', async () => {
+            mockUserPayload = { userId: 'user-id-123', accountType: 'client_user' };
+
+            const mockTicket = {
+                _id: 'tkt-whatsapp-001',
+                name: 'أحمد علي',
+                channel: 'whatsapp',
+                metadata: { replyChannel: 'whatsapp', whatsapp: { phoneNormalized: '218912345678' } },
+                whatsappWindowExpiresAt: new Date(Date.now() + 60 * 60 * 1000),
+                messages: [],
+                status: 'answered',
+                unreadAdmin: 0,
+                markModified: jest.fn(),
+                save: jest.fn().mockResolvedValue(true)
+            };
+
+            SupportTicket.findOne.mockResolvedValue(mockTicket);
+
+            const res = await request(app)
+                .post('/client/tickets/tkt-whatsapp-001/reply')
+                .send({ text: 'متابعة من تطبيق العميل' });
+
+            expect(res.status).toBe(200);
+            expect(mockTicket.messages[0]).toMatchObject({ channel: 'portal', direction: 'inbound' });
+            expect(mockTicket.channel).toBe('whatsapp');
+            expect(mockTicket.metadata.replyChannel).toBe('whatsapp');
+        });
     });
 
     // ──────────────────────────────────────────────────────────

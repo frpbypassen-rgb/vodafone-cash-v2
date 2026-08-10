@@ -228,6 +228,16 @@
                         input.value = '';
                         await fetchMessages();
                         await loadTickets();
+                        if (data.warning) {
+                            Swal.fire({
+                                icon: 'warning',
+                                title: 'تم حفظ الرد في صفحة العميل',
+                                text: data.warning,
+                                timer: 4500,
+                                showConfirmButton: false,
+                                customClass: { popup: 'rounded-4' }
+                            });
+                        }
                     } catch(err) {
                         Swal.fire({ icon: 'error', title: 'تعذر إرسال الرد', text: err.message || 'تعذر إرسال الرد حالياً.' });
                     } finally {

@@ -233,6 +233,34 @@ const buildTicketMetadata = (ticket, event) => {
     };
 };
 
+const isWhatsAppSupportTicket = (ticket) => Boolean(ticket && (
+    ticket.channel === 'whatsapp'
+    || ticket.metadata?.replyChannel === 'whatsapp'
+    || ticket.lastWhatsAppInboundAt
+    || ticket.whatsappWindowExpiresAt
+    || ticket.metadata?.whatsapp?.phoneNormalized
+));
+
+const hasActiveWhatsAppWindow = (ticket, now = Date.now()) => {
+    if (!isWhatsAppSupportTicket(ticket)) return false;
+
+    const expiresAt = ticket.whatsappWindowExpiresAt
+        ? new Date(ticket.whatsappWindowExpiresAt)
+        : null;
+    return Boolean(expiresAt && !Number.isNaN(expiresAt.getTime()) && expiresAt.getTime() > now);
+};
+
+const setPortalSupportReplyChannel = (ticket, now = Date.now()) => {
+    const replyChannel = hasActiveWhatsAppWindow(ticket, now) ? 'whatsapp' : 'portal';
+    ticket.channel = replyChannel;
+    ticket.metadata = {
+        ...(ticket.metadata || {}),
+        replyChannel
+    };
+    if (typeof ticket.markModified === 'function') ticket.markModified('metadata');
+    return replyChannel;
+};
+
 const recordWhatChimpSupportMessage = async (event) => {
     if (!event) return { ignored: true, reason: 'EMPTY_EVENT' };
 
@@ -308,8 +336,11 @@ const recordWhatChimpSupportMessage = async (event) => {
 module.exports = {
     WHATSAPP_WINDOW_MS,
     buildPhoneLookupCandidates,
+    hasActiveWhatsAppWindow,
+    isWhatsAppSupportTicket,
     normalizeExternalPhone,
     normalizeWhatChimpWebhookPayload,
     recordWhatChimpSupportMessage,
+    setPortalSupportReplyChannel,
     verifyWhatChimpWebhookRequest
 };

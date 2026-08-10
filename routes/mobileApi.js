@@ -59,6 +59,7 @@ const {
 const mobileWebParityService = require('../services/mobileWebParityService');
 const mobileWebParityMapper = require('../mappers/mobileWebParityMapper');
 const { resolveClientNotificationUserIds } = require('../services/clientNotificationService');
+const { setPortalSupportReplyChannel } = require('../services/whatChimpSupportService');
 const {
     directRegisterValidator,
     newRegisterValidator,
@@ -1565,15 +1566,16 @@ router.post('/client/tickets/:id/reply', authenticateJWT, async (req, res) => {
         };
 
         ticket.messages.push(newMessage);
-        ticket.channel = 'portal';
-        ticket.metadata = {
-            ...(ticket.metadata || {}),
-            replyChannel: 'portal'
-        };
-        if (typeof ticket.markModified === 'function') ticket.markModified('metadata');
+        setPortalSupportReplyChannel(ticket);
         ticket.status = 'open';
         ticket.unreadAdmin = (ticket.unreadAdmin || 0) + 1;
         await ticket.save();
+        req.app.get('io')?.emit('support:ticket-updated', {
+            ticketId: String(ticket._id),
+            channel: ticket.channel || 'portal',
+            direction: 'inbound',
+            status: ticket.status
+        });
 
         return res.status(200).json({
             success: true,

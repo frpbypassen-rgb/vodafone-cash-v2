@@ -739,21 +739,35 @@
     const supportMessages = document.getElementById('supportMessages');
     const supportForm = document.getElementById('supportMessageForm');
     const supportResult = document.getElementById('supportMessageResult');
+    let supportMessagesSignature = '';
+
+    const buildSupportMessagesSignature = (messages) => JSON.stringify((messages || []).map((message) => [
+        message._id || '',
+        message.sender || '',
+        message.text || '',
+        message.imageUrl || '',
+        message.channel || '',
+        message.createdAt || ''
+    ]));
 
     const renderSupportMessages = (messages) => {
         if (!supportMessages) return;
+        const signature = buildSupportMessagesSignature(messages);
+        if (signature === supportMessagesSignature) return;
+        const isNearBottom = supportMessages.scrollHeight - supportMessages.clientHeight <= supportMessages.scrollTop + 56;
+        supportMessagesSignature = signature;
         if (!messages?.length) {
             supportMessages.innerHTML = '<div class="bw-empty"><i class="fa-regular fa-comments"></i><strong>ابدأ المحادثة</strong><span>أرسل تفاصيل استفسارك وسيظهر رد الدعم هنا.</span></div>';
             return;
         }
         supportMessages.innerHTML = messages.map((message) => `
-            <article class="bw-chat-message ${message.sender === 'admin' ? 'admin' : 'user'}">
-                <header><strong>${escapeHtml(message.sender === 'admin' ? 'فريق الدعم' : message.senderName || 'أنت')}</strong><time>${escapeHtml(formatDateTime(message.createdAt))}</time></header>
+            <article class="bw-chat-message ${['admin', 'ai'].includes(message.sender) ? 'admin' : 'user'}">
+                <header><strong>${escapeHtml(['admin', 'ai'].includes(message.sender) ? 'فريق الدعم' : message.senderName || 'أنت')}${message.channel === 'whatsapp' ? ' <i class="fa-brands fa-whatsapp" title="رسالة واتساب" aria-hidden="true"></i>' : ''}</strong><time>${escapeHtml(formatDateTime(message.createdAt))}</time></header>
                 ${message.text ? `<p>${escapeHtml(message.text)}</p>` : ''}
                 ${message.imageUrl ? `<img src="${escapeHtml(message.imageUrl)}" alt="صورة مرفقة بالمحادثة">` : ''}
             </article>
         `).join('');
-        supportMessages.scrollTop = supportMessages.scrollHeight;
+        if (isNearBottom) supportMessages.scrollTop = supportMessages.scrollHeight;
     };
 
     const loadSupportMessages = async () => {
@@ -803,7 +817,10 @@
         }
     });
 
-    if (supportMessages) loadSupportMessages();
+    if (supportMessages) {
+        loadSupportMessages();
+        window.setInterval(loadSupportMessages, 5000);
+    }
 
     document.addEventListener('keydown', (event) => {
         if (event.key === 'Escape') setSidebar(false);

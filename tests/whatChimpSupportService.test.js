@@ -3,7 +3,9 @@
 const SupportTicket = require('../models/SupportTicket');
 const {
     buildPhoneLookupCandidates,
+    hasActiveWhatsAppWindow,
     normalizeWhatChimpWebhookPayload,
+    setPortalSupportReplyChannel,
     verifyWhatChimpWebhookRequest
 } = require('../services/whatChimpSupportService');
 
@@ -77,6 +79,34 @@ describe('WhatChimp support bridge', () => {
 
         expect(verifyWhatChimpWebhookRequest(request)).toBe(true);
         expect(verifyWhatChimpWebhookRequest({ get: () => '', query: {}, body: {} })).toBe(false);
+    });
+
+    test('keeps an active WhatsApp ticket on the WhatsApp reply channel after a portal message', () => {
+        const ticket = {
+            channel: 'whatsapp',
+            metadata: { replyChannel: 'whatsapp', whatsapp: { phoneNormalized: '201108172258' } },
+            whatsappWindowExpiresAt: new Date(Date.now() + 60 * 60 * 1000),
+            markModified: jest.fn()
+        };
+
+        expect(hasActiveWhatsAppWindow(ticket)).toBe(true);
+        expect(setPortalSupportReplyChannel(ticket)).toBe('whatsapp');
+        expect(ticket.channel).toBe('whatsapp');
+        expect(ticket.metadata.replyChannel).toBe('whatsapp');
+        expect(ticket.markModified).toHaveBeenCalledWith('metadata');
+    });
+
+    test('uses the portal reply channel after the WhatsApp window expires', () => {
+        const ticket = {
+            channel: 'whatsapp',
+            metadata: { replyChannel: 'whatsapp' },
+            whatsappWindowExpiresAt: new Date(Date.now() - 1)
+        };
+
+        expect(hasActiveWhatsAppWindow(ticket)).toBe(false);
+        expect(setPortalSupportReplyChannel(ticket)).toBe('portal');
+        expect(ticket.channel).toBe('portal');
+        expect(ticket.metadata.replyChannel).toBe('portal');
     });
 
     test('allows an unlinked WhatsApp contact to create a support ticket', async () => {
