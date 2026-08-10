@@ -481,7 +481,8 @@
                                             <span class="badge bg-primary fs-6 rounded-pill px-3 shadow-sm"><%= bot.txCount %> طلب</span>
                                         </div>
                                         <% if (bot.isApiBot) { %>
-                                            <button type="button" class="btn-3d w-100 mb-2 api-test-btn" data-api-bot-id="<%= bot._id %>" onclick="testApiExecutor(this)"><i class="fa-solid fa-signal me-2"></i> اختبار اتصال API والرصيد</button>
+                                            <button type="button" class="btn-3d w-100 mb-2 api-test-btn" data-api-bot-id="<%= bot._id %>" onclick="testApiExecutor(this)"><i class="fa-solid fa-signal me-2"></i> فحص الاتصال والرصيد</button>
+                                            <a href="/executor/<%= bot._id %>#connection-test" class="btn-3d w-100 mb-2" style="color:#087f74; border:1px solid rgba(8,127,116,.35);"><i class="fa-solid fa-vial me-2"></i> اختبار تنفيذ تحويل آمن</a>
                                         <% } %>
                                         <% if (isMaster) { %>
                                             <a href="/admin/accounts/executor/<%= bot._id %>/edit" class="btn-3d w-100 mb-2" style="color:#087f74; border:1px solid rgba(8,127,116,.35);"><i class="fa-solid fa-pen-to-square me-2"></i> تعديل بيانات المنفذ</a>

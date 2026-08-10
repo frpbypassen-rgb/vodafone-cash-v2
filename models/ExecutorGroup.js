@@ -37,6 +37,9 @@ const executorGroupSchema = new mongoose.Schema({
     lastApiServiceCredit: { type: Number, default: null },
     lastApiCashCredit: { type: Number, default: null },
     lastApiAvailableBalance: { type: Number, default: null },
+    lastApiTransferTestAt: { type: Date, default: null },
+    lastApiTransferTestStatus: { type: String, enum: ['success', 'failed', 'pending'], default: undefined },
+    lastApiTransferTestMessage: { type: String, default: '' },
     lastApiBalanceCheckAt: { type: Date, default: null },
     lastApiBalanceCheckStatus: {
         type: String,

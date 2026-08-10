@@ -8,6 +8,7 @@ const axios = require('axios');
 const {
     executeTransferViaApi,
     getApiProviderBalance,
+    runApiTransferPreflight,
     getApiProviderTransactions,
     isReturnedProviderStatus
 } = require('../services/externalApiService');
@@ -146,6 +147,116 @@ describe('externalApiService', () => {
             }),
             expect.any(Object)
         );
+    });
+
+    test('runs a safe transfer preflight through authentication, balance, and inquiry without payment', async () => {
+        axios.post
+            .mockResolvedValueOnce({
+                data: { Code: 200, Data: { Access_Token: 'preflight-token' } }
+            })
+            .mockResolvedValueOnce({
+                data: { Code: 200, Data: { ServiceCredit: 100, CashCredit: 20 } }
+            })
+            .mockResolvedValueOnce({
+                data: { Code: 200, Data: { PaymentBillInfo: 'safe-inquiry-token' } }
+            });
+
+        const result = await runApiTransferPreflight({
+            apiUrl: 'https://zayn.example',
+            apiUsername: 'api-user',
+            apiPassword: 'api-pass'
+        }, {
+            phone: '01271870153',
+            amount: 5
+        });
+
+        expect(result).toMatchObject({
+            success: true,
+            stage: 'completed',
+            availableBalance: 120,
+            targetNumber: '01271870153',
+            amount: 5
+        });
+        expect(result.checks.map((check) => check.status)).toEqual(['success', 'success', 'success', 'success']);
+        expect(axios.post).toHaveBeenCalledTimes(3);
+        expect(axios.post).toHaveBeenNthCalledWith(
+            3,
+            'https://zayn.example/api/V1/Transactions/Inquiry',
+            {
+                Fields: [{ Id: 5488, Value: '01271870153' }],
+                CurrentServiceProviderId: 16,
+                ServiceId: 85,
+                MachineSerial: 'XP1',
+                InqueryAmount: 5
+            },
+            expect.objectContaining({
+                headers: expect.objectContaining({ Authorization: 'Bearer preflight-token' }),
+                timeout: 20000
+            })
+        );
+        expect(axios.post.mock.calls.some(([url]) => String(url).includes('/Transactions/Payment'))).toBe(false);
+    });
+
+    test('reports the inquiry stage and provider message when safe transfer preflight fails', async () => {
+        axios.post
+            .mockResolvedValueOnce({
+                data: { Code: 200, Data: { Access_Token: 'preflight-token' } }
+            })
+            .mockResolvedValueOnce({
+                data: { Code: 200, Data: { ServiceCredit: 100, CashCredit: 0 } }
+            })
+            .mockResolvedValueOnce({
+                data: { Code: 422, Message: 'Recipient is not available', Data: null }
+            });
+
+        const result = await runApiTransferPreflight({
+            apiUrl: 'https://zayn.example',
+            apiUsername: 'api-user',
+            apiPassword: 'api-pass'
+        }, {
+            phone: '01271870153',
+            amount: 5
+        });
+
+        expect(result).toMatchObject({
+            success: false,
+            stage: 'inquiry',
+            message: 'Recipient is not available'
+        });
+        expect(result.checks.at(-1)).toMatchObject({ key: 'inquiry', status: 'failed' });
+        expect(axios.post).toHaveBeenCalledTimes(3);
+        expect(axios.post.mock.calls.some(([url]) => String(url).includes('/Transactions/Payment'))).toBe(false);
+    });
+
+    test('accepts a payment response that contains a provider reference without TransactionNumber', async () => {
+        axios.post
+            .mockResolvedValueOnce({
+                data: { Code: 200, Data: { Access_Token: 'token-789' } }
+            })
+            .mockResolvedValueOnce({
+                data: { Code: 200, Data: { PaymentBillInfo: 'payment-bill-info' } }
+            })
+            .mockResolvedValueOnce({
+                data: {
+                    Code: 200,
+                    Data: {
+                        IsPaid: 1,
+                        RefTransactionNumber: 'REF-789',
+                        ApprovalNumber: 'APP-789'
+                    }
+                }
+            });
+
+        const result = await executeTransferViaApi(
+            { vodafoneNumber: '01271870153', amount: 5 },
+            { apiUrl: 'https://zayn.example', apiUsername: 'api-user', apiPassword: 'api-pass' }
+        );
+
+        expect(result).toMatchObject({
+            success: true,
+            reference_number: 'REF-789',
+            external_transaction_id: 'REF-789'
+        });
     });
 
     test('checks provider balance through GetBalance', async () => {

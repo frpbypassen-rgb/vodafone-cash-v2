@@ -11,7 +11,7 @@ const { requireAuth, requireMaster } = require('../middlewares/auth');
 const { systemDateRange } = require('../config/systemTime');
 const { syncBotBalance, escapeRegex } = require('../utils/helpers');
 const { DEFAULT_API_PROVIDER_KEY, getApiProviderPreset, getApiProviderPresets } = require('../utils/apiProviderPresets');
-const { getApiProviderBalance } = require('../services/externalApiService');
+const { getApiProviderBalance, runApiTransferPreflight } = require('../services/externalApiService');
 const { syncProviderReturnedOperations } = require('../services/apiProviderReconciliationService');
 const { createExecutorAccount, ExecutorAccountError } = require('../services/executorAccountService');
 const {
@@ -544,6 +544,42 @@ router.post('/executor/:id/test-api', requireAuth, async (req, res) => {
     } catch (e) {
         console.error('[executor/test-api] failed:', e.stack || e.message);
         return res.status(500).json({ success: false, message: 'حدث خطأ أثناء اختبار منفذ API' });
+    }
+});
+
+router.post('/executor/:id/test-transfer', requireAuth, async (req, res) => {
+    try {
+        const bot = await ExecutorGroup.findById(req.params.id);
+        if (!bot || !bot.isApiBot) {
+            return res.status(404).json({ success: false, message: 'لم يتم العثور على منفذ API صالح للاختبار' });
+        }
+        if (bot.status !== 'active') {
+            return res.status(409).json({ success: false, message: 'يجب تفعيل المنفذ قبل اختبار التحويل' });
+        }
+
+        bot.lastApiTransferTestStatus = 'pending';
+        bot.lastApiTransferTestAt = new Date();
+        await bot.save();
+
+        const result = await runApiTransferPreflight(bot, {
+            phone: req.body?.phone,
+            amount: req.body?.amount
+        });
+
+        bot.lastApiTransferTestStatus = result.success ? 'success' : 'failed';
+        bot.lastApiTransferTestAt = new Date();
+        bot.lastApiTransferTestMessage = String(result.message || '').slice(0, 1000);
+        if (result.success) {
+            bot.lastApiServiceCredit = result.serviceCredit;
+            bot.lastApiCashCredit = result.cashCredit;
+            bot.lastApiAvailableBalance = result.availableBalance;
+        }
+        await bot.save();
+
+        return res.status(result.success ? 200 : 422).json(result);
+    } catch (error) {
+        console.error('[executor/test-transfer] failed:', error.stack || error.message);
+        return res.status(500).json({ success: false, message: 'حدث خطأ أثناء اختبار تحويل منفذ API' });
     }
 });
 

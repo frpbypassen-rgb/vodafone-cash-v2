@@ -149,6 +149,172 @@ const authorizeApiProvider = async (config, addLog) => {
 };
 
 // 🚀 دالة التخاطب مع شركة زين
+const normalizeApiTargetNumber = (value) => String(value || '')
+    .trim()
+    .replace(/[٠-٩]/g, (digit) => String('٠١٢٣٤٥٦٧٨٩'.indexOf(digit)))
+    .replace(/[۰-۹]/g, (digit) => String('۰۱۲۳۴۵۶۷۸۹'.indexOf(digit)))
+    .replace(/[^0-9]/g, '');
+
+const providerMessage = (data, fallback) => {
+    if (data && typeof data === 'object') {
+        return String(data.Message || data.message || data.error || fallback || '').trim();
+    }
+    return String(fallback || '').trim();
+};
+
+const errorMessage = (error, fallback) => providerMessage(error?.response?.data, error?.message || fallback);
+
+const hasSuccessCode = (data) => Number(data?.Code) === 200;
+
+const firstNonEmpty = (...values) => {
+    for (const value of values) {
+        const clean = String(value || '').trim();
+        if (clean) return clean;
+    }
+    return '';
+};
+
+const getApiConfigurationIssues = (config) => {
+    const issues = [];
+    if (!config.baseUrl) issues.push('رابط مزود الخدمة غير موجود');
+    if (!config.staticToken && (!config.apiUsername || !config.apiPassword)) {
+        issues.push('بيانات دخول API غير مكتملة');
+    }
+    if (!Number.isFinite(Number(config.serviceId)) || Number(config.serviceId) <= 0) issues.push('رقم الخدمة غير صالح');
+    if (!Number.isFinite(Number(config.providerId)) || Number(config.providerId) <= 0) issues.push('رقم مزود الخدمة غير صالح');
+    if (!Number.isFinite(Number(config.fieldId)) || Number(config.fieldId) <= 0) issues.push('رقم حقل الخدمة غير صالح');
+    if (!String(config.machineSerial || '').trim()) issues.push('الرقم التسلسلي للجهاز غير موجود');
+    return issues;
+};
+
+const buildInquiryPayload = (config, targetNumber, amount) => ({
+    Fields: [{ Id: config.fieldId, Value: targetNumber }],
+    CurrentServiceProviderId: config.providerId,
+    ServiceId: config.serviceId,
+    MachineSerial: config.machineSerial,
+    InqueryAmount: amount
+});
+
+const getApiProviderBalanceWithAuth = async (config, headers, addLog) => {
+    addLog('BALANCE', 'Checking available provider balance');
+    const balanceRes = await axios.post(`${config.baseUrl}/api/Account/GetBalance`, {}, { headers, timeout: 20000 });
+    const responseData = balanceRes.data || {};
+    const rawBalance = responseData.Data || {};
+
+    if (!hasSuccessCode(responseData) || !responseData.Data) {
+        const message = providerMessage(responseData, 'تم رفض استعلام رصيد المزود');
+        addLog('BALANCE_FAIL', message || 'Unexpected provider response');
+        return { success: false, message };
+    }
+
+    const serviceCredit = numberOrZero(rawBalance.ServiceCredit);
+    const cashCredit = numberOrZero(rawBalance.CashCredit);
+    const availableBalance = numberOrZero(rawBalance.AvailableBalance ?? rawBalance.Balance ?? (serviceCredit + cashCredit));
+    addLog('BALANCE_SUCCESS', `ServiceCredit=${serviceCredit} | CashCredit=${cashCredit} | Available=${availableBalance}`);
+
+    return {
+        success: true,
+        message: providerMessage(responseData, 'تم استعلام رصيد المزود بنجاح'),
+        serviceCredit,
+        cashCredit,
+        availableBalance,
+        balance: availableBalance,
+        rawData: rawBalance
+    };
+};
+
+// Validates the exact inquiry request used for a real transfer without calling Payment.
+const runApiTransferPreflight = async (apiBot, input = {}) => {
+    const processLog = [];
+    const addLog = (step, detail) => {
+        const timeStr = new Date().toLocaleTimeString('en-GB', { timeZone: SYSTEM_TIME_ZONE, hour12: false });
+        processLog.push(`[${timeStr}] ${step}: ${detail}`);
+    };
+    const checks = [];
+    let stage = 'configuration';
+
+    try {
+        const config = resolveApiProviderConfig(apiBot || {});
+        const targetNumber = normalizeApiTargetNumber(input.phone || input.targetNumber);
+        const amount = Number(input.amount);
+        const configurationIssues = getApiConfigurationIssues(config);
+
+        if (!targetNumber || targetNumber.length < 5 || targetNumber.length > 20) {
+            configurationIssues.push('رقم العميل المستخدم للاختبار غير صالح');
+        }
+        if (!Number.isFinite(amount) || amount <= 0) {
+            configurationIssues.push('قيمة الاختبار يجب أن تكون أكبر من صفر');
+        }
+
+        if (configurationIssues.length) {
+            const message = configurationIssues.join(', ');
+            addLog('CONFIG_FAIL', message);
+            checks.push({ key: 'configuration', label: 'إعدادات التحويل', status: 'failed', message });
+            return { success: false, stage, message, checks, processLog: processLog.join('\n') };
+        }
+
+        addLog('CONFIG_SUCCESS', `${config.preset.name} | ServiceId=${config.serviceId} | CurrentServiceProviderId=${config.providerId} | FieldId=${config.fieldId}`);
+        checks.push({ key: 'configuration', label: 'إعدادات الخدمة', status: 'success', message: 'البيانات الأساسية مكتملة' });
+
+        stage = 'authentication';
+        const auth = await authorizeApiProvider(config, addLog);
+        if (!auth.success) {
+            checks.push({ key: 'authentication', label: 'تسجيل الدخول للمزود', status: 'failed', message: auth.message });
+            return { success: false, stage, message: auth.message, checks, processLog: processLog.join('\n') };
+        }
+        checks.push({ key: 'authentication', label: 'تسجيل الدخول للمزود', status: 'success', message: 'تمت المصادقة بنجاح' });
+
+        stage = 'balance';
+        const balance = await getApiProviderBalanceWithAuth(config, auth.headers, addLog);
+        if (!balance.success) {
+            checks.push({ key: 'balance', label: 'رصيد المزود', status: 'failed', message: balance.message });
+            return { success: false, stage, message: balance.message, checks, processLog: processLog.join('\n') };
+        }
+        checks.push({
+            key: 'balance',
+            label: 'رصيد المزود',
+            status: balance.availableBalance < amount ? 'warning' : 'success',
+            message: `الرصيد المتاح: ${balance.availableBalance}`
+        });
+
+        stage = 'inquiry';
+        addLog('INQUIRY_TEST', `Safe test for [${targetNumber}] amount [${amount}] without payment.`);
+        const inquiryRes = await axios.post(
+            `${config.baseUrl}/api/V1/Transactions/Inquiry`,
+            buildInquiryPayload(config, targetNumber, amount),
+            { headers: auth.headers, timeout: 20000 }
+        );
+        const inquiryData = inquiryRes.data || {};
+        const paymentBillInfo = inquiryData.Data?.PaymentBillInfo;
+        if (!hasSuccessCode(inquiryData) || !paymentBillInfo) {
+            const message = providerMessage(inquiryData, 'تم رفض الاستعلام عن التحويل من المزود');
+            addLog('INQUIRY_FAIL', message);
+            checks.push({ key: 'inquiry', label: 'فحص بيانات التحويل', status: 'failed', message });
+            return { success: false, stage, message, checks, processLog: processLog.join('\n') };
+        }
+
+        addLog('INQUIRY_SUCCESS', 'Provider accepted transfer data; no payment was submitted.');
+        checks.push({ key: 'inquiry', label: 'فحص بيانات التحويل', status: 'success', message: 'تم قبول رقم العميل والقيمة لدى المزود' });
+        return {
+            success: true,
+            stage: 'completed',
+            message: 'المنفذ جاهز للتحويل: نجح الاتصال والرصيد والاستعلام الفعلي دون إرسال أي دفعة.',
+            checks,
+            targetNumber,
+            amount,
+            serviceCredit: balance.serviceCredit,
+            cashCredit: balance.cashCredit,
+            availableBalance: balance.availableBalance,
+            processLog: processLog.join('\n')
+        };
+    } catch (error) {
+        const message = errorMessage(error, 'تعذر الاتصال بالمزود أثناء اختبار التحويل');
+        addLog(`${String(stage || 'system').toUpperCase()}_ERROR`, message);
+        checks.push({ key: stage, label: 'اتصال مزود الخدمة', status: 'failed', message });
+        return { success: false, stage, message, checks, processLog: processLog.join('\n') };
+    }
+};
+
 const executeTransferViaApi = async (tx, apiBot) => {
     let processLog = [];
     const addLog = (step, detail) => {
@@ -157,10 +323,22 @@ const executeTransferViaApi = async (tx, apiBot) => {
     };
 
     try {
-        const targetNumber = tx.vodafoneNumber || tx.accountNumber;
-        const amount = tx.amount;
+        const targetNumber = normalizeApiTargetNumber(tx.vodafoneNumber || tx.accountNumber || tx.serviceDetails?.clientPhone);
+        const amount = Number(tx.amount);
         const config = resolveApiProviderConfig(apiBot || {});
         const { preset, baseUrl, serviceId, providerId, fieldId, machineSerial } = config;
+        const configurationIssues = getApiConfigurationIssues(config);
+        if (!targetNumber || targetNumber.length < 5 || targetNumber.length > 20) {
+            configurationIssues.push('رقم العميل غير صالح للتحويل عبر API');
+        }
+        if (!Number.isFinite(amount) || amount <= 0) {
+            configurationIssues.push('قيمة التحويل غير صالحة');
+        }
+        if (configurationIssues.length) {
+            const message = configurationIssues.join(', ');
+            addLog('CONFIG_FAIL', message);
+            return { success: false, message, processLog: processLog.join('\n') };
+        }
         const auth = await authorizeApiProvider(config, addLog);
         if (!auth.success) {
             return { success: false, message: auth.message, processLog: processLog.join('\n') };
@@ -169,18 +347,14 @@ const executeTransferViaApi = async (tx, apiBot) => {
         
         addLog("PROVIDER", `${preset.name} | ServiceId=${serviceId} | CurrentServiceProviderId=${providerId} | FieldId=${fieldId}`);
         addLog("INQUIRY", `جاري الاستعلام وفحص الرقم [${targetNumber}]...`);
-        const inquiryPayload = {
-            Fields: [{ Id: fieldId, Value: targetNumber }],
-            CurrentServiceProviderId: providerId,
-            ServiceId: serviceId,
-            MachineSerial: machineSerial,
-            InqueryAmount: amount
-        };
+        const inquiryPayload = buildInquiryPayload(config, targetNumber, amount);
         const inquiryRes = await axios.post(`${baseUrl}/api/V1/Transactions/Inquiry`, inquiryPayload, { headers, timeout: 20000 });
+        const inquiryData = inquiryRes.data || {};
 
-        if (inquiryRes.data.Code !== 200 || !inquiryRes.data.Data || !inquiryRes.data.Data.PaymentBillInfo) {
-            addLog("INQUIRY_FAIL", inquiryRes.data.Message || "رد غير متوقع من سيرفر الشركة");
-            return { success: false, message: 'تم رفض الاستعلام من الشركة', processLog: processLog.join('\n') };
+        if (!hasSuccessCode(inquiryData) || !inquiryData.Data || !inquiryData.Data.PaymentBillInfo) {
+            const message = providerMessage(inquiryData, 'تم رفض الاستعلام عن التحويل من المزود');
+            addLog("INQUIRY_FAIL", message || "Unexpected provider response");
+            return { success: false, message, processLog: processLog.join('\n') };
         }
         
         addLog("INQUIRY_SUCCESS", "الرقم سليم ومتاح للتحويل.");
@@ -190,16 +364,23 @@ const executeTransferViaApi = async (tx, apiBot) => {
             Fields: [{ Id: fieldId, Value: targetNumber }],
             CurrentServiceProviderId: providerId,
             ServiceId: serviceId,
-            PaymentBillInfo: inquiryRes.data.Data.PaymentBillInfo,
+            PaymentBillInfo: inquiryData.Data.PaymentBillInfo,
             Amount: amount,
             MachineSerial: machineSerial
         };
         const paymentRes = await axios.post(`${baseUrl}/api/V1/Transactions/Payment`, paymentPayload, { headers, timeout: 180000 });
 
-        const pd = paymentRes.data.Data || {};
+        const paymentData = paymentRes.data || {};
+        const pd = paymentData.Data || {};
         const print = pd.PrintBill || {};
-        const extRef = pd.TransactionNumber ? pd.TransactionNumber.toString() : '---';
-        const refTxNum = String(pd.RefTransactionNumber || print.RefTransactionNumber || print.RefNumber || '').trim();
+        const extRef = firstNonEmpty(pd.TransactionNumber, pd.TransactionId, print.TransactionId);
+        const refTxNum = firstNonEmpty(
+            pd.RefTransactionNumber,
+            pd.RefNumber,
+            print.RefTransactionNumber,
+            print.RefNumber,
+            pd.ApprovalNumber
+        );
 
         const prettyLog = `
 =========================================
@@ -208,14 +389,19 @@ const executeTransferViaApi = async (tx, apiBot) => {
 - القيمة         : ${pd.Amount || amount} EGP
 - الرصيد قبل     : ${pd.BalanceBefore !== undefined ? pd.BalanceBefore + ' EGP' : '---'}
 - الرصيد بعد     : ${pd.BalanceAfter !== undefined ? pd.BalanceAfter + ' EGP' : '---'}
-- الحالة         : ${pd.Status || paymentRes.data.Message || '---'}
-- رقم العملية    : ${extRef}
+- الحالة         : ${pd.Status || paymentData.Message || '---'}
+- رقم العملية    : ${extRef || '---'}
 - وقت العملية    : ${pd.TransactionTime || new Date().toLocaleString('ar-LY', { timeZone: SYSTEM_TIME_ZONE })}
 - الرقم المرجعي  : ${refTxNum || 'غير متوفر'}
 =========================================
 [ الاستجابة البرمجية الخام - Raw JSON ]\n${JSON.stringify(paymentRes.data, null, 2)}`;
 
-        if (paymentRes.data.Code === 200 && paymentRes.data.Data && paymentRes.data.Data.TransactionNumber) {
+        const paymentAccepted = hasSuccessCode(paymentData)
+            && paymentData.Data
+            && Number(pd.IsFailure || 0) !== 1
+            && (Boolean(pd.IsPaid) || Boolean(extRef) || Boolean(refTxNum));
+
+        if (paymentAccepted) {
             if (!refTxNum || refTxNum.trim() === '') {
                 addLog("PAYMENT_PENDING", `تم إرسال الدفعة ولكن لم يتم استلام المرجع من الشبكة.`);
                 addLog("API_FULL_RESPONSE", prettyLog);
@@ -225,29 +411,28 @@ const executeTransferViaApi = async (tx, apiBot) => {
             addLog("API_FULL_RESPONSE", prettyLog);
             return {
                 success: true,
-                external_transaction_id: extRef,
-                provider_transaction_id: extRef,
+                external_transaction_id: extRef || refTxNum,
+                provider_transaction_id: extRef || refTxNum,
                 reference_number: refTxNum,
-                message: paymentRes.data.Message || 'تم التحويل الآلي',
+                message: providerMessage(paymentData, 'تم التحويل الآلي'),
                 sender_number: refTxNum,
                 balance_before: pd.BalanceBefore,
                 balance_after: pd.BalanceAfter,
                 transaction_time: pd.TransactionTime || new Date().toLocaleString('ar-LY', { timeZone: SYSTEM_TIME_ZONE }),
-                status: pd.Status || paymentRes.data.Message || 'عمليه ناجحه',
+                status: pd.Status || providerMessage(paymentData, 'عمليه ناجحه'),
                 processLog: processLog.join('\n')
             };
         } else {
-            addLog("PAYMENT_FAIL", paymentRes.data.Message || "تم الرفض أثناء التنفيذ النهائي");
+            const message = providerMessage(paymentData, 'تم رفض تنفيذ الدفعة من المزود');
+            addLog("PAYMENT_FAIL", message);
             addLog("API_FULL_RESPONSE", prettyLog);
-            return { success: false, message: paymentRes.data.Message || 'تم الرفض', processLog: processLog.join('\n') };
+            return { success: false, message, processLog: processLog.join('\n') };
         }
 
     } catch (error) {
-        const providerMessage = error.response && error.response.data
-            ? (error.response.data.Message || JSON.stringify(error.response.data))
-            : error.message;
-        addLog("SYSTEM_ERROR", providerMessage);
-        return { success: false, message: providerMessage || 'خطأ في الاتصال بسيرفر الشركة', processLog: processLog.join('\n') };
+        const message = errorMessage(error, 'خطأ في الاتصال بسيرفر الشركة');
+        addLog("SYSTEM_ERROR", message);
+        return { success: false, message, processLog: processLog.join('\n') };
     }
 };
 
@@ -265,42 +450,12 @@ const getApiProviderBalance = async (apiBot) => {
             return { success: false, message: auth.message, processLog: processLog.join('\n') };
         }
 
-        addLog("BALANCE", "جاري استعلام الرصيد المتاح من المزود...");
-        const balanceRes = await axios.post(`${config.baseUrl}/api/Account/GetBalance`, {}, { headers: auth.headers, timeout: 20000 });
-        const responseData = balanceRes.data || {};
-        const rawBalance = responseData.Data || {};
-
-        if (responseData.Code !== 200 || !responseData.Data) {
-            addLog("BALANCE_FAIL", responseData.Message || "رد غير متوقع من مزود الخدمة");
-            return {
-                success: false,
-                message: responseData.Message || 'فشل استعلام الرصيد من مزود الخدمة',
-                processLog: processLog.join('\n')
-            };
-        }
-
-        const serviceCredit = numberOrZero(rawBalance.ServiceCredit);
-        const cashCredit = numberOrZero(rawBalance.CashCredit);
-        const availableBalance = numberOrZero(rawBalance.AvailableBalance ?? rawBalance.Balance ?? (serviceCredit + cashCredit));
-
-        addLog("BALANCE_SUCCESS", `ServiceCredit=${serviceCredit} | CashCredit=${cashCredit} | Available=${availableBalance}`);
-
-        return {
-            success: true,
-            message: responseData.Message || 'تم استعلام الرصيد بنجاح',
-            serviceCredit,
-            cashCredit,
-            availableBalance,
-            balance: availableBalance,
-            rawData: rawBalance,
-            processLog: processLog.join('\n')
-        };
+        const result = await getApiProviderBalanceWithAuth(config, auth.headers, addLog);
+        return { ...result, processLog: processLog.join('\n') };
     } catch (error) {
-        const providerMessage = error.response && error.response.data
-            ? (error.response.data.Message || JSON.stringify(error.response.data))
-            : error.message;
-        addLog("SYSTEM_ERROR", providerMessage);
-        return { success: false, message: providerMessage || 'خطأ في الاتصال بسيرفر مزود الخدمة', processLog: processLog.join('\n') };
+        const message = errorMessage(error, 'خطأ في الاتصال بسيرفر مزود الخدمة');
+        addLog("SYSTEM_ERROR", message);
+        return { success: false, message, processLog: processLog.join('\n') };
     }
 };
 
@@ -505,6 +660,7 @@ const saveApiReceiptProof = async (tx, apiResult) => {
 module.exports = {
     executeTransferViaApi,
     getApiProviderBalance,
+    runApiTransferPreflight,
     getApiProviderTransaction,
     getApiProviderTransactions,
     isReturnedProviderStatus,

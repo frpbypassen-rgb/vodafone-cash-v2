@@ -183,6 +183,25 @@
                                 </button>
                             </div>
                         </div>
+
+                        <div class="p-3 rounded-3 mb-3" id="connection-test" style="background:#0f172a; border:1px solid #0f766e;">
+                            <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+                                <div>
+                                    <div class="fw-bold text-light"><i class="fa-solid fa-shield-halved text-success me-1"></i> اختبار التحويل الآمن</div>
+                                    <small class="<%= bot.lastApiTransferTestStatus === 'success' ? 'text-success' : (bot.lastApiTransferTestStatus === 'failed' ? 'text-danger' : 'text-muted') %>">
+                                        <% if (bot.lastApiTransferTestAt) { %>
+                                            آخر فحص تحويل: <%= new Date(bot.lastApiTransferTestAt).toLocaleString('ar-LY', { timeZone: 'Africa/Tripoli' }) %>
+                                            <% if (bot.lastApiTransferTestMessage) { %>| <%= bot.lastApiTransferTestMessage %><% } %>
+                                        <% } else { %>
+                                            يفحص الاتصال والرصيد والاستعلام الفعلي دون إرسال دفعة أو خصم مبلغ
+                                        <% } %>
+                                    </small>
+                                </div>
+                                <button type="button" class="btn btn-success fw-bold px-4" data-api-bot-id="<%= bot._id %>" onclick="testApiTransferPreflight(this)">
+                                    <i class="fa-solid fa-vial me-1"></i> اختبار التنفيذ الآمن
+                                </button>
+                            </div>
+                        </div>
                         
                         <form action="/executor/<%= bot._id %>/toggle-status" method="POST">
                             <button type="submit" class="btn btn-<%= bot.status === 'active' ? 'danger' : 'success' %> w-100 fw-bold py-2 mb-4">
@@ -529,6 +548,99 @@
                 color: '#fff',
                 confirmButtonColor: '#ef4444',
                 confirmButtonText: 'إغلاق'
+            });
+        } finally {
+            button.disabled = false;
+            button.innerHTML = originalHtml;
+        }
+    }
+
+    function renderApiPreflightChecks(checks) {
+        const rows = Array.isArray(checks) ? checks : [];
+        if (!rows.length) return '';
+        const labels = {
+            configuration: 'إعدادات الخدمة',
+            authentication: 'تسجيل الدخول للمزود',
+            balance: 'رصيد المزود',
+            inquiry: 'فحص بيانات التحويل'
+        };
+        return rows.map((check) => {
+            const status = String(check.status || '').toLowerCase();
+            const icon = status === 'success' ? 'fa-circle-check text-success'
+                : (status === 'warning' ? 'fa-triangle-exclamation text-warning' : 'fa-circle-xmark text-danger');
+            return `<div class="d-flex align-items-start gap-2 py-2 border-bottom border-secondary-subtle">
+                <i class="fa-solid ${icon} mt-1"></i>
+                <div class="flex-grow-1"><b>${escapeHtml(labels[check.key] || check.label || 'فحص')}</b><div class="small text-light-emphasis">${escapeHtml(check.message || '')}</div></div>
+            </div>`;
+        }).join('');
+    }
+
+    async function testApiTransferPreflight(button) {
+        const botId = button?.dataset?.apiBotId;
+        if (!botId) return;
+
+        const prompt = await Swal.fire({
+            title: 'اختبار التنفيذ الآمن',
+            html: `<div style="direction:rtl;text-align:right;line-height:1.8">
+                <p class="small text-muted mb-3">سيتم فحص نفس طلب الاستعلام الذي تستخدمه الحوالة الفعلية، بدون إرسال دفعة أو خصم أي مبلغ.</p>
+                <label class="form-label fw-bold" for="api-preflight-phone">رقم العميل للاختبار</label>
+                <input id="api-preflight-phone" class="swal2-input" inputmode="numeric" dir="ltr" placeholder="01108172258">
+                <label class="form-label fw-bold mt-2" for="api-preflight-amount">القيمة للاختبار</label>
+                <input id="api-preflight-amount" class="swal2-input" type="number" min="0.01" step="0.01" dir="ltr" placeholder="5">
+            </div>`,
+            showCancelButton: true,
+            confirmButtonText: 'بدء الاختبار',
+            cancelButtonText: 'إلغاء',
+            confirmButtonColor: '#059669',
+            preConfirm: () => {
+                const phone = document.getElementById('api-preflight-phone')?.value?.trim();
+                const amount = document.getElementById('api-preflight-amount')?.value?.trim();
+                if (!phone || !amount || Number(amount) <= 0) {
+                    Swal.showValidationMessage('أدخل رقم العميل وقيمة صحيحة للاختبار');
+                    return false;
+                }
+                return { phone, amount };
+            }
+        });
+        if (!prompt.isConfirmed || !prompt.value) return;
+
+        const originalHtml = button.innerHTML;
+        button.disabled = true;
+        button.innerHTML = '<i class="fa-solid fa-spinner fa-spin me-1"></i> جاري فحص التنفيذ...';
+        try {
+            const response = await fetch(`/executor/${encodeURIComponent(botId)}/test-transfer`, {
+                method: 'POST',
+                headers: {
+                    'Accept': 'application/json',
+                    'Content-Type': 'application/json',
+                    'x-csrf-token': csrfToken
+                },
+                body: JSON.stringify(prompt.value)
+            });
+            const data = await response.json().catch(() => ({}));
+            const succeeded = response.ok && data.success;
+            await Swal.fire({
+                icon: succeeded ? 'success' : 'error',
+                title: succeeded ? 'المنفذ جاهز للتحويل' : 'ظهر خطأ في اختبار التحويل',
+                html: `<div style="direction:rtl;text-align:right;line-height:1.8">
+                    <div class="mb-2">${escapeHtml(data.message || 'تعذر إكمال الاختبار')}</div>
+                    <div class="rounded-3 px-3" style="background:#0f172a">${renderApiPreflightChecks(data.checks)}</div>
+                    <div class="small text-muted mt-3">لم يتم إرسال أي دفعة في هذا الاختبار.</div>
+                </div>`,
+                background: '#1e293b',
+                color: '#fff',
+                confirmButtonColor: succeeded ? '#059669' : '#ef4444',
+                confirmButtonText: 'إغلاق'
+            });
+            window.location.reload();
+        } catch (error) {
+            await Swal.fire({
+                icon: 'error',
+                title: 'تعذر اختبار التنفيذ',
+                html: `<div style="direction:rtl;text-align:right">${escapeHtml(error.message)}</div>`,
+                background: '#1e293b',
+                color: '#fff',
+                confirmButtonColor: '#ef4444'
             });
         } finally {
             button.disabled = false;
