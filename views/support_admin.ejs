@@ -61,7 +61,7 @@
 <div class="main-content">
     <div class="admin-nav mb-4 d-flex justify-content-between align-items-center gap-2 flex-wrap">
         <h3 class="fw-bold m-0 text-dark"><i class="fa-solid fa-headset text-primary me-2"></i> مركز الدعم الفني</h3>
-        <button type="button" class="btn btn-success fw-bold shadow-sm rounded-3" onclick="openWhatsAppTestSelector()">
+        <button type="button" class="btn btn-success fw-bold shadow-sm rounded-3" onclick="openWhatsAppTestDialog()">
             <i class="fa-brands fa-whatsapp me-1"></i> اختبار واتساب
         </button>
     </div>
@@ -161,59 +161,54 @@
         } catch(e) {}
     }
 
-    const isEligibleWhatsAppTestTicket = (ticket) => {
-        if (!ticket || ticket.status === 'closed') return false;
-
-        const isWhatsAppTicket = ticket.channel === 'whatsapp'
-            || ticket.metadata?.replyChannel === 'whatsapp'
-            || ticket.lastWhatsAppInboundAt
-            || ticket.whatsappWindowExpiresAt
-            || ticket.metadata?.whatsapp?.phoneNormalized;
-        const expiresAt = new Date(ticket.whatsappWindowExpiresAt || 0).getTime();
-
-        return Boolean(
-            isWhatsAppTicket
-            && (ticket.phoneNormalized || ticket.phone)
-            && Number.isFinite(expiresAt)
-            && expiresAt > Date.now()
-        );
-    };
-
-    async function openWhatsAppTestSelector() {
-        await loadTickets();
-        const eligibleTickets = supportTickets.filter(isEligibleWhatsAppTestTicket);
-
-        if (!eligibleTickets.length) {
-            await Swal.fire({
-                icon: 'info',
-                title: 'لا توجد محادثة واتساب نشطة',
-                text: 'يرسل العميل رسالة جديدة إلى رقم واتساب المنظومة، ثم اختر تذكرته لإرسال الاختبار.',
-                customClass: { popup: 'rounded-4' }
-            });
-            return;
-        }
-
-        const options = eligibleTickets.map((ticket) => {
-            const label = `${ticket.name || 'عميل'} - ${ticket.phone || ticket.phoneNormalized || ''} - ${ticket.ticketId || ''}`;
-            return `<option value="${escapeHtml(ticket._id)}">${escapeHtml(label)}</option>`;
-        }).join('');
-
-        const selection = await Swal.fire({
+    async function openWhatsAppTestDialog() {
+        const prompt = await Swal.fire({
             icon: 'question',
-            title: 'اختر محادثة واتساب',
-            html: `<select id="whatsappTestTicketSelect" class="form-select text-end" dir="rtl">${options}</select>`,
+            title: 'اختبار دعم واتساب',
+            input: 'tel',
+            inputLabel: 'رقم واتساب العميل',
+            inputPlaceholder: 'مثال: 0940000000',
+            inputAttributes: { dir: 'ltr', inputmode: 'tel', autocomplete: 'tel' },
+            text: 'سيُنشأ سجل اختبار في الدعم ثم تُرسل رسالة حقيقية عبر WhatChimp. قد يرفض WhatsApp الرسالة إن لم تكن نافذة المحادثة نشطة.',
             showCancelButton: true,
             confirmButtonColor: '#198754',
             cancelButtonColor: '#6c757d',
-            confirmButtonText: 'متابعة',
+            confirmButtonText: 'إنشاء تذكرة وإرسال الاختبار',
             cancelButtonText: 'إلغاء',
-            preConfirm: () => document.getElementById('whatsappTestTicketSelect')?.value || '',
+            inputValidator: (value) => String(value || '').trim() ? undefined : 'أدخل رقم واتساب أولاً.',
             customClass: { popup: 'rounded-4' }
         });
+        if (!prompt.isConfirmed) return;
 
-        if (selection.isConfirmed && selection.value) {
-            await openTicket(selection.value);
-            await sendWhatsAppTest(selection.value);
+        try {
+            const response = await fetch('/api/support/whatsapp-test', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ phone: prompt.value })
+            });
+            const data = await response.json();
+            if (data.ticketId) await openTicket(data.ticketId);
+            await loadTickets();
+
+            if (!response.ok || !data.success) {
+                throw new Error(data.error || 'تعذر إرسال رسالة الاختبار عبر واتساب.');
+            }
+
+            await Swal.fire({
+                icon: 'success',
+                title: 'قَبِل WhatChimp رسالة الاختبار',
+                text: 'فُتحت تذكرة الاختبار وسُجلت الرسالة. اطلب من العميل الرد بكلمة اختبار للتحقق من الاستقبال.',
+                timer: 4200,
+                showConfirmButton: false,
+                customClass: { popup: 'rounded-4' }
+            });
+        } catch (error) {
+            await Swal.fire({
+                icon: 'error',
+                title: 'لم تُسلَّم رسالة الاختبار',
+                text: error.message || 'تعذر إرسال رسالة الاختبار عبر واتساب.',
+                customClass: { popup: 'rounded-4' }
+            });
         }
     }
 
@@ -366,7 +361,7 @@
                 
                 let html = '';
                 data.ticket.messages.forEach(msg => {
-                    const isAdmin = msg.sender === 'admin' || msg.sender === 'ai';
+                    const isAdmin = msg.sender === 'admin' || msg.sender === 'ai' || msg.sender === 'system';
                     const time = new Date(msg.createdAt).toLocaleTimeString('en-US', {timeZone:'Africa/Tripoli', hour:'2-digit', minute:'2-digit'});
                     const senderHtml = msg.sender === 'ai'
                         ? '<div class="fw-bold text-success mb-1" style="font-size: 0.75rem;"><i class="fa-solid fa-wand-magic-sparkles me-1"></i> المساعد الآلي</div>'
@@ -375,6 +370,9 @@
                             : '<div class="fw-bold text-primary mb-1" style="font-size: 0.75rem;"><i class="fa-solid fa-user me-1"></i> العميل</div>';
                     const channelHtml = msg.channel === 'whatsapp'
                         ? '<span class="badge bg-success-subtle text-success-emphasis border border-success-subtle ms-1"><i class="fa-brands fa-whatsapp me-1"></i>واتساب</span>'
+                        : '';
+                    const deliveryHtml = msg.deliveryStatus === 'failed'
+                        ? '<span class="badge bg-danger-subtle text-danger-emphasis border border-danger-subtle ms-1"><i class="fa-solid fa-triangle-exclamation me-1"></i>لم تُسلَّم</span>'
                         : '';
 
                     let imgHtml = '';
@@ -387,7 +385,7 @@
 
                     html += `
                         <div class="msg-bubble ${isAdmin ? 'msg-admin' : 'msg-user'}">
-                            ${senderHtml}${channelHtml}
+                            ${senderHtml}${channelHtml}${deliveryHtml}
                             ${imgHtml}
                             ${escapeHtml(msg.text || '')}
                             <span class="msg-time opacity-75">${time}</span>

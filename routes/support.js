@@ -6,7 +6,7 @@ const PasswordResetRequest = require('../models/PasswordResetRequest');
 const User = require('../models/User');
 const SubAccount = require('../models/SubAccount');
 const { requireAuth, requireMaster } = require('../middlewares/auth');
-const { sendWhatChimpText } = require('../services/whatsappService');
+const { sendWhatChimpText, normalizeWhatsAppPhone } = require('../services/whatsappService');
 const {
     hasActiveWhatsAppWindow,
     isWhatsAppSupportTicket
@@ -20,6 +20,8 @@ const emitTicketUpdate = (req, ticket) => {
         status: ticket.status
     });
 };
+
+const WHATSAPP_TEST_MESSAGE = 'رسالة اختبار من منظومة Power Pay AL-Ahram. الرجاء الرد بكلمة اختبار لتأكيد ظهور الرسالة في مركز الدعم.';
 
 router.get('/support', requireAuth, async (req, res) => {
     try { res.render('support_admin', { adminName: req.session.adminName }); } catch (e) { res.redirect('/'); }
@@ -101,6 +103,107 @@ router.post('/api/support/tickets/:id/reply', requireAuth, async (req, res) => {
         
         res.json({ success: true, message: newMessage, channel, whatsapp, warning });
     } catch (e) { res.json({ success: false, error: e.message }); }
+});
+
+// This creates an auditable support ticket without pretending that the recipient opened a 24-hour WhatsApp window.
+router.post('/api/support/whatsapp-test', requireAuth, async (req, res) => {
+    try {
+        const suppliedPhone = String(req.body?.phone || '').trim();
+        let phoneNormalized;
+        try {
+            phoneNormalized = normalizeWhatsAppPhone(suppliedPhone);
+        } catch (error) {
+            return res.status(422).json({
+                success: false,
+                code: error.code || 'WHATSAPP_PHONE_INVALID',
+                error: error.message || 'رقم واتساب غير صالح.'
+            });
+        }
+
+        const existingTicketQuery = SupportTicket.findOne({
+            'metadata.type': 'whatsapp_test',
+            phoneNormalized,
+            status: { $ne: 'closed' }
+        });
+        let ticket = await existingTicketQuery.sort({ updatedAt: -1 });
+
+        if (!ticket) {
+            ticket = new SupportTicket({
+                entityType: 'whatsapp',
+                name: `اختبار واتساب ${phoneNormalized}`,
+                phone: suppliedPhone,
+                phoneNormalized,
+                channel: 'whatsapp',
+                status: 'open',
+                messages: [],
+                metadata: {
+                    type: 'whatsapp_test',
+                    replyChannel: 'whatsapp',
+                    whatsapp: {
+                        phoneNormalized,
+                        testTicket: true
+                    }
+                }
+            });
+        }
+
+        let delivery;
+        try {
+            delivery = await sendWhatChimpText({ phone: phoneNormalized, message: WHATSAPP_TEST_MESSAGE });
+        } catch (_error) {
+            delivery = { success: false, code: 'WHATCHIMP_REQUEST_FAILED' };
+        }
+
+        const sentAt = new Date();
+        const delivered = Boolean(delivery?.success);
+        const testMessage = {
+            sender: 'admin',
+            senderName: 'اختبار المنظومة',
+            text: WHATSAPP_TEST_MESSAGE,
+            channel: 'whatsapp',
+            direction: 'outbound',
+            providerMessageId: delivery?.messageId || '',
+            deliveryStatus: delivered ? 'sent' : 'failed',
+            createdAt: sentAt
+        };
+
+        ticket.messages.push(testMessage);
+        if (delivered) {
+            ticket.status = 'answered';
+            ticket.unreadUser = (ticket.unreadUser || 0) + 1;
+            ticket.lastWhatsAppOutboundAt = sentAt;
+        }
+        await ticket.save();
+        emitTicketUpdate(req, ticket);
+
+        if (delivered) {
+            try { await createSupportReplyNotifications({ ticket, channel: 'whatsapp' }); } catch (_error) {}
+        }
+
+        const response = {
+            success: delivered,
+            ticketId: String(ticket._id),
+            ticket,
+            message: testMessage,
+            whatsapp: {
+                attempted: true,
+                delivered,
+                code: delivery?.code || (delivered ? 'WHATCHIMP_SENT' : 'WHATCHIMP_REQUEST_FAILED'),
+                messageId: delivery?.messageId || ''
+            }
+        };
+
+        if (!delivered) {
+            return res.status(422).json({
+                ...response,
+                error: delivery?.message || 'تعذر إرسال رسالة الاختبار عبر واتساب. راجع سبب الرفض في WhatChimp.'
+            });
+        }
+
+        return res.json(response);
+    } catch (error) {
+        return res.status(500).json({ success: false, error: 'تعذر إنشاء تذكرة اختبار واتساب.' });
+    }
 });
 
 router.post('/api/support/tickets/:id/whatsapp-test', requireAuth, async (req, res) => {

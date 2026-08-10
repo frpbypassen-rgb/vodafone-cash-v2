@@ -61,6 +61,35 @@ describe('WhatChimp support bridge', () => {
         });
     });
 
+    test('normalizes a WhatsApp Cloud-style webhook envelope into an inbound support message', () => {
+        const event = normalizeWhatChimpWebhookPayload({
+            entry: [{
+                changes: [{
+                    value: {
+                        contacts: [{ wa_id: '218940719000', profile: { name: 'WhatsApp customer' } }],
+                        messages: [{
+                            from: '218940719000',
+                            id: 'wamid.cloud.1',
+                            timestamp: '1786276800',
+                            type: 'text',
+                            text: { body: 'Test from WhatsApp' }
+                        }]
+                    }
+                }]
+            }]
+        });
+
+        expect(event).toMatchObject({
+            direction: 'inbound',
+            sender: 'user',
+            phoneNormalized: '218940719000',
+            name: 'WhatsApp customer',
+            text: 'Test from WhatsApp',
+            providerMessageId: 'wamid.cloud.1',
+            deliveryStatus: 'received'
+        });
+    });
+
     test('builds national and international phone variants for linked accounts', () => {
         expect(buildPhoneLookupCandidates('01108172258')).toEqual(expect.arrayContaining([
             '01108172258',
@@ -79,6 +108,17 @@ describe('WhatChimp support bridge', () => {
 
         expect(verifyWhatChimpWebhookRequest(request)).toBe(true);
         expect(verifyWhatChimpWebhookRequest({ get: () => '', query: {}, body: {} })).toBe(false);
+    });
+
+    test('accepts a webhook secret supplied as a bearer token', () => {
+        process.env.WHATCHIMP_WEBHOOK_SECRET = 'support-secret';
+        const request = {
+            get: (name) => (name === 'authorization' ? 'Bearer support-secret' : ''),
+            query: {},
+            body: {}
+        };
+
+        expect(verifyWhatChimpWebhookRequest(request)).toBe(true);
     });
 
     test('keeps an active WhatsApp ticket on the WhatsApp reply channel after a portal message', () => {

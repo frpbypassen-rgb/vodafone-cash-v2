@@ -4,11 +4,21 @@ const express = require('express');
 const request = require('supertest');
 
 jest.mock('../models/Notification', () => ({ create: jest.fn() }));
-jest.mock('../models/SupportTicket', () => ({
-    findById: jest.fn(),
-    find: jest.fn()
+jest.mock('../models/SupportTicket', () => {
+    const SupportTicket = jest.fn(function MockSupportTicket(data) {
+        Object.assign(this, data);
+        this._id = this._id || 'created-whatsapp-test';
+        this.save = jest.fn().mockResolvedValue(undefined);
+    });
+    SupportTicket.findById = jest.fn();
+    SupportTicket.find = jest.fn();
+    SupportTicket.findOne = jest.fn();
+    return SupportTicket;
+});
+jest.mock('../services/whatsappService', () => ({
+    sendWhatChimpText: jest.fn(),
+    normalizeWhatsAppPhone: jest.fn((phone) => String(phone).replace(/\D/g, '') === '0940719000' ? '218940719000' : '201108172258')
 }));
-jest.mock('../services/whatsappService', () => ({ sendWhatChimpText: jest.fn() }));
 jest.mock('../services/clientNotificationService', () => ({ createSupportReplyNotifications: jest.fn() }));
 jest.mock('../middlewares/auth', () => ({
     requireAuth: (req, _res, next) => {
@@ -20,7 +30,7 @@ jest.mock('../middlewares/auth', () => ({
 
 const SupportTicket = require('../models/SupportTicket');
 const Notification = require('../models/Notification');
-const { sendWhatChimpText } = require('../services/whatsappService');
+const { sendWhatChimpText, normalizeWhatsAppPhone } = require('../services/whatsappService');
 const { createSupportReplyNotifications } = require('../services/clientNotificationService');
 const supportRouter = require('../routes/support');
 
@@ -178,5 +188,64 @@ describe('WhatsApp support replies', () => {
         expect(sendWhatChimpText).not.toHaveBeenCalled();
         expect(ticket.messages).toHaveLength(0);
         expect(ticket.save).not.toHaveBeenCalled();
+    });
+
+    test('creates a WhatsApp support test ticket for a phone and records a successful provider delivery', async () => {
+        SupportTicket.findOne.mockReturnValue({ sort: jest.fn().mockResolvedValue(null) });
+        sendWhatChimpText.mockResolvedValue({ success: true, code: 'WHATCHIMP_SENT', messageId: 'wamid.phone-test.1' });
+
+        const response = await request(app)
+            .post('/api/support/whatsapp-test')
+            .send({ phone: '0940719000' });
+
+        expect(response.status).toBe(200);
+        expect(response.body).toMatchObject({
+            success: true,
+            ticketId: 'created-whatsapp-test',
+            whatsapp: {
+                attempted: true,
+                delivered: true,
+                code: 'WHATCHIMP_SENT',
+                messageId: 'wamid.phone-test.1'
+            }
+        });
+        expect(normalizeWhatsAppPhone).toHaveBeenCalledWith('0940719000');
+        expect(sendWhatChimpText).toHaveBeenCalledWith(expect.objectContaining({ phone: '218940719000' }));
+        const ticket = SupportTicket.mock.instances[0];
+        expect(ticket).toMatchObject({
+            entityType: 'whatsapp',
+            phoneNormalized: '218940719000',
+            status: 'answered'
+        });
+        expect(ticket.messages).toHaveLength(1);
+        expect(ticket.messages[0]).toMatchObject({
+            channel: 'whatsapp',
+            direction: 'outbound',
+            deliveryStatus: 'sent',
+            providerMessageId: 'wamid.phone-test.1'
+        });
+        expect(ticket.save).toHaveBeenCalledTimes(1);
+        expect(createSupportReplyNotifications).toHaveBeenCalledWith({ ticket, channel: 'whatsapp' });
+    });
+
+    test('keeps an auditable test ticket when WhatChimp rejects a phone-based test', async () => {
+        SupportTicket.findOne.mockReturnValue({ sort: jest.fn().mockResolvedValue(null) });
+        sendWhatChimpText.mockResolvedValue({ success: false, code: 'WHATCHIMP_REJECTED', message: 'Conversation window is not active.' });
+
+        const response = await request(app)
+            .post('/api/support/whatsapp-test')
+            .send({ phone: '0940719000' });
+
+        expect(response.status).toBe(422);
+        expect(response.body).toMatchObject({
+            success: false,
+            ticketId: 'created-whatsapp-test',
+            whatsapp: { attempted: true, delivered: false, code: 'WHATCHIMP_REJECTED' }
+        });
+        const ticket = SupportTicket.mock.instances[0];
+        expect(ticket.status).toBe('open');
+        expect(ticket.messages[0]).toMatchObject({ channel: 'whatsapp', deliveryStatus: 'failed' });
+        expect(ticket.save).toHaveBeenCalledTimes(1);
+        expect(createSupportReplyNotifications).not.toHaveBeenCalled();
     });
 });

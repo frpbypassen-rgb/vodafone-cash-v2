@@ -41,6 +41,9 @@ const firstValue = (sources, paths) => {
 };
 
 const collectPayloadObjects = (payload) => {
+    const entry = Array.isArray(payload?.entry) ? payload.entry[0] : null;
+    const change = Array.isArray(entry?.changes) ? entry.changes[0] : null;
+    const value = change?.value;
     const roots = [
         payload,
         payload?.data,
@@ -49,7 +52,12 @@ const collectPayloadObjects = (payload) => {
         payload?.payload,
         payload?.payload?.data,
         Array.isArray(payload?.messages) ? payload.messages[0] : null,
-        Array.isArray(payload?.data?.messages) ? payload.data.messages[0] : null
+        Array.isArray(payload?.data?.messages) ? payload.data.messages[0] : null,
+        entry,
+        change,
+        value,
+        Array.isArray(value?.messages) ? value.messages[0] : null,
+        Array.isArray(value?.contacts) ? value.contacts[0] : null
     ];
     return roots.filter((item) => item && typeof item === 'object' && !Array.isArray(item));
 };
@@ -129,11 +137,13 @@ const normalizeWhatChimpWebhookPayload = (payload) => {
 
     const rawPhone = firstText(sources, [
         'phone_number', 'phone', 'subscriber_phone', 'subscriber_phone_number', 'subscriber.phone',
-        'subscriber.phone_number', 'contact.phone', 'sender.phone', 'from'
+        'subscriber.phone_number', 'contact.phone', 'sender.phone', 'from', 'wa_id', 'subscriber.wa_id',
+        'contact.wa_id', 'sender.wa_id'
     ], 64);
     const phoneNormalized = normalizeExternalPhone(rawPhone);
     const text = firstText(sources, [
-        'text.body', 'text', 'message_text', 'body', 'content.text', 'content', 'message.body', 'message'
+        'text.body', 'text', 'message_text', 'body', 'content.text', 'content', 'message.body', 'message',
+        'button.text', 'interactive.button_reply.title', 'interactive.list_reply.title'
     ]);
     const mediaUrl = firstText(sources, [
         'image.url', 'media.url', 'media_url', 'image_url', 'attachment.url', 'file.url'
@@ -158,7 +168,7 @@ const normalizeWhatChimpWebhookPayload = (payload) => {
             'subscriber_name', 'name', 'subscriber.name', 'contact.name', 'sender.name', 'profile.name'
         ], 200),
         externalContactId: firstText(sources, [
-            'subscriber_id', 'subscriber.id', 'contact_id', 'contact.id', 'sender.id', 'user_id'
+            'subscriber_id', 'subscriber.id', 'contact_id', 'contact.id', 'sender.id', 'user_id', 'wa_id'
         ], 200),
         providerMessageId: firstText(sources, [
             'wa_message_id', 'message_id', 'id', 'message.id', 'data.wa_message_id', 'data.message_id'
@@ -186,10 +196,13 @@ const verifyWhatChimpWebhookRequest = (req) => {
     const expected = cleanText(process.env.WHATCHIMP_WEBHOOK_SECRET, 512);
     if (!expected) return false;
 
+    const authorization = cleanText(req.get?.('authorization'), 1024);
+    const bearerToken = authorization.match(/^Bearer\s+(.+)$/i)?.[1] || '';
     const submitted = [
         req.get?.('x-whatchimp-webhook-secret'),
         req.get?.('x-webhook-secret'),
         req.get?.('x-api-key'),
+        bearerToken,
         req.query?.token,
         req.body?.token
     ];
