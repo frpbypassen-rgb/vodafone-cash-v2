@@ -626,8 +626,19 @@ class SessionController extends ChangeNotifier {
   bool get isExecutor => session?.accountType == 'executor';
 
   String get executorRole {
-    final raw = session?.role ?? session?.context['executorRole'] ?? 'operator';
-    return '$raw'.toLowerCase();
+    // The context is the executor-specific contract. Older sessions can carry
+    // a generic role value such as "executor", which must not hide manager UI.
+    final contextRole = _knownExecutorRole(session?.context['executorRole']);
+    final sessionRole = _knownExecutorRole(session?.role);
+    return contextRole ?? sessionRole ?? 'operator';
+  }
+
+  String? _knownExecutorRole(Object? value) {
+    final role = '${value ?? ''}'.trim().toLowerCase();
+    return switch (role) {
+      'manager' || 'operator' || 'accountant' => role,
+      _ => null,
+    };
   }
 
   bool get isExecutorManager => isExecutor && executorRole == 'manager';
