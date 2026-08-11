@@ -21,6 +21,7 @@ const { calculateAgencyPricing } = require('../../../utils/agencyPricing');
 const { calculateTransferCostLYD, getTransferPricingDefinition } = require('../../../utils/transferPricing');
 const { recordTransferReservation } = require('../../../services/agencyJournalService');
 const { getTransferServiceDefinition } = require('../../../utils/mobileTransferServiceCatalog');
+const { normalizeWhatsAppPhone } = require('../../../services/whatsappService');
 const { acquireLock, releaseLock } = require('../../../services/lockService');
 const {
     TransferCooldownError,
@@ -43,6 +44,7 @@ export interface ITransferInput {
     oldReceiptImage?: string;
     serviceSubtype?: 'nita' | 'nita_account';
     city?: string;
+    clientPhone?: string;
 }
 
 export class TransferService {
@@ -54,6 +56,7 @@ export class TransferService {
     }
 
     private buildTransferFingerprint(userId: string, accountType: string, input: ITransferInput): string {
+        const clientPhone = input.clientPhone?.trim() || '';
         const payload = {
             userId: String(userId),
             accountType,
@@ -63,7 +66,8 @@ export class TransferService {
             name: input.name?.trim() || null,
             notes: input.notes?.trim() || null,
             serviceSubtype: input.serviceSubtype?.trim() || null,
-            city: input.city?.trim() || null
+            city: input.city?.trim() || null,
+            ...(clientPhone ? { clientPhone } : {})
         };
         return crypto.createHash('sha256').update(JSON.stringify(payload)).digest('hex');
     }
@@ -168,12 +172,28 @@ export class TransferService {
             const notes = transferData.notes?.trim();
             const serviceSubtype = transferData.serviceSubtype?.trim();
             const city = transferData.city?.trim();
+            const clientPhone = String(transferData.clientPhone || '').trim().slice(0, 30);
             const currency = transferData.currency || 'EGP';
             const storedNotes = [
                 notes,
                 serviceSubtype ? `serviceSubtype=${serviceSubtype}` : null,
                 city ? `city=${city}` : null
             ].filter(Boolean).join(' | ');
+
+            if (clientPhone) {
+                try {
+                    normalizeWhatsAppPhone(clientPhone);
+                } catch (_error) {
+                    await session.abortTransaction();
+                    session.endSession();
+                    return {
+                        success: false,
+                        statusCode: 400,
+                        code: 'CLIENT_PHONE_INVALID',
+                        message: 'رقم واتساب العميل غير صالح. أدخل رقماً ليبياً أو مصرياً صحيحاً أو رقماً بمفتاح الدولة.'
+                    };
+                }
+            }
 
             const idempotencyFingerprint = this.buildTransferFingerprint(userId, accountType, transferData);
 
@@ -403,6 +423,7 @@ export class TransferService {
                 serviceDetails: {
                     subtype: serviceSubtype || '',
                     city: city || '',
+                    clientPhone,
                     destinationLabel: serviceDefinition.numberLabel || '',
                     amountCurrency: pricingDefinition.amountCurrencyCode,
                     rateDirection: pricingDefinition.rateDirection

@@ -29,6 +29,7 @@ const { getTransferServiceDefinition } = require('../utils/mobileTransferService
 const { validateTransferInput } = require('../utils/transferServiceRules');
 const { getClientReceiptProofIds } = require('../services/clientReceiptService');
 const { normalizeCustomerNoteInput } = require('../utils/transactionNotes');
+const { normalizeWhatsAppPhone } = require('../services/whatsappService');
 const { calculateAgencyPricing } = require('../utils/agencyPricing');
 const { calculateTransferCostLYD, getTransferPricingDefinition } = require('../utils/transferPricing');
 const { recordTransferReservation } = require('../services/agencyJournalService');
@@ -165,12 +166,20 @@ exports.postTransfer = async (req, res) => {
         const notes = normalizeCustomerNoteInput(req.body);
         const accountName = String(req.body.name || '').trim().slice(0, 160);
         const accountNumber = String(serviceKey === 'post_card' ? nationalId : (req.body.number || phone)).trim().slice(0, 100);
+        const clientPhone = String(req.body.clientPhone || '').trim().slice(0, 30);
+        if (clientPhone) {
+            try {
+                normalizeWhatsAppPhone(clientPhone);
+            } catch (_error) {
+                throw createClientError('رقم واتساب العميل غير صالح. أدخل رقماً ليبياً أو مصرياً صحيحاً أو رقماً بمفتاح الدولة.', 400);
+            }
+        }
         const serviceDetails = {
             subtype: String(req.body.serviceSubtype || '').trim().slice(0, 40),
             city: String(req.body.city || '').trim().slice(0, 100),
             nationalId,
             governorate,
-            clientPhone: String(req.body.clientPhone || '').trim().slice(0, 30),
+            clientPhone,
             destinationLabel: serviceDefinition ? serviceDefinition.numberLabel : '',
             amountCurrency: pricingDefinition.amountCurrencyCode,
             rateDirection: pricingDefinition.rateDirection,

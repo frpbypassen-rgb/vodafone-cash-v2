@@ -53,10 +53,22 @@ const safelyFind = async (operation) => {
 const resolveReceiptRecipient = async (transaction) => {
     if (!transaction) return null;
 
+    // Prefer the optional end-customer WhatsApp number saved with the transfer.
+    const clientPhone = String(transaction.serviceDetails?.clientPhone || '').trim();
+    if (clientPhone) {
+        return {
+            phone: clientPhone,
+            name: transaction.accountName || 'عميل العملية',
+            model: 'TransactionRecipient',
+            id: null,
+            source: 'client_phone'
+        };
+    }
+
     if (transaction.subAccountId) {
         const account = await safelyFind(() => SubAccount.findById(transaction.subAccountId));
         if (account?.phone) {
-            return { phone: account.phone, name: account.name || transaction.subAccountName || '', model: 'SubAccount', id: account._id };
+            return { phone: account.phone, name: account.name || transaction.subAccountName || '', model: 'SubAccount', id: account._id, source: 'account' };
         }
     }
 
@@ -69,12 +81,12 @@ const resolveReceiptRecipient = async (transaction) => {
             }))
             : null;
         if (employee?.phone) {
-            return { phone: employee.phone, name: employee.name || transaction.employeeName || '', model: 'ClientEmployee', id: employee._id };
+            return { phone: employee.phone, name: employee.name || transaction.employeeName || '', model: 'ClientEmployee', id: employee._id, source: 'account' };
         }
 
         const company = await safelyFind(() => ClientCompany.findById(transaction.companyId));
         if (company?.phone) {
-            return { phone: company.phone, name: company.name || transaction.companyName || '', model: 'ClientCompany', id: company._id };
+            return { phone: company.phone, name: company.name || transaction.companyName || '', model: 'ClientCompany', id: company._id, source: 'account' };
         }
     }
 
@@ -82,15 +94,15 @@ const resolveReceiptRecipient = async (transaction) => {
     if (userId) {
         const user = await safelyFind(() => User.findOne({ $or: [{ phone: userId }, { webUsername: userId }] }));
         if (user?.phone) {
-            return { phone: user.phone, name: user.name || transaction.employeeName || '', model: 'User', id: user._id };
+            return { phone: user.phone, name: user.name || transaction.employeeName || '', model: 'User', id: user._id, source: 'account' };
         }
 
         const employee = await safelyFind(() => AgentEmployee.findOne({ $or: [{ phone: userId }, { webUsername: userId }] }));
         if (employee?.phone) {
-            return { phone: employee.phone, name: employee.name || transaction.employeeName || '', model: 'AgentEmployee', id: employee._id };
+            return { phone: employee.phone, name: employee.name || transaction.employeeName || '', model: 'AgentEmployee', id: employee._id, source: 'account' };
         }
 
-        return { phone: userId, name: transaction.employeeName || '', model: 'Unknown', id: null };
+        return { phone: userId, name: transaction.employeeName || '', model: 'Unknown', id: null, source: 'account' };
     }
 
     return null;
@@ -117,6 +129,7 @@ const logReceiptDelivery = async ({ success, transaction, recipient, result }) =
             customId: transaction?.customId,
             recipientModel: recipient?.model,
             recipientPhone: recipient?.phone,
+            recipientSource: recipient?.source || 'account',
             provider: result?.provider || 'whatchimp',
             messageId: result?.messageId || null,
             templateName: result?.templateName || null
@@ -223,7 +236,8 @@ const sendCompletedTransactionReceipt = async (transactionInput) => {
         delivery.metadata = {
             service: serviceLabel(transaction.transferType),
             receiptUrl,
-            proofIndex: 0
+            proofIndex: 0,
+            recipientSource: recipient.source || 'account'
         };
         await saveDelivery(delivery);
 

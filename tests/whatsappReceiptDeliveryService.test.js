@@ -76,6 +76,38 @@ describe('WhatsApp receipt delivery', () => {
         expect(WhatsAppDelivery.mock.instances[0].messageId).toBe('wamid.receipt.1');
     });
 
+    test('delivers the receipt to the optional client WhatsApp number before the sender account', async () => {
+        const transaction = {
+            _id: 'tx-client-phone',
+            customId: 'ATT-2608-0002',
+            status: 'completed',
+            userId: '01108172258',
+            accountName: 'عميل التحويل',
+            transferType: 'vodafone',
+            amount: 900,
+            proofImage: 'proofs/ATT-2608-0002.jpg',
+            serviceDetails: { clientPhone: '0940719000' }
+        };
+        Transaction.findById.mockResolvedValue(transaction);
+        normalizeWhatsAppPhone.mockReturnValue('218940719000');
+        WhatsAppDelivery.findOne.mockResolvedValue(null);
+
+        const result = await sendCompletedTransactionReceipt(transaction);
+
+        expect(User.findOne).not.toHaveBeenCalled();
+        expect(normalizeWhatsAppPhone).toHaveBeenCalledWith('0940719000');
+        expect(sendReceipt).toHaveBeenCalledWith(expect.objectContaining({
+            phone: '218940719000',
+            accountName: 'عميل التحويل'
+        }));
+        expect(WhatsAppDelivery.mock.instances[0]).toMatchObject({
+            recipientModel: 'TransactionRecipient',
+            recipientPhone: '218940719000',
+            metadata: expect.objectContaining({ recipientSource: 'client_phone' })
+        });
+        expect(result).toMatchObject({ success: true, recipientPhone: '218940719000' });
+    });
+
     test('does not send a duplicate receipt that is already marked as sent', async () => {
         Transaction.findById.mockResolvedValue({ _id: 'tx-2', status: 'completed', userId: '01108172258', proofImage: 'proofs/ATT-2608-0002.jpg' });
         User.findOne.mockResolvedValue({ _id: 'user-1', name: 'أحمد', phone: '01108172258' });

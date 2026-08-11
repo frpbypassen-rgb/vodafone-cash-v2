@@ -45,6 +45,7 @@ describe('WhatChimp WhatsApp service', () => {
         expect(whatsappService.normalizeWhatsAppPhone('01108172258')).toBe('201108172258');
         expect(whatsappService.normalizeWhatsAppPhone('0912345678')).toBe('218912345678');
         expect(whatsappService.normalizeWhatsAppPhone('+218 91 234 5678')).toBe('218912345678');
+        expect(whatsappService.normalizeWhatsAppPhone('٠٩٤٠٧١٩٠٠٠')).toBe('218940719000');
     });
 
     test('sends OTP via approved WhatChimp template with the configured variable order', async () => {
