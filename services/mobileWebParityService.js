@@ -1048,14 +1048,13 @@ const executorGroupQuery = (groupId, tenantId) => {
 
 const executorReportTotals = (transactions) => transactions.reduce((summary, tx) => {
     if (tx.status === 'completed') {
-        summary.totalLYD += Number(tx.costLYD || 0);
         summary.totalEGP += Number(tx.amount || 0);
         summary.completedCount += 1;
     } else if (['rejected', 'cancelled_by_admin', 'failed'].includes(tx.status)) {
         summary.rejectedCount += 1;
     }
     return summary;
-}, { totalLYD: 0, totalEGP: 0, completedCount: 0, rejectedCount: 0 });
+}, { totalEGP: 0, completedCount: 0, rejectedCount: 0 });
 
 const executorRoleLabel = (role) => ({
     manager: 'مدير شركة تنفيذ',
@@ -1101,24 +1100,38 @@ async function getExecutorReports({ executorId, dateType, dateValue, employeeId,
         finalDateType === 'day' ? finalDateValue : null,
         finalDateType === 'month' ? finalDateValue : null
     );
-    const baseQuery = executorGroupQuery(emp.groupId, tenantId);
+    const groupQuery = executorGroupQuery(emp.groupId, tenantId);
+    const baseQuery = { ...groupQuery };
     if (targetEmployee) baseQuery.operatorId = String(targetEmployee._id);
 
-    const currentTransactions = await Transaction
-        .find({ ...baseQuery, createdAt: { $gte: start, $lte: end } })
-        .sort({ createdAt: -1 })
-        .lean();
+    const [currentTransactions, groupPeriodTransactions] = await Promise.all([
+        Transaction
+            .find({ ...baseQuery, createdAt: { $gte: start, $lte: end } })
+            .sort({ createdAt: -1 })
+            .lean(),
+        targetEmployee
+            ? Transaction.find({ ...groupQuery, createdAt: { $gte: start, $lte: end } }).lean()
+            : Promise.resolve(null)
+    ]);
     const deposits = currentTransactions.filter((tx) =>
         ['deposit', 'deduction', 'deposit_pending'].includes(tx.status)
     );
     const operations = currentTransactions.filter((tx) => !deposits.includes(tx));
     const totals = executorReportTotals(operations);
+    const groupOperations = (groupPeriodTransactions || currentTransactions)
+        .filter((tx) => !['deposit', 'deduction', 'deposit_pending'].includes(tx.status));
+    const groupTotals = executorReportTotals(groupOperations);
     const ownTransactions = currentTransactions.filter((tx) => String(tx.operatorId || '') === String(emp._id));
     const ownTotals = executorReportTotals(ownTransactions);
     const reportOwner = targetEmployee || emp;
+    const currentBalance = Number(group.balance || 0);
+    const periodBalance = -Number(groupTotals.totalEGP || 0);
 
     return {
-        previousBalance: 0,
+        previousBalance: currentBalance - periodBalance,
+        periodBalance,
+        currentBalance,
+        operationCount: operations.length,
         currentTransactions,
         operations,
         deposits,
@@ -1132,9 +1145,8 @@ async function getExecutorReports({ executorId, dateType, dateValue, employeeId,
             name: group.name,
             serviceKey: group.serviceKey || null
         },
-        companyBalance: isOperator ? null : Number(group.balance || 0),
+        companyBalance: currentBalance,
         myPerformance: {
-            totalLYD: ownTotals.totalLYD,
             totalEGP: ownTotals.totalEGP,
             completedCount: ownTotals.completedCount
         },
@@ -1198,7 +1210,6 @@ async function getExecutorOverview({ executorId, tenantId }) {
             monthOperations: monthTransactions.filter((tx) => tx.status === 'completed').length
         } : null,
         myPerformance: {
-            totalLYD: ownTotals.totalLYD,
             totalEGP: ownTotals.totalEGP,
             completedCount: ownTotals.completedCount
         },

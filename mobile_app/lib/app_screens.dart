@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:math' as math;
 import 'dart:ui' as ui;
 
 import 'package:flutter/services.dart';
@@ -8,12 +9,15 @@ import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 
 import 'appearance_controller.dart';
+import 'brand_theme.dart';
+import 'external_link.dart';
 import 'mobile_api.dart';
+import 'report_download.dart';
 
-const _navy = Color(0xFF10233F);
-const _green = Color(0xFF009B68);
-const _gold = Color(0xFFF1B931);
-const _danger = Color(0xFFD84A57);
+const _navy = AhramColors.ink;
+const _green = AhramColors.emerald;
+const _gold = AhramColors.gold;
+const _danger = AhramColors.danger;
 
 String formatAmount(num? value, {int fractionDigits = 2}) {
   return NumberFormat.currency(
@@ -28,6 +32,23 @@ String formatDate(dynamic value) {
   final parsed = DateTime.tryParse('$value');
   if (parsed == null) return '$value';
   return DateFormat('yyyy/MM/dd - hh:mm a', 'ar').format(parsed.toLocal());
+}
+
+String formatTaskArrival(dynamic value) {
+  if (value == null) return '-';
+  final parsed = DateTime.tryParse('$value');
+  if (parsed == null) return '$value';
+  return DateFormat('yyyy/MM/dd HH:mm:ss', 'en').format(parsed.toLocal());
+}
+
+String formatExecutionDuration(dynamic value) {
+  final seconds = numberValue(value).round();
+  if (seconds <= 0) return 'غير مكتملة';
+  final minutes = seconds ~/ 60;
+  final remainingSeconds = seconds % 60;
+  if (minutes == 0) return '$remainingSeconds ث';
+  if (minutes < 60) return '$minutes د $remainingSeconds ث';
+  return '${minutes ~/ 60} س ${minutes % 60} د';
 }
 
 double numberValue(dynamic value, [double fallback = 0]) {
@@ -129,139 +150,230 @@ class _LoginScreenState extends State<LoginScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
     return Scaffold(
       body: SafeArea(
-        child: LayoutBuilder(
-          builder: (context, constraints) {
-            return Center(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.all(24),
-                child: ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: 430),
-                  child: Container(
-                    padding: const EdgeInsets.all(28),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(12),
-                      boxShadow: const [
-                        BoxShadow(
-                          color: Color(0x120B1D35),
-                          blurRadius: 32,
-                          offset: Offset(0, 12),
-                        ),
-                      ],
-                    ),
-                    child: Form(
-                      key: _formKey,
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          const Center(child: BrandMark(large: true)),
-                          const SizedBox(height: 28),
-                          Text(
-                            'تسجيل الدخول',
-                            style: Theme.of(context).textTheme.headlineSmall
-                                ?.copyWith(
-                                  color: _navy,
-                                  fontWeight: FontWeight.w800,
-                                ),
-                          ),
-                          const SizedBox(height: 6),
-                          Text(
-                            'استخدم بيانات حسابك للدخول إلى المنظومة.',
-                            style: Theme.of(context).textTheme.bodyMedium
-                                ?.copyWith(color: const Color(0xFF60708A)),
-                          ),
-                          const SizedBox(height: 24),
-                          TextFormField(
-                            controller: _username,
-                            keyboardType: TextInputType.text,
-                            textDirection: ui.TextDirection.ltr,
-                            decoration: const InputDecoration(
-                              labelText: 'اسم المستخدم',
-                              prefixIcon: Icon(Icons.person_outline),
+        child: Stack(
+          children: [
+            const Positioned.fill(
+              child: IgnorePointer(child: _AhramBackdrop()),
+            ),
+            LayoutBuilder(
+              builder: (context, constraints) {
+                return Center(
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.all(24),
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 430),
+                      child: Container(
+                        padding: const EdgeInsets.all(28),
+                        decoration: BoxDecoration(
+                          color: colors.surface,
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: colors.outlineVariant),
+                          boxShadow: [
+                            BoxShadow(
+                              color: _navy.withValues(alpha: 0.14),
+                              blurRadius: 28,
+                              offset: const Offset(0, 14),
                             ),
-                            validator: (value) {
-                              if ((value ?? '').trim().length < 3) {
-                                return 'أدخل اسم مستخدم صحيحاً.';
-                              }
-                              return null;
-                            },
-                            onFieldSubmitted: (_) => _signIn(),
-                          ),
-                          const SizedBox(height: 14),
-                          TextFormField(
-                            controller: _password,
-                            obscureText: _obscure,
-                            textDirection: ui.TextDirection.ltr,
-                            decoration: InputDecoration(
-                              labelText: 'كلمة المرور',
-                              prefixIcon: const Icon(Icons.lock_outline),
-                              suffixIcon: IconButton(
-                                tooltip: _obscure
-                                    ? 'إظهار كلمة المرور'
-                                    : 'إخفاء كلمة المرور',
-                                onPressed: () =>
-                                    setState(() => _obscure = !_obscure),
-                                icon: Icon(
-                                  _obscure
-                                      ? Icons.visibility_outlined
-                                      : Icons.visibility_off_outlined,
+                            BoxShadow(
+                              color: colors.surface.withValues(alpha: 0.9),
+                              blurRadius: 2,
+                              offset: const Offset(0, -1),
+                            ),
+                          ],
+                        ),
+                        child: Form(
+                          key: _formKey,
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              const Align(
+                                alignment: AlignmentDirectional.centerStart,
+                                child: BrandMark(large: true),
+                              ),
+                              const SizedBox(height: 22),
+                              Container(
+                                width: 66,
+                                height: 4,
+                                decoration: BoxDecoration(
+                                  color: _gold,
+                                  borderRadius: BorderRadius.circular(8),
                                 ),
                               ),
-                            ),
-                            validator: (value) {
-                              if ((value ?? '').length < 4) {
-                                return 'كلمة المرور يجب أن تحتوي على 4 أحرف على الأقل.';
-                              }
-                              return null;
-                            },
-                            onFieldSubmitted: (_) => _signIn(),
-                          ),
-                          if (_error != null) ...[
-                            const SizedBox(height: 14),
-                            InlineMessage(message: _error!, color: _danger),
-                          ],
-                          const SizedBox(height: 22),
-                          FilledButton.icon(
-                            onPressed: _busy ? null : _signIn,
-                            icon: _busy
-                                ? const SizedBox(
-                                    width: 18,
-                                    height: 18,
-                                    child: CircularProgressIndicator(
-                                      strokeWidth: 2,
-                                      color: Colors.white,
+                              const SizedBox(height: 22),
+                              Text(
+                                'تسجيل الدخول',
+                                style: Theme.of(context).textTheme.headlineSmall
+                                    ?.copyWith(
+                                      color: colors.onSurface,
+                                      fontWeight: FontWeight.w800,
                                     ),
-                                  )
-                                : const Icon(Icons.login),
-                            label: Text(_busy ? 'جارٍ التحقق...' : 'دخول آمن'),
-                            style: FilledButton.styleFrom(
-                              minimumSize: const Size.fromHeight(54),
-                              backgroundColor: _green,
-                            ),
-                          ),
-                          const SizedBox(height: 18),
-                          Text(
-                            'Power Pay AL-Ahram',
-                            textAlign: TextAlign.center,
-                            style: Theme.of(context).textTheme.labelLarge
-                                ?.copyWith(
-                                  color: const Color(0xFF60708A),
-                                  letterSpacing: 0,
+                              ),
+                              const SizedBox(height: 6),
+                              Text(
+                                'استخدم بيانات حسابك للدخول إلى المنظومة.',
+                                style: Theme.of(context).textTheme.bodyMedium
+                                    ?.copyWith(color: colors.onSurfaceVariant),
+                              ),
+                              const SizedBox(height: 24),
+                              TextFormField(
+                                controller: _username,
+                                keyboardType: TextInputType.text,
+                                textDirection: ui.TextDirection.ltr,
+                                decoration: const InputDecoration(
+                                  labelText: 'اسم المستخدم',
+                                  prefixIcon: Icon(Icons.person_outline),
                                 ),
+                                validator: (value) {
+                                  if ((value ?? '').trim().length < 3) {
+                                    return 'أدخل اسم مستخدم صحيحاً.';
+                                  }
+                                  return null;
+                                },
+                                onFieldSubmitted: (_) => _signIn(),
+                              ),
+                              const SizedBox(height: 14),
+                              TextFormField(
+                                controller: _password,
+                                obscureText: _obscure,
+                                textDirection: ui.TextDirection.ltr,
+                                decoration: InputDecoration(
+                                  labelText: 'كلمة المرور',
+                                  prefixIcon: const Icon(Icons.lock_outline),
+                                  suffixIcon: IconButton(
+                                    tooltip: _obscure
+                                        ? 'إظهار كلمة المرور'
+                                        : 'إخفاء كلمة المرور',
+                                    onPressed: () =>
+                                        setState(() => _obscure = !_obscure),
+                                    icon: Icon(
+                                      _obscure
+                                          ? Icons.visibility_outlined
+                                          : Icons.visibility_off_outlined,
+                                    ),
+                                  ),
+                                ),
+                                validator: (value) {
+                                  if ((value ?? '').length < 4) {
+                                    return 'كلمة المرور يجب أن تحتوي على 4 أحرف على الأقل.';
+                                  }
+                                  return null;
+                                },
+                                onFieldSubmitted: (_) => _signIn(),
+                              ),
+                              if (_error != null) ...[
+                                const SizedBox(height: 14),
+                                InlineMessage(message: _error!, color: _danger),
+                              ],
+                              const SizedBox(height: 22),
+                              FilledButton.icon(
+                                onPressed: _busy ? null : _signIn,
+                                icon: _busy
+                                    ? const SizedBox(
+                                        width: 18,
+                                        height: 18,
+                                        child: CircularProgressIndicator(
+                                          strokeWidth: 2,
+                                          color: Colors.white,
+                                        ),
+                                      )
+                                    : const Icon(Icons.login),
+                                label: Text(
+                                  _busy ? 'جارٍ التحقق...' : 'دخول آمن',
+                                ),
+                                style: FilledButton.styleFrom(
+                                  minimumSize: const Size.fromHeight(56),
+                                ),
+                              ),
+                              const SizedBox(height: 18),
+                              Text(
+                                'شركة الأهرام',
+                                textAlign: TextAlign.center,
+                                style: Theme.of(context).textTheme.labelLarge
+                                    ?.copyWith(
+                                      color: colors.onSurfaceVariant,
+                                      letterSpacing: 0,
+                                    ),
+                              ),
+                            ],
                           ),
-                        ],
+                        ),
                       ),
                     ),
                   ),
-                ),
-              ),
-            );
-          },
+                );
+              },
+            ),
+          ],
         ),
       ),
     );
+  }
+}
+
+class _AhramBackdrop extends StatelessWidget {
+  const _AhramBackdrop();
+
+  @override
+  Widget build(BuildContext context) {
+    final dark = Theme.of(context).brightness == Brightness.dark;
+    return CustomPaint(
+      painter: _AhramBackdropPainter(
+        primary: (dark ? const Color(0xFF39C38D) : _green).withValues(
+          alpha: dark ? 0.14 : 0.11,
+        ),
+        accent: (dark ? const Color(0xFFF1C767) : _gold).withValues(
+          alpha: dark ? 0.12 : 0.16,
+        ),
+      ),
+    );
+  }
+}
+
+class _AhramBackdropPainter extends CustomPainter {
+  const _AhramBackdropPainter({required this.primary, required this.accent});
+
+  final Color primary;
+  final Color accent;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final primaryPaint = Paint()
+      ..color = primary
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.2;
+    final accentPaint = Paint()
+      ..color = accent
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.2;
+
+    final top = Path()
+      ..moveTo(0, 84)
+      ..lineTo(84, 0)
+      ..lineTo(186, 0)
+      ..lineTo(0, 186);
+    canvas.drawPath(top, primaryPaint);
+
+    final bottom = Path()
+      ..moveTo(size.width, size.height - 148)
+      ..lineTo(size.width - 148, size.height)
+      ..lineTo(size.width - 36, size.height)
+      ..lineTo(size.width, size.height - 36);
+    canvas.drawPath(bottom, primaryPaint);
+
+    canvas.drawLine(
+      Offset(size.width - 112, 44),
+      Offset(size.width - 28, 44),
+      accentPaint,
+    );
+    canvas.drawLine(const Offset(28, 206), const Offset(104, 206), accentPaint);
+  }
+
+  @override
+  bool shouldRepaint(covariant _AhramBackdropPainter oldDelegate) {
+    return oldDelegate.primary != primary || oldDelegate.accent != accent;
   }
 }
 
@@ -464,53 +576,91 @@ class _RoleShellState extends State<RoleShell> {
     final companyName = company is Map
         ? '${company['name'] ?? widget.controller.session?.context['executorGroupName'] ?? ''}'
         : '${widget.controller.session?.context['executorGroupName'] ?? ''}';
-    final companyBalance = company is Map ? numberValue(company['balance']) : 0;
+    final companyBalance = company is Map
+        ? numberValue(company['balance'])
+        : 0.0;
     final ownPerformance = performance is Map
-        ? numberValue(performance['totalLYD'])
+        ? numberValue(performance['totalEGP'])
         : 0;
     final executorSubtitle = widget.controller.isExecutorManager
-        ? '$companyName · رصيد الشركة ${formatAmount(companyBalance)} د.ل'
+        ? '$companyName · رصيد الشركة ${formatAmount(companyBalance)} ج.م'
         : (widget.controller.isExecutorAccountant
-              ? '$companyName · رصيد الشركة ${formatAmount(companyBalance)} د.ل'
-              : '$companyName · تنفيذاتك اليوم ${formatAmount(ownPerformance)} د.ل');
+              ? '$companyName · رصيد الشركة ${formatAmount(companyBalance)} ج.م'
+              : '$companyName · تنفيذاتك اليوم ${formatAmount(ownPerformance)} ج.م');
     final appBar = AppBar(
+      toolbarHeight: 76,
       titleSpacing: 18,
+      bottom: PreferredSize(
+        preferredSize: const Size.fromHeight(3),
+        child: Row(
+          children: const [
+            Expanded(child: ColoredBox(color: AhramColors.sky)),
+            Expanded(child: ColoredBox(color: AhramColors.gold)),
+            Expanded(child: ColoredBox(color: AhramColors.emerald)),
+          ],
+        ),
+      ),
       title: Row(
         children: [
           const BrandMark(compact: true),
           const SizedBox(width: 10),
           Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  widget.controller.isExecutor ? companyName : selected.label,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    fontWeight: FontWeight.w800,
-                    color: Theme.of(context).colorScheme.onSurface,
-                  ),
-                ),
-                Text(
-                  widget.controller.isExecutor
-                      ? executorSubtitle
-                      : '${widget.controller.session?.name ?? ''} · $_roleLabel',
-                  style: TextStyle(
-                    fontSize: 11,
-                    color: Theme.of(context).colorScheme.onSurfaceVariant,
-                  ),
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ],
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                final compactHeader = constraints.maxWidth < 320;
+                if (widget.controller.isExecutor && compactHeader) {
+                  return const SizedBox.shrink();
+                }
+                final title = widget.controller.isExecutor && compactHeader
+                    ? 'بوابة التنفيذ'
+                    : (widget.controller.isExecutor
+                          ? companyName
+                          : selected.label);
+                final subtitle = widget.controller.isExecutor && compactHeader
+                    ? 'بوابة التنفيذ'
+                    : (widget.controller.isExecutor
+                          ? executorSubtitle
+                          : '${widget.controller.session?.name ?? ''} · $_roleLabel');
+
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontWeight: FontWeight.w800,
+                        color: Theme.of(context).colorScheme.onSurface,
+                      ),
+                    ),
+                    Text(
+                      subtitle,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ],
+                );
+              },
             ),
           ),
         ],
       ),
       actions: [
         if (widget.controller.isExecutor)
-          IconButton(
+          ExecutorBalanceBadge(
+            amount: companyBalance,
+            label: widget.controller.isExecutorOperator
+                ? 'رصيد التنفيذ'
+                : 'رصيد المنفذ',
+          ),
+        if (widget.controller.isExecutor)
+          GlassIconButton(
             tooltip: widget.appearance.isDark
                 ? 'الوضع النهاري'
                 : 'الوضع الليلي',
@@ -521,7 +671,7 @@ class _RoleShellState extends State<RoleShell> {
                   : Icons.dark_mode_outlined,
             ),
           ),
-        IconButton(
+        GlassIconButton(
           tooltip: 'تسجيل الخروج',
           onPressed: _confirmLogout,
           icon: const Icon(Icons.logout_outlined),
@@ -542,42 +692,83 @@ class _RoleShellState extends State<RoleShell> {
           body: desktop
               ? Row(
                   children: [
-                    NavigationRail(
-                      selectedIndex: _index,
-                      onDestinationSelected: (next) =>
-                          setState(() => _index = next),
-                      labelType: NavigationRailLabelType.all,
-                      backgroundColor: Theme.of(context).colorScheme.surface,
-                      leading: const SizedBox(height: 12),
-                      destinations: _items
-                          .map(
-                            (item) => NavigationRailDestination(
-                              icon: Icon(item.icon),
-                              selectedIcon: Icon(item.icon, color: _green),
-                              label: Text(item.label),
-                            ),
-                          )
-                          .toList(),
+                    Container(
+                      width: 232,
+                      decoration: BoxDecoration(
+                        color: Theme.of(context).colorScheme.surface,
+                        border: Border(
+                          left: BorderSide(
+                            color: Theme.of(context).colorScheme.outlineVariant,
+                          ),
+                        ),
+                      ),
+                      child: NavigationRail(
+                        extended: true,
+                        minExtendedWidth: 232,
+                        selectedIndex: _index,
+                        onDestinationSelected: (next) =>
+                            setState(() => _index = next),
+                        labelType: NavigationRailLabelType.none,
+                        backgroundColor: Colors.transparent,
+                        leading: const Padding(
+                          padding: EdgeInsets.fromLTRB(16, 18, 16, 22),
+                          child: Align(
+                            alignment: AlignmentDirectional.centerStart,
+                            child: BrandMark(),
+                          ),
+                        ),
+                        destinations: _items
+                            .map(
+                              (item) => NavigationRailDestination(
+                                icon: GlassIconBadge(icon: item.icon),
+                                selectedIcon: GlassIconBadge(
+                                  icon: item.icon,
+                                  selected: true,
+                                ),
+                                label: Text(item.label),
+                              ),
+                            )
+                            .toList(),
+                      ),
                     ),
-                    const VerticalDivider(width: 1, color: Color(0xFFDCE4EF)),
                     Expanded(child: pages),
                   ],
                 )
               : pages,
           bottomNavigationBar: desktop
               ? null
-              : NavigationBar(
-                  selectedIndex: _index,
-                  onDestinationSelected: (next) =>
-                      setState(() => _index = next),
-                  destinations: _items
-                      .map(
-                        (item) => NavigationDestination(
-                          icon: Icon(item.icon),
-                          label: item.label,
-                        ),
-                      )
-                      .toList(),
+              : DecoratedBox(
+                  decoration: BoxDecoration(
+                    border: Border(
+                      top: BorderSide(
+                        color: Theme.of(context).colorScheme.outlineVariant,
+                      ),
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: _navy.withValues(alpha: 0.08),
+                        blurRadius: 16,
+                        offset: const Offset(0, -4),
+                      ),
+                    ],
+                  ),
+                  child: NavigationBar(
+                    selectedIndex: _index,
+                    onDestinationSelected: (next) =>
+                        setState(() => _index = next),
+                    destinations: _items
+                        .map(
+                          (item) => NavigationDestination(
+                            icon: GlassIconBadge(icon: item.icon),
+                            selectedIcon: GlassIconBadge(
+                              icon: item.icon,
+                              selected: true,
+                            ),
+                            label: item.label,
+                          ),
+                        )
+                        .toList(),
+                  ),
                 ),
         );
       },
@@ -1806,46 +1997,75 @@ class _ExecutorTasksScreenState extends State<ExecutorTasksScreen> {
     if (success == true) await _load();
   }
 
+  Future<void> _shareToWhatsApp(Map<String, dynamic> task) async {
+    final phone = '${task['recipientNumber'] ?? '-'}';
+    final amount = formatAmount(numberValue(task['amount']));
+    final service =
+        '${task['transferTypeLabel'] ?? serviceLabel(task['transferType']?.toString())}';
+    final note = '${task['notes'] ?? ''}'.trim();
+    final message = StringBuffer('شركة الأهرام\n')
+      ..writeln('طلب تنفيذ: ${task['txId'] ?? '-'}')
+      ..writeln('الخدمة: $service')
+      ..writeln('رقم الهاتف: $phone')
+      ..writeln('القيمة: $amount ج.م');
+    if (note.isNotEmpty) message.writeln('ملاحظة العميل: $note');
+
+    final shareUri = Uri.https('wa.me', '/', <String, String>{
+      'text': message.toString().trim(),
+    });
+    try {
+      final launched = await openExternalLink(shareUri);
+      if (!launched) throw StateError('WhatsApp is unavailable');
+    } catch (_) {
+      await Clipboard.setData(ClipboardData(text: message.toString().trim()));
+      if (mounted) {
+        showSnack(context, 'تعذر فتح واتساب؛ تم نسخ رسالة التنفيذ الجاهزة.');
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     if (_loading && _tasks.isEmpty) return const PageLoading();
     if (_error != null && _tasks.isEmpty) {
       return ErrorPage(error: _error!, onRetry: _load);
     }
+    final colors = Theme.of(context).colorScheme;
+    final dark = Theme.of(context).brightness == Brightness.dark;
     return PageFrame(
       title: 'مهام التنفيذ',
       subtitle: 'يتم تحديث المهام الجديدة تلقائياً كل خمس ثوانٍ.',
+      showHeading: false,
       onRefresh: _load,
-      action: IconButton.filledTonal(
-        tooltip: 'تحديث الآن',
-        onPressed: _actionBusy ? null : _load,
-        icon: const Icon(Icons.refresh),
-      ),
       child: [
         Container(
           padding: const EdgeInsets.all(14),
           decoration: BoxDecoration(
-            color: const Color(0xFFEFF9F4),
-            borderRadius: BorderRadius.circular(10),
-            border: Border.all(color: const Color(0xFFCBEBDC)),
+            color: dark ? const Color(0xFF143B35) : AhramColors.emeraldSoft,
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(
+              color: dark ? const Color(0xFF286452) : const Color(0xFFCBEBDC),
+            ),
           ),
-          child: const Row(
+          child: Row(
             children: [
-              Icon(Icons.sensors, color: _green),
-              SizedBox(width: 10),
+              Icon(Icons.sensors, color: colors.primary),
+              const SizedBox(width: 10),
               Text(
                 'المراقبة المباشرة نشطة',
-                style: TextStyle(fontWeight: FontWeight.w800),
+                style: TextStyle(
+                  color: dark ? colors.onSurface : AhramColors.emeraldDeep,
+                  fontWeight: FontWeight.w800,
+                ),
               ),
             ],
           ),
         ),
         const SizedBox(height: 16),
         if (_tasks.isEmpty)
-          const EmptyPanel(
-            icon: Icons.assignment_turned_in_outlined,
-            title: 'لا توجد مهام تنفيذ حالياً',
-            message: 'ستظهر العمليات المحولة إلى مجموعتك تلقائياً هنا.',
+          const LiveQueuePanel(
+            title: 'في انتظار عملية جديدة',
+            message: 'ستظهر العمليات المحولة إلى حساب المنفذ فور وصولها.',
           )
         else
           ..._tasks.map(
@@ -1857,6 +2077,7 @@ class _ExecutorTasksScreenState extends State<ExecutorTasksScreen> {
                 onAccept: () => _accept(task),
                 onCancel: () => _cancel(task),
                 onComplete: () => _complete(task),
+                onShare: () => _shareToWhatsApp(task),
               ),
             ),
           ),
@@ -1885,6 +2106,7 @@ class _ExecutorReportsScreenState extends State<ExecutorReportsScreen> {
   Map<String, dynamic>? _report;
   Object? _error;
   bool _loading = true;
+  bool _downloading = false;
   bool _month = false;
   DateTime _selectedDate = DateTime.now();
 
@@ -1940,6 +2162,35 @@ class _ExecutorReportsScreenState extends State<ExecutorReportsScreen> {
     }
   }
 
+  Future<void> _downloadPdf() async {
+    if (_downloading) return;
+    final downloadTarget = prepareReportDownload();
+    setState(() => _downloading = true);
+    try {
+      final url = await widget.controller.api.executorReportDownloadUrl(
+        dateType: _todayOnly ? 'day' : (_month ? 'month' : 'day'),
+        dateValue: _todayOnly
+            ? DateFormat('yyyy-MM-dd').format(DateTime.now())
+            : _dateValue,
+        employeeId: widget.employeeId,
+      );
+      final opened = await openPreparedReportDownload(downloadTarget, url);
+      if (!opened) throw const ApiFailure('تعذر فتح ملف التقرير للتنزيل.');
+      if (mounted) showSnack(context, 'تم فتح تقرير PDF للتنزيل.');
+    } catch (error) {
+      cancelPreparedReportDownload(downloadTarget);
+      if (mounted) {
+        showSnack(
+          context,
+          error is ApiFailure ? error.message : 'تعذر تنزيل التقرير حاليًا.',
+          error: true,
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _downloading = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     if (_loading && _report == null) return const PageLoading();
@@ -1969,10 +2220,16 @@ class _ExecutorReportsScreenState extends State<ExecutorReportsScreen> {
       title: title,
       subtitle: subtitle,
       onRefresh: _load,
-      action: IconButton.filledTonal(
-        tooltip: 'تحديث التقرير',
-        onPressed: _loading ? null : _load,
-        icon: const Icon(Icons.refresh),
+      action: GlassIconButton(
+        tooltip: 'تحميل تقرير PDF',
+        onPressed: _loading || _downloading ? null : _downloadPdf,
+        icon: _downloading
+            ? const SizedBox(
+                width: 18,
+                height: 18,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              )
+            : const Icon(Icons.download_outlined),
       ),
       child: [
         if (!_todayOnly) ...[
@@ -2048,48 +2305,49 @@ class ExecutorReportSummary extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final performance = report['myPerformance'];
-    final companyBalance = report['companyBalance'];
-    final tiles = <Widget>[
-      if (companyBalance != null)
+    final colors = Theme.of(context).colorScheme;
+    final tiles = <Widget>[];
+
+    final previousBalance = numberValue(report['previousBalance']);
+    final periodBalance = numberValue(report['periodBalance']);
+    final currentBalance = numberValue(report['currentBalance']);
+    final period = report['reportPeriod'];
+    final isMonthly = period is Map && period['type'] == 'month';
+    Color balanceColor(double value) => value < 0
+        ? _green
+        : value > 0
+        ? _danger
+        : colors.onSurfaceVariant;
+
+    tiles.addAll([
         ExecutorMetricCard(
-          label: 'رصيد الشركة',
-          value: '${formatAmount(numberValue(companyBalance))} د.ل',
+          label: 'عدد العمليات',
+          value: '${numberValue(report['operationCount']).toInt()}',
+          icon: Icons.receipt_long_outlined,
+          color: AhramColors.sky,
+        ),
+        ExecutorMetricCard(
+          label: 'الرصيد السابق',
+          value: '${formatAmount(previousBalance)} ج.م',
+          icon: Icons.history_outlined,
+          color: balanceColor(previousBalance),
+          valueColor: balanceColor(previousBalance),
+        ),
+        ExecutorMetricCard(
+          label: isMonthly ? 'صافي الشهر' : 'رصيد اليوم',
+          value: '${formatAmount(periodBalance)} ج.م',
+          icon: Icons.swap_vert_circle_outlined,
+          color: balanceColor(periodBalance),
+          valueColor: balanceColor(periodBalance),
+        ),
+        ExecutorMetricCard(
+          label: 'الرصيد الحالي',
+          value: '${formatAmount(currentBalance)} ج.م',
           icon: Icons.account_balance_wallet_outlined,
-          color: _green,
+          color: balanceColor(currentBalance),
+          valueColor: balanceColor(currentBalance),
         ),
-      ExecutorMetricCard(
-        label: 'إجمالي ليبيا',
-        value: '${formatAmount(numberValue(report['totalLYD']))} د.ل',
-        icon: Icons.payments_outlined,
-        color: const Color(0xFF1976D2),
-      ),
-      ExecutorMetricCard(
-        label: 'إجمالي مصر',
-        value: '${formatAmount(numberValue(report['totalEGP']))} ج.م',
-        icon: Icons.currency_exchange_outlined,
-        color: _gold,
-      ),
-      ExecutorMetricCard(
-        label: 'عمليات ناجحة',
-        value: '${numberValue(report['completedCount']).toInt()}',
-        icon: Icons.task_alt_outlined,
-        color: _green,
-      ),
-      ExecutorMetricCard(
-        label: 'عمليات ملغاة',
-        value: '${numberValue(report['rejectedCount']).toInt()}',
-        icon: Icons.cancel_outlined,
-        color: _danger,
-      ),
-      if (operatorView && performance is Map)
-        ExecutorMetricCard(
-          label: 'تنفيذاتك اليوم',
-          value: '${formatAmount(numberValue(performance['totalLYD']))} د.ل',
-          icon: Icons.person_outline,
-          color: const Color(0xFF7A57D1),
-        ),
-    ];
+    ]);
 
     return Wrap(spacing: 12, runSpacing: 12, children: tiles);
   }
@@ -2102,12 +2360,14 @@ class ExecutorMetricCard extends StatelessWidget {
     required this.value,
     required this.icon,
     required this.color,
+    this.valueColor,
   });
 
   final String label;
   final String value;
   final IconData icon;
   final Color color;
+  final Color? valueColor;
 
   @override
   Widget build(BuildContext context) {
@@ -2118,21 +2378,19 @@ class ExecutorMetricCard extends StatelessWidget {
         padding: const EdgeInsets.all(15),
         decoration: BoxDecoration(
           color: colors.surface,
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: color.withValues(alpha: 0.28)),
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: color.withValues(alpha: 0.22)),
+          boxShadow: [
+            BoxShadow(
+              color: _navy.withValues(alpha: 0.06),
+              blurRadius: 14,
+              offset: const Offset(0, 6),
+            ),
+          ],
         ),
         child: Row(
           children: [
-            Container(
-              width: 42,
-              height: 42,
-              alignment: Alignment.center,
-              decoration: BoxDecoration(
-                color: color.withValues(alpha: 0.12),
-                shape: BoxShape.circle,
-              ),
-              child: Icon(icon, color: color),
-            ),
+            GlassIconBadge(icon: icon, color: color, size: 42),
             const SizedBox(width: 11),
             Expanded(
               child: Column(
@@ -2153,7 +2411,7 @@ class ExecutorMetricCard extends StatelessWidget {
                     textDirection: ui.TextDirection.ltr,
                     style: TextStyle(
                       fontWeight: FontWeight.w900,
-                      color: colors.onSurface,
+                      color: valueColor ?? colors.onSurface,
                     ),
                   ),
                 ],
@@ -2185,7 +2443,7 @@ class ExecutorReportOperationTile extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      '${operation['customId'] ?? '-'}',
+                      '#${operation['serialNumber'] ?? '-'} · ${operation['customId'] ?? '-'}',
                       style: TextStyle(
                         fontWeight: FontWeight.w900,
                         color: colors.onSurface,
@@ -2211,7 +2469,7 @@ class ExecutorReportOperationTile extends StatelessWidget {
             runSpacing: 10,
             children: [
               _Metric(
-                label: 'المستلم',
+                label: 'رقم الهاتف',
                 value: '${operation['recipientNumber'] ?? '-'}',
                 color: colors.onSurface,
               ),
@@ -2221,13 +2479,17 @@ class ExecutorReportOperationTile extends StatelessWidget {
                 color: _green,
               ),
               _Metric(
-                label: 'التكلفة',
-                value: '${formatAmount(numberValue(operation['costLYD']))} د.ل',
+                label: 'مدة التنفيذ',
+                value: formatExecutionDuration(
+                  operation['executionDurationSeconds'],
+                ),
                 color: const Color(0xFF1976D2),
               ),
               _Metric(
-                label: 'وقت العملية',
-                value: formatDate(operation['createdAt']),
+                label: 'الوقت والتاريخ',
+                value: formatDate(
+                  operation['completedAt'] ?? operation['createdAt'],
+                ),
                 color: colors.onSurface,
               ),
               if (executorName.isNotEmpty)
@@ -2358,7 +2620,7 @@ class _ExecutorSettingsScreenState extends State<ExecutorSettingsScreen> {
               if (company['balance'] != null)
                 DetailLine(
                   label: 'رصيد الشركة',
-                  value: '${formatAmount(numberValue(company['balance']))} د.ل',
+                  value: '${formatAmount(numberValue(company['balance']))} ج.م',
                 ),
             ],
           ),
@@ -2388,7 +2650,7 @@ class _ExecutorSettingsScreenState extends State<ExecutorSettingsScreen> {
           const SizedBox(height: 18),
           ExecutorMetricCard(
             label: 'قيمة تنفيذاتك اليوم',
-            value: '${formatAmount(numberValue(performance['totalLYD']))} د.ل',
+            value: '${formatAmount(numberValue(performance['totalEGP']))} ج.م',
             icon: Icons.person_outline,
             color: const Color(0xFF7A57D1),
           ),
@@ -2634,103 +2896,188 @@ class ExecutorEmployeeTile extends StatelessWidget {
     final isManager = employee['role'] == 'manager';
     final active = employee['status'] == 'active';
     final colors = Theme.of(context).colorScheme;
-    return SurfacePanel(
-      child: Row(
+    final roleColor = employee['role'] == 'accountant'
+        ? _gold
+        : isManager
+        ? AhramColors.sky
+        : _green;
+    final roleIcon = employee['role'] == 'accountant'
+        ? Icons.calculate_outlined
+        : isManager
+        ? Icons.admin_panel_settings_outlined
+        : Icons.support_agent_outlined;
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: colors.surface,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: roleColor.withValues(alpha: 0.24)),
+        boxShadow: [
+          BoxShadow(
+            color: _navy.withValues(alpha: 0.08),
+            blurRadius: 16,
+            offset: const Offset(0, 7),
+          ),
+          BoxShadow(
+            color: Colors.white.withValues(alpha: 0.78),
+            blurRadius: 0,
+            offset: const Offset(0, -1),
+          ),
+        ],
+      ),
+      child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          CircleAvatar(
-            backgroundColor: (active ? _green : _danger).withValues(
-              alpha: 0.12,
-            ),
-            child: Icon(
-              employee['role'] == 'accountant'
-                  ? Icons.calculate_outlined
-                  : Icons.person_outline,
-              color: active ? _green : _danger,
-            ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              GlassIconBadge(icon: roleIcon, color: roleColor, size: 52),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Expanded(
-                      child: Text(
-                        '${employee['name'] ?? '-'}',
-                        style: TextStyle(
-                          fontWeight: FontWeight.w900,
-                          color: colors.onSurface,
-                        ),
+                    Text(
+                      '${employee['name'] ?? '-'}',
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontWeight: FontWeight.w900,
+                        color: colors.onSurface,
+                        fontSize: 16,
                       ),
                     ),
-                    StatusPill(
-                      label: active ? 'نشط' : 'موقوف',
-                      color: active ? _green : _danger,
-                    ),
+                    const SizedBox(height: 4),
+                    StatusPill(label: _role, color: roleColor),
                   ],
                 ),
-                const SizedBox(height: 5),
-                Text(
-                  '$_role · ${employee['phone'] ?? '-'}',
-                  style: TextStyle(color: colors.onSurfaceVariant),
-                ),
-                const SizedBox(height: 3),
-                Text(
-                  '${employee['webUsername'] ?? '-'}',
-                  textDirection: ui.TextDirection.ltr,
-                  style: TextStyle(
-                    color: colors.onSurfaceVariant,
-                    fontSize: 12,
+              ),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  StatusPill(
+                    label: active ? 'نشط' : 'موقوف',
+                    color: active ? _green : _danger,
                   ),
+                  if (!isManager) ...[
+                    const SizedBox(height: 6),
+                    PopupMenuButton<String>(
+                      enabled: !busy,
+                      tooltip: 'إجراءات الموظف',
+                      icon: GlassIconBadge(
+                        icon: Icons.more_horiz_outlined,
+                        color: colors.onSurfaceVariant,
+                        size: 34,
+                      ),
+                      onSelected: (value) {
+                        if (value == 'status') onToggleStatus();
+                        if (value == 'delete') onDelete();
+                      },
+                      itemBuilder: (context) => [
+                        PopupMenuItem<String>(
+                          value: 'status',
+                          child: Text(active ? 'إيقاف الحساب' : 'تفعيل الحساب'),
+                        ),
+                        const PopupMenuItem<String>(
+                          value: 'delete',
+                          child: Text('حذف الحساب'),
+                        ),
+                      ],
+                    ),
+                  ],
+                ],
+              ),
+            ],
+          ),
+          const Divider(height: 28),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              EmployeeInfoChip(
+                icon: Icons.phone_outlined,
+                value: '${employee['phone'] ?? '-'}',
+              ),
+              EmployeeInfoChip(
+                icon: Icons.alternate_email_outlined,
+                value: '${employee['webUsername'] ?? '-'}',
+                ltr: true,
+              ),
+            ],
+          ),
+          if (!isManager) ...[
+            const SizedBox(height: 14),
+            Row(
+              children: [
+                GlassIconButton(
+                  tooltip: 'تعديل البيانات',
+                  onPressed: busy ? null : onEdit,
+                  icon: const Icon(Icons.edit_outlined),
                 ),
-                if (!isManager) ...[
-                  const SizedBox(height: 12),
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    children: [
-                      OutlinedButton.icon(
-                        onPressed: busy ? null : onEdit,
-                        icon: const Icon(Icons.edit_outlined, size: 18),
-                        label: const Text('تعديل'),
-                      ),
-                      OutlinedButton.icon(
-                        onPressed: busy ? null : onResetPassword,
-                        icon: const Icon(Icons.key_outlined, size: 18),
-                        label: const Text('كلمة المرور'),
-                      ),
-                      OutlinedButton.icon(
-                        onPressed: busy ? null : onReport,
-                        icon: const Icon(Icons.assessment_outlined, size: 18),
-                        label: const Text('التقرير'),
-                      ),
-                    ],
+                const SizedBox(width: 8),
+                GlassIconButton(
+                  tooltip: 'تغيير كلمة المرور',
+                  onPressed: busy ? null : onResetPassword,
+                  icon: const Icon(Icons.key_outlined),
+                ),
+                const SizedBox(width: 8),
+                GlassIconButton(
+                  tooltip: 'فتح تقرير الموظف',
+                  onPressed: busy ? null : onReport,
+                  icon: const Icon(Icons.assessment_outlined),
+                ),
+                if (busy) ...[
+                  const SizedBox(width: 12),
+                  const SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2),
                   ),
                 ],
               ],
             ),
-          ),
-          if (!isManager)
-            PopupMenuButton<String>(
-              enabled: !busy,
-              tooltip: 'إجراءات الموظف',
-              onSelected: (value) {
-                if (value == 'status') onToggleStatus();
-                if (value == 'delete') onDelete();
-              },
-              itemBuilder: (context) => [
-                PopupMenuItem<String>(
-                  value: 'status',
-                  child: Text(active ? 'إيقاف الحساب' : 'تفعيل الحساب'),
-                ),
-                const PopupMenuItem<String>(
-                  value: 'delete',
-                  child: Text('حذف الحساب'),
-                ),
-              ],
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class EmployeeInfoChip extends StatelessWidget {
+  const EmployeeInfoChip({
+    super.key,
+    required this.icon,
+    required this.value,
+    this.ltr = false,
+  });
+
+  final IconData icon;
+  final String value;
+  final bool ltr;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    return Container(
+      constraints: const BoxConstraints(maxWidth: 250),
+      padding: const EdgeInsetsDirectional.fromSTEB(9, 7, 11, 7),
+      decoration: BoxDecoration(
+        color: colors.primary.withValues(alpha: 0.06),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: colors.primary.withValues(alpha: 0.12)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 16, color: colors.primary),
+          const SizedBox(width: 6),
+          Flexible(
+            child: Text(
+              value,
+              overflow: TextOverflow.ellipsis,
+              textDirection: ltr ? ui.TextDirection.ltr : null,
+              style: TextStyle(color: colors.onSurfaceVariant, fontSize: 12),
             ),
+          ),
         ],
       ),
     );
@@ -3606,7 +3953,7 @@ class _CompleteTaskDialogState extends State<CompleteTaskDialog> {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      title: const Text('إتمام عملية التنفيذ'),
+      title: const Text('إرسال إثبات التنفيذ'),
       content: SizedBox(
         width: 420,
         child: SingleChildScrollView(
@@ -3654,7 +4001,7 @@ class _CompleteTaskDialogState extends State<CompleteTaskDialog> {
         ),
         FilledButton(
           onPressed: _busy ? null : _complete,
-          child: Text(_busy ? 'جارٍ الحفظ...' : 'تأكيد النجاح'),
+          child: Text(_busy ? 'جارٍ الإرسال...' : 'إرسال التنفيذ'),
         ),
       ],
     );
@@ -3669,6 +4016,7 @@ class PageFrame extends StatelessWidget {
     this.subtitle,
     this.action,
     this.onRefresh,
+    this.showHeading = true,
   });
 
   final String title;
@@ -3676,12 +4024,13 @@ class PageFrame extends StatelessWidget {
   final List<Widget> child;
   final Widget? action;
   final Future<void> Function()? onRefresh;
+  final bool showHeading;
 
   @override
   Widget build(BuildContext context) {
     final content = ListView(
       physics: const AlwaysScrollableScrollPhysics(),
-      padding: const EdgeInsets.fromLTRB(18, 20, 18, 32),
+      padding: const EdgeInsets.fromLTRB(20, 24, 20, 36),
       children: [
         Center(
           child: ConstrainedBox(
@@ -3689,41 +4038,52 @@ class PageFrame extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            title,
-                            style: Theme.of(context).textTheme.headlineSmall
-                                ?.copyWith(
-                                  fontWeight: FontWeight.w800,
+                if (showHeading) ...[
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Container(
+                        width: 4,
+                        height: subtitle == null ? 34 : 48,
+                        margin: const EdgeInsetsDirectional.only(end: 12),
+                        decoration: BoxDecoration(
+                          color: _green,
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                      ),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              title,
+                              style: Theme.of(context).textTheme.headlineSmall
+                                  ?.copyWith(
+                                    fontWeight: FontWeight.w800,
+                                    color: Theme.of(
+                                      context,
+                                    ).colorScheme.onSurface,
+                                  ),
+                            ),
+                            if (subtitle != null) ...[
+                              const SizedBox(height: 5),
+                              Text(
+                                subtitle!,
+                                style: TextStyle(
                                   color: Theme.of(
                                     context,
-                                  ).colorScheme.onSurface,
+                                  ).colorScheme.onSurfaceVariant,
                                 ),
-                          ),
-                          if (subtitle != null) ...[
-                            const SizedBox(height: 5),
-                            Text(
-                              subtitle!,
-                              style: TextStyle(
-                                color: Theme.of(
-                                  context,
-                                ).colorScheme.onSurfaceVariant,
                               ),
-                            ),
+                            ],
                           ],
-                        ],
+                        ),
                       ),
-                    ),
-                    ?action,
-                  ],
-                ),
-                const SizedBox(height: 22),
+                      ?action,
+                    ],
+                  ),
+                  const SizedBox(height: 24),
+                ],
                 ...child,
               ],
             ),
@@ -3748,25 +4108,27 @@ class BrandMark extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final size = large ? 58.0 : 34.0;
+    final colors = Theme.of(context).colorScheme;
+    final size = large ? 76.0 : 42.0;
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
         Container(
           width: size,
           height: size,
-          alignment: Alignment.center,
           decoration: BoxDecoration(
-            color: _navy,
-            borderRadius: BorderRadius.circular(large ? 16 : 10),
-            border: Border.all(color: _gold, width: 1.4),
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(
+              color: Theme.of(context).colorScheme.outlineVariant,
+            ),
           ),
-          child: Text(
-            'PP',
-            style: TextStyle(
-              color: Colors.white,
-              fontWeight: FontWeight.w900,
-              fontSize: large ? 20 : 12,
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(7),
+            child: Image.asset(
+              'assets/images/alahrampay-logo.jpg',
+              fit: BoxFit.cover,
+              filterQuality: FilterQuality.high,
             ),
           ),
         ),
@@ -3777,25 +4139,206 @@ class BrandMark extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             children: [
               Text(
-                'Power Pay',
+                'شركة الأهرام',
                 style: TextStyle(
                   fontWeight: FontWeight.w900,
-                  color: _navy,
-                  fontSize: large ? 20 : 15,
+                  color: colors.onSurface,
+                  fontSize: large ? 20 : 14,
                 ),
               ),
               Text(
-                'AL-Ahram',
+                'للاتصالات والتقنية',
                 style: TextStyle(
-                  color: _green,
-                  fontSize: large ? 13 : 10,
+                  color: _gold,
+                  fontSize: large ? 12 : 10,
                   fontWeight: FontWeight.w700,
                 ),
               ),
             ],
           ),
         ],
+        if (compact) ...[
+          const SizedBox(width: 8),
+          const Text(
+            'AL-AHRAM',
+            textDirection: ui.TextDirection.ltr,
+            style: TextStyle(
+              color: AhramColors.ink,
+              fontSize: 11,
+              fontWeight: FontWeight.w900,
+              letterSpacing: 0,
+            ),
+          ),
+        ],
       ],
+    );
+  }
+}
+
+class GlassIconBadge extends StatelessWidget {
+  const GlassIconBadge({
+    super.key,
+    required this.icon,
+    this.color,
+    this.size = 34,
+    this.selected = false,
+  });
+
+  final IconData icon;
+  final Color? color;
+  final double size;
+  final bool selected;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    final dark = Theme.of(context).brightness == Brightness.dark;
+    final accent =
+        color ?? (selected ? colors.primary : colors.onSurfaceVariant);
+    return Container(
+      width: size,
+      height: size,
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        color: dark
+            ? accent.withValues(alpha: selected ? 0.22 : 0.11)
+            : accent.withValues(alpha: selected ? 0.16 : 0.08),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(
+          color: dark
+              ? Colors.white.withValues(alpha: 0.12)
+              : Colors.white.withValues(alpha: 0.86),
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: _navy.withValues(alpha: dark ? 0.24 : 0.12),
+            blurRadius: 7,
+            offset: const Offset(0, 4),
+          ),
+          BoxShadow(
+            color: Colors.white.withValues(alpha: dark ? 0.05 : 0.82),
+            blurRadius: 0,
+            offset: const Offset(0, -1),
+          ),
+        ],
+      ),
+      child: Icon(icon, color: accent, size: size * 0.53),
+    );
+  }
+}
+
+class GlassIconButton extends StatelessWidget {
+  const GlassIconButton({
+    super.key,
+    required this.tooltip,
+    required this.onPressed,
+    required this.icon,
+  });
+
+  final String tooltip;
+  final VoidCallback? onPressed;
+  final Widget icon;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    final dark = Theme.of(context).brightness == Brightness.dark;
+    return Tooltip(
+      message: tooltip,
+      child: Container(
+        width: 42,
+        height: 42,
+        margin: const EdgeInsetsDirectional.only(start: 2),
+        decoration: BoxDecoration(
+          color: dark
+              ? Colors.white.withValues(alpha: 0.08)
+              : colors.surface.withValues(alpha: 0.78),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: dark
+                ? Colors.white.withValues(alpha: 0.12)
+                : Colors.white.withValues(alpha: 0.88),
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: _navy.withValues(alpha: dark ? 0.26 : 0.13),
+              blurRadius: 8,
+              offset: const Offset(0, 4),
+            ),
+            BoxShadow(
+              color: Colors.white.withValues(alpha: dark ? 0.04 : 0.8),
+              blurRadius: 0,
+              offset: const Offset(0, -1),
+            ),
+          ],
+        ),
+        child: IconButton(tooltip: tooltip, onPressed: onPressed, icon: icon),
+      ),
+    );
+  }
+}
+
+class ExecutorBalanceBadge extends StatelessWidget {
+  const ExecutorBalanceBadge({
+    super.key,
+    required this.amount,
+    required this.label,
+  });
+
+  final double amount;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    final dark = Theme.of(context).brightness == Brightness.dark;
+    return Padding(
+      padding: const EdgeInsetsDirectional.only(start: 4, end: 4),
+      child: Container(
+        constraints: const BoxConstraints(minWidth: 92),
+        padding: const EdgeInsetsDirectional.fromSTEB(10, 7, 8, 7),
+        decoration: BoxDecoration(
+          color: dark ? const Color(0xFF152B4B) : const Color(0xFFF8FBFF),
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(
+            color: dark
+                ? const Color(0xFF294765)
+                : AhramColors.sky.withValues(alpha: 0.22),
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: _navy.withValues(alpha: dark ? 0.22 : 0.1),
+              blurRadius: 8,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                color: dark ? const Color(0xFFA5DCC8) : AhramColors.emeraldDeep,
+                fontSize: 9,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            const SizedBox(height: 1),
+            Text(
+              '${formatAmount(amount, fractionDigits: 0)} ج.م',
+              textDirection: ui.TextDirection.ltr,
+              style: TextStyle(
+                color: Theme.of(context).colorScheme.onSurface,
+                fontSize: 12,
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
@@ -3821,13 +4364,14 @@ class AccountHero extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(22),
       decoration: BoxDecoration(
-        color: _navy,
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: const [
+        color: AhramColors.emeraldDeep,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: _gold.withValues(alpha: 0.48)),
+        boxShadow: [
           BoxShadow(
-            color: Color(0x25081731),
-            blurRadius: 20,
-            offset: Offset(0, 8),
+            color: AhramColors.emeraldDeep.withValues(alpha: 0.28),
+            blurRadius: 24,
+            offset: const Offset(0, 10),
           ),
         ],
       ),
@@ -3940,12 +4484,30 @@ class SurfacePanel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
+    final dark = Theme.of(context).brightness == Brightness.dark;
     return Container(
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
         color: colors.surface,
-        borderRadius: BorderRadius.circular(10),
+        borderRadius: BorderRadius.circular(8),
         border: Border.all(color: colors.outlineVariant),
+        boxShadow: [
+          BoxShadow(
+            color: _navy.withValues(alpha: dark ? 0.3 : 0.11),
+            blurRadius: 0,
+            offset: const Offset(0, 5),
+          ),
+          BoxShadow(
+            color: _gold.withValues(alpha: dark ? 0.08 : 0.12),
+            blurRadius: 18,
+            offset: const Offset(0, 9),
+          ),
+          BoxShadow(
+            color: colors.surface.withValues(alpha: dark ? 0.08 : 0.9),
+            blurRadius: 1,
+            offset: const Offset(0, -1),
+          ),
+        ],
       ),
       child: child,
     );
@@ -3970,6 +4532,7 @@ class StatTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
     return SizedBox(
       width: 210,
       child: SurfacePanel(
@@ -3991,9 +4554,9 @@ class StatTile extends StatelessWidget {
                 children: [
                   Text(
                     label,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 12,
-                      color: Color(0xFF60708A),
+                      color: colors.onSurfaceVariant,
                     ),
                   ),
                   const SizedBox(height: 4),
@@ -4002,9 +4565,9 @@ class StatTile extends StatelessWidget {
                     alignment: Alignment.centerRight,
                     child: Text(
                       '$value $suffix',
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontWeight: FontWeight.w900,
-                        color: _navy,
+                        color: colors.onSurface,
                       ),
                     ),
                   ),
@@ -4026,6 +4589,7 @@ class RateTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
     return SurfacePanel(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -4048,12 +4612,12 @@ class RateTile extends StatelessWidget {
             '${formatAmount(rate)} د.ل',
             style: Theme.of(context).textTheme.titleLarge?.copyWith(
               fontWeight: FontWeight.w900,
-              color: _navy,
+              color: colors.onSurface,
             ),
           ),
-          const Text(
+          Text(
             'سعر الخدمة الحالي',
-            style: TextStyle(fontSize: 12, color: Color(0xFF60708A)),
+            style: TextStyle(fontSize: 12, color: colors.onSurfaceVariant),
           ),
         ],
       ),
@@ -4071,8 +4635,17 @@ class SectionTitle extends StatelessWidget {
   Widget build(BuildContext context) {
     return Row(
       children: [
-        Icon(icon, color: _green, size: 21),
-        const SizedBox(width: 8),
+        Container(
+          width: 32,
+          height: 32,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: _green.withValues(alpha: 0.11),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Icon(icon, color: _green, size: 19),
+        ),
+        const SizedBox(width: 10),
         Text(
           title,
           style: Theme.of(context).textTheme.titleMedium?.copyWith(
@@ -4106,6 +4679,11 @@ class StatusPill extends StatelessWidget {
             ? color.withValues(alpha: 0.22)
             : color.withValues(alpha: 0.12),
         borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: dark
+              ? color.withValues(alpha: 0.28)
+              : color.withValues(alpha: 0.22),
+        ),
       ),
       child: Text(
         label,
@@ -4161,6 +4739,7 @@ class DetailLine extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
+    final dark = Theme.of(context).brightness == Brightness.dark;
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 7),
       child: Row(
@@ -4170,7 +4749,9 @@ class DetailLine extends StatelessWidget {
             width: 122,
             child: Text(
               label,
-              style: TextStyle(color: colors.onSurfaceVariant),
+              style: TextStyle(
+                color: dark ? const Color(0xFFCFD9E1) : colors.onSurfaceVariant,
+              ),
             ),
           ),
           Expanded(
@@ -4263,17 +4844,25 @@ class TransactionTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final status = transaction['status']?.toString();
+    final colors = Theme.of(context).colorScheme;
     return Material(
-      color: Colors.white,
-      borderRadius: BorderRadius.circular(10),
+      color: colors.surface,
+      borderRadius: BorderRadius.circular(8),
       child: InkWell(
-        borderRadius: BorderRadius.circular(10),
+        borderRadius: BorderRadius.circular(8),
         onTap: onTap,
         child: Container(
           padding: const EdgeInsets.all(15),
           decoration: BoxDecoration(
-            border: Border.all(color: const Color(0xFFDCE4EF)),
-            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: colors.outlineVariant),
+            borderRadius: BorderRadius.circular(8),
+            boxShadow: [
+              BoxShadow(
+                color: _navy.withValues(alpha: 0.06),
+                blurRadius: 14,
+                offset: const Offset(0, 6),
+              ),
+            ],
           ),
           child: Row(
             children: [
@@ -4282,7 +4871,7 @@ class TransactionTile extends StatelessWidget {
                 height: 44,
                 decoration: BoxDecoration(
                   color: statusColor(status).withValues(alpha: 0.11),
-                  borderRadius: BorderRadius.circular(10),
+                  borderRadius: BorderRadius.circular(8),
                 ),
                 child: Icon(
                   Icons.receipt_long_outlined,
@@ -4296,17 +4885,17 @@ class TransactionTile extends StatelessWidget {
                   children: [
                     Text(
                       '${transaction['transferTypeLabel'] ?? serviceLabel(transaction['transferType']?.toString())}',
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontWeight: FontWeight.w800,
-                        color: _navy,
+                        color: colors.onSurface,
                       ),
                     ),
                     const SizedBox(height: 3),
                     Text(
                       '${transaction['customId'] ?? transaction['txId'] ?? '-'} · ${formatDate(transaction['createdAt'])}',
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 12,
-                        color: Color(0xFF60708A),
+                        color: colors.onSurfaceVariant,
                       ),
                     ),
                   ],
@@ -4317,9 +4906,9 @@ class TransactionTile extends StatelessWidget {
                 children: [
                   Text(
                     '${formatAmount(numberValue(transaction['amount']))} ج.م',
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontWeight: FontWeight.w900,
-                      color: _navy,
+                      color: colors.onSurface,
                     ),
                   ),
                   const SizedBox(height: 5),
@@ -4346,6 +4935,7 @@ class SupportTicketTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final status = '${ticket['status'] ?? 'open'}';
     final closed = ['closed', 'resolved'].contains(status);
+    final colors = Theme.of(context).colorScheme;
     return SurfacePanel(
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -4369,9 +4959,9 @@ class SupportTicketTile extends StatelessWidget {
               children: [
                 Text(
                   '${ticket['subject'] ?? ticket['title'] ?? 'تذكرة دعم'}',
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontWeight: FontWeight.w800,
-                    color: _navy,
+                    color: colors.onSurface,
                   ),
                 ),
                 const SizedBox(height: 4),
@@ -4379,7 +4969,7 @@ class SupportTicketTile extends StatelessWidget {
                   '${ticket['lastMessage'] ?? ticket['message'] ?? ''}',
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(color: Color(0xFF60708A)),
+                  style: TextStyle(color: colors.onSurfaceVariant),
                 ),
                 const SizedBox(height: 8),
                 StatusPill(
@@ -4411,14 +5001,15 @@ class SubAccountTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final balance = numberValue(account['balance']);
     final debt = numberValue(account['debt']);
+    final colors = Theme.of(context).colorScheme;
     return SurfacePanel(
       child: Column(
         children: [
           Row(
             children: [
-              const CircleAvatar(
-                backgroundColor: Color(0xFFDFF5EA),
-                child: Icon(Icons.person_outline, color: _green),
+              CircleAvatar(
+                backgroundColor: _green.withValues(alpha: 0.12),
+                child: const Icon(Icons.person_outline, color: _green),
               ),
               const SizedBox(width: 10),
               Expanded(
@@ -4427,16 +5018,16 @@ class SubAccountTile extends StatelessWidget {
                   children: [
                     Text(
                       '${account['name'] ?? '-'}',
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontWeight: FontWeight.w800,
-                        color: _navy,
+                        color: colors.onSurface,
                       ),
                     ),
                     Text(
                       '${account['accountCode'] ?? account['phone'] ?? ''}',
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 12,
-                        color: Color(0xFF60708A),
+                        color: colors.onSurfaceVariant,
                       ),
                     ),
                   ],
@@ -4456,18 +5047,18 @@ class SubAccountTile extends StatelessWidget {
               _Metric(
                 label: 'الرصيد',
                 value: '${formatAmount(balance)} د.ل',
-                color: balance < 0 ? _danger : _navy,
+                color: balance < 0 ? _danger : colors.onSurface,
               ),
               _Metric(
                 label: 'الحد الائتماني',
                 value:
                     '${formatAmount(numberValue(account['creditLimit']))} د.ل',
-                color: _navy,
+                color: colors.onSurface,
               ),
               _Metric(
                 label: 'الدين',
                 value: '${formatAmount(debt)} د.ل',
-                color: debt > 0 ? _danger : _navy,
+                color: debt > 0 ? _danger : colors.onSurface,
               ),
               _Metric(
                 label: 'المتاح',
@@ -4516,12 +5107,13 @@ class _Metric extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
           label,
-          style: const TextStyle(fontSize: 11, color: Color(0xFF60708A)),
+          style: TextStyle(fontSize: 11, color: colors.onSurfaceVariant),
         ),
         const SizedBox(height: 3),
         Text(
@@ -4541,6 +5133,7 @@ class ExecutorTaskTile extends StatelessWidget {
     required this.onAccept,
     required this.onCancel,
     required this.onComplete,
+    required this.onShare,
   });
 
   final Map<String, dynamic> task;
@@ -4548,10 +5141,27 @@ class ExecutorTaskTile extends StatelessWidget {
   final VoidCallback onAccept;
   final VoidCallback onCancel;
   final VoidCallback onComplete;
+  final Future<void> Function() onShare;
+
+  Future<void> _copyValue(
+    BuildContext context,
+    String value,
+    String label,
+  ) async {
+    await Clipboard.setData(ClipboardData(text: value));
+    if (context.mounted) showSnack(context, 'تم نسخ $label.');
+  }
 
   @override
   Widget build(BuildContext context) {
     final accepted = task['status'] == 'accepted';
+    final colors = Theme.of(context).colorScheme;
+    final transferType = task['transferType']?.toString();
+    final isCashWallet = transferType == 'vodafone';
+    final recipient = '${task['recipientNumber'] ?? '-'}';
+    final amount = formatAmount(numberValue(task['amount']));
+    final notes = '${task['notes'] ?? ''}'.trim();
+    final receivedAt = task['executorReceivedAt'] ?? task['createdAt'];
     return SurfacePanel(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -4562,8 +5172,8 @@ class ExecutorTaskTile extends StatelessWidget {
                 width: 46,
                 height: 46,
                 decoration: BoxDecoration(
-                  color: const Color(0xFFE7F1FF),
-                  borderRadius: BorderRadius.circular(10),
+                  color: AhramColors.sky.withValues(alpha: 0.11),
+                  borderRadius: BorderRadius.circular(8),
                 ),
                 child: const Icon(
                   Icons.bolt_outlined,
@@ -4576,15 +5186,15 @@ class ExecutorTaskTile extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      '${task['txId'] ?? '-'}',
-                      style: const TextStyle(
+                      'طلب ${task['txId'] ?? '-'}',
+                      style: TextStyle(
                         fontWeight: FontWeight.w900,
-                        color: _navy,
+                        color: colors.onSurface,
                       ),
                     ),
                     Text(
                       '${task['transferTypeLabel'] ?? serviceLabel(task['transferType']?.toString())}',
-                      style: const TextStyle(color: Color(0xFF60708A)),
+                      style: TextStyle(color: colors.onSurfaceVariant),
                     ),
                   ],
                 ),
@@ -4595,28 +5205,96 @@ class ExecutorTaskTile extends StatelessWidget {
               ),
             ],
           ),
-          const SizedBox(height: 14),
-          Wrap(
-            spacing: 20,
-            runSpacing: 8,
+          const SizedBox(height: 12),
+          _TaskDataLine(
+            icon: Icons.phone_iphone_outlined,
+            label: isCashWallet ? 'رقم هاتف العميل' : 'رقم حساب المستلم',
+            value: recipient,
+            textDirection: ui.TextDirection.ltr,
+            onCopy: recipient == '-'
+                ? null
+                : () => _copyValue(context, recipient, 'الرقم'),
+          ),
+          const Divider(height: 22),
+          _TaskDataLine(
+            icon: Icons.payments_outlined,
+            label: 'القيمة المطلوب تحويلها',
+            value: '$amount ج.م',
+            valueColor: _green,
+            textDirection: ui.TextDirection.ltr,
+            onCopy: () => _copyValue(context, amount, 'القيمة'),
+          ),
+          const Divider(height: 22),
+          Row(
             children: [
-              _Metric(
-                label: 'رقم المستلم',
-                value: '${task['recipientNumber'] ?? '-'}',
-                color: _navy,
+              Icon(
+                Icons.schedule_outlined,
+                size: 20,
+                color: colors.onSurfaceVariant,
               ),
-              _Metric(
-                label: 'القيمة',
-                value: '${formatAmount(numberValue(task['amount']))} ج.م',
-                color: _green,
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'وقت وصول العملية',
+                      style: TextStyle(
+                        color: colors.onSurfaceVariant,
+                        fontSize: 12,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      formatTaskArrival(receivedAt),
+                      textDirection: ui.TextDirection.ltr,
+                      style: TextStyle(
+                        color: colors.onSurface,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ],
+                ),
               ),
-              _Metric(
-                label: 'وقت الوصول',
-                value: formatDate(task['createdAt']),
-                color: _navy,
-              ),
+              TaskElapsedTimer(startedAt: receivedAt),
             ],
           ),
+          if (notes.isNotEmpty) ...[
+            const Divider(height: 22),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Icon(
+                  Icons.sticky_note_2_outlined,
+                  size: 20,
+                  color: AhramColors.gold,
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'ملاحظة العميل',
+                        style: TextStyle(
+                          color: colors.onSurfaceVariant,
+                          fontSize: 12,
+                        ),
+                      ),
+                      const SizedBox(height: 3),
+                      SelectableText(
+                        notes,
+                        style: TextStyle(
+                          color: colors.onSurface,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ],
           const Divider(height: 26),
           if (!accepted)
             SizedBox(
@@ -4631,6 +5309,14 @@ class ExecutorTaskTile extends StatelessWidget {
             Row(
               children: [
                 Expanded(
+                  child: FilledButton.icon(
+                    onPressed: busy ? null : onComplete,
+                    icon: const Icon(Icons.task_alt_outlined),
+                    label: const Text('تم التنفيذ'),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
                   child: OutlinedButton.icon(
                     onPressed: busy ? null : onCancel,
                     icon: const Icon(Icons.cancel_outlined),
@@ -4638,12 +5324,20 @@ class ExecutorTaskTile extends StatelessWidget {
                     style: OutlinedButton.styleFrom(foregroundColor: _danger),
                   ),
                 ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: FilledButton.icon(
-                    onPressed: busy ? null : onComplete,
-                    icon: const Icon(Icons.check_circle_outline),
-                    label: const Text('إتمام العملية'),
+                const SizedBox(width: 8),
+                Tooltip(
+                  message: 'مشاركة رسالة التنفيذ عبر واتساب',
+                  child: SizedBox(
+                    width: 50,
+                    height: 50,
+                    child: OutlinedButton(
+                      onPressed: busy ? null : onShare,
+                      style: OutlinedButton.styleFrom(
+                        padding: EdgeInsets.zero,
+                        foregroundColor: const Color(0xFF25D366),
+                      ),
+                      child: const Icon(Icons.share_outlined),
+                    ),
                   ),
                 ),
               ],
@@ -4651,6 +5345,299 @@ class ExecutorTaskTile extends StatelessWidget {
         ],
       ),
     );
+  }
+}
+
+class _TaskDataLine extends StatelessWidget {
+  const _TaskDataLine({
+    required this.icon,
+    required this.label,
+    required this.value,
+    this.valueColor,
+    this.textDirection,
+    this.onCopy,
+  });
+
+  final IconData icon;
+  final String label;
+  final String value;
+  final Color? valueColor;
+  final ui.TextDirection? textDirection;
+  final VoidCallback? onCopy;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    return InkWell(
+      onTap: onCopy,
+      borderRadius: BorderRadius.circular(8),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 3),
+        child: Row(
+          children: [
+            Icon(icon, size: 20, color: colors.onSurfaceVariant),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    label,
+                    style: TextStyle(
+                      color: colors.onSurfaceVariant,
+                      fontSize: 12,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    value,
+                    textDirection: textDirection,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: valueColor ?? colors.onSurface,
+                      fontWeight: FontWeight.w900,
+                      fontSize: 16,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            if (onCopy != null)
+              Tooltip(
+                message: 'نسخ',
+                child: Icon(
+                  Icons.copy_outlined,
+                  size: 18,
+                  color: colors.primary,
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class TaskElapsedTimer extends StatefulWidget {
+  const TaskElapsedTimer({super.key, required this.startedAt});
+
+  final dynamic startedAt;
+
+  @override
+  State<TaskElapsedTimer> createState() => _TaskElapsedTimerState();
+}
+
+class _TaskElapsedTimerState extends State<TaskElapsedTimer> {
+  Timer? _ticker;
+
+  @override
+  void initState() {
+    super.initState();
+    _ticker = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (mounted) setState(() {});
+    });
+  }
+
+  @override
+  void dispose() {
+    _ticker?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final startedAt = DateTime.tryParse('${widget.startedAt ?? ''}')?.toLocal();
+    final elapsed = startedAt == null
+        ? Duration.zero
+        : DateTime.now().difference(startedAt).isNegative
+        ? Duration.zero
+        : DateTime.now().difference(startedAt);
+    final hours = elapsed.inHours.toString().padLeft(2, '0');
+    final minutes = elapsed.inMinutes.remainder(60).toString().padLeft(2, '0');
+    final seconds = elapsed.inSeconds.remainder(60).toString().padLeft(2, '0');
+    final dark = Theme.of(context).brightness == Brightness.dark;
+    return Container(
+      padding: const EdgeInsetsDirectional.fromSTEB(9, 6, 9, 6),
+      decoration: BoxDecoration(
+        color: dark ? const Color(0xFF183A36) : AhramColors.emeraldSoft,
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: [
+          Text(
+            'الوقت المنقضي',
+            style: TextStyle(
+              color: dark ? const Color(0xFFA5DCC8) : AhramColors.emeraldDeep,
+              fontSize: 10,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          Text(
+            '$hours:$minutes:$seconds',
+            textDirection: ui.TextDirection.ltr,
+            style: TextStyle(
+              color: Theme.of(context).colorScheme.onSurface,
+              fontFeatures: const [ui.FontFeature.tabularFigures()],
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class LiveQueuePanel extends StatefulWidget {
+  const LiveQueuePanel({super.key, required this.title, required this.message});
+
+  final String title;
+  final String message;
+
+  @override
+  State<LiveQueuePanel> createState() => _LiveQueuePanelState();
+}
+
+class _LiveQueuePanelState extends State<LiveQueuePanel>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 2),
+    )..repeat();
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    return SurfacePanel(
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final narrow = constraints.maxWidth < 440;
+          final visual = SizedBox(
+            width: narrow ? 118 : 142,
+            height: narrow ? 118 : 142,
+            child: AnimatedBuilder(
+              animation: _controller,
+              builder: (context, _) => CustomPaint(
+                painter: _LiveQueuePainter(
+                  progress: _controller.value,
+                  color: colors.primary,
+                  muted: colors.onSurfaceVariant,
+                ),
+                child: const Center(
+                  child: Icon(
+                    Icons.notifications_active_outlined,
+                    color: AhramColors.emerald,
+                    size: 34,
+                  ),
+                ),
+              ),
+            ),
+          );
+          final copy = Expanded(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  widget.title,
+                  style: TextStyle(
+                    color: colors.onSurface,
+                    fontSize: 18,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  widget.message,
+                  style: TextStyle(
+                    color: colors.onSurfaceVariant,
+                    height: 1.45,
+                  ),
+                ),
+                const SizedBox(height: 14),
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.sensors, size: 18, color: colors.primary),
+                    const SizedBox(width: 7),
+                    Text(
+                      'المراقبة المباشرة تعمل',
+                      style: TextStyle(
+                        color: colors.primary,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          );
+          return narrow
+              ? Column(children: [visual, const SizedBox(height: 12), copy])
+              : Row(children: [visual, const SizedBox(width: 22), copy]);
+        },
+      ),
+    );
+  }
+}
+
+class _LiveQueuePainter extends CustomPainter {
+  const _LiveQueuePainter({
+    required this.progress,
+    required this.color,
+    required this.muted,
+  });
+
+  final double progress;
+  final Color color;
+  final Color muted;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final center = Offset(size.width / 2, size.height / 2);
+    final maximumRadius = math.min(size.width, size.height) / 2 - 4;
+    final ringPaint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.3;
+    for (var index = 1; index <= 3; index++) {
+      final phase = (progress + index / 3) % 1;
+      ringPaint.color = color.withValues(alpha: (1 - phase) * 0.30);
+      canvas.drawCircle(center, maximumRadius * phase, ringPaint);
+    }
+    ringPaint.color = muted.withValues(alpha: 0.20);
+    canvas.drawCircle(center, maximumRadius, ringPaint);
+    final angle = progress * math.pi * 2 - math.pi / 2;
+    final beamEnd = Offset(
+      center.dx + math.cos(angle) * maximumRadius,
+      center.dy + math.sin(angle) * maximumRadius,
+    );
+    canvas.drawLine(
+      center,
+      beamEnd,
+      Paint()
+        ..color = color.withValues(alpha: 0.7)
+        ..strokeWidth = 2,
+    );
+    canvas.drawCircle(center, 4, Paint()..color = color);
+  }
+
+  @override
+  bool shouldRepaint(covariant _LiveQueuePainter oldDelegate) {
+    return oldDelegate.progress != progress || oldDelegate.color != color;
   }
 }
 
@@ -4668,22 +5655,38 @@ class EmptyPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    final dark = Theme.of(context).brightness == Brightness.dark;
     return SurfacePanel(
       child: Padding(
         padding: const EdgeInsets.symmetric(vertical: 28),
         child: Column(
           children: [
-            Icon(icon, color: const Color(0xFF8FA0B5), size: 42),
+            Container(
+              width: 58,
+              height: 58,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                color: _green.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Icon(icon, color: _green, size: 30),
+            ),
             const SizedBox(height: 12),
             Text(
               title,
-              style: const TextStyle(fontWeight: FontWeight.w800, color: _navy),
+              style: TextStyle(
+                fontWeight: FontWeight.w800,
+                color: dark ? Colors.white : colors.onSurface,
+              ),
             ),
             const SizedBox(height: 5),
             Text(
               message,
               textAlign: TextAlign.center,
-              style: const TextStyle(color: Color(0xFF60708A)),
+              style: TextStyle(
+                color: dark ? const Color(0xFFCFD9E1) : colors.onSurfaceVariant,
+              ),
             ),
           ],
         ),

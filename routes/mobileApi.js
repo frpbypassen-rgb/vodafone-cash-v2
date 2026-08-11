@@ -76,10 +76,91 @@ const {
     generateManualExecutorReceiptBase64
 } = require('../utils/manualExecutorReceipt');
 const { reserveManualExecutorReceiptReference } = require('../services/manualExecutorReceiptReferenceService');
-const { attachCancellationReceipt } = require('../services/cancellationReceiptService');
+const { reversalService } = require('../src/Application/Services/ReversalService');
 const { executorTransferRequiresProof } = require('../utils/executorServiceCatalog');
+const {
+    findBrowserExecutable,
+    getSharedBrowser,
+    logoDataUri,
+    renderView
+} = require('../services/reportPdfService');
 
 const router = express.Router();
+
+const REPORT_DOWNLOAD_TTL_MS = 2 * 60 * 1000;
+
+const reportDownloadSecret = () => (
+    process.env.MOBILE_REPORT_DOWNLOAD_SECRET || process.env.JWT_SECRET || ''
+);
+
+const createReportDownloadToken = (payload) => {
+    const secret = reportDownloadSecret();
+    if (!secret) {
+        const error = new Error('REPORT_DOWNLOAD_NOT_CONFIGURED');
+        error.code = 'REPORT_DOWNLOAD_NOT_CONFIGURED';
+        throw error;
+    }
+    const encoded = Buffer.from(JSON.stringify(payload)).toString('base64url');
+    const signature = crypto.createHmac('sha256', secret).update(encoded).digest('base64url');
+    return `${encoded}.${signature}`;
+};
+
+const readReportDownloadToken = (token) => {
+    const [encoded, signature] = String(token || '').split('.');
+    const secret = reportDownloadSecret();
+    if (!encoded || !signature || !secret) throw new Error('INVALID_REPORT_DOWNLOAD_TOKEN');
+
+    const expected = crypto.createHmac('sha256', secret).update(encoded).digest('base64url');
+    const receivedBuffer = Buffer.from(signature);
+    const expectedBuffer = Buffer.from(expected);
+    if (
+        receivedBuffer.length !== expectedBuffer.length
+        || !crypto.timingSafeEqual(receivedBuffer, expectedBuffer)
+    ) {
+        throw new Error('INVALID_REPORT_DOWNLOAD_TOKEN');
+    }
+
+    try {
+        const payload = JSON.parse(Buffer.from(encoded, 'base64url').toString('utf8'));
+        if (!payload.executorId || !payload.expiresAt || Date.now() > Number(payload.expiresAt)) {
+            throw new Error('INVALID_REPORT_DOWNLOAD_TOKEN');
+        }
+        return payload;
+    } catch (_) {
+        throw new Error('INVALID_REPORT_DOWNLOAD_TOKEN');
+    }
+};
+
+const generateExecutorReportPdf = async (app, data) => {
+    const executablePath = findBrowserExecutable();
+    if (!executablePath) {
+        const error = new Error('PDF_BROWSER_NOT_FOUND');
+        error.code = 'PDF_BROWSER_NOT_FOUND';
+        throw error;
+    }
+
+    const html = await renderView(app, 'executor_report_pdf', {
+        ...data,
+        logoDataUri: logoDataUri()
+    });
+    let page;
+    try {
+        const browser = await getSharedBrowser(executablePath);
+        page = await browser.newPage();
+        await page.setContent(html, { waitUntil: 'load', timeout: 30000 });
+        await page.emulateMediaType('print');
+        return Buffer.from(await page.pdf({
+            format: 'A4',
+            landscape: true,
+            printBackground: true,
+            preferCSSPageSize: true,
+            margin: { top: '11mm', right: '9mm', bottom: '13mm', left: '9mm' },
+            displayHeaderFooter: false
+        }));
+    } finally {
+        if (page) await page.close().catch(() => {});
+    }
+};
 
 const appendAdminNoteText = (current, note) => {
     const cleanNote = String(note || '').trim();
@@ -169,7 +250,11 @@ const toExecutorTaskDto = (tx) => ({
     amount: Number(tx.amount || 0),
     recipientNumber: tx.vodafoneNumber || tx.accountNumber || null,
     recipientName: tx.accountName || null,
+    notes: customerFacingNotes(customerNoteFromTransaction(tx)) || null,
     status: tx.status || 'unknown',
+    executorReceivedAt: tx.executorReceivedAt
+        ? new Date(tx.executorReceivedAt).toISOString()
+        : (tx.createdAt ? new Date(tx.createdAt).toISOString() : null),
     createdAt: tx.createdAt ? new Date(tx.createdAt).toISOString() : null,
     emergencyAlert: tx.emergencyAlert || null
 });
@@ -1038,84 +1123,36 @@ router.post('/executor/accept-task/:id', authenticateJWT, async (req, res) => {
  *         description: تم الإلغاء وإرجاع الرصيد بنجاح
  */
 router.post('/executor/cancel-task/:id', authenticateJWT, cancelTaskValidator, async (req, res) => {
-    const session = await mongoose.startSession();
-    session.startTransaction();
-
     try {
         const { reason } = req.body;
         const { userId, accountType } = req.user;
         if (accountType !== 'executor') throw new Error('FORBIDDEN');
 
-        let tx;
-        if (req.tenant) {
-            tx = await Transaction.findOne({ _id: req.params.id, tenantId: req.tenant._id }).session(session);
-        } else {
-            tx = await Transaction.findById(req.params.id).session(session);
-        }
         const empQuery = { _id: userId };
         if (req.tenant) empQuery.tenantId = req.tenant._id;
-        const emp = await Employee.findOne(empQuery).session(session);
+        const emp = await Employee.findOne(empQuery);
         if (!emp) throw new Error('EMPLOYEE_NOT_FOUND');
-        if (emp.role === 'accountant') {
-            throw new Error('TASKS_FORBIDDEN');
-        }
+        if (emp.role === 'accountant') throw new Error('TASKS_FORBIDDEN');
 
-        if (!tx || tx.status !== 'accepted' || tx.operatorId !== emp._id.toString()) {
-            throw new Error('INVALID_STATE');
-        }
+        const txQuery = {
+            _id: req.params.id,
+            status: 'accepted',
+            operatorId: emp._id.toString()
+        };
+        if (req.tenant) txQuery.tenantId = req.tenant._id;
+        const tx = await Transaction.findOne(txQuery);
+        if (!tx) throw new Error('INVALID_STATE');
 
-        let targetId;
-        let TargetModel;
-        if (tx.companyId) {
-            TargetModel = ClientCompany;
-            targetId = tx.companyId;
-        } else if (tx.userId) {
-            TargetModel = User;
-            const userQuery = { phone: tx.userId };
-            if (req.tenant) userQuery.tenantId = req.tenant._id;
-            const user = await User.findOne(userQuery);
-            targetId = user && user._id;
-        }
-        if (!TargetModel || !targetId) throw new Error('INVALID_STATE');
-
-        const updatedClient = await TargetModel.findByIdAndUpdate(
-            targetId,
-            { $inc: { balance: tx.costLYD } },
-            { new: true, session }
+        // Use the same reversal service as the administration panel. It records the
+        // cancellation number, refunds all supported account types, and creates the receipt.
+        const result = await reversalService.reverseTransaction(
+            tx._id.toString(),
+            reason,
+            emp.name || 'المنفذ',
+            { status: 'rejected' }
         );
-
-        const ledgerEntry = new Ledger({
-            entityId: targetId,
-            entityModel: TargetModel.modelName,
-            transactionId: tx.customId,
-            type: 'REFUND',
-            amount: tx.costLYD,
-            balanceBefore: updatedClient.balance - tx.costLYD,
-            balanceAfter: updatedClient.balance,
-            description: `استرجاع تكلفة حوالة ملغاة (السبب: ${reason})`
-        });
-        await ledgerEntry.save({ session });
-
-        const cancelledAt = new Date();
-        tx.status = 'rejected';
-        tx.cancellationReason = reason;
-        tx.cancelledBy = emp.name || 'المنفذ';
-        tx.cancelledAt = cancelledAt;
-        tx.adminNotes = appendAdminNoteText(tx.adminNotes, `[تم الإلغاء | المنفذ: ${emp.name} | السبب: ${reason}]`);
-        await tx.save({ session });
-
-        await session.commitTransaction();
-        session.endSession();
-
-        try {
-            await attachCancellationReceipt(tx._id, {
-                reason,
-                performedBy: emp.name || 'المنفذ',
-                cancelledAt
-            });
-        } catch (receiptError) {
-            tx.adminNotes = appendAdminNoteText(tx.adminNotes, `[تعذر توليد إيصال الإلغاء: ${receiptError.message}]`);
-            await tx.save();
+        if (!result.success) {
+            return sendMobileError(res, 409, 'CANCELLATION_FAILED', result.message, req.correlationId);
         }
 
         await logAction({
@@ -1127,17 +1164,20 @@ router.post('/executor/cancel-task/:id', authenticateJWT, cancelTaskValidator, a
             targetId: tx._id,
             targetModel: 'Transaction',
             oldData: { status: 'accepted', costLYD: tx.costLYD },
-            newData: { status: 'rejected', reason },
-            metadata: { customId: tx.customId, refundAmount: tx.costLYD }
+            newData: { status: 'rejected', reason, cancellationNumber: result.cancellationNumber },
+            metadata: {
+                customId: tx.customId,
+                refundAmount: tx.costLYD,
+                cancellationNumber: result.cancellationNumber
+            }
         });
 
-        return res.json({ success: true, message: 'تم الإلغاء وإرجاع الرصيد بنجاح' });
+        return res.json({
+            success: true,
+            message: result.message,
+            cancellationNumber: result.cancellationNumber
+        });
     } catch (e) {
-        try {
-            await session.abortTransaction();
-            session.endSession();
-        } catch (_) {}
-
         if (e.message === 'FORBIDDEN') {
             return sendMobileError(res, 403, 'FORBIDDEN', 'صلاحيات غير كافية', req.correlationId);
         }
@@ -1148,7 +1188,7 @@ router.post('/executor/cancel-task/:id', authenticateJWT, cancelTaskValidator, a
             return sendMobileError(res, 404, 'EMPLOYEE_NOT_FOUND', 'لم يتم العثور على حساب المنفذ', req.correlationId);
         }
         if (e.message === 'INVALID_STATE') {
-            return sendMobileError(res, 409, 'INVALID_STATE', 'فشل الإلغاء', req.correlationId);
+            return sendMobileError(res, 409, 'INVALID_STATE', 'لا يمكن إلغاء هذه العملية الآن', req.correlationId);
         }
         return sendServerError(res, req, 'فشل الإلغاء');
     }
@@ -2236,6 +2276,76 @@ router.post('/executor/reports/filter', authenticateJWT, executorReportsValidato
 });
 
 // 👥 Executor Employee Management (Manager only)
+router.post('/executor/reports/download-link', authenticateJWT, executorReportsValidator, async (req, res) => {
+    try {
+        if (req.user.accountType !== 'executor') {
+            return sendMobileError(res, 403, 'FORBIDDEN', 'صلاحيات غير كافية', req.correlationId);
+        }
+        const { dateType, dateValue, employeeId } = req.body;
+        await mobileWebParityService.getExecutorReports({
+            executorId: req.user.userId,
+            dateType,
+            dateValue,
+            employeeId,
+            tenantId: req.tenant ? req.tenant._id : null
+        });
+
+        const token = createReportDownloadToken({
+            executorId: String(req.user.userId),
+            dateType: dateType === 'month' ? 'month' : 'day',
+            dateValue: String(dateValue || ''),
+            employeeId: employeeId ? String(employeeId) : null,
+            tenantId: req.tenant ? String(req.tenant._id) : null,
+            expiresAt: Date.now() + REPORT_DOWNLOAD_TTL_MS
+        });
+        const configuredBaseUrl = String(process.env.PUBLIC_APP_URL || '').replace(/\/$/, '');
+        const baseUrl = configuredBaseUrl || `${req.protocol}://${req.get('host')}`;
+        return res.json({
+            success: true,
+            downloadUrl: `${baseUrl}/api/mobile/executor/reports/download.pdf?token=${encodeURIComponent(token)}`
+        });
+    } catch (e) {
+        if (['UNAUTHORIZED', 'FORBIDDEN', 'NOT_FOUND'].includes(e.message)) {
+            return sendMobileError(res, 403, 'FORBIDDEN', 'لا تملك صلاحية تنزيل هذا التقرير', req.correlationId);
+        }
+        if (e.code === 'REPORT_DOWNLOAD_NOT_CONFIGURED') {
+            return sendMobileError(res, 503, 'REPORT_DOWNLOAD_NOT_CONFIGURED', 'إعداد تنزيل التقارير غير مكتمل على الخادم', req.correlationId);
+        }
+        return sendServerError(res, req, 'حدث خطأ أثناء تجهيز ملف التقرير');
+    }
+});
+
+router.get('/executor/reports/download.pdf', async (req, res) => {
+    try {
+        const payload = readReportDownloadToken(req.query.token);
+        const report = await mobileWebParityService.getExecutorReports({
+            executorId: payload.executorId,
+            dateType: payload.dateType,
+            dateValue: payload.dateValue,
+            employeeId: payload.employeeId,
+            tenantId: payload.tenantId || null
+        });
+        const pdf = await generateExecutorReportPdf(req.app, {
+            report: mobileWebParityMapper.toClientReportDto(report),
+            generatedAt: new Date()
+        });
+        const datePart = String(report.reportPeriod?.value || '').replace(/[^0-9-]/g, '') || Date.now();
+        res.setHeader('Content-Type', 'application/pdf');
+        res.setHeader('Content-Length', pdf.length);
+        res.setHeader('Content-Disposition', `attachment; filename="executor-report-${datePart}.pdf"`);
+        res.setHeader('Cache-Control', 'private, no-store, max-age=0');
+        return res.end(pdf);
+    } catch (e) {
+        console.error('[mobile/executor-report-pdf] failed:', e.stack || e.message);
+        const status = e.code === 'PDF_BROWSER_NOT_FOUND' ? 503 : 403;
+        return res.status(status).send(
+            e.code === 'PDF_BROWSER_NOT_FOUND'
+                ? 'تعذر تشغيل محرك PDF على الخادم.'
+                : 'رابط تنزيل التقرير غير صالح أو انتهت صلاحيته.'
+        );
+    }
+});
+
 router.get('/executor/employees', authenticateJWT, async (req, res) => {
     try {
         const { userId } = req.user;

@@ -397,6 +397,29 @@ class MobileApi {
     );
   }
 
+  Future<Uri> executorReportDownloadUrl({
+    required String dateType,
+    required String dateValue,
+    String? employeeId,
+  }) async {
+    final response = await _request(
+      'POST',
+      '/executor/reports/download-link',
+      data: <String, dynamic>{
+        'dateType': dateType,
+        'dateValue': dateValue,
+        if (employeeId != null && employeeId.isNotEmpty)
+          'employeeId': employeeId,
+      },
+    );
+    final rawUrl = '${response['downloadUrl'] ?? ''}'.trim();
+    final uri = Uri.tryParse(rawUrl);
+    if (uri == null || !uri.hasScheme) {
+      throw const ApiFailure('تعذر تجهيز رابط تنزيل التقرير.');
+    }
+    return uri;
+  }
+
   Future<List<Map<String, dynamic>>> executorEmployees() async {
     final response = await _request('GET', '/executor/employees');
     return _extractList(response, 'employees');

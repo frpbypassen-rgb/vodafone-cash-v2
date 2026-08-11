@@ -6,7 +6,11 @@ const { getTransferServiceLabel } = require('../utils/mobileTransferServiceCatal
 const toClientReportDto = (data) => {
     return {
         previousBalance: Number(data.previousBalance || 0),
-        operations: (data.operations || []).map(tx => ({
+        periodBalance: Number(data.periodBalance || 0),
+        currentBalance: Number(data.currentBalance || data.companyBalance || 0),
+        operationCount: Number(data.operationCount || (data.operations || []).length),
+        operations: (data.operations || []).map((tx, index) => ({
+            serialNumber: index + 1,
             id: String(tx._id),
             customId: tx.customId,
             transferType: tx.transferType,
@@ -18,6 +22,11 @@ const toClientReportDto = (data) => {
             exchangeRate: Number(tx.exchangeRate || 0),
             status: tx.status,
             createdAt: tx.createdAt ? new Date(tx.createdAt).toISOString() : null,
+            executorReceivedAt: tx.executorReceivedAt ? new Date(tx.executorReceivedAt).toISOString() : null,
+            completedAt: tx.completedAt ? new Date(tx.completedAt).toISOString() : null,
+            executionDurationSeconds: tx.executorReceivedAt && tx.completedAt
+                ? Math.max(0, Math.floor((new Date(tx.completedAt) - new Date(tx.executorReceivedAt)) / 1000))
+                : null,
             notes: tx.notes || null,
             executorName: tx.executorName || null,
             hasProofImage: !!(tx.proofImage || (tx.proofImages && tx.proofImages.length > 0))
@@ -43,7 +52,6 @@ const toClientReportDto = (data) => {
             createdAt: tx.createdAt ? new Date(tx.createdAt).toISOString() : null,
             executorName: tx.executorName || null
         })),
-        totalLYD: Number(data.totalLYD || 0),
         totalEGP: Number(data.totalEGP || 0),
         completedCount: Number(data.completedCount || 0),
         rejectedCount: Number(data.rejectedCount || 0),
@@ -65,7 +73,6 @@ const toClientReportDto = (data) => {
             ? null
             : Number(data.companyBalance),
         myPerformance: data.myPerformance ? {
-            totalLYD: Number(data.myPerformance.totalLYD || 0),
             totalEGP: Number(data.myPerformance.totalEGP || 0),
             completedCount: Number(data.myPerformance.completedCount || 0)
         } : null,

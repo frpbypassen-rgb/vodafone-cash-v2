@@ -110,6 +110,8 @@ const transactionSchema = new mongoose.Schema({
     managerGroupId: { type: mongoose.Schema.Types.ObjectId, ref: 'ExecutorGroup' },
     // وقت وصول العملية إلى قائمة مهام المنفذ، مستقل عن وقت إنشائها لدى العميل.
     executorReceivedAt: { type: Date },
+    // وقت تأكيد المنفذ لإتمام العملية، ويستخدم لحساب مدة التنفيذ في تقاريره.
+    completedAt: { type: Date },
     executorGroupName: { type: String },
     operatorId: { type: String }, 
     executorName: { type: String, default: '---' },

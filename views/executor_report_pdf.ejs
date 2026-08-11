@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <title>تقرير التنفيذ</title>
+    <style>
+        @page { size: A4 landscape; margin: 11mm 9mm 13mm; }
+        * { box-sizing: border-box; }
+        body { margin: 0; color: #10233d; font-family: Tahoma, Arial, sans-serif; font-size: 10px; line-height: 1.5; }
+        .mono { direction: ltr; unicode-bidi: embed; font-family: Consolas, "Courier New", monospace; }
+        .header { display: flex; align-items: center; justify-content: space-between; padding-bottom: 9px; border-bottom: 3px solid #10233d; }
+        .brand { display: flex; align-items: center; gap: 10px; }
+        .brand img { width: 44px; height: 44px; object-fit: contain; border: 1px solid #dbe4ed; border-radius: 5px; }
+        .brand h1 { margin: 0; font-size: 18px; }
+        .brand p, .document-id span { margin: 2px 0 0; color: #617083; font-size: 9px; }
+        .document-id { text-align: left; }
+        .document-id strong { display: block; font-size: 12px; }
+        .profile, .metrics { display: grid; margin-top: 10px; }
+        .profile { grid-template-columns: 1.5fr repeat(4, 1fr); border: 1px solid #d8e1ea; }
+        .profile div { min-height: 47px; padding: 7px 9px; border-left: 1px solid #d8e1ea; }
+        .profile div:last-child { border-left: 0; }
+        .profile span, .metric span { display: block; color: #68788a; font-size: 8px; font-weight: 700; }
+        .profile strong { display: block; margin-top: 3px; font-size: 10px; }
+        .metrics { grid-template-columns: repeat(5, 1fr); gap: 7px; }
+        .metric { min-height: 67px; padding: 8px 9px; border: 1px solid #d8e1ea; border-top: 3px solid #1457d9; }
+        .metric strong { display: block; margin-top: 5px; font-size: 15px; line-height: 1.1; }
+        .metric.green { border-top-color: #0f9f8f; }
+        .metric.gold { border-top-color: #d7a92e; }
+        .metric.red { border-top-color: #c8424e; }
+        .section { margin-top: 13px; }
+        .section-heading { display: flex; align-items: end; justify-content: space-between; margin-bottom: 6px; padding-right: 8px; border-right: 4px solid #0f9f8f; }
+        .section-heading h2 { margin: 0; font-size: 12px; }
+        .section-heading span { color: #66778b; font-size: 8px; }
+        table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+        thead { display: table-header-group; }
+        tr { break-inside: avoid; page-break-inside: avoid; }
+        th { padding: 6px 4px; color: #fff; background: #10233d; border: 1px solid #10233d; font-size: 8px; }
+        td { padding: 5px 4px; border: 1px solid #dfe6ed; text-align: center; vertical-align: middle; font-size: 8px; overflow-wrap: anywhere; }
+        tbody tr:nth-child(even) td { background: #f6f9fc; }
+        .note { text-align: right; }
+        .status { display: inline-block; padding: 2px 5px; border: 1px solid #a9b8c7; font-size: 7px; font-weight: 800; }
+        .status.success { color: #08765f; border-color: #8bcfc2; background: #effaf7; }
+        .status.cancelled { color: #a62c39; border-color: #e0a8ae; background: #fff3f4; }
+        .empty { padding: 14px; color: #677789; text-align: center; }
+        .cancelled { break-before: page; page-break-before: always; }
+        .notice { margin-bottom: 7px; padding: 7px 9px; color: #8f2430; border: 1px solid #e2adb3; background: #fff5f5; }
+        .footer { margin-top: 10px; padding-top: 7px; border-top: 1px solid #d8e1ea; color: #68788a; font-size: 8px; }
+    </style>
+</head>
+<body>
+<%
+    const period = report.reportPeriod || {};
+    const company = report.company || {};
+    const entity = report.entityInfo || {};
+    const operations = report.operations || [];
+    const deposits = report.deposits || [];
+    const tripoli = 'Africa/Tripoli';
+    const money = (value, digits = 2) => Number(value || 0).toLocaleString('en-US', { minimumFractionDigits: digits, maximumFractionDigits: digits });
+    const dateTime = (value) => value ? new Date(value).toLocaleString('en-GB', { timeZone: tripoli, hour12: true }) : '---';
+    const isCancelled = (status) => ['rejected', 'cancelled_by_admin', 'failed'].includes(status);
+    const titlePeriod = period.type === 'month' ? `شهر ${period.value || '---'}` : `يوم ${period.value || '---'}`;
+    const generated = new Date(generatedAt).toLocaleString('en-GB', { timeZone: tripoli, hour12: true });
+%>
+<header class="header">
+    <div class="brand">
+        <% if (logoDataUri) { %><img src="<%= logoDataUri %>" alt="شركة الأهرام"><% } %>
+        <div><h1>تقرير عمليات التنفيذ</h1><p>كشف عمليات معتمد من منظومة الأهرام</p></div>
+    </div>
+    <div class="document-id"><strong class="mono">EXR-<%= String(period.value || '').replace(/-/g, '') %>-<%= String(company.id || '').slice(-6).toUpperCase() %></strong><span>تاريخ الإصدار: <b class="mono"><%= generated %></b></span></div>
+</header>
+<section class="profile">
+    <div><span>شركة التنفيذ</span><strong><%= company.name || '---' %></strong></div>
+    <div><span>صاحب التقرير</span><strong><%= entity.name || '---' %></strong></div>
+    <div><span>الصفة</span><strong><%= entity.status || '---' %></strong></div>
+    <div><span>الهاتف</span><strong class="mono"><%= entity.phone || '---' %></strong></div>
+    <div><span>الفترة</span><strong class="mono"><%= titlePeriod %></strong></div>
+</section>
+<section class="metrics">
+    <article class="metric"><span>عدد العمليات</span><strong class="mono"><%= Number(report.operationCount || operations.length) %></strong></article>
+    <article class="metric gold"><span>الرصيد السابق</span><strong class="mono"><%= money(report.previousBalance) %> EGP</strong></article>
+    <article class="metric green"><span>رصيد الفترة</span><strong class="mono"><%= money(report.periodBalance) %> EGP</strong></article>
+    <article class="metric red"><span>الرصيد الحالي</span><strong class="mono"><%= money(report.currentBalance) %> EGP</strong></article>
+    <article class="metric green"><span>عمليات ناجحة</span><strong class="mono"><%= Number(report.completedCount || 0) %></strong></article>
+</section>
+<section class="section">
+    <div class="section-heading"><div><span>العمليات المحتسبة ضمن التقرير</span><h2>التحويلات الناجحة</h2></div><strong><%= operations.filter((item) => item.status === 'completed').length %> عملية</strong></div>
+    <table><thead><tr><th style="width:4%">#</th><th style="width:14%">رقم العملية</th><th style="width:13%">الخدمة</th><th style="width:13%">رقم الهاتف</th><th style="width:11%">القيمة EGP</th><th style="width:10%">المدة</th><th style="width:13%">المنفذ</th><th style="width:13%">التاريخ والوقت</th><th style="width:9%">الحالة</th></tr></thead><tbody>
+    <% const completed = operations.filter((item) => item.status === 'completed'); if (!completed.length) { %><tr><td colspan="9" class="empty">لا توجد تحويلات ناجحة في الفترة المحددة.</td></tr><% } %>
+    <% completed.forEach((item, index) => { const seconds = Number(item.executionDurationSeconds || 0); const duration = seconds ? `${Math.floor(seconds / 60)} د ${seconds % 60} ث` : '---'; %><tr><td><%= item.serialNumber || index + 1 %></td><td class="mono"><%= item.customId || '---' %></td><td><%= item.transferTypeLabel || item.transferType || '---' %></td><td class="mono"><%= item.recipientNumber || '---' %></td><td class="mono"><%= money(item.amount, 0) %></td><td class="mono"><%= duration %></td><td><%= item.executorName || '---' %></td><td class="mono"><%= dateTime(item.completedAt || item.createdAt) %></td><td><span class="status success">ناجحة</span></td></tr><% }) %>
+    </tbody></table>
+</section>
+<section class="section">
+    <div class="section-heading"><div><span>حركات منفصلة عن التحويلات</span><h2>الإيداعات والخصومات</h2></div><strong><%= deposits.length %> حركة</strong></div>
+    <table><thead><tr><th>#</th><th>رقم الحركة</th><th>النوع</th><th>القيمة</th><th>التاريخ</th><th>الملاحظة</th></tr></thead><tbody>
+    <% if (!deposits.length) { %><tr><td colspan="6" class="empty">لا توجد إيداعات أو خصومات في الفترة المحددة.</td></tr><% } %>
+    <% deposits.forEach((item, index) => { %><tr><td><%= index + 1 %></td><td class="mono"><%= item.customId || '---' %></td><td><%= item.status === 'deduction' ? 'خصم' : 'إيداع' %></td><td class="mono"><%= money(item.amount) %> EGP</td><td class="mono"><%= dateTime(item.createdAt) %></td><td class="note"><%= item.notes || '---' %></td></tr><% }) %>
+    </tbody></table>
+</section>
+<% const cancelled = operations.filter((item) => isCancelled(item.status)); if (cancelled.length) { %>
+<section class="section cancelled">
+    <div class="section-heading"><div><span>قسم مستقل غير محتسب ماليًا</span><h2>العمليات الملغاة والمرفوضة</h2></div><strong><%= cancelled.length %> عملية</strong></div>
+    <div class="notice">هذه العمليات معروضة للمتابعة فقط ولا تدخل في إجماليات التقرير المالي.</div>
+    <table><thead><tr><th>#</th><th>رقم العملية</th><th>الخدمة</th><th>رقم الهاتف</th><th>القيمة EGP</th><th>التاريخ</th><th>الحالة</th><th>الملاحظة</th></tr></thead><tbody>
+    <% cancelled.forEach((item, index) => { %><tr><td><%= item.serialNumber || index + 1 %></td><td class="mono"><%= item.customId || '---' %></td><td><%= item.transferTypeLabel || item.transferType || '---' %></td><td class="mono"><%= item.recipientNumber || '---' %></td><td class="mono"><%= money(item.amount, 0) %></td><td class="mono"><%= dateTime(item.completedAt || item.createdAt) %></td><td><span class="status cancelled">ملغاة / مرفوضة</span></td><td class="note"><%= item.notes || '---' %></td></tr><% }) %>
+    </tbody></table>
+</section>
+<% } %>
+<div class="footer">هذا التقرير مولّد من بيانات منصة الإدارة وفق صلاحيات حساب المنفذ وفترة التقرير المحددة.</div>
+</body>
+</html>
