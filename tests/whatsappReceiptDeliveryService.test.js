@@ -107,7 +107,6 @@ describe('WhatsApp receipt delivery', () => {
         });
         expect(result).toMatchObject({ success: true, recipientPhone: '218940719000' });
     });
-
     test('does not send a duplicate receipt that is already marked as sent', async () => {
         Transaction.findById.mockResolvedValue({ _id: 'tx-2', status: 'completed', userId: '01108172258', proofImage: 'proofs/ATT-2608-0002.jpg' });
         User.findOne.mockResolvedValue({ _id: 'user-1', name: 'أحمد', phone: '01108172258' });

@@ -92,7 +92,6 @@ describe('WhatChimp WhatsApp service', () => {
         expect(payload).toContain('phone_number=201108172258');
         expect(payload).not.toContain('template_name=');
     });
-
     test('sends a receipt through the media-template endpoint', async () => {
         configureWhatChimp();
         process.env.WHATCHIMP_RECEIPT_MEDIA_TEMPLATE_ID = '44';

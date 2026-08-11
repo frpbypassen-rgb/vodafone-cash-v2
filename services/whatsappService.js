@@ -247,7 +247,6 @@ const sendWhatChimpText = async ({ phone, message }) => {
     }, config);
     return { ...result, phone: phoneNumber };
 };
-
 const sendOtp = async ({ phone, otp, expiresMinutes = 5, accountName = '', accountType = '' }) => {
     const config = getWhatChimpConfig();
     if (config.enabled) {
