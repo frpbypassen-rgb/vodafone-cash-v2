@@ -19,6 +19,7 @@ const toClientReportDto = (data) => {
             status: tx.status,
             createdAt: tx.createdAt ? new Date(tx.createdAt).toISOString() : null,
             notes: tx.notes || null,
+            executorName: tx.executorName || null,
             hasProofImage: !!(tx.proofImage || (tx.proofImages && tx.proofImages.length > 0))
         })),
         deposits: (data.deposits || []).map(tx => ({
@@ -39,13 +40,40 @@ const toClientReportDto = (data) => {
             amount: Number(tx.amount || 0),
             costLYD: Number(tx.costLYD || 0),
             status: tx.status,
-            createdAt: tx.createdAt ? new Date(tx.createdAt).toISOString() : null
+            createdAt: tx.createdAt ? new Date(tx.createdAt).toISOString() : null,
+            executorName: tx.executorName || null
         })),
         totalLYD: Number(data.totalLYD || 0),
         totalEGP: Number(data.totalEGP || 0),
         completedCount: Number(data.completedCount || 0),
         rejectedCount: Number(data.rejectedCount || 0),
         totalDeposits: Number(data.totalDeposits || 0),
+        role: data.role || null,
+        scope: data.scope || 'group',
+        reportPeriod: data.reportPeriod ? {
+            type: data.reportPeriod.type || 'day',
+            value: data.reportPeriod.value || null,
+            start: data.reportPeriod.start ? new Date(data.reportPeriod.start).toISOString() : null,
+            end: data.reportPeriod.end ? new Date(data.reportPeriod.end).toISOString() : null
+        } : null,
+        company: data.company ? {
+            id: data.company.id ? String(data.company.id) : null,
+            name: data.company.name || '---',
+            serviceKey: data.company.serviceKey || null
+        } : null,
+        companyBalance: data.companyBalance === null || data.companyBalance === undefined
+            ? null
+            : Number(data.companyBalance),
+        myPerformance: data.myPerformance ? {
+            totalLYD: Number(data.myPerformance.totalLYD || 0),
+            totalEGP: Number(data.myPerformance.totalEGP || 0),
+            completedCount: Number(data.myPerformance.completedCount || 0)
+        } : null,
+        targetEmployee: data.targetEmployee ? {
+            id: data.targetEmployee.id ? String(data.targetEmployee.id) : null,
+            name: data.targetEmployee.name || '---',
+            role: data.targetEmployee.role || null
+        } : null,
         entityInfo: {
             name: data.entityInfo?.name || '---',
             phone: data.entityInfo?.phone || '---',

@@ -51,6 +51,7 @@ const {
     editAmountValidator,
     returnTaskValidator,
     createEmployeeValidator,
+    updateExecutorEmployeeProfileValidator,
     resetPasswordValidator,
     executorReportsValidator,
     executorSupportMessageValidator
@@ -894,20 +895,31 @@ router.get('/client/kyc/status', authenticateJWT, async (req, res) => {
  */
 router.get('/executor/live-tasks', authenticateJWT, async (req, res) => {
     try {
-        const { executorGroupId, accountType } = req.user;
+        const { executorGroupId, accountType, userId } = req.user;
         if (accountType !== 'executor') {
             return sendMobileError(res, 403, 'FORBIDDEN', 'صلاحيات غير كافية', req.correlationId);
         }
 
+        const employeeQuery = { _id: userId };
+        if (req.tenant) employeeQuery.tenantId = req.tenant._id;
+        const employee = await Employee.findOne(employeeQuery);
+        if (!employee) {
+            return sendMobileError(res, 404, 'EMPLOYEE_NOT_FOUND', 'لم يتم العثور على حساب المنفذ', req.correlationId);
+        }
+        if (employee.role === 'accountant') {
+            return sendMobileError(res, 403, 'TASKS_FORBIDDEN', 'صلاحيات المحاسب لا تسمح بتنفيذ العمليات', req.correlationId);
+        }
+        const groupId = employee.groupId || executorGroupId;
+
         const queryTasks = {
-            executorGroupId,
+            executorGroupId: groupId,
             status: { $in: ['processing', 'accepted'] }
         };
         if (req.tenant) queryTasks.tenantId = req.tenant._id;
         const tasks = await Transaction.find(queryTasks).sort({ createdAt: 1 }).lean();
 
         const queryAlerts = {
-            executorGroupId,
+            executorGroupId: groupId,
             emergencyAlert: { $exists: true, $ne: null },
             status: { $in: ['processing', 'accepted'] }
         };
@@ -959,6 +971,10 @@ router.post('/executor/accept-task/:id', authenticateJWT, async (req, res) => {
         const emp = await Employee.findOne(empQuery).populate('groupId');
         if (!emp) {
             return sendMobileError(res, 404, 'EMPLOYEE_NOT_FOUND', 'لم يتم العثور على حساب المنفذ', req.correlationId);
+        }
+
+        if (emp.role === 'accountant') {
+            return sendMobileError(res, 403, 'TASKS_FORBIDDEN', 'صلاحيات المحاسب لا تسمح بتنفيذ العمليات', req.correlationId);
         }
 
         const groupId = emp.groupId && (emp.groupId._id || emp.groupId);
@@ -1040,6 +1056,9 @@ router.post('/executor/cancel-task/:id', authenticateJWT, cancelTaskValidator, a
         if (req.tenant) empQuery.tenantId = req.tenant._id;
         const emp = await Employee.findOne(empQuery).session(session);
         if (!emp) throw new Error('EMPLOYEE_NOT_FOUND');
+        if (emp.role === 'accountant') {
+            throw new Error('TASKS_FORBIDDEN');
+        }
 
         if (!tx || tx.status !== 'accepted' || tx.operatorId !== emp._id.toString()) {
             throw new Error('INVALID_STATE');
@@ -1122,6 +1141,9 @@ router.post('/executor/cancel-task/:id', authenticateJWT, cancelTaskValidator, a
         if (e.message === 'FORBIDDEN') {
             return sendMobileError(res, 403, 'FORBIDDEN', 'صلاحيات غير كافية', req.correlationId);
         }
+        if (e.message === 'TASKS_FORBIDDEN') {
+            return sendMobileError(res, 403, 'TASKS_FORBIDDEN', 'صلاحيات المحاسب لا تسمح بتنفيذ العمليات', req.correlationId);
+        }
         if (e.message === 'EMPLOYEE_NOT_FOUND') {
             return sendMobileError(res, 404, 'EMPLOYEE_NOT_FOUND', 'لم يتم العثور على حساب المنفذ', req.correlationId);
         }
@@ -1196,6 +1218,10 @@ router.post('/executor/complete-task/:id', authenticateJWT, completeTaskValidato
         if (!emp) {
             return sendMobileError(res, 404, 'EMPLOYEE_NOT_FOUND', 'لم يتم العثور على حساب المنفذ', req.correlationId);
         }
+        if (emp.role === 'accountant') {
+            return sendMobileError(res, 403, 'TASKS_FORBIDDEN', 'صلاحيات المحاسب لا تسمح بتنفيذ العمليات', req.correlationId);
+        }
+
         if (!tx || tx.status !== 'accepted' || tx.operatorId !== emp._id.toString()) {
             return sendMobileError(res, 409, 'INVALID_STATE', 'الطلب غير متاح للإنهاء', req.correlationId);
         }
@@ -2156,15 +2182,38 @@ router.post('/executor/tickets/messages', authenticateJWT, executorSupportMessag
 });
 
 // 📊 Executor Reports
+router.get('/executor/overview', authenticateJWT, async (req, res) => {
+    try {
+        if (req.user.accountType !== 'executor') {
+            return sendMobileError(res, 403, 'FORBIDDEN', 'صلاحيات غير كافية', req.correlationId);
+        }
+        const result = await mobileWebParityService.getExecutorOverview({
+            executorId: req.user.userId,
+            tenantId: req.tenant ? req.tenant._id : null
+        });
+        return res.json({ success: true, data: result, serverTime: new Date().toISOString() });
+    } catch (e) {
+        if (e.message === 'UNAUTHORIZED') {
+            return sendMobileError(res, 401, 'UNAUTHORIZED', 'غير مصرح بالوصول', req.correlationId);
+        }
+        return sendServerError(res, req, 'حدث خطأ أثناء جلب ملخص المنفذ');
+    }
+});
+
 router.post('/executor/reports/filter', authenticateJWT, executorReportsValidator, async (req, res) => {
     try {
+        if (req.user.accountType !== 'executor') {
+            return sendMobileError(res, 403, 'FORBIDDEN', 'صلاحيات غير كافية', req.correlationId);
+        }
         const { userId } = req.user;
-        const { dateType, dateValue } = req.body;
+        const { dateType, dateValue, employeeId } = req.body;
         
         const result = await mobileWebParityService.getExecutorReports({
             executorId: userId,
             dateType,
-            dateValue
+            dateValue,
+            employeeId,
+            tenantId: req.tenant ? req.tenant._id : null
         });
         
         return res.json({
@@ -2175,6 +2224,12 @@ router.post('/executor/reports/filter', authenticateJWT, executorReportsValidato
     } catch (e) {
         if (e.message === 'UNAUTHORIZED') {
             return sendMobileError(res, 401, 'UNAUTHORIZED', 'غير مصرح بالوصول', req.correlationId);
+        }
+        if (e.message === 'FORBIDDEN') {
+            return sendMobileError(res, 403, 'FORBIDDEN', 'لا تملك صلاحية عرض تقرير هذا الموظف', req.correlationId);
+        }
+        if (e.message === 'NOT_FOUND') {
+            return sendMobileError(res, 404, 'NOT_FOUND', 'الموظف غير موجود ضمن شركة التنفيذ', req.correlationId);
         }
         return sendServerError(res, req, 'حدث خطأ أثناء جلب التقارير');
     }
@@ -2237,6 +2292,35 @@ router.post('/executor/employees', authenticateJWT, createEmployeeValidator, asy
             return sendMobileError(res, 400, 'USERNAME_TAKEN', 'اسم المستخدم مسجل بالفعل في النظام', req.correlationId);
         }
         return sendServerError(res, req, 'حدث خطأ أثناء إضافة الموظف');
+    }
+});
+
+router.patch('/executor/employees/:id/profile', authenticateJWT, updateExecutorEmployeeProfileValidator, async (req, res) => {
+    try {
+        if (req.user.accountType !== 'executor') {
+            return sendMobileError(res, 403, 'FORBIDDEN', 'صلاحيات غير كافية', req.correlationId);
+        }
+        const updated = await mobileWebParityService.updateEmployeeProfile({
+            executorId: req.user.userId,
+            targetId: req.params.id,
+            name: req.body.name,
+            phone: req.body.phone
+        });
+        return res.json({
+            success: true,
+            employee: mobileWebParityMapper.toEmployeeDto(updated)
+        });
+    } catch (e) {
+        if (e.message === 'UNAUTHORIZED') {
+            return sendMobileError(res, 401, 'UNAUTHORIZED', 'غير مصرح بالوصول', req.correlationId);
+        }
+        if (e.message === 'FORBIDDEN') {
+            return sendMobileError(res, 403, 'FORBIDDEN', 'ليس لديك صلاحيات مدير لتعديل بيانات الموظف', req.correlationId);
+        }
+        if (e.message === 'NOT_FOUND') {
+            return sendMobileError(res, 404, 'NOT_FOUND', 'الموظف غير موجود أو لا ينتمي إلى مجموعتك', req.correlationId);
+        }
+        return sendServerError(res, req, 'حدث خطأ أثناء تعديل بيانات الموظف');
     }
 });
 

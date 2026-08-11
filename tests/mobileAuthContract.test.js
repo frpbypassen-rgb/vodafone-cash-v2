@@ -341,7 +341,7 @@ describe('🔐 Contract Tests: Auth (Mobile API)', () => {
         expect(res.body.name).toBe('Executor Employee');
         expect(res.body.balance).toBe(8000);
         expect(res.body.persona).toBe('executor');
-        expect(res.body.role).toBe('executor');
+        expect(res.body.role).toBe('operator');
         expect(res.body.permissions).toEqual(expect.arrayContaining([
             'executor.tasks.read',
             'executor.tasks.accept',

@@ -111,6 +111,12 @@ const assertGroupOwnsTask = (tx, groupId) => {
     }
 };
 
+const assertExecutorTaskRole = (emp) => {
+    if (!emp) throw new Error('UNAUTHORIZED');
+    if (emp.role === 'accountant') throw new Error('FORBIDDEN');
+    return emp;
+};
+
 const nextDepositRequestId = async (session) => {
     const counter = await Counter.findOneAndUpdate(
         { name: 'deposit_request' },
@@ -473,7 +479,7 @@ async function submitClientComplaint({ userId, accountType, transactionId, compl
  */
 async function clearExecutorAlert({ executorId, taskId, alertType }) {
     const emp = await Employee.findById(executorId);
-    if (!emp) throw new Error('UNAUTHORIZED');
+    assertExecutorTaskRole(emp);
 
     const tx = await Transaction.findById(taskId);
     if (!tx) throw new Error('TASK_NOT_FOUND');
@@ -527,7 +533,7 @@ async function requestExecutorDeposit({ executorId, amount, req }) {
         const parsedAmount = parseFloat(amount);
         if (isNaN(parsedAmount) || parsedAmount <= 0) throw new Error('INVALID_AMOUNT');
         const emp = await Employee.findById(executorId).populate('groupId');
-        if (!emp) throw new Error('UNAUTHORIZED');
+        assertExecutorTaskRole(emp);
 
         const customId = await nextDepositRequestId(session);
         const tx = new Transaction({
@@ -607,7 +613,7 @@ async function editTaskAmount({ executorId, taskId, newAmount, reason, req }) {
         }
 
         const emp = await Employee.findById(executorId);
-        if (!emp) throw new Error('UNAUTHORIZED');
+        assertExecutorTaskRole(emp);
 
         const tx = await Transaction.findOne({ _id: taskId, status: 'accepted', operatorId: emp._id.toString() });
         if (!tx) throw new Error('INVALID_STATE');
@@ -750,7 +756,7 @@ async function editTaskAmount({ executorId, taskId, newAmount, reason, req }) {
  */
 async function returnTask({ executorId, taskId, reason }) {
     const emp = await Employee.findById(executorId);
-    if (!emp) throw new Error('UNAUTHORIZED');
+    assertExecutorTaskRole(emp);
 
     const tx = await Transaction.findById(taskId);
     if (!tx || tx.status !== 'accepted' || tx.operatorId !== emp._id.toString()) {
@@ -801,7 +807,11 @@ async function executeZaynPayIdempotent({ executorId, taskId, req }) {
         }
 
         const emp = await Employee.findById(executorId).populate('groupId');
-        if (!emp || emp.webUsername !== 'zaynapi@ahram.com') {
+        if (!emp) {
+            throw new Error('FORBIDDEN');
+        }
+        assertExecutorTaskRole(emp);
+        if (emp.webUsername !== 'zaynapi@ahram.com') {
             throw new Error('FORBIDDEN');
         }
         if (emp.status && emp.status !== 'active') {
@@ -1012,7 +1022,191 @@ async function sendExecutorSupportReply({ executorId, text, imageBase64 }) {
 /**
  * 📊 Executor Reports Parity
  */
-async function getExecutorReports({ executorId, dateType, dateValue }) {
+const tripoliDateValue = (date = new Date()) => {
+    const parts = new Intl.DateTimeFormat('en-GB', {
+        timeZone: 'Africa/Tripoli',
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit'
+    }).formatToParts(date).reduce((result, part) => {
+        result[part.type] = part.value;
+        return result;
+    }, {});
+    return `${parts.year}-${parts.month}-${parts.day}`;
+};
+
+const executorGroupQuery = (groupId, tenantId) => {
+    const query = {
+        $or: [
+            { executorGroupId: groupId },
+            { managerGroupId: groupId }
+        ]
+    };
+    if (tenantId) query.tenantId = tenantId;
+    return query;
+};
+
+const executorReportTotals = (transactions) => transactions.reduce((summary, tx) => {
+    if (tx.status === 'completed') {
+        summary.totalLYD += Number(tx.costLYD || 0);
+        summary.totalEGP += Number(tx.amount || 0);
+        summary.completedCount += 1;
+    } else if (['rejected', 'cancelled_by_admin', 'failed'].includes(tx.status)) {
+        summary.rejectedCount += 1;
+    }
+    return summary;
+}, { totalLYD: 0, totalEGP: 0, completedCount: 0, rejectedCount: 0 });
+
+const executorRoleLabel = (role) => ({
+    manager: 'مدير شركة تنفيذ',
+    accountant: 'محاسب شركة تنفيذ',
+    operator: 'موظف تنفيذ'
+}[role] || 'موظف تنفيذ');
+
+/**
+ * The mobile client never controls the report scope. This prevents a staff
+ * account from requesting a wider time range or another employee's records.
+ */
+async function getExecutorReports({ executorId, dateType, dateValue, employeeId, tenantId }) {
+    const emp = await Employee.findById(executorId);
+    if (!emp) throw new Error('UNAUTHORIZED');
+
+    const group = await ExecutorGroup.findById(emp.groupId).lean();
+    if (!group) throw new Error('UNAUTHORIZED');
+
+    const isManager = emp.role === 'manager';
+    const isAccountant = emp.role === 'accountant';
+    const isOperator = !isManager && !isAccountant;
+    const today = tripoliDateValue();
+    let finalDateType = dateType === 'month' ? 'month' : 'day';
+    let finalDateValue = String(dateValue || '').trim();
+
+    if (isOperator) {
+        finalDateType = 'day';
+        finalDateValue = today;
+    } else if (!finalDateValue) {
+        finalDateValue = finalDateType === 'month' ? today.slice(0, 7) : today;
+    }
+
+    let targetEmployee = null;
+    if (employeeId) {
+        if (!isManager) throw new Error('FORBIDDEN');
+        targetEmployee = await Employee.findById(employeeId);
+        if (!targetEmployee || String(targetEmployee.groupId) !== String(emp.groupId)) {
+            throw new Error('NOT_FOUND');
+        }
+    }
+
+    const { start, end } = getDateRange(
+        finalDateType === 'day' ? finalDateValue : null,
+        finalDateType === 'month' ? finalDateValue : null
+    );
+    const baseQuery = executorGroupQuery(emp.groupId, tenantId);
+    if (targetEmployee) baseQuery.operatorId = String(targetEmployee._id);
+
+    const currentTransactions = await Transaction
+        .find({ ...baseQuery, createdAt: { $gte: start, $lte: end } })
+        .sort({ createdAt: -1 })
+        .lean();
+    const deposits = currentTransactions.filter((tx) =>
+        ['deposit', 'deduction', 'deposit_pending'].includes(tx.status)
+    );
+    const operations = currentTransactions.filter((tx) => !deposits.includes(tx));
+    const totals = executorReportTotals(operations);
+    const ownTransactions = currentTransactions.filter((tx) => String(tx.operatorId || '') === String(emp._id));
+    const ownTotals = executorReportTotals(ownTransactions);
+    const reportOwner = targetEmployee || emp;
+
+    return {
+        previousBalance: 0,
+        currentTransactions,
+        operations,
+        deposits,
+        ...totals,
+        totalDeposits: deposits.reduce((sum, tx) => sum + Number(tx.amount || tx.costLYD || 0), 0),
+        role: emp.role,
+        scope: targetEmployee ? 'employee' : 'group',
+        reportPeriod: { type: finalDateType, value: finalDateValue, start, end },
+        company: {
+            id: group._id,
+            name: group.name,
+            serviceKey: group.serviceKey || null
+        },
+        companyBalance: isOperator ? null : Number(group.balance || 0),
+        myPerformance: {
+            totalLYD: ownTotals.totalLYD,
+            totalEGP: ownTotals.totalEGP,
+            completedCount: ownTotals.completedCount
+        },
+        targetEmployee: targetEmployee ? {
+            id: targetEmployee._id,
+            name: targetEmployee.name,
+            role: targetEmployee.role
+        } : null,
+        entityInfo: {
+            name: reportOwner.name,
+            phone: reportOwner.phone || '---',
+            username: reportOwner.webUsername,
+            joinDate: reportOwner.createdAt,
+            status: executorRoleLabel(reportOwner.role)
+        }
+    };
+}
+
+async function getExecutorOverview({ executorId, tenantId }) {
+    const emp = await Employee.findById(executorId).lean();
+    if (!emp) throw new Error('UNAUTHORIZED');
+
+    const group = await ExecutorGroup.findById(emp.groupId).lean();
+    if (!group) throw new Error('UNAUTHORIZED');
+
+    const today = tripoliDateValue();
+    const month = today.slice(0, 7);
+    const todayRange = getDateRange(today, null);
+    const monthRange = getDateRange(null, month);
+    const query = executorGroupQuery(emp.groupId, tenantId);
+    const [todayTransactions, monthTransactions] = await Promise.all([
+        Transaction.find({ ...query, createdAt: { $gte: todayRange.start, $lte: todayRange.end } }).lean(),
+        Transaction.find({ ...query, createdAt: { $gte: monthRange.start, $lte: monthRange.end } }).lean()
+    ]);
+    const ownToday = todayTransactions.filter((tx) => String(tx.operatorId || '') === String(emp._id));
+    const ownTotals = executorReportTotals(ownToday);
+    const isManager = emp.role === 'manager';
+    const isAccountant = emp.role === 'accountant';
+
+    return {
+        company: {
+            id: String(group._id),
+            name: group.name,
+            serviceKey: group.serviceKey || null,
+            balance: isManager || isAccountant ? Number(group.balance || 0) : null
+        },
+        executor: {
+            id: String(emp._id),
+            name: emp.name,
+            phone: emp.phone || '',
+            role: emp.role || 'operator'
+        },
+        permissions: {
+            canHandleTasks: !isAccountant,
+            canManageEmployees: isManager,
+            canViewCompanyBalance: isManager || isAccountant,
+            canViewMonthReport: isManager || isAccountant
+        },
+        metrics: isManager ? {
+            todayOperations: todayTransactions.filter((tx) => tx.status === 'completed').length,
+            monthOperations: monthTransactions.filter((tx) => tx.status === 'completed').length
+        } : null,
+        myPerformance: {
+            totalLYD: ownTotals.totalLYD,
+            totalEGP: ownTotals.totalEGP,
+            completedCount: ownTotals.completedCount
+        },
+        serverDate: today
+    };
+}
+
+async function getLegacyExecutorReports({ executorId, dateType, dateValue }) {
     const emp = await Employee.findById(executorId);
     if (!emp) throw new Error('UNAUTHORIZED');
 
@@ -1148,6 +1342,30 @@ async function createEmployee({ executorId, name, phone, role, webUsername, webP
     return createdEmp;
 }
 
+async function updateEmployeeProfile({ executorId, targetId, name, phone }) {
+    const manager = await checkManagerPermission(executorId);
+    const emp = await Employee.findById(targetId);
+    if (!emp || String(emp.groupId) !== String(manager.groupId)) throw new Error('NOT_FOUND');
+    if (emp.role === 'manager') throw new Error('FORBIDDEN');
+
+    emp.name = String(name || '').trim();
+    emp.phone = String(phone || '').trim();
+    await emp.save();
+
+    await logAction({
+        action: 'USER_UPDATED',
+        performedById: manager._id,
+        performedByModel: 'Employee',
+        performedByName: manager.name,
+        targetId: emp._id,
+        targetModel: 'Employee',
+        result: 'نجاح',
+        metadata: { name: emp.name, phone: emp.phone, role: emp.role }
+    });
+
+    return emp;
+}
+
 async function toggleEmployeeStatus({ executorId, targetId }) {
     const manager = await checkManagerPermission(executorId);
     const emp = await Employee.findById(targetId);
@@ -1216,8 +1434,10 @@ module.exports = {
     getExecutorSupportTicket,
     sendExecutorSupportReply,
     getExecutorReports,
+    getExecutorOverview,
     getEmployeesList,
     createEmployee,
+    updateEmployeeProfile,
     toggleEmployeeStatus,
     toggleEmployeeReports,
     resetEmployeePassword,

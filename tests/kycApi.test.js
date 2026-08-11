@@ -45,6 +45,7 @@ jest.mock('../validators/mobileValidators', () => {
         editAmountValidator: pass,
         returnTaskValidator: pass,
         createEmployeeValidator: pass,
+        updateExecutorEmployeeProfileValidator: pass,
         resetPasswordValidator: pass,
         executorReportsValidator: pass,
         executorSupportMessageValidator: pass,

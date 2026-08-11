@@ -334,6 +334,20 @@ const createEmployeeValidator = [
     validate
 ];
 
+const updateExecutorEmployeeProfileValidator = [
+    body('name')
+        .trim()
+        .notEmpty().withMessage('الاسم مطلوب')
+        .isLength({ min: 3, max: 100 }).withMessage('الاسم يجب أن يكون بين 3 و100 حرف')
+        .escape(),
+    body('phone')
+        .optional({ nullable: true })
+        .trim()
+        .isLength({ max: 40 }).withMessage('رقم الهاتف طويل جداً')
+        .escape(),
+    validate
+];
+
 const resetPasswordValidator = [
     body('newPassword')
         .trim()
@@ -353,6 +367,10 @@ const resetPasswordValidator = [
 ];
 
 const executorReportsValidator = [
+    body('employeeId')
+        .optional({ nullable: true, checkFalsy: true })
+        .trim()
+        .isMongoId().withMessage('معرف الموظف غير صالح'),
     body('dateType')
         .optional()
         .trim()
@@ -396,6 +414,7 @@ module.exports = {
     editAmountValidator,
     returnTaskValidator,
     createEmployeeValidator,
+    updateExecutorEmployeeProfileValidator,
     resetPasswordValidator,
     executorReportsValidator,
     executorSupportMessageValidator

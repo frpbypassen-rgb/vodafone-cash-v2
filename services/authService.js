@@ -107,13 +107,35 @@ const AGENT_ACCOUNTANT_PERMISSIONS = Object.freeze([
     'agent.reports.read_all'
 ]);
 
-const EXECUTOR_PERMISSIONS = Object.freeze([
+const EXECUTOR_TASK_PERMISSIONS = Object.freeze([
     'executor.tasks.read',
     'executor.tasks.accept',
     'executor.tasks.cancel',
-    'executor.tasks.complete',
+    'executor.tasks.complete'
+]);
+
+const EXECUTOR_MANAGER_PERMISSIONS = Object.freeze([
+    ...EXECUTOR_TASK_PERMISSIONS,
     'executor.reports.read',
-    'executor.profile.read'
+    'executor.reports.read_all',
+    'executor.profile.read',
+    'executor.balance.read',
+    'executor.employees.read',
+    'executor.employees.manage'
+]);
+
+const EXECUTOR_OPERATOR_PERMISSIONS = Object.freeze([
+    ...EXECUTOR_TASK_PERMISSIONS,
+    'executor.reports.read_day',
+    'executor.profile.read',
+    'executor.performance.read'
+]);
+
+const EXECUTOR_ACCOUNTANT_PERMISSIONS = Object.freeze([
+    'executor.reports.read',
+    'executor.reports.read_all',
+    'executor.profile.read',
+    'executor.balance.read'
 ]);
 
 const resolveClientUserIdentity = (account) => {
@@ -162,11 +184,22 @@ const resolveCompanyIdentity = (account) => {
     };
 };
 
-const resolveExecutorIdentity = () => ({
-    persona: 'executor',
-    role: 'executor',
-    permissions: [...EXECUTOR_PERMISSIONS]
-});
+const resolveExecutorIdentity = (account) => {
+    const requestedRole = String(account && account.role || '').toLowerCase();
+    const role = ['manager', 'operator', 'accountant'].includes(requestedRole)
+        ? requestedRole
+        : 'operator';
+
+    const permissions = role === 'manager'
+        ? EXECUTOR_MANAGER_PERMISSIONS
+        : (role === 'accountant' ? EXECUTOR_ACCOUNTANT_PERMISSIONS : EXECUTOR_OPERATOR_PERMISSIONS);
+
+    return {
+        persona: 'executor',
+        role,
+        permissions: [...permissions]
+    };
+};
 
 const resolveSubClientIdentity = () => ({
     persona: 'agentClient',
@@ -291,6 +324,7 @@ const login = async (username, password, req) => {
     let companyName = null;
     let companyId = null;
     let executorBotName = null;
+    let executorServiceKey = null;
     let rateContract;
     let persona = undefined;
     let mobileRole = undefined;
@@ -328,8 +362,11 @@ const login = async (username, password, req) => {
         agentCode = identity.agentCode;
     } else if (accountType === 'executor') {
         executorBotName = account.groupId ? account.groupId.name : (account.botId ? account.botId.name : null);
+        executorServiceKey = account.groupId
+            ? (account.groupId.serviceKey || null)
+            : (account.botId ? (account.botId.serviceKey || null) : null);
         rateContract = buildMobileRateContract(tier, settings);
-        const identity = resolveExecutorIdentity();
+        const identity = resolveExecutorIdentity(account);
         persona = identity.persona;
         mobileRole = identity.role;
         mobilePermissions = identity.permissions;
@@ -420,6 +457,8 @@ const login = async (username, password, req) => {
         context: buildContext(accountType, {
             executorGroupId,
             executorGroupName: executorBotName,
+            executorRole: mobileRole,
+            executorServiceKey,
             clientCompanyId: companyId,
             clientCompanyName: companyName,
             persona,

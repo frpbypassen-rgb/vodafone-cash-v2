@@ -221,6 +221,8 @@ const toLogoutResponse = () => {
 const buildContext = (accountType, {
     executorGroupId,
     executorGroupName,
+    executorRole,
+    executorServiceKey,
     clientCompanyId,
     clientCompanyName,
     agentId,
@@ -250,6 +252,8 @@ const buildContext = (accountType, {
         agentCode: ['client_user', 'agent_staff'].includes(accountType) ? (agentCode || null) : null,
         executorGroupId: accountType === 'executor' ? (executorGroupId ? String(executorGroupId) : null) : null,
         executorGroupName: accountType === 'executor' ? (executorGroupName || null) : null,
+        executorRole: accountType === 'executor' ? (executorRole || 'operator') : null,
+        executorServiceKey: accountType === 'executor' ? (executorServiceKey || null) : null,
         // Legacy bot fields mapping the group info for compatibility
         executorBotId: accountType === 'executor' ? (executorGroupId ? String(executorGroupId) : null) : null,
         executorBotName: accountType === 'executor' ? (executorGroupName || null) : null
