@@ -1,5 +1,6 @@
 require('dotenv').config();
 const { SYSTEM_TIME_ZONE } = require('./config/systemTime');
+const { getAllowedOrigins, getMobileAllowedOrigins } = require('./config/corsOrigins');
 require('ts-node').register({
     transpileOnly: true,
     compilerOptions: { module: 'CommonJS' }
@@ -90,9 +91,8 @@ app.set('trust proxy', 1);
 const server = http.createServer(app);
 
 // ✅ إصلاح: تقييد CORS في Socket.IO بدل السماح لأي نطاق
-const allowedOrigins = process.env.ALLOWED_ORIGINS
-    ? process.env.ALLOWED_ORIGINS.split(',')
-    : ['http://localhost:3000', 'http://127.0.0.1:3000'];
+const allowedOrigins = getAllowedOrigins();
+const mobileAllowedOrigins = getMobileAllowedOrigins();
 
 const io = new Server(server, {
     cors: {
@@ -156,6 +156,9 @@ app.use(helmet({
     }
 }));
 
+// The browser preview is allowed to call only the mobile API, not the full website.
+app.use('/api/mobile', cors({ origin: mobileAllowedOrigins, credentials: true }));
+app.use('/api/v1/mobile', cors({ origin: mobileAllowedOrigins, credentials: true }));
 app.use(cors({ origin: allowedOrigins, credentials: true }));
 
 // Serve public files before request processing, session checks, and metrics.
