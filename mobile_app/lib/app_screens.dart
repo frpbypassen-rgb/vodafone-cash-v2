@@ -652,7 +652,7 @@ class _RoleShellState extends State<RoleShell> {
         ],
       ),
       actions: [
-        if (widget.controller.isExecutor)
+        if (widget.controller.isExecutor && _index != 0)
           ExecutorBalanceBadge(
             amount: companyBalance,
             label: widget.controller.isExecutorOperator
@@ -1898,6 +1898,8 @@ class _ExecutorTasksScreenState extends State<ExecutorTasksScreen> {
   bool _loading = true;
   Object? _error;
   bool _actionBusy = false;
+  Map<String, dynamic>? _overview;
+  DateTime? _lastUpdated;
 
   @override
   void initState() {
@@ -1924,6 +1926,13 @@ class _ExecutorTasksScreenState extends State<ExecutorTasksScreen> {
     }
     try {
       final response = await widget.controller.api.executorLiveTasks();
+      if (!silent || _overview == null) {
+        final overviewResponse = await widget.controller.api.executorOverview();
+        final overviewData = overviewResponse['data'];
+        if (overviewData is Map) {
+          _overview = Map<String, dynamic>.from(overviewData);
+        }
+      }
       final raw = response['data'];
       final tasks = raw is List
           ? raw
@@ -1947,7 +1956,12 @@ class _ExecutorTasksScreenState extends State<ExecutorTasksScreen> {
           showSnack(context, 'وصلت مهمة تنفيذ جديدة إلى قائمتك.');
         }
       }
-      if (mounted) setState(() => _tasks = tasks);
+      if (mounted) {
+        setState(() {
+          _tasks = tasks;
+          _lastUpdated = DateTime.now();
+        });
+      }
     } catch (error) {
       if (!silent) _error = error;
     } finally {
@@ -1965,6 +1979,7 @@ class _ExecutorTasksScreenState extends State<ExecutorTasksScreen> {
       await _load();
     } on ApiFailure catch (error) {
       if (mounted) showSnack(context, error.message, error: true);
+      await _load(silent: true);
     } finally {
       if (mounted) setState(() => _actionBusy = false);
     }
@@ -2030,40 +2045,20 @@ class _ExecutorTasksScreenState extends State<ExecutorTasksScreen> {
     if (_error != null && _tasks.isEmpty) {
       return ErrorPage(error: _error!, onRetry: _load);
     }
-    final colors = Theme.of(context).colorScheme;
-    final dark = Theme.of(context).brightness == Brightness.dark;
+    final company = _overview?['company'];
+    final balance = company is Map ? numberValue(company['balance']) : 0.0;
     return PageFrame(
       title: 'مهام التنفيذ',
       subtitle: 'يتم تحديث المهام الجديدة تلقائياً كل خمس ثوانٍ.',
       showHeading: false,
       onRefresh: _load,
       child: [
-        Container(
-          padding: const EdgeInsets.all(14),
-          decoration: BoxDecoration(
-            color: dark ? const Color(0xFF143B35) : AhramColors.emeraldSoft,
-            borderRadius: BorderRadius.circular(8),
-            border: Border.all(
-              color: dark ? const Color(0xFF286452) : const Color(0xFFCBEBDC),
-            ),
-          ),
-          child: Row(
-            children: [
-              Icon(Icons.sensors, color: colors.primary),
-              const SizedBox(width: 10),
-              Text(
-                'المراقبة المباشرة نشطة',
-                style: TextStyle(
-                  color: dark ? colors.onSurface : AhramColors.emeraldDeep,
-                  fontWeight: FontWeight.w800,
-                ),
-              ),
-            ],
-          ),
-        ),
+        ExecutorBalanceHeroCard(balance: balance),
         const SizedBox(height: 16),
+        const ExecutorLiveMonitoringCard(),
+        const SizedBox(height: 18),
         if (_tasks.isEmpty)
-          const LiveQueuePanel(
+          const ExecutorLiveQueueCard(
             title: 'في انتظار عملية جديدة',
             message: 'ستظهر العمليات المحولة إلى حساب المنفذ فور وصولها.',
           )
@@ -2074,6 +2069,7 @@ class _ExecutorTasksScreenState extends State<ExecutorTasksScreen> {
               child: ExecutorTaskTile(
                 task: task,
                 busy: _actionBusy,
+                currentExecutorId: widget.controller.session?.id ?? '',
                 onAccept: () => _accept(task),
                 onCancel: () => _cancel(task),
                 onComplete: () => _complete(task),
@@ -2081,7 +2077,419 @@ class _ExecutorTasksScreenState extends State<ExecutorTasksScreen> {
               ),
             ),
           ),
+        const SizedBox(height: 16),
+        ExecutorConnectionCard(lastUpdated: _lastUpdated),
       ],
+    );
+  }
+}
+
+class ExecutorBalanceHeroCard extends StatelessWidget {
+  const ExecutorBalanceHeroCard({super.key, required this.balance});
+
+  final double balance;
+
+  @override
+  Widget build(BuildContext context) {
+    final dark = Theme.of(context).brightness == Brightness.dark;
+    final colors = Theme.of(context).colorScheme;
+    return Container(
+      height: 156,
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 17),
+      decoration: BoxDecoration(
+        color: dark ? const Color(0xFF15243D) : colors.surface,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: dark
+              ? Colors.white.withValues(alpha: 0.10)
+              : Colors.white.withValues(alpha: 0.92),
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: _navy.withValues(alpha: dark ? 0.30 : 0.12),
+            blurRadius: 24,
+            offset: const Offset(0, 12),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          GlassIconBadge(
+            icon: Icons.visibility_outlined,
+            color: AhramColors.sky,
+            size: 54,
+          ),
+          const SizedBox(width: 18),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text(
+                  'رصيد المنفذ',
+                  style: TextStyle(
+                    color: colors.onSurfaceVariant,
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                FittedBox(
+                  fit: BoxFit.scaleDown,
+                  alignment: AlignmentDirectional.centerStart,
+                  child: Text(
+                    '${formatAmount(balance, fractionDigits: 0)} ج.م',
+                    textDirection: ui.TextDirection.ltr,
+                    style: TextStyle(
+                      color: colors.onSurface,
+                      fontSize: 33,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const _ExecutorWalletVisual(),
+        ],
+      ),
+    );
+  }
+}
+
+class _ExecutorWalletVisual extends StatelessWidget {
+  const _ExecutorWalletVisual();
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: 104,
+      height: 94,
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          Positioned(
+            bottom: 5,
+            child: Container(
+              width: 84,
+              height: 14,
+              decoration: BoxDecoration(
+                color: _navy.withValues(alpha: 0.10),
+                borderRadius: BorderRadius.circular(99),
+              ),
+            ),
+          ),
+          Transform.rotate(
+            angle: -0.10,
+            child: Container(
+              width: 78,
+              height: 65,
+              decoration: BoxDecoration(
+                color: const Color(0xFFEFF6FF),
+                borderRadius: BorderRadius.circular(13),
+                border: Border.all(color: const Color(0xFFD4E2F4)),
+                boxShadow: const [
+                  BoxShadow(
+                    color: Color(0x260A1B35),
+                    blurRadius: 12,
+                    offset: Offset(0, 7),
+                  ),
+                ],
+              ),
+              child: Stack(
+                children: [
+                  Positioned(
+                    top: 8,
+                    left: 8,
+                    right: 8,
+                    child: Container(
+                      height: 17,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF55D8CF),
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                    ),
+                  ),
+                  const Center(
+                    child: Icon(
+                      Icons.account_balance_wallet_rounded,
+                      color: AhramColors.sky,
+                      size: 31,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          Positioned(
+            right: 2,
+            bottom: 14,
+            child: Row(
+              children: List<Widget>.generate(
+                3,
+                (index) => Container(
+                  width: 15,
+                  height: 15,
+                  margin: EdgeInsetsDirectional.only(start: index == 0 ? 0 : -5),
+                  decoration: BoxDecoration(
+                    color: _gold,
+                    shape: BoxShape.circle,
+                    border: Border.all(color: const Color(0xFFE0A418)),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class ExecutorLiveMonitoringCard extends StatelessWidget {
+  const ExecutorLiveMonitoringCard({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final dark = Theme.of(context).brightness == Brightness.dark;
+    final colors = Theme.of(context).colorScheme;
+    return Container(
+      padding: const EdgeInsetsDirectional.fromSTEB(20, 17, 16, 17),
+      decoration: BoxDecoration(
+        color: dark ? const Color(0xFF153A38) : const Color(0xFFEAF9F7),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(
+          color: dark ? const Color(0xFF2A675F) : const Color(0xFFBCEBE3),
+        ),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'المراقبة المباشرة نشطة',
+                  style: TextStyle(
+                    color: colors.onSurface,
+                    fontSize: 18,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+                const SizedBox(height: 5),
+                Text(
+                  'جميع العمليات تتم مراقبتها في الوقت الحقيقي',
+                  style: TextStyle(color: colors.onSurfaceVariant, fontSize: 13),
+                ),
+              ],
+            ),
+          ),
+          GlassIconBadge(icon: Icons.wifi_rounded, color: _green, size: 60),
+        ],
+      ),
+    );
+  }
+}
+
+class ExecutorLiveQueueCard extends StatefulWidget {
+  const ExecutorLiveQueueCard({
+    super.key,
+    required this.title,
+    required this.message,
+  });
+
+  final String title;
+  final String message;
+
+  @override
+  State<ExecutorLiveQueueCard> createState() => _ExecutorLiveQueueCardState();
+}
+
+class _ExecutorLiveQueueCardState extends State<ExecutorLiveQueueCard>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _animation;
+
+  @override
+  void initState() {
+    super.initState();
+    _animation = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 2400),
+    )..repeat(reverse: true);
+  }
+
+  @override
+  void dispose() {
+    _animation.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    return Container(
+      constraints: const BoxConstraints(minHeight: 284),
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: colors.surface,
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.9)),
+        boxShadow: [
+          BoxShadow(
+            color: _navy.withValues(alpha: 0.10),
+            blurRadius: 26,
+            offset: const Offset(0, 13),
+          ),
+        ],
+      ),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final compact = constraints.maxWidth < 380;
+          final artwork = Expanded(
+            flex: compact ? 0 : 5,
+            child: AnimatedBuilder(
+              animation: _animation,
+              builder: (context, child) => Transform.translate(
+                offset: Offset(0, -3 * _animation.value),
+                child: child,
+              ),
+              child: Image.asset(
+                'assets/images/executor-live-bell.png',
+                fit: BoxFit.contain,
+                filterQuality: FilterQuality.high,
+              ),
+            ),
+          );
+          final copy = Expanded(
+            flex: compact ? 0 : 6,
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  widget.title,
+                  style: TextStyle(
+                    color: colors.onSurface,
+                    fontSize: 24,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+                const SizedBox(height: 10),
+                Text(
+                  widget.message,
+                  style: TextStyle(
+                    color: colors.onSurfaceVariant,
+                    fontSize: 15,
+                    height: 1.5,
+                  ),
+                ),
+                const SizedBox(height: 19),
+                DecoratedBox(
+                  decoration: BoxDecoration(
+                    color: AhramColors.sky,
+                    borderRadius: BorderRadius.circular(9),
+                    boxShadow: [
+                      BoxShadow(
+                        color: AhramColors.sky.withValues(alpha: 0.30),
+                        blurRadius: 12,
+                        offset: const Offset(0, 6),
+                      ),
+                    ],
+                  ),
+                  child: const Padding(
+                    padding: EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.sensors, color: Colors.white, size: 18),
+                        SizedBox(width: 7),
+                        Text(
+                          'المراقبة المباشرة تعمل',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          );
+          return compact
+              ? Column(
+                  children: [
+                    SizedBox(height: 166, child: artwork),
+                    const SizedBox(height: 8),
+                    copy,
+                  ],
+                )
+              : Row(children: [copy, const SizedBox(width: 8), artwork]);
+        },
+      ),
+    );
+  }
+}
+
+class ExecutorConnectionCard extends StatelessWidget {
+  const ExecutorConnectionCard({super.key, required this.lastUpdated});
+
+  final DateTime? lastUpdated;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    final time = lastUpdated == null ? '--:--' : DateFormat('h:mm a', 'ar').format(lastUpdated!);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 15),
+      decoration: BoxDecoration(
+        color: colors.surface,
+        borderRadius: BorderRadius.circular(17),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.92)),
+        boxShadow: [
+          BoxShadow(
+            color: _navy.withValues(alpha: 0.08),
+            blurRadius: 18,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          GlassIconBadge(icon: Icons.support_agent_outlined, color: _green, size: 48),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('حالة الاتصال', style: TextStyle(color: colors.onSurfaceVariant, fontSize: 12)),
+                const SizedBox(height: 3),
+                const Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.circle, color: _green, size: 9),
+                    SizedBox(width: 5),
+                    Text('متصل', style: TextStyle(color: AhramColors.emeraldDeep, fontWeight: FontWeight.w900)),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          Container(width: 1, height: 42, color: colors.outlineVariant),
+          const SizedBox(width: 14),
+          GlassIconBadge(icon: Icons.schedule_outlined, color: AhramColors.sky, size: 45),
+          const SizedBox(width: 9),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('آخر تحديث', style: TextStyle(color: colors.onSurfaceVariant, fontSize: 12)),
+              const SizedBox(height: 3),
+              Text(time, style: TextStyle(color: colors.onSurface, fontWeight: FontWeight.w900)),
+            ],
+          ),
+        ],
+      ),
     );
   }
 }
@@ -5130,6 +5538,7 @@ class ExecutorTaskTile extends StatelessWidget {
     super.key,
     required this.task,
     required this.busy,
+    required this.currentExecutorId,
     required this.onAccept,
     required this.onCancel,
     required this.onComplete,
@@ -5138,6 +5547,7 @@ class ExecutorTaskTile extends StatelessWidget {
 
   final Map<String, dynamic> task;
   final bool busy;
+  final String currentExecutorId;
   final VoidCallback onAccept;
   final VoidCallback onCancel;
   final VoidCallback onComplete;
@@ -5155,6 +5565,16 @@ class ExecutorTaskTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final accepted = task['status'] == 'accepted';
+    final acceptedById = '${task['operatorId'] ?? ''}'.trim();
+    final acceptedByName = '${task['acceptedByName'] ?? task['executorName'] ?? ''}'
+        .trim();
+    // An accepted task is actionable only by its owner. Treat missing ownership
+    // data as locked so an older API response cannot expose unsafe actions.
+    final acceptedByMe = accepted &&
+        (task['isOwnedByCurrentExecutor'] == true ||
+            (acceptedById.isNotEmpty && acceptedById == currentExecutorId));
+    final takenByAnother = accepted && !acceptedByMe;
+    final takenByLabel = acceptedByName.isEmpty ? 'منفذ آخر' : acceptedByName;
     final colors = Theme.of(context).colorScheme;
     final transferType = task['transferType']?.toString();
     final isCashWallet = transferType == 'vodafone';
@@ -5295,6 +5715,35 @@ class ExecutorTaskTile extends StatelessWidget {
               ],
             ),
           ],
+          if (takenByAnother) ...[
+            const Divider(height: 22),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: AhramColors.sky.withValues(alpha: 0.10),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(
+                  color: AhramColors.sky.withValues(alpha: 0.28),
+                ),
+              ),
+              child: Row(
+                children: [
+                  const Icon(
+                    Icons.lock_person_outlined,
+                    color: Color(0xFF1976D2),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      'تم سحب العملية بواسطة $takenByLabel',
+                      style: const TextStyle(fontWeight: FontWeight.w800),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
           const Divider(height: 26),
           if (!accepted)
             SizedBox(
@@ -5305,7 +5754,7 @@ class ExecutorTaskTile extends StatelessWidget {
                 label: const Text('قبول العملية'),
               ),
             )
-          else
+          else if (acceptedByMe)
             Row(
               children: [
                 Expanded(
@@ -5341,6 +5790,15 @@ class ExecutorTaskTile extends StatelessWidget {
                   ),
                 ),
               ],
+            )
+          else
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                onPressed: null,
+                icon: const Icon(Icons.lock_outline),
+                label: Text('مسحوبة بواسطة $takenByLabel'),
+              ),
             ),
         ],
       ),

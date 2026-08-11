@@ -165,6 +165,23 @@
             .mobile-tx-card:active {
                 transform: scale(0.98);
             }
+            .mobile-tx-card:has(.mobile-executor-menu.show) {
+                overflow: visible;
+                z-index: 1050;
+            }
+            .mobile-executor-routing .dropdown-menu {
+                width: 100%;
+                min-width: 100%;
+                max-height: min(55vh, 320px);
+                overflow-y: auto;
+                padding: 8px;
+                border-radius: 12px;
+                z-index: 1060;
+            }
+            .mobile-executor-routing .dropdown-item {
+                border-radius: 9px;
+                white-space: normal;
+            }
             .mobile-card-pending {
                 background: rgba(245, 158, 11, 0.02);
             }
@@ -747,16 +764,16 @@
                         %>
                             <div class="d-flex gap-2 mt-3 pt-2" style="border-top: 1px dashed var(--border-glass);">
                                 <% if(tx.status === 'pending') { %>
-                                    <div class="dropdown flex-fill">
-                                        <button class="btn btn-sm btn-primary fw-bold rounded-3 dropdown-toggle w-100" type="button" data-bs-toggle="dropdown" data-bs-boundary="viewport"><i class="fa-solid fa-paper-plane me-1"></i> توجيه</button>
-                                        <ul class="dropdown-menu border-0 shadow-lg" style="border-radius: 12px; min-width: 200px; z-index: 9999;">
-                                            <li class="px-3 py-2 text-muted small fw-bold border-bottom mb-1">اختر البوت لتنفيذ العملية:</li>
+                                    <div class="dropdown flex-fill mobile-executor-routing">
+                                        <button class="btn btn-sm btn-primary fw-bold rounded-3 dropdown-toggle w-100" type="button" data-bs-toggle="dropdown" data-bs-auto-close="outside" data-bs-display="static" aria-expanded="false"><i class="fa-solid fa-paper-plane me-1"></i> توجيه</button>
+                                        <ul class="dropdown-menu mobile-executor-menu border-0 shadow-lg">
+                                            <li class="px-2 py-2 text-muted small fw-bold border-bottom mb-1">اختر المنفذ لتنفيذ العملية:</li>
                                             <% if(mobileEligibleExecutorBots.length > 0) { %>
                                                 <% mobileEligibleExecutorBots.forEach(bot => { %>
                                                     <li>
                                                         <form action="/transaction/<%= tx._id %>/assign-executor" method="POST" class="m-0 p-0">
                                                             <input type="hidden" name="executorBotId" value="<%= bot._id %>">
-                                                            <button type="submit" class="dropdown-item py-2 fw-bold text-dark d-flex align-items-center"><i class="fa-solid fa-robot text-primary me-2"></i> <span><%= bot.name %><small class="d-block text-muted"><%= bot.serviceLabel %></small></span></button>
+                                                            <button type="submit" class="dropdown-item py-2 fw-bold text-dark d-flex align-items-center"><i class="fa-solid fa-user-gear text-primary me-2"></i> <span><%= bot.name %><small class="d-block text-muted"><%= bot.serviceLabel %></small></span></button>
                                                         </form>
                                                     </li>
                                                 <% }) %>

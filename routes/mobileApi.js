@@ -242,7 +242,7 @@ const buildReceiptProxyUrl = (req, ticket) => {
     return `${req.protocol}://${req.get('host')}/api/mobile/transaction/image/content?ticket=${ticket}`;
 };
 
-const toExecutorTaskDto = (tx) => ({
+const toExecutorTaskDto = (tx, currentExecutorId = null) => ({
     id: tx._id ? String(tx._id) : null,
     txId: tx.customId || null,
     transferType: tx.transferType || null,
@@ -252,6 +252,14 @@ const toExecutorTaskDto = (tx) => ({
     recipientName: tx.accountName || null,
     notes: customerFacingNotes(customerNoteFromTransaction(tx)) || null,
     status: tx.status || 'unknown',
+    operatorId: tx.operatorId ? String(tx.operatorId) : null,
+    acceptedByName: tx.status === 'accepted' ? (tx.executorName || null) : null,
+    isOwnedByCurrentExecutor: Boolean(
+        currentExecutorId &&
+        tx.status === 'accepted' &&
+        tx.operatorId &&
+        String(tx.operatorId) === String(currentExecutorId)
+    ),
     executorReceivedAt: tx.executorReceivedAt
         ? new Date(tx.executorReceivedAt).toISOString()
         : (tx.createdAt ? new Date(tx.createdAt).toISOString() : null),
@@ -1013,8 +1021,8 @@ router.get('/executor/live-tasks', authenticateJWT, async (req, res) => {
 
         return res.json({
             success: true,
-            data: tasks.map(toExecutorTaskDto),
-            alerts: alerts.map(toExecutorTaskDto),
+            data: tasks.map((task) => toExecutorTaskDto(task, userId)),
+            alerts: alerts.map((task) => toExecutorTaskDto(task, userId)),
             pollIntervalSeconds: 5,
             serverTime: new Date().toISOString()
         });

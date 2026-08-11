@@ -130,6 +130,8 @@ const toExecutorTaskDto = (tx) => {
         recipientNumber: tx.vodafoneNumber || tx.accountNumber || null,
         recipientName: tx.accountName || null,
         status: tx.status || 'unknown',
+        operatorId: tx.operatorId ? String(tx.operatorId) : null,
+        acceptedByName: tx.status === 'accepted' ? (tx.executorName || null) : null,
         createdAt: tx.createdAt ? new Date(tx.createdAt).toISOString() : null,
         emergencyAlert: tx.emergencyAlert || null
     };

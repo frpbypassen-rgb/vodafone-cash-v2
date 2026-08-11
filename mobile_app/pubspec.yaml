@@ -62,6 +62,7 @@ flutter:
 
   assets:
     - assets/images/alahrampay-logo.jpg
+    - assets/images/executor-live-bell.png
 
   fonts:
     - family: NotoSansArabic
