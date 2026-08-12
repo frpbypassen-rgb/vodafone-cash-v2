@@ -150,230 +150,188 @@ class _LoginScreenState extends State<LoginScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).colorScheme;
     return Scaffold(
-      body: SafeArea(
-        child: Stack(
-          children: [
-            const Positioned.fill(
-              child: IgnorePointer(child: _AhramBackdrop()),
-            ),
-            LayoutBuilder(
-              builder: (context, constraints) {
-                return Center(
-                  child: SingleChildScrollView(
-                    padding: const EdgeInsets.all(24),
-                    child: ConstrainedBox(
-                      constraints: const BoxConstraints(maxWidth: 430),
-                      child: Container(
-                        padding: const EdgeInsets.all(28),
-                        decoration: BoxDecoration(
-                          color: colors.surface,
-                          borderRadius: BorderRadius.circular(8),
-                          border: Border.all(color: colors.outlineVariant),
-                          boxShadow: [
-                            BoxShadow(
-                              color: _navy.withValues(alpha: 0.14),
-                              blurRadius: 28,
-                              offset: const Offset(0, 14),
-                            ),
-                            BoxShadow(
-                              color: colors.surface.withValues(alpha: 0.9),
-                              blurRadius: 2,
-                              offset: const Offset(0, -1),
-                            ),
-                          ],
+      body: DecoratedBox(
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topRight,
+            end: Alignment.bottomLeft,
+            colors: <Color>[Color(0xFF001A4D), Color(0xFF000C24)],
+          ),
+        ),
+        child: SafeArea(
+          child: LayoutBuilder(
+            builder: (context, constraints) => Center(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.all(22),
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 420),
+                  child: Container(
+                    padding: const EdgeInsets.fromLTRB(28, 34, 28, 28),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.97),
+                      borderRadius: BorderRadius.circular(24),
+                      border: Border(
+                        bottom: BorderSide(color: _gold, width: 6),
+                      ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.38),
+                          blurRadius: 42,
+                          offset: const Offset(0, 20),
                         ),
-                        child: Form(
-                          key: _formKey,
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.stretch,
-                            children: [
-                              const Align(
-                                alignment: AlignmentDirectional.centerStart,
-                                child: BrandMark(large: true),
-                              ),
-                              const SizedBox(height: 22),
-                              Container(
-                                width: 66,
-                                height: 4,
-                                decoration: BoxDecoration(
-                                  color: _gold,
-                                  borderRadius: BorderRadius.circular(8),
-                                ),
-                              ),
-                              const SizedBox(height: 22),
-                              Text(
-                                'تسجيل الدخول',
-                                style: Theme.of(context).textTheme.headlineSmall
-                                    ?.copyWith(
-                                      color: colors.onSurface,
-                                      fontWeight: FontWeight.w800,
-                                    ),
-                              ),
-                              const SizedBox(height: 6),
-                              Text(
-                                'استخدم بيانات حسابك للدخول إلى المنظومة.',
-                                style: Theme.of(context).textTheme.bodyMedium
-                                    ?.copyWith(color: colors.onSurfaceVariant),
-                              ),
-                              const SizedBox(height: 24),
-                              TextFormField(
-                                controller: _username,
-                                keyboardType: TextInputType.text,
-                                textDirection: ui.TextDirection.ltr,
-                                decoration: const InputDecoration(
-                                  labelText: 'اسم المستخدم',
-                                  prefixIcon: Icon(Icons.person_outline),
-                                ),
-                                validator: (value) {
-                                  if ((value ?? '').trim().length < 3) {
-                                    return 'أدخل اسم مستخدم صحيحاً.';
-                                  }
-                                  return null;
-                                },
-                                onFieldSubmitted: (_) => _signIn(),
-                              ),
-                              const SizedBox(height: 14),
-                              TextFormField(
-                                controller: _password,
-                                obscureText: _obscure,
-                                textDirection: ui.TextDirection.ltr,
-                                decoration: InputDecoration(
-                                  labelText: 'كلمة المرور',
-                                  prefixIcon: const Icon(Icons.lock_outline),
-                                  suffixIcon: IconButton(
-                                    tooltip: _obscure
-                                        ? 'إظهار كلمة المرور'
-                                        : 'إخفاء كلمة المرور',
-                                    onPressed: () =>
-                                        setState(() => _obscure = !_obscure),
-                                    icon: Icon(
-                                      _obscure
-                                          ? Icons.visibility_outlined
-                                          : Icons.visibility_off_outlined,
-                                    ),
-                                  ),
-                                ),
-                                validator: (value) {
-                                  if ((value ?? '').length < 4) {
-                                    return 'كلمة المرور يجب أن تحتوي على 4 أحرف على الأقل.';
-                                  }
-                                  return null;
-                                },
-                                onFieldSubmitted: (_) => _signIn(),
-                              ),
-                              if (_error != null) ...[
-                                const SizedBox(height: 14),
-                                InlineMessage(message: _error!, color: _danger),
-                              ],
-                              const SizedBox(height: 22),
-                              FilledButton.icon(
-                                onPressed: _busy ? null : _signIn,
-                                icon: _busy
-                                    ? const SizedBox(
-                                        width: 18,
-                                        height: 18,
-                                        child: CircularProgressIndicator(
-                                          strokeWidth: 2,
-                                          color: Colors.white,
-                                        ),
-                                      )
-                                    : const Icon(Icons.login),
-                                label: Text(
-                                  _busy ? 'جارٍ التحقق...' : 'دخول آمن',
-                                ),
-                                style: FilledButton.styleFrom(
-                                  minimumSize: const Size.fromHeight(56),
-                                ),
-                              ),
-                              const SizedBox(height: 18),
-                              Text(
-                                'شركة الأهرام',
-                                textAlign: TextAlign.center,
-                                style: Theme.of(context).textTheme.labelLarge
-                                    ?.copyWith(
-                                      color: colors.onSurfaceVariant,
-                                      letterSpacing: 0,
-                                    ),
-                              ),
-                            ],
+                      ],
+                    ),
+                    child: Form(
+                      key: _formKey,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          const _AhramLoginWordmark(),
+                          const SizedBox(height: 12),
+                          Container(
+                            width: 118,
+                            height: 3,
+                            margin: const EdgeInsets.symmetric(horizontal: 92),
+                            color: _gold,
                           ),
-                        ),
+                          const SizedBox(height: 16),
+                          const Text(
+                            'البوابة الموحدة',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              color: Color(0xFF667085),
+                              fontWeight: FontWeight.w800,
+                              fontSize: 14,
+                            ),
+                          ),
+                          const SizedBox(height: 28),
+                          TextFormField(
+                            controller: _username,
+                            keyboardType: TextInputType.text,
+                            textDirection: ui.TextDirection.ltr,
+                            decoration: const InputDecoration(
+                              labelText: 'اسم المستخدم',
+                              hintText: 'Username',
+                              prefixIcon: Icon(Icons.person_outline),
+                            ),
+                            validator: (value) {
+                              if ((value ?? '').trim().length < 3) {
+                                return 'أدخل اسم مستخدم صحيحاً.';
+                              }
+                              return null;
+                            },
+                            onFieldSubmitted: (_) => _signIn(),
+                          ),
+                          const SizedBox(height: 16),
+                          TextFormField(
+                            controller: _password,
+                            obscureText: _obscure,
+                            textDirection: ui.TextDirection.ltr,
+                            decoration: InputDecoration(
+                              labelText: 'كلمة المرور',
+                              hintText: 'Password',
+                              prefixIcon: const Icon(Icons.lock_outline),
+                              suffixIcon: IconButton(
+                                tooltip: _obscure
+                                    ? 'إظهار كلمة المرور'
+                                    : 'إخفاء كلمة المرور',
+                                onPressed: () =>
+                                    setState(() => _obscure = !_obscure),
+                                icon: Icon(
+                                  _obscure
+                                      ? Icons.visibility_outlined
+                                      : Icons.visibility_off_outlined,
+                                ),
+                              ),
+                            ),
+                            validator: (value) {
+                              if ((value ?? '').length < 4) {
+                                return 'كلمة المرور يجب أن تحتوي على 4 أحرف على الأقل.';
+                              }
+                              return null;
+                            },
+                            onFieldSubmitted: (_) => _signIn(),
+                          ),
+                          if (_error != null) ...[
+                            const SizedBox(height: 14),
+                            InlineMessage(message: _error!, color: _danger),
+                          ],
+                          const SizedBox(height: 24),
+                          SizedBox(
+                            height: 56,
+                            child: FilledButton.icon(
+                              onPressed: _busy ? null : _signIn,
+                              icon: _busy
+                                  ? const SizedBox(
+                                      width: 18,
+                                      height: 18,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                        color: Colors.white,
+                                      ),
+                                    )
+                                  : const Icon(Icons.arrow_back_rounded),
+                              label: Text(
+                                _busy ? 'جارٍ التحقق...' : 'تسجيل الدخول',
+                              ),
+                              style: FilledButton.styleFrom(
+                                backgroundColor: _gold,
+                                foregroundColor: Colors.white,
+                                elevation: 6,
+                                shadowColor: _gold.withValues(alpha: 0.34),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(16),
+                                ),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 22),
+                          const Text(
+                            'Power Pay AL-Ahram',
+                            textDirection: ui.TextDirection.ltr,
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              color: Color(0xFF667085),
+                              fontSize: 12,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                   ),
-                );
-              },
+                ),
+              ),
             ),
-          ],
+          ),
         ),
       ),
     );
   }
 }
 
-class _AhramBackdrop extends StatelessWidget {
-  const _AhramBackdrop();
+class _AhramLoginWordmark extends StatelessWidget {
+  const _AhramLoginWordmark();
 
   @override
   Widget build(BuildContext context) {
-    final dark = Theme.of(context).brightness == Brightness.dark;
-    return CustomPaint(
-      painter: _AhramBackdropPainter(
-        primary: (dark ? const Color(0xFF39C38D) : _green).withValues(
-          alpha: dark ? 0.14 : 0.11,
+    return RichText(
+      textAlign: TextAlign.center,
+      textDirection: ui.TextDirection.ltr,
+      text: const TextSpan(
+        style: TextStyle(
+          fontSize: 38,
+          fontWeight: FontWeight.w900,
+          fontFamily: 'NotoSansArabic',
+          letterSpacing: 0,
         ),
-        accent: (dark ? const Color(0xFFF1C767) : _gold).withValues(
-          alpha: dark ? 0.12 : 0.16,
-        ),
+        children: [
+          TextSpan(text: 'Ahram', style: TextStyle(color: Color(0xFF001A4D))),
+          TextSpan(text: ' Pay', style: TextStyle(color: _gold)),
+        ],
       ),
     );
-  }
-}
-
-class _AhramBackdropPainter extends CustomPainter {
-  const _AhramBackdropPainter({required this.primary, required this.accent});
-
-  final Color primary;
-  final Color accent;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final primaryPaint = Paint()
-      ..color = primary
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.2;
-    final accentPaint = Paint()
-      ..color = accent
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.2;
-
-    final top = Path()
-      ..moveTo(0, 84)
-      ..lineTo(84, 0)
-      ..lineTo(186, 0)
-      ..lineTo(0, 186);
-    canvas.drawPath(top, primaryPaint);
-
-    final bottom = Path()
-      ..moveTo(size.width, size.height - 148)
-      ..lineTo(size.width - 148, size.height)
-      ..lineTo(size.width - 36, size.height)
-      ..lineTo(size.width, size.height - 36);
-    canvas.drawPath(bottom, primaryPaint);
-
-    canvas.drawLine(
-      Offset(size.width - 112, 44),
-      Offset(size.width - 28, 44),
-      accentPaint,
-    );
-    canvas.drawLine(const Offset(28, 206), const Offset(104, 206), accentPaint);
-  }
-
-  @override
-  bool shouldRepaint(covariant _AhramBackdropPainter oldDelegate) {
-    return oldDelegate.primary != primary || oldDelegate.accent != accent;
   }
 }
 
