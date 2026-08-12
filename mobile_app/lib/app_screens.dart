@@ -28,6 +28,8 @@ String formatAmount(num? value, {int fractionDigits = 2}) {
   ).format(value ?? 0).trim();
 }
 
+String formatEgpAmount(num? value) => formatAmount(value, fractionDigits: 0);
+
 String formatDate(dynamic value) {
   if (value == null) return '-';
   final parsed = DateTime.tryParse('$value');
@@ -331,8 +333,14 @@ class _AhramLoginWordmark extends StatelessWidget {
           letterSpacing: 0,
         ),
         children: [
-          TextSpan(text: 'Ahram', style: TextStyle(color: Color(0xFF001A4D))),
-          TextSpan(text: ' Pay', style: TextStyle(color: _gold)),
+          TextSpan(
+            text: 'Ahram',
+            style: TextStyle(color: Color(0xFF001A4D)),
+          ),
+          TextSpan(
+            text: ' Pay',
+            style: TextStyle(color: _gold),
+          ),
         ],
       ),
     );
@@ -560,7 +568,8 @@ class _RoleShellState extends State<RoleShell> with WidgetsBindingObserver {
     // The login response already carries the executor-group balance. Keep it
     // as a fallback while the live overview is loading or being retried.
     final canViewCompanyBalance =
-        widget.controller.isExecutorManager || widget.controller.isExecutorAccountant;
+        widget.controller.isExecutorManager ||
+        widget.controller.isExecutorAccountant;
     final companyBalance = canViewCompanyBalance
         ? (company is Map
               ? numberValue(
@@ -573,10 +582,10 @@ class _RoleShellState extends State<RoleShell> with WidgetsBindingObserver {
         ? numberValue(performance['totalEGP'])
         : 0;
     final executorSubtitle = widget.controller.isExecutorManager
-        ? '$companyName · رصيد الشركة ${formatAmount(companyBalance)} ج.م'
+        ? '$companyName · رصيد الشركة ${formatEgpAmount(companyBalance)} ج.م'
         : (widget.controller.isExecutorAccountant
-              ? '$companyName · رصيد الشركة ${formatAmount(companyBalance)} ج.م'
-              : '$companyName · تنفيذاتك اليوم ${formatAmount(ownPerformance)} ج.م');
+              ? '$companyName · رصيد الشركة ${formatEgpAmount(companyBalance)} ج.م'
+              : '$companyName · تنفيذاتك اليوم ${formatEgpAmount(ownPerformance)} ج.م');
     final appBar = AppBar(
       toolbarHeight: 76,
       titleSpacing: 18,
@@ -1480,7 +1489,8 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                 ),
                 DetailLine(
                   label: 'القيمة',
-                  value: '${formatAmount(numberValue(detail['amount']))} ج.م',
+                  value:
+                      '${formatEgpAmount(numberValue(detail['amount']))} ج.م',
                 ),
                 DetailLine(
                   label: 'القيمة بالليبي',
@@ -1882,12 +1892,16 @@ class ExecutorTasksScreen extends StatefulWidget {
 
 class _ExecutorTasksScreenState extends State<ExecutorTasksScreen> {
   Timer? _timer;
+  Timer? _urgentToneTimer;
   List<Map<String, dynamic>> _tasks = <Map<String, dynamic>>[];
+  List<Map<String, dynamic>> _urgentAlerts = <Map<String, dynamic>>[];
   final Set<String> _seenTaskIds = <String>{};
+  final Set<String> _silencedUrgentAlertIds = <String>{};
   bool _receivedInitialSnapshot = false;
   bool _loading = true;
   Object? _error;
   bool _actionBusy = false;
+  bool _urgentAlarmPlaying = false;
   Map<String, dynamic>? _overview;
   DateTime? _lastUpdated;
 
@@ -1904,7 +1918,74 @@ class _ExecutorTasksScreenState extends State<ExecutorTasksScreen> {
   @override
   void dispose() {
     _timer?.cancel();
+    _urgentToneTimer?.cancel();
     super.dispose();
+  }
+
+  Future<void> _playUrgentTone() async {
+    await SystemSound.play(SystemSoundType.alert);
+    await HapticFeedback.heavyImpact();
+  }
+
+  void _startUrgentAlarm() {
+    if (_urgentAlarmPlaying) return;
+    _urgentAlarmPlaying = true;
+    unawaited(_playUrgentTone());
+    _urgentToneTimer = Timer.periodic(const Duration(seconds: 2), (_) {
+      unawaited(_playUrgentTone());
+    });
+  }
+
+  void _stopUrgentAlarm() {
+    _urgentToneTimer?.cancel();
+    _urgentToneTimer = null;
+    _urgentAlarmPlaying = false;
+  }
+
+  void _syncUrgentAlerts(List<Map<String, dynamic>> alerts) {
+    final wasPlaying = _urgentAlarmPlaying;
+    final activeIds = alerts
+        .map((alert) => '${alert['id'] ?? ''}')
+        .where((id) => id.isNotEmpty)
+        .toSet();
+    _silencedUrgentAlertIds.retainAll(activeIds);
+    final hasAudibleAlert = activeIds.any(
+      (id) => !_silencedUrgentAlertIds.contains(id),
+    );
+    if (hasAudibleAlert) {
+      _startUrgentAlarm();
+    } else {
+      _stopUrgentAlarm();
+    }
+    if (mounted && wasPlaying != _urgentAlarmPlaying) {
+      setState(() {});
+    }
+  }
+
+  void _silenceUrgentAlerts() {
+    setState(() {
+      _silencedUrgentAlertIds.addAll(
+        _urgentAlerts
+            .map((alert) => '${alert['id'] ?? ''}')
+            .where((id) => id.isNotEmpty),
+      );
+      _stopUrgentAlarm();
+    });
+  }
+
+  Future<void> _clearUrgentAlert(Map<String, dynamic> alert) async {
+    final id = '${alert['id'] ?? ''}'.trim();
+    if (id.isEmpty) return;
+    setState(() => _actionBusy = true);
+    try {
+      await widget.controller.api.clearExecutorEmergencyAlert(id);
+      if (mounted) showSnack(context, 'تمت مراجعة إنذار الاستعجال.');
+      await _load(silent: true);
+    } on ApiFailure catch (error) {
+      if (mounted) showSnack(context, error.message, error: true);
+    } finally {
+      if (mounted) setState(() => _actionBusy = false);
+    }
   }
 
   Future<void> _load({bool silent = false}) async {
@@ -1930,6 +2011,13 @@ class _ExecutorTasksScreenState extends State<ExecutorTasksScreen> {
                 .map((item) => Map<String, dynamic>.from(item))
                 .toList()
           : <Map<String, dynamic>>[];
+      final rawAlerts = response['alerts'];
+      final urgentAlerts = rawAlerts is List
+          ? rawAlerts
+                .whereType<Map>()
+                .map((item) => Map<String, dynamic>.from(item))
+                .toList()
+          : <Map<String, dynamic>>[];
       final taskIds = tasks
           .map((task) => '${task['id'] ?? ''}')
           .where((id) => id.isNotEmpty)
@@ -1949,8 +2037,10 @@ class _ExecutorTasksScreenState extends State<ExecutorTasksScreen> {
       if (mounted) {
         setState(() {
           _tasks = tasks;
+          _urgentAlerts = urgentAlerts;
           _lastUpdated = DateTime.now();
         });
+        _syncUrgentAlerts(urgentAlerts);
       }
     } catch (error) {
       if (!silent) _error = error;
@@ -2004,7 +2094,7 @@ class _ExecutorTasksScreenState extends State<ExecutorTasksScreen> {
 
   Future<void> _shareToWhatsApp(Map<String, dynamic> task) async {
     final phone = '${task['recipientNumber'] ?? '-'}';
-    final amount = formatAmount(numberValue(task['amount']));
+    final amount = formatEgpAmount(numberValue(task['amount']));
     final service =
         '${task['transferTypeLabel'] ?? serviceLabel(task['transferType']?.toString())}';
     final note = '${task['notes'] ?? ''}'.trim();
@@ -2037,7 +2127,8 @@ class _ExecutorTasksScreenState extends State<ExecutorTasksScreen> {
     }
     final company = _overview?['company'];
     final canViewCompanyBalance =
-        widget.controller.isExecutorManager || widget.controller.isExecutorAccountant;
+        widget.controller.isExecutorManager ||
+        widget.controller.isExecutorAccountant;
     final balance = canViewCompanyBalance
         ? (company is Map
               ? numberValue(
@@ -2054,6 +2145,20 @@ class _ExecutorTasksScreenState extends State<ExecutorTasksScreen> {
       child: [
         ExecutorBalanceHeroCard(balance: balance),
         const SizedBox(height: 16),
+        if (_urgentAlerts.isNotEmpty) ...[
+          ..._urgentAlerts.map(
+            (alert) => Padding(
+              padding: const EdgeInsets.only(bottom: 12),
+              child: ExecutorUrgentAlertCard(
+                alert: alert,
+                alarmPlaying: _urgentAlarmPlaying,
+                busy: _actionBusy,
+                onStop: _silenceUrgentAlerts,
+                onReview: () => _clearUrgentAlert(alert),
+              ),
+            ),
+          ),
+        ],
         const ExecutorLiveMonitoringCard(),
         const SizedBox(height: 18),
         if (_tasks.isEmpty)
@@ -2235,7 +2340,9 @@ class _ExecutorWalletVisual extends StatelessWidget {
                 (index) => Container(
                   width: 15,
                   height: 15,
-                  margin: EdgeInsetsDirectional.only(start: index == 0 ? 0 : -5),
+                  margin: EdgeInsetsDirectional.only(
+                    start: index == 0 ? 0 : -5,
+                  ),
                   decoration: BoxDecoration(
                     color: _gold,
                     shape: BoxShape.circle,
@@ -2284,7 +2391,10 @@ class ExecutorLiveMonitoringCard extends StatelessWidget {
                 const SizedBox(height: 5),
                 Text(
                   'جميع العمليات تتم مراقبتها في الوقت الحقيقي',
-                  style: TextStyle(color: colors.onSurfaceVariant, fontSize: 13),
+                  style: TextStyle(
+                    color: colors.onSurfaceVariant,
+                    fontSize: 13,
+                  ),
                 ),
               ],
             ),
@@ -2445,7 +2555,9 @@ class ExecutorConnectionCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
-    final time = lastUpdated == null ? '--:--' : DateFormat('h:mm a', 'ar').format(lastUpdated!);
+    final time = lastUpdated == null
+        ? '--:--'
+        : DateFormat('h:mm a', 'ar').format(lastUpdated!);
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 15),
       decoration: BoxDecoration(
@@ -2462,20 +2574,36 @@ class ExecutorConnectionCard extends StatelessWidget {
       ),
       child: Row(
         children: [
-          GlassIconBadge(icon: Icons.support_agent_outlined, color: _green, size: 48),
+          GlassIconBadge(
+            icon: Icons.support_agent_outlined,
+            color: _green,
+            size: 48,
+          ),
           const SizedBox(width: 10),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('حالة الاتصال', style: TextStyle(color: colors.onSurfaceVariant, fontSize: 12)),
+                Text(
+                  'حالة الاتصال',
+                  style: TextStyle(
+                    color: colors.onSurfaceVariant,
+                    fontSize: 12,
+                  ),
+                ),
                 const SizedBox(height: 3),
                 const Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Icon(Icons.circle, color: _green, size: 9),
                     SizedBox(width: 5),
-                    Text('متصل', style: TextStyle(color: AhramColors.emeraldDeep, fontWeight: FontWeight.w900)),
+                    Text(
+                      'متصل',
+                      style: TextStyle(
+                        color: AhramColors.emeraldDeep,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
                   ],
                 ),
               ],
@@ -2483,14 +2611,129 @@ class ExecutorConnectionCard extends StatelessWidget {
           ),
           Container(width: 1, height: 42, color: colors.outlineVariant),
           const SizedBox(width: 14),
-          GlassIconBadge(icon: Icons.schedule_outlined, color: AhramColors.sky, size: 45),
+          GlassIconBadge(
+            icon: Icons.schedule_outlined,
+            color: AhramColors.sky,
+            size: 45,
+          ),
           const SizedBox(width: 9),
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('آخر تحديث', style: TextStyle(color: colors.onSurfaceVariant, fontSize: 12)),
+              Text(
+                'آخر تحديث',
+                style: TextStyle(color: colors.onSurfaceVariant, fontSize: 12),
+              ),
               const SizedBox(height: 3),
-              Text(time, style: TextStyle(color: colors.onSurface, fontWeight: FontWeight.w900)),
+              Text(
+                time,
+                style: TextStyle(
+                  color: colors.onSurface,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class ExecutorUrgentAlertCard extends StatelessWidget {
+  const ExecutorUrgentAlertCard({
+    super.key,
+    required this.alert,
+    required this.alarmPlaying,
+    required this.busy,
+    required this.onStop,
+    required this.onReview,
+  });
+
+  final Map<String, dynamic> alert;
+  final bool alarmPlaying;
+  final bool busy;
+  final VoidCallback onStop;
+  final VoidCallback onReview;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    final message = '${alert['emergencyAlert'] ?? 'طلب يحتاج إلى تدخل عاجل'}'
+        .trim();
+    final taskId = '${alert['txId'] ?? alert['customId'] ?? '-'}';
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: _danger.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: _danger.withValues(alpha: 0.42)),
+        boxShadow: [
+          BoxShadow(
+            color: _danger.withValues(alpha: 0.10),
+            blurRadius: 18,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              GlassIconBadge(
+                icon: alarmPlaying
+                    ? Icons.notifications_active_outlined
+                    : Icons.notifications_paused_outlined,
+                color: _danger,
+                size: 46,
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'إنذار استعجال',
+                      style: TextStyle(
+                        color: colors.onSurface,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      'الطلب $taskId يحتاج إلى متابعة فورية.',
+                      style: TextStyle(color: colors.onSurfaceVariant),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Text(
+            message.isEmpty ? 'طلب يحتاج إلى تدخل عاجل' : message,
+            style: TextStyle(
+              color: colors.onSurface,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          const SizedBox(height: 14),
+          Wrap(
+            spacing: 10,
+            runSpacing: 10,
+            children: [
+              FilledButton.icon(
+                onPressed: alarmPlaying ? onStop : null,
+                icon: const Icon(Icons.volume_off_outlined),
+                label: const Text('إيقاف الصوت'),
+                style: FilledButton.styleFrom(backgroundColor: _danger),
+              ),
+              OutlinedButton.icon(
+                onPressed: busy ? null : onReview,
+                icon: const Icon(Icons.check_circle_outline),
+                label: const Text('تمت المراجعة'),
+              ),
             ],
           ),
         ],
@@ -2523,7 +2766,7 @@ class _ExecutorReportsScreenState extends State<ExecutorReportsScreen> {
   bool _month = false;
   DateTime _selectedDate = DateTime.now();
 
-  bool get _todayOnly => widget.controller.isExecutorOperator;
+  bool get _operatorOnly => widget.controller.isExecutorOperator;
 
   String get _dateValue => _month
       ? DateFormat('yyyy-MM').format(_selectedDate)
@@ -2544,10 +2787,8 @@ class _ExecutorReportsScreenState extends State<ExecutorReportsScreen> {
     }
     try {
       final response = await widget.controller.api.executorReports(
-        dateType: _todayOnly ? 'day' : (_month ? 'month' : 'day'),
-        dateValue: _todayOnly
-            ? DateFormat('yyyy-MM-dd').format(DateTime.now())
-            : _dateValue,
+        dateType: _operatorOnly ? 'day' : (_month ? 'month' : 'day'),
+        dateValue: _dateValue,
         employeeId: widget.employeeId,
       );
       final data = response['data'];
@@ -2581,10 +2822,8 @@ class _ExecutorReportsScreenState extends State<ExecutorReportsScreen> {
     setState(() => _downloading = true);
     try {
       final url = await widget.controller.api.executorReportDownloadUrl(
-        dateType: _todayOnly ? 'day' : (_month ? 'month' : 'day'),
-        dateValue: _todayOnly
-            ? DateFormat('yyyy-MM-dd').format(DateTime.now())
-            : _dateValue,
+        dateType: _operatorOnly ? 'day' : (_month ? 'month' : 'day'),
+        dateValue: _dateValue,
         employeeId: widget.employeeId,
       );
       final opened = await openPreparedReportDownload(downloadTarget, url);
@@ -2623,10 +2862,10 @@ class _ExecutorReportsScreenState extends State<ExecutorReportsScreen> {
         ? '${period['value'] ?? _dateValue}'
         : _dateValue;
     final title = widget.employeeName == null
-        ? 'تقارير التنفيذ'
+        ? (_operatorOnly ? 'تقاريري' : 'تقارير التنفيذ')
         : 'تقرير ${widget.employeeName}';
-    final subtitle = _todayOnly
-        ? 'عرض عمليات الشركة لليوم الحالي مع ملخص تنفيذاتك الشخصية.'
+    final subtitle = _operatorOnly
+        ? 'عرض عملياتك المنفذة فقط في اليوم الذي تختاره.'
         : 'مطابقة الحركات اليومية والشهرية مع حساب شركة التنفيذ.';
 
     return PageFrame(
@@ -2645,13 +2884,13 @@ class _ExecutorReportsScreenState extends State<ExecutorReportsScreen> {
             : const Icon(Icons.download_outlined),
       ),
       child: [
-        if (!_todayOnly) ...[
-          SurfacePanel(
-            child: Wrap(
-              spacing: 12,
-              runSpacing: 12,
-              crossAxisAlignment: WrapCrossAlignment.center,
-              children: [
+        SurfacePanel(
+          child: Wrap(
+            spacing: 12,
+            runSpacing: 12,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              if (!_operatorOnly)
                 SegmentedButton<bool>(
                   segments: const [
                     ButtonSegment<bool>(
@@ -2671,17 +2910,16 @@ class _ExecutorReportsScreenState extends State<ExecutorReportsScreen> {
                     _load();
                   },
                 ),
-                OutlinedButton.icon(
-                  onPressed: _pickPeriod,
-                  icon: const Icon(Icons.date_range_outlined),
-                  label: Text(periodValue),
-                ),
-              ],
-            ),
+              OutlinedButton.icon(
+                onPressed: _pickPeriod,
+                icon: const Icon(Icons.date_range_outlined),
+                label: Text(periodValue),
+              ),
+            ],
           ),
-          const SizedBox(height: 16),
-        ],
-        ExecutorReportSummary(report: report, operatorView: _todayOnly),
+        ),
+        const SizedBox(height: 16),
+        ExecutorReportSummary(report: report, operatorView: _operatorOnly),
         const SizedBox(height: 20),
         SectionTitle(
           title: 'العمليات المسجلة',
@@ -2689,10 +2927,12 @@ class _ExecutorReportsScreenState extends State<ExecutorReportsScreen> {
         ),
         const SizedBox(height: 10),
         if (operations.isEmpty)
-          const EmptyPanel(
+          EmptyPanel(
             icon: Icons.receipt_long_outlined,
             title: 'لا توجد عمليات في هذه الفترة',
-            message: 'ستظهر حركات التنفيذ فور تسجيلها على حساب الشركة.',
+            message: _operatorOnly
+                ? 'ستظهر عملياتك المنفذة في اليوم الذي اخترته.'
+                : 'ستظهر حركات التنفيذ فور تسجيلها على حساب الشركة.',
           )
         else
           ...operations.map(
@@ -2733,33 +2973,33 @@ class ExecutorReportSummary extends StatelessWidget {
         : colors.onSurfaceVariant;
 
     tiles.addAll([
-        ExecutorMetricCard(
-          label: 'عدد العمليات',
-          value: '${numberValue(report['operationCount']).toInt()}',
-          icon: Icons.receipt_long_outlined,
-          color: AhramColors.sky,
-        ),
-        ExecutorMetricCard(
-          label: 'الرصيد السابق',
-          value: '${formatAmount(previousBalance)} ج.م',
-          icon: Icons.history_outlined,
-          color: balanceColor(previousBalance),
-          valueColor: balanceColor(previousBalance),
-        ),
-        ExecutorMetricCard(
-          label: isMonthly ? 'صافي الشهر' : 'رصيد اليوم',
-          value: '${formatAmount(periodBalance)} ج.م',
-          icon: Icons.swap_vert_circle_outlined,
-          color: balanceColor(periodBalance),
-          valueColor: balanceColor(periodBalance),
-        ),
-        ExecutorMetricCard(
-          label: 'الرصيد الحالي',
-          value: '${formatAmount(currentBalance)} ج.م',
-          icon: Icons.account_balance_wallet_outlined,
-          color: balanceColor(currentBalance),
-          valueColor: balanceColor(currentBalance),
-        ),
+      ExecutorMetricCard(
+        label: 'عدد العمليات',
+        value: '${numberValue(report['operationCount']).toInt()}',
+        icon: Icons.receipt_long_outlined,
+        color: AhramColors.sky,
+      ),
+      ExecutorMetricCard(
+        label: 'الرصيد السابق',
+        value: '${formatEgpAmount(previousBalance)} ج.م',
+        icon: Icons.history_outlined,
+        color: balanceColor(previousBalance),
+        valueColor: balanceColor(previousBalance),
+      ),
+      ExecutorMetricCard(
+        label: isMonthly ? 'صافي الشهر' : 'رصيد اليوم',
+        value: '${formatEgpAmount(periodBalance)} ج.م',
+        icon: Icons.swap_vert_circle_outlined,
+        color: balanceColor(periodBalance),
+        valueColor: balanceColor(periodBalance),
+      ),
+      ExecutorMetricCard(
+        label: 'الرصيد الحالي',
+        value: '${formatEgpAmount(currentBalance)} ج.م',
+        icon: Icons.account_balance_wallet_outlined,
+        color: balanceColor(currentBalance),
+        valueColor: balanceColor(currentBalance),
+      ),
     ]);
 
     return Wrap(spacing: 12, runSpacing: 12, children: tiles);
@@ -2888,7 +3128,8 @@ class ExecutorReportOperationTile extends StatelessWidget {
               ),
               _Metric(
                 label: 'القيمة',
-                value: '${formatAmount(numberValue(operation['amount']))} ج.م',
+                value:
+                    '${formatEgpAmount(numberValue(operation['amount']))} ج.م',
                 color: _green,
               ),
               _Metric(
@@ -3033,7 +3274,8 @@ class _ExecutorSettingsScreenState extends State<ExecutorSettingsScreen> {
               if (company['balance'] != null)
                 DetailLine(
                   label: 'رصيد الشركة',
-                  value: '${formatAmount(numberValue(company['balance']))} ج.م',
+                  value:
+                      '${formatEgpAmount(numberValue(company['balance']))} ج.م',
                 ),
             ],
           ),
@@ -3063,7 +3305,8 @@ class _ExecutorSettingsScreenState extends State<ExecutorSettingsScreen> {
           const SizedBox(height: 18),
           ExecutorMetricCard(
             label: 'قيمة تنفيذاتك اليوم',
-            value: '${formatAmount(numberValue(performance['totalEGP']))} ج.م',
+            value:
+                '${formatEgpAmount(numberValue(performance['totalEGP']))} ج.م',
             icon: Icons.person_outline,
             color: const Color(0xFF7A57D1),
           ),
@@ -5318,7 +5561,7 @@ class TransactionTile extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
                   Text(
-                    '${formatAmount(numberValue(transaction['amount']))} ج.م',
+                    '${formatEgpAmount(numberValue(transaction['amount']))} ج.م',
                     style: TextStyle(
                       fontWeight: FontWeight.w900,
                       color: colors.onSurface,
@@ -5571,11 +5814,12 @@ class ExecutorTaskTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final accepted = task['status'] == 'accepted';
     final acceptedById = '${task['operatorId'] ?? ''}'.trim();
-    final acceptedByName = '${task['acceptedByName'] ?? task['executorName'] ?? ''}'
-        .trim();
+    final acceptedByName =
+        '${task['acceptedByName'] ?? task['executorName'] ?? ''}'.trim();
     // An accepted task is actionable only by its owner. Treat missing ownership
     // data as locked so an older API response cannot expose unsafe actions.
-    final acceptedByMe = accepted &&
+    final acceptedByMe =
+        accepted &&
         (task['isOwnedByCurrentExecutor'] == true ||
             (acceptedById.isNotEmpty && acceptedById == currentExecutorId));
     final takenByAnother = accepted && !acceptedByMe;
@@ -5584,7 +5828,7 @@ class ExecutorTaskTile extends StatelessWidget {
     final transferType = task['transferType']?.toString();
     final isCashWallet = transferType == 'vodafone';
     final recipient = '${task['recipientNumber'] ?? '-'}';
-    final amount = formatAmount(numberValue(task['amount']));
+    final amount = formatEgpAmount(numberValue(task['amount']));
     final notes = '${task['notes'] ?? ''}'.trim();
     final receivedAt = task['executorReceivedAt'] ?? task['createdAt'];
     return SurfacePanel(

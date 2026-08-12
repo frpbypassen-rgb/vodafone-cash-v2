@@ -376,6 +376,10 @@ class MobileApi {
     return _request('GET', '/executor/live-tasks');
   }
 
+  Future<Map<String, dynamic>> clearExecutorEmergencyAlert(String id) {
+    return _request('POST', '/executor/alerts/$id/clear');
+  }
+
   Future<Map<String, dynamic>> executorOverview() {
     return _request('GET', '/executor/overview');
   }

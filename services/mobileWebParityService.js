@@ -1081,8 +1081,10 @@ async function getExecutorReports({ executorId, dateType, dateValue, employeeId,
     let finalDateValue = String(dateValue || '').trim();
 
     if (isOperator) {
+        // The operator may select an earlier day, but never a monthly or
+        // company-wide report.
         finalDateType = 'day';
-        finalDateValue = today;
+        finalDateValue = finalDateValue || today;
     } else if (!finalDateValue) {
         finalDateValue = finalDateType === 'month' ? today.slice(0, 7) : today;
     }
@@ -1101,17 +1103,18 @@ async function getExecutorReports({ executorId, dateType, dateValue, employeeId,
         finalDateType === 'month' ? finalDateValue : null
     );
     const groupQuery = executorGroupQuery(emp.groupId, tenantId);
+    const scopedEmployee = targetEmployee || (isOperator ? emp : null);
     const baseQuery = { ...groupQuery };
-    if (targetEmployee) baseQuery.operatorId = String(targetEmployee._id);
+    if (scopedEmployee) baseQuery.operatorId = String(scopedEmployee._id);
 
     const [currentTransactions, groupPeriodTransactions] = await Promise.all([
         Transaction
             .find({ ...baseQuery, createdAt: { $gte: start, $lte: end } })
             .sort({ createdAt: -1 })
             .lean(),
-        targetEmployee
-            ? Transaction.find({ ...groupQuery, createdAt: { $gte: start, $lte: end } }).lean()
-            : Promise.resolve(null)
+        scopedEmployee
+            ? Promise.resolve(null)
+            : Transaction.find({ ...groupQuery, createdAt: { $gte: start, $lte: end } }).lean(),
     ]);
     const deposits = currentTransactions.filter((tx) =>
         ['deposit', 'deduction', 'deposit_pending'].includes(tx.status)
@@ -1123,12 +1126,19 @@ async function getExecutorReports({ executorId, dateType, dateValue, employeeId,
     const groupTotals = executorReportTotals(groupOperations);
     const ownTransactions = currentTransactions.filter((tx) => String(tx.operatorId || '') === String(emp._id));
     const ownTotals = executorReportTotals(ownTransactions);
-    const reportOwner = targetEmployee || emp;
-    const currentBalance = Number(group.balance || 0);
-    const periodBalance = -Number(groupTotals.totalEGP || 0);
+    const reportOwner = scopedEmployee || emp;
+    const isPersonalReport = Boolean(scopedEmployee);
+    // Personal reports deliberately use only that employee's completed work.
+    // This prevents an operator from inferring the execution company's balance.
+    const periodBalance = isPersonalReport
+        ? -Number(totals.totalEGP || 0)
+        : -Number(groupTotals.totalEGP || 0);
+    const currentBalance = isPersonalReport
+        ? periodBalance
+        : Number(group.balance || 0);
 
     return {
-        previousBalance: currentBalance - periodBalance,
+        previousBalance: isPersonalReport ? 0 : currentBalance - periodBalance,
         periodBalance,
         currentBalance,
         operationCount: operations.length,
@@ -1138,7 +1148,7 @@ async function getExecutorReports({ executorId, dateType, dateValue, employeeId,
         ...totals,
         totalDeposits: deposits.reduce((sum, tx) => sum + Number(tx.amount || tx.costLYD || 0), 0),
         role: emp.role,
-        scope: targetEmployee ? 'employee' : 'group',
+        scope: isPersonalReport ? 'employee' : 'group',
         reportPeriod: { type: finalDateType, value: finalDateValue, start, end },
         company: {
             id: group._id,
@@ -1150,10 +1160,10 @@ async function getExecutorReports({ executorId, dateType, dateValue, employeeId,
             totalEGP: ownTotals.totalEGP,
             completedCount: ownTotals.completedCount
         },
-        targetEmployee: targetEmployee ? {
-            id: targetEmployee._id,
-            name: targetEmployee.name,
-            role: targetEmployee.role
+        targetEmployee: scopedEmployee ? {
+            id: scopedEmployee._id,
+            name: scopedEmployee.name,
+            role: scopedEmployee.role
         } : null,
         entityInfo: {
             name: reportOwner.name,

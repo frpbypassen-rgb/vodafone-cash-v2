@@ -9,6 +9,7 @@ import 'mobile_api.dart';
 
 const _monitorChannelId = 'executor_monitoring';
 const _taskChannelId = 'executor_tasks';
+const _urgentChannelId = 'executor_urgent_alerts';
 const _monitorNotificationId = 7100;
 const _apiBaseUrl = String.fromEnvironment(
   'API_BASE_URL',
@@ -95,7 +96,9 @@ class ExecutorAlertService {
   }
 }
 
-Future<void> _createChannels(FlutterLocalNotificationsPlugin notifications) async {
+Future<void> _createChannels(
+  FlutterLocalNotificationsPlugin notifications,
+) async {
   const monitorChannel = AndroidNotificationChannel(
     _monitorChannelId,
     'مراقبة المنفذ',
@@ -111,12 +114,22 @@ Future<void> _createChannels(FlutterLocalNotificationsPlugin notifications) asyn
     playSound: true,
     enableVibration: true,
   );
+  const urgentChannel = AndroidNotificationChannel(
+    _urgentChannelId,
+    'إنذارات الاستعجال',
+    description:
+        'تنبيه مرتفع الأولوية للطلبات العاجلة التي تحتاج تدخلاً فورياً.',
+    importance: Importance.max,
+    playSound: true,
+    enableVibration: true,
+  );
   final android = notifications
       .resolvePlatformSpecificImplementation<
         AndroidFlutterLocalNotificationsPlugin
       >();
   await android?.createNotificationChannel(monitorChannel);
   await android?.createNotificationChannel(taskChannel);
+  await android?.createNotificationChannel(urgentChannel);
 }
 
 @pragma('vm:entry-point')
@@ -169,7 +182,17 @@ void executorAlertBackgroundEntry(ServiceInstance service) async {
           : <String, dynamic>{};
       final rawTasks = body['data'];
       final tasks = rawTasks is List
-          ? rawTasks.whereType<Map>().map((item) => Map<String, dynamic>.from(item)).toList()
+          ? rawTasks
+                .whereType<Map>()
+                .map((item) => Map<String, dynamic>.from(item))
+                .toList()
+          : <Map<String, dynamic>>[];
+      final rawAlerts = body['alerts'];
+      final urgentAlerts = rawAlerts is List
+          ? rawAlerts
+                .whereType<Map>()
+                .map((item) => Map<String, dynamic>.from(item))
+                .toList()
           : <Map<String, dynamic>>[];
       final openTasks = tasks.where((task) {
         final status = '${task['status'] ?? ''}';
@@ -180,17 +203,24 @@ void executorAlertBackgroundEntry(ServiceInstance service) async {
           .where((id) => id.isNotEmpty)
           .toSet();
       final newTasks = initialized
-          ? openTasks.where((task) => !seenTaskIds.contains('${task['id']}')).toList()
+          ? openTasks
+                .where((task) => !seenTaskIds.contains('${task['id']}'))
+                .toList()
           : <Map<String, dynamic>>[];
       seenTaskIds
         ..clear()
         ..addAll(taskIds);
       if (!initialized) {
         initialized = true;
+        if (!appVisible && urgentAlerts.isNotEmpty) {
+          await _showUrgentAlert(notifications, urgentAlerts.first);
+        }
         return;
       }
       if (appVisible) return;
-      if (newTasks.isNotEmpty) {
+      if (urgentAlerts.isNotEmpty) {
+        await _showUrgentAlert(notifications, urgentAlerts.first);
+      } else if (newTasks.isNotEmpty) {
         await _showTaskAlert(notifications, newTasks.first, reminder: false);
       } else if (openTasks.isNotEmpty) {
         await _showTaskAlert(notifications, openTasks.first, reminder: true);
@@ -202,6 +232,31 @@ void executorAlertBackgroundEntry(ServiceInstance service) async {
 
   await poll();
   Timer.periodic(const Duration(minutes: 1), (_) => poll());
+}
+
+Future<void> _showUrgentAlert(
+  FlutterLocalNotificationsPlugin notifications,
+  Map<String, dynamic> task,
+) {
+  final phone = '${task['recipientNumber'] ?? '-'}';
+  final message = '${task['emergencyAlert'] ?? 'طلب يحتاج إلى تدخل عاجل'}';
+  return notifications.show(
+    id: DateTime.now().millisecondsSinceEpoch.remainder(1 << 31),
+    title: 'إنذار استعجال - تدخل مطلوب',
+    body: '$message | رقم العميل: $phone',
+    notificationDetails: const NotificationDetails(
+      android: AndroidNotificationDetails(
+        _urgentChannelId,
+        'إنذارات الاستعجال',
+        channelDescription:
+            'تنبيه مرتفع الأولوية للطلبات العاجلة التي تحتاج تدخلاً فورياً.',
+        importance: Importance.max,
+        priority: Priority.max,
+        playSound: true,
+        enableVibration: true,
+      ),
+    ),
+  );
 }
 
 Future<void> _showTaskAlert(
