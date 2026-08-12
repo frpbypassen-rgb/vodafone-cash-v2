@@ -58,6 +58,13 @@ eventBus.on('transfer:completed', async (data) => {
         const { tx, emp } = data;
         logger.financial('Transfer Completed Event Received', { customId: tx.customId, status: tx.status });
 
+        // Start external delivery immediately after the completed transaction is persisted.
+        // Journal and in-app notification work can continue without delaying WhatsApp.
+        const { sendCompletedTransactionReceipt } = require('./whatsappReceiptDeliveryService');
+        const receiptDelivery = sendCompletedTransactionReceipt(tx).catch((error) => {
+            logger.error('Failed to send WhatsApp receipt', { customId: tx.customId, error: error.message });
+        });
+
         const { recordTransferRealization } = require('./agencyJournalService');
         await recordTransferRealization(tx).catch((error) => {
             logger.error('Failed to realize agency journal transfer', { customId: tx.customId, error: error.message });
@@ -71,11 +78,7 @@ eventBus.on('transfer:completed', async (data) => {
             await addNotificationJob(tx.userId, 'تم إتمام الحوالة بنجاح', msg, 'transfer_complete');
         }
 
-        // الإيصال الخارجي غير حرج لمسار التحويل؛ أي تعذر في الإرسال يُسجّل ولا يعطل العملية المالية.
-        const { sendCompletedTransactionReceipt } = require('./whatsappReceiptDeliveryService');
-        await sendCompletedTransactionReceipt(tx).catch((error) => {
-            logger.error('Failed to send WhatsApp receipt', { customId: tx.customId, error: error.message });
-        });
+        await receiptDelivery;
     } catch (err) {
         logger.error('Failed to handle transfer:completed event', { error: err.message });
     }

@@ -2049,6 +2049,7 @@ class _TransferScreenState extends State<TransferScreen> {
   final _formKey = GlobalKey<FormState>();
   final _amount = TextEditingController();
   final _number = TextEditingController();
+  final _clientPhone = TextEditingController();
   final _name = TextEditingController();
   final _city = TextEditingController();
   final _notes = TextEditingController();
@@ -2070,6 +2071,7 @@ class _TransferScreenState extends State<TransferScreen> {
   void dispose() {
     _amount.dispose();
     _number.dispose();
+    _clientPhone.dispose();
     _name.dispose();
     _city.dispose();
     _notes.dispose();
@@ -2224,6 +2226,8 @@ class _TransferScreenState extends State<TransferScreen> {
       'transferType': _serviceKey,
       'amount': amount,
       'number': _number.text.trim(),
+      if (_clientPhone.text.trim().isNotEmpty)
+        'clientPhone': _clientPhone.text.trim(),
       if (_requiresName) 'name': _name.text.trim(),
       if (_requiresCity) 'city': _city.text.trim(),
       if (_notes.text.trim().isNotEmpty) 'notes': _notes.text.trim(),
@@ -2286,6 +2290,7 @@ class _TransferScreenState extends State<TransferScreen> {
       setState(() {
         _amount.clear();
         _number.clear();
+        _clientPhone.clear();
         _name.clear();
         _city.clear();
         _notes.clear();
@@ -2388,6 +2393,29 @@ class _TransferScreenState extends State<TransferScreen> {
                           _serviceKey == 'nita_account') &&
                       !RegExp(r'^\d{8,10}$').hasMatch(normalized)) {
                     return 'رقم حساب NITA يجب أن يتكون من 8 إلى 10 أرقام.';
+                  }
+                  return null;
+                },
+              ),
+              TextFormField(
+                controller: _clientPhone,
+                enabled: !_busy,
+                keyboardType: TextInputType.phone,
+                textDirection: ui.TextDirection.ltr,
+                decoration: const InputDecoration(
+                  labelText: 'رقم واتساب العميل (اختياري)',
+                  hintText: '09xxxxxxxx أو 01xxxxxxxxx',
+                  helperText: 'يرسل الإيصال إلى هذا الرقم بعد نجاح العملية.',
+                  prefixIcon: Icon(Icons.chat_outlined),
+                ),
+                validator: (value) {
+                  final phone = (value ?? '').trim();
+                  if (phone.isEmpty) return null;
+                  final digits = phone.replaceAll(RegExp(r'\D'), '');
+                  final isLibyan = RegExp(r'^09\d{8}$').hasMatch(digits);
+                  final isEgyptian = RegExp(r'^01\d{9}$').hasMatch(digits);
+                  if (!isLibyan && !isEgyptian && digits.length < 8) {
+                    return 'أدخل رقمًا ليبيًا يبدأ بـ 09 أو مصريًا يبدأ بـ 01.';
                   }
                   return null;
                 },

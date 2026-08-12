@@ -166,10 +166,11 @@ exports.postTransfer = async (req, res) => {
         const notes = normalizeCustomerNoteInput(req.body);
         const accountName = String(req.body.name || '').trim().slice(0, 160);
         const accountNumber = String(serviceKey === 'post_card' ? nationalId : (req.body.number || phone)).trim().slice(0, 100);
-        const clientPhone = String(req.body.clientPhone || '').trim().slice(0, 30);
+        let clientPhone = String(req.body.clientPhone || '').trim().slice(0, 30);
         if (clientPhone) {
             try {
-                normalizeWhatsAppPhone(clientPhone);
+                // Store one canonical WhatsApp number: 09... is Libyan and 01... is Egyptian.
+                clientPhone = normalizeWhatsAppPhone(clientPhone);
             } catch (_error) {
                 throw createClientError('رقم واتساب العميل غير صالح. أدخل رقماً ليبياً أو مصرياً صحيحاً أو رقماً بمفتاح الدولة.', 400);
             }

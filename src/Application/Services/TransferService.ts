@@ -172,7 +172,7 @@ export class TransferService {
             const notes = transferData.notes?.trim();
             const serviceSubtype = transferData.serviceSubtype?.trim();
             const city = transferData.city?.trim();
-            const clientPhone = String(transferData.clientPhone || '').trim().slice(0, 30);
+            let clientPhone = String(transferData.clientPhone || '').trim().slice(0, 30);
             const currency = transferData.currency || 'EGP';
             const storedNotes = [
                 notes,
@@ -182,7 +182,8 @@ export class TransferService {
 
             if (clientPhone) {
                 try {
-                    normalizeWhatsAppPhone(clientPhone);
+                    // Store a canonical number so 09... always routes to Libya and 01... to Egypt.
+                    clientPhone = normalizeWhatsAppPhone(clientPhone);
                 } catch (_error) {
                     await session.abortTransaction();
                     session.endSession();
@@ -195,7 +196,10 @@ export class TransferService {
                 }
             }
 
-            const idempotencyFingerprint = this.buildTransferFingerprint(userId, accountType, transferData);
+            const idempotencyFingerprint = this.buildTransferFingerprint(userId, accountType, {
+                ...transferData,
+                clientPhone
+            });
 
             // 1. التحقق من منع التكرار (Idempotency)
             if (idempotencyKey) {

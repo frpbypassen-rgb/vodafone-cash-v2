@@ -44,6 +44,7 @@ describe('WhatChimp WhatsApp service', () => {
     test('normalizes Egyptian and Libyan numbers for WhatsApp', () => {
         expect(whatsappService.normalizeWhatsAppPhone('01108172258')).toBe('201108172258');
         expect(whatsappService.normalizeWhatsAppPhone('0912345678')).toBe('218912345678');
+        expect(whatsappService.normalizeWhatsAppPhone('0940719000')).toBe('218940719000');
         expect(whatsappService.normalizeWhatsAppPhone('+218 91 234 5678')).toBe('218912345678');
         expect(whatsappService.normalizeWhatsAppPhone('٠٩٤٠٧١٩٠٠٠')).toBe('218940719000');
     });
