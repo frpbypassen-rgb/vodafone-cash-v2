@@ -27,6 +27,7 @@ const { pricingFromTransaction, roundMoney } = require('../utils/agencyPricing')
 const { recordTransferRepricing } = require('./agencyJournalService');
 const { generateExecutorReceiptBase64 } = require('../utils/manualExecutorReceipt');
 const { calculateTransferCostLYD, isSourceToLydRate } = require('../utils/transferPricing');
+const eventBus = require('./eventBus');
 
 const appendNoteText = (current, note) => {
     const cleanNote = String(note || '').trim();
@@ -923,6 +924,10 @@ async function executeZaynPayIdempotent({ executorId, taskId, req }) {
             session.endSession();
             throw err;
         }
+
+        // ZaynPay completes from the mobile executor flow, so publish the same event used
+        // by web and API executors to send a single WhatsApp receipt.
+        eventBus.publish('transfer:completed', { tx, emp });
 
         return { replayed: false, response: successResponse };
     } finally {

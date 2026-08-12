@@ -25,6 +25,8 @@ jest.mock('../services/whatsappService', () => ({
 
 const Transaction = require('../models/Transaction');
 const User = require('../models/User');
+const ClientCompany = require('../models/ClientCompany');
+const ClientEmployee = require('../models/ClientEmployee');
 const WhatsAppDelivery = require('../models/WhatsAppDelivery');
 const { acquireLock, releaseLock } = require('../services/lockService');
 const { createReceiptImageUrl } = require('../services/receiptShareService');
@@ -104,6 +106,46 @@ describe('WhatsApp receipt delivery', () => {
             recipientModel: 'TransactionRecipient',
             recipientPhone: '218940719000',
             metadata: expect.objectContaining({ recipientSource: 'client_phone' })
+        });
+        expect(result).toMatchObject({ success: true, recipientPhone: '218940719000' });
+    });
+    test('falls back to the company account that created the transfer when no client phone was supplied', async () => {
+        const transaction = {
+            _id: 'tx-company-sender',
+            customId: 'ATT-2608-0003',
+            status: 'completed',
+            companyId: 'company-1',
+            userId: 'company.manager',
+            employeeName: 'Account manager',
+            transferType: 'vodafone',
+            amount: 100,
+            proofImage: 'proofs/ATT-2608-0003.jpg'
+        };
+        Transaction.findById.mockResolvedValue(transaction);
+        ClientEmployee.findOne.mockResolvedValue({
+            _id: 'employee-1',
+            name: 'Account manager',
+            phone: '0940719000'
+        });
+        normalizeWhatsAppPhone.mockReturnValue('218940719000');
+        WhatsAppDelivery.findOne.mockResolvedValue(null);
+
+        const result = await sendCompletedTransactionReceipt(transaction);
+
+        expect(ClientEmployee.findOne).toHaveBeenCalledWith(expect.objectContaining({
+            companyId: 'company-1',
+            $or: [{ phone: 'company.manager' }, { webUsername: 'company.manager' }]
+        }));
+        expect(ClientCompany.findById).not.toHaveBeenCalled();
+        expect(sendReceipt).toHaveBeenCalledWith(expect.objectContaining({
+            phone: '218940719000',
+            accountName: 'Account manager',
+            amount: '100',
+            currency: 'ج.م'
+        }));
+        expect(WhatsAppDelivery.mock.instances[0].metadata).toMatchObject({
+            recipientSource: 'account_sender',
+            service: 'محافظ كاش'
         });
         expect(result).toMatchObject({ success: true, recipientPhone: '218940719000' });
     });

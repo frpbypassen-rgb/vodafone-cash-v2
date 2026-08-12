@@ -78,6 +78,7 @@ const {
 const { reserveManualExecutorReceiptReference } = require('../services/manualExecutorReceiptReferenceService');
 const { reversalService } = require('../src/Application/Services/ReversalService');
 const { executorTransferRequiresProof } = require('../utils/executorServiceCatalog');
+const eventBus = require('../services/eventBus');
 const {
     findBrowserExecutable,
     getSharedBrowser,
@@ -1334,6 +1335,10 @@ router.post('/executor/complete-task/:id', authenticateJWT, completeTaskValidato
             },
             metadata: { customId: tx.customId, amount: tx.amount, transferType: tx.transferType }
         });
+
+        // Publish after persistence. The shared listener sends the WhatsApp receipt with
+        // idempotency protection, exactly like the web and API executor channels.
+        eventBus.publish('transfer:completed', { tx, emp });
 
         return res.json({ success: true, message: 'تم إرسال الإثبات بنجاح' });
     } catch (e) {

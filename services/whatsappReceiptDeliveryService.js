@@ -50,6 +50,30 @@ const safelyFind = async (operation) => {
     }
 };
 
+const findCompanyTransferSender = async (transaction) => {
+    const userId = String(transaction.userId || '').trim();
+    if (!transaction.companyId || !userId) return null;
+
+    return safelyFind(() => ClientEmployee.findOne({
+        companyId: transaction.companyId,
+        $or: [{ phone: userId }, { webUsername: userId }]
+    }));
+};
+
+const findCompanyManager = async (transaction) => {
+    if (!transaction.companyId) return null;
+
+    return safelyFind(() => ClientEmployee.findOne({
+        companyId: transaction.companyId,
+        phone: { $exists: true, $nin: ['', null] },
+        $or: [
+            { role: 'owner' },
+            { canManageCompany: true },
+            { canCreateCompanyStaff: true }
+        ]
+    }));
+};
+
 const resolveReceiptRecipient = async (transaction) => {
     if (!transaction) return null;
 
@@ -73,20 +97,32 @@ const resolveReceiptRecipient = async (transaction) => {
     }
 
     if (transaction.companyId) {
-        const userId = String(transaction.userId || '').trim();
-        const employee = userId
-            ? await safelyFind(() => ClientEmployee.findOne({
-                companyId: transaction.companyId,
-                $or: [{ phone: userId }, { webUsername: userId }]
-            }))
-            : null;
-        if (employee?.phone) {
-            return { phone: employee.phone, name: employee.name || transaction.employeeName || '', model: 'ClientEmployee', id: employee._id, source: 'account' };
+        // The staff account that created the transfer is the company fallback recipient.
+        const sender = await findCompanyTransferSender(transaction);
+        if (sender?.phone) {
+            return {
+                phone: sender.phone,
+                name: sender.name || transaction.employeeName || '',
+                model: 'ClientEmployee',
+                id: sender._id,
+                source: 'account_sender'
+            };
+        }
+
+        const manager = await findCompanyManager(transaction);
+        if (manager?.phone) {
+            return {
+                phone: manager.phone,
+                name: manager.name || transaction.companyName || '',
+                model: 'ClientEmployee',
+                id: manager._id,
+                source: 'company_manager'
+            };
         }
 
         const company = await safelyFind(() => ClientCompany.findById(transaction.companyId));
         if (company?.phone) {
-            return { phone: company.phone, name: company.name || transaction.companyName || '', model: 'ClientCompany', id: company._id, source: 'account' };
+            return { phone: company.phone, name: company.name || transaction.companyName || '', model: 'ClientCompany', id: company._id, source: 'company_account' };
         }
     }
 
@@ -278,5 +314,7 @@ const sendCompletedTransactionReceipt = async (transactionInput) => {
 
 module.exports = {
     resolveReceiptRecipient,
+    findCompanyTransferSender,
+    findCompanyManager,
     sendCompletedTransactionReceipt
 };
