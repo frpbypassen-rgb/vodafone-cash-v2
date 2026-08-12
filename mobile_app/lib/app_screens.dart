@@ -10,6 +10,7 @@ import 'package:intl/intl.dart';
 
 import 'appearance_controller.dart';
 import 'brand_theme.dart';
+import 'executor_alert_service.dart';
 import 'external_link.dart';
 import 'mobile_api.dart';
 import 'report_download.dart';
@@ -135,6 +136,9 @@ class _LoginScreenState extends State<LoginScreen> {
         username: _username.text.trim(),
         password: _password.text,
       );
+      if (widget.controller.isExecutor) {
+        await ExecutorAlertService.instance.requestPermissionsAndStart();
+      }
     } on ApiFailure catch (error) {
       if (mounted) setState(() => _error = error.message);
     } catch (_) {
@@ -349,7 +353,7 @@ class RoleShell extends StatefulWidget {
   State<RoleShell> createState() => _RoleShellState();
 }
 
-class _RoleShellState extends State<RoleShell> {
+class _RoleShellState extends State<RoleShell> with WidgetsBindingObserver {
   late final List<_NavItem> _items;
   int _index = 0;
   Map<String, dynamic>? _executorOverview;
@@ -359,8 +363,24 @@ class _RoleShellState extends State<RoleShell> {
     super.initState();
     _items = _createItems();
     if (widget.controller.isExecutor) {
+      WidgetsBinding.instance.addObserver(this);
       unawaited(_loadExecutorOverview());
+      unawaited(ExecutorAlertService.instance.startForStoredExecutor());
+      unawaited(ExecutorAlertService.instance.setAppVisible(true));
     }
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (!widget.controller.isExecutor) return;
+    final visible = state == AppLifecycleState.resumed;
+    unawaited(ExecutorAlertService.instance.setAppVisible(visible));
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
   }
 
   Future<void> _loadExecutorOverview() async {
@@ -523,7 +543,10 @@ class _RoleShellState extends State<RoleShell> {
         ],
       ),
     );
-    if (approved == true && mounted) await widget.controller.signOut();
+    if (approved == true && mounted) {
+      await ExecutorAlertService.instance.stop();
+      await widget.controller.signOut();
+    }
   }
 
   @override
@@ -2069,66 +2092,72 @@ class ExecutorBalanceHeroCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final dark = Theme.of(context).brightness == Brightness.dark;
     final colors = Theme.of(context).colorScheme;
-    return Container(
-      height: 156,
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 17),
-      decoration: BoxDecoration(
-        color: dark ? const Color(0xFF15243D) : colors.surface,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(
-          color: dark
-              ? Colors.white.withValues(alpha: 0.10)
-              : Colors.white.withValues(alpha: 0.92),
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: _navy.withValues(alpha: dark ? 0.30 : 0.12),
-            blurRadius: 24,
-            offset: const Offset(0, 12),
-          ),
-        ],
-      ),
-      child: Row(
-        children: [
-          GlassIconBadge(
-            icon: Icons.visibility_outlined,
-            color: AhramColors.sky,
-            size: 54,
-          ),
-          const SizedBox(width: 18),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Text(
-                  'رصيد المنفذ',
-                  style: TextStyle(
-                    color: colors.onSurfaceVariant,
-                    fontSize: 15,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-                const SizedBox(height: 6),
-                FittedBox(
-                  fit: BoxFit.scaleDown,
-                  alignment: AlignmentDirectional.centerStart,
-                  child: Text(
-                    '${formatAmount(balance, fractionDigits: 0)} ج.م',
-                    textDirection: ui.TextDirection.ltr,
-                    style: TextStyle(
-                      color: colors.onSurface,
-                      fontSize: 33,
-                      fontWeight: FontWeight.w900,
-                    ),
-                  ),
-                ),
-              ],
+    final safeBalance = balance.isFinite ? balance : 0.0;
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final compact = constraints.maxWidth < 390;
+        return Container(
+          height: compact ? 132 : 156,
+          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
+          decoration: BoxDecoration(
+            color: dark ? const Color(0xFF15243D) : colors.surface,
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(
+              color: dark
+                  ? Colors.white.withValues(alpha: 0.10)
+                  : Colors.white.withValues(alpha: 0.92),
             ),
+            boxShadow: [
+              BoxShadow(
+                color: _navy.withValues(alpha: dark ? 0.30 : 0.12),
+                blurRadius: 24,
+                offset: const Offset(0, 12),
+              ),
+            ],
           ),
-          const _ExecutorWalletVisual(),
-        ],
-      ),
+          child: Row(
+            children: [
+              GlassIconBadge(
+                icon: Icons.visibility_outlined,
+                color: AhramColors.sky,
+                size: 52,
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text(
+                      'رصيد المنفذ',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: colors.onSurfaceVariant,
+                        fontSize: 15,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      '${formatAmount(safeBalance, fractionDigits: 0)} ج.م',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      textDirection: ui.TextDirection.ltr,
+                      style: TextStyle(
+                        color: colors.onSurface,
+                        fontSize: compact ? 27 : 33,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              if (!compact) const _ExecutorWalletVisual(),
+            ],
+          ),
+        );
+      },
     );
   }
 }

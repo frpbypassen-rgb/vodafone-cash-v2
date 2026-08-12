@@ -5,11 +5,13 @@ import 'package:intl/date_symbol_data_local.dart';
 import 'appearance_controller.dart';
 import 'app_screens.dart';
 import 'brand_theme.dart';
+import 'executor_alert_service.dart';
 import 'mobile_api.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await initializeDateFormatting('ar');
+  await ExecutorAlertService.instance.configure();
   final controller = SessionController(SessionStore());
   await controller.restore();
   runApp(
