@@ -292,6 +292,32 @@ class _LoginScreenState extends State<LoginScreen> {
                               ),
                             ),
                           ),
+                          const SizedBox(height: 12),
+                          SizedBox(
+                            height: 52,
+                            child: OutlinedButton.icon(
+                              onPressed: _busy
+                                  ? null
+                                  : () => Navigator.of(context).push(
+                                      MaterialPageRoute<void>(
+                                        builder: (_) => RegistrationScreen(
+                                          api: widget.controller.api,
+                                        ),
+                                      ),
+                                    ),
+                              icon: const Icon(Icons.person_add_alt_1_outlined),
+                              label: const Text('إنشاء حساب جديد'),
+                              style: OutlinedButton.styleFrom(
+                                foregroundColor: const Color(0xFF001A4D),
+                                side: const BorderSide(
+                                  color: Color(0xFF001A4D),
+                                ),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(16),
+                                ),
+                              ),
+                            ),
+                          ),
                           const SizedBox(height: 22),
                           const Text(
                             'Power Pay AL-Ahram',
@@ -342,6 +368,708 @@ class _AhramLoginWordmark extends StatelessWidget {
             style: TextStyle(color: _gold),
           ),
         ],
+      ),
+    );
+  }
+}
+
+enum RegistrationAccountType { direct, company, agent, newClient }
+
+extension RegistrationAccountTypeDetails on RegistrationAccountType {
+  String get title => switch (this) {
+    RegistrationAccountType.direct => 'عميل مباشر',
+    RegistrationAccountType.company => 'حساب شركة',
+    RegistrationAccountType.agent => 'وكيل منطقة',
+    RegistrationAccountType.newClient => 'عميل جديد',
+  };
+
+  String get subtitle => switch (this) {
+    RegistrationAccountType.direct => 'حساب مستقل للعميل',
+    RegistrationAccountType.company => 'إدارة حسابات الشركة',
+    RegistrationAccountType.agent => 'إدارة عملاء المنطقة',
+    RegistrationAccountType.newClient => 'عميل تابع لوكيل',
+  };
+
+  IconData get icon => switch (this) {
+    RegistrationAccountType.direct => Icons.person_outline_rounded,
+    RegistrationAccountType.company => Icons.business_outlined,
+    RegistrationAccountType.agent => Icons.map_outlined,
+    RegistrationAccountType.newClient => Icons.person_add_alt_1_outlined,
+  };
+}
+
+class RegistrationScreen extends StatefulWidget {
+  const RegistrationScreen({super.key, required this.api});
+
+  final MobileApi api;
+
+  @override
+  State<RegistrationScreen> createState() => _RegistrationScreenState();
+}
+
+class _RegistrationScreenState extends State<RegistrationScreen> {
+  static const _cities = <String>[
+    'طرابلس',
+    'بنغازي',
+    'مصراتة',
+    'الزاوية',
+    'زليتن',
+    'الخمس',
+    'سبها',
+    'سرت',
+    'درنة',
+    'طبرق',
+    'البيضاء',
+    'اجدابيا',
+    'غريان',
+    'المرج',
+    'نالوت',
+    'زوارة',
+    'صبراتة',
+    'صرمان',
+    'يفرن',
+    'ترهونة',
+    'بني وليد',
+    'غات',
+    'غدامس',
+    'أوباري',
+    'مرزق',
+    'هون',
+    'ودان',
+    'الجفرة',
+    'الكفرة',
+    'تاجوراء',
+    'جنزور',
+    'قصر بن غشير',
+    'العجيلات',
+    'رقدالين',
+    'الجميل',
+    'زلطن',
+    'الأصابعة',
+    'مزدة',
+    'الشويرف',
+    'القبة',
+  ];
+
+  final _formKey = GlobalKey<FormState>();
+  final _fullName = TextEditingController();
+  final _phone = TextEditingController();
+  final _storeName = TextEditingController();
+  final _address = TextEditingController();
+  final _companyName = TextEditingController();
+  final _companyEmail = TextEditingController();
+  final _username = TextEditingController();
+  final _password = TextEditingController();
+  final _confirmation = TextEditingController();
+  final _agentCode = TextEditingController();
+
+  RegistrationAccountType? _type;
+  String? _city;
+  String _nationality = 'libyan';
+  String? _agentName;
+  bool _checkingAgent = false;
+  bool _submitting = false;
+  String? _error;
+  Map<String, dynamic>? _completedRequest;
+
+  @override
+  void dispose() {
+    _fullName.dispose();
+    _phone.dispose();
+    _storeName.dispose();
+    _address.dispose();
+    _companyName.dispose();
+    _companyEmail.dispose();
+    _username.dispose();
+    _password.dispose();
+    _confirmation.dispose();
+    _agentCode.dispose();
+    super.dispose();
+  }
+
+  void _selectType(RegistrationAccountType type) {
+    setState(() {
+      _type = type;
+      _error = null;
+      _completedRequest = null;
+    });
+  }
+
+  void _changeType() {
+    setState(() {
+      _type = null;
+      _error = null;
+      _completedRequest = null;
+      _agentName = null;
+    });
+  }
+
+  Future<void> _lookupAgent() async {
+    final code = _agentCode.text.trim();
+    if (!RegExp(r'^\d{4}$').hasMatch(code)) {
+      setState(() => _error = 'أدخل رقم وكيل مكوناً من 4 أرقام.');
+      return;
+    }
+    setState(() {
+      _checkingAgent = true;
+      _error = null;
+      _agentName = null;
+    });
+    try {
+      final response = await widget.api.lookupRegistrationAgent(code);
+      final data = response['data'];
+      final name = data is Map ? '${data['name'] ?? ''}'.trim() : '';
+      if (!mounted) return;
+      setState(() {
+        _agentName = name.isEmpty ? 'وكيل معتمد' : name;
+      });
+    } on ApiFailure catch (error) {
+      if (mounted) setState(() => _error = error.message);
+    } catch (_) {
+      if (mounted) {
+        setState(() => _error = 'تعذر التحقق من رقم الوكيل حالياً.');
+      }
+    } finally {
+      if (mounted) setState(() => _checkingAgent = false);
+    }
+  }
+
+  Future<void> _submit() async {
+    if (_type == null || !_formKey.currentState!.validate()) return;
+    if (_type == RegistrationAccountType.newClient && _agentName == null) {
+      setState(() => _error = 'تحقق من رقم الوكيل قبل إرسال الطلب.');
+      return;
+    }
+
+    setState(() {
+      _submitting = true;
+      _error = null;
+    });
+    try {
+      final response = await switch (_type!) {
+        RegistrationAccountType.direct => widget.api.registerDirectAccount(
+          fullName: _fullName.text.trim(),
+          phone: _phone.text.trim(),
+          storeName: _storeName.text.trim(),
+          address: _address.text.trim(),
+          username: _username.text.trim(),
+          password: _password.text,
+        ),
+        RegistrationAccountType.company => widget.api.registerCompanyAccount(
+          companyName: _companyName.text.trim(),
+          companyContact: _fullName.text.trim(),
+          companyPhone: _phone.text.trim(),
+          companyEmail: _companyEmail.text.trim(),
+          username: _username.text.trim(),
+          password: _password.text,
+        ),
+        RegistrationAccountType.agent => widget.api.registerAgentAccount(
+          companyName: _companyName.text.trim(),
+          fullName: _fullName.text.trim(),
+          phone: _phone.text.trim(),
+          address: _address.text.trim(),
+          city: _city ?? '',
+          companyEmail: _companyEmail.text.trim(),
+          username: _username.text.trim(),
+          password: _password.text,
+        ),
+        RegistrationAccountType.newClient => widget.api.registerNewClientAccount(
+          fullName: _fullName.text.trim(),
+          phone: _phone.text.trim(),
+          city: _city ?? '',
+          nationality: _nationality,
+          username: _username.text.trim(),
+          password: _password.text,
+          agentCode: _agentCode.text.trim(),
+        ),
+      };
+      if (!mounted) return;
+      final data = response['data'];
+      setState(() {
+        _completedRequest = data is Map<String, dynamic>
+            ? data
+            : Map<String, dynamic>.from(data as Map? ?? const {});
+      });
+    } on ApiFailure catch (error) {
+      if (mounted) setState(() => _error = error.message);
+    } catch (_) {
+      if (mounted) {
+        setState(() => _error = 'تعذر إرسال طلب التسجيل حالياً.');
+      }
+    } finally {
+      if (mounted) setState(() => _submitting = false);
+    }
+  }
+
+  String? _required(String? value, String label) {
+    if ((value ?? '').trim().isEmpty) return '$label مطلوب.';
+    return null;
+  }
+
+  String? _fullNameValidator(String? value) {
+    if (_required(value, 'الاسم') != null) return 'الاسم مطلوب.';
+    if ((value ?? '').trim().split(RegExp(r'\s+')).length < 3) {
+      return 'أدخل الاسم الثلاثي كاملاً.';
+    }
+    return null;
+  }
+
+  String? _phoneValidator(String? value) {
+    final phone = (value ?? '').trim();
+    if (!RegExp(r'^\d{10,20}$').hasMatch(phone)) {
+      return 'رقم الهاتف من 10 إلى 20 رقماً.';
+    }
+    return null;
+  }
+
+  String? _usernameValidator(String? value) {
+    if (!RegExp(r'^[A-Za-z0-9_]{3,20}$').hasMatch((value ?? '').trim())) {
+      return 'اسم المستخدم 3 إلى 20 حرفاً إنجليزياً أو رقماً.';
+    }
+    return null;
+  }
+
+  String? _passwordValidator(String? value) {
+    if ((value ?? '').length < 6) return 'كلمة المرور 6 أحرف على الأقل.';
+    return null;
+  }
+
+  Widget _textField({
+    required TextEditingController controller,
+    required String label,
+    required IconData icon,
+    required String? Function(String?) validator,
+    TextInputType keyboardType = TextInputType.text,
+    bool obscure = false,
+    bool ltr = false,
+    List<TextInputFormatter>? inputFormatters,
+    VoidCallback? onChanged,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 14),
+      child: TextFormField(
+        controller: controller,
+        keyboardType: keyboardType,
+        obscureText: obscure,
+        textDirection: ltr ? ui.TextDirection.ltr : ui.TextDirection.rtl,
+        inputFormatters: inputFormatters,
+        validator: validator,
+        onChanged: (_) => onChanged?.call(),
+        decoration: InputDecoration(
+          labelText: label,
+          prefixIcon: Icon(icon),
+        ),
+      ),
+    );
+  }
+
+  Widget _cityField() {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 14),
+      child: DropdownButtonFormField<String>(
+        value: _city,
+        isExpanded: true,
+        decoration: const InputDecoration(
+          labelText: 'المدينة',
+          prefixIcon: Icon(Icons.location_city_outlined),
+        ),
+        items: _cities
+            .map(
+              (city) => DropdownMenuItem<String>(value: city, child: Text(city)),
+            )
+            .toList(),
+        onChanged: (value) => setState(() => _city = value),
+        validator: (value) => value == null ? 'اختر المدينة.' : null,
+      ),
+    );
+  }
+
+  Widget _accountCredentials() {
+    return Column(
+      children: [
+        _textField(
+          controller: _username,
+          label: 'اسم المستخدم',
+          icon: Icons.alternate_email_outlined,
+          ltr: true,
+          validator: _usernameValidator,
+        ),
+        _textField(
+          controller: _password,
+          label: 'كلمة المرور',
+          icon: Icons.lock_outline,
+          obscure: true,
+          ltr: true,
+          validator: _passwordValidator,
+        ),
+        _textField(
+          controller: _confirmation,
+          label: 'تأكيد كلمة المرور',
+          icon: Icons.lock_reset_outlined,
+          obscure: true,
+          ltr: true,
+          validator: (value) {
+            if (value != _password.text) return 'كلمتا المرور غير متطابقتين.';
+            return null;
+          },
+        ),
+      ],
+    );
+  }
+
+  Widget _formFields() {
+    final type = _type!;
+    final needsCity = type == RegistrationAccountType.agent ||
+        type == RegistrationAccountType.newClient;
+    final isCompany = type == RegistrationAccountType.company;
+    final needsEmail = isCompany || type == RegistrationAccountType.agent;
+
+    return Form(
+      key: _formKey,
+      autovalidateMode: AutovalidateMode.onUserInteraction,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          if (type == RegistrationAccountType.newClient) ...[
+            _textField(
+              controller: _agentCode,
+              label: 'رقم الوكيل',
+              icon: Icons.badge_outlined,
+              ltr: true,
+              keyboardType: TextInputType.number,
+              inputFormatters: <TextInputFormatter>[
+                FilteringTextInputFormatter.digitsOnly,
+                LengthLimitingTextInputFormatter(4),
+              ],
+              validator: (value) => RegExp(r'^\d{4}$').hasMatch(value ?? '')
+                  ? null
+                  : 'رقم الوكيل مكون من 4 أرقام.',
+              onChanged: () {
+                if (_agentName != null) setState(() => _agentName = null);
+              },
+            ),
+            Padding(
+              padding: const EdgeInsets.only(bottom: 14),
+              child: OutlinedButton.icon(
+                onPressed: _checkingAgent ? null : _lookupAgent,
+                icon: _checkingAgent
+                    ? const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.verified_user_outlined),
+                label: Text(_checkingAgent ? 'جارٍ التحقق...' : 'تحقق من الوكيل'),
+              ),
+            ),
+            if (_agentName != null)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 14),
+                child: InlineMessage(
+                  message: 'الوكيل: $_agentName',
+                  color: const Color(0xFF00875A),
+                ),
+              ),
+          ],
+          if (type == RegistrationAccountType.direct) ...[
+            _textField(
+              controller: _storeName,
+              label: 'اسم المحل',
+              icon: Icons.storefront_outlined,
+              validator: (value) => _required(value, 'اسم المحل'),
+            ),
+          ],
+          if (isCompany || type == RegistrationAccountType.agent)
+            _textField(
+              controller: _companyName,
+              label: isCompany ? 'اسم الشركة القانوني' : 'اسم الوكالة',
+              icon: Icons.business_outlined,
+              validator: (value) => _required(value, 'اسم المنشأة'),
+            ),
+          _textField(
+            controller: _fullName,
+            label: isCompany ? 'اسم مدير الشركة' : 'الاسم الثلاثي',
+            icon: Icons.person_outline,
+            validator: isCompany
+                ? (value) => _required(value, 'اسم مدير الشركة')
+                : _fullNameValidator,
+          ),
+          _textField(
+            controller: _phone,
+            label: isCompany ? 'رقم هاتف الشركة' : 'رقم الهاتف',
+            icon: Icons.phone_outlined,
+            ltr: true,
+            keyboardType: TextInputType.phone,
+            inputFormatters: <TextInputFormatter>[
+              FilteringTextInputFormatter.digitsOnly,
+              LengthLimitingTextInputFormatter(20),
+            ],
+            validator: _phoneValidator,
+          ),
+          if (type == RegistrationAccountType.direct ||
+              type == RegistrationAccountType.agent)
+            _textField(
+              controller: _address,
+              label: 'العنوان',
+              icon: Icons.location_on_outlined,
+              validator: (value) => _required(value, 'العنوان'),
+            ),
+          if (needsCity) _cityField(),
+          if (type == RegistrationAccountType.newClient)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 14),
+              child: DropdownButtonFormField<String>(
+                value: _nationality,
+                decoration: const InputDecoration(
+                  labelText: 'الجنسية',
+                  prefixIcon: Icon(Icons.public_outlined),
+                ),
+                items: const [
+                  DropdownMenuItem(value: 'libyan', child: Text('ليبي')),
+                  DropdownMenuItem(value: 'egyptian', child: Text('مصري')),
+                ],
+                onChanged: (value) {
+                  if (value != null) setState(() => _nationality = value);
+                },
+              ),
+            ),
+          if (needsEmail)
+            _textField(
+              controller: _companyEmail,
+              label: 'البريد الإلكتروني الرسمي',
+              icon: Icons.email_outlined,
+              ltr: true,
+              keyboardType: TextInputType.emailAddress,
+              validator: (value) {
+                if (!RegExp(r'^[^\s@]+@[^\s@]+\.[^\s@]+$')
+                    .hasMatch((value ?? '').trim())) {
+                  return 'أدخل بريداً إلكترونياً صحيحاً.';
+                }
+                return null;
+              },
+            ),
+          _accountCredentials(),
+          if (_error != null) ...[
+            const SizedBox(height: 2),
+            InlineMessage(message: _error!, color: _danger),
+          ],
+          const SizedBox(height: 10),
+          SizedBox(
+            height: 54,
+            child: FilledButton.icon(
+              onPressed: _submitting ? null : _submit,
+              icon: _submitting
+                  ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: Colors.white,
+                      ),
+                    )
+                  : const Icon(Icons.send_rounded),
+              label: Text(_submitting ? 'جارٍ الإرسال...' : 'إرسال طلب التسجيل'),
+              style: FilledButton.styleFrom(
+                backgroundColor: _gold,
+                foregroundColor: Colors.white,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _typeSelection() {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final width = constraints.maxWidth >= 560
+            ? (constraints.maxWidth - 14) / 2
+            : constraints.maxWidth;
+        return Wrap(
+          spacing: 14,
+          runSpacing: 14,
+          children: RegistrationAccountType.values
+              .map(
+                (type) => SizedBox(
+                  width: width,
+                  child: _RegistrationTypeCard(
+                    type: type,
+                    onTap: () => _selectType(type),
+                  ),
+                ),
+              )
+              .toList(),
+        );
+      },
+    );
+  }
+
+  Widget _successView() {
+    final request = _completedRequest!;
+    final isAgentApproval = _type == RegistrationAccountType.newClient;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const SizedBox(height: 12),
+        const Icon(Icons.check_circle_rounded, color: Color(0xFF00875A), size: 76),
+        const SizedBox(height: 16),
+        const Text(
+          'تم إرسال طلب التسجيل',
+          textAlign: TextAlign.center,
+          style: TextStyle(fontSize: 23, fontWeight: FontWeight.w900),
+        ),
+        const SizedBox(height: 8),
+        Text(
+          isAgentApproval ? 'بانتظار موافقة الوكيل.' : 'بانتظار مراجعة الإدارة.',
+          textAlign: TextAlign.center,
+          style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant),
+        ),
+        const SizedBox(height: 22),
+        Container(
+          padding: const EdgeInsets.all(18),
+          decoration: BoxDecoration(
+            color: const Color(0xFFF5F8FC),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: const Color(0xFFDAE4F0)),
+          ),
+          child: Column(
+            children: [
+              const Text('رقم طلب التسجيل'),
+              const SizedBox(height: 6),
+              SelectableText(
+                '${request['refCode'] ?? '-'}',
+                textDirection: ui.TextDirection.ltr,
+                style: const TextStyle(
+                  fontSize: 22,
+                  fontWeight: FontWeight.w900,
+                  color: Color(0xFF001A4D),
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 22),
+        SizedBox(
+          height: 52,
+          child: FilledButton.icon(
+            onPressed: () => Navigator.of(context).pop(),
+            icon: const Icon(Icons.login_rounded),
+            label: const Text('العودة لتسجيل الدخول'),
+          ),
+        ),
+      ],
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final type = _type;
+    return Scaffold(
+      appBar: AppBar(
+        title: Text(type == null ? 'إنشاء حساب' : type.title),
+        leading: IconButton(
+          tooltip: type == null ? 'العودة' : 'اختيار نوع الحساب',
+          icon: Icon(type == null ? Icons.arrow_back_rounded : Icons.arrow_forward_rounded),
+          onPressed: type == null ? () => Navigator.of(context).pop() : _changeType,
+        ),
+        actions: [
+          Padding(
+            padding: EdgeInsets.only(left: 16),
+            child: BrandMark(compact: true),
+          ),
+        ],
+      ),
+      body: SafeArea(
+        child: Center(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(20),
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 660),
+              child: Container(
+                padding: const EdgeInsets.all(22),
+                decoration: BoxDecoration(
+                  color: Theme.of(context).colorScheme.surface,
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: Theme.of(context).dividerColor),
+                ),
+                child: _completedRequest != null
+                    ? _successView()
+                    : type == null
+                    ? _typeSelection()
+                    : Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          Row(
+                            children: [
+                              Icon(type.icon, color: _gold),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: Text(
+                                  type.title,
+                                  style: const TextStyle(
+                                    fontSize: 20,
+                                    fontWeight: FontWeight.w900,
+                                  ),
+                                ),
+                              ),
+                              TextButton(
+                                onPressed: _changeType,
+                                child: const Text('تغيير النوع'),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 20),
+                          _formFields(),
+                        ],
+                      ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _RegistrationTypeCard extends StatelessWidget {
+  const _RegistrationTypeCard({required this.type, required this.onTap});
+
+  final RegistrationAccountType type;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Theme.of(context).colorScheme.surface,
+      borderRadius: BorderRadius.circular(16),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(16),
+        child: Container(
+          height: 132,
+          padding: const EdgeInsets.all(18),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: Theme.of(context).dividerColor),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Icon(type.icon, color: _gold, size: 30),
+              const Spacer(),
+              Text(type.title, style: const TextStyle(fontWeight: FontWeight.w900)),
+              const SizedBox(height: 4),
+              Text(
+                type.subtitle,
+                style: TextStyle(
+                  fontSize: 12,
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

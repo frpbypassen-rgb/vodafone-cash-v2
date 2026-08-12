@@ -271,6 +271,113 @@ class MobileApi {
     return session;
   }
 
+  Future<Map<String, dynamic>> lookupRegistrationAgent(String code) {
+    return _request(
+      'GET',
+      '/client/register/agent-lookup',
+      query: <String, dynamic>{'code': code},
+      authenticated: false,
+    );
+  }
+
+  Future<Map<String, dynamic>> registerDirectAccount({
+    required String fullName,
+    required String phone,
+    required String storeName,
+    required String address,
+    required String username,
+    required String password,
+  }) {
+    return _request(
+      'POST',
+      '/client/register/direct',
+      authenticated: false,
+      data: <String, dynamic>{
+        'fullName': fullName,
+        'phone': phone,
+        'storeName': storeName,
+        'address': address,
+        'username': username,
+        'password': password,
+      },
+    );
+  }
+
+  Future<Map<String, dynamic>> registerCompanyAccount({
+    required String companyName,
+    required String companyContact,
+    required String companyPhone,
+    required String companyEmail,
+    required String username,
+    required String password,
+  }) {
+    return _request(
+      'POST',
+      '/client/register/company',
+      authenticated: false,
+      data: <String, dynamic>{
+        'companyName': companyName,
+        'companyContact': companyContact,
+        'companyPhone': companyPhone,
+        'companyEmail': companyEmail,
+        'username': username,
+        'password': password,
+      },
+    );
+  }
+
+  Future<Map<String, dynamic>> registerAgentAccount({
+    required String companyName,
+    required String fullName,
+    required String phone,
+    required String address,
+    required String city,
+    required String companyEmail,
+    required String username,
+    required String password,
+  }) {
+    return _request(
+      'POST',
+      '/client/register/agent',
+      authenticated: false,
+      data: <String, dynamic>{
+        'companyName': companyName,
+        'fullName': fullName,
+        'phone': phone,
+        'address': address,
+        'city': city,
+        'companyEmail': companyEmail,
+        'username': username,
+        'password': password,
+      },
+    );
+  }
+
+  Future<Map<String, dynamic>> registerNewClientAccount({
+    required String fullName,
+    required String phone,
+    required String city,
+    required String nationality,
+    required String username,
+    required String password,
+    required String agentCode,
+  }) {
+    return _request(
+      'POST',
+      '/client/register/new',
+      authenticated: false,
+      data: <String, dynamic>{
+        'fullName': fullName,
+        'phone': phone,
+        'city': city,
+        'nationality': nationality,
+        'username': username,
+        'password': password,
+        'agentCode': agentCode,
+      },
+    );
+  }
+
   Future<void> logout() async {
     try {
       await _request('POST', '/logout');
