@@ -519,6 +519,8 @@
                             const apiLog = apiLogForView(tx);
                             const canVoidBalanceAdjustment = ['deposit', 'deduction'].includes(tx.status) && Boolean(tx.balanceAdjustment && tx.balanceAdjustment.reversible);
                             const eligibleExecutorBots = (executorBots || []).filter((bot) => (bot.supportedTransferTypes || ['vodafone']).includes(tx.transferType || 'vodafone'));
+                            const executorDisplay = (executorDisplayByTransaction || {})[String(tx._id)] || {};
+                            const directClientName = tx.employeeName || tx.accountName || 'غير معروف';
                         %>
                             <tr style="<%= tx.status === 'deposit_pending' ? 'background: rgba(245, 158, 11, 0.05);' : (tx.status === 'deposit' ? 'background: rgba(16, 185, 129, 0.05);' : (tx.status === 'deduction' ? 'background: rgba(239, 68, 68, 0.05);' : '')) %>">
                             
@@ -531,12 +533,13 @@
                                 <% } %>
                             </td>
 
-                            <td class="fw-bold text-dark">
+                            <td>
                                 <% if (tx.companyName && tx.companyName !== 'عميل فردي') { %>
-                                    <div title="الطالب: <%= tx.employeeName %>"><i class="fa-solid fa-building text-muted me-1 small"></i> <%= tx.companyName %></div>
-                                    <div class="text-muted small mt-1"><i class="fa-solid fa-user-pen opacity-50 me-1"></i> <%= tx.employeeName %></div>
+                                    <div class="fw-bold text-dark" title="الطالب: <%= tx.employeeName %>"><i class="fa-solid fa-building text-muted me-1 small"></i> <%= tx.companyName %></div>
+                                    <div class="text-muted small mt-1"><i class="fa-solid fa-user-pen opacity-50 me-1"></i> <%= tx.employeeName || '---' %></div>
                                 <% } else { %>
-                                    <div><i class="fa-solid fa-user text-muted me-1 small"></i> <%= tx.employeeName || 'غير معروف' %></div>
+                                    <div class="fw-bold text-dark"><i class="fa-solid fa-user text-muted me-1 small"></i> <%= directClientName %></div>
+                                    <div class="text-muted small mt-1"><i class="fa-solid fa-user-check opacity-50 me-1"></i> عميل مباشر</div>
                                 <% } %>
                             </td>
 
@@ -574,8 +577,8 @@
                                 <% if(tx.status === 'deposit' || tx.status === 'deduction') { %> 
                                     <span class="text-muted">---</span>
                                 <% } else { %>
-                                    <div class="fw-bold text-primary small"><i class="fa-solid fa-robot me-1 opacity-50"></i> <%= typeof allBotsMap !== 'undefined' && tx.executorBotId ? allBotsMap[tx.executorBotId] : (tx.executorBotName || 'غير محدد') %></div>
-                                    <div class="text-muted small mt-1"><i class="fa-solid fa-user-gear me-1 opacity-50"></i> <%= tx.executorName || 'غير محدد' %></div>
+                                    <div class="fw-bold text-primary small"><i class="fa-solid fa-building-shield me-1 opacity-50"></i> <%= executorDisplay.companyName || 'تنفيذ مستقل' %></div>
+                                    <div class="text-muted small mt-1"><i class="fa-solid fa-user-gear me-1 opacity-50"></i> <%= executorDisplay.executorName || 'غير محدد' %></div>
                                 <% } %>
                             </td>
 
@@ -703,6 +706,8 @@
                     const mobileApiLog = apiLogForView(tx);
                     const canVoidMobileAdjustment = ['deposit', 'deduction'].includes(tx.status) && Boolean(tx.balanceAdjustment && tx.balanceAdjustment.reversible);
                     const mobileEligibleExecutorBots = (executorBots || []).filter((bot) => (bot.supportedTransferTypes || ['vodafone']).includes(tx.transferType || 'vodafone'));
+                    const mobileExecutorDisplay = (executorDisplayByTransaction || {})[String(tx._id)] || {};
+                    const mobileDirectClientName = tx.employeeName || tx.accountName || 'غير معروف';
                 %>
                     <div class="data-card mb-3 p-3 mobile-tx-card <%= displayClass %>" 
                           data-status="<%= tx.status %>"
@@ -744,8 +749,8 @@
                                     <div><i class="fa-solid fa-building text-muted me-1"></i> <%= tx.companyName %></div>
                                     <div class="text-muted mt-1" style="font-size: 0.75rem;"><i class="fa-solid fa-user-pen opacity-50 me-1"></i> <%= tx.employeeName %></div>
                                 <% } else { %>
-                                    <div><i class="fa-solid fa-user-check text-success me-1"></i> عميل مباشر</div>
-                                    <div class="text-muted mt-1" style="font-size: 0.75rem;"><i class="fa-solid fa-user opacity-50 me-1"></i> <%= tx.employeeName || 'غير معروف' %></div>
+                                    <div><i class="fa-solid fa-user text-success me-1"></i> <%= mobileDirectClientName %></div>
+                                    <div class="text-muted mt-1" style="font-size: 0.75rem;"><i class="fa-solid fa-user-check opacity-50 me-1"></i> عميل مباشر</div>
                                 <% } %>
                             </div>
                             <div class="mono-num small fw-bold text-end" dir="ltr" style="color: var(--brand-primary);"><%= tx.vodafoneNumber || tx.accountNumber || '---' %></div>
@@ -753,6 +758,13 @@
                         <% if (mobileNoteView.customerText) { %>
                             <div class="small fw-bold mt-2 pt-2" style="border-top: 1px dashed var(--border-glass); white-space: pre-line; color: var(--text-muted);">
                                 <i class="fa-regular fa-comment-dots me-1"></i><%= mobileNoteView.customerText %>
+                            </div>
+                        <% } %>
+
+                        <% if (!['deposit', 'deduction'].includes(tx.status) && (mobileExecutorDisplay.companyName || mobileExecutorDisplay.executorName)) { %>
+                            <div class="small mt-2 pt-2" style="border-top: 1px dashed var(--border-glass); color: var(--text-muted);">
+                                <div class="fw-bold" style="color: var(--text-main);"><i class="fa-solid fa-building-shield text-primary me-1"></i><%= mobileExecutorDisplay.companyName || 'تنفيذ مستقل' %></div>
+                                <div class="mt-1"><i class="fa-solid fa-user-gear opacity-50 me-1"></i><%= mobileExecutorDisplay.executorName || 'غير محدد' %></div>
                             </div>
                         <% } %>
 

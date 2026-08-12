@@ -199,9 +199,30 @@ router.get('/transactions', async (req, res) => {
             serviceLabel: getExecutorServiceLabel(group),
             supportedTransferTypes: getExecutorSupportedTransferTypes(group)
         }));
-        const allGroups = await ExecutorGroup.find({});
+        const allGroups = await ExecutorGroup.find({}).lean();
         const allGroupsMap = {};
-        allGroups.forEach(b => { allGroupsMap[b._id.toString()] = b.name; });
+        allGroups.forEach((group) => {
+            allGroupsMap[group._id.toString()] = group.name;
+        });
+        const executorDisplayByTransaction = {};
+        transactions.forEach((tx) => {
+            const executorGroupId = tx.executorGroupId ? String(tx.executorGroupId) : '';
+            const managerGroupId = tx.managerGroupId ? String(tx.managerGroupId) : '';
+            const executorGroup = executorGroupId
+                ? allGroups.find((group) => String(group._id) === executorGroupId)
+                : null;
+            const parentGroupId = executorGroup
+                ? String(executorGroup.parentGroupId || executorGroup.parentBotId || '')
+                : '';
+            const companyName = allGroupsMap[managerGroupId]
+                || allGroupsMap[parentGroupId]
+                || (executorGroup ? executorGroup.name : '')
+                || '';
+            const executorName = tx.executorName
+                || (executorGroup ? executorGroup.name : '')
+                || '';
+            executorDisplayByTransaction[String(tx._id)] = { companyName, executorName };
+        });
 
         res.render('transactions', { 
             transactions, 
@@ -209,6 +230,7 @@ router.get('/transactions', async (req, res) => {
             executorBots: executorGroupsForView,
             allGroupsMap, 
             allBotsMap: allGroupsMap, 
+            executorDisplayByTransaction,
             currentPage: page, 
             totalPages, 
             search, 
