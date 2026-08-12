@@ -534,8 +534,17 @@ class _RoleShellState extends State<RoleShell> {
     final companyName = company is Map
         ? '${company['name'] ?? widget.controller.session?.context['executorGroupName'] ?? ''}'
         : '${widget.controller.session?.context['executorGroupName'] ?? ''}';
-    final companyBalance = company is Map
-        ? numberValue(company['balance'])
+    // The login response already carries the executor-group balance. Keep it
+    // as a fallback while the live overview is loading or being retried.
+    final canViewCompanyBalance =
+        widget.controller.isExecutorManager || widget.controller.isExecutorAccountant;
+    final companyBalance = canViewCompanyBalance
+        ? (company is Map
+              ? numberValue(
+                  company['balance'],
+                  widget.controller.session?.balance ?? 0,
+                )
+              : widget.controller.session?.balance ?? 0)
         : 0.0;
     final ownPerformance = performance is Map
         ? numberValue(performance['totalEGP'])
@@ -610,7 +619,7 @@ class _RoleShellState extends State<RoleShell> {
         ],
       ),
       actions: [
-        if (widget.controller.isExecutor && _index != 0)
+        if (canViewCompanyBalance && _index != 0)
           ExecutorBalanceBadge(
             amount: companyBalance,
             label: widget.controller.isExecutorOperator
@@ -2004,7 +2013,16 @@ class _ExecutorTasksScreenState extends State<ExecutorTasksScreen> {
       return ErrorPage(error: _error!, onRetry: _load);
     }
     final company = _overview?['company'];
-    final balance = company is Map ? numberValue(company['balance']) : 0.0;
+    final canViewCompanyBalance =
+        widget.controller.isExecutorManager || widget.controller.isExecutorAccountant;
+    final balance = canViewCompanyBalance
+        ? (company is Map
+              ? numberValue(
+                  company['balance'],
+                  widget.controller.session?.balance ?? 0,
+                )
+              : widget.controller.session?.balance ?? 0)
+        : 0.0;
     return PageFrame(
       title: 'مهام التنفيذ',
       subtitle: 'يتم تحديث المهام الجديدة تلقائياً كل خمس ثوانٍ.',
