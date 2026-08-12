@@ -1897,6 +1897,7 @@ class _ExecutorTasksScreenState extends State<ExecutorTasksScreen> {
   List<Map<String, dynamic>> _urgentAlerts = <Map<String, dynamic>>[];
   final Set<String> _seenTaskIds = <String>{};
   final Set<String> _silencedUrgentAlertIds = <String>{};
+  final Set<String> _presentedUrgentAlertIds = <String>{};
   bool _receivedInitialSnapshot = false;
   bool _loading = true;
   Object? _error;
@@ -1949,6 +1950,7 @@ class _ExecutorTasksScreenState extends State<ExecutorTasksScreen> {
         .where((id) => id.isNotEmpty)
         .toSet();
     _silencedUrgentAlertIds.retainAll(activeIds);
+    _presentedUrgentAlertIds.retainAll(activeIds);
     final hasAudibleAlert = activeIds.any(
       (id) => !_silencedUrgentAlertIds.contains(id),
     );
@@ -1960,6 +1962,38 @@ class _ExecutorTasksScreenState extends State<ExecutorTasksScreen> {
     if (mounted && wasPlaying != _urgentAlarmPlaying) {
       setState(() {});
     }
+  }
+
+  void _showNewUrgentAlertDialog(List<Map<String, dynamic>> alerts) {
+    if (!mounted) return;
+    Map<String, dynamic>? nextAlert;
+    for (final alert in alerts) {
+      final id = '${alert['id'] ?? ''}'.trim();
+      if (id.isNotEmpty && !_presentedUrgentAlertIds.contains(id)) {
+        nextAlert = alert;
+        _presentedUrgentAlertIds.add(id);
+        break;
+      }
+    }
+    if (nextAlert == null) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      unawaited(
+        showDialog<void>(
+          context: context,
+          barrierDismissible: false,
+          builder: (dialogContext) => ExecutorUrgentAlertDialog(
+            alert: nextAlert!,
+            onStop: _silenceUrgentAlerts,
+            onReview: () async {
+              Navigator.of(dialogContext).pop();
+              await _clearUrgentAlert(nextAlert!);
+            },
+            onClose: () => Navigator.of(dialogContext).pop(),
+          ),
+        ),
+      );
+    });
   }
 
   void _silenceUrgentAlerts() {
@@ -2041,6 +2075,7 @@ class _ExecutorTasksScreenState extends State<ExecutorTasksScreen> {
           _lastUpdated = DateTime.now();
         });
         _syncUrgentAlerts(urgentAlerts);
+        _showNewUrgentAlertDialog(urgentAlerts);
       }
     } catch (error) {
       if (!silent) _error = error;
@@ -2126,9 +2161,7 @@ class _ExecutorTasksScreenState extends State<ExecutorTasksScreen> {
       return ErrorPage(error: _error!, onRetry: _load);
     }
     final company = _overview?['company'];
-    final canViewCompanyBalance =
-        widget.controller.isExecutorManager ||
-        widget.controller.isExecutorAccountant;
+    final canViewCompanyBalance = widget.controller.isExecutorManager;
     final balance = canViewCompanyBalance
         ? (company is Map
               ? numberValue(
@@ -2143,8 +2176,10 @@ class _ExecutorTasksScreenState extends State<ExecutorTasksScreen> {
       showHeading: false,
       onRefresh: _load,
       child: [
-        ExecutorBalanceHeroCard(balance: balance),
-        const SizedBox(height: 16),
+        if (canViewCompanyBalance) ...[
+          ExecutorBalanceHeroCard(balance: balance),
+          const SizedBox(height: 16),
+        ],
         if (_urgentAlerts.isNotEmpty) ...[
           ..._urgentAlerts.map(
             (alert) => Padding(
@@ -2272,6 +2307,7 @@ class _ExecutorWalletVisual extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final dark = Theme.of(context).brightness == Brightness.dark;
     return SizedBox(
       width: 104,
       height: 94,
@@ -2295,12 +2331,16 @@ class _ExecutorWalletVisual extends StatelessWidget {
               width: 78,
               height: 65,
               decoration: BoxDecoration(
-                color: const Color(0xFFEFF6FF),
+                color: dark ? const Color(0xFF1B3A53) : const Color(0xFFEFF6FF),
                 borderRadius: BorderRadius.circular(13),
-                border: Border.all(color: const Color(0xFFD4E2F4)),
-                boxShadow: const [
+                border: Border.all(
+                  color: dark
+                      ? const Color(0xFF3C6380)
+                      : const Color(0xFFD4E2F4),
+                ),
+                boxShadow: [
                   BoxShadow(
-                    color: Color(0x260A1B35),
+                    color: _navy.withValues(alpha: dark ? 0.34 : 0.15),
                     blurRadius: 12,
                     offset: Offset(0, 7),
                   ),
@@ -2448,10 +2488,14 @@ class _ExecutorLiveQueueCardState extends State<ExecutorLiveQueueCard>
       decoration: BoxDecoration(
         color: colors.surface,
         borderRadius: BorderRadius.circular(22),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.9)),
+        border: Border.all(color: colors.outlineVariant),
         boxShadow: [
           BoxShadow(
-            color: _navy.withValues(alpha: 0.10),
+            color: _navy.withValues(
+              alpha: Theme.of(context).brightness == Brightness.dark
+                  ? 0.28
+                  : 0.10,
+            ),
             blurRadius: 26,
             offset: const Offset(0, 13),
           ),
@@ -2563,10 +2607,14 @@ class ExecutorConnectionCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: colors.surface,
         borderRadius: BorderRadius.circular(17),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.92)),
+        border: Border.all(color: colors.outlineVariant),
         boxShadow: [
           BoxShadow(
-            color: _navy.withValues(alpha: 0.08),
+            color: _navy.withValues(
+              alpha: Theme.of(context).brightness == Brightness.dark
+                  ? 0.26
+                  : 0.08,
+            ),
             blurRadius: 18,
             offset: const Offset(0, 8),
           ),
@@ -2742,6 +2790,135 @@ class ExecutorUrgentAlertCard extends StatelessWidget {
   }
 }
 
+class ExecutorUrgentAlertDialog extends StatelessWidget {
+  const ExecutorUrgentAlertDialog({
+    super.key,
+    required this.alert,
+    required this.onStop,
+    required this.onReview,
+    required this.onClose,
+  });
+
+  final Map<String, dynamic> alert;
+  final VoidCallback onStop;
+  final Future<void> Function() onReview;
+  final VoidCallback onClose;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    final taskId = '${alert['txId'] ?? alert['customId'] ?? '-'}';
+    final service =
+        '${alert['transferTypeLabel'] ?? serviceLabel(alert['transferType']?.toString())}';
+    final number = '${alert['recipientNumber'] ?? '-'}';
+    final amount = formatEgpAmount(numberValue(alert['amount']));
+    final note = '${alert['notes'] ?? ''}'.trim();
+    final message = '${alert['emergencyAlert'] ?? 'طلب يحتاج إلى تدخل عاجل'}'
+        .trim();
+    return AlertDialog(
+      icon: const Icon(
+        Icons.notification_important_outlined,
+        color: _danger,
+        size: 34,
+      ),
+      title: const Text('إنذار استعجال من الإدارة'),
+      content: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 420),
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: _danger.withValues(alpha: 0.10),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: _danger.withValues(alpha: 0.32)),
+                ),
+                child: Text(
+                  message.isEmpty ? 'طلب يحتاج إلى تدخل عاجل' : message,
+                  style: TextStyle(
+                    color: colors.onSurface,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 14),
+              _UrgentAlertDetail(label: 'رقم الطلب', value: taskId),
+              _UrgentAlertDetail(label: 'الخدمة', value: service),
+              _UrgentAlertDetail(label: 'رقم العميل', value: number, ltr: true),
+              _UrgentAlertDetail(
+                label: 'القيمة',
+                value: '$amount ج.م',
+                ltr: true,
+              ),
+              if (note.isNotEmpty)
+                _UrgentAlertDetail(label: 'ملاحظة العميل', value: note),
+            ],
+          ),
+        ),
+      ),
+      actions: [
+        TextButton(onPressed: onClose, child: const Text('إغلاق النافذة')),
+        OutlinedButton.icon(
+          onPressed: onStop,
+          icon: const Icon(Icons.volume_off_outlined),
+          label: const Text('إيقاف الصوت'),
+        ),
+        FilledButton.icon(
+          onPressed: () => unawaited(onReview()),
+          icon: const Icon(Icons.check_circle_outline),
+          label: const Text('تمت المراجعة'),
+          style: FilledButton.styleFrom(backgroundColor: _danger),
+        ),
+      ],
+    );
+  }
+}
+
+class _UrgentAlertDetail extends StatelessWidget {
+  const _UrgentAlertDetail({
+    required this.label,
+    required this.value,
+    this.ltr = false,
+  });
+
+  final String label;
+  final String value;
+  final bool ltr;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 9),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 92,
+            child: Text(
+              label,
+              style: TextStyle(color: colors.onSurfaceVariant),
+            ),
+          ),
+          Expanded(
+            child: Text(
+              value,
+              textDirection: ltr ? ui.TextDirection.ltr : null,
+              style: TextStyle(
+                color: colors.onSurface,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class ExecutorReportsScreen extends StatefulWidget {
   const ExecutorReportsScreen({
     super.key,
@@ -2787,7 +2964,7 @@ class _ExecutorReportsScreenState extends State<ExecutorReportsScreen> {
     }
     try {
       final response = await widget.controller.api.executorReports(
-        dateType: _operatorOnly ? 'day' : (_month ? 'month' : 'day'),
+        dateType: _month ? 'month' : 'day',
         dateValue: _dateValue,
         employeeId: widget.employeeId,
       );
@@ -2822,7 +2999,7 @@ class _ExecutorReportsScreenState extends State<ExecutorReportsScreen> {
     setState(() => _downloading = true);
     try {
       final url = await widget.controller.api.executorReportDownloadUrl(
-        dateType: _operatorOnly ? 'day' : (_month ? 'month' : 'day'),
+        dateType: _month ? 'month' : 'day',
         dateValue: _dateValue,
         employeeId: widget.employeeId,
       );
@@ -2865,7 +3042,7 @@ class _ExecutorReportsScreenState extends State<ExecutorReportsScreen> {
         ? (_operatorOnly ? 'تقاريري' : 'تقارير التنفيذ')
         : 'تقرير ${widget.employeeName}';
     final subtitle = _operatorOnly
-        ? 'عرض عملياتك المنفذة فقط في اليوم الذي تختاره.'
+        ? 'عرض عملياتك المنفذة فقط في الفترة التي تختارها.'
         : 'مطابقة الحركات اليومية والشهرية مع حساب شركة التنفيذ.';
 
     return PageFrame(
@@ -2890,26 +3067,25 @@ class _ExecutorReportsScreenState extends State<ExecutorReportsScreen> {
             runSpacing: 12,
             crossAxisAlignment: WrapCrossAlignment.center,
             children: [
-              if (!_operatorOnly)
-                SegmentedButton<bool>(
-                  segments: const [
-                    ButtonSegment<bool>(
-                      value: false,
-                      label: Text('يومي'),
-                      icon: Icon(Icons.today_outlined),
-                    ),
-                    ButtonSegment<bool>(
-                      value: true,
-                      label: Text('شهري'),
-                      icon: Icon(Icons.calendar_month_outlined),
-                    ),
-                  ],
-                  selected: <bool>{_month},
-                  onSelectionChanged: (value) {
-                    setState(() => _month = value.first);
-                    _load();
-                  },
-                ),
+              SegmentedButton<bool>(
+                segments: const [
+                  ButtonSegment<bool>(
+                    value: false,
+                    label: Text('يومي'),
+                    icon: Icon(Icons.today_outlined),
+                  ),
+                  ButtonSegment<bool>(
+                    value: true,
+                    label: Text('شهري'),
+                    icon: Icon(Icons.calendar_month_outlined),
+                  ),
+                ],
+                selected: <bool>{_month},
+                onSelectionChanged: (value) {
+                  setState(() => _month = value.first);
+                  _load();
+                },
+              ),
               OutlinedButton.icon(
                 onPressed: _pickPeriod,
                 icon: const Icon(Icons.date_range_outlined),
@@ -2961,11 +3137,35 @@ class ExecutorReportSummary extends StatelessWidget {
     final colors = Theme.of(context).colorScheme;
     final tiles = <Widget>[];
 
+    final period = report['reportPeriod'];
+    final isMonthly = period is Map && period['type'] == 'month';
+    if (operatorView) {
+      final totalAmount = numberValue(report['totalEGP']);
+      final periodLabel = isMonthly ? 'الشهر' : 'اليوم';
+      return Wrap(
+        spacing: 12,
+        runSpacing: 12,
+        children: [
+          ExecutorMetricCard(
+            label: 'عمليات $periodLabel',
+            value: '${numberValue(report['operationCount']).toInt()}',
+            icon: Icons.receipt_long_outlined,
+            color: AhramColors.sky,
+          ),
+          ExecutorMetricCard(
+            label: 'إجمالي مبلغ $periodLabel',
+            value: '${formatEgpAmount(totalAmount)} ج.م',
+            icon: Icons.payments_outlined,
+            color: _green,
+            valueColor: _green,
+          ),
+        ],
+      );
+    }
+
     final previousBalance = numberValue(report['previousBalance']);
     final periodBalance = numberValue(report['periodBalance']);
     final currentBalance = numberValue(report['currentBalance']);
-    final period = report['reportPeriod'];
-    final isMonthly = period is Map && period['type'] == 'month';
     Color balanceColor(double value) => value < 0
         ? _green
         : value > 0
@@ -4765,6 +4965,7 @@ class BrandMark extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
+    final dark = Theme.of(context).brightness == Brightness.dark;
     final size = large ? 76.0 : 42.0;
     return Row(
       mainAxisSize: MainAxisSize.min,
@@ -4773,7 +4974,7 @@ class BrandMark extends StatelessWidget {
           width: size,
           height: size,
           decoration: BoxDecoration(
-            color: Colors.white,
+            color: dark ? colors.surface : Colors.white,
             borderRadius: BorderRadius.circular(8),
             border: Border.all(
               color: Theme.of(context).colorScheme.outlineVariant,
@@ -4815,11 +5016,11 @@ class BrandMark extends StatelessWidget {
         ],
         if (compact) ...[
           const SizedBox(width: 8),
-          const Text(
+          Text(
             'AL-AHRAM',
             textDirection: ui.TextDirection.ltr,
             style: TextStyle(
-              color: AhramColors.ink,
+              color: colors.onSurface,
               fontSize: 11,
               fontWeight: FontWeight.w900,
               letterSpacing: 0,

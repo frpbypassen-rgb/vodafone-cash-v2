@@ -77,6 +77,20 @@ abstract final class AhramTheme {
         scrolledUnderElevation: 0,
         centerTitle: false,
       ),
+      dialogTheme: DialogThemeData(
+        backgroundColor: dark ? AhramColors.nightSurface : Colors.white,
+        surfaceTintColor: Colors.transparent,
+        titleTextStyle: TextStyle(
+          color: scheme.onSurface,
+          fontSize: 20,
+          fontWeight: FontWeight.w900,
+          fontFamily: 'NotoSansArabic',
+        ),
+        contentTextStyle: TextStyle(
+          color: scheme.onSurfaceVariant,
+          fontFamily: 'NotoSansArabic',
+        ),
+      ),
       dividerTheme: DividerThemeData(
         color: scheme.outlineVariant,
         space: 1,

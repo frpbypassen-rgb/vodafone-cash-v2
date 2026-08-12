@@ -52,6 +52,7 @@
     const period = report.reportPeriod || {};
     const company = report.company || {};
     const entity = report.entityInfo || {};
+    const isPersonalReport = report.scope === 'employee';
     const operations = report.operations || [];
     const deposits = report.deposits || [];
     const tripoli = 'Africa/Tripoli';
@@ -66,10 +67,10 @@
         <% if (logoDataUri) { %><img src="<%= logoDataUri %>" alt="شركة الأهرام"><% } %>
         <div><h1>تقرير عمليات التنفيذ</h1><p>كشف عمليات معتمد من منظومة الأهرام</p></div>
     </div>
-    <div class="document-id"><strong class="mono">EXR-<%= String(period.value || '').replace(/-/g, '') %>-<%= String(company.id || '').slice(-6).toUpperCase() %></strong><span>تاريخ الإصدار: <b class="mono"><%= generated %></b></span></div>
+    <div class="document-id"><strong class="mono">EXR-<%= String(period.value || '').replace(/-/g, '') %><% if (!isPersonalReport) { %>-<%= String(company.id || '').slice(-6).toUpperCase() %><% } %></strong><span>تاريخ الإصدار: <b class="mono"><%= generated %></b></span></div>
 </header>
 <section class="profile">
-    <div><span>شركة التنفيذ</span><strong><%= company.name || '---' %></strong></div>
+    <% if (!isPersonalReport) { %><div><span>شركة التنفيذ</span><strong><%= company.name || '---' %></strong></div><% } %>
     <div><span>صاحب التقرير</span><strong><%= entity.name || '---' %></strong></div>
     <div><span>الصفة</span><strong><%= entity.status || '---' %></strong></div>
     <div><span>الهاتف</span><strong class="mono"><%= entity.phone || '---' %></strong></div>
@@ -77,16 +78,20 @@
 </section>
 <section class="metrics">
     <article class="metric"><span>عدد العمليات</span><strong class="mono"><%= Number(report.operationCount || operations.length) %></strong></article>
+    <% if (isPersonalReport) { %>
+    <article class="metric green"><span>إجمالي مبلغ الفترة</span><strong class="mono"><%= money(report.totalEGP, 0) %> EGP</strong></article>
+    <% } else { %>
     <article class="metric gold"><span>الرصيد السابق</span><strong class="mono"><%= money(report.previousBalance) %> EGP</strong></article>
     <article class="metric green"><span>رصيد الفترة</span><strong class="mono"><%= money(report.periodBalance) %> EGP</strong></article>
     <article class="metric red"><span>الرصيد الحالي</span><strong class="mono"><%= money(report.currentBalance) %> EGP</strong></article>
     <article class="metric green"><span>عمليات ناجحة</span><strong class="mono"><%= Number(report.completedCount || 0) %></strong></article>
+    <% } %>
 </section>
 <section class="section">
     <div class="section-heading"><div><span>العمليات المحتسبة ضمن التقرير</span><h2>التحويلات الناجحة</h2></div><strong><%= operations.filter((item) => item.status === 'completed').length %> عملية</strong></div>
-    <table><thead><tr><th style="width:4%">#</th><th style="width:14%">رقم العملية</th><th style="width:13%">الخدمة</th><th style="width:13%">رقم الهاتف</th><th style="width:11%">القيمة EGP</th><th style="width:10%">المدة</th><th style="width:13%">المنفذ</th><th style="width:13%">التاريخ والوقت</th><th style="width:9%">الحالة</th></tr></thead><tbody>
-    <% const completed = operations.filter((item) => item.status === 'completed'); if (!completed.length) { %><tr><td colspan="9" class="empty">لا توجد تحويلات ناجحة في الفترة المحددة.</td></tr><% } %>
-    <% completed.forEach((item, index) => { const seconds = Number(item.executionDurationSeconds || 0); const duration = seconds ? `${Math.floor(seconds / 60)} د ${seconds % 60} ث` : '---'; %><tr><td><%= item.serialNumber || index + 1 %></td><td class="mono"><%= item.customId || '---' %></td><td><%= item.transferTypeLabel || item.transferType || '---' %></td><td class="mono"><%= item.recipientNumber || '---' %></td><td class="mono"><%= money(item.amount, 0) %></td><td class="mono"><%= duration %></td><td><%= item.executorName || '---' %></td><td class="mono"><%= dateTime(item.completedAt || item.createdAt) %></td><td><span class="status success">ناجحة</span></td></tr><% }) %>
+    <table><thead><tr><th style="width:4%">#</th><th style="width:14%">رقم العملية</th><th style="width:13%">الخدمة</th><th style="width:13%">رقم الهاتف</th><th style="width:11%">القيمة EGP</th><th style="width:10%">المدة</th><% if (!isPersonalReport) { %><th style="width:13%">المنفذ</th><% } %><th style="width:13%">التاريخ والوقت</th><th style="width:9%">الحالة</th></tr></thead><tbody>
+    <% const completed = operations.filter((item) => item.status === 'completed'); const completedColumns = isPersonalReport ? 8 : 9; if (!completed.length) { %><tr><td colspan="<%= completedColumns %>" class="empty">لا توجد تحويلات ناجحة في الفترة المحددة.</td></tr><% } %>
+    <% completed.forEach((item, index) => { const seconds = Number(item.executionDurationSeconds || 0); const duration = seconds ? `${Math.floor(seconds / 60)} د ${seconds % 60} ث` : '---'; %><tr><td><%= item.serialNumber || index + 1 %></td><td class="mono"><%= item.customId || '---' %></td><td><%= item.transferTypeLabel || item.transferType || '---' %></td><td class="mono"><%= item.recipientNumber || '---' %></td><td class="mono"><%= money(item.amount, 0) %></td><td class="mono"><%= duration %></td><% if (!isPersonalReport) { %><td><%= item.executorName || '---' %></td><% } %><td class="mono"><%= dateTime(item.completedAt || item.createdAt) %></td><td><span class="status success">ناجحة</span></td></tr><% }) %>
     </tbody></table>
 </section>
 <section class="section">

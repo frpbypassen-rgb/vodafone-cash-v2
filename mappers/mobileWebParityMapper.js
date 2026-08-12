@@ -4,6 +4,7 @@
 const { getTransferServiceLabel } = require('../utils/mobileTransferServiceCatalog');
 
 const toClientReportDto = (data) => {
+    const isPersonalReport = data.scope === 'employee';
     return {
         previousBalance: Number(data.previousBalance || 0),
         periodBalance: Number(data.periodBalance || 0),
@@ -28,7 +29,7 @@ const toClientReportDto = (data) => {
                 ? Math.max(0, Math.floor((new Date(tx.completedAt) - new Date(tx.executorReceivedAt)) / 1000))
                 : null,
             notes: tx.notes || null,
-            executorName: tx.executorName || null,
+            executorName: isPersonalReport ? null : (tx.executorName || null),
             hasProofImage: !!(tx.proofImage || (tx.proofImages && tx.proofImages.length > 0))
         })),
         deposits: (data.deposits || []).map(tx => ({
@@ -50,7 +51,7 @@ const toClientReportDto = (data) => {
             costLYD: Number(tx.costLYD || 0),
             status: tx.status,
             createdAt: tx.createdAt ? new Date(tx.createdAt).toISOString() : null,
-            executorName: tx.executorName || null
+            executorName: isPersonalReport ? null : (tx.executorName || null)
         })),
         totalEGP: Number(data.totalEGP || 0),
         completedCount: Number(data.completedCount || 0),
@@ -64,15 +65,15 @@ const toClientReportDto = (data) => {
             start: data.reportPeriod.start ? new Date(data.reportPeriod.start).toISOString() : null,
             end: data.reportPeriod.end ? new Date(data.reportPeriod.end).toISOString() : null
         } : null,
-        company: data.company ? {
+        company: !isPersonalReport && data.company ? {
             id: data.company.id ? String(data.company.id) : null,
             name: data.company.name || '---',
             serviceKey: data.company.serviceKey || null
         } : null,
-        companyBalance: data.companyBalance === null || data.companyBalance === undefined
+        companyBalance: isPersonalReport || data.companyBalance === null || data.companyBalance === undefined
             ? null
             : Number(data.companyBalance),
-        myPerformance: data.myPerformance ? {
+        myPerformance: !isPersonalReport && data.myPerformance ? {
             totalEGP: Number(data.myPerformance.totalEGP || 0),
             completedCount: Number(data.myPerformance.completedCount || 0)
         } : null,

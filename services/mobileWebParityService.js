@@ -1080,12 +1080,7 @@ async function getExecutorReports({ executorId, dateType, dateValue, employeeId,
     let finalDateType = dateType === 'month' ? 'month' : 'day';
     let finalDateValue = String(dateValue || '').trim();
 
-    if (isOperator) {
-        // The operator may select an earlier day, but never a monthly or
-        // company-wide report.
-        finalDateType = 'day';
-        finalDateValue = finalDateValue || today;
-    } else if (!finalDateValue) {
+    if (!finalDateValue) {
         finalDateValue = finalDateType === 'month' ? today.slice(0, 7) : today;
     }
 
