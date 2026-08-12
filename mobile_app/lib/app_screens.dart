@@ -646,7 +646,7 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
     VoidCallback? onChanged,
   }) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 14),
+      padding: const EdgeInsets.only(bottom: 4),
       child: TextFormField(
         controller: controller,
         keyboardType: keyboardType,
@@ -665,7 +665,7 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
 
   Widget _cityField() {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 14),
+      padding: const EdgeInsets.only(bottom: 4),
       child: DropdownButtonFormField<String>(
         value: _city,
         isExpanded: true,
@@ -685,8 +685,10 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
   }
 
   Widget _accountCredentials() {
-    return Column(
-      children: [
+    return _formSection(
+      icon: Icons.lock_outline_rounded,
+      title: 'بيانات الدخول',
+      child: _responsiveFields([
         _textField(
           controller: _username,
           label: 'اسم المستخدم',
@@ -713,16 +715,78 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
             return null;
           },
         ),
-      ],
+      ]),
+    );
+  }
+
+  Widget _responsiveFields(List<Widget> fields) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final compact = constraints.maxWidth < 560;
+        final width = compact
+            ? constraints.maxWidth
+            : (constraints.maxWidth - 14) / 2;
+        return Wrap(
+          spacing: 14,
+          runSpacing: 10,
+          children: fields
+              .map((field) => SizedBox(width: width, child: field))
+              .toList(),
+        );
+      },
+    );
+  }
+
+  Widget _formSection({
+    required IconData icon,
+    required String title,
+    required Widget child,
+  }) {
+    final colors = Theme.of(context).colorScheme;
+    final dark = Theme.of(context).brightness == Brightness.dark;
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      padding: const EdgeInsets.fromLTRB(16, 15, 16, 16),
+      decoration: BoxDecoration(
+        color: dark ? colors.surfaceContainerHighest.withValues(alpha: 0.32) : colors.surface,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: colors.outlineVariant),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 34,
+                height: 34,
+                decoration: BoxDecoration(
+                  color: colors.primary.withValues(alpha: dark ? 0.20 : 0.10),
+                  borderRadius: BorderRadius.circular(9),
+                ),
+                child: Icon(icon, size: 19, color: colors.primary),
+              ),
+              const SizedBox(width: 10),
+              Text(
+                title,
+                style: TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w900,
+                  color: colors.onSurface,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          child,
+        ],
+      ),
     );
   }
 
   Widget _formFields() {
     final type = _type!;
-    final needsCity = type == RegistrationAccountType.agent ||
-        type == RegistrationAccountType.newClient;
     final isCompany = type == RegistrationAccountType.company;
-    final needsEmail = isCompany || type == RegistrationAccountType.agent;
 
     return Form(
       key: _formKey,
@@ -731,131 +795,169 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           if (type == RegistrationAccountType.newClient) ...[
-            _textField(
-              controller: _agentCode,
-              label: 'رقم الوكيل',
-              icon: Icons.badge_outlined,
-              ltr: true,
-              keyboardType: TextInputType.number,
-              inputFormatters: <TextInputFormatter>[
-                FilteringTextInputFormatter.digitsOnly,
-                LengthLimitingTextInputFormatter(4),
-              ],
-              validator: (value) => RegExp(r'^\d{4}$').hasMatch(value ?? '')
-                  ? null
-                  : 'رقم الوكيل مكون من 4 أرقام.',
-              onChanged: () {
-                if (_agentName != null) setState(() => _agentName = null);
-              },
-            ),
-            Padding(
-              padding: const EdgeInsets.only(bottom: 14),
-              child: OutlinedButton.icon(
-                onPressed: _checkingAgent ? null : _lookupAgent,
-                icon: _checkingAgent
-                    ? const SizedBox(
-                        width: 18,
-                        height: 18,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : const Icon(Icons.verified_user_outlined),
-                label: Text(_checkingAgent ? 'جارٍ التحقق...' : 'تحقق من الوكيل'),
+            _formSection(
+              icon: Icons.verified_user_outlined,
+              title: 'بيانات الوكيل',
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  _responsiveFields([
+                    _textField(
+                      controller: _agentCode,
+                      label: 'رقم الوكيل',
+                      icon: Icons.badge_outlined,
+                      ltr: true,
+                      keyboardType: TextInputType.number,
+                      inputFormatters: <TextInputFormatter>[
+                        FilteringTextInputFormatter.digitsOnly,
+                        LengthLimitingTextInputFormatter(4),
+                      ],
+                      validator: (value) =>
+                          RegExp(r'^\d{4}$').hasMatch(value ?? '')
+                          ? null
+                          : 'رقم الوكيل مكون من 4 أرقام.',
+                      onChanged: () {
+                        if (_agentName != null) {
+                          setState(() => _agentName = null);
+                        }
+                      },
+                    ),
+                  ]),
+                  const SizedBox(height: 8),
+                  OutlinedButton.icon(
+                    onPressed: _checkingAgent ? null : _lookupAgent,
+                    icon: _checkingAgent
+                        ? const SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Icon(Icons.verified_user_outlined),
+                    label: Text(
+                      _checkingAgent ? 'جارٍ التحقق...' : 'تحقق من الوكيل',
+                    ),
+                  ),
+                ],
               ),
             ),
             if (_agentName != null)
               Padding(
-                padding: const EdgeInsets.only(bottom: 14),
-                child: InlineMessage(
-                  message: 'الوكيل: $_agentName',
-                  color: const Color(0xFF00875A),
-                ),
+                padding: const EdgeInsets.only(bottom: 20),
+                child: _RegistrationVerifiedAgent(name: _agentName!),
               ),
           ],
           if (type == RegistrationAccountType.direct) ...[
-            _textField(
-              controller: _storeName,
-              label: 'اسم المحل',
+            _formSection(
               icon: Icons.storefront_outlined,
-              validator: (value) => _required(value, 'اسم المحل'),
+              title: 'بيانات النشاط',
+              child: _responsiveFields([
+                _textField(
+                  controller: _storeName,
+                  label: 'اسم المحل',
+                  icon: Icons.storefront_outlined,
+                  validator: (value) => _required(value, 'اسم المحل'),
+                ),
+                _textField(
+                  controller: _address,
+                  label: 'العنوان',
+                  icon: Icons.location_on_outlined,
+                  validator: (value) => _required(value, 'العنوان'),
+                ),
+              ]),
             ),
           ],
           if (isCompany || type == RegistrationAccountType.agent)
-            _textField(
-              controller: _companyName,
-              label: isCompany ? 'اسم الشركة القانوني' : 'اسم الوكالة',
+            _formSection(
               icon: Icons.business_outlined,
-              validator: (value) => _required(value, 'اسم المنشأة'),
-            ),
-          _textField(
-            controller: _fullName,
-            label: isCompany ? 'اسم مدير الشركة' : 'الاسم الثلاثي',
-            icon: Icons.person_outline,
-            validator: isCompany
-                ? (value) => _required(value, 'اسم مدير الشركة')
-                : _fullNameValidator,
-          ),
-          _textField(
-            controller: _phone,
-            label: isCompany ? 'رقم هاتف الشركة' : 'رقم الهاتف',
-            icon: Icons.phone_outlined,
-            ltr: true,
-            keyboardType: TextInputType.phone,
-            inputFormatters: <TextInputFormatter>[
-              FilteringTextInputFormatter.digitsOnly,
-              LengthLimitingTextInputFormatter(20),
-            ],
-            validator: _phoneValidator,
-          ),
-          if (type == RegistrationAccountType.direct ||
-              type == RegistrationAccountType.agent)
-            _textField(
-              controller: _address,
-              label: 'العنوان',
-              icon: Icons.location_on_outlined,
-              validator: (value) => _required(value, 'العنوان'),
-            ),
-          if (needsCity) _cityField(),
-          if (type == RegistrationAccountType.newClient)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 14),
-              child: DropdownButtonFormField<String>(
-                value: _nationality,
-                decoration: const InputDecoration(
-                  labelText: 'الجنسية',
-                  prefixIcon: Icon(Icons.public_outlined),
+              title: isCompany ? 'بيانات الشركة' : 'بيانات الوكالة',
+              child: _responsiveFields([
+                _textField(
+                  controller: _companyName,
+                  label: isCompany ? 'اسم الشركة القانوني' : 'اسم الوكالة',
+                  icon: Icons.business_outlined,
+                  validator: (value) => _required(value, 'اسم المنشأة'),
                 ),
-                items: const [
-                  DropdownMenuItem(value: 'libyan', child: Text('ليبي')),
-                  DropdownMenuItem(value: 'egyptian', child: Text('مصري')),
-                ],
-                onChanged: (value) {
-                  if (value != null) setState(() => _nationality = value);
-                },
+                _textField(
+                  controller: _companyEmail,
+                  label: 'البريد الإلكتروني الرسمي',
+                  icon: Icons.email_outlined,
+                  ltr: true,
+                  keyboardType: TextInputType.emailAddress,
+                  validator: (value) {
+                    if (!RegExp(r'^[^\s@]+@[^\s@]+\.[^\s@]+$')
+                        .hasMatch((value ?? '').trim())) {
+                      return 'أدخل بريداً إلكترونياً صحيحاً.';
+                    }
+                    return null;
+                  },
+                ),
+              ]),
+            ),
+          _formSection(
+            icon: Icons.person_outline,
+            title: isCompany ? 'بيانات المدير' : 'بيانات مقدم الطلب',
+            child: _responsiveFields([
+              _textField(
+                controller: _fullName,
+                label: isCompany ? 'اسم مدير الشركة' : 'الاسم الثلاثي',
+                icon: Icons.person_outline,
+                validator: isCompany
+                    ? (value) => _required(value, 'اسم مدير الشركة')
+                    : _fullNameValidator,
               ),
-            ),
-          if (needsEmail)
-            _textField(
-              controller: _companyEmail,
-              label: 'البريد الإلكتروني الرسمي',
-              icon: Icons.email_outlined,
-              ltr: true,
-              keyboardType: TextInputType.emailAddress,
-              validator: (value) {
-                if (!RegExp(r'^[^\s@]+@[^\s@]+\.[^\s@]+$')
-                    .hasMatch((value ?? '').trim())) {
-                  return 'أدخل بريداً إلكترونياً صحيحاً.';
-                }
-                return null;
-              },
-            ),
+              _textField(
+                controller: _phone,
+                label: isCompany ? 'رقم هاتف الشركة' : 'رقم الهاتف',
+                icon: Icons.phone_outlined,
+                ltr: true,
+                keyboardType: TextInputType.phone,
+                inputFormatters: <TextInputFormatter>[
+                  FilteringTextInputFormatter.digitsOnly,
+                  LengthLimitingTextInputFormatter(20),
+                ],
+                validator: _phoneValidator,
+              ),
+              if (type == RegistrationAccountType.agent)
+                _textField(
+                  controller: _address,
+                  label: 'العنوان',
+                  icon: Icons.location_on_outlined,
+                  validator: (value) => _required(value, 'العنوان'),
+                ),
+              if (type == RegistrationAccountType.agent ||
+                  type == RegistrationAccountType.newClient)
+                _cityField(),
+              if (type == RegistrationAccountType.newClient)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 4),
+                  child: DropdownButtonFormField<String>(
+                    value: _nationality,
+                    decoration: const InputDecoration(
+                      labelText: 'الجنسية',
+                      prefixIcon: Icon(Icons.public_outlined),
+                    ),
+                    items: const [
+                      DropdownMenuItem(value: 'libyan', child: Text('ليبي')),
+                      DropdownMenuItem(
+                        value: 'egyptian',
+                        child: Text('مصري'),
+                      ),
+                    ],
+                    onChanged: (value) {
+                      if (value != null) setState(() => _nationality = value);
+                    },
+                  ),
+                ),
+            ]),
+          ),
           _accountCredentials(),
           if (_error != null) ...[
-            const SizedBox(height: 2),
+            const SizedBox(height: 6),
             InlineMessage(message: _error!, color: _danger),
           ],
-          const SizedBox(height: 10),
+          const SizedBox(height: 18),
           SizedBox(
-            height: 54,
+            height: 56,
             child: FilledButton.icon(
               onPressed: _submitting ? null : _submit,
               icon: _submitting
@@ -867,11 +969,14 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
                         color: Colors.white,
                       ),
                     )
-                  : const Icon(Icons.send_rounded),
-              label: Text(_submitting ? 'جارٍ الإرسال...' : 'إرسال طلب التسجيل'),
+                  : const Icon(Icons.arrow_back_rounded),
+              label: Text(
+                _submitting ? 'جارٍ إرسال الطلب...' : 'إرسال طلب التسجيل',
+              ),
               style: FilledButton.styleFrom(
                 backgroundColor: _gold,
                 foregroundColor: Colors.white,
+                elevation: 2,
               ),
             ),
           ),
@@ -881,27 +986,38 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
   }
 
   Widget _typeSelection() {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final width = constraints.maxWidth >= 560
-            ? (constraints.maxWidth - 14) / 2
-            : constraints.maxWidth;
-        return Wrap(
-          spacing: 14,
-          runSpacing: 14,
-          children: RegistrationAccountType.values
-              .map(
-                (type) => SizedBox(
-                  width: width,
-                  child: _RegistrationTypeCard(
-                    type: type,
-                    onTap: () => _selectType(type),
-                  ),
-                ),
-              )
-              .toList(),
-        );
-      },
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const _RegistrationPageHeader(
+          overline: 'فتح حساب جديد',
+          title: 'اختر نوع الحساب',
+          subtitle: 'حدد الحساب المناسب لبدء طلب التسجيل.',
+        ),
+        const SizedBox(height: 24),
+        LayoutBuilder(
+          builder: (context, constraints) {
+            final width = constraints.maxWidth >= 560
+                ? (constraints.maxWidth - 14) / 2
+                : constraints.maxWidth;
+            return Wrap(
+              spacing: 14,
+              runSpacing: 14,
+              children: RegistrationAccountType.values
+                  .map(
+                    (type) => SizedBox(
+                      width: width,
+                      child: _RegistrationTypeCard(
+                        type: type,
+                        onTap: () => _selectType(type),
+                      ),
+                    ),
+                  )
+                  .toList(),
+            );
+          },
+        ),
+      ],
     );
   }
 
@@ -911,15 +1027,29 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        const SizedBox(height: 12),
-        const Icon(Icons.check_circle_rounded, color: Color(0xFF00875A), size: 76),
-        const SizedBox(height: 16),
-        const Text(
-          'تم إرسال طلب التسجيل',
-          textAlign: TextAlign.center,
-          style: TextStyle(fontSize: 23, fontWeight: FontWeight.w900),
+        Container(
+          padding: const EdgeInsets.all(28),
+          decoration: BoxDecoration(
+            color: const Color(0xFF00875A),
+            borderRadius: BorderRadius.circular(16),
+          ),
+          child: const Column(
+            children: [
+              Icon(Icons.check_circle_rounded, color: Colors.white, size: 68),
+              SizedBox(height: 14),
+              Text(
+                'تم إرسال طلب التسجيل',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 23,
+                  fontWeight: FontWeight.w900,
+                  color: Colors.white,
+                ),
+              ),
+            ],
+          ),
         ),
-        const SizedBox(height: 8),
+        const SizedBox(height: 18),
         Text(
           isAgentApproval ? 'بانتظار موافقة الوكيل.' : 'بانتظار مراجعة الإدارة.',
           textAlign: TextAlign.center,
@@ -929,9 +1059,9 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
         Container(
           padding: const EdgeInsets.all(18),
           decoration: BoxDecoration(
-            color: const Color(0xFFF5F8FC),
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: const Color(0xFFDAE4F0)),
+            color: Theme.of(context).colorScheme.surface,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
           ),
           child: Column(
             children: [
@@ -981,49 +1111,28 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
         ],
       ),
       body: SafeArea(
-        child: Center(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.all(20),
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.fromLTRB(18, 22, 18, 36),
+          child: Center(
             child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 660),
-              child: Container(
-                padding: const EdgeInsets.all(22),
-                decoration: BoxDecoration(
-                  color: Theme.of(context).colorScheme.surface,
-                  borderRadius: BorderRadius.circular(20),
-                  border: Border.all(color: Theme.of(context).dividerColor),
-                ),
-                child: _completedRequest != null
-                    ? _successView()
-                    : type == null
-                    ? _typeSelection()
-                    : Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          Row(
-                            children: [
-                              Icon(type.icon, color: _gold),
-                              const SizedBox(width: 10),
-                              Expanded(
-                                child: Text(
-                                  type.title,
-                                  style: const TextStyle(
-                                    fontSize: 20,
-                                    fontWeight: FontWeight.w900,
-                                  ),
-                                ),
-                              ),
-                              TextButton(
-                                onPressed: _changeType,
-                                child: const Text('تغيير النوع'),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 20),
-                          _formFields(),
-                        ],
-                      ),
-              ),
+              constraints: const BoxConstraints(maxWidth: 760),
+              child: _completedRequest != null
+                  ? _successView()
+                  : type == null
+                  ? _typeSelection()
+                  : Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        _RegistrationFormHero(
+                          type: type,
+                          onChange: _changeType,
+                        ),
+                        const SizedBox(height: 18),
+                        const _RegistrationProgress(currentStep: 2),
+                        const SizedBox(height: 22),
+                        _formFields(),
+                      ],
+                    ),
             ),
           ),
         ),
@@ -1040,36 +1149,313 @@ class _RegistrationTypeCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    final dark = Theme.of(context).brightness == Brightness.dark;
     return Material(
-      color: Theme.of(context).colorScheme.surface,
-      borderRadius: BorderRadius.circular(16),
+      color: colors.surface,
+      borderRadius: BorderRadius.circular(14),
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(14),
         child: Container(
-          height: 132,
-          padding: const EdgeInsets.all(18),
+          height: 156,
+          padding: const EdgeInsets.all(17),
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: Theme.of(context).dividerColor),
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: colors.outlineVariant),
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Icon(type.icon, color: _gold, size: 30),
+              Row(
+                children: [
+                  Container(
+                    width: 42,
+                    height: 42,
+                    decoration: BoxDecoration(
+                      color: colors.primary.withValues(alpha: dark ? 0.22 : 0.10),
+                      borderRadius: BorderRadius.circular(11),
+                    ),
+                    child: Icon(type.icon, color: colors.primary, size: 23),
+                  ),
+                  const Spacer(),
+                  Icon(Icons.arrow_back_rounded, color: colors.onSurfaceVariant),
+                ],
+              ),
               const Spacer(),
-              Text(type.title, style: const TextStyle(fontWeight: FontWeight.w900)),
+              Text(
+                type.title,
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w900,
+                  color: colors.onSurface,
+                ),
+              ),
               const SizedBox(height: 4),
               Text(
                 type.subtitle,
                 style: TextStyle(
                   fontSize: 12,
-                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  color: colors.onSurfaceVariant,
                 ),
               ),
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _RegistrationPageHeader extends StatelessWidget {
+  const _RegistrationPageHeader({
+    required this.overline,
+    required this.title,
+    required this.subtitle,
+  });
+
+  final String overline;
+  final String title;
+  final String subtitle;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            const BrandMark(compact: true),
+            const Spacer(),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              decoration: BoxDecoration(
+                color: colors.primary.withValues(alpha: 0.10),
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Text(
+                overline,
+                style: TextStyle(
+                  color: colors.primary,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 30),
+        Text(
+          title,
+          style: TextStyle(
+            color: colors.onSurface,
+            fontSize: 28,
+            fontWeight: FontWeight.w900,
+          ),
+        ),
+        const SizedBox(height: 7),
+        Text(
+          subtitle,
+          style: TextStyle(color: colors.onSurfaceVariant, height: 1.5),
+        ),
+      ],
+    );
+  }
+}
+
+class _RegistrationFormHero extends StatelessWidget {
+  const _RegistrationFormHero({required this.type, required this.onChange});
+
+  final RegistrationAccountType type;
+  final VoidCallback onChange;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    final dark = Theme.of(context).brightness == Brightness.dark;
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: dark ? colors.surfaceContainerHighest : const Color(0xFF0B2345),
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 52,
+            height: 52,
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: dark ? 0.10 : 0.14),
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: Icon(type.icon, color: dark ? colors.primary : Colors.white),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  type.title,
+                  style: TextStyle(
+                    color: dark ? colors.onSurface : Colors.white,
+                    fontSize: 20,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  type.subtitle,
+                  style: TextStyle(
+                    color: dark
+                        ? colors.onSurfaceVariant
+                        : Colors.white.withValues(alpha: 0.72),
+                    fontSize: 12,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          TextButton(
+            onPressed: onChange,
+            style: TextButton.styleFrom(
+              foregroundColor: dark ? colors.primary : Colors.white,
+            ),
+            child: const Text('تغيير'),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _RegistrationProgress extends StatelessWidget {
+  const _RegistrationProgress({required this.currentStep});
+
+  final int currentStep;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    return Row(
+      children: [
+        _RegistrationStep(
+          number: 1,
+          label: 'نوع الحساب',
+          completed: currentStep > 1,
+          active: currentStep == 1,
+        ),
+        Expanded(
+          child: Container(
+            height: 1,
+            color: colors.primary.withValues(alpha: 0.35),
+          ),
+        ),
+        _RegistrationStep(
+          number: 2,
+          label: 'البيانات',
+          completed: false,
+          active: currentStep == 2,
+        ),
+        Expanded(
+          child: Container(
+            height: 1,
+            color: colors.outlineVariant,
+          ),
+        ),
+        _RegistrationStep(
+          number: 3,
+          label: 'المراجعة',
+          completed: false,
+          active: currentStep == 3,
+        ),
+      ],
+    );
+  }
+}
+
+class _RegistrationStep extends StatelessWidget {
+  const _RegistrationStep({
+    required this.number,
+    required this.label,
+    required this.completed,
+    required this.active,
+  });
+
+  final int number;
+  final String label;
+  final bool completed;
+  final bool active;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    final highlighted = completed || active;
+    return Column(
+      children: [
+        Container(
+          width: 28,
+          height: 28,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: highlighted ? colors.primary : colors.surface,
+            shape: BoxShape.circle,
+            border: Border.all(
+              color: highlighted ? colors.primary : colors.outlineVariant,
+            ),
+          ),
+          child: completed
+              ? Icon(Icons.check_rounded, color: colors.onPrimary, size: 17)
+              : Text(
+                  '$number',
+                  style: TextStyle(
+                    color: highlighted ? colors.onPrimary : colors.onSurfaceVariant,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+        ),
+        const SizedBox(height: 5),
+        Text(
+          label,
+          style: TextStyle(
+            color: highlighted ? colors.onSurface : colors.onSurfaceVariant,
+            fontSize: 10,
+            fontWeight: FontWeight.w800,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _RegistrationVerifiedAgent extends StatelessWidget {
+  const _RegistrationVerifiedAgent({required this.name});
+
+  final String name;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: const Color(0xFF00875A).withValues(alpha: 0.10),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFF00875A).withValues(alpha: 0.35)),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.verified_rounded, color: Color(0xFF00875A)),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              'تم التحقق من الوكيل: $name',
+              style: TextStyle(color: colors.onSurface, fontWeight: FontWeight.w800),
+            ),
+          ),
+        ],
       ),
     );
   }
