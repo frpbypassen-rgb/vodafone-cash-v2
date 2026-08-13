@@ -18,6 +18,53 @@ const {
 
 const RECEIPT_DELIVERY_STATUSES = new Set(['sent', 'delivered', 'read']);
 
+const DELIVERY_STAGE_LABELS = {
+    transaction_verified: 'التحقق من نجاح العملية',
+    receipt_ready: 'التحقق من صورة الإيصال',
+    configuration_verified: 'التحقق من إعدادات WhatChimp',
+    recipient_resolved: 'تحديد رقم مستلم الإيصال',
+    phone_normalized: 'تجهيز رقم واتساب',
+    receipt_link_ready: 'إنشاء رابط الإيصال',
+    provider_request: 'إرسال الطلب إلى WhatChimp',
+    provider_acceptance: 'قبول الرسالة من WhatChimp',
+    provider_delivery: 'تأكيد التسليم إلى واتساب'
+};
+
+const markDeliveryStage = (delivery, key, status, detail = '') => {
+    const stages = Array.isArray(delivery.stages) ? [...delivery.stages] : [];
+    const stage = {
+        key,
+        label: DELIVERY_STAGE_LABELS[key] || key,
+        status,
+        detail: String(detail || '').slice(0, 1000),
+        occurredAt: new Date()
+    };
+    const previousIndex = stages.findIndex((item) => item?.key === key);
+    if (previousIndex >= 0) stages[previousIndex] = stage;
+    else stages.push(stage);
+    delivery.stages = stages;
+    delivery.metadata = {
+        ...(delivery.metadata || {}),
+        currentStage: key,
+        currentStageLabel: stage.label,
+        currentStageStatus: status
+    };
+    if (typeof delivery.markModified === 'function') {
+        delivery.markModified('stages');
+        delivery.markModified('metadata');
+    }
+    return delivery;
+};
+
+const applyReceiptDeliveryIdentity = (delivery, transaction, recipient = null) => {
+    delivery.provider = 'whatchimp';
+    delivery.recipientName = recipient?.name || delivery.recipientName || '';
+    delivery.recipientModel = recipient?.model || delivery.recipientModel || '';
+    delivery.recipientId = recipient?.id || delivery.recipientId || null;
+    delivery.reference = transaction.customId || delivery.reference || '';
+    return delivery;
+};
+
 const serviceLabel = (transferType) => ({
     vodafone: 'محافظ كاش',
     post_account: 'بريد حساب',
@@ -152,6 +199,30 @@ const saveDelivery = async (delivery) => {
     }
 };
 
+const recordEarlyDeliveryFailure = async ({ transaction, recipient = null, recipientPhone = '', stage, result }) => {
+    const trackingPhone = recipientPhone || recipient?.phone || `unresolved:${String(transaction._id)}`;
+    let delivery = await WhatsAppDelivery.findOne({
+        kind: 'receipt',
+        transactionId: transaction._id,
+        recipientPhone: trackingPhone
+    });
+    if (!delivery) {
+        delivery = new WhatsAppDelivery({
+            kind: 'receipt',
+            transactionId: transaction._id,
+            recipientPhone: trackingPhone
+        });
+    }
+    applyReceiptDeliveryIdentity(delivery, transaction, recipient);
+    delivery.status = 'failed';
+    delivery.failureCode = result.code || 'WHATSAPP_DELIVERY_FAILED';
+    delivery.failureReason = result.message || 'تعذر إرسال إيصال واتساب.';
+    markDeliveryStage(delivery, 'transaction_verified', 'success');
+    markDeliveryStage(delivery, stage, 'failed', delivery.failureReason);
+    await saveDelivery(delivery);
+    return delivery;
+};
+
 const logReceiptDelivery = async ({ success, transaction, recipient, result }) => {
     await logAction({
         action: success ? 'WHATSAPP_RECEIPT_SENT' : 'WHATSAPP_RECEIPT_FAILED',
@@ -196,29 +267,37 @@ const sendCompletedTransactionReceipt = async (transactionInput) => {
             transaction.proofImage
         ].filter(Boolean);
         if (!receiptProofs.length) {
-            return { success: false, code: 'RECEIPT_PROOF_MISSING', message: 'لم يتم توليد صورة إيصال لهذه العملية بعد.' };
+            const failure = { success: false, code: 'RECEIPT_PROOF_MISSING', message: 'لم يتم توليد صورة إيصال لهذه العملية بعد.' };
+            await recordEarlyDeliveryFailure({ transaction, stage: 'receipt_ready', result: failure });
+            return failure;
         }
 
         const configuration = getWhatChimpConfigurationStatus();
         if (!configuration.receiptReady) {
-            return {
+            const failure = {
                 success: false,
                 code: 'WHATCHIMP_RECEIPT_NOT_READY',
                 message: 'إعداد قالب إيصال WhatChimp غير مكتمل.',
                 missing: configuration.missing
             };
+            await recordEarlyDeliveryFailure({ transaction, stage: 'configuration_verified', result: failure });
+            return failure;
         }
 
         const recipient = await resolveReceiptRecipient(transaction);
         if (!recipient?.phone) {
-            return { success: false, code: 'RECEIPT_RECIPIENT_MISSING', message: 'لا يوجد رقم واتساب صالح لصاحب العملية.' };
+            const failure = { success: false, code: 'RECEIPT_RECIPIENT_MISSING', message: 'لا يوجد رقم واتساب صالح لصاحب العملية.' };
+            await recordEarlyDeliveryFailure({ transaction, recipient, stage: 'recipient_resolved', result: failure });
+            return failure;
         }
 
         let normalizedPhone;
         try {
             normalizedPhone = normalizeWhatsAppPhone(recipient.phone);
         } catch (error) {
-            return { success: false, code: error.code || 'WHATSAPP_PHONE_INVALID', message: error.message };
+            const failure = { success: false, code: error.code || 'WHATSAPP_PHONE_INVALID', message: error.message };
+            await recordEarlyDeliveryFailure({ transaction, recipient, stage: 'phone_normalized', result: failure });
+            return failure;
         }
 
         const existing = await WhatsAppDelivery.findOne({
@@ -244,12 +323,7 @@ const sendCompletedTransactionReceipt = async (transactionInput) => {
                 code: 'RECEIPT_PUBLIC_URL_UNAVAILABLE',
                 message: 'أضف PUBLIC_APP_URL و RECEIPT_SHARE_SECRET لإرسال إيصالات واتساب.'
             };
-            if (existing) {
-                existing.status = 'failed';
-                existing.failureCode = failure.code;
-                existing.failureReason = failure.message;
-                await saveDelivery(existing);
-            }
+            await recordEarlyDeliveryFailure({ transaction, recipient, recipientPhone: normalizedPhone, stage: 'receipt_link_ready', result: failure });
             await logReceiptDelivery({ success: false, transaction, recipient, result: failure });
             return failure;
         }
@@ -259,22 +333,26 @@ const sendCompletedTransactionReceipt = async (transactionInput) => {
             transactionId: transaction._id,
             recipientPhone: normalizedPhone
         });
-        delivery.provider = 'whatchimp';
-        delivery.recipientName = recipient.name || '';
-        delivery.recipientModel = recipient.model || '';
-        delivery.recipientId = recipient.id || null;
-        delivery.reference = transaction.customId || '';
+        applyReceiptDeliveryIdentity(delivery, transaction, recipient);
         delivery.templateName = configuration.receiptTemplate || '';
         delivery.templateId = configuration.receiptMediaTemplateId || '';
         delivery.status = 'sending';
         delivery.failureCode = '';
         delivery.failureReason = '';
         delivery.metadata = {
+            ...(delivery.metadata || {}),
             service: serviceLabel(transaction.transferType),
             receiptUrl,
             proofIndex: 0,
             recipientSource: recipient.source || 'account'
         };
+        markDeliveryStage(delivery, 'transaction_verified', 'success');
+        markDeliveryStage(delivery, 'receipt_ready', 'success');
+        markDeliveryStage(delivery, 'configuration_verified', 'success');
+        markDeliveryStage(delivery, 'recipient_resolved', 'success', recipient.source || 'account');
+        markDeliveryStage(delivery, 'phone_normalized', 'success', normalizedPhone);
+        markDeliveryStage(delivery, 'receipt_link_ready', 'success');
+        markDeliveryStage(delivery, 'provider_request', 'active');
         await saveDelivery(delivery);
 
         const result = await sendReceipt({
@@ -292,6 +370,9 @@ const sendCompletedTransactionReceipt = async (transactionInput) => {
         delivery.failureCode = result.success ? '' : (result.code || 'WHATCHIMP_REQUEST_FAILED');
         delivery.failureReason = result.success ? '' : (result.message || 'تعذر إرسال إيصال واتساب.');
         delivery.sentAt = result.success ? new Date() : undefined;
+        markDeliveryStage(delivery, 'provider_request', result.success ? 'success' : 'failed', result.message || '');
+        markDeliveryStage(delivery, 'provider_acceptance', result.success ? 'success' : 'failed', result.message || '');
+        if (result.success) markDeliveryStage(delivery, 'provider_delivery', 'waiting', 'بانتظار تأكيد التسليم من WhatsApp.');
         await saveDelivery(delivery);
         await logReceiptDelivery({ success: result.success, transaction, recipient, result });
 
@@ -312,9 +393,52 @@ const sendCompletedTransactionReceipt = async (transactionInput) => {
     }
 };
 
+const normalizeProviderDeliveryStatus = (value) => {
+    const raw = String(value || '').trim().toLowerCase();
+    if (/(fail|error|reject|undeliver|block)/.test(raw)) return 'failed';
+    if (/(read|seen)/.test(raw)) return 'read';
+    if (/(deliver|received)/.test(raw)) return 'delivered';
+    if (/(sent|accept|queued|submit)/.test(raw)) return 'sent';
+    return '';
+};
+
+const updateReceiptDeliveryProviderStatus = async ({ messageId, status, reason = '', rawStatus = '' } = {}) => {
+    const normalizedStatus = normalizeProviderDeliveryStatus(status);
+    if (!messageId || !normalizedStatus) return { updated: false, reason: 'UNSUPPORTED_STATUS' };
+
+    const delivery = await WhatsAppDelivery.findOne({ kind: 'receipt', messageId: String(messageId) });
+    if (!delivery) return { updated: false, reason: 'DELIVERY_NOT_FOUND' };
+
+    const priority = { pending: 0, sending: 1, sent: 2, delivered: 3, read: 4, failed: 5 };
+    if (normalizedStatus !== 'failed' && delivery.status !== 'failed' && (priority[normalizedStatus] || 0) >= (priority[delivery.status] || 0)) {
+        delivery.status = normalizedStatus;
+    }
+    if (normalizedStatus === 'failed') {
+        delivery.status = 'failed';
+        delivery.failureCode = 'WHATCHIMP_DELIVERY_FAILED';
+        delivery.failureReason = String(reason || 'تعذر تسليم الرسالة من WhatsApp.').slice(0, 1000);
+    }
+    delivery.metadata = {
+        ...(delivery.metadata || {}),
+        providerDeliveryStatus: rawStatus || status,
+        providerDeliveryUpdatedAt: new Date()
+    };
+    markDeliveryStage(
+        delivery,
+        'provider_delivery',
+        normalizedStatus === 'failed' ? 'failed' : 'success',
+        normalizedStatus === 'failed' ? delivery.failureReason : `حالة WhatsApp: ${normalizedStatus}`
+    );
+    await saveDelivery(delivery);
+    return { updated: true, delivery };
+};
+
 module.exports = {
     resolveReceiptRecipient,
     findCompanyTransferSender,
     findCompanyManager,
-    sendCompletedTransactionReceipt
+    sendCompletedTransactionReceipt,
+    updateReceiptDeliveryProviderStatus,
+    normalizeProviderDeliveryStatus,
+    DELIVERY_STAGE_LABELS
 };

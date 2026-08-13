@@ -310,6 +310,7 @@ app.use('/settings', require('./routes/settings'));
 app.use('/', require('./routes/employees'));
 app.use('/', require('./routes/broadcast'));
 app.use('/', require('./routes/support'));
+app.use('/whatsapp-monitor', require('./routes/whatsappMonitoring'));
 app.use('/', require('./routes/registrationRequests'));
 app.use('/audit-log', requireAuth, require('./routes/auditLog'));
 app.use('/', require('./routes/reports'));

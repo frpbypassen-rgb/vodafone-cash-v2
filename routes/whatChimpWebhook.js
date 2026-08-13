@@ -4,10 +4,12 @@ const express = require('express');
 const router = express.Router();
 const logger = require('../utils/logger');
 const {
+    normalizeWhatChimpDeliveryWebhook,
     normalizeWhatChimpWebhookPayload,
     recordWhatChimpSupportMessage,
     verifyWhatChimpWebhookRequest
 } = require('../services/whatChimpSupportService');
+const { updateReceiptDeliveryProviderStatus } = require('../services/whatsappReceiptDeliveryService');
 
 router.post('/messages', async (req, res) => {
     if (!verifyWhatChimpWebhookRequest(req)) {
@@ -19,12 +21,26 @@ router.post('/messages', async (req, res) => {
     }
 
     try {
+        const deliveryEvent = normalizeWhatChimpDeliveryWebhook(req.body);
+        const deliveryResult = deliveryEvent
+            ? await updateReceiptDeliveryProviderStatus({
+                messageId: deliveryEvent.providerMessageId,
+                status: deliveryEvent.status,
+                rawStatus: deliveryEvent.status,
+                reason: deliveryEvent.reason
+            })
+            : null;
         const event = normalizeWhatChimpWebhookPayload(req.body);
         if (!event) {
-            logger.warn('Ignored unsupported WhatChimp webhook payload', {
+            logger.info('Processed WhatChimp delivery webhook', {
                 bodyKeys: Object.keys(req.body || {}).slice(0, 20)
             });
-            return res.status(202).json({ success: true, ignored: true, reason: 'UNSUPPORTED_PAYLOAD' });
+            return res.status(deliveryResult?.updated ? 200 : 202).json({
+                success: true,
+                ignored: !deliveryResult?.updated,
+                deliveryUpdated: Boolean(deliveryResult?.updated),
+                reason: deliveryResult?.reason || ''
+            });
         }
 
         const result = await recordWhatChimpSupportMessage(event);
@@ -39,12 +55,14 @@ router.post('/messages', async (req, res) => {
             direction: event.direction,
             messageType: event.messageType,
             duplicate: Boolean(result.duplicate),
-            hasTicket: Boolean(result.ticket || result.ticketId)
+            hasTicket: Boolean(result.ticket || result.ticketId),
+            deliveryUpdated: Boolean(deliveryResult?.updated)
         });
 
         return res.status(200).json({
             success: true,
             duplicate: Boolean(result.duplicate),
+            deliveryUpdated: Boolean(deliveryResult?.updated),
             ticketId: result.ticket ? String(result.ticket._id) : String(result.ticketId || '')
         });
     } catch (error) {

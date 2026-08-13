@@ -23,6 +23,13 @@ const whatsAppDeliverySchema = new mongoose.Schema({
     failureCode: { type: String, default: '' },
     failureReason: { type: String, default: '' },
     sentAt: { type: Date },
+    stages: [{
+        key: { type: String, trim: true },
+        label: { type: String, trim: true },
+        status: { type: String, enum: ['waiting', 'active', 'success', 'failed', 'skipped'], default: 'waiting' },
+        detail: { type: String, default: '' },
+        occurredAt: { type: Date, default: Date.now }
+    }],
     metadata: { type: mongoose.Schema.Types.Mixed, default: {} }
 }, { timestamps: true, versionKey: false });
 

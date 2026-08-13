@@ -57,6 +57,7 @@ const collectPayloadObjects = (payload) => {
         change,
         value,
         Array.isArray(value?.messages) ? value.messages[0] : null,
+        Array.isArray(value?.statuses) ? value.statuses[0] : null,
         Array.isArray(value?.contacts) ? value.contacts[0] : null
     ];
     return roots.filter((item) => item && typeof item === 'object' && !Array.isArray(item));
@@ -182,6 +183,29 @@ const normalizeWhatChimpWebhookPayload = (payload) => {
             : 'received',
         sourceMarker,
         createdAt: timestamp
+    };
+};
+
+const normalizeWhatChimpDeliveryWebhook = (payload) => {
+    const sources = collectPayloadObjects(payload);
+    if (!sources.length) return null;
+
+    const providerMessageId = firstText(sources, [
+        'wa_message_id', 'message_id', 'id', 'message.id', 'data.wa_message_id', 'data.message_id',
+        'statuses.id', 'data.statuses.id'
+    ], 512);
+    const rawStatus = firstText(sources, [
+        'delivery_status', 'message_status', 'status', 'event', 'event_type', 'statuses.status', 'data.statuses.status'
+    ], 128);
+    const status = rawStatus.toLowerCase();
+    if (!providerMessageId || !/(sent|accept|queue|deliver|read|seen|fail|error|reject|undeliver|block)/.test(status)) return null;
+
+    return {
+        providerMessageId,
+        status: rawStatus,
+        reason: firstText(sources, [
+            'error.message', 'errors.0.message', 'failure_reason', 'reason', 'message_error', 'data.error.message'
+        ], 1000)
     };
 };
 
@@ -353,6 +377,7 @@ module.exports = {
     hasActiveWhatsAppWindow,
     isWhatsAppSupportTicket,
     normalizeExternalPhone,
+    normalizeWhatChimpDeliveryWebhook,
     normalizeWhatChimpWebhookPayload,
     recordWhatChimpSupportMessage,
     setPortalSupportReplyChannel,

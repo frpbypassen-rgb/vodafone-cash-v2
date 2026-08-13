@@ -31,7 +31,11 @@ const WhatsAppDelivery = require('../models/WhatsAppDelivery');
 const { acquireLock, releaseLock } = require('../services/lockService');
 const { createReceiptImageUrl } = require('../services/receiptShareService');
 const { getWhatChimpConfigurationStatus, normalizeWhatsAppPhone, sendReceipt } = require('../services/whatsappService');
-const { sendCompletedTransactionReceipt } = require('../services/whatsappReceiptDeliveryService');
+const {
+    sendCompletedTransactionReceipt,
+    updateReceiptDeliveryProviderStatus,
+    normalizeProviderDeliveryStatus
+} = require('../services/whatsappReceiptDeliveryService');
 
 describe('WhatsApp receipt delivery', () => {
     beforeEach(() => {
@@ -162,10 +166,43 @@ describe('WhatsApp receipt delivery', () => {
 
     test('waits for receipt generation instead of sending a broken receipt link', async () => {
         Transaction.findById.mockResolvedValue({ _id: 'tx-3', status: 'completed', userId: '01108172258' });
+        WhatsAppDelivery.findOne.mockResolvedValue(null);
 
         const result = await sendCompletedTransactionReceipt('tx-3');
 
         expect(result).toMatchObject({ success: false, code: 'RECEIPT_PROOF_MISSING' });
         expect(sendReceipt).not.toHaveBeenCalled();
+        expect(WhatsAppDelivery.mock.instances[0]).toMatchObject({
+            status: 'failed',
+            failureCode: 'RECEIPT_PROOF_MISSING'
+        });
+        expect(WhatsAppDelivery.mock.instances[0].stages).toEqual(expect.arrayContaining([
+            expect.objectContaining({ key: 'receipt_ready', status: 'failed' })
+        ]));
+    });
+
+    test('records the final WhatsApp delivery status received by webhook', async () => {
+        const delivery = {
+            status: 'sent',
+            messageId: 'wamid.receipt.1',
+            metadata: {},
+            stages: [],
+            save: jest.fn().mockResolvedValue(undefined)
+        };
+        WhatsAppDelivery.findOne.mockResolvedValue(delivery);
+
+        const result = await updateReceiptDeliveryProviderStatus({
+            messageId: 'wamid.receipt.1',
+            status: 'delivered',
+            rawStatus: 'delivered'
+        });
+
+        expect(result.updated).toBe(true);
+        expect(delivery.status).toBe('delivered');
+        expect(delivery.stages).toEqual(expect.arrayContaining([
+            expect.objectContaining({ key: 'provider_delivery', status: 'success' })
+        ]));
+        expect(normalizeProviderDeliveryStatus('read')).toBe('read');
+        expect(normalizeProviderDeliveryStatus('rejected')).toBe('failed');
     });
 });

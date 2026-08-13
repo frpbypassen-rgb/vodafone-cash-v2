@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>مراقبة رسائل واتساب | شركة الأهرام</title>
+    <script>
+        const savedTheme = localStorage.getItem('ahram_theme') || 'dark';
+        document.documentElement.setAttribute('data-theme', savedTheme);
+    </script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.rtl.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800&display=swap" rel="stylesheet">
+    <style>
+        .monitor-header { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 20px; }
+        .monitor-subtitle { color: var(--text-muted); font-weight: 700; margin: 5px 0 0; }
+        .monitor-icon { width: 52px; height: 52px; display: inline-flex; align-items: center; justify-content: center; border-radius: 15px; color: #fff; background: #14a86b; box-shadow: 0 10px 20px rgba(20,168,107,.22); font-size: 1.45rem; }
+        .summary-card { min-height: 118px; padding: 18px; border-radius: 12px; background: var(--card-bg); border: 1px solid var(--border-glass); box-shadow: var(--shadow-soft); }
+        .summary-card .label { color: var(--text-muted); font-size: .85rem; font-weight: 800; }
+        .summary-card .value { font-size: 1.8rem; line-height: 1.1; font-weight: 800; color: var(--text-main); margin-top: 8px; }
+        .summary-card i { float: left; padding: 10px; border-radius: 10px; background: rgba(0,26,77,.08); color: var(--brand-primary); }
+        .configuration-band { border-radius: 12px; border: 1px solid var(--border-glass); background: var(--card-bg); padding: 15px 18px; display: flex; gap: 12px; align-items: center; margin: 20px 0; }
+        .configuration-band .state { width: 34px; height: 34px; border-radius: 50%; display: inline-flex; justify-content: center; align-items: center; flex: 0 0 auto; }
+        .state-ok { background: rgba(22,163,74,.13); color: #16a34a; }
+        .state-bad { background: rgba(220,53,69,.12); color: #dc3545; }
+        .filter-card { background: var(--card-bg); border: 1px solid var(--border-glass); border-radius: 12px; padding: 14px; margin-bottom: 16px; }
+        .delivery-card { background: var(--card-bg); border: 1px solid var(--border-glass); border-radius: 10px; overflow: hidden; margin-bottom: 12px; }
+        .delivery-main { padding: 16px; display: grid; grid-template-columns: minmax(145px,1.1fr) minmax(135px,1fr) minmax(150px,1.2fr) minmax(200px,1.5fr) auto; gap: 16px; align-items: center; }
+        .delivery-key { font-weight: 800; color: var(--text-main); font-family: monospace; direction: ltr; text-align: right; }
+        .delivery-label { display: block; font-size: .75rem; color: var(--text-muted); font-weight: 700; margin-bottom: 4px; }
+        .delivery-value { color: var(--text-main); font-weight: 800; overflow-wrap: anywhere; }
+        .status-badge { display: inline-flex; gap: 6px; align-items: center; border-radius: 999px; padding: 6px 10px; font-size: .78rem; font-weight: 800; }
+        .status-sent, .status-delivered, .status-read { background: rgba(22,163,74,.12); color: #15803d; }
+        .status-failed { background: rgba(220,53,69,.12); color: #b42318; }
+        .status-sending, .status-pending { background: rgba(245,158,11,.14); color: #a16207; }
+        .status-skipped { background: rgba(100,116,139,.14); color: #475569; }
+        .stage-error { color: #b42318; font-size: .83rem; font-weight: 700; line-height: 1.5; }
+        .details-toggle { border: 1px solid var(--border-glass); background: var(--input-bg); color: var(--text-main); width: 36px; height: 36px; border-radius: 9px; }
+        .delivery-trail { border-top: 1px solid var(--border-glass); padding: 14px 16px 17px; background: color-mix(in srgb, var(--input-bg) 70%, transparent); }
+        .trail { display: flex; flex-wrap: wrap; gap: 8px; }
+        .trail-step { min-width: 154px; padding: 9px 10px; border-radius: 9px; border: 1px solid var(--border-glass); background: var(--card-bg); }
+        .trail-step strong { display: block; color: var(--text-main); font-size: .78rem; }
+        .trail-step small { display: block; color: var(--text-muted); margin-top: 3px; overflow-wrap: anywhere; }
+        .trail-step.success { border-right: 3px solid #16a34a; }
+        .trail-step.failed { border-right: 3px solid #dc3545; background: rgba(220,53,69,.06); }
+        .trail-step.active { border-right: 3px solid #f59e0b; }
+        .trail-step.waiting { border-right: 3px solid #94a3b8; }
+        .empty-state { text-align: center; padding: 65px 18px; color: var(--text-muted); background: var(--card-bg); border: 1px solid var(--border-glass); border-radius: 12px; font-weight: 700; }
+        @media (max-width: 1100px) { .delivery-main { grid-template-columns: repeat(2, minmax(0,1fr)); } .details-toggle { justify-self: end; } }
+        @media (max-width: 576px) { .monitor-header { align-items: flex-start; } .monitor-header h3 { font-size: 1.15rem; } .monitor-subtitle { font-size: .8rem; } .delivery-main { grid-template-columns: 1fr; gap: 10px; } .details-toggle { position: absolute; left: 14px; top: 14px; } .delivery-card { position: relative; } .trail-step { width: 100%; } }
+    </style>
+</head>
+<body>
+<%
+    const statusInfo = {
+        pending: { label: 'بانتظار الإرسال', icon: 'fa-clock' },
+        sending: { label: 'جارٍ الإرسال', icon: 'fa-paper-plane' },
+        sent: { label: 'قبلتها المنصة', icon: 'fa-circle-check' },
+        delivered: { label: 'تم التسليم', icon: 'fa-check-double' },
+        read: { label: 'تمت القراءة', icon: 'fa-eye' },
+        failed: { label: 'توقفت الرسالة', icon: 'fa-circle-xmark' },
+        skipped: { label: 'تم التجاوز', icon: 'fa-forward' }
+    };
+    const formatDate = (value) => value ? new Date(value).toLocaleString('ar-EG', { timeZone: 'Africa/Tripoli', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit' }) : '---';
+    const visiblePhone = (value) => String(value || '').startsWith('unresolved:') ? 'لم يتم تحديد الرقم' : (value || '---');
+    const fallbackStage = (delivery) => ({
+        key: delivery.status === 'failed' ? 'provider_request' : 'provider_delivery',
+        label: delivery.status === 'failed' ? 'إرسال الطلب إلى WhatChimp' : 'تأكيد التسليم إلى واتساب',
+        status: delivery.status === 'failed' ? 'failed' : 'waiting',
+        detail: delivery.failureReason || ''
+    });
+%>
+<button class="mobile-nav-toggle" onclick="toggleSidebar()"><i class="fa-solid fa-bars"></i></button>
+<div class="sidebar-overlay" onclick="toggleSidebar()"></div>
+<%- include('partials/sidebar', { activePage: 'whatsapp_monitor' }) %>
+
+<main class="main-content">
+    <div class="container-fluid">
+        <header class="monitor-header">
+            <div class="d-flex align-items-center gap-3">
+                <span class="monitor-icon"><i class="fa-brands fa-whatsapp"></i></span>
+                <div>
+                    <h3 class="fw-bold m-0" style="color:var(--text-main)">مراقبة رسائل واتساب</h3>
+                    <p class="monitor-subtitle">تتبع إرسال إيصالات العمليات وتحديد المرحلة المتوقفة وسببها.</p>
+                </div>
+            </div>
+            <a href="/settings#whatsapp-integration" class="btn btn-outline-primary fw-bold"><i class="fa-solid fa-gear me-1"></i> إعدادات الربط</a>
+        </header>
+
+        <section class="row g-3">
+            <div class="col-6 col-xl-3"><div class="summary-card"><i class="fa-solid fa-hourglass-half"></i><span class="label">بانتظار الإرسال</span><div class="value"><%= summary.pendingCount %></div></div></div>
+            <div class="col-6 col-xl-3"><div class="summary-card"><i class="fa-solid fa-triangle-exclamation" style="color:#dc3545;background:rgba(220,53,69,.08)"></i><span class="label">رسائل متوقفة</span><div class="value"><%= summary.failedCount %></div></div></div>
+            <div class="col-6 col-xl-3"><div class="summary-card"><i class="fa-solid fa-check-double" style="color:#16a34a;background:rgba(22,163,74,.09)"></i><span class="label">تم التسليم</span><div class="value"><%= summary.deliveredCount %></div></div></div>
+            <div class="col-6 col-xl-3"><div class="summary-card"><i class="fa-solid fa-eye" style="color:#7c3aed;background:rgba(124,58,237,.09)"></i><span class="label">تمت القراءة</span><div class="value"><%= summary.readCount %></div></div></div>
+        </section>
+
+        <section class="configuration-band">
+            <span class="state <%= configuration.ready ? 'state-ok' : 'state-bad' %>"><i class="fa-solid <%= configuration.ready ? 'fa-circle-check' : 'fa-triangle-exclamation' %>"></i></span>
+            <div>
+                <strong style="color:var(--text-main)"><%= configuration.ready ? 'ربط WhatChimp جاهز للإرسال' : 'إعداد إرسال واتساب غير مكتمل' %></strong>
+                <% if (configuration.missing.length) { %><div class="small text-danger mt-1">النواقص: <span dir="ltr"><%= configuration.missing.join(' · ') %></span></div><% } else { %><div class="small text-muted mt-1">تصل تحديثات الحالة الفعلية عند تهيئة Webhook WhatChimp على رابط المنظومة.</div><% } %>
+            </div>
+        </section>
+
+        <form class="filter-card row g-2 align-items-end" method="GET" action="/whatsapp-monitor">
+            <div class="col-md-5"><label class="form-label small fw-bold">بحث</label><input class="form-control" name="search" value="<%= search %>" placeholder="رقم العملية أو رقم المستلم أو رمز الخطأ"></div>
+            <div class="col-md-4"><label class="form-label small fw-bold">الحالة</label><select class="form-select" name="status"><option value="">كل الحالات</option><% statuses.forEach((status) => { %><option value="<%= status %>" <%= selectedStatus === status ? 'selected' : '' %>><%= statusInfo[status].label %></option><% }) %></select></div>
+            <div class="col-md-3 d-flex gap-2"><button class="btn btn-primary fw-bold flex-fill" type="submit"><i class="fa-solid fa-magnifying-glass me-1"></i> بحث</button><a class="btn btn-outline-secondary" href="/whatsapp-monitor" title="إعادة الضبط"><i class="fa-solid fa-rotate-right"></i></a></div>
+        </form>
+
+        <% if (!deliveries.length) { %>
+            <section class="empty-state"><i class="fa-brands fa-whatsapp fs-1 d-block mb-3 opacity-25"></i>لا توجد رسائل مطابقة. ستظهر هنا كل محاولة جديدة لإرسال إيصال.</section>
+        <% } %>
+
+        <% deliveries.forEach((delivery, index) => { const info = statusInfo[delivery.status] || statusInfo.pending; const stages = Array.isArray(delivery.stages) && delivery.stages.length ? delivery.stages : [fallbackStage(delivery)]; const currentStage = stages[stages.length - 1] || fallbackStage(delivery); %>
+            <article class="delivery-card">
+                <div class="delivery-main">
+                    <div><span class="delivery-label">العملية / المرجع</span><div class="delivery-key"><%= delivery.reference || 'بدون مرجع' %></div><span class="small text-muted"><%= formatDate(delivery.createdAt) %></span></div>
+                    <div><span class="delivery-label">المستلم</span><div class="delivery-value" dir="ltr"><%= visiblePhone(delivery.recipientPhone) %></div><span class="small text-muted"><%= delivery.recipientName || delivery.recipientModel || 'غير محدد' %></span></div>
+                    <div><span class="delivery-label">الحالة الحالية</span><span class="status-badge status-<%= delivery.status %>"><i class="fa-solid <%= info.icon %>"></i><%= info.label %></span><span class="small text-muted d-block mt-1">آخر تحديث: <%= formatDate(delivery.updatedAt) %></span></div>
+                    <div><span class="delivery-label">آخر مرحلة</span><div class="delivery-value"><%= currentStage.label || stageLabels[currentStage.key] || '---' %></div><% if (delivery.status === 'failed') { %><div class="stage-error"><%= delivery.failureCode || 'DELIVERY_FAILED' %> - <%= delivery.failureReason || currentStage.detail || 'تعذر إكمال الإرسال.' %></div><% } else { %><span class="small text-muted"><%= currentStage.detail || 'لا توجد ملاحظات إضافية.' %></span><% } %></div>
+                    <button class="details-toggle" type="button" data-bs-toggle="collapse" data-bs-target="#delivery-<%= index %>" aria-label="عرض مراحل الرسالة"><i class="fa-solid fa-list-check"></i></button>
+                </div>
+                <div class="collapse <%= delivery.status === 'failed' ? 'show' : '' %>" id="delivery-<%= index %>">
+                    <div class="delivery-trail"><span class="delivery-label mb-2">مراحل التنفيذ</span><div class="trail"><% stages.forEach((stage) => { %><div class="trail-step <%= stage.status || 'waiting' %>"><strong><i class="fa-solid <%= stage.status === 'success' ? 'fa-circle-check' : (stage.status === 'failed' ? 'fa-circle-xmark' : 'fa-clock') %> me-1"></i><%= stage.label || stageLabels[stage.key] || stage.key %></strong><small><%= stage.detail || (stage.status === 'success' ? 'تمت بنجاح' : stage.status === 'waiting' ? 'بانتظار تحديث المنصة' : '---') %></small><small><%= formatDate(stage.occurredAt) %></small></div><% }) %></div></div>
+                </div>
+            </article>
+        <% }) %>
+    </div>
+</main>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+    function toggleSidebar() {
+        document.querySelector('.sidebar')?.classList.toggle('active');
+        document.querySelector('.sidebar-overlay')?.classList.toggle('active');
+    }
+</script>
+</body>
+</html>
