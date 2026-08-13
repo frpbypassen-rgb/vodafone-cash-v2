@@ -3,7 +3,7 @@
 const mongoose = require('mongoose');
 
 const whatsAppDeliverySchema = new mongoose.Schema({
-    kind: { type: String, enum: ['otp', 'receipt'], required: true, index: true },
+    kind: { type: String, enum: ['otp', 'receipt', 'support', 'test'], required: true, index: true },
     provider: { type: String, default: 'whatchimp' },
     recipientPhone: { type: String, required: true, index: true },
     recipientName: { type: String, default: '' },

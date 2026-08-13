@@ -406,7 +406,7 @@ const updateReceiptDeliveryProviderStatus = async ({ messageId, status, reason =
     const normalizedStatus = normalizeProviderDeliveryStatus(status);
     if (!messageId || !normalizedStatus) return { updated: false, reason: 'UNSUPPORTED_STATUS' };
 
-    const delivery = await WhatsAppDelivery.findOne({ kind: 'receipt', messageId: String(messageId) });
+    const delivery = await WhatsAppDelivery.findOne({ messageId: String(messageId) });
     if (!delivery) return { updated: false, reason: 'DELIVERY_NOT_FOUND' };
 
     const priority = { pending: 0, sending: 1, sent: 2, delivered: 3, read: 4, failed: 5 };
@@ -433,12 +433,57 @@ const updateReceiptDeliveryProviderStatus = async ({ messageId, status, reason =
     return { updated: true, delivery };
 };
 
+const recordWhatsAppDeliveryAttempt = async ({
+    kind = 'support',
+    recipientPhone = '',
+    recipientName = '',
+    recipientModel = '',
+    recipientId = null,
+    reference = '',
+    result = {},
+    skipped = false,
+    metadata = {}
+} = {}) => {
+    const delivery = new WhatsAppDelivery({
+        kind,
+        recipientPhone: String(recipientPhone || `unresolved:${Date.now()}`).trim(),
+        recipientName: String(recipientName || '').trim(),
+        recipientModel: String(recipientModel || '').trim(),
+        recipientId,
+        reference: String(reference || '').trim(),
+        provider: result.provider || 'whatchimp',
+        messageId: String(result.messageId || '').trim(),
+        status: skipped ? 'skipped' : (result.success ? 'sent' : 'failed'),
+        failureCode: result.success ? '' : String(result.code || 'WHATCHIMP_REQUEST_FAILED'),
+        failureReason: result.success ? '' : String(result.message || 'تعذر إرسال رسالة واتساب.').slice(0, 1000),
+        sentAt: result.success ? new Date() : undefined,
+        metadata: { ...metadata, messageKind: kind }
+    });
+
+    markDeliveryStage(
+        delivery,
+        'provider_request',
+        skipped ? 'skipped' : (result.success ? 'success' : 'failed'),
+        skipped ? delivery.failureReason : (result.message || '')
+    );
+    markDeliveryStage(
+        delivery,
+        'provider_acceptance',
+        skipped ? 'skipped' : (result.success ? 'success' : 'failed'),
+        skipped ? delivery.failureReason : (result.message || '')
+    );
+    if (result.success) markDeliveryStage(delivery, 'provider_delivery', 'waiting', 'بانتظار تأكيد التسليم من WhatsApp.');
+    await saveDelivery(delivery);
+    return delivery;
+};
+
 module.exports = {
     resolveReceiptRecipient,
     findCompanyTransferSender,
     findCompanyManager,
     sendCompletedTransactionReceipt,
     updateReceiptDeliveryProviderStatus,
+    recordWhatsAppDeliveryAttempt,
     normalizeProviderDeliveryStatus,
     DELIVERY_STAGE_LABELS
 };

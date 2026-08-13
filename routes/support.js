@@ -12,6 +12,7 @@ const {
     isWhatsAppSupportTicket
 } = require('../services/whatChimpSupportService');
 const { createSupportReplyNotifications } = require('../services/clientNotificationService');
+const { recordWhatsAppDeliveryAttempt } = require('../services/whatsappReceiptDeliveryService');
 
 const emitTicketUpdate = (req, ticket) => {
     req.app.get('io')?.emit('support:ticket-updated', {
@@ -58,9 +59,30 @@ router.post('/api/support/tickets/:id/reply', requireAuth, async (req, res) => {
             if (!hasActiveWhatsAppWindow(ticket)) {
                 whatsapp.code = 'WHATSAPP_WINDOW_EXPIRED';
                 warning = 'تم حفظ الرد في صفحة الدعم فقط لأن نافذة محادثة واتساب انتهت. يرسل العميل رسالة جديدة عبر واتساب لاستئناف الرد المباشر.';
+                await recordWhatsAppDeliveryAttempt({
+                    kind: 'support',
+                    recipientPhone: ticket.phoneNormalized || ticket.phone,
+                    recipientName: ticket.name,
+                    recipientModel: 'SupportTicket',
+                    recipientId: ticket._id,
+                    reference: ticket.ticketId || String(ticket._id),
+                    skipped: true,
+                    result: { code: whatsapp.code, message: 'انتهت نافذة محادثة WhatsApp لمدة 24 ساعة؛ لم يتم إرسال النص الحر.' },
+                    metadata: { ticketId: String(ticket._id), channel: 'support_reply' }
+                });
             } else if (!ticket.phoneNormalized && !ticket.phone) {
                 whatsapp.code = 'WHATSAPP_PHONE_MISSING';
                 warning = 'تم حفظ الرد في صفحة الدعم فقط لأن رقم واتساب غير متاح لهذه المحادثة.';
+                await recordWhatsAppDeliveryAttempt({
+                    kind: 'support',
+                    recipientName: ticket.name,
+                    recipientModel: 'SupportTicket',
+                    recipientId: ticket._id,
+                    reference: ticket.ticketId || String(ticket._id),
+                    skipped: true,
+                    result: { code: whatsapp.code, message: 'رقم واتساب غير متاح لهذه المحادثة.' },
+                    metadata: { ticketId: String(ticket._id), channel: 'support_reply' }
+                });
             } else {
                 whatsapp.attempted = true;
                 try {
@@ -79,6 +101,16 @@ router.post('/api/support/tickets/:id/reply', requireAuth, async (req, res) => {
                     whatsapp.code = delivery?.code || 'WHATCHIMP_REQUEST_FAILED';
                     warning = 'تم حفظ الرد في صفحة الدعم فقط، وتعذر تسليمه عبر واتساب حالياً.';
                 }
+                await recordWhatsAppDeliveryAttempt({
+                    kind: 'support',
+                    recipientPhone: ticket.phoneNormalized || ticket.phone,
+                    recipientName: ticket.name,
+                    recipientModel: 'SupportTicket',
+                    recipientId: ticket._id,
+                    reference: ticket.ticketId || String(ticket._id),
+                    result: delivery || { success: false, code: 'WHATCHIMP_REQUEST_FAILED' },
+                    metadata: { ticketId: String(ticket._id), channel: 'support_reply' }
+                });
             }
         }
 
@@ -156,6 +188,16 @@ router.post('/api/support/whatsapp-test', requireAuth, async (req, res) => {
 
         const sentAt = new Date();
         const delivered = Boolean(delivery?.success);
+        await recordWhatsAppDeliveryAttempt({
+            kind: 'test',
+            recipientPhone: phoneNormalized,
+            recipientName: ticket.name,
+            recipientModel: 'SupportTicket',
+            recipientId: ticket._id,
+            reference: ticket.ticketId || String(ticket._id),
+            result: delivery || { success: false, code: 'WHATCHIMP_REQUEST_FAILED' },
+            metadata: { ticketId: String(ticket._id), channel: 'support_test' }
+        });
         const testMessage = {
             sender: 'admin',
             senderName: 'اختبار المنظومة',
@@ -244,6 +286,16 @@ router.post('/api/support/tickets/:id/whatsapp-test', requireAuth, async (req, r
         }
 
         if (!delivery?.success) {
+            await recordWhatsAppDeliveryAttempt({
+                kind: 'test',
+                recipientPhone: phone,
+                recipientName: ticket.name,
+                recipientModel: 'SupportTicket',
+                recipientId: ticket._id,
+                reference: ticket.ticketId || String(ticket._id),
+                result: delivery || { success: false, code: 'WHATCHIMP_REQUEST_FAILED' },
+                metadata: { ticketId: String(ticket._id), channel: 'ticket_test' }
+            });
             return res.status(422).json({
                 success: false,
                 code: delivery?.code || 'WHATCHIMP_REQUEST_FAILED',
@@ -261,6 +313,16 @@ router.post('/api/support/tickets/:id/whatsapp-test', requireAuth, async (req, r
             deliveryStatus: 'sent',
             createdAt: new Date()
         };
+        await recordWhatsAppDeliveryAttempt({
+            kind: 'test',
+            recipientPhone: phone,
+            recipientName: ticket.name,
+            recipientModel: 'SupportTicket',
+            recipientId: ticket._id,
+            reference: ticket.ticketId || String(ticket._id),
+            result: delivery,
+            metadata: { ticketId: String(ticket._id), channel: 'ticket_test' }
+        });
         ticket.messages.push(newMessage);
         ticket.status = 'answered';
         ticket.unreadUser = (ticket.unreadUser || 0) + 1;

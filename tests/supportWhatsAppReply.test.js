@@ -20,6 +20,7 @@ jest.mock('../services/whatsappService', () => ({
     normalizeWhatsAppPhone: jest.fn((phone) => String(phone).replace(/\D/g, '') === '0940719000' ? '218940719000' : '201108172258')
 }));
 jest.mock('../services/clientNotificationService', () => ({ createSupportReplyNotifications: jest.fn() }));
+jest.mock('../services/whatsappReceiptDeliveryService', () => ({ recordWhatsAppDeliveryAttempt: jest.fn().mockResolvedValue({}) }));
 jest.mock('../middlewares/auth', () => ({
     requireAuth: (req, _res, next) => {
         req.session = { adminName: 'Admin' };
@@ -32,6 +33,7 @@ const SupportTicket = require('../models/SupportTicket');
 const Notification = require('../models/Notification');
 const { sendWhatChimpText, normalizeWhatsAppPhone } = require('../services/whatsappService');
 const { createSupportReplyNotifications } = require('../services/clientNotificationService');
+const { recordWhatsAppDeliveryAttempt } = require('../services/whatsappReceiptDeliveryService');
 const supportRouter = require('../routes/support');
 
 const createTicket = (overrides = {}) => ({
@@ -82,6 +84,9 @@ describe('WhatsApp support replies', () => {
         });
         expect(ticket.save).toHaveBeenCalledTimes(1);
         expect(createSupportReplyNotifications).toHaveBeenCalledWith({ ticket, channel: 'whatsapp' });
+        expect(recordWhatsAppDeliveryAttempt).toHaveBeenCalledWith(expect.objectContaining({
+            kind: 'support', recipientPhone: '201108172258', result: expect.objectContaining({ success: true })
+        }));
         expect(Notification.create).not.toHaveBeenCalled();
     });
 
@@ -115,6 +120,9 @@ describe('WhatsApp support replies', () => {
         });
         expect(ticket.save).toHaveBeenCalledTimes(1);
         expect(createSupportReplyNotifications).toHaveBeenCalledWith({ ticket, channel: 'portal' });
+        expect(recordWhatsAppDeliveryAttempt).toHaveBeenCalledWith(expect.objectContaining({
+            kind: 'support', skipped: true, result: expect.objectContaining({ code: 'WHATSAPP_WINDOW_EXPIRED' })
+        }));
     });
 
     test('keeps the portal copy when WhatChimp rejects a reply', async () => {
@@ -143,6 +151,9 @@ describe('WhatsApp support replies', () => {
         expect(response.body.warning).toContain('صفحة الدعم فقط');
         expect(ticket.messages[0]).toMatchObject({ channel: 'portal', deliveryStatus: 'portal_only' });
         expect(createSupportReplyNotifications).toHaveBeenCalledWith({ ticket, channel: 'portal' });
+        expect(recordWhatsAppDeliveryAttempt).toHaveBeenCalledWith(expect.objectContaining({
+            kind: 'support', result: expect.objectContaining({ code: 'WHATCHIMP_REQUEST_FAILED' })
+        }));
     });
 
     test('sends and records a WhatsApp test message for an active WhatsApp ticket', async () => {
@@ -174,6 +185,7 @@ describe('WhatsApp support replies', () => {
             deliveryStatus: 'sent'
         });
         expect(createSupportReplyNotifications).toHaveBeenCalledWith({ ticket, channel: 'whatsapp' });
+        expect(recordWhatsAppDeliveryAttempt).toHaveBeenCalledWith(expect.objectContaining({ kind: 'test' }));
     });
 
     test('does not send a WhatsApp test message after the conversation window expires', async () => {
@@ -226,6 +238,9 @@ describe('WhatsApp support replies', () => {
         });
         expect(ticket.save).toHaveBeenCalledTimes(1);
         expect(createSupportReplyNotifications).toHaveBeenCalledWith({ ticket, channel: 'whatsapp' });
+        expect(recordWhatsAppDeliveryAttempt).toHaveBeenCalledWith(expect.objectContaining({
+            kind: 'test', recipientPhone: '218940719000'
+        }));
     });
 
     test('keeps an auditable test ticket when WhatChimp rejects a phone-based test', async () => {
@@ -247,5 +262,8 @@ describe('WhatsApp support replies', () => {
         expect(ticket.messages[0]).toMatchObject({ channel: 'whatsapp', deliveryStatus: 'failed' });
         expect(ticket.save).toHaveBeenCalledTimes(1);
         expect(createSupportReplyNotifications).not.toHaveBeenCalled();
+        expect(recordWhatsAppDeliveryAttempt).toHaveBeenCalledWith(expect.objectContaining({
+            kind: 'test', result: expect.objectContaining({ code: 'WHATCHIMP_REJECTED' })
+        }));
     });
 });
