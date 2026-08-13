@@ -26,7 +26,7 @@ const {
     executorSupportsTransferType,
     getExecutorServiceLabel
 } = require('../utils/executorServiceCatalog');
-const { getWhatChimpConfigurationStatus, testWhatChimpConnection } = require('../services/whatsappService');
+const { getWhatChimpConfigurationStatus, getWhatChimpTemplateReadiness, testWhatChimpConnection } = require('../services/whatsappService');
 const { getPublicAppUrl, getReceiptShareSecret } = require('../services/receiptShareService');
 
 const AUTO_ROUTE_INPUT_FIELDS = SERVICE_RATE_KEYS.map((serviceKey) => `autoRouteExecutor_${serviceKey}`);
@@ -98,11 +98,12 @@ router.get('/', async (req, res) => {
         company,
         rateConfig: getCompanyRateConfig(company, settings)
     }));
-    const baseWhatsAppStatus = getWhatChimpConfigurationStatus();
+    const baseWhatsAppStatus = await getWhatChimpTemplateReadiness().catch(() => getWhatChimpConfigurationStatus());
     const receiptLinkReady = Boolean(getPublicAppUrl() && getReceiptShareSecret());
     const whatsAppStatus = {
         ...baseWhatsAppStatus,
         receiptLinkReady,
+        receiptOperational: Boolean(baseWhatsAppStatus.receiptOperational && receiptLinkReady),
         missing: [
             ...baseWhatsAppStatus.missing,
             ...(!receiptLinkReady ? ['PUBLIC_APP_URL (HTTPS)', 'RECEIPT_SHARE_SECRET'] : [])

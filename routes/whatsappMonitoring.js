@@ -4,8 +4,8 @@ const express = require('express');
 const router = express.Router();
 
 const WhatsAppDelivery = require('../models/WhatsAppDelivery');
-const { requireAuth } = require('../middlewares/auth');
-const { getWhatChimpConfigurationStatus } = require('../services/whatsappService');
+const { requireAuth, requireMaster } = require('../middlewares/auth');
+const { getWhatChimpTemplateReadiness } = require('../services/whatsappService');
 const { getPublicAppUrl, getReceiptShareSecret } = require('../services/receiptShareService');
 const { DELIVERY_STAGE_LABELS } = require('../services/whatsappReceiptDeliveryService');
 
@@ -34,7 +34,11 @@ router.get('/', requireAuth, async (req, res, next) => {
             WhatsAppDelivery.countDocuments({ status: 'delivered' }),
             WhatsAppDelivery.countDocuments({ status: 'read' })
         ]);
-        const baseConfiguration = getWhatChimpConfigurationStatus();
+        const baseConfiguration = await getWhatChimpTemplateReadiness().catch(() => ({
+            receiptReady: false,
+            receiptOperational: false,
+            missing: ['تعذر قراءة حالة قوالب WhatChimp']
+        }));
         const receiptLinkReady = Boolean(getPublicAppUrl() && getReceiptShareSecret());
 
         res.render('whatsapp_monitor', {
@@ -42,10 +46,13 @@ router.get('/', requireAuth, async (req, res, next) => {
             statuses: DELIVERY_STATUSES,
             selectedStatus,
             search,
+            query: req.query,
             stageLabels: DELIVERY_STAGE_LABELS,
             summary: { pendingCount, failedCount, deliveredCount, readCount },
             configuration: {
-                ready: Boolean(baseConfiguration.receiptReady && receiptLinkReady),
+                ready: Boolean(baseConfiguration.receiptOperational && receiptLinkReady),
+                receiptTemplate: baseConfiguration.receiptTemplate || null,
+                otpTemplate: baseConfiguration.otpTemplate || null,
                 missing: [
                     ...(baseConfiguration.missing || []),
                     ...(!receiptLinkReady ? ['PUBLIC_APP_URL (HTTPS)', 'RECEIPT_SHARE_SECRET'] : [])
@@ -54,6 +61,20 @@ router.get('/', requireAuth, async (req, res, next) => {
         });
     } catch (error) {
         next(error);
+    }
+});
+
+router.post('/receipts/:id/retry', requireAuth, requireMaster, async (req, res) => {
+    try {
+        const delivery = await WhatsAppDelivery.findById(req.params.id).select('kind transactionId reference');
+        if (!delivery || delivery.kind !== 'receipt' || !delivery.transactionId) {
+            return res.redirect('/whatsapp-monitor?retry=invalid');
+        }
+        const { sendCompletedTransactionReceipt } = require('../services/whatsappReceiptDeliveryService');
+        const result = await sendCompletedTransactionReceipt(delivery.transactionId);
+        return res.redirect(`/whatsapp-monitor?retry=${result.success ? 'success' : 'failed'}&search=${encodeURIComponent(delivery.reference || '')}`);
+    } catch (_error) {
+        return res.redirect('/whatsapp-monitor?retry=failed');
     }
 });
 

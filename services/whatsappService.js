@@ -117,6 +117,15 @@ const getResponseMessageId = (data = {}) => (
     || null
 );
 
+const getTemplateList = (data = {}) => {
+    const candidates = [data.message, data.data?.message, data.templates, data.data?.templates];
+    return candidates.find(Array.isArray) || [];
+};
+
+const normalizeTemplateStatus = (value) => String(value || '').trim().toLowerCase();
+
+const isApprovedTemplateStatus = (value) => /^(approved|active|enabled|live)$/i.test(String(value || '').trim());
+
 const isSuccessfulResponse = (data = {}) => (
     data.success === true
     || data.status === 1
@@ -321,13 +330,17 @@ const testWhatChimpConnection = async () => {
         });
         const data = response.data || {};
         const success = isSuccessfulResponse(data);
+        const templates = getTemplateList(data);
+        const providerMessage = typeof data.message === 'string'
+            ? cleanText(data.message)
+            : (typeof data.mesasge === 'string' ? cleanText(data.mesasge) : '');
         return {
             success,
             provider: 'whatchimp',
             code: success ? 'WHATCHIMP_CONNECTED' : 'WHATCHIMP_REJECTED',
-            message: cleanText(data.message || data.mesasge || '') || (success ? 'تم الاتصال بـ WhatChimp.' : 'رفض WhatChimp اختبار الاتصال.'),
+            message: providerMessage || (success ? 'تم الاتصال بـ WhatChimp.' : 'رفض WhatChimp اختبار الاتصال.'),
             data,
-            templates: Array.isArray(data.message) ? data.message : (data.message ? [data.message] : [])
+            templates
         };
     } catch (error) {
         return {
@@ -337,6 +350,45 @@ const testWhatChimpConnection = async () => {
             message: cleanText(error.response?.data?.message || error.response?.data?.mesasge || error.message) || 'تعذر الاتصال بـ WhatChimp.'
         };
     }
+};
+
+const getWhatChimpTemplateReadiness = async () => {
+    const configuration = getWhatChimpConfigurationStatus();
+    const connection = await testWhatChimpConnection();
+    const templates = Array.isArray(connection.templates) ? connection.templates : [];
+    const findTemplate = ({ id, name }) => templates.find((template) => (
+        (id && String(template.id || '') === String(id))
+        || (name && String(template.template_name || template.name || '').trim() === String(name).trim())
+    ));
+    const config = getWhatChimpConfig();
+    const receiptTemplate = config.receiptMediaTemplateId
+        ? findTemplate({ id: config.receiptMediaTemplateId })
+        : findTemplate({ name: config.receiptTemplate });
+    const otpTemplate = findTemplate({ name: config.otpTemplate });
+    const toState = (template, required) => {
+        if (!required) return { required: false, found: false, status: '', approved: false };
+        const status = String(template?.status || template?.state || '').trim();
+        return {
+            required: true,
+            found: Boolean(template),
+            id: template?.id ? String(template.id) : '',
+            name: String(template?.template_name || template?.name || ''),
+            status,
+            approved: isApprovedTemplateStatus(status)
+        };
+    };
+    const receipt = toState(receiptTemplate, Boolean(config.receiptMediaTemplateId || config.receiptTemplate));
+    const otp = toState(otpTemplate, Boolean(config.otpTemplate));
+
+    return {
+        ...configuration,
+        providerConnected: connection.success,
+        providerMessage: connection.message,
+        receiptTemplate: receipt,
+        otpTemplate: otp,
+        receiptOperational: Boolean(configuration.receiptReady && connection.success && receipt.approved),
+        otpOperational: Boolean(configuration.otpReady && connection.success && otp.approved)
+    };
 };
 
 const sendLegacyWhatsAppMessage = async (phone, message, bypassOtp = false) => {
@@ -409,5 +461,6 @@ module.exports = {
     sendWhatChimpMediaTemplate,
     sendWhatsAppAlert,
     sendWhatsAppMessage,
-    testWhatChimpConnection
+    testWhatChimpConnection,
+    getWhatChimpTemplateReadiness
 };

@@ -134,4 +134,34 @@ describe('WhatChimp WhatsApp service', () => {
             expect.objectContaining({ headers: { 'Content-Type': 'application/json' } })
         );
     });
+
+    test('requires an approved receipt template before reporting receipts as operational', async () => {
+        configureWhatChimp();
+        process.env.WHATCHIMP_RECEIPT_MEDIA_TEMPLATE_ID = '422808';
+        axios.post.mockResolvedValue({
+            data: {
+                status: '1',
+                message: [{ id: 422808, template_name: 'power_pay_receipt', status: 'Pending' }]
+            }
+        });
+
+        const pending = await whatsappService.getWhatChimpTemplateReadiness();
+
+        expect(pending).toMatchObject({
+            providerConnected: true,
+            receiptOperational: false,
+            receiptTemplate: { id: '422808', name: 'power_pay_receipt', status: 'Pending', approved: false }
+        });
+
+        axios.post.mockResolvedValue({
+            data: {
+                status: '1',
+                message: [{ id: 422808, template_name: 'power_pay_receipt', status: 'Approved' }]
+            }
+        });
+
+        const approved = await whatsappService.getWhatChimpTemplateReadiness();
+        expect(approved.receiptOperational).toBe(true);
+        expect(approved.receiptTemplate.approved).toBe(true);
+    });
 });

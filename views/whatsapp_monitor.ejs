@@ -97,8 +97,8 @@
         <section class="configuration-band">
             <span class="state <%= configuration.ready ? 'state-ok' : 'state-bad' %>"><i class="fa-solid <%= configuration.ready ? 'fa-circle-check' : 'fa-triangle-exclamation' %>"></i></span>
             <div>
-                <strong style="color:var(--text-main)"><%= configuration.ready ? 'ربط WhatChimp جاهز للإرسال' : 'إعداد إرسال واتساب غير مكتمل' %></strong>
-                <% if (configuration.missing.length) { %><div class="small text-danger mt-1">النواقص: <span dir="ltr"><%= configuration.missing.join(' · ') %></span></div><% } else { %><div class="small text-muted mt-1">تصل تحديثات الحالة الفعلية عند تهيئة Webhook WhatChimp على رابط المنظومة.</div><% } %>
+                <strong style="color:var(--text-main)"><%= configuration.ready ? 'قالب الإيصال معتمد وجاهز للإرسال' : 'إرسال الإيصالات عبر WhatsApp متوقف' %></strong>
+                <% if (configuration.receiptTemplate && !configuration.receiptTemplate.approved) { %><div class="small text-danger mt-1">قالب الإيصال <strong dir="ltr"><%= configuration.receiptTemplate.name || configuration.receiptTemplate.id || 'غير محدد' %></strong> حالته: <strong dir="ltr"><%= configuration.receiptTemplate.status || 'غير معتمد' %></strong>. يجب اعتماده في Meta/WhatChimp قبل وصول الإيصالات.</div><% } else if (configuration.missing.length) { %><div class="small text-danger mt-1">النواقص: <span dir="ltr"><%= configuration.missing.join(' · ') %></span></div><% } else { %><div class="small text-muted mt-1">تصل تحديثات الحالة الفعلية عند تهيئة Webhook WhatChimp على رابط المنظومة.</div><% } %>
             </div>
         </section>
 
@@ -112,6 +112,10 @@
             <section class="empty-state"><i class="fa-brands fa-whatsapp fs-1 d-block mb-3 opacity-25"></i>لا توجد رسائل مطابقة. ستظهر هنا كل محاولة جديدة لإرسال إيصال.</section>
         <% } %>
 
+        <% if (typeof query !== 'undefined' && query && query.retry) { %>
+            <div class="alert <%= query.retry === 'success' ? 'alert-success' : 'alert-danger' %> fw-bold"><%= query.retry === 'success' ? 'تمت إعادة محاولة إرسال الإيصال.' : 'تعذرت إعادة إرسال الإيصال. راجع مرحلة التوقف وحالة القالب.' %></div>
+        <% } %>
+
         <% deliveries.forEach((delivery, index) => { const info = statusInfo[delivery.status] || statusInfo.pending; const stages = Array.isArray(delivery.stages) && delivery.stages.length ? delivery.stages : [fallbackStage(delivery)]; const currentStage = stages[stages.length - 1] || fallbackStage(delivery); %>
             <article class="delivery-card">
                 <div class="delivery-main">
@@ -119,7 +123,7 @@
                     <div><span class="delivery-label">المستلم</span><div class="delivery-value" dir="ltr"><%= visiblePhone(delivery.recipientPhone) %></div><span class="small text-muted"><%= delivery.recipientName || delivery.recipientModel || 'غير محدد' %></span></div>
                     <div><span class="delivery-label">الحالة الحالية</span><span class="status-badge status-<%= delivery.status %>"><i class="fa-solid <%= info.icon %>"></i><%= info.label %></span><span class="small text-muted d-block mt-1">آخر تحديث: <%= formatDate(delivery.updatedAt) %></span></div>
                     <div><span class="delivery-label">آخر مرحلة</span><div class="delivery-value"><%= currentStage.label || stageLabels[currentStage.key] || '---' %></div><% if (delivery.status === 'failed') { %><div class="stage-error"><%= delivery.failureCode || 'DELIVERY_FAILED' %> - <%= delivery.failureReason || currentStage.detail || 'تعذر إكمال الإرسال.' %></div><% } else { %><span class="small text-muted"><%= currentStage.detail || 'لا توجد ملاحظات إضافية.' %></span><% } %></div>
-                    <button class="details-toggle" type="button" data-bs-toggle="collapse" data-bs-target="#delivery-<%= index %>" aria-label="عرض مراحل الرسالة"><i class="fa-solid fa-list-check"></i></button>
+                    <div class="d-flex gap-2"><% if (delivery.kind === 'receipt' && delivery.status === 'failed') { %><form method="POST" action="/whatsapp-monitor/receipts/<%= delivery._id %>/retry"><input type="hidden" name="_csrf" value="<%= csrfToken || '' %>"><button class="details-toggle" type="submit" title="إعادة إرسال الإيصال" aria-label="إعادة إرسال الإيصال"><i class="fa-solid fa-rotate-right"></i></button></form><% } %><button class="details-toggle" type="button" data-bs-toggle="collapse" data-bs-target="#delivery-<%= index %>" aria-label="عرض مراحل الرسالة"><i class="fa-solid fa-list-check"></i></button></div>
                 </div>
                 <div class="collapse <%= delivery.status === 'failed' ? 'show' : '' %>" id="delivery-<%= index %>">
                     <div class="delivery-trail"><span class="delivery-label mb-2">مراحل التنفيذ</span><div class="trail"><% stages.forEach((stage) => { %><div class="trail-step <%= stage.status || 'waiting' %>"><strong><i class="fa-solid <%= stage.status === 'success' ? 'fa-circle-check' : (stage.status === 'failed' ? 'fa-circle-xmark' : 'fa-clock') %> me-1"></i><%= stage.label || stageLabels[stage.key] || stage.key %></strong><small><%= stage.detail || (stage.status === 'success' ? 'تمت بنجاح' : stage.status === 'waiting' ? 'بانتظار تحديث المنصة' : '---') %></small><small><%= formatDate(stage.occurredAt) %></small></div><% }) %></div></div>

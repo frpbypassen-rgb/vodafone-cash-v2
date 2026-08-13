@@ -216,9 +216,9 @@
                     <h5 id="whatsappIntegrationTitle" class="fw-bold mb-1 text-dark"><i class="fa-brands fa-whatsapp text-success me-2"></i>ربط WhatsApp عبر WhatChimp</h5>
                     <div class="text-muted small">حالة إرسال رموز التحقق وإيصالات العمليات للعملاء.</div>
                 </div>
-                <span class="badge <%= whatsAppStatus && whatsAppStatus.receiptReady && whatsAppStatus.otpReady && whatsAppStatus.receiptLinkReady ? 'bg-success' : 'bg-warning text-dark' %> px-3 py-2">
-                    <i class="fa-solid <%= whatsAppStatus && whatsAppStatus.receiptReady && whatsAppStatus.otpReady && whatsAppStatus.receiptLinkReady ? 'fa-circle-check' : 'fa-triangle-exclamation' %> me-1"></i>
-                    <%= whatsAppStatus && whatsAppStatus.receiptReady && whatsAppStatus.otpReady && whatsAppStatus.receiptLinkReady ? 'جاهز للتشغيل' : 'إعداد غير مكتمل' %>
+                <span class="badge <%= whatsAppStatus && whatsAppStatus.receiptOperational ? 'bg-success' : 'bg-danger' %> px-3 py-2">
+                    <i class="fa-solid <%= whatsAppStatus && whatsAppStatus.receiptOperational ? 'fa-circle-check' : 'fa-circle-xmark' %> me-1"></i>
+                    <%= whatsAppStatus && whatsAppStatus.receiptOperational ? 'إيصالات واتساب جاهزة' : 'إرسال الإيصالات متوقف' %>
                 </span>
             </div>
 
@@ -238,13 +238,13 @@
                 <div class="col-md-4">
                     <div class="border p-3 h-100">
                         <div class="small text-muted mb-1">قالب رمز التحقق</div>
-                        <strong class="<%= whatsAppStatus && whatsAppStatus.otpReady ? 'text-success' : 'text-danger' %>"><%= whatsAppStatus && whatsAppStatus.otpReady ? 'جاهز' : 'مطلوب' %></strong>
+                        <strong class="<%= whatsAppStatus && whatsAppStatus.otpOperational ? 'text-success' : 'text-danger' %>"><%= whatsAppStatus && whatsAppStatus.otpOperational ? 'معتمد وجاهز' : `غير جاهز${whatsAppStatus?.otpTemplate?.status ? ` (${whatsAppStatus.otpTemplate.status})` : ''}` %></strong>
                     </div>
                 </div>
                 <div class="col-md-4">
                     <div class="border p-3 h-100">
                         <div class="small text-muted mb-1">قالب الإيصال والرابط الموقّع</div>
-                        <strong class="<%= whatsAppStatus && whatsAppStatus.receiptReady && whatsAppStatus.receiptLinkReady ? 'text-success' : 'text-danger' %>"><%= whatsAppStatus && whatsAppStatus.receiptReady && whatsAppStatus.receiptLinkReady ? 'جاهز' : 'مطلوب' %></strong>
+                        <strong class="<%= whatsAppStatus && whatsAppStatus.receiptOperational ? 'text-success' : 'text-danger' %>"><%= whatsAppStatus && whatsAppStatus.receiptOperational ? 'معتمد وجاهز' : `غير جاهز${whatsAppStatus?.receiptTemplate?.status ? ` (${whatsAppStatus.receiptTemplate.status})` : ''}` %></strong>
                     </div>
                 </div>
             </div>
