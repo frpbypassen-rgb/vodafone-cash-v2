@@ -319,7 +319,10 @@
     </button>
 </div>
 
-<script>const myExecutorId = '<%= emp._id %>';</script>
+<script>
+    const myExecutorId = '<%= emp._id %>';
+    const isExecutorManager = <%= emp.role === 'manager' ? 'true' : 'false' %>;
+</script>
 
 <nav class="navbar-glass">
     <div class="executor-info">
@@ -343,6 +346,17 @@
         <div class="pulse-dot"></div>
         <h4 class="fw-bold m-0" style="color: var(--text-main);">الرادار <span class="fs-6 fw-normal text-muted ms-1">(نظام الطابور)</span></h4>
     </div>
+    <% if (emp.role === 'manager') { %>
+    <div id="manualRoutingControl" class="d-flex align-items-center justify-content-between gap-3 mb-4 p-3 rounded-4" style="background: rgba(14,165,233,0.08); border: 1px solid rgba(14,165,233,0.22);">
+        <div>
+            <div class="fw-bold" style="color: var(--text-main);"><i class="fa-solid fa-route text-primary me-2"></i>التوجيه اليدوي للمهام</div>
+            <div id="manualRoutingHint" class="small text-muted mt-1">عند تفعيله لا تظهر المهام للموظفين قبل توجيهها بالاسم.</div>
+        </div>
+        <button id="manualRoutingToggle" type="button" class="btn btn-outline-primary fw-bold rounded-3 px-3" onclick="toggleManualRouting()">
+            <i class="fa-solid fa-toggle-off me-1"></i> تفعيل
+        </button>
+    </div>
+    <% } %>
     
     <div id="tasksList" class="row g-3 g-xl-4"></div>
     </div>
@@ -662,12 +676,87 @@
 
     // 📡 جلب البيانات وفرز الكروت الديناميكي (Smart Sorting FIFO)
     let tasksRefreshInFlight = false;
+    let manualTaskRoutingEnabled = false;
+
+    function renderManualRoutingControl() {
+        const toggle = document.getElementById('manualRoutingToggle');
+        const hint = document.getElementById('manualRoutingHint');
+        if (!toggle || !hint) return;
+        if (manualTaskRoutingEnabled) {
+            toggle.className = 'btn btn-primary fw-bold rounded-3 px-3';
+            toggle.innerHTML = '<i class="fa-solid fa-toggle-on me-1"></i> مفعل';
+            hint.textContent = 'المهام الجديدة لا تظهر للموظفين قبل توجيهها إلى منفذ محدد.';
+        } else {
+            toggle.className = 'btn btn-outline-primary fw-bold rounded-3 px-3';
+            toggle.innerHTML = '<i class="fa-solid fa-toggle-off me-1"></i> تفعيل';
+            hint.textContent = 'عند تفعيله لا تظهر المهام للموظفين قبل توجيهها بالاسم.';
+        }
+    }
+
+    async function toggleManualRouting() {
+        if (!isExecutorManager) return;
+        const toggle = document.getElementById('manualRoutingToggle');
+        if (toggle) toggle.disabled = true;
+        try {
+            const response = await executorApiFetch('/executor-portal/api/task-routing-mode', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ enabled: !manualTaskRoutingEnabled })
+            });
+            const data = await readExecutorApiResponse(response);
+            manualTaskRoutingEnabled = Boolean(data.manualTaskRoutingEnabled);
+            renderManualRoutingControl();
+            await refreshTasks();
+        } catch (error) {
+            Swal.fire('تعذر تحديث التوجيه', error.message, 'error');
+        } finally {
+            if (toggle) toggle.disabled = false;
+        }
+    }
+
+    async function routeTask(id) {
+        try {
+            const candidatesResponse = await executorApiFetch('/executor-portal/api/route-candidates');
+            const candidatesData = await readExecutorApiResponse(candidatesResponse);
+            const candidates = Array.isArray(candidatesData.employees) ? candidatesData.employees : [];
+            if (candidates.length === 0) {
+                throw new Error('لا يوجد موظف تنفيذ نشط يمكن توجيه العملية إليه.');
+            }
+            const options = Object.fromEntries(candidates.map((employee) => [employee._id, `${employee.name} - ${employee.webUsername}`]));
+            const { value: employeeId } = await Swal.fire({
+                title: 'توجيه العملية',
+                text: 'اختر المنفذ الذي ستظهر له العملية ليقبلها وينفذها.',
+                input: 'select',
+                inputOptions: options,
+                inputPlaceholder: 'اختر المنفذ',
+                showCancelButton: true,
+                confirmButtonText: 'توجيه',
+                cancelButtonText: 'إلغاء',
+                confirmButtonColor: '#0ea5e9',
+                inputValidator: (value) => value ? undefined : 'اختر المنفذ أولاً.'
+            });
+            if (!employeeId) return;
+            const response = await executorApiFetch('/executor-portal/api/route-task/' + id, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ employeeId })
+            });
+            const result = await readExecutorApiResponse(response);
+            await Swal.fire('تم التوجيه', `أصبحت العملية ظاهرة للمنفذ: ${result.employee?.name || ''}`, 'success');
+            await refreshTasks();
+        } catch (error) {
+            Swal.fire('تعذر توجيه العملية', error.message, 'error');
+        }
+    }
+
     async function refreshTasks() {
         if (document.hidden || tasksRefreshInFlight) return;
         tasksRefreshInFlight = true;
         try {
             const res = await executorApiFetch('/executor-portal/api/live-tasks');
             const data = await readExecutorApiResponse(res);
+            manualTaskRoutingEnabled = Boolean(data.manualTaskRoutingEnabled);
+            renderManualRoutingControl();
             
             // 📊 تحديث إحصائيات المعاملات المنجزة اليوم في صفحة حسابي
             if (data.completedToday) {
@@ -797,6 +886,7 @@
                 smartSortedTasks.forEach(t => {
                     const isMine = t.operatorId === myExecutorId;
                     const acceptedByOther = t.status === 'accepted' && !isMine;
+                    const canRoute = isExecutorManager && manualTaskRoutingEnabled && t.status === 'processing';
 
                     let cardClass = isMine ? 'task-mine' : (acceptedByOther ? 'task-locked' : 'task-pending');
                     let badgeClass = isMine ? 'badge-mine' : (acceptedByOther ? 'badge-locked' : 'badge-pending');
@@ -864,7 +954,8 @@
                                 
                                 <div class="action-zone border-0">
                                     ${hasApiLog ? `<button data-log="${rawLog}" onclick="showApiLogBtn(this)" class="btn-cyber-main mb-2" style="background: linear-gradient(45deg, #0f172a, #1e293b); color: #10b981; border: 1px solid rgba(16, 185, 129, 0.4);"><i class="fa-solid fa-terminal"></i> سجل السيرفر (API)</button>` : ''}
-                                    ${acceptedByOther ? `<div class="p-2 rounded-3 text-center fw-bold text-muted border w-100 small" style="background: rgba(0,0,0,0.05);"><i class="fa-solid fa-user-gear me-1"></i> يُنفذ بواسطة: ${t.executorName}</div>` : 
+                                    ${canRoute ? `<button onclick="routeTask('${t._id}')" class="btn-accept-start"><i class="fa-solid fa-route me-1"></i> توجيه إلى منفذ</button>` :
+                                      acceptedByOther ? `<div class="p-2 rounded-3 text-center fw-bold text-muted border w-100 small" style="background: rgba(0,0,0,0.05);"><i class="fa-solid fa-user-gear me-1"></i> يُنفذ بواسطة: ${t.executorName}</div>` :
                                       isMine ? `
                                          <button onclick="openUpload('${t._id}', '${t.transferType || ''}')" class="btn-cyber-main mb-1"><i class="fa-solid fa-check-double"></i> إنهاء العملية</button>
                                          <div class="horizontal-actions">

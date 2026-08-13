@@ -7,6 +7,8 @@ const executorGroupSchema = new mongoose.Schema({
     balance: { type: Number, default: 0 },
     serviceKey: { type: String, enum: EXECUTOR_SERVICE_KEYS, default: 'vodafone' },
     manualReceiptPrefix: { type: String, trim: true, match: /^\d{3}$/ },
+    // When enabled, only the manager can distribute incoming tasks to operators.
+    manualTaskRoutingEnabled: { type: Boolean, default: false },
 
     archivedAt: { type: Date, default: null },
     archivedBy: { type: String, default: '' },

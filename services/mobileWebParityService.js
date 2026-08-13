@@ -769,6 +769,9 @@ async function returnTask({ executorId, taskId, reason }) {
     tx.managerGroupId = undefined;
     tx.executorName = undefined;
     tx.operatorId = undefined;
+    tx.assignedExecutorId = undefined;
+    tx.assignedExecutorName = undefined;
+    tx.assignedExecutorAt = undefined;
     tx.broadcastMessages = [];
     appendAdminNote(tx, `[إرجاع للإدارة | السبب: ${reason}]`);
     await tx.save();

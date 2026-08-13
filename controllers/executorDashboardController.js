@@ -15,6 +15,12 @@ const {
     normalizeExecutorPhone,
     normalizeExecutorUsername
 } = require('../services/executorAccountService');
+const {
+    taskOwnershipFilter,
+    listRouteCandidates,
+    routeExecutorTask,
+    routingErrorMessage
+} = require('../services/executorTaskRoutingService');
 
 const COMPLETED_TODAY_LIMIT = 60;
 
@@ -175,6 +181,49 @@ exports.postEmployeesDelete = async (req, res) => {
     } catch (e) { res.json({ success: false, error: e.message }); }
 };
 
+exports.postTaskRoutingMode = async (req, res) => {
+    try {
+        const group = await ExecutorGroup.findByIdAndUpdate(
+            req.managerEmp.groupId,
+            { $set: { manualTaskRoutingEnabled: Boolean(req.body?.enabled) } },
+            { new: true }
+        );
+        if (!group) return res.status(404).json({ success: false, error: 'مجموعة التنفيذ غير موجودة.' });
+        return res.json({ success: true, manualTaskRoutingEnabled: group.manualTaskRoutingEnabled });
+    } catch (_) {
+        return res.status(500).json({ success: false, error: 'تعذر تحديث وضع التوجيه.' });
+    }
+};
+
+exports.getRouteCandidates = async (req, res) => {
+    try {
+        const employees = await listRouteCandidates({ groupId: req.managerEmp.groupId });
+        return res.json({ success: true, employees });
+    } catch (_) {
+        return res.status(500).json({ success: false, error: 'تعذر جلب المنفذين المتاحين.' });
+    }
+};
+
+exports.postRouteTask = async (req, res) => {
+    try {
+        const result = await routeExecutorTask({
+            transactionId: req.params.id,
+            manager: req.managerEmp,
+            employeeId: req.body?.employeeId
+        });
+        if (!result.ok) {
+            const status = result.code === 'ACTIVE_TASK_EXISTS' || result.code === 'TASK_UNAVAILABLE' ? 409 : 400;
+            return res.status(status).json({ success: false, code: result.code, error: routingErrorMessage(result.code) });
+        }
+        return res.json({
+            success: true,
+            employee: { id: String(result.employee._id), name: result.employee.name }
+        });
+    } catch (_) {
+        return res.status(500).json({ success: false, error: 'تعذر توجيه العملية.' });
+    }
+};
+
 // ===============================================
 // 🚀 جلب الطلبات الحية + الإشعارات
 // ===============================================
@@ -183,7 +232,7 @@ exports.getLiveTasks = async (req, res) => {
         const emp = req.executorEmployee || await Employee.findById(req.session.executorId);
         if (!emp) return res.status(401).json({ success: false, error: 'Unauthorized' });
         const filter = {
-            $or: [ { executorGroupId: emp.groupId }, { managerGroupId: emp.groupId } ],
+            ...taskOwnershipFilter(emp),
             status: { $in: ['processing', 'accepted'] }
         };
         const taskArrivalTime = (tx) => {
@@ -241,7 +290,7 @@ exports.getLiveTasks = async (req, res) => {
 
         const [alerts, depAlerts, completedToday, completedTodayStats] = await Promise.all([
             Transaction.find({
-                $or: [ { executorGroupId: emp.groupId }, { managerGroupId: emp.groupId } ],
+                ...taskOwnershipFilter(emp),
                 emergencyAlert: { $exists: true, $ne: null },
                 status: { $in: ['processing', 'accepted'] }
             }).lean(),
@@ -261,7 +310,15 @@ exports.getLiveTasks = async (req, res) => {
         ]);
 
         const completedTodaySummary = completedTodayStats[0] || { count: 0, amount: 0 };
-        res.json({ tasks, alerts, depAlerts, completedToday, completedTodaySummary });
+        res.json({
+            tasks,
+            alerts,
+            depAlerts,
+            completedToday,
+            completedTodaySummary,
+            manualTaskRoutingEnabled: Boolean(emp.groupId?.manualTaskRoutingEnabled),
+            canRouteTasks: emp.role === 'manager'
+        });
     } catch (e) { res.status(500).json({ error: true }); }
 };
 

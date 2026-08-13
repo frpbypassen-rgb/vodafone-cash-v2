@@ -573,15 +573,16 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
           username: _username.text.trim(),
           password: _password.text,
         ),
-        RegistrationAccountType.newClient => widget.api.registerNewClientAccount(
-          fullName: _fullName.text.trim(),
-          phone: _phone.text.trim(),
-          city: _city ?? '',
-          nationality: _nationality,
-          username: _username.text.trim(),
-          password: _password.text,
-          agentCode: _agentCode.text.trim(),
-        ),
+        RegistrationAccountType.newClient =>
+          widget.api.registerNewClientAccount(
+            fullName: _fullName.text.trim(),
+            phone: _phone.text.trim(),
+            city: _city ?? '',
+            nationality: _nationality,
+            username: _username.text.trim(),
+            password: _password.text,
+            agentCode: _agentCode.text.trim(),
+          ),
       };
       if (!mounted) return;
       final data = response['data'];
@@ -655,10 +656,7 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
         inputFormatters: inputFormatters,
         validator: validator,
         onChanged: (_) => onChanged?.call(),
-        decoration: InputDecoration(
-          labelText: label,
-          prefixIcon: Icon(icon),
-        ),
+        decoration: InputDecoration(labelText: label, prefixIcon: Icon(icon)),
       ),
     );
   }
@@ -675,7 +673,8 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
         ),
         items: _cities
             .map(
-              (city) => DropdownMenuItem<String>(value: city, child: Text(city)),
+              (city) =>
+                  DropdownMenuItem<String>(value: city, child: Text(city)),
             )
             .toList(),
         onChanged: (value) => setState(() => _city = value),
@@ -748,7 +747,9 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
       margin: const EdgeInsets.only(bottom: 16),
       padding: const EdgeInsets.fromLTRB(16, 15, 16, 16),
       decoration: BoxDecoration(
-        color: dark ? colors.surfaceContainerHighest.withValues(alpha: 0.32) : colors.surface,
+        color: dark
+            ? colors.surfaceContainerHighest.withValues(alpha: 0.32)
+            : colors.surface,
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: colors.outlineVariant),
       ),
@@ -884,8 +885,9 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
                   ltr: true,
                   keyboardType: TextInputType.emailAddress,
                   validator: (value) {
-                    if (!RegExp(r'^[^\s@]+@[^\s@]+\.[^\s@]+$')
-                        .hasMatch((value ?? '').trim())) {
+                    if (!RegExp(
+                      r'^[^\s@]+@[^\s@]+\.[^\s@]+$',
+                    ).hasMatch((value ?? '').trim())) {
                       return 'أدخل بريداً إلكترونياً صحيحاً.';
                     }
                     return null;
@@ -938,10 +940,7 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
                     ),
                     items: const [
                       DropdownMenuItem(value: 'libyan', child: Text('ليبي')),
-                      DropdownMenuItem(
-                        value: 'egyptian',
-                        child: Text('مصري'),
-                      ),
+                      DropdownMenuItem(value: 'egyptian', child: Text('مصري')),
                     ],
                     onChanged: (value) {
                       if (value != null) setState(() => _nationality = value);
@@ -1051,9 +1050,13 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
         ),
         const SizedBox(height: 18),
         Text(
-          isAgentApproval ? 'بانتظار موافقة الوكيل.' : 'بانتظار مراجعة الإدارة.',
+          isAgentApproval
+              ? 'بانتظار موافقة الوكيل.'
+              : 'بانتظار مراجعة الإدارة.',
           textAlign: TextAlign.center,
-          style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant),
+          style: TextStyle(
+            color: Theme.of(context).colorScheme.onSurfaceVariant,
+          ),
         ),
         const SizedBox(height: 22),
         Container(
@@ -1061,7 +1064,9 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
           decoration: BoxDecoration(
             color: Theme.of(context).colorScheme.surface,
             borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
+            border: Border.all(
+              color: Theme.of(context).colorScheme.outlineVariant,
+            ),
           ),
           child: Column(
             children: [
@@ -1100,8 +1105,14 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
         title: Text(type == null ? 'إنشاء حساب' : type.title),
         leading: IconButton(
           tooltip: type == null ? 'العودة' : 'اختيار نوع الحساب',
-          icon: Icon(type == null ? Icons.arrow_back_rounded : Icons.arrow_forward_rounded),
-          onPressed: type == null ? () => Navigator.of(context).pop() : _changeType,
+          icon: Icon(
+            type == null
+                ? Icons.arrow_back_rounded
+                : Icons.arrow_forward_rounded,
+          ),
+          onPressed: type == null
+              ? () => Navigator.of(context).pop()
+              : _changeType,
         ),
         actions: [
           Padding(
@@ -1173,13 +1184,18 @@ class _RegistrationTypeCard extends StatelessWidget {
                     width: 42,
                     height: 42,
                     decoration: BoxDecoration(
-                      color: colors.primary.withValues(alpha: dark ? 0.22 : 0.10),
+                      color: colors.primary.withValues(
+                        alpha: dark ? 0.22 : 0.10,
+                      ),
                       borderRadius: BorderRadius.circular(11),
                     ),
                     child: Icon(type.icon, color: colors.primary, size: 23),
                   ),
                   const Spacer(),
-                  Icon(Icons.arrow_back_rounded, color: colors.onSurfaceVariant),
+                  Icon(
+                    Icons.arrow_back_rounded,
+                    color: colors.onSurfaceVariant,
+                  ),
                 ],
               ),
               const Spacer(),
@@ -1194,10 +1210,7 @@ class _RegistrationTypeCard extends StatelessWidget {
               const SizedBox(height: 4),
               Text(
                 type.subtitle,
-                style: TextStyle(
-                  fontSize: 12,
-                  color: colors.onSurfaceVariant,
-                ),
+                style: TextStyle(fontSize: 12, color: colors.onSurfaceVariant),
               ),
             ],
           ),
@@ -1358,12 +1371,7 @@ class _RegistrationProgress extends StatelessWidget {
           completed: false,
           active: currentStep == 2,
         ),
-        Expanded(
-          child: Container(
-            height: 1,
-            color: colors.outlineVariant,
-          ),
-        ),
+        Expanded(child: Container(height: 1, color: colors.outlineVariant)),
         _RegistrationStep(
           number: 3,
           label: 'المراجعة',
@@ -1410,7 +1418,9 @@ class _RegistrationStep extends StatelessWidget {
               : Text(
                   '$number',
                   style: TextStyle(
-                    color: highlighted ? colors.onPrimary : colors.onSurfaceVariant,
+                    color: highlighted
+                        ? colors.onPrimary
+                        : colors.onSurfaceVariant,
                     fontSize: 12,
                     fontWeight: FontWeight.w900,
                   ),
@@ -1443,7 +1453,9 @@ class _RegistrationVerifiedAgent extends StatelessWidget {
       decoration: BoxDecoration(
         color: const Color(0xFF00875A).withValues(alpha: 0.10),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: const Color(0xFF00875A).withValues(alpha: 0.35)),
+        border: Border.all(
+          color: const Color(0xFF00875A).withValues(alpha: 0.35),
+        ),
       ),
       child: Row(
         children: [
@@ -1452,7 +1464,10 @@ class _RegistrationVerifiedAgent extends StatelessWidget {
           Expanded(
             child: Text(
               'تم التحقق من الوكيل: $name',
-              style: TextStyle(color: colors.onSurface, fontWeight: FontWeight.w800),
+              style: TextStyle(
+                color: colors.onSurface,
+                fontWeight: FontWeight.w800,
+              ),
             ),
           ),
         ],
@@ -3045,6 +3060,7 @@ class _ExecutorTasksScreenState extends State<ExecutorTasksScreen> {
   Object? _error;
   bool _actionBusy = false;
   bool _urgentAlarmPlaying = false;
+  bool _manualTaskRoutingEnabled = false;
   Map<String, dynamic>? _overview;
   DateTime? _lastUpdated;
 
@@ -3188,6 +3204,8 @@ class _ExecutorTasksScreenState extends State<ExecutorTasksScreen> {
                 .toList()
           : <Map<String, dynamic>>[];
       final rawAlerts = response['alerts'];
+      final manualTaskRoutingEnabled =
+          response['manualTaskRoutingEnabled'] == true;
       final urgentAlerts = rawAlerts is List
           ? rawAlerts
                 .whereType<Map>()
@@ -3214,6 +3232,7 @@ class _ExecutorTasksScreenState extends State<ExecutorTasksScreen> {
         setState(() {
           _tasks = tasks;
           _urgentAlerts = urgentAlerts;
+          _manualTaskRoutingEnabled = manualTaskRoutingEnabled;
           _lastUpdated = DateTime.now();
         });
         _syncUrgentAlerts(urgentAlerts);
@@ -3237,6 +3256,91 @@ class _ExecutorTasksScreenState extends State<ExecutorTasksScreen> {
     } on ApiFailure catch (error) {
       if (mounted) showSnack(context, error.message, error: true);
       await _load(silent: true);
+    } finally {
+      if (mounted) setState(() => _actionBusy = false);
+    }
+  }
+
+  Future<void> _toggleManualTaskRouting(bool enabled) async {
+    setState(() => _actionBusy = true);
+    try {
+      final response = await widget.controller.api.setExecutorTaskRoutingMode(
+        enabled,
+      );
+      if (!mounted) return;
+      setState(() {
+        _manualTaskRoutingEnabled =
+            response['manualTaskRoutingEnabled'] == true;
+      });
+      showSnack(
+        context,
+        _manualTaskRoutingEnabled
+            ? 'تم تفعيل التوجيه اليدوي للمهام.'
+            : 'تم إيقاف التوجيه اليدوي للمهام.',
+      );
+      await _load(silent: true);
+    } on ApiFailure catch (error) {
+      if (mounted) showSnack(context, error.message, error: true);
+    } finally {
+      if (mounted) setState(() => _actionBusy = false);
+    }
+  }
+
+  Future<void> _routeTask(Map<String, dynamic> task) async {
+    setState(() => _actionBusy = true);
+    try {
+      final candidates = await widget.controller.api.executorRouteCandidates();
+      if (!mounted) return;
+      if (candidates.isEmpty) {
+        showSnack(
+          context,
+          'لا يوجد موظف تنفيذ نشط يمكن توجيه العملية إليه.',
+          error: true,
+        );
+        return;
+      }
+      final employee = await showModalBottomSheet<Map<String, dynamic>>(
+        context: context,
+        showDragHandle: true,
+        builder: (sheetContext) => SafeArea(
+          child: ListView(
+            shrinkWrap: true,
+            children: [
+              const ListTile(
+                title: Text(
+                  'توجيه العملية',
+                  style: TextStyle(fontWeight: FontWeight.w900),
+                ),
+                subtitle: Text('اختر المنفذ الذي ستظهر له العملية.'),
+              ),
+              ...candidates.map(
+                (candidate) => ListTile(
+                  leading: const Icon(Icons.person_outline),
+                  title: Text('${candidate['name'] ?? 'منفذ'}'),
+                  subtitle: Text(
+                    '${candidate['webUsername'] ?? candidate['phone'] ?? ''}',
+                  ),
+                  onTap: () => Navigator.of(sheetContext).pop(candidate),
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+      if (employee == null) return;
+      await widget.controller.api.routeExecutorTask(
+        taskId: '${task['id']}',
+        employeeId: '${employee['_id']}',
+      );
+      if (mounted) {
+        showSnack(
+          context,
+          'تم توجيه العملية إلى ${employee['name'] ?? 'المنفذ'}',
+        );
+      }
+      await _load(silent: true);
+    } on ApiFailure catch (error) {
+      if (mounted) showSnack(context, error.message, error: true);
     } finally {
       if (mounted) setState(() => _actionBusy = false);
     }
@@ -3312,6 +3416,13 @@ class _ExecutorTasksScreenState extends State<ExecutorTasksScreen> {
                 )
               : widget.controller.session?.balance ?? 0)
         : 0.0;
+    final currentExecutorId = widget.controller.session?.id ?? '';
+    final hasAcceptedTask = _tasks.any(
+      (task) =>
+          task['status'] == 'accepted' &&
+          (task['isOwnedByCurrentExecutor'] == true ||
+              task['operatorId']?.toString() == currentExecutorId),
+    );
     return PageFrame(
       title: 'مهام التنفيذ',
       subtitle: 'يتم تحديث المهام الجديدة تلقائياً كل خمس ثوانٍ.',
@@ -3322,6 +3433,25 @@ class _ExecutorTasksScreenState extends State<ExecutorTasksScreen> {
           ExecutorBalanceHeroCard(balance: balance),
           const SizedBox(height: 16),
         ],
+        if (canViewCompanyBalance)
+          SurfacePanel(
+            child: SwitchListTile.adaptive(
+              contentPadding: EdgeInsets.zero,
+              value: _manualTaskRoutingEnabled,
+              onChanged: _actionBusy ? null : _toggleManualTaskRouting,
+              secondary: const Icon(Icons.route_outlined),
+              title: const Text(
+                'التوجيه اليدوي للمهام',
+                style: TextStyle(fontWeight: FontWeight.w900),
+              ),
+              subtitle: Text(
+                _manualTaskRoutingEnabled
+                    ? 'المهام الجديدة لا تظهر للموظفين قبل توجيهها بالاسم.'
+                    : 'المهام تظهر لجميع المنفذين ويمكنهم قبولها مباشرة.',
+              ),
+            ),
+          ),
+        if (canViewCompanyBalance) const SizedBox(height: 16),
         if (_urgentAlerts.isNotEmpty) ...[
           ..._urgentAlerts.map(
             (alert) => Padding(
@@ -3350,8 +3480,11 @@ class _ExecutorTasksScreenState extends State<ExecutorTasksScreen> {
               child: ExecutorTaskTile(
                 task: task,
                 busy: _actionBusy,
-                currentExecutorId: widget.controller.session?.id ?? '',
+                currentExecutorId: currentExecutorId,
+                acceptBlocked: hasAcceptedTask,
+                canRoute: canViewCompanyBalance && _manualTaskRoutingEnabled,
                 onAccept: () => _accept(task),
+                onRoute: () => _routeTask(task),
                 onCancel: () => _cancel(task),
                 onComplete: () => _complete(task),
                 onShare: () => _shareToWhatsApp(task),
@@ -7130,7 +7263,10 @@ class ExecutorTaskTile extends StatelessWidget {
     required this.task,
     required this.busy,
     required this.currentExecutorId,
+    required this.acceptBlocked,
+    required this.canRoute,
     required this.onAccept,
+    required this.onRoute,
     required this.onCancel,
     required this.onComplete,
     required this.onShare,
@@ -7139,7 +7275,10 @@ class ExecutorTaskTile extends StatelessWidget {
   final Map<String, dynamic> task;
   final bool busy;
   final String currentExecutorId;
+  final bool acceptBlocked;
+  final bool canRoute;
   final VoidCallback onAccept;
+  final VoidCallback onRoute;
   final VoidCallback onCancel;
   final VoidCallback onComplete;
   final Future<void> Function() onShare;
@@ -7166,6 +7305,7 @@ class ExecutorTaskTile extends StatelessWidget {
         (task['isOwnedByCurrentExecutor'] == true ||
             (acceptedById.isNotEmpty && acceptedById == currentExecutorId));
     final takenByAnother = accepted && !acceptedByMe;
+    final canRouteTask = canRoute && !accepted;
     final takenByLabel = acceptedByName.isEmpty ? 'منفذ آخر' : acceptedByName;
     final colors = Theme.of(context).colorScheme;
     final transferType = task['transferType']?.toString();
@@ -7337,13 +7477,24 @@ class ExecutorTaskTile extends StatelessWidget {
             ),
           ],
           const Divider(height: 26),
-          if (!accepted)
+          if (canRouteTask)
             SizedBox(
               width: double.infinity,
               child: FilledButton.icon(
-                onPressed: busy ? null : onAccept,
+                onPressed: busy ? null : onRoute,
+                icon: const Icon(Icons.route_outlined),
+                label: const Text('توجيه إلى منفذ'),
+              ),
+            )
+          else if (!accepted)
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton.icon(
+                onPressed: busy || acceptBlocked ? null : onAccept,
                 icon: const Icon(Icons.task_alt_outlined),
-                label: const Text('قبول العملية'),
+                label: Text(
+                  acceptBlocked ? 'أكمل العملية الحالية أولاً' : 'قبول العملية',
+                ),
               ),
             )
           else if (acceptedByMe)

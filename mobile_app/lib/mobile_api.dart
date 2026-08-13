@@ -591,6 +591,30 @@ class MobileApi {
     return _request('POST', '/executor/accept-task/$id');
   }
 
+  Future<Map<String, dynamic>> setExecutorTaskRoutingMode(bool enabled) {
+    return _request(
+      'POST',
+      '/executor/task-routing-mode',
+      data: <String, dynamic>{'enabled': enabled},
+    );
+  }
+
+  Future<List<Map<String, dynamic>>> executorRouteCandidates() async {
+    final response = await _request('GET', '/executor/route-candidates');
+    return _extractList(response, 'data');
+  }
+
+  Future<Map<String, dynamic>> routeExecutorTask({
+    required String taskId,
+    required String employeeId,
+  }) {
+    return _request(
+      'POST',
+      '/executor/route-task/$taskId',
+      data: <String, dynamic>{'employeeId': employeeId},
+    );
+  }
+
   Future<Map<String, dynamic>> cancelTask(String id, String reason) {
     return _request(
       'POST',

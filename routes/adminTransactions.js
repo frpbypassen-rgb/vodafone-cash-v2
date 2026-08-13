@@ -487,7 +487,7 @@ router.post('/transaction/:id/pull-task', async (req, res) => {
         if (tx && (tx.status === 'processing' || tx.status === 'accepted')) {
             const oldGroupId = tx.executorGroupId; const displayId = tx.customId || tx._id.toString();
 
-            tx.status = 'pending'; tx.executorGroupId = undefined; tx.managerGroupId = undefined; tx.executorName = undefined; tx.operatorId = undefined; tx.broadcastMessages = []; tx.adminMessages = []; tx.emergencyAlert = undefined; 
+            tx.status = 'pending'; tx.executorGroupId = undefined; tx.managerGroupId = undefined; tx.executorName = undefined; tx.operatorId = undefined; tx.assignedExecutorId = undefined; tx.assignedExecutorName = undefined; tx.assignedExecutorAt = undefined; tx.broadcastMessages = []; tx.adminMessages = []; tx.emergencyAlert = undefined;
 
             // 🟢 إشعارات الانسحاب عبر Socket.IO
 

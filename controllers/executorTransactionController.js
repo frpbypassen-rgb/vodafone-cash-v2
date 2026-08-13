@@ -13,6 +13,7 @@ const SupportTicket = require('../models/SupportTicket');
 const { syncBotBalance } = require('../utils/helpers');
 const { logAction } = require('../services/auditService');
 const { acquireLock, releaseLock } = require('../services/lockService');
+const { acceptExecutorTask, routingErrorMessage } = require('../services/executorTaskRoutingService');
 const {
     ManualExecutionNumberError,
     maskManualExecutionNumber,
@@ -171,21 +172,11 @@ exports.postAcceptTask = async (req, res) => {
     try {
         const emp = req.executorEmployee || await Employee.findById(req.session.executorId).populate('groupId');
         if (!emp || !emp.groupId) return res.status(401).json({ success: false, error: 'حساب المنفذ غير صالح.' });
-        const operatorIdentifier = emp._id.toString();
-        const groupId = emp.groupId && (emp.groupId._id || emp.groupId);
-        if (!groupId) return res.status(400).json({ success: false, error: 'المنفذ غير مربوط بمجموعة صالحة.' });
-
-        const tx = await Transaction.findOneAndUpdate(
-            {
-                _id: req.params.id,
-                status: 'processing',
-                $or: [{ executorGroupId: groupId }, { managerGroupId: groupId }]
-            },
-            { $set: { status: 'accepted', operatorId: operatorIdentifier, executorName: emp.name, emergencyAlert: undefined } },
-            { new: true }
-        );
-
-        if (!tx) return res.status(409).json({ success: false, error: 'تم قبول الطلب مسبقاً من زميل آخر أو لم يعد متاحاً.' });
+        const result = await acceptExecutorTask({ transactionId: req.params.id, executor: emp });
+        if (!result.ok) {
+            const status = result.code === 'ACTIVE_TASK_EXISTS' || result.code === 'TASK_UNAVAILABLE' ? 409 : 400;
+            return res.status(status).json({ success: false, code: result.code, error: routingErrorMessage(result.code) });
+        }
         return res.json({ success: true });
     } catch(e) { return res.status(500).json({ success: false, error: 'تعذر سحب العملية.' }); }
 };
@@ -297,7 +288,7 @@ exports.postReturnTask = async (req, res) => {
 
         if (tx && tx.status === 'accepted' && tx.operatorId === emp._id.toString()) {
             tx.status = 'pending'; tx.executorGroupId = undefined; tx.managerGroupId = undefined;
-            tx.executorName = undefined; tx.operatorId = undefined; tx.broadcastMessages = [];
+            tx.executorName = undefined; tx.operatorId = undefined; tx.assignedExecutorId = undefined; tx.assignedExecutorName = undefined; tx.assignedExecutorAt = undefined; tx.broadcastMessages = [];
             appendAdminNote(tx, `[إرجاع للإدارة | السبب: ${reason}]`);
             await tx.save();
             return res.json({ success: true });

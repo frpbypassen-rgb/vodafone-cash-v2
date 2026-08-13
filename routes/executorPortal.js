@@ -90,6 +90,9 @@ router.post('/api/employees/toggle/:id', requireExecutorManager, dashboardContro
 router.post('/api/employees/toggle-reports/:id', requireExecutorManager, dashboardController.postEmployeesToggleReports);
 router.post('/api/employees/reset-password/:id', requireExecutorManager, dashboardController.postEmployeesResetPassword);
 router.post('/api/employees/delete/:id', requireExecutorManager, dashboardController.postEmployeesDelete);
+router.post('/api/task-routing-mode', requireExecutorManager, dashboardController.postTaskRoutingMode);
+router.get('/api/route-candidates', requireExecutorManager, dashboardController.getRouteCandidates);
+router.post('/api/route-task/:id', requireExecutorManager, dashboardController.postRouteTask);
 
 // --- Transaction Routes ---
 router.post('/api/request-deposit', requireExecutorAuth, transactionController.postRequestDeposit);

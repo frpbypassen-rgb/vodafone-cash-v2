@@ -80,6 +80,13 @@ const { reversalService } = require('../src/Application/Services/ReversalService
 const { executorTransferRequiresProof } = require('../utils/executorServiceCatalog');
 const eventBus = require('../services/eventBus');
 const {
+    acceptExecutorTask,
+    taskOwnershipFilter,
+    listRouteCandidates,
+    routeExecutorTask,
+    routingErrorMessage
+} = require('../services/executorTaskRoutingService');
+const {
     findBrowserExecutable,
     getSharedBrowser,
     logoDataUri,
@@ -254,6 +261,13 @@ const toExecutorTaskDto = (tx, currentExecutorId = null) => ({
     notes: customerFacingNotes(customerNoteFromTransaction(tx)) || null,
     status: tx.status || 'unknown',
     operatorId: tx.operatorId ? String(tx.operatorId) : null,
+    assignedExecutorId: tx.assignedExecutorId ? String(tx.assignedExecutorId) : null,
+    assignedExecutorName: tx.assignedExecutorName || null,
+    isAssignedToCurrentExecutor: Boolean(
+        currentExecutorId &&
+        tx.assignedExecutorId &&
+        String(tx.assignedExecutorId) === String(currentExecutorId)
+    ),
     acceptedByName: tx.status === 'accepted' ? (tx.executorName || null) : null,
     isOwnedByCurrentExecutor: Boolean(
         currentExecutorId &&
@@ -996,7 +1010,7 @@ router.get('/executor/live-tasks', authenticateJWT, async (req, res) => {
 
         const employeeQuery = { _id: userId };
         if (req.tenant) employeeQuery.tenantId = req.tenant._id;
-        const employee = await Employee.findOne(employeeQuery);
+        const employee = await Employee.findOne(employeeQuery).populate('groupId');
         if (!employee) {
             return sendMobileError(res, 404, 'EMPLOYEE_NOT_FOUND', 'لم يتم العثور على حساب المنفذ', req.correlationId);
         }
@@ -1006,14 +1020,14 @@ router.get('/executor/live-tasks', authenticateJWT, async (req, res) => {
         const groupId = employee.groupId || executorGroupId;
 
         const queryTasks = {
-            executorGroupId: groupId,
+            ...taskOwnershipFilter(employee),
             status: { $in: ['processing', 'accepted'] }
         };
         if (req.tenant) queryTasks.tenantId = req.tenant._id;
         const tasks = await Transaction.find(queryTasks).sort({ createdAt: 1 }).lean();
 
         const queryAlerts = {
-            executorGroupId: groupId,
+            ...taskOwnershipFilter(employee),
             emergencyAlert: { $exists: true, $ne: null },
             status: { $in: ['processing', 'accepted'] }
         };
@@ -1024,6 +1038,8 @@ router.get('/executor/live-tasks', authenticateJWT, async (req, res) => {
             success: true,
             data: tasks.map((task) => toExecutorTaskDto(task, userId)),
             alerts: alerts.map((task) => toExecutorTaskDto(task, userId)),
+            manualTaskRoutingEnabled: Boolean(employee.groupId?.manualTaskRoutingEnabled),
+            canRouteTasks: employee.role === 'manager',
             pollIntervalSeconds: 5,
             serverTime: new Date().toISOString()
         });
@@ -1076,26 +1092,85 @@ router.post('/executor/accept-task/:id', authenticateJWT, async (req, res) => {
             return sendMobileError(res, 403, 'FORBIDDEN', 'Ø§Ù„Ù…Ù†ÙØ° ØºÙŠØ± Ù…Ø±Ø¨ÙˆØ· Ø¨Ù…Ø¬Ù…ÙˆØ¹Ø© ØµØ§Ù„Ø­Ø©', req.correlationId);
         }
 
-        const txQuery = {
-            _id: req.params.id,
-            status: 'processing',
-            $or: [{ executorGroupId: groupId }, { managerGroupId: groupId }]
-        };
-        if (req.tenant) txQuery.tenantId = req.tenant._id;
-        const tx = await Transaction.findOneAndUpdate(
-            txQuery,
-            { $set: { status: 'accepted', operatorId: emp._id.toString(), executorName: emp.name, emergencyAlert: undefined } },
+        const acceptance = await acceptExecutorTask({
+            transactionId: req.params.id,
+            executor: emp,
+            tenantId: req.tenant?._id || null
+        });
+        if (!acceptance.ok) {
+            const status = acceptance.code === 'ACTIVE_TASK_EXISTS' || acceptance.code === 'TASK_UNAVAILABLE' ? 409 : 400;
+            return sendMobileError(res, status, acceptance.code, routingErrorMessage(acceptance.code), req.correlationId);
+        }
+        return res.json({ success: true });
+
+    } catch (e) {
+        return sendServerError(res, req);
+    }
+});
+
+router.post('/executor/task-routing-mode', authenticateJWT, async (req, res) => {
+    try {
+        if (req.user.accountType !== 'executor') {
+            return sendMobileError(res, 403, 'FORBIDDEN', 'صلاحيات غير كافية', req.correlationId);
+        }
+        const employeeQuery = { _id: req.user.userId, role: 'manager' };
+        if (req.tenant) employeeQuery.tenantId = req.tenant._id;
+        const employee = await Employee.findOne(employeeQuery).populate('groupId');
+        if (!employee?.groupId) {
+            return sendMobileError(res, 403, 'FORBIDDEN', 'هذه العملية متاحة لمدير التنفيذ فقط.', req.correlationId);
+        }
+        const group = await ExecutorGroup.findByIdAndUpdate(
+            employee.groupId._id || employee.groupId,
+            { $set: { manualTaskRoutingEnabled: Boolean(req.body?.enabled) } },
             { new: true }
         );
+        return res.json({ success: true, manualTaskRoutingEnabled: Boolean(group?.manualTaskRoutingEnabled) });
+    } catch (error) {
+        return sendServerError(res, req);
+    }
+});
 
-        if (!tx) {
-            return sendMobileError(res, 409, 'ALREADY_TAKEN', 'عذراً، تم سحب الطلب من قِبل زميل آخر', req.correlationId);
+router.get('/executor/route-candidates', authenticateJWT, async (req, res) => {
+    try {
+        if (req.user.accountType !== 'executor') {
+            return sendMobileError(res, 403, 'FORBIDDEN', 'صلاحيات غير كافية', req.correlationId);
         }
+        const employeeQuery = { _id: req.user.userId, role: 'manager' };
+        if (req.tenant) employeeQuery.tenantId = req.tenant._id;
+        const manager = await Employee.findOne(employeeQuery).populate('groupId');
+        if (!manager?.groupId) {
+            return sendMobileError(res, 403, 'FORBIDDEN', 'هذه العملية متاحة لمدير التنفيذ فقط.', req.correlationId);
+        }
+        const employees = await listRouteCandidates({
+            groupId: manager.groupId._id || manager.groupId,
+            tenantId: req.tenant?._id || null
+        });
+        return res.json({ success: true, data: employees });
+    } catch (error) {
+        return sendServerError(res, req);
+    }
+});
 
-
-
-        return res.json({ success: true });
-    } catch (e) {
+router.post('/executor/route-task/:id', authenticateJWT, async (req, res) => {
+    try {
+        if (req.user.accountType !== 'executor') {
+            return sendMobileError(res, 403, 'FORBIDDEN', 'صلاحيات غير كافية', req.correlationId);
+        }
+        const employeeQuery = { _id: req.user.userId, role: 'manager' };
+        if (req.tenant) employeeQuery.tenantId = req.tenant._id;
+        const manager = await Employee.findOne(employeeQuery).populate('groupId');
+        const result = await routeExecutorTask({
+            transactionId: req.params.id,
+            manager,
+            employeeId: req.body?.employeeId,
+            tenantId: req.tenant?._id || null
+        });
+        if (!result.ok) {
+            const status = result.code === 'ACTIVE_TASK_EXISTS' || result.code === 'TASK_UNAVAILABLE' ? 409 : 400;
+            return sendMobileError(res, status, result.code, routingErrorMessage(result.code), req.correlationId);
+        }
+        return res.json({ success: true, employee: { id: String(result.employee._id), name: result.employee.name } });
+    } catch (error) {
         return sendServerError(res, req);
     }
 });
