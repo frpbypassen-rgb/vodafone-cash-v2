@@ -8,16 +8,26 @@ import 'appearance_controller.dart';
 import 'app_screens.dart';
 import 'brand_theme.dart';
 import 'executor_alert_service.dart';
+import 'language_controller.dart';
 import 'mobile_api.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await initializeDateFormatting('ar');
+  await Future.wait<void>([
+    initializeDateFormatting('ar'),
+    initializeDateFormatting('en'),
+  ]);
   // Notification setup must never block the first visible screen.
   unawaited(ExecutorAlertService.instance.configure());
   final controller = SessionController(SessionStore());
+  final language = LanguageController();
+  await language.restore();
   runApp(
-    PowerPayApp(controller: controller, appearance: AppearanceController()),
+    PowerPayApp(
+      controller: controller,
+      appearance: AppearanceController(),
+      language: language,
+    ),
   );
 }
 
@@ -26,20 +36,26 @@ class PowerPayApp extends StatelessWidget {
     super.key,
     required this.controller,
     required this.appearance,
+    required this.language,
   });
 
   final SessionController controller;
   final AppearanceController appearance;
+  final LanguageController language;
 
   @override
   Widget build(BuildContext context) {
     return AnimatedBuilder(
-      animation: Listenable.merge(<Listenable>[controller, appearance]),
+      animation: Listenable.merge(<Listenable>[
+        controller,
+        appearance,
+        language,
+      ]),
       builder: (context, _) {
         return MaterialApp(
           title: 'Ahram Pay',
           debugShowCheckedModeBanner: false,
-          locale: const Locale('ar'),
+          locale: language.locale,
           supportedLocales: const [Locale('ar'), Locale('en')],
           localizationsDelegates: const [
             GlobalMaterialLocalizations.delegate,
@@ -49,9 +65,19 @@ class PowerPayApp extends StatelessWidget {
           theme: AhramTheme.light(),
           darkTheme: AhramTheme.dark(),
           themeMode: appearance.themeMode,
-          home: Directionality(
-            textDirection: TextDirection.rtl,
-            child: AppBootstrap(controller: controller, appearance: appearance),
+          home: Builder(
+            builder: (context) {
+              final isArabic =
+                  Localizations.localeOf(context).languageCode == 'ar';
+              return Directionality(
+                textDirection: isArabic ? TextDirection.rtl : TextDirection.ltr,
+                child: AppBootstrap(
+                  controller: controller,
+                  appearance: appearance,
+                  language: language,
+                ),
+              );
+            },
           ),
         );
       },
@@ -64,10 +90,12 @@ class AppBootstrap extends StatefulWidget {
     super.key,
     required this.controller,
     required this.appearance,
+    required this.language,
   });
 
   final SessionController controller;
   final AppearanceController appearance;
+  final LanguageController language;
 
   @override
   State<AppBootstrap> createState() => _AppBootstrapState();
@@ -102,6 +130,7 @@ class _AppBootstrapState extends State<AppBootstrap> {
               : RoleShell(
                   controller: widget.controller,
                   appearance: widget.appearance,
+                  language: widget.language,
                 ));
     return AnimatedSwitcher(
       duration: const Duration(milliseconds: 520),

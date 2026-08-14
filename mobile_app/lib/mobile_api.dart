@@ -444,9 +444,7 @@ class MobileApi {
 
   Future<Map<String, dynamic>> clientHome() => _request('GET', '/client/home');
 
-  Future<Map<String, dynamic>> updateCustomerProfilePhoto(
-    String imageBase64,
-  ) {
+  Future<Map<String, dynamic>> updateCustomerProfilePhoto(String imageBase64) {
     return _request(
       'PUT',
       '/client/profile-photo',
@@ -508,6 +506,31 @@ class MobileApi {
       'POST',
       '/client/new-transfer',
       data: payload,
+      idempotencyKey: _uuid.v4(),
+    );
+  }
+
+  Future<Map<String, dynamic>> lookupBalanceTransferTarget(String accountCode) {
+    return _request(
+      'POST',
+      '/client/balance-transfer/lookup',
+      data: <String, dynamic>{'targetAccountCode': accountCode.trim()},
+    );
+  }
+
+  Future<Map<String, dynamic>> createBalanceTransfer({
+    required String targetAccountCode,
+    required double amount,
+    String? notes,
+  }) {
+    return _request(
+      'POST',
+      '/client/balance-transfer',
+      data: <String, dynamic>{
+        'targetAccountCode': targetAccountCode.trim(),
+        'amount': amount,
+        if (notes != null && notes.trim().isNotEmpty) 'notes': notes.trim(),
+      },
       idempotencyKey: _uuid.v4(),
     );
   }
@@ -932,7 +955,8 @@ class SessionController extends ChangeNotifier {
 
   Future<void> restore() async {
     session = await store.read();
-    customerNotificationsEnabled = await store.readCustomerNotificationsEnabled();
+    customerNotificationsEnabled = await store
+        .readCustomerNotificationsEnabled();
     isReady = true;
     notifyListeners();
   }
@@ -977,7 +1001,9 @@ class SessionController extends ChangeNotifier {
         ? Map<String, dynamic>.from(currentProfile)
         : <String, dynamic>{};
     final responseProfile = response['profile'];
-    if (responseProfile is Map) profile.addAll(Map<String, dynamic>.from(responseProfile));
+    if (responseProfile is Map) {
+      profile.addAll(Map<String, dynamic>.from(responseProfile));
+    }
     nextContext['profile'] = profile;
     session = current.copyWith(context: nextContext);
     await store.write(session!);
@@ -988,7 +1014,10 @@ class SessionController extends ChangeNotifier {
     required String name,
     required String address,
   }) async {
-    final response = await api.updateCustomerProfile(name: name, address: address);
+    final response = await api.updateCustomerProfile(
+      name: name,
+      address: address,
+    );
     final current = session;
     if (current == null) return;
     final nextContext = Map<String, dynamic>.from(current.context);
@@ -1001,7 +1030,10 @@ class SessionController extends ChangeNotifier {
       profile.addAll(Map<String, dynamic>.from(responseProfile));
     }
     nextContext['profile'] = profile;
-    session = current.copyWith(name: profile['name']?.toString(), context: nextContext);
+    session = current.copyWith(
+      name: profile['name']?.toString(),
+      context: nextContext,
+    );
     await store.write(session!);
     notifyListeners();
   }

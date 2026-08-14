@@ -11,6 +11,11 @@ const SERVICE_PRICING = Object.freeze({
         amountCurrencyCode: 'XOF',
         amountCurrencyLabel: 'سيفا',
         rateDirection: 'source_to_lyd'
+    }),
+    bankak_sudan: Object.freeze({
+        amountCurrencyCode: 'SDG',
+        amountCurrencyLabel: 'جنيه سوداني',
+        rateDirection: 'lyd_to_source'
     })
 });
 

@@ -45,6 +45,9 @@ export interface ITransferInput {
     serviceSubtype?: 'nita' | 'nita_account';
     city?: string;
     clientPhone?: string;
+    recipientPhone?: string;
+    governorate?: string;
+    bankName?: string;
 }
 
 export class TransferService {
@@ -67,6 +70,9 @@ export class TransferService {
             notes: input.notes?.trim() || null,
             serviceSubtype: input.serviceSubtype?.trim() || null,
             city: input.city?.trim() || null,
+            recipientPhone: input.recipientPhone?.trim() || null,
+            governorate: input.governorate?.trim() || null,
+            bankName: input.bankName?.trim() || null,
             ...(clientPhone ? { clientPhone } : {})
         };
         return crypto.createHash('sha256').update(JSON.stringify(payload)).digest('hex');
@@ -172,12 +178,18 @@ export class TransferService {
             const notes = transferData.notes?.trim();
             const serviceSubtype = transferData.serviceSubtype?.trim();
             const city = transferData.city?.trim();
+            const recipientPhone = transferData.recipientPhone?.trim();
+            const governorate = transferData.governorate?.trim();
+            const bankName = transferData.bankName?.trim();
             let clientPhone = String(transferData.clientPhone || '').trim().slice(0, 30);
             const currency = transferData.currency || 'EGP';
             const storedNotes = [
                 notes,
                 serviceSubtype ? `serviceSubtype=${serviceSubtype}` : null,
-                city ? `city=${city}` : null
+                city ? `city=${city}` : null,
+                recipientPhone ? `recipientPhone=${recipientPhone}` : null,
+                governorate ? `governorate=${governorate}` : null,
+                bankName ? `bankName=${bankName}` : null
             ].filter(Boolean).join(' | ');
 
             if (clientPhone) {
@@ -424,9 +436,15 @@ export class TransferService {
                 transferType,
                 accountName: name,
                 accountNumber: number,
+                nationalId: transferType === 'post_card' ? number : undefined,
+                governorate: transferType === 'post_card' ? governorate : undefined,
+                clientPhone,
                 serviceDetails: {
                     subtype: serviceSubtype || '',
                     city: city || '',
+                    recipientPhone: recipientPhone || '',
+                    governorate: governorate || '',
+                    bankName: bankName || '',
                     clientPhone,
                     destinationLabel: serviceDefinition.numberLabel || '',
                     amountCurrency: pricingDefinition.amountCurrencyCode,

@@ -61,9 +61,12 @@ const MOBILE_TRANSFER_SERVICES = Object.freeze([
         webType: 'بنكك السودان',
         label: 'بنكك السودان',
         shortLabel: 'بنكك السودان',
+        amountCurrencyCode: 'SDG',
+        amountCurrencyLabel: 'جنيه سوداني',
+        rateDirection: 'lyd_to_source',
         rateOffset: 0.20,
         numberLabel: 'رقم حساب بنكك',
-        requiredFields: Object.freeze(['amount', 'number', 'name']),
+        requiredFields: Object.freeze(['amount', 'number', 'name', 'recipientPhone']),
         mobileEnabled: true
     })
 ]);

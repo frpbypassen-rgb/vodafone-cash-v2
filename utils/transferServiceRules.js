@@ -9,31 +9,35 @@ const TRANSFER_SERVICE_RULES = Object.freeze({
         destinationMaxLength: 11,
         destinationError: 'رقم المحفظة يجب أن يكون 11 رقمًا ويبدأ بـ 010 أو 011 أو 012 أو 015.',
         beneficiaryRequired: false,
+        minAmount: 100,
+        maxAmount: 50000,
         amountStep: '0.01'
     }),
     post_account: Object.freeze({
         destinationRequired: true,
         destinationInputMode: 'numeric',
-        destinationPattern: '^\\d{16}$',
-        destinationMinLength: 16,
-        destinationMaxLength: 16,
-        destinationError: 'رقم الحساب البريدي يجب أن يكون 16 رقمًا.',
+        destinationPattern: '^\\d{15}$',
+        destinationMinLength: 15,
+        destinationMaxLength: 15,
+        destinationError: 'رقم الحساب البريدي يجب أن يكون 15 رقمًا.',
         beneficiaryRequired: true,
-        beneficiaryMinWords: 4,
-        beneficiaryLabel: 'اسم المستفيد (رباعي)',
-        beneficiaryPlaceholder: 'اكتب الاسم رباعي',
+        beneficiaryMinWords: 3,
+        beneficiaryLabel: 'اسم المستفيد (ثلاثي)',
+        beneficiaryPlaceholder: 'اكتب الاسم ثلاثي',
+        minAmount: 500,
         amountStep: '0.01'
     }),
     post_card: Object.freeze({
         destinationRequired: false,
         beneficiaryRequired: true,
-        beneficiaryMinWords: 4,
-        beneficiaryLabel: 'اسم المستفيد (رباعي)',
-        beneficiaryPlaceholder: 'اكتب الاسم رباعي',
+        beneficiaryMinWords: 3,
+        beneficiaryLabel: 'اسم المستفيد (ثلاثي)',
+        beneficiaryPlaceholder: 'اكتب الاسم ثلاثي',
         requiresNationalId: true,
         nationalIdLength: 14,
         requiresGovernorate: true,
         requiresIdentityImage: true,
+        minAmount: 500,
         amountStep: '0.01'
     }),
     bank_account: Object.freeze({
@@ -41,17 +45,19 @@ const TRANSFER_SERVICE_RULES = Object.freeze({
         destinationInputMode: 'text',
         destinationError: 'أدخل رقم الحساب البنكي أو IBAN.',
         beneficiaryRequired: true,
+        beneficiaryMinWords: 3,
         beneficiaryLabel: 'اسم المستفيد',
         beneficiaryPlaceholder: 'أدخل اسم المستفيد',
+        minAmount: 500,
         amountStep: '0.01'
     }),
     sefa_niger: Object.freeze({
         destinationRequired: true,
         destinationInputMode: 'numeric',
-        destinationPattern: '^\\d{8,10}$',
+        destinationPattern: '^\\d{8,11}$',
         destinationMinLength: 8,
-        destinationMaxLength: 10,
-        destinationError: 'رقم حساب سيفا يجب أن يتكون من 8 إلى 10 أرقام.',
+        destinationMaxLength: 11,
+        destinationError: 'رقم حساب سيفا يجب أن يتكون من 8 إلى 11 رقمًا.',
         beneficiaryRequired: true,
         beneficiaryLabel: 'الاسم',
         beneficiaryPlaceholder: 'أدخل الاسم',
@@ -59,13 +65,17 @@ const TRANSFER_SERVICE_RULES = Object.freeze({
         allowedSubtypes: Object.freeze(['nita', 'nita_account']),
         cityRequiredForSubtypes: Object.freeze(['nita']),
         requiresDataEntryAcknowledgement: true,
+        minAmount: 10,
         integerAmount: true,
         amountStep: '1'
     }),
     bankak_sudan: Object.freeze({
         destinationRequired: true,
-        destinationInputMode: 'text',
-        destinationError: 'أدخل رقم حساب بنكك.',
+        destinationInputMode: 'numeric',
+        destinationPattern: '^\\d{14}$',
+        destinationMinLength: 14,
+        destinationMaxLength: 14,
+        destinationError: 'رقم حساب بنكك يجب أن يتكون من 14 رقماً.',
         beneficiaryRequired: true,
         beneficiaryLabel: 'اسم المستفيد',
         beneficiaryPlaceholder: 'أدخل اسم المستفيد',
@@ -95,6 +105,12 @@ const validateTransferInput = ({
 
     const numericAmount = Number(amount);
     if (!Number.isFinite(numericAmount) || numericAmount <= 0) return 'أدخل مبلغ تحويل صحيحًا.';
+    if (rules.minAmount && numericAmount < rules.minAmount) {
+        return `الحد الأدنى لهذه الخدمة هو ${rules.minAmount} جنيه مصري.`;
+    }
+    if (rules.maxAmount && numericAmount > rules.maxAmount) {
+        return `الحد الأقصى لهذه الخدمة هو ${rules.maxAmount.toLocaleString('en-US')} جنيه مصري للعملية الواحدة.`;
+    }
     if (rules.integerAmount && !Number.isInteger(numericAmount)) return 'خدمة سيفا لا تقبل كسورًا في قيمة السيفا.';
 
     const normalizedDestination = String(destination || '').trim();
@@ -106,7 +122,7 @@ const validateTransferInput = ({
     const normalizedName = String(beneficiaryName || '').trim();
     if (rules.beneficiaryRequired && !normalizedName) return 'اسم المستفيد مطلوب.';
     if (rules.beneficiaryMinWords && countWords(normalizedName) < rules.beneficiaryMinWords) {
-        return 'اسم المستفيد الرباعي مطلوب لهذه الخدمة.';
+        return `اسم المستفيد يجب أن يكون ${rules.beneficiaryMinWords === 3 ? 'ثلاثيًا' : 'رباعيًا'} لهذه الخدمة.`;
     }
 
     const normalizedSubtype = String(subtype || '').trim();

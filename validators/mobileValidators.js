@@ -65,7 +65,7 @@ const transferValidator = [
     body('number')
         .trim()
         .notEmpty().withMessage('رقم الهاتف أو الحساب مطلوب')
-        .isLength({ min: 5, max: 30 }).withMessage('الرقم يجب أن يكون بين 5 و30 خانة'),
+        .isLength({ min: 3, max: 50 }).withMessage('بيانات المستلم يجب أن تكون بين 3 و50 خانة'),
     body('transferType')
         .trim()
         .notEmpty().withMessage('Ù†ÙˆØ¹ Ø§Ù„ØªØ­ÙˆÙŠÙ„ Ù…Ø·Ù„ÙˆØ¨')
@@ -91,8 +91,13 @@ const transferValidator = [
         .trim()
         .isLength({ max: 80 }).withMessage('اسم المدينة لا يتجاوز 80 حرف')
         .escape(),
+    body('bankName')
+        .optional()
+        .trim()
+        .isLength({ max: 100 }).withMessage('اسم البنك لا يتجاوز 100 حرف')
+        .escape(),
     body().custom((body) => {
-        const { transferType, name, number, idCardImage, oldReceiptImage, serviceSubtype, city } = body;
+        const { transferType, name, number, idCardImage, oldReceiptImage, serviceSubtype, city, recipientPhone, governorate, bankName } = body;
         const service = getTransferServiceDefinition(transferType);
         if (!service || !service.mobileEnabled) {
             throw new Error('نوع التحويل غير مدعوم للموبايل');
@@ -100,13 +105,23 @@ const transferValidator = [
         
         if (transferType === 'post_card') {
             if (!name) {
-                throw new Error('الاسم رباعي مطلوب لهذا النوع من التحويل');
+                throw new Error('اسم المستفيد الثلاثي مطلوب لهذا النوع من التحويل');
             }
-            if (name.trim().split(/\s+/).filter(Boolean).length < 4) {
-                throw new Error('الاسم المستلم يجب أن يكون رباعياً (4 كلمات على الأقل)');
+            if (name.trim().split(/\s+/).filter(Boolean).length < 3) {
+                throw new Error('اسم المستلم يجب أن يكون ثلاثياً (3 كلمات على الأقل)');
             }
             if (!number || !/^\d{14}$/.test(number)) {
                 throw new Error('الرقم القومي للمستلم مطلوب ويجب أن يكون 14 رقماً');
+            }
+            if (!recipientPhone || !/^(010|011|012|015)\d{8}$/.test(recipientPhone)) {
+                throw new Error('رقم هاتف المستلم يجب أن يكون 11 رقماً ويبدأ بـ 010 أو 011 أو 012 أو 015');
+            }
+            if (!governorate || !String(governorate).trim()) {
+                throw new Error('اختر محافظة المستلم في مصر');
+            }
+            const amount = Number(body.amount);
+            if (!Number.isFinite(amount) || amount < 500) {
+                throw new Error('الحد الأدنى لتحويل بريد بطاقة هو 500 جنيه مصري');
             }
             if (!idCardImage) {
                 throw new Error('صورة وجه البطاقة الشخصية للمستلم مطلوبة');
@@ -123,13 +138,17 @@ const transferValidator = [
         
         if (transferType === 'post_account') {
             if (!name) {
-                throw new Error('الاسم رباعي مطلوب لهذا النوع من التحويل');
+                throw new Error('اسم المستفيد الثلاثي مطلوب لهذا النوع من التحويل');
             }
-            if (name.trim().split(/\s+/).filter(Boolean).length < 4) {
-                throw new Error('الاسم المستلم يجب أن يكون رباعياً (4 كلمات على الأقل)');
+            if (name.trim().split(/\s+/).filter(Boolean).length < 3) {
+                throw new Error('الاسم المستلم يجب أن يكون ثلاثياً (3 كلمات على الأقل)');
             }
-            if (!number) {
-                throw new Error('رقم الحساب مطلوب');
+            if (!number || !/^\d{15}$/.test(number)) {
+                throw new Error('رقم الحساب البريدي يجب أن يكون 15 رقماً');
+            }
+            const amount = Number(body.amount);
+            if (!Number.isFinite(amount) || amount < 500) {
+                throw new Error('الحد الأدنى لتحويل بريد حساب هو 500 جنيه مصري');
             }
             if (oldReceiptImage) {
                 const base64Data = oldReceiptImage.replace(/^data:image\/\w+;base64,/, '');
@@ -144,17 +163,38 @@ const transferValidator = [
         }
         
         if (transferType === 'vodafone') {
-            if (!number || !/^\d{10,15}$/.test(number)) {
-                throw new Error('رقم مستلم الكاش يجب أن يكون بين 10 و15 رقماً');
+            if (!number || !/^(010|011|012|015)\d{8}$/.test(number)) {
+                throw new Error('رقم مستلم الكاش يجب أن يكون 11 رقماً ويبدأ بـ 010 أو 011 أو 012 أو 015');
+            }
+            const amount = Number(body.amount);
+            if (!Number.isFinite(amount) || amount < 100 || amount > 50000) {
+                throw new Error('قيمة تحويل محافظ كاش يجب أن تكون بين 100 و50,000 جنيه مصري للعملية الواحدة');
             }
         }
 
         if (transferType === 'bank_account') {
-            if (!name || name.trim().length < 3) {
-                throw new Error('اسم المستفيد مطلوب لتحويل الحساب البنكي');
+            if (!name || name.trim().split(/\s+/).filter(Boolean).length < 3) {
+                throw new Error('اسم المستفيد يجب أن يكون ثلاثياً لتحويل الحساب البنكي');
             }
-            if (!number || !/^[A-Za-z0-9\s-]{8,34}$/.test(number)) {
-                throw new Error('رقم الحساب البنكي أو IBAN غير صالح');
+            const isInstapay = serviceSubtype === 'instapay';
+            const bankRecipientPattern = isInstapay
+                ? /^(?:(010|011|012|015)\d{8}|[A-Za-z0-9._@-]{3,50}|\d{16})$/
+                : /^[A-Za-z0-9\s-]{8,34}$/;
+            if (!number || !bankRecipientPattern.test(number.replace(/\s+/g, ''))) {
+                throw new Error(isInstapay
+                    ? 'أدخل رقم هاتف أو عنوان دفع لحظي أو رقم بطاقة إلكترونية صحيحاً'
+                    : 'رقم الحساب البنكي أو IBAN غير صالح');
+            }
+            const amount = Number(body.amount);
+            if (!Number.isFinite(amount) || amount < 500) {
+                throw new Error(isInstapay
+                    ? 'الحد الأدنى لتحويل إنستا باي هو 500 جنيه مصري'
+                    : 'الحد الأدنى للتحويل البنكي هو 500 جنيه مصري');
+            }
+            if (!isInstapay) {
+                if (!bankName || !String(bankName).trim()) {
+                    throw new Error('اختر اسم البنك قبل إرسال التحويل البنكي');
+                }
             }
         }
 
@@ -163,18 +203,18 @@ const transferValidator = [
             if (!service.allowedSubtypes || !service.allowedSubtypes.includes(subtype)) {
                 throw new Error('نوع خدمة سيفا النيجر غير صالح');
             }
-            if (!name || name.trim().length < 3) {
+            if (!name || name.trim().length < 2) {
                 throw new Error('اسم المستفيد مطلوب لسيفا النيجر');
             }
-            if (!number || !/^\d{8,10}$/.test(number)) {
-                throw new Error('رقم حساب NITA يجب أن يتكون من 8 إلى 10 أرقام');
+            if (!number || !/^\d{8,11}$/.test(number)) {
+                throw new Error('رقم حساب NITA يجب أن يتكون من 8 إلى 11 رقماً');
             }
             if (subtype === 'nita' && (!city || city.trim().length < 2)) {
                 throw new Error('اسم المدينة مطلوب لخدمة NITA');
             }
             const amount = Number(body.amount);
-            if (!Number.isInteger(amount)) {
-                throw new Error('مبلغ سيفا النيجر يجب أن يكون رقماً صحيحاً بدون كسور');
+            if (!Number.isInteger(amount) || amount < 10) {
+                throw new Error('مبلغ سيفا النيجر يجب أن يكون رقماً صحيحاً لا يقل عن 10 سيفا');
             }
         }
 
@@ -182,8 +222,12 @@ const transferValidator = [
             if (!name || name.trim().length < 3) {
                 throw new Error('اسم المستفيد مطلوب لبنكك السودان');
             }
-            if (!number || !/^[A-Za-z0-9]{5,30}$/.test(number)) {
-                throw new Error('رقم حساب بنكك غير صالح');
+            if (!number || !/^\d{14}$/.test(number)) {
+                throw new Error('رقم حساب بنكك يجب أن يتكون من 14 رقماً');
+            }
+            const recipientPhone = String(body.recipientPhone || '').replace(/\s+/g, '');
+            if (!/^\+?\d{9,15}$/.test(recipientPhone)) {
+                throw new Error('رقم هاتف المستلم مطلوب لبنكك السودان');
             }
         }
         return true;
