@@ -39,13 +39,14 @@ describe('mobile login parity with website login', () => {
     });
 
     test('accepts the short username used by the website for a direct customer', async () => {
-        const result = await findByCredentials('CLIENT.DEMO', 'pass1234');
+        const result = await findByCredentials('CLIENT.DEMO', 'pass1234', 'tenant-current');
 
         expect(result).toEqual(expect.objectContaining({
             accountType: 'client_user',
             balance: 120
         }));
         const lookup = User.findOne.mock.calls[0][0];
+        expect(lookup.tenantId).toEqual({ $in: ['tenant-current', null] });
         const usernameMatchers = lookup.$or
             .filter((item) => item.webUsername)
             .map((item) => item.webUsername);

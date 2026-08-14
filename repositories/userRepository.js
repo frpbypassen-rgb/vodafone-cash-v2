@@ -30,6 +30,17 @@ const credentialLookup = (username) => {
     };
 };
 
+// Older customer records were created before tenant isolation was introduced.
+// They remain valid only on the current host, so include records without a
+// tenant while never falling through to a record owned by another tenant.
+const applyTenantScope = (lookup, tenantId) => {
+    if (!tenantId) return lookup;
+    return {
+        ...lookup,
+        tenantId: { $in: [tenantId, null] }
+    };
+};
+
 /**
  * البحث عن حساب بالـ credentials (الأولوية: Employee → ClientEmployee → User)
  * @param {string} username
@@ -40,8 +51,7 @@ const findByCredentials = async (username, password, tenantId) => {
     const searchPass = password.trim();
 
     // 1. فحص المنفذ (Employee)
-    const execQuery = credentialLookup(username);
-    if (tenantId) execQuery.tenantId = tenantId;
+    const execQuery = applyTenantScope(credentialLookup(username), tenantId);
     const execDoc = await Employee.findOne(execQuery).populate('groupId');
 
     if (execDoc) {
@@ -100,8 +110,7 @@ const findByCredentials = async (username, password, tenantId) => {
     }
 
     // 4. فحص العميل الفردي (User)
-    const userQuery = credentialLookup(username);
-    if (tenantId) userQuery.tenantId = tenantId;
+    const userQuery = applyTenantScope(credentialLookup(username), tenantId);
     const userDoc = await User.findOne(userQuery);
 
     if (userDoc) {
