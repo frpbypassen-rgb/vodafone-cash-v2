@@ -11,6 +11,25 @@ const Employee = require('../models/Employee');
 const ClientCompany = require('../models/ClientCompany');
 const bcrypt = require('bcryptjs');
 
+const escapeRegex = (value) => String(value || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+// Keep the mobile API aligned with the unified website login: users may enter
+// either the stored username (for example user@ahram.com), its short form, or
+// their phone number. Username matching is intentionally case-insensitive.
+const credentialLookup = (username) => {
+    const value = String(username || '').trim();
+    const candidates = value.includes('@') ? [value] : [value, `${value}@ahram.com`];
+    const usernameClauses = [...new Set(candidates.filter(Boolean))].map((candidate) => ({
+        webUsername: new RegExp(`^${escapeRegex(candidate)}$`, 'i')
+    }));
+    return {
+        $or: [
+            ...usernameClauses,
+            { phone: value }
+        ]
+    };
+};
+
 /**
  * البحث عن حساب بالـ credentials (الأولوية: Employee → ClientEmployee → User)
  * @param {string} username
@@ -18,13 +37,10 @@ const bcrypt = require('bcryptjs');
  * @returns {Promise<{account, accountType, balance, telegramId, executorBotId}|null>}
  */
 const findByCredentials = async (username, password, tenantId) => {
-    const searchUser = username.trim().toLowerCase();
     const searchPass = password.trim();
 
     // 1. فحص المنفذ (Employee)
-    const execQuery = {
-        $or: [{ webUsername: searchUser }, { phone: username }]
-    };
+    const execQuery = credentialLookup(username);
     if (tenantId) execQuery.tenantId = tenantId;
     const execDoc = await Employee.findOne(execQuery).populate('groupId');
 
@@ -45,9 +61,7 @@ const findByCredentials = async (username, password, tenantId) => {
     }
 
     // 2. فحص موظف الشركة (ClientEmployee)
-    const empDoc = await ClientEmployee.findOne({
-        $or: [{ webUsername: searchUser }, { phone: username }]
-    });
+    const empDoc = await ClientEmployee.findOne(credentialLookup(username));
 
     if (empDoc) {
         const isMatch = await _comparePassword(searchPass, empDoc.webPassword, ClientEmployee, empDoc._id);
@@ -65,9 +79,7 @@ const findByCredentials = async (username, password, tenantId) => {
     }
 
     // 3. فحص موظف الوكيل (AgentEmployee)
-    const agentEmpDoc = await AgentEmployee.findOne({
-        $or: [{ webUsername: searchUser }, { phone: username }]
-    });
+    const agentEmpDoc = await AgentEmployee.findOne(credentialLookup(username));
 
     if (agentEmpDoc) {
         const isMatch = await _comparePassword(searchPass, agentEmpDoc.webPassword, AgentEmployee, agentEmpDoc._id);
@@ -88,9 +100,7 @@ const findByCredentials = async (username, password, tenantId) => {
     }
 
     // 4. فحص العميل الفردي (User)
-    const userQuery = {
-        $or: [{ webUsername: searchUser }, { phone: username }]
-    };
+    const userQuery = credentialLookup(username);
     if (tenantId) userQuery.tenantId = tenantId;
     const userDoc = await User.findOne(userQuery);
 
@@ -110,9 +120,7 @@ const findByCredentials = async (username, password, tenantId) => {
 
     // 5. فحص الحساب التابع (SubAccount)
     const SubAccount = require('../models/SubAccount');
-    const subQuery = {
-        $or: [{ webUsername: searchUser }, { phone: username }]
-    };
+    const subQuery = credentialLookup(username);
     const subDoc = await SubAccount.findOne(subQuery);
 
     if (subDoc) {
