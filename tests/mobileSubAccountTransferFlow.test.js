@@ -196,6 +196,7 @@ const SubAccount = require('../models/SubAccount');
 const Transaction = require('../models/Transaction');
 const Ledger = require('../models/Ledger');
 const Settings = require('../models/Settings');
+const mongoose = require('mongoose');
 const { transferService } = require('../src/Application/Services/TransferService.ts');
 
 const app = express();
@@ -266,6 +267,7 @@ describe('Mobile SubAccount Transfer Flow', () => {
         expect(res.body.txId).toBeDefined();
         expect(res.body.costLYD).toBe(47.244);
         expect(res.body.exchangeRate).toBe(6.35);
+        expect(mongoose.startSession).not.toHaveBeenCalled();
 
         // Check findOneAndUpdate calls
         expect(SubAccount.findOneAndUpdate).toHaveBeenCalled();

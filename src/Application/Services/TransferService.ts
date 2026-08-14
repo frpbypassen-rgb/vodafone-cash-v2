@@ -33,6 +33,45 @@ const { resolveAutoRouteExecutor, applyAutoRouteFields, enqueueAutoRouteIfNeeded
 const eventBus = require('../../../services/eventBus');
 import logger from '../../../utils/logger';
 
+let transactionCapability: boolean | null = null;
+let transactionCapabilityCheckedAt = 0;
+
+// A standalone MongoDB server rejects transaction commands. The deployed
+// application must continue to use its atomic balance guards in that setup.
+const canUseMongoTransactions = async (): Promise<boolean> => {
+    const now = Date.now();
+    if (transactionCapability !== null && now - transactionCapabilityCheckedAt < 60_000) {
+        return transactionCapability;
+    }
+
+    try {
+        const db = mongoose.connection?.db;
+        if (!db) return false;
+        const status = await db.admin().command({ replSetGetStatus: 1 });
+        transactionCapability = status?.ok === 1;
+    } catch (_) {
+        transactionCapability = false;
+    }
+
+    transactionCapabilityCheckedAt = now;
+    return transactionCapability;
+};
+
+const abortSession = async (session: any) => {
+    if (!session) return;
+    try {
+        await session.abortTransaction();
+    } finally {
+        session.endSession();
+    }
+};
+
+const commitSession = async (session: any) => {
+    if (!session) return;
+    await session.commitTransaction();
+    session.endSession();
+};
+
 export interface ITransferInput {
     transferType: 'vodafone' | 'post_account' | 'post_card' | 'bank_account' | 'sefa_niger' | 'bankak_sudan';
     amount: number;
@@ -155,16 +194,26 @@ export class TransferService {
             return { success: false, statusCode: 429, code: 'LOCK_TIMEOUT', message: 'الرجاء الانتظار، هناك عملية جارية حالياً على حسابك' };
         }
 
-        const session = await mongoose.startSession();
-        session.startTransaction();
+        let session: any = null;
+        if (await canUseMongoTransactions()) {
+            try {
+                session = await mongoose.startSession();
+                session.startTransaction();
+            } catch (error: any) {
+                logger.warn('MongoDB transaction unavailable; using guarded transfer flow', {
+                    error: error.message,
+                    accountType
+                });
+                session = null;
+            }
+        }
 
         try {
             const transferType = transferData.transferType;
             const serviceDefinition = getTransferServiceDefinition(transferType);
             const pricingDefinition = getTransferPricingDefinition(transferType);
             if (!serviceDefinition || !serviceDefinition.mobileEnabled) {
-                await session.abortTransaction();
-                session.endSession();
+                await abortSession(session);
                 return {
                     success: false,
                     statusCode: 400,
@@ -197,8 +246,7 @@ export class TransferService {
                     // Store a canonical number so 09... always routes to Libya and 01... to Egypt.
                     clientPhone = normalizeWhatsAppPhone(clientPhone);
                 } catch (_error) {
-                    await session.abortTransaction();
-                    session.endSession();
+                    await abortSession(session);
                     return {
                         success: false,
                         statusCode: 400,
@@ -218,12 +266,10 @@ export class TransferService {
                 const existingTx = await Transaction.findOne({ idempotencyKey }).session(session);
                 if (existingTx) {
                     if (existingTx.idempotencyFingerprint === idempotencyFingerprint) {
-                        await session.abortTransaction();
-                        session.endSession();
+                        await abortSession(session);
                         return this.toReplayResponse(existingTx);
                     }
-                    await session.abortTransaction();
-                    session.endSession();
+                    await abortSession(session);
                     return {
                         success: false,
                         statusCode: 409,
@@ -236,16 +282,14 @@ export class TransferService {
             const settings = await Settings.findOne({}).session(session);
             const autoRouteExecutor = await resolveAutoRouteExecutor(settings, transferType, session);
             if (settings && settings.isManualClosed) {
-                await session.abortTransaction();
-                session.endSession();
+                await abortSession(session);
                 return { success: false, statusCode: 403, code: 'SYSTEM_CLOSED', message: 'المنظومة مغلقة حالياً' };
             }
 
             // 2. فحص الهوية والعميل
             const clientInfo = await this.resolveClient(userId, accountType, settings, session, req);
             if (!clientInfo) {
-                await session.abortTransaction();
-                session.endSession();
+                await abortSession(session);
                 return { success: false, statusCode: 404, code: 'USER_NOT_FOUND', message: 'المستخدم غير موجود' };
             }
 
@@ -255,8 +299,7 @@ export class TransferService {
             const isTrustedDevice = req.isDeviceTrusted !== undefined ? req.isDeviceTrusted : true;
             const fraudResult = await fraudDetectionEngine.evaluateTransaction(userId, amount, isTrustedDevice);
             if (fraudResult.isFraudulent) {
-                await session.abortTransaction();
-                session.endSession();
+                await abortSession(session);
                 return {
                     success: false,
                     statusCode: 400,
@@ -270,8 +313,7 @@ export class TransferService {
             const country = req.headers['x-country-code'] || 'Egypt';
             const sanctionsResult = await amlSanctionsService.screenSanctions(fullName, country);
             if (!sanctionsResult.passed) {
-                await session.abortTransaction();
-                session.endSession();
+                await abortSession(session);
                 return {
                     success: false,
                     statusCode: 400,
@@ -282,8 +324,7 @@ export class TransferService {
 
             const amlResult = await amlSanctionsService.checkAmlRules(amount, currency, 0);
             if (!amlResult.passed) {
-                await session.abortTransaction();
-                session.endSession();
+                await abortSession(session);
                 return {
                     success: false,
                     statusCode: 400,
@@ -364,8 +405,7 @@ export class TransferService {
                     { new: true, session }
                 );
                 if (!updatedSub) {
-                    await session.abortTransaction();
-                    session.endSession();
+                    await abortSession(session);
                     return { success: false, statusCode: 400, code: 'INSUFFICIENT_BALANCE', message: 'رصيد الحساب التابع غير كافٍ لإتمام العملية' };
                 }
 
@@ -376,16 +416,14 @@ export class TransferService {
                     { new: true, session }
                 );
                 if (!updatedMaster) {
-                    await session.abortTransaction();
-                    session.endSession();
+                    await abortSession(session);
                     return { success: false, statusCode: 400, code: 'INSUFFICIENT_BALANCE', message: 'رصيد الحساب الرئيسي غير كافٍ لإتمام العملية' };
                 }
 
                 updatedClient = updatedSub;
             } else {
                 if (currentBalance < minRequiredBalance) {
-                    await session.abortTransaction();
-                    session.endSession();
+                    await abortSession(session);
                     return { success: false, statusCode: 400, code: 'INSUFFICIENT_BALANCE', message: 'رصيد المحفظة غير كافٍ لإتمام العملية بالعملة المطلوبة' };
                 }
 
@@ -397,8 +435,7 @@ export class TransferService {
                 );
 
                 if (!updatedClient) {
-                    await session.abortTransaction();
-                    session.endSession();
+                    await abortSession(session);
                     return { success: false, statusCode: 400, code: 'INSUFFICIENT_BALANCE', message: 'رصيد غير كافٍ أو تغير أثناء العملية' };
                 }
             }
@@ -560,8 +597,7 @@ export class TransferService {
             newTx.idempotencyResponse = successBody;
             await newTx.save({ session });
 
-            await session.commitTransaction();
-            session.endSession();
+            await commitSession(session);
 
             if (autoRouteExecutor) {
                 enqueueAutoRouteIfNeeded(newTx, autoRouteExecutor).catch((err: any) => {
@@ -597,7 +633,7 @@ export class TransferService {
                 ...successBody
             };
         } catch (error: any) {
-            try { await session.abortTransaction(); session.endSession(); } catch (_) {}
+            try { await abortSession(session); } catch (_) {}
             if (error instanceof TransferCooldownError) {
                 return {
                     success: false,

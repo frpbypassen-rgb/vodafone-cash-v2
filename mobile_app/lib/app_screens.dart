@@ -1527,11 +1527,13 @@ class RoleShell extends StatefulWidget {
     required this.controller,
     required this.appearance,
     required this.language,
+    this.enableBackgroundAlerts = true,
   });
 
   final SessionController controller;
   final AppearanceController appearance;
   final LanguageController language;
+  final bool enableBackgroundAlerts;
 
   @override
   State<RoleShell> createState() => _RoleShellState();
@@ -1547,7 +1549,8 @@ class _RoleShellState extends State<RoleShell> with WidgetsBindingObserver {
   void initState() {
     super.initState();
     _items = _createItems();
-    if (widget.controller.isExecutor || widget.controller.isCustomerAccount) {
+    if (widget.enableBackgroundAlerts &&
+        (widget.controller.isExecutor || widget.controller.isCustomerAccount)) {
       WidgetsBinding.instance.addObserver(this);
       if (widget.controller.isExecutor) {
         unawaited(_loadExecutorOverview());

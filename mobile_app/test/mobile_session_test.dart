@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mobile_app/app_screens.dart';
 import 'package:mobile_app/appearance_controller.dart';
+import 'package:mobile_app/language_controller.dart';
 import 'package:mobile_app/mobile_api.dart';
 
 void main() {
@@ -124,6 +125,8 @@ void main() {
           child: RoleShell(
             controller: controller,
             appearance: AppearanceController(),
+            language: LanguageController(),
+            enableBackgroundAlerts: false,
           ),
         ),
       ),
