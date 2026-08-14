@@ -7,9 +7,10 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
     <application
-        android:label="Power Pay AL-Ahram"
+        android:label="Ahram Pay"
         android:name="${applicationName}"
-        android:icon="@mipmap/ic_launcher">
+        android:icon="@drawable/app_logo"
+        android:roundIcon="@drawable/app_logo">
         <activity
             android:name=".MainActivity"
             android:exported="true"

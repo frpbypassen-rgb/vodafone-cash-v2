@@ -28,6 +28,30 @@ const ensureActiveExecutor = async (decodedUser) => {
     );
 };
 
+const ensureActiveCustomerSession = async (decodedUser) => {
+    if (!decodedUser || !['client_user', 'sub_client'].includes(decodedUser.accountType)) return true;
+
+    const Model = decodedUser.accountType === 'sub_client'
+        ? require('../models/SubAccount')
+        : require('../models/User');
+    const account = await Model.findById(decodedUser.userId).select('status sessionVersion');
+    const accountIsActive = Boolean(
+        account
+        && account.status === 'active'
+        && Number(account.sessionVersion || 0) === Number(decodedUser.sessionVersion || 0)
+    );
+    if (!accountIsActive || !decodedUser.sessionId) return accountIsActive;
+
+    const MobileDeviceSession = require('../models/MobileDeviceSession');
+    const session = await MobileDeviceSession.exists({
+        accountId: decodedUser.userId,
+        accountType: decodedUser.accountType,
+        sessionId: decodedUser.sessionId,
+        active: true
+    });
+    return Boolean(session);
+};
+
 const authenticateJWT = (req, res, next) => {
     const authHeader = req.headers.authorization;
 
@@ -48,7 +72,7 @@ const authenticateJWT = (req, res, next) => {
                 });
             }
             try {
-                if (!await ensureActiveExecutor(decodedUser)) {
+                if (!await ensureActiveExecutor(decodedUser) || !await ensureActiveCustomerSession(decodedUser)) {
                     return res.status(401).json({
                         success: false,
                         code: 'ACCOUNT_INACTIVE',
@@ -77,4 +101,4 @@ const authenticateJWT = (req, res, next) => {
     }
 };
 
-module.exports = { authenticateJWT, ensureActiveExecutor, JWT_SECRET, JWT_REFRESH_SECRET };
+module.exports = { authenticateJWT, ensureActiveExecutor, ensureActiveCustomerSession, JWT_SECRET, JWT_REFRESH_SECRET };

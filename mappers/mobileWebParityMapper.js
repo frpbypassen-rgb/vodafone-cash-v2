@@ -32,6 +32,21 @@ const toClientReportDto = (data) => {
             executorName: isPersonalReport ? null : (tx.executorName || null),
             hasProofImage: !!(tx.proofImage || (tx.proofImages && tx.proofImages.length > 0))
         })),
+        cancelledOperations: (data.cancelledOperations || []).map((tx, index) => ({
+            serialNumber: index + 1,
+            id: String(tx._id),
+            customId: tx.customId,
+            transferType: tx.transferType,
+            transferTypeLabel: getTransferServiceLabel(tx.transferType),
+            recipientNumber: tx.vodafoneNumber || tx.accountNumber || null,
+            recipientName: tx.accountName || null,
+            amount: Number(tx.amount || 0),
+            status: tx.status,
+            createdAt: tx.createdAt ? new Date(tx.createdAt).toISOString() : null,
+            completedAt: tx.completedAt ? new Date(tx.completedAt).toISOString() : null,
+            notes: tx.notes || null,
+            executorName: isPersonalReport ? null : (tx.executorName || null)
+        })),
         deposits: (data.deposits || []).map(tx => ({
             id: String(tx._id),
             customId: tx.customId,

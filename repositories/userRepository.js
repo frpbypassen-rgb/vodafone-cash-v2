@@ -173,9 +173,12 @@ const _comparePassword = async (inputPass, storedPass, Model, docId) => {
 const findById = async (userId, accountType, tenantId) => {
     const Model = _getModel(accountType);
     if (tenantId && (accountType === 'executor' || accountType === 'client_user')) {
-        const account = await Model.findOne({ _id: userId, tenantId });
+        const tenantScope = accountType === 'client_user'
+            ? { tenantId: { $in: [tenantId, null] } }
+            : { tenantId };
+        const account = await Model.findOne({ _id: userId, ...tenantScope });
         if (accountType === 'executor' && account) {
-            return Model.findOne({ _id: userId, tenantId }).populate('groupId');
+            return Model.findOne({ _id: userId, ...tenantScope }).populate('groupId');
         }
         return account;
     } else {

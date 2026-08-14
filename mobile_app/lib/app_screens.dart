@@ -118,7 +118,24 @@ class _LoginScreenState extends State<LoginScreen> {
   final _password = TextEditingController();
   bool _busy = false;
   bool _obscure = true;
+  bool _rememberLogin = true;
   String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    unawaited(_loadSavedLogin());
+  }
+
+  Future<void> _loadSavedLogin() async {
+    final saved = await widget.controller.savedLogin();
+    if (!mounted || saved == null) return;
+    setState(() {
+      _username.text = saved.username;
+      _password.text = saved.password;
+      _rememberLogin = true;
+    });
+  }
 
   @override
   void dispose() {
@@ -138,7 +155,15 @@ class _LoginScreenState extends State<LoginScreen> {
         username: _username.text.trim(),
         password: _password.text,
       );
-      if (widget.controller.isExecutor) {
+      if (_rememberLogin) {
+        await widget.controller.saveLogin(
+          username: _username.text.trim(),
+          password: _password.text,
+        );
+      } else {
+        await widget.controller.clearSavedLogin();
+      }
+      if (widget.controller.isExecutor || widget.controller.isCustomerAccount) {
         await ExecutorAlertService.instance.requestPermissionsAndStart();
       }
     } on ApiFailure catch (error) {
@@ -258,6 +283,24 @@ class _LoginScreenState extends State<LoginScreen> {
                               return null;
                             },
                             onFieldSubmitted: (_) => _signIn(),
+                          ),
+                          const SizedBox(height: 6),
+                          CheckboxListTile.adaptive(
+                            contentPadding: EdgeInsets.zero,
+                            value: _rememberLogin,
+                            onChanged: _busy
+                                ? null
+                                : (value) => setState(
+                                    () => _rememberLogin = value ?? false,
+                                  ),
+                            controlAffinity: ListTileControlAffinity.leading,
+                            title: const Text(
+                              'حفظ بيانات الدخول على هذا الجهاز',
+                              style: TextStyle(fontWeight: FontWeight.w800),
+                            ),
+                            subtitle: const Text(
+                              'تُحفظ بشكل مشفر لتعبئة الدخول لاحقاً.',
+                            ),
                           ),
                           if (_error != null) ...[
                             const SizedBox(height: 14),
@@ -1499,17 +1542,17 @@ class _RoleShellState extends State<RoleShell> with WidgetsBindingObserver {
   void initState() {
     super.initState();
     _items = _createItems();
-    if (widget.controller.isExecutor) {
+    if (widget.controller.isExecutor || widget.controller.isCustomerAccount) {
       WidgetsBinding.instance.addObserver(this);
-      unawaited(_loadExecutorOverview());
-      unawaited(ExecutorAlertService.instance.startForStoredExecutor());
+      if (widget.controller.isExecutor) unawaited(_loadExecutorOverview());
+      unawaited(ExecutorAlertService.instance.startForStoredAccount());
       unawaited(ExecutorAlertService.instance.setAppVisible(true));
     }
   }
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (!widget.controller.isExecutor) return;
+    if (!widget.controller.isExecutor && !widget.controller.isCustomerAccount) return;
     final visible = state == AppLifecycleState.resumed;
     unawaited(ExecutorAlertService.instance.setAppVisible(visible));
   }
@@ -1628,6 +1671,38 @@ class _RoleShellState extends State<RoleShell> with WidgetsBindingObserver {
         ),
       ];
     }
+    if (widget.controller.isCustomerAccount) {
+      return [
+        _NavItem(
+          'الحساب',
+          Icons.account_balance_wallet_outlined,
+          CustomerAccountScreen(
+            controller: widget.controller,
+            appearance: widget.appearance,
+          ),
+        ),
+        _NavItem(
+          'التحويلات',
+          Icons.send_to_mobile_outlined,
+          TransferScreen(controller: widget.controller),
+        ),
+        _NavItem(
+          'أسعار الصرف',
+          Icons.currency_exchange_outlined,
+          ExchangeRatesScreen(controller: widget.controller),
+        ),
+        _NavItem(
+          'التقارير',
+          Icons.assessment_outlined,
+          TransactionsScreen(controller: widget.controller),
+        ),
+        _NavItem(
+          'الدعم الفني',
+          Icons.support_agent_outlined,
+          SupportScreen(controller: widget.controller),
+        ),
+      ];
+    }
     return [
       _NavItem(
         'الرئيسية',
@@ -1689,6 +1764,8 @@ class _RoleShellState extends State<RoleShell> with WidgetsBindingObserver {
   @override
   Widget build(BuildContext context) {
     final selected = _items[_index];
+    final isCustomerShell = widget.controller.isCustomerAccount;
+    final session = widget.controller.session;
     final company = _executorOverview?['company'];
     final performance = _executorOverview?['myPerformance'];
     final companyName = company is Map
@@ -1711,13 +1788,13 @@ class _RoleShellState extends State<RoleShell> with WidgetsBindingObserver {
         ? numberValue(performance['totalEGP'])
         : 0;
     final executorSubtitle = widget.controller.isExecutorManager
-        ? '$companyName · رصيد الشركة ${formatEgpAmount(companyBalance)} ج.م'
+        ? '$companyName · مدير تنفيذي'
         : (widget.controller.isExecutorAccountant
-              ? '$companyName · رصيد الشركة ${formatEgpAmount(companyBalance)} ج.م'
+              ? '$companyName · محاسب تنفيذي'
               : '$companyName · تنفيذاتك اليوم ${formatEgpAmount(ownPerformance)} ج.م');
     final appBar = AppBar(
       toolbarHeight: 76,
-      titleSpacing: 18,
+      titleSpacing: isCustomerShell ? 12 : 18,
       bottom: PreferredSize(
         preferredSize: const Size.fromHeight(3),
         child: Row(
@@ -1728,59 +1805,77 @@ class _RoleShellState extends State<RoleShell> with WidgetsBindingObserver {
           ],
         ),
       ),
-      title: Row(
-        children: [
-          const BrandMark(compact: true),
-          const SizedBox(width: 10),
-          Expanded(
-            child: LayoutBuilder(
-              builder: (context, constraints) {
-                final compactHeader = constraints.maxWidth < 320;
-                if (widget.controller.isExecutor && compactHeader) {
-                  return const SizedBox.shrink();
-                }
-                final title = widget.controller.isExecutor && compactHeader
-                    ? 'بوابة التنفيذ'
-                    : (widget.controller.isExecutor
-                          ? companyName
-                          : selected.label);
-                final subtitle = widget.controller.isExecutor && compactHeader
-                    ? 'بوابة التنفيذ'
-                    : (widget.controller.isExecutor
-                          ? executorSubtitle
-                          : '${widget.controller.session?.name ?? ''} · $_roleLabel');
+      title: isCustomerShell
+          ? CustomerShellHeader(balance: session?.balance ?? 0)
+          : Row(
+              children: [
+                const BrandMark(compact: true),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: LayoutBuilder(
+                    builder: (context, constraints) {
+                      final compactHeader = constraints.maxWidth < 320;
+                      if (widget.controller.isExecutor && compactHeader) {
+                        return const SizedBox.shrink();
+                      }
+                      final title =
+                          widget.controller.isExecutor && compactHeader
+                          ? 'بوابة التنفيذ'
+                          : (widget.controller.isExecutor
+                                ? companyName
+                                : selected.label);
+                      final subtitle =
+                          widget.controller.isExecutor && compactHeader
+                          ? 'بوابة التنفيذ'
+                          : (widget.controller.isExecutor
+                                ? executorSubtitle
+                                : '${widget.controller.session?.name ?? ''} · $_roleLabel');
 
-                return Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      title,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        fontWeight: FontWeight.w800,
-                        color: Theme.of(context).colorScheme.onSurface,
-                      ),
-                    ),
-                    Text(
-                      subtitle,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        fontSize: 11,
-                        color: Theme.of(context).colorScheme.onSurfaceVariant,
-                      ),
-                    ),
-                  ],
-                );
-              },
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            title,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontWeight: FontWeight.w800,
+                              color: Theme.of(context).colorScheme.onSurface,
+                            ),
+                          ),
+                          Text(
+                            subtitle,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: Theme.of(
+                                context,
+                              ).colorScheme.onSurfaceVariant,
+                            ),
+                          ),
+                        ],
+                      );
+                    },
+                  ),
+                ),
+              ],
+            ),
+      actions: [
+        if (isCustomerShell)
+          GlassIconButton(
+            tooltip: widget.appearance.isDark
+                ? 'الوضع النهاري'
+                : 'الوضع الليلي',
+            onPressed: widget.appearance.toggle,
+            icon: Icon(
+              widget.appearance.isDark
+                  ? Icons.light_mode_outlined
+                  : Icons.dark_mode_outlined,
             ),
           ),
-        ],
-      ),
-      actions: [
-        if (canViewCompanyBalance && _index != 0)
+        if (canViewCompanyBalance)
           ExecutorBalanceBadge(
             amount: companyBalance,
             label: widget.controller.isExecutorOperator
@@ -1912,6 +2007,1175 @@ class _NavItem {
   final Widget page;
 }
 
+class CustomerShellHeader extends StatelessWidget {
+  const CustomerShellHeader({super.key, required this.balance});
+
+  final double balance;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    final balanceColor = balance < 0
+        ? _danger
+        : balance > 0
+        ? _green
+        : colors.onSurfaceVariant;
+    final dark = Theme.of(context).brightness == Brightness.dark;
+
+    return SizedBox(
+      height: 48,
+      child: Row(
+        children: [
+          const BrandMark(compact: true),
+          const Spacer(),
+          Container(
+            constraints: const BoxConstraints(minWidth: 86, maxWidth: 116),
+            padding: const EdgeInsetsDirectional.fromSTEB(9, 6, 9, 6),
+            decoration: BoxDecoration(
+              color: balanceColor.withValues(alpha: dark ? 0.16 : 0.09),
+              borderRadius: BorderRadius.circular(9),
+              border: Border.all(color: balanceColor.withValues(alpha: 0.28)),
+              boxShadow: [
+                BoxShadow(
+                  color: _navy.withValues(alpha: dark ? 0.18 : 0.08),
+                  blurRadius: 9,
+                  offset: const Offset(0, 4),
+                ),
+              ],
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'الرصيد الحالي',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: colors.onSurfaceVariant,
+                    fontSize: 9,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: 1),
+                Text(
+                  '${formatAmount(balance)} د.ل',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  textDirection: ui.TextDirection.ltr,
+                  style: TextStyle(
+                    color: balanceColor,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class CustomerAccountScreen extends StatefulWidget {
+  const CustomerAccountScreen({
+    super.key,
+    required this.controller,
+    required this.appearance,
+  });
+
+  final SessionController controller;
+  final AppearanceController appearance;
+
+  @override
+  State<CustomerAccountScreen> createState() => _CustomerAccountScreenState();
+}
+
+class _CustomerAccountScreenState extends State<CustomerAccountScreen> {
+  final ImagePicker _picker = ImagePicker();
+  bool _uploadingPhoto = false;
+
+  @override
+  void initState() {
+    super.initState();
+    // Existing sessions may predate profile fields. Refresh the canonical
+    // profile once when opening this screen instead of showing stale blanks.
+    unawaited(_refresh());
+  }
+
+  Future<void> _refresh() => widget.controller.refreshHome();
+
+  Future<void> _editProfile(Map<String, dynamic> profile) async {
+    final saved = await showDialog<bool>(
+      context: context,
+      builder: (context) => _CustomerProfileEditDialog(
+        controller: widget.controller,
+        initialName: widget.controller.session?.name ?? '',
+        initialAddress: '${profile['address'] ?? ''}',
+        username: '${profile['username'] ?? ''}',
+        phone: '${profile['phone'] ?? ''}',
+      ),
+    );
+    if (saved == true && mounted) showSnack(context, 'تم تحديث بيانات الحساب.');
+  }
+
+  Future<void> _showDevices() async {
+    await showDialog<void>(
+      context: context,
+      builder: (context) => _CustomerDevicesDialog(controller: widget.controller),
+    );
+  }
+
+  Future<void> _changePassword() async {
+    final changed = await showDialog<bool>(
+      context: context,
+      builder: (context) => _CustomerPasswordDialog(controller: widget.controller),
+    );
+    if (changed == true && mounted) {
+      showSnack(context, 'تم تغيير كلمة المرور. سجّل الدخول بكلمة المرور الجديدة.');
+    }
+  }
+
+  Future<void> _openSupport() async {
+    final created = await showDialog<bool>(
+      context: context,
+      builder: (context) => TicketDialog(api: widget.controller.api),
+    );
+    if (created == true && mounted) showSnack(context, 'تم فتح تذكرة الدعم بنجاح.');
+  }
+
+  Future<void> _openWhatsAppSupport() async {
+    final opened = await openExternalLink(
+      Uri.parse('https://wa.me/201108172258'),
+    );
+    if (opened) return;
+    await Clipboard.setData(const ClipboardData(text: '01108172258'));
+    if (mounted) showSnack(context, 'تم نسخ رقم واتساب الدعم.', error: true);
+  }
+
+  Future<void> _showPolicy() async {
+    await showDialog<void>(
+      context: context,
+      builder: (context) => const _CustomerUsagePolicyDialog(),
+    );
+  }
+
+  Future<void> _setCustomerNotifications(bool enabled) async {
+    await widget.controller.setCustomerNotificationsEnabled(enabled);
+    if (enabled) {
+      await ExecutorAlertService.instance.requestPermissionsAndStart();
+    } else {
+      await ExecutorAlertService.instance.stop();
+    }
+  }
+
+  Future<void> _changePhoto() async {
+    final image = await _picker.pickImage(
+      source: ImageSource.gallery,
+      imageQuality: 82,
+      maxWidth: 900,
+      maxHeight: 900,
+    );
+    if (image == null) return;
+
+    final bytes = await image.readAsBytes();
+    if (bytes.length > 2 * 1024 * 1024) {
+      if (mounted) showSnack(context, 'اختر صورة أصغر من 2 ميجابايت.', error: true);
+      return;
+    }
+    final extension = image.name.split('.').last.toLowerCase();
+    final mime = switch (extension) {
+      'png' => 'image/png',
+      'webp' => 'image/webp',
+      _ => 'image/jpeg',
+    };
+
+    setState(() => _uploadingPhoto = true);
+    try {
+      await widget.controller.updateCustomerProfilePhoto(
+        'data:$mime;base64,${base64Encode(bytes)}',
+      );
+      if (mounted) showSnack(context, 'تم تحديث الصورة الشخصية.');
+    } on ApiFailure catch (error) {
+      if (mounted) showSnack(context, error.message, error: true);
+    } finally {
+      if (mounted) setState(() => _uploadingPhoto = false);
+    }
+  }
+
+  String _value(Object? value, {String fallback = 'غير مسجل'}) {
+    final text = '${value ?? ''}'.trim();
+    return text.isEmpty ? fallback : text;
+  }
+
+  String _joinedAt(Object? value) {
+    final parsed = DateTime.tryParse('${value ?? ''}');
+    if (parsed == null) return 'غير مسجل';
+    return 'انضم في ${DateFormat('d MMMM yyyy', 'ar').format(parsed.toLocal())}';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final session = widget.controller.session!;
+    final contextData = session.context;
+    final profileRaw = contextData['profile'];
+    final profile = profileRaw is Map
+        ? Map<String, dynamic>.from(profileRaw)
+        : <String, dynamic>{};
+    final isAgentCustomer = session.accountType == 'sub_client' ||
+        session.persona.toLowerCase() == 'agentclient';
+    final agentName = _value(
+      contextData['agentName'] ?? contextData['masterName'],
+      fallback: 'غير مسجل',
+    );
+    final photoVersion = '${profile['photoUpdatedAt'] ?? ''}'.trim();
+    final photoUrl = photoVersion.isEmpty
+        ? null
+        : '${widget.controller.api.baseUrl}/client/profile-photo?v=${Uri.encodeComponent(photoVersion)}';
+    final accountCode = _value(contextData['accountCode'], fallback: '');
+    final hasAccountCode = accountCode.isNotEmpty;
+    final agencyCode = _value(contextData['agentCode'], fallback: '');
+    final status = '${profile['status'] ?? 'active'}'.toLowerCase();
+    final isActive = status == 'active';
+    final statusColor = isActive ? _green : _danger;
+
+    return PageFrame(
+      title: 'الحساب',
+      subtitle: 'ملفك الشخصي وبيانات حسابك في الأهرام.',
+      onRefresh: _refresh,
+      child: [
+        SurfacePanel(
+          child: Column(
+            children: [
+              Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  Container(
+                    width: 112,
+                    height: 112,
+                    padding: const EdgeInsets.all(3),
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      border: Border.all(
+                        color: _green.withValues(alpha: 0.42),
+                        width: 2,
+                      ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: _navy.withValues(alpha: 0.14),
+                          blurRadius: 18,
+                          offset: const Offset(0, 9),
+                        ),
+                      ],
+                    ),
+                    child: ClipOval(
+                      child: photoUrl == null
+                          ? Container(
+                              color: _green.withValues(alpha: 0.10),
+                              child: const Icon(
+                                Icons.person_outline,
+                                color: _green,
+                                size: 55,
+                              ),
+                            )
+                          : Image.network(
+                              photoUrl,
+                              fit: BoxFit.cover,
+                              headers: <String, String>{
+                                'Authorization': 'Bearer ${session.token}',
+                              },
+                              errorBuilder: (_, _, _) => Container(
+                                color: _green.withValues(alpha: 0.10),
+                                child: const Icon(
+                                  Icons.person_outline,
+                                  color: _green,
+                                  size: 55,
+                                ),
+                              ),
+                            ),
+                    ),
+                  ),
+                  PositionedDirectional(
+                    bottom: -5,
+                    end: -5,
+                    child: Material(
+                      color: Colors.transparent,
+                      child: InkWell(
+                        onTap: _uploadingPhoto ? null : _changePhoto,
+                        customBorder: const CircleBorder(),
+                        child: Ink(
+                          width: 42,
+                          height: 42,
+                          decoration: BoxDecoration(
+                            color: _green,
+                            shape: BoxShape.circle,
+                            border: Border.all(
+                              color: Theme.of(context).colorScheme.surface,
+                              width: 3,
+                            ),
+                          ),
+                          child: _uploadingPhoto
+                              ? const Padding(
+                                  padding: EdgeInsets.all(11),
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    color: Colors.white,
+                                  ),
+                                )
+                              : const Icon(
+                                  Icons.camera_alt_outlined,
+                                  color: Colors.white,
+                                  size: 20,
+                                ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 18),
+              Text(
+                session.name,
+                textAlign: TextAlign.center,
+                style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Container(
+                padding: const EdgeInsetsDirectional.fromSTEB(10, 6, 10, 6),
+                decoration: BoxDecoration(
+                  color: statusColor.withValues(alpha: 0.10),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: statusColor.withValues(alpha: 0.25)),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      isActive
+                          ? Icons.check_circle_outline
+                          : Icons.pause_circle_outline,
+                      color: statusColor,
+                      size: 18,
+                    ),
+                    const SizedBox(width: 6),
+                    Text(
+                      isActive ? 'حساب نشط' : 'حساب معلق',
+                      style: TextStyle(color: statusColor, fontWeight: FontWeight.w800),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 14),
+              OutlinedButton.icon(
+                onPressed: () => _editProfile(profile),
+                icon: const Icon(Icons.edit_outlined),
+                label: const Text('تعديل البيانات'),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 14),
+        _CustomerProfileSection(
+          title: 'بيانات العميل',
+          icon: Icons.badge_outlined,
+          children: [
+            _CustomerProfileRow(
+              icon: Icons.person_outline,
+              label: 'اسم العميل',
+              value: session.name,
+            ),
+            _CustomerProfileRow(
+              icon: Icons.phone_outlined,
+              label: 'رقم الهاتف',
+              value: _value(profile['phone']),
+              ltr: true,
+            ),
+            _CustomerProfileRow(
+              icon: Icons.location_on_outlined,
+              label: 'العنوان',
+              value: _value(profile['address']),
+              last: true,
+            ),
+          ],
+        ),
+        const SizedBox(height: 14),
+        _CustomerProfileSection(
+          title: 'بيانات الحساب',
+          icon: Icons.account_balance_wallet_outlined,
+          children: [
+            _CustomerProfileRow(
+              icon: Icons.alternate_email_outlined,
+              label: 'اسم المستخدم',
+              value: _value(profile['username']),
+              ltr: true,
+            ),
+            _CustomerProfileRow(
+              icon: Icons.groups_2_outlined,
+              label: 'نوع الحساب',
+              value: isAgentCustomer ? 'عميل وكيل' : 'عميل مباشر',
+            ),
+            _CustomerProfileRow(
+              icon: Icons.account_balance_outlined,
+              label: isAgentCustomer ? 'الوكيل' : 'الجهة المسؤولة',
+              value: isAgentCustomer ? agentName : 'شركة الأهرام',
+            ),
+            if (isAgentCustomer && agencyCode.isNotEmpty)
+              _CustomerProfileRow(
+                icon: Icons.numbers_outlined,
+                label: 'رقم حساب الوكالة',
+                value: agencyCode,
+                copyable: true,
+                ltr: true,
+              ),
+            _CustomerProfileRow(
+              icon: Icons.calendar_month_outlined,
+              label: 'تاريخ الانضمام',
+              value: _joinedAt(profile['joinedAt']),
+              ltr: true,
+              last: !hasAccountCode,
+            ),
+            if (hasAccountCode)
+              _CustomerProfileRow(
+                icon: Icons.content_copy_outlined,
+                label: 'رمز الحساب',
+                value: accountCode,
+                copyable: true,
+                ltr: true,
+                last: true,
+              ),
+          ],
+        ),
+        const SizedBox(height: 14),
+        if (isAgentCustomer) ...[
+          _CustomerCreditSummary(session: session),
+          const SizedBox(height: 14),
+        ],
+        _CustomerProfileSection(
+          title: 'الأمان',
+          icon: Icons.shield_outlined,
+          children: [
+            _CustomerActionRow(
+              icon: Icons.lock_reset_outlined,
+              title: 'تغيير كلمة المرور',
+              subtitle: 'سيتم تسجيل خروجك من كل الأجهزة بعد التغيير.',
+              onTap: _changePassword,
+            ),
+            _CustomerActionRow(
+              icon: Icons.devices_outlined,
+              title: 'الأجهزة المسجل منها الدخول',
+              subtitle: 'عرض آخر الأجهزة التي سجلت الدخول إلى الحساب.',
+              onTap: _showDevices,
+            ),
+            _CustomerActionRow(
+              icon: Icons.logout_outlined,
+              title: 'تسجيل الخروج من كل الأجهزة',
+              subtitle: 'إبطال الأجهزة الأخرى مع بقاء الجهاز الحالي نشطاً.',
+              color: _danger,
+              last: true,
+              onTap: _showDevices,
+            ),
+          ],
+        ),
+        const SizedBox(height: 14),
+        _CustomerProfileSection(
+          title: 'التفضيلات',
+          icon: Icons.tune_outlined,
+          children: [
+            _CustomerPreferenceRow(
+              icon: widget.appearance.isDark
+                  ? Icons.dark_mode_outlined
+                  : Icons.light_mode_outlined,
+              title: 'الوضع الليلي',
+              subtitle: 'ألوان مريحة للقراءة في الإضاءة المنخفضة.',
+              value: widget.appearance.isDark,
+              onChanged: (_) => widget.appearance.toggle(),
+            ),
+            _CustomerPreferenceRow(
+              icon: Icons.notifications_active_outlined,
+              title: 'إشعارات التطبيق',
+              subtitle: 'تنبيهات العمليات وردود الدعم على هذا الجهاز.',
+              value: widget.controller.customerNotificationsEnabled,
+              onChanged: (value) => unawaited(_setCustomerNotifications(value)),
+            ),
+            const _CustomerActionRow(
+              icon: Icons.language_outlined,
+              title: 'لغة التطبيق',
+              subtitle: 'العربية',
+              trailing: Icon(Icons.lock_outline, size: 19),
+              last: true,
+            ),
+          ],
+        ),
+        const SizedBox(height: 14),
+        _CustomerProfileSection(
+          title: 'الدعم',
+          icon: Icons.support_agent_outlined,
+          children: [
+            _CustomerActionRow(
+              icon: Icons.chat_outlined,
+              title: 'فتح محادثة دعم',
+              subtitle: 'أرسل طلبك مباشرة إلى فريق الدعم.',
+              onTap: _openSupport,
+            ),
+            _CustomerActionRow(
+              icon: Icons.chat_bubble_outline,
+              title: 'واتساب الدعم',
+              subtitle: '01108172258 - واتساب فقط',
+              onTap: _openWhatsAppSupport,
+            ),
+            _CustomerActionRow(
+              icon: Icons.policy_outlined,
+              title: 'سياسة الاستخدام',
+              subtitle: 'خصوصية الحساب ومسؤولية إدخال البيانات.',
+              last: true,
+              onTap: _showPolicy,
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+}
+
+class _CustomerProfileSection extends StatelessWidget {
+  const _CustomerProfileSection({
+    required this.title,
+    required this.icon,
+    required this.children,
+  });
+
+  final String title;
+  final IconData icon;
+  final List<Widget> children;
+
+  @override
+  Widget build(BuildContext context) {
+    return SurfacePanel(
+      child: Column(
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 38,
+                height: 38,
+                decoration: BoxDecoration(
+                  color: _green.withValues(alpha: 0.10),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Icon(icon, color: _green, size: 21),
+              ),
+              const SizedBox(width: 10),
+              Text(
+                title,
+                style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          ...children,
+        ],
+      ),
+    );
+  }
+}
+
+class _CustomerProfileRow extends StatelessWidget {
+  const _CustomerProfileRow({
+    required this.icon,
+    required this.label,
+    required this.value,
+    this.copyable = false,
+    this.ltr = false,
+    this.last = false,
+  });
+
+  final IconData icon;
+  final String label;
+  final String value;
+  final bool copyable;
+  final bool ltr;
+  final bool last;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    return Column(
+      children: [
+        ListTile(
+          dense: true,
+          contentPadding: EdgeInsets.zero,
+          minVerticalPadding: 8,
+          leading: Icon(icon, color: colors.primary, size: 22),
+          title: Text(
+            label,
+            style: TextStyle(
+              color: colors.onSurfaceVariant,
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          subtitle: Text(
+            value,
+            textDirection: ltr ? ui.TextDirection.ltr : ui.TextDirection.rtl,
+            style: TextStyle(
+              color: colors.onSurface,
+              fontSize: 15,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          trailing: copyable
+              ? IconButton(
+                  tooltip: 'نسخ رمز الحساب',
+                  onPressed: () {
+                    Clipboard.setData(ClipboardData(text: value));
+                    showSnack(context, 'تم نسخ رمز الحساب.');
+                  },
+                  icon: const Icon(Icons.copy_outlined),
+                )
+              : null,
+        ),
+        if (!last) const Divider(height: 1),
+      ],
+    );
+  }
+}
+
+class _CustomerCreditSummary extends StatelessWidget {
+  const _CustomerCreditSummary({required this.session});
+
+  final MobileSession session;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    final available = session.availableToSpend ?? session.balance;
+    final limit = session.creditLimit ?? 0;
+    return SurfacePanel(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const SectionTitle(
+            title: 'الرصيد والحد الائتماني',
+            icon: Icons.account_balance_wallet_outlined,
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(
+                child: _CustomerMoneyMetric(
+                  label: 'الرصيد المتاح',
+                  value: available,
+                  color: available < 0 ? _danger : _green,
+                ),
+              ),
+              Container(width: 1, height: 48, color: colors.outlineVariant),
+              Expanded(
+                child: _CustomerMoneyMetric(
+                  label: 'الحد الائتماني',
+                  value: limit,
+                  color: _gold,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _CustomerMoneyMetric extends StatelessWidget {
+  const _CustomerMoneyMetric({
+    required this.label,
+    required this.value,
+    required this.color,
+  });
+
+  final String label;
+  final double value;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        Text(
+          label,
+          style: Theme.of(context).textTheme.labelMedium?.copyWith(
+            color: Theme.of(context).colorScheme.onSurfaceVariant,
+          ),
+        ),
+        const SizedBox(height: 5),
+        Text(
+          '${formatAmount(value)} د.ل',
+          textDirection: ui.TextDirection.ltr,
+          style: TextStyle(color: color, fontWeight: FontWeight.w900),
+        ),
+      ],
+    );
+  }
+}
+
+class _CustomerActionRow extends StatelessWidget {
+  const _CustomerActionRow({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    this.color,
+    this.trailing,
+    this.last = false,
+    this.onTap,
+  });
+
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final Color? color;
+  final Widget? trailing;
+  final bool last;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final rowColor = color ?? Theme.of(context).colorScheme.primary;
+    return Column(
+      children: [
+        ListTile(
+          contentPadding: EdgeInsets.zero,
+          leading: Icon(icon, color: rowColor),
+          title: Text(title, style: const TextStyle(fontWeight: FontWeight.w800)),
+          subtitle: Text(subtitle),
+          trailing: trailing ?? (onTap == null ? null : const Icon(Icons.chevron_left)),
+          onTap: onTap,
+        ),
+        if (!last) const Divider(height: 1),
+      ],
+    );
+  }
+}
+
+class _CustomerPreferenceRow extends StatelessWidget {
+  const _CustomerPreferenceRow({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.value,
+    required this.onChanged,
+  });
+
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final bool value;
+  final ValueChanged<bool> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        SwitchListTile.adaptive(
+          contentPadding: EdgeInsets.zero,
+          secondary: Icon(icon, color: Theme.of(context).colorScheme.primary),
+          title: Text(title, style: const TextStyle(fontWeight: FontWeight.w800)),
+          subtitle: Text(subtitle),
+          value: value,
+          onChanged: onChanged,
+        ),
+        const Divider(height: 1),
+      ],
+    );
+  }
+}
+
+class _CustomerProfileEditDialog extends StatefulWidget {
+  const _CustomerProfileEditDialog({
+    required this.controller,
+    required this.initialName,
+    required this.initialAddress,
+    required this.username,
+    required this.phone,
+  });
+
+  final SessionController controller;
+  final String initialName;
+  final String initialAddress;
+  final String username;
+  final String phone;
+
+  @override
+  State<_CustomerProfileEditDialog> createState() => _CustomerProfileEditDialogState();
+}
+
+class _CustomerProfileEditDialogState extends State<_CustomerProfileEditDialog> {
+  late final TextEditingController _name = TextEditingController(text: widget.initialName);
+  late final TextEditingController _address = TextEditingController(text: widget.initialAddress);
+  final _formKey = GlobalKey<FormState>();
+  bool _busy = false;
+  String? _error;
+
+  @override
+  void dispose() {
+    _name.dispose();
+    _address.dispose();
+    super.dispose();
+  }
+
+  Future<void> _save() async {
+    if (!_formKey.currentState!.validate()) return;
+    setState(() {
+      _busy = true;
+      _error = null;
+    });
+    try {
+      await widget.controller.updateCustomerProfile(
+        name: _name.text.trim(),
+        address: _address.text.trim(),
+      );
+      if (mounted) Navigator.pop(context, true);
+    } on ApiFailure catch (error) {
+      if (mounted) setState(() => _error = error.message);
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('تعديل بيانات الحساب'),
+      content: SizedBox(
+        width: 420,
+        child: Form(
+          key: _formKey,
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextFormField(
+                  controller: _name,
+                  decoration: const InputDecoration(labelText: 'الاسم الثلاثي'),
+                  validator: (value) => (value ?? '').trim().length < 3
+                      ? 'اكتب الاسم الثلاثي.'
+                      : null,
+                ),
+                const SizedBox(height: 12),
+                TextFormField(
+                  controller: _address,
+                  maxLength: 200,
+                  decoration: const InputDecoration(labelText: 'العنوان'),
+                ),
+                const SizedBox(height: 6),
+                TextFormField(
+                  initialValue: widget.phone,
+                  enabled: false,
+                  textDirection: ui.TextDirection.ltr,
+                  decoration: const InputDecoration(
+                    labelText: 'رقم الهاتف',
+                    helperText: 'لتعديل الرقم يرجى تقديم طلب رسمي للدعم.',
+                  ),
+                ),
+                const SizedBox(height: 12),
+                TextFormField(
+                  initialValue: widget.username,
+                  enabled: false,
+                  textDirection: ui.TextDirection.ltr,
+                  decoration: const InputDecoration(labelText: 'اسم المستخدم'),
+                ),
+                if (_error != null) ...[
+                  const SizedBox(height: 12),
+                  InlineMessage(message: _error!, color: _danger),
+                ],
+              ],
+            ),
+          ),
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: _busy ? null : () => Navigator.pop(context),
+          child: const Text('إلغاء'),
+        ),
+        FilledButton(
+          onPressed: _busy ? null : _save,
+          child: Text(_busy ? 'جارٍ الحفظ...' : 'حفظ التعديل'),
+        ),
+      ],
+    );
+  }
+}
+
+class _CustomerPasswordDialog extends StatefulWidget {
+  const _CustomerPasswordDialog({required this.controller});
+
+  final SessionController controller;
+
+  @override
+  State<_CustomerPasswordDialog> createState() => _CustomerPasswordDialogState();
+}
+
+class _CustomerPasswordDialogState extends State<_CustomerPasswordDialog> {
+  final _formKey = GlobalKey<FormState>();
+  final _current = TextEditingController();
+  final _next = TextEditingController();
+  final _confirm = TextEditingController();
+  bool _busy = false;
+  String? _error;
+
+  @override
+  void dispose() {
+    _current.dispose();
+    _next.dispose();
+    _confirm.dispose();
+    super.dispose();
+  }
+
+  Future<void> _save() async {
+    if (!_formKey.currentState!.validate()) return;
+    setState(() {
+      _busy = true;
+      _error = null;
+    });
+    try {
+      await widget.controller.changeCustomerPassword(
+        currentPassword: _current.text,
+        newPassword: _next.text,
+      );
+      if (mounted) Navigator.pop(context, true);
+    } on ApiFailure catch (error) {
+      if (mounted) setState(() => _error = error.message);
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('تغيير كلمة المرور'),
+      content: SizedBox(
+        width: 420,
+        child: Form(
+          key: _formKey,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextFormField(
+                controller: _current,
+                obscureText: true,
+                decoration: const InputDecoration(labelText: 'كلمة المرور الحالية'),
+                validator: (value) => (value ?? '').isEmpty ? 'هذا الحقل مطلوب.' : null,
+              ),
+              const SizedBox(height: 12),
+              TextFormField(
+                controller: _next,
+                obscureText: true,
+                decoration: const InputDecoration(labelText: 'كلمة المرور الجديدة'),
+                validator: (value) => (value ?? '').length < 8
+                    ? 'يجب أن تتكون كلمة المرور من 8 أحرف على الأقل.'
+                    : null,
+              ),
+              const SizedBox(height: 12),
+              TextFormField(
+                controller: _confirm,
+                obscureText: true,
+                decoration: const InputDecoration(labelText: 'تأكيد كلمة المرور الجديدة'),
+                validator: (value) => value != _next.text ? 'كلمتا المرور غير متطابقتين.' : null,
+              ),
+              if (_error != null) ...[
+                const SizedBox(height: 12),
+                InlineMessage(message: _error!, color: _danger),
+              ],
+            ],
+          ),
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: _busy ? null : () => Navigator.pop(context),
+          child: const Text('إلغاء'),
+        ),
+        FilledButton(
+          onPressed: _busy ? null : _save,
+          child: Text(_busy ? 'جارٍ الحفظ...' : 'تغيير كلمة المرور'),
+        ),
+      ],
+    );
+  }
+}
+
+class _CustomerDevicesDialog extends StatefulWidget {
+  const _CustomerDevicesDialog({required this.controller});
+
+  final SessionController controller;
+
+  @override
+  State<_CustomerDevicesDialog> createState() => _CustomerDevicesDialogState();
+}
+
+class _CustomerDevicesDialogState extends State<_CustomerDevicesDialog> {
+  late final Future<List<Map<String, dynamic>>> _devices =
+      widget.controller.customerSecurityDevices();
+  bool _endingOtherDevices = false;
+
+  Future<void> _endOtherDevices() async {
+    setState(() => _endingOtherDevices = true);
+    try {
+      await widget.controller.logoutCustomerDevices();
+      if (mounted) Navigator.pop(context, true);
+    } on ApiFailure catch (error) {
+      if (mounted) showSnack(context, error.message, error: true);
+    } finally {
+      if (mounted) setState(() => _endingOtherDevices = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('الأجهزة المسجل منها الدخول'),
+      content: SizedBox(
+        width: 460,
+        child: FutureBuilder<List<Map<String, dynamic>>>(
+          future: _devices,
+          builder: (context, snapshot) {
+            if (snapshot.connectionState != ConnectionState.done) {
+              return const SizedBox(height: 120, child: Center(child: CircularProgressIndicator()));
+            }
+            if (snapshot.hasError) {
+              return const Text('تعذر تحميل قائمة الأجهزة حالياً.');
+            }
+            final devices = snapshot.data ?? const <Map<String, dynamic>>[];
+            if (devices.isEmpty) {
+              return const Text('لا توجد عمليات دخول مسجلة بعد.');
+            }
+            return ConstrainedBox(
+              constraints: const BoxConstraints(maxHeight: 360),
+              child: ListView.separated(
+                shrinkWrap: true,
+                itemCount: devices.length,
+                separatorBuilder: (_, _) => const Divider(height: 1),
+                itemBuilder: (context, index) {
+                  final device = devices[index];
+                  return ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: const Icon(Icons.devices_other_outlined),
+                    title: Text(
+                      device['current'] == true
+                          ? '${device['deviceType'] ?? 'هاتف'} - الجهاز الحالي'
+                          : '${device['deviceType'] ?? 'هاتف'}',
+                    ),
+                    subtitle: Text(
+                      'آخر دخول: ${formatDate(device['lastSeenAt'])}',
+                    ),
+                  );
+                },
+              ),
+            );
+          },
+        ),
+      ),
+      actions: [
+        OutlinedButton.icon(
+          style: OutlinedButton.styleFrom(foregroundColor: _danger),
+          onPressed: _endingOtherDevices ? null : _endOtherDevices,
+          icon: const Icon(Icons.devices_other_outlined),
+          label: Text(_endingOtherDevices ? 'جارٍ الإنهاء...' : 'إنهاء الأجهزة الأخرى'),
+        ),
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('إغلاق'),
+        ),
+      ],
+    );
+  }
+}
+
+class _CustomerUsagePolicyDialog extends StatelessWidget {
+  const _CustomerUsagePolicyDialog();
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Row(
+        children: [
+          Icon(Icons.policy_outlined, color: _green),
+          SizedBox(width: 10),
+          Text('سياسة استخدام Ahram Pay'),
+        ],
+      ),
+      content: const SizedBox(
+        width: 480,
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'آخر تحديث: 14 أغسطس 2026',
+                style: TextStyle(color: Colors.grey, fontSize: 12),
+              ),
+              SizedBox(height: 14),
+              _UsagePolicySection(
+                title: 'استخدام الحساب',
+                body: 'الحساب شخصي ومخصص لصاحبه المسجل فقط. يجب الحفاظ على صحة الاسم ورقم الهاتف والعنوان وإبلاغ الدعم عند أي تغيير رسمي.',
+              ),
+              _UsagePolicySection(
+                title: 'حماية البيانات',
+                body: 'لا تشارك اسم المستخدم أو كلمة المرور أو رمز التحقق مع أي شخص. يحق للنظام إنهاء الجلسات أو تعليق الحساب عند الاشتباه في استخدام غير مصرح به.',
+              ),
+              _UsagePolicySection(
+                title: 'التحويلات المالية',
+                body: 'يتحمل العميل مسؤولية مراجعة رقم المستلم والقيمة والخدمة قبل الإرسال. تظهر العملية في السجل بعد استلامها، وأي إلغاء أو استرجاع يخضع لحالة التنفيذ وقواعد الخدمة.',
+              ),
+              _UsagePolicySection(
+                title: 'الإشعارات والدعم',
+                body: 'يستخدم التطبيق الإشعارات لإبلاغك بالإيداعات والعمليات وردود الدعم. يمكن إيقافها من التفضيلات، بينما تظل التفاصيل الكاملة متاحة داخل الحساب.',
+              ),
+              _UsagePolicySection(
+                title: 'التواصل الرسمي',
+                body: 'للدعم استخدم تذاكر التطبيق أو رقم واتساب الدعم الظاهر في الحساب. لا يعتمد أي طلب لتعديل رقم الهاتف أو اسم المستخدم إلا بعد مراجعة رسمية من الإدارة.',
+              ),
+            ],
+          ),
+        ),
+      ),
+      actions: [
+        FilledButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('فهمت'),
+        ),
+      ],
+    );
+  }
+}
+
+class _UsagePolicySection extends StatelessWidget {
+  const _UsagePolicySection({required this.title, required this.body});
+
+  final String title;
+  final String body;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 13),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(title, style: const TextStyle(fontWeight: FontWeight.w900)),
+          const SizedBox(height: 4),
+          Text(body, style: const TextStyle(height: 1.55)),
+        ],
+      ),
+    );
+  }
+}
+
 class ClientHomeScreen extends StatefulWidget {
   const ClientHomeScreen({super.key, required this.controller});
 
@@ -1956,18 +3220,10 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
     }
     final session = widget.controller.session!;
     final home = _home ?? <String, dynamic>{};
-    final rates = home['serviceRates'] is Map
-        ? Map<String, dynamic>.from(home['serviceRates'] as Map)
-        : session.serviceRates;
-    final catalog = home['serviceCatalog'] is List
-        ? (home['serviceCatalog'] as List)
-              .whereType<Map>()
-              .map((item) => Map<String, dynamic>.from(item))
-              .toList()
-        : session.serviceCatalog;
-
     return PageFrame(
-      title: widget.controller.isCompany ? 'ملخص الشركة' : 'ملخص الحساب',
+      title: widget.controller.isCustomerAccount
+          ? 'الحساب'
+          : (widget.controller.isCompany ? 'ملخص الشركة' : 'ملخص الحساب'),
       subtitle: widget.controller.isCompany
           ? 'متابعة الرصيد وأسعار الخدمات والعمليات الجارية.'
           : 'آخر حالة لحسابك وأسعار الخدمات المتاحة.',
@@ -1986,15 +3242,6 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
           runSpacing: 12,
           children: [
             StatTile(
-              label: 'سعر محافظ كاش',
-              value: formatAmount(
-                numberValue(rates['vodafone'], session.exchangeRate),
-              ),
-              suffix: 'د.ل',
-              icon: Icons.currency_exchange_outlined,
-              color: _green,
-            ),
-            StatTile(
               label: 'المستوى',
               value: '${home['tier'] ?? session.tier}',
               suffix: 'حساب',
@@ -2012,14 +3259,76 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
               ),
           ],
         ),
-        const SizedBox(height: 28),
-        SectionTitle(title: 'أسعار الخدمات', icon: Icons.price_check_outlined),
-        const SizedBox(height: 12),
+      ],
+    );
+  }
+}
+
+class ExchangeRatesScreen extends StatefulWidget {
+  const ExchangeRatesScreen({super.key, required this.controller});
+
+  final SessionController controller;
+
+  @override
+  State<ExchangeRatesScreen> createState() => _ExchangeRatesScreenState();
+}
+
+class _ExchangeRatesScreenState extends State<ExchangeRatesScreen> {
+  Map<String, dynamic>? _home;
+  Object? _error;
+  bool _loading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    if (mounted) {
+      setState(() {
+        _loading = true;
+        _error = null;
+      });
+    }
+    try {
+      final home = await widget.controller.refreshHome();
+      if (mounted) setState(() => _home = home);
+    } catch (error) {
+      if (mounted) setState(() => _error = error);
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_loading && _home == null) return const PageLoading();
+    if (_error != null && _home == null) {
+      return ErrorPage(error: _error!, onRetry: _load);
+    }
+    final session = widget.controller.session!;
+    final home = _home ?? <String, dynamic>{};
+    final rates = home['serviceRates'] is Map
+        ? Map<String, dynamic>.from(home['serviceRates'] as Map)
+        : session.serviceRates;
+    final catalog = home['serviceCatalog'] is List
+        ? (home['serviceCatalog'] as List)
+              .whereType<Map>()
+              .map((item) => Map<String, dynamic>.from(item))
+              .toList()
+        : session.serviceCatalog;
+
+    return PageFrame(
+      title: 'أسعار الصرف',
+      subtitle: 'الأسعار المطبقة على حسابك عند إرسال التحويل.',
+      onRefresh: _load,
+      child: [
         if (rates.isEmpty)
           const EmptyPanel(
             icon: Icons.currency_exchange_outlined,
             title: 'لا توجد أسعار متاحة حالياً',
-            message: 'اسحب الصفحة للتحديث أو تواصل مع الإدارة.',
+            message: 'اسحب الصفحة للتحديث أو تواصل مع الدعم الفني.',
           )
         else
           GridView.builder(
@@ -2689,10 +3998,14 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
       return ErrorPage(error: _error!, onRetry: _load);
     }
     return PageFrame(
-      title: widget.controller.hidesBalance ? 'عمليات اليوم' : 'سجل العمليات',
+      title: widget.controller.isCustomerAccount
+          ? 'تقارير التحويلات'
+          : (widget.controller.hidesBalance ? 'عمليات اليوم' : 'سجل العمليات'),
       subtitle: widget.controller.hidesBalance
           ? 'تظهر العمليات المسجلة اليوم فقط وفقاً لصلاحيات الحساب.'
-          : 'آخر العمليات المنفذة أو قيد المعالجة في حسابك.',
+          : (widget.controller.isCustomerAccount
+                ? 'سجل عمليات حسابك وتحويلاتك المسجلة.'
+                : 'آخر العمليات المنفذة أو قيد المعالجة في حسابك.'),
       onRefresh: _load,
       child: [
         if (_transactions.isEmpty)
@@ -3261,31 +4574,6 @@ class _ExecutorTasksScreenState extends State<ExecutorTasksScreen> {
     }
   }
 
-  Future<void> _toggleManualTaskRouting(bool enabled) async {
-    setState(() => _actionBusy = true);
-    try {
-      final response = await widget.controller.api.setExecutorTaskRoutingMode(
-        enabled,
-      );
-      if (!mounted) return;
-      setState(() {
-        _manualTaskRoutingEnabled =
-            response['manualTaskRoutingEnabled'] == true;
-      });
-      showSnack(
-        context,
-        _manualTaskRoutingEnabled
-            ? 'تم تفعيل التوجيه اليدوي للمهام.'
-            : 'تم إيقاف التوجيه اليدوي للمهام.',
-      );
-      await _load(silent: true);
-    } on ApiFailure catch (error) {
-      if (mounted) showSnack(context, error.message, error: true);
-    } finally {
-      if (mounted) setState(() => _actionBusy = false);
-    }
-  }
-
   Future<void> _routeTask(Map<String, dynamic> task) async {
     setState(() => _actionBusy = true);
     try {
@@ -3406,16 +4694,7 @@ class _ExecutorTasksScreenState extends State<ExecutorTasksScreen> {
     if (_error != null && _tasks.isEmpty) {
       return ErrorPage(error: _error!, onRetry: _load);
     }
-    final company = _overview?['company'];
     final canViewCompanyBalance = widget.controller.isExecutorManager;
-    final balance = canViewCompanyBalance
-        ? (company is Map
-              ? numberValue(
-                  company['balance'],
-                  widget.controller.session?.balance ?? 0,
-                )
-              : widget.controller.session?.balance ?? 0)
-        : 0.0;
     final currentExecutorId = widget.controller.session?.id ?? '';
     final hasAcceptedTask = _tasks.any(
       (task) =>
@@ -3429,29 +4708,6 @@ class _ExecutorTasksScreenState extends State<ExecutorTasksScreen> {
       showHeading: false,
       onRefresh: _load,
       child: [
-        if (canViewCompanyBalance) ...[
-          ExecutorBalanceHeroCard(balance: balance),
-          const SizedBox(height: 16),
-        ],
-        if (canViewCompanyBalance)
-          SurfacePanel(
-            child: SwitchListTile.adaptive(
-              contentPadding: EdgeInsets.zero,
-              value: _manualTaskRoutingEnabled,
-              onChanged: _actionBusy ? null : _toggleManualTaskRouting,
-              secondary: const Icon(Icons.route_outlined),
-              title: const Text(
-                'التوجيه اليدوي للمهام',
-                style: TextStyle(fontWeight: FontWeight.w900),
-              ),
-              subtitle: Text(
-                _manualTaskRoutingEnabled
-                    ? 'المهام الجديدة لا تظهر للموظفين قبل توجيهها بالاسم.'
-                    : 'المهام تظهر لجميع المنفذين ويمكنهم قبولها مباشرة.',
-              ),
-            ),
-          ),
-        if (canViewCompanyBalance) const SizedBox(height: 16),
         if (_urgentAlerts.isNotEmpty) ...[
           ..._urgentAlerts.map(
             (alert) => Padding(
@@ -3466,12 +4722,11 @@ class _ExecutorTasksScreenState extends State<ExecutorTasksScreen> {
             ),
           ),
         ],
-        const ExecutorLiveMonitoringCard(),
-        const SizedBox(height: 18),
         if (_tasks.isEmpty)
           const ExecutorLiveQueueCard(
-            title: 'في انتظار عملية جديدة',
-            message: 'ستظهر العمليات المحولة إلى حساب المنفذ فور وصولها.',
+            title: 'لا توجد مهام حالياً',
+            message:
+                'ستظهر العمليات الجديدة أو الموجهة إلى حسابك هنا فور وصولها.',
           )
         else
           ..._tasks.map(
@@ -3483,6 +4738,7 @@ class _ExecutorTasksScreenState extends State<ExecutorTasksScreen> {
                 currentExecutorId: currentExecutorId,
                 acceptBlocked: hasAcceptedTask,
                 canRoute: canViewCompanyBalance && _manualTaskRoutingEnabled,
+                isManager: canViewCompanyBalance,
                 onAccept: () => _accept(task),
                 onRoute: () => _routeTask(task),
                 onCancel: () => _cancel(task),
@@ -3491,8 +4747,10 @@ class _ExecutorTasksScreenState extends State<ExecutorTasksScreen> {
               ),
             ),
           ),
-        const SizedBox(height: 16),
-        ExecutorConnectionCard(lastUpdated: _lastUpdated),
+        if (_tasks.isNotEmpty) ...[
+          const SizedBox(height: 16),
+          ExecutorConnectionCard(lastUpdated: _lastUpdated),
+        ],
       ],
     );
   }
@@ -3757,110 +5015,173 @@ class _ExecutorLiveQueueCardState extends State<ExecutorLiveQueueCard>
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
+    final dark = Theme.of(context).brightness == Brightness.dark;
     return Container(
-      constraints: const BoxConstraints(minHeight: 284),
-      padding: const EdgeInsets.all(20),
+      constraints: const BoxConstraints(minHeight: 470, maxWidth: 620),
+      padding: const EdgeInsetsDirectional.fromSTEB(22, 20, 22, 24),
       decoration: BoxDecoration(
-        color: colors.surface,
-        borderRadius: BorderRadius.circular(22),
-        border: Border.all(color: colors.outlineVariant),
+        color: dark ? const Color(0xFF132838) : colors.surface,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: dark ? const Color(0xFF284B5A) : colors.outlineVariant,
+        ),
         boxShadow: [
           BoxShadow(
-            color: _navy.withValues(
-              alpha: Theme.of(context).brightness == Brightness.dark
-                  ? 0.28
-                  : 0.10,
-            ),
-            blurRadius: 26,
-            offset: const Offset(0, 13),
+            color: _navy.withValues(alpha: dark ? 0.24 : 0.09),
+            blurRadius: 24,
+            offset: const Offset(0, 12),
           ),
         ],
       ),
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          final compact = constraints.maxWidth < 380;
-          final artwork = Expanded(
-            flex: compact ? 0 : 5,
+      child: Column(
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 42,
+                height: 42,
+                decoration: BoxDecoration(
+                  color: dark
+                      ? const Color(0xFF1A433E)
+                      : AhramColors.emeraldSoft,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Icon(
+                  Icons.sensors_rounded,
+                  color: AhramColors.emerald,
+                ),
+              ),
+              const SizedBox(width: 11),
+              Expanded(
+                child: Text(
+                  'المراقبة المباشرة نشطة',
+                  style: TextStyle(
+                    color: colors.onSurface,
+                    fontWeight: FontWeight.w900,
+                    fontSize: 15,
+                  ),
+                ),
+              ),
+              Container(
+                width: 9,
+                height: 9,
+                decoration: const BoxDecoration(
+                  color: AhramColors.emerald,
+                  shape: BoxShape.circle,
+                ),
+              ),
+              const SizedBox(width: 6),
+              Text(
+                'متصل',
+                style: TextStyle(
+                  color: colors.onSurfaceVariant,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 22),
+          SizedBox(
+            height: 238,
             child: AnimatedBuilder(
               animation: _animation,
-              builder: (context, child) => Transform.translate(
-                offset: Offset(0, -3 * _animation.value),
-                child: child,
-              ),
+              builder: (context, child) {
+                final lift = -7 * _animation.value;
+                final scale = 0.96 + (0.04 * _animation.value);
+                return Stack(
+                  alignment: Alignment.center,
+                  children: [
+                    Positioned(
+                      top: 26,
+                      left: 12,
+                      right: 12,
+                      child: Container(
+                        height: 1,
+                        color: colors.outlineVariant.withValues(alpha: 0.70),
+                      ),
+                    ),
+                    Positioned(
+                      bottom: 30,
+                      left: 12,
+                      right: 12,
+                      child: Container(
+                        height: 1,
+                        color: colors.outlineVariant.withValues(alpha: 0.70),
+                      ),
+                    ),
+                    Positioned(
+                      top: 24,
+                      left: 12 + (28 * _animation.value),
+                      child: Container(
+                        width: 56,
+                        height: 5,
+                        decoration: BoxDecoration(
+                          color: AhramColors.sky,
+                          borderRadius: BorderRadius.circular(99),
+                        ),
+                      ),
+                    ),
+                    Transform.translate(
+                      offset: Offset(0, lift),
+                      child: Transform.scale(scale: scale, child: child),
+                    ),
+                  ],
+                );
+              },
               child: Image.asset(
                 'assets/images/executor-live-bell.png',
+                height: 226,
                 fit: BoxFit.contain,
                 filterQuality: FilterQuality.high,
               ),
             ),
-          );
-          final copy = Expanded(
-            flex: compact ? 0 : 6,
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              crossAxisAlignment: CrossAxisAlignment.start,
+          ),
+          Text(
+            widget.title,
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              color: colors.onSurface,
+              fontSize: 23,
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            widget.message,
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              color: colors.onSurfaceVariant,
+              height: 1.45,
+              fontSize: 14,
+            ),
+          ),
+          const SizedBox(height: 18),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            decoration: BoxDecoration(
+              color: dark ? const Color(0xFF173248) : const Color(0xFFF1F7FF),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Row(
               children: [
-                Text(
-                  widget.title,
-                  style: TextStyle(
-                    color: colors.onSurface,
-                    fontSize: 24,
-                    fontWeight: FontWeight.w900,
-                  ),
-                ),
-                const SizedBox(height: 10),
-                Text(
-                  widget.message,
-                  style: TextStyle(
-                    color: colors.onSurfaceVariant,
-                    fontSize: 15,
-                    height: 1.5,
-                  ),
-                ),
-                const SizedBox(height: 19),
-                DecoratedBox(
-                  decoration: BoxDecoration(
-                    color: AhramColors.sky,
-                    borderRadius: BorderRadius.circular(9),
-                    boxShadow: [
-                      BoxShadow(
-                        color: AhramColors.sky.withValues(alpha: 0.30),
-                        blurRadius: 12,
-                        offset: const Offset(0, 6),
-                      ),
-                    ],
-                  ),
-                  child: const Padding(
-                    padding: EdgeInsets.symmetric(horizontal: 12, vertical: 9),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(Icons.sensors, color: Colors.white, size: 18),
-                        SizedBox(width: 7),
-                        Text(
-                          'المراقبة المباشرة تعمل',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.w800,
-                          ),
-                        ),
-                      ],
+                const Icon(Icons.notifications_active_outlined, size: 20),
+                const SizedBox(width: 9),
+                Expanded(
+                  child: Text(
+                    'سيصلك تنبيه صوتي فور وصول مهمة جديدة',
+                    style: TextStyle(
+                      color: colors.onSurface,
+                      fontWeight: FontWeight.w800,
+                      fontSize: 12,
                     ),
                   ),
                 ),
               ],
             ),
-          );
-          return compact
-              ? Column(
-                  children: [
-                    SizedBox(height: 166, child: artwork),
-                    const SizedBox(height: 8),
-                    copy,
-                  ],
-                )
-              : Row(children: [copy, const SizedBox(width: 8), artwork]);
-        },
+          ),
+        ],
       ),
     );
   }
@@ -4309,6 +5630,12 @@ class _ExecutorReportsScreenState extends State<ExecutorReportsScreen> {
               .map((item) => Map<String, dynamic>.from(item))
               .toList()
         : <Map<String, dynamic>>[];
+    final cancelledOperations = report['cancelledOperations'] is List
+        ? (report['cancelledOperations'] as List)
+              .whereType<Map>()
+              .map((item) => Map<String, dynamic>.from(item))
+              .toList()
+        : <Map<String, dynamic>>[];
     final period = report['reportPeriod'];
     final periodValue = period is Map
         ? '${period['value'] ?? _dateValue}'
@@ -4337,34 +5664,46 @@ class _ExecutorReportsScreenState extends State<ExecutorReportsScreen> {
       ),
       child: [
         SurfacePanel(
-          child: Wrap(
-            spacing: 12,
-            runSpacing: 12,
-            crossAxisAlignment: WrapCrossAlignment.center,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              SegmentedButton<bool>(
-                segments: const [
-                  ButtonSegment<bool>(
-                    value: false,
-                    label: Text('يومي'),
-                    icon: Icon(Icons.today_outlined),
+              Text(
+                'البحث في التقارير',
+                style: Theme.of(
+                  context,
+                ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w900),
+              ),
+              const SizedBox(height: 10),
+              Wrap(
+                spacing: 12,
+                runSpacing: 12,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                children: [
+                  SegmentedButton<bool>(
+                    segments: const [
+                      ButtonSegment<bool>(
+                        value: false,
+                        label: Text('يوم محدد'),
+                        icon: Icon(Icons.today_outlined),
+                      ),
+                      ButtonSegment<bool>(
+                        value: true,
+                        label: Text('شهر محدد'),
+                        icon: Icon(Icons.calendar_month_outlined),
+                      ),
+                    ],
+                    selected: <bool>{_month},
+                    onSelectionChanged: (value) {
+                      setState(() => _month = value.first);
+                      _load();
+                    },
                   ),
-                  ButtonSegment<bool>(
-                    value: true,
-                    label: Text('شهري'),
-                    icon: Icon(Icons.calendar_month_outlined),
+                  OutlinedButton.icon(
+                    onPressed: _pickPeriod,
+                    icon: const Icon(Icons.date_range_outlined),
+                    label: Text(periodValue),
                   ),
                 ],
-                selected: <bool>{_month},
-                onSelectionChanged: (value) {
-                  setState(() => _month = value.first);
-                  _load();
-                },
-              ),
-              OutlinedButton.icon(
-                onPressed: _pickPeriod,
-                icon: const Icon(Icons.date_range_outlined),
-                label: Text(periodValue),
               ),
             ],
           ),
@@ -4392,6 +5731,32 @@ class _ExecutorReportsScreenState extends State<ExecutorReportsScreen> {
               child: ExecutorReportOperationTile(operation: operation),
             ),
           ),
+        if (cancelledOperations.isNotEmpty) ...[
+          const SizedBox(height: 22),
+          SectionTitle(
+            title: 'العمليات الملغاة',
+            icon: Icons.cancel_outlined,
+            color: _danger,
+          ),
+          const SizedBox(height: 6),
+          Text(
+            'للمراجعة فقط ولا تدخل ضمن إجمالي مبالغ التقرير.',
+            style: TextStyle(
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+              fontSize: 12,
+            ),
+          ),
+          const SizedBox(height: 10),
+          ...cancelledOperations.map(
+            (operation) => Padding(
+              padding: const EdgeInsets.only(bottom: 10),
+              child: ExecutorReportOperationTile(
+                operation: operation,
+                cancelled: true,
+              ),
+            ),
+          ),
+        ],
       ],
     );
   }
@@ -4553,9 +5918,14 @@ class ExecutorMetricCard extends StatelessWidget {
 }
 
 class ExecutorReportOperationTile extends StatelessWidget {
-  const ExecutorReportOperationTile({super.key, required this.operation});
+  const ExecutorReportOperationTile({
+    super.key,
+    required this.operation,
+    this.cancelled = false,
+  });
 
   final Map<String, dynamic> operation;
+  final bool cancelled;
 
   @override
   Widget build(BuildContext context) {
@@ -4629,6 +5999,21 @@ class ExecutorReportOperationTile extends StatelessWidget {
                 ),
             ],
           ),
+          if (cancelled && '${operation['notes'] ?? ''}'.trim().isNotEmpty) ...[
+            const SizedBox(height: 12),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+              decoration: BoxDecoration(
+                color: _danger.withValues(alpha: 0.08),
+                borderRadius: BorderRadius.circular(7),
+              ),
+              child: Text(
+                '${operation['notes']}',
+                style: const TextStyle(fontSize: 12),
+              ),
+            ),
+          ],
         ],
       ),
     );
@@ -4648,6 +6033,8 @@ class _ExecutorSettingsScreenState extends State<ExecutorSettingsScreen> {
   Map<String, dynamic>? _overview;
   Object? _error;
   bool _loading = true;
+  bool _manualTaskRoutingEnabled = false;
+  bool _routingBusy = false;
 
   @override
   void initState() {
@@ -4665,13 +6052,46 @@ class _ExecutorSettingsScreenState extends State<ExecutorSettingsScreen> {
     try {
       final response = await widget.controller.api.executorOverview();
       final raw = response['data'];
+      var manualTaskRoutingEnabled = _manualTaskRoutingEnabled;
+      if (widget.controller.isExecutorManager) {
+        final liveTasks = await widget.controller.api.executorLiveTasks();
+        manualTaskRoutingEnabled =
+            liveTasks['manualTaskRoutingEnabled'] == true;
+      }
       if (mounted && raw is Map) {
-        setState(() => _overview = Map<String, dynamic>.from(raw));
+        setState(() {
+          _overview = Map<String, dynamic>.from(raw);
+          _manualTaskRoutingEnabled = manualTaskRoutingEnabled;
+        });
       }
     } catch (error) {
       if (mounted) setState(() => _error = error);
     } finally {
       if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  Future<void> _toggleManualTaskRouting(bool enabled) async {
+    setState(() => _routingBusy = true);
+    try {
+      final response = await widget.controller.api.setExecutorTaskRoutingMode(
+        enabled,
+      );
+      if (!mounted) return;
+      setState(() {
+        _manualTaskRoutingEnabled =
+            response['manualTaskRoutingEnabled'] == true;
+      });
+      showSnack(
+        context,
+        _manualTaskRoutingEnabled
+            ? 'تم تفعيل التوجيه اليدوي للمهام.'
+            : 'تم إيقاف التوجيه اليدوي للمهام.',
+      );
+    } on ApiFailure catch (error) {
+      if (mounted) showSnack(context, error.message, error: true);
+    } finally {
+      if (mounted) setState(() => _routingBusy = false);
     }
   }
 
@@ -4755,6 +6175,26 @@ class _ExecutorSettingsScreenState extends State<ExecutorSettingsScreen> {
             ],
           ),
         ),
+        if (widget.controller.isExecutorManager) ...[
+          const SizedBox(height: 18),
+          SurfacePanel(
+            child: SwitchListTile.adaptive(
+              contentPadding: EdgeInsets.zero,
+              value: _manualTaskRoutingEnabled,
+              onChanged: _routingBusy ? null : _toggleManualTaskRouting,
+              secondary: const Icon(Icons.route_outlined),
+              title: const Text(
+                'التوجيه اليدوي للمهام',
+                style: TextStyle(fontWeight: FontWeight.w900),
+              ),
+              subtitle: Text(
+                _manualTaskRoutingEnabled
+                    ? 'تُوجه كل عملية إلى موظف محدد قبل أن تظهر في حسابه.'
+                    : 'تظهر العمليات لجميع المنفذين ويمكنهم قبولها مباشرة.',
+              ),
+            ),
+          ),
+        ],
         if (metrics is Map) ...[
           const SizedBox(height: 18),
           Wrap(
@@ -6758,10 +8198,16 @@ class RateTile extends StatelessWidget {
 }
 
 class SectionTitle extends StatelessWidget {
-  const SectionTitle({super.key, required this.title, required this.icon});
+  const SectionTitle({
+    super.key,
+    required this.title,
+    required this.icon,
+    this.color = _green,
+  });
 
   final String title;
   final IconData icon;
+  final Color color;
 
   @override
   Widget build(BuildContext context) {
@@ -6772,10 +8218,10 @@ class SectionTitle extends StatelessWidget {
           height: 32,
           alignment: Alignment.center,
           decoration: BoxDecoration(
-            color: _green.withValues(alpha: 0.11),
+            color: color.withValues(alpha: 0.11),
             borderRadius: BorderRadius.circular(8),
           ),
-          child: Icon(icon, color: _green, size: 19),
+          child: Icon(icon, color: color, size: 19),
         ),
         const SizedBox(width: 10),
         Text(
@@ -7265,6 +8711,7 @@ class ExecutorTaskTile extends StatelessWidget {
     required this.currentExecutorId,
     required this.acceptBlocked,
     required this.canRoute,
+    required this.isManager,
     required this.onAccept,
     required this.onRoute,
     required this.onCancel,
@@ -7277,6 +8724,7 @@ class ExecutorTaskTile extends StatelessWidget {
   final String currentExecutorId;
   final bool acceptBlocked;
   final bool canRoute;
+  final bool isManager;
   final VoidCallback onAccept;
   final VoidCallback onRoute;
   final VoidCallback onCancel;
@@ -7298,6 +8746,8 @@ class ExecutorTaskTile extends StatelessWidget {
     final acceptedById = '${task['operatorId'] ?? ''}'.trim();
     final acceptedByName =
         '${task['acceptedByName'] ?? task['executorName'] ?? ''}'.trim();
+    final assignedExecutorName =
+        '${task['assignedExecutorName'] ?? acceptedByName}'.trim();
     // An accepted task is actionable only by its owner. Treat missing ownership
     // data as locked so an older API response cannot expose unsafe actions.
     final acceptedByMe =
@@ -7307,6 +8757,9 @@ class ExecutorTaskTile extends StatelessWidget {
     final takenByAnother = accepted && !acceptedByMe;
     final canRouteTask = canRoute && !accepted;
     final takenByLabel = acceptedByName.isEmpty ? 'منفذ آخر' : acceptedByName;
+    final assignmentStatus = accepted
+        ? 'قيد التنفيذ لدى الموظف'
+        : 'بانتظار قبول الموظف';
     final colors = Theme.of(context).colorScheme;
     final transferType = task['transferType']?.toString();
     final isCashWallet = transferType == 'vodafone';
@@ -7352,7 +8805,9 @@ class ExecutorTaskTile extends StatelessWidget {
                 ),
               ),
               StatusPill(
-                label: statusLabel(task['status']?.toString()),
+                label: isManager && assignedExecutorName.isNotEmpty
+                    ? assignmentStatus
+                    : statusLabel(task['status']?.toString()),
                 color: statusColor(task['status']?.toString()),
               ),
             ],
@@ -7447,6 +8902,51 @@ class ExecutorTaskTile extends StatelessWidget {
               ],
             ),
           ],
+          if (isManager && assignedExecutorName.isNotEmpty) ...[
+            const Divider(height: 22),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
+              decoration: BoxDecoration(
+                color: AhramColors.emeraldSoft.withValues(alpha: 0.72),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(
+                  color: AhramColors.emerald.withValues(alpha: 0.25),
+                ),
+              ),
+              child: Row(
+                children: [
+                  const Icon(
+                    Icons.assignment_ind_outlined,
+                    color: AhramColors.emerald,
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          assignmentStatus,
+                          style: TextStyle(
+                            color: colors.onSurfaceVariant,
+                            fontSize: 12,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          assignedExecutorName,
+                          style: TextStyle(
+                            color: colors.onSurface,
+                            fontWeight: FontWeight.w900,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
           if (takenByAnother) ...[
             const Divider(height: 22),
             Container(
@@ -7483,7 +8983,11 @@ class ExecutorTaskTile extends StatelessWidget {
               child: FilledButton.icon(
                 onPressed: busy ? null : onRoute,
                 icon: const Icon(Icons.route_outlined),
-                label: const Text('توجيه إلى منفذ'),
+                label: Text(
+                  assignedExecutorName.isEmpty
+                      ? 'توجيه إلى منفذ'
+                      : 'إعادة التوجيه إلى منفذ',
+                ),
               ),
             )
           else if (!accepted)

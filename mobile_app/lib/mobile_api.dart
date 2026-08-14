@@ -134,12 +134,14 @@ class MobileSession {
   MobileSession copyWith({
     String? token,
     String? refreshToken,
+    String? name,
     double? balance,
     int? tier,
     double? exchangeRate,
     double? baseExchangeRate,
     Map<String, dynamic>? serviceRates,
     List<Map<String, dynamic>>? serviceCatalog,
+    Map<String, dynamic>? context,
     bool? isOpen,
     double? creditLimit,
     double? debt,
@@ -151,7 +153,7 @@ class MobileSession {
       id: id,
       accountType: accountType,
       persona: persona,
-      name: name,
+      name: name ?? this.name,
       balance: balance ?? this.balance,
       tier: tier ?? this.tier,
       exchangeRate: exchangeRate ?? this.exchangeRate,
@@ -159,7 +161,7 @@ class MobileSession {
       serviceRates: serviceRates ?? this.serviceRates,
       serviceCatalog: serviceCatalog ?? this.serviceCatalog,
       isOpen: isOpen ?? this.isOpen,
-      context: context,
+      context: context ?? this.context,
       role: role,
       permissions: permissions,
       creditLimit: creditLimit ?? this.creditLimit,
@@ -192,12 +194,16 @@ class MobileSession {
       availableToSpend: home.containsKey('availableToSpend')
           ? _number(home['availableToSpend'])
           : availableToSpend,
+      context: home.containsKey('context') ? _map(home['context']) : context,
     );
   }
 }
 
 class SessionStore {
   static const _sessionKey = 'power_pay_mobile_session_v1';
+  static const _savedLoginKey = 'power_pay_mobile_saved_login_v1';
+  static const _customerNotificationsKey =
+      'power_pay_mobile_customer_notifications_v1';
   final FlutterSecureStorage _storage = const FlutterSecureStorage();
 
   Future<MobileSession?> read() async {
@@ -227,6 +233,55 @@ class SessionStore {
   }
 
   Future<void> clear() => _storage.delete(key: _sessionKey);
+
+  Future<SavedLoginCredentials?> readSavedLogin() async {
+    final raw = await _storage.read(key: _savedLoginKey);
+    if (raw == null || raw.isEmpty) return null;
+    try {
+      final decoded = jsonDecode(raw);
+      if (decoded is Map) {
+        final username = '${decoded['username'] ?? ''}'.trim();
+        final password = '${decoded['password'] ?? ''}';
+        if (username.isNotEmpty && password.isNotEmpty) {
+          return SavedLoginCredentials(username: username, password: password);
+        }
+      }
+    } catch (_) {
+      await clearSavedLogin();
+    }
+    return null;
+  }
+
+  Future<void> saveLogin({required String username, required String password}) {
+    return _storage.write(
+      key: _savedLoginKey,
+      value: jsonEncode(<String, String>{
+        'username': username.trim(),
+        'password': password,
+      }),
+    );
+  }
+
+  Future<void> clearSavedLogin() => _storage.delete(key: _savedLoginKey);
+
+  Future<bool> readCustomerNotificationsEnabled() async {
+    final raw = await _storage.read(key: _customerNotificationsKey);
+    return raw != 'false';
+  }
+
+  Future<void> setCustomerNotificationsEnabled(bool enabled) {
+    return _storage.write(
+      key: _customerNotificationsKey,
+      value: enabled ? 'true' : 'false',
+    );
+  }
+}
+
+class SavedLoginCredentials {
+  const SavedLoginCredentials({required this.username, required this.password});
+
+  final String username;
+  final String password;
 }
 
 class MobileApi {
@@ -243,6 +298,7 @@ class MobileApi {
           headers: const <String, dynamic>{
             'Accept': 'application/json',
             'Content-Type': 'application/json',
+            'X-Client-Platform': 'app',
           },
         ),
       );
@@ -387,6 +443,50 @@ class MobileApi {
   }
 
   Future<Map<String, dynamic>> clientHome() => _request('GET', '/client/home');
+
+  Future<Map<String, dynamic>> updateCustomerProfilePhoto(
+    String imageBase64,
+  ) {
+    return _request(
+      'PUT',
+      '/client/profile-photo',
+      data: <String, dynamic>{'imageBase64': imageBase64},
+    );
+  }
+
+  Future<Map<String, dynamic>> updateCustomerProfile({
+    required String name,
+    required String address,
+  }) {
+    return _request(
+      'PATCH',
+      '/client/profile',
+      data: <String, dynamic>{'name': name, 'address': address},
+    );
+  }
+
+  Future<List<Map<String, dynamic>>> customerSecurityDevices() async {
+    final response = await _request('GET', '/client/security/devices');
+    return _extractList(response, 'devices');
+  }
+
+  Future<void> changeCustomerPassword({
+    required String currentPassword,
+    required String newPassword,
+  }) async {
+    await _request(
+      'POST',
+      '/client/security/change-password',
+      data: <String, dynamic>{
+        'currentPassword': currentPassword,
+        'newPassword': newPassword,
+      },
+    );
+  }
+
+  Future<void> logoutCustomerDevices() async {
+    await _request('POST', '/client/security/logout-all');
+  }
 
   Future<List<Map<String, dynamic>>> clientTransactions({
     int limit = 30,
@@ -780,6 +880,7 @@ class SessionController extends ChangeNotifier {
   final MobileApi api;
   MobileSession? session;
   bool isReady = false;
+  bool customerNotificationsEnabled = true;
 
   bool get isExecutor => session?.accountType == 'executor';
 
@@ -815,6 +916,15 @@ class SessionController extends ChangeNotifier {
         persona.startsWith('company');
   }
 
+  bool get isCustomerAccount {
+    if (isExecutor || isAgent || isCompany) return false;
+    final accountType = session?.accountType ?? '';
+    final persona = session?.persona.toLowerCase() ?? '';
+    return accountType == 'sub_client' ||
+        (accountType == 'client_user' &&
+            (persona == 'directclient' || persona == 'agentclient'));
+  }
+
   bool get hidesBalance {
     final persona = session?.persona.toLowerCase() ?? '';
     return persona.contains('employee') || persona.contains('accountant');
@@ -822,6 +932,7 @@ class SessionController extends ChangeNotifier {
 
   Future<void> restore() async {
     session = await store.read();
+    customerNotificationsEnabled = await store.readCustomerNotificationsEnabled();
     isReady = true;
     notifyListeners();
   }
@@ -836,6 +947,15 @@ class SessionController extends ChangeNotifier {
     notifyListeners();
   }
 
+  Future<SavedLoginCredentials?> savedLogin() => store.readSavedLogin();
+
+  Future<void> saveLogin({
+    required String username,
+    required String password,
+  }) => store.saveLogin(username: username, password: password);
+
+  Future<void> clearSavedLogin() => store.clearSavedLogin();
+
   Future<Map<String, dynamic>> refreshHome() async {
     final home = await api.clientHome();
     final current = session;
@@ -845,6 +965,75 @@ class SessionController extends ChangeNotifier {
       notifyListeners();
     }
     return home;
+  }
+
+  Future<void> updateCustomerProfilePhoto(String imageBase64) async {
+    final response = await api.updateCustomerProfilePhoto(imageBase64);
+    final current = session;
+    if (current == null) return;
+    final nextContext = Map<String, dynamic>.from(current.context);
+    final currentProfile = nextContext['profile'];
+    final profile = currentProfile is Map
+        ? Map<String, dynamic>.from(currentProfile)
+        : <String, dynamic>{};
+    final responseProfile = response['profile'];
+    if (responseProfile is Map) profile.addAll(Map<String, dynamic>.from(responseProfile));
+    nextContext['profile'] = profile;
+    session = current.copyWith(context: nextContext);
+    await store.write(session!);
+    notifyListeners();
+  }
+
+  Future<void> updateCustomerProfile({
+    required String name,
+    required String address,
+  }) async {
+    final response = await api.updateCustomerProfile(name: name, address: address);
+    final current = session;
+    if (current == null) return;
+    final nextContext = Map<String, dynamic>.from(current.context);
+    final rawProfile = nextContext['profile'];
+    final profile = rawProfile is Map
+        ? Map<String, dynamic>.from(rawProfile)
+        : <String, dynamic>{};
+    final responseProfile = response['profile'];
+    if (responseProfile is Map) {
+      profile.addAll(Map<String, dynamic>.from(responseProfile));
+    }
+    nextContext['profile'] = profile;
+    session = current.copyWith(name: profile['name']?.toString(), context: nextContext);
+    await store.write(session!);
+    notifyListeners();
+  }
+
+  Future<List<Map<String, dynamic>>> customerSecurityDevices() {
+    return api.customerSecurityDevices();
+  }
+
+  Future<void> setCustomerNotificationsEnabled(bool enabled) async {
+    customerNotificationsEnabled = enabled;
+    await store.setCustomerNotificationsEnabled(enabled);
+    notifyListeners();
+  }
+
+  Future<void> changeCustomerPassword({
+    required String currentPassword,
+    required String newPassword,
+  }) async {
+    await api.changeCustomerPassword(
+      currentPassword: currentPassword,
+      newPassword: newPassword,
+    );
+    await store.clear();
+    session = null;
+    notifyListeners();
+  }
+
+  Future<void> logoutCustomerDevices() async {
+    await api.logoutCustomerDevices();
+    // The server keeps the current device session active and revokes only the
+    // other mobile devices, so the current customer stays signed in.
+    notifyListeners();
   }
 
   Future<void> signOut() async {

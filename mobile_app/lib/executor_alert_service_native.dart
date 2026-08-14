@@ -2,7 +2,6 @@ import 'dart:async';
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_background_service/flutter_background_service.dart';
-import 'package:flutter_background_service_android/flutter_background_service_android.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 
 import 'mobile_api.dart';
@@ -10,6 +9,7 @@ import 'mobile_api.dart';
 const _monitorChannelId = 'executor_monitoring';
 const _taskChannelId = 'executor_tasks';
 const _urgentChannelId = 'executor_urgent_alerts';
+const _customerChannelId = 'customer_account_alerts';
 const _monitorNotificationId = 7100;
 const _apiBaseUrl = String.fromEnvironment(
   'API_BASE_URL',
@@ -70,15 +70,26 @@ class ExecutorAlertService {
           IOSFlutterLocalNotificationsPlugin
         >();
     await ios?.requestPermissions(alert: true, badge: true, sound: true);
-    await startForStoredExecutor();
+    await startForStoredAccount();
   }
 
   Future<void> startForStoredExecutor() async {
+    await startForStoredAccount();
+  }
+
+  Future<void> startForStoredAccount() async {
     await configure();
     if (kIsWeb) return;
     final session = await SessionStore().read();
     final isAccountant = session?.context['executorRole'] == 'accountant';
-    if (session?.accountType != 'executor' || isAccountant) return;
+    final isCustomer = session?.accountType == 'client_user' ||
+        session?.accountType == 'sub_client';
+    final customerNotifications =
+        await SessionStore().readCustomerNotificationsEnabled();
+    if ((session?.accountType != 'executor' || isAccountant) &&
+        (!isCustomer || !customerNotifications)) {
+      return;
+    }
     final service = FlutterBackgroundService();
     if (!await service.isRunning()) {
       await service.startService();
@@ -123,6 +134,14 @@ Future<void> _createChannels(
     playSound: true,
     enableVibration: true,
   );
+  const customerChannel = AndroidNotificationChannel(
+    _customerChannelId,
+    'إشعارات حساب العميل',
+    description: 'إشعارات الإيداع والتحويل وردود الدعم.',
+    importance: Importance.high,
+    playSound: true,
+    enableVibration: true,
+  );
   final android = notifications
       .resolvePlatformSpecificImplementation<
         AndroidFlutterLocalNotificationsPlugin
@@ -130,6 +149,7 @@ Future<void> _createChannels(
   await android?.createNotificationChannel(monitorChannel);
   await android?.createNotificationChannel(taskChannel);
   await android?.createNotificationChannel(urgentChannel);
+  await android?.createNotificationChannel(customerChannel);
 }
 
 @pragma('vm:entry-point')
@@ -142,18 +162,24 @@ void executorAlertBackgroundEntry(ServiceInstance service) async {
   );
   await _createChannels(notifications);
 
+  final initialSession = await SessionStore().read();
+  final customerSession = initialSession?.accountType == 'client_user' ||
+      initialSession?.accountType == 'sub_client';
   if (service is AndroidServiceInstance) {
     service.on('stop').listen((_) => service.stopSelf());
     service.setAsForegroundService();
     service.setForegroundNotificationInfo(
-      title: 'مراقبة التنفيذ تعمل',
-      content: 'سيصلك تنبيه فوري عند وصول طلب جديد.',
+      title: customerSession ? 'إشعارات الحساب تعمل' : 'مراقبة التنفيذ تعمل',
+      content: customerSession
+          ? 'سيصلك تنبيه بالإيداعات والعمليات الجديدة.'
+          : 'سيصلك تنبيه فوري عند وصول طلب جديد.',
     );
   }
 
   var initialized = false;
   var appVisible = false;
   final seenTaskIds = <String>{};
+  final seenCustomerNotificationIds = <String>{};
 
   service.on('app_visible').listen((event) {
     appVisible = event?['value'] == true;
@@ -161,11 +187,67 @@ void executorAlertBackgroundEntry(ServiceInstance service) async {
 
   Future<void> poll() async {
     final session = await SessionStore().read();
-    if (session?.accountType != 'executor') {
+    final isExecutor = session?.accountType == 'executor';
+    final isCustomer = session?.accountType == 'client_user' ||
+        session?.accountType == 'sub_client';
+    if (!isExecutor && !isCustomer) {
       service.stopSelf();
       return;
     }
     try {
+      if (isCustomer) {
+        final enabled = await SessionStore().readCustomerNotificationsEnabled();
+        if (!enabled) {
+          service.stopSelf();
+          return;
+        }
+        final response = await Dio(
+          BaseOptions(
+            baseUrl: _apiBaseUrl,
+            connectTimeout: const Duration(seconds: 20),
+            receiveTimeout: const Duration(seconds: 30),
+            headers: <String, dynamic>{
+              'Accept': 'application/json',
+              'Authorization': 'Bearer ${session!.token}',
+            },
+          ),
+        ).get<dynamic>('/client/notifications', queryParameters: <String, dynamic>{
+          'unreadOnly': 'true',
+          'limit': 20,
+        });
+        final body = response.data is Map
+            ? Map<String, dynamic>.from(response.data as Map)
+            : <String, dynamic>{};
+        final customerNotifications = body['notifications'] is List
+            ? (body['notifications'] as List)
+                .whereType<Map>()
+                .map((item) => Map<String, dynamic>.from(item))
+                .toList()
+            : <Map<String, dynamic>>[];
+        final ids = customerNotifications
+            .map((item) => '${item['id'] ?? ''}')
+            .where((id) => id.isNotEmpty)
+            .toSet();
+        final newNotifications = initialized
+            ? customerNotifications
+                .where((item) => !seenCustomerNotificationIds.contains('${item['id']}'))
+                .toList()
+            : <Map<String, dynamic>>[];
+        seenCustomerNotificationIds
+          ..clear()
+          ..addAll(ids);
+        if (!initialized) {
+          initialized = true;
+          return;
+        }
+        if (!appVisible && newNotifications.isNotEmpty) {
+          await _showCustomerAlert(
+            notificationsPlugin: notifications,
+            notification: newNotifications.first,
+          );
+        }
+        return;
+      }
       final response = await Dio(
         BaseOptions(
           baseUrl: _apiBaseUrl,
@@ -232,6 +314,30 @@ void executorAlertBackgroundEntry(ServiceInstance service) async {
 
   await poll();
   Timer.periodic(const Duration(minutes: 1), (_) => poll());
+}
+
+Future<void> _showCustomerAlert({
+  required FlutterLocalNotificationsPlugin notificationsPlugin,
+  required Map<String, dynamic> notification,
+}) {
+  final title = '${notification['title'] ?? 'إشعار جديد'}';
+  final message = '${notification['message'] ?? ''}';
+  return notificationsPlugin.show(
+    id: DateTime.now().millisecondsSinceEpoch.remainder(1 << 31),
+    title: title,
+    body: message,
+    notificationDetails: const NotificationDetails(
+      android: AndroidNotificationDetails(
+        _customerChannelId,
+        'إشعارات حساب العميل',
+        channelDescription: 'إشعارات الإيداع والتحويل وردود الدعم.',
+        importance: Importance.high,
+        priority: Priority.high,
+        playSound: true,
+        enableVibration: true,
+      ),
+    ),
+  );
 }
 
 Future<void> _showUrgentAlert(

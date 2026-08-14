@@ -63,8 +63,8 @@ const refreshToken = async (req, res) => {
  */
 const logout = async (req, res) => {
     try {
-        const { userId, accountType } = req.user;
-        const result = await authService.logout(userId, accountType);
+        const { userId, accountType, sessionId } = req.user;
+        const result = await authService.logout(userId, accountType, sessionId);
         const mappedResponse = toLogoutResponse();
         return res.json(mappedResponse);
     } catch (error) {

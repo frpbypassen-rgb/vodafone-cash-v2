@@ -589,7 +589,9 @@
             </div>
         </div>
         <div class="nav-actions">
+            <% if (emp.role !== 'operator') { %>
             <span class="nav-btn text-success border border-success border-opacity-25" style="cursor: default; font-weight: 800;" title="المبلغ المتاح"><i class="fa-solid fa-wallet me-1"></i> <%= emp.groupId ? emp.groupId.balance.toFixed(2) : '0.00' %> EGP</span>
+            <% } %>
             <button class="nav-btn btn-theme shadow-sm" onclick="toggleTheme()" title="المظهر"><i class="fa-solid fa-moon" id="themeIcon"></i></button>
             <a href="/executor-portal/logout" class="nav-btn btn-logout"><i class="fa-solid fa-power-off"></i></a>
         </div>
@@ -601,15 +603,13 @@
         </div>
 
         <!-- فلاتر التقرير -->
-        <div class="card-glass <%= emp.role === 'operator' ? 'd-none' : '' %>">
+        <div class="card-glass">
             <div class="row g-3 align-items-end justify-content-center">
                 <div class="col-md-3">
                     <label class="form-label text-muted fw-bold">الفترة الزمنية</label>
                     <select id="dateType" class="form-select" onchange="toggleDateInput()">
                         <option value="day">يوم محدد</option>
-                        <% if (emp.role === 'manager' || emp.canViewAllReports) { %>
                         <option value="month">شهر محدد</option>
-                        <% } %>
                     </select>
                 </div>
 
@@ -634,22 +634,16 @@
 
         <!-- الإحصائيات -->
         <div class="row g-3 mb-4 d-none" id="statsSection">
-            <div class="col-md-4">
+            <div class="col-md-6">
                 <div class="stat-card" style="background: linear-gradient(135deg, rgba(239,68,68,0.1), rgba(239,68,68,0.02)); border-color: rgba(239,68,68,0.2);">
-                    <h5 class="fw-bold mb-2 text-danger" id="statTotalOps">0.00</h5>
-                    <small class="text-danger fw-bold">إجمالي العمليات المنفذة (EGP)</small>
+                    <h5 class="fw-bold mb-2 text-danger" id="statCompletedCount">0</h5>
+                    <small class="text-danger fw-bold">عدد العمليات</small>
                 </div>
             </div>
-            <div class="col-md-4">
+            <div class="col-md-6">
                 <div class="stat-card" style="background: linear-gradient(135deg, rgba(16,185,129,0.1), rgba(16,185,129,0.02)); border-color: rgba(16,185,129,0.2);">
-                    <h5 class="fw-bold mb-2 text-success" id="statCompletedCount">0</h5>
-                    <small class="text-success fw-bold">العمليات الناجحة</small>
-                </div>
-            </div>
-            <div class="col-md-4">
-                <div class="stat-card" style="background: linear-gradient(135deg, rgba(212,175,55,0.1), rgba(212,175,55,0.02)); border-color: rgba(212,175,55,0.2);">
-                    <h5 class="fw-bold mb-2 text-warning" id="statRejectedCount">0</h5>
-                    <small class="text-warning fw-bold">العمليات المرفوضة</small>
+                    <h5 class="fw-bold mb-2 text-success" id="statTotalOps">0.00</h5>
+                    <small class="text-success fw-bold">إجمالي عمليات الفترة (EGP)</small>
                 </div>
             </div>
         </div>
@@ -669,7 +663,7 @@
                             <th>مدة اكمال العملية</th>
                             <th>حالة العملية</th>
                             <th>التاريخ والوقت</th>
-                            <th>اسم المنفذ</th>
+                            <% if (emp.role !== 'operator') { %><th>اسم المنفذ</th><% } %>
                         </tr>
                     </thead>
                     <tbody id="reportTableBody">
@@ -678,6 +672,19 @@
             </div>
             <!-- قائمة العمليات للموبايل (تظهر كبطاقات تطبيق) -->
             <div class="mobile-ops-list d-flex flex-column gap-3 d-md-none" id="mobileReportList"></div>
+        </div>
+        <div class="card-glass d-none mt-3" id="cancelledSection">
+            <div class="d-flex align-items-center justify-content-between mb-3">
+                <h5 class="fw-bold m-0 text-danger"><i class="fa-solid fa-ban me-1"></i> العمليات الملغاة</h5>
+                <small class="text-muted">للمراجعة فقط ولا تدخل في الإجمالي</small>
+            </div>
+            <div class="table-responsive d-none d-md-block">
+                <table class="table-custom">
+                    <thead><tr><th>#</th><th>رقم العملية</th><th>المبلغ بالمصري</th><th>التاريخ والوقت</th><th>الحالة</th></tr></thead>
+                    <tbody id="cancelledReportTableBody"></tbody>
+                </table>
+            </div>
+            <div class="mobile-ops-list d-flex flex-column gap-3 d-md-none" id="mobileCancelledList"></div>
         </div>
     </div>
 
@@ -695,10 +702,6 @@
         document.addEventListener('DOMContentLoaded', () => {
             const theme = localStorage.getItem('ahram_theme') || 'dark';
             document.getElementById('themeIcon').className = theme === 'dark' ? 'fa-solid fa-sun text-warning' : 'fa-solid fa-moon text-dark';
-
-            <% if (emp.role === 'operator') { %>
-            fetchReport();
-            <% } %>
         });
 
         // تهيئة التواريخ
@@ -718,6 +721,7 @@
         }
 
         let lastReportData = null;
+        const isPersonalExecutorReport = <%= emp.role === 'operator' ? 'true' : 'false' %>;
 
         async function fetchReport() {
             const dateType = document.getElementById('dateType').value;
@@ -743,9 +747,8 @@
                 if (!data.success) throw new Error(data.error);
 
                 // Update Stats
-                document.getElementById('statTotalOps').innerHTML = `${(data.data.totalEGP).toFixed(2)} <span class="fs-6">EGP</span>`;
-                document.getElementById('statCompletedCount').innerHTML = data.data.completedCount;
-                document.getElementById('statRejectedCount').innerHTML = data.data.rejectedCount;
+                document.getElementById('statTotalOps').innerHTML = `${Number(data.data.totalEGP || 0).toFixed(2)} <span class="fs-6">EGP</span>`;
+                document.getElementById('statCompletedCount').innerHTML = data.data.operationCount || 0;
 
                 lastReportData = data.data;
                 document.getElementById('statsSection').classList.remove('d-none');
@@ -757,9 +760,15 @@
                 tbody.innerHTML = '';
                 const mobileList = document.getElementById('mobileReportList');
                 if (mobileList) mobileList.innerHTML = '';
+                const cancelled = Array.isArray(data.data.cancelledOperations) ? data.data.cancelledOperations : [];
+                const cancelledTbody = document.getElementById('cancelledReportTableBody');
+                const mobileCancelledList = document.getElementById('mobileCancelledList');
+                cancelledTbody.innerHTML = '';
+                if (mobileCancelledList) mobileCancelledList.innerHTML = '';
+                document.getElementById('cancelledSection').classList.toggle('d-none', cancelled.length === 0);
 
                 if (data.data.operations.length === 0) {
-                    tbody.innerHTML = '<tr><td colspan="9" class="text-center text-muted py-4">لا توجد عمليات في هذه الفترة</td></tr>';
+                    tbody.innerHTML = `<tr><td colspan="${isPersonalExecutorReport ? 8 : 9}" class="text-center text-muted py-4">لا توجد عمليات في هذه الفترة</td></tr>`;
                     if (mobileList) mobileList.innerHTML = '<div class="text-center text-muted py-4">لا توجد عمليات في هذه الفترة</div>';
                 } else {
                     data.data.operations.forEach((tx, i) => {
@@ -810,7 +819,7 @@
                                 <div dir="ltr" style="font-size:0.85em;" class="text-center fw-bold">${dateStr}</div>
                                 <div dir="ltr" style="font-size:0.75rem; color: #94a3b8;" class="text-center">${timeStr}</div>
                             </td>
-                            <td>${by}</td>
+                            ${isPersonalExecutorReport ? '' : `<td>${by}</td>`}
                         </tr>
                         `;
 
@@ -827,10 +836,10 @@
                                         <span class="tx-amount">${tx.amount}</span>
                                         <span class="tx-currency">EGP</span>
                                     </div>
-                                    <div class="tx-executor">
+                                    ${isPersonalExecutorReport ? '' : `<div class="tx-executor">
                                         <i class="fa-solid fa-user-astronaut me-1"></i>
                                         <span>${by}</span>
-                                    </div>
+                                    </div>`}
                                 </div>
                                 <div class="mobile-tx-divider"></div>
                                 <div class="mobile-tx-footer">
@@ -855,6 +864,17 @@
                         }
                     });
                 }
+
+                cancelled.forEach((tx, index) => {
+                    const date = new Date(tx.completedAt || tx.createdAt);
+                    const dateText = date.toLocaleString('en-GB', { timeZone: 'Africa/Tripoli', hour12: true });
+                    const reference = tx.customId || tx.id || '---';
+                    const amount = Number(tx.amount || 0).toFixed(2);
+                    cancelledTbody.innerHTML += `<tr><td>${index + 1}</td><td dir="ltr" class="fw-bold">${reference}</td><td>${amount} EGP</td><td dir="ltr">${dateText}</td><td><span class="badge-st st-fail">ملغاة</span></td></tr>`;
+                    if (mobileCancelledList) {
+                        mobileCancelledList.innerHTML += `<div class="mobile-tx-card"><div class="mobile-tx-header"><span class="tx-custom-id">#${reference}</span><span class="badge-st st-fail">ملغاة</span></div><div class="mobile-tx-body"><div class="tx-amount-wrapper"><span class="tx-amount">${amount}</span><span class="tx-currency">EGP</span></div></div><div class="mobile-tx-date-row"><span><i class="fa-solid fa-calendar-alt text-muted"></i> ${dateText}</span></div></div>`;
+                    }
+                });
 
             } catch (e) {
                 Swal.fire({ icon: 'error', title: 'خطأ', text: e.message || 'فشل جلب التقرير' });

@@ -17,6 +17,8 @@ const clientWorkspaceController = require('./clientWorkspaceController');
 const businessPortalService = require('../services/businessPortalService');
 const { sanitizeStatementTransaction } = require('../utils/accountStatementPrivacy');
 const { normalizeCreditLimit } = require('../services/agencyCreditLimitService');
+const { logAction } = require('../services/auditService');
+const { saveProfilePhoto, streamProfilePhoto, removeProfilePhoto } = require('../services/profilePhotoStorageService');
 
 const renderBusinessOverview = clientWorkspaceController.renderPage('overview');
 
@@ -146,11 +148,12 @@ exports.getDashboard = async (req, res) => {
         let accountTypeName = 'عميل مباشر';
         let accountTypeDetail = '';
         let userRoleLabel = 'عميل فردي';
+        let profileMaster = null;
 
         if (isSubAccount) {
             accountTypeName = 'عميل جديد';
-            let master = account.masterType === 'user' ? await User.findById(account.masterId) : await ClientCompany.findById(account.masterId);
-            accountTypeDetail = master ? master.name : 'غير معروف';
+            profileMaster = account.masterType === 'user' ? await User.findById(account.masterId) : await ClientCompany.findById(account.masterId);
+            accountTypeDetail = profileMaster ? profileMaster.name : 'غير معروف';
             userRoleLabel = 'نقطة بيع فرعية';
         } else if (req.session.accountType === 'company') {
             accountTypeName = 'شركة';
@@ -174,6 +177,15 @@ exports.getDashboard = async (req, res) => {
             phone: account.phone || 'غير مسجل',
             username: account.webUsername,
             accountCode,
+            agentAccountCode: isSubAccount && profileMaster && profileMaster.role === 'agent'
+                ? (profileMaster.agentCode || profileMaster.accountCode || '')
+                : '',
+            address: account.address || (account.businessProfile && (account.businessProfile.address || account.businessProfile.city)) || 'غير مسجل',
+            joinedAt: account.createdAt,
+            accountStatus: account.status || 'active',
+            profilePhotoUpdatedAt: account.profilePhotoUpdatedAt || null,
+            hasProfilePhoto: Boolean(account.profilePhotoKey),
+            canEditProfile: req.session.accountType === 'user' || isSubAccount,
             systemStatus: isSystemOpen ? 'تعمل' : 'خارج اوقات العمل',
             accountTypeName,
             accountTypeDetail,
@@ -192,6 +204,82 @@ exports.getDashboard = async (req, res) => {
     } catch (error) {
         console.error("Dashboard Render Error:", error);
         res.redirect('/client/logout');
+    }
+};
+
+exports.getProfilePhoto = async (req, res) => {
+    try {
+        const isSubAccount = req.session.accountType === 'sub_client';
+        if (!isSubAccount && req.session.accountType !== 'user') return res.status(403).end();
+        const Model = isSubAccount ? SubAccount : User;
+        const account = await Model.findById(req.session.clientId);
+        if (!account || !account.profilePhotoKey) return res.status(404).end();
+        return streamProfilePhoto(account.profilePhotoKey, res);
+    } catch (_) {
+        return res.status(404).end();
+    }
+};
+
+exports.postUpdateOwnProfile = async (req, res) => {
+    let photoKey = null;
+    try {
+        const isSubAccount = req.session.accountType === 'sub_client';
+        if (!isSubAccount && req.session.accountType !== 'user') return res.status(403).redirect('/client/dashboard');
+        const Model = isSubAccount ? SubAccount : User;
+        const account = await Model.findById(req.session.clientId);
+        if (!account) return res.redirect('/client/logout');
+
+        const name = String(req.body.name || '').trim().slice(0, 100);
+        const address = String(req.body.address || '').trim().slice(0, 200);
+        if (name.length < 3) return res.redirect('/client/dashboard?profileError=name');
+        account.name = name;
+        if (isSubAccount) {
+            account.address = address;
+        } else {
+            account.businessProfile = {
+                ...(account.businessProfile ? account.businessProfile.toObject ? account.businessProfile.toObject() : account.businessProfile : {}),
+                address
+            };
+        }
+
+        const imageBase64 = String(req.body.profileImageBase64 || '').trim();
+        if (imageBase64) {
+            photoKey = saveProfilePhoto(imageBase64, account._id);
+            const previousKey = account.profilePhotoKey;
+            account.profilePhotoKey = photoKey;
+            account.profilePhotoUpdatedAt = new Date();
+            if (previousKey && previousKey !== photoKey) {
+                try { removeProfilePhoto(previousKey); } catch (_) { /* cleanup is best effort */ }
+            }
+        }
+        await account.save();
+        await logAction({
+            action: 'CUSTOMER_PROFILE_UPDATED',
+            req,
+            performedById: account._id,
+            performedByModel: isSubAccount ? 'SubAccount' : 'User',
+            performedByName: account.name,
+            metadata: { source: 'client_portal', profilePhotoUpdated: Boolean(photoKey) }
+        });
+        if (req.accepts('json')) {
+            return res.json({
+                success: true,
+                profile: {
+                    name: account.name,
+                    address,
+                    photoUpdatedAt: account.profilePhotoUpdatedAt || null
+                }
+            });
+        }
+        return res.redirect('/client/dashboard?tab=account&profileSuccess=1');
+    } catch (error) {
+        if (photoKey) {
+            try { removeProfilePhoto(photoKey); } catch (_) { /* cleanup is best effort */ }
+        }
+        if (req.accepts('json')) {
+            return res.status(400).json({ success: false, error: 'تعذر حفظ بيانات الملف الشخصي.' });
+        }
+        return res.redirect('/client/dashboard?tab=account&profileError=save');
     }
 };
 

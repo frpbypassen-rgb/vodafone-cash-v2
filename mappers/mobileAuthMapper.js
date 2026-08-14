@@ -231,8 +231,22 @@ const buildContext = (accountType, {
     subAccountId,
     displayType,
     masterName,
-    accountCode
+    accountCode,
+    username,
+    phone,
+    address,
+    joinedAt,
+    profilePhotoUpdatedAt,
+    status
 } = {}) => {
+    const profile = {
+        username: username || '',
+        phone: phone || '',
+        address: address || '',
+        status: status || 'active',
+        joinedAt: joinedAt ? new Date(joinedAt).toISOString() : null,
+        photoUpdatedAt: profilePhotoUpdatedAt ? new Date(profilePhotoUpdatedAt).toISOString() : null
+    };
     if (accountType === 'sub_client') {
         return {
             displayType: displayType || 'حساب تابع',
@@ -241,7 +255,8 @@ const buildContext = (accountType, {
             agentId: agentId ? String(agentId) : null,
             agentName: agentName || null,
             agentCode: agentCode || null,
-            accountCode: accountCode || ''
+            accountCode: accountCode || '',
+            profile
         };
     }
     return {
@@ -256,7 +271,9 @@ const buildContext = (accountType, {
         executorServiceKey: accountType === 'executor' ? (executorServiceKey || null) : null,
         // Legacy bot fields mapping the group info for compatibility
         executorBotId: accountType === 'executor' ? (executorGroupId ? String(executorGroupId) : null) : null,
-        executorBotName: accountType === 'executor' ? (executorGroupName || null) : null
+        executorBotName: accountType === 'executor' ? (executorGroupName || null) : null,
+        accountCode: accountCode || '',
+        profile
     };
 };
 

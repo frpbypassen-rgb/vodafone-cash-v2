@@ -146,6 +146,8 @@ router.get('/logout', clientAuthController.logout);
 // 📊 Dashboard Routes
 // ===============================================
 router.get('/dashboard', requireClientAuth, clientDashboardController.getDashboard);
+router.get('/profile-photo', requireClientAuth, clientDashboardController.getProfilePhoto);
+router.post('/profile', requireClientAuth, clientDashboardController.postUpdateOwnProfile);
 router.get('/api/transactions', requireClientAuth, clientDashboardController.getApiTransactions);
 router.get('/api/rates', requireClientAuth, clientWorkspaceController.getCurrentRates);
 router.get('/services', requireClientAuth, clientWorkspaceController.renderPage('services'));

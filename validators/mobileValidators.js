@@ -348,6 +348,40 @@ const updateExecutorEmployeeProfileValidator = [
     validate
 ];
 
+const customerProfilePhotoValidator = [
+    body('imageBase64').custom((value) => validateBase64Image(value, 2 * 1024 * 1024)),
+    validate
+];
+
+const customerProfileValidator = [
+    body('name')
+        .trim()
+        .isLength({ min: 3, max: 100 }).withMessage('الاسم يجب أن يكون بين 3 و100 حرف')
+        .escape(),
+    body('address')
+        .optional({ nullable: true })
+        .trim()
+        .isLength({ max: 200 }).withMessage('العنوان طويل جداً')
+        .escape(),
+    validate
+];
+
+const customerPasswordValidator = [
+    body('currentPassword')
+        .isString().withMessage('كلمة المرور الحالية مطلوبة')
+        .isLength({ min: 1, max: 100 }).withMessage('كلمة المرور الحالية غير صالحة'),
+    body('newPassword')
+        .isString().withMessage('كلمة المرور الجديدة مطلوبة')
+        .isLength({ min: 8, max: 100 }).withMessage('كلمة المرور يجب أن تكون 8 أحرف على الأقل')
+        .custom((value) => {
+            if (!/^(?=.*[A-Za-z])(?=.*\d).+$/.test(String(value || ''))) {
+                throw new Error('كلمة المرور يجب أن تحتوي على حرف ورقم على الأقل');
+            }
+            return true;
+        }),
+    validate
+];
+
 const resetPasswordValidator = [
     body('newPassword')
         .trim()
@@ -415,6 +449,9 @@ module.exports = {
     returnTaskValidator,
     createEmployeeValidator,
     updateExecutorEmployeeProfileValidator,
+    customerProfilePhotoValidator,
+    customerProfileValidator,
+    customerPasswordValidator,
     resetPasswordValidator,
     executorReportsValidator,
     executorSupportMessageValidator

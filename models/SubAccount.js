@@ -17,9 +17,14 @@ const subAccountSchema = new mongoose.Schema({
     phone: { type: String },
     webUsername: { type: String, required: true, unique: true },
     webPassword: { type: String, required: true },
+    address: { type: String, trim: true, default: '' },
+    profilePhotoKey: { type: String, trim: true, default: '' },
+    profilePhotoUpdatedAt: { type: Date },
     creationIdempotencyKey: { type: String, unique: true, sparse: true },
     creationIdempotencyFingerprint: { type: String },
     refreshToken: { type: String }, // 🟢 مخصص لتطبيق الموبايل
+    // يرفع عند تغيير كلمة المرور أو تسجيل الخروج من جميع الأجهزة.
+    sessionVersion: { type: Number, default: 0 },
     otpCode: { type: String },
     otpExpires: { type: Date },
     lastOtpDate: { type: String },

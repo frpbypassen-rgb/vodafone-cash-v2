@@ -1064,6 +1064,10 @@ const executorReportTotals = (transactions) => transactions.reduce((summary, tx)
     return summary;
 }, { totalEGP: 0, completedCount: 0, rejectedCount: 0 });
 
+const isCancelledExecutorTransaction = (transaction) => (
+    ['rejected', 'cancelled_by_admin', 'failed'].includes(transaction.status)
+);
+
 const executorRoleLabel = (role) => ({
     manager: 'مدير شركة تنفيذ',
     accountant: 'محاسب شركة تنفيذ',
@@ -1122,8 +1126,12 @@ async function getExecutorReports({ executorId, dateType, dateValue, employeeId,
     const deposits = currentTransactions.filter((tx) =>
         ['deposit', 'deduction', 'deposit_pending'].includes(tx.status)
     );
-    const operations = currentTransactions.filter((tx) => !deposits.includes(tx));
-    const totals = executorReportTotals(operations);
+    const reportTransactions = currentTransactions.filter((tx) => !deposits.includes(tx));
+    // Keep cancelled work isolated from the financial operations list. It is
+    // still returned for auditing, but is never included in employee totals.
+    const operations = reportTransactions.filter((tx) => !isCancelledExecutorTransaction(tx));
+    const cancelledOperations = reportTransactions.filter(isCancelledExecutorTransaction);
+    const totals = executorReportTotals(reportTransactions);
     const groupOperations = (groupPeriodTransactions || currentTransactions)
         .filter((tx) => !['deposit', 'deduction', 'deposit_pending'].includes(tx.status));
     const groupTotals = executorReportTotals(groupOperations);
@@ -1140,6 +1148,30 @@ async function getExecutorReports({ executorId, dateType, dateValue, employeeId,
         ? periodBalance
         : Number(group.balance || 0);
 
+    const personalReport = {
+        operationCount: operations.length,
+        operations,
+        cancelledOperations,
+        ...totals,
+        role: emp.role,
+        scope: 'employee',
+        reportPeriod: { type: finalDateType, value: finalDateValue, start, end },
+        targetEmployee: {
+            id: reportOwner._id,
+            name: reportOwner.name,
+            role: reportOwner.role
+        },
+        entityInfo: {
+            name: reportOwner.name,
+            phone: reportOwner.phone || '---',
+            username: reportOwner.webUsername,
+            joinDate: reportOwner.createdAt,
+            status: executorRoleLabel(reportOwner.role)
+        }
+    };
+
+    if (isPersonalReport) return personalReport;
+
     return {
         previousBalance: isPersonalReport ? 0 : currentBalance - periodBalance,
         periodBalance,
@@ -1147,6 +1179,7 @@ async function getExecutorReports({ executorId, dateType, dateValue, employeeId,
         operationCount: operations.length,
         currentTransactions,
         operations,
+        cancelledOperations,
         deposits,
         ...totals,
         totalDeposits: deposits.reduce((sum, tx) => sum + Number(tx.amount || tx.costLYD || 0), 0),

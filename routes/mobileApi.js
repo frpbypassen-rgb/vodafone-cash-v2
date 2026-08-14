@@ -15,12 +15,16 @@ const Ledger = require('../models/Ledger');
 const RegistrationRequest = require('../models/RegistrationRequest');
 const SupportTicket = require('../models/SupportTicket');
 const Notification = require('../models/Notification');
+const AuditLog = require('../models/AuditLog');
+const MobileDeviceSession = require('../models/MobileDeviceSession');
 
 const { authenticateJWT } = require('../middlewares/jwtAuth');
 const correlationId = require('../middlewares/correlationId');
 const requireIdempotencyKey = require('../middlewares/requireIdempotencyKey');
 const { logAction } = require('../services/auditService');
+const { verifyAndUpgradePassword } = require('../utils/helpers');
 const { proofSourceUrl, saveProofImage, streamProofImage } = require('../services/proofStorageService');
+const { saveProfilePhoto, streamProfilePhoto, removeProfilePhoto } = require('../services/profilePhotoStorageService');
 const authController = require('../controllers/auth/authController');
 const transferService = require('../services/transferService');
 const { deviceTrustMiddleware } = require('../src/Presentation/Middlewares/deviceTrustMiddleware');
@@ -54,7 +58,10 @@ const {
     updateExecutorEmployeeProfileValidator,
     resetPasswordValidator,
     executorReportsValidator,
-    executorSupportMessageValidator
+    executorSupportMessageValidator,
+    customerProfilePhotoValidator,
+    customerProfileValidator,
+    customerPasswordValidator
 } = require('../validators/mobileValidators');
 
 const mobileWebParityService = require('../services/mobileWebParityService');
@@ -709,6 +716,7 @@ const buildHomeRateResponse = async (req, res, userId, accountType, settings) =>
     let subAccount = null;
     let companyForRates = null;
     let masterForRates = null;
+    let profileAccount = null;
 
     if (accountType === 'client_company') {
         const emp = await ClientEmployee.findById(userId);
@@ -723,11 +731,12 @@ const buildHomeRateResponse = async (req, res, userId, accountType, settings) =>
     } else if (accountType === 'client_user') {
         let user;
         if (req.tenant) {
-            user = await User.findOne({ _id: userId, tenantId: req.tenant._id });
+            user = await User.findOne({ _id: userId, tenantId: { $in: [req.tenant._id, null] } });
         } else {
             user = await User.findById(userId);
         }
         if (user) {
+            profileAccount = user;
             balance = user.balance || 0;
             tier = user.tier || 1;
         }
@@ -741,6 +750,7 @@ const buildHomeRateResponse = async (req, res, userId, accountType, settings) =>
     } else if (accountType === 'sub_client') {
         subAccount = await SubAccount.findById(userId);
         if (subAccount) {
+            profileAccount = subAccount;
             balance = subAccount.balance || 0;
             if (subAccount.masterType === 'user') {
                 masterForRates = await User.findById(subAccount.masterId);
@@ -781,8 +791,8 @@ const buildHomeRateResponse = async (req, res, userId, accountType, settings) =>
         serverTime: new Date().toISOString()
     };
 
-    if (accountType === 'sub_client' && subAccount) {
-        if (!masterForRates) {
+    if (['client_user', 'sub_client'].includes(accountType) && profileAccount) {
+        if (accountType === 'sub_client' && !masterForRates) {
             if (subAccount.masterType === 'user') {
                 masterForRates = await User.findById(subAccount.masterId);
             } else {
@@ -790,11 +800,26 @@ const buildHomeRateResponse = async (req, res, userId, accountType, settings) =>
             }
         }
         const { buildContext } = require('../mappers/mobileAuthMapper');
-        const creditState = calculateCreditState({ balance, creditLimit: subAccount.creditLimit });
-        Object.assign(responseData, creditState, { minimumAllowedBalance: creditState.minimumBalance });
+        if (accountType === 'sub_client') {
+            const creditState = calculateCreditState({ balance, creditLimit: subAccount.creditLimit });
+            Object.assign(responseData, creditState, { minimumAllowedBalance: creditState.minimumBalance });
+        }
         responseData.context = buildContext(accountType, {
-            masterName: masterForRates ? masterForRates.name : null,
-            accountCode: subAccount.accountCode || ''
+            masterName: accountType === 'sub_client' && masterForRates ? masterForRates.name : null,
+            agentId: accountType === 'sub_client' && subAccount.masterType === 'user' ? subAccount.masterId : null,
+            agentName: accountType === 'sub_client' && subAccount.masterType === 'user' && masterForRates ? masterForRates.name : null,
+            agentCode: accountType === 'sub_client' && subAccount.masterType === 'user' && masterForRates
+                ? (masterForRates.agentCode || masterForRates.accountCode || null)
+                : null,
+            accountCode: profileAccount.accountCode || '',
+            username: profileAccount.webUsername || '',
+            phone: profileAccount.phone || '',
+            address: profileAccount.address
+                || (profileAccount.businessProfile && (profileAccount.businessProfile.address || profileAccount.businessProfile.city))
+                || '',
+            joinedAt: profileAccount.createdAt || null,
+            profilePhotoUpdatedAt: profileAccount.profilePhotoUpdatedAt || null,
+            status: profileAccount.status || 'active'
         });
     }
 
@@ -1010,7 +1035,10 @@ router.get('/executor/live-tasks', authenticateJWT, async (req, res) => {
 
         const employeeQuery = { _id: userId };
         if (req.tenant) employeeQuery.tenantId = req.tenant._id;
-        const employee = await Employee.findOne(employeeQuery).populate('groupId');
+        const employeeLookup = Employee.findOne(employeeQuery);
+        const employee = typeof employeeLookup?.populate === 'function'
+            ? await employeeLookup.populate('groupId')
+            : await employeeLookup;
         if (!employee) {
             return sendMobileError(res, 404, 'EMPLOYEE_NOT_FOUND', 'لم يتم العثور على حساب المنفذ', req.correlationId);
         }
@@ -1172,6 +1200,214 @@ router.post('/executor/route-task/:id', authenticateJWT, async (req, res) => {
         return res.json({ success: true, employee: { id: String(result.employee._id), name: result.employee.name } });
     } catch (error) {
         return sendServerError(res, req);
+    }
+});
+
+const resolveCustomerProfileAccount = async (req) => {
+    const { userId, accountType } = req.user;
+    if (accountType === 'client_user') {
+        const filter = { _id: userId };
+        if (req.tenant) filter.tenantId = { $in: [req.tenant._id, null] };
+        return { Model: User, account: await User.findOne(filter) };
+    }
+    if (accountType === 'sub_client') {
+        return { Model: SubAccount, account: await SubAccount.findById(userId) };
+    }
+    return { Model: null, account: null };
+};
+
+const customerProfilePayload = (account) => ({
+    name: account.name || '',
+    username: account.webUsername || '',
+    phone: account.phone || '',
+    address: account.address
+        || (account.businessProfile && (account.businessProfile.address || account.businessProfile.city))
+        || '',
+    status: account.status || 'active',
+    joinedAt: account.createdAt ? new Date(account.createdAt).toISOString() : null,
+    photoUpdatedAt: account.profilePhotoUpdatedAt
+        ? new Date(account.profilePhotoUpdatedAt).toISOString()
+        : null
+});
+
+router.get('/client/profile-photo', authenticateJWT, async (req, res) => {
+    try {
+        const { account } = await resolveCustomerProfileAccount(req);
+        if (!account || !account.profilePhotoKey) {
+            return sendMobileError(res, 404, 'NOT_FOUND', 'لا توجد صورة شخصية للحساب', req.correlationId);
+        }
+        return streamProfilePhoto(account.profilePhotoKey, res);
+    } catch (error) {
+        return sendMobileError(res, error.code === 'NOT_FOUND' ? 404 : 500, error.code || 'SERVER_ERROR', 'تعذر تحميل الصورة الشخصية', req.correlationId);
+    }
+});
+
+router.put('/client/profile-photo', authenticateJWT, customerProfilePhotoValidator, async (req, res) => {
+    let newPhotoKey = null;
+    try {
+        const { Model, account } = await resolveCustomerProfileAccount(req);
+        if (!Model || !account) {
+            return sendMobileError(res, 403, 'FORBIDDEN', 'تغيير الصورة متاح لحسابات العملاء فقط', req.correlationId);
+        }
+
+        newPhotoKey = saveProfilePhoto(req.body.imageBase64, account._id);
+        const updatedAt = new Date();
+        await Model.updateOne(
+            { _id: account._id },
+            { $set: { profilePhotoKey: newPhotoKey, profilePhotoUpdatedAt: updatedAt } }
+        );
+        if (account.profilePhotoKey && account.profilePhotoKey !== newPhotoKey) {
+            try { removeProfilePhoto(account.profilePhotoKey); } catch (_) { /* cleanup is best effort */ }
+        }
+        await logAction({
+            action: 'CUSTOMER_PROFILE_PHOTO_UPDATED',
+            req,
+            performedById: account._id,
+            performedByModel: req.user.accountType === 'sub_client' ? 'SubAccount' : 'User',
+            performedByName: account.name || account.webUsername,
+            metadata: { accountType: req.user.accountType }
+        });
+        return res.json({
+            success: true,
+            profile: { photoUpdatedAt: updatedAt.toISOString() }
+        });
+    } catch (error) {
+        if (newPhotoKey) {
+            try { removeProfilePhoto(newPhotoKey); } catch (_) { /* cleanup is best effort */ }
+        }
+        return sendMobileError(res, error.code === 'MALFORMED_IMAGE' ? 400 : 500, error.code || 'SERVER_ERROR', 'تعذر حفظ الصورة الشخصية', req.correlationId);
+    }
+});
+
+router.patch('/client/profile', authenticateJWT, customerProfileValidator, async (req, res) => {
+    try {
+        const { Model, account } = await resolveCustomerProfileAccount(req);
+        if (!Model || !account) {
+            return sendMobileError(res, 403, 'FORBIDDEN', 'تعديل البيانات متاح لحسابات العملاء فقط', req.correlationId);
+        }
+
+        const name = req.body.name.trim();
+        const address = (req.body.address || '').trim();
+        const update = req.user.accountType === 'sub_client'
+            ? { name, address }
+            : { name, 'businessProfile.address': address };
+        const updated = await Model.findByIdAndUpdate(
+            account._id,
+            { $set: update },
+            { new: true, runValidators: true }
+        );
+        await logAction({
+            action: 'CUSTOMER_PROFILE_UPDATED',
+            req,
+            performedById: account._id,
+            performedByModel: req.user.accountType === 'sub_client' ? 'SubAccount' : 'User',
+            performedByName: name,
+            oldData: { name: account.name, address: customerProfilePayload(account).address },
+            newData: { name, address }
+        });
+        return res.json({ success: true, profile: customerProfilePayload(updated) });
+    } catch (_) {
+        return sendServerError(res, req, 'تعذر تحديث بيانات الحساب');
+    }
+});
+
+router.get('/client/security/devices', authenticateJWT, async (req, res) => {
+    try {
+        const { account } = await resolveCustomerProfileAccount(req);
+        if (!account) {
+            return sendMobileError(res, 403, 'FORBIDDEN', 'هذه الصفحة متاحة لحسابات العملاء فقط', req.correlationId);
+        }
+        const sessions = await MobileDeviceSession.find({
+            accountId: account._id,
+            accountType: req.user.accountType,
+            active: true
+        })
+            .sort({ createdAt: -1 })
+            .limit(20)
+            .select('sessionId deviceType userAgent deviceFingerprint createdAt lastSeenAt')
+            .lean();
+        const devices = sessions.map((item) => ({
+            sessionId: item.sessionId,
+            deviceType: item.deviceType || 'هاتف',
+            userAgent: item.userAgent || 'جهاز غير معروف',
+            lastSeenAt: item.lastSeenAt || item.createdAt,
+            current: item.sessionId === req.user.sessionId
+        }));
+        return res.json({ success: true, devices });
+    } catch (_) {
+        return sendServerError(res, req, 'تعذر تحميل الأجهزة المسجل منها الدخول');
+    }
+});
+
+router.post('/client/security/change-password', authenticateJWT, customerPasswordValidator, async (req, res) => {
+    try {
+        const { account } = await resolveCustomerProfileAccount(req);
+        if (!account) {
+            return sendMobileError(res, 403, 'FORBIDDEN', 'تغيير كلمة المرور متاح لحسابات العملاء فقط', req.correlationId);
+        }
+        const Model = req.user.accountType === 'sub_client' ? SubAccount : User;
+        const valid = await verifyAndUpgradePassword(
+            req.body.currentPassword,
+            account.webPassword,
+            Model,
+            account._id
+        );
+        if (!valid) {
+            return sendMobileError(res, 400, 'INVALID_PASSWORD', 'كلمة المرور الحالية غير صحيحة', req.correlationId);
+        }
+        account.webPassword = req.body.newPassword;
+        account.refreshToken = undefined;
+        account.sessionVersion = Number(account.sessionVersion || 0) + 1;
+        await account.save();
+        await MobileDeviceSession.updateMany(
+            { accountId: account._id, accountType: req.user.accountType, active: true },
+            { $set: { active: false, lastSeenAt: new Date() } }
+        );
+        await logAction({
+            action: 'CUSTOMER_PASSWORD_CHANGED',
+            req,
+            performedById: account._id,
+            performedByModel: req.user.accountType === 'sub_client' ? 'SubAccount' : 'User',
+            performedByName: account.name || account.webUsername
+        });
+        return res.json({ success: true, message: 'تم تغيير كلمة المرور وإبطال جميع الجلسات.' });
+    } catch (_) {
+        return sendServerError(res, req, 'تعذر تغيير كلمة المرور');
+    }
+});
+
+router.post('/client/security/logout-all', authenticateJWT, async (req, res) => {
+    try {
+        const { Model, account } = await resolveCustomerProfileAccount(req);
+        if (!Model || !account) {
+            return sendMobileError(res, 403, 'FORBIDDEN', 'هذه العملية متاحة لحسابات العملاء فقط', req.correlationId);
+        }
+        if (req.user.sessionId) {
+            await MobileDeviceSession.updateMany(
+                {
+                    accountId: account._id,
+                    accountType: req.user.accountType,
+                    sessionId: { $ne: req.user.sessionId },
+                    active: true
+                },
+                { $set: { active: false, lastSeenAt: new Date() } }
+            );
+        } else {
+            await Model.updateOne(
+                { _id: account._id },
+                { $inc: { sessionVersion: 1 }, $unset: { refreshToken: 1 } }
+            );
+        }
+        await logAction({
+            action: 'CUSTOMER_LOGOUT_ALL_DEVICES',
+            req,
+            performedById: account._id,
+            performedByModel: req.user.accountType === 'sub_client' ? 'SubAccount' : 'User',
+            performedByName: account.name || account.webUsername
+        });
+        return res.json({ success: true, message: 'تم تسجيل الخروج من جميع الأجهزة.' });
+    } catch (_) {
+        return sendServerError(res, req, 'تعذر إنهاء جلسات الأجهزة');
     }
 });
 

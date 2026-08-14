@@ -5,6 +5,7 @@
 'use strict';
 
 const jwt = require('jsonwebtoken');
+const crypto = require('crypto');
 const { JWT_SECRET, JWT_REFRESH_SECRET } = require('../middlewares/jwtAuth');
 const userRepo = require('../repositories/userRepository');
 const settingsRepo = require('../repositories/settingsRepository');
@@ -19,6 +20,7 @@ const {
 } = require('./securityService');
 const User = require('../models/User');
 const ClientCompany = require('../models/ClientCompany');
+const MobileDeviceSession = require('../models/MobileDeviceSession');
 const { buildContext } = require('../mappers/mobileAuthMapper');
 
 const ACCESS_TOKEN_EXPIRY_SECONDS = 3600;      // 1 hour
@@ -304,19 +306,35 @@ const login = async (username, password, req) => {
     const { account, accountType, telegramId, executorGroupId, balance } = result;
     resetFailedAttempts(username);
 
+    const isCustomerMobileSession = ['client_user', 'sub_client'].includes(accountType);
+    const mobileSessionId = isCustomerMobileSession ? crypto.randomUUID() : null;
     const accessToken = jwt.sign(
-        { userId: account._id, accountType, telegramId, executorGroupId },
+        { userId: account._id, accountType, telegramId, executorGroupId, sessionVersion: Number(account.sessionVersion || 0), sessionId: mobileSessionId },
         JWT_SECRET,
         { expiresIn: `${ACCESS_TOKEN_EXPIRY_SECONDS}s` }
     );
     const refreshToken = jwt.sign(
-        { userId: account._id, accountType },
+        { userId: account._id, accountType, sessionVersion: Number(account.sessionVersion || 0), sessionId: mobileSessionId },
         JWT_REFRESH_SECRET,
         { expiresIn: `${REFRESH_TOKEN_EXPIRY_SECONDS}s` }
     );
 
-    // حفظ refresh token
-    await userRepo.updateRefreshToken(account._id, accountType, refreshToken);
+    // Sessions for customer mobile devices are independent. One device must not
+    // invalidate another customer's refresh token.
+    if (isCustomerMobileSession) {
+        const device = extractDeviceInfo(req);
+        await MobileDeviceSession.create({
+            accountId: account._id,
+            accountType,
+            sessionId: mobileSessionId,
+            refreshTokenHash: crypto.createHash('sha256').update(refreshToken).digest('hex'),
+            deviceFingerprint: device.deviceFingerprint,
+            userAgent: device.userAgent,
+            deviceType: 'هاتف'
+        });
+    } else {
+        await userRepo.updateRefreshToken(account._id, accountType, refreshToken);
+    }
 
     // 4. حساب سعر الصرف
     const settings = await settingsRepo.getSettings();
@@ -435,6 +453,9 @@ const login = async (username, password, req) => {
     });
 
     // 6. إرجاع العقد الرسمي (بدون DTO mapping هنا — controller سيستخدم mapper)
+    const accountAddress = account.address
+        || (account.businessProfile && (account.businessProfile.address || account.businessProfile.city))
+        || '';
     return {
         success: true,
         statusCode: 200,
@@ -467,7 +488,13 @@ const login = async (username, password, req) => {
             agentCode,
             subAccountId,
             masterName: companyName,
-            accountCode: subClientAccountCode
+            accountCode: subClientAccountCode || account.accountCode || '',
+            username: account.webUsername || '',
+            phone: account.phone || '',
+            address: accountAddress,
+            joinedAt: account.createdAt || null,
+            profilePhotoUpdatedAt: account.profilePhotoUpdatedAt || null,
+            status: account.status || 'active'
         })
     };
 };
@@ -493,7 +520,21 @@ const refreshAccessToken = async (refreshToken, req) => {
                 const { userId, accountType } = decoded;
                 const account = await userRepo.findById(userId, accountType, req.tenant ? req.tenant._id : null);
 
-                if (!account || account.refreshToken !== refreshToken || account.status !== 'active') {
+                const isCustomerMobileSession = ['client_user', 'sub_client'].includes(accountType);
+                const deviceSession = isCustomerMobileSession && decoded.sessionId
+                    ? await MobileDeviceSession.findOne({
+                        accountId: userId,
+                        accountType,
+                        sessionId: decoded.sessionId,
+                        active: true
+                    })
+                    : null;
+                const refreshTokenMatches = isCustomerMobileSession && decoded.sessionId
+                    ? Boolean(deviceSession && deviceSession.refreshTokenHash === crypto.createHash('sha256').update(refreshToken).digest('hex'))
+                    : account && account.refreshToken === refreshToken;
+
+                if (!account || !refreshTokenMatches || account.status !== 'active'
+                    || Number(account.sessionVersion || 0) !== Number(decoded.sessionVersion || 0)) {
                     await logAction({
                         action: 'TOKEN_REFRESH',
                         req,
@@ -513,10 +554,17 @@ const refreshAccessToken = async (refreshToken, req) => {
                 const telegramId = account.telegramId;
                 const executorGroupId = accountType === 'executor' ? (account.groupId ? account.groupId._id : (account.botId ? account.botId._id : null)) : null;
                 const newAccessToken = jwt.sign(
-                    { userId: account._id, accountType, telegramId, executorGroupId },
+                    { userId: account._id, accountType, telegramId, executorGroupId, sessionVersion: Number(account.sessionVersion || 0), sessionId: decoded.sessionId || null },
                     JWT_SECRET,
                     { expiresIn: `${ACCESS_TOKEN_EXPIRY_SECONDS}s` }
                 );
+
+                if (deviceSession) {
+                    await MobileDeviceSession.updateOne(
+                        { _id: deviceSession._id },
+                        { $set: { lastSeenAt: new Date() } }
+                    );
+                }
 
                 resolve({
                     success: true,
@@ -542,8 +590,15 @@ const refreshAccessToken = async (refreshToken, req) => {
  * @param {string} userId
  * @param {string} accountType
  */
-const logout = async (userId, accountType) => {
-    await userRepo.clearRefreshToken(userId, accountType);
+const logout = async (userId, accountType, sessionId = null) => {
+    if (['client_user', 'sub_client'].includes(accountType) && sessionId) {
+        await MobileDeviceSession.updateOne(
+            { accountId: userId, accountType, sessionId },
+            { $set: { active: false, lastSeenAt: new Date() } }
+        );
+    } else {
+        await userRepo.clearRefreshToken(userId, accountType);
+    }
     return {
         success: true,
         message: 'تم تسجيل الخروج وإبطال الجلسة',

@@ -54,6 +54,7 @@
     const entity = report.entityInfo || {};
     const isPersonalReport = report.scope === 'employee';
     const operations = report.operations || [];
+    const cancelledOperations = report.cancelledOperations || [];
     const deposits = report.deposits || [];
     const tripoli = 'Africa/Tripoli';
     const money = (value, digits = 2) => Number(value || 0).toLocaleString('en-US', { minimumFractionDigits: digits, maximumFractionDigits: digits });
@@ -101,7 +102,7 @@
     <% deposits.forEach((item, index) => { %><tr><td><%= index + 1 %></td><td class="mono"><%= item.customId || '---' %></td><td><%= item.status === 'deduction' ? 'خصم' : 'إيداع' %></td><td class="mono"><%= money(item.amount) %> EGP</td><td class="mono"><%= dateTime(item.createdAt) %></td><td class="note"><%= item.notes || '---' %></td></tr><% }) %>
     </tbody></table>
 </section>
-<% const cancelled = operations.filter((item) => isCancelled(item.status)); if (cancelled.length) { %>
+<% const cancelled = cancelledOperations.filter((item) => isCancelled(item.status)); if (cancelled.length) { %>
 <section class="section cancelled">
     <div class="section-heading"><div><span>قسم مستقل غير محتسب ماليًا</span><h2>العمليات الملغاة والمرفوضة</h2></div><strong><%= cancelled.length %> عملية</strong></div>
     <div class="notice">هذه العمليات معروضة للمتابعة فقط ولا تدخل في إجماليات التقرير المالي.</div>

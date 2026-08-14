@@ -14,6 +14,8 @@ const userSchema = new mongoose.Schema({
     apiToken: { type: String, trim: true, unique: true, sparse: true, select: false },
     webUsername: { type: String, unique: true, required: true },
     webPassword: { type: String, required: true },
+    profilePhotoKey: { type: String, trim: true, default: '' },
+    profilePhotoUpdatedAt: { type: Date },
     role: { type: String, default: 'user' }, // user | accountant
     businessProfile: {
         contactName: { type: String, trim: true, default: '' },
@@ -23,6 +25,8 @@ const userSchema = new mongoose.Schema({
         registrationNumber: { type: String, trim: true, default: '' }
     },
     refreshToken: { type: String }, // 🟢 مخصص لتطبيق الموبايل
+    // يرفع عند تغيير كلمة المرور أو تسجيل الخروج من جميع الأجهزة.
+    sessionVersion: { type: Number, default: 0 },
     otpCode: { type: String },
     otpExpires: { type: Date },
     lastOtpDate: { type: String },
