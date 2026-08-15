@@ -244,9 +244,24 @@ void executorAlertBackgroundEntry(ServiceInstance service) async {
           ..addAll(ids);
         if (!initialized) {
           initialized = true;
+          // A price change may be scheduled while the app is starting. Show a
+          // fresh rate notification instead of treating it as old baseline data.
+          final freshRateChange = customerNotifications.where((item) {
+            if ('${item['type'] ?? ''}' != 'rate_change') return false;
+            final createdAt = DateTime.tryParse('${item['createdAt'] ?? ''}');
+            return createdAt != null &&
+                DateTime.now().difference(createdAt.toLocal()).abs() <=
+                    const Duration(minutes: 2);
+          }).toList();
+          if (freshRateChange.isNotEmpty) {
+            await _showCustomerAlert(
+              notificationsPlugin: notifications,
+              notification: freshRateChange.first,
+            );
+          }
           return;
         }
-        if (!appVisible && newNotifications.isNotEmpty) {
+        if (newNotifications.isNotEmpty) {
           await _showCustomerAlert(
             notificationsPlugin: notifications,
             notification: newNotifications.first,
@@ -319,7 +334,9 @@ void executorAlertBackgroundEntry(ServiceInstance service) async {
   }
 
   await poll();
-  Timer.periodic(const Duration(minutes: 1), (_) => poll());
+  // Price changes have a 60-second activation window, so customer alerts must
+  // be checked more frequently than the previous one-minute interval.
+  Timer.periodic(const Duration(seconds: 15), (_) => poll());
 }
 
 Future<void> _showCustomerAlert({
