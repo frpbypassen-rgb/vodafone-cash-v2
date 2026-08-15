@@ -714,15 +714,31 @@ class MobileApi {
   Future<Map<String, dynamic>> createTicket({
     required String subject,
     required String message,
+    String category = 'general',
   }) {
     return _request(
       'POST',
       '/client/tickets',
       data: <String, dynamic>{
         'subject': subject,
-        'message': message,
-        'category': 'general',
+        'text': message,
+        'category': category,
       },
+    );
+  }
+
+  Future<Map<String, dynamic>> ticketDetails(String id) {
+    return _request('GET', '/client/tickets/$id');
+  }
+
+  Future<Map<String, dynamic>> replyToTicket({
+    required String id,
+    required String text,
+  }) {
+    return _request(
+      'POST',
+      '/client/tickets/$id/reply',
+      data: <String, dynamic>{'text': text.trim()},
     );
   }
 

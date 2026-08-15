@@ -10968,6 +10968,36 @@ class _SupportScreenState extends State<SupportScreen> {
     if (created == true) await _load();
   }
 
+  Future<void> _openTicket(Map<String, dynamic> ticket) async {
+    final updated = await Navigator.of(context).push<bool>(
+      MaterialPageRoute(
+        builder: (_) => SupportConversationScreen(
+          api: widget.controller.api,
+          ticketId: '${ticket['id'] ?? ''}',
+          subject: '${ticket['subject'] ?? 'تذكرة دعم'}',
+        ),
+      ),
+    );
+    if (updated == true) await _load();
+  }
+
+  Future<void> _openWhatsAppSupport() async {
+    final opened = await openExternalLink(
+      Uri.parse('https://wa.me/201108172258'),
+    );
+    if (opened) return;
+    await Clipboard.setData(const ClipboardData(text: '01108172258'));
+    if (mounted) showSnack(context, 'تم نسخ رقم واتساب الدعم.');
+  }
+
+  Future<void> _showHelpTopics() async {
+    await showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      builder: (context) => const _SupportHelpTopicsSheet(),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     if (_loading && _tickets.isEmpty) return const PageLoading();
@@ -10975,8 +11005,8 @@ class _SupportScreenState extends State<SupportScreen> {
       return ErrorPage(error: _error!, onRetry: _load);
     }
     return PageFrame(
-      title: 'الدعم والشكاوى',
-      subtitle: 'تابع رسائلك مع فريق الدعم من خلال التذاكر المفتوحة.',
+      title: 'الدعم الفني',
+      subtitle: 'تواصل آمن ومباشر مع فريق الأهرام.',
       onRefresh: _load,
       action: FilledButton.icon(
         onPressed: _createTicket,
@@ -10984,20 +11014,368 @@ class _SupportScreenState extends State<SupportScreen> {
         label: const Text('تذكرة جديدة'),
       ),
       child: [
+        SurfacePanel(
+          child: Row(
+            children: [
+              GlassIconBadge(
+                icon: Icons.support_agent_outlined,
+                color: _green,
+                size: 50,
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'الدعم متاح الآن',
+                      style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      'تابع التذكرة من التطبيق أو تواصل عبر واتساب.',
+                      style: TextStyle(
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              StatusPill(label: 'متاح', color: _green),
+            ],
+          ),
+        ),
+        const SizedBox(height: 14),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            _SupportQuickAction(
+              icon: Icons.add_comment_outlined,
+              label: 'طلب جديد',
+              onTap: _createTicket,
+            ),
+            _SupportQuickAction(
+              icon: Icons.chat_outlined,
+              label: 'واتساب الدعم',
+              onTap: _openWhatsAppSupport,
+            ),
+            _SupportQuickAction(
+              icon: Icons.help_outline,
+              label: 'مساعدة سريعة',
+              onTap: _showHelpTopics,
+            ),
+          ],
+        ),
+        const SizedBox(height: 24),
+        SectionTitle(
+          title: 'طلباتي الحالية',
+          icon: Icons.forum_outlined,
+        ),
+        const SizedBox(height: 10),
         if (_tickets.isEmpty)
           const EmptyPanel(
             icon: Icons.support_agent_outlined,
-            title: 'لا توجد تذاكر مفتوحة',
-            message: 'أنشئ تذكرة عندما تحتاج إلى مساعدة من فريق الدعم.',
+            title: 'لا توجد طلبات دعم حالية',
+            message: 'افتح طلباً جديداً وسيظهر هنا مع كل الردود والتحديثات.',
           )
         else
           ..._tickets.map(
             (ticket) => Padding(
               padding: const EdgeInsets.only(bottom: 10),
-              child: SupportTicketTile(ticket: ticket),
+              child: InkWell(
+                borderRadius: BorderRadius.circular(8),
+                onTap: () => _openTicket(ticket),
+                child: SupportTicketTile(ticket: ticket),
+              ),
             ),
           ),
       ],
+    );
+  }
+}
+
+class _SupportQuickAction extends StatelessWidget {
+  const _SupportQuickAction({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return OutlinedButton.icon(
+      onPressed: onTap,
+      icon: Icon(icon, size: 18),
+      label: Text(label),
+      style: OutlinedButton.styleFrom(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
+      ),
+    );
+  }
+}
+
+class _SupportHelpTopicsSheet extends StatelessWidget {
+  const _SupportHelpTopicsSheet();
+
+  @override
+  Widget build(BuildContext context) {
+    const topics = [
+      ('عملية معلقة', 'أرسل رقم العملية وسيتم مراجعة حالتها.'),
+      ('مشكلة في الإيصال', 'أرفق رقم العملية أو صورة الإيصال إن توفرت.'),
+      ('إيداع أو خصم', 'اختر نوع الطلب واكتب القيمة المرجعية.'),
+      ('بيانات الحساب', 'تغييرات الهاتف واسم المستخدم تحتاج مراجعة رسمية.'),
+    ];
+    return SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'مساعدة سريعة',
+              style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+            const SizedBox(height: 10),
+            ...topics.map(
+              (topic) => ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: const Icon(Icons.check_circle_outline, color: _green),
+                title: Text(topic.$1),
+                subtitle: Text(topic.$2),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class SupportConversationScreen extends StatefulWidget {
+  const SupportConversationScreen({
+    super.key,
+    required this.api,
+    required this.ticketId,
+    required this.subject,
+  });
+
+  final MobileApi api;
+  final String ticketId;
+  final String subject;
+
+  @override
+  State<SupportConversationScreen> createState() =>
+      _SupportConversationScreenState();
+}
+
+class _SupportConversationScreenState extends State<SupportConversationScreen> {
+  final _reply = TextEditingController();
+  Map<String, dynamic>? _ticket;
+  Object? _error;
+  bool _loading = true;
+  bool _sending = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  @override
+  void dispose() {
+    _reply.dispose();
+    super.dispose();
+  }
+
+  Future<void> _load() async {
+    if (mounted) setState(() { _loading = true; _error = null; });
+    try {
+      final response = await widget.api.ticketDetails(widget.ticketId);
+      if (mounted) {
+        final ticket = response['ticket'];
+        setState(() => _ticket = ticket is Map
+            ? Map<String, dynamic>.from(ticket)
+            : <String, dynamic>{});
+      }
+    } catch (error) {
+      if (mounted) setState(() => _error = error);
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  Future<void> _sendReply() async {
+    final text = _reply.text.trim();
+    if (text.isEmpty || _sending) return;
+    setState(() => _sending = true);
+    try {
+      await widget.api.replyToTicket(id: widget.ticketId, text: text);
+      _reply.clear();
+      await _load();
+      if (mounted) showSnack(context, 'تم إرسال رسالتك إلى الدعم.');
+    } on ApiFailure catch (error) {
+      if (mounted) showSnack(context, error.message, error: true);
+    } finally {
+      if (mounted) setState(() => _sending = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_loading && _ticket == null) return const Scaffold(body: PageLoading());
+    if (_error != null && _ticket == null) {
+      return Scaffold(body: ErrorPage(error: _error!, onRetry: _load));
+    }
+    final ticket = _ticket ?? <String, dynamic>{};
+    final messages = ticket['messages'] is List
+        ? (ticket['messages'] as List)
+              .whereType<Map>()
+              .map((item) => Map<String, dynamic>.from(item))
+              .toList()
+        : <Map<String, dynamic>>[];
+    final closed = ['closed', 'resolved'].contains('${ticket['status'] ?? ''}');
+    return Scaffold(
+      appBar: AppBar(
+        title: Text(widget.subject),
+        actions: [IconButton(onPressed: _load, icon: const Icon(Icons.refresh))],
+      ),
+      body: SafeArea(
+        child: Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.all(14),
+              child: SurfacePanel(
+                child: Row(
+                  children: [
+                    const Icon(Icons.confirmation_number_outlined, color: _green),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'رقم الطلب: ${ticket['ticketId'] ?? '-'}',
+                        style: const TextStyle(fontWeight: FontWeight.w800),
+                      ),
+                    ),
+                    StatusPill(
+                      label: closed ? 'مغلقة' : 'مفتوحة',
+                      color: closed ? _green : _gold,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            Expanded(
+              child: messages.isEmpty
+                  ? const EmptyPanel(
+                      icon: Icons.forum_outlined,
+                      title: 'لا توجد رسائل',
+                      message: 'أرسل رسالة ليبدأ فريق الدعم المتابعة.',
+                    )
+                  : ListView.separated(
+                      padding: const EdgeInsets.fromLTRB(14, 0, 14, 14),
+                      itemCount: messages.length,
+                      separatorBuilder: (_, __) => const SizedBox(height: 8),
+                      itemBuilder: (context, index) =>
+                          _SupportMessageBubble(message: messages[index]),
+                    ),
+            ),
+            if (!closed)
+              Container(
+                padding: const EdgeInsets.fromLTRB(14, 10, 14, 14),
+                decoration: BoxDecoration(
+                  border: Border(
+                    top: BorderSide(
+                      color: Theme.of(context).colorScheme.outlineVariant,
+                    ),
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: TextField(
+                        controller: _reply,
+                        minLines: 1,
+                        maxLines: 4,
+                        decoration: const InputDecoration(
+                          hintText: 'اكتب رسالتك إلى الدعم...',
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    IconButton.filled(
+                      onPressed: _sending ? null : _sendReply,
+                      icon: _sending
+                          ? const SizedBox(
+                              width: 18,
+                              height: 18,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Icon(Icons.send_rounded),
+                    ),
+                  ],
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _SupportMessageBubble extends StatelessWidget {
+  const _SupportMessageBubble({required this.message});
+
+  final Map<String, dynamic> message;
+
+  @override
+  Widget build(BuildContext context) {
+    final isUser = '${message['sender'] ?? ''}' == 'user';
+    final color = isUser ? _green : Theme.of(context).colorScheme.secondary;
+    return Align(
+      alignment: isUser
+          ? AlignmentDirectional.centerEnd
+          : AlignmentDirectional.centerStart,
+      child: Container(
+        constraints: const BoxConstraints(maxWidth: 420),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        decoration: BoxDecoration(
+          color: color.withValues(alpha: 0.11),
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              isUser ? 'أنت' : '${message['senderName'] ?? 'الدعم'}',
+              style: TextStyle(
+                color: color,
+                fontSize: 11,
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text('${message['text'] ?? ''}'),
+            const SizedBox(height: 5),
+            Text(
+              formatDate(message['createdAt']),
+              style: TextStyle(
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+                fontSize: 10,
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
@@ -13873,6 +14251,7 @@ class _TicketDialogState extends State<TicketDialog> {
   final _formKey = GlobalKey<FormState>();
   final _subject = TextEditingController();
   final _message = TextEditingController();
+  String _category = 'general';
   bool _busy = false;
   String? _error;
 
@@ -13893,6 +14272,7 @@ class _TicketDialogState extends State<TicketDialog> {
       await widget.api.createTicket(
         subject: _subject.text.trim(),
         message: _message.text.trim(),
+        category: _category,
       );
       if (mounted) Navigator.pop(context, true);
     } on ApiFailure catch (error) {
@@ -13914,16 +14294,53 @@ class _TicketDialogState extends State<TicketDialog> {
             children: [
               TextFormField(
                 controller: _subject,
-                decoration: const InputDecoration(labelText: 'عنوان الطلب'),
+                decoration: const InputDecoration(
+                  labelText: 'عنوان الطلب',
+                  prefixIcon: Icon(Icons.subject_outlined),
+                ),
                 validator: (value) =>
                     (value ?? '').trim().isEmpty ? 'العنوان مطلوب.' : null,
+              ),
+              const SizedBox(height: 12),
+              DropdownButtonFormField<String>(
+                value: _category,
+                decoration: const InputDecoration(
+                  labelText: 'نوع الطلب',
+                  prefixIcon: Icon(Icons.category_outlined),
+                ),
+                items: const [
+                  DropdownMenuItem(
+                    value: 'transaction',
+                    child: Text('تحويل أو عملية'),
+                  ),
+                  DropdownMenuItem(
+                    value: 'balance',
+                    child: Text('إيداع أو خصم'),
+                  ),
+                  DropdownMenuItem(
+                    value: 'account',
+                    child: Text('الحساب والبيانات'),
+                  ),
+                  DropdownMenuItem(
+                    value: 'general',
+                    child: Text('استفسار عام'),
+                  ),
+                  DropdownMenuItem(value: 'other', child: Text('أخرى')),
+                ],
+                onChanged: _busy
+                    ? null
+                    : (value) =>
+                        setState(() => _category = value ?? 'general'),
               ),
               const SizedBox(height: 12),
               TextFormField(
                 controller: _message,
                 minLines: 4,
                 maxLines: 6,
-                decoration: const InputDecoration(labelText: 'الرسالة'),
+                decoration: const InputDecoration(
+                  labelText: 'الرسالة',
+                  hintText: 'اكتب رقم العملية إن وجد ثم تفاصيل الطلب.',
+                ),
                 validator: (value) => (value ?? '').trim().length < 5
                     ? 'اكتب تفاصيل الطلب.'
                     : null,
@@ -16195,6 +16612,7 @@ class SupportTicketTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final status = '${ticket['status'] ?? 'open'}';
     final closed = ['closed', 'resolved'].contains(status);
+    final unread = numberValue(ticket['unreadCount']).round();
     final colors = Theme.of(context).colorScheme;
     return SurfacePanel(
       child: Row(
@@ -16226,15 +16644,31 @@ class SupportTicketTile extends StatelessWidget {
                 ),
                 const SizedBox(height: 4),
                 Text(
+                  '${ticket['ticketId'] ?? '-'} · ${formatDate(ticket['updatedAt'] ?? ticket['createdAt'])}',
+                  style: TextStyle(
+                    color: colors.onSurfaceVariant,
+                    fontSize: 11,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
                   '${ticket['lastMessage'] ?? ticket['message'] ?? ''}',
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(color: colors.onSurfaceVariant),
                 ),
                 const SizedBox(height: 8),
-                StatusPill(
-                  label: closed ? 'مغلقة' : 'مفتوحة',
-                  color: closed ? _green : const Color(0xFF8A6200),
+                Row(
+                  children: [
+                    StatusPill(
+                      label: closed ? 'مغلقة' : 'مفتوحة',
+                      color: closed ? _green : const Color(0xFF8A6200),
+                    ),
+                    if (unread > 0) ...[
+                      const SizedBox(width: 7),
+                      StatusPill(label: '$unread رد جديد', color: _green),
+                    ],
+                  ],
                 ),
               ],
             ),

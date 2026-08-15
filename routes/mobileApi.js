@@ -1821,7 +1821,9 @@ router.get('/transaction/image/:id', authenticateJWT, async (req, res) => {
 
 router.post('/client/tickets', authenticateJWT, async (req, res) => {
     try {
-        const { text } = req.body;
+        const text = typeof req.body.text === 'string' ? req.body.text : req.body.message;
+        const subject = String(req.body.subject || '').trim();
+        const category = String(req.body.category || 'general').trim() || 'general';
         if (!text || typeof text !== 'string' || !text.trim()) {
             return sendMobileError(res, 400, 'VALIDATION_ERROR', 'نص الرسالة مطلوب لفتح تذكرة', req.correlationId);
         }
@@ -1836,6 +1838,12 @@ router.post('/client/tickets', authenticateJWT, async (req, res) => {
         } else if (accountType === 'client_company') {
             const emp = await ClientEmployee.findById(userId);
             if (emp) { name = emp.name; phone = emp.phone; }
+        } else if (accountType === 'sub_client') {
+            const account = await SubAccount.findById(userId);
+            if (account) { name = account.name; phone = account.phone; }
+        } else if (accountType === 'agent_staff') {
+            const emp = await AgentEmployee.findById(userId);
+            if (emp) { name = emp.name; phone = emp.phone; }
         } else if (accountType === 'executor') {
             const emp = await Employee.findById(userId);
             if (emp) { name = emp.name; phone = emp.phone; }
@@ -1847,6 +1855,10 @@ router.post('/client/tickets', authenticateJWT, async (req, res) => {
             name: name,
             phone: phone,
             status: 'open',
+            metadata: {
+                subject: subject.slice(0, 120),
+                category: category.slice(0, 40)
+            },
             messages: [{
                 sender: 'user',
                 senderName: name,
@@ -1865,6 +1877,8 @@ router.post('/client/tickets', authenticateJWT, async (req, res) => {
                 name: ticket.name,
                 phone: ticket.phone,
                 status: ticket.status,
+                subject: ticket.metadata?.subject || '',
+                category: ticket.metadata?.category || 'general',
                 createdAt: ticket.createdAt.toISOString(),
                 updatedAt: ticket.updatedAt.toISOString()
             }
@@ -1897,6 +1911,9 @@ router.get('/client/tickets', authenticateJWT, async (req, res) => {
                 name: t.name,
                 phone: t.phone,
                 status: t.status,
+                subject: t.metadata?.subject || '',
+                category: t.metadata?.category || 'general',
+                lastMessage: t.messages?.length ? t.messages[t.messages.length - 1].text || '' : '',
                 unreadCount: t.unreadUser || 0,
                 createdAt: t.createdAt.toISOString(),
                 updatedAt: t.updatedAt.toISOString()
@@ -1934,6 +1951,8 @@ router.get('/client/tickets/:id', authenticateJWT, async (req, res) => {
                 name: ticket.name,
                 phone: ticket.phone,
                 status: ticket.status,
+                subject: ticket.metadata?.subject || '',
+                category: ticket.metadata?.category || 'general',
                 messages: ticket.messages.map(m => ({
                     sender: m.sender,
                     senderName: m.senderName,
