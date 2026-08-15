@@ -1707,7 +1707,7 @@ class _RoleShellState extends State<RoleShell> with WidgetsBindingObserver {
         _NavItem(
           english ? 'Reports' : 'التقارير',
           Icons.assessment_outlined,
-          TransactionsScreen(controller: widget.controller),
+          CustomerReportsScreen(controller: widget.controller),
         ),
         _NavItem(
           english ? 'Support' : 'الدعم الفني',
@@ -3663,6 +3663,14 @@ class _ExchangeRatesScreenState extends State<ExchangeRatesScreen> {
   Map<String, dynamic>? _home;
   Object? _error;
   bool _loading = true;
+  String _activeMarket = 'egypt';
+  String? _selectedServiceKey;
+  final TextEditingController _amountController = TextEditingController(
+    text: '1',
+  );
+  final TextEditingController _convertedAmountController =
+      TextEditingController();
+  bool _syncingCalculator = false;
 
   @override
   void initState() {
@@ -3679,12 +3687,79 @@ class _ExchangeRatesScreenState extends State<ExchangeRatesScreen> {
     }
     try {
       final home = await widget.controller.refreshHome();
+      final rawRates = home['serviceRates'];
+      if (_convertedAmountController.text.trim().isEmpty && rawRates is Map) {
+        final initialRate = rawRates.values
+            .map(numberValue)
+            .firstWhere((rate) => rate > 0, orElse: () => 0);
+        if (initialRate > 0) {
+          _convertedAmountController.text = _calculatorAmount(
+            numberValue(_amountController.text) * initialRate,
+          );
+        }
+      }
       if (mounted) setState(() => _home = home);
     } catch (error) {
       if (mounted) setState(() => _error = error);
     } finally {
       if (mounted) setState(() => _loading = false);
     }
+  }
+
+  @override
+  void dispose() {
+    _amountController.dispose();
+    _convertedAmountController.dispose();
+    super.dispose();
+  }
+
+  void _syncCalculator({
+    required bool fromSource,
+    required Map<String, dynamic> service,
+  }) {
+    if (_syncingCalculator) return;
+    final rate = numberValue(service['rate']);
+    if (rate <= 0) return;
+    final input = numberValue(
+      (fromSource ? _amountController.text : _convertedAmountController.text)
+          .replaceAll(',', ''),
+    );
+    final converted = fromSource ? input * rate : input / rate;
+    _syncingCalculator = true;
+    final target = fromSource ? _convertedAmountController : _amountController;
+    target.value = target.value.copyWith(
+      text: _calculatorAmount(converted),
+      selection: TextSelection.collapsed(
+        offset: _calculatorAmount(converted).length,
+      ),
+      composing: TextRange.empty,
+    );
+    _syncingCalculator = false;
+    if (mounted) setState(() {});
+  }
+
+  void _setQuickAmount(double value, Map<String, dynamic> service) {
+    _amountController.text = _calculatorAmount(value);
+    _syncCalculator(fromSource: true, service: service);
+  }
+
+  List<Map<String, dynamic>> _rateRows(
+    Map<String, dynamic> rates,
+    List<Map<String, dynamic>> catalog,
+  ) {
+    final catalogByKey = <String, Map<String, dynamic>>{
+      for (final item in catalog) '${item['key'] ?? ''}': item,
+    };
+    return rates.entries
+        .where((entry) => numberValue(entry.value) > 0)
+        .map(
+          (entry) => <String, dynamic>{
+            'key': entry.key,
+            'rate': numberValue(entry.value),
+            ...?catalogByKey[entry.key],
+          },
+        )
+        .toList();
   }
 
   @override
@@ -3704,10 +3779,22 @@ class _ExchangeRatesScreenState extends State<ExchangeRatesScreen> {
               .map((item) => Map<String, dynamic>.from(item))
               .toList()
         : session.serviceCatalog;
+    final rows = _rateRows(rates, catalog);
+    final marketRows = rows
+        .where(
+          (item) => _exchangeMarket(item['key']?.toString()) == _activeMarket,
+        )
+        .toList();
+    final visibleRows = marketRows.isEmpty ? rows : marketRows;
+    final selected = visibleRows.firstWhere(
+      (item) => item['key'] == _selectedServiceKey,
+      orElse: () =>
+          visibleRows.isEmpty ? <String, dynamic>{} : visibleRows.first,
+    );
 
     return PageFrame(
       title: 'أسعار الصرف',
-      subtitle: 'الأسعار المطبقة على حسابك عند إرسال التحويل.',
+      subtitle: 'الأسعار الخاصة بحسابك والمطبقة قبل تأكيد التحويل.',
       onRefresh: _load,
       child: [
         if (rates.isEmpty)
@@ -3716,32 +3803,539 @@ class _ExchangeRatesScreenState extends State<ExchangeRatesScreen> {
             title: 'لا توجد أسعار متاحة حالياً',
             message: 'اسحب الصفحة للتحديث أو تواصل مع الدعم الفني.',
           )
-        else
-          GridView.builder(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
-              maxCrossAxisExtent: 250,
-              mainAxisExtent: 126,
-              mainAxisSpacing: 12,
-              crossAxisSpacing: 12,
-            ),
-            itemCount: rates.length,
-            itemBuilder: (context, index) {
-              final entry = rates.entries.elementAt(index);
-              final label =
-                  catalog
-                      .cast<Map<String, dynamic>?>()
-                      .firstWhere(
-                        (item) => item?['key'] == entry.key,
-                        orElse: () => null,
-                      )?['label']
-                      ?.toString() ??
-                  serviceLabel(entry.key);
-              return RateTile(label: label, rate: numberValue(entry.value));
+        else ...[
+          Text(
+            'اختر الدولة',
+            style: Theme.of(
+              context,
+            ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900),
+          ),
+          const SizedBox(height: 10),
+          Wrap(
+            spacing: 6,
+            runSpacing: 6,
+            children:
+                const [
+                      ('egypt', 'مصر', '🇪🇬'),
+                      ('niger', 'النيجر', '🇳🇪'),
+                      ('sudan', 'السودان', '🇸🇩'),
+                    ]
+                    .map(
+                      (market) => ChoiceChip(
+                        label: Text(market.$2),
+                        selected: _activeMarket == market.$1,
+                        avatar: Text(market.$3),
+                        visualDensity: VisualDensity.compact,
+                        labelStyle: const TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w800,
+                        ),
+                        onSelected: (_) {
+                          final nextRows = rows
+                              .where(
+                                (item) =>
+                                    _exchangeMarket(item['key']?.toString()) ==
+                                    market.$1,
+                              )
+                              .toList();
+                          final nextService = nextRows.isEmpty
+                              ? selected
+                              : nextRows.first;
+                          setState(() {
+                            _activeMarket = market.$1;
+                            _selectedServiceKey = nextService['key']
+                                ?.toString();
+                          });
+                          _syncCalculator(
+                            fromSource: true,
+                            service: nextService,
+                          );
+                        },
+                      ),
+                    )
+                    .toList(),
+          ),
+          const SizedBox(height: 18),
+          _ExchangeRateHero(
+            service: selected,
+            amountController: _amountController,
+            convertedAmountController: _convertedAmountController,
+            updatedAt: home['serverTime']?.toString(),
+            onSourceChanged: () =>
+                _syncCalculator(fromSource: true, service: selected),
+            onTargetChanged: () =>
+                _syncCalculator(fromSource: false, service: selected),
+            onQuickAmount: (amount) => _setQuickAmount(amount, selected),
+          ),
+          const SizedBox(height: 18),
+          Text(
+            'خدمات ${_exchangeMarketName(_activeMarket)}',
+            style: Theme.of(
+              context,
+            ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900),
+          ),
+          const SizedBox(height: 8),
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final cardWidth = constraints.maxWidth >= 620
+                  ? (constraints.maxWidth - 12) / 2
+                  : constraints.maxWidth;
+              return Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: visibleRows
+                    .map(
+                      (item) => SizedBox(
+                        width: cardWidth,
+                        child: _ExchangeRateServiceCard(
+                          service: item,
+                          selected: item['key'] == selected['key'],
+                          onTap: () {
+                            setState(
+                              () =>
+                                  _selectedServiceKey = item['key']?.toString(),
+                            );
+                            _syncCalculator(fromSource: true, service: item);
+                          },
+                        ),
+                      ),
+                    )
+                    .toList(),
+              );
             },
           ),
+          const SizedBox(height: 16),
+          Text(
+            'يتم اعتماد السعر الظاهر عند تأكيد الطلب، وقد يتغير وفق تحديثات الإدارة.',
+            style: TextStyle(
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+              fontSize: 12,
+              height: 1.55,
+            ),
+          ),
+        ],
       ],
+    );
+  }
+}
+
+String _calculatorAmount(double value) {
+  if (!value.isFinite) return '0';
+  return value.toStringAsFixed(3).replaceFirst(RegExp(r'\.?0+$'), '');
+}
+
+String _exchangeServiceLabel(Map<String, dynamic> service) =>
+    service['shortLabel']?.toString() ??
+    service['label']?.toString() ??
+    serviceLabel(service['key']?.toString());
+
+String _exchangeMarket(String? key) {
+  if (key == 'sefa_niger') return 'niger';
+  if (key == 'bankak_sudan') return 'sudan';
+  return 'egypt';
+}
+
+String _exchangeMarketName(String market) {
+  switch (market) {
+    case 'niger':
+      return 'النيجر';
+    case 'sudan':
+      return 'السودان';
+    default:
+      return 'مصر';
+  }
+}
+
+List<int> _exchangeQuickAmounts(Map<String, dynamic> service) {
+  switch (service['key']) {
+    case 'sefa_niger':
+      return const [10, 50, 100, 500];
+    case 'bankak_sudan':
+      return const [500, 1000, 5000, 10000];
+    case 'post_account':
+    case 'post_card':
+    case 'bank_account':
+      return const [500, 1000, 5000, 10000];
+    default:
+      return const [100, 500, 1000, 5000];
+  }
+}
+
+String _exchangeUpdateLabel(String? value) {
+  final date = value == null ? null : DateTime.tryParse(value);
+  if (date == null) return 'السعر محدث';
+  return 'آخر تحديث ${DateFormat('HH:mm', 'ar').format(date.toLocal())}';
+}
+
+String _exchangeFlag(String? key) {
+  switch (key) {
+    case 'sefa_niger':
+      return '🇳🇪';
+    case 'bankak_sudan':
+      return '🇸🇩';
+    default:
+      return '🇪🇬';
+  }
+}
+
+Color _exchangeColor(String? key) {
+  switch (key) {
+    case 'sefa_niger':
+      return const Color(0xFF158A9B);
+    case 'bankak_sudan':
+      return const Color(0xFF6B4A9A);
+    case 'post_card':
+      return const Color(0xFFC47216);
+    case 'bank_account':
+      return const Color(0xFF3366CC);
+    default:
+      return _green;
+  }
+}
+
+String _exchangeSourceLabel(Map<String, dynamic> service) {
+  switch (service['key']) {
+    case 'sefa_niger':
+      return 'سيفا';
+    case 'bankak_sudan':
+      return 'دينار ليبي';
+    default:
+      return 'دينار ليبي';
+  }
+}
+
+String _exchangeTargetLabel(Map<String, dynamic> service) {
+  switch (service['key']) {
+    case 'sefa_niger':
+      return 'دينار ليبي';
+    case 'bankak_sudan':
+      return 'جنيه سوداني';
+    default:
+      return 'جنيه مصري';
+  }
+}
+
+String _exchangeFormula(Map<String, dynamic> service, double rate) {
+  final formatted = formatAmount(rate);
+  if (service['key'] == 'sefa_niger') {
+    return '1 سيفا = $formatted د.ل';
+  }
+  if (service['key'] == 'bankak_sudan') {
+    return '1 د.ل = $formatted ج.س';
+  }
+  return '1 د.ل = $formatted ج.م';
+}
+
+class _ExchangeRateHero extends StatelessWidget {
+  const _ExchangeRateHero({
+    required this.service,
+    required this.amountController,
+    required this.convertedAmountController,
+    required this.updatedAt,
+    required this.onSourceChanged,
+    required this.onTargetChanged,
+    required this.onQuickAmount,
+  });
+
+  final Map<String, dynamic> service;
+  final TextEditingController amountController;
+  final TextEditingController convertedAmountController;
+  final String? updatedAt;
+  final VoidCallback onSourceChanged;
+  final VoidCallback onTargetChanged;
+  final ValueChanged<double> onQuickAmount;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    final rate = numberValue(service['rate']);
+    final accent = _exchangeColor(service['key']?.toString());
+    return SurfacePanel(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 36,
+                height: 36,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: accent.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Text(
+                  _exchangeFlag(service['key']?.toString()),
+                  style: const TextStyle(fontSize: 19),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      _exchangeServiceLabel(service),
+                      style: TextStyle(
+                        color: colors.onSurface,
+                        fontWeight: FontWeight.w900,
+                        fontSize: 15,
+                      ),
+                    ),
+                    Text(
+                      _exchangeUpdateLabel(updatedAt),
+                      style: TextStyle(
+                        color: colors.onSurfaceVariant,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Icon(Icons.verified_rounded, color: accent),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            decoration: BoxDecoration(
+              color: accent.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: accent.withValues(alpha: 0.24)),
+            ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    _exchangeFormula(service, rate),
+                    textDirection: ui.TextDirection.ltr,
+                    style: TextStyle(
+                      color: colors.onSurface,
+                      fontWeight: FontWeight.w900,
+                      fontSize: 20,
+                    ),
+                  ),
+                ),
+                Icon(Icons.trending_up_rounded, color: accent),
+              ],
+            ),
+          ),
+          const SizedBox(height: 14),
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final compact = constraints.maxWidth < 530;
+              final source = _ExchangeCalculatorField(
+                label: _exchangeSourceLabel(service),
+                flag: service['key'] == 'sefa_niger' ? '🇳🇪' : '🇱🇾',
+                controller: amountController,
+                accent: accent,
+                onChanged: onSourceChanged,
+              );
+              final target = _ExchangeCalculatorField(
+                label: _exchangeTargetLabel(service),
+                flag: _exchangeFlag(service['key']?.toString()),
+                controller: convertedAmountController,
+                accent: accent,
+                onChanged: onTargetChanged,
+              );
+              if (compact) {
+                return Column(
+                  children: [
+                    source,
+                    Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 6),
+                      child: Icon(Icons.south_rounded, color: accent, size: 19),
+                    ),
+                    target,
+                  ],
+                );
+              }
+              return Row(
+                children: [
+                  Expanded(child: source),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 10),
+                    child: Tooltip(
+                      message: 'الكتابة متاحة في الحقلين',
+                      child: Icon(Icons.sync_alt_rounded, color: accent),
+                    ),
+                  ),
+                  Expanded(child: target),
+                ],
+              );
+            },
+          ),
+          const SizedBox(height: 10),
+          Wrap(
+            spacing: 6,
+            runSpacing: 6,
+            children: _exchangeQuickAmounts(service)
+                .map(
+                  (amount) => ActionChip(
+                    label: Text('$amount'),
+                    onPressed: () => onQuickAmount(amount.toDouble()),
+                    visualDensity: VisualDensity.compact,
+                    avatar: Icon(Icons.add_rounded, color: accent, size: 14),
+                    side: BorderSide(color: accent.withValues(alpha: 0.25)),
+                    labelStyle: TextStyle(
+                      color: colors.onSurface,
+                      fontWeight: FontWeight.w800,
+                      fontSize: 12,
+                    ),
+                  ),
+                )
+                .toList(),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ExchangeCalculatorField extends StatelessWidget {
+  const _ExchangeCalculatorField({
+    required this.label,
+    required this.flag,
+    required this.controller,
+    required this.accent,
+    required this.onChanged,
+  });
+
+  final String label;
+  final String flag;
+  final TextEditingController controller;
+  final Color accent;
+  final VoidCallback onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    return TextField(
+      controller: controller,
+      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+      textDirection: ui.TextDirection.ltr,
+      style: TextStyle(
+        color: colors.onSurface,
+        fontSize: 19,
+        fontWeight: FontWeight.w900,
+      ),
+      onChanged: (_) => onChanged(),
+      decoration: InputDecoration(
+        labelText: label,
+        hintText: '0.000',
+        isDense: true,
+        suffixIcon: Padding(
+          padding: const EdgeInsetsDirectional.only(end: 10),
+          child: Center(
+            widthFactor: 1,
+            child: Text(flag, style: const TextStyle(fontSize: 16)),
+          ),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(8),
+          borderSide: BorderSide(color: accent.withValues(alpha: 0.28)),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(8),
+          borderSide: BorderSide(color: accent, width: 1.6),
+        ),
+      ),
+    );
+  }
+}
+
+class _ExchangeRateServiceCard extends StatelessWidget {
+  const _ExchangeRateServiceCard({
+    required this.service,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final Map<String, dynamic> service;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    final accent = _exchangeColor(service['key']?.toString());
+    final rate = numberValue(service['rate']);
+    return Semantics(
+      button: true,
+      label: 'اختيار خدمة ${_exchangeServiceLabel(service)}',
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(8),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 180),
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: selected ? accent.withValues(alpha: 0.12) : colors.surface,
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(
+              color: selected ? accent : colors.outlineVariant,
+              width: selected ? 1.5 : 1,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: accent.withValues(alpha: selected ? 0.18 : 0.07),
+                blurRadius: selected ? 16 : 9,
+                offset: const Offset(0, 5),
+              ),
+            ],
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 36,
+                height: 36,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: accent.withValues(alpha: 0.13),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Text(
+                  _exchangeFlag(service['key']?.toString()),
+                  style: const TextStyle(fontSize: 18),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      _exchangeServiceLabel(service),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: colors.onSurface,
+                        fontWeight: FontWeight.w900,
+                        fontSize: 13,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      _exchangeFormula(service, rate),
+                      textDirection: ui.TextDirection.ltr,
+                      style: TextStyle(
+                        color: colors.onSurfaceVariant,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Icon(
+                selected ? Icons.radio_button_checked : Icons.chevron_left,
+                color: selected ? accent : colors.onSurfaceVariant,
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }
@@ -4254,7 +4848,9 @@ class _TransferScreenState extends State<TransferScreen> {
       return;
     }
     if (_serviceKey == 'post_card' && amount < 500) {
-      setState(() => _error = 'الحد الأدنى لتحويل بريد بطاقة هو 500 جنيه مصري.');
+      setState(
+        () => _error = 'الحد الأدنى لتحويل بريد بطاقة هو 500 جنيه مصري.',
+      );
       return;
     }
     if (_serviceKey == 'bank_account' && amount < 500) {
@@ -4284,7 +4880,10 @@ class _TransferScreenState extends State<TransferScreen> {
     }
     if (_serviceKey == 'post_card') {
       final nationalId = _number.text.replaceAll(RegExp(r'\s+'), '');
-      final recipientPhone = _recipientPhone.text.replaceAll(RegExp(r'\s+'), '');
+      final recipientPhone = _recipientPhone.text.replaceAll(
+        RegExp(r'\s+'),
+        '',
+      );
       final nameParts = _name.text
           .trim()
           .split(RegExp(r'\s+'))
@@ -4302,7 +4901,10 @@ class _TransferScreenState extends State<TransferScreen> {
     }
     if (_serviceKey == 'bankak_sudan') {
       final account = _number.text.replaceAll(RegExp(r'\s+'), '');
-      final recipientPhone = _recipientPhone.text.replaceAll(RegExp(r'\s+'), '');
+      final recipientPhone = _recipientPhone.text.replaceAll(
+        RegExp(r'\s+'),
+        '',
+      );
       if (_name.text.trim().length < 2 ||
           !RegExp(r'^\d{14}$').hasMatch(account) ||
           !RegExp(r'^\+?\d{9,15}$').hasMatch(recipientPhone)) {
@@ -4320,7 +4922,8 @@ class _TransferScreenState extends State<TransferScreen> {
           .where((part) => part.isNotEmpty);
       if (nameParts.length < 3 || (_bankName ?? '').isEmpty) {
         setState(
-          () => _error = 'أدخل اسم المستفيد الثلاثي واختر اسم البنك قبل الإرسال.',
+          () =>
+              _error = 'أدخل اسم المستفيد الثلاثي واختر اسم البنك قبل الإرسال.',
         );
         return;
       }
@@ -4557,10 +5160,7 @@ class _TransferScreenState extends State<TransferScreen> {
               label: 'نوع الحساب',
               value: '${_balanceTransferTarget!['type'] ?? 'حساب'}',
             ),
-            DetailLine(
-              label: 'القيمة',
-              value: '${formatAmount(amount)} د.ل',
-            ),
+            DetailLine(label: 'القيمة', value: '${formatAmount(amount)} د.ل'),
             if (_notes.text.trim().isNotEmpty)
               DetailLine(label: 'الملاحظة', value: _notes.text.trim()),
           ],
@@ -5040,7 +5640,9 @@ class _TransferScreenState extends State<TransferScreen> {
   Future<void> _previewPostCardTransfer() async {
     if (!_formKey.currentState!.validate()) return;
     if (_idCard == null) {
-      setState(() => _error = 'أرفق صورة البطاقة من الأمام قبل معاينة العملية.');
+      setState(
+        () => _error = 'أرفق صورة البطاقة من الأمام قبل معاينة العملية.',
+      );
       return;
     }
     final amount = _cashAmount;
@@ -5093,10 +5695,9 @@ class _TransferScreenState extends State<TransferScreen> {
         (!nitaAccount && !_nigerCities.contains(_city.text.trim())) ||
         (!nitaAccount && !_dataEntryAcknowledged)) {
       setState(
-        () => _error =
-            nitaAccount
-                ? 'راجع اسم المستفيد ورقم الحساب وقيمة السيفا.'
-                : 'راجع الاسم ورقم الحساب والمدينة وقيمة السيفا وتأكيد صحة البيانات.',
+        () => _error = nitaAccount
+            ? 'راجع اسم المستفيد ورقم الحساب وقيمة السيفا.'
+            : 'راجع الاسم ورقم الحساب والمدينة وقيمة السيفا وتأكيد صحة البيانات.',
       );
       return;
     }
@@ -5157,7 +5758,10 @@ class _TransferScreenState extends State<TransferScreen> {
                       style: TextStyle(fontWeight: FontWeight.w900),
                     ),
                     SizedBox(height: 3),
-                    Text('الحد الأدنى للعملية 10 سيفا', style: TextStyle(fontSize: 12)),
+                    Text(
+                      'الحد الأدنى للعملية 10 سيفا',
+                      style: TextStyle(fontSize: 12),
+                    ),
                   ],
                 ),
               ),
@@ -5197,9 +5801,10 @@ class _TransferScreenState extends State<TransferScreen> {
                   hintText: 'من 8 إلى 11 رقماً',
                   prefixIcon: Icon(Icons.account_balance_outlined),
                 ),
-                validator: (value) => RegExp(r'^\d{8,11}$').hasMatch(
-                  (value ?? '').replaceAll(RegExp(r'\s+'), ''),
-                )
+                validator: (value) =>
+                    RegExp(
+                      r'^\d{8,11}$',
+                    ).hasMatch((value ?? '').replaceAll(RegExp(r'\s+'), ''))
                     ? null
                     : 'رقم الحساب يجب أن يكون من 8 إلى 11 رقماً.',
               ),
@@ -5216,7 +5821,8 @@ class _TransferScreenState extends State<TransferScreen> {
                     prefixIcon: Icon(Icons.location_city_outlined),
                     suffixIcon: Icon(Icons.search_outlined),
                   ),
-                  validator: (value) => _nigerCities.contains((value ?? '').trim())
+                  validator: (value) =>
+                      _nigerCities.contains((value ?? '').trim())
                       ? null
                       : 'اختر مدينة المستفيد من القائمة.',
                 ),
@@ -5322,7 +5928,10 @@ class _TransferScreenState extends State<TransferScreen> {
               ? const SizedBox(
                   width: 18,
                   height: 18,
-                  child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: Colors.white,
+                  ),
                 )
               : const Icon(Icons.visibility_outlined),
           label: Text(_busy ? 'جارٍ تجهيز العملية...' : 'معاينة العملية'),
@@ -5394,7 +6003,10 @@ class _TransferScreenState extends State<TransferScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('تحويل بنكك السودان', style: TextStyle(fontWeight: FontWeight.w900)),
+                    Text(
+                      'تحويل بنكك السودان',
+                      style: TextStyle(fontWeight: FontWeight.w900),
+                    ),
                     SizedBox(height: 3),
                     Text('رقم الحساب 14 رقماً', style: TextStyle(fontSize: 12)),
                   ],
@@ -5436,9 +6048,10 @@ class _TransferScreenState extends State<TransferScreen> {
                   hintText: '14 رقماً',
                   prefixIcon: Icon(Icons.account_balance_outlined),
                 ),
-                validator: (value) => RegExp(r'^\d{14}$').hasMatch(
-                  (value ?? '').replaceAll(RegExp(r'\s+'), ''),
-                )
+                validator: (value) =>
+                    RegExp(
+                      r'^\d{14}$',
+                    ).hasMatch((value ?? '').replaceAll(RegExp(r'\s+'), ''))
                     ? null
                     : 'رقم حساب بنكك يجب أن يتكون من 14 رقماً.',
               ),
@@ -5453,9 +6066,10 @@ class _TransferScreenState extends State<TransferScreen> {
                   hintText: 'رقم هاتف المستفيد في السودان',
                   prefixIcon: Icon(Icons.phone_android_outlined),
                 ),
-                validator: (value) => RegExp(r'^\+?\d{9,15}$').hasMatch(
-                  (value ?? '').replaceAll(RegExp(r'\s+'), ''),
-                )
+                validator: (value) =>
+                    RegExp(
+                      r'^\+?\d{9,15}$',
+                    ).hasMatch((value ?? '').replaceAll(RegExp(r'\s+'), ''))
                     ? null
                     : 'أدخل رقم هاتف مستلم صحيحاً.',
               ),
@@ -5463,7 +6077,9 @@ class _TransferScreenState extends State<TransferScreen> {
               TextFormField(
                 controller: _amount,
                 enabled: !_busy,
-                keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                keyboardType: const TextInputType.numberWithOptions(
+                  decimal: true,
+                ),
                 textDirection: ui.TextDirection.ltr,
                 decoration: const InputDecoration(
                   labelText: 'القيمة بالجنيه السوداني',
@@ -5477,7 +6093,8 @@ class _TransferScreenState extends State<TransferScreen> {
                     ),
                   ),
                 ),
-                validator: (value) => numberValue((value ?? '').replaceAll(',', '')) > 0
+                validator: (value) =>
+                    numberValue((value ?? '').replaceAll(',', '')) > 0
                     ? null
                     : 'أدخل قيمة صحيحة أكبر من صفر.',
                 onChanged: (_) => _updateLydFromEgp(),
@@ -5538,7 +6155,10 @@ class _TransferScreenState extends State<TransferScreen> {
               ? const SizedBox(
                   width: 18,
                   height: 18,
-                  child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: Colors.white,
+                  ),
                 )
               : const Icon(Icons.visibility_outlined),
           label: Text(_busy ? 'جارٍ تجهيز العملية...' : 'معاينة العملية'),
@@ -5562,7 +6182,9 @@ class _TransferScreenState extends State<TransferScreen> {
         .trim()
         .split(RegExp(r'\s+'))
         .where((part) => part.isNotEmpty);
-    if (amount < 500 || nameParts.length < 3 || !_isValidInstapayRecipient(recipient)) {
+    if (amount < 500 ||
+        nameParts.length < 3 ||
+        !_isValidInstapayRecipient(recipient)) {
       setState(
         () => _error =
             'راجع الاسم الثلاثي وبيانات المستلم وقيمة التحويل قبل المتابعة.',
@@ -5679,7 +6301,9 @@ class _TransferScreenState extends State<TransferScreen> {
               TextFormField(
                 controller: _amount,
                 enabled: !_busy,
-                keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                keyboardType: const TextInputType.numberWithOptions(
+                  decimal: true,
+                ),
                 textDirection: ui.TextDirection.ltr,
                 decoration: const InputDecoration(
                   labelText: 'القيمة بالجنيه المصري',
@@ -5755,7 +6379,10 @@ class _TransferScreenState extends State<TransferScreen> {
               ? const SizedBox(
                   width: 18,
                   height: 18,
-                  child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: Colors.white,
+                  ),
                 )
               : const Icon(Icons.visibility_outlined),
           label: Text(_busy ? 'جارٍ تجهيز العملية...' : 'معاينة العملية'),
@@ -5773,7 +6400,9 @@ class _TransferScreenState extends State<TransferScreen> {
         builder: (context, setModalState) {
           final query = search.text.trim().toLowerCase();
           final banks = _egyptBanks
-              .where((bank) => query.isEmpty || bank.toLowerCase().contains(query))
+              .where(
+                (bank) => query.isEmpty || bank.toLowerCase().contains(query),
+              )
               .toList();
           return SafeArea(
             child: FractionallySizedBox(
@@ -5796,7 +6425,10 @@ class _TransferScreenState extends State<TransferScreen> {
                     const SizedBox(height: 18),
                     const Text(
                       'اختيار البنك',
-                      style: TextStyle(fontWeight: FontWeight.w900, fontSize: 19),
+                      style: TextStyle(
+                        fontWeight: FontWeight.w900,
+                        fontSize: 19,
+                      ),
                     ),
                     const SizedBox(height: 4),
                     Text(
@@ -5822,14 +6454,20 @@ class _TransferScreenState extends State<TransferScreen> {
                           ? const Center(child: Text('لا توجد نتائج مطابقة.'))
                           : ListView.separated(
                               itemCount: banks.length,
-                              separatorBuilder: (_, _) => const Divider(height: 1),
+                              separatorBuilder: (_, _) =>
+                                  const Divider(height: 1),
                               itemBuilder: (context, index) {
                                 final bank = banks[index];
                                 return ListTile(
-                                  leading: const Icon(Icons.account_balance_outlined),
+                                  leading: const Icon(
+                                    Icons.account_balance_outlined,
+                                  ),
                                   title: Text(bank),
                                   trailing: _bankName == bank
-                                      ? const Icon(Icons.check_circle, color: _green)
+                                      ? const Icon(
+                                          Icons.check_circle,
+                                          color: _green,
+                                        )
                                       : null,
                                   onTap: () => Navigator.pop(context, bank),
                                 );
@@ -5862,8 +6500,7 @@ class _TransferScreenState extends State<TransferScreen> {
           final query = search.text.trim().toLowerCase();
           final cities = _nigerCities
               .where(
-                (city) =>
-                    query.isEmpty || city.toLowerCase().contains(query),
+                (city) => query.isEmpty || city.toLowerCase().contains(query),
               )
               .toList();
           return SafeArea(
@@ -5887,7 +6524,10 @@ class _TransferScreenState extends State<TransferScreen> {
                     const SizedBox(height: 18),
                     const Text(
                       'اختيار مدينة المستفيد',
-                      style: TextStyle(fontWeight: FontWeight.w900, fontSize: 19),
+                      style: TextStyle(
+                        fontWeight: FontWeight.w900,
+                        fontSize: 19,
+                      ),
                     ),
                     const SizedBox(height: 4),
                     Text(
@@ -5913,14 +6553,20 @@ class _TransferScreenState extends State<TransferScreen> {
                           ? const Center(child: Text('لا توجد مدينة مطابقة.'))
                           : ListView.separated(
                               itemCount: cities.length,
-                              separatorBuilder: (_, _) => const Divider(height: 1),
+                              separatorBuilder: (_, _) =>
+                                  const Divider(height: 1),
                               itemBuilder: (context, index) {
                                 final city = cities[index];
                                 return ListTile(
-                                  leading: const Icon(Icons.location_city_outlined),
+                                  leading: const Icon(
+                                    Icons.location_city_outlined,
+                                  ),
                                   title: Text(city),
                                   trailing: _city.text == city
-                                      ? const Icon(Icons.check_circle, color: _green)
+                                      ? const Icon(
+                                          Icons.check_circle,
+                                          color: _green,
+                                        )
                                       : null,
                                   onTap: () => Navigator.pop(context, city),
                                 );
@@ -6062,9 +6708,10 @@ class _TransferScreenState extends State<TransferScreen> {
                   hintText: 'مثال: EG00 0000 0000 0000',
                   prefixIcon: Icon(Icons.account_balance_wallet_outlined),
                 ),
-                validator: (value) => RegExp(
-                  r'^[A-Za-z0-9\s-]{8,34}$',
-                ).hasMatch((value ?? '').trim())
+                validator: (value) =>
+                    RegExp(
+                      r'^[A-Za-z0-9\s-]{8,34}$',
+                    ).hasMatch((value ?? '').trim())
                     ? null
                     : 'أدخل رقم حساب أو IBAN صحيحاً.',
               ),
@@ -6080,15 +6727,16 @@ class _TransferScreenState extends State<TransferScreen> {
                   prefixIcon: Icon(Icons.account_balance_outlined),
                   suffixIcon: Icon(Icons.keyboard_arrow_down_outlined),
                 ),
-                validator: (value) => (value ?? '').trim().isEmpty
-                    ? 'اختر اسم البنك.'
-                    : null,
+                validator: (value) =>
+                    (value ?? '').trim().isEmpty ? 'اختر اسم البنك.' : null,
               ),
               const SizedBox(height: 14),
               TextFormField(
                 controller: _amount,
                 enabled: !_busy,
-                keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                keyboardType: const TextInputType.numberWithOptions(
+                  decimal: true,
+                ),
                 textDirection: ui.TextDirection.ltr,
                 decoration: const InputDecoration(
                   labelText: 'القيمة بالجنيه المصري',
@@ -6191,7 +6839,10 @@ class _TransferScreenState extends State<TransferScreen> {
               ? const SizedBox(
                   width: 18,
                   height: 18,
-                  child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: Colors.white,
+                  ),
                 )
               : const Icon(Icons.visibility_outlined),
           label: Text(_busy ? 'جارٍ تجهيز العملية...' : 'معاينة العملية'),
@@ -6284,9 +6935,9 @@ class _TransferScreenState extends State<TransferScreen> {
                   prefixIcon: Icon(Icons.perm_identity_outlined),
                 ),
                 validator: (value) =>
-                    RegExp(r'^\d{14}$').hasMatch(
-                      (value ?? '').replaceAll(RegExp(r'\s+'), ''),
-                    )
+                    RegExp(
+                      r'^\d{14}$',
+                    ).hasMatch((value ?? '').replaceAll(RegExp(r'\s+'), ''))
                     ? null
                     : 'الرقم القومي يجب أن يكون 14 رقماً.',
               ),
@@ -6302,9 +6953,10 @@ class _TransferScreenState extends State<TransferScreen> {
                   hintText: '010 أو 011 أو 012 أو 015',
                   prefixIcon: Icon(Icons.phone_android_outlined),
                 ),
-                validator: (value) => RegExp(
-                  r'^(010|011|012|015)\d{8}$',
-                ).hasMatch((value ?? '').replaceAll(RegExp(r'\s+'), ''))
+                validator: (value) =>
+                    RegExp(
+                      r'^(010|011|012|015)\d{8}$',
+                    ).hasMatch((value ?? '').replaceAll(RegExp(r'\s+'), ''))
                     ? null
                     : 'أدخل رقم هاتف مصري صحيحاً من 11 رقماً.',
               ),
@@ -7652,14 +8304,20 @@ class _BankakRateSummary extends StatelessWidget {
       decoration: BoxDecoration(
         color: const Color(0xFF198754).withValues(alpha: 0.09),
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: const Color(0xFF198754).withValues(alpha: 0.28)),
+        border: Border.all(
+          color: const Color(0xFF198754).withValues(alpha: 0.28),
+        ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              const Icon(Icons.currency_exchange_outlined, color: Color(0xFF198754), size: 19),
+              const Icon(
+                Icons.currency_exchange_outlined,
+                color: Color(0xFF198754),
+                size: 19,
+              ),
               const SizedBox(width: 8),
               Text(
                 'سعر الصرف: ${formatAmount(rate)} ج.س لكل د.ل',
@@ -7720,14 +8378,20 @@ class _SefaRateSummary extends StatelessWidget {
       decoration: BoxDecoration(
         color: const Color(0xFF158A9B).withValues(alpha: 0.09),
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: const Color(0xFF158A9B).withValues(alpha: 0.28)),
+        border: Border.all(
+          color: const Color(0xFF158A9B).withValues(alpha: 0.28),
+        ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              const Icon(Icons.currency_exchange_outlined, color: Color(0xFF158A9B), size: 19),
+              const Icon(
+                Icons.currency_exchange_outlined,
+                color: Color(0xFF158A9B),
+                size: 19,
+              ),
               const SizedBox(width: 8),
               Text(
                 'سعر الصرف: ${formatAmount(rate)} د.ل لكل سيفا',
@@ -7894,7 +8558,10 @@ class _BankakPreviewDialog extends StatelessWidget {
                         color: const Color(0xFF198754),
                         borderRadius: BorderRadius.circular(12),
                       ),
-                      child: const Icon(Icons.account_balance_outlined, color: Colors.white),
+                      child: const Icon(
+                        Icons.account_balance_outlined,
+                        color: Colors.white,
+                      ),
                     ),
                     const SizedBox(width: 12),
                     const Expanded(
@@ -7903,10 +8570,16 @@ class _BankakPreviewDialog extends StatelessWidget {
                         children: [
                           Text(
                             'مراجعة تحويل بنكك',
-                            style: TextStyle(fontWeight: FontWeight.w900, fontSize: 18),
+                            style: TextStyle(
+                              fontWeight: FontWeight.w900,
+                              fontSize: 18,
+                            ),
                           ),
                           SizedBox(height: 2),
-                          Text('تأكد من بيانات المستفيد قبل الإرسال', style: TextStyle(fontSize: 12)),
+                          Text(
+                            'تأكد من بيانات المستفيد قبل الإرسال',
+                            style: TextStyle(fontSize: 12),
+                          ),
                         ],
                       ),
                     ),
@@ -7923,7 +8596,10 @@ class _BankakPreviewDialog extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    _CashPreviewRow(label: 'اسم المستفيد', value: beneficiaryName),
+                    _CashPreviewRow(
+                      label: 'اسم المستفيد',
+                      value: beneficiaryName,
+                    ),
                     _CashPreviewRow(
                       label: 'رقم حساب بنكك',
                       value: accountNumber,
@@ -7958,7 +8634,8 @@ class _BankakPreviewDialog extends StatelessWidget {
                       _CashPreviewRow(label: 'الملاحظات', value: notes),
                     const SizedBox(height: 8),
                     const InlineMessage(
-                      message: 'راجع رقم الحساب وهاتف المستلم وقيمة التحويل قبل التأكيد.',
+                      message:
+                          'راجع رقم الحساب وهاتف المستلم وقيمة التحويل قبل التأكيد.',
                       color: Color(0xFF8A6200),
                     ),
                   ],
@@ -7971,7 +8648,9 @@ class _BankakPreviewDialog extends StatelessWidget {
                     Expanded(
                       child: OutlinedButton(
                         onPressed: () => Navigator.pop(context),
-                        style: OutlinedButton.styleFrom(minimumSize: const Size(0, 48)),
+                        style: OutlinedButton.styleFrom(
+                          minimumSize: const Size(0, 48),
+                        ),
                         child: const Text('تعديل'),
                       ),
                     ),
@@ -8056,7 +8735,10 @@ class _NitaPreviewDialog extends StatelessWidget {
                         color: const Color(0xFF158A9B),
                         borderRadius: BorderRadius.circular(12),
                       ),
-                      child: const Icon(Icons.language_outlined, color: Colors.white),
+                      child: const Icon(
+                        Icons.language_outlined,
+                        color: Colors.white,
+                      ),
                     ),
                     const SizedBox(width: 12),
                     Expanded(
@@ -8067,10 +8749,16 @@ class _NitaPreviewDialog extends StatelessWidget {
                             nitaAccount
                                 ? 'مراجعة تحويل NITA ACCOUNT'
                                 : 'مراجعة تحويل NITA',
-                            style: TextStyle(fontWeight: FontWeight.w900, fontSize: 18),
+                            style: TextStyle(
+                              fontWeight: FontWeight.w900,
+                              fontSize: 18,
+                            ),
                           ),
                           SizedBox(height: 2),
-                          Text('تأكد من بيانات المستفيد قبل الإرسال', style: TextStyle(fontSize: 12)),
+                          Text(
+                            'تأكد من بيانات المستفيد قبل الإرسال',
+                            style: TextStyle(fontSize: 12),
+                          ),
                         ],
                       ),
                     ),
@@ -8087,9 +8775,14 @@ class _NitaPreviewDialog extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    _CashPreviewRow(label: 'اسم المستفيد', value: beneficiaryName),
                     _CashPreviewRow(
-                      label: nitaAccount ? 'رقم حساب NITA ACCOUNT' : 'رقم حساب NITA',
+                      label: 'اسم المستفيد',
+                      value: beneficiaryName,
+                    ),
+                    _CashPreviewRow(
+                      label: nitaAccount
+                          ? 'رقم حساب NITA ACCOUNT'
+                          : 'رقم حساب NITA',
                       value: accountNumber,
                       ltr: true,
                     ),
@@ -8217,7 +8910,10 @@ class _InstapayPreviewDialog extends StatelessWidget {
                         color: AhramColors.sky,
                         borderRadius: BorderRadius.circular(12),
                       ),
-                      child: const Icon(Icons.bolt_outlined, color: Colors.white),
+                      child: const Icon(
+                        Icons.bolt_outlined,
+                        color: Colors.white,
+                      ),
                     ),
                     const SizedBox(width: 12),
                     const Expanded(
@@ -9146,6 +9842,682 @@ class _TransferServiceOptionSheet extends StatelessWidget {
   }
 }
 
+class CustomerReportsScreen extends StatefulWidget {
+  const CustomerReportsScreen({super.key, required this.controller});
+
+  final SessionController controller;
+
+  @override
+  State<CustomerReportsScreen> createState() => _CustomerReportsScreenState();
+}
+
+class _CustomerReportsScreenState extends State<CustomerReportsScreen> {
+  int? _section;
+  bool _loading = true;
+  bool _downloading = false;
+  Object? _error;
+  List<Map<String, dynamic>> _dailyTransactions = <Map<String, dynamic>>[];
+  List<Map<String, dynamic>> _searchResults = <Map<String, dynamic>>[];
+  Map<String, dynamic>? _periodReport;
+  DateTime _fromDate = DateTime.now();
+  DateTime _toDate = DateTime.now();
+  String _statusFilter = 'all';
+  final TextEditingController _searchController = TextEditingController();
+
+  String _dateValue(DateTime value) => DateFormat('yyyy-MM-dd').format(value);
+
+  @override
+  void initState() {
+    super.initState();
+    _loadDaily();
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _loadDaily() async {
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+    try {
+      final transactions = await widget.controller.api.clientTransactions(
+        dateFrom: _dateValue(DateTime.now()),
+        dateTo: _dateValue(DateTime.now()),
+      );
+      if (mounted) setState(() => _dailyTransactions = transactions);
+    } catch (error) {
+      if (mounted) setState(() => _error = error);
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  Future<void> _pickDate({required bool from}) async {
+    final selected = await showDatePicker(
+      context: context,
+      initialDate: from ? _fromDate : _toDate,
+      firstDate: DateTime(2024),
+      lastDate: DateTime.now(),
+      helpText: from ? 'اختر تاريخ البداية' : 'اختر تاريخ النهاية',
+    );
+    if (selected == null || !mounted) return;
+    setState(() {
+      if (from) {
+        _fromDate = selected;
+        if (_toDate.isBefore(selected)) _toDate = selected;
+      } else {
+        _toDate = selected;
+      }
+    });
+  }
+
+  Future<void> _loadPeriodReport() async {
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+    try {
+      final response = await widget.controller.api.clientReport(
+        dateFrom: _dateValue(_fromDate),
+        dateTo: _dateValue(_toDate),
+      );
+      final data = response['data'];
+      if (mounted && data is Map) {
+        setState(() => _periodReport = Map<String, dynamic>.from(data));
+      }
+    } on ApiFailure catch (error) {
+      if (mounted) showSnack(context, error.message, error: true);
+    } catch (error) {
+      if (mounted) setState(() => _error = error);
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  Future<void> _downloadPdf() async {
+    if (_downloading) return;
+    final target = prepareReportDownload();
+    setState(() => _downloading = true);
+    try {
+      final url = await widget.controller.api.clientReportDownloadUrl(
+        dateFrom: _dateValue(_fromDate),
+        dateTo: _dateValue(_toDate),
+      );
+      final opened = await openPreparedReportDownload(target, url);
+      if (!opened) throw const ApiFailure('تعذر فتح ملف التقرير للتنزيل.');
+      if (mounted) showSnack(context, 'تم فتح تقرير PDF للتنزيل.');
+    } on ApiFailure catch (error) {
+      cancelPreparedReportDownload(target);
+      if (mounted) showSnack(context, error.message, error: true);
+    } catch (_) {
+      cancelPreparedReportDownload(target);
+      if (mounted) {
+        showSnack(context, 'تعذر تنزيل التقرير حاليًا.', error: true);
+      }
+    } finally {
+      if (mounted) setState(() => _downloading = false);
+    }
+  }
+
+  Future<void> _search() async {
+    final query = _searchController.text.trim();
+    if (query.length < 4) {
+      showSnack(
+        context,
+        'أدخل رقم هاتف أو آخر 4 أرقام من رقم العملية.',
+        error: true,
+      );
+      return;
+    }
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+    try {
+      final transactions = await widget.controller.api.clientTransactions(
+        search: query,
+      );
+      if (mounted) setState(() => _searchResults = transactions);
+    } on ApiFailure catch (error) {
+      if (mounted) showSnack(context, error.message, error: true);
+    } catch (error) {
+      if (mounted) setState(() => _error = error);
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  bool _isCancelled(Map<String, dynamic> transaction) {
+    return const {
+      'rejected',
+      'cancelled',
+      'canceled',
+      'cancelled_by_admin',
+      'failed',
+    }.contains('${transaction['status'] ?? ''}'.trim().toLowerCase());
+  }
+
+  bool _matchesStatus(Map<String, dynamic> transaction) {
+    if (_statusFilter == 'all') return true;
+    final status = '${transaction['status'] ?? ''}'.trim().toLowerCase();
+    if (_statusFilter == 'cancelled') return _isCancelled(transaction);
+    if (_statusFilter == 'pending') {
+      return const {
+        'pending',
+        'accepted',
+        'assigned',
+        'processing',
+        'in_progress',
+      }.contains(status);
+    }
+    return status == 'completed';
+  }
+
+  Widget _statusFilters() {
+    const filters = [
+      ('all', 'الكل'),
+      ('completed', 'ناجحة'),
+      ('pending', 'قيد التنفيذ'),
+      ('cancelled', 'ملغاة'),
+    ];
+    return Wrap(
+      spacing: 6,
+      runSpacing: 6,
+      children: filters
+          .map(
+            (filter) => ChoiceChip(
+              label: Text(filter.$2),
+              selected: _statusFilter == filter.$1,
+              visualDensity: VisualDensity.compact,
+              onSelected: (_) => setState(() => _statusFilter = filter.$1),
+            ),
+          )
+          .toList(),
+    );
+  }
+
+  List<Map<String, dynamic>> _mapList(dynamic value) {
+    return value is List
+        ? value
+              .whereType<Map>()
+              .map((item) => Map<String, dynamic>.from(item))
+              .toList()
+        : <Map<String, dynamic>>[];
+  }
+
+  Widget _operationList(
+    BuildContext context,
+    List<Map<String, dynamic>> transactions, {
+    String emptyTitle = 'لا توجد عمليات للعرض',
+    String emptyMessage = 'ستظهر هنا العمليات المسجلة في هذه الفترة.',
+  }) {
+    final filtered = transactions.where(_matchesStatus).toList();
+    final active = filtered.where((item) => !_isCancelled(item)).toList();
+    final cancelled = filtered.where(_isCancelled).toList();
+    return Column(
+      children: [
+        if (active.isEmpty)
+          EmptyPanel(
+            icon: Icons.receipt_long_outlined,
+            title: emptyTitle,
+            message: emptyMessage,
+          )
+        else
+          ...active.map(
+            (transaction) => Padding(
+              padding: const EdgeInsets.only(bottom: 9),
+              child: TransactionTile(
+                transaction: transaction,
+                onTap: () => _openDetails(transaction),
+              ),
+            ),
+          ),
+        if (cancelled.isNotEmpty) ...[
+          const SizedBox(height: 16),
+          const SectionTitle(
+            title: 'العمليات الملغاة',
+            icon: Icons.cancel_outlined,
+            color: _danger,
+          ),
+          const SizedBox(height: 6),
+          Text(
+            'هذه العمليات منفصلة ولا تدخل ضمن إجماليات التقرير.',
+            style: TextStyle(
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+              fontSize: 12,
+            ),
+          ),
+          const SizedBox(height: 9),
+          ...cancelled.map(
+            (transaction) => Padding(
+              padding: const EdgeInsets.only(bottom: 9),
+              child: TransactionTile(
+                transaction: transaction,
+                onTap: () => _openDetails(transaction),
+              ),
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+
+  Future<void> _openDetails(Map<String, dynamic> transaction) async {
+    final id = '${transaction['id'] ?? ''}';
+    if (id.isEmpty) return;
+    try {
+      final response = await widget.controller.api.transactionDetails(id);
+      final detail = response['transaction'] is Map
+          ? Map<String, dynamic>.from(response['transaction'] as Map)
+          : transaction;
+      if (!mounted) return;
+      showDialog<void>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('تفاصيل العملية'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                DetailLine(
+                  label: 'رقم العملية',
+                  value: '${detail['customId'] ?? '-'}',
+                ),
+                DetailLine(
+                  label: 'الخدمة',
+                  value:
+                      '${detail['transferTypeLabel'] ?? serviceLabel(detail['transferType']?.toString())}',
+                ),
+                DetailLine(
+                  label: 'المستلم',
+                  value: '${detail['recipientNumber'] ?? '-'}',
+                ),
+                DetailLine(
+                  label: 'القيمة',
+                  value:
+                      '${formatEgpAmount(numberValue(detail['amount']))} ج.م',
+                ),
+                DetailLine(
+                  label: 'القيمة بالليبي',
+                  value: '${formatAmount(numberValue(detail['costLYD']))} د.ل',
+                ),
+                DetailLine(
+                  label: 'الحالة',
+                  value: statusLabel(detail['status']?.toString()),
+                ),
+                DetailLine(
+                  label: 'التاريخ',
+                  value: formatDate(detail['createdAt']),
+                ),
+                if ('${detail['notes'] ?? ''}'.trim().isNotEmpty)
+                  DetailLine(
+                    label: 'ملاحظة العميل',
+                    value: '${detail['notes']}',
+                  ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('إغلاق'),
+            ),
+          ],
+        ),
+      );
+    } on ApiFailure catch (error) {
+      if (mounted) showSnack(context, error.message, error: true);
+    }
+  }
+
+  Future<void> _refresh() {
+    if (_section == 0) {
+      return _loadDaily();
+    }
+    if (_section == 1 && _periodReport != null) {
+      return _loadPeriodReport();
+    }
+    if (_section == 2 && _searchController.text.trim().isNotEmpty) {
+      return _search();
+    }
+    return Future<void>.value();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final reportTransactions = _mapList(_periodReport?['operations']);
+    final reportCancelled = _mapList(_periodReport?['cancelledOperations']);
+    final combinedReport = [
+      ...reportTransactions.where((item) => !_isCancelled(item)),
+      ...reportCancelled,
+    ];
+    final completedReport = combinedReport
+        .where((item) => !_isCancelled(item))
+        .toList();
+    final cancelledReport = combinedReport.where(_isCancelled).toList();
+
+    return PageFrame(
+      title: 'التقارير',
+      subtitle: 'راجع السجل اليومي، واستخرج تقريرًا للفترة التي تختارها.',
+      onRefresh: _refresh,
+      child: [
+        if (_section == null) ...[
+          _CustomerReportEntryCard(
+            icon: Icons.today_outlined,
+            title: 'السجل اليومي',
+            description: 'عمليات اليوم فقط مع حالة كل عملية ووقتها.',
+            color: AhramColors.sky,
+            onTap: () {
+              setState(() => _section = 0);
+              if (_dailyTransactions.isEmpty) {
+                _loadDaily();
+              }
+            },
+          ),
+          const SizedBox(height: 10),
+          _CustomerReportEntryCard(
+            icon: Icons.assessment_outlined,
+            title: 'تقارير العمليات',
+            description: 'اختر فترة زمنية واعرض أو حمّل تقرير PDF.',
+            color: _green,
+            onTap: () => setState(() => _section = 1),
+          ),
+          const SizedBox(height: 10),
+          _CustomerReportEntryCard(
+            icon: Icons.manage_search_outlined,
+            title: 'بحث عن عملية',
+            description: 'ابحث برقم الهاتف أو آخر 4 أرقام من رقم العملية.',
+            color: const Color(0xFF6B4A9A),
+            onTap: () => setState(() => _section = 2),
+          ),
+        ] else ...[
+          OutlinedButton.icon(
+            onPressed: () => setState(() => _section = null),
+            icon: const Icon(Icons.arrow_forward_rounded),
+            label: const Text('كل أقسام التقارير'),
+          ),
+          const SizedBox(height: 16),
+        ],
+        if (_section == 0) ...[
+          _ClientReportSummary(
+            transactionCount: _dailyTransactions
+                .where((item) => !_isCancelled(item))
+                .length,
+            cancelledCount: _dailyTransactions.where(_isCancelled).length,
+            totalEgp: _dailyTransactions
+                .where((item) => !_isCancelled(item))
+                .fold(0, (total, item) => total + numberValue(item['amount'])),
+            totalLyd: _dailyTransactions
+                .where((item) => !_isCancelled(item))
+                .fold(0, (total, item) => total + numberValue(item['costLYD'])),
+          ),
+          const SizedBox(height: 18),
+          _statusFilters(),
+          const SizedBox(height: 14),
+          const SectionTitle(
+            title: 'سجل اليوم',
+            icon: Icons.receipt_long_outlined,
+          ),
+          const SizedBox(height: 10),
+          _operationList(
+            context,
+            _dailyTransactions,
+            emptyTitle: 'لا توجد عمليات اليوم',
+            emptyMessage: 'ستظهر عمليات اليوم فور تسجيلها في المنظومة.',
+          ),
+        ],
+        if (_section == 1) ...[
+          SurfacePanel(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Text(
+                  'تقرير العمليات',
+                  style: Theme.of(
+                    context,
+                  ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w900),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  'اختر بداية ونهاية الفترة ثم اعرض التقرير الخاص بحسابك فقط.',
+                  style: TextStyle(
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    fontSize: 12,
+                  ),
+                ),
+                const SizedBox(height: 14),
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        onPressed: () => _pickDate(from: true),
+                        icon: const Icon(Icons.calendar_today_outlined),
+                        label: Text(
+                          DateFormat('d MMM yyyy', 'ar').format(_fromDate),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        onPressed: () => _pickDate(from: false),
+                        icon: const Icon(Icons.event_outlined),
+                        label: Text(
+                          DateFormat('d MMM yyyy', 'ar').format(_toDate),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                FilledButton.icon(
+                  onPressed: _loading ? null : _loadPeriodReport,
+                  icon: const Icon(Icons.visibility_outlined),
+                  label: const Text('عرض التقرير'),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 16),
+          if (_periodReport == null)
+            const EmptyPanel(
+              icon: Icons.date_range_outlined,
+              title: 'اختر فترة التقرير',
+              message: 'حدّد تاريخ البداية والنهاية ثم اضغط عرض التقرير.',
+            )
+          else ...[
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    'تقرير ${DateFormat('d MMM', 'ar').format(_fromDate)} - ${DateFormat('d MMM yyyy', 'ar').format(_toDate)}',
+                    style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                ),
+                IconButton(
+                  tooltip: 'تحميل PDF',
+                  onPressed: _downloading ? null : _downloadPdf,
+                  icon: _downloading
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.download_outlined),
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            _ClientReportSummary(
+              transactionCount: numberValue(
+                _periodReport?['completedCount'],
+              ).toInt(),
+              cancelledCount: numberValue(
+                _periodReport?['rejectedCount'],
+              ).toInt(),
+              totalEgp: numberValue(_periodReport?['totalEGP']),
+              totalLyd: numberValue(_periodReport?['totalLYD']),
+            ),
+            const SizedBox(height: 18),
+            _statusFilters(),
+            const SizedBox(height: 14),
+            _operationList(context, [...completedReport, ...cancelledReport]),
+          ],
+        ],
+        if (_section == 2) ...[
+          SurfacePanel(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Text(
+                  'بحث عن عملية',
+                  style: Theme.of(
+                    context,
+                  ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w900),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  'ابحث برقم هاتف المستلم أو آخر 4 أرقام من رقم العملية.',
+                  style: TextStyle(
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    fontSize: 12,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: _searchController,
+                  keyboardType: TextInputType.number,
+                  onSubmitted: (_) => _search(),
+                  decoration: const InputDecoration(
+                    labelText: 'رقم الهاتف أو آخر 4 أرقام',
+                    prefixIcon: Icon(Icons.search_rounded),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                FilledButton.icon(
+                  onPressed: _loading ? null : _search,
+                  icon: const Icon(Icons.search_rounded),
+                  label: const Text('بحث'),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 16),
+          if (_searchResults.isNotEmpty) ...[
+            _statusFilters(),
+            const SizedBox(height: 14),
+            _operationList(context, _searchResults),
+          ] else
+            const EmptyPanel(
+              icon: Icons.manage_search_outlined,
+              title: 'ابحث عن عملية',
+              message:
+                  'أدخل رقم الهاتف أو آخر 4 أرقام من رقم العملية لعرض النتيجة.',
+            ),
+        ],
+        if (_loading)
+          const Padding(
+            padding: EdgeInsets.only(top: 14),
+            child: LinearProgressIndicator(),
+          ),
+        if (_error != null && !_loading)
+          Padding(
+            padding: const EdgeInsets.only(top: 12),
+            child: InlineMessage(
+              message: 'تعذر تحديث البيانات. اسحب الصفحة للمحاولة مجددًا.',
+              color: _danger,
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+class _CustomerReportEntryCard extends StatelessWidget {
+  const _CustomerReportEntryCard({
+    required this.icon,
+    required this.title,
+    required this.description,
+    required this.color,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String title;
+  final String description;
+  final Color color;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    return Semantics(
+      button: true,
+      label: title,
+      child: Material(
+        color: colors.surface,
+        borderRadius: BorderRadius.circular(8),
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(8),
+          child: Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(15),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: color.withValues(alpha: 0.28)),
+              boxShadow: [
+                BoxShadow(
+                  color: color.withValues(alpha: 0.08),
+                  blurRadius: 14,
+                  offset: const Offset(0, 6),
+                ),
+              ],
+            ),
+            child: Row(
+              children: [
+                GlassIconBadge(icon: icon, color: color, size: 46),
+                const SizedBox(width: 13),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        title,
+                        style: TextStyle(
+                          color: colors.onSurface,
+                          fontSize: 16,
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        description,
+                        style: TextStyle(
+                          color: colors.onSurfaceVariant,
+                          fontSize: 12,
+                          height: 1.45,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Icon(Icons.chevron_left_rounded, color: color),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class TransactionsScreen extends StatefulWidget {
   const TransactionsScreen({super.key, required this.controller});
 
@@ -9159,11 +10531,20 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
   List<Map<String, dynamic>> _transactions = <Map<String, dynamic>>[];
   Object? _error;
   bool _loading = true;
+  String _range = 'all';
+  DateTime _selectedDate = DateTime.now();
+  final TextEditingController _searchController = TextEditingController();
 
   @override
   void initState() {
     super.initState();
     _load();
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
   }
 
   Future<void> _load() async {
@@ -9267,12 +10648,84 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
     }
   }
 
+  bool _matchesSelectedPeriod(Map<String, dynamic> transaction) {
+    if (_range == 'all') return true;
+    final date = DateTime.tryParse(
+      '${transaction['createdAt'] ?? ''}',
+    )?.toLocal();
+    if (date == null) return false;
+    if (_range == 'month') {
+      return date.year == _selectedDate.year &&
+          date.month == _selectedDate.month;
+    }
+    return date.year == _selectedDate.year &&
+        date.month == _selectedDate.month &&
+        date.day == _selectedDate.day;
+  }
+
+  bool _matchesSearch(Map<String, dynamic> transaction) {
+    final query = _searchController.text.trim().toLowerCase();
+    if (query.isEmpty) return true;
+    final searchable = [
+      transaction['customId'],
+      transaction['txId'],
+      transaction['recipientNumber'],
+      transaction['transferTypeLabel'],
+      serviceLabel(transaction['transferType']?.toString()),
+    ].join(' ').toLowerCase();
+    return searchable.contains(query);
+  }
+
+  bool _isCancelled(Map<String, dynamic> transaction) {
+    return const {
+      'cancelled',
+      'canceled',
+    }.contains('${transaction['status'] ?? ''}'.trim().toLowerCase());
+  }
+
+  Future<void> _pickPeriod() async {
+    final date = await showDatePicker(
+      context: context,
+      initialDate: _selectedDate,
+      firstDate: DateTime(2024),
+      lastDate: DateTime.now(),
+      helpText: _range == 'month' ? 'اختر أي يوم من الشهر' : 'اختر اليوم',
+    );
+    if (date != null && mounted) setState(() => _selectedDate = date);
+  }
+
+  String get _periodLabel {
+    if (_range == 'all') return 'كل العمليات';
+    return _range == 'month'
+        ? DateFormat('MMMM yyyy', 'ar').format(_selectedDate)
+        : DateFormat('d MMMM yyyy', 'ar').format(_selectedDate);
+  }
+
   @override
   Widget build(BuildContext context) {
     if (_loading && _transactions.isEmpty) return const PageLoading();
     if (_error != null && _transactions.isEmpty) {
       return ErrorPage(error: _error!, onRetry: _load);
     }
+    final visibleTransactions = _transactions
+        .where(_matchesSelectedPeriod)
+        .where(_matchesSearch)
+        .toList();
+    final cancelledTransactions = visibleTransactions
+        .where(_isCancelled)
+        .toList();
+    final completedTransactions = visibleTransactions
+        .where((transaction) => !_isCancelled(transaction))
+        .toList();
+    final totalEgp = completedTransactions.fold<double>(
+      0,
+      (total, transaction) => total + numberValue(transaction['amount']),
+    );
+    final totalLyd = completedTransactions.fold<double>(
+      0,
+      (total, transaction) => total + numberValue(transaction['costLYD']),
+    );
+
     return PageFrame(
       title: widget.controller.isCustomerAccount
           ? 'تقارير التحويلات'
@@ -9284,14 +10737,82 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                 : 'آخر العمليات المنفذة أو قيد المعالجة في حسابك.'),
       onRefresh: _load,
       child: [
-        if (_transactions.isEmpty)
+        SurfacePanel(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'فترة التقرير',
+                style: Theme.of(
+                  context,
+                ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w900),
+              ),
+              const SizedBox(height: 10),
+              SegmentedButton<String>(
+                segments: const [
+                  ButtonSegment<String>(
+                    value: 'all',
+                    label: Text('الكل'),
+                    icon: Icon(Icons.all_inbox_outlined),
+                  ),
+                  ButtonSegment<String>(
+                    value: 'day',
+                    label: Text('يوم'),
+                    icon: Icon(Icons.today_outlined),
+                  ),
+                  ButtonSegment<String>(
+                    value: 'month',
+                    label: Text('شهر'),
+                    icon: Icon(Icons.calendar_month_outlined),
+                  ),
+                ],
+                selected: {_range},
+                onSelectionChanged: (selection) {
+                  setState(() => _range = selection.first);
+                },
+              ),
+              if (_range != 'all') ...[
+                const SizedBox(height: 10),
+                OutlinedButton.icon(
+                  onPressed: _pickPeriod,
+                  icon: const Icon(Icons.date_range_outlined),
+                  label: Text(_periodLabel),
+                ),
+              ],
+              const SizedBox(height: 12),
+              TextField(
+                controller: _searchController,
+                onChanged: (_) => setState(() {}),
+                decoration: const InputDecoration(
+                  labelText: 'بحث في التقرير',
+                  hintText: 'رقم العملية أو هاتف المستلم',
+                  prefixIcon: Icon(Icons.search_rounded),
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 16),
+        _ClientReportSummary(
+          transactionCount: completedTransactions.length,
+          cancelledCount: cancelledTransactions.length,
+          totalEgp: totalEgp,
+          totalLyd: totalLyd,
+        ),
+        const SizedBox(height: 20),
+        SectionTitle(
+          title: 'العمليات المسجلة',
+          icon: Icons.receipt_long_outlined,
+        ),
+        const SizedBox(height: 10),
+        if (completedTransactions.isEmpty)
           const EmptyPanel(
             icon: Icons.receipt_long_outlined,
             title: 'لا توجد عمليات للعرض',
-            message: 'ستظهر هنا العمليات بعد تسجيلها في المنظومة.',
+            message: 'عدّل الفترة أو البحث لعرض العمليات المسجلة.',
           )
         else
-          ..._transactions.map(
+          ...completedTransactions.map(
             (tx) => Padding(
               padding: const EdgeInsets.only(bottom: 10),
               child: TransactionTile(
@@ -9300,7 +10821,150 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
               ),
             ),
           ),
+        if (cancelledTransactions.isNotEmpty) ...[
+          const SizedBox(height: 18),
+          const SectionTitle(
+            title: 'العمليات الملغاة',
+            icon: Icons.cancel_outlined,
+            color: _danger,
+          ),
+          const SizedBox(height: 6),
+          Text(
+            'هذه العمليات منفصلة ولا تدخل ضمن إجمالي التحويلات.',
+            style: TextStyle(
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+              fontSize: 12,
+            ),
+          ),
+          const SizedBox(height: 10),
+          ...cancelledTransactions.map(
+            (tx) => Padding(
+              padding: const EdgeInsets.only(bottom: 10),
+              child: TransactionTile(
+                transaction: tx,
+                onTap: () => _openDetails(tx),
+              ),
+            ),
+          ),
+        ],
       ],
+    );
+  }
+}
+
+class _ClientReportSummary extends StatelessWidget {
+  const _ClientReportSummary({
+    required this.transactionCount,
+    required this.cancelledCount,
+    required this.totalEgp,
+    required this.totalLyd,
+  });
+
+  final int transactionCount;
+  final int cancelledCount;
+  final double totalEgp;
+  final double totalLyd;
+
+  @override
+  Widget build(BuildContext context) {
+    final metrics = [
+      _ClientReportMetric(
+        label: 'العمليات',
+        value: '$transactionCount',
+        icon: Icons.receipt_long_outlined,
+        color: AhramColors.sky,
+      ),
+      _ClientReportMetric(
+        label: 'إجمالي المصري',
+        value: '${formatEgpAmount(totalEgp)} ج.م',
+        icon: Icons.payments_outlined,
+        color: _green,
+      ),
+      _ClientReportMetric(
+        label: 'إجمالي الليبي',
+        value: '${formatAmount(totalLyd)} د.ل',
+        icon: Icons.account_balance_wallet_outlined,
+        color: const Color(0xFF3366CC),
+      ),
+      _ClientReportMetric(
+        label: 'الملغاة',
+        value: '$cancelledCount',
+        icon: Icons.cancel_outlined,
+        color: _danger,
+      ),
+    ];
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final width = constraints.maxWidth >= 560
+            ? (constraints.maxWidth - 12) / 2
+            : (constraints.maxWidth - 8) / 2;
+        return Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: metrics
+              .map((metric) => SizedBox(width: width, child: metric))
+              .toList(),
+        );
+      },
+    );
+  }
+}
+
+class _ClientReportMetric extends StatelessWidget {
+  const _ClientReportMetric({
+    required this.label,
+    required this.value,
+    required this.icon,
+    required this.color,
+  });
+
+  final String label;
+  final String value;
+  final IconData icon;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: colors.surface,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: color.withValues(alpha: 0.22)),
+      ),
+      child: Row(
+        children: [
+          GlassIconBadge(icon: icon, color: color, size: 34),
+          const SizedBox(width: 9),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label,
+                  style: TextStyle(
+                    color: colors.onSurfaceVariant,
+                    fontSize: 11,
+                  ),
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  value,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  textDirection: ui.TextDirection.ltr,
+                  style: TextStyle(
+                    color: colors.onSurface,
+                    fontWeight: FontWeight.w900,
+                    fontSize: 13,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -13725,6 +15389,16 @@ class TransactionTile extends StatelessWidget {
   final Map<String, dynamic> transaction;
   final VoidCallback onTap;
 
+  Future<void> _copyValue(
+    BuildContext context,
+    String value,
+    String label,
+  ) async {
+    if (value.isEmpty || value == '-') return;
+    await Clipboard.setData(ClipboardData(text: value));
+    if (context.mounted) showSnack(context, 'تم نسخ $label.');
+  }
+
   @override
   Widget build(BuildContext context) {
     final status = transaction['status']?.toString();
@@ -13799,6 +15473,38 @@ class TransactionTile extends StatelessWidget {
                   StatusPill(
                     label: statusLabel(status),
                     color: statusColor(status),
+                  ),
+                ],
+              ),
+              PopupMenuButton<String>(
+                tooltip: 'نسخ بيانات العملية',
+                icon: Icon(
+                  Icons.content_copy_outlined,
+                  color: colors.onSurfaceVariant,
+                ),
+                onSelected: (value) {
+                  if (value == 'operation') {
+                    _copyValue(
+                      context,
+                      '${transaction['customId'] ?? transaction['txId'] ?? ''}',
+                      'رقم العملية',
+                    );
+                  } else {
+                    _copyValue(
+                      context,
+                      '${transaction['recipientNumber'] ?? ''}',
+                      'رقم المستلم',
+                    );
+                  }
+                },
+                itemBuilder: (context) => const [
+                  PopupMenuItem(
+                    value: 'operation',
+                    child: Text('نسخ رقم العملية'),
+                  ),
+                  PopupMenuItem(
+                    value: 'recipient',
+                    child: Text('نسخ رقم المستلم'),
                   ),
                 ],
               ),

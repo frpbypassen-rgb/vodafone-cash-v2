@@ -10,6 +10,7 @@ const toClientReportDto = (data) => {
         periodBalance: Number(data.periodBalance || 0),
         currentBalance: Number(data.currentBalance || data.companyBalance || 0),
         operationCount: Number(data.operationCount || (data.operations || []).length),
+        totalLYD: Number(data.totalLYD || 0),
         operations: (data.operations || []).map((tx, index) => ({
             serialNumber: index + 1,
             id: String(tx._id),

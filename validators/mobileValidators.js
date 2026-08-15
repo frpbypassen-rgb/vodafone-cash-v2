@@ -273,11 +273,29 @@ const clientReportsValidator = [
     body('dateType')
         .optional()
         .trim()
-        .isIn(['day', 'month']).withMessage('Ù†ÙˆØ¹ Ø§Ù„ØªØ§Ø±ÙŠØ® ØºÙŠØ± ØµØ§Ù„Ø­'),
+        .isIn(['day', 'month', 'range']).withMessage('Ù†ÙˆØ¹ Ø§Ù„ØªØ§Ø±ÙŠØ® ØºÙŠØ± ØµØ§Ù„Ø­'),
     body('dateValue')
         .optional()
         .trim()
         .isLength({ min: 4, max: 20 }).withMessage('Ù‚ÙŠÙ…Ø© Ø§Ù„ØªØ§Ø±ÙŠØ® ØºÙŠØ± ØµØ§Ù„Ø­Ø©'),
+    body('dateFrom')
+        .optional({ checkFalsy: true })
+        .trim()
+        .isISO8601().withMessage('تاريخ البداية غير صالح'),
+    body('dateTo')
+        .optional({ checkFalsy: true })
+        .trim()
+        .isISO8601().withMessage('تاريخ النهاية غير صالح'),
+    body().custom((payload) => {
+        if (payload.dateType !== 'range') return true;
+        if (!payload.dateFrom || !payload.dateTo) {
+            throw new Error('تاريخ البداية والنهاية مطلوبان');
+        }
+        if (new Date(payload.dateFrom) > new Date(payload.dateTo)) {
+            throw new Error('تاريخ النهاية يجب أن يكون بعد تاريخ البداية');
+        }
+        return true;
+    }),
     validate
 ];
 

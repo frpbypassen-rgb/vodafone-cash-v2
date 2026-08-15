@@ -177,7 +177,7 @@ const parseSupportImage = (imageBase64) => {
 /**
  * 📊 Client Reports Parity
  */
-async function getClientReports({ userId, accountType, dateType, dateValue, tenantId }) {
+async function getClientReports({ userId, accountType, dateType, dateValue, dateFrom, dateTo, tenantId }) {
     let account = null;
     let company = null;
     const isEmployee = accountType === 'client_company';
@@ -205,6 +205,12 @@ async function getClientReports({ userId, accountType, dateType, dateValue, tena
         dateType === 'day' ? dateValue : null,
         dateType === 'month' ? dateValue : null
     );
+    if (dateType === 'range') {
+        start = new Date(dateFrom);
+        end = new Date(dateTo);
+        start.setHours(0, 0, 0, 0);
+        end.setHours(23, 59, 59, 999);
+    }
 
     const canViewAll = (!isEmployee && !isAgentStaff)
         || account.canViewAllReports
@@ -302,16 +308,31 @@ async function getClientReports({ userId, accountType, dateType, dateValue, tena
         entityInfo.status += ` (${company.name})`;
     }
 
+    const cancelledOperations = operations.filter((tx) => (
+        ['rejected', 'cancelled', 'cancelled_by_admin', 'failed'].includes(tx.status)
+    ));
+
     return {
         previousBalance,
         currentTransactions: currentTransactions.map(sanitizeStatementTransaction),
         operations: operations.map(sanitizeStatementTransaction),
+        cancelledOperations: cancelledOperations.map(sanitizeStatementTransaction),
         deposits: deposits.map(sanitizeStatementTransaction),
         totalLYD,
         totalEGP,
         completedCount,
         rejectedCount,
         totalDeposits,
+        operationCount: operations.length,
+        periodBalance: totalDeposits - totalLYD,
+        currentBalance: Number(account.balance || 0),
+        scope: 'client',
+        reportPeriod: {
+            type: dateType === 'range' ? 'range' : (dateType === 'day' ? 'day' : 'month'),
+            value: dateType === 'range' ? `${dateFrom} إلى ${dateTo}` : dateValue,
+            start,
+            end
+        },
         entityInfo
     };
 }

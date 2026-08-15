@@ -52,23 +52,24 @@
     const period = report.reportPeriod || {};
     const company = report.company || {};
     const entity = report.entityInfo || {};
-    const isPersonalReport = report.scope === 'employee';
+    const isClientReport = report.scope === 'client';
+    const isPersonalReport = report.scope === 'employee' || isClientReport;
     const operations = report.operations || [];
     const cancelledOperations = report.cancelledOperations || [];
     const deposits = report.deposits || [];
     const tripoli = 'Africa/Tripoli';
     const money = (value, digits = 2) => Number(value || 0).toLocaleString('en-US', { minimumFractionDigits: digits, maximumFractionDigits: digits });
     const dateTime = (value) => value ? new Date(value).toLocaleString('en-GB', { timeZone: tripoli, hour12: true }) : '---';
-    const isCancelled = (status) => ['rejected', 'cancelled_by_admin', 'failed'].includes(status);
-    const titlePeriod = period.type === 'month' ? `شهر ${period.value || '---'}` : `يوم ${period.value || '---'}`;
+    const isCancelled = (status) => ['rejected', 'cancelled', 'cancelled_by_admin', 'failed'].includes(status);
+    const titlePeriod = period.type === 'range' ? `الفترة ${period.value || '---'}` : (period.type === 'month' ? `شهر ${period.value || '---'}` : `يوم ${period.value || '---'}`);
     const generated = new Date(generatedAt).toLocaleString('en-GB', { timeZone: tripoli, hour12: true });
 %>
 <header class="header">
     <div class="brand">
         <% if (logoDataUri) { %><img src="<%= logoDataUri %>" alt="شركة الأهرام"><% } %>
-        <div><h1>تقرير عمليات التنفيذ</h1><p>كشف عمليات معتمد من منظومة الأهرام</p></div>
+        <div><h1><%= isClientReport ? 'تقرير عمليات العميل' : 'تقرير عمليات التنفيذ' %></h1><p>كشف عمليات معتمد من منظومة الأهرام</p></div>
     </div>
-    <div class="document-id"><strong class="mono">EXR-<%= String(period.value || '').replace(/-/g, '') %><% if (!isPersonalReport) { %>-<%= String(company.id || '').slice(-6).toUpperCase() %><% } %></strong><span>تاريخ الإصدار: <b class="mono"><%= generated %></b></span></div>
+    <div class="document-id"><strong class="mono"><%= isClientReport ? 'CLR' : 'EXR' %>-<%= String(period.value || '').replace(/[^0-9]/g, '').slice(0, 16) || 'REPORT' %><% if (!isPersonalReport) { %>-<%= String(company.id || '').slice(-6).toUpperCase() %><% } %></strong><span>تاريخ الإصدار: <b class="mono"><%= generated %></b></span></div>
 </header>
 <section class="profile">
     <% if (!isPersonalReport) { %><div><span>شركة التنفيذ</span><strong><%= company.name || '---' %></strong></div><% } %>
@@ -81,6 +82,10 @@
     <article class="metric"><span>عدد العمليات</span><strong class="mono"><%= Number(report.operationCount || operations.length) %></strong></article>
     <% if (isPersonalReport) { %>
     <article class="metric green"><span>إجمالي مبلغ الفترة</span><strong class="mono"><%= money(report.totalEGP, 0) %> EGP</strong></article>
+    <% if (isClientReport) { %>
+    <article class="metric gold"><span>إجمالي الليبي</span><strong class="mono"><%= money(report.totalLYD) %> LYD</strong></article>
+    <article class="metric red"><span>عمليات ملغاة</span><strong class="mono"><%= cancelledOperations.length %></strong></article>
+    <% } %>
     <% } else { %>
     <article class="metric gold"><span>الرصيد السابق</span><strong class="mono"><%= money(report.previousBalance) %> EGP</strong></article>
     <article class="metric green"><span>رصيد الفترة</span><strong class="mono"><%= money(report.periodBalance) %> EGP</strong></article>
@@ -111,6 +116,6 @@
     </tbody></table>
 </section>
 <% } %>
-<div class="footer">هذا التقرير مولّد من بيانات منصة الإدارة وفق صلاحيات حساب المنفذ وفترة التقرير المحددة.</div>
+<div class="footer"><%= isClientReport ? 'هذا التقرير مولّد من بيانات منصة الإدارة وفق صلاحيات حساب العميل وفترة التقرير المحددة.' : 'هذا التقرير مولّد من بيانات منصة الإدارة وفق صلاحيات حساب المنفذ وفترة التقرير المحددة.' %></div>
 </body>
 </html>

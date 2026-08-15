@@ -487,18 +487,71 @@ class MobileApi {
   }
 
   Future<List<Map<String, dynamic>>> clientTransactions({
-    int limit = 30,
+    int limit = 100,
+    String? dateFrom,
+    String? dateTo,
+    String? search,
   }) async {
     final response = await _request(
       'GET',
       '/client/transactions',
-      query: <String, dynamic>{'page': 1, 'limit': limit},
+      query: <String, dynamic>{
+        'page': 1,
+        'limit': limit,
+        if (dateFrom?.isNotEmpty ?? false) 'dateFrom': dateFrom,
+        if (dateTo?.isNotEmpty ?? false) 'dateTo': dateTo,
+        if (search != null && search.trim().isNotEmpty) 'search': search.trim(),
+      },
     );
     return _extractList(response, 'transactions');
   }
 
   Future<Map<String, dynamic>> transactionDetails(String id) {
     return _request('GET', '/client/transactions/$id');
+  }
+
+  Future<Map<String, dynamic>> clientReport({
+    required String dateFrom,
+    required String dateTo,
+  }) {
+    return _request(
+      'POST',
+      '/client/reports/filter',
+      data: _clientReportRequest(dateFrom: dateFrom, dateTo: dateTo),
+    );
+  }
+
+  Future<Uri> clientReportDownloadUrl({
+    required String dateFrom,
+    required String dateTo,
+  }) async {
+    final response = await _request(
+      'POST',
+      '/client/reports/download-link',
+      data: _clientReportRequest(dateFrom: dateFrom, dateTo: dateTo),
+    );
+    final rawUrl = '${response['downloadUrl'] ?? ''}'.trim();
+    final uri = Uri.tryParse(rawUrl);
+    if (uri == null || !uri.hasScheme) {
+      throw const ApiFailure('تعذر تجهيز رابط تنزيل التقرير.');
+    }
+    return uri;
+  }
+
+  // Older deployed servers accept only a single daily report. Keep the
+  // current-day screen working while the range-report endpoint is deployed.
+  Map<String, dynamic> _clientReportRequest({
+    required String dateFrom,
+    required String dateTo,
+  }) {
+    if (dateFrom == dateTo) {
+      return <String, dynamic>{'dateType': 'day', 'dateValue': dateFrom};
+    }
+    return <String, dynamic>{
+      'dateType': 'range',
+      'dateFrom': dateFrom,
+      'dateTo': dateTo,
+    };
   }
 
   Future<Map<String, dynamic>> createTransfer(Map<String, dynamic> payload) {

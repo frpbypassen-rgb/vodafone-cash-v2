@@ -137,7 +137,7 @@ const readReportDownloadToken = (token) => {
 
     try {
         const payload = JSON.parse(Buffer.from(encoded, 'base64url').toString('utf8'));
-        if (!payload.executorId || !payload.expiresAt || Date.now() > Number(payload.expiresAt)) {
+        if ((!payload.executorId && !payload.clientId) || !payload.expiresAt || Date.now() > Number(payload.expiresAt)) {
             throw new Error('INVALID_REPORT_DOWNLOAD_TOKEN');
         }
         return payload;
@@ -2017,6 +2017,34 @@ router.get('/client/transactions', authenticateJWT, async (req, res) => {
 
         if (req.tenant) query.tenantId = req.tenant._id;
 
+        const filters = [query];
+        const dateFrom = /^\d{4}-\d{2}-\d{2}$/.test(String(req.query.dateFrom || ''))
+            ? new Date(`${req.query.dateFrom}T00:00:00`)
+            : null;
+        const dateTo = /^\d{4}-\d{2}-\d{2}$/.test(String(req.query.dateTo || ''))
+            ? new Date(`${req.query.dateTo}T23:59:59.999`)
+            : null;
+        if (dateFrom || dateTo) {
+            filters.push({
+                createdAt: {
+                    ...(dateFrom ? { $gte: dateFrom } : {}),
+                    ...(dateTo ? { $lte: dateTo } : {})
+                }
+            });
+        }
+        const search = String(req.query.search || '').trim().slice(0, 32);
+        if (search) {
+            const escaped = search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+            filters.push({
+                $or: [
+                    { vodafoneNumber: { $regex: escaped, $options: 'i' } },
+                    { accountNumber: { $regex: escaped, $options: 'i' } },
+                    { customId: { $regex: `${escaped}$`, $options: 'i' } }
+                ]
+            });
+        }
+        if (filters.length > 1) query = { $and: filters };
+
         const page = Math.max(1, parseInt(req.query.page) || 1);
         const limit = Math.max(1, Math.min(100, parseInt(req.query.limit) || 20));
         const skip = (page - 1) * limit;
@@ -2203,7 +2231,7 @@ router.get('/client/transactions/:id', authenticateJWT, async (req, res) => {
 router.post('/client/reports/filter', authenticateJWT, clientReportsValidator, async (req, res) => {
     try {
         const { userId, accountType } = req.user;
-        const { dateType, dateValue } = req.body;
+        const { dateType, dateValue, dateFrom, dateTo } = req.body;
         const tenantId = req.tenant ? req.tenant._id : null;
         
         const result = await mobileWebParityService.getClientReports({
@@ -2211,6 +2239,8 @@ router.post('/client/reports/filter', authenticateJWT, clientReportsValidator, a
             accountType,
             dateType,
             dateValue,
+            dateFrom,
+            dateTo,
             tenantId
         });
         
@@ -2224,6 +2254,80 @@ router.post('/client/reports/filter', authenticateJWT, clientReportsValidator, a
             return sendMobileError(res, 401, 'UNAUTHORIZED', 'غير مصرح بالوصول', req.correlationId);
         }
         return sendServerError(res, req, 'حدث خطأ أثناء جلب التقارير');
+    }
+});
+
+router.post('/client/reports/download-link', authenticateJWT, clientReportsValidator, async (req, res) => {
+    try {
+        const { userId, accountType } = req.user;
+        const { dateType, dateValue, dateFrom, dateTo } = req.body;
+        await mobileWebParityService.getClientReports({
+            userId,
+            accountType,
+            dateType,
+            dateValue,
+            dateFrom,
+            dateTo,
+            tenantId: req.tenant ? req.tenant._id : null
+        });
+
+        const token = createReportDownloadToken({
+            clientId: String(userId),
+            accountType: String(accountType),
+            dateType: String(dateType || 'month'),
+            dateValue: dateValue ? String(dateValue) : null,
+            dateFrom: dateFrom ? String(dateFrom) : null,
+            dateTo: dateTo ? String(dateTo) : null,
+            tenantId: req.tenant ? String(req.tenant._id) : null,
+            expiresAt: Date.now() + REPORT_DOWNLOAD_TTL_MS
+        });
+        const configuredBaseUrl = String(process.env.PUBLIC_APP_URL || '').replace(/\/$/, '');
+        const baseUrl = configuredBaseUrl || `${req.protocol}://${req.get('host')}`;
+        return res.json({
+            success: true,
+            downloadUrl: `${baseUrl}/api/mobile/client/reports/download.pdf?token=${encodeURIComponent(token)}`
+        });
+    } catch (e) {
+        if (e.code === 'REPORT_DOWNLOAD_NOT_CONFIGURED') {
+            return sendMobileError(res, 503, 'REPORT_DOWNLOAD_NOT_CONFIGURED', 'إعداد تنزيل التقارير غير مكتمل على الخادم', req.correlationId);
+        }
+        if (e.message === 'UNAUTHORIZED') {
+            return sendMobileError(res, 401, 'UNAUTHORIZED', 'غير مصرح لك بتنزيل هذا التقرير', req.correlationId);
+        }
+        return sendServerError(res, req, 'حدث خطأ أثناء تجهيز تقرير العميل');
+    }
+});
+
+router.get('/client/reports/download.pdf', async (req, res) => {
+    try {
+        const payload = readReportDownloadToken(req.query.token);
+        if (!payload.clientId) throw new Error('INVALID_REPORT_DOWNLOAD_TOKEN');
+        const report = await mobileWebParityService.getClientReports({
+            userId: payload.clientId,
+            accountType: payload.accountType,
+            dateType: payload.dateType,
+            dateValue: payload.dateValue,
+            dateFrom: payload.dateFrom,
+            dateTo: payload.dateTo,
+            tenantId: payload.tenantId || null
+        });
+        const pdf = await generateExecutorReportPdf(req.app, {
+            report: mobileWebParityMapper.toClientReportDto(report),
+            generatedAt: new Date()
+        });
+        res.setHeader('Content-Type', 'application/pdf');
+        res.setHeader('Content-Length', pdf.length);
+        res.setHeader('Content-Disposition', 'attachment; filename="ahram-client-report.pdf"');
+        res.setHeader('Cache-Control', 'private, no-store, max-age=0');
+        return res.end(pdf);
+    } catch (e) {
+        console.error('[mobile/client-report-pdf] failed:', e.stack || e.message);
+        const status = e.code === 'PDF_BROWSER_NOT_FOUND' ? 503 : 403;
+        return res.status(status).send(
+            e.code === 'PDF_BROWSER_NOT_FOUND'
+                ? 'تعذر تشغيل محرك PDF على الخادم.'
+                : 'رابط تنزيل التقرير غير صالح أو انتهت صلاحيته.'
+        );
     }
 });
 
