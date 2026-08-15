@@ -22,8 +22,12 @@
 
             <div class="bw-rate-countdown" id="rateChangeCountdown" hidden role="status" aria-live="polite">
                 <span class="bw-rate-countdown-icon"><i class="fa-solid fa-clock"></i></span>
-                <span><strong>تحديث أسعار الصرف قريباً</strong><small>سيتم تطبيق الأسعار الجديدة تلقائياً عند انتهاء العداد.</small></span>
+                <span><strong>تحديث أسعار الصرف قريباً</strong><small>سيتم تطبيق الأسعار الجديدة تلقائياً عند انتهاء العداد.</small><small id="rateChangeDetails" style="white-space: pre-line;"></small></span>
                 <b dir="ltr" data-rate-countdown-value>00:00</b>
+            </div>
+            <div class="bw-rate-countdown" id="rateChangeActivated" hidden role="status" aria-live="polite">
+                <span class="bw-rate-countdown-icon"><i class="fa-solid fa-circle-check"></i></span>
+                <span><strong>تم تفعيل السعر الجديد</strong><small id="rateChangeActivatedDetails" style="white-space: pre-line;"></small></span>
             </div>
 
             <%- include('partials/workspace_feedback') %>
@@ -91,7 +95,11 @@
         (() => {
             const banner = document.getElementById('rateChangeCountdown');
             const value = banner?.querySelector('[data-rate-countdown-value]');
+            const details = document.getElementById('rateChangeDetails');
+            const activatedBanner = document.getElementById('rateChangeActivated');
+            const activatedDetails = document.getElementById('rateChangeActivatedDetails');
             let effectiveAt = window.businessPortal?.pendingRateUpdate?.effectiveAt || null;
+            let rateChangesText = window.businessPortal?.pendingRateUpdate?.rateChangesText || '';
             let timer = null;
 
             const render = () => {
@@ -103,10 +111,12 @@
                     return;
                 }
                 banner.hidden = false;
+                if (details) details.textContent = rateChangesText;
                 value.textContent = `${String(Math.floor(seconds / 60)).padStart(2, '0')}:${String(seconds % 60).padStart(2, '0')}`;
             };
             const arm = (payload) => {
                 effectiveAt = payload?.effectiveAt || null;
+                rateChangesText = payload?.rateChangesText || '';
                 if (timer) window.clearInterval(timer);
                 render();
                 if (effectiveAt) timer = window.setInterval(render, 1000);
@@ -116,11 +126,15 @@
             if (typeof window.io === 'function') {
                 const socket = window.io();
                 socket.on('rate_change_scheduled', arm);
-                socket.on('rate_change_activated', () => {
+                socket.on('rate_change_activated', (payload) => {
                     effectiveAt = null;
                     if (timer) window.clearInterval(timer);
                     if (banner) banner.hidden = true;
-                    if (window.businessPortal?.page === 'services') window.location.reload();
+                    if (activatedDetails) activatedDetails.textContent = payload?.currentRatesText || 'تم اعتماد السعر الجديد في حسابك.';
+                    if (activatedBanner) {
+                        activatedBanner.hidden = false;
+                        window.setTimeout(() => { activatedBanner.hidden = true; }, 12000);
+                    }
                 });
             }
         })();

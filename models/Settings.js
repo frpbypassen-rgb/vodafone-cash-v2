@@ -54,6 +54,7 @@ const settingsSchema = new mongoose.Schema({
     pendingRateUpdate: {
         effectiveAt: { type: Date, default: null },
         changes: { type: Object, default: null },
+        previousRates: { type: Object, default: null },
         createdBy: { type: String, default: '' },
         createdAt: { type: Date, default: null }
     },

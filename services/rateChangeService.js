@@ -7,7 +7,10 @@ const ClientEmployee = require('../models/ClientEmployee');
 const AgentEmployee = require('../models/AgentEmployee');
 const SubAccount = require('../models/SubAccount');
 const ClientCompany = require('../models/ClientCompany');
-const { sendRateChangeWhatsAppNotifications } = require('./whatsappRateChangeDeliveryService');
+const {
+    sendRateChangeWhatsAppNotifications,
+    formatRateChanges
+} = require('./whatsappRateChangeDeliveryService');
 
 const RATE_CHANGE_DELAY_MS = 60 * 1000;
 const RATE_CHANGE_MONITOR_INTERVAL_MS = 5 * 1000;
@@ -45,21 +48,46 @@ const emitRateEvent = (app, event, payload) => {
     if (io) io.emit(event, payload);
 };
 
+const formatCurrentRateChanges = ({ changes = {}, previousRates = {} }) => (
+    formatRateChanges({ changes, previousRates })
+        .split('\n')
+        .map((line) => {
+            const arrowIndex = line.lastIndexOf('←');
+            if (arrowIndex < 0) return line;
+            const label = line.slice(0, line.indexOf(':')).trim();
+            const currentRate = line.slice(arrowIndex + 1).trim();
+            return `${label}: ${currentRate}`;
+        })
+        .join('\n')
+);
+
+const buildRateChangePayload = ({ changes = {}, previousRates = {}, effectiveAt = null }) => ({
+    changes,
+    previousRates,
+    rateChangesText: formatRateChanges({ changes, previousRates }),
+    currentRatesText: formatCurrentRateChanges({ changes, previousRates }),
+    ...(effectiveAt ? { effectiveAt: new Date(effectiveAt).toISOString() } : {})
+});
+
 const activatePendingRateUpdate = async ({ app } = {}) => {
     const settings = await Settings.findOne({});
     const pending = settings?.pendingRateUpdate;
     if (!settings || !pending?.effectiveAt || !pending?.changes) return null;
     if (new Date(pending.effectiveAt).getTime() > Date.now()) return null;
 
+    const previousRates = pending.previousRates || {};
+    const payload = {
+        ...buildRateChangePayload({ changes: pending.changes, previousRates }),
+        activatedAt: new Date().toISOString()
+    };
     Object.assign(settings, pending.changes);
     settings.pendingRateUpdate = undefined;
     await settings.save();
-    const payload = { changes: pending.changes, activatedAt: new Date().toISOString() };
     emitRateEvent(app, 'exchange_rates_updated', payload);
     emitRateEvent(app, 'rate_change_activated', payload);
     await notifyClients({
         title: 'تم تحديث أسعار الصرف',
-        message: 'تم تفعيل أسعار الصرف الجديدة. تظهر الآن الأسعار الخاصة بحسابك.',
+        message: `تم تفعيل أسعار الصرف الجديدة. السعر الحالي:\n${payload.currentRatesText}`,
         metadata: { event: 'activated', ...payload }
     });
     return payload;
@@ -84,16 +112,20 @@ const scheduleRateUpdate = async ({ settings, changes, actor, app }) => {
     settings.pendingRateUpdate = {
         effectiveAt,
         changes,
+        previousRates,
         createdBy: String(actor || ''),
         createdAt: new Date()
     };
     await settings.save();
-    const payload = { changes, effectiveAt: effectiveAt.toISOString(), delaySeconds: 60 };
+    const payload = {
+        ...buildRateChangePayload({ changes, previousRates, effectiveAt }),
+        delaySeconds: 60
+    };
     armPendingRateActivation({ app, effectiveAt });
     emitRateEvent(app, 'rate_change_scheduled', payload);
     await notifyClients({
         title: 'تحديث أسعار الصرف قريباً',
-        message: 'سيتم تطبيق أسعار صرف جديدة خلال 60 ثانية.',
+        message: `سيتم تطبيق أسعار صرف جديدة خلال 60 ثانية.\n${payload.rateChangesText}`,
         metadata: { event: 'scheduled', ...payload }
     });
     // WhatsApp delivery is tracked per account and must not delay saving the
@@ -137,5 +169,6 @@ module.exports = {
     activatePendingRateUpdate,
     scheduleRateUpdate,
     restorePendingRateActivation,
-    startRateChangeActivationMonitor
+    startRateChangeActivationMonitor,
+    buildRateChangePayload
 };

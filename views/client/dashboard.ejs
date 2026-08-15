@@ -753,8 +753,12 @@
     <div class="container main-container mb-5 no-print">
         <div id="rateChangeCountdown" class="alert alert-warning d-flex align-items-center gap-3 shadow-sm mb-4" hidden role="status" aria-live="polite">
             <i class="fa-solid fa-clock fs-4"></i>
-            <div class="flex-grow-1"><strong>تحديث أسعار الصرف قريباً</strong><br><small>سيتم تطبيق الأسعار الجديدة تلقائياً عند انتهاء العداد.</small></div>
+            <div class="flex-grow-1"><strong>تحديث أسعار الصرف قريباً</strong><br><small>سيتم تطبيق الأسعار الجديدة تلقائياً عند انتهاء العداد.</small><small id="rateChangeDetails" class="d-block mt-1" style="white-space: pre-line;"></small></div>
             <strong id="rateChangeCountdownValue" dir="ltr" class="fs-5 mono-num">00:00</strong>
+        </div>
+        <div id="rateChangeActivated" class="alert alert-success d-flex align-items-start gap-3 shadow-sm mb-4" hidden role="status" aria-live="polite">
+            <i class="fa-solid fa-circle-check fs-4"></i>
+            <div><strong>تم تفعيل السعر الجديد</strong><small id="rateChangeActivatedDetails" class="d-block mt-1" style="white-space: pre-line;"></small></div>
         </div>
         <div class="desktop-only-layout d-none d-md-block">
             <div class="row">
@@ -2830,7 +2834,11 @@
         (() => {
             const banner = document.getElementById('rateChangeCountdown');
             const value = document.getElementById('rateChangeCountdownValue');
+            const details = document.getElementById('rateChangeDetails');
+            const activatedBanner = document.getElementById('rateChangeActivated');
+            const activatedDetails = document.getElementById('rateChangeActivatedDetails');
             let effectiveAt = <%- JSON.stringify(pendingRateUpdate?.effectiveAt || null).replace(/</g, '\\u003c') %>;
+            let rateChangesText = <%- JSON.stringify(pendingRateUpdate?.rateChangesText || '').replace(/</g, '\\u003c') %>;
             let timer = null;
 
             const renderRateCountdown = () => {
@@ -2842,10 +2850,12 @@
                     return;
                 }
                 banner.hidden = false;
+                if (details) details.textContent = rateChangesText;
                 value.textContent = `${String(Math.floor(seconds / 60)).padStart(2, '0')}:${String(seconds % 60).padStart(2, '0')}`;
             };
             const armRateCountdown = (payload) => {
                 effectiveAt = payload?.effectiveAt || null;
+                rateChangesText = payload?.rateChangesText || '';
                 if (timer) window.clearInterval(timer);
                 renderRateCountdown();
                 if (effectiveAt) timer = window.setInterval(renderRateCountdown, 1000);
@@ -2855,11 +2865,15 @@
             if (typeof window.io === 'function') {
                 const rateSocket = window.io();
                 rateSocket.on('rate_change_scheduled', armRateCountdown);
-                rateSocket.on('rate_change_activated', () => {
+                rateSocket.on('rate_change_activated', (payload) => {
                     effectiveAt = null;
                     if (timer) window.clearInterval(timer);
                     if (banner) banner.hidden = true;
-                    window.location.reload();
+                    if (activatedDetails) activatedDetails.textContent = payload?.currentRatesText || 'تم اعتماد السعر الجديد في حسابك.';
+                    if (activatedBanner) {
+                        activatedBanner.hidden = false;
+                        window.setTimeout(() => { activatedBanner.hidden = true; }, 12000);
+                    }
                 });
             }
         })();

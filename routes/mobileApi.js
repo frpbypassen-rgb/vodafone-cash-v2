@@ -84,7 +84,7 @@ const {
     generateManualExecutorReceiptBase64
 } = require('../utils/manualExecutorReceipt');
 const { reserveManualExecutorReceiptReference } = require('../services/manualExecutorReceiptReferenceService');
-const { activatePendingRateUpdate } = require('../services/rateChangeService');
+const { activatePendingRateUpdate, buildRateChangePayload } = require('../services/rateChangeService');
 const { reversalService } = require('../src/Application/Services/ReversalService');
 const eventBus = require('../services/eventBus');
 const {
@@ -794,7 +794,13 @@ const buildHomeRateResponse = async (req, res, userId, accountType, settings) =>
         serverTime: new Date().toISOString(),
         pendingRateUpdate: settings?.pendingRateUpdate?.effectiveAt ? {
             effectiveAt: new Date(settings.pendingRateUpdate.effectiveAt).toISOString(),
-            changes: settings.pendingRateUpdate.changes || {}
+            changes: settings.pendingRateUpdate.changes || {},
+            previousRates: settings.pendingRateUpdate.previousRates || {},
+            ...buildRateChangePayload({
+                changes: settings.pendingRateUpdate.changes || {},
+                previousRates: settings.pendingRateUpdate.previousRates || {},
+                effectiveAt: settings.pendingRateUpdate.effectiveAt
+            })
         } : null
     };
 

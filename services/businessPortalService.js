@@ -15,7 +15,7 @@ const { getTransferPricingDefinition } = require('../utils/transferPricing');
 const agencyFinanceService = require('./agencyFinanceService');
 const { resolveMarginPiasters, pricingFromTransaction, roundMoney } = require('../utils/agencyPricing');
 const { calculateCreditState } = require('./agencyCreditLimitService');
-const { activatePendingRateUpdate } = require('./rateChangeService');
+const { activatePendingRateUpdate, buildRateChangePayload } = require('./rateChangeService');
 const {
     sanitizeStatementMovement,
     sanitizeStatementTransaction
@@ -829,7 +829,13 @@ const buildBaseContext = async (req, page, workspace) => {
         pendingRateUpdate: rates.settings?.pendingRateUpdate?.effectiveAt
             ? {
                 effectiveAt: new Date(rates.settings.pendingRateUpdate.effectiveAt).toISOString(),
-                changes: rates.settings.pendingRateUpdate.changes || {}
+                changes: rates.settings.pendingRateUpdate.changes || {},
+                previousRates: rates.settings.pendingRateUpdate.previousRates || {},
+                ...buildRateChangePayload({
+                    changes: rates.settings.pendingRateUpdate.changes || {},
+                    previousRates: rates.settings.pendingRateUpdate.previousRates || {},
+                    effectiveAt: rates.settings.pendingRateUpdate.effectiveAt
+                })
             }
             : null,
         systemOpen: rates.settings.isManualClosed !== true,

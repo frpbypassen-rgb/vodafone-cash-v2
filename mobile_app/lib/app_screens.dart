@@ -3736,12 +3736,32 @@ class _ExchangeRatesScreenState extends State<ExchangeRatesScreen> {
     _rateChangeTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
       if (!mounted) return timer.cancel();
       if (_pendingRateSeconds() <= 0) {
+        final currentRatesText = _pendingRateText('currentRatesText');
         timer.cancel();
-        _load();
+        unawaited(_load().then((_) {
+          if (!mounted) return;
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              behavior: SnackBarBehavior.floating,
+              backgroundColor: _green,
+              content: Text(
+                currentRatesText.isEmpty
+                    ? 'تم تفعيل السعر الجديد في حسابك.'
+                    : 'تم تفعيل السعر الجديد:\n$currentRatesText',
+              ),
+            ),
+          );
+        }));
         return;
       }
       setState(() {});
     });
+  }
+
+  String _pendingRateText(String field) {
+    final pending = _home?['pendingRateUpdate'];
+    if (pending is! Map) return '';
+    return '${pending[field] ?? ''}'.trim();
   }
 
   void _syncCalculator({
@@ -3818,6 +3838,7 @@ class _ExchangeRatesScreenState extends State<ExchangeRatesScreen> {
         .toList();
     final visibleRows = marketRows.isEmpty ? rows : marketRows;
     final pendingSeconds = _pendingRateSeconds();
+    final pendingRateChanges = _pendingRateText('rateChangesText');
     final selected = visibleRows.firstWhere(
       (item) => item['key'] == _selectedServiceKey,
       orElse: () =>
@@ -3830,7 +3851,10 @@ class _ExchangeRatesScreenState extends State<ExchangeRatesScreen> {
       onRefresh: _load,
       child: [
         if (pendingSeconds > 0) ...[
-          _RateChangeCountdownBanner(seconds: pendingSeconds),
+          _RateChangeCountdownBanner(
+            seconds: pendingSeconds,
+            rateChangesText: pendingRateChanges,
+          ),
           const SizedBox(height: 12),
         ],
         if (rates.isEmpty)
@@ -15143,9 +15167,13 @@ class StatTile extends StatelessWidget {
 }
 
 class _RateChangeCountdownBanner extends StatelessWidget {
-  const _RateChangeCountdownBanner({required this.seconds});
+  const _RateChangeCountdownBanner({
+    required this.seconds,
+    required this.rateChangesText,
+  });
 
   final int seconds;
+  final String rateChangesText;
 
   @override
   Widget build(BuildContext context) {
@@ -15164,19 +15192,26 @@ class _RateChangeCountdownBanner extends StatelessWidget {
         children: [
           const Icon(Icons.timer_outlined, color: _gold),
           const SizedBox(width: 10),
-          const Expanded(
+          Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
+                const Text(
                   'تحديث أسعار الصرف قريباً',
                   style: TextStyle(fontWeight: FontWeight.w900),
                 ),
-                SizedBox(height: 2),
-                Text(
+                const SizedBox(height: 2),
+                const Text(
                   'ستتحدث الأسعار الخاصة بحسابك تلقائياً عند انتهاء العداد.',
                   style: TextStyle(fontSize: 11),
                 ),
+                if (rateChangesText.isNotEmpty) ...[
+                  const SizedBox(height: 5),
+                  Text(
+                    rateChangesText,
+                    style: const TextStyle(fontSize: 11, height: 1.45),
+                  ),
+                ],
               ],
             ),
           ),
