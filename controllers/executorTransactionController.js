@@ -21,7 +21,6 @@ const {
 } = require('../utils/manualExecutorReceipt');
 const { reserveManualExecutorReceiptReference } = require('../services/manualExecutorReceiptReferenceService');
 const { attachCancellationReceipt } = require('../services/cancellationReceiptService');
-const { executorTransferRequiresProof } = require('../utils/executorServiceCatalog');
 const { calculateTransferCostLYD, isSourceToLydRate } = require('../utils/transferPricing');
 
 const MAX_PROOF_IMAGES = 5;
@@ -329,11 +328,6 @@ exports.postCompleteTask = async (req, res) => {
         if (!tx) {
             return res.status(409).json({ success: false, error: 'العملية غير متاحة للإنهاء أو تم إنهاؤها مسبقاً.' });
         }
-        const proofRequired = executorTransferRequiresProof(tx.transferType);
-        if (proofRequired && proofs.length === 0) {
-            return res.status(400).json({ success: false, error: 'إرفاق صورة إثبات إلزامي لعمليات سيفا النيجر.' });
-        }
-
         const executorReceipt = await reserveManualExecutorReceiptReference({ group: emp.groupId });
         const completedAt = new Date();
         tx.completedAt = completedAt;
@@ -358,17 +352,17 @@ exports.postCompleteTask = async (req, res) => {
             localFileNames.push(fileName);
         }
 
-        const proofSource = proofRequired
-            ? 'sefa-executor-proof-required'
-            : (proofs.length ? 'system-generated-with-executor-upload' : 'system-generated');
-        const clientProofImages = proofRequired
-            ? [...localFileNames.slice(1), localFileNames[0]]
-            : localFileNames;
+        const proofSource = proofs.length
+            ? 'system-generated-with-executor-upload'
+            : 'system-generated';
+        const systemReceiptId = localFileNames[0];
+        const executorProofImages = localFileNames.slice(1);
         appendAdminNote(tx, `[تم توليد إيصال تنفيذ يدوي | مرجع المنفذ: ${executorReceipt.reference}]`);
 
         tx.status = 'completed';
-        tx.proofImage = clientProofImages[0];
-        tx.proofImages = clientProofImages;
+        tx.proofImage = systemReceiptId;
+        tx.proofImages = systemReceiptId ? [systemReceiptId] : [];
+        tx.executorProofImages = executorProofImages;
         tx.executorSenderPhone = executionNumber || undefined;
         tx.executorExecutionNumberMasked = maskedExecutionNumber || undefined;
         tx.manualExecutorReceiptReference = executorReceipt.reference;
@@ -394,9 +388,10 @@ exports.postCompleteTask = async (req, res) => {
             oldData: { status: 'accepted' },
             newData: {
                 status: 'completed',
-                proofCount: clientProofImages.length,
+                proofCount: tx.proofImages.length,
+                executorProofCount: executorProofImages.length,
                 proofSource,
-                proofRequired,
+                proofRequired: false,
                 manualExecutorReceiptReference: executorReceipt.reference,
                 executorExecutionNumberMasked: maskedExecutionNumber || null
             },

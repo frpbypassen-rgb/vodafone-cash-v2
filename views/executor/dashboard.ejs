@@ -598,10 +598,17 @@
     });
 
     function handleIncomingFiles(files) {
-        for (let i = 0; i < files.length; i++) {
-            if (!files[i].type.startsWith('image/')) { Swal.fire('خطأ', 'يرجى اختيار صور فقط.', 'error'); continue; }
-            selectedFilesArray.push(files[i]);
+        const remainingSlots = Math.max(0, 5 - selectedFilesArray.length);
+        if (remainingSlots === 0) {
+            Swal.fire('تنبيه', 'يمكن إرفاق خمس صور إثبات كحد أقصى.', 'info');
+            return;
         }
+        const acceptedFiles = Array.from(files).slice(0, remainingSlots);
+        for (let i = 0; i < acceptedFiles.length; i++) {
+            if (!acceptedFiles[i].type.startsWith('image/')) { Swal.fire('خطأ', 'يرجى اختيار صور فقط.', 'error'); continue; }
+            selectedFilesArray.push(acceptedFiles[i]);
+        }
+        if (files.length > remainingSlots) Swal.fire('تنبيه', 'تمت إضافة الصور المتاحة فقط. الحد الأقصى خمس صور.', 'info');
         renderImagesGrid();
     }
     
@@ -625,14 +632,11 @@
 
     function removeImageFromList(index) { selectedFilesArray.splice(index, 1); renderImagesGrid(); }
     function updateProofRequirement() {
-        const proofRequired = currentCompletingTransferType === 'sefa_niger';
         const title = document.getElementById('proofRequirementTitle');
         const hint = document.getElementById('proofRequirementHint');
-        if (title) title.textContent = proofRequired ? 'إرفاق إثبات سيفا مطلوب' : 'إرفاق الصورة اختياري';
-        if (hint) hint.textContent = proofRequired
-            ? 'لن يكتمل تحويل سيفا النيجر قبل إرفاق صورة إثبات التنفيذ.'
-            : 'يمكنك إرفاق صور متعددة، أو المتابعة لإنشاء إيصال نظام تلقائي';
-        dropZone.classList.toggle('border-danger', proofRequired);
+        if (title) title.textContent = 'إرفاق الصور اختياري';
+        if (hint) hint.textContent = 'يمكنك إرفاق حتى خمس صور، أو المتابعة لإنشاء إيصال نظام تلقائي';
+        dropZone.classList.remove('border-danger');
     }
     function resetUploadModal() {
         selectedFilesArray = [];
@@ -1035,10 +1039,6 @@
         const executionDigits = executionNumber.replace(/\D/g, '');
         if (executionDigits && !/^(?:01\d{9}|\d{3}|\d{4})$/.test(executionDigits)) {
             Swal.fire('رقم التنفيذ غير صالح', 'أدخل رقم هاتف من 11 رقمًا، أو آخر 3 أو 4 أرقام فقط.', 'warning');
-            return;
-        }
-        if (currentCompletingTransferType === 'sefa_niger' && selectedFilesArray.length === 0) {
-            Swal.fire('إثبات سيفا مطلوب', 'أرفق صورة إثبات التنفيذ قبل إنهاء عملية سيفا النيجر.', 'warning');
             return;
         }
         const btn = this; btn.disabled = true; btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> ضغط وإرسال...';

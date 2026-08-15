@@ -250,6 +250,12 @@ const completeTaskValidator = [
     body('imageBase64')
         .optional({ checkFalsy: true })
         .isString().withMessage('ØµÙˆØ±Ø© Ø§Ù„Ø¥Ø«Ø¨Ø§Øª ÙŠØ¬Ø¨ Ø£Ù† ØªÙƒÙˆÙ† Ù†Øµ Base64'),
+    body('imagesBase64')
+        .optional()
+        .isArray({ max: 5 }).withMessage('يمكن إرفاق خمس صور كحد أقصى'),
+    body('imagesBase64.*')
+        .optional()
+        .isString().withMessage('صورة الإثبات يجب أن تكون نص Base64'),
     body('executionNumber')
         .optional()
         .trim()

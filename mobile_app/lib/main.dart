@@ -13,15 +13,8 @@ import 'mobile_api.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await Future.wait<void>([
-    initializeDateFormatting('ar'),
-    initializeDateFormatting('en'),
-  ]);
-  // Notification setup must never block the first visible screen.
-  unawaited(ExecutorAlertService.instance.configure());
   final controller = SessionController(SessionStore());
   final language = LanguageController();
-  await language.restore();
   runApp(
     PowerPayApp(
       controller: controller,
@@ -29,6 +22,27 @@ Future<void> main() async {
       language: language,
     ),
   );
+
+  // The first frame must never wait on secure storage, locale data, or native
+  // notification setup. A slow device previously showed a white native screen.
+  unawaited(_warmUpApplication(language));
+}
+
+Future<void> _warmUpApplication(LanguageController language) async {
+  try {
+    await Future.wait<void>([
+      initializeDateFormatting('ar'),
+      initializeDateFormatting('en'),
+      language.restore(),
+    ]);
+  } catch (_) {
+    // The application already rendered with system defaults.
+  }
+  try {
+    await ExecutorAlertService.instance.configure();
+  } catch (_) {
+    // Notifications remain unavailable until the next successful start.
+  }
 }
 
 class PowerPayApp extends StatelessWidget {

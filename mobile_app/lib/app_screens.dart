@@ -14386,11 +14386,9 @@ class CompleteTaskDialog extends StatefulWidget {
 class _CompleteTaskDialogState extends State<CompleteTaskDialog> {
   final _execution = TextEditingController();
   final _picker = ImagePicker();
-  Uint8List? _image;
+  final List<Uint8List> _images = <Uint8List>[];
   bool _busy = false;
   String? _error;
-
-  bool get _proofRequired => widget.task['transferType'] == 'sefa_niger';
 
   @override
   void dispose() {
@@ -14419,23 +14417,32 @@ class _CompleteTaskDialogState extends State<CompleteTaskDialog> {
       ),
     );
     if (source == null) return;
+    if (source == ImageSource.gallery) {
+      final files = await _picker.pickMultiImage(
+        imageQuality: 72,
+        maxWidth: 1600,
+      );
+      if (files.isEmpty) return;
+      final available = 5 - _images.length;
+      final images = await Future.wait(
+        files.take(available).map((file) => file.readAsBytes()),
+      );
+      if (mounted) setState(() => _images.addAll(images));
+      return;
+    }
     final file = await _picker.pickImage(
-      source: source,
+      source: ImageSource.camera,
       imageQuality: 72,
       maxWidth: 1600,
     );
     if (file == null) return;
     final image = await file.readAsBytes();
-    if (mounted) setState(() => _image = image);
+    if (mounted) setState(() => _images.add(image));
   }
 
   Future<void> _complete() async {
     if (_execution.text.trim().length < 3) {
       setState(() => _error = 'أدخل رقم التنفيذ الذي ظهر لك بعد التحويل.');
-      return;
-    }
-    if (_proofRequired && _image == null) {
-      setState(() => _error = 'صورة الإثبات إلزامية لخدمة سيفا النيجر.');
       return;
     }
     setState(() {
@@ -14446,9 +14453,9 @@ class _CompleteTaskDialogState extends State<CompleteTaskDialog> {
       await widget.api.completeTask(
         id: '${widget.task['id']}',
         executionNumber: _execution.text.trim(),
-        imageBase64: _image == null
-            ? null
-            : 'data:image/jpeg;base64,${base64Encode(_image!)}',
+        imagesBase64: _images
+            .map((image) => 'data:image/jpeg;base64,${base64Encode(image)}')
+            .toList(),
       );
       if (mounted) {
         showSnack(context, 'تم إنهاء العملية وتوليد الإيصال بنجاح.');
@@ -14490,12 +14497,10 @@ class _CompleteTaskDialogState extends State<CompleteTaskDialog> {
                 ),
               ),
               const SizedBox(height: 12),
-              ProofPicker(
-                required: _proofRequired,
-                image: _image,
+              ExecutorProofAttachments(
+                images: _images,
                 onPick: _pick,
-                onClear: () => setState(() => _image = null),
-                label: 'صورة إثبات التنفيذ',
+                onRemove: (index) => setState(() => _images.removeAt(index)),
               ),
               if (_error != null) ...[
                 const SizedBox(height: 12),
@@ -14513,6 +14518,86 @@ class _CompleteTaskDialogState extends State<CompleteTaskDialog> {
         FilledButton(
           onPressed: _busy ? null : _complete,
           child: Text(_busy ? 'جارٍ الإرسال...' : 'إرسال التنفيذ'),
+        ),
+      ],
+    );
+  }
+}
+
+class ExecutorProofAttachments extends StatelessWidget {
+  const ExecutorProofAttachments({
+    super.key,
+    required this.images,
+    required this.onPick,
+    required this.onRemove,
+  });
+
+  final List<Uint8List> images;
+  final VoidCallback onPick;
+  final ValueChanged<int> onRemove;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        OutlinedButton.icon(
+          onPressed: images.length >= 5 ? null : onPick,
+          style: OutlinedButton.styleFrom(
+            minimumSize: const Size.fromHeight(50),
+            alignment: Alignment.centerRight,
+          ),
+          icon: const Icon(Icons.add_photo_alternate_outlined),
+          label: Text(
+            images.isEmpty
+                ? 'إرفاق صور إثبات (اختياري)'
+                : 'إضافة صورة (${images.length}/5)',
+          ),
+        ),
+        if (images.isNotEmpty) ...[
+          const SizedBox(height: 10),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: List<Widget>.generate(
+              images.length,
+              (index) => Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(8),
+                    child: Image.memory(
+                      images[index],
+                      width: 76,
+                      height: 76,
+                      fit: BoxFit.cover,
+                    ),
+                  ),
+                  Positioned(
+                    top: -9,
+                    right: -9,
+                    child: IconButton.filled(
+                      tooltip: 'حذف الصورة',
+                      onPressed: () => onRemove(index),
+                      icon: const Icon(Icons.close, size: 16),
+                      color: _danger,
+                      iconSize: 16,
+                      padding: const EdgeInsets.all(4),
+                      constraints: const BoxConstraints.tightFor(
+                        width: 28,
+                        height: 28,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+        const SizedBox(height: 6),
+        Text(
+          'يمكن إنهاء العملية دون صورة؛ سيُنشأ إيصال المنظومة تلقائياً.',
+          style: Theme.of(context).textTheme.bodySmall,
         ),
       ],
     );

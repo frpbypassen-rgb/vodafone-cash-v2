@@ -32,7 +32,8 @@ const EXECUTOR_PRIVATE_FIELDS = Object.freeze([
     'zaynpayIdempotencyFingerprint',
     'zaynpayIdempotencyResponse',
     'adminNotes',
-    'cancelledBy'
+    'cancelledBy',
+    'executorProofImages'
 ]);
 
 const EXECUTOR_TEXT_PATTERN = /(?:منفذ|البوت|روبوت|رقم\s*المرسل|executor|operator|\bapi\b)/i;
@@ -89,6 +90,15 @@ const sanitizeStatementTransaction = (transaction = {}) => {
     const customerNote = sanitizeStatementText(customerNoteFromTransaction(source));
     sanitized.notes = customerNote || undefined;
     sanitized.customerNotes = customerNote || undefined;
+
+    // Only the system-generated receipt is visible in customer statements.
+    const publicReceiptId = String(
+        source.proofImage
+        || (Array.isArray(source.proofImages) ? source.proofImages[0] : '')
+        || ''
+    ).trim();
+    sanitized.proofImage = publicReceiptId || undefined;
+    sanitized.proofImages = publicReceiptId ? [publicReceiptId] : [];
 
     if (source.cancellationReason) {
         sanitized.cancellationReason = sanitizeStatementText(source.cancellationReason, 'تم إلغاء العملية');

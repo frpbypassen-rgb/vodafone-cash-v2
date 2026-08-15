@@ -1536,6 +1536,9 @@
                 let proofs = [];
                 if (tx.proofImages && tx.proofImages.length > 0) proofs = tx.proofImages;
                 else if (tx.proofImage && tx.proofImage.trim() !== '') proofs = [tx.proofImage];
+                if (tx.executorProofImages && tx.executorProofImages.length > 0) {
+                    proofs = [...proofs, ...tx.executorProofImages];
+                }
                 
                 if (proofs.length > 0) {
                     if (proofs.length === 1) {

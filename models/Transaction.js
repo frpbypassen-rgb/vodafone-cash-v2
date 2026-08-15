@@ -143,6 +143,8 @@ const transactionSchema = new mongoose.Schema({
     // 🖼️ الصور وإثباتات التنفيذ
     proofImage: { type: String }, 
     proofImages: [{ type: String }], 
+    // مرفقات المنفذ الداخلية: لا تظهر في بوابات العملاء أو روابط الإيصالات العامة.
+    executorProofImages: [{ type: String }],
     idCardImage: { type: String }, 
     oldReceiptImage: { type: String },
     resolutionImage: { type: String },

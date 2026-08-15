@@ -513,12 +513,27 @@ class MobileApi {
   Future<Map<String, dynamic>> clientReport({
     required String dateFrom,
     required String dateTo,
-  }) {
-    return _request(
-      'POST',
-      '/client/reports/filter',
-      data: _clientReportRequest(dateFrom: dateFrom, dateTo: dateTo),
-    );
+  }) async {
+    if (dateFrom == dateTo) {
+      return _request(
+        'POST',
+        '/client/reports/filter',
+        data: _clientReportRequest(dateFrom: dateFrom, dateTo: dateTo),
+      );
+    }
+
+    try {
+      return await _request(
+        'POST',
+        '/client/reports/filter',
+        data: _clientReportRequest(dateFrom: dateFrom, dateTo: dateTo),
+      );
+    } on ApiFailure catch (error) {
+      // Production servers before the range-report release accept only day
+      // and month. Build the requested period from the supported daily API.
+      if (error.statusCode != 400 && error.statusCode != 404) rethrow;
+      return _legacyRangeClientReport(dateFrom: dateFrom, dateTo: dateTo);
+    }
   }
 
   Future<Uri> clientReportDownloadUrl({
@@ -552,6 +567,109 @@ class MobileApi {
       'dateFrom': dateFrom,
       'dateTo': dateTo,
     };
+  }
+
+  Future<Map<String, dynamic>> _legacyRangeClientReport({
+    required String dateFrom,
+    required String dateTo,
+  }) async {
+    final start = DateTime.parse(dateFrom);
+    final end = DateTime.parse(dateTo);
+    final dailyReports = <Map<String, dynamic>>[];
+
+    for (
+      var date = start;
+      !date.isAfter(end);
+      date = date.add(const Duration(days: 1))
+    ) {
+      final report = await _request(
+        'POST',
+        '/client/reports/filter',
+        data: <String, dynamic>{
+          'dateType': 'day',
+          'dateValue': _reportDateValue(date),
+        },
+      );
+      dailyReports.add(_asMap(report['data']));
+    }
+
+    final first = dailyReports.first;
+    final last = dailyReports.last;
+    final operations = <Map<String, dynamic>>[];
+    final currentTransactions = <Map<String, dynamic>>[];
+    final deposits = <Map<String, dynamic>>[];
+    var totalLYD = 0.0;
+    var totalEGP = 0.0;
+    var completedCount = 0;
+    var rejectedCount = 0;
+    var totalDeposits = 0.0;
+
+    for (final report in dailyReports) {
+      operations.addAll(_reportRows(report['operations']));
+      currentTransactions.addAll(_reportRows(report['currentTransactions']));
+      deposits.addAll(_reportRows(report['deposits']));
+      totalLYD += _reportNumber(report['totalLYD']);
+      totalEGP += _reportNumber(report['totalEGP']);
+      completedCount += _reportNumber(report['completedCount']).round();
+      rejectedCount += _reportNumber(report['rejectedCount']).round();
+      totalDeposits += _reportNumber(report['totalDeposits']);
+    }
+
+    final cancelledOperations = operations
+        .where(
+          (operation) => const <String>{
+            'rejected',
+            'cancelled',
+            'cancelled_by_admin',
+            'failed',
+          }.contains('${operation['status']}'.toLowerCase()),
+        )
+        .toList();
+
+    return <String, dynamic>{
+      'success': true,
+      'data': <String, dynamic>{
+        'previousBalance': first['previousBalance'] ?? 0,
+        'currentBalance': last['currentBalance'] ?? 0,
+        'currentTransactions': currentTransactions,
+        'operations': operations,
+        'cancelledOperations': cancelledOperations,
+        'deposits': deposits,
+        'totalLYD': totalLYD,
+        'totalEGP': totalEGP,
+        'completedCount': completedCount,
+        'rejectedCount': rejectedCount,
+        'totalDeposits': totalDeposits,
+        'operationCount': operations.length,
+        'periodBalance': totalDeposits - totalLYD,
+        'scope': 'client',
+        'reportPeriod': <String, dynamic>{
+          'type': 'range',
+          'value': '$dateFrom إلى $dateTo',
+        },
+        'entityInfo': last['entityInfo'] ?? first['entityInfo'],
+      },
+    };
+  }
+
+  List<Map<String, dynamic>> _reportRows(Object? value) {
+    if (value is! List) return const <Map<String, dynamic>>[];
+    return value
+        .whereType<Map>()
+        .map((row) => Map<String, dynamic>.from(row))
+        .toList();
+  }
+
+  double _reportNumber(Object? value) {
+    if (value is num) return value.toDouble();
+    return double.tryParse('${value ?? ''}') ?? 0;
+  }
+
+  String _reportDateValue(DateTime value) {
+    final year = value.year.toString().padLeft(4, '0');
+    final month = value.month.toString().padLeft(2, '0');
+    final day = value.day.toString().padLeft(2, '0');
+    return '$year-$month-$day';
   }
 
   Future<Map<String, dynamic>> createTransfer(Map<String, dynamic> payload) {
@@ -803,6 +921,7 @@ class MobileApi {
     required String id,
     required String executionNumber,
     String? imageBase64,
+    List<String>? imagesBase64,
   }) {
     return _request(
       'POST',
@@ -811,6 +930,8 @@ class MobileApi {
         'executionNumber': executionNumber,
         if (imageBase64 != null && imageBase64.isNotEmpty)
           'imageBase64': imageBase64,
+        if (imagesBase64 != null && imagesBase64.isNotEmpty)
+          'imagesBase64': imagesBase64,
       },
     );
   }

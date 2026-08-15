@@ -84,7 +84,6 @@ const {
 } = require('../utils/manualExecutorReceipt');
 const { reserveManualExecutorReceiptReference } = require('../services/manualExecutorReceiptReferenceService');
 const { reversalService } = require('../src/Application/Services/ReversalService');
-const { executorTransferRequiresProof } = require('../utils/executorServiceCatalog');
 const eventBus = require('../services/eventBus');
 const {
     acceptExecutorTask,
@@ -1540,7 +1539,7 @@ router.post('/executor/cancel-task/:id', authenticateJWT, cancelTaskValidator, a
  *             properties:
  *               imageBase64:
  *                 type: string
- *                 description: صورة الإثبات بصيغة Base64. إلزامية لعمليات سيفا النيجر فقط.
+ *                 description: صورة إثبات اختيارية بصيغة Base64.
  *                 example: "data:image/jpeg;base64,/9j/4AAQSkZJR..."
  *               senderPhone:
  *                 type: string
@@ -1552,7 +1551,7 @@ router.post('/executor/cancel-task/:id', authenticateJWT, cancelTaskValidator, a
  */
 router.post('/executor/complete-task/:id', authenticateJWT, completeTaskValidator, async (req, res) => {
     try {
-        const { imageBase64, executionNumber: requestedExecutionNumber, senderPhone } = req.body;
+        const { imageBase64, imagesBase64, executionNumber: requestedExecutionNumber, senderPhone } = req.body;
         const executionNumber = String(requestedExecutionNumber ?? senderPhone ?? '').trim();
         const { userId, accountType } = req.user;
         if (accountType !== 'executor') {
@@ -1587,11 +1586,6 @@ router.post('/executor/complete-task/:id', authenticateJWT, completeTaskValidato
         if (!tx || tx.status !== 'accepted' || tx.operatorId !== emp._id.toString()) {
             return sendMobileError(res, 409, 'INVALID_STATE', 'الطلب غير متاح للإنهاء', req.correlationId);
         }
-        const proofRequired = executorTransferRequiresProof(tx.transferType);
-        if (proofRequired && !imageBase64) {
-            return sendMobileError(res, 400, 'SEFA_PROOF_REQUIRED', 'إرفاق صورة إثبات إلزامي لعمليات سيفا النيجر', req.correlationId);
-        }
-
         const executorReceipt = await reserveManualExecutorReceiptReference({ group: emp.groupId });
         const completedAt = new Date();
         const receiptBase64 = await generateManualExecutorReceiptBase64({
@@ -1614,15 +1608,20 @@ router.post('/executor/complete-task/:id', authenticateJWT, completeTaskValidato
             await ExecutorGroup.findByIdAndUpdate(emp.groupId._id, { $inc: { balance: -tx.amount } });
         }
 
-        const savedFileId = imageBase64
-            ? saveProofImage(imageBase64, `${tx.customId || tx._id}_executor`)
-            : null;
+        const uploadedImages = Array.isArray(imagesBase64) && imagesBase64.length
+            ? imagesBase64
+            : (imageBase64 ? [imageBase64] : []);
+        if (uploadedImages.length > 5 || uploadedImages.some((image) => typeof image !== 'string')) {
+            return sendMobileError(res, 400, 'INVALID_PROOF_IMAGES', 'يمكن إرفاق خمس صور إثبات كحد أقصى', req.correlationId);
+        }
+        const savedFileIds = uploadedImages.map((image, index) => (
+            saveProofImage(image, `${tx.customId || tx._id}_executor_${index + 1}`)
+        ));
 
         tx.status = 'completed';
-        tx.proofImages = proofRequired
-            ? [savedFileId, systemReceiptId].filter(Boolean)
-            : [systemReceiptId, savedFileId].filter(Boolean);
-        tx.proofImage = tx.proofImages[0];
+        tx.proofImages = systemReceiptId ? [systemReceiptId] : [];
+        tx.proofImage = systemReceiptId || undefined;
+        tx.executorProofImages = savedFileIds;
         tx.executorSenderPhone = executionNumber || undefined;
         tx.executorExecutionNumberMasked = maskedExecutionNumber || undefined;
         tx.manualExecutorReceiptReference = executorReceipt.reference;
@@ -1641,8 +1640,9 @@ router.post('/executor/complete-task/:id', authenticateJWT, completeTaskValidato
             oldData: { status: 'accepted' },
             newData: {
                 status: 'completed',
-                hasProofImage: true,
-                proofRequired,
+                hasProofImage: savedFileIds.length > 0,
+                proofCount: tx.proofImages.length,
+                executorProofCount: savedFileIds.length,
                 manualExecutorReceiptReference: executorReceipt.reference,
                 executorExecutionNumberMasked: maskedExecutionNumber || null
             },
