@@ -14450,12 +14450,16 @@ class _CompleteTaskDialogState extends State<CompleteTaskDialog> {
       _error = null;
     });
     try {
+      final proofImages = _images
+          .map((image) => 'data:image/jpeg;base64,${base64Encode(image)}')
+          .toList();
       await widget.api.completeTask(
         id: '${widget.task['id']}',
         executionNumber: _execution.text.trim(),
-        imagesBase64: _images
-            .map((image) => 'data:image/jpeg;base64,${base64Encode(image)}')
-            .toList(),
+        // Keep the first attachment for servers that still accept the legacy
+        // single-image field while the full list reaches updated servers.
+        imageBase64: proofImages.isEmpty ? null : proofImages.first,
+        imagesBase64: proofImages,
       );
       if (mounted) {
         showSnack(context, 'تم إنهاء العملية وتوليد الإيصال بنجاح.');
