@@ -10,7 +10,9 @@ const ClientCompany = require('../models/ClientCompany');
 const { sendRateChangeWhatsAppNotifications } = require('./whatsappRateChangeDeliveryService');
 
 const RATE_CHANGE_DELAY_MS = 60 * 1000;
+const RATE_CHANGE_MONITOR_INTERVAL_MS = 5 * 1000;
 let activationTimer = null;
+let activationMonitor = null;
 
 const recipientIds = async () => {
     const [users, clientEmployees, agentEmployees, subAccounts, companies] = await Promise.all([
@@ -71,6 +73,7 @@ const armPendingRateActivation = ({ app, effectiveAt }) => {
             console.error('[RateChange] activation failed:', error.message);
         });
     }, delay + 30);
+    activationTimer.unref?.();
 };
 
 const scheduleRateUpdate = async ({ settings, changes, actor, app }) => {
@@ -116,8 +119,23 @@ const restorePendingRateActivation = async ({ app } = {}) => {
     return { effectiveAt: new Date(effectiveAt).toISOString(), restored: true };
 };
 
+// Keeps scheduled rates reliable when the web process is restarted or a
+// previous in-memory timeout is lost before the effective time.
+const startRateChangeActivationMonitor = ({ app } = {}) => {
+    if (activationMonitor) return activationMonitor;
+
+    activationMonitor = setInterval(() => {
+        activatePendingRateUpdate({ app }).catch((error) => {
+            console.error('[RateChange] monitor failed:', error.message);
+        });
+    }, RATE_CHANGE_MONITOR_INTERVAL_MS);
+    activationMonitor.unref?.();
+    return activationMonitor;
+};
+
 module.exports = {
     activatePendingRateUpdate,
     scheduleRateUpdate,
-    restorePendingRateActivation
+    restorePendingRateActivation,
+    startRateChangeActivationMonitor
 };

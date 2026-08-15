@@ -112,6 +112,13 @@ router.get('/', async (req, res) => {
     };
     res.render('settings', {
         settings,
+        pendingRateUpdate: settings.pendingRateUpdate?.effectiveAt
+            && new Date(settings.pendingRateUpdate.effectiveAt).getTime() > Date.now()
+            ? {
+                effectiveAt: new Date(settings.pendingRateUpdate.effectiveAt).toISOString(),
+                changes: settings.pendingRateUpdate.changes || {}
+            }
+            : null,
         executorBots,
         rateServices,
         companyRateRows,
@@ -184,19 +191,25 @@ router.post('/update', requireMaster, async (req, res) => {
         const settings = await Settings.findOne({}) || new Settings();
         const hasPendingRateUpdate = settings.pendingRateUpdate?.effectiveAt
             && new Date(settings.pendingRateUpdate.effectiveAt).getTime() > Date.now();
-        // دمج التعديلات الجديدة مع ما هو مجدول بالفعل بدلاً من فقد التعديل الأول.
+        // Keep a scheduled update when another form setting is saved during its
+        // countdown. The form submits active rate values, which must not erase
+        // a rate that is already waiting to be activated.
         const rateChanges = hasPendingRateUpdate
             ? { ...(settings.pendingRateUpdate.changes || {}) }
             : {};
         let receivedRateField = false;
+        let pendingRateWasChanged = false;
         [...SERVICE_RATE_ADMIN_FIELDS, 'rateLevel1', 'rateLevel2', 'rateLevel3'].forEach((field) => {
             if (synchronizedData[field] !== undefined) {
                 receivedRateField = true;
                 const nextValue = synchronizedData[field];
                 delete synchronizedData[field];
                 if (Number(nextValue) === Number(settings[field])) {
-                    delete rateChanges[field];
+                    if (!hasPendingRateUpdate) delete rateChanges[field];
                 } else {
+                    if (Number(rateChanges[field]) !== Number(nextValue)) {
+                        pendingRateWasChanged = true;
+                    }
                     rateChanges[field] = nextValue;
                 }
             }
@@ -208,7 +221,9 @@ router.post('/update', requireMaster, async (req, res) => {
             settings.pendingRateUpdate = undefined;
         }
         await settings.save();
-        if (Object.keys(rateChanges).length) {
+        const shouldScheduleRateUpdate = Object.keys(rateChanges).length > 0
+            && (!hasPendingRateUpdate || pendingRateWasChanged);
+        if (shouldScheduleRateUpdate) {
             await scheduleRateUpdate({
                 settings,
                 changes: rateChanges,
@@ -224,7 +239,10 @@ router.post('/update', requireMaster, async (req, res) => {
             }
             io.emit('update_data');
         }
-        res.redirect(`/settings?${Object.keys(rateChanges).length ? 'ratesScheduled=1' : 'ratesUpdated=1'}#company-rates`);
+        const result = shouldScheduleRateUpdate
+            ? 'ratesScheduled=1'
+            : (Object.keys(rateChanges).length ? 'ratesPending=1' : 'ratesUpdated=1');
+        res.redirect(`/settings?${result}#company-rates`);
     } catch (e) {
         console.error('[settings/update] خطأ:', e.message);
         res.redirect('/settings');

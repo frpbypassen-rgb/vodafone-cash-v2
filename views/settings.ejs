@@ -273,8 +273,17 @@
 
             <% if (query && query.ratesScheduled) { %>
                 <div class="alert alert-warning fw-bold"><i class="fa-solid fa-clock me-2"></i>تم إشعار الحسابات. ستُطبَّق أسعار الصرف الجديدة تلقائياً خلال 60 ثانية.</div>
+            <% } else if (query && query.ratesPending) { %>
+                <div class="alert alert-info fw-bold"><i class="fa-solid fa-hourglass-half me-2"></i>يوجد تحديث سعر مجدول بالفعل، ولم يتم إلغاؤه عند حفظ بقية الإعدادات.</div>
             <% } else if (query && query.ratesUpdated) { %>
                 <div class="alert alert-success fw-bold"><i class="fa-solid fa-circle-check me-2"></i>تم تحديث الأسعار العامة، وتم احتساب أسعار الشركات المرتبطة بها تلقائياً.</div>
+            <% } %>
+
+            <% if (pendingRateUpdate) { %>
+                <div class="alert alert-warning d-flex flex-wrap align-items-center justify-content-between gap-2 fw-bold" id="pendingRateUpdate" data-effective-at="<%= pendingRateUpdate.effectiveAt %>">
+                    <span><i class="fa-solid fa-clock-rotate-left me-2"></i>السعر الجديد مجدول وسيُطبّق تلقائياً بعد:</span>
+                    <strong class="mono-num" id="pendingRateCountdown" dir="ltr">00:00</strong>
+                </div>
             <% } %>
 
             <div class="company-rate-list" id="companyRateList">
@@ -343,6 +352,21 @@
             row.hidden = query && !row.dataset.companySearch.includes(query);
         });
     });
+
+    (() => {
+        const pending = document.getElementById('pendingRateUpdate');
+        const countdown = document.getElementById('pendingRateCountdown');
+        if (!pending || !countdown) return;
+
+        const effectiveAt = new Date(pending.dataset.effectiveAt).getTime();
+        const refresh = () => {
+            const seconds = Math.max(0, Math.ceil((effectiveAt - Date.now()) / 1000));
+            countdown.textContent = `${String(Math.floor(seconds / 60)).padStart(2, '0')}:${String(seconds % 60).padStart(2, '0')}`;
+            if (seconds === 0) window.location.reload();
+        };
+        refresh();
+        window.setInterval(refresh, 1000);
+    })();
 </script>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
 </body>
