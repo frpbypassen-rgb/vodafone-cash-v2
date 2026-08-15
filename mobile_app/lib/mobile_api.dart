@@ -1122,6 +1122,13 @@ class SessionController extends ChangeNotifier {
             (persona == 'directclient' || persona == 'agentclient'));
   }
 
+  bool get receivesClientNotifications => const <String>{
+    'client_user',
+    'client_company',
+    'sub_client',
+    'agent_staff',
+  }.contains(session?.accountType);
+
   bool get hidesBalance {
     final persona = session?.persona.toLowerCase() ?? '';
     return persona.contains('employee') || persona.contains('accountant');

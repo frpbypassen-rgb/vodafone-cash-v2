@@ -28,6 +28,7 @@ const {
 } = require('../utils/executorServiceCatalog');
 const { getWhatChimpConfigurationStatus, getWhatChimpTemplateReadiness, testWhatChimpConnection } = require('../services/whatsappService');
 const { getPublicAppUrl, getReceiptShareSecret } = require('../services/receiptShareService');
+const { scheduleRateUpdate } = require('../services/rateChangeService');
 
 const AUTO_ROUTE_INPUT_FIELDS = SERVICE_RATE_KEYS.map((serviceKey) => `autoRouteExecutor_${serviceKey}`);
 
@@ -180,15 +181,50 @@ router.post('/update', requireMaster, async (req, res) => {
             return res.redirect('/settings?autoRouteError=service_mismatch#auto-routing');
         }
 
+        const settings = await Settings.findOne({}) || new Settings();
+        const hasPendingRateUpdate = settings.pendingRateUpdate?.effectiveAt
+            && new Date(settings.pendingRateUpdate.effectiveAt).getTime() > Date.now();
+        // دمج التعديلات الجديدة مع ما هو مجدول بالفعل بدلاً من فقد التعديل الأول.
+        const rateChanges = hasPendingRateUpdate
+            ? { ...(settings.pendingRateUpdate.changes || {}) }
+            : {};
+        let receivedRateField = false;
+        [...SERVICE_RATE_ADMIN_FIELDS, 'rateLevel1', 'rateLevel2', 'rateLevel3'].forEach((field) => {
+            if (synchronizedData[field] !== undefined) {
+                receivedRateField = true;
+                const nextValue = synchronizedData[field];
+                delete synchronizedData[field];
+                if (Number(nextValue) === Number(settings[field])) {
+                    delete rateChanges[field];
+                } else {
+                    rateChanges[field] = nextValue;
+                }
+            }
+        });
         synchronizedData.autoRouteRules = requestedRules;
         synchronizedData.autoRouteBotId = requestedRules[0]?.executorGroupId || null;
-        await Settings.updateOne({}, synchronizedData, { upsert: true });
+        Object.assign(settings, synchronizedData);
+        if (receivedRateField && !Object.keys(rateChanges).length) {
+            settings.pendingRateUpdate = undefined;
+        }
+        await settings.save();
+        if (Object.keys(rateChanges).length) {
+            await scheduleRateUpdate({
+                settings,
+                changes: rateChanges,
+                actor: req.session?.adminName || req.session?.username || 'الإدارة',
+                app: req.app
+            });
+        }
         const io = req.app?.get('io');
         if (io) {
-            io.emit('exchange_rates_updated', { source: 'general' });
+            // لا نعلن تطبيق السعر قبل انتهاء مهلة الإشعار.
+            if (!Object.keys(rateChanges).length) {
+                io.emit('exchange_rates_updated', { source: 'general' });
+            }
             io.emit('update_data');
         }
-        res.redirect('/settings?ratesUpdated=1#company-rates');
+        res.redirect(`/settings?${Object.keys(rateChanges).length ? 'ratesScheduled=1' : 'ratesUpdated=1'}#company-rates`);
     } catch (e) {
         console.error('[settings/update] خطأ:', e.message);
         res.redirect('/settings');

@@ -115,7 +115,7 @@ exports.renderPage = (page) => async (req, res, next) => {
 exports.getCurrentRates = async (req, res) => {
     try {
         const workspace = await businessPortalService.resolveWorkspace(req);
-        const { serviceRates } = await businessPortalService.getSettingsAndRates(workspace);
+        const { serviceRates } = await businessPortalService.getSettingsAndRates(workspace, req.app);
         res.set('Cache-Control', 'no-store');
         return res.json({ success: true, serviceRates, updatedAt: new Date().toISOString() });
     } catch (error) {

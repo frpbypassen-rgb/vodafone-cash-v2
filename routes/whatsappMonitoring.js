@@ -53,6 +53,9 @@ router.get('/', requireAuth, async (req, res, next) => {
                 ready: Boolean(baseConfiguration.receiptOperational && receiptLinkReady),
                 receiptTemplate: baseConfiguration.receiptTemplate || null,
                 otpTemplate: baseConfiguration.otpTemplate || null,
+                rateChangeReady: Boolean(baseConfiguration.rateChangeOperational),
+                rateChangeTemplate: baseConfiguration.rateChangeTemplate || null,
+                rateChangeMissing: baseConfiguration.rateChangeMissing || [],
                 missing: [
                     ...(baseConfiguration.missing || []),
                     ...(!receiptLinkReady ? ['PUBLIC_APP_URL (HTTPS)', 'RECEIPT_SHARE_SECRET'] : [])

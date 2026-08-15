@@ -81,7 +81,7 @@
                 <span class="monitor-icon"><i class="fa-brands fa-whatsapp"></i></span>
                 <div>
                     <h3 class="fw-bold m-0" style="color:var(--text-main)">مراقبة رسائل واتساب</h3>
-                    <p class="monitor-subtitle">تتبع إرسال إيصالات العمليات وتحديد المرحلة المتوقفة وسببها.</p>
+                    <p class="monitor-subtitle">تتبع إيصالات العمليات وإشعارات تغيير السعر وتحديد المرحلة المتوقفة وسببها.</p>
                 </div>
             </div>
             <a href="/settings#whatsapp-integration" class="btn btn-outline-primary fw-bold"><i class="fa-solid fa-gear me-1"></i> إعدادات الربط</a>
@@ -99,6 +99,10 @@
             <div>
                 <strong style="color:var(--text-main)"><%= configuration.ready ? 'قالب الإيصال معتمد وجاهز للإرسال' : 'إرسال الإيصالات عبر WhatsApp متوقف' %></strong>
                 <% if (configuration.receiptTemplate && !configuration.receiptTemplate.approved) { %><div class="small text-danger mt-1">قالب الإيصال <strong dir="ltr"><%= configuration.receiptTemplate.name || configuration.receiptTemplate.id || 'غير محدد' %></strong> حالته: <strong dir="ltr"><%= configuration.receiptTemplate.status || 'غير معتمد' %></strong>. يجب اعتماده في Meta/WhatChimp قبل وصول الإيصالات.</div><% } else if (configuration.missing.length) { %><div class="small text-danger mt-1">النواقص: <span dir="ltr"><%= configuration.missing.join(' · ') %></span></div><% } else { %><div class="small text-muted mt-1">تصل تحديثات الحالة الفعلية عند تهيئة Webhook WhatChimp على رابط المنظومة.</div><% } %>
+                <div class="small mt-1 <%= configuration.rateChangeReady ? 'text-success' : 'text-warning' %>">
+                    <i class="fa-solid <%= configuration.rateChangeReady ? 'fa-circle-check' : 'fa-triangle-exclamation' %> me-1"></i>
+                    <%= configuration.rateChangeReady ? 'قالب إشعار تغيير السعر معتمد وجاهز للإرسال.' : `إشعار تغيير السعر متوقف: ${(configuration.rateChangeMissing || ['قالب تغيير السعر غير معتمد']).join(' · ')}` %>
+                </div>
             </div>
         </section>
 

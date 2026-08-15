@@ -6,6 +6,7 @@ const { SYSTEM_TIME_ZONE } = require('../config/systemTime');
 const DEFAULT_WHATCHIMP_API_BASE_URL = 'https://app.whatchimp.com/api/v1/whatsapp';
 const OTP_DEFAULT_VARIABLE_ORDER = ['otp', 'expiresMinutes', 'accountName', 'accountType'];
 const RECEIPT_DEFAULT_VARIABLE_ORDER = ['accountName', 'reference', 'amount', 'currency', 'completedAt', 'receiptUrl'];
+const RATE_CHANGE_DEFAULT_VARIABLE_ORDER = ['accountName', 'countdown', 'rateChanges', 'effectiveAt'];
 
 const isEnabled = (value) => ['1', 'true', 'yes', 'on'].includes(String(value || '').trim().toLowerCase());
 
@@ -19,6 +20,7 @@ const getWhatChimpConfig = () => {
     const otpTemplate = cleanText(process.env.WHATCHIMP_OTP_TEMPLATE);
     const receiptTemplate = cleanText(process.env.WHATCHIMP_RECEIPT_TEMPLATE);
     const receiptMediaTemplateId = cleanText(process.env.WHATCHIMP_RECEIPT_MEDIA_TEMPLATE_ID);
+    const rateChangeTemplate = cleanText(process.env.WHATCHIMP_RATE_CHANGE_TEMPLATE);
 
     return {
         enabled,
@@ -30,8 +32,11 @@ const getWhatChimpConfig = () => {
         receiptTemplate,
         receiptLanguage: cleanText(process.env.WHATCHIMP_RECEIPT_TEMPLATE_LANGUAGE || 'ar'),
         receiptMediaTemplateId,
+        rateChangeTemplate,
+        rateChangeLanguage: cleanText(process.env.WHATCHIMP_RATE_CHANGE_TEMPLATE_LANGUAGE || 'ar'),
         otpVariableOrder: parseVariableOrder(process.env.WHATCHIMP_OTP_VARIABLE_ORDER, OTP_DEFAULT_VARIABLE_ORDER),
         receiptVariableOrder: parseVariableOrder(process.env.WHATCHIMP_RECEIPT_VARIABLE_ORDER, RECEIPT_DEFAULT_VARIABLE_ORDER),
+        rateChangeVariableOrder: parseVariableOrder(process.env.WHATCHIMP_RATE_CHANGE_VARIABLE_ORDER, RATE_CHANGE_DEFAULT_VARIABLE_ORDER),
         timeoutMs: Math.max(3000, Number(process.env.WHATCHIMP_REQUEST_TIMEOUT_MS) || 15000)
     };
 };
@@ -58,6 +63,7 @@ const getWhatChimpConfigurationStatus = () => {
         receiptReady: config.enabled
             && credentialIssues.length === 0
             && Boolean(config.receiptMediaTemplateId || config.receiptTemplate),
+        rateChangeReady: config.enabled && credentialIssues.length === 0 && Boolean(config.rateChangeTemplate),
         supportReplyReady: config.enabled && credentialIssues.length === 0,
         receiptMode: config.receiptMediaTemplateId ? 'media-template' : (config.receiptTemplate ? 'template' : 'none'),
         missing: [
@@ -66,11 +72,16 @@ const getWhatChimpConfigurationStatus = () => {
             ...(config.enabled && !config.otpTemplate ? ['WHATCHIMP_OTP_TEMPLATE'] : []),
             ...(config.enabled && !config.receiptMediaTemplateId && !config.receiptTemplate
                 ? ['WHATCHIMP_RECEIPT_MEDIA_TEMPLATE_ID or WHATCHIMP_RECEIPT_TEMPLATE']
-                : [])
+                : []),
+            // Rate-change alerts have their own optional approved template.
         ],
         otpTemplate: config.otpTemplate || null,
         receiptTemplate: config.receiptTemplate || null,
-        receiptMediaTemplateId: config.receiptMediaTemplateId || null
+        receiptMediaTemplateId: config.receiptMediaTemplateId || null,
+        rateChangeTemplate: config.rateChangeTemplate || null,
+        rateChangeMissing: config.enabled && !config.rateChangeTemplate
+            ? ['WHATCHIMP_RATE_CHANGE_TEMPLATE']
+            : []
     };
 };
 
@@ -352,6 +363,27 @@ const testWhatChimpConnection = async () => {
     }
 };
 
+const sendRateChange = async ({
+    phone,
+    accountName = '',
+    countdown = '00:60',
+    rateChanges = '',
+    effectiveAt = new Date()
+}) => {
+    const config = getWhatChimpConfig();
+    return sendWhatChimpTemplate({
+        phone,
+        templateName: config.rateChangeTemplate,
+        languageCode: config.rateChangeLanguage,
+        variables: buildTemplateVariables(config.rateChangeVariableOrder, {
+            accountName,
+            countdown,
+            rateChanges,
+            effectiveAt: new Date(effectiveAt).toLocaleString('ar-LY', { timeZone: SYSTEM_TIME_ZONE })
+        })
+    });
+};
+
 const getWhatChimpTemplateReadiness = async () => {
     const configuration = getWhatChimpConfigurationStatus();
     const connection = await testWhatChimpConnection();
@@ -365,6 +397,7 @@ const getWhatChimpTemplateReadiness = async () => {
         ? findTemplate({ id: config.receiptMediaTemplateId })
         : findTemplate({ name: config.receiptTemplate });
     const otpTemplate = findTemplate({ name: config.otpTemplate });
+    const rateChangeTemplate = findTemplate({ name: config.rateChangeTemplate });
     const toState = (template, required) => {
         if (!required) return { required: false, found: false, status: '', approved: false };
         const status = String(template?.status || template?.state || '').trim();
@@ -379,6 +412,7 @@ const getWhatChimpTemplateReadiness = async () => {
     };
     const receipt = toState(receiptTemplate, Boolean(config.receiptMediaTemplateId || config.receiptTemplate));
     const otp = toState(otpTemplate, Boolean(config.otpTemplate));
+    const rateChange = toState(rateChangeTemplate, Boolean(config.rateChangeTemplate));
 
     return {
         ...configuration,
@@ -386,8 +420,10 @@ const getWhatChimpTemplateReadiness = async () => {
         providerMessage: connection.message,
         receiptTemplate: receipt,
         otpTemplate: otp,
+        rateChangeTemplate: rateChange,
         receiptOperational: Boolean(configuration.receiptReady && connection.success && receipt.approved),
-        otpOperational: Boolean(configuration.otpReady && connection.success && otp.approved)
+        otpOperational: Boolean(configuration.otpReady && connection.success && otp.approved),
+        rateChangeOperational: Boolean(configuration.rateChangeReady && connection.success && rateChange.approved)
     };
 };
 
@@ -456,6 +492,7 @@ module.exports = {
     normalizeWhatsAppPhone,
     sendOtp,
     sendReceipt,
+    sendRateChange,
     sendWhatChimpText,
     sendWhatChimpTemplate,
     sendWhatChimpMediaTemplate,

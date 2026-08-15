@@ -27,7 +27,9 @@ const DELIVERY_STAGE_LABELS = {
     receipt_link_ready: 'إنشاء رابط الإيصال',
     provider_request: 'إرسال الطلب إلى WhatChimp',
     provider_acceptance: 'قبول الرسالة من WhatChimp',
-    provider_delivery: 'تأكيد التسليم إلى واتساب'
+    provider_delivery: 'تأكيد التسليم إلى واتساب',
+    rate_change_prepared: 'تجهيز تفاصيل تغيير السعر',
+    rate_change_configuration: 'التحقق من قالب تغيير السعر'
 };
 
 const markDeliveryStage = (delivery, key, status, detail = '') => {

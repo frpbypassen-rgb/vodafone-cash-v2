@@ -10,6 +10,7 @@ const ClientCompany = require('../../models/ClientCompany');
 const Settings = require('../../models/Settings');
 const { getRateForTier, getCompanyServiceRates } = require('../../utils/rateHelper');
 const transferService = require('../../services/transferService');
+const { activatePendingRateUpdate } = require('../../services/rateChangeService');
 
 /**
  * GET /client/home — الشاشة الرئيسية
@@ -72,6 +73,7 @@ const getExchangeRate = async (req, res) => {
 const createTransfer = async (req, res) => {
     try {
         const { userId, accountType } = req.user;
+        await activatePendingRateUpdate({ app: req.app });
         const result = await transferService.createTransfer({
             userId,
             accountType,

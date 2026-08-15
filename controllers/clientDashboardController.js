@@ -19,6 +19,7 @@ const { sanitizeStatementTransaction } = require('../utils/accountStatementPriva
 const { normalizeCreditLimit } = require('../services/agencyCreditLimitService');
 const { logAction } = require('../services/auditService');
 const { saveProfilePhoto, streamProfilePhoto, removeProfilePhoto } = require('../services/profilePhotoStorageService');
+const { activatePendingRateUpdate } = require('../services/rateChangeService');
 
 const renderBusinessOverview = clientWorkspaceController.renderPage('overview');
 
@@ -90,6 +91,7 @@ exports.getDashboard = async (req, res) => {
             }
         });
 
+        await activatePendingRateUpdate({ app: req.app });
         let set = await Settings.findOne({});
         if (!set) set = await Settings.create({});
         let balance, currentRate, serviceRates, clientTier = 1;
@@ -199,7 +201,13 @@ exports.getDashboard = async (req, res) => {
             user: { name: account.name, phone: account.phone || account.webUsername, balance: balance, role: account.role || 'user', accountType: req.session.accountType, accountCode, canViewBalance },
             isSubAccount, isMaster: !isSubAccount, masterTotalProfit, transactions: combinedTransactions.map(sanitizeStatementTransaction), currentRate, serviceRates, totals, targetDate, dateLabel, showMonth, search, query: req.query, storeCatalog,
             isSystemOpen,
-            profile
+            profile,
+            pendingRateUpdate: set?.pendingRateUpdate?.effectiveAt
+                ? {
+                    effectiveAt: new Date(set.pendingRateUpdate.effectiveAt).toISOString(),
+                    changes: set.pendingRateUpdate.changes || {}
+                }
+                : null
         });
     } catch (error) {
         console.error("Dashboard Render Error:", error);

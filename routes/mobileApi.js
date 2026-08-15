@@ -24,6 +24,7 @@ const requireIdempotencyKey = require('../middlewares/requireIdempotencyKey');
 const { logAction } = require('../services/auditService');
 const { verifyAndUpgradePassword } = require('../utils/helpers');
 const { proofSourceUrl, saveProofImage, streamProofImage } = require('../services/proofStorageService');
+const { createReceiptImageUrl } = require('../services/receiptShareService');
 const { saveProfilePhoto, streamProfilePhoto, removeProfilePhoto } = require('../services/profilePhotoStorageService');
 const authController = require('../controllers/auth/authController');
 const transferService = require('../services/transferService');
@@ -83,6 +84,7 @@ const {
     generateManualExecutorReceiptBase64
 } = require('../utils/manualExecutorReceipt');
 const { reserveManualExecutorReceiptReference } = require('../services/manualExecutorReceiptReferenceService');
+const { activatePendingRateUpdate } = require('../services/rateChangeService');
 const { reversalService } = require('../src/Application/Services/ReversalService');
 const eventBus = require('../services/eventBus');
 const {
@@ -789,7 +791,11 @@ const buildHomeRateResponse = async (req, res, userId, accountType, settings) =>
         balance: Number(balance),
         ...rateContract,
         isOpen: !(settings && settings.isManualClosed),
-        serverTime: new Date().toISOString()
+        serverTime: new Date().toISOString(),
+        pendingRateUpdate: settings?.pendingRateUpdate?.effectiveAt ? {
+            effectiveAt: new Date(settings.pendingRateUpdate.effectiveAt).toISOString(),
+            changes: settings.pendingRateUpdate.changes || {}
+        } : null
     };
 
     if (['client_user', 'sub_client'].includes(accountType) && profileAccount) {
@@ -834,6 +840,7 @@ router.get('/client/home', authenticateJWT, async (req, res) => {
             return sendMobileError(res, 403, 'FORBIDDEN', 'صلاحيات غير كافية', req.correlationId);
         }
 
+        await activatePendingRateUpdate({ app: req.app });
         const settings = await Settings.findOne({});
         const responseData = await buildHomeRateResponse(req, res, userId, accountType, settings);
         return res.json(responseData);
@@ -861,6 +868,7 @@ router.post('/client/exchange-rate', authenticateJWT, async (req, res) => {
             return sendMobileError(res, 403, 'FORBIDDEN', 'صلاحيات غير كافية', req.correlationId);
         }
 
+        await activatePendingRateUpdate({ app: req.app });
         const settings = await Settings.findOne({});
         const responseData = await buildHomeRateResponse(req, res, userId, accountType, settings);
         return res.json(responseData);
@@ -922,6 +930,7 @@ router.post(
     transferValidator,
     async (req, res) => {
         try {
+            await activatePendingRateUpdate({ app: req.app });
             const result = await transferService.createTransfer({
                 userId: req.user.userId,
                 accountType: req.user.accountType,
@@ -2058,21 +2067,29 @@ router.get('/client/transactions', authenticateJWT, async (req, res) => {
 
         return res.status(200).json({
             success: true,
-            transactions: txs.map(tx => ({
-                id: String(tx._id),
-                customId: tx.customId,
-                transferType: tx.transferType,
-                transferTypeLabel: getTransferServiceLabel(tx.transferType),
-                recipientNumber: tx.vodafoneNumber || tx.accountNumber || null,
-                recipientName: tx.accountName || null,
-                amount: Number(tx.amount || 0),
-                costLYD: Number(tx.costLYD || 0),
-                exchangeRate: Number(tx.exchangeRate || 0),
-                status: tx.status,
-                createdAt: tx.createdAt ? new Date(tx.createdAt).toISOString() : null,
-                notes: customerFacingNotes(customerNoteFromTransaction(tx)),
-                hasProofImage: !!(tx.proofImage || (tx.proofImages && tx.proofImages.length > 0))
-            })),
+            transactions: txs.map(tx => {
+                const hasOfficialReceipt = Boolean(
+                    tx.proofImage || (tx.proofImages && tx.proofImages.length > 0)
+                );
+                return {
+                    id: String(tx._id),
+                    customId: tx.customId,
+                    transferType: tx.transferType,
+                    transferTypeLabel: getTransferServiceLabel(tx.transferType),
+                    recipientNumber: tx.vodafoneNumber || tx.accountNumber || null,
+                    recipientName: tx.accountName || null,
+                    amount: Number(tx.amount || 0),
+                    costLYD: Number(tx.costLYD || 0),
+                    exchangeRate: Number(tx.exchangeRate || 0),
+                    status: tx.status,
+                    createdAt: tx.createdAt ? new Date(tx.createdAt).toISOString() : null,
+                    notes: customerFacingNotes(customerNoteFromTransaction(tx)),
+                    hasProofImage: hasOfficialReceipt,
+                    receiptUrl: hasOfficialReceipt
+                        ? createReceiptImageUrl({ transactionId: tx._id, index: 0 })
+                        : null
+                };
+            }),
             pagination: {
                 page,
                 limit,

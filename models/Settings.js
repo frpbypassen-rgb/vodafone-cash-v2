@@ -51,6 +51,13 @@ const settingsSchema = new mongoose.Schema({
     executorPendingMessage: { type: String, default: '⏳ حسابك لا يزال قيد المراجعة من قبل الإدارة.' },
     executorBannedMessage: { type: String, default: '⛔️ تم حظر حسابك. يرجى مراجعة الإدارة.' },
 
+    pendingRateUpdate: {
+        effectiveAt: { type: Date, default: null },
+        changes: { type: Object, default: null },
+        createdBy: { type: String, default: '' },
+        createdAt: { type: Date, default: null }
+    },
+
 });
 
 module.exports = mongoose.model('Settings', settingsSchema);

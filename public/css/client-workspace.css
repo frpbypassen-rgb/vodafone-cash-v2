@@ -60,6 +60,38 @@
     box-sizing: border-box;
 }
 
+.bw-rate-countdown {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin: 0 0 18px;
+    padding: 12px 14px;
+    color: var(--bw-strong);
+    background: var(--bw-amber-soft);
+    border: 1px solid color-mix(in srgb, var(--bw-amber) 38%, var(--bw-border));
+    border-radius: 8px;
+    box-shadow: var(--bw-shadow-sm);
+}
+
+.bw-rate-countdown-icon {
+    display: grid;
+    width: 36px;
+    height: 36px;
+    place-items: center;
+    color: var(--bw-amber);
+    background: var(--bw-surface);
+    border-radius: 8px;
+}
+
+.bw-rate-countdown span:not(.bw-rate-countdown-icon) {
+    display: grid;
+    gap: 2px;
+    flex: 1;
+}
+
+.bw-rate-countdown small { color: var(--bw-muted); }
+.bw-rate-countdown b { color: var(--bw-amber); font-family: 'JetBrains Mono', monospace; font-size: 18px; }
+
 html {
     min-height: 100%;
     scroll-behavior: smooth;

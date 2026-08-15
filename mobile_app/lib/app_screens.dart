@@ -203,10 +203,9 @@ class _LoginScreenState extends State<LoginScreen> {
                     decoration: BoxDecoration(
                       color: Colors.white.withValues(alpha: 0.97),
                       borderRadius: BorderRadius.circular(8),
-                      border: Border(
-                        top: BorderSide(color: _gold, width: 4),
-                        bottom: BorderSide(color: _green, width: 4),
-                      ),
+                      // A rounded BoxDecoration needs a uniform border. This
+                      // keeps the login card renderable on Flutter web too.
+                      border: Border.all(color: _gold, width: 3),
                       boxShadow: [
                         BoxShadow(
                           color: Colors.black.withValues(alpha: 0.38),
@@ -215,9 +214,11 @@ class _LoginScreenState extends State<LoginScreen> {
                         ),
                       ],
                     ),
-                    child: Form(
-                      key: _formKey,
-                      child: Column(
+                    child: Material(
+                      color: Colors.transparent,
+                      child: Form(
+                        key: _formKey,
+                        child: Column(
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
                           const _AhramLoginWordmark(),
@@ -375,6 +376,7 @@ class _LoginScreenState extends State<LoginScreen> {
                             ),
                           ),
                         ],
+                        ),
                       ),
                     ),
                   ),
@@ -1550,7 +1552,8 @@ class _RoleShellState extends State<RoleShell> with WidgetsBindingObserver {
     super.initState();
     _items = _createItems();
     if (widget.enableBackgroundAlerts &&
-        (widget.controller.isExecutor || widget.controller.isCustomerAccount)) {
+        (widget.controller.isExecutor ||
+            widget.controller.receivesClientNotifications)) {
       WidgetsBinding.instance.addObserver(this);
       if (widget.controller.isExecutor) {
         unawaited(_loadExecutorOverview());
@@ -1562,7 +1565,8 @@ class _RoleShellState extends State<RoleShell> with WidgetsBindingObserver {
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (!widget.controller.isExecutor && !widget.controller.isCustomerAccount) {
+    if (!widget.controller.isExecutor &&
+        !widget.controller.receivesClientNotifications) {
       return;
     }
     final visible = state == AppLifecycleState.resumed;
@@ -3671,6 +3675,7 @@ class _ExchangeRatesScreenState extends State<ExchangeRatesScreen> {
   final TextEditingController _convertedAmountController =
       TextEditingController();
   bool _syncingCalculator = false;
+  Timer? _rateChangeTimer;
 
   @override
   void initState() {
@@ -3698,7 +3703,10 @@ class _ExchangeRatesScreenState extends State<ExchangeRatesScreen> {
           );
         }
       }
-      if (mounted) setState(() => _home = home);
+      if (mounted) {
+        setState(() => _home = home);
+        _armRateChangeTimer();
+      }
     } catch (error) {
       if (mounted) setState(() => _error = error);
     } finally {
@@ -3708,9 +3716,32 @@ class _ExchangeRatesScreenState extends State<ExchangeRatesScreen> {
 
   @override
   void dispose() {
+    _rateChangeTimer?.cancel();
     _amountController.dispose();
     _convertedAmountController.dispose();
     super.dispose();
+  }
+
+  int _pendingRateSeconds() {
+    final pending = _home?['pendingRateUpdate'];
+    if (pending is! Map) return 0;
+    final effectiveAt = DateTime.tryParse('${pending['effectiveAt'] ?? ''}');
+    if (effectiveAt == null) return 0;
+    return math.max(0, effectiveAt.difference(DateTime.now()).inSeconds);
+  }
+
+  void _armRateChangeTimer() {
+    _rateChangeTimer?.cancel();
+    if (_pendingRateSeconds() <= 0) return;
+    _rateChangeTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (!mounted) return timer.cancel();
+      if (_pendingRateSeconds() <= 0) {
+        timer.cancel();
+        _load();
+        return;
+      }
+      setState(() {});
+    });
   }
 
   void _syncCalculator({
@@ -3786,6 +3817,7 @@ class _ExchangeRatesScreenState extends State<ExchangeRatesScreen> {
         )
         .toList();
     final visibleRows = marketRows.isEmpty ? rows : marketRows;
+    final pendingSeconds = _pendingRateSeconds();
     final selected = visibleRows.firstWhere(
       (item) => item['key'] == _selectedServiceKey,
       orElse: () =>
@@ -3797,6 +3829,10 @@ class _ExchangeRatesScreenState extends State<ExchangeRatesScreen> {
       subtitle: 'الأسعار الخاصة بحسابك والمطبقة قبل تأكيد التحويل.',
       onRefresh: _load,
       child: [
+        if (pendingSeconds > 0) ...[
+          _RateChangeCountdownBanner(seconds: pendingSeconds),
+          const SizedBox(height: 12),
+        ],
         if (rates.isEmpty)
           const EmptyPanel(
             icon: Icons.currency_exchange_outlined,
@@ -10115,60 +10151,7 @@ class _CustomerReportsScreenState extends State<CustomerReportsScreen> {
           ? Map<String, dynamic>.from(response['transaction'] as Map)
           : transaction;
       if (!mounted) return;
-      showDialog<void>(
-        context: context,
-        builder: (context) => AlertDialog(
-          title: const Text('تفاصيل العملية'),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                DetailLine(
-                  label: 'رقم العملية',
-                  value: '${detail['customId'] ?? '-'}',
-                ),
-                DetailLine(
-                  label: 'الخدمة',
-                  value:
-                      '${detail['transferTypeLabel'] ?? serviceLabel(detail['transferType']?.toString())}',
-                ),
-                DetailLine(
-                  label: 'المستلم',
-                  value: '${detail['recipientNumber'] ?? '-'}',
-                ),
-                DetailLine(
-                  label: 'القيمة',
-                  value:
-                      '${formatEgpAmount(numberValue(detail['amount']))} ج.م',
-                ),
-                DetailLine(
-                  label: 'القيمة بالليبي',
-                  value: '${formatAmount(numberValue(detail['costLYD']))} د.ل',
-                ),
-                DetailLine(
-                  label: 'الحالة',
-                  value: statusLabel(detail['status']?.toString()),
-                ),
-                DetailLine(
-                  label: 'التاريخ',
-                  value: formatDate(detail['createdAt']),
-                ),
-                if ('${detail['notes'] ?? ''}'.trim().isNotEmpty)
-                  DetailLine(
-                    label: 'ملاحظة العميل',
-                    value: '${detail['notes']}',
-                  ),
-              ],
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('إغلاق'),
-            ),
-          ],
-        ),
-      );
+      await showCustomerReceiptSheet(context, detail);
     } on ApiFailure catch (error) {
       if (mounted) showSnack(context, error.message, error: true);
     }
@@ -10589,60 +10572,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
           ? Map<String, dynamic>.from(response['transaction'] as Map)
           : tx;
       if (!mounted) return;
-      showDialog<void>(
-        context: context,
-        builder: (context) => AlertDialog(
-          title: const Text('تفاصيل العملية'),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                DetailLine(
-                  label: 'رقم العملية',
-                  value: '${detail['customId'] ?? detail['txId'] ?? '-'}',
-                ),
-                DetailLine(
-                  label: 'الخدمة',
-                  value:
-                      '${detail['transferTypeLabel'] ?? serviceLabel(detail['transferType']?.toString())}',
-                ),
-                DetailLine(
-                  label: 'المستلم',
-                  value: '${detail['recipientNumber'] ?? '-'}',
-                ),
-                DetailLine(
-                  label: 'القيمة',
-                  value:
-                      '${formatEgpAmount(numberValue(detail['amount']))} ج.م',
-                ),
-                DetailLine(
-                  label: 'القيمة بالليبي',
-                  value: '${formatAmount(numberValue(detail['costLYD']))} د.ل',
-                ),
-                DetailLine(
-                  label: 'الحالة',
-                  value: statusLabel(detail['status']?.toString()),
-                ),
-                DetailLine(
-                  label: 'التاريخ',
-                  value: formatDate(detail['createdAt']),
-                ),
-                if ('${detail['notes'] ?? ''}'.trim().isNotEmpty)
-                  DetailLine(
-                    label: 'ملاحظة العميل',
-                    value: '${detail['notes']}',
-                  ),
-              ],
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('إغلاق'),
-            ),
-          ],
-        ),
-      );
+      await showCustomerReceiptSheet(context, detail);
     } on ApiFailure catch (error) {
       if (mounted) showSnack(context, error.message, error: true);
     }
@@ -15212,6 +15142,59 @@ class StatTile extends StatelessWidget {
   }
 }
 
+class _RateChangeCountdownBanner extends StatelessWidget {
+  const _RateChangeCountdownBanner({required this.seconds});
+
+  final int seconds;
+
+  @override
+  Widget build(BuildContext context) {
+    final minutes = seconds ~/ 60;
+    final remainingSeconds = seconds % 60;
+    final countdown =
+        '${minutes.toString().padLeft(2, '0')}:${remainingSeconds.toString().padLeft(2, '0')}';
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: _gold.withValues(alpha: 0.11),
+        border: Border.all(color: _gold.withValues(alpha: 0.48)),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.timer_outlined, color: _gold),
+          const SizedBox(width: 10),
+          const Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'تحديث أسعار الصرف قريباً',
+                  style: TextStyle(fontWeight: FontWeight.w900),
+                ),
+                SizedBox(height: 2),
+                Text(
+                  'ستتحدث الأسعار الخاصة بحسابك تلقائياً عند انتهاء العداد.',
+                  style: TextStyle(fontSize: 11),
+                ),
+              ],
+            ),
+          ),
+          Text(
+            countdown,
+            textDirection: ui.TextDirection.ltr,
+            style: const TextStyle(
+              fontSize: 20,
+              fontWeight: FontWeight.w900,
+              color: _gold,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class RateTile extends StatelessWidget {
   const RateTile({super.key, required this.label, required this.rate});
 
@@ -15401,6 +15384,569 @@ class DetailLine extends StatelessWidget {
               ),
             ),
           ),
+        ],
+      ),
+    );
+  }
+}
+
+Future<void> showCustomerReceiptSheet(
+  BuildContext context,
+  Map<String, dynamic> transaction,
+) {
+  return showModalBottomSheet<void>(
+    context: context,
+    isScrollControlled: true,
+    backgroundColor: Colors.transparent,
+    builder: (_) => CustomerReceiptSheet(transaction: transaction),
+  );
+}
+
+class CustomerReceiptSheet extends StatelessWidget {
+  const CustomerReceiptSheet({super.key, required this.transaction});
+
+  final Map<String, dynamic> transaction;
+
+  bool get _isCancelled => const {
+    'cancelled',
+    'canceled',
+    'cancelled_by_admin',
+    'rejected',
+    'failed',
+  }.contains('${transaction['status'] ?? ''}'.trim().toLowerCase());
+
+  bool get _isCompleted => '${transaction['status'] ?? ''}' == 'completed';
+
+  String get _receiptUrl => '${transaction['receiptUrl'] ?? ''}'.trim();
+
+  Future<void> _copy(BuildContext context, String value, String label) async {
+    if (value.isEmpty || value == '-') return;
+    await Clipboard.setData(ClipboardData(text: value));
+    if (context.mounted) showSnack(context, 'تم نسخ $label.');
+  }
+
+  Future<void> _share(BuildContext context) async {
+    final reference =
+        '${transaction['customId'] ?? transaction['txId'] ?? '-'}';
+    final recipient = '${transaction['recipientNumber'] ?? '-'}';
+    final message = StringBuffer('إيصال تحويل الأهرام')
+      ..writeln('\nرقم العملية: $reference')
+      ..writeln('المستلم: $recipient')
+      ..writeln(
+        'القيمة: ${formatEgpAmount(numberValue(transaction['amount']))} ج.م',
+      );
+    if (_receiptUrl.isNotEmpty) message.writeln('الإيصال: $_receiptUrl');
+
+    final whatsappUrl = Uri.https('wa.me', '/', <String, String>{
+      'text': message.toString().trim(),
+    });
+    final opened = await openExternalLink(whatsappUrl);
+    if (!opened) {
+      await Clipboard.setData(ClipboardData(text: message.toString().trim()));
+      if (context.mounted) {
+        showSnack(context, 'تم نسخ بيانات الإيصال للمشاركة.');
+      }
+    }
+  }
+
+  void _openReceipt(BuildContext context) {
+    if (_receiptUrl.isEmpty) return;
+    showDialog<void>(
+      context: context,
+      builder: (_) => Dialog.fullscreen(
+        child: SafeArea(
+          child: Column(
+            children: [
+              Padding(
+                padding: const EdgeInsetsDirectional.fromSTEB(12, 8, 12, 8),
+                child: Row(
+                  children: [
+                    IconButton(
+                      tooltip: 'إغلاق',
+                      onPressed: () => Navigator.pop(context),
+                      icon: const Icon(Icons.close_rounded),
+                    ),
+                    const SizedBox(width: 8),
+                    const Expanded(
+                      child: Text(
+                        'الإيصال الرسمي',
+                        style: TextStyle(fontWeight: FontWeight.w900),
+                      ),
+                    ),
+                    IconButton(
+                      tooltip: 'نسخ رابط الإيصال',
+                      onPressed: () =>
+                          _copy(context, _receiptUrl, 'رابط الإيصال'),
+                      icon: const Icon(Icons.link_rounded),
+                    ),
+                  ],
+                ),
+              ),
+              const Divider(height: 1),
+              Expanded(
+                child: InteractiveViewer(
+                  minScale: 0.8,
+                  maxScale: 4,
+                  child: Center(
+                    child: Image.network(
+                      _receiptUrl,
+                      fit: BoxFit.contain,
+                      loadingBuilder: (context, child, progress) {
+                        if (progress == null) return child;
+                        return const SizedBox(
+                          width: 34,
+                          height: 34,
+                          child: CircularProgressIndicator(strokeWidth: 3),
+                        );
+                      },
+                      errorBuilder: (_, _, _) =>
+                          const _ReceiptImageUnavailable(),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    final stateColor = _isCancelled
+        ? _danger
+        : (_isCompleted ? _green : AhramColors.sky);
+    final stateIcon = _isCancelled
+        ? Icons.cancel_outlined
+        : (_isCompleted
+              ? Icons.check_circle_outline_rounded
+              : Icons.schedule_outlined);
+    final reference =
+        '${transaction['customId'] ?? transaction['txId'] ?? '-'}';
+    final recipient = '${transaction['recipientNumber'] ?? '-'}';
+    final service =
+        '${transaction['transferTypeLabel'] ?? serviceLabel(transaction['transferType']?.toString())}';
+    final notes = '${transaction['notes'] ?? ''}'.trim();
+    final cancellationReason = '${transaction['cancellationReason'] ?? ''}'
+        .trim();
+
+    return FractionallySizedBox(
+      heightFactor: 0.94,
+      child: Material(
+        color: colors.surface,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
+        child: SafeArea(
+          top: false,
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.fromLTRB(18, 10, 18, 24),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Center(
+                  child: Container(
+                    width: 42,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: colors.outlineVariant,
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Row(
+                  children: [
+                    IconButton(
+                      tooltip: 'إغلاق',
+                      onPressed: () => Navigator.pop(context),
+                      icon: const Icon(Icons.close_rounded),
+                    ),
+                    const Spacer(),
+                    Text(
+                      _isCancelled
+                          ? 'عملية ملغاة'
+                          : (_isCompleted
+                                ? 'تمت العملية بنجاح'
+                                : 'تفاصيل العملية'),
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w900,
+                        color: colors.onSurface,
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Container(
+                      width: 42,
+                      height: 42,
+                      decoration: BoxDecoration(
+                        color: stateColor.withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Icon(stateIcon, color: stateColor),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 18),
+                Container(
+                  padding: const EdgeInsets.all(18),
+                  decoration: BoxDecoration(
+                    color: stateColor.withValues(alpha: 0.07),
+                    border: Border.all(
+                      color: stateColor.withValues(alpha: 0.32),
+                    ),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Column(
+                    children: [
+                      Text(
+                        _isCancelled
+                            ? 'تم إلغاء العملية'
+                            : (_isCompleted
+                                  ? 'تم التحويل بنجاح'
+                                  : statusLabel(
+                                      transaction['status']?.toString(),
+                                    )),
+                        style: TextStyle(
+                          color: stateColor,
+                          fontSize: 17,
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        '${formatEgpAmount(numberValue(transaction['amount']))} ج.م',
+                        textDirection: ui.TextDirection.ltr,
+                        style: Theme.of(context).textTheme.headlineMedium
+                            ?.copyWith(
+                              fontWeight: FontWeight.w900,
+                              color: colors.onSurface,
+                            ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        'القيمة بالليبي ${formatAmount(numberValue(transaction['costLYD']))} د.ل',
+                        style: TextStyle(
+                          color: colors.onSurfaceVariant,
+                          fontSize: 12,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    Expanded(
+                      child: _ReceiptInfoBox(
+                        icon: Icons.phone_android_outlined,
+                        label: 'رقم المستلم',
+                        value: recipient,
+                        color: AhramColors.sky,
+                        onCopy: () => _copy(context, recipient, 'رقم المستلم'),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: _ReceiptInfoBox(
+                        icon: Icons.account_balance_wallet_outlined,
+                        label: 'الخدمة',
+                        value: service,
+                        color: _green,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                SectionTitle(
+                  title: 'تفاصيل العملية',
+                  icon: Icons.receipt_long_outlined,
+                  color: _gold,
+                ),
+                const SizedBox(height: 10),
+                Container(
+                  decoration: BoxDecoration(
+                    border: Border.all(color: colors.outlineVariant),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Column(
+                    children: [
+                      _ReceiptDetailRow(
+                        icon: Icons.tag_outlined,
+                        label: 'رقم مرجع الأهرام',
+                        value: reference,
+                        onCopy: () => _copy(context, reference, 'رقم العملية'),
+                      ),
+                      _ReceiptDetailRow(
+                        icon: Icons.calendar_today_outlined,
+                        label: 'التاريخ والوقت',
+                        value: formatDate(transaction['createdAt']),
+                      ),
+                      _ReceiptDetailRow(
+                        icon: Icons.currency_exchange_outlined,
+                        label: 'سعر الصرف',
+                        value:
+                            '${formatAmount(numberValue(transaction['exchangeRate']))} د.ل',
+                      ),
+                      _ReceiptDetailRow(
+                        icon: Icons.verified_outlined,
+                        label: 'الحالة',
+                        value: statusLabel(transaction['status']?.toString()),
+                        valueColor: stateColor,
+                        last: notes.isEmpty && cancellationReason.isEmpty,
+                      ),
+                      if (notes.isNotEmpty)
+                        _ReceiptDetailRow(
+                          icon: Icons.notes_outlined,
+                          label: 'ملاحظة العميل',
+                          value: notes,
+                          last: cancellationReason.isEmpty,
+                        ),
+                      if (cancellationReason.isNotEmpty)
+                        _ReceiptDetailRow(
+                          icon: Icons.info_outline,
+                          label: 'سبب الإلغاء',
+                          value: cancellationReason,
+                          valueColor: _danger,
+                          last: true,
+                        ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 14),
+                Container(
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(
+                    color: colors.surface,
+                    border: Border.all(color: colors.outlineVariant),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Row(
+                    children: [
+                      Container(
+                        width: 42,
+                        height: 42,
+                        alignment: Alignment.center,
+                        decoration: BoxDecoration(
+                          color: _gold.withValues(alpha: 0.12),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: const Icon(
+                          Icons.verified_user_outlined,
+                          color: _gold,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              'الإيصال الرسمي',
+                              style: TextStyle(fontWeight: FontWeight.w900),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              _receiptUrl.isEmpty
+                                  ? 'سيظهر بعد توليد الإيصال من المنظومة.'
+                                  : 'صورة الإيصال المعتمدة من المنظومة.',
+                              style: TextStyle(
+                                color: colors.onSurfaceVariant,
+                                fontSize: 12,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      IconButton(
+                        tooltip: 'عرض الإيصال',
+                        onPressed: _receiptUrl.isEmpty
+                            ? null
+                            : () => _openReceipt(context),
+                        icon: Icon(
+                          Icons.visibility_outlined,
+                          color: _receiptUrl.isEmpty ? colors.outline : _green,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        onPressed: _receiptUrl.isEmpty
+                            ? null
+                            : () => _openReceipt(context),
+                        icon: const Icon(Icons.receipt_long_outlined),
+                        label: const Text('عرض الإيصال'),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: FilledButton.icon(
+                        onPressed: () => _share(context),
+                        icon: const Icon(Icons.share_outlined),
+                        label: const Text('مشاركة'),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ReceiptInfoBox extends StatelessWidget {
+  const _ReceiptInfoBox({
+    required this.icon,
+    required this.label,
+    required this.value,
+    required this.color,
+    this.onCopy,
+  });
+
+  final IconData icon;
+  final String label;
+  final String value;
+  final Color color;
+  final VoidCallback? onCopy;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    return Container(
+      padding: const EdgeInsets.all(13),
+      decoration: BoxDecoration(
+        color: colors.surface,
+        border: Border.all(color: colors.outlineVariant),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, color: color, size: 20),
+          const SizedBox(height: 9),
+          Text(
+            label,
+            style: TextStyle(color: colors.onSurfaceVariant, fontSize: 11),
+          ),
+          const SizedBox(height: 3),
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  value,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  textDirection: ui.TextDirection.ltr,
+                  style: TextStyle(
+                    color: colors.onSurface,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+              ),
+              if (onCopy != null)
+                InkWell(
+                  onTap: onCopy,
+                  borderRadius: BorderRadius.circular(6),
+                  child: const Padding(
+                    padding: EdgeInsets.all(3),
+                    child: Icon(Icons.content_copy_outlined, size: 16),
+                  ),
+                ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ReceiptDetailRow extends StatelessWidget {
+  const _ReceiptDetailRow({
+    required this.icon,
+    required this.label,
+    required this.value,
+    this.valueColor,
+    this.onCopy,
+    this.last = false,
+  });
+
+  final IconData icon;
+  final String label;
+  final String value;
+  final Color? valueColor;
+  final VoidCallback? onCopy;
+  final bool last;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        border: last
+            ? null
+            : Border(bottom: BorderSide(color: colors.outlineVariant)),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
+        child: Row(
+          children: [
+            Icon(icon, size: 18, color: colors.onSurfaceVariant),
+            const SizedBox(width: 9),
+            Expanded(
+              child: Text(
+                label,
+                style: TextStyle(color: colors.onSurfaceVariant, fontSize: 12),
+              ),
+            ),
+            Flexible(
+              child: Text(
+                value,
+                textAlign: TextAlign.end,
+                style: TextStyle(
+                  color: valueColor ?? colors.onSurface,
+                  fontWeight: FontWeight.w800,
+                  fontSize: 12,
+                ),
+              ),
+            ),
+            if (onCopy != null) ...[
+              const SizedBox(width: 5),
+              InkWell(
+                onTap: onCopy,
+                borderRadius: BorderRadius.circular(6),
+                child: const Padding(
+                  padding: EdgeInsets.all(3),
+                  child: Icon(Icons.content_copy_outlined, size: 15),
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ReceiptImageUnavailable extends StatelessWidget {
+  const _ReceiptImageUnavailable();
+
+  @override
+  Widget build(BuildContext context) {
+    return const Padding(
+      padding: EdgeInsets.all(28),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.broken_image_outlined, size: 42),
+          SizedBox(height: 10),
+          Text('تعذر تحميل صورة الإيصال حالياً.'),
         ],
       ),
     );

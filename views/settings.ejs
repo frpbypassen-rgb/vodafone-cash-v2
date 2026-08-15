@@ -271,7 +271,9 @@
                 </div>
             </header>
 
-            <% if (query && query.ratesUpdated) { %>
+            <% if (query && query.ratesScheduled) { %>
+                <div class="alert alert-warning fw-bold"><i class="fa-solid fa-clock me-2"></i>تم إشعار الحسابات. ستُطبَّق أسعار الصرف الجديدة تلقائياً خلال 60 ثانية.</div>
+            <% } else if (query && query.ratesUpdated) { %>
                 <div class="alert alert-success fw-bold"><i class="fa-solid fa-circle-check me-2"></i>تم تحديث الأسعار العامة، وتم احتساب أسعار الشركات المرتبطة بها تلقائياً.</div>
             <% } %>
 

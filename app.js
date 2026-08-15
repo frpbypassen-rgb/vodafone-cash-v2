@@ -68,6 +68,7 @@ const {
 const { ensurePerformanceIndexes } = require('./services/performanceIndexService');
 const { closeEligibleDailySettlement } = require('./services/settlementService');
 const systemMonitor = require('./services/systemMonitorService');
+const { restorePendingRateActivation } = require('./services/rateChangeService');
 
 // 🟢 استدعاء طابور المهام الجديد (Queue System)
 
@@ -337,6 +338,7 @@ app.use(errorHandler);
 const PORT = process.env.PORT || 3000;
 Promise.all([connectDB(), initRedis()]).then(async () => {
     await Promise.all([ensureApiReconciliationIndexes(), ensurePerformanceIndexes()]);
+    await restorePendingRateActivation({ app });
     startApiCompletionMonitor();
     startApiProviderReturnMonitor();
     closeEligibleDailySettlement().catch((error) => {

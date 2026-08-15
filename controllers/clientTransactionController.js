@@ -30,6 +30,7 @@ const { validateTransferInput } = require('../utils/transferServiceRules');
 const { getClientReceiptProofIds } = require('../services/clientReceiptService');
 const { normalizeCustomerNoteInput } = require('../utils/transactionNotes');
 const { normalizeWhatsAppPhone } = require('../services/whatsappService');
+const { activatePendingRateUpdate } = require('../services/rateChangeService');
 const { calculateAgencyPricing } = require('../utils/agencyPricing');
 const { calculateTransferCostLYD, getTransferPricingDefinition } = require('../utils/transferPricing');
 const { recordTransferReservation } = require('../services/agencyJournalService');
@@ -135,6 +136,7 @@ exports.postTransfer = async (req, res) => {
     }
 
     try {
+        await activatePendingRateUpdate({ app: req.app });
         // helper: ربط session بالاستعلام فقط إذا كان متاحاً
         const sessionOpts = useTransaction ? { session } : {};
         const withSess = (query) => useTransaction ? query.session(session) : query;

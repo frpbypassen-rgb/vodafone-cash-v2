@@ -20,6 +20,12 @@
                 </div>
             </header>
 
+            <div class="bw-rate-countdown" id="rateChangeCountdown" hidden role="status" aria-live="polite">
+                <span class="bw-rate-countdown-icon"><i class="fa-solid fa-clock"></i></span>
+                <span><strong>تحديث أسعار الصرف قريباً</strong><small>سيتم تطبيق الأسعار الجديدة تلقائياً عند انتهاء العداد.</small></span>
+                <b dir="ltr" data-rate-countdown-value>00:00</b>
+            </div>
+
             <%- include('partials/workspace_feedback') %>
 
             <% if (page === 'overview') { %>
@@ -77,10 +83,48 @@
             workspaceType: workspace.type,
             canViewBalance: workspace.permissions.canViewBalance,
             services: serviceCatalog,
+            pendingRateUpdate,
             selectedService: typeof servicePage !== 'undefined' ? servicePage.selectedService : 'vodafone'
         }).replace(/</g, '\\u003c') %>;
     </script>
-    <% if (page === 'services') { %><script src="/socket.io/socket.io.js" defer></script><% } %>
+    <script>
+        (() => {
+            const banner = document.getElementById('rateChangeCountdown');
+            const value = banner?.querySelector('[data-rate-countdown-value]');
+            let effectiveAt = window.businessPortal?.pendingRateUpdate?.effectiveAt || null;
+            let timer = null;
+
+            const render = () => {
+                if (!banner || !value || !effectiveAt) return;
+                const seconds = Math.max(0, Math.ceil((new Date(effectiveAt).getTime() - Date.now()) / 1000));
+                if (!Number.isFinite(seconds) || seconds <= 0) {
+                    banner.hidden = true;
+                    if (timer) window.clearInterval(timer);
+                    return;
+                }
+                banner.hidden = false;
+                value.textContent = `${String(Math.floor(seconds / 60)).padStart(2, '0')}:${String(seconds % 60).padStart(2, '0')}`;
+            };
+            const arm = (payload) => {
+                effectiveAt = payload?.effectiveAt || null;
+                if (timer) window.clearInterval(timer);
+                render();
+                if (effectiveAt) timer = window.setInterval(render, 1000);
+            };
+
+            arm({ effectiveAt });
+            if (typeof window.io === 'function') {
+                const socket = window.io();
+                socket.on('rate_change_scheduled', arm);
+                socket.on('rate_change_activated', () => {
+                    effectiveAt = null;
+                    if (timer) window.clearInterval(timer);
+                    if (banner) banner.hidden = true;
+                    if (window.businessPortal?.page === 'services') window.location.reload();
+                });
+            }
+        })();
+    </script>
     <script src="/js/client-workspace.js?v=20260810-1" defer></script>
 </body>
 </html>

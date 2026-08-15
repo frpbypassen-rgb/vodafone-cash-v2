@@ -15,6 +15,7 @@ const { getTransferPricingDefinition } = require('../utils/transferPricing');
 const agencyFinanceService = require('./agencyFinanceService');
 const { resolveMarginPiasters, pricingFromTransaction, roundMoney } = require('../utils/agencyPricing');
 const { calculateCreditState } = require('./agencyCreditLimitService');
+const { activatePendingRateUpdate } = require('./rateChangeService');
 const {
     sanitizeStatementMovement,
     sanitizeStatementTransaction
@@ -478,7 +479,8 @@ const summarizeWithAggregation = async (filter) => {
     return rows[0] || summarizeTransactions([]);
 };
 
-const getSettingsAndRates = async (workspace) => {
+const getSettingsAndRates = async (workspace, app) => {
+    await activatePendingRateUpdate({ app });
     const settings = await Settings.findOne({}).lean() || {};
     const serviceRates = workspace.isCompany
         ? getCompanyServiceRates(workspace.entity, settings)
@@ -809,7 +811,7 @@ const loadReports = async (workspace, query = {}) => {
 };
 
 const buildBaseContext = async (req, page, workspace) => {
-    const rates = await getSettingsAndRates(workspace);
+    const rates = await getSettingsAndRates(workspace, req.app);
     const pageMeta = { ...PAGE_META[page] };
     if (workspace.forceToday) {
         if (page === 'overview') Object.assign(pageMeta, { title: 'الرئيسية', eyebrow: 'عمل اليوم' });
@@ -824,6 +826,12 @@ const buildBaseContext = async (req, page, workspace) => {
         statusMeta: STATUS_META,
         serviceCatalog: rates.services,
         serviceRates: rates.serviceRates,
+        pendingRateUpdate: rates.settings?.pendingRateUpdate?.effectiveAt
+            ? {
+                effectiveAt: new Date(rates.settings.pendingRateUpdate.effectiveAt).toISOString(),
+                changes: rates.settings.pendingRateUpdate.changes || {}
+            }
+            : null,
         systemOpen: rates.settings.isManualClosed !== true,
         query: req.query || {},
         csrfToken: req.session.csrfToken || '',

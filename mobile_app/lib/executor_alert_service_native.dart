@@ -83,7 +83,9 @@ class ExecutorAlertService {
     final session = await SessionStore().read();
     final isAccountant = session?.context['executorRole'] == 'accountant';
     final isCustomer = session?.accountType == 'client_user' ||
-        session?.accountType == 'sub_client';
+        session?.accountType == 'client_company' ||
+        session?.accountType == 'sub_client' ||
+        session?.accountType == 'agent_staff';
     final customerNotifications =
         await SessionStore().readCustomerNotificationsEnabled();
     if ((session?.accountType != 'executor' || isAccountant) &&
@@ -164,7 +166,9 @@ void executorAlertBackgroundEntry(ServiceInstance service) async {
 
   final initialSession = await SessionStore().read();
   final customerSession = initialSession?.accountType == 'client_user' ||
-      initialSession?.accountType == 'sub_client';
+      initialSession?.accountType == 'client_company' ||
+      initialSession?.accountType == 'sub_client' ||
+      initialSession?.accountType == 'agent_staff';
   if (service is AndroidServiceInstance) {
     service.on('stop').listen((_) => service.stopSelf());
     service.setAsForegroundService();
@@ -189,7 +193,9 @@ void executorAlertBackgroundEntry(ServiceInstance service) async {
     final session = await SessionStore().read();
     final isExecutor = session?.accountType == 'executor';
     final isCustomer = session?.accountType == 'client_user' ||
-        session?.accountType == 'sub_client';
+        session?.accountType == 'client_company' ||
+        session?.accountType == 'sub_client' ||
+        session?.accountType == 'agent_staff';
     if (!isExecutor && !isCustomer) {
       service.stopSelf();
       return;
