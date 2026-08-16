@@ -252,7 +252,9 @@ app.use(session({
     saveUninitialized: false, 
     store: sessionStore, 
     cookie: {
-        secure: process.env.SECURE_COOKIE === 'true',
+        // IIS terminates TLS before forwarding to Node and may omit X-Forwarded-Proto.
+        // "auto" keeps the session usable while still marking it Secure when HTTPS is reported.
+        secure: process.env.SECURE_COOKIE === 'true' ? 'auto' : false,
         httpOnly: true,
         sameSite: process.env.COOKIE_SAMESITE || 'lax',
         maxAge: 24 * 60 * 60 * 1000
