@@ -38,6 +38,8 @@ const settingsSchema = new mongoose.Schema({
     termsMessage: { type: String, default: '⚠️ يرجى التأكد من الرقم قبل الإرسال.\nالتحويل يتم خلال دقائق.' },
     closedMessage: { type: String, default: 'نعتذر، المنظومة مغلقة حالياً. يرجى المحاولة في أوقات العمل الرسمية.' },
     supportContact: { type: String, default: '@AhramSupport' },
+    // Default warning window before a newly submitted rate becomes active.
+    rateChangeDelaySeconds: { type: Number, min: 10, max: 3600, default: 60 },
 
     autoRouteEnabled: { type: Boolean, default: false },
     autoRouteBotId: { type: mongoose.Schema.Types.ObjectId, ref: 'ExecutorGroup', default: null },
@@ -55,6 +57,7 @@ const settingsSchema = new mongoose.Schema({
         effectiveAt: { type: Date, default: null },
         changes: { type: Object, default: null },
         previousRates: { type: Object, default: null },
+        delaySeconds: { type: Number, min: 10, max: 3600, default: 60 },
         createdBy: { type: String, default: '' },
         createdAt: { type: Date, default: null },
         campaignReference: { type: String, default: '' }

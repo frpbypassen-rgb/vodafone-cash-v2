@@ -49,7 +49,9 @@ class _RateAlertOverlayState extends State<RateAlertOverlay> {
   }
 
   int get _seconds {
-    final effectiveAt = DateTime.tryParse('${widget.alert['effectiveAt'] ?? ''}');
+    final effectiveAt = DateTime.tryParse(
+      '${widget.alert['effectiveAt'] ?? ''}',
+    );
     if (effectiveAt == null) return 0;
     return effectiveAt.difference(DateTime.now()).inSeconds.clamp(0, 3600);
   }
@@ -75,20 +77,105 @@ class _RateAlertOverlayState extends State<RateAlertOverlay> {
     return '$minutes:$remainder';
   }
 
+  List<Map<String, dynamic>> get _rateChanges {
+    final raw = widget.alert['rateChanges'];
+    if (raw is! List) return const [];
+    return raw
+        .whereType<Map>()
+        .map((row) => Map<String, dynamic>.from(row))
+        .toList(growable: false);
+  }
+
+  Widget _buildRateRows() {
+    final rows = _rateChanges;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+      child: Column(
+        children: rows
+            .map((row) {
+              final isUp = '${row['direction'] ?? ''}' != 'down';
+              final oldRate = (row['oldRate'] as num?)?.toDouble() ?? 0;
+              final newRate = (row['newRate'] as num?)?.toDouble() ?? 0;
+              return Container(
+                margin: const EdgeInsets.only(top: 7),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 11,
+                  vertical: 9,
+                ),
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: .11),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.white.withValues(alpha: .2)),
+                ),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        '${row['label'] ?? ''}',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                    ),
+                    Text(
+                      oldRate.toStringAsFixed(2),
+                      textDirection: TextDirection.ltr,
+                      style: TextStyle(
+                        color: Colors.white.withValues(alpha: .68),
+                        decoration: TextDecoration.lineThrough,
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    Icon(
+                      isUp
+                          ? Icons.arrow_upward_rounded
+                          : Icons.arrow_downward_rounded,
+                      size: 18,
+                      color: isUp
+                          ? const Color(0xFF9FF1CA)
+                          : const Color(0xFFFFD2D2),
+                    ),
+                    const SizedBox(width: 6),
+                    Text(
+                      newRate.toStringAsFixed(2),
+                      textDirection: TextDirection.ltr,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            })
+            .toList(growable: false),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
     final scheduled = !widget.activated;
     final seconds = _seconds;
-    final title = scheduled ? 'تنبيه طارئ: تحديث أسعار الصرف' : 'تم تفعيل السعر الجديد';
+    final title = scheduled
+        ? 'تنبيه طارئ: تحديث أسعار الصرف'
+        : 'تم تفعيل السعر الجديد';
     final subtitle = scheduled
         ? 'سيتم تطبيق السعر الجديد تلقائياً عند انتهاء العداد'
         : 'تم تحديث الأسعار في حسابك بنجاح';
-    final details = '${widget.alert[scheduled ? 'rateChangesText' : 'currentRatesText'] ?? ''}'.trim();
+    final details =
+        '${widget.alert[scheduled ? 'rateChangesText' : 'currentRatesText'] ?? ''}'
+            .trim();
     final total = (widget.alert['delaySeconds'] is num)
         ? (widget.alert['delaySeconds'] as num).toDouble()
         : 60.0;
-    final progress = scheduled && total > 0 ? (seconds / total).clamp(0.0, 1.0) : 1.0;
+    final progress = scheduled && total > 0
+        ? (seconds / total).clamp(0.0, 1.0)
+        : 1.0;
 
     if (_minimized && scheduled) {
       return SafeArea(
@@ -102,11 +189,16 @@ class _RateAlertOverlayState extends State<RateAlertOverlay> {
                 onTap: () => setState(() => _minimized = false),
                 borderRadius: BorderRadius.circular(30),
                 child: Ink(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 10,
+                  ),
                   decoration: BoxDecoration(
                     color: const Color(0xFF075C82),
                     borderRadius: BorderRadius.circular(30),
-                    border: Border.all(color: Colors.white.withValues(alpha: .3)),
+                    border: Border.all(
+                      color: Colors.white.withValues(alpha: .3),
+                    ),
                     boxShadow: [
                       BoxShadow(
                         color: Colors.black.withValues(alpha: .24),
@@ -118,12 +210,19 @@ class _RateAlertOverlayState extends State<RateAlertOverlay> {
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      const Icon(Icons.notifications_active_outlined, color: Color(0xFFF4C344), size: 19),
+                      const Icon(
+                        Icons.notifications_active_outlined,
+                        color: Color(0xFFF4C344),
+                        size: 19,
+                      ),
                       const SizedBox(width: 7),
                       Text(
                         _formatCountdown(seconds),
                         textDirection: TextDirection.ltr,
-                        style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w900),
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w900,
+                        ),
                       ),
                     ],
                   ),
@@ -143,7 +242,9 @@ class _RateAlertOverlayState extends State<RateAlertOverlay> {
           child: Container(
             width: double.infinity,
             decoration: BoxDecoration(
-              color: scheduled ? const Color(0xFF075C82) : const Color(0xFF00875A),
+              color: scheduled
+                  ? const Color(0xFF075C82)
+                  : const Color(0xFF00875A),
               borderRadius: BorderRadius.circular(12),
               border: Border.all(color: Colors.white.withValues(alpha: .30)),
               boxShadow: [
@@ -172,7 +273,9 @@ class _RateAlertOverlayState extends State<RateAlertOverlay> {
                             shape: BoxShape.circle,
                           ),
                           child: Icon(
-                            scheduled ? Icons.notifications_active_outlined : Icons.verified_rounded,
+                            scheduled
+                                ? Icons.notifications_active_outlined
+                                : Icons.verified_rounded,
                             color: Colors.white,
                           ),
                         ),
@@ -181,9 +284,21 @@ class _RateAlertOverlayState extends State<RateAlertOverlay> {
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text(title, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w900)),
+                              Text(
+                                title,
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.w900,
+                                ),
+                              ),
                               const SizedBox(height: 2),
-                              Text(subtitle, style: TextStyle(color: Colors.white.withValues(alpha: .85), fontSize: 12)),
+                              Text(
+                                subtitle,
+                                style: TextStyle(
+                                  color: Colors.white.withValues(alpha: .85),
+                                  fontSize: 12,
+                                ),
+                              ),
                             ],
                           ),
                         ),
@@ -191,30 +306,48 @@ class _RateAlertOverlayState extends State<RateAlertOverlay> {
                           Text(
                             _formatCountdown(seconds),
                             textDirection: TextDirection.ltr,
-                            style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.w900),
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 20,
+                              fontWeight: FontWeight.w900,
+                            ),
                           ),
                         if (scheduled) ...[
                           const SizedBox(width: 8),
                           IconButton(
                             tooltip: 'تصغير التنبيه',
                             onPressed: () => setState(() => _minimized = true),
-                            icon: const Icon(Icons.remove_rounded, color: Colors.white),
+                            icon: const Icon(
+                              Icons.remove_rounded,
+                              color: Colors.white,
+                            ),
                           ),
                         ],
                       ],
                     ),
                   ),
-                  if (details.isNotEmpty)
+                  if (scheduled && _rateChanges.isNotEmpty)
+                    _buildRateRows()
+                  else if (details.isNotEmpty)
                     Padding(
                       padding: const EdgeInsets.fromLTRB(14, 0, 14, 14),
-                      child: Text(details, style: const TextStyle(color: Colors.white, height: 1.55, fontWeight: FontWeight.w700)),
+                      child: Text(
+                        details,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          height: 1.55,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
                     ),
                   if (scheduled)
                     LinearProgressIndicator(
                       value: progress,
                       minHeight: 4,
                       backgroundColor: Colors.white.withValues(alpha: .25),
-                      valueColor: AlwaysStoppedAnimation<Color>(colors.tertiary),
+                      valueColor: AlwaysStoppedAnimation<Color>(
+                        colors.tertiary,
+                      ),
                     ),
                 ],
               ),

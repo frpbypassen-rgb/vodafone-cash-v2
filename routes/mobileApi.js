@@ -84,7 +84,8 @@ const {
     generateManualExecutorReceiptBase64
 } = require('../utils/manualExecutorReceipt');
 const { reserveManualExecutorReceiptReference } = require('../services/manualExecutorReceiptReferenceService');
-const { activatePendingRateUpdate, buildRateChangePayload } = require('../services/rateChangeService');
+const { activatePendingRateUpdate } = require('../services/rateChangeService');
+const { buildPendingRateAlertForClient } = require('../services/rateAlerts/rateAlertAudienceService');
 const { reversalService } = require('../src/Application/Services/ReversalService');
 const eventBus = require('../services/eventBus');
 const {
@@ -789,23 +790,18 @@ const buildHomeRateResponse = async (req, res, userId, accountType, settings) =>
     // Pricing tiers are internal administration data. The rate contract below
     // exposes only the actual prices this account may use.
     const { tier: _internalTier, tierLabel: _internalTierLabel, ...publicRateContract } = rateContract;
+    const pendingRateUpdate = await buildPendingRateAlertForClient({
+        accountType,
+        clientId: userId,
+        settings
+    });
     const responseData = {
         success: true,
         balance: Number(balance),
         ...publicRateContract,
         isOpen: !(settings && settings.isManualClosed),
         serverTime: new Date().toISOString(),
-        pendingRateUpdate: settings?.pendingRateUpdate?.effectiveAt ? {
-            effectiveAt: new Date(settings.pendingRateUpdate.effectiveAt).toISOString(),
-            changes: settings.pendingRateUpdate.changes || {},
-            previousRates: settings.pendingRateUpdate.previousRates || {},
-            campaignReference: settings.pendingRateUpdate.campaignReference || '',
-            ...buildRateChangePayload({
-                changes: settings.pendingRateUpdate.changes || {},
-                previousRates: settings.pendingRateUpdate.previousRates || {},
-                effectiveAt: settings.pendingRateUpdate.effectiveAt
-            })
-        } : null
+        pendingRateUpdate
     };
 
     if (['client_user', 'sub_client'].includes(accountType) && profileAccount) {

@@ -7,6 +7,7 @@ const SubAccount = require('../models/SubAccount');
 const User = require('../models/User');
 const WhatsAppDelivery = require('../models/WhatsAppDelivery');
 const { SERVICE_RATE_CONFIG } = require('../utils/rateHelper');
+const { formatDelay, normalizeDelaySeconds } = require('./rateAlerts/rateAlertAudienceService');
 const {
     getWhatChimpConfigurationStatus,
     getWhatChimpTemplateReadiness,
@@ -21,7 +22,7 @@ const SENT_STATUSES = new Set(['sent', 'delivered', 'read']);
 const RATE_FIELD_META = Object.entries(SERVICE_RATE_CONFIG).flatMap(([serviceKey, config]) => (
     [1, 2, 3].map((tier) => ({
         field: `${config.fieldPrefix}Level${tier}`,
-        label: `${config.label} - المستوى ${tier}`,
+        label: config.label,
         serviceKey,
         tier
     }))
@@ -71,10 +72,13 @@ const getRateChangeRecipients = async () => {
 
 const formatRateChanges = ({ changes = {}, previousRates = {} }) => {
     const rendered = new Set();
+    const renderedServices = new Set();
     const lines = [];
     RATE_FIELD_META.forEach((meta) => {
         if (changes[meta.field] === undefined) return;
         rendered.add(meta.field);
+        if (renderedServices.has(meta.serviceKey)) return;
+        renderedServices.add(meta.serviceKey);
         lines.push(`${meta.label}: ${formatRate(previousRates[meta.field])} ← ${formatRate(changes[meta.field])}`);
     });
 
@@ -88,7 +92,10 @@ const formatRateChanges = ({ changes = {}, previousRates = {} }) => {
             return;
         }
         rendered.add(field);
-        lines.push(`تحويل كاش - المستوى ${tier}: ${formatRate(previousRates[field])} ← ${formatRate(changes[field])}`);
+        if (!renderedServices.has('vodafone')) {
+            renderedServices.add('vodafone');
+            lines.push(`تحويل كاش: ${formatRate(previousRates[field])} ← ${formatRate(changes[field])}`);
+        }
     });
 
     Object.keys(changes)
@@ -121,7 +128,14 @@ const markStage = (delivery, key, status, detail = '') => {
     delivery.markModified?.('metadata');
 };
 
-const sendOneRateChange = async ({ recipient, reference, effectiveAt, rateChanges, rateChangeConfiguration }) => {
+const sendOneRateChange = async ({
+    recipient,
+    reference,
+    effectiveAt,
+    delaySeconds,
+    rateChanges,
+    rateChangeConfiguration
+}) => {
     let normalizedPhone;
     try {
         normalizedPhone = normalizeWhatsAppPhone(recipient.phone);
@@ -144,11 +158,13 @@ const sendOneRateChange = async ({ recipient, reference, effectiveAt, rateChange
     delivery.status = 'sending';
     delivery.failureCode = '';
     delivery.failureReason = '';
+    const countdown = formatDelay(delaySeconds);
     delivery.metadata = {
         ...(delivery.metadata || {}),
         effectiveAt: new Date(effectiveAt).toISOString(),
         rateChanges,
-        countdown: '00:60'
+        countdown,
+        delaySeconds: normalizeDelaySeconds(delaySeconds)
     };
     markStage(delivery, 'rate_change_prepared', 'success');
     markStage(delivery, 'phone_normalized', 'success', normalizedPhone);
@@ -173,7 +189,7 @@ const sendOneRateChange = async ({ recipient, reference, effectiveAt, rateChange
     const result = await sendRateChange({
         phone: normalizedPhone,
         accountName: recipient.name,
-        countdown: '00:60',
+        countdown,
         rateChanges,
         effectiveAt
     });
@@ -200,13 +216,27 @@ const runWithConcurrency = async (items, limit, task) => {
     return (await Promise.all(workers)).flat();
 };
 
-const sendRateChangeWhatsAppNotifications = async ({ campaignReference, recipients, changes, previousRates, effectiveAt }) => {
+const sendRateChangeWhatsAppNotifications = async ({
+    campaignReference,
+    recipients,
+    changes,
+    previousRates,
+    effectiveAt,
+    delaySeconds = 60
+}) => {
     const targetRecipients = Array.isArray(recipients) ? uniqueRecipients(recipients) : await getRateChangeRecipients();
     const reference = campaignReference || `RATE-CHANGE-${new Date(effectiveAt).toISOString()}`;
-    const rateChanges = formatRateChanges({ changes, previousRates });
+    const fallbackRateChanges = formatRateChanges({ changes, previousRates });
     const rateChangeConfiguration = await getWhatChimpTemplateReadiness().catch(() => getWhatChimpConfigurationStatus());
     const results = await runWithConcurrency(targetRecipients, 5, (recipient) => (
-        sendOneRateChange({ recipient, reference, effectiveAt, rateChanges, rateChangeConfiguration })
+        sendOneRateChange({
+            recipient,
+            reference,
+            effectiveAt,
+            delaySeconds: recipient.payload?.delaySeconds || delaySeconds,
+            rateChanges: recipient.payload?.rateChangesText || recipient.rateChangesText || fallbackRateChanges,
+            rateChangeConfiguration
+        })
             .catch((error) => ({ success: false, code: 'RATE_CHANGE_DELIVERY_FAILED', message: error.message }))
     ));
     return {

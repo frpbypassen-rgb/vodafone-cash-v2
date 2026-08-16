@@ -7,13 +7,22 @@ const buildReference = (effectiveAt) => {
     return `RATE-${stamp}-${Math.random().toString(36).slice(2, 6).toUpperCase()}`;
 };
 
-const createRateAlertCampaign = async ({ effectiveAt, changes, previousRates, createdBy }) => {
+const createRateAlertCampaign = async ({
+    effectiveAt,
+    delaySeconds,
+    changes,
+    previousRates,
+    createdBy,
+    targetedAccounts = 0
+}) => {
     const campaign = await RateAlertCampaign.create({
         reference: buildReference(effectiveAt),
         effectiveAt,
+        delaySeconds,
         changes,
         previousRates,
-        createdBy
+        createdBy,
+        targetedAccounts
     });
     return campaign;
 };
@@ -43,8 +52,18 @@ const recordWhatsAppDeliverySummary = async (reference, summary) => {
     );
 };
 
+const recordTargetedAccounts = async (reference, targetedAccounts) => {
+    if (!reference) return null;
+    return RateAlertCampaign.findOneAndUpdate(
+        { reference },
+        { $set: { targetedAccounts: Number(targetedAccounts || 0) } },
+        { new: true }
+    );
+};
+
 module.exports = {
     createRateAlertCampaign,
     activateRateAlertCampaign,
-    recordWhatsAppDeliverySummary
+    recordWhatsAppDeliverySummary,
+    recordTargetedAccounts
 };

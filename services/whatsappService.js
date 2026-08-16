@@ -366,7 +366,7 @@ const testWhatChimpConnection = async () => {
 const sendRateChange = async ({
     phone,
     accountName = '',
-    countdown = '00:60',
+    countdown = '01:00',
     rateChanges = '',
     effectiveAt = new Date()
 }) => {

@@ -2,77 +2,65 @@
 
 const Settings = require('../models/Settings');
 const Notification = require('../models/Notification');
-const User = require('../models/User');
-const ClientEmployee = require('../models/ClientEmployee');
-const AgentEmployee = require('../models/AgentEmployee');
-const SubAccount = require('../models/SubAccount');
-const ClientCompany = require('../models/ClientCompany');
-const {
-    sendRateChangeWhatsAppNotifications,
-    formatRateChanges
-} = require('./whatsappRateChangeDeliveryService');
+const { sendRateChangeWhatsAppNotifications } = require('./whatsappRateChangeDeliveryService');
 const {
     createRateAlertCampaign,
     activateRateAlertCampaign,
-    recordWhatsAppDeliverySummary
+    recordWhatsAppDeliverySummary,
+    recordTargetedAccounts
 } = require('./rateAlerts/rateAlertCampaignService');
 const { sendRateAlertWebPush } = require('./rateAlerts/webPushService');
+const {
+    DEFAULT_DELAY_SECONDS,
+    normalizeDelaySeconds,
+    formatDelay,
+    buildRateAlertAudience
+} = require('./rateAlerts/rateAlertAudienceService');
 
-const RATE_CHANGE_DELAY_MS = 60 * 1000;
 const RATE_CHANGE_MONITOR_INTERVAL_MS = 5 * 1000;
 let activationTimer = null;
 let activationMonitor = null;
 
-const recipientIds = async () => {
-    const [users, clientEmployees, agentEmployees, subAccounts, companies] = await Promise.all([
-        User.find({ status: 'active' }).select('_id phone webUsername').lean(),
-        ClientEmployee.find({ status: 'active' }).select('_id phone webUsername').lean(),
-        AgentEmployee.find({ status: 'active' }).select('_id phone webUsername').lean(),
-        SubAccount.find({ status: 'active' }).select('_id phone username').lean(),
-        ClientCompany.find({ status: 'active' }).select('_id phone webUsername').lean()
-    ]);
-    return [...users, ...clientEmployees, ...agentEmployees, ...subAccounts, ...companies]
-        .flatMap((account) => [account.phone, account.webUsername, account.username, account._id])
-        .filter(Boolean)
-        .map(String);
-};
-
-const notifyClients = async ({ title, message, metadata }) => {
-    const ids = [...new Set(await recipientIds())];
-    await Notification.insertMany(ids.map((userId) => ({
-        userId,
-        audience: 'client',
-        type: 'rate_change',
-        title,
-        message,
-        metadata
-    })), { ordered: false }).catch(() => {});
-};
-
-const emitRateEvent = (app, event, payload) => {
+const emitRateRefresh = (app, event, campaignReference = '') => {
     const io = app?.get?.('io');
-    if (io) io.emit(event, payload);
+    if (!io) return;
+    // This public signal carries no prices. Authenticated clients fetch only
+    // the effective-rate alert for their own financial account.
+    io.emit('rate_change_refresh', {
+        event,
+        campaignReference: String(campaignReference || ''),
+        occurredAt: new Date().toISOString()
+    });
 };
 
-const formatCurrentRateChanges = ({ changes = {}, previousRates = {} }) => (
-    formatRateChanges({ changes, previousRates })
-        .split('\n')
-        .map((line) => {
-            const arrowIndex = line.lastIndexOf('←');
-            if (arrowIndex < 0) return line;
-            const label = line.slice(0, line.indexOf(':')).trim();
-            const currentRate = line.slice(arrowIndex + 1).trim();
-            return `${label}: ${currentRate}`;
-        })
-        .join('\n')
-);
+const notifyClients = async ({ audience, event }) => {
+    const scheduled = event === 'scheduled';
+    const docs = audience.map((recipient) => {
+        const payload = recipient.payload;
+        return {
+            userId: recipient.notificationUserId,
+            audience: 'client',
+            targetModel: recipient.recipientModel,
+            targetId: recipient.recipientId,
+            type: 'rate_change',
+            title: scheduled ? 'تحديث أسعار الصرف قريباً' : 'تم تحديث أسعار الصرف',
+            message: scheduled
+                ? `سيتم تطبيق السعر الجديد خلال ${payload.countdown}.\n${payload.rateChangesText}`
+                : `تم تفعيل السعر الجديد في حسابك.\n${payload.currentRatesText}`,
+            metadata: { event, ...payload }
+        };
+    });
+    if (!docs.length) return;
+    await Notification.insertMany(docs, { ordered: false }).catch(() => {});
+};
 
-const buildRateChangePayload = ({ changes = {}, previousRates = {}, effectiveAt = null }) => ({
-    changes,
-    previousRates,
-    rateChangesText: formatRateChanges({ changes, previousRates }),
-    currentRatesText: formatCurrentRateChanges({ changes, previousRates }),
-    ...(effectiveAt ? { effectiveAt: new Date(effectiveAt).toISOString() } : {})
+// Compatibility helper for callers that already own a recipient-specific
+// payload. It never renders raw administration fields or pricing tiers.
+const buildRateChangePayload = ({ payload, effectiveAt, delaySeconds, campaignReference = '' } = {}) => ({
+    ...(payload || {}),
+    ...(effectiveAt ? { effectiveAt: new Date(effectiveAt).toISOString() } : {}),
+    delaySeconds: normalizeDelaySeconds(delaySeconds || payload?.delaySeconds || DEFAULT_DELAY_SECONDS),
+    campaignReference: String(campaignReference || payload?.campaignReference || '')
 });
 
 const activatePendingRateUpdate = async ({ app } = {}) => {
@@ -81,25 +69,30 @@ const activatePendingRateUpdate = async ({ app } = {}) => {
     if (!settings || !pending?.effectiveAt || !pending?.changes) return null;
     if (new Date(pending.effectiveAt).getTime() > Date.now()) return null;
 
-    const previousRates = pending.previousRates || {};
-    const payload = {
-        ...buildRateChangePayload({ changes: pending.changes, previousRates }),
-        activatedAt: new Date().toISOString()
-    };
+    const delaySeconds = normalizeDelaySeconds(pending.delaySeconds || settings.rateChangeDelaySeconds);
+    const audience = await buildRateAlertAudience({
+        settings,
+        changes: pending.changes,
+        effectiveAt: pending.effectiveAt,
+        delaySeconds,
+        campaignReference: pending.campaignReference
+    });
     Object.assign(settings, pending.changes);
+    const campaignReference = pending.campaignReference || '';
     settings.pendingRateUpdate = undefined;
     await settings.save();
-    await activateRateAlertCampaign(pending.campaignReference).catch((error) => {
+    await activateRateAlertCampaign(campaignReference).catch((error) => {
         console.error('[RateAlert] campaign activation failed:', error.message);
     });
-    emitRateEvent(app, 'exchange_rates_updated', payload);
-    emitRateEvent(app, 'rate_change_activated', payload);
-    await notifyClients({
-        title: 'تم تحديث أسعار الصرف',
-        message: `تم تفعيل أسعار الصرف الجديدة. السعر الحالي:\n${payload.currentRatesText}`,
-        metadata: { event: 'activated', ...payload }
-    });
-    return payload;
+    await notifyClients({ audience, event: 'activated' });
+    emitRateRefresh(app, 'activated', campaignReference);
+    const io = app?.get?.('io');
+    if (io) io.emit('exchange_rates_updated', { source: 'general' });
+    return {
+        activatedAt: new Date().toISOString(),
+        campaignReference,
+        targetedAccounts: audience.length
+    };
 };
 
 const armPendingRateActivation = ({ app, effectiveAt }) => {
@@ -113,24 +106,29 @@ const armPendingRateActivation = ({ app, effectiveAt }) => {
     activationTimer.unref?.();
 };
 
-const scheduleRateUpdate = async ({ settings, changes, actor, app }) => {
-    const effectiveAt = new Date(Date.now() + RATE_CHANGE_DELAY_MS);
+const scheduleRateUpdate = async ({ settings, changes, actor, app, delaySeconds }) => {
+    const safeDelaySeconds = normalizeDelaySeconds(delaySeconds || settings.rateChangeDelaySeconds);
+    const effectiveAt = new Date(Date.now() + (safeDelaySeconds * 1000));
     const previousRates = Object.fromEntries(
         Object.keys(changes || {}).map((field) => [field, settings[field]])
     );
+    settings.rateChangeDelaySeconds = safeDelaySeconds;
     settings.pendingRateUpdate = {
         effectiveAt,
         changes,
         previousRates,
+        delaySeconds: safeDelaySeconds,
         createdBy: String(actor || ''),
         createdAt: new Date(),
         campaignReference: ''
     };
     await settings.save();
+
     let campaign = null;
     try {
         campaign = await createRateAlertCampaign({
             effectiveAt,
+            delaySeconds: safeDelaySeconds,
             changes,
             previousRates,
             createdBy: String(actor || '')
@@ -138,34 +136,42 @@ const scheduleRateUpdate = async ({ settings, changes, actor, app }) => {
         settings.pendingRateUpdate.campaignReference = campaign.reference;
         await settings.save();
     } catch (error) {
-        // Scheduling the exchange rate must remain available if monitoring is
-        // temporarily unavailable. The campaign can be retried independently.
         console.error('[RateAlert] campaign creation failed:', error.message);
     }
-    const payload = {
-        ...buildRateChangePayload({ changes, previousRates, effectiveAt }),
-        delaySeconds: 60,
-        campaignReference: campaign?.reference || ''
-    };
-    armPendingRateActivation({ app, effectiveAt });
-    emitRateEvent(app, 'rate_change_scheduled', payload);
-    await notifyClients({
-        title: 'تحديث أسعار الصرف قريباً',
-        message: `سيتم تطبيق أسعار صرف جديدة خلال 60 ثانية.\n${payload.rateChangesText}`,
-        metadata: { event: 'scheduled', ...payload }
+
+    const campaignReference = campaign?.reference || '';
+    const audience = await buildRateAlertAudience({
+        settings,
+        changes,
+        effectiveAt,
+        delaySeconds: safeDelaySeconds,
+        campaignReference
     });
-    // WhatsApp delivery is tracked per account and must not delay saving the
-    // scheduled rate update or the live dashboard notification.
+    await recordTargetedAccounts(campaignReference, audience.length).catch(() => {});
+    armPendingRateActivation({ app, effectiveAt });
+    emitRateRefresh(app, 'scheduled', campaignReference);
+    await notifyClients({ audience, event: 'scheduled' });
+
+    const whatsappRecipients = audience.flatMap((recipient) => recipient.phoneRecipients || []);
     void sendRateChangeWhatsAppNotifications({
-        campaignReference: campaign?.reference,
+        campaignReference,
+        recipients: whatsappRecipients,
         changes,
         previousRates,
-        effectiveAt
-    }).then((summary) => recordWhatsAppDeliverySummary(campaign?.reference, summary))
+        effectiveAt,
+        delaySeconds: safeDelaySeconds
+    }).then((summary) => recordWhatsAppDeliverySummary(campaignReference, summary))
         .catch((error) => console.error('[RateChange] WhatsApp notification failed:', error.message));
-    void sendRateAlertWebPush({ payload })
+    void sendRateAlertWebPush({ audience })
         .catch((error) => console.error('[RateAlert] web push notification failed:', error.message));
-    return payload;
+
+    return {
+        effectiveAt: effectiveAt.toISOString(),
+        delaySeconds: safeDelaySeconds,
+        countdown: formatDelay(safeDelaySeconds),
+        campaignReference,
+        targetedAccounts: audience.length
+    };
 };
 
 const restorePendingRateActivation = async ({ app } = {}) => {
@@ -181,11 +187,8 @@ const restorePendingRateActivation = async ({ app } = {}) => {
     return { effectiveAt: new Date(effectiveAt).toISOString(), restored: true };
 };
 
-// Keeps scheduled rates reliable when the web process is restarted or a
-// previous in-memory timeout is lost before the effective time.
 const startRateChangeActivationMonitor = ({ app } = {}) => {
     if (activationMonitor) return activationMonitor;
-
     activationMonitor = setInterval(() => {
         activatePendingRateUpdate({ app }).catch((error) => {
             console.error('[RateChange] monitor failed:', error.message);

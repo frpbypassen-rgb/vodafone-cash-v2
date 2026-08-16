@@ -20,6 +20,7 @@ const { normalizeCreditLimit } = require('../services/agencyCreditLimitService')
 const { logAction } = require('../services/auditService');
 const { saveProfilePhoto, streamProfilePhoto, removeProfilePhoto } = require('../services/profilePhotoStorageService');
 const { activatePendingRateUpdate } = require('../services/rateChangeService');
+const { buildPendingRateAlertForClient } = require('../services/rateAlerts/rateAlertAudienceService');
 
 const renderBusinessOverview = clientWorkspaceController.renderPage('overview');
 
@@ -191,23 +192,23 @@ exports.getDashboard = async (req, res) => {
             systemStatus: isSystemOpen ? 'تعمل' : 'خارج اوقات العمل',
             accountTypeName,
             accountTypeDetail,
-            userRoleLabel,
-            tier: clientTier
+            userRoleLabel
         };
 
         const canViewBalance = req.session.accountType !== 'company' || account.canViewAllReports;
+
+        const pendingRateUpdate = await buildPendingRateAlertForClient({
+            accountType: req.session.accountType,
+            clientId: req.session.clientId,
+            settings: set
+        });
 
         res.render('client/dashboard', {
             user: { name: account.name, phone: account.phone || account.webUsername, balance: balance, role: account.role || 'user', accountType: req.session.accountType, accountCode, canViewBalance },
             isSubAccount, isMaster: !isSubAccount, masterTotalProfit, transactions: combinedTransactions.map(sanitizeStatementTransaction), currentRate, serviceRates, totals, targetDate, dateLabel, showMonth, search, query: req.query, storeCatalog,
             isSystemOpen,
             profile,
-            pendingRateUpdate: set?.pendingRateUpdate?.effectiveAt
-                ? {
-                    effectiveAt: new Date(set.pendingRateUpdate.effectiveAt).toISOString(),
-                    changes: set.pendingRateUpdate.changes || {}
-                }
-                : null
+            pendingRateUpdate
         });
     } catch (error) {
         console.error("Dashboard Render Error:", error);

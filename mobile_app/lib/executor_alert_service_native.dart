@@ -83,12 +83,13 @@ class ExecutorAlertService {
     if (kIsWeb) return;
     final session = await SessionStore().read();
     final isAccountant = session?.context['executorRole'] == 'accountant';
-    final isCustomer = session?.accountType == 'client_user' ||
+    final isCustomer =
+        session?.accountType == 'client_user' ||
         session?.accountType == 'client_company' ||
         session?.accountType == 'sub_client' ||
         session?.accountType == 'agent_staff';
-    final customerNotifications =
-        await SessionStore().readCustomerNotificationsEnabled();
+    final customerNotifications = await SessionStore()
+        .readCustomerNotificationsEnabled();
     if ((session?.accountType != 'executor' || isAccountant) &&
         (!isCustomer || !customerNotifications)) {
       return;
@@ -175,7 +176,8 @@ void executorAlertBackgroundEntry(ServiceInstance service) async {
   await _createChannels(notifications);
 
   final initialSession = await SessionStore().read();
-  final customerSession = initialSession?.accountType == 'client_user' ||
+  final customerSession =
+      initialSession?.accountType == 'client_user' ||
       initialSession?.accountType == 'client_company' ||
       initialSession?.accountType == 'sub_client' ||
       initialSession?.accountType == 'agent_staff';
@@ -202,7 +204,8 @@ void executorAlertBackgroundEntry(ServiceInstance service) async {
   Future<void> poll() async {
     final session = await SessionStore().read();
     final isExecutor = session?.accountType == 'executor';
-    final isCustomer = session?.accountType == 'client_user' ||
+    final isCustomer =
+        session?.accountType == 'client_user' ||
         session?.accountType == 'client_company' ||
         session?.accountType == 'sub_client' ||
         session?.accountType == 'agent_staff';
@@ -217,28 +220,32 @@ void executorAlertBackgroundEntry(ServiceInstance service) async {
           service.stopSelf();
           return;
         }
-        final response = await Dio(
-          BaseOptions(
-            baseUrl: _apiBaseUrl,
-            connectTimeout: const Duration(seconds: 20),
-            receiveTimeout: const Duration(seconds: 30),
-            headers: <String, dynamic>{
-              'Accept': 'application/json',
-              'Authorization': 'Bearer ${session!.token}',
-            },
-          ),
-        ).get<dynamic>('/client/notifications', queryParameters: <String, dynamic>{
-          'unreadOnly': 'true',
-          'limit': 20,
-        });
+        final response =
+            await Dio(
+              BaseOptions(
+                baseUrl: _apiBaseUrl,
+                connectTimeout: const Duration(seconds: 20),
+                receiveTimeout: const Duration(seconds: 30),
+                headers: <String, dynamic>{
+                  'Accept': 'application/json',
+                  'Authorization': 'Bearer ${session!.token}',
+                },
+              ),
+            ).get<dynamic>(
+              '/client/notifications',
+              queryParameters: <String, dynamic>{
+                'unreadOnly': 'true',
+                'limit': 20,
+              },
+            );
         final body = response.data is Map
             ? Map<String, dynamic>.from(response.data as Map)
             : <String, dynamic>{};
         final customerNotifications = body['notifications'] is List
             ? (body['notifications'] as List)
-                .whereType<Map>()
-                .map((item) => Map<String, dynamic>.from(item))
-                .toList()
+                  .whereType<Map>()
+                  .map((item) => Map<String, dynamic>.from(item))
+                  .toList()
             : <Map<String, dynamic>>[];
         final ids = customerNotifications
             .map((item) => '${item['id'] ?? ''}')
@@ -246,8 +253,11 @@ void executorAlertBackgroundEntry(ServiceInstance service) async {
             .toSet();
         final newNotifications = initialized
             ? customerNotifications
-                .where((item) => !seenCustomerNotificationIds.contains('${item['id']}'))
-                .toList()
+                  .where(
+                    (item) =>
+                        !seenCustomerNotificationIds.contains('${item['id']}'),
+                  )
+                  .toList()
             : <Map<String, dynamic>>[];
         seenCustomerNotificationIds
           ..clear()
@@ -344,9 +354,9 @@ void executorAlertBackgroundEntry(ServiceInstance service) async {
   }
 
   await poll();
-  // Price changes have a 60-second activation window, so customer alerts must
-  // be checked more frequently than the previous one-minute interval.
-  Timer.periodic(const Duration(seconds: 15), (_) => poll());
+  // The administration may choose a short countdown, so customer alerts are
+  // checked frequently enough to surface the warning before activation.
+  Timer.periodic(const Duration(seconds: 8), (_) => poll());
 }
 
 Future<void> _showCustomerAlert({

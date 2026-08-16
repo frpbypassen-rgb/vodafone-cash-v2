@@ -13,11 +13,13 @@ const rateAlertCampaignSchema = new mongoose.Schema({
         index: true
     },
     effectiveAt: { type: Date, required: true, index: true },
+    delaySeconds: { type: Number, min: 10, max: 3600, default: 60 },
     activatedAt: { type: Date, default: null },
     changes: { type: Object, required: true },
     previousRates: { type: Object, required: true },
     createdBy: { type: String, default: '' },
     audience: { type: [String], default: () => ['client', 'company', 'agent'] },
+    targetedAccounts: { type: Number, default: 0 },
     whatsapp: {
         attempted: { type: Number, default: 0 },
         sent: { type: Number, default: 0 },

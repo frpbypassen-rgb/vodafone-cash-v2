@@ -8,10 +8,12 @@
 
     let payload = null;
     let timer = null;
+    let pollTimer = null;
     let audioContext = null;
     let audioUnlocked = false;
     let finalWarningPlayed = false;
     let minimized = false;
+    let fetching = false;
 
     const escapeHtml = (value) => String(value || '').replace(/[&<>"']/g, (char) => ({
         '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;'
@@ -29,18 +31,22 @@
         try {
             audioContext ||= new (window.AudioContext || window.webkitAudioContext)();
             audioContext.resume?.();
-        } catch (_) {
-            // The visual alert remains available when the browser blocks audio.
-        }
+        } catch (_) {}
         if ('Notification' in window && Notification.permission === 'default') {
             Notification.requestPermission().catch(() => {});
         }
     };
 
-    const showBrowserNotification = (title, body) => {
-        if (!document.hidden || !('Notification' in window) || Notification.permission !== 'granted') return;
+    const showBrowserNotification = (title, body, tag) => {
+        if (!('Notification' in window) || Notification.permission !== 'granted') return;
+        if (!document.hidden && document.hasFocus()) return;
         try {
-            new Notification(title, { body, icon: '/images/logo.png', tag: `rate-alert-${payload?.campaignReference || Date.now()}`, renotify: true });
+            new Notification(title, {
+                body,
+                icon: '/images/logo.png',
+                tag: tag || `rate-alert-${Date.now()}`,
+                renotify: true
+            });
         } catch (_) {}
     };
 
@@ -74,9 +80,7 @@
                 },
                 body: JSON.stringify({ subscription })
             });
-        } catch (_) {
-            // A user can continue using the site when browser Push is blocked.
-        }
+        } catch (_) {}
     };
 
     const playTone = (urgent = false) => {
@@ -85,8 +89,8 @@
             const now = audioContext.currentTime;
             const oscillator = audioContext.createOscillator();
             const gain = audioContext.createGain();
-            oscillator.type = 'sine';
-            oscillator.frequency.setValueAtTime(urgent ? 980 : 720, now);
+            oscillator.type = urgent ? 'square' : 'sine';
+            oscillator.frequency.setValueAtTime(urgent ? 940 : 720, now);
             gain.gain.setValueAtTime(.001, now);
             gain.gain.exponentialRampToValueAtTime(.12, now + .03);
             gain.gain.exponentialRampToValueAtTime(.001, now + (urgent ? .48 : .28));
@@ -98,7 +102,31 @@
 
     const secondsRemaining = () => {
         const effectiveAt = Date.parse(payload?.effectiveAt || '');
-        return Number.isFinite(effectiveAt) ? Math.max(0, Math.ceil((effectiveAt - Date.now()) / 1000)) : 0;
+        return Number.isFinite(effectiveAt)
+            ? Math.max(0, Math.ceil((effectiveAt - Date.now()) / 1000))
+            : 0;
+    };
+
+    const formatCountdown = (seconds) => (
+        `${String(Math.floor(seconds / 60)).padStart(2, '0')}:${String(seconds % 60).padStart(2, '0')}`
+    );
+
+    const renderRateRows = (rows) => {
+        if (!Array.isArray(rows) || !rows.length) {
+            return `<div class="rate-alert-rates">${escapeHtml(payload?.rateChangesText || 'تم تحديث أسعار الصرف.')}</div>`;
+        }
+        return `<div class="rate-alert-rate-list">${rows.map((row) => {
+            const direction = row.direction === 'down' ? 'down' : 'up';
+            const symbol = direction === 'up' ? '↑' : '↓';
+            return `<div class="rate-alert-rate-row is-${direction}">
+                <strong>${escapeHtml(row.label)}</strong>
+                <span class="rate-alert-rate-values" dir="ltr">
+                    <del>${escapeHtml(Number(row.oldRate).toFixed(2))}</del>
+                    <b>${symbol}</b>
+                    <ins>${escapeHtml(Number(row.newRate).toFixed(2))}</ins>
+                </span>
+            </div>`;
+        }).join('')}</div>`;
     };
 
     const renderScheduled = () => {
@@ -106,21 +134,20 @@
         if (!payload || seconds <= 0) return;
         const total = Math.max(1, Number(payload.delaySeconds || 60));
         const width = Math.max(0, Math.min(100, (seconds / total) * 100));
-        const minutes = String(Math.floor(seconds / 60)).padStart(2, '0');
-        const remainder = String(seconds % 60).padStart(2, '0');
+        const countdown = formatCountdown(seconds);
         if (minimized) {
-            root.innerHTML = `<button class="rate-alert-compact" type="button" data-rate-alert-expand aria-label="فتح تنبيه تغيّر السعر"><i class="fa-solid fa-bell"></i><span>${minutes}:${remainder}</span></button>`;
+            root.innerHTML = `<button class="rate-alert-compact" type="button" data-rate-alert-expand aria-label="فتح تنبيه تغيّر السعر"><i class="fa-solid fa-bell"></i><span>${countdown}</span></button>`;
             return;
         }
         root.innerHTML = `
             <section class="rate-alert-card is-active" role="alert">
                 <div class="rate-alert-topline">
-                    <span class="rate-alert-icon"><i class="fa-solid fa-bell"></i></span>
-                    <span class="rate-alert-copy"><strong>تنبيه طارئ: تحديث أسعار الصرف</strong><small>سيتم تطبيق السعر الجديد تلقائياً عند انتهاء العداد</small></span>
-                    <b class="rate-alert-countdown">${minutes}:${remainder}</b>
+                    <span class="rate-alert-icon"><i class="fa-solid fa-chart-line"></i></span>
+                    <span class="rate-alert-copy"><strong>تنبيه مهم: تحديث سعر الصرف</strong><small>يظل السعر الحالي فعالاً حتى انتهاء العداد</small></span>
+                    <b class="rate-alert-countdown">${countdown}</b>
                     <button class="rate-alert-minimize" type="button" data-rate-alert-minimize aria-label="تصغير التنبيه"><i class="fa-solid fa-minus"></i></button>
                 </div>
-                <div class="rate-alert-rates">${escapeHtml(payload.rateChangesText || 'تم تحديث أسعار الصرف.')}</div>
+                ${renderRateRows(payload.rateChanges)}
                 <div class="rate-alert-progress"><span style="width:${width}%"></span></div>
             </section>`;
         if (seconds <= 10 && !finalWarningPlayed) {
@@ -129,38 +156,78 @@
         }
     };
 
-    const showActivated = (nextPayload) => {
+    const showActivated = (completedPayload) => {
         payload = null;
         minimized = false;
         if (timer) window.clearInterval(timer);
-        const current = nextPayload?.currentRatesText || 'تم اعتماد السعر الجديد في حسابك.';
+        const current = completedPayload?.currentRatesText || 'تم اعتماد السعر الجديد في حسابك.';
         root.innerHTML = `
             <section class="rate-alert-card is-activated" role="alert">
                 <div class="rate-alert-topline">
                     <span class="rate-alert-icon"><i class="fa-solid fa-circle-check"></i></span>
-                    <span class="rate-alert-copy"><strong>تم تفعيل السعر الجديد</strong><small>تم تحديث الأسعار في حسابك بنجاح</small></span>
+                    <span class="rate-alert-copy"><strong>تم تفعيل السعر الجديد</strong><small>تأكد من السعر الحالي قبل إرسال أي عملية</small></span>
                 </div>
                 <div class="rate-alert-rates">${escapeHtml(current)}</div>
             </section>`;
         playTone();
-        showBrowserNotification('تم تفعيل السعر الجديد', current);
-        window.setTimeout(() => { root.innerHTML = ''; }, 12000);
+        showBrowserNotification('تم تفعيل السعر الجديد', current, `rate-activated-${completedPayload?.campaignReference || Date.now()}`);
+        window.setTimeout(() => {
+            if (!payload) root.innerHTML = '';
+        }, 12000);
     };
 
     const schedule = (nextPayload) => {
-        if (!nextPayload?.effectiveAt) return;
+        if (!nextPayload?.effectiveAt || Date.parse(nextPayload.effectiveAt) <= Date.now()) return;
+        const sameCampaign = payload
+            && String(payload.campaignReference || payload.effectiveAt) === String(nextPayload.campaignReference || nextPayload.effectiveAt);
         payload = nextPayload;
-        minimized = false;
-        finalWarningPlayed = false;
+        if (!sameCampaign) {
+            minimized = false;
+            finalWarningPlayed = false;
+            playTone();
+            showBrowserNotification(
+                'تنبيه مهم: تحديث سعر الصرف',
+                `سيتم التفعيل خلال ${nextPayload.countdown || formatCountdown(nextPayload.delaySeconds || 60)}.\n${nextPayload.rateChangesText || ''}`,
+                `rate-alert-${nextPayload.campaignReference || nextPayload.effectiveAt}`
+            );
+        }
         hideLegacyBanners();
         if (timer) window.clearInterval(timer);
         renderScheduled();
-        playTone();
-        showBrowserNotification('تنبيه طارئ: تحديث أسعار الصرف', `سيتم التفعيل خلال 60 ثانية.\n${nextPayload.rateChangesText || ''}`);
         timer = window.setInterval(() => {
-            if (secondsRemaining() <= 0) return;
+            if (secondsRemaining() <= 0) {
+                window.clearInterval(timer);
+                const completedPayload = payload;
+                window.setTimeout(() => refreshCurrent({ activationHint: true, completedPayload }), 250);
+                return;
+            }
             renderScheduled();
         }, 1000);
+    };
+
+    const refreshCurrent = async ({ activationHint = false, completedPayload = payload } = {}) => {
+        if (fetching) return;
+        fetching = true;
+        try {
+            const response = await fetch('/client/api/rate-alerts/current', {
+                credentials: 'same-origin',
+                headers: { Accept: 'application/json' },
+                cache: 'no-store'
+            });
+            if (!response.ok) return;
+            const body = await response.json();
+            if (body?.alert?.effectiveAt) {
+                schedule(body.alert);
+            } else if ((activationHint || completedPayload) && completedPayload) {
+                showActivated(completedPayload);
+            }
+        } catch (_) {
+            if (activationHint && completedPayload) {
+                window.setTimeout(() => refreshCurrent({ activationHint: true, completedPayload }), 2000);
+            }
+        } finally {
+            fetching = false;
+        }
     };
 
     const mount = () => {
@@ -172,6 +239,7 @@
             if (event.target.closest('[data-rate-alert-minimize]')) {
                 minimized = true;
                 renderScheduled();
+                return;
             }
             if (event.target.closest('[data-rate-alert-expand]')) {
                 minimized = false;
@@ -184,13 +252,19 @@
                 .catch(() => {});
         }
         if (window.rateAlertInitial?.effectiveAt) schedule(window.rateAlertInitial);
+        void refreshCurrent();
+        pollTimer = window.setInterval(() => refreshCurrent(), 15000);
+        window.addEventListener('beforeunload', () => window.clearInterval(pollTimer), { once: true });
         if (typeof window.io !== 'function') return;
         const socket = window.io();
-        socket.on('rate_change_scheduled', schedule);
-        socket.on('rate_change_activated', (nextPayload) => {
-            hideLegacyBanners();
-            showActivated(nextPayload);
+        socket.on('rate_change_refresh', (event) => {
+            const completedPayload = payload;
+            void refreshCurrent({ activationHint: event?.event === 'activated', completedPayload });
         });
+        // Older server instances may emit these while a rolling deployment is
+        // still finishing. Fetching prevents trusting a non-personalized body.
+        socket.on('rate_change_scheduled', () => refreshCurrent());
+        socket.on('rate_change_activated', () => refreshCurrent({ activationHint: true, completedPayload: payload }));
     };
 
     if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', mount, { once: true });

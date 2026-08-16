@@ -29,6 +29,7 @@ const {
 const { getWhatChimpConfigurationStatus, getWhatChimpTemplateReadiness, testWhatChimpConnection } = require('../services/whatsappService');
 const { getPublicAppUrl, getReceiptShareSecret } = require('../services/receiptShareService');
 const { scheduleRateUpdate } = require('../services/rateChangeService');
+const { normalizeDelaySeconds, formatDelay } = require('../services/rateAlerts/rateAlertAudienceService');
 
 const AUTO_ROUTE_INPUT_FIELDS = SERVICE_RATE_KEYS.map((serviceKey) => `autoRouteExecutor_${serviceKey}`);
 
@@ -41,7 +42,7 @@ const ALLOWED_MAIN_SETTINGS = [
     'rateLevel1', 'rateLevel2', 'rateLevel3',
     ...SERVICE_RATE_ADMIN_FIELDS,
     'openingTime', 'closingTime', 'isManualClosed',
-    'supportContact', 'autoRouteEnabled', 'autoRouteBotId',
+    'supportContact', 'rateChangeDelay', 'autoRouteEnabled', 'autoRouteBotId',
     ...AUTO_ROUTE_INPUT_FIELDS
 ];
 
@@ -54,6 +55,13 @@ const ALLOWED_CLIENT_BOT_FIELDS = [
     'name', 'token', 'welcomeMessage', 'status',
     'rateLevel1', 'rateLevel2', 'rateLevel3'
 ];
+
+const parseRateChangeDelay = (value, fallback) => {
+    const raw = String(value ?? '').trim();
+    const match = raw.match(/^(\d{1,2}):([0-5]\d)$/);
+    if (match) return normalizeDelaySeconds((Number(match[1]) * 60) + Number(match[2]));
+    return normalizeDelaySeconds(fallback);
+};
 
 // =========================================================
 // الإعدادات الرئيسية
@@ -116,7 +124,8 @@ router.get('/', async (req, res) => {
             && new Date(settings.pendingRateUpdate.effectiveAt).getTime() > Date.now()
             ? {
                 effectiveAt: new Date(settings.pendingRateUpdate.effectiveAt).toISOString(),
-                changes: settings.pendingRateUpdate.changes || {}
+                changes: settings.pendingRateUpdate.changes || {},
+                delaySeconds: settings.pendingRateUpdate.delaySeconds || settings.rateChangeDelaySeconds || 60
             }
             : null,
         executorBots,
@@ -153,6 +162,8 @@ router.post('/update', requireMaster, async (req, res) => {
             if (data[field] !== undefined) data[field] = parseFloat(data[field]) || 0;
         });
         const synchronizedData = synchronizeVodafoneLinkedRateFields(data);
+        const submittedRateChangeDelay = synchronizedData.rateChangeDelay;
+        delete synchronizedData.rateChangeDelay;
 
         const requestedRules = SERVICE_RATE_KEYS.map((serviceKey) => ({
             serviceKey,
@@ -189,6 +200,11 @@ router.post('/update', requireMaster, async (req, res) => {
         }
 
         const settings = await Settings.findOne({}) || new Settings();
+        const rateChangeDelaySeconds = parseRateChangeDelay(
+            submittedRateChangeDelay,
+            settings.rateChangeDelaySeconds || 60
+        );
+        synchronizedData.rateChangeDelaySeconds = rateChangeDelaySeconds;
         const hasPendingRateUpdate = settings.pendingRateUpdate?.effectiveAt
             && new Date(settings.pendingRateUpdate.effectiveAt).getTime() > Date.now();
         // Keep a scheduled update when another form setting is saved during its
@@ -228,7 +244,8 @@ router.post('/update', requireMaster, async (req, res) => {
                 settings,
                 changes: rateChanges,
                 actor: req.session?.adminName || req.session?.username || 'الإدارة',
-                app: req.app
+                app: req.app,
+                delaySeconds: rateChangeDelaySeconds
             });
         }
         const io = req.app?.get('io');
@@ -242,7 +259,7 @@ router.post('/update', requireMaster, async (req, res) => {
         const result = shouldScheduleRateUpdate
             ? 'ratesScheduled=1'
             : (Object.keys(rateChanges).length ? 'ratesPending=1' : 'ratesUpdated=1');
-        res.redirect(`/settings?${result}#company-rates`);
+        res.redirect(`/settings?${result}&rateDelay=${encodeURIComponent(formatDelay(rateChangeDelaySeconds))}#company-rates`);
     } catch (e) {
         console.error('[settings/update] خطأ:', e.message);
         res.redirect('/settings');

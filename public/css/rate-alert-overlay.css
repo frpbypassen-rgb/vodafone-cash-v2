@@ -8,6 +8,12 @@
     padding: max(16px, env(safe-area-inset-top)) 16px 16px;
 }
 
+/* The global overlay replaces the two legacy page-specific banners. */
+#rateChangeCountdown,
+#rateChangeActivated {
+    display: none !important;
+}
+
 .rate-alert-card {
     width: min(720px, 100%);
     align-self: flex-start;
@@ -47,6 +53,29 @@
 .rate-alert-copy small { opacity: .84; margin-top: 2px; }
 .rate-alert-countdown { font: 800 22px/1.1 "JetBrains Mono", monospace; direction: ltr; }
 .rate-alert-rates { padding: 12px 18px 16px; white-space: pre-line; font-weight: 700; line-height: 1.8; }
+.rate-alert-rate-list {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+    padding: 14px 18px 16px;
+}
+.rate-alert-rate-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    min-width: 0;
+    padding: 10px 12px;
+    border: 1px solid rgba(255,255,255,.22);
+    border-radius: 8px;
+    background: rgba(255,255,255,.10);
+}
+.rate-alert-rate-row strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rate-alert-rate-values { display: inline-flex; align-items: center; gap: 7px; font-weight: 900; white-space: nowrap; }
+.rate-alert-rate-values del { opacity: .66; text-decoration-thickness: 1px; }
+.rate-alert-rate-values ins { color: #fff; text-decoration: none; }
+.rate-alert-rate-row.is-up .rate-alert-rate-values b { color: #9ff1ca; }
+.rate-alert-rate-row.is-down .rate-alert-rate-values b { color: #ffd2d2; }
 .rate-alert-progress { height: 4px; background: rgba(255,255,255,.25); }
 .rate-alert-progress > span { display: block; height: 100%; background: #f4c344; transition: width .9s linear; }
 .rate-alert-minimize {
@@ -73,6 +102,9 @@
     cursor: pointer;
     font: 800 15px/1 "JetBrains Mono", monospace;
     animation: rate-alert-enter .3s ease-out;
+    pointer-events: auto;
+    position: relative;
+    z-index: 1;
 }
 .rate-alert-compact i { font-size: 16px; color: #f4c344; }
 
@@ -86,4 +118,5 @@
     .rate-alert-topline { padding: 12px; gap: 8px; }
     .rate-alert-rates { padding: 10px 12px 14px; font-size: 13px; }
     .rate-alert-countdown { font-size: 18px; }
+    .rate-alert-rate-list { grid-template-columns: 1fr; padding: 10px 12px 14px; }
 }

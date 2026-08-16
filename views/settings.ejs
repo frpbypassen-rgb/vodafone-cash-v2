@@ -121,6 +121,27 @@
                                     </tbody>
                                 </table>
                             </div>
+                            <% const configuredRateDelay = Math.max(10, Math.min(3600, Number(settings.rateChangeDelaySeconds || 60))); %>
+                            <div class="rate-delay-control d-flex flex-wrap align-items-center justify-content-between gap-3 border-top pt-3">
+                                <div>
+                                    <strong class="d-block text-dark"><i class="fa-solid fa-stopwatch text-warning me-2"></i>مهلة إشعار تغيير السعر</strong>
+                                    <small class="text-muted">يظل السعر القديم فعالاً طوال هذه المدة، ثم يعتمد السعر الجديد تلقائياً.</small>
+                                </div>
+                                <label class="d-flex align-items-center gap-2 mb-0">
+                                    <span class="small fw-bold text-muted text-nowrap">دقائق : ثوانٍ</span>
+                                    <input
+                                        type="text"
+                                        name="rateChangeDelay"
+                                        class="form-control text-center fw-bold mono-num"
+                                        style="width: 112px; direction: ltr;"
+                                        inputmode="numeric"
+                                        pattern="\d{1,2}:[0-5]\d"
+                                        value="<%= `${String(Math.floor(configuredRateDelay / 60)).padStart(2, '0')}:${String(configuredRateDelay % 60).padStart(2, '0')}` %>"
+                                        aria-label="مدة إشعار تغيير السعر بالدقائق والثواني"
+                                        title="اكتب المدة بصيغة دقائق:ثوانٍ، مثال 01:30"
+                                        required>
+                                </label>
+                            </div>
                             <div class="row g-4 d-none">
                                 <div class="col-md-4">
                                     <label class="form-label small fw-bold text-muted">سعر الصرف المستوى 1</label>
@@ -272,7 +293,7 @@
             </header>
 
             <% if (query && query.ratesScheduled) { %>
-                <div class="alert alert-warning fw-bold"><i class="fa-solid fa-clock me-2"></i>تم إشعار الحسابات. ستُطبَّق أسعار الصرف الجديدة تلقائياً خلال 60 ثانية.</div>
+                <div class="alert alert-warning fw-bold"><i class="fa-solid fa-clock me-2"></i>تم إشعار الحسابات المتأثرة فقط. ستُطبَّق أسعار الصرف الجديدة تلقائياً خلال <span class="mono-num" dir="ltr"><%= query.rateDelay || '01:00' %></span>.</div>
             <% } else if (query && query.ratesPending) { %>
                 <div class="alert alert-info fw-bold"><i class="fa-solid fa-hourglass-half me-2"></i>يوجد تحديث سعر مجدول بالفعل، ولم يتم إلغاؤه عند حفظ بقية الإعدادات.</div>
             <% } else if (query && query.ratesUpdated) { %>

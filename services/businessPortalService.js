@@ -15,7 +15,8 @@ const { getTransferPricingDefinition } = require('../utils/transferPricing');
 const agencyFinanceService = require('./agencyFinanceService');
 const { resolveMarginPiasters, pricingFromTransaction, roundMoney } = require('../utils/agencyPricing');
 const { calculateCreditState } = require('./agencyCreditLimitService');
-const { activatePendingRateUpdate, buildRateChangePayload } = require('./rateChangeService');
+const { activatePendingRateUpdate } = require('./rateChangeService');
+const { buildPendingRateAlertForClient } = require('./rateAlerts/rateAlertAudienceService');
 const {
     sanitizeStatementMovement,
     sanitizeStatementTransaction
@@ -812,6 +813,13 @@ const loadReports = async (workspace, query = {}) => {
 
 const buildBaseContext = async (req, page, workspace) => {
     const rates = await getSettingsAndRates(workspace, req.app);
+    const pendingRateUpdate = await buildPendingRateAlertForClient({
+        accountType: workspace.isCompany
+            ? 'company'
+            : (workspace.actorModel === 'AgentEmployee' ? 'agent_staff' : 'user'),
+        clientId: workspace.actor._id,
+        settings: rates.settings
+    });
     const pageMeta = { ...PAGE_META[page] };
     if (workspace.forceToday) {
         if (page === 'overview') Object.assign(pageMeta, { title: 'الرئيسية', eyebrow: 'عمل اليوم' });
@@ -826,19 +834,7 @@ const buildBaseContext = async (req, page, workspace) => {
         statusMeta: STATUS_META,
         serviceCatalog: rates.services,
         serviceRates: rates.serviceRates,
-        pendingRateUpdate: rates.settings?.pendingRateUpdate?.effectiveAt
-            ? {
-                effectiveAt: new Date(rates.settings.pendingRateUpdate.effectiveAt).toISOString(),
-                changes: rates.settings.pendingRateUpdate.changes || {},
-                previousRates: rates.settings.pendingRateUpdate.previousRates || {},
-                campaignReference: rates.settings.pendingRateUpdate.campaignReference || '',
-                ...buildRateChangePayload({
-                    changes: rates.settings.pendingRateUpdate.changes || {},
-                    previousRates: rates.settings.pendingRateUpdate.previousRates || {},
-                    effectiveAt: rates.settings.pendingRateUpdate.effectiveAt
-                })
-            }
-            : null,
+        pendingRateUpdate,
         systemOpen: rates.settings.isManualClosed !== true,
         query: req.query || {},
         csrfToken: req.session.csrfToken || '',

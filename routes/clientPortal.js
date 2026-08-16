@@ -15,6 +15,9 @@ const Notification = require('../models/Notification');
 const { resolveClientNotificationUserIds } = require('../services/clientNotificationService');
 const { setPortalSupportReplyChannel } = require('../services/whatChimpSupportService');
 const WebPushSubscription = require('../models/WebPushSubscription');
+const Settings = require('../models/Settings');
+const { activatePendingRateUpdate } = require('../services/rateChangeService');
+const { buildPendingRateAlertForClient } = require('../services/rateAlerts/rateAlertAudienceService');
 
 // Middleware
 const endUnauthorizedClientSession = (req, res) => {
@@ -201,6 +204,22 @@ router.get('/api/notifications/unread', requireClientAuth, async (req, res) => {
         return res.json({ success: true, count: notifications.length, notifications });
     } catch (e) {
         return res.status(500).json({ success: false, error: 'Internal Server Error' });
+    }
+});
+
+router.get('/api/rate-alerts/current', requireClientAuth, async (req, res) => {
+    try {
+        await activatePendingRateUpdate({ app: req.app });
+        const settings = await Settings.findOne({}).lean() || {};
+        const alert = await buildPendingRateAlertForClient({
+            accountType: req.session.accountType,
+            clientId: req.session.clientId,
+            settings
+        });
+        return res.json({ success: true, alert });
+    } catch (error) {
+        console.error('[client/rate-alerts/current] failed:', error.message);
+        return res.status(500).json({ success: false, error: 'RATE_ALERT_LOOKUP_FAILED' });
     }
 });
 
