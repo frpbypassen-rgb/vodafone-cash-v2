@@ -105,6 +105,9 @@ jobs:
             'WHATCHIMP_RECEIPT_TEMPLATE_LANGUAGE',
             'WHATCHIMP_WEBHOOK_SECRET',
             'PUBLIC_APP_URL',
+            'WEB_PUSH_PUBLIC_KEY',
+            'WEB_PUSH_PRIVATE_KEY',
+            'WEB_PUSH_SUBJECT',
             'RECEIPT_SHARE_SECRET'
           ]);
 

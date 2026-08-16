@@ -53,14 +53,6 @@ const requireNonNegativeNumber = (value, fieldName) => {
     return num;
 };
 
-const requireTier = (value) => {
-    const num = Number(value);
-    if (isBlank(value) || Number.isNaN(num) || (num !== 1 && num !== 2 && num !== 3)) {
-        throw malformedAuthDto('tier');
-    }
-    return num;
-};
-
 const requireServiceRates = (value) => {
     if (!value || typeof value !== 'object') throw malformedAuthDto('serviceRates');
     return getEnabledMobileTransferServiceKeys().reduce((rates, key) => {
@@ -113,8 +105,6 @@ const requirePersona = (value) => {
  * @param {string} params.accountType - نوع الحساب
  * @param {string} params.name - اسم المستخدم
  * @param {number} params.balance - الرصيد الحالي
- * @param {number} params.tier - مستوى العميل (1, 2, 3)
- * @param {string} params.tierLabel - اسم المستوى
  * @param {number} params.baseExchangeRate - سعر الصرف الأساسي
  * @param {number} params.exchangeRate - سعر الصرف الحالي
  * @param {Object} params.serviceRates - أسعار الخدمات
@@ -131,8 +121,6 @@ const toLoginResponse = ({
     accountType,
     name,
     balance,
-    tier,
-    tierLabel,
     baseExchangeRate,
     exchangeRate,
     serviceRates,
@@ -161,8 +149,6 @@ const toLoginResponse = ({
         accountType: normalizedAccountType,
         name: requireString(name, 'name'),
         balance: requireNumber(balance, 'balance'),
-        tier: requireTier(tier),
-        tierLabel: tierLabel ? String(tierLabel) : `مستوى ${Number(tier)}`,
         baseExchangeRate: requirePositiveNumber(baseExchangeRate, 'baseExchangeRate'),
         exchangeRate: requirePositiveNumber(exchangeRate, 'exchangeRate'),
         serviceRates: requireServiceRates(serviceRates),

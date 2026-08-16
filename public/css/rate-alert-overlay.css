@@ -18,6 +18,7 @@
     box-shadow: 0 20px 56px rgba(4, 18, 40, .35);
     overflow: hidden;
     animation: rate-alert-enter .38s ease-out;
+    pointer-events: auto;
 }
 
 .rate-alert-card.is-active { background: linear-gradient(135deg, #07573f, #0a8a65); }
@@ -48,6 +49,32 @@
 .rate-alert-rates { padding: 12px 18px 16px; white-space: pre-line; font-weight: 700; line-height: 1.8; }
 .rate-alert-progress { height: 4px; background: rgba(255,255,255,.25); }
 .rate-alert-progress > span { display: block; height: 100%; background: #f4c344; transition: width .9s linear; }
+.rate-alert-minimize {
+    width: 38px;
+    height: 38px;
+    border: 1px solid rgba(255,255,255,.32);
+    border-radius: 10px;
+    color: #fff;
+    background: rgba(255,255,255,.12);
+    cursor: pointer;
+    font-size: 16px;
+}
+.rate-alert-compact {
+    display: inline-flex;
+    align-items: center;
+    gap: 9px;
+    align-self: flex-start;
+    padding: 10px 14px;
+    color: #fff;
+    background: #075c82;
+    border: 1px solid rgba(255,255,255,.3);
+    border-radius: 999px;
+    box-shadow: 0 12px 30px rgba(4,18,40,.34);
+    cursor: pointer;
+    font: 800 15px/1 "JetBrains Mono", monospace;
+    animation: rate-alert-enter .3s ease-out;
+}
+.rate-alert-compact i { font-size: 16px; color: #f4c344; }
 
 @keyframes rate-alert-enter {
     from { opacity: 0; transform: translateY(-20px); }

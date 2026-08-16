@@ -91,6 +91,8 @@
             selectedService: typeof servicePage !== 'undefined' ? servicePage.selectedService : 'vodafone'
         }).replace(/</g, '\\u003c') %>;
         window.rateAlertInitial = <%- JSON.stringify(pendingRateUpdate || null).replace(/</g, '\\u003c') %>;
+        window.rateAlertPushPublicKey = <%- JSON.stringify(process.env.WEB_PUSH_PUBLIC_KEY || '').replace(/</g, '\\u003c') %>;
+        window.rateAlertCsrfToken = <%- JSON.stringify(csrfToken || '').replace(/</g, '\\u003c') %>;
     </script>
     <script>
         (() => {

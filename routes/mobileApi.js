@@ -786,10 +786,13 @@ const buildHomeRateResponse = async (req, res, userId, accountType, settings) =>
         rateContract = buildMobileRateContract(tier, settings);
     }
 
+    // Pricing tiers are internal administration data. The rate contract below
+    // exposes only the actual prices this account may use.
+    const { tier: _internalTier, tierLabel: _internalTierLabel, ...publicRateContract } = rateContract;
     const responseData = {
         success: true,
         balance: Number(balance),
-        ...rateContract,
+        ...publicRateContract,
         isOpen: !(settings && settings.isManualClosed),
         serverTime: new Date().toISOString(),
         pendingRateUpdate: settings?.pendingRateUpdate?.effectiveAt ? {

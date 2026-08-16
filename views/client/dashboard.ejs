@@ -2835,6 +2835,8 @@
 
         (() => {
             window.rateAlertInitial = <%- JSON.stringify(pendingRateUpdate || null).replace(/</g, '\\u003c') %>;
+            window.rateAlertPushPublicKey = <%- JSON.stringify(process.env.WEB_PUSH_PUBLIC_KEY || '').replace(/</g, '\\u003c') %>;
+            window.rateAlertCsrfToken = <%- JSON.stringify(typeof csrfToken !== 'undefined' ? csrfToken : '').replace(/</g, '\\u003c') %>;
             const banner = document.getElementById('rateChangeCountdown');
             const value = document.getElementById('rateChangeCountdownValue');
             const details = document.getElementById('rateChangeDetails');

@@ -22,6 +22,7 @@ class RateAlertOverlay extends StatefulWidget {
 class _RateAlertOverlayState extends State<RateAlertOverlay> {
   Timer? _ticker;
   bool _finalWarningPlayed = false;
+  bool _minimized = false;
 
   @override
   void initState() {
@@ -89,6 +90,51 @@ class _RateAlertOverlayState extends State<RateAlertOverlay> {
         : 60.0;
     final progress = scheduled && total > 0 ? (seconds / total).clamp(0.0, 1.0) : 1.0;
 
+    if (_minimized && scheduled) {
+      return SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(12, 10, 12, 0),
+          child: Align(
+            alignment: AlignmentDirectional.topEnd,
+            child: Material(
+              color: Colors.transparent,
+              child: InkWell(
+                onTap: () => setState(() => _minimized = false),
+                borderRadius: BorderRadius.circular(30),
+                child: Ink(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF075C82),
+                    borderRadius: BorderRadius.circular(30),
+                    border: Border.all(color: Colors.white.withValues(alpha: .3)),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: .24),
+                        blurRadius: 18,
+                        offset: const Offset(0, 8),
+                      ),
+                    ],
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(Icons.notifications_active_outlined, color: Color(0xFFF4C344), size: 19),
+                      const SizedBox(width: 7),
+                      Text(
+                        _formatCountdown(seconds),
+                        textDirection: TextDirection.ltr,
+                        style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w900),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
     return SafeArea(
       child: Padding(
         padding: const EdgeInsets.fromLTRB(12, 10, 12, 0),
@@ -147,6 +193,14 @@ class _RateAlertOverlayState extends State<RateAlertOverlay> {
                             textDirection: TextDirection.ltr,
                             style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.w900),
                           ),
+                        if (scheduled) ...[
+                          const SizedBox(width: 8),
+                          IconButton(
+                            tooltip: 'تصغير التنبيه',
+                            onPressed: () => setState(() => _minimized = true),
+                            icon: const Icon(Icons.remove_rounded, color: Colors.white),
+                          ),
+                        ],
                       ],
                     ),
                   ),

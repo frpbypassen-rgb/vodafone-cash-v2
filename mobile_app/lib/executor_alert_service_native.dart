@@ -10,6 +10,7 @@ const _monitorChannelId = 'executor_monitoring';
 const _taskChannelId = 'executor_tasks';
 const _urgentChannelId = 'executor_urgent_alerts';
 const _customerChannelId = 'customer_account_alerts';
+const _rateAlertChannelId = 'rate_change_alerts';
 const _monitorNotificationId = 7100;
 const _apiBaseUrl = String.fromEnvironment(
   'API_BASE_URL',
@@ -40,8 +41,8 @@ class ExecutorAlertService {
     await FlutterBackgroundService().configure(
       androidConfiguration: AndroidConfiguration(
         onStart: executorAlertBackgroundEntry,
-        autoStart: false,
-        autoStartOnBoot: false,
+        autoStart: true,
+        autoStartOnBoot: true,
         isForegroundMode: true,
         notificationChannelId: _monitorChannelId,
         initialNotificationTitle: 'مراقبة التنفيذ تعمل',
@@ -144,6 +145,14 @@ Future<void> _createChannels(
     playSound: true,
     enableVibration: true,
   );
+  const rateAlertChannel = AndroidNotificationChannel(
+    _rateAlertChannelId,
+    'تنبيهات تغيّر سعر الصرف',
+    description: 'تنبيهات طارئة قبل تطبيق سعر الصرف الجديد.',
+    importance: Importance.max,
+    playSound: true,
+    enableVibration: true,
+  );
   final android = notifications
       .resolvePlatformSpecificImplementation<
         AndroidFlutterLocalNotificationsPlugin
@@ -152,6 +161,7 @@ Future<void> _createChannels(
   await android?.createNotificationChannel(taskChannel);
   await android?.createNotificationChannel(urgentChannel);
   await android?.createNotificationChannel(customerChannel);
+  await android?.createNotificationChannel(rateAlertChannel);
 }
 
 @pragma('vm:entry-point')
@@ -345,17 +355,20 @@ Future<void> _showCustomerAlert({
 }) {
   final title = '${notification['title'] ?? 'إشعار جديد'}';
   final message = '${notification['message'] ?? ''}';
+  final isRateAlert = '${notification['type'] ?? ''}' == 'rate_change';
   return notificationsPlugin.show(
     id: DateTime.now().millisecondsSinceEpoch.remainder(1 << 31),
     title: title,
     body: message,
-    notificationDetails: const NotificationDetails(
+    notificationDetails: NotificationDetails(
       android: AndroidNotificationDetails(
-        _customerChannelId,
-        'إشعارات حساب العميل',
-        channelDescription: 'إشعارات الإيداع والتحويل وردود الدعم.',
-        importance: Importance.high,
-        priority: Priority.high,
+        isRateAlert ? _rateAlertChannelId : _customerChannelId,
+        isRateAlert ? 'تنبيهات تغيّر سعر الصرف' : 'إشعارات حساب العميل',
+        channelDescription: isRateAlert
+            ? 'تنبيهات طارئة قبل تطبيق سعر الصرف الجديد.'
+            : 'إشعارات الإيداع والتحويل وردود الدعم.',
+        importance: isRateAlert ? Importance.max : Importance.high,
+        priority: isRateAlert ? Priority.max : Priority.high,
         playSound: true,
         enableVibration: true,
       ),

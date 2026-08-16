@@ -14,6 +14,7 @@ const AgentEmployee = require('../models/AgentEmployee');
 const Notification = require('../models/Notification');
 const { resolveClientNotificationUserIds } = require('../services/clientNotificationService');
 const { setPortalSupportReplyChannel } = require('../services/whatChimpSupportService');
+const WebPushSubscription = require('../models/WebPushSubscription');
 
 // Middleware
 const endUnauthorizedClientSession = (req, res) => {
@@ -200,6 +201,32 @@ router.get('/api/notifications/unread', requireClientAuth, async (req, res) => {
         return res.json({ success: true, count: notifications.length, notifications });
     } catch (e) {
         return res.status(500).json({ success: false, error: 'Internal Server Error' });
+    }
+});
+
+router.post('/api/rate-alerts/subscribe', requireClientAuth, async (req, res) => {
+    try {
+        const subscription = req.body?.subscription;
+        const endpoint = String(subscription?.endpoint || '').trim();
+        if (!endpoint || !subscription?.keys?.p256dh || !subscription?.keys?.auth) {
+            return res.status(422).json({ success: false, error: 'INVALID_PUSH_SUBSCRIPTION' });
+        }
+        await WebPushSubscription.findOneAndUpdate(
+            { endpoint },
+            {
+                $set: {
+                    subscription,
+                    userId: String(req.session.clientId),
+                    accountType: String(req.session.accountType || 'client'),
+                    active: true,
+                    lastError: ''
+                }
+            },
+            { upsert: true, new: true, setDefaultsOnInsert: true }
+        );
+        return res.json({ success: true });
+    } catch (error) {
+        return res.status(500).json({ success: false, error: 'PUSH_SUBSCRIPTION_FAILED' });
     }
 });
 

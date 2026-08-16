@@ -3691,29 +3691,17 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
           showBalance: !widget.controller.hidesBalance,
           systemOpen: home['isOpen'] != false,
         ),
-        const SizedBox(height: 18),
-        Wrap(
-          spacing: 12,
-          runSpacing: 12,
-          children: [
-            StatTile(
-              label: 'المستوى',
-              value: '${home['tier'] ?? session.tier}',
-              suffix: 'حساب',
-              icon: Icons.workspace_premium_outlined,
-              color: _gold,
-            ),
-            if (session.availableToSpend != null &&
-                !widget.controller.hidesBalance)
-              StatTile(
-                label: 'المتاح للتحويل',
-                value: formatAmount(session.availableToSpend),
-                suffix: 'د.ل',
-                icon: Icons.account_balance_wallet_outlined,
-                color: const Color(0xFF3366CC),
-              ),
-          ],
-        ),
+        if (session.availableToSpend != null &&
+            !widget.controller.hidesBalance) ...[
+          const SizedBox(height: 18),
+          StatTile(
+            label: 'المتاح للتحويل',
+            value: formatAmount(session.availableToSpend),
+            suffix: 'د.ل',
+            icon: Icons.account_balance_wallet_outlined,
+            color: const Color(0xFF3366CC),
+          ),
+        ],
       ],
     );
   }
@@ -14253,7 +14241,6 @@ class AccountScreen extends StatelessWidget {
               ),
               const Divider(),
               DetailLine(label: 'نوع الحساب', value: session.accountType),
-              DetailLine(label: 'المستوى', value: '${session.tier}'),
               if (contextData['accountCode'] != null &&
                   '${contextData['accountCode']}'.isNotEmpty)
                 DetailLine(

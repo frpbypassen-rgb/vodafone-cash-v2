@@ -17,7 +17,6 @@
         <header class="bw-section-head"><div><span class="bw-section-kicker">بيانات الحساب</span><h2>الاشتراك والصلاحية</h2></div></header>
         <dl class="bw-definition-list">
             <div><dt>رقم الحساب</dt><dd class="bw-mono"><%= workspace.entity.accountCode || workspace.entity.agentCode || '---' %></dd></div>
-            <div><dt>المستوى السعري</dt><dd>المستوى <%= workspace.entity.tier || 1 %></dd></div>
             <div><dt>الحد الائتماني</dt><dd class="bw-mono"><%= Number(workspace.entity.creditLimit || 0).toFixed(2) %> LYD</dd></div>
             <div><dt>حالة النظام</dt><dd><span class="bw-status <%= systemOpen ? 'success' : 'danger' %>"><%= systemOpen ? 'متاح' : 'مغلق' %></span></dd></div>
             <div><dt>دورك</dt><dd><%= workspace.roleLabel %></dd></div>
@@ -28,7 +27,7 @@
 
 <section class="bw-settings-grid secondary-grid">
     <section class="bw-section">
-        <header class="bw-section-head"><div><span class="bw-section-kicker">الأسعار الحالية</span><h2>أسعار الخدمات لحسابك</h2></div><span class="bw-meta-chip">المستوى <%= workspace.entity.tier || 1 %></span></header>
+        <header class="bw-section-head"><div><span class="bw-section-kicker">الأسعار الحالية</span><h2>أسعار الخدمات لحسابك</h2></div></header>
         <div class="bw-rate-list">
             <% serviceCatalog.forEach(service => { %><div class="bw-rate-row"><span class="bw-service-icon tone-<%= service.tone %>"><i class="fa-solid <%= service.icon %>"></i></span><div><strong><%= service.label %></strong><small><%= service.description %></small></div><strong class="bw-mono"><%= Number(service.rate).toFixed(2) %></strong></div><% }) %>
         </div>

@@ -16,6 +16,7 @@ const {
     activateRateAlertCampaign,
     recordWhatsAppDeliverySummary
 } = require('./rateAlerts/rateAlertCampaignService');
+const { sendRateAlertWebPush } = require('./rateAlerts/webPushService');
 
 const RATE_CHANGE_DELAY_MS = 60 * 1000;
 const RATE_CHANGE_MONITOR_INTERVAL_MS = 5 * 1000;
@@ -162,6 +163,8 @@ const scheduleRateUpdate = async ({ settings, changes, actor, app }) => {
         effectiveAt
     }).then((summary) => recordWhatsAppDeliverySummary(campaign?.reference, summary))
         .catch((error) => console.error('[RateChange] WhatsApp notification failed:', error.message));
+    void sendRateAlertWebPush({ payload })
+        .catch((error) => console.error('[RateAlert] web push notification failed:', error.message));
     return payload;
 };
 
