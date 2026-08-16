@@ -10,6 +10,7 @@
     "start": "node app.js",
     "dev": "nodemon app.js",
     "audit:env": "node scripts/auditProductionEnv.js",
+    "repair:env": "node scripts/repairProductionEnv.js .env --apply",
     "setup:web-push": "node scripts/ensureWebPushKeys.js",
     "seed:zayn-executor": "node scripts/seedZaynApiExecutor.js",
     "test": "jest",
