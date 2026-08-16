@@ -14,6 +14,7 @@ import 'executor_alert_service.dart';
 import 'external_link.dart';
 import 'language_controller.dart';
 import 'mobile_api.dart';
+import 'rate_alerts/rate_alert_overlay.dart';
 import 'report_download.dart';
 
 const _navy = AhramColors.ink;
@@ -1546,6 +1547,9 @@ class _RoleShellState extends State<RoleShell> with WidgetsBindingObserver {
   String _itemsLocale = 'ar';
   int _index = 0;
   Map<String, dynamic>? _executorOverview;
+  Timer? _rateAlertPoll;
+  Map<String, dynamic>? _pendingRateAlert;
+  Map<String, dynamic>? _activatedRateAlert;
 
   @override
   void initState() {
@@ -1560,6 +1564,9 @@ class _RoleShellState extends State<RoleShell> with WidgetsBindingObserver {
       }
       unawaited(ExecutorAlertService.instance.startForStoredAccount());
       unawaited(ExecutorAlertService.instance.setAppVisible(true));
+    }
+    if (!widget.controller.isExecutor && widget.controller.receivesClientNotifications) {
+      _startRateAlertPolling();
     }
   }
 
@@ -1576,7 +1583,50 @@ class _RoleShellState extends State<RoleShell> with WidgetsBindingObserver {
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    _rateAlertPoll?.cancel();
     super.dispose();
+  }
+
+  void _startRateAlertPolling() {
+    unawaited(_refreshRateAlert());
+    _rateAlertPoll = Timer.periodic(const Duration(seconds: 8), (_) {
+      unawaited(_refreshRateAlert());
+    });
+  }
+
+  Future<void> _refreshRateAlert() async {
+    try {
+      final home = await widget.controller.refreshHome();
+      final rawPending = home['pendingRateUpdate'];
+      final pending = rawPending is Map
+          ? Map<String, dynamic>.from(rawPending)
+          : null;
+      final effectiveAt = DateTime.tryParse('${pending?['effectiveAt'] ?? ''}');
+      final isScheduled = effectiveAt != null && effectiveAt.isAfter(DateTime.now());
+      if (isScheduled && pending != null) {
+        if (!mounted) return;
+        setState(() {
+          _pendingRateAlert = pending;
+          _activatedRateAlert = null;
+        });
+        return;
+      }
+      if (_pendingRateAlert != null && mounted) {
+        final completed = _pendingRateAlert!;
+        setState(() {
+          _pendingRateAlert = null;
+          _activatedRateAlert = completed;
+        });
+        SystemSound.play(SystemSoundType.alert);
+        Future<void>.delayed(const Duration(seconds: 12), () {
+          if (mounted && _activatedRateAlert == completed) {
+            setState(() => _activatedRateAlert = null);
+          }
+        });
+      }
+    } catch (_) {
+      // The last known alert stays visible while a short network outage recovers.
+    }
   }
 
   Future<void> _loadExecutorOverview() async {
@@ -1932,54 +1982,69 @@ class _RoleShellState extends State<RoleShell> with WidgetsBindingObserver {
     return LayoutBuilder(
       builder: (context, constraints) {
         final desktop = constraints.maxWidth >= 850;
-        return Scaffold(
-          appBar: appBar,
-          body: desktop
-              ? Row(
-                  children: [
-                    Container(
-                      width: 232,
-                      decoration: BoxDecoration(
-                        color: Theme.of(context).colorScheme.surface,
-                        border: Border(
-                          left: BorderSide(
-                            color: Theme.of(context).colorScheme.outlineVariant,
-                          ),
+        final shellBody = desktop
+            ? Row(
+                children: [
+                  Container(
+                    width: 232,
+                    decoration: BoxDecoration(
+                      color: Theme.of(context).colorScheme.surface,
+                      border: Border(
+                        left: BorderSide(
+                          color: Theme.of(context).colorScheme.outlineVariant,
                         ),
-                      ),
-                      child: NavigationRail(
-                        extended: true,
-                        minExtendedWidth: 232,
-                        selectedIndex: _index,
-                        onDestinationSelected: (next) =>
-                            setState(() => _index = next),
-                        labelType: NavigationRailLabelType.none,
-                        backgroundColor: Colors.transparent,
-                        leading: const Padding(
-                          padding: EdgeInsets.fromLTRB(16, 18, 16, 22),
-                          child: Align(
-                            alignment: AlignmentDirectional.centerStart,
-                            child: BrandMark(),
-                          ),
-                        ),
-                        destinations: _items
-                            .map(
-                              (item) => NavigationRailDestination(
-                                icon: GlassIconBadge(icon: item.icon),
-                                selectedIcon: GlassIconBadge(
-                                  icon: item.icon,
-                                  selected: true,
-                                ),
-                                label: Text(item.label),
-                              ),
-                            )
-                            .toList(),
                       ),
                     ),
-                    Expanded(child: pages),
-                  ],
-                )
-              : pages,
+                    child: NavigationRail(
+                      extended: true,
+                      minExtendedWidth: 232,
+                      selectedIndex: _index,
+                      onDestinationSelected: (next) => setState(() => _index = next),
+                      labelType: NavigationRailLabelType.none,
+                      backgroundColor: Colors.transparent,
+                      leading: const Padding(
+                        padding: EdgeInsets.fromLTRB(16, 18, 16, 22),
+                        child: Align(
+                          alignment: AlignmentDirectional.centerStart,
+                          child: BrandMark(),
+                        ),
+                      ),
+                      destinations: _items
+                          .map((item) => NavigationRailDestination(
+                                icon: GlassIconBadge(icon: item.icon),
+                                selectedIcon: GlassIconBadge(icon: item.icon, selected: true),
+                                label: Text(item.label),
+                              ))
+                          .toList(),
+                    ),
+                  ),
+                  Expanded(child: pages),
+                ],
+              )
+            : pages;
+        return Scaffold(
+          appBar: appBar,
+          body: Stack(
+            children: [
+              shellBody,
+              if (_pendingRateAlert != null)
+                Align(
+                  alignment: AlignmentDirectional.topCenter,
+                  child: RateAlertOverlay(
+                    alert: _pendingRateAlert!,
+                    onExpired: _refreshRateAlert,
+                  ),
+                ),
+              if (_activatedRateAlert != null)
+                Align(
+                  alignment: AlignmentDirectional.topCenter,
+                  child: RateAlertOverlay(
+                    alert: _activatedRateAlert!,
+                    activated: true,
+                  ),
+                ),
+            ],
+          ),
           bottomNavigationBar: desktop
               ? null
               : Padding(

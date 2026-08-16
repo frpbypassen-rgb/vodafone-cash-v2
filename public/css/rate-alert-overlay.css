@@ -1,0 +1,62 @@
+#rateAlertOverlay {
+    position: fixed;
+    inset: 0;
+    z-index: 30000;
+    pointer-events: none;
+    display: flex;
+    justify-content: center;
+    padding: max(16px, env(safe-area-inset-top)) 16px 16px;
+}
+
+.rate-alert-card {
+    width: min(720px, 100%);
+    align-self: flex-start;
+    color: #fff;
+    background: linear-gradient(135deg, #071d3d, #0a5a78);
+    border: 1px solid rgba(255, 255, 255, .3);
+    border-radius: 14px;
+    box-shadow: 0 20px 56px rgba(4, 18, 40, .35);
+    overflow: hidden;
+    animation: rate-alert-enter .38s ease-out;
+}
+
+.rate-alert-card.is-active { background: linear-gradient(135deg, #07573f, #0a8a65); }
+.rate-alert-card.is-activated { background: linear-gradient(135deg, #075c45, #00875a); }
+
+.rate-alert-topline {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 14px 18px;
+    background: rgba(255, 255, 255, .11);
+}
+
+.rate-alert-icon {
+    width: 38px;
+    height: 38px;
+    display: grid;
+    place-items: center;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, .15);
+    font-size: 18px;
+}
+
+.rate-alert-copy { flex: 1; min-width: 0; }
+.rate-alert-copy strong, .rate-alert-copy small { display: block; }
+.rate-alert-copy small { opacity: .84; margin-top: 2px; }
+.rate-alert-countdown { font: 800 22px/1.1 "JetBrains Mono", monospace; direction: ltr; }
+.rate-alert-rates { padding: 12px 18px 16px; white-space: pre-line; font-weight: 700; line-height: 1.8; }
+.rate-alert-progress { height: 4px; background: rgba(255,255,255,.25); }
+.rate-alert-progress > span { display: block; height: 100%; background: #f4c344; transition: width .9s linear; }
+
+@keyframes rate-alert-enter {
+    from { opacity: 0; transform: translateY(-20px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+@media (max-width: 560px) {
+    #rateAlertOverlay { padding-inline: 10px; }
+    .rate-alert-topline { padding: 12px; gap: 8px; }
+    .rate-alert-rates { padding: 10px 12px 14px; font-size: 13px; }
+    .rate-alert-countdown { font-size: 18px; }
+}

@@ -831,6 +831,7 @@ const buildBaseContext = async (req, page, workspace) => {
                 effectiveAt: new Date(rates.settings.pendingRateUpdate.effectiveAt).toISOString(),
                 changes: rates.settings.pendingRateUpdate.changes || {},
                 previousRates: rates.settings.pendingRateUpdate.previousRates || {},
+                campaignReference: rates.settings.pendingRateUpdate.campaignReference || '',
                 ...buildRateChangePayload({
                     changes: rates.settings.pendingRateUpdate.changes || {},
                     previousRates: rates.settings.pendingRateUpdate.previousRates || {},

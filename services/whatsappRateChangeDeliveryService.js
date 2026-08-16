@@ -1,6 +1,8 @@
 'use strict';
 
 const ClientCompany = require('../models/ClientCompany');
+const ClientEmployee = require('../models/ClientEmployee');
+const AgentEmployee = require('../models/AgentEmployee');
 const SubAccount = require('../models/SubAccount');
 const User = require('../models/User');
 const WhatsAppDelivery = require('../models/WhatsAppDelivery');
@@ -43,10 +45,12 @@ const uniqueRecipients = (rows) => {
 };
 
 const getRateChangeRecipients = async () => {
-    const [users, companies, subAccounts] = await Promise.all([
+    const [users, companies, subAccounts, clientEmployees, agentEmployees] = await Promise.all([
         User.find(ACTIVE_STATUSES).select('_id name phone webUsername role').lean(),
         ClientCompany.find(ACTIVE_STATUSES).select('_id name phone webUsername').lean(),
-        SubAccount.find(ACTIVE_STATUSES).select('_id name phone username').lean()
+        SubAccount.find(ACTIVE_STATUSES).select('_id name phone username').lean(),
+        ClientEmployee.find(ACTIVE_STATUSES).select('_id name phone webUsername').lean(),
+        AgentEmployee.find(ACTIVE_STATUSES).select('_id name phone webUsername').lean()
     ]);
 
     const mapRows = (rows, model) => rows.map((account) => ({
@@ -59,7 +63,9 @@ const getRateChangeRecipients = async () => {
     return uniqueRecipients([
         ...mapRows(users, 'User'),
         ...mapRows(companies, 'ClientCompany'),
-        ...mapRows(subAccounts, 'SubAccount')
+        ...mapRows(subAccounts, 'SubAccount'),
+        ...mapRows(clientEmployees, 'ClientEmployee'),
+        ...mapRows(agentEmployees, 'AgentEmployee')
     ]);
 };
 
@@ -194,9 +200,9 @@ const runWithConcurrency = async (items, limit, task) => {
     return (await Promise.all(workers)).flat();
 };
 
-const sendRateChangeWhatsAppNotifications = async ({ recipients, changes, previousRates, effectiveAt }) => {
+const sendRateChangeWhatsAppNotifications = async ({ campaignReference, recipients, changes, previousRates, effectiveAt }) => {
     const targetRecipients = Array.isArray(recipients) ? uniqueRecipients(recipients) : await getRateChangeRecipients();
-    const reference = `RATE-CHANGE-${new Date(effectiveAt).toISOString()}`;
+    const reference = campaignReference || `RATE-CHANGE-${new Date(effectiveAt).toISOString()}`;
     const rateChanges = formatRateChanges({ changes, previousRates });
     const rateChangeConfiguration = await getWhatChimpTemplateReadiness().catch(() => getWhatChimpConfigurationStatus());
     const results = await runWithConcurrency(targetRecipients, 5, (recipient) => (

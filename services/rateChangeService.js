@@ -11,6 +11,11 @@ const {
     sendRateChangeWhatsAppNotifications,
     formatRateChanges
 } = require('./whatsappRateChangeDeliveryService');
+const {
+    createRateAlertCampaign,
+    activateRateAlertCampaign,
+    recordWhatsAppDeliverySummary
+} = require('./rateAlerts/rateAlertCampaignService');
 
 const RATE_CHANGE_DELAY_MS = 60 * 1000;
 const RATE_CHANGE_MONITOR_INTERVAL_MS = 5 * 1000;
@@ -83,6 +88,9 @@ const activatePendingRateUpdate = async ({ app } = {}) => {
     Object.assign(settings, pending.changes);
     settings.pendingRateUpdate = undefined;
     await settings.save();
+    await activateRateAlertCampaign(pending.campaignReference).catch((error) => {
+        console.error('[RateAlert] campaign activation failed:', error.message);
+    });
     emitRateEvent(app, 'exchange_rates_updated', payload);
     emitRateEvent(app, 'rate_change_activated', payload);
     await notifyClients({
@@ -114,12 +122,29 @@ const scheduleRateUpdate = async ({ settings, changes, actor, app }) => {
         changes,
         previousRates,
         createdBy: String(actor || ''),
-        createdAt: new Date()
+        createdAt: new Date(),
+        campaignReference: ''
     };
     await settings.save();
+    let campaign = null;
+    try {
+        campaign = await createRateAlertCampaign({
+            effectiveAt,
+            changes,
+            previousRates,
+            createdBy: String(actor || '')
+        });
+        settings.pendingRateUpdate.campaignReference = campaign.reference;
+        await settings.save();
+    } catch (error) {
+        // Scheduling the exchange rate must remain available if monitoring is
+        // temporarily unavailable. The campaign can be retried independently.
+        console.error('[RateAlert] campaign creation failed:', error.message);
+    }
     const payload = {
         ...buildRateChangePayload({ changes, previousRates, effectiveAt }),
-        delaySeconds: 60
+        delaySeconds: 60,
+        campaignReference: campaign?.reference || ''
     };
     armPendingRateActivation({ app, effectiveAt });
     emitRateEvent(app, 'rate_change_scheduled', payload);
@@ -131,10 +156,12 @@ const scheduleRateUpdate = async ({ settings, changes, actor, app }) => {
     // WhatsApp delivery is tracked per account and must not delay saving the
     // scheduled rate update or the live dashboard notification.
     void sendRateChangeWhatsAppNotifications({
+        campaignReference: campaign?.reference,
         changes,
         previousRates,
         effectiveAt
-    }).catch((error) => console.error('[RateChange] WhatsApp notification failed:', error.message));
+    }).then((summary) => recordWhatsAppDeliverySummary(campaign?.reference, summary))
+        .catch((error) => console.error('[RateChange] WhatsApp notification failed:', error.message));
     return payload;
 };
 

@@ -16,6 +16,8 @@
     <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800;900&family=JetBrains+Mono:wght@700&display=swap" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     <script src="/socket.io/socket.io.js"></script>
+    <link rel="stylesheet" href="/css/rate-alert-overlay.css?v=20260816-1">
+    <script src="/js/rate-alert-overlay.js?v=20260816-1" defer></script>
     
     <style>
         /* 🎨 المتغيرات (الوضع النهاري - Premium Light) */
@@ -2832,6 +2834,7 @@
         window.addEventListener('resize', setupMobileLayout);
 
         (() => {
+            window.rateAlertInitial = <%- JSON.stringify(pendingRateUpdate || null).replace(/</g, '\\u003c') %>;
             const banner = document.getElementById('rateChangeCountdown');
             const value = document.getElementById('rateChangeCountdownValue');
             const details = document.getElementById('rateChangeDetails');

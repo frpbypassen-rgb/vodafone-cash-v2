@@ -56,7 +56,8 @@ const settingsSchema = new mongoose.Schema({
         changes: { type: Object, default: null },
         previousRates: { type: Object, default: null },
         createdBy: { type: String, default: '' },
-        createdAt: { type: Date, default: null }
+        createdAt: { type: Date, default: null },
+        campaignReference: { type: String, default: '' }
     },
 
 });

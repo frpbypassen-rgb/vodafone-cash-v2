@@ -90,6 +90,7 @@
             pendingRateUpdate,
             selectedService: typeof servicePage !== 'undefined' ? servicePage.selectedService : 'vodafone'
         }).replace(/</g, '\\u003c') %>;
+        window.rateAlertInitial = <%- JSON.stringify(pendingRateUpdate || null).replace(/</g, '\\u003c') %>;
     </script>
     <script>
         (() => {

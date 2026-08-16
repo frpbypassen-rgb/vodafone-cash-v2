@@ -796,6 +796,7 @@ const buildHomeRateResponse = async (req, res, userId, accountType, settings) =>
             effectiveAt: new Date(settings.pendingRateUpdate.effectiveAt).toISOString(),
             changes: settings.pendingRateUpdate.changes || {},
             previousRates: settings.pendingRateUpdate.previousRates || {},
+            campaignReference: settings.pendingRateUpdate.campaignReference || '',
             ...buildRateChangePayload({
                 changes: settings.pendingRateUpdate.changes || {},
                 previousRates: settings.pendingRateUpdate.previousRates || {},
