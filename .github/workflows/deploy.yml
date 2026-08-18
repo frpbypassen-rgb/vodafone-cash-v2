@@ -108,7 +108,16 @@ jobs:
             'WEB_PUSH_PUBLIC_KEY',
             'WEB_PUSH_PRIVATE_KEY',
             'WEB_PUSH_SUBJECT',
-            'RECEIPT_SHARE_SECRET'
+            'RECEIPT_SHARE_SECRET',
+            'FCM_ENABLED',
+            'FIREBASE_SERVICE_ACCOUNT_BASE64',
+            'FIREBASE_PROJECT_ID',
+            'FIREBASE_CLIENT_EMAIL',
+            'FIREBASE_PRIVATE_KEY',
+            'FCM_WORKER_INTERVAL_MS',
+            'EXECUTOR_PUSH_REMINDER_INTERVAL_MS',
+            'EXECUTOR_PUSH_MAX_REMINDERS',
+            'FCM_DEVICE_ACTIVE_DAYS'
           ]);
 
           const updates = new Map();

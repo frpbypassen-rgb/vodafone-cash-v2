@@ -5,6 +5,7 @@ import 'package:flutter_background_service/flutter_background_service.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 
 import 'mobile_api.dart';
+import 'mobile_push_service.dart';
 
 const _monitorChannelId = 'executor_monitoring';
 const _taskChannelId = 'executor_tasks';
@@ -55,6 +56,7 @@ class ExecutorAlertService {
         onForeground: executorAlertBackgroundEntry,
       ),
     );
+    await MobilePushService.instance.configure();
     _configured = true;
   }
 
@@ -71,6 +73,7 @@ class ExecutorAlertService {
           IOSFlutterLocalNotificationsPlugin
         >();
     await ios?.requestPermissions(alert: true, badge: true, sound: true);
+    await MobilePushService.instance.requestPermissionAndRegister();
     await startForStoredAccount();
   }
 
@@ -81,6 +84,7 @@ class ExecutorAlertService {
   Future<void> startForStoredAccount() async {
     await configure();
     if (kIsWeb) return;
+    unawaited(MobilePushService.instance.registerStoredSession());
     final session = await SessionStore().read();
     final isCustomer =
         session?.accountType == 'client_user' ||
@@ -107,6 +111,12 @@ class ExecutorAlertService {
   Future<void> stop() async {
     if (kIsWeb) return;
     FlutterBackgroundService().invoke('stop');
+  }
+
+  Future<void> signOut() async {
+    if (kIsWeb) return;
+    await MobilePushService.instance.unregisterCurrentSession();
+    await stop();
   }
 }
 

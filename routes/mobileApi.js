@@ -85,6 +85,13 @@ const {
     generateManualExecutorReceiptBase64
 } = require('../utils/manualExecutorReceipt');
 const { reserveManualExecutorReceiptReference } = require('../services/manualExecutorReceiptReferenceService');
+const {
+    acknowledgeMobilePushTask,
+    getMobilePushDeviceStatus,
+    registerMobilePushDevice,
+    sendMobilePushTest,
+    unregisterMobilePushDevice
+} = require('../services/executorPushNotificationService');
 const { activatePendingRateUpdate } = require('../services/rateChangeService');
 const { buildPendingRateAlertForClient } = require('../services/rateAlerts/rateAlertAudienceService');
 const { reversalService } = require('../src/Application/Services/ReversalService');
@@ -691,6 +698,106 @@ router.post('/refresh-token', refreshTokenValidator, authController.refreshToken
  *         description: تم تسجيل الخروج بنجاح
  */
 router.post('/logout', authenticateJWT, authController.logout);
+
+router.post('/push/devices/register', authenticateJWT, async (req, res) => {
+    try {
+        const device = await registerMobilePushDevice({ user: req.user, payload: req.body || {} });
+        const status = await getMobilePushDeviceStatus({
+            user: req.user,
+            installationId: req.body?.installationId
+        });
+        return res.json({
+            success: true,
+            device: {
+                id: String(device._id),
+                enabled: device.enabled,
+                permissionStatus: device.permissionStatus,
+                platform: device.platform,
+                lastSeenAt: device.lastSeenAt
+            },
+            firebase: status.firebase
+        });
+    } catch (error) {
+        const clientError = ['INVALID_INSTALLATION_ID', 'INVALID_PUSH_TOKEN', 'EXECUTOR_NOT_ACTIVE'].includes(error.code);
+        return sendMobileError(
+            res,
+            clientError ? 400 : 500,
+            error.code || 'PUSH_DEVICE_REGISTRATION_FAILED',
+            clientError ? 'تعذر تسجيل هذا الجهاز لاستقبال الإشعارات.' : 'تعذر تفعيل إشعارات الهاتف حالياً.',
+            req.correlationId
+        );
+    }
+});
+
+const unregisterPushDeviceHandler = async (req, res) => {
+    try {
+        const installationId = req.body?.installationId || req.query?.installationId;
+        if (!installationId) {
+            return sendMobileError(res, 400, 'INVALID_INSTALLATION_ID', 'معرف تثبيت التطبيق مطلوب.', req.correlationId);
+        }
+        await unregisterMobilePushDevice({ user: req.user, installationId });
+        return res.json({ success: true });
+    } catch (_) {
+        return sendMobileError(res, 500, 'PUSH_DEVICE_UNREGISTER_FAILED', 'تعذر إيقاف إشعارات هذا الجهاز.', req.correlationId);
+    }
+};
+
+router.delete('/push/devices/current', authenticateJWT, unregisterPushDeviceHandler);
+router.post('/push/devices/unregister', authenticateJWT, unregisterPushDeviceHandler);
+
+router.get('/push/devices/status', authenticateJWT, async (req, res) => {
+    try {
+        const status = await getMobilePushDeviceStatus({
+            user: req.user,
+            installationId: req.query?.installationId
+        });
+        return res.json({ success: true, ...status });
+    } catch (_) {
+        return sendMobileError(res, 500, 'PUSH_DEVICE_STATUS_FAILED', 'تعذر فحص حالة إشعارات الهاتف.', req.correlationId);
+    }
+});
+
+router.post('/push/tasks/:id/ack', authenticateJWT, async (req, res) => {
+    try {
+        const installationId = req.body?.installationId;
+        if (!installationId) {
+            return sendMobileError(res, 400, 'INVALID_INSTALLATION_ID', 'معرف تثبيت التطبيق مطلوب.', req.correlationId);
+        }
+        await acknowledgeMobilePushTask({
+            user: req.user,
+            installationId,
+            transactionId: req.params.id
+        });
+        return res.json({ success: true });
+    } catch (_) {
+        return sendMobileError(res, 500, 'PUSH_TASK_ACK_FAILED', 'تعذر تسجيل فتح إشعار العملية.', req.correlationId);
+    }
+});
+
+router.post('/push/devices/test', authenticateJWT, async (req, res) => {
+    try {
+        if (req.user.accountType !== 'executor') {
+            return sendMobileError(res, 403, 'FORBIDDEN', 'اختبار الإشعار متاح لحسابات التنفيذ فقط.', req.correlationId);
+        }
+        const installationId = req.body?.installationId;
+        if (!installationId) {
+            return sendMobileError(res, 400, 'INVALID_INSTALLATION_ID', 'معرف تثبيت التطبيق مطلوب.', req.correlationId);
+        }
+        const result = await sendMobilePushTest({ user: req.user, installationId });
+        return res.json({ success: true, acceptedByFirebase: result.successCount });
+    } catch (error) {
+        const status = ['PUSH_DEVICE_NOT_REGISTERED', 'PUSH_TEST_DELIVERY_FAILED'].includes(error.code) ? 409 : 503;
+        return sendMobileError(
+            res,
+            status,
+            error.code || 'FCM_NOT_CONFIGURED',
+            error.code === 'PUSH_DEVICE_NOT_REGISTERED'
+                ? 'هذا الهاتف غير مسجل لاستقبال الإشعارات بعد.'
+                : 'تعذر إرسال إشعار الاختبار. راجع إعدادات Firebase في الخادم والتطبيق.',
+            req.correlationId
+        );
+    }
+});
 
 /**
  * @swagger

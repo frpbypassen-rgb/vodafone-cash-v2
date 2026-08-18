@@ -14,4 +14,6 @@ class ExecutorAlertService {
   Future<void> setAppVisible(bool visible) async {}
 
   Future<void> stop() async {}
+
+  Future<void> signOut() async {}
 }

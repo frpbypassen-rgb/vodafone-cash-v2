@@ -3,6 +3,7 @@
 const Employee = require('../models/Employee');
 const Transaction = require('../models/Transaction');
 const { acquireLock, releaseLock } = require('./lockService');
+const eventBus = require('./eventBus');
 
 const stringId = (value) => String(value?._id || value || '');
 
@@ -87,9 +88,11 @@ const acceptExecutorTask = async ({ transactionId, executor, tenantId = null }) 
             { new: true }
         );
 
-        return transaction
-            ? { ok: true, transaction }
-            : { ok: false, code: 'TASK_UNAVAILABLE' };
+        if (transaction) {
+            eventBus.publish('executor:task-accepted', { transactionId, tx: transaction, employee: executor });
+            return { ok: true, transaction };
+        }
+        return { ok: false, code: 'TASK_UNAVAILABLE' };
     } finally {
         await releaseLock(lock);
     }
@@ -141,9 +144,11 @@ const routeExecutorTask = async ({ transactionId, manager, employeeId, tenantId 
             { new: true }
         );
 
-        return transaction
-            ? { ok: true, transaction, employee }
-            : { ok: false, code: 'TASK_UNAVAILABLE' };
+        if (transaction) {
+            eventBus.publish('executor:task-routed', { transactionId, tx: transaction, employee, manager });
+            return { ok: true, transaction, employee };
+        }
+        return { ok: false, code: 'TASK_UNAVAILABLE' };
     } finally {
         await releaseLock(lock);
     }

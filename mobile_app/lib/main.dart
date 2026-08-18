@@ -10,9 +10,11 @@ import 'brand_theme.dart';
 import 'executor_alert_service.dart';
 import 'language_controller.dart';
 import 'mobile_api.dart';
+import 'mobile_push_service.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  registerMobilePushBackgroundHandler();
   final controller = SessionController(SessionStore());
   final language = LanguageController();
   runApp(

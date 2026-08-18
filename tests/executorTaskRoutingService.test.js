@@ -6,10 +6,12 @@ jest.mock('../services/lockService', () => ({
     acquireLock: jest.fn().mockResolvedValue({ release: jest.fn() }),
     releaseLock: jest.fn().mockResolvedValue(true)
 }));
+jest.mock('../services/eventBus', () => ({ publish: jest.fn() }));
 
 const Employee = require('../models/Employee');
 const Transaction = require('../models/Transaction');
 const { acquireLock, releaseLock } = require('../services/lockService');
+const eventBus = require('../services/eventBus');
 const {
     taskOwnershipFilter,
     acceptExecutorTask,
@@ -72,6 +74,10 @@ describe('executor task routing service', () => {
                 })
             }),
             { new: true }
+        );
+        expect(eventBus.publish).toHaveBeenCalledWith(
+            'executor:task-accepted',
+            expect.objectContaining({ tx: { _id: 'tx-1' }, employee: operator })
         );
     });
 

@@ -1,17 +1,26 @@
-# mobile_app
+# Ahram Pay Mobile
 
-A new Flutter project.
+## Firebase push configuration
 
-## Getting Started
+The APK initializes Firebase from compile-time values. It does not store the
+server service-account key. Obtain the Android application values for
+`com.ahrampay.mobile_app` from Firebase and build with:
 
-This project is a starting point for a Flutter application.
+```powershell
+flutter build apk --release `
+  --dart-define=API_BASE_URL=https://ahrampay.com/api/mobile `
+  --dart-define=FIREBASE_API_KEY=... `
+  --dart-define=FIREBASE_PROJECT_ID=... `
+  --dart-define=FIREBASE_MESSAGING_SENDER_ID=... `
+  --dart-define=FIREBASE_ANDROID_APP_ID=... `
+  --dart-define=FIREBASE_STORAGE_BUCKET=...
+```
 
-A few resources to get you started if this is your first Flutter project:
+The production server separately requires `FCM_ENABLED=true` and either
+`FIREBASE_SERVICE_ACCOUNT_BASE64` or the three service-account fields listed
+in the root `.env.example`. Never put the service-account JSON or private key
+inside the APK or Git.
 
-- [Learn Flutter](https://docs.flutter.dev/get-started/learn-flutter)
-- [Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Flutter learning resources](https://docs.flutter.dev/reference/learning-resources)
-
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+If Firebase values are omitted, the application still starts and retains the
+existing polling notification fallback, but closed-app push delivery remains
+disabled.

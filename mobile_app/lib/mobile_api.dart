@@ -204,6 +204,7 @@ class SessionStore {
   static const _savedLoginKey = 'power_pay_mobile_saved_login_v1';
   static const _customerNotificationsKey =
       'power_pay_mobile_customer_notifications_v1';
+  static const _pushInstallationIdKey = 'ahram_pay_push_installation_id_v1';
   final FlutterSecureStorage _storage = const FlutterSecureStorage();
 
   Future<MobileSession?> read() async {
@@ -274,6 +275,14 @@ class SessionStore {
       key: _customerNotificationsKey,
       value: enabled ? 'true' : 'false',
     );
+  }
+
+  Future<String> readOrCreatePushInstallationId() async {
+    final existing = await _storage.read(key: _pushInstallationIdKey);
+    if (existing != null && existing.trim().isNotEmpty) return existing.trim();
+    final installationId = const Uuid().v4();
+    await _storage.write(key: _pushInstallationIdKey, value: installationId);
+    return installationId;
   }
 }
 
@@ -449,6 +458,67 @@ class MobileApi {
     } catch (_) {
       // Local session removal must still succeed when the device is offline.
     }
+  }
+
+  Future<Map<String, dynamic>> registerPushDevice({
+    required String installationId,
+    required String token,
+    required String platform,
+    required String permissionStatus,
+    String appVersion = '',
+    String deviceName = '',
+    String locale = '',
+    String timeZone = '',
+  }) {
+    return _request(
+      'POST',
+      '/push/devices/register',
+      data: <String, dynamic>{
+        'installationId': installationId,
+        'token': token,
+        'platform': platform,
+        'permissionStatus': permissionStatus,
+        'appVersion': appVersion,
+        'deviceName': deviceName,
+        'locale': locale,
+        'timeZone': timeZone,
+      },
+    );
+  }
+
+  Future<void> unregisterPushDevice(String installationId) async {
+    await _request(
+      'POST',
+      '/push/devices/unregister',
+      data: <String, dynamic>{'installationId': installationId},
+    );
+  }
+
+  Future<Map<String, dynamic>> pushDeviceStatus(String installationId) {
+    return _request(
+      'GET',
+      '/push/devices/status',
+      query: <String, dynamic>{'installationId': installationId},
+    );
+  }
+
+  Future<Map<String, dynamic>> testPushDevice(String installationId) {
+    return _request(
+      'POST',
+      '/push/devices/test',
+      data: <String, dynamic>{'installationId': installationId},
+    );
+  }
+
+  Future<void> acknowledgePushTask({
+    required String installationId,
+    required String transactionId,
+  }) async {
+    await _request(
+      'POST',
+      '/push/tasks/$transactionId/ack',
+      data: <String, dynamic>{'installationId': installationId},
+    );
   }
 
   Future<Map<String, dynamic>> clientHome() => _request('GET', '/client/home');

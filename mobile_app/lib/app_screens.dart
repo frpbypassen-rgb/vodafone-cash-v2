@@ -14,6 +14,7 @@ import 'executor_alert_service.dart';
 import 'external_link.dart';
 import 'language_controller.dart';
 import 'mobile_api.dart';
+import 'mobile_push_service.dart';
 import 'rate_alerts/rate_alert_overlay.dart';
 import 'report_download.dart';
 
@@ -1849,7 +1850,7 @@ class _RoleShellState extends State<RoleShell> with WidgetsBindingObserver {
       ),
     );
     if (approved == true && mounted) {
-      await ExecutorAlertService.instance.stop();
+      await ExecutorAlertService.instance.signOut();
       await widget.controller.signOut();
     }
   }
@@ -15120,6 +15121,8 @@ class _ExecutorSettingsScreenState extends State<ExecutorSettingsScreen> {
   bool _loading = true;
   bool _manualTaskRoutingEnabled = false;
   bool _routingBusy = false;
+  Map<String, dynamic> _pushStatus = <String, dynamic>{};
+  bool _pushBusy = false;
 
   @override
   void initState() {
@@ -15143,16 +15146,53 @@ class _ExecutorSettingsScreenState extends State<ExecutorSettingsScreen> {
         manualTaskRoutingEnabled =
             liveTasks['manualTaskRoutingEnabled'] == true;
       }
+      var pushStatus = <String, dynamic>{};
+      try {
+        final installationId = await widget.controller.store
+            .readOrCreatePushInstallationId();
+        pushStatus = await widget.controller.api.pushDeviceStatus(
+          installationId,
+        );
+      } catch (_) {
+        // Older servers may not expose push diagnostics yet.
+      }
       if (mounted && raw is Map) {
         setState(() {
           _overview = Map<String, dynamic>.from(raw);
           _manualTaskRoutingEnabled = manualTaskRoutingEnabled;
+          _pushStatus = pushStatus;
         });
       }
     } catch (error) {
       if (mounted) setState(() => _error = error);
     } finally {
       if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  Future<void> _testPushNotification() async {
+    setState(() => _pushBusy = true);
+    try {
+      await MobilePushService.instance.requestPermissionAndRegister();
+      await MobilePushService.instance.registerStoredSession();
+      final installationId = await widget.controller.store
+          .readOrCreatePushInstallationId();
+      await widget.controller.api.testPushDevice(installationId);
+      if (!mounted) return;
+      showSnack(context, 'تم إرسال إشعار اختبار إلى هذا الهاتف.');
+      await _load();
+    } on ApiFailure catch (error) {
+      if (mounted) showSnack(context, error.message, error: true);
+    } catch (_) {
+      if (mounted) {
+        showSnack(
+          context,
+          'تعذر اختبار الإشعارات. تحقق من إذن الهاتف وإعدادات Firebase.',
+          error: true,
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _pushBusy = false);
     }
   }
 
@@ -15207,6 +15247,20 @@ class _ExecutorSettingsScreenState extends State<ExecutorSettingsScreen> {
     final metrics = overview['metrics'];
     final performance = overview['myPerformance'];
     final role = '${executor['role'] ?? widget.controller.executorRole}';
+    final firebase = _pushStatus['firebase'] is Map
+        ? Map<String, dynamic>.from(_pushStatus['firebase'] as Map)
+        : <String, dynamic>{};
+    final pushDevice = _pushStatus['device'] is Map
+        ? Map<String, dynamic>.from(_pushStatus['device'] as Map)
+        : <String, dynamic>{};
+    final pushReady =
+        firebase['configured'] == true &&
+        firebase['enabled'] == true &&
+        pushDevice['enabled'] == true &&
+        <String>{
+          'authorized',
+          'provisional',
+        }.contains('${pushDevice['permissionStatus'] ?? ''}');
 
     return PageFrame(
       title: 'إعدادات المنفذ',
@@ -15257,6 +15311,70 @@ class _ExecutorSettingsScreenState extends State<ExecutorSettingsScreen> {
                   value:
                       '${formatEgpAmount(numberValue(company['balance']))} ج.م',
                 ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 18),
+        SurfacePanel(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Row(
+                children: [
+                  Icon(
+                    pushReady
+                        ? Icons.notifications_active_outlined
+                        : Icons.notifications_off_outlined,
+                    color: pushReady ? _green : _danger,
+                  ),
+                  const SizedBox(width: 10),
+                  const Expanded(
+                    child: Text(
+                      'إشعارات المهام على الهاتف',
+                      style: TextStyle(fontWeight: FontWeight.w900),
+                    ),
+                  ),
+                  StatusPill(
+                    label: pushReady ? 'تعمل' : 'تحتاج إعدادًا',
+                    color: pushReady ? _green : _danger,
+                  ),
+                ],
+              ),
+              const Divider(height: 28),
+              DetailLine(
+                label: 'إذن الهاتف',
+                value:
+                    <String>{
+                      'authorized',
+                      'provisional',
+                    }.contains('${pushDevice['permissionStatus'] ?? ''}')
+                    ? 'مسموح'
+                    : 'غير مفعل',
+              ),
+              DetailLine(
+                label: 'اتصال الخادم',
+                value:
+                    firebase['configured'] == true &&
+                        firebase['enabled'] == true
+                    ? 'جاهز للإرسال'
+                    : 'إعداد Firebase غير مكتمل',
+              ),
+              if (pushDevice['lastSuccessfulPushAt'] != null)
+                DetailLine(
+                  label: 'آخر إرسال ناجح',
+                  value: formatDate(pushDevice['lastSuccessfulPushAt']),
+                ),
+              const SizedBox(height: 10),
+              FilledButton.icon(
+                onPressed: _pushBusy ? null : _testPushNotification,
+                icon: _pushBusy
+                    ? const SizedBox.square(
+                        dimension: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.send_outlined),
+                label: const Text('تفعيل الإذن وإرسال إشعار اختبار'),
+              ),
             ],
           ),
         ),

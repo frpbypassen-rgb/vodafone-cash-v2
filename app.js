@@ -69,6 +69,7 @@ const { ensurePerformanceIndexes } = require('./services/performanceIndexService
 const { closeEligibleDailySettlement } = require('./services/settlementService');
 const systemMonitor = require('./services/systemMonitorService');
 const { restorePendingRateActivation, startRateChangeActivationMonitor } = require('./services/rateChangeService');
+const { startExecutorPushNotificationWorker } = require('./services/executorPushNotificationService');
 
 // 🟢 استدعاء طابور المهام الجديد (Queue System)
 
@@ -344,6 +345,9 @@ Promise.all([connectDB(), initRedis()]).then(async () => {
     startRateChangeActivationMonitor({ app });
     startApiCompletionMonitor();
     startApiProviderReturnMonitor();
+    await startExecutorPushNotificationWorker().catch((error) => {
+        logger.error('Executor push notification worker failed to start', { error: error.message });
+    });
     closeEligibleDailySettlement().catch((error) => {
         logger.error('Initial financial day close failed', { error: error.message });
     });

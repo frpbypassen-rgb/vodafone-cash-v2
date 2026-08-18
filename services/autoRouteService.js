@@ -3,6 +3,7 @@
 const ExecutorGroup = require('../models/ExecutorGroup');
 const logger = require('../utils/logger');
 const { executorSupportsTransferType } = require('../utils/executorServiceCatalog');
+const eventBus = require('./eventBus');
 
 const getParentGroupId = (group) => group?.parentGroupId || group?.parentBotId || null;
 
@@ -57,6 +58,9 @@ const applyAutoRouteFields = (tx, executorGroup) => {
 };
 
 const enqueueAutoRouteIfNeeded = async (tx, executorGroup) => {
+    if (tx && executorGroup) {
+        eventBus.publish('executor:task-available', { tx, source: 'auto-route' });
+    }
     if (
         !tx
         || !executorGroup

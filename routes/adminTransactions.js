@@ -26,6 +26,7 @@ const {
     normalizeExecutorServiceKey
 } = require('../utils/executorServiceCatalog');
 const { calculateTransferCostLYD, isSourceToLydRate } = require('../utils/transferPricing');
+const eventBus = require('../services/eventBus');
 
 // 🚀 استدعاء محرك الـ API 
 const { executeTransferViaApi, saveApiReceiptProof } = require('../services/externalApiService');
@@ -356,6 +357,7 @@ router.post('/transaction/:id/assign-executor', async (req, res) => {
                 tx.executorReceivedAt = new Date();
                 tx.executorName = executorGroup.name;
                 await tx.save();
+                eventBus.publish('executor:task-available', { tx, source: 'admin-api-route' });
 
                 const { addTransferJob } = require('../services/bullQueueService');
                 await addTransferJob(String(tx._id), String(executorGroup._id));
@@ -448,6 +450,7 @@ router.post('/transaction/:id/assign-executor', async (req, res) => {
                                 appendAdminNote(tx, `--- سجل الـ API\n${apiResult.processLog}`);
                             }
                             await tx.save();
+                            eventBus.publish('executor:task-available', { tx, source: 'api-human-fallback' });
 
                             // 🟢 تم استبدال إشعارات التيليجرام بـ Socket.IO لاحقاً
                         }
@@ -474,6 +477,7 @@ router.post('/transaction/:id/assign-executor', async (req, res) => {
             // 🟢 الإشعارات ستكون عبر Socket.IO
 
             await tx.save();
+            eventBus.publish('executor:task-available', { tx, source: 'admin-manual-route' });
         } else if (executorGroup) {
             return res.redirect('/transactions?routeError=service_mismatch');
         }
@@ -492,6 +496,10 @@ router.post('/transaction/:id/pull-task', async (req, res) => {
             // 🟢 إشعارات الانسحاب عبر Socket.IO
 
             await tx.save();
+            eventBus.publish('executor:task-withdrawn', {
+                tx: { ...tx.toObject(), executorGroupId: oldGroupId },
+                source: 'admin-pull'
+            });
         }
         res.redirect('/transactions');
     } catch (e) { res.redirect('/transactions'); }
