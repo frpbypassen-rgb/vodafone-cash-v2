@@ -29,11 +29,17 @@ class AhramFirebaseOptions {
     return _commonAppId;
   }
 
-  static bool get isConfigured =>
+  static bool get hasExplicitConfiguration =>
       _apiKey.isNotEmpty &&
       _projectId.isNotEmpty &&
       _senderId.isNotEmpty &&
       _appId.isNotEmpty;
+
+  static bool get usesNativeAndroidConfiguration =>
+      Platform.isAndroid && !hasExplicitConfiguration;
+
+  static bool get isConfigured =>
+      hasExplicitConfiguration || usesNativeAndroidConfiguration;
 
   static FirebaseOptions get currentPlatform => FirebaseOptions(
     apiKey: _apiKey,

@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "149388374021",
+    "project_id": "ahrampay-796ce",
+    "storage_bucket": "ahrampay-796ce.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:149388374021:android:7b882601b0b0046ac42c6c",
+        "android_client_info": {
+          "package_name": "com.ahrampay.mobile_app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyB_VxjHEgefNylhm86OZ1e-HQMVXINeR2E"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

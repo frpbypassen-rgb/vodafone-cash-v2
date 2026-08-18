@@ -44,6 +44,10 @@ String _notificationIdentity(Map<String, dynamic> data) {
 
 Future<void> _initializeFirebase() async {
   if (Firebase.apps.isNotEmpty || !AhramFirebaseOptions.isConfigured) return;
+  if (AhramFirebaseOptions.usesNativeAndroidConfiguration) {
+    await Firebase.initializeApp();
+    return;
+  }
   await Firebase.initializeApp(options: AhramFirebaseOptions.currentPlatform);
 }
 
