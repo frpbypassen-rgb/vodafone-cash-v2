@@ -104,6 +104,11 @@ class ExecutorAlertService {
     }
   }
 
+  Future<bool> isRunning() async {
+    if (kIsWeb) return false;
+    return FlutterBackgroundService().isRunning();
+  }
+
   Future<void> setAppVisible(bool visible) async {
     if (kIsWeb) return;
     FlutterBackgroundService().invoke('app_visible', {'value': visible});

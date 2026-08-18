@@ -11,6 +11,8 @@ class ExecutorAlertService {
 
   Future<void> startForStoredAccount() async {}
 
+  Future<bool> isRunning() async => false;
+
   Future<void> setAppVisible(bool visible) async {}
 
   Future<void> stop() async {}

@@ -33,14 +33,18 @@ class MainActivity : FlutterActivity() {
 
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "com.ahrampay.mobile_app/notification_settings")
             .setMethodCallHandler { call, result ->
-                if (call.method != "open") {
+                if (call.method != "open" && call.method != "open_background") {
                     result.notImplemented()
                     return@setMethodCallHandler
                 }
 
                 try {
-                    val intent = Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).apply {
-                        putExtra(Settings.EXTRA_APP_PACKAGE, packageName)
+                    val intent = if (call.method == "open_background") {
+                        Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS)
+                    } else {
+                        Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).apply {
+                            putExtra(Settings.EXTRA_APP_PACKAGE, packageName)
+                        }
                     }
                     startActivity(intent)
                     result.success(true)

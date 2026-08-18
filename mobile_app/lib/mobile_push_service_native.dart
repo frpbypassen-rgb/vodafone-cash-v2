@@ -333,6 +333,34 @@ class MobilePushService {
   Stream<MobileNotificationInteraction> get interactions =>
       _interactions.stream;
 
+  Future<Map<String, dynamic>> localDiagnostics() async {
+    final notifications = await _ensureLocalNotifications();
+    bool? permissionEnabled;
+    if (Platform.isAndroid) {
+      permissionEnabled = await notifications
+          .resolvePlatformSpecificImplementation<
+            AndroidFlutterLocalNotificationsPlugin
+          >()
+          ?.areNotificationsEnabled();
+    } else if (Platform.isIOS && AhramFirebaseOptions.isConfigured) {
+      try {
+        final settings = await FirebaseMessaging.instance
+            .getNotificationSettings();
+        permissionEnabled = <AuthorizationStatus>{
+          AuthorizationStatus.authorized,
+          AuthorizationStatus.provisional,
+        }.contains(settings.authorizationStatus);
+      } catch (_) {
+        permissionEnabled = null;
+      }
+    }
+    return <String, dynamic>{
+      'clientConfigured': AhramFirebaseOptions.isConfigured,
+      'permissionEnabled': permissionEnabled,
+      'platform': Platform.operatingSystem,
+    };
+  }
+
   Future<FlutterLocalNotificationsPlugin> _ensureLocalNotifications() async {
     final current = _notifications;
     if (current != null) return current;
@@ -535,6 +563,7 @@ class MobilePushService {
   }
 
   Future<void> previewCategory(String category) async {
+    await requestLocalNotificationPermission();
     final notifications = await _ensureLocalNotifications();
     final definition = notificationDefinitionFor(category);
     await _showRemoteNotification(notifications, <String, dynamic>{
@@ -553,6 +582,34 @@ class MobilePushService {
     } catch (_) {
       // The settings page still explains how to enable notifications manually.
     }
+  }
+
+  Future<void> openBackgroundSettings() async {
+    try {
+      await _notificationSettingsChannel.invokeMethod<void>('open_background');
+    } catch (_) {
+      // Android manufacturers expose this screen differently; the app remains usable.
+    }
+  }
+
+  Future<bool?> requestLocalNotificationPermission() async {
+    final notifications = await _ensureLocalNotifications();
+    if (Platform.isAndroid) {
+      final android = notifications
+          .resolvePlatformSpecificImplementation<
+            AndroidFlutterLocalNotificationsPlugin
+          >();
+      final granted = await android?.requestNotificationsPermission();
+      return granted ?? await android?.areNotificationsEnabled();
+    }
+    if (Platform.isIOS) {
+      return notifications
+          .resolvePlatformSpecificImplementation<
+            IOSFlutterLocalNotificationsPlugin
+          >()
+          ?.requestPermissions(alert: true, badge: true, sound: true);
+    }
+    return null;
   }
 
   Future<void> unregisterCurrentSession() async {

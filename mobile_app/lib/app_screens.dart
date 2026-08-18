@@ -15256,6 +15256,9 @@ class _ExecutorSettingsScreenState extends State<ExecutorSettingsScreen> {
   bool _manualTaskRoutingEnabled = false;
   bool _routingBusy = false;
   Map<String, dynamic> _pushStatus = <String, dynamic>{};
+  Map<String, dynamic> _localPushDiagnostics = <String, dynamic>{};
+  Object? _pushStatusError;
+  bool _backgroundServiceRunning = false;
   Map<String, bool> _notificationPreferences = Map<String, bool>.from(
     defaultMobileNotificationPreferences,
   );
@@ -15280,6 +15283,10 @@ class _ExecutorSettingsScreenState extends State<ExecutorSettingsScreen> {
     try {
       final response = await widget.controller.api.executorOverview();
       final raw = response['data'];
+      final localPushDiagnostics = await MobilePushService.instance
+          .localDiagnostics();
+      final backgroundServiceRunning = await ExecutorAlertService.instance
+          .isRunning();
       var manualTaskRoutingEnabled = _manualTaskRoutingEnabled;
       if (widget.controller.isExecutorManager) {
         final liveTasks = await widget.controller.api.executorLiveTasks();
@@ -15287,14 +15294,15 @@ class _ExecutorSettingsScreenState extends State<ExecutorSettingsScreen> {
             liveTasks['manualTaskRoutingEnabled'] == true;
       }
       var pushStatus = <String, dynamic>{};
+      Object? pushStatusError;
       try {
         final installationId = await widget.controller.store
             .readOrCreatePushInstallationId();
         pushStatus = await widget.controller.api.pushDeviceStatus(
           installationId,
         );
-      } catch (_) {
-        // Older servers may not expose push diagnostics yet.
+      } catch (error) {
+        pushStatusError = error;
       }
       if (mounted && raw is Map) {
         final rawDevice = pushStatus['device'];
@@ -15315,6 +15323,9 @@ class _ExecutorSettingsScreenState extends State<ExecutorSettingsScreen> {
           _overview = Map<String, dynamic>.from(raw);
           _manualTaskRoutingEnabled = manualTaskRoutingEnabled;
           _pushStatus = pushStatus;
+          _pushStatusError = pushStatusError;
+          _localPushDiagnostics = localPushDiagnostics;
+          _backgroundServiceRunning = backgroundServiceRunning;
           _notificationPreferences = preferences;
         });
       }
@@ -15329,6 +15340,31 @@ class _ExecutorSettingsScreenState extends State<ExecutorSettingsScreen> {
     setState(() => _pushBusy = true);
     try {
       await MobilePushService.instance.requestPermissionAndRegister();
+      await ExecutorAlertService.instance.startForStoredAccount();
+      final localDiagnostics = await MobilePushService.instance
+          .localDiagnostics();
+      if (localDiagnostics['permissionEnabled'] != true) {
+        if (mounted) {
+          showSnack(
+            context,
+            'إذن الإشعارات غير مسموح. افتح إعدادات الهاتف وفعّل إشعارات Ahram Pay.',
+            error: true,
+          );
+        }
+        await _load();
+        return;
+      }
+      if (localDiagnostics['clientConfigured'] != true) {
+        await MobilePushService.instance.previewCategory(_pushTestCategory);
+        if (mounted) {
+          showSnack(
+            context,
+            'نجح تنبيه الهاتف المحلي. الإرسال السحابي والتشغيل بعد إغلاق التطبيق يحتاجان نسخة APK مرتبطة بـ Firebase.',
+          );
+        }
+        await _load();
+        return;
+      }
       await MobilePushService.instance.registerStoredSession();
       final installationId = await widget.controller.store
           .readOrCreatePushInstallationId();
@@ -15340,7 +15376,27 @@ class _ExecutorSettingsScreenState extends State<ExecutorSettingsScreen> {
       showSnack(context, 'تم إرسال إشعار حقيقي إلى هذا الهاتف عبر الخادم.');
       await _load();
     } on ApiFailure catch (error) {
-      if (mounted) showSnack(context, error.message, error: true);
+      if (!mounted) return;
+      if (error.statusCode == 404) {
+        showSnack(
+          context,
+          'الخادم يعمل بإصدار قديم لا يحتوي مسار اختبار الإشعارات. اسحب آخر تحديث وأعد تشغيل PM2.',
+          error: true,
+        );
+      } else if (<String>{
+        'FCM_NOT_CONFIGURED',
+        'MISSING_CONFIGURATION',
+        'PUSH_TEST_FAILED',
+      }.contains(error.code)) {
+        showSnack(
+          context,
+          'إعداد Firebase غير مكتمل على الخادم. راجع حساب الخدمة ثم أعد تشغيل PM2.',
+          error: true,
+        );
+      } else {
+        showSnack(context, error.message, error: true);
+      }
+      await _load();
     } catch (_) {
       if (mounted) {
         showSnack(
@@ -15481,7 +15537,15 @@ class _ExecutorSettingsScreenState extends State<ExecutorSettingsScreen> {
     final pushDevice = _pushStatus['device'] is Map
         ? Map<String, dynamic>.from(_pushStatus['device'] as Map)
         : <String, dynamic>{};
-    final pushReady =
+    final localPermissionEnabled =
+        _localPushDiagnostics['permissionEnabled'] == true;
+    final clientFirebaseConfigured =
+        _localPushDiagnostics['clientConfigured'] == true;
+    final serverRouteMissing =
+        _pushStatusError is ApiFailure &&
+        (_pushStatusError as ApiFailure).statusCode == 404;
+    final cloudPushReady =
+        clientFirebaseConfigured &&
         firebase['configured'] == true &&
         firebase['enabled'] == true &&
         pushDevice['enabled'] == true &&
@@ -15489,6 +15553,14 @@ class _ExecutorSettingsScreenState extends State<ExecutorSettingsScreen> {
           'authorized',
           'provisional',
         }.contains('${pushDevice['permissionStatus'] ?? ''}');
+    final localFallbackReady =
+        localPermissionEnabled && _backgroundServiceRunning;
+    final notificationsReady = cloudPushReady || localFallbackReady;
+    final notificationStatusLabel = cloudPushReady
+        ? 'تعمل سحابيًا'
+        : localFallbackReady
+        ? 'تعمل محليًا'
+        : 'تحتاج إعدادًا';
 
     return PageFrame(
       title: 'إعدادات المنفذ',
@@ -15550,10 +15622,10 @@ class _ExecutorSettingsScreenState extends State<ExecutorSettingsScreen> {
               Row(
                 children: [
                   Icon(
-                    pushReady
+                    notificationsReady
                         ? Icons.notifications_active_outlined
                         : Icons.notifications_off_outlined,
-                    color: pushReady ? _green : _danger,
+                    color: notificationsReady ? _green : _danger,
                   ),
                   const SizedBox(width: 10),
                   const Expanded(
@@ -15563,27 +15635,32 @@ class _ExecutorSettingsScreenState extends State<ExecutorSettingsScreen> {
                     ),
                   ),
                   StatusPill(
-                    label: pushReady ? 'تعمل' : 'تحتاج إعدادًا',
-                    color: pushReady ? _green : _danger,
+                    label: notificationStatusLabel,
+                    color: notificationsReady ? _green : _danger,
                   ),
                 ],
               ),
               const Divider(height: 28),
               DetailLine(
                 label: 'إذن الهاتف',
-                value:
-                    <String>{
-                      'authorized',
-                      'provisional',
-                    }.contains('${pushDevice['permissionStatus'] ?? ''}')
-                    ? 'مسموح'
-                    : 'غير مفعل',
+                value: localPermissionEnabled ? 'مسموح' : 'غير مفعل',
+              ),
+              DetailLine(
+                label: 'مراقبة الخلفية',
+                value: _backgroundServiceRunning ? 'نشطة' : 'متوقفة',
+              ),
+              DetailLine(
+                label: 'إعداد التطبيق',
+                value: clientFirebaseConfigured
+                    ? 'مرتبط بـ Firebase'
+                    : 'نسخة APK غير مرتبطة بـ Firebase',
               ),
               DetailLine(
                 label: 'اتصال الخادم',
-                value:
-                    firebase['configured'] == true &&
-                        firebase['enabled'] == true
+                value: serverRouteMissing
+                    ? 'إصدار الخادم قديم'
+                    : firebase['configured'] == true &&
+                          firebase['enabled'] == true
                     ? 'جاهز للإرسال'
                     : 'إعداد Firebase غير مكتمل',
               ),
@@ -15646,8 +15723,40 @@ class _ExecutorSettingsScreenState extends State<ExecutorSettingsScreen> {
                     icon: const Icon(Icons.tune_rounded),
                     label: const Text('إعدادات الهاتف'),
                   ),
+                  OutlinedButton.icon(
+                    onPressed:
+                        MobilePushService.instance.openBackgroundSettings,
+                    icon: const Icon(Icons.battery_saver_outlined),
+                    label: const Text('تشغيل الخلفية'),
+                  ),
                 ],
               ),
+              if (serverRouteMissing ||
+                  !clientFirebaseConfigured ||
+                  firebase['configured'] != true ||
+                  firebase['enabled'] != true) ...[
+                const SizedBox(height: 14),
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: _gold.withValues(alpha: 0.10),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: _gold.withValues(alpha: 0.34)),
+                  ),
+                  child: Text(
+                    serverRouteMissing
+                        ? 'لم تُنشر مسارات الإشعارات الجديدة على الخادم بعد. اسحب آخر إصدار من main ثم أعد تشغيل PM2.'
+                        : !clientFirebaseConfigured
+                        ? 'هذه النسخة تستخدم المراقبة المحلية فقط. يلزم بناء APK بقيم مشروع Firebase لتصل التنبيهات فورًا بعد إغلاق التطبيق.'
+                        : 'ربط التطبيق جاهز، لكن حساب خدمة Firebase غير مكتمل على الخادم.',
+                    style: const TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w800,
+                      height: 1.45,
+                    ),
+                  ),
+                ),
+              ],
               const Divider(height: 32),
               const Text(
                 'قنوات الإشعارات',
