@@ -13,6 +13,20 @@ const {
 } = require('../services/whatChimpSupportService');
 const { createSupportReplyNotifications } = require('../services/clientNotificationService');
 const { recordWhatsAppDeliveryAttempt } = require('../services/whatsappReceiptDeliveryService');
+const {
+    SUPPORT_STATUSES,
+    SUPPORT_PRIORITIES,
+    SUPPORT_CATEGORIES,
+    getAdminIdentity,
+    listSupportTickets,
+    getSupportSummary,
+    listSupportAgents,
+    getSupportTicketWorkspace,
+    acquireTicketPresence,
+    heartbeatTicketPresence,
+    releaseTicketPresence,
+    assertTicketWritableByAdmin
+} = require('../services/supportWorkspaceService');
 
 const emitTicketUpdate = (req, ticket) => {
     req.app.get('io')?.emit('support:ticket-updated', {
@@ -25,15 +39,141 @@ const emitTicketUpdate = (req, ticket) => {
 const WHATSAPP_TEST_MESSAGE = 'رسالة اختبار من منظومة Power Pay AL-Ahram. الرجاء الرد بكلمة اختبار لتأكيد ظهور الرسالة في مركز الدعم.';
 
 router.get('/support', requireAuth, async (req, res) => {
-    try { res.render('support_admin', { adminName: req.session.adminName }); } catch (e) { res.redirect('/'); }
+    try {
+        res.render('support_admin', {
+            adminName: req.session.adminName,
+            supportAdmin: getAdminIdentity(req)
+        });
+    } catch (e) {
+        res.redirect('/');
+    }
 });
 
 router.get('/api/support/tickets', requireAuth, async (req, res) => {
-    try { const tickets = await SupportTicket.find({}).sort({ updatedAt: -1 }); res.json({ success: true, tickets }); } catch (e) { res.json({ success: false, error: e.message }); }
+    try {
+        const result = await listSupportTickets({ query: req.query, adminIdentity: getAdminIdentity(req) });
+        return res.json({ success: true, ...result });
+    } catch (error) {
+        return res.status(500).json({ success: false, error: 'تعذر تحميل قائمة تذاكر الدعم.' });
+    }
+});
+
+router.get('/api/support/summary', requireAuth, async (_req, res) => {
+    try {
+        return res.json({ success: true, summary: await getSupportSummary() });
+    } catch (_error) {
+        return res.status(500).json({ success: false, error: 'تعذر تحميل ملخص الدعم.' });
+    }
+});
+
+router.get('/api/support/agents', requireAuth, async (req, res) => {
+    try {
+        return res.json({ success: true, agents: await listSupportAgents(getAdminIdentity(req)) });
+    } catch (_error) {
+        return res.status(500).json({ success: false, error: 'تعذر تحميل قائمة موظفي الدعم.' });
+    }
+});
+
+router.post('/api/support/tickets/:id/presence', requireAuth, async (req, res) => {
+    try {
+        const action = String(req.body?.action || 'acquire').trim();
+        const adminIdentity = getAdminIdentity(req);
+        let presence;
+
+        if (action === 'release') presence = await releaseTicketPresence(req.params.id, adminIdentity);
+        else if (action === 'heartbeat') presence = await heartbeatTicketPresence(req.params.id, adminIdentity);
+        else presence = await acquireTicketPresence(req.params.id, adminIdentity);
+
+        if (!presence) return res.status(404).json({ success: false, error: 'التذكرة غير موجودة.' });
+        return res.status(presence.acquired === false && action !== 'release' ? 409 : 200).json({ success: true, presence });
+    } catch (_error) {
+        return res.status(500).json({ success: false, error: 'تعذر تحديث حالة معالجة التذكرة.' });
+    }
+});
+
+router.patch('/api/support/tickets/:id/state', requireAuth, async (req, res) => {
+    try {
+        const adminIdentity = getAdminIdentity(req);
+        const ticket = await SupportTicket.findById(req.params.id);
+        if (!ticket) return res.status(404).json({ success: false, error: 'التذكرة غير موجودة.' });
+        assertTicketWritableByAdmin(ticket, adminIdentity);
+
+        if (req.body?.status !== undefined) {
+            const status = String(req.body.status || '').trim();
+            if (!SUPPORT_STATUSES.includes(status)) {
+                return res.status(422).json({ success: false, error: 'حالة التذكرة غير صالحة.' });
+            }
+            ticket.status = status;
+            if (status === 'resolved') ticket.resolvedAt = new Date();
+            if (status === 'closed') ticket.closedAt = new Date();
+            if (status === 'open') {
+                ticket.resolvedAt = undefined;
+                ticket.closedAt = undefined;
+            }
+        }
+
+        if (req.body?.priority !== undefined) {
+            const priority = String(req.body.priority || '').trim();
+            if (!SUPPORT_PRIORITIES.includes(priority)) {
+                return res.status(422).json({ success: false, error: 'أولوية التذكرة غير صالحة.' });
+            }
+            ticket.priority = priority;
+        }
+
+        if (req.body?.category !== undefined) {
+            const category = String(req.body.category || '').trim();
+            if (!SUPPORT_CATEGORIES.includes(category)) {
+                return res.status(422).json({ success: false, error: 'تصنيف التذكرة غير صالح.' });
+            }
+            ticket.category = category;
+        }
+
+        if (req.body?.assigneeId !== undefined) {
+            const assigneeId = String(req.body.assigneeId || '').trim();
+            if (!assigneeId) {
+                ticket.assignedToId = undefined;
+                ticket.assignedToName = undefined;
+                ticket.assignedAt = undefined;
+            } else {
+                const agents = await listSupportAgents(adminIdentity);
+                const assignee = agents.find((agent) => agent.id === assigneeId);
+                if (!assignee) return res.status(422).json({ success: false, error: 'موظف الدعم المحدد غير موجود.' });
+                ticket.assignedToId = assignee.id;
+                ticket.assignedToName = assignee.name;
+                ticket.assignedAt = new Date();
+            }
+        }
+
+        if (Array.isArray(req.body?.tags)) {
+            ticket.tags = [...new Set(req.body.tags
+                .map((tag) => String(tag || '').replace(/\s+/g, ' ').trim().slice(0, 30))
+                .filter(Boolean))]
+                .slice(0, 8);
+        }
+
+        await ticket.save();
+        emitTicketUpdate(req, ticket);
+        return res.json({ success: true, ticket });
+    } catch (error) {
+        return res.status(error.status || 500).json({
+            success: false,
+            code: error.code || '',
+            error: error.status ? error.message : 'تعذر تحديث التذكرة.'
+        });
+    }
 });
 
 router.get('/api/support/tickets/:id', requireAuth, async (req, res) => {
-    try { const ticket = await SupportTicket.findById(req.params.id); if (!ticket) return res.json({ success: false, error: 'التذكرة غير موجودة' }); ticket.unreadAdmin = 0; await ticket.save(); res.json({ success: true, ticket }); } catch (e) { res.json({ success: false, error: e.message }); }
+    try {
+        const workspace = await getSupportTicketWorkspace(req.params.id, getAdminIdentity(req));
+        if (!workspace) return res.status(404).json({ success: false, error: 'التذكرة غير موجودة' });
+        await SupportTicket.updateOne({ _id: req.params.id }, { $set: { unreadAdmin: 0 } }, { timestamps: false });
+        workspace.ticket.unreadAdmin = 0;
+        workspace.summary.unreadAdmin = 0;
+        return res.json({ success: true, ...workspace });
+    } catch (_error) {
+        return res.status(500).json({ success: false, error: 'تعذر تحميل تفاصيل التذكرة.' });
+    }
 });
 
 router.post('/api/support/tickets/:id/reply', requireAuth, async (req, res) => {
@@ -44,6 +184,14 @@ router.post('/api/support/tickets/:id/reply', requireAuth, async (req, res) => {
         const ticket = await SupportTicket.findById(req.params.id);
         if (!ticket) return res.status(404).json({ success: false, error: 'التذكرة غير موجودة' });
         if (ticket.status === 'closed') return res.status(409).json({ success: false, error: 'لا يمكن الرد على تذكرة مغلقة.' });
+        const adminIdentity = getAdminIdentity(req);
+        assertTicketWritableByAdmin(ticket, adminIdentity);
+
+        if (!ticket.assignedToId) {
+            ticket.assignedToId = adminIdentity.id;
+            ticket.assignedToName = adminIdentity.name;
+            ticket.assignedAt = new Date();
+        }
 
         let delivery = null;
         let channel = 'portal';
@@ -126,7 +274,11 @@ router.post('/api/support/tickets/:id/reply', requireAuth, async (req, res) => {
         };
         ticket.messages.push(newMessage);
         ticket.status = 'answered';
+        ticket.firstResponseAt = ticket.firstResponseAt || newMessage.createdAt;
         ticket.unreadUser = (ticket.unreadUser || 0) + 1;
+        ticket.activeHandlerId = adminIdentity.id;
+        ticket.activeHandlerName = adminIdentity.name;
+        ticket.activeHandlerExpiresAt = new Date(Date.now() + 60 * 1000);
         if (channel === 'whatsapp') ticket.lastWhatsAppOutboundAt = newMessage.createdAt;
         await ticket.save();
         emitTicketUpdate(req, ticket);
@@ -134,7 +286,13 @@ router.post('/api/support/tickets/:id/reply', requireAuth, async (req, res) => {
         try { await createSupportReplyNotifications({ ticket, channel }); } catch (_error) {}
         
         res.json({ success: true, message: newMessage, channel, whatsapp, warning });
-    } catch (e) { res.json({ success: false, error: e.message }); }
+    } catch (error) {
+        res.status(error.status || 500).json({
+            success: false,
+            code: error.code || '',
+            error: error.status ? error.message : 'تعذر إرسال الرد.'
+        });
+    }
 });
 
 // This creates an auditable support ticket without pretending that the recipient opened a 24-hour WhatsApp window.
@@ -349,11 +507,20 @@ router.post('/api/support/tickets/:id/whatsapp-test', requireAuth, async (req, r
 
 router.post('/api/support/tickets/:id/close', requireAuth, async (req, res) => {
     try {
-        const ticket = await SupportTicket.findById(req.params.id); if (!ticket) return res.json({ success: false, error: 'التذكرة غير موجودة' });
-        ticket.status = 'closed'; await ticket.save();
+        const ticket = await SupportTicket.findById(req.params.id);
+        if (!ticket) return res.status(404).json({ success: false, error: 'التذكرة غير موجودة' });
+        assertTicketWritableByAdmin(ticket, getAdminIdentity(req));
+        ticket.status = 'closed';
+        ticket.closedAt = new Date();
+        ticket.activeHandlerId = undefined;
+        ticket.activeHandlerName = undefined;
+        ticket.activeHandlerExpiresAt = undefined;
+        await ticket.save();
         emitTicketUpdate(req, ticket);
         res.json({ success: true });
-    } catch (e) { res.json({ success: false, error: e.message }); }
+    } catch (error) {
+        res.status(error.status || 500).json({ success: false, code: error.code || '', error: error.message });
+    }
 });
 
 router.post('/api/support/tickets/:id/password-reset/approve', requireAuth, requireMaster, async (req, res) => {
@@ -398,6 +565,7 @@ router.post('/api/support/tickets/:id/password-reset/approve', requireAuth, requ
         );
 
         ticket.status = 'closed';
+        ticket.closedAt = new Date();
         ticket.metadata = {
             ...(ticket.metadata || {}),
             passwordResetStatus: 'approved'
@@ -441,6 +609,7 @@ router.post('/api/support/tickets/:id/password-reset/reject', requireAuth, requi
         );
 
         ticket.status = 'closed';
+        ticket.closedAt = new Date();
         ticket.metadata = {
             ...(ticket.metadata || {}),
             passwordResetStatus: 'rejected'

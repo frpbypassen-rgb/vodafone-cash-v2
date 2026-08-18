@@ -2,498 +2,144 @@
 <html lang="ar" dir="rtl">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>مركز الدعم الفني | شركة الأهرام</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+    <title>مساحة عمل الدعم | شركة الأهرام</title>
     <script>
         const savedTheme = localStorage.getItem('ahram_theme') || 'dark';
         document.documentElement.setAttribute('data-theme', savedTheme);
     </script>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.rtl.min.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
-    <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/css/support-workspace.css">
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
-
-    <style>
-        .support-container { display: flex; flex: 1; overflow: hidden; height: calc(100vh - 120px); border-radius: 20px;}
-        .tickets-list { width: 35%; border-left: 1px solid var(--border-glass); display: flex; flex-direction: column; background: var(--input-bg); }
-        .chat-area { width: 65%; display: flex; flex-direction: column; background: var(--card-bg); position: relative; }
-        
-        .ticket-item { padding: 15px 20px; border-bottom: 1px solid var(--border-glass); cursor: pointer; transition: 0.2s; display: flex; justify-content: space-between; align-items: center; }
-        .ticket-item:hover { background: rgba(0,0,0,0.02); }
-        [data-theme="dark"] .ticket-item:hover { background: rgba(255,255,255,0.02); }
-        .ticket-item.active { background: var(--input-bg); border-right: 5px solid var(--brand-primary); }
-        [data-theme="dark"] .ticket-item.active { border-right-color: var(--brand-gold); }
-        .ticket-name { font-weight: 800; color: var(--text-main); font-size: 1.05rem; margin-bottom: 3px; }
-        
-        .chat-header { padding: 15px 20px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border-glass); z-index: 10; background: var(--input-bg);}
-        .chat-messages { flex: 1; padding: 20px; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; background-color: var(--card-bg); }
-        .chat-input-area { padding: 15px 20px; display: flex; gap: 10px; align-items: center; border-top: 1px solid var(--border-glass); background: var(--input-bg);}
-        
-        .msg-bubble { max-width: 75%; padding: 10px 15px; border-radius: 12px; position: relative; font-weight: 700; font-size: 0.95rem; }
-        .msg-user { background: var(--input-bg); border: 1px solid var(--border-glass); align-self: flex-start; border-top-right-radius: 0; color: var(--text-main); }
-        .msg-admin { background: rgba(16, 185, 129, 0.1); border: 1px solid rgba(16, 185, 129, 0.2); align-self: flex-end; border-top-left-radius: 0; color: var(--text-main); }
-        .msg-time { font-size: 0.7rem; color: var(--text-muted); display: block; text-align: left; margin-top: 5px; font-family: monospace; }
-        
-        .empty-chat { flex: 1; display: flex; flex-direction: column; justify-content: center; align-items: center; color: var(--text-muted); background: var(--card-bg); }
-
-        @media (max-width: 991px) {
-            .support-container { flex-direction: column; height: auto; }
-            .tickets-list { width: 100%; height: 35vh; border-left: none; border-bottom: 2px solid var(--border-glass); }
-            .chat-area { width: 100%; height: 65vh; }
-        }
-    </style>
-
-    <!-- PWA Setup -->
+    <script src="/socket.io/socket.io.js"></script>
     <link rel="manifest" href="/manifest.json">
     <meta name="theme-color" content="#001a4d">
-    <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <meta name="apple-mobile-web-app-title" content="Al-Ahram">
-    <!-- End PWA Setup -->
 </head>
 <body>
+    <button class="mobile-nav-toggle" onclick="toggleSidebar()" title="فتح القائمة"><i class="fa-solid fa-bars"></i></button>
+    <div class="sidebar-overlay" onclick="toggleSidebar()"></div>
 
-<button class="mobile-nav-toggle" onclick="toggleSidebar()"><i class="fa-solid fa-bars"></i></button>
-<div class="sidebar-overlay" onclick="toggleSidebar()"></div>
+    <%- include('partials/sidebar', { activePage: 'support' }) %>
 
-<%- include('partials/sidebar', { activePage: 'support' }) %>
-
-<div class="main-content">
-    <div class="admin-nav mb-4 d-flex justify-content-between align-items-center gap-2 flex-wrap">
-        <h3 class="fw-bold m-0 text-dark"><i class="fa-solid fa-headset text-primary me-2"></i> مركز الدعم الفني</h3>
-        <button type="button" class="btn btn-success fw-bold shadow-sm rounded-3" onclick="openWhatsAppTestDialog()">
-            <i class="fa-brands fa-whatsapp me-1"></i> اختبار واتساب
-        </button>
-    </div>
-    
-    <div class="support-container data-card p-0">
-        <div class="tickets-list">
-            <div class="p-3 border-bottom d-flex justify-content-between align-items-center" style="background-color: var(--input-bg);">
-                <span class="fw-bold text-primary"><i class="fa-solid fa-inbox me-1"></i> المحادثات النشطة</span>
-                <button class="btn btn-sm btn-light py-1 shadow-sm border" onclick="loadTickets()"><i class="fa-solid fa-rotate-right"></i></button>
-            </div>
-            <div id="ticketsContainer" style="overflow-y: auto; flex: 1;">
-                <div class="text-center p-4 text-muted"><i class="fa-solid fa-spinner fa-spin fa-2x mb-2"></i><br>جاري التحميل...</div>
-            </div>
-        </div>
-        
-        <div class="chat-area" id="chatArea">
-            <div class="empty-chat">
-                <i class="fa-solid fa-comments fs-1 mb-3 opacity-25" style="font-size: 5rem !important;"></i>
-                <h4 class="fw-bold opacity-50">اختر محادثة من القائمة للبدء</h4>
-            </div>
-        </div>
-    </div>
-</div>
-
-<script>
-    let currentTicketId = null;
-    let fetchInterval = null;
-    let supportTickets = [];
-
-    const escapeHtml = (value) => String(value ?? '').replace(/[&<>"']/g, (character) => ({
-        '&': '&amp;',
-        '<': '&lt;',
-        '>': '&gt;',
-        '"': '&quot;',
-        "'": '&#39;'
-    }[character]));
-
-    const safeMediaUrl = (value) => {
-        const raw = String(value || '').trim();
-        if (/^data:image\/(png|jpe?g|webp);base64,/i.test(raw)) return raw;
-        try {
-            const target = new URL(raw, window.location.origin);
-            return ['http:', 'https:'].includes(target.protocol) ? target.href : '';
-        } catch (_error) {
-            return '';
-        }
-    };
-
-    const getTicketChannelBadge = (ticket) => ticket.channel === 'whatsapp'
-        ? '<span class="badge bg-success px-2 py-1"><i class="fa-brands fa-whatsapp me-1"></i>واتساب</span>'
-        : '<span class="badge bg-secondary px-2 py-1"><i class="fa-solid fa-window-maximize me-1"></i>البوابة</span>';
-
-    const entityTypeLabels = {
-        'client_user': '<span class="badge bg-primary px-2 py-1"><i class="fa-solid fa-user me-1"></i> عميل فردي</span>',
-        'sub_client': '<span class="badge bg-info text-dark px-2 py-1"><i class="fa-solid fa-store me-1"></i> عميل تابع</span>',
-        'client_company': '<span class="badge" style="background:#6f42c1;"><i class="fa-solid fa-building me-1"></i> شركة/وكيل</span>',
-        'executor': '<span class="badge bg-dark"><i class="fa-solid fa-robot me-1"></i> طاقم التنفيذ</span>',
-        'whatsapp': '<span class="badge bg-success"><i class="fa-brands fa-whatsapp me-1"></i> جهة واتساب</span>'
-    };
-
-    function toggleSidebar() { document.querySelector('.sidebar').classList.toggle('active'); document.querySelector('.sidebar-overlay').classList.toggle('active'); }
-
-    async function loadTickets() {
-        try {
-            const res = await fetch('/api/support/tickets');
-            const data = await res.json();
-            if(data.success) {
-                supportTickets = Array.isArray(data.tickets) ? data.tickets : [];
-                const container = document.getElementById('ticketsContainer');
-                if (supportTickets.length === 0) {
-                    container.innerHTML = '<div class="text-center p-5 text-muted fw-bold"><i class="fa-solid fa-box-open fs-1 mb-3 opacity-50"></i><br>لا توجد تذاكر حالياً.</div>';
-                    return;
-                }
-                
-                let html = '';
-                supportTickets.forEach(t => {
-                    const name = escapeHtml(t.name || 'عميل');
-                    const phone = escapeHtml(t.phone || '');
-                    const unreadBadge = t.unreadAdmin > 0 ? `<span class="badge bg-danger rounded-pill shadow-sm" style="font-size: 0.8rem;">${t.unreadAdmin}</span>` : '';
-                    let statusIcon = '';
-                    if (t.status === 'closed') statusIcon = '<i class="fa-solid fa-lock text-danger ms-1" title="مغلق"></i>';
-                    else if (t.status === 'answered') statusIcon = '<i class="fa-solid fa-reply-all text-success ms-1" title="تم الرد"></i>';
-                    else statusIcon = '<i class="fa-solid fa-circle text-warning ms-1" style="font-size:10px;" title="بانتظار الرد"></i>';
-                    
-                    html += `
-                        <div class="ticket-item ${currentTicketId === t._id ? 'active' : ''}" onclick="openTicket('${t._id}')">
-                            <div>
-                                <div class="ticket-name">${statusIcon} ${name}</div>
-                                <div class="mt-1">${entityTypeLabels[t.entityType] || ''} ${getTicketChannelBadge(t)} <small class="text-muted fw-bold ms-1" dir="ltr">${phone}</small></div>
-                            </div>
-                            <div>${unreadBadge}</div>
-                        </div>
-                    `;
-                });
-                container.innerHTML = html;
-            }
-        } catch(e) {}
-    }
-
-    async function openWhatsAppTestDialog() {
-        const prompt = await Swal.fire({
-            icon: 'question',
-            title: 'اختبار دعم واتساب',
-            input: 'tel',
-            inputLabel: 'رقم واتساب العميل',
-            inputPlaceholder: 'مثال: 0940000000',
-            inputAttributes: { dir: 'ltr', inputmode: 'tel', autocomplete: 'tel' },
-            text: 'سيُنشأ سجل اختبار في الدعم ثم تُرسل رسالة حقيقية عبر WhatChimp. قد يرفض WhatsApp الرسالة إن لم تكن نافذة المحادثة نشطة.',
-            showCancelButton: true,
-            confirmButtonColor: '#198754',
-            cancelButtonColor: '#6c757d',
-            confirmButtonText: 'إنشاء تذكرة وإرسال الاختبار',
-            cancelButtonText: 'إلغاء',
-            inputValidator: (value) => String(value || '').trim() ? undefined : 'أدخل رقم واتساب أولاً.',
-            customClass: { popup: 'rounded-4' }
-        });
-        if (!prompt.isConfirmed) return;
-
-        try {
-            const response = await fetch('/api/support/whatsapp-test', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ phone: prompt.value })
-            });
-            const data = await response.json();
-            if (data.ticketId) await openTicket(data.ticketId);
-            await loadTickets();
-
-            if (!response.ok || !data.success) {
-                throw new Error(data.error || 'تعذر إرسال رسالة الاختبار عبر واتساب.');
-            }
-
-            await Swal.fire({
-                icon: 'success',
-                title: 'قَبِل WhatChimp رسالة الاختبار',
-                text: 'فُتحت تذكرة الاختبار وسُجلت الرسالة. اطلب من العميل الرد بكلمة اختبار للتحقق من الاستقبال.',
-                timer: 4200,
-                showConfirmButton: false,
-                customClass: { popup: 'rounded-4' }
-            });
-        } catch (error) {
-            await Swal.fire({
-                icon: 'error',
-                title: 'لم تُسلَّم رسالة الاختبار',
-                text: error.message || 'تعذر إرسال رسالة الاختبار عبر واتساب.',
-                customClass: { popup: 'rounded-4' }
-            });
-        }
-    }
-
-    async function openTicket(id) {
-        currentTicketId = id;
-        loadTickets();
-
-        const chatArea = document.getElementById('chatArea');
-        chatArea.innerHTML = '<div class="empty-chat"><i class="fa-solid fa-spinner fa-spin fs-1 mb-3"></i><h5 class="fw-bold opacity-50">جاري تحميل المحادثة...</h5></div>';
-
-        let ticket;
-        try {
-            const response = await fetch('/api/support/tickets/' + id);
-            const data = await response.json();
-            if (!response.ok || !data.success) throw new Error(data.error || 'تعذر تحميل المحادثة.');
-            ticket = data.ticket;
-        } catch (error) {
-            chatArea.innerHTML = '<div class="empty-chat text-danger"><i class="fa-solid fa-circle-exclamation fs-1 mb-3"></i><h5 class="fw-bold">تعذر تحميل المحادثة.</h5></div>';
-            return;
-        }
-
-        const name = escapeHtml(ticket.name || 'عميل');
-        const status = ticket.status || 'open';
-        const isWhatsAppTicket = ticket.channel === 'whatsapp' || ticket.metadata?.replyChannel === 'whatsapp';
-        chatArea.innerHTML = `
-            <div class="chat-header">
-                <div>
-                    <h5 class="fw-bold m-0 text-primary">${name}</h5>
-                    <small class="text-muted fw-bold">رقم التذكرة: <code style="font-family: monospace;">${escapeHtml(ticket.ticketId || id.slice(-6))}</code> ${getTicketChannelBadge(ticket)}</small>
-                </div>
-                <div>
-                    ${status !== 'closed' ? `
-                        ${isWhatsAppTicket ? `<button class="btn btn-outline-success fw-bold shadow-sm rounded-3 me-2" onclick="sendWhatsAppTest('${id}')"><i class="fa-brands fa-whatsapp me-1"></i> اختبار واتساب</button>` : ''}
-                        <button class="btn btn-danger fw-bold shadow-sm rounded-3" onclick="closeTicket('${id}')"><i class="fa-solid fa-lock me-1"></i> إغلاق التذكرة</button>
-                    ` : `<span class="badge bg-secondary fs-6 rounded-pill"><i class="fa-solid fa-lock me-1"></i> تذكرة مغلقة</span>`}
-                </div>
-            </div>
-            <div id="passwordResetActions"></div>
-            <div class="chat-messages" id="chatMessages">
-                <div class="text-center w-100 mt-4"><i class="fa-solid fa-spinner fa-spin fa-2x text-muted"></i></div>
-            </div>
-            ${status !== 'closed' ? `
-            <form class="chat-input-area" id="replyForm">
-                <input type="text" id="replyInput" class="form-control form-control-lg fw-bold border-0 shadow-sm px-4" placeholder="اكتب رد الإدارة هنا..." required autocomplete="off" style="border-radius: 50px;">
-                <button type="submit" class="btn btn-primary rounded-circle shadow-sm" style="width: 50px; height: 50px; display: flex; align-items: center; justify-content: center;"><i class="fa-solid fa-paper-plane fs-5"></i></button>
-            </form>` : `
-            <div class="chat-input-area justify-content-center">
-                <span class="text-danger fw-bold"><i class="fa-solid fa-ban me-1"></i> لا يمكن الرد، هذه التذكرة مغلقة.</span>
-            </div>
-            `}
-        `;
-
-        if (fetchInterval) clearInterval(fetchInterval);
-        fetchMessages();
-        fetchInterval = setInterval(fetchMessages, 3000); 
-
-        setTimeout(() => {
-            const form = document.getElementById('replyForm');
-            if(form) {
-                form.onsubmit = async (e) => {
-                    e.preventDefault();
-                    const input = document.getElementById('replyInput');
-                    const text = input.value.trim();
-                    if(!text) return;
-
-                    const submitButton = form.querySelector('button[type="submit"]');
-                    input.disabled = true;
-                    submitButton.disabled = true;
-                    try {
-                        const response = await fetch('/api/support/tickets/' + currentTicketId + '/reply', {
-                            method: 'POST',
-                            headers: {'Content-Type': 'application/json'},
-                            body: JSON.stringify({text})
-                        });
-                        const data = await response.json();
-                        if (!response.ok || !data.success) throw new Error(data.error || 'تعذر إرسال الرد.');
-                        input.value = '';
-                        await fetchMessages();
-                        await loadTickets();
-                        if (data.warning) {
-                            Swal.fire({
-                                icon: 'warning',
-                                title: 'تم حفظ الرد في صفحة العميل',
-                                text: data.warning,
-                                timer: 4500,
-                                showConfirmButton: false,
-                                customClass: { popup: 'rounded-4' }
-                            });
-                        }
-                    } catch(err) {
-                        Swal.fire({ icon: 'error', title: 'تعذر إرسال الرد', text: err.message || 'تعذر إرسال الرد حالياً.' });
-                    } finally {
-                        input.disabled = false;
-                        submitButton.disabled = false;
-                        input.focus();
-                    }
-                };
-            }
-        }, 100);
-    }
-
-    async function sendWhatsAppTest(ticketId) {
-        const confirmation = await Swal.fire({
-            icon: 'question',
-            title: 'إرسال رسالة اختبار واتساب؟',
-            text: 'ستُرسل رسالة قصيرة إلى رقم العميل المرتبط بهذه التذكرة فقط.',
-            showCancelButton: true,
-            confirmButtonColor: '#198754',
-            cancelButtonColor: '#6c757d',
-            confirmButtonText: 'إرسال الاختبار',
-            cancelButtonText: 'إلغاء',
-            customClass: { popup: 'rounded-4' }
-        });
-        if (!confirmation.isConfirmed) return;
-
-        try {
-            const response = await fetch(`/api/support/tickets/${ticketId}/whatsapp-test`, { method: 'POST' });
-            const data = await response.json();
-            if (!response.ok || !data.success) throw new Error(data.error || 'تعذر إرسال رسالة الاختبار.');
-
-            await fetchMessages();
-            await loadTickets();
-            await Swal.fire({
-                icon: 'success',
-                title: 'قَبِل WhatChimp رسالة الاختبار',
-                text: 'تم تسجيل الرسالة في المحادثة. تأكد من وصولها على واتساب العميل.',
-                timer: 3500,
-                showConfirmButton: false,
-                customClass: { popup: 'rounded-4' }
-            });
-        } catch (error) {
-            await Swal.fire({
-                icon: 'error',
-                title: 'فشل اختبار واتساب',
-                text: error.message || 'تعذر إرسال رسالة الاختبار حالياً.',
-                customClass: { popup: 'rounded-4' }
-            });
-        }
-    }
-
-    async function fetchMessages() {
-        if(!currentTicketId) return;
-        try {
-            const res = await fetch('/api/support/tickets/' + currentTicketId);
-            const data = await res.json();
-            if(data.success) {
-                const box = document.getElementById('chatMessages');
-                if(!box) return;
-                renderPasswordResetActions(data.ticket);
-                
-                let html = '';
-                data.ticket.messages.forEach(msg => {
-                    const isAdmin = msg.sender === 'admin' || msg.sender === 'ai' || msg.sender === 'system';
-                    const time = new Date(msg.createdAt).toLocaleTimeString('en-US', {timeZone:'Africa/Tripoli', hour:'2-digit', minute:'2-digit'});
-                    const senderHtml = msg.sender === 'ai'
-                        ? '<div class="fw-bold text-success mb-1" style="font-size: 0.75rem;"><i class="fa-solid fa-wand-magic-sparkles me-1"></i> المساعد الآلي</div>'
-                        : isAdmin
-                            ? '<div class="fw-bold text-success mb-1" style="font-size: 0.75rem;"><i class="fa-solid fa-headset me-1"></i> الإدارة</div>'
-                            : '<div class="fw-bold text-primary mb-1" style="font-size: 0.75rem;"><i class="fa-solid fa-user me-1"></i> العميل</div>';
-                    const channelHtml = msg.channel === 'whatsapp'
-                        ? '<span class="badge bg-success-subtle text-success-emphasis border border-success-subtle ms-1"><i class="fa-brands fa-whatsapp me-1"></i>واتساب</span>'
-                        : '';
-                    const deliveryHtml = msg.deliveryStatus === 'failed'
-                        ? '<span class="badge bg-danger-subtle text-danger-emphasis border border-danger-subtle ms-1"><i class="fa-solid fa-triangle-exclamation me-1"></i>لم تُسلَّم</span>'
-                        : '';
-
-                    let imgHtml = '';
-                    const mediaUrl = safeMediaUrl(msg.imageUrl);
-                    if (mediaUrl) {
-                        imgHtml = `<div class="mb-2"><a href="${escapeHtml(mediaUrl)}" target="_blank" rel="noopener noreferrer"><img src="${escapeHtml(mediaUrl)}" class="img-fluid rounded shadow-sm border" style="max-height: 250px;"></a></div>`;
-                    } else if (msg.imageUrl) {
-                        imgHtml = `<div class="mb-2"><span class="badge bg-secondary p-2"><i class="fa-solid fa-image me-1"></i> مرفق يحتاج مراجعة من واتساب</span></div>`;
-                    }
-
-                    html += `
-                        <div class="msg-bubble ${isAdmin ? 'msg-admin' : 'msg-user'}">
-                            ${senderHtml}${channelHtml}${deliveryHtml}
-                            ${imgHtml}
-                            ${escapeHtml(msg.text || '')}
-                            <span class="msg-time opacity-75">${time}</span>
-                        </div>
-                    `;
-                });
-                
-                const isScrolledToBottom = box.scrollHeight - box.clientHeight <= box.scrollTop + 50;
-                box.innerHTML = html || '<div class="text-center w-100 text-muted mt-5 fw-bold">لا توجد رسائل في هذه المحادثة حتى الآن.</div>';
-                if (isScrolledToBottom) box.scrollTop = box.scrollHeight;
-            }
-        } catch(e) {}
-    }
-
-    function renderPasswordResetActions(ticket) {
-        const target = document.getElementById('passwordResetActions');
-        if (!target) return;
-
-        const meta = ticket.metadata || {};
-        if (meta.type !== 'password_reset') {
-            target.innerHTML = '';
-            return;
-        }
-
-        const resetStatus = meta.passwordResetStatus || 'pending_admin';
-        if (resetStatus === 'pending_admin' && ticket.status !== 'closed') {
-            target.innerHTML = `
-                <div class="m-3 p-3 rounded-4 border shadow-sm" style="background: rgba(255, 193, 7, 0.12); border-color: rgba(255, 193, 7, 0.35) !important;">
-                    <div class="d-flex flex-wrap align-items-center justify-content-between gap-2">
-                        <div class="fw-bold text-dark">
-                            <i class="fa-solid fa-key text-warning me-1"></i>
-                            طلب استعادة كلمة مرور بانتظار قرار الإدارة
-                        </div>
-                        <div class="d-flex gap-2">
-                            <button class="btn btn-success fw-bold rounded-3" onclick="handlePasswordReset('${ticket._id}', 'approve')">
-                                <i class="fa-solid fa-check me-1"></i> تأكيد كلمة المرور وتفعيل الحساب
-                            </button>
-                            <button class="btn btn-outline-danger fw-bold rounded-3" onclick="handlePasswordReset('${ticket._id}', 'reject')">
-                                <i class="fa-solid fa-xmark me-1"></i> إلغاء
-                            </button>
-                        </div>
+    <main class="main-content">
+        <div class="support-page">
+            <header class="support-topbar">
+                <div class="support-title">
+                    <span class="support-title-icon"><i class="fa-solid fa-headset"></i></span>
+                    <div>
+                        <h1>مساحة عمل الدعم</h1>
+                        <p>إدارة المحادثات، بيانات الحساب، والمعاملات المرتبطة من شاشة واحدة</p>
                     </div>
                 </div>
-            `;
-            return;
+                <div class="support-actions">
+                    <button type="button" class="support-icon-btn" data-action="refresh" title="تحديث البيانات"><i class="fa-solid fa-rotate-right"></i></button>
+                    <button type="button" class="support-command-btn is-whatsapp" data-action="whatsapp-test" title="اختبار واتساب">
+                        <i class="fa-brands fa-whatsapp"></i><span>اختبار واتساب</span>
+                    </button>
+                </div>
+            </header>
+
+            <section class="support-metrics" aria-label="ملخص مركز الدعم">
+                <button type="button" class="support-metric" data-metric-filter="active">
+                    <span class="support-metric-icon"><i class="fa-regular fa-comments"></i></span>
+                    <span><span class="support-metric-label">تذاكر نشطة</span><strong class="support-metric-value" id="supportMetricActive">0</strong></span>
+                </button>
+                <button type="button" class="support-metric is-unread" data-metric-filter="unread">
+                    <span class="support-metric-icon"><i class="fa-regular fa-envelope"></i></span>
+                    <span><span class="support-metric-label">رسائل غير مقروءة</span><strong class="support-metric-value" id="supportMetricUnread">0</strong></span>
+                </button>
+                <button type="button" class="support-metric is-urgent" data-metric-filter="urgent">
+                    <span class="support-metric-icon"><i class="fa-solid fa-triangle-exclamation"></i></span>
+                    <span><span class="support-metric-label">عاجلة</span><strong class="support-metric-value" id="supportMetricUrgent">0</strong></span>
+                </button>
+                <button type="button" class="support-metric is-unassigned" data-metric-filter="unassigned">
+                    <span class="support-metric-icon"><i class="fa-regular fa-user"></i></span>
+                    <span><span class="support-metric-label">غير معيّنة</span><strong class="support-metric-value" id="supportMetricUnassigned">0</strong></span>
+                </button>
+                <div class="support-metric is-overdue">
+                    <span class="support-metric-icon"><i class="fa-regular fa-clock"></i></span>
+                    <span><span class="support-metric-label">تجاوزت الزمن</span><strong class="support-metric-value" id="supportMetricOverdue">0</strong></span>
+                </div>
+            </section>
+
+            <section class="support-workspace" aria-label="إدارة تذاكر الدعم">
+                <aside class="support-panel support-queue is-mobile-active" id="supportQueuePanel">
+                    <div class="support-panel-heading">
+                        <h2><i class="fa-solid fa-inbox"></i> صندوق المحادثات</h2>
+                        <span class="support-panel-count" id="supportQueueCount">0</span>
+                    </div>
+                    <div class="support-queue-tools">
+                        <label class="support-search" for="supportTicketSearch">
+                            <i class="fa-solid fa-magnifying-glass"></i>
+                            <input id="supportTicketSearch" type="search" placeholder="اسم، هاتف، أو رقم تذكرة" autocomplete="off">
+                        </label>
+                        <div class="support-view-tabs" role="group" aria-label="نطاق التعيين">
+                            <button type="button" class="support-view-tab is-active" data-assigned-filter="">الجميع</button>
+                            <button type="button" class="support-view-tab" data-assigned-filter="mine">تذاكري</button>
+                            <button type="button" class="support-view-tab" data-assigned-filter="unassigned">غير معيّنة</button>
+                        </div>
+                        <div class="support-filter-row">
+                            <select id="supportStatusFilter" aria-label="تصفية حسب الحالة">
+                                <option value="active">الحالات النشطة</option>
+                                <option value="open">بانتظار الرد</option>
+                                <option value="answered">تم الرد</option>
+                                <option value="pending_internal">متابعة داخلية</option>
+                                <option value="resolved">تم الحل</option>
+                                <option value="closed">مغلقة</option>
+                                <option value="all">كل الحالات</option>
+                            </select>
+                            <select id="supportPriorityFilter" aria-label="تصفية حسب الأولوية">
+                                <option value="">كل الأولويات</option>
+                                <option value="urgent">عاجلة</option>
+                                <option value="high">مرتفعة</option>
+                                <option value="normal">عادية</option>
+                                <option value="low">منخفضة</option>
+                            </select>
+                            <select id="supportChannelFilter" aria-label="تصفية حسب القناة">
+                                <option value="">كل القنوات</option>
+                                <option value="whatsapp">واتساب</option>
+                                <option value="portal">بوابة العميل</option>
+                            </select>
+                            <button type="button" class="support-icon-btn" data-action="refresh" title="تحديث القائمة"><i class="fa-solid fa-rotate"></i></button>
+                        </div>
+                    </div>
+                    <div class="support-ticket-list" id="supportTicketList">
+                        <div class="support-list-state"><i class="fa-solid fa-spinner fa-spin"></i><strong>جاري تحميل المحادثات...</strong></div>
+                    </div>
+                </aside>
+
+                <section class="support-panel support-conversation" id="supportConversationPanel">
+                    <div class="support-empty-state">
+                        <i class="fa-regular fa-comments"></i>
+                        <h3>اختر محادثة للبدء</h3>
+                        <p>ستظهر الرسائل في المنتصف، بينما تُعرض بيانات الحساب وآخر العمليات في اللوحة الجانبية.</p>
+                    </div>
+                </section>
+
+                <aside class="support-panel support-context" id="supportContextPanel">
+                    <div class="support-panel-heading"><h2><i class="fa-regular fa-address-card"></i> سياق العميل</h2></div>
+                    <div class="support-empty-state">
+                        <i class="fa-regular fa-user"></i>
+                        <h3>لا توجد محادثة محددة</h3>
+                        <p>اختر تذكرة لعرض الحساب والمعاملات والتذاكر السابقة.</p>
+                    </div>
+                </aside>
+            </section>
+        </div>
+    </main>
+
+    <script>
+        window.supportWorkspaceConfig = {
+            admin: <%- JSON.stringify(supportAdmin || {}).replace(/</g, '\\u003c') %>
+        };
+        function toggleSidebar() {
+            document.querySelector('.sidebar')?.classList.toggle('active');
+            document.querySelector('.sidebar-overlay')?.classList.toggle('active');
         }
-
-        const label = resetStatus === 'approved'
-            ? '<span class="badge bg-success fs-6 rounded-pill"><i class="fa-solid fa-check me-1"></i> تم تأكيد كلمة المرور</span>'
-            : '<span class="badge bg-danger fs-6 rounded-pill"><i class="fa-solid fa-xmark me-1"></i> تم إلغاء الطلب</span>';
-        target.innerHTML = `<div class="m-3">${label}</div>`;
-    }
-
-    async function handlePasswordReset(ticketId, action) {
-        const isApprove = action === 'approve';
-        const result = await Swal.fire({
-            title: isApprove ? 'تأكيد كلمة المرور الجديدة؟' : 'إلغاء طلب الاستعادة؟',
-            text: isApprove ? 'سيتم تغيير كلمة المرور وتفعيل الحساب فوراً.' : 'ستبقى كلمة المرور القديمة كما هي.',
-            icon: isApprove ? 'question' : 'warning',
-            showCancelButton: true,
-            confirmButtonColor: isApprove ? '#198754' : '#dc3545',
-            cancelButtonColor: '#6c757d',
-            confirmButtonText: isApprove ? 'نعم، أكد' : 'نعم، إلغاء',
-            cancelButtonText: 'تراجع',
-            customClass: { popup: 'rounded-4' }
-        });
-
-        if (!result.isConfirmed) return;
-
-        try {
-            const res = await fetch(`/api/support/tickets/${ticketId}/password-reset/${action}`, { method: 'POST' });
-            const data = await res.json();
-            if (!data.success) throw new Error(data.error || 'فشل تنفيذ الطلب');
-
-            await Swal.fire({
-                icon: 'success',
-                title: isApprove ? 'تم تفعيل كلمة المرور' : 'تم إلغاء الطلب',
-                timer: 1500,
-                showConfirmButton: false,
-                customClass: { popup: 'rounded-4' }
-            });
-            fetchMessages();
-            loadTickets();
-        } catch (error) {
-            Swal.fire({ icon: 'error', title: 'تعذر تنفيذ الطلب', text: error.message, customClass: { popup: 'rounded-4' } });
-        }
-    }
-
-    async function closeTicket(id) {
-        Swal.fire({
-            title: 'إغلاق التذكرة؟', text: "لن يتمكن العميل من الرد على هذه المحادثة بعد إغلاقها.", icon: 'warning', showCancelButton: true, confirmButtonColor: '#dc3545', cancelButtonColor: '#6c757d', confirmButtonText: 'نعم، أغلقها!', cancelButtonText: 'تراجع', customClass: {popup: 'rounded-4'}
-        }).then(async (result) => {
-            if (result.isConfirmed) {
-                try {
-                    const response = await fetch('/api/support/tickets/' + id + '/close', { method: 'POST' });
-                    const data = await response.json();
-                    if (!response.ok || !data.success) throw new Error(data.error || 'تعذر إغلاق التذكرة.');
-                    await openTicket(id);
-                    await loadTickets();
-                } catch (error) {
-                    Swal.fire({ icon: 'error', title: 'تعذر إغلاق التذكرة', text: error.message || 'تعذر إغلاق التذكرة حالياً.' });
-                }
-            }
-        });
-    }
-
-    setInterval(loadTickets, 5000); loadTickets();
-</script>
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    </script>
+    <script src="/js/support-workspace.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>
