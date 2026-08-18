@@ -30,11 +30,21 @@ const mobilePushDeviceSchema = new mongoose.Schema({
     lastFailureAt: { type: Date, default: null },
     lastErrorCode: { type: String, trim: true, maxlength: 160, default: '' },
     lastErrorMessage: { type: String, trim: true, maxlength: 500, default: '' },
+    notificationPreferences: { type: mongoose.Schema.Types.Mixed, default: {} },
+    lastOpenedPushAt: { type: Date, default: null },
     acknowledgedTasks: {
         type: [{
             _id: false,
             transactionId: { type: String, required: true, trim: true },
             acknowledgedAt: { type: Date, default: Date.now }
+        }],
+        default: []
+    },
+    snoozedTasks: {
+        type: [{
+            _id: false,
+            transactionId: { type: String, required: true, trim: true },
+            mutedUntil: { type: Date, required: true }
         }],
         default: []
     }
@@ -46,5 +56,6 @@ mobilePushDeviceSchema.index({ accountType: 1, accountId: 1, enabled: 1 });
 mobilePushDeviceSchema.index({ executorGroupId: 1, executorRole: 1, enabled: 1 });
 mobilePushDeviceSchema.index({ lastSeenAt: 1 });
 mobilePushDeviceSchema.index({ 'acknowledgedTasks.transactionId': 1 });
+mobilePushDeviceSchema.index({ 'snoozedTasks.transactionId': 1 });
 
 module.exports = mongoose.model('MobilePushDevice', mobilePushDeviceSchema);

@@ -4,12 +4,13 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_background_service/flutter_background_service.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 
+import 'firebase_options.dart';
 import 'mobile_api.dart';
 import 'mobile_push_service.dart';
 
 const _monitorChannelId = 'executor_monitoring';
-const _taskChannelId = 'executor_tasks';
-const _urgentChannelId = 'executor_urgent_alerts';
+const _taskChannelId = 'executor_tasks_v2';
+const _urgentChannelId = 'executor_urgent_alerts_v2';
 const _customerChannelId = 'customer_account_alerts';
 const _rateAlertChannelId = 'rate_change_alerts';
 const _monitorNotificationId = 7100;
@@ -136,6 +137,7 @@ Future<void> _createChannels(
     description: 'تنبيهات وصول طلبات التنفيذ الجديدة.',
     importance: Importance.max,
     playSound: true,
+    sound: RawResourceAndroidNotificationSound('ahram_task_arrival'),
     enableVibration: true,
   );
   const urgentChannel = AndroidNotificationChannel(
@@ -145,6 +147,7 @@ Future<void> _createChannels(
         'تنبيه مرتفع الأولوية للطلبات العاجلة التي تحتاج تدخلاً فورياً.',
     importance: Importance.max,
     playSound: true,
+    sound: RawResourceAndroidNotificationSound('ahram_urgent_alarm'),
     enableVibration: true,
   );
   const customerChannel = AndroidNotificationChannel(
@@ -203,6 +206,10 @@ void executorAlertBackgroundEntry(ServiceInstance service) async {
 
   var initialized = false;
   var appVisible = false;
+  var pushReady = false;
+  DateTime? lastPushReadinessCheck;
+  DateTime? lastFallbackTaskAlertAt;
+  DateTime? lastFallbackUrgentAlertAt;
   final seenTaskIds = <String>{};
   final seenCustomerNotificationIds = <String>{};
 
@@ -298,6 +305,49 @@ void executorAlertBackgroundEntry(ServiceInstance service) async {
         }
         return;
       }
+      final now = DateTime.now();
+      if (AhramFirebaseOptions.isConfigured &&
+          (lastPushReadinessCheck == null ||
+              now.difference(lastPushReadinessCheck!) >=
+                  const Duration(minutes: 1))) {
+        lastPushReadinessCheck = now;
+        try {
+          final installationId = await SessionStore()
+              .readOrCreatePushInstallationId();
+          final readinessResponse =
+              await Dio(
+                BaseOptions(
+                  baseUrl: _apiBaseUrl,
+                  connectTimeout: const Duration(seconds: 12),
+                  receiveTimeout: const Duration(seconds: 15),
+                  headers: <String, dynamic>{
+                    'Accept': 'application/json',
+                    'Authorization': 'Bearer ${session!.token}',
+                  },
+                ),
+              ).get<dynamic>(
+                '/push/devices/status',
+                queryParameters: <String, dynamic>{
+                  'installationId': installationId,
+                },
+              );
+          final readinessBody = readinessResponse.data is Map
+              ? Map<String, dynamic>.from(readinessResponse.data as Map)
+              : <String, dynamic>{};
+          final firebase = readinessBody['firebase'] is Map
+              ? Map<String, dynamic>.from(readinessBody['firebase'] as Map)
+              : <String, dynamic>{};
+          final device = readinessBody['device'] is Map
+              ? Map<String, dynamic>.from(readinessBody['device'] as Map)
+              : <String, dynamic>{};
+          pushReady =
+              firebase['enabled'] == true &&
+              firebase['configured'] == true &&
+              device['enabled'] == true;
+        } catch (_) {
+          pushReady = false;
+        }
+      }
       final notificationResponse =
           await Dio(
             BaseOptions(
@@ -352,7 +402,7 @@ void executorAlertBackgroundEntry(ServiceInstance service) async {
           session.context['executorRole'] == 'accountant';
       if (isExecutorAccountant) {
         initialized = true;
-        if (newExecutorNotifications.isNotEmpty) {
+        if (!pushReady && newExecutorNotifications.isNotEmpty) {
           await _showCustomerAlert(
             notificationsPlugin: notifications,
             notification: newExecutorNotifications.first,
@@ -406,9 +456,9 @@ void executorAlertBackgroundEntry(ServiceInstance service) async {
         ..addAll(taskIds);
       if (!initialized) {
         initialized = true;
-        if (!appVisible && urgentAlerts.isNotEmpty) {
+        if (!pushReady && !appVisible && urgentAlerts.isNotEmpty) {
           await _showUrgentAlert(notifications, urgentAlerts.first);
-        } else if (newExecutorNotifications.isNotEmpty) {
+        } else if (!pushReady && newExecutorNotifications.isNotEmpty) {
           await _showCustomerAlert(
             notificationsPlugin: notifications,
             notification: newExecutorNotifications.first,
@@ -416,7 +466,7 @@ void executorAlertBackgroundEntry(ServiceInstance service) async {
         }
         return;
       }
-      if (newExecutorNotifications.isNotEmpty) {
+      if (!pushReady && newExecutorNotifications.isNotEmpty) {
         await _showCustomerAlert(
           notificationsPlugin: notifications,
           notification: newExecutorNotifications.first,
@@ -424,11 +474,21 @@ void executorAlertBackgroundEntry(ServiceInstance service) async {
         return;
       }
       if (appVisible) return;
-      if (urgentAlerts.isNotEmpty) {
+      if (pushReady) return;
+      if (urgentAlerts.isNotEmpty &&
+          (lastFallbackUrgentAlertAt == null ||
+              now.difference(lastFallbackUrgentAlertAt!) >=
+                  const Duration(minutes: 1))) {
+        lastFallbackUrgentAlertAt = now;
         await _showUrgentAlert(notifications, urgentAlerts.first);
       } else if (newTasks.isNotEmpty) {
+        lastFallbackTaskAlertAt = now;
         await _showTaskAlert(notifications, newTasks.first, reminder: false);
-      } else if (openTasks.isNotEmpty) {
+      } else if (openTasks.isNotEmpty &&
+          (lastFallbackTaskAlertAt == null ||
+              now.difference(lastFallbackTaskAlertAt!) >=
+                  const Duration(minutes: 1))) {
+        lastFallbackTaskAlertAt = now;
         await _showTaskAlert(notifications, openTasks.first, reminder: true);
       }
     } catch (_) {
@@ -488,6 +548,7 @@ Future<void> _showUrgentAlert(
         importance: Importance.max,
         priority: Priority.max,
         playSound: true,
+        sound: RawResourceAndroidNotificationSound('ahram_urgent_alarm'),
         enableVibration: true,
       ),
     ),
@@ -513,6 +574,7 @@ Future<void> _showTaskAlert(
         importance: Importance.max,
         priority: Priority.high,
         playSound: true,
+        sound: RawResourceAndroidNotificationSound('ahram_task_arrival'),
         enableVibration: true,
       ),
     ),

@@ -88,8 +88,13 @@ const { reserveManualExecutorReceiptReference } = require('../services/manualExe
 const {
     acknowledgeMobilePushTask,
     getMobilePushDeviceStatus,
+    listMobileNotificationInbox,
+    markAllMobileNotificationsRead,
+    markMobileNotificationRead,
     registerMobilePushDevice,
     sendMobilePushTest,
+    snoozeMobilePushTask,
+    updateMobilePushPreferences,
     unregisterMobilePushDevice
 } = require('../services/executorPushNotificationService');
 const { activatePendingRateUpdate } = require('../services/rateChangeService');
@@ -774,6 +779,110 @@ router.post('/push/tasks/:id/ack', authenticateJWT, async (req, res) => {
     }
 });
 
+router.post('/push/tasks/:id/snooze', authenticateJWT, async (req, res) => {
+    try {
+        if (req.user.accountType !== 'executor') {
+            return sendMobileError(res, 403, 'FORBIDDEN', 'هذه الميزة مخصصة لحسابات التنفيذ.', req.correlationId);
+        }
+        const installationId = req.body?.installationId;
+        if (!installationId) {
+            return sendMobileError(res, 400, 'INVALID_INSTALLATION_ID', 'معرف تثبيت التطبيق مطلوب.', req.correlationId);
+        }
+        const result = await snoozeMobilePushTask({
+            user: req.user,
+            installationId,
+            transactionId: req.params.id,
+            minutes: req.body?.minutes
+        });
+        return res.json({ success: true, ...result });
+    } catch (_) {
+        return sendMobileError(res, 500, 'PUSH_TASK_SNOOZE_FAILED', 'تعذر كتم تنبيه العملية مؤقتاً.', req.correlationId);
+    }
+});
+
+router.get('/push/preferences', authenticateJWT, async (req, res) => {
+    try {
+        const status = await getMobilePushDeviceStatus({
+            user: req.user,
+            installationId: req.query?.installationId
+        });
+        return res.json({
+            success: true,
+            preferences: status.device?.notificationPreferences || {},
+            device: status.device || null
+        });
+    } catch (_) {
+        return sendMobileError(res, 500, 'PUSH_PREFERENCES_FAILED', 'تعذر تحميل تفضيلات الإشعارات.', req.correlationId);
+    }
+});
+
+router.patch('/push/preferences', authenticateJWT, async (req, res) => {
+    try {
+        if (req.user.accountType !== 'executor') {
+            return sendMobileError(res, 403, 'FORBIDDEN', 'هذه الميزة مخصصة لحسابات التنفيذ.', req.correlationId);
+        }
+        const installationId = req.body?.installationId;
+        if (!installationId) {
+            return sendMobileError(res, 400, 'INVALID_INSTALLATION_ID', 'معرف تثبيت التطبيق مطلوب.', req.correlationId);
+        }
+        const preferences = await updateMobilePushPreferences({
+            user: req.user,
+            installationId,
+            preferences: req.body?.preferences || {}
+        });
+        return res.json({ success: true, preferences });
+    } catch (_) {
+        return sendMobileError(res, 500, 'PUSH_PREFERENCES_UPDATE_FAILED', 'تعذر حفظ تفضيلات الإشعارات.', req.correlationId);
+    }
+});
+
+router.get('/push/inbox', authenticateJWT, async (req, res) => {
+    try {
+        if (req.user.accountType !== 'executor') {
+            return sendMobileError(res, 403, 'FORBIDDEN', 'سجل الإشعارات مخصص لحسابات التنفيذ.', req.correlationId);
+        }
+        const result = await listMobileNotificationInbox({
+            user: req.user,
+            category: req.query?.category,
+            unreadOnly: String(req.query?.unreadOnly || '') === 'true',
+            page: req.query?.page,
+            limit: req.query?.limit
+        });
+        return res.json({
+            success: true,
+            ...result,
+            items: result.items.map((item) => ({ ...item, id: String(item._id), _id: undefined }))
+        });
+    } catch (_) {
+        return sendMobileError(res, 500, 'PUSH_INBOX_FAILED', 'تعذر تحميل سجل الإشعارات.', req.correlationId);
+    }
+});
+
+router.post('/push/inbox/read-all', authenticateJWT, async (req, res) => {
+    try {
+        if (req.user.accountType !== 'executor') {
+            return sendMobileError(res, 403, 'FORBIDDEN', 'سجل الإشعارات مخصص لحسابات التنفيذ.', req.correlationId);
+        }
+        const result = await markAllMobileNotificationsRead({ user: req.user });
+        return res.json({ success: true, updated: result.modifiedCount || 0 });
+    } catch (_) {
+        return sendMobileError(res, 500, 'PUSH_INBOX_UPDATE_FAILED', 'تعذر تحديث سجل الإشعارات.', req.correlationId);
+    }
+});
+
+router.post('/push/inbox/:id/read', authenticateJWT, async (req, res) => {
+    try {
+        if (req.user.accountType !== 'executor' || !mongoose.Types.ObjectId.isValid(req.params.id)) {
+            return sendMobileError(res, 400, 'INVALID_NOTIFICATION_ID', 'معرف الإشعار غير صالح.', req.correlationId);
+        }
+        const item = await markMobileNotificationRead({ user: req.user, notificationId: req.params.id });
+        if (!item) return sendMobileError(res, 404, 'NOT_FOUND', 'الإشعار غير موجود.', req.correlationId);
+        return res.json({ success: true });
+    } catch (_) {
+        return sendMobileError(res, 500, 'PUSH_INBOX_UPDATE_FAILED', 'تعذر تحديث الإشعار.', req.correlationId);
+    }
+});
+
 router.post('/push/devices/test', authenticateJWT, async (req, res) => {
     try {
         if (req.user.accountType !== 'executor') {
@@ -783,7 +892,22 @@ router.post('/push/devices/test', authenticateJWT, async (req, res) => {
         if (!installationId) {
             return sendMobileError(res, 400, 'INVALID_INSTALLATION_ID', 'معرف تثبيت التطبيق مطلوب.', req.correlationId);
         }
-        const result = await sendMobilePushTest({ user: req.user, installationId });
+        const allowedCategories = [
+            'executor_task_new',
+            'executor_task_routed',
+            'executor_task_reminder',
+            'executor_urgent_alert',
+            'executor_task_completed',
+            'executor_task_cancelled',
+            'executor_support_reply',
+            'executor_balance_warning',
+            'executor_security_alert',
+            'executor_report_ready'
+        ];
+        const category = allowedCategories.includes(req.body?.category)
+            ? req.body.category
+            : 'executor_task_new';
+        const result = await sendMobilePushTest({ user: req.user, installationId, category });
         return res.json({ success: true, acceptedByFirebase: result.successCount });
     } catch (error) {
         const status = ['PUSH_DEVICE_NOT_REGISTERED', 'PUSH_TEST_DELIVERY_FAILED'].includes(error.code) ? 409 : 503;
@@ -2442,6 +2566,11 @@ router.post('/client/reports/download-link', authenticateJWT, clientReportsValid
         });
         const configuredBaseUrl = String(process.env.PUBLIC_APP_URL || '').replace(/\/$/, '');
         const baseUrl = configuredBaseUrl || `${req.protocol}://${req.get('host')}`;
+        eventBus.publish('executor:report-ready', {
+            employeeId: String(req.user.userId),
+            dateType: dateType === 'month' ? 'month' : 'day',
+            dateValue: String(dateValue || '')
+        });
         return res.json({
             success: true,
             downloadUrl: `${baseUrl}/api/mobile/client/reports/download.pdf?token=${encodeURIComponent(token)}`

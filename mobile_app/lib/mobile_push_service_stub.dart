@@ -1,3 +1,7 @@
+import 'dart:async';
+
+import 'mobile_notification_interaction.dart';
+
 void registerMobilePushBackgroundHandler() {}
 
 class MobilePushService {
@@ -5,11 +9,20 @@ class MobilePushService {
 
   static final instance = MobilePushService._();
 
+  Stream<MobileNotificationInteraction> get interactions =>
+      const Stream<MobileNotificationInteraction>.empty();
+
   Future<bool> configure() async => false;
 
   Future<void> requestPermissionAndRegister() async {}
 
   Future<void> registerStoredSession() async {}
+
+  Future<MobileNotificationInteraction?> takePendingInteraction() async => null;
+
+  Future<void> previewCategory(String category) async {}
+
+  Future<void> openNotificationSettings() async {}
 
   Future<void> unregisterCurrentSession() async {}
 }

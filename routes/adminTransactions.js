@@ -511,6 +511,9 @@ router.post('/transaction/:id/emergency-alert', async (req, res) => {
         if (!tx || !['processing', 'accepted'].includes(tx.status)) { return res.redirect('/transactions'); }
         const alertMsg = req.body.alertMessage || `تنبيه عاجل من الإدارة للطلب رقم ${tx.customId || tx._id}! يرجى سرعة التنفيذ!`;
         await Transaction.updateOne({ _id: tx._id }, { $set: { emergencyAlert: alertMsg } }, { strict: false });
+        tx.emergencyAlert = alertMsg;
+        tx.updatedAt = new Date();
+        eventBus.publish('executor:urgent-alert', { tx, message: alertMsg, source: 'admin' });
 
         // 🟢 الإشعارات عبر Socket.IO
 

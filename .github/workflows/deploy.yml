@@ -117,7 +117,8 @@ jobs:
             'FCM_WORKER_INTERVAL_MS',
             'EXECUTOR_PUSH_REMINDER_INTERVAL_MS',
             'EXECUTOR_PUSH_MAX_REMINDERS',
-            'FCM_DEVICE_ACTIVE_DAYS'
+            'FCM_DEVICE_ACTIVE_DAYS',
+            'EXECUTOR_LOW_BALANCE_THRESHOLD'
           ]);
 
           const updates = new Map();

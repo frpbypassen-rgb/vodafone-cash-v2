@@ -9,6 +9,7 @@ const { sendMobileError } = require('../../mappers/mobileErrorMapper');
 const { toLoginResponse, toRefreshResponse, toLogoutResponse } = require('../../mappers/mobileAuthMapper');
 const { validationResult } = require('express-validator');
 const logger = require('../../utils/logger');
+const eventBus = require('../../services/eventBus');
 
 /**
  * POST /login
@@ -28,6 +29,22 @@ const login = async (req, res) => {
         }
 
         const mappedResponse = toLoginResponse(result);
+        if (result.accountType === 'executor' && result.id) {
+            try {
+                eventBus.publish('executor:security-alert', {
+                    employeeId: String(result.id),
+                    deviceName: String(req.get('user-agent') || 'تطبيق Ahram Pay').slice(0, 120),
+                    ipAddress: String(req.ip || req.socket?.remoteAddress || '').slice(0, 80),
+                    occurredAt: new Date()
+                });
+            } catch (notificationError) {
+                // Authentication must never fail because an optional security
+                // notification could not be queued.
+                logger.warn('Failed to publish executor login security alert', {
+                    error: notificationError.message
+                });
+            }
+        }
         return res.status(200).json(mappedResponse);
     } catch (error) {
         logger.error('Mobile login failed with internal error', {

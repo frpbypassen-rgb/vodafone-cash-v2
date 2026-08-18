@@ -24,3 +24,22 @@ inside the APK or Git.
 If Firebase values are omitted, the application still starts and retains the
 existing polling notification fallback, but closed-app push delivery remains
 disabled.
+
+## Executor notification coverage
+
+The executor application uses separate Android channels and sounds for:
+
+- new, manager-routed, and unacknowledged task reminders;
+- urgent administration alarms;
+- accepted, completed, and cancelled operation updates;
+- support replies, low-balance warnings, security alerts, and ready reports.
+
+Task arrival and urgent administration alerts are mandatory operational
+channels. Other categories can be enabled or disabled per device from the
+executor settings screen. Android channel sound and vibration overrides remain
+available through the phone notification settings.
+
+Every visible executor push is also written to the in-app notification inbox.
+Tapping a notification opens the related tasks, reports, support, or settings
+screen. The legacy foreground polling service remains active only as a fallback
+when Firebase or the registered device is not ready.

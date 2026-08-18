@@ -7,15 +7,33 @@ const pushNotificationOutboxSchema = new mongoose.Schema({
     category: {
         type: String,
         required: true,
-        enum: ['executor_task_new', 'executor_task_routed', 'executor_task_reminder', 'executor_task_claimed', 'executor_task_closed']
+        enum: [
+            'executor_task_new',
+            'executor_task_routed',
+            'executor_task_reminder',
+            'executor_task_claimed',
+            'executor_task_closed',
+            'executor_urgent_alert',
+            'executor_task_accepted',
+            'executor_task_completed',
+            'executor_task_cancelled',
+            'executor_support_reply',
+            'executor_balance_warning',
+            'executor_security_alert',
+            'executor_report_ready'
+        ]
     },
-    transactionId: { type: mongoose.Schema.Types.ObjectId, ref: 'Transaction', required: true, index: true },
+    transactionId: { type: mongoose.Schema.Types.ObjectId, ref: 'Transaction', default: null, index: true },
+    referenceId: { type: String, trim: true, maxlength: 120, default: '' },
     audience: { type: mongoose.Schema.Types.Mixed, required: true },
     title: { type: String, trim: true, maxlength: 180, default: '' },
     body: { type: String, trim: true, maxlength: 600, default: '' },
     data: { type: mongoose.Schema.Types.Mixed, default: {} },
     visible: { type: Boolean, default: true },
     channelId: { type: String, trim: true, maxlength: 80, default: 'executor_tasks' },
+    sound: { type: String, trim: true, maxlength: 80, default: 'default' },
+    priority: { type: String, enum: ['silent', 'normal', 'high', 'urgent', 'critical'], default: 'normal' },
+    route: { type: String, trim: true, maxlength: 40, default: '' },
     collapseKey: { type: String, trim: true, maxlength: 120, default: '' },
     reminderSequence: { type: Number, min: 0, default: 0 },
     status: {

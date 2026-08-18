@@ -205,6 +205,8 @@ class SessionStore {
   static const _customerNotificationsKey =
       'power_pay_mobile_customer_notifications_v1';
   static const _pushInstallationIdKey = 'ahram_pay_push_installation_id_v1';
+  static const _pendingPushInteractionKey =
+      'ahram_pay_pending_push_interaction_v1';
   final FlutterSecureStorage _storage = const FlutterSecureStorage();
 
   Future<MobileSession?> read() async {
@@ -283,6 +285,15 @@ class SessionStore {
     final installationId = const Uuid().v4();
     await _storage.write(key: _pushInstallationIdKey, value: installationId);
     return installationId;
+  }
+
+  Future<void> writePendingPushInteraction(String value) =>
+      _storage.write(key: _pendingPushInteractionKey, value: value);
+
+  Future<String?> takePendingPushInteraction() async {
+    final value = await _storage.read(key: _pendingPushInteractionKey);
+    await _storage.delete(key: _pendingPushInteractionKey);
+    return value;
   }
 }
 
@@ -502,11 +513,17 @@ class MobileApi {
     );
   }
 
-  Future<Map<String, dynamic>> testPushDevice(String installationId) {
+  Future<Map<String, dynamic>> testPushDevice(
+    String installationId, {
+    String category = 'executor_task_new',
+  }) {
     return _request(
       'POST',
       '/push/devices/test',
-      data: <String, dynamic>{'installationId': installationId},
+      data: <String, dynamic>{
+        'installationId': installationId,
+        'category': category,
+      },
     );
   }
 
@@ -519,6 +536,69 @@ class MobileApi {
       '/push/tasks/$transactionId/ack',
       data: <String, dynamic>{'installationId': installationId},
     );
+  }
+
+  Future<Map<String, dynamic>> snoozePushTask({
+    required String installationId,
+    required String transactionId,
+    int minutes = 5,
+  }) {
+    return _request(
+      'POST',
+      '/push/tasks/$transactionId/snooze',
+      data: <String, dynamic>{
+        'installationId': installationId,
+        'minutes': minutes,
+      },
+    );
+  }
+
+  Future<Map<String, dynamic>> pushPreferences(String installationId) {
+    return _request(
+      'GET',
+      '/push/preferences',
+      query: <String, dynamic>{'installationId': installationId},
+    );
+  }
+
+  Future<Map<String, dynamic>> updatePushPreferences({
+    required String installationId,
+    required Map<String, bool> preferences,
+  }) {
+    return _request(
+      'PATCH',
+      '/push/preferences',
+      data: <String, dynamic>{
+        'installationId': installationId,
+        'preferences': preferences,
+      },
+    );
+  }
+
+  Future<Map<String, dynamic>> pushInbox({
+    String? category,
+    bool unreadOnly = false,
+    int page = 1,
+    int limit = 30,
+  }) {
+    return _request(
+      'GET',
+      '/push/inbox',
+      query: <String, dynamic>{
+        if (category != null && category.isNotEmpty) 'category': category,
+        'unreadOnly': unreadOnly,
+        'page': page,
+        'limit': limit,
+      },
+    );
+  }
+
+  Future<void> markPushNotificationRead(String id) async {
+    await _request('POST', '/push/inbox/$id/read');
+  }
+
+  Future<void> markAllPushNotificationsRead() async {
+    await _request('POST', '/push/inbox/read-all');
   }
 
   Future<Map<String, dynamic>> clientHome() => _request('GET', '/client/home');

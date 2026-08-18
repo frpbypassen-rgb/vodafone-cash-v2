@@ -2,6 +2,10 @@
 
 jest.mock('../models/Employee', () => ({ find: jest.fn(), findById: jest.fn() }));
 jest.mock('../models/ExecutorGroup', () => ({ findById: jest.fn() }));
+jest.mock('../models/MobileNotificationInbox', () => ({
+    updateMany: jest.fn().mockResolvedValue({ modifiedCount: 0 }),
+    findOneAndUpdate: jest.fn().mockResolvedValue({})
+}));
 jest.mock('../models/MobilePushDevice', () => ({
     updateMany: jest.fn(),
     findOneAndUpdate: jest.fn(),
@@ -9,8 +13,8 @@ jest.mock('../models/MobilePushDevice', () => ({
     updateOne: jest.fn(),
     find: jest.fn()
 }));
-jest.mock('../models/PushNotificationOutbox', () => ({}));
-jest.mock('../models/Transaction', () => ({ distinct: jest.fn() }));
+jest.mock('../models/PushNotificationOutbox', () => ({ updateOne: jest.fn() }));
+jest.mock('../models/Transaction', () => ({ distinct: jest.fn(), findById: jest.fn() }));
 jest.mock('../services/eventBus', () => ({ on: jest.fn(), publish: jest.fn() }));
 jest.mock('../services/firebasePushService', () => ({
     getFirebasePushStatus: jest.fn(() => ({ enabled: true, configured: true })),
@@ -21,11 +25,16 @@ jest.mock('../services/firebasePushService', () => ({
 const Employee = require('../models/Employee');
 const ExecutorGroup = require('../models/ExecutorGroup');
 const MobilePushDevice = require('../models/MobilePushDevice');
+const PushNotificationOutbox = require('../models/PushNotificationOutbox');
 const Transaction = require('../models/Transaction');
+const { sendPushToTokens } = require('../services/firebasePushService');
 const {
     acknowledgeMobilePushTask,
+    processOutboxItem,
     registerMobilePushDevice,
-    resolveAudienceEmployeeIds
+    resolveAudienceEmployeeIds,
+    snoozeMobilePushTask,
+    updateMobilePushPreferences
 } = require('../services/executorPushNotificationService');
 
 const queryResult = (value) => ({
@@ -85,6 +94,27 @@ describe('executor push notification audience', () => {
         );
 
         expect(ids).toEqual(['manager-1']);
+    });
+
+    test('targets selected roles and explicitly included employees', async () => {
+        Employee.find.mockReturnValue(queryResult([
+            { _id: 'manager-1', role: 'manager' },
+            { _id: 'accountant-1', role: 'accountant' }
+        ]));
+
+        const ids = await resolveAudienceEmployeeIds(
+            {
+                audience: {
+                    type: 'group_roles',
+                    groupId: 'group-1',
+                    roles: ['manager', 'accountant'],
+                    includeEmployeeIds: ['operator-1']
+                }
+            },
+            { executorGroupId: 'group-1' }
+        );
+
+        expect(ids).toEqual(['manager-1', 'accountant-1', 'operator-1']);
     });
 
     test('registers an active executor device against its real employee group', async () => {
@@ -152,5 +182,113 @@ describe('executor push notification audience', () => {
                 }
             })
         );
+    });
+
+    test('keeps task and urgent notifications mandatory when preferences change', async () => {
+        MobilePushDevice.findOneAndUpdate.mockReturnValue(queryResult({
+            notificationPreferences: {
+                tasks: true,
+                urgent: true,
+                reminders: false,
+                support: false
+            }
+        }));
+
+        const preferences = await updateMobilePushPreferences({
+            user: { accountType: 'executor', userId: 'operator-1' },
+            installationId: 'install-1',
+            preferences: {
+                tasks: false,
+                urgent: false,
+                reminders: false,
+                support: false
+            }
+        });
+
+        expect(preferences.tasks).toBe(true);
+        expect(preferences.urgent).toBe(true);
+        expect(preferences.reminders).toBe(false);
+        expect(preferences.support).toBe(false);
+        expect(MobilePushDevice.findOneAndUpdate).toHaveBeenCalledWith(
+            expect.objectContaining({ installationId: 'install-1', accountId: 'operator-1' }),
+            expect.objectContaining({
+                $set: expect.objectContaining({
+                    'notificationPreferences.tasks': true,
+                    'notificationPreferences.urgent': true,
+                    'notificationPreferences.reminders': false
+                })
+            }),
+            { new: true }
+        );
+    });
+
+    test('snoozes a task for five minutes on the current installation', async () => {
+        MobilePushDevice.updateOne
+            .mockResolvedValueOnce({ modifiedCount: 1 })
+            .mockResolvedValueOnce({ modifiedCount: 1 });
+
+        const result = await snoozeMobilePushTask({
+            user: { accountType: 'executor', userId: 'operator-1' },
+            installationId: 'install-1',
+            transactionId: 'tx-2',
+            minutes: 5
+        });
+
+        expect(result.updated).toBe(true);
+        expect(new Date(result.mutedUntil).getTime()).toBeGreaterThan(Date.now());
+        expect(MobilePushDevice.updateOne).toHaveBeenLastCalledWith(
+            expect.objectContaining({ installationId: 'install-1', accountId: 'operator-1' }),
+            expect.objectContaining({
+                $push: {
+                    snoozedTasks: expect.objectContaining({
+                        $each: [expect.objectContaining({ transactionId: 'tx-2' })],
+                        $slice: -100
+                    })
+                }
+            })
+        );
+    });
+
+    test('delivers a support notification without trying to schedule a task reminder', async () => {
+        MobilePushDevice.find.mockReturnValue(queryResult([
+            {
+                _id: 'device-1',
+                token: 'token-1',
+                accountId: 'operator-1',
+                notificationPreferences: { support: true }
+            }
+        ]));
+        MobilePushDevice.updateOne.mockResolvedValue({ modifiedCount: 1 });
+        PushNotificationOutbox.updateOne.mockResolvedValue({ modifiedCount: 1 });
+        sendPushToTokens.mockResolvedValue({
+            successCount: 1,
+            failureCount: 0,
+            responses: [{ token: 'token-1', success: true }]
+        });
+
+        const result = await processOutboxItem({
+            _id: 'outbox-1',
+            eventKey: 'support-1',
+            transactionId: null,
+            category: 'executor_support_reply',
+            audience: { type: 'employee_ids', employeeIds: ['operator-1'] },
+            title: 'رد جديد',
+            body: 'تم الرد على طلب الدعم.',
+            data: { ticketId: 'ticket-1' },
+            visible: true,
+            reminderSequence: 0,
+            channelId: 'executor_support_v1',
+            sound: 'ahram_support',
+            priority: 'high',
+            route: 'support',
+            collapseKey: 'support-ticket-1'
+        });
+
+        expect(result.status).toBe('sent');
+        expect(sendPushToTokens).toHaveBeenCalledWith(expect.objectContaining({
+            androidDataOnly: true,
+            channelId: 'executor_support_v1',
+            sound: 'ahram_support'
+        }));
     });
 });

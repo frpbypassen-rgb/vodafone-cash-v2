@@ -11,9 +11,11 @@ import 'package:intl/intl.dart';
 import 'appearance_controller.dart';
 import 'brand_theme.dart';
 import 'executor_alert_service.dart';
+import 'executor_notification_center.dart';
 import 'external_link.dart';
 import 'language_controller.dart';
 import 'mobile_api.dart';
+import 'mobile_notification_catalog.dart';
 import 'mobile_push_service.dart';
 import 'rate_alerts/rate_alert_overlay.dart';
 import 'report_download.dart';
@@ -1553,6 +1555,10 @@ class _RoleShellState extends State<RoleShell> with WidgetsBindingObserver {
   int _index = 0;
   Map<String, dynamic>? _executorOverview;
   Timer? _rateAlertPoll;
+  Timer? _executorInboxPoll;
+  StreamSubscription<MobileNotificationInteraction>?
+  _pushInteractionSubscription;
+  int _executorUnreadNotifications = 0;
   Map<String, dynamic>? _pendingRateAlert;
   Map<String, dynamic>? _activatedRateAlert;
 
@@ -1566,6 +1572,17 @@ class _RoleShellState extends State<RoleShell> with WidgetsBindingObserver {
       WidgetsBinding.instance.addObserver(this);
       if (widget.controller.isExecutor) {
         unawaited(_loadExecutorOverview());
+        _pushInteractionSubscription = MobilePushService.instance.interactions
+            .listen((interaction) {
+              unawaited(_handlePushInteraction(interaction));
+            });
+        unawaited(_refreshExecutorNotificationCount());
+        _executorInboxPoll = Timer.periodic(const Duration(seconds: 30), (_) {
+          unawaited(_refreshExecutorNotificationCount());
+        });
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          unawaited(_openPendingPushInteraction());
+        });
       }
       unawaited(ExecutorAlertService.instance.startForStoredAccount());
       unawaited(ExecutorAlertService.instance.setAppVisible(true));
@@ -1584,13 +1601,90 @@ class _RoleShellState extends State<RoleShell> with WidgetsBindingObserver {
     }
     final visible = state == AppLifecycleState.resumed;
     unawaited(ExecutorAlertService.instance.setAppVisible(visible));
+    if (visible && widget.controller.isExecutor) {
+      unawaited(_refreshExecutorNotificationCount());
+      unawaited(_openPendingPushInteraction());
+    }
   }
 
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _rateAlertPoll?.cancel();
+    _executorInboxPoll?.cancel();
+    _pushInteractionSubscription?.cancel();
     super.dispose();
+  }
+
+  Future<void> _refreshExecutorNotificationCount() async {
+    if (!widget.controller.isExecutor) return;
+    try {
+      final response = await widget.controller.api.pushInbox(
+        unreadOnly: true,
+        limit: 1,
+      );
+      final unread = response['unread'] is num
+          ? (response['unread'] as num).toInt()
+          : int.tryParse('${response['unread'] ?? ''}') ?? 0;
+      if (mounted && unread != _executorUnreadNotifications) {
+        setState(() => _executorUnreadNotifications = unread);
+      }
+    } catch (_) {
+      // The badge refreshes automatically after connectivity is restored.
+    }
+  }
+
+  Future<void> _openPendingPushInteraction() async {
+    final interaction = await MobilePushService.instance
+        .takePendingInteraction();
+    if (interaction != null) await _handlePushInteraction(interaction);
+  }
+
+  Future<void> _handlePushInteraction(
+    MobileNotificationInteraction interaction,
+  ) async {
+    if (!mounted || !widget.controller.isExecutor) return;
+    var target = switch (interaction.route) {
+      'reports' => _itemIndex('التقارير'),
+      'support' => _itemIndex('الدعم'),
+      'settings' => _itemIndex('الإعدادات'),
+      _ => _itemIndex('مهام التنفيذ'),
+    };
+    if (target < 0 && interaction.route == 'tasks') {
+      target = _itemIndex('التقارير');
+    }
+    if (target >= 0 && target != _index) {
+      setState(() => _index = target);
+    }
+    await _refreshExecutorNotificationCount();
+  }
+
+  int _itemIndex(String label) => _items.indexWhere(
+    (item) => item.label == label || item.label.startsWith(label),
+  );
+
+  Future<void> _openExecutorNotificationCenter() async {
+    final target = await Navigator.of(context).push<Map<String, dynamic>>(
+      MaterialPageRoute<Map<String, dynamic>>(
+        builder: (_) =>
+            ExecutorNotificationCenterScreen(api: widget.controller.api),
+      ),
+    );
+    if (!mounted) return;
+    if (target != null) {
+      final rawData = target['data'];
+      await _handlePushInteraction(
+        MobileNotificationInteraction(
+          action: 'open_notification_center_item',
+          route: '${target['route'] ?? 'tasks'}',
+          data: rawData is Map
+              ? Map<String, dynamic>.from(rawData)
+              : <String, dynamic>{},
+        ),
+      );
+    } else {
+      await _refreshExecutorNotificationCount();
+    }
   }
 
   void _startRateAlertPolling() {
@@ -1985,6 +2079,46 @@ class _RoleShellState extends State<RoleShell> with WidgetsBindingObserver {
                 ? 'رصيد التنفيذ'
                 : 'رصيد المنفذ',
             compact: compactExecutorHeader,
+          ),
+        if (widget.controller.isExecutor)
+          Stack(
+            clipBehavior: Clip.none,
+            children: [
+              GlassIconButton(
+                tooltip: 'مركز الإشعارات',
+                onPressed: _openExecutorNotificationCenter,
+                icon: const Icon(Icons.notifications_none_rounded),
+              ),
+              if (_executorUnreadNotifications > 0)
+                PositionedDirectional(
+                  top: 3,
+                  end: 2,
+                  child: Container(
+                    constraints: const BoxConstraints(minWidth: 18),
+                    height: 18,
+                    padding: const EdgeInsets.symmetric(horizontal: 4),
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      color: _danger,
+                      borderRadius: BorderRadius.circular(9),
+                      border: Border.all(
+                        color: Theme.of(context).colorScheme.surface,
+                        width: 1.5,
+                      ),
+                    ),
+                    child: Text(
+                      _executorUnreadNotifications > 99
+                          ? '99+'
+                          : '$_executorUnreadNotifications',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 9,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                  ),
+                ),
+            ],
           ),
         if (widget.controller.isExecutor)
           GlassIconButton(
@@ -15122,7 +15256,13 @@ class _ExecutorSettingsScreenState extends State<ExecutorSettingsScreen> {
   bool _manualTaskRoutingEnabled = false;
   bool _routingBusy = false;
   Map<String, dynamic> _pushStatus = <String, dynamic>{};
+  Map<String, bool> _notificationPreferences = Map<String, bool>.from(
+    defaultMobileNotificationPreferences,
+  );
+  String _pushTestCategory = 'executor_task_new';
   bool _pushBusy = false;
+  bool _preferenceBusy = false;
+  bool _previewBusy = false;
 
   @override
   void initState() {
@@ -15157,10 +15297,25 @@ class _ExecutorSettingsScreenState extends State<ExecutorSettingsScreen> {
         // Older servers may not expose push diagnostics yet.
       }
       if (mounted && raw is Map) {
+        final rawDevice = pushStatus['device'];
+        final rawPreferences = rawDevice is Map
+            ? rawDevice['notificationPreferences']
+            : null;
+        final preferences = Map<String, bool>.from(
+          defaultMobileNotificationPreferences,
+        );
+        if (rawPreferences is Map) {
+          for (final key in preferences.keys) {
+            if (rawPreferences[key] is bool) {
+              preferences[key] = rawPreferences[key] == true;
+            }
+          }
+        }
         setState(() {
           _overview = Map<String, dynamic>.from(raw);
           _manualTaskRoutingEnabled = manualTaskRoutingEnabled;
           _pushStatus = pushStatus;
+          _notificationPreferences = preferences;
         });
       }
     } catch (error) {
@@ -15177,9 +15332,12 @@ class _ExecutorSettingsScreenState extends State<ExecutorSettingsScreen> {
       await MobilePushService.instance.registerStoredSession();
       final installationId = await widget.controller.store
           .readOrCreatePushInstallationId();
-      await widget.controller.api.testPushDevice(installationId);
+      await widget.controller.api.testPushDevice(
+        installationId,
+        category: _pushTestCategory,
+      );
       if (!mounted) return;
-      showSnack(context, 'تم إرسال إشعار اختبار إلى هذا الهاتف.');
+      showSnack(context, 'تم إرسال إشعار حقيقي إلى هذا الهاتف عبر الخادم.');
       await _load();
     } on ApiFailure catch (error) {
       if (mounted) showSnack(context, error.message, error: true);
@@ -15194,6 +15352,76 @@ class _ExecutorSettingsScreenState extends State<ExecutorSettingsScreen> {
     } finally {
       if (mounted) setState(() => _pushBusy = false);
     }
+  }
+
+  Future<void> _previewPushSound() async {
+    if (_previewBusy) return;
+    setState(() => _previewBusy = true);
+    try {
+      await MobilePushService.instance.previewCategory(_pushTestCategory);
+      if (mounted) showSnack(context, 'تم تشغيل معاينة الإشعار والنغمة.');
+    } catch (_) {
+      if (mounted) {
+        showSnack(context, 'تعذر تشغيل المعاينة على هذا الجهاز.', error: true);
+      }
+    } finally {
+      if (mounted) setState(() => _previewBusy = false);
+    }
+  }
+
+  Future<void> _setNotificationPreference(String key, bool enabled) async {
+    if (_preferenceBusy || key == 'tasks' || key == 'urgent') return;
+    final previous = Map<String, bool>.from(_notificationPreferences);
+    final next = Map<String, bool>.from(previous)..[key] = enabled;
+    setState(() {
+      _notificationPreferences = next;
+      _preferenceBusy = true;
+    });
+    try {
+      final installationId = await widget.controller.store
+          .readOrCreatePushInstallationId();
+      final response = await widget.controller.api.updatePushPreferences(
+        installationId: installationId,
+        preferences: next,
+      );
+      final raw = response['preferences'];
+      if (mounted && raw is Map) {
+        setState(() {
+          _notificationPreferences = <String, bool>{
+            for (final entry in defaultMobileNotificationPreferences.entries)
+              entry.key: raw[entry.key] is bool
+                  ? raw[entry.key] == true
+                  : entry.value,
+          };
+        });
+      }
+    } on ApiFailure catch (error) {
+      if (mounted) {
+        setState(() => _notificationPreferences = previous);
+        showSnack(context, error.message, error: true);
+      }
+    } finally {
+      if (mounted) setState(() => _preferenceBusy = false);
+    }
+  }
+
+  Widget _notificationPreferenceTile({
+    required String key,
+    required IconData icon,
+    required String title,
+    required String subtitle,
+    bool mandatory = false,
+  }) {
+    return SwitchListTile.adaptive(
+      contentPadding: EdgeInsets.zero,
+      value: mandatory || (_notificationPreferences[key] ?? true),
+      onChanged: mandatory || _preferenceBusy
+          ? null
+          : (value) => _setNotificationPreference(key, value),
+      secondary: Icon(icon),
+      title: Text(title, style: const TextStyle(fontWeight: FontWeight.w800)),
+      subtitle: Text(subtitle),
+    );
   }
 
   Future<void> _toggleManualTaskRouting(bool enabled) async {
@@ -15364,16 +15592,125 @@ class _ExecutorSettingsScreenState extends State<ExecutorSettingsScreen> {
                   label: 'آخر إرسال ناجح',
                   value: formatDate(pushDevice['lastSuccessfulPushAt']),
                 ),
-              const SizedBox(height: 10),
-              FilledButton.icon(
-                onPressed: _pushBusy ? null : _testPushNotification,
-                icon: _pushBusy
-                    ? const SizedBox.square(
-                        dimension: 18,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : const Icon(Icons.send_outlined),
-                label: const Text('تفعيل الإذن وإرسال إشعار اختبار'),
+              const SizedBox(height: 14),
+              DropdownButtonFormField<String>(
+                initialValue: _pushTestCategory,
+                decoration: const InputDecoration(
+                  labelText: 'نوع الإشعار المطلوب اختباره',
+                  prefixIcon: Icon(Icons.notifications_active_outlined),
+                ),
+                items: mobileNotificationDefinitions.entries
+                    .map(
+                      (entry) => DropdownMenuItem<String>(
+                        value: entry.key,
+                        child: Text(entry.value.channelName),
+                      ),
+                    )
+                    .toList(),
+                onChanged: _pushBusy || _previewBusy
+                    ? null
+                    : (value) {
+                        if (value != null) {
+                          setState(() => _pushTestCategory = value);
+                        }
+                      },
+              ),
+              const SizedBox(height: 12),
+              Wrap(
+                spacing: 10,
+                runSpacing: 10,
+                children: [
+                  FilledButton.icon(
+                    onPressed: _pushBusy ? null : _testPushNotification,
+                    icon: _pushBusy
+                        ? const SizedBox.square(
+                            dimension: 18,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Icon(Icons.send_to_mobile_outlined),
+                    label: const Text('اختبار من الخادم'),
+                  ),
+                  OutlinedButton.icon(
+                    onPressed: _previewBusy ? null : _previewPushSound,
+                    icon: _previewBusy
+                        ? const SizedBox.square(
+                            dimension: 18,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Icon(Icons.volume_up_outlined),
+                    label: const Text('معاينة النغمة'),
+                  ),
+                  OutlinedButton.icon(
+                    onPressed:
+                        MobilePushService.instance.openNotificationSettings,
+                    icon: const Icon(Icons.tune_rounded),
+                    label: const Text('إعدادات الهاتف'),
+                  ),
+                ],
+              ),
+              const Divider(height: 32),
+              const Text(
+                'قنوات الإشعارات',
+                style: TextStyle(fontWeight: FontWeight.w900),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                'يمكن تخصيص التنبيهات الاختيارية. وصول المهام وإنذارات الإدارة يظلان مفعّلين لضمان التشغيل.',
+                style: TextStyle(
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  fontSize: 12,
+                  height: 1.45,
+                ),
+              ),
+              _notificationPreferenceTile(
+                key: 'tasks',
+                icon: Icons.assignment_turned_in_outlined,
+                title: 'المهام الجديدة والموجهة',
+                subtitle: 'تنبيه فوري مع نغمة وصول مخصصة.',
+                mandatory: true,
+              ),
+              _notificationPreferenceTile(
+                key: 'urgent',
+                icon: Icons.notification_important_outlined,
+                title: 'إنذارات الإدارة العاجلة',
+                subtitle: 'إنذار مرتفع الأولوية مع زر إيقاف.',
+                mandatory: true,
+              ),
+              _notificationPreferenceTile(
+                key: 'reminders',
+                icon: Icons.alarm_outlined,
+                title: 'تذكير المهام المفتوحة',
+                subtitle: 'تذكير دوري ما دامت المهمة لم تُفتح أو تُستلم.',
+              ),
+              _notificationPreferenceTile(
+                key: 'taskStatus',
+                icon: Icons.task_alt_outlined,
+                title: 'تحديثات حالة العمليات',
+                subtitle: 'القبول والنجاح والإلغاء وسبب الإلغاء.',
+              ),
+              _notificationPreferenceTile(
+                key: 'support',
+                icon: Icons.support_agent_outlined,
+                title: 'رسائل الدعم الفني',
+                subtitle: 'إشعار عند وصول رد جديد من الإدارة.',
+              ),
+              _notificationPreferenceTile(
+                key: 'balance',
+                icon: Icons.account_balance_wallet_outlined,
+                title: 'تنبيهات الرصيد',
+                subtitle: 'للمدير والمحاسب عند انخفاض رصيد التنفيذ.',
+              ),
+              _notificationPreferenceTile(
+                key: 'security',
+                icon: Icons.shield_outlined,
+                title: 'تنبيهات الأمان',
+                subtitle: 'تسجيل الدخول والأجهزة الجديدة.',
+              ),
+              _notificationPreferenceTile(
+                key: 'reports',
+                icon: Icons.description_outlined,
+                title: 'جاهزية التقارير',
+                subtitle: 'تنبيه بعد تجهيز التقرير المطلوب.',
               ),
             ],
           ),

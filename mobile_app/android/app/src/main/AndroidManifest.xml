@@ -42,7 +42,7 @@
             tools:replace="android:exported" />
         <meta-data
             android:name="com.google.firebase.messaging.default_notification_channel_id"
-            android:value="executor_tasks" />
+            android:value="executor_tasks_v2" />
         <meta-data
             android:name="com.google.firebase.messaging.default_notification_icon"
             android:resource="@mipmap/ic_launcher" />

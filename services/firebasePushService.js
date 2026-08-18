@@ -115,8 +115,10 @@ const sendPushToTokens = async ({
     data = {},
     visible = true,
     channelId = 'executor_tasks',
+    sound = 'default',
     collapseKey = '',
-    ttlMs = 5 * 60 * 1000
+    ttlMs = 5 * 60 * 1000,
+    androidDataOnly = false
 }) => {
     const uniqueTokens = [...new Set((tokens || []).map((token) => String(token || '').trim()).filter(Boolean))];
     if (uniqueTokens.length === 0) {
@@ -139,15 +141,20 @@ const sendPushToTokens = async ({
     for (const tokenBatch of chunksOf(uniqueTokens, MAX_MULTICAST_TOKENS)) {
         const message = {
             tokens: tokenBatch,
-            data: normalizeData(data),
+            data: normalizeData({
+                ...data,
+                ...(visible ? { notificationTitle: title, notificationBody: body } : {}),
+                channelId,
+                sound
+            }),
             android: {
                 priority: 'high',
                 ttl: Math.max(0, Number(ttlMs) || 0),
                 ...(collapseKey ? { collapseKey } : {}),
-                ...(visible ? {
+                ...(visible && !androidDataOnly ? {
                     notification: {
                         channelId,
-                        sound: 'default',
+                        sound: sound || 'default',
                         priority: 'max',
                         visibility: 'public',
                         tag: collapseKey || undefined
@@ -159,11 +166,14 @@ const sendPushToTokens = async ({
                 payload: {
                     aps: {
                         contentAvailable: true,
-                        ...(visible ? { sound: 'default' } : {})
+                        ...(visible ? {
+                            sound: sound || 'default',
+                            alert: { title, body }
+                        } : {})
                     }
                 }
             },
-            ...(visible ? { notification: { title, body } } : {})
+            ...(visible && !androidDataOnly ? { notification: { title, body } } : {})
         };
         const result = await client.sendEachForMulticast(message);
         successCount += result.successCount;

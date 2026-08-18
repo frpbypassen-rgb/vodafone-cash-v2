@@ -7,6 +7,7 @@ const ClientEmployee = require('../models/ClientEmployee');
 const SubAccount = require('../models/SubAccount');
 const AgentEmployee = require('../models/AgentEmployee');
 const Employee = require('../models/Employee');
+const eventBus = require('./eventBus');
 
 const unique = (values) => [...new Set(values.filter(Boolean).map(String))];
 
@@ -155,7 +156,16 @@ const createSupportReplyNotifications = async ({ ticket, channel }) => {
         }
     }).catch(() => null)));
 
-    return docs.filter(Boolean);
+    const created = docs.filter(Boolean);
+    if (ticket.entityType === 'executor' && ticket.entityId) {
+        eventBus.publish('executor:support-reply', {
+            employeeId: String(ticket.entityId),
+            ticketId: String(ticket._id),
+            message: 'لديك رد جديد داخل محادثة الدعم.',
+            channel
+        });
+    }
+    return created;
 };
 
 const createClientNotifications = async ({
