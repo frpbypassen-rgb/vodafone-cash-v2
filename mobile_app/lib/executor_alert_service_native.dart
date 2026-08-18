@@ -82,7 +82,6 @@ class ExecutorAlertService {
     await configure();
     if (kIsWeb) return;
     final session = await SessionStore().read();
-    final isAccountant = session?.context['executorRole'] == 'accountant';
     final isCustomer =
         session?.accountType == 'client_user' ||
         session?.accountType == 'client_company' ||
@@ -90,7 +89,7 @@ class ExecutorAlertService {
         session?.accountType == 'agent_staff';
     final customerNotifications = await SessionStore()
         .readCustomerNotificationsEnabled();
-    if ((session?.accountType != 'executor' || isAccountant) &&
+    if (session?.accountType != 'executor' &&
         (!isCustomer || !customerNotifications)) {
       return;
     }
@@ -289,6 +288,68 @@ void executorAlertBackgroundEntry(ServiceInstance service) async {
         }
         return;
       }
+      final notificationResponse =
+          await Dio(
+            BaseOptions(
+              baseUrl: _apiBaseUrl,
+              connectTimeout: const Duration(seconds: 20),
+              receiveTimeout: const Duration(seconds: 30),
+              headers: <String, dynamic>{
+                'Accept': 'application/json',
+                'Authorization': 'Bearer ${session!.token}',
+              },
+            ),
+          ).get<dynamic>(
+            '/client/notifications',
+            queryParameters: <String, dynamic>{
+              'unreadOnly': 'true',
+              'limit': 20,
+            },
+          );
+      final notificationBody = notificationResponse.data is Map
+          ? Map<String, dynamic>.from(notificationResponse.data as Map)
+          : <String, dynamic>{};
+      final executorNotifications = notificationBody['notifications'] is List
+          ? (notificationBody['notifications'] as List)
+                .whereType<Map>()
+                .map((item) => Map<String, dynamic>.from(item))
+                .where((item) => '${item['type'] ?? ''}' == 'support_reply')
+                .toList()
+          : <Map<String, dynamic>>[];
+      final executorNotificationIds = executorNotifications
+          .map((item) => '${item['id'] ?? ''}')
+          .where((id) => id.isNotEmpty)
+          .toSet();
+      final newExecutorNotifications = initialized
+          ? executorNotifications
+                .where(
+                  (item) => !seenCustomerNotificationIds.contains(
+                    '${item['id'] ?? ''}',
+                  ),
+                )
+                .toList()
+          : executorNotifications.where((item) {
+              final createdAt = DateTime.tryParse('${item['createdAt'] ?? ''}');
+              return createdAt != null &&
+                  DateTime.now().difference(createdAt.toLocal()).abs() <=
+                      const Duration(minutes: 2);
+            }).toList();
+      seenCustomerNotificationIds
+        ..clear()
+        ..addAll(executorNotificationIds);
+
+      final isExecutorAccountant =
+          session.context['executorRole'] == 'accountant';
+      if (isExecutorAccountant) {
+        initialized = true;
+        if (newExecutorNotifications.isNotEmpty) {
+          await _showCustomerAlert(
+            notificationsPlugin: notifications,
+            notification: newExecutorNotifications.first,
+          );
+        }
+        return;
+      }
       final response = await Dio(
         BaseOptions(
           baseUrl: _apiBaseUrl,
@@ -296,7 +357,7 @@ void executorAlertBackgroundEntry(ServiceInstance service) async {
           receiveTimeout: const Duration(seconds: 30),
           headers: <String, dynamic>{
             'Accept': 'application/json',
-            'Authorization': 'Bearer ${session!.token}',
+            'Authorization': 'Bearer ${session.token}',
           },
         ),
       ).get<dynamic>('/executor/live-tasks');
@@ -337,7 +398,19 @@ void executorAlertBackgroundEntry(ServiceInstance service) async {
         initialized = true;
         if (!appVisible && urgentAlerts.isNotEmpty) {
           await _showUrgentAlert(notifications, urgentAlerts.first);
+        } else if (newExecutorNotifications.isNotEmpty) {
+          await _showCustomerAlert(
+            notificationsPlugin: notifications,
+            notification: newExecutorNotifications.first,
+          );
         }
+        return;
+      }
+      if (newExecutorNotifications.isNotEmpty) {
+        await _showCustomerAlert(
+          notificationsPlugin: notifications,
+          notification: newExecutorNotifications.first,
+        );
         return;
       }
       if (appVisible) return;

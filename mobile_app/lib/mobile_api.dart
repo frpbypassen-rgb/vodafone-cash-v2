@@ -310,6 +310,15 @@ class MobileApi {
 
   String get baseUrl => _dio.options.baseUrl;
 
+  Uri resolveMediaUrl(String rawUrl) {
+    final value = rawUrl.trim();
+    final parsed = Uri.tryParse(value);
+    if (parsed != null && parsed.hasScheme) return parsed;
+    return Uri.parse(
+      baseUrl,
+    ).resolve(value.startsWith('/') ? value : '/$value');
+  }
+
   Future<MobileSession> login({
     required String username,
     required String password,
@@ -799,6 +808,73 @@ class MobileApi {
 
   Future<Map<String, dynamic>> executorOverview() {
     return _request('GET', '/executor/overview');
+  }
+
+  Future<Map<String, dynamic>> executorSupportTickets({
+    String status = 'active',
+    String? category,
+    String? search,
+  }) {
+    return _request(
+      'GET',
+      '/executor/support/tickets',
+      query: <String, dynamic>{
+        'status': status,
+        if (category != null && category.isNotEmpty) 'category': category,
+        if (search != null && search.trim().isNotEmpty) 'search': search.trim(),
+      },
+    );
+  }
+
+  Future<Map<String, dynamic>> createExecutorSupportTicket({
+    required String subject,
+    required String category,
+    required String priority,
+    required String message,
+    String? transactionRef,
+    List<String> imagesBase64 = const <String>[],
+    Map<String, dynamic>? diagnostics,
+  }) {
+    return _request(
+      'POST',
+      '/executor/support/tickets',
+      data: <String, dynamic>{
+        'subject': subject.trim(),
+        'category': category,
+        'priority': priority,
+        'message': message.trim(),
+        if (transactionRef != null && transactionRef.trim().isNotEmpty)
+          'transactionRef': transactionRef.trim(),
+        if (imagesBase64.isNotEmpty) 'imagesBase64': imagesBase64,
+        'diagnostics': ?diagnostics,
+      },
+      idempotencyKey: _uuid.v4(),
+    );
+  }
+
+  Future<Map<String, dynamic>> executorSupportTicketDetails(String id) {
+    return _request('GET', '/executor/support/tickets/$id');
+  }
+
+  Future<Map<String, dynamic>> replyToExecutorSupportTicket({
+    required String id,
+    String? message,
+    List<String> imagesBase64 = const <String>[],
+  }) {
+    return _request(
+      'POST',
+      '/executor/support/tickets/$id/replies',
+      data: <String, dynamic>{
+        if (message != null && message.trim().isNotEmpty)
+          'message': message.trim(),
+        if (imagesBase64.isNotEmpty) 'imagesBase64': imagesBase64,
+      },
+      idempotencyKey: _uuid.v4(),
+    );
+  }
+
+  Future<Map<String, dynamic>> executorSupportDiagnostics() {
+    return _request('GET', '/executor/support/diagnostics');
   }
 
   Future<Map<String, dynamic>> executorReports({

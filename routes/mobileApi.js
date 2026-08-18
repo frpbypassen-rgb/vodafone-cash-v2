@@ -66,6 +66,7 @@ const {
 } = require('../validators/mobileValidators');
 
 const mobileWebParityService = require('../services/mobileWebParityService');
+const executorSupportService = require('../services/executorSupportService');
 const mobileWebParityMapper = require('../mappers/mobileWebParityMapper');
 const { resolveClientNotificationUserIds } = require('../services/clientNotificationService');
 const { setPortalSupportReplyChannel } = require('../services/whatChimpSupportService');
@@ -220,6 +221,15 @@ const rateLimitHandler = (message) => (req, res) => {
 
 const sendServerError = (res, req, message = 'حدث خطأ داخلي، يرجى المحاولة لاحقاً') => {
     return sendMobileError(res, 500, 'SERVER_ERROR', message, req.correlationId);
+};
+
+const sendExecutorSupportError = (res, req, error, fallbackMessage) => {
+    const status = Number(error?.status || 500);
+    const code = error?.code || (status >= 500 ? 'SERVER_ERROR' : 'SUPPORT_ERROR');
+    const message = status >= 500
+        ? fallbackMessage
+        : (error?.message || fallbackMessage);
+    return sendMobileError(res, status, code, message, req.correlationId);
 };
 
 const receiptTicketOwner = (user = {}) => [
@@ -2130,7 +2140,7 @@ router.get('/client/transactions', authenticateJWT, async (req, res) => {
 router.get('/client/notifications', authenticateJWT, async (req, res) => {
     try {
         const { userId, accountType } = req.user;
-        if (!['client_user', 'client_company', 'sub_client', 'agent_staff'].includes(accountType)) {
+        if (!['client_user', 'client_company', 'sub_client', 'agent_staff', 'executor'].includes(accountType)) {
             return sendMobileError(res, 403, 'FORBIDDEN', 'صلاحيات غير كافية', req.correlationId);
         }
 
@@ -2148,7 +2158,7 @@ router.get('/client/notifications', authenticateJWT, async (req, res) => {
 
         const query = {
             userId: { $in: userIds },
-            audience: { $in: ['client', 'all'] }
+            audience: { $in: accountType === 'executor' ? ['executor', 'all'] : ['client', 'all'] }
         };
         if (req.query.unreadOnly === 'true') query.isRead = false;
 
@@ -2185,7 +2195,7 @@ router.get('/client/notifications', authenticateJWT, async (req, res) => {
 router.post('/client/notifications/:id/read', authenticateJWT, async (req, res) => {
     try {
         const { userId, accountType } = req.user;
-        if (!['client_user', 'client_company', 'sub_client', 'agent_staff'].includes(accountType)) {
+        if (!['client_user', 'client_company', 'sub_client', 'agent_staff', 'executor'].includes(accountType)) {
             return sendMobileError(res, 403, 'FORBIDDEN', 'صلاحيات غير كافية', req.correlationId);
         }
 
@@ -2197,7 +2207,7 @@ router.post('/client/notifications/:id/read', authenticateJWT, async (req, res) 
         const result = await Notification.updateOne({
             _id: req.params.id,
             userId: { $in: userIds },
-            audience: { $in: ['client', 'all'] }
+            audience: { $in: accountType === 'executor' ? ['executor', 'all'] : ['client', 'all'] }
         }, { $set: { isRead: true } });
 
         if (!result.matchedCount) {
@@ -2641,7 +2651,102 @@ router.post('/executor/tasks/:id/zaynpay-execute', authenticateJWT, requireIdemp
     }
 });
 
-// 👨‍💻 Executor Support Messages
+// Executor support workspace. The legacy single-conversation endpoints below
+// remain available for older mobile releases.
+router.get('/executor/support/tickets', authenticateJWT, async (req, res) => {
+    try {
+        if (req.user.accountType !== 'executor') {
+            return sendMobileError(res, 403, 'FORBIDDEN', 'هذه الصفحة مخصصة لحسابات التنفيذ.', req.correlationId);
+        }
+        const result = await executorSupportService.listExecutorTickets({
+            executorId: req.user.userId,
+            status: req.query.status,
+            category: req.query.category,
+            search: req.query.search,
+            page: req.query.page,
+            limit: req.query.limit
+        });
+        return res.json({ success: true, ...result, serverTime: new Date().toISOString() });
+    } catch (error) {
+        return sendExecutorSupportError(res, req, error, 'حدث خطأ أثناء جلب طلبات الدعم.');
+    }
+});
+
+router.post('/executor/support/tickets', authenticateJWT, async (req, res) => {
+    try {
+        if (req.user.accountType !== 'executor') {
+            return sendMobileError(res, 403, 'FORBIDDEN', 'هذه الصفحة مخصصة لحسابات التنفيذ.', req.correlationId);
+        }
+        const ticket = await executorSupportService.createExecutorTicket({
+            executorId: req.user.userId,
+            payload: req.body
+        });
+        req.app.get('io')?.emit('support:ticket-updated', {
+            ticketId: ticket.id,
+            channel: 'portal',
+            direction: 'inbound',
+            status: ticket.status,
+            source: 'executor_app'
+        });
+        return res.status(201).json({ success: true, ticket, serverTime: new Date().toISOString() });
+    } catch (error) {
+        return sendExecutorSupportError(res, req, error, 'حدث خطأ أثناء إنشاء طلب الدعم.');
+    }
+});
+
+router.get('/executor/support/diagnostics', authenticateJWT, async (req, res) => {
+    try {
+        if (req.user.accountType !== 'executor') {
+            return sendMobileError(res, 403, 'FORBIDDEN', 'هذه الصفحة مخصصة لحسابات التنفيذ.', req.correlationId);
+        }
+        const diagnostics = await executorSupportService.getExecutorDiagnostics({
+            executorId: req.user.userId
+        });
+        return res.json({ success: true, diagnostics });
+    } catch (error) {
+        return sendExecutorSupportError(res, req, error, 'تعذر تشغيل فحص الاتصال حالياً.');
+    }
+});
+
+router.get('/executor/support/tickets/:id', authenticateJWT, async (req, res) => {
+    try {
+        if (req.user.accountType !== 'executor') {
+            return sendMobileError(res, 403, 'FORBIDDEN', 'هذه الصفحة مخصصة لحسابات التنفيذ.', req.correlationId);
+        }
+        const ticket = await executorSupportService.getExecutorTicket({
+            executorId: req.user.userId,
+            ticketId: req.params.id
+        });
+        return res.json({ success: true, ticket, serverTime: new Date().toISOString() });
+    } catch (error) {
+        return sendExecutorSupportError(res, req, error, 'حدث خطأ أثناء جلب تفاصيل طلب الدعم.');
+    }
+});
+
+router.post('/executor/support/tickets/:id/replies', authenticateJWT, async (req, res) => {
+    try {
+        if (req.user.accountType !== 'executor') {
+            return sendMobileError(res, 403, 'FORBIDDEN', 'هذه الصفحة مخصصة لحسابات التنفيذ.', req.correlationId);
+        }
+        const ticket = await executorSupportService.replyToExecutorTicket({
+            executorId: req.user.userId,
+            ticketId: req.params.id,
+            payload: req.body
+        });
+        req.app.get('io')?.emit('support:ticket-updated', {
+            ticketId: ticket.id,
+            channel: 'portal',
+            direction: 'inbound',
+            status: ticket.status,
+            source: 'executor_app'
+        });
+        return res.json({ success: true, ticket, serverTime: new Date().toISOString() });
+    } catch (error) {
+        return sendExecutorSupportError(res, req, error, 'حدث خطأ أثناء إرسال الرد إلى الدعم.');
+    }
+});
+
+// Legacy executor support messages.
 router.get('/executor/tickets/current', authenticateJWT, async (req, res) => {
     try {
         const { userId } = req.user;

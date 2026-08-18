@@ -14,7 +14,26 @@ const Transaction = require('../models/Transaction');
 
 const SUPPORT_STATUSES = ['open', 'answered', 'pending_internal', 'resolved', 'closed'];
 const SUPPORT_PRIORITIES = ['low', 'normal', 'high', 'urgent'];
-const SUPPORT_CATEGORIES = ['general', 'transfer', 'deposit', 'account', 'whatsapp', 'technical', 'password_reset'];
+const SUPPORT_CATEGORIES = [
+    'general',
+    'transfer',
+    'deposit',
+    'account',
+    'whatsapp',
+    'technical',
+    'password_reset',
+    'transaction',
+    'pending_transaction',
+    'balance',
+    'report',
+    'receipt',
+    'cancellation',
+    'application',
+    'notifications',
+    'employee_account',
+    'api',
+    'other'
+];
 const ACTIVE_SUPPORT_STATUSES = ['open', 'answered', 'pending_internal'];
 const SUPPORT_PRESENCE_MS = 60 * 1000;
 

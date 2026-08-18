@@ -6,6 +6,7 @@ const ClientCompany = require('../models/ClientCompany');
 const ClientEmployee = require('../models/ClientEmployee');
 const SubAccount = require('../models/SubAccount');
 const AgentEmployee = require('../models/AgentEmployee');
+const Employee = require('../models/Employee');
 
 const unique = (values) => [...new Set(values.filter(Boolean).map(String))];
 
@@ -39,6 +40,12 @@ const clientUserIdsForAccount = async (accountModel, account) => {
 const resolveClientNotificationUserIds = async ({ accountType, clientId }) => {
     if (!clientId) return [];
 
+    if (accountType === 'executor') {
+        const employee = await Employee.findById(clientId).select('_id webUsername phone').lean();
+        if (!employee) return [];
+        return unique([employee.webUsername, employee.phone, employee._id]);
+    }
+
     if (accountType === 'company' || accountType === 'client_company') {
         const employee = await ClientEmployee.findById(clientId).select('_id webUsername phone companyId').lean();
         if (!employee) return [];
@@ -66,6 +73,18 @@ const resolveSupportTicketNotificationUserIds = async (ticket) => {
     const fallback = unique([ticket?.phone, ticket?.telegramId, ticket?.phoneNormalized]);
     const entityId = ticket?.entityId;
     if (!entityId) return fallback;
+
+    if (ticket.entityType === 'executor') {
+        const employee = await Employee.findById(entityId)
+            .select('_id webUsername phone')
+            .lean();
+        return unique([
+            ...fallback,
+            employee?.webUsername,
+            employee?.phone,
+            employee?._id
+        ]);
+    }
 
     if (ticket.entityType === 'client_company') {
         const employee = await ClientEmployee.findById(entityId)
@@ -124,7 +143,7 @@ const createSupportReplyNotifications = async ({ ticket, channel }) => {
     const userIds = await resolveSupportTicketNotificationUserIds(ticket);
     const docs = await Promise.all(userIds.map((userId) => Notification.create({
         userId,
-        audience: 'client',
+        audience: ticket.entityType === 'executor' ? 'executor' : 'client',
         targetModel: 'SupportTicket',
         targetId: ticket._id,
         title: 'رد جديد من الدعم الفني',

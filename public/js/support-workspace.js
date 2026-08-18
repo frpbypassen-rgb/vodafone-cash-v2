@@ -41,7 +41,18 @@
         account: 'الحساب والصلاحيات',
         whatsapp: 'واتساب',
         technical: 'مشكلة تقنية',
-        password_reset: 'استعادة كلمة المرور'
+        password_reset: 'استعادة كلمة المرور',
+        transaction: 'مشكلة في عملية',
+        pending_transaction: 'عملية متأخرة',
+        balance: 'الرصيد والمطابقة',
+        report: 'التقارير',
+        receipt: 'الإيصال أو الإثبات',
+        cancellation: 'إلغاء عملية',
+        application: 'مشكلة في التطبيق',
+        notifications: 'الإشعارات',
+        employee_account: 'حساب موظف',
+        api: 'منفذ API',
+        other: 'طلب آخر'
     };
 
     const entityLabels = {

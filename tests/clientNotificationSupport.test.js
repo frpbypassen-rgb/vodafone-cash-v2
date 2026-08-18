@@ -6,12 +6,14 @@ jest.mock('../models/ClientCompany', () => ({ findById: jest.fn() }));
 jest.mock('../models/ClientEmployee', () => ({ findById: jest.fn(), find: jest.fn() }));
 jest.mock('../models/SubAccount', () => ({ findById: jest.fn() }));
 jest.mock('../models/AgentEmployee', () => ({ findById: jest.fn() }));
+jest.mock('../models/Employee', () => ({ findById: jest.fn() }));
 
 const Notification = require('../models/Notification');
 const User = require('../models/User');
 const ClientEmployee = require('../models/ClientEmployee');
 const SubAccount = require('../models/SubAccount');
 const AgentEmployee = require('../models/AgentEmployee');
+const Employee = require('../models/Employee');
 const {
     createSupportReplyNotifications,
     resolveSupportTicketNotificationUserIds
@@ -30,6 +32,7 @@ describe('support reply notifications', () => {
         ClientEmployee.findById.mockReturnValue(leanResult(null));
         SubAccount.findById.mockReturnValue(leanResult(null));
         AgentEmployee.findById.mockReturnValue(leanResult(null));
+        Employee.findById.mockReturnValue(leanResult(null));
         Notification.create.mockResolvedValue({ _id: 'notification-1' });
     });
 
@@ -77,6 +80,34 @@ describe('support reply notifications', () => {
             targetId: 'ticket-1',
             type: 'support_reply',
             metadata: expect.objectContaining({ ticketId: 'ticket-1', channel: 'whatsapp' })
+        }));
+    });
+
+    test('targets the executor account identifiers when administration replies', async () => {
+        Employee.findById.mockReturnValue(leanResult({
+            _id: 'executor-1',
+            phone: '01108172258',
+            webUsername: 'executor.operator'
+        }));
+
+        const ticket = {
+            _id: 'ticket-executor-1',
+            entityType: 'executor',
+            entityId: 'executor-1',
+            phone: '01108172258'
+        };
+        const userIds = await resolveSupportTicketNotificationUserIds(ticket);
+        await createSupportReplyNotifications({ ticket, channel: 'portal' });
+
+        expect(userIds).toEqual(expect.arrayContaining([
+            '01108172258',
+            'executor.operator',
+            'executor-1'
+        ]));
+        expect(Notification.create).toHaveBeenCalledWith(expect.objectContaining({
+            audience: 'executor',
+            type: 'support_reply',
+            targetId: 'ticket-executor-1'
         }));
     });
 });

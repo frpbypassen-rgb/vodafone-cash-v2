@@ -220,163 +220,167 @@ class _LoginScreenState extends State<LoginScreen> {
                       child: Form(
                         key: _formKey,
                         child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          const _AhramLoginWordmark(),
-                          const SizedBox(height: 12),
-                          Container(
-                            width: 118,
-                            height: 3,
-                            margin: const EdgeInsets.symmetric(horizontal: 92),
-                            color: _gold,
-                          ),
-                          const SizedBox(height: 16),
-                          const Text(
-                            'البوابة الموحدة',
-                            textAlign: TextAlign.center,
-                            style: TextStyle(
-                              color: Color(0xFF667085),
-                              fontWeight: FontWeight.w800,
-                              fontSize: 14,
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            const _AhramLoginWordmark(),
+                            const SizedBox(height: 12),
+                            Container(
+                              width: 118,
+                              height: 3,
+                              margin: const EdgeInsets.symmetric(
+                                horizontal: 92,
+                              ),
+                              color: _gold,
                             ),
-                          ),
-                          const SizedBox(height: 28),
-                          TextFormField(
-                            controller: _username,
-                            keyboardType: TextInputType.text,
-                            textDirection: ui.TextDirection.ltr,
-                            decoration: const InputDecoration(
-                              labelText: 'اسم المستخدم',
-                              hintText: 'Username',
-                              prefixIcon: Icon(Icons.person_outline),
-                            ),
-                            validator: (value) {
-                              if ((value ?? '').trim().length < 3) {
-                                return 'أدخل اسم مستخدم صحيحاً.';
-                              }
-                              return null;
-                            },
-                            onFieldSubmitted: (_) => _signIn(),
-                          ),
-                          const SizedBox(height: 16),
-                          TextFormField(
-                            controller: _password,
-                            obscureText: _obscure,
-                            textDirection: ui.TextDirection.ltr,
-                            decoration: InputDecoration(
-                              labelText: 'كلمة المرور',
-                              hintText: 'Password',
-                              prefixIcon: const Icon(Icons.lock_outline),
-                              suffixIcon: IconButton(
-                                tooltip: _obscure
-                                    ? 'إظهار كلمة المرور'
-                                    : 'إخفاء كلمة المرور',
-                                onPressed: () =>
-                                    setState(() => _obscure = !_obscure),
-                                icon: Icon(
-                                  _obscure
-                                      ? Icons.visibility_outlined
-                                      : Icons.visibility_off_outlined,
-                                ),
+                            const SizedBox(height: 16),
+                            const Text(
+                              'البوابة الموحدة',
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                color: Color(0xFF667085),
+                                fontWeight: FontWeight.w800,
+                                fontSize: 14,
                               ),
                             ),
-                            validator: (value) {
-                              if ((value ?? '').length < 4) {
-                                return 'كلمة المرور يجب أن تحتوي على 4 أحرف على الأقل.';
-                              }
-                              return null;
-                            },
-                            onFieldSubmitted: (_) => _signIn(),
-                          ),
-                          const SizedBox(height: 6),
-                          CheckboxListTile.adaptive(
-                            contentPadding: EdgeInsets.zero,
-                            value: _rememberLogin,
-                            onChanged: _busy
-                                ? null
-                                : (value) => setState(
-                                    () => _rememberLogin = value ?? false,
+                            const SizedBox(height: 28),
+                            TextFormField(
+                              controller: _username,
+                              keyboardType: TextInputType.text,
+                              textDirection: ui.TextDirection.ltr,
+                              decoration: const InputDecoration(
+                                labelText: 'اسم المستخدم',
+                                hintText: 'Username',
+                                prefixIcon: Icon(Icons.person_outline),
+                              ),
+                              validator: (value) {
+                                if ((value ?? '').trim().length < 3) {
+                                  return 'أدخل اسم مستخدم صحيحاً.';
+                                }
+                                return null;
+                              },
+                              onFieldSubmitted: (_) => _signIn(),
+                            ),
+                            const SizedBox(height: 16),
+                            TextFormField(
+                              controller: _password,
+                              obscureText: _obscure,
+                              textDirection: ui.TextDirection.ltr,
+                              decoration: InputDecoration(
+                                labelText: 'كلمة المرور',
+                                hintText: 'Password',
+                                prefixIcon: const Icon(Icons.lock_outline),
+                                suffixIcon: IconButton(
+                                  tooltip: _obscure
+                                      ? 'إظهار كلمة المرور'
+                                      : 'إخفاء كلمة المرور',
+                                  onPressed: () =>
+                                      setState(() => _obscure = !_obscure),
+                                  icon: Icon(
+                                    _obscure
+                                        ? Icons.visibility_outlined
+                                        : Icons.visibility_off_outlined,
                                   ),
-                            controlAffinity: ListTileControlAffinity.leading,
-                            title: const Text(
-                              'حفظ بيانات الدخول على هذا الجهاز',
-                              style: TextStyle(fontWeight: FontWeight.w800),
-                            ),
-                            subtitle: const Text(
-                              'تُحفظ بشكل مشفر لتعبئة الدخول لاحقاً.',
-                            ),
-                          ),
-                          if (_error != null) ...[
-                            const SizedBox(height: 14),
-                            InlineMessage(message: _error!, color: _danger),
-                          ],
-                          const SizedBox(height: 24),
-                          SizedBox(
-                            height: 56,
-                            child: FilledButton.icon(
-                              onPressed: _busy ? null : _signIn,
-                              icon: _busy
-                                  ? const SizedBox(
-                                      width: 18,
-                                      height: 18,
-                                      child: CircularProgressIndicator(
-                                        strokeWidth: 2,
-                                        color: Colors.white,
-                                      ),
-                                    )
-                                  : const Icon(Icons.arrow_back_rounded),
-                              label: Text(
-                                _busy ? 'جارٍ التحقق...' : 'تسجيل الدخول',
+                                ),
                               ),
-                              style: FilledButton.styleFrom(
-                                backgroundColor: _gold,
-                                foregroundColor: Colors.white,
-                                elevation: 6,
-                                shadowColor: _gold.withValues(alpha: 0.34),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(8),
+                              validator: (value) {
+                                if ((value ?? '').length < 4) {
+                                  return 'كلمة المرور يجب أن تحتوي على 4 أحرف على الأقل.';
+                                }
+                                return null;
+                              },
+                              onFieldSubmitted: (_) => _signIn(),
+                            ),
+                            const SizedBox(height: 6),
+                            CheckboxListTile.adaptive(
+                              contentPadding: EdgeInsets.zero,
+                              value: _rememberLogin,
+                              onChanged: _busy
+                                  ? null
+                                  : (value) => setState(
+                                      () => _rememberLogin = value ?? false,
+                                    ),
+                              controlAffinity: ListTileControlAffinity.leading,
+                              title: const Text(
+                                'حفظ بيانات الدخول على هذا الجهاز',
+                                style: TextStyle(fontWeight: FontWeight.w800),
+                              ),
+                              subtitle: const Text(
+                                'تُحفظ بشكل مشفر لتعبئة الدخول لاحقاً.',
+                              ),
+                            ),
+                            if (_error != null) ...[
+                              const SizedBox(height: 14),
+                              InlineMessage(message: _error!, color: _danger),
+                            ],
+                            const SizedBox(height: 24),
+                            SizedBox(
+                              height: 56,
+                              child: FilledButton.icon(
+                                onPressed: _busy ? null : _signIn,
+                                icon: _busy
+                                    ? const SizedBox(
+                                        width: 18,
+                                        height: 18,
+                                        child: CircularProgressIndicator(
+                                          strokeWidth: 2,
+                                          color: Colors.white,
+                                        ),
+                                      )
+                                    : const Icon(Icons.arrow_back_rounded),
+                                label: Text(
+                                  _busy ? 'جارٍ التحقق...' : 'تسجيل الدخول',
+                                ),
+                                style: FilledButton.styleFrom(
+                                  backgroundColor: _gold,
+                                  foregroundColor: Colors.white,
+                                  elevation: 6,
+                                  shadowColor: _gold.withValues(alpha: 0.34),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
                                 ),
                               ),
                             ),
-                          ),
-                          const SizedBox(height: 12),
-                          SizedBox(
-                            height: 52,
-                            child: OutlinedButton.icon(
-                              onPressed: _busy
-                                  ? null
-                                  : () => Navigator.of(context).push(
-                                      MaterialPageRoute<void>(
-                                        builder: (_) => RegistrationScreen(
-                                          api: widget.controller.api,
+                            const SizedBox(height: 12),
+                            SizedBox(
+                              height: 52,
+                              child: OutlinedButton.icon(
+                                onPressed: _busy
+                                    ? null
+                                    : () => Navigator.of(context).push(
+                                        MaterialPageRoute<void>(
+                                          builder: (_) => RegistrationScreen(
+                                            api: widget.controller.api,
+                                          ),
                                         ),
                                       ),
-                                    ),
-                              icon: const Icon(Icons.person_add_alt_1_outlined),
-                              label: const Text('إنشاء حساب جديد'),
-                              style: OutlinedButton.styleFrom(
-                                foregroundColor: const Color(0xFF001A4D),
-                                side: const BorderSide(
-                                  color: Color(0xFF001A4D),
+                                icon: const Icon(
+                                  Icons.person_add_alt_1_outlined,
                                 ),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(8),
+                                label: const Text('إنشاء حساب جديد'),
+                                style: OutlinedButton.styleFrom(
+                                  foregroundColor: const Color(0xFF001A4D),
+                                  side: const BorderSide(
+                                    color: Color(0xFF001A4D),
+                                  ),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
                                 ),
                               ),
                             ),
-                          ),
-                          const SizedBox(height: 22),
-                          const Text(
-                            'Power Pay AL-Ahram',
-                            textDirection: ui.TextDirection.ltr,
-                            textAlign: TextAlign.center,
-                            style: TextStyle(
-                              color: Color(0xFF667085),
-                              fontSize: 12,
-                              fontWeight: FontWeight.w800,
+                            const SizedBox(height: 22),
+                            const Text(
+                              'Power Pay AL-Ahram',
+                              textDirection: ui.TextDirection.ltr,
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                color: Color(0xFF667085),
+                                fontSize: 12,
+                                fontWeight: FontWeight.w800,
+                              ),
                             ),
-                          ),
-                        ],
+                          ],
                         ),
                       ),
                     ),
@@ -1565,7 +1569,8 @@ class _RoleShellState extends State<RoleShell> with WidgetsBindingObserver {
       unawaited(ExecutorAlertService.instance.startForStoredAccount());
       unawaited(ExecutorAlertService.instance.setAppVisible(true));
     }
-    if (!widget.controller.isExecutor && widget.controller.receivesClientNotifications) {
+    if (!widget.controller.isExecutor &&
+        widget.controller.receivesClientNotifications) {
       _startRateAlertPolling();
     }
   }
@@ -1602,7 +1607,8 @@ class _RoleShellState extends State<RoleShell> with WidgetsBindingObserver {
           ? Map<String, dynamic>.from(rawPending)
           : null;
       final effectiveAt = DateTime.tryParse('${pending?['effectiveAt'] ?? ''}');
-      final isScheduled = effectiveAt != null && effectiveAt.isAfter(DateTime.now());
+      final isScheduled =
+          effectiveAt != null && effectiveAt.isAfter(DateTime.now());
       if (isScheduled && pending != null) {
         if (!mounted) return;
         setState(() {
@@ -1661,6 +1667,11 @@ class _RoleShellState extends State<RoleShell> with WidgetsBindingObserver {
             ExecutorEmployeesScreen(controller: widget.controller),
           ),
           _NavItem(
+            'الدعم',
+            Icons.support_agent_outlined,
+            ExecutorSupportScreen(controller: widget.controller),
+          ),
+          _NavItem(
             'الإعدادات',
             Icons.settings_outlined,
             ExecutorSettingsScreen(controller: widget.controller),
@@ -1673,6 +1684,11 @@ class _RoleShellState extends State<RoleShell> with WidgetsBindingObserver {
             'التقارير',
             Icons.assessment_outlined,
             ExecutorReportsScreen(controller: widget.controller),
+          ),
+          _NavItem(
+            'الدعم',
+            Icons.support_agent_outlined,
+            ExecutorSupportScreen(controller: widget.controller),
           ),
           _NavItem(
             'الإعدادات',
@@ -1694,6 +1710,11 @@ class _RoleShellState extends State<RoleShell> with WidgetsBindingObserver {
             ExecutorReportsScreen(controller: widget.controller),
           ),
           _NavItem(
+            'الدعم',
+            Icons.support_agent_outlined,
+            ExecutorSupportScreen(controller: widget.controller),
+          ),
+          _NavItem(
             'الإعدادات',
             Icons.settings_outlined,
             ExecutorSettingsScreen(controller: widget.controller),
@@ -1710,6 +1731,11 @@ class _RoleShellState extends State<RoleShell> with WidgetsBindingObserver {
           'الحساب',
           Icons.manage_accounts_outlined,
           AccountScreen(controller: widget.controller),
+        ),
+        _NavItem(
+          'الدعم',
+          Icons.support_agent_outlined,
+          ExecutorSupportScreen(controller: widget.controller),
         ),
       ];
     }
@@ -1837,6 +1863,8 @@ class _RoleShellState extends State<RoleShell> with WidgetsBindingObserver {
     }
     final selected = _items[_index];
     final isCustomerShell = widget.controller.isCustomerAccount;
+    final compactExecutorHeader =
+        widget.controller.isExecutor && MediaQuery.sizeOf(context).width < 430;
     final session = widget.controller.session;
     final company = _executorOverview?['company'];
     final performance = _executorOverview?['myPerformance'];
@@ -1866,7 +1894,7 @@ class _RoleShellState extends State<RoleShell> with WidgetsBindingObserver {
               : '$companyName · تنفيذاتك اليوم ${formatEgpAmount(ownPerformance)} ج.م');
     final appBar = AppBar(
       toolbarHeight: 76,
-      titleSpacing: isCustomerShell ? 12 : 18,
+      titleSpacing: isCustomerShell ? 12 : (compactExecutorHeader ? 8 : 18),
       bottom: PreferredSize(
         preferredSize: const Size.fromHeight(3),
         child: Row(
@@ -1879,6 +1907,8 @@ class _RoleShellState extends State<RoleShell> with WidgetsBindingObserver {
       ),
       title: isCustomerShell
           ? CustomerShellHeader(balance: session?.balance ?? 0)
+          : compactExecutorHeader
+          ? const BrandMark(iconOnly: true)
           : Row(
               children: [
                 const BrandMark(compact: true),
@@ -1953,6 +1983,7 @@ class _RoleShellState extends State<RoleShell> with WidgetsBindingObserver {
             label: widget.controller.isExecutorOperator
                 ? 'رصيد التنفيذ'
                 : 'رصيد المنفذ',
+            compact: compactExecutorHeader,
           ),
         if (widget.controller.isExecutor)
           GlassIconButton(
@@ -1999,7 +2030,8 @@ class _RoleShellState extends State<RoleShell> with WidgetsBindingObserver {
                       extended: true,
                       minExtendedWidth: 232,
                       selectedIndex: _index,
-                      onDestinationSelected: (next) => setState(() => _index = next),
+                      onDestinationSelected: (next) =>
+                          setState(() => _index = next),
                       labelType: NavigationRailLabelType.none,
                       backgroundColor: Colors.transparent,
                       leading: const Padding(
@@ -2010,11 +2042,16 @@ class _RoleShellState extends State<RoleShell> with WidgetsBindingObserver {
                         ),
                       ),
                       destinations: _items
-                          .map((item) => NavigationRailDestination(
-                                icon: GlassIconBadge(icon: item.icon),
-                                selectedIcon: GlassIconBadge(icon: item.icon, selected: true),
-                                label: Text(item.label),
-                              ))
+                          .map(
+                            (item) => NavigationRailDestination(
+                              icon: GlassIconBadge(icon: item.icon),
+                              selectedIcon: GlassIconBadge(
+                                icon: item.icon,
+                                selected: true,
+                              ),
+                              label: Text(item.label),
+                            ),
+                          )
                           .toList(),
                     ),
                   ),
@@ -3791,20 +3828,22 @@ class _ExchangeRatesScreenState extends State<ExchangeRatesScreen> {
       if (_pendingRateSeconds() <= 0) {
         final currentRatesText = _pendingRateText('currentRatesText');
         timer.cancel();
-        unawaited(_load().then((_) {
-          if (!mounted) return;
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              behavior: SnackBarBehavior.floating,
-              backgroundColor: _green,
-              content: Text(
-                currentRatesText.isEmpty
-                    ? 'تم تفعيل السعر الجديد في حسابك.'
-                    : 'تم تفعيل السعر الجديد:\n$currentRatesText',
+        unawaited(
+          _load().then((_) {
+            if (!mounted) return;
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                behavior: SnackBarBehavior.floating,
+                backgroundColor: _green,
+                content: Text(
+                  currentRatesText.isEmpty
+                      ? 'تم تفعيل السعر الجديد في حسابك.'
+                      : 'تم تفعيل السعر الجديد:\n$currentRatesText',
+                ),
               ),
-            ),
-          );
-        }));
+            );
+          }),
+        );
         return;
       }
       setState(() {});
@@ -11124,10 +11163,7 @@ class _SupportScreenState extends State<SupportScreen> {
           ],
         ),
         const SizedBox(height: 24),
-        SectionTitle(
-          title: 'طلباتي الحالية',
-          icon: Icons.forum_outlined,
-        ),
+        SectionTitle(title: 'طلباتي الحالية', icon: Icons.forum_outlined),
         const SizedBox(height: 10),
         if (_tickets.isEmpty)
           const EmptyPanel(
@@ -11195,9 +11231,9 @@ class _SupportHelpTopicsSheet extends StatelessWidget {
           children: [
             Text(
               'مساعدة سريعة',
-              style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                fontWeight: FontWeight.w900,
-              ),
+              style: Theme.of(
+                context,
+              ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900),
             ),
             const SizedBox(height: 10),
             ...topics.map(
@@ -11252,14 +11288,21 @@ class _SupportConversationScreenState extends State<SupportConversationScreen> {
   }
 
   Future<void> _load() async {
-    if (mounted) setState(() { _loading = true; _error = null; });
+    if (mounted) {
+      setState(() {
+        _loading = true;
+        _error = null;
+      });
+    }
     try {
       final response = await widget.api.ticketDetails(widget.ticketId);
       if (mounted) {
         final ticket = response['ticket'];
-        setState(() => _ticket = ticket is Map
-            ? Map<String, dynamic>.from(ticket)
-            : <String, dynamic>{});
+        setState(
+          () => _ticket = ticket is Map
+              ? Map<String, dynamic>.from(ticket)
+              : <String, dynamic>{},
+        );
       }
     } catch (error) {
       if (mounted) setState(() => _error = error);
@@ -11288,7 +11331,9 @@ class _SupportConversationScreenState extends State<SupportConversationScreen> {
   Widget build(BuildContext context) {
     if (_loading && _ticket == null) return const Scaffold(body: PageLoading());
     if (_error != null && _ticket == null) {
-      return Scaffold(body: ErrorPage(error: _error!, onRetry: _load));
+      return Scaffold(
+        body: ErrorPage(error: _error!, onRetry: _load),
+      );
     }
     final ticket = _ticket ?? <String, dynamic>{};
     final messages = ticket['messages'] is List
@@ -11301,7 +11346,9 @@ class _SupportConversationScreenState extends State<SupportConversationScreen> {
     return Scaffold(
       appBar: AppBar(
         title: Text(widget.subject),
-        actions: [IconButton(onPressed: _load, icon: const Icon(Icons.refresh))],
+        actions: [
+          IconButton(onPressed: _load, icon: const Icon(Icons.refresh)),
+        ],
       ),
       body: SafeArea(
         child: Column(
@@ -11311,7 +11358,10 @@ class _SupportConversationScreenState extends State<SupportConversationScreen> {
               child: SurfacePanel(
                 child: Row(
                   children: [
-                    const Icon(Icons.confirmation_number_outlined, color: _green),
+                    const Icon(
+                      Icons.confirmation_number_outlined,
+                      color: _green,
+                    ),
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(
@@ -11337,7 +11387,7 @@ class _SupportConversationScreenState extends State<SupportConversationScreen> {
                   : ListView.separated(
                       padding: const EdgeInsets.fromLTRB(14, 0, 14, 14),
                       itemCount: messages.length,
-                      separatorBuilder: (_, __) => const SizedBox(height: 8),
+                      separatorBuilder: (_, _) => const SizedBox(height: 8),
                       itemBuilder: (context, index) =>
                           _SupportMessageBubble(message: messages[index]),
                     ),
@@ -11672,6 +11722,1716 @@ class _SubAccountsScreenState extends State<SubAccountsScreen> {
             ),
           ),
       ],
+    );
+  }
+}
+
+const Map<String, String> _executorSupportCategoryLabels = <String, String>{
+  'transaction': 'مشكلة في عملية',
+  'pending_transaction': 'عملية متأخرة',
+  'balance': 'الرصيد والمطابقة',
+  'report': 'التقارير',
+  'receipt': 'الإيصال أو الإثبات',
+  'cancellation': 'إلغاء عملية',
+  'application': 'مشكلة في التطبيق',
+  'notifications': 'الإشعارات',
+  'employee_account': 'حساب موظف',
+  'api': 'منفذ API',
+  'other': 'طلب آخر',
+};
+
+List<String> _executorSupportCategoriesFor(String role) {
+  if (role == 'manager') return _executorSupportCategoryLabels.keys.toList();
+  if (role == 'accountant') {
+    return const <String>[
+      'balance',
+      'report',
+      'employee_account',
+      'application',
+      'notifications',
+      'other',
+    ];
+  }
+  return const <String>[
+    'transaction',
+    'pending_transaction',
+    'receipt',
+    'cancellation',
+    'application',
+    'notifications',
+    'other',
+  ];
+}
+
+String _executorSupportStatusLabel(String status) {
+  switch (status) {
+    case 'answered':
+      return 'تم الرد';
+    case 'pending_internal':
+      return 'قيد المراجعة';
+    case 'resolved':
+      return 'تم الحل';
+    case 'closed':
+      return 'مغلق';
+    default:
+      return 'بانتظار الدعم';
+  }
+}
+
+Color _executorSupportStatusColor(String status) {
+  switch (status) {
+    case 'answered':
+      return const Color(0xFF1976D2);
+    case 'pending_internal':
+      return const Color(0xFF8A6200);
+    case 'resolved':
+    case 'closed':
+      return _green;
+    default:
+      return const Color(0xFF7A57D1);
+  }
+}
+
+String _executorSupportPriorityLabel(String priority) {
+  switch (priority) {
+    case 'urgent':
+      return 'طارئ';
+    case 'high':
+      return 'مرتفع';
+    case 'low':
+      return 'منخفض';
+    default:
+      return 'عادي';
+  }
+}
+
+Color _executorSupportPriorityColor(String priority) {
+  switch (priority) {
+    case 'urgent':
+      return _danger;
+    case 'high':
+      return const Color(0xFFD97706);
+    case 'low':
+      return const Color(0xFF1976D2);
+    default:
+      return _green;
+  }
+}
+
+class ExecutorSupportScreen extends StatefulWidget {
+  const ExecutorSupportScreen({super.key, required this.controller});
+
+  final SessionController controller;
+
+  @override
+  State<ExecutorSupportScreen> createState() => _ExecutorSupportScreenState();
+}
+
+class _ExecutorSupportScreenState extends State<ExecutorSupportScreen> {
+  final _search = TextEditingController();
+  List<Map<String, dynamic>> _tickets = <Map<String, dynamic>>[];
+  Map<String, dynamic> _summary = <String, dynamic>{};
+  Map<String, dynamic> _permissions = <String, dynamic>{};
+  Object? _error;
+  bool _loading = true;
+  String _status = 'active';
+  String _category = '';
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  @override
+  void dispose() {
+    _search.dispose();
+    super.dispose();
+  }
+
+  Future<void> _load({bool quiet = false}) async {
+    if (!quiet && mounted) {
+      setState(() {
+        _loading = true;
+        _error = null;
+      });
+    }
+    try {
+      final response = await widget.controller.api.executorSupportTickets(
+        status: _status,
+        category: _category,
+        search: _search.text,
+      );
+      final rawTickets = response['tickets'];
+      if (!mounted) return;
+      setState(() {
+        _tickets = rawTickets is List
+            ? rawTickets
+                  .whereType<Map>()
+                  .map((item) => Map<String, dynamic>.from(item))
+                  .toList()
+            : <Map<String, dynamic>>[];
+        _summary = response['summary'] is Map
+            ? Map<String, dynamic>.from(response['summary'] as Map)
+            : <String, dynamic>{};
+        _permissions = response['permissions'] is Map
+            ? Map<String, dynamic>.from(response['permissions'] as Map)
+            : <String, dynamic>{};
+        _error = null;
+      });
+    } catch (error) {
+      if (mounted) setState(() => _error = error);
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  Future<void> _createTicket({Map<String, dynamic>? diagnostics}) async {
+    final created = await Navigator.of(context).push<bool>(
+      MaterialPageRoute(
+        builder: (_) => ExecutorSupportCreateScreen(
+          controller: widget.controller,
+          initialDiagnostics: diagnostics,
+        ),
+      ),
+    );
+    if (created == true) await _load();
+  }
+
+  Future<void> _openTicket(Map<String, dynamic> ticket) async {
+    final updated = await Navigator.of(context).push<bool>(
+      MaterialPageRoute(
+        builder: (_) => ExecutorSupportConversationScreen(
+          controller: widget.controller,
+          ticketId: '${ticket['id'] ?? ''}',
+        ),
+      ),
+    );
+    if (updated == true) await _load();
+  }
+
+  Future<void> _showDiagnostics() async {
+    showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => const Center(child: CircularProgressIndicator()),
+    );
+    try {
+      final response = await widget.controller.api.executorSupportDiagnostics();
+      if (!mounted) return;
+      Navigator.of(context, rootNavigator: true).pop();
+      final diagnostics = response['diagnostics'] is Map
+          ? Map<String, dynamic>.from(response['diagnostics'] as Map)
+          : <String, dynamic>{};
+      final attach = await showModalBottomSheet<bool>(
+        context: context,
+        showDragHandle: true,
+        isScrollControlled: true,
+        builder: (_) =>
+            ExecutorSupportDiagnosticsSheet(diagnostics: diagnostics),
+      );
+      if (attach == true && mounted) {
+        await _createTicket(
+          diagnostics: <String, dynamic>{
+            'appVersion': '1.2.18+23',
+            'platform': 'Flutter',
+            'apiBaseUrl': widget.controller.api.baseUrl,
+            'networkStatus': '${diagnostics['server'] ?? 'unknown'}',
+            'backgroundService': 'configured',
+            'notificationPermission': 'requested',
+          },
+        );
+      }
+    } on ApiFailure catch (error) {
+      if (!mounted) return;
+      Navigator.of(context, rootNavigator: true).pop();
+      showSnack(context, error.message, error: true);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_loading && _tickets.isEmpty && _error == null) {
+      return const PageLoading();
+    }
+    if (_error != null && _tickets.isEmpty) {
+      return ErrorPage(error: _error!, onRetry: _load);
+    }
+    final role = '${_permissions['role'] ?? widget.controller.executorRole}';
+    final categories =
+        (_permissions['categories'] as List? ??
+                _executorSupportCategoriesFor(role))
+            .map((item) => '$item')
+            .where(_executorSupportCategoryLabels.containsKey)
+            .toList();
+
+    return PageFrame(
+      title: 'الدعم الفني',
+      subtitle: role == 'manager'
+          ? 'متابعة طلبات شركة التنفيذ والتواصل المباشر مع الإدارة.'
+          : 'طلباتك ومحادثاتك مع فريق الدعم في مكان واحد.',
+      onRefresh: _load,
+      action: IconButton.filledTonal(
+        tooltip: 'فحص الاتصال',
+        onPressed: _showDiagnostics,
+        icon: const Icon(Icons.health_and_safety_outlined),
+      ),
+      child: [
+        SurfacePanel(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    width: 48,
+                    height: 48,
+                    decoration: BoxDecoration(
+                      color: _green.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: const Icon(
+                      Icons.support_agent_outlined,
+                      color: _green,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'مركز دعم التنفيذ',
+                          style: TextStyle(
+                            fontWeight: FontWeight.w900,
+                            fontSize: 17,
+                          ),
+                        ),
+                        Text(
+                          'متصل الآن · تُحفظ كل المحادثات والمرفقات داخل الطلب.',
+                          style: TextStyle(
+                            color: Theme.of(
+                              context,
+                            ).colorScheme.onSurfaceVariant,
+                            fontSize: 12,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const StatusPill(label: 'متاح', color: _green),
+                ],
+              ),
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  Expanded(
+                    child: _ExecutorSupportSummaryCard(
+                      label: 'نشطة',
+                      value: '${numberValue(_summary['active']).toInt()}',
+                      icon: Icons.pending_actions_outlined,
+                      color: const Color(0xFF7A57D1),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: _ExecutorSupportSummaryCard(
+                      label: 'ردود جديدة',
+                      value: '${numberValue(_summary['unread']).toInt()}',
+                      icon: Icons.mark_chat_unread_outlined,
+                      color: const Color(0xFF1976D2),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: _ExecutorSupportSummaryCard(
+                      label: 'مغلقة',
+                      value: '${numberValue(_summary['closed']).toInt()}',
+                      icon: Icons.task_alt_outlined,
+                      color: _green,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 14),
+              FilledButton.icon(
+                onPressed: _createTicket,
+                icon: const Icon(Icons.add_comment_outlined),
+                label: const Text('فتح طلب دعم جديد'),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 14),
+        SurfacePanel(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              SegmentedButton<String>(
+                segments: const <ButtonSegment<String>>[
+                  ButtonSegment(
+                    value: 'active',
+                    label: Text('النشطة'),
+                    icon: Icon(Icons.pending_actions_outlined),
+                  ),
+                  ButtonSegment(
+                    value: 'closed',
+                    label: Text('المغلقة'),
+                    icon: Icon(Icons.task_alt_outlined),
+                  ),
+                  ButtonSegment(
+                    value: 'all',
+                    label: Text('الكل'),
+                    icon: Icon(Icons.list_alt_outlined),
+                  ),
+                ],
+                selected: <String>{_status},
+                onSelectionChanged: (selected) {
+                  setState(() => _status = selected.first);
+                  _load();
+                },
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: _search,
+                textInputAction: TextInputAction.search,
+                onSubmitted: (_) => _load(),
+                decoration: InputDecoration(
+                  labelText: 'بحث برقم الطلب أو العملية',
+                  prefixIcon: const Icon(Icons.search),
+                  suffixIcon: _search.text.isEmpty
+                      ? null
+                      : IconButton(
+                          tooltip: 'مسح البحث',
+                          onPressed: () {
+                            _search.clear();
+                            _load();
+                          },
+                          icon: const Icon(Icons.close),
+                        ),
+                ),
+              ),
+              const SizedBox(height: 10),
+              DropdownButtonFormField<String>(
+                initialValue: _category,
+                decoration: const InputDecoration(
+                  labelText: 'نوع الطلب',
+                  prefixIcon: Icon(Icons.tune_outlined),
+                ),
+                items: <DropdownMenuItem<String>>[
+                  const DropdownMenuItem(value: '', child: Text('كل الأنواع')),
+                  ...categories.map(
+                    (key) => DropdownMenuItem(
+                      value: key,
+                      child: Text(_executorSupportCategoryLabels[key] ?? key),
+                    ),
+                  ),
+                ],
+                onChanged: (value) {
+                  setState(() => _category = value ?? '');
+                  _load();
+                },
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 14),
+        if (_loading)
+          const LinearProgressIndicator()
+        else if (_tickets.isEmpty)
+          EmptyPanel(
+            icon: _status == 'closed'
+                ? Icons.task_alt_outlined
+                : Icons.support_agent_outlined,
+            title: 'لا توجد طلبات في هذا القسم',
+            message: _status == 'active'
+                ? 'عند فتح طلب جديد سيظهر هنا ويمكن متابعة رد الإدارة لحظة بلحظة.'
+                : 'لا توجد طلبات مغلقة مطابقة للفلاتر الحالية.',
+          )
+        else
+          ..._tickets.map(
+            (ticket) => Padding(
+              padding: const EdgeInsets.only(bottom: 10),
+              child: ExecutorSupportTicketCard(
+                ticket: ticket,
+                showRequester: _permissions['canViewGroupTickets'] == true,
+                onTap: () => _openTicket(ticket),
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+class _ExecutorSupportSummaryCard extends StatelessWidget {
+  const _ExecutorSupportSummaryCard({
+    required this.label,
+    required this.value,
+    required this.icon,
+    required this.color,
+  });
+
+  final String label;
+  final String value;
+  final IconData icon;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      constraints: const BoxConstraints(minHeight: 88),
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: color.withValues(alpha: 0.18)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, size: 20, color: color),
+          const Spacer(),
+          Text(
+            value,
+            style: TextStyle(
+              color: color,
+              fontWeight: FontWeight.w900,
+              fontSize: 18,
+            ),
+          ),
+          Text(
+            label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+              fontSize: 10,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class ExecutorSupportTicketCard extends StatelessWidget {
+  const ExecutorSupportTicketCard({
+    super.key,
+    required this.ticket,
+    required this.showRequester,
+    required this.onTap,
+  });
+
+  final Map<String, dynamic> ticket;
+  final bool showRequester;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    final status = '${ticket['status'] ?? 'open'}';
+    final priority = '${ticket['priority'] ?? 'normal'}';
+    final requester = ticket['requester'] is Map
+        ? Map<String, dynamic>.from(ticket['requester'] as Map)
+        : <String, dynamic>{};
+    final transaction = ticket['transaction'] is Map
+        ? Map<String, dynamic>.from(ticket['transaction'] as Map)
+        : <String, dynamic>{};
+    final unread = numberValue(ticket['unreadCount']).toInt();
+
+    return Material(
+      color: colors.surface,
+      borderRadius: BorderRadius.circular(8),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(8),
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(
+              color: unread > 0
+                  ? const Color(0xFF1976D2).withValues(alpha: 0.45)
+                  : colors.outlineVariant,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: _navy.withValues(alpha: 0.05),
+                blurRadius: 14,
+                offset: const Offset(0, 6),
+              ),
+            ],
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    width: 42,
+                    height: 42,
+                    decoration: BoxDecoration(
+                      color: _executorSupportStatusColor(
+                        status,
+                      ).withValues(alpha: 0.11),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Icon(
+                      Icons.forum_outlined,
+                      color: _executorSupportStatusColor(status),
+                    ),
+                  ),
+                  const SizedBox(width: 11),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          '${ticket['subject'] ?? 'طلب دعم'}',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(fontWeight: FontWeight.w900),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          '${ticket['ticketId'] ?? '-'} · ${ticket['categoryLabel'] ?? ''}',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            color: colors.onSurfaceVariant,
+                            fontSize: 11,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const Icon(Icons.chevron_left),
+                ],
+              ),
+              if (showRequester && '${requester['name'] ?? ''}'.isNotEmpty) ...[
+                const SizedBox(height: 10),
+                Row(
+                  children: [
+                    const Icon(Icons.person_outline, size: 17),
+                    const SizedBox(width: 6),
+                    Text(
+                      '${requester['name']} · ${_roleLabelForSupport('${requester['role'] ?? 'operator'}')}',
+                      style: const TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+              if ('${transaction['customId'] ?? ''}'.isNotEmpty) ...[
+                const SizedBox(height: 8),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 9,
+                    vertical: 7,
+                  ),
+                  decoration: BoxDecoration(
+                    color: colors.surfaceContainerHighest,
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.receipt_long_outlined, size: 17),
+                      const SizedBox(width: 6),
+                      Expanded(
+                        child: Text(
+                          'مرتبطة بالعملية ${transaction['customId']}',
+                          style: const TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+              const SizedBox(height: 10),
+              Text(
+                '${ticket['lastMessage'] ?? ''}',
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(color: colors.onSurfaceVariant, fontSize: 12),
+              ),
+              const SizedBox(height: 10),
+              Wrap(
+                spacing: 7,
+                runSpacing: 7,
+                children: [
+                  StatusPill(
+                    label: _executorSupportStatusLabel(status),
+                    color: _executorSupportStatusColor(status),
+                  ),
+                  StatusPill(
+                    label: _executorSupportPriorityLabel(priority),
+                    color: _executorSupportPriorityColor(priority),
+                  ),
+                  if (unread > 0)
+                    StatusPill(
+                      label: '$unread رد جديد',
+                      color: const Color(0xFF1976D2),
+                    ),
+                  StatusPill(
+                    label: formatDate(ticket['updatedAt']),
+                    color: colors.onSurfaceVariant,
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+String _roleLabelForSupport(String role) {
+  switch (role) {
+    case 'manager':
+      return 'مدير';
+    case 'accountant':
+      return 'محاسب';
+    default:
+      return 'موظف تنفيذ';
+  }
+}
+
+class ExecutorSupportCreateScreen extends StatefulWidget {
+  const ExecutorSupportCreateScreen({
+    super.key,
+    required this.controller,
+    this.initialDiagnostics,
+  });
+
+  final SessionController controller;
+  final Map<String, dynamic>? initialDiagnostics;
+
+  @override
+  State<ExecutorSupportCreateScreen> createState() =>
+      _ExecutorSupportCreateScreenState();
+}
+
+class _ExecutorSupportCreateScreenState
+    extends State<ExecutorSupportCreateScreen> {
+  final _subject = TextEditingController();
+  final _message = TextEditingController();
+  final _transaction = TextEditingController();
+  final _picker = ImagePicker();
+  final List<Uint8List> _images = <Uint8List>[];
+  late String _category;
+  String _priority = 'normal';
+  bool _includeDiagnostics = false;
+  bool _busy = false;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _category = _executorSupportCategoriesFor(
+      widget.controller.executorRole,
+    ).first;
+    _includeDiagnostics = widget.initialDiagnostics != null;
+  }
+
+  @override
+  void dispose() {
+    _subject.dispose();
+    _message.dispose();
+    _transaction.dispose();
+    super.dispose();
+  }
+
+  Future<void> _pickImages() async {
+    final source = await showModalBottomSheet<ImageSource>(
+      context: context,
+      showDragHandle: true,
+      builder: (context) => SafeArea(
+        child: Wrap(
+          children: [
+            ListTile(
+              leading: const Icon(Icons.photo_library_outlined),
+              title: const Text('اختيار من المعرض'),
+              onTap: () => Navigator.pop(context, ImageSource.gallery),
+            ),
+            ListTile(
+              leading: const Icon(Icons.camera_alt_outlined),
+              title: const Text('التقاط صورة'),
+              onTap: () => Navigator.pop(context, ImageSource.camera),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (source == null) return;
+    final remaining = 3 - _images.length;
+    if (remaining <= 0) {
+      if (mounted) {
+        showSnack(context, 'يمكن إرفاق 3 صور بحد أقصى.', error: true);
+      }
+      return;
+    }
+    if (source == ImageSource.gallery) {
+      final files = await _picker.pickMultiImage(
+        imageQuality: 74,
+        maxWidth: 1600,
+      );
+      final bytes = await Future.wait(
+        files.take(remaining).map((file) => file.readAsBytes()),
+      );
+      if (mounted) setState(() => _images.addAll(bytes));
+      return;
+    }
+    final file = await _picker.pickImage(
+      source: source,
+      imageQuality: 74,
+      maxWidth: 1600,
+    );
+    if (file == null) return;
+    final bytes = await file.readAsBytes();
+    if (mounted) setState(() => _images.add(bytes));
+  }
+
+  Future<void> _submit() async {
+    final subject = _subject.text.trim();
+    final message = _message.text.trim();
+    if (subject.length < 4 || message.length < 5) {
+      setState(
+        () => _error = 'اكتب عنواناً واضحاً ووصفاً للمشكلة قبل الإرسال.',
+      );
+      return;
+    }
+    final approved = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('مراجعة طلب الدعم'),
+        content: SizedBox(
+          width: 420,
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                DetailLine(label: 'العنوان', value: subject),
+                DetailLine(
+                  label: 'نوع الطلب',
+                  value: _executorSupportCategoryLabels[_category] ?? _category,
+                ),
+                DetailLine(
+                  label: 'الأولوية',
+                  value: _executorSupportPriorityLabel(_priority),
+                ),
+                if (_transaction.text.trim().isNotEmpty)
+                  DetailLine(
+                    label: 'رقم العملية',
+                    value: _transaction.text.trim(),
+                  ),
+                DetailLine(label: 'المرفقات', value: '${_images.length}'),
+                const SizedBox(height: 10),
+                Align(
+                  alignment: AlignmentDirectional.centerStart,
+                  child: Text(message),
+                ),
+              ],
+            ),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('رجوع'),
+          ),
+          FilledButton.icon(
+            onPressed: () => Navigator.pop(context, true),
+            icon: const Icon(Icons.send_outlined),
+            label: const Text('إرسال الطلب'),
+          ),
+        ],
+      ),
+    );
+    if (approved != true || !mounted) return;
+    setState(() {
+      _busy = true;
+      _error = null;
+    });
+    try {
+      final attachments = _images
+          .map((image) => 'data:image/jpeg;base64,${base64Encode(image)}')
+          .toList();
+      await widget.controller.api.createExecutorSupportTicket(
+        subject: subject,
+        category: _category,
+        priority: _priority,
+        message: message,
+        transactionRef: _transaction.text,
+        imagesBase64: attachments,
+        diagnostics: _includeDiagnostics
+            ? (widget.initialDiagnostics ??
+                  <String, dynamic>{
+                    'appVersion': '1.2.18+23',
+                    'platform': 'Flutter',
+                    'apiBaseUrl': widget.controller.api.baseUrl,
+                    'networkStatus': 'online',
+                    'backgroundService': 'configured',
+                    'notificationPermission': 'requested',
+                  })
+            : null,
+      );
+      if (!mounted) return;
+      showSnack(context, 'تم فتح طلب الدعم وإبلاغ الإدارة بنجاح.');
+      Navigator.pop(context, true);
+    } on ApiFailure catch (error) {
+      if (mounted) setState(() => _error = error.message);
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final categories = _executorSupportCategoriesFor(
+      widget.controller.executorRole,
+    );
+    return Scaffold(
+      appBar: AppBar(title: const Text('طلب دعم جديد')),
+      body: SafeArea(
+        child: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 720),
+            child: ListView(
+              padding: const EdgeInsets.all(16),
+              children: [
+                SurfacePanel(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      const Text(
+                        'كيف يمكننا مساعدتك؟',
+                        style: TextStyle(
+                          fontWeight: FontWeight.w900,
+                          fontSize: 19,
+                        ),
+                      ),
+                      const SizedBox(height: 5),
+                      Text(
+                        'اختر النوع وأرفق رقم العملية والصور إن كانت مرتبطة بالمشكلة.',
+                        style: TextStyle(
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                      const SizedBox(height: 18),
+                      DropdownButtonFormField<String>(
+                        initialValue: _category,
+                        decoration: const InputDecoration(
+                          labelText: 'نوع الطلب',
+                          prefixIcon: Icon(Icons.category_outlined),
+                        ),
+                        items: categories
+                            .map(
+                              (key) => DropdownMenuItem(
+                                value: key,
+                                child: Text(
+                                  _executorSupportCategoryLabels[key] ?? key,
+                                ),
+                              ),
+                            )
+                            .toList(),
+                        onChanged: (value) => setState(() {
+                          _category = value ?? categories.first;
+                          if (<String>{
+                            'pending_transaction',
+                            'cancellation',
+                            'api',
+                          }.contains(_category)) {
+                            _priority = 'high';
+                          }
+                        }),
+                      ),
+                      const SizedBox(height: 12),
+                      TextField(
+                        controller: _subject,
+                        maxLength: 120,
+                        decoration: const InputDecoration(
+                          labelText: 'عنوان مختصر',
+                          prefixIcon: Icon(Icons.title_outlined),
+                          hintText: 'مثال: عملية مقبولة لا تظهر في المهام',
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      TextField(
+                        controller: _transaction,
+                        textDirection: ui.TextDirection.ltr,
+                        decoration: const InputDecoration(
+                          labelText: 'رقم العملية (اختياري)',
+                          prefixIcon: Icon(Icons.receipt_long_outlined),
+                          hintText: 'ATT-0000-0000',
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      TextField(
+                        controller: _message,
+                        minLines: 5,
+                        maxLines: 8,
+                        maxLength: 2000,
+                        decoration: const InputDecoration(
+                          labelText: 'وصف المشكلة',
+                          alignLabelWithHint: true,
+                          hintText:
+                              'اكتب ما حدث، والنتيجة المتوقعة، وأي رسالة خطأ ظهرت لك.',
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 14),
+                SurfacePanel(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      const Text(
+                        'الأولوية والمرفقات',
+                        style: TextStyle(fontWeight: FontWeight.w900),
+                      ),
+                      const SizedBox(height: 12),
+                      SegmentedButton<String>(
+                        segments: const <ButtonSegment<String>>[
+                          ButtonSegment(value: 'normal', label: Text('عادي')),
+                          ButtonSegment(value: 'high', label: Text('مرتفع')),
+                          ButtonSegment(value: 'urgent', label: Text('طارئ')),
+                        ],
+                        selected: <String>{_priority},
+                        onSelectionChanged: (value) =>
+                            setState(() => _priority = value.first),
+                      ),
+                      const SizedBox(height: 14),
+                      ExecutorSupportAttachmentPicker(
+                        images: _images,
+                        onPick: _pickImages,
+                        onRemove: (index) =>
+                            setState(() => _images.removeAt(index)),
+                      ),
+                      const SizedBox(height: 8),
+                      SwitchListTile.adaptive(
+                        contentPadding: EdgeInsets.zero,
+                        value: _includeDiagnostics,
+                        onChanged: (value) =>
+                            setState(() => _includeDiagnostics = value),
+                        secondary: const Icon(Icons.health_and_safety_outlined),
+                        title: const Text('إرفاق تقرير الاتصال'),
+                        subtitle: const Text(
+                          'يرسل إصدار التطبيق وحالة الاتصال فقط دون كلمات مرور أو بيانات حساسة.',
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                if (_error != null) ...[
+                  const SizedBox(height: 12),
+                  InlineMessage(message: _error!, color: _danger),
+                ],
+                const SizedBox(height: 16),
+                FilledButton.icon(
+                  onPressed: _busy ? null : _submit,
+                  icon: _busy
+                      ? const SizedBox.square(
+                          dimension: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.preview_outlined),
+                  label: Text(_busy ? 'جارٍ الإرسال...' : 'مراجعة وإرسال'),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class ExecutorSupportAttachmentPicker extends StatelessWidget {
+  const ExecutorSupportAttachmentPicker({
+    super.key,
+    required this.images,
+    required this.onPick,
+    required this.onRemove,
+  });
+
+  final List<Uint8List> images;
+  final VoidCallback onPick;
+  final ValueChanged<int> onRemove;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        if (images.isNotEmpty)
+          SizedBox(
+            height: 92,
+            child: ListView.separated(
+              scrollDirection: Axis.horizontal,
+              itemCount: images.length,
+              separatorBuilder: (_, _) => const SizedBox(width: 8),
+              itemBuilder: (context, index) => Stack(
+                children: [
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(8),
+                    child: Image.memory(
+                      images[index],
+                      width: 92,
+                      height: 92,
+                      fit: BoxFit.cover,
+                    ),
+                  ),
+                  PositionedDirectional(
+                    top: 4,
+                    end: 4,
+                    child: Material(
+                      color: _danger,
+                      shape: const CircleBorder(),
+                      child: InkWell(
+                        customBorder: const CircleBorder(),
+                        onTap: () => onRemove(index),
+                        child: const Padding(
+                          padding: EdgeInsets.all(4),
+                          child: Icon(
+                            Icons.close,
+                            size: 15,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        if (images.isNotEmpty) const SizedBox(height: 9),
+        OutlinedButton.icon(
+          onPressed: images.length >= 3 ? null : onPick,
+          icon: const Icon(Icons.add_photo_alternate_outlined),
+          label: Text(
+            images.isEmpty
+                ? 'إرفاق صور (اختياري)'
+                : 'إضافة صورة أخرى (${images.length}/3)',
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class ExecutorSupportConversationScreen extends StatefulWidget {
+  const ExecutorSupportConversationScreen({
+    super.key,
+    required this.controller,
+    required this.ticketId,
+  });
+
+  final SessionController controller;
+  final String ticketId;
+
+  @override
+  State<ExecutorSupportConversationScreen> createState() =>
+      _ExecutorSupportConversationScreenState();
+}
+
+class _ExecutorSupportConversationScreenState
+    extends State<ExecutorSupportConversationScreen> {
+  final _reply = TextEditingController();
+  final _scroll = ScrollController();
+  final _picker = ImagePicker();
+  final List<Uint8List> _images = <Uint8List>[];
+  Map<String, dynamic>? _ticket;
+  Timer? _poll;
+  Object? _error;
+  bool _loading = true;
+  bool _sending = false;
+  bool _changed = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+    _poll = Timer.periodic(const Duration(seconds: 15), (_) {
+      _load(quiet: true);
+    });
+  }
+
+  @override
+  void dispose() {
+    _poll?.cancel();
+    _reply.dispose();
+    _scroll.dispose();
+    super.dispose();
+  }
+
+  Future<void> _load({bool quiet = false}) async {
+    if (!quiet && mounted) setState(() => _loading = true);
+    try {
+      final response = await widget.controller.api.executorSupportTicketDetails(
+        widget.ticketId,
+      );
+      final raw = response['ticket'];
+      if (!mounted || raw is! Map) return;
+      final next = Map<String, dynamic>.from(raw);
+      final oldMessages = (_ticket?['messages'] as List?)?.length ?? 0;
+      final nextMessages = (next['messages'] as List?)?.length ?? 0;
+      setState(() {
+        _ticket = next;
+        _error = null;
+        if (nextMessages != oldMessages) _changed = true;
+      });
+      if (nextMessages != oldMessages) _scrollToEnd();
+    } catch (error) {
+      if (mounted && !quiet) setState(() => _error = error);
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  void _scrollToEnd() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!_scroll.hasClients) return;
+      _scroll.animateTo(
+        _scroll.position.maxScrollExtent,
+        duration: const Duration(milliseconds: 280),
+        curve: Curves.easeOut,
+      );
+    });
+  }
+
+  Future<void> _pickImages() async {
+    final files = await _picker.pickMultiImage(
+      imageQuality: 74,
+      maxWidth: 1600,
+    );
+    final remaining = 3 - _images.length;
+    final bytes = await Future.wait(
+      files.take(remaining).map((file) => file.readAsBytes()),
+    );
+    if (mounted) setState(() => _images.addAll(bytes));
+  }
+
+  Future<void> _send() async {
+    final text = _reply.text.trim();
+    if (text.isEmpty && _images.isEmpty) return;
+    setState(() => _sending = true);
+    try {
+      await widget.controller.api.replyToExecutorSupportTicket(
+        id: widget.ticketId,
+        message: text,
+        imagesBase64: _images
+            .map((image) => 'data:image/jpeg;base64,${base64Encode(image)}')
+            .toList(),
+      );
+      _reply.clear();
+      _images.clear();
+      _changed = true;
+      await _load(quiet: true);
+    } on ApiFailure catch (error) {
+      if (mounted) showSnack(context, error.message, error: true);
+    } finally {
+      if (mounted) setState(() => _sending = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final ticket = _ticket;
+    if (_loading && ticket == null) return const Scaffold(body: PageLoading());
+    if (_error != null && ticket == null) {
+      return Scaffold(
+        body: ErrorPage(error: _error!, onRetry: _load),
+      );
+    }
+    final status = '${ticket?['status'] ?? 'open'}';
+    final closed = <String>{'closed', 'resolved'}.contains(status);
+    final messages = (ticket?['messages'] as List? ?? const <dynamic>[])
+        .whereType<Map>()
+        .map((item) => Map<String, dynamic>.from(item))
+        .toList();
+    final transaction = ticket?['transaction'] is Map
+        ? Map<String, dynamic>.from(ticket!['transaction'] as Map)
+        : <String, dynamic>{};
+
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) {
+        if (!didPop) Navigator.pop(context, _changed);
+      },
+      child: Scaffold(
+        appBar: AppBar(
+          title: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('${ticket?['subject'] ?? 'طلب دعم'}'),
+              Text(
+                '${ticket?['ticketId'] ?? ''}',
+                textDirection: ui.TextDirection.ltr,
+                style: const TextStyle(fontSize: 11),
+              ),
+            ],
+          ),
+          actions: [
+            IconButton(
+              tooltip: 'تحديث المحادثة',
+              onPressed: _loading ? null : _load,
+              icon: const Icon(Icons.refresh),
+            ),
+          ],
+        ),
+        body: SafeArea(
+          child: Column(
+            children: [
+              Expanded(
+                child: RefreshIndicator(
+                  onRefresh: _load,
+                  child: ListView(
+                    controller: _scroll,
+                    padding: const EdgeInsets.all(14),
+                    children: [
+                      SurfacePanel(
+                        child: Column(
+                          children: [
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: Text(
+                                    '${ticket?['categoryLabel'] ?? ''}',
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.w900,
+                                    ),
+                                  ),
+                                ),
+                                StatusPill(
+                                  label: _executorSupportStatusLabel(status),
+                                  color: _executorSupportStatusColor(status),
+                                ),
+                                const SizedBox(width: 6),
+                                StatusPill(
+                                  label: _executorSupportPriorityLabel(
+                                    '${ticket?['priority'] ?? 'normal'}',
+                                  ),
+                                  color: _executorSupportPriorityColor(
+                                    '${ticket?['priority'] ?? 'normal'}',
+                                  ),
+                                ),
+                              ],
+                            ),
+                            if ('${transaction['customId'] ?? ''}'
+                                .isNotEmpty) ...[
+                              const Divider(height: 24),
+                              DetailLine(
+                                label: 'العملية المرتبطة',
+                                value: '${transaction['customId']}',
+                              ),
+                              DetailLine(
+                                label: 'القيمة',
+                                value:
+                                    '${formatEgpAmount(numberValue(transaction['amount']))} ج.م',
+                              ),
+                              DetailLine(
+                                label: 'الحالة',
+                                value: statusLabel(
+                                  '${transaction['status'] ?? ''}',
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      if (messages.isEmpty)
+                        const EmptyPanel(
+                          icon: Icons.chat_bubble_outline,
+                          title: 'لا توجد رسائل',
+                          message: 'ستظهر المحادثة مع فريق الدعم هنا.',
+                        )
+                      else
+                        ...messages.map(
+                          (message) => Padding(
+                            padding: const EdgeInsets.only(bottom: 10),
+                            child: ExecutorSupportMessageBubble(
+                              api: widget.controller.api,
+                              message: message,
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+              ),
+              if (closed)
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(
+                    color: _green.withValues(alpha: 0.08),
+                    border: Border(
+                      top: BorderSide(color: _green.withValues(alpha: 0.22)),
+                    ),
+                  ),
+                  child: const Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.task_alt_outlined, color: _green),
+                      SizedBox(width: 8),
+                      Text(
+                        'تم إغلاق هذا الطلب. افتح طلباً جديداً عند الحاجة.',
+                        style: TextStyle(fontWeight: FontWeight.w800),
+                      ),
+                    ],
+                  ),
+                )
+              else
+                _ExecutorSupportReplyComposer(
+                  controller: _reply,
+                  images: _images,
+                  sending: _sending,
+                  onPick: _pickImages,
+                  onRemove: (index) => setState(() => _images.removeAt(index)),
+                  onSend: _send,
+                  onQuickReply: (text) {
+                    _reply.text = text;
+                    _reply.selection = TextSelection.collapsed(
+                      offset: _reply.text.length,
+                    );
+                  },
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ExecutorSupportReplyComposer extends StatelessWidget {
+  const _ExecutorSupportReplyComposer({
+    required this.controller,
+    required this.images,
+    required this.sending,
+    required this.onPick,
+    required this.onRemove,
+    required this.onSend,
+    required this.onQuickReply,
+  });
+
+  final TextEditingController controller;
+  final List<Uint8List> images;
+  final bool sending;
+  final VoidCallback onPick;
+  final ValueChanged<int> onRemove;
+  final VoidCallback onSend;
+  final ValueChanged<String> onQuickReply;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    return Container(
+      padding: const EdgeInsets.fromLTRB(12, 9, 12, 12),
+      decoration: BoxDecoration(
+        color: colors.surface,
+        border: Border(top: BorderSide(color: colors.outlineVariant)),
+        boxShadow: [
+          BoxShadow(
+            color: _navy.withValues(alpha: 0.06),
+            blurRadius: 14,
+            offset: const Offset(0, -4),
+          ),
+        ],
+      ),
+      child: SafeArea(
+        top: false,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (images.isNotEmpty) ...[
+              SizedBox(
+                height: 64,
+                child: ListView.separated(
+                  scrollDirection: Axis.horizontal,
+                  itemCount: images.length,
+                  separatorBuilder: (_, _) => const SizedBox(width: 7),
+                  itemBuilder: (_, index) => Stack(
+                    children: [
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(7),
+                        child: Image.memory(
+                          images[index],
+                          width: 64,
+                          height: 64,
+                          fit: BoxFit.cover,
+                        ),
+                      ),
+                      PositionedDirectional(
+                        top: 2,
+                        end: 2,
+                        child: InkWell(
+                          onTap: () => onRemove(index),
+                          child: const CircleAvatar(
+                            radius: 10,
+                            backgroundColor: _danger,
+                            child: Icon(
+                              Icons.close,
+                              size: 12,
+                              color: Colors.white,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 8),
+            ],
+            SizedBox(
+              height: 34,
+              child: ListView(
+                scrollDirection: Axis.horizontal,
+                children: [
+                  ActionChip(
+                    label: const Text('المشكلة مستمرة'),
+                    onPressed: () => onQuickReply('المشكلة ما زالت مستمرة.'),
+                  ),
+                  const SizedBox(width: 6),
+                  ActionChip(
+                    label: const Text('تم إرفاق التفاصيل'),
+                    onPressed: () =>
+                        onQuickReply('تم إرفاق التفاصيل المطلوبة.'),
+                  ),
+                  const SizedBox(width: 6),
+                  ActionChip(
+                    label: const Text('تم الحل'),
+                    onPressed: () => onQuickReply('تم حل المشكلة، شكراً لكم.'),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 8),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                IconButton.filledTonal(
+                  tooltip: 'إرفاق صور',
+                  onPressed: images.length >= 3 || sending ? null : onPick,
+                  icon: const Icon(Icons.add_photo_alternate_outlined),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: TextField(
+                    controller: controller,
+                    minLines: 1,
+                    maxLines: 4,
+                    enabled: !sending,
+                    decoration: const InputDecoration(
+                      hintText: 'اكتب ردك لفريق الدعم...',
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                IconButton.filled(
+                  tooltip: 'إرسال',
+                  onPressed: sending ? null : onSend,
+                  icon: sending
+                      ? const SizedBox.square(
+                          dimension: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.send_outlined),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class ExecutorSupportMessageBubble extends StatelessWidget {
+  const ExecutorSupportMessageBubble({
+    super.key,
+    required this.api,
+    required this.message,
+  });
+
+  final MobileApi api;
+  final Map<String, dynamic> message;
+
+  @override
+  Widget build(BuildContext context) {
+    final fromExecutor = '${message['sender'] ?? 'user'}' == 'user';
+    final colors = Theme.of(context).colorScheme;
+    final imageUrl = '${message['imageUrl'] ?? ''}'.trim();
+    final text = '${message['text'] ?? ''}'.trim();
+    return Align(
+      alignment: fromExecutor
+          ? AlignmentDirectional.centerEnd
+          : AlignmentDirectional.centerStart,
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 520),
+        child: Container(
+          padding: const EdgeInsets.all(11),
+          decoration: BoxDecoration(
+            color: fromExecutor
+                ? const Color(0xFF1976D2).withValues(alpha: 0.11)
+                : colors.surface,
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(
+              color: fromExecutor
+                  ? const Color(0xFF1976D2).withValues(alpha: 0.24)
+                  : colors.outlineVariant,
+            ),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    fromExecutor
+                        ? Icons.person_outline
+                        : Icons.support_agent_outlined,
+                    size: 16,
+                    color: fromExecutor ? const Color(0xFF1976D2) : _green,
+                  ),
+                  const SizedBox(width: 5),
+                  Text(
+                    '${message['senderName'] ?? (fromExecutor ? 'المنفذ' : 'الدعم')}',
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w800,
+                      fontSize: 11,
+                    ),
+                  ),
+                ],
+              ),
+              if (imageUrl.isNotEmpty) ...[
+                const SizedBox(height: 8),
+                InkWell(
+                  onTap: () => showDialog<void>(
+                    context: context,
+                    builder: (_) => Dialog(
+                      child: InteractiveViewer(
+                        child: Image.network(
+                          api.resolveMediaUrl(imageUrl).toString(),
+                          fit: BoxFit.contain,
+                          errorBuilder: (_, _, _) =>
+                              const _ReceiptImageUnavailable(),
+                        ),
+                      ),
+                    ),
+                  ),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(7),
+                    child: Image.network(
+                      api.resolveMediaUrl(imageUrl).toString(),
+                      width: 240,
+                      height: 170,
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, _, _) =>
+                          const _ReceiptImageUnavailable(),
+                    ),
+                  ),
+                ),
+              ],
+              if (text.isNotEmpty) ...[const SizedBox(height: 7), Text(text)],
+              const SizedBox(height: 6),
+              Text(
+                formatDate(message['createdAt']),
+                style: TextStyle(color: colors.onSurfaceVariant, fontSize: 9),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class ExecutorSupportDiagnosticsSheet extends StatelessWidget {
+  const ExecutorSupportDiagnosticsSheet({super.key, required this.diagnostics});
+
+  final Map<String, dynamic> diagnostics;
+
+  @override
+  Widget build(BuildContext context) {
+    final serverOk = diagnostics['server'] == 'online';
+    final databaseOk = diagnostics['database'] == 'connected';
+    final accountOk = diagnostics['account'] == 'active';
+    final groupOk = diagnostics['executorGroup'] == 'active';
+    return SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(18, 0, 18, 18),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const Text(
+              'فحص الاتصال والتشغيل',
+              style: TextStyle(fontWeight: FontWeight.w900, fontSize: 19),
+            ),
+            const SizedBox(height: 5),
+            Text(
+              'الفحص لا يرسل كلمات مرور أو بيانات حساسة.',
+              style: TextStyle(
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
+            ),
+            const SizedBox(height: 16),
+            _ExecutorDiagnosticLine(label: 'خادم Ahram Pay', passed: serverOk),
+            _ExecutorDiagnosticLine(
+              label: 'قاعدة البيانات',
+              passed: databaseOk,
+            ),
+            _ExecutorDiagnosticLine(label: 'حساب المنفذ', passed: accountOk),
+            _ExecutorDiagnosticLine(label: 'شركة التنفيذ', passed: groupOk),
+            const SizedBox(height: 14),
+            FilledButton.icon(
+              onPressed: () => Navigator.pop(context, true),
+              icon: const Icon(Icons.add_comment_outlined),
+              label: const Text('إرفاق الفحص بطلب دعم'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('إغلاق'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ExecutorDiagnosticLine extends StatelessWidget {
+  const _ExecutorDiagnosticLine({required this.label, required this.passed});
+
+  final String label;
+  final bool passed;
+
+  @override
+  Widget build(BuildContext context) {
+    return ListTile(
+      contentPadding: EdgeInsets.zero,
+      leading: Icon(
+        passed ? Icons.check_circle_outline : Icons.error_outline,
+        color: passed ? _green : _danger,
+      ),
+      title: Text(label, style: const TextStyle(fontWeight: FontWeight.w800)),
+      trailing: StatusPill(
+        label: passed ? 'يعمل' : 'يحتاج مراجعة',
+        color: passed ? _green : _danger,
+      ),
     );
   }
 }
@@ -14355,7 +16115,7 @@ class _TicketDialogState extends State<TicketDialog> {
               ),
               const SizedBox(height: 12),
               DropdownButtonFormField<String>(
-                value: _category,
+                initialValue: _category,
                 decoration: const InputDecoration(
                   labelText: 'نوع الطلب',
                   prefixIcon: Icon(Icons.category_outlined),
@@ -14381,8 +16141,7 @@ class _TicketDialogState extends State<TicketDialog> {
                 ],
                 onChanged: _busy
                     ? null
-                    : (value) =>
-                        setState(() => _category = value ?? 'general'),
+                    : (value) => setState(() => _category = value ?? 'general'),
               ),
               const SizedBox(height: 12),
               TextFormField(
@@ -15154,10 +16913,16 @@ class HeritagePillar extends StatelessWidget {
 }
 
 class BrandMark extends StatelessWidget {
-  const BrandMark({super.key, this.large = false, this.compact = false});
+  const BrandMark({
+    super.key,
+    this.large = false,
+    this.compact = false,
+    this.iconOnly = false,
+  });
 
   final bool large;
   final bool compact;
+  final bool iconOnly;
 
   @override
   Widget build(BuildContext context) {
@@ -15186,7 +16951,7 @@ class BrandMark extends StatelessWidget {
             ),
           ),
         ),
-        if (!compact) ...[
+        if (!compact && !iconOnly) ...[
           const SizedBox(width: 10),
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -15211,7 +16976,7 @@ class BrandMark extends StatelessWidget {
             ],
           ),
         ],
-        if (compact) ...[
+        if (compact && !iconOnly) ...[
           const SizedBox(width: 8),
           Text(
             'AL-AHRAM',
@@ -15337,10 +17102,12 @@ class ExecutorBalanceBadge extends StatelessWidget {
     super.key,
     required this.amount,
     required this.label,
+    this.compact = false,
   });
 
   final double amount;
   final String label;
+  final bool compact;
 
   @override
   Widget build(BuildContext context) {
@@ -15348,8 +17115,13 @@ class ExecutorBalanceBadge extends StatelessWidget {
     return Padding(
       padding: const EdgeInsetsDirectional.only(start: 4, end: 4),
       child: Container(
-        constraints: const BoxConstraints(minWidth: 92),
-        padding: const EdgeInsetsDirectional.fromSTEB(10, 7, 8, 7),
+        constraints: BoxConstraints(minWidth: compact ? 70 : 92),
+        padding: EdgeInsetsDirectional.fromSTEB(
+          compact ? 7 : 10,
+          compact ? 9 : 7,
+          compact ? 7 : 8,
+          compact ? 9 : 7,
+        ),
         decoration: BoxDecoration(
           color: dark ? const Color(0xFF152B4B) : const Color(0xFFF8FBFF),
           borderRadius: BorderRadius.circular(8),
@@ -15370,23 +17142,27 @@ class ExecutorBalanceBadge extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              label,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                color: dark ? const Color(0xFFA5DCC8) : AhramColors.emeraldDeep,
-                fontSize: 9,
-                fontWeight: FontWeight.w700,
+            if (!compact) ...[
+              Text(
+                label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  color: dark
+                      ? const Color(0xFFA5DCC8)
+                      : AhramColors.emeraldDeep,
+                  fontSize: 9,
+                  fontWeight: FontWeight.w700,
+                ),
               ),
-            ),
-            const SizedBox(height: 1),
+              const SizedBox(height: 1),
+            ],
             Text(
               '${formatAmount(amount, fractionDigits: 0)} ج.م',
               textDirection: ui.TextDirection.ltr,
               style: TextStyle(
                 color: Theme.of(context).colorScheme.onSurface,
-                fontSize: 12,
+                fontSize: compact ? 11 : 12,
                 fontWeight: FontWeight.w900,
               ),
             ),
