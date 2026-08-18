@@ -567,17 +567,73 @@ class MobilePushService {
   }
 
   Future<void> previewCategory(String category) async {
-    await requestLocalNotificationPermission();
+    final permissionGranted = await requestLocalNotificationPermission();
+    if (permissionGranted == false) {
+      throw StateError('Notification permission is disabled');
+    }
     final notifications = await _ensureLocalNotifications();
     final definition = notificationDefinitionFor(category);
-    await _showRemoteNotification(notifications, <String, dynamic>{
-      'category': category,
-      'route': definition.route,
-      'notificationTitle': 'معاينة ${definition.channelName}',
-      'notificationBody': 'هذه هي نغمة وتنبيه هذه القناة.',
-      'sentAt': DateTime.now().toIso8601String(),
-      'action': 'push_test',
-    });
+    final notificationId = _notificationId('preview_$category');
+    final android = notifications
+        .resolvePlatformSpecificImplementation<
+          AndroidFlutterLocalNotificationsPlugin
+        >();
+
+    Future<void> showPreview({required bool customSound}) async {
+      final channelId = customSound
+          ? 'ahram_preview_${definition.sound}_v1'
+          : 'ahram_preview_default_v1';
+      final sound = customSound
+          ? RawResourceAndroidNotificationSound(definition.sound)
+          : null;
+      await android?.createNotificationChannel(
+        AndroidNotificationChannel(
+          channelId,
+          customSound ? 'معاينة نغمات Ahram Pay' : 'معاينة نغمة النظام',
+          description: 'قناة مؤقتة لمعاينة صوت إشعارات التطبيق.',
+          importance: Importance.max,
+          playSound: true,
+          sound: sound,
+          enableVibration: true,
+          vibrationPattern: _vibrationFor(category),
+        ),
+      );
+      await notifications.show(
+        id: notificationId,
+        title: 'معاينة ${definition.channelName}',
+        body: customSound
+            ? 'هذه هي نغمة وتنبيه هذه القناة.'
+            : 'يستخدم هذا الهاتف نغمة الإشعارات الافتراضية.',
+        notificationDetails: NotificationDetails(
+          android: AndroidNotificationDetails(
+            channelId,
+            customSound ? 'معاينة نغمات Ahram Pay' : 'معاينة نغمة النظام',
+            channelDescription: 'معاينة محلية لصوت إشعارات التطبيق.',
+            importance: Importance.max,
+            priority: Priority.max,
+            playSound: true,
+            sound: sound,
+            enableVibration: true,
+            vibrationPattern: _vibrationFor(category),
+            category: AndroidNotificationCategory.message,
+            visibility: NotificationVisibility.public,
+            autoCancel: true,
+            ongoing: false,
+          ),
+          iOS: const DarwinNotificationDetails(
+            presentAlert: true,
+            presentBadge: false,
+            presentSound: true,
+          ),
+        ),
+      );
+    }
+
+    try {
+      await showPreview(customSound: true);
+    } on PlatformException {
+      await showPreview(customSound: false);
+    }
   }
 
   Future<void> openNotificationSettings() async {
