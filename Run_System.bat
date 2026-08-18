@@ -19,7 +19,17 @@ echo        سجل التشغيل الحي
 echo ===============================================================
 echo.
 
-npx nodemon app.js
+if not exist "%~dp0node_modules\dotenv\package.json" (
+    echo [تنبيه] اعتمادات التشغيل غير مكتملة. جار تثبيتها الآن...
+    call npm ci --omit=dev
+    if errorlevel 1 (
+        echo [خطأ] فشل تثبيت اعتمادات التشغيل. راجع رسائل npm أعلاه.
+        pause >nul
+        exit /b 1
+    )
+)
+
+node app.js
 
 echo.
 echo توقف السيرفر. اضغط أي زر لإغلاق النافذة.
