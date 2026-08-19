@@ -108,6 +108,7 @@ const {
     routeExecutorTask,
     routingErrorMessage
 } = require('../services/executorTaskRoutingService');
+const { buildExecutorTaskRecipient } = require('../utils/executorTaskPrivacy');
 const {
     findBrowserExecutable,
     getSharedBrowser,
@@ -281,39 +282,37 @@ const buildReceiptProxyUrl = (req, ticket) => {
     return `${req.protocol}://${req.get('host')}/api/mobile/transaction/image/content?ticket=${ticket}`;
 };
 
-const toExecutorTaskDto = (tx, currentExecutorId = null) => ({
-    id: tx._id ? String(tx._id) : null,
-    txId: tx.customId || null,
-    transferType: tx.transferType || null,
-    transferTypeLabel: getTransferServiceLabel(tx.transferType),
-    amount: Number(tx.amount || 0),
-    recipientNumber: tx.serviceDetails?.recipientPhone || tx.vodafoneNumber || tx.accountNumber || null,
-    recipientName: tx.accountName || null,
-    nationalId: tx.nationalId || null,
-    governorate: tx.governorate || tx.serviceDetails?.governorate || null,
-    notes: customerFacingNotes(customerNoteFromTransaction(tx)) || null,
-    status: tx.status || 'unknown',
-    operatorId: tx.operatorId ? String(tx.operatorId) : null,
-    assignedExecutorId: tx.assignedExecutorId ? String(tx.assignedExecutorId) : null,
-    assignedExecutorName: tx.assignedExecutorName || null,
-    isAssignedToCurrentExecutor: Boolean(
-        currentExecutorId &&
-        tx.assignedExecutorId &&
-        String(tx.assignedExecutorId) === String(currentExecutorId)
-    ),
-    acceptedByName: tx.status === 'accepted' ? (tx.executorName || null) : null,
-    isOwnedByCurrentExecutor: Boolean(
-        currentExecutorId &&
-        tx.status === 'accepted' &&
-        tx.operatorId &&
-        String(tx.operatorId) === String(currentExecutorId)
-    ),
-    executorReceivedAt: tx.executorReceivedAt
-        ? new Date(tx.executorReceivedAt).toISOString()
-        : (tx.createdAt ? new Date(tx.createdAt).toISOString() : null),
-    createdAt: tx.createdAt ? new Date(tx.createdAt).toISOString() : null,
-    emergencyAlert: tx.emergencyAlert || null
-});
+const toExecutorTaskDto = (tx, currentExecutorId = null) => {
+    const recipient = buildExecutorTaskRecipient(tx, currentExecutorId);
+    return {
+        id: tx._id ? String(tx._id) : null,
+        txId: tx.customId || null,
+        transferType: tx.transferType || null,
+        transferTypeLabel: getTransferServiceLabel(tx.transferType),
+        amount: Number(tx.amount || 0),
+        ...recipient,
+        recipientName: tx.accountName || null,
+        nationalId: recipient.recipientRevealed ? (tx.nationalId || null) : null,
+        governorate: tx.governorate || tx.serviceDetails?.governorate || null,
+        notes: customerFacingNotes(customerNoteFromTransaction(tx)) || null,
+        status: tx.status || 'unknown',
+        operatorId: tx.operatorId ? String(tx.operatorId) : null,
+        assignedExecutorId: tx.assignedExecutorId ? String(tx.assignedExecutorId) : null,
+        assignedExecutorName: tx.assignedExecutorName || null,
+        isAssignedToCurrentExecutor: Boolean(
+            currentExecutorId &&
+            tx.assignedExecutorId &&
+            String(tx.assignedExecutorId) === String(currentExecutorId)
+        ),
+        acceptedByName: tx.status === 'accepted' ? (tx.executorName || null) : null,
+        isOwnedByCurrentExecutor: recipient.recipientRevealed,
+        executorReceivedAt: tx.executorReceivedAt
+            ? new Date(tx.executorReceivedAt).toISOString()
+            : (tx.createdAt ? new Date(tx.createdAt).toISOString() : null),
+        createdAt: tx.createdAt ? new Date(tx.createdAt).toISOString() : null,
+        emergencyAlert: tx.emergencyAlert || null
+    };
+};
 
 router.use(correlationId);
 
@@ -1878,7 +1877,8 @@ router.post('/executor/complete-task/:id', authenticateJWT, completeTaskValidato
         tx.proofImages = systemReceiptId ? [systemReceiptId] : [];
         tx.proofImage = systemReceiptId || undefined;
         tx.executorProofImages = savedFileIds;
-        tx.executorSenderPhone = executionNumber || undefined;
+        tx.executorExecutionNumber = executionNumber || undefined;
+        tx.executorSenderPhone = maskedExecutionNumber || undefined;
         tx.executorExecutionNumberMasked = maskedExecutionNumber || undefined;
         tx.manualExecutorReceiptReference = executorReceipt.reference;
         tx.completedAt = completedAt;

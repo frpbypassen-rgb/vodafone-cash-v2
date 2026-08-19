@@ -6,15 +6,15 @@ const {
 } = require('../services/clientReceiptService');
 
 describe('clientReceiptService', () => {
-    test('deduplicates receipt proofs while preserving their order', () => {
+    test('returns only the official system receipt and excludes executor attachments', () => {
         const transaction = {
             proofImages: ['proofs/first.svg', '', 'proofs/second.jpg'],
-            proofImage: 'proofs/first.svg'
+            proofImage: 'proofs/official.svg',
+            executorProofImages: ['proofs/executor-private.jpg']
         };
 
         expect(getClientReceiptProofIds(transaction)).toEqual([
-            'proofs/first.svg',
-            'proofs/second.jpg'
+            'proofs/official.svg'
         ]);
     });
 
@@ -24,18 +24,11 @@ describe('clientReceiptService', () => {
             proofImages: ['telegram-file-id', 'proofs/local-receipt.svg']
         });
 
-        expect(images).toEqual([
-            {
-                index: 0,
-                label: 'صورة الإيصال 1',
-                url: '/client/proxy/image/64f123456789012345678901/0'
-            },
-            {
-                index: 1,
-                label: 'صورة الإيصال 2',
-                url: '/client/proxy/image/64f123456789012345678901/1'
-            }
-        ]);
+        expect(images).toEqual([{
+            index: 0,
+            label: 'صورة الإيصال 1',
+            url: '/client/proxy/image/64f123456789012345678901/0'
+        }]);
         expect(JSON.stringify(images)).not.toContain('telegram-file-id');
         expect(JSON.stringify(images)).not.toContain('local-receipt.svg');
     });

@@ -27,11 +27,16 @@ router.get(['/proxy/image/:id', '/proxy/image/:id/:index'], requireAuth, async (
         if (!tx) return res.status(404).send('لا توجد صورة إثبات');
 
         const index = req.params.index ? parseInt(req.params.index) : 0;
+        const officialReceipt = String(
+            tx.proofImage
+            || (Array.isArray(tx.proofImages) ? tx.proofImages[0] : '')
+            || ''
+        ).trim();
         const adminProofs = [
-            ...(Array.isArray(tx.proofImages) ? tx.proofImages : []),
+            ...(officialReceipt ? [officialReceipt] : []),
             ...(Array.isArray(tx.executorProofImages) ? tx.executorProofImages : [])
         ].filter(Boolean);
-        const photoId = adminProofs[index] || (index === 0 ? tx.proofImage : null);
+        const photoId = adminProofs[index];
 
         if (!photoId) return res.status(404).send('لا توجد صورة إثبات');
 

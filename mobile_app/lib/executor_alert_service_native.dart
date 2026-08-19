@@ -538,12 +538,12 @@ Future<void> _showUrgentAlert(
   FlutterLocalNotificationsPlugin notifications,
   Map<String, dynamic> task,
 ) {
-  final phone = '${task['recipientNumber'] ?? '-'}';
+  final phone = '${task['recipientNumber'] ?? task['recipientPrefix'] ?? '-'}';
   final message = '${task['emergencyAlert'] ?? 'طلب يحتاج إلى تدخل عاجل'}';
   return notifications.show(
     id: DateTime.now().millisecondsSinceEpoch.remainder(1 << 31),
     title: 'إنذار استعجال - تدخل مطلوب',
-    body: '$message | رقم العميل: $phone',
+    body: '$message | بادئة الرقم: $phone',
     notificationDetails: const NotificationDetails(
       android: AndroidNotificationDetails(
         _urgentChannelId,
@@ -565,12 +565,12 @@ Future<void> _showTaskAlert(
   Map<String, dynamic> task, {
   required bool reminder,
 }) {
-  final phone = '${task['recipientNumber'] ?? '-'}';
+  final phone = '${task['recipientNumber'] ?? task['recipientPrefix'] ?? '-'}';
   final amount = '${task['amount'] ?? '-'}';
   return notifications.show(
     id: DateTime.now().millisecondsSinceEpoch.remainder(1 << 31),
     title: reminder ? 'يوجد طلب تنفيذ بانتظارك' : 'وصل طلب تنفيذ جديد',
-    body: 'رقم العميل: $phone | القيمة: $amount ج.م',
+    body: 'بادئة الرقم: $phone | القيمة: $amount ج.م',
     notificationDetails: const NotificationDetails(
       android: AndroidNotificationDetails(
         _taskChannelId,

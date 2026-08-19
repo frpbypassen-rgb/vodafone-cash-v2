@@ -2,6 +2,7 @@
 'use strict';
 
 const { getTransferServiceLabel } = require('../utils/mobileTransferServiceCatalog');
+const { buildExecutorTaskRecipient } = require('../utils/executorTaskPrivacy');
 
 const toClientReportDto = (data) => {
     const isPersonalReport = data.scope === 'employee';
@@ -194,18 +195,20 @@ const toComplaintDto = (tx) => {
     };
 };
 
-const toExecutorTaskDto = (tx) => {
+const toExecutorTaskDto = (tx, currentExecutorId = null) => {
+    const recipient = buildExecutorTaskRecipient(tx, currentExecutorId);
     return {
         id: tx._id ? String(tx._id) : null,
         txId: tx.customId || null,
         transferType: tx.transferType || null,
         transferTypeLabel: getTransferServiceLabel(tx.transferType),
         amount: Number(tx.amount || 0),
-        recipientNumber: tx.vodafoneNumber || tx.accountNumber || null,
+        ...recipient,
         recipientName: tx.accountName || null,
         status: tx.status || 'unknown',
         operatorId: tx.operatorId ? String(tx.operatorId) : null,
         acceptedByName: tx.status === 'accepted' ? (tx.executorName || null) : null,
+        isOwnedByCurrentExecutor: recipient.recipientRevealed,
         createdAt: tx.createdAt ? new Date(tx.createdAt).toISOString() : null,
         emergencyAlert: tx.emergencyAlert || null
     };

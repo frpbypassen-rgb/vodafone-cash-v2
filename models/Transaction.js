@@ -120,6 +120,8 @@ const transactionSchema = new mongoose.Schema({
     operatorId: { type: String }, 
     executorName: { type: String, default: '---' },
     executorSenderPhone: { type: String },
+    // القيمة الأصلية التي أدخلها المنفذ. مخفية افتراضياً ولا تُقرأ إلا في تفاصيل الإدارة.
+    executorExecutionNumber: { type: String, trim: true, maxlength: 64, select: false },
     executorExecutionNumberMasked: { type: String },
     manualExecutorReceiptReference: { type: String, unique: true, sparse: true },
 

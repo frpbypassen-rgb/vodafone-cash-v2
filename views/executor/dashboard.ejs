@@ -891,6 +891,9 @@
                     const isMine = t.operatorId === myExecutorId;
                     const acceptedByOther = t.status === 'accepted' && !isMine;
                     const canRoute = isExecutorManager && manualTaskRoutingEnabled && t.status === 'processing';
+                    const recipientIsVisible = t.recipientRevealed === true && isMine;
+                    const recipientDisplay = t.recipientNumber || t.recipientPrefix || '---';
+                    const recipientLabel = recipientIsVisible ? 'الرقم / الحساب:' : 'بادئة الرقم / الحساب:';
 
                     let cardClass = isMine ? 'task-mine' : (acceptedByOther ? 'task-locked' : 'task-pending');
                     let badgeClass = isMine ? 'badge-mine' : (acceptedByOther ? 'badge-locked' : 'badge-pending');
@@ -937,11 +940,12 @@
                                     </div>
 
                                     <div class="mb-2">
-                                        <span class="data-label">${typeLabel} الرقم / الحساب:</span>
-                                        <div class="copy-box" onclick="copyText('${t.vodafoneNumber || t.accountNumber}', this)">
-                                            <span class="copy-val" dir="ltr">${t.vodafoneNumber || t.accountNumber || '---'}</span>
-                                            <i class="fa-regular fa-copy copy-icon"></i>
+                                        <span class="data-label">${typeLabel} ${recipientLabel}</span>
+                                        <div class="copy-box" ${recipientIsVisible ? `onclick="copyText('${recipientDisplay}', this)"` : ''}>
+                                            <span class="copy-val" dir="ltr">${recipientDisplay}</span>
+                                            <i class="fa-solid ${recipientIsVisible ? 'fa-copy' : 'fa-lock'} copy-icon"></i>
                                         </div>
+                                        ${recipientIsVisible ? '' : '<div class="small text-muted fw-bold mt-1"><i class="fa-solid fa-shield-halved me-1"></i> يظهر الرقم كاملاً بعد قبول المهمة للمنفذ الذي سحبها فقط.</div>'}
                                     </div>
 
                                     <div class="mb-3">

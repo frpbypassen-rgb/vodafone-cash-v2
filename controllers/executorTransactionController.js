@@ -363,7 +363,8 @@ exports.postCompleteTask = async (req, res) => {
         tx.proofImage = systemReceiptId;
         tx.proofImages = systemReceiptId ? [systemReceiptId] : [];
         tx.executorProofImages = executorProofImages;
-        tx.executorSenderPhone = executionNumber || undefined;
+        tx.executorExecutionNumber = executionNumber || undefined;
+        tx.executorSenderPhone = maskedExecutionNumber || undefined;
         tx.executorExecutionNumberMasked = maskedExecutionNumber || undefined;
         tx.manualExecutorReceiptReference = executorReceipt.reference;
         tx.completedAt = completedAt;

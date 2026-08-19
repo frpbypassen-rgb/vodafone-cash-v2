@@ -748,7 +748,7 @@ router.post('/admin/kyc/review', async (req, res) => {
 // 🔍 الحصول على تفاصيل العملية الشاملة + قيود الدفتر المالي (Ledger)
 router.get('/transactions/:id/details', async (req, res) => {
     try {
-        const tx = await Transaction.findById(req.params.id);
+        const tx = await Transaction.findById(req.params.id).select('+executorExecutionNumber');
         if (!tx) return res.status(404).json({ success: false, error: 'العملية غير موجودة' });
         
         let ledgerInfo = null;

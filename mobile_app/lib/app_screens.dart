@@ -20880,6 +20880,7 @@ class ExecutorTaskTile extends StatelessWidget {
     final transferType = task['transferType']?.toString();
     final isCashWallet = transferType == 'vodafone';
     final recipient = '${task['recipientNumber'] ?? '-'}';
+    final recipientRevealed = task['recipientRevealed'] == true && acceptedByMe;
     final amount = formatEgpAmount(numberValue(task['amount']));
     final notes = '${task['notes'] ?? ''}'.trim();
     final receivedAt = task['executorReceivedAt'] ?? task['createdAt'];
@@ -20931,13 +20932,49 @@ class ExecutorTaskTile extends StatelessWidget {
           const SizedBox(height: 12),
           _TaskDataLine(
             icon: Icons.phone_iphone_outlined,
-            label: isCashWallet ? 'رقم هاتف العميل' : 'رقم حساب المستلم',
+            label: recipientRevealed
+                ? (isCashWallet ? 'رقم هاتف العميل' : 'رقم حساب المستلم')
+                : (isCashWallet ? 'بادئة رقم هاتف العميل' : 'بادئة رقم الحساب'),
             value: recipient,
             textDirection: ui.TextDirection.ltr,
-            onCopy: recipient == '-'
+            onCopy: !recipientRevealed || recipient == '-'
                 ? null
                 : () => _copyValue(context, recipient, 'الرقم'),
           ),
+          if (!recipientRevealed) ...[
+            const SizedBox(height: 8),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 9),
+              decoration: BoxDecoration(
+                color: AhramColors.sky.withValues(alpha: 0.08),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(
+                  color: AhramColors.sky.withValues(alpha: 0.20),
+                ),
+              ),
+              child: Row(
+                children: [
+                  const Icon(
+                    Icons.lock_person_outlined,
+                    size: 18,
+                    color: AhramColors.sky,
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'يظهر الرقم كاملاً بعد قبول المهمة للمنفذ الذي سحبها فقط.',
+                      style: TextStyle(
+                        color: colors.onSurfaceVariant,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
           const Divider(height: 22),
           _TaskDataLine(
             icon: Icons.payments_outlined,

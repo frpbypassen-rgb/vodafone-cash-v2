@@ -21,6 +21,7 @@ const {
     routeExecutorTask,
     routingErrorMessage
 } = require('../services/executorTaskRoutingService');
+const { toExecutorPortalTaskDto } = require('../utils/executorTaskPrivacy');
 
 const COMPLETED_TODAY_LIMIT = 60;
 
@@ -311,9 +312,12 @@ exports.getLiveTasks = async (req, res) => {
 
         const completedTodaySummary = completedTodayStats[0] || { count: 0, amount: 0 };
         res.json({
-            tasks,
-            alerts,
-            depAlerts,
+            tasks: tasks.map((tx) => toExecutorPortalTaskDto(tx, emp._id)),
+            alerts: alerts.map((tx) => toExecutorPortalTaskDto(tx, emp._id)),
+            depAlerts: depAlerts.map((tx) => ({
+                _id: String(tx._id),
+                executorWebAlert: tx.executorWebAlert || null
+            })),
             completedToday,
             completedTodaySummary,
             manualTaskRoutingEnabled: Boolean(emp.groupId?.manualTaskRoutingEnabled),

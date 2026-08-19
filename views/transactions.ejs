@@ -279,7 +279,7 @@
             });
         }
 
-        const executionNumberForView = tx.executorExecutionNumberMasked || tx.executorSenderPhone;
+        const executionNumberForView = tx.executorExecutionNumber || tx.executorExecutionNumberMasked || tx.executorSenderPhone;
         if (executionNumberForView && !systemParts.some(line => line.includes(executionNumberForView))) {
             systemParts.push(`[رقم التنفيذ: ${executionNumberForView}]`);
         }
@@ -1024,7 +1024,7 @@
             });
         }
 
-        const executionNumberForView = tx.executorExecutionNumberMasked || tx.executorSenderPhone;
+        const executionNumberForView = tx.executorExecutionNumber || tx.executorExecutionNumberMasked || tx.executorSenderPhone;
         if (executionNumberForView && !systemParts.some((line) => line.includes(executionNumberForView))) {
             systemParts.push(`[رقم التنفيذ: ${executionNumberForView}]`);
         }
@@ -1121,15 +1121,38 @@
             <div class="data-line"><span class="data-val mono-num text-danger fw-bold">${txEscape(tx.cancellationNumber)}</span><span class="data-label">رقم الإلغاء:</span></div>
             <div class="data-line"><span class="data-val">${txEscape(tx.cancellationReason || '---')}</span><span class="data-label">سبب الإلغاء:</span></div>
         ` : '';
+        const executionNumber = tx.executorExecutionNumber || tx.executorSenderPhone || tx.executorExecutionNumberMasked;
+        const executionRows = executionNumber ? `
+            <div class="data-line align-items-center">
+                <span class="data-val mono-num text-primary fw-bold d-flex align-items-center gap-2">
+                    <span dir="ltr">${txEscape(executionNumber)}</span>
+                    <button type="button" class="btn btn-sm btn-outline-primary" data-copy="${txEscape(executionNumber)}" onclick="copyAdminDetailValue(this)" title="نسخ رقم التنفيذ">
+                        <i class="fa-regular fa-copy"></i>
+                    </button>
+                </span>
+                <span class="data-label">رقم التنفيذ كما أدخله المنفذ:</span>
+            </div>
+        ` : '';
         const log = systemText ? `<div class="tx-system-log mt-2">${txEscape(systemText)}</div>` : '<div class="text-muted fw-bold small">لا يوجد سجل إداري إضافي.</div>';
         return `
             <div class="tx-section">
                 <div class="tx-section-title"><i class="fa-solid fa-clipboard-list text-secondary"></i> تفاصيل الإدارة والنظام</div>
                 ${cancellationRows}
+                ${executionRows}
                 ${ledgerRows}
                 ${log}
             </div>
         `;
+    }
+
+    async function copyAdminDetailValue(button) {
+        const value = button?.dataset?.copy || '';
+        if (!value) return;
+        try {
+            await navigator.clipboard.writeText(value);
+            button.innerHTML = '<i class="fa-solid fa-check"></i>';
+            setTimeout(() => { button.innerHTML = '<i class="fa-regular fa-copy"></i>'; }, 1200);
+        } catch (_) {}
     }
 
     // 🟢 دالة عرض نافذة السجل المنبثقة (مُحدثة لتقرأ الجملة الجديدة والقديمة معاً)
@@ -1533,31 +1556,42 @@
             if (false) {
                 container.innerHTML = '<div class="text-muted text-center py-4"><i class="fa-solid fa-circle-info fs-1 d-block mb-2 opacity-25"></i> تحويل رصيد داخلي لا يتطلب إثبات صور</div>';
             } else {
-                let proofs = [];
-                if (tx.proofImages && tx.proofImages.length > 0) proofs = tx.proofImages;
-                else if (tx.proofImage && tx.proofImage.trim() !== '') proofs = [tx.proofImage];
-                if (tx.executorProofImages && tx.executorProofImages.length > 0) {
-                    proofs = [...proofs, ...tx.executorProofImages];
-                }
-                
-                if (proofs.length > 0) {
-                    if (proofs.length === 1) {
-                        container.innerHTML = `<img src="/proxy/image/${tx._id}/0" style="display:block; border-radius: 12px; max-height: 500px; max-width: 100%; margin: 0 auto; object-fit: contain;">`;
-                    } else {
-                        let indicators = '';
-                        let items = '';
-                        proofs.forEach((p, i) => {
-                            indicators += `<button type="button" data-bs-target="#proofCarousel" data-bs-slide-to="${i}" class="${i===0?'active':''}" style="background-color: var(--brand-primary);"></button>`;
-                            items += `<div class="carousel-item ${i===0?'active':''}"><img src="/proxy/image/${tx._id}/${i}" class="d-block w-100" style="border-radius: 12px; max-height: 500px; object-fit: contain; margin: 0 auto;"></div>`;
-                        });
-                        container.innerHTML = `
-                            <div id="proofCarousel" class="carousel slide" data-bs-ride="carousel" style="width: 100%; background: rgba(0,0,0,0.5); border-radius: 12px; overflow:hidden;">
-                                <div class="carousel-indicators" style="bottom: 10px;">${indicators}</div>
-                                <div class="carousel-inner">${items}</div>
-                                <button class="carousel-control-prev" type="button" data-bs-target="#proofCarousel" data-bs-slide="prev" style="width: 10%; background: rgba(0,0,0,0.3);"><span class="carousel-control-prev-icon" aria-hidden="true"></span></button>
-                                <button class="carousel-control-next" type="button" data-bs-target="#proofCarousel" data-bs-slide="next" style="width: 10%; background: rgba(0,0,0,0.3);"><span class="carousel-control-next-icon" aria-hidden="true"></span></button>
-                            </div>`;
-                    }
+                const officialReceipt = tx.proofImage || (tx.proofImages && tx.proofImages[0]);
+                const executorProofs = Array.isArray(tx.executorProofImages)
+                    ? tx.executorProofImages.filter(Boolean)
+                    : [];
+
+                if (officialReceipt || executorProofs.length > 0) {
+                    const officialSection = officialReceipt ? `
+                        <section class="mb-4">
+                            <div class="d-flex align-items-center justify-content-between mb-2">
+                                <strong><i class="fa-solid fa-receipt text-success me-1"></i> الإيصال النظامي المرسل للعميل</strong>
+                                <span class="badge bg-success-subtle text-success border border-success-subtle">عام للعميل</span>
+                            </div>
+                            <div class="rounded-3 border bg-light p-2 text-center">
+                                <img src="/proxy/image/${tx._id}/0" style="display:block; border-radius: 10px; max-height: 500px; max-width: 100%; margin: 0 auto; object-fit: contain;">
+                            </div>
+                        </section>
+                    ` : '';
+                    const executorOffset = officialReceipt ? 1 : 0;
+                    const executorSection = executorProofs.length ? `
+                        <section>
+                            <div class="d-flex align-items-center justify-content-between mb-2">
+                                <strong><i class="fa-solid fa-shield-halved text-primary me-1"></i> صور إثبات المنفذ</strong>
+                                <span class="badge bg-primary-subtle text-primary border border-primary-subtle">للإدارة فقط</span>
+                            </div>
+                            <div class="row g-2">
+                                ${executorProofs.map((_, index) => `
+                                    <div class="col-6 col-lg-4">
+                                        <a href="/proxy/image/${tx._id}/${executorOffset + index}" target="_blank" class="d-block rounded-3 border bg-light p-1">
+                                            <img src="/proxy/image/${tx._id}/${executorOffset + index}" alt="إثبات المنفذ ${index + 1}" style="width:100%; aspect-ratio: 1 / 1; border-radius:8px; object-fit:cover;">
+                                        </a>
+                                    </div>
+                                `).join('')}
+                            </div>
+                        </section>
+                    ` : '';
+                    container.innerHTML = officialSection + executorSection;
                 } else {
                     container.innerHTML = '<div class="text-muted text-center"><i class="fa-solid fa-image fs-1 d-block mb-2 opacity-25"></i> لم يتم إرفاق إثبات تنفيذ بعد</div>';
                 }

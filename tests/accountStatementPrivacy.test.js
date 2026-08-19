@@ -28,6 +28,7 @@ const transactionFixture = (overrides = {}) => ({
     executorName: 'منفذ القاهرة',
     executorSenderPhone: '01108172258',
     executorExecutionNumberMasked: '011****2258',
+    executorExecutionNumber: '01108172258',
     manualExecutorReceiptReference: '999001',
     apiResultData: { provider: 'secret-provider', balance: 1000 },
     createdAt: new Date('2026-08-07T10:00:00.000Z'),
@@ -103,6 +104,7 @@ describe('Account statement executor privacy', () => {
         expect(transaction).not.toHaveProperty('executorName');
         expect(transaction).not.toHaveProperty('executorSenderPhone');
         expect(transaction).not.toHaveProperty('executorExecutionNumberMasked');
+        expect(transaction).not.toHaveProperty('executorExecutionNumber');
         expect(transaction).not.toHaveProperty('manualExecutorReceiptReference');
         expect(transaction).not.toHaveProperty('apiResultData');
         expect(transaction.notes).toBe('ملاحظة العميل\n[الرقم المرجعي: REF-778]');

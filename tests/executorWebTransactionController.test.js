@@ -128,21 +128,19 @@ describe('Executor web transaction completion', () => {
         expect(fs.writeFileSync).not.toHaveBeenCalled();
     });
 
-    test('requires an uploaded proof image before completing a Sefa Niger task', async () => {
+    test('allows a Sefa Niger task to complete with a generated receipt only', async () => {
         tx.transferType = 'sefa_niger';
 
         await controller.postCompleteTask(req, res);
 
-        expect(res.status).toHaveBeenCalledWith(400);
-        expect(res.json).toHaveBeenCalledWith({
-            success: false,
-            error: 'إرفاق صورة إثبات إلزامي لعمليات سيفا النيجر.'
-        });
-        expect(reserveManualExecutorReceiptReference).not.toHaveBeenCalled();
-        expect(fs.writeFileSync).not.toHaveBeenCalled();
+        expect(res.status).not.toHaveBeenCalledWith(400);
+        expect(reserveManualExecutorReceiptReference).toHaveBeenCalled();
+        expect(tx.proofImages).toEqual([tx.proofImage]);
+        expect(tx.executorProofImages).toEqual([]);
+        expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ success: true }));
     });
 
-    test('puts the Sefa executor proof before the system receipt for client visibility', async () => {
+    test('keeps the Sefa executor proof private and exposes only the system receipt', async () => {
         tx.transferType = 'sefa_niger';
         req.body = {
             imageBase64: 'data:image/png;base64,iVBORw0KGgo=',
@@ -156,9 +154,11 @@ describe('Executor web transaction completion', () => {
             amountCurrencyLabel: 'سيفا',
             transferType: 'sefa_niger'
         }));
-        expect(tx.proofImages).toHaveLength(2);
-        expect(tx.proofImage).toMatch(/^EXEC-TEST-001_[a-z0-9]+\.png$/);
-        expect(tx.proofImages[1]).toMatch(/^EXEC-TEST-001_manual_[a-z0-9]+\.jpg$/);
+        expect(tx.proofImages).toEqual([tx.proofImage]);
+        expect(tx.proofImage).toMatch(/^EXEC-TEST-001_manual_[a-z0-9]+\.jpg$/);
+        expect(tx.executorProofImages).toHaveLength(1);
+        expect(tx.executorProofImages[0]).toMatch(/^EXEC-TEST-001_[a-z0-9]+\.png$/);
+        expect(tx.executorExecutionNumber).toBe('2258');
         expect(tx.executorExecutionNumberMasked).toBe('01*****2258');
     });
 
@@ -188,8 +188,10 @@ describe('Executor web transaction completion', () => {
         expect(fs.writeFileSync).toHaveBeenCalledTimes(2);
         expect(tx.status).toBe('completed');
         expect(tx.proofImage).toMatch(/^EXEC-TEST-001_manual_[a-z0-9]+\.jpg$/);
-        expect(tx.proofImages).toHaveLength(2);
-        expect(tx.executorSenderPhone).toBe('01108172258');
+        expect(tx.proofImages).toEqual([tx.proofImage]);
+        expect(tx.executorProofImages).toHaveLength(1);
+        expect(tx.executorExecutionNumber).toBe('01108172258');
+        expect(tx.executorSenderPhone).toBe('011****2258');
         expect(tx.executorExecutionNumberMasked).toBe('011****2258');
         expect(tx.manualExecutorReceiptReference).toBe('999001');
         expect(tx.save).toHaveBeenCalledTimes(1);

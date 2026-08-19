@@ -314,7 +314,9 @@ describe('📱 Automated Tests: Mobile API Consolidation & Safety', () => {
             expect(res.status).toBe(200);
             expect(res.body.success).toBe(true);
             expect(res.body.data).toHaveLength(1);
-            expect(res.body.data[0].recipientNumber).toBe('01012345678');
+            expect(res.body.data[0].recipientNumber).toBe('010');
+            expect(res.body.data[0].recipientPrefix).toBe('010');
+            expect(res.body.data[0].recipientRevealed).toBe(false);
             expect(res.body.data[0].amount).toBe(500);
         });
 
