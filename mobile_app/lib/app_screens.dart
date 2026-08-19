@@ -12,6 +12,7 @@ import 'appearance_controller.dart';
 import 'brand_theme.dart';
 import 'executor_alert_service.dart';
 import 'executor_notification_center.dart';
+import 'executor_ui.dart';
 import 'external_link.dart';
 import 'language_controller.dart';
 import 'mobile_api.dart';
@@ -1958,8 +1959,9 @@ class _RoleShellState extends State<RoleShell> with WidgetsBindingObserver {
     }
     final selected = _items[_index];
     final isCustomerShell = widget.controller.isCustomerAccount;
+    final isExecutorShell = widget.controller.isExecutor;
     final compactExecutorHeader =
-        widget.controller.isExecutor && MediaQuery.sizeOf(context).width < 430;
+        isExecutorShell && MediaQuery.sizeOf(context).width < 430;
     final session = widget.controller.session;
     final company = _executorOverview?['company'];
     final performance = _executorOverview?['myPerformance'];
@@ -1989,6 +1991,9 @@ class _RoleShellState extends State<RoleShell> with WidgetsBindingObserver {
               : '$companyName · تنفيذاتك اليوم ${formatEgpAmount(ownPerformance)} ج.م');
     final appBar = AppBar(
       toolbarHeight: 76,
+      backgroundColor: isExecutorShell
+          ? ExecutorUiColors.surface(context)
+          : null,
       titleSpacing: isCustomerShell ? 12 : (compactExecutorHeader ? 8 : 18),
       bottom: PreferredSize(
         preferredSize: const Size.fromHeight(3),
@@ -2002,6 +2007,8 @@ class _RoleShellState extends State<RoleShell> with WidgetsBindingObserver {
       ),
       title: isCustomerShell
           ? CustomerShellHeader(balance: session?.balance ?? 0)
+          : isExecutorShell
+          ? ExecutorWordmark(compact: compactExecutorHeader)
           : compactExecutorHeader
           ? const BrandMark(iconOnly: true)
           : Row(
@@ -2080,63 +2087,35 @@ class _RoleShellState extends State<RoleShell> with WidgetsBindingObserver {
                 : 'رصيد المنفذ',
             compact: compactExecutorHeader,
           ),
-        if (widget.controller.isExecutor)
-          Stack(
-            clipBehavior: Clip.none,
-            children: [
-              GlassIconButton(
-                tooltip: 'مركز الإشعارات',
-                onPressed: _openExecutorNotificationCenter,
-                icon: const Icon(Icons.notifications_none_rounded),
-              ),
-              if (_executorUnreadNotifications > 0)
-                PositionedDirectional(
-                  top: 3,
-                  end: 2,
-                  child: Container(
-                    constraints: const BoxConstraints(minWidth: 18),
-                    height: 18,
-                    padding: const EdgeInsets.symmetric(horizontal: 4),
-                    alignment: Alignment.center,
-                    decoration: BoxDecoration(
-                      color: _danger,
-                      borderRadius: BorderRadius.circular(9),
-                      border: Border.all(
-                        color: Theme.of(context).colorScheme.surface,
-                        width: 1.5,
-                      ),
-                    ),
-                    child: Text(
-                      _executorUnreadNotifications > 99
-                          ? '99+'
-                          : '$_executorUnreadNotifications',
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 9,
-                        fontWeight: FontWeight.w900,
-                      ),
-                    ),
-                  ),
-                ),
-            ],
+        if (isExecutorShell)
+          ExecutorTopActionButton(
+            tooltip: 'مركز الإشعارات',
+            icon: Icons.notifications_none_rounded,
+            onPressed: _openExecutorNotificationCenter,
+            badge: _executorUnreadNotifications,
           ),
-        if (widget.controller.isExecutor)
-          GlassIconButton(
+        if (isExecutorShell)
+          ExecutorTopActionButton(
             tooltip: widget.appearance.isDark
                 ? 'الوضع النهاري'
                 : 'الوضع الليلي',
+            icon: widget.appearance.isDark
+                ? Icons.light_mode_outlined
+                : Icons.dark_mode_outlined,
             onPressed: widget.appearance.toggle,
-            icon: Icon(
-              widget.appearance.isDark
-                  ? Icons.light_mode_outlined
-                  : Icons.dark_mode_outlined,
-            ),
           ),
-        GlassIconButton(
-          tooltip: localized(context, 'تسجيل الخروج', 'Sign out'),
-          onPressed: _confirmLogout,
-          icon: const Icon(Icons.logout_outlined),
-        ),
+        if (isExecutorShell)
+          ExecutorTopActionButton(
+            tooltip: 'تسجيل الخروج',
+            icon: Icons.logout_outlined,
+            onPressed: _confirmLogout,
+          )
+        else
+          GlassIconButton(
+            tooltip: localized(context, 'تسجيل الخروج', 'Sign out'),
+            onPressed: _confirmLogout,
+            icon: const Icon(Icons.logout_outlined),
+          ),
         const SizedBox(width: 6),
       ],
     );
@@ -2145,6 +2124,9 @@ class _RoleShellState extends State<RoleShell> with WidgetsBindingObserver {
       index: _index,
       children: _items.map((item) => item.page).toList(),
     );
+    final pageContent = isExecutorShell
+        ? ExecutorWorkspaceBackground(child: pages)
+        : pages;
     return LayoutBuilder(
       builder: (context, constraints) {
         final desktop = constraints.maxWidth >= 850;
@@ -2154,7 +2136,9 @@ class _RoleShellState extends State<RoleShell> with WidgetsBindingObserver {
                   Container(
                     width: 232,
                     decoration: BoxDecoration(
-                      color: Theme.of(context).colorScheme.surface,
+                      color: isExecutorShell
+                          ? ExecutorUiColors.surface(context)
+                          : Theme.of(context).colorScheme.surface,
                       border: Border(
                         left: BorderSide(
                           color: Theme.of(context).colorScheme.outlineVariant,
@@ -2179,21 +2163,28 @@ class _RoleShellState extends State<RoleShell> with WidgetsBindingObserver {
                       destinations: _items
                           .map(
                             (item) => NavigationRailDestination(
-                              icon: GlassIconBadge(icon: item.icon),
-                              selectedIcon: GlassIconBadge(
-                                icon: item.icon,
-                                selected: true,
-                              ),
+                              icon: isExecutorShell
+                                  ? ExecutorMetalIcon(icon: item.icon, size: 36)
+                                  : GlassIconBadge(icon: item.icon),
+                              selectedIcon: isExecutorShell
+                                  ? ExecutorMetalIcon(
+                                      icon: item.icon,
+                                      selected: true,
+                                    )
+                                  : GlassIconBadge(
+                                      icon: item.icon,
+                                      selected: true,
+                                    ),
                               label: Text(item.label),
                             ),
                           )
                           .toList(),
                     ),
                   ),
-                  Expanded(child: pages),
+                  Expanded(child: pageContent),
                 ],
               )
-            : pages;
+            : pageContent;
         return Scaffold(
           appBar: appBar,
           body: Stack(
@@ -2228,7 +2219,9 @@ class _RoleShellState extends State<RoleShell> with WidgetsBindingObserver {
                   ),
                   child: DecoratedBox(
                     decoration: BoxDecoration(
-                      color: Theme.of(context).colorScheme.surface,
+                      color: isExecutorShell
+                          ? ExecutorUiColors.surface(context)
+                          : Theme.of(context).colorScheme.surface,
                       borderRadius: isCustomerShell
                           ? BorderRadius.circular(8)
                           : BorderRadius.zero,
@@ -2264,11 +2257,22 @@ class _RoleShellState extends State<RoleShell> with WidgetsBindingObserver {
                         destinations: _items
                             .map(
                               (item) => NavigationDestination(
-                                icon: GlassIconBadge(icon: item.icon),
-                                selectedIcon: GlassIconBadge(
-                                  icon: item.icon,
-                                  selected: true,
-                                ),
+                                icon: isExecutorShell
+                                    ? ExecutorMetalIcon(
+                                        icon: item.icon,
+                                        size: 34,
+                                      )
+                                    : GlassIconBadge(icon: item.icon),
+                                selectedIcon: isExecutorShell
+                                    ? ExecutorMetalIcon(
+                                        icon: item.icon,
+                                        size: 36,
+                                        selected: true,
+                                      )
+                                    : GlassIconBadge(
+                                        icon: item.icon,
+                                        selected: true,
+                                      ),
                                 label: item.label,
                               ),
                             )
@@ -2609,7 +2613,9 @@ class _CustomerAccountScreenState extends State<CustomerAccountScreen> {
       ),
       onRefresh: _refresh,
       child: [
-        SurfacePanel(
+        ExecutorSurface(
+          accent: ExecutorUiColors.cobalt,
+          elevated: false,
           child: Column(
             children: [
               Stack(
@@ -10918,7 +10924,8 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                 : 'آخر العمليات المنفذة أو قيد المعالجة في حسابك.'),
       onRefresh: _load,
       child: [
-        SurfacePanel(
+        ExecutorSurface(
+          accent: ExecutorUiColors.jade,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -12112,23 +12119,18 @@ class _ExecutorSupportScreenState extends State<ExecutorSupportScreen> {
         icon: const Icon(Icons.health_and_safety_outlined),
       ),
       child: [
-        SurfacePanel(
+        ExecutorSurface(
+          accent: ExecutorUiColors.jade,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               Row(
                 children: [
-                  Container(
-                    width: 48,
-                    height: 48,
-                    decoration: BoxDecoration(
-                      color: _green.withValues(alpha: 0.12),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: const Icon(
-                      Icons.support_agent_outlined,
-                      color: _green,
-                    ),
+                  const ExecutorMetalIcon(
+                    icon: Icons.headset_mic_outlined,
+                    color: ExecutorUiColors.jade,
+                    size: 48,
+                    selected: true,
                   ),
                   const SizedBox(width: 12),
                   Expanded(
@@ -12165,7 +12167,7 @@ class _ExecutorSupportScreenState extends State<ExecutorSupportScreen> {
                       label: 'نشطة',
                       value: '${numberValue(_summary['active']).toInt()}',
                       icon: Icons.pending_actions_outlined,
-                      color: const Color(0xFF7A57D1),
+                      color: ExecutorUiColors.amber,
                     ),
                   ),
                   const SizedBox(width: 8),
@@ -12198,7 +12200,9 @@ class _ExecutorSupportScreenState extends State<ExecutorSupportScreen> {
           ),
         ),
         const SizedBox(height: 14),
-        SurfacePanel(
+        ExecutorSurface(
+          accent: ExecutorUiColors.cobalt,
+          elevated: false,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
@@ -12325,7 +12329,7 @@ class _ExecutorSupportSummaryCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(icon, size: 20, color: color),
+          ExecutorMetalIcon(icon: icon, color: color, size: 30),
           const Spacer(),
           Text(
             value,
@@ -13928,6 +13932,13 @@ class _ExecutorTasksScreenState extends State<ExecutorTasksScreen> {
       showHeading: false,
       onRefresh: _load,
       child: [
+        ExecutorTaskCommandHeader(
+          taskCount: _tasks.length,
+          lastUpdated: _lastUpdated,
+          manualRouting: _manualTaskRoutingEnabled,
+          managerView: canViewCompanyBalance,
+        ),
+        const SizedBox(height: 14),
         if (_urgentAlerts.isNotEmpty) ...[
           ..._urgentAlerts.map(
             (alert) => Padding(
@@ -13972,6 +13983,109 @@ class _ExecutorTasksScreenState extends State<ExecutorTasksScreen> {
           ExecutorConnectionCard(lastUpdated: _lastUpdated),
         ],
       ],
+    );
+  }
+}
+
+class ExecutorTaskCommandHeader extends StatelessWidget {
+  const ExecutorTaskCommandHeader({
+    super.key,
+    required this.taskCount,
+    required this.lastUpdated,
+    required this.manualRouting,
+    required this.managerView,
+  });
+
+  final int taskCount;
+  final DateTime? lastUpdated;
+  final bool manualRouting;
+  final bool managerView;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    final time = lastUpdated == null
+        ? '--:--'
+        : DateFormat('h:mm a', 'ar').format(lastUpdated!);
+    return ExecutorSurface(
+      elevated: false,
+      accent: ExecutorUiColors.jade,
+      padding: const EdgeInsetsDirectional.fromSTEB(16, 14, 14, 14),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final compact = constraints.maxWidth < 440;
+          final status = Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.circle, color: ExecutorUiColors.jade, size: 9),
+              const SizedBox(width: 6),
+              Text(
+                'متصل',
+                style: TextStyle(
+                  color: colors.onSurface,
+                  fontWeight: FontWeight.w900,
+                  fontSize: 12,
+                ),
+              ),
+              const SizedBox(width: 10),
+              Text(
+                'آخر تحديث $time',
+                style: TextStyle(color: colors.onSurfaceVariant, fontSize: 11),
+              ),
+            ],
+          );
+          final queue = Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ExecutorMetalIcon(
+                icon: taskCount == 0
+                    ? Icons.notifications_none_rounded
+                    : Icons.assignment_turned_in_outlined,
+                color: taskCount == 0
+                    ? ExecutorUiColors.jade
+                    : ExecutorUiColors.cobalt,
+                size: 42,
+                selected: taskCount > 0,
+              ),
+              const SizedBox(width: 10),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    taskCount == 0 ? 'قائمة الانتظار فارغة' : '$taskCount مهمة',
+                    style: TextStyle(
+                      color: colors.onSurface,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                  if (managerView)
+                    Text(
+                      manualRouting
+                          ? 'التوجيه اليدوي مفعل'
+                          : 'السحب المباشر مفعل',
+                      style: TextStyle(
+                        color: colors.onSurfaceVariant,
+                        fontSize: 11,
+                      ),
+                    ),
+                ],
+              ),
+            ],
+          );
+          if (compact) {
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [queue, const SizedBox(height: 12), status],
+            );
+          }
+          return Row(
+            children: [
+              Expanded(child: queue),
+              status,
+            ],
+          );
+        },
+      ),
     );
   }
 }
@@ -14199,7 +14313,7 @@ class ExecutorLiveMonitoringCard extends StatelessWidget {
   }
 }
 
-class ExecutorLiveQueueCard extends StatefulWidget {
+class ExecutorLiveQueueCard extends StatelessWidget {
   const ExecutorLiveQueueCard({
     super.key,
     required this.title,
@@ -14210,198 +14324,95 @@ class ExecutorLiveQueueCard extends StatefulWidget {
   final String message;
 
   @override
-  State<ExecutorLiveQueueCard> createState() => _ExecutorLiveQueueCardState();
-}
-
-class _ExecutorLiveQueueCardState extends State<ExecutorLiveQueueCard>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _animation;
-
-  @override
-  void initState() {
-    super.initState();
-    _animation = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 2400),
-    )..repeat(reverse: true);
-  }
-
-  @override
-  void dispose() {
-    _animation.dispose();
-    super.dispose();
-  }
-
-  @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
-    final dark = Theme.of(context).brightness == Brightness.dark;
-    return Container(
-      constraints: const BoxConstraints(minHeight: 470, maxWidth: 620),
-      padding: const EdgeInsetsDirectional.fromSTEB(22, 20, 22, 24),
-      decoration: BoxDecoration(
-        color: dark ? const Color(0xFF132838) : colors.surface,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(
-          color: dark ? const Color(0xFF284B5A) : colors.outlineVariant,
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: _navy.withValues(alpha: dark ? 0.24 : 0.09),
-            blurRadius: 24,
-            offset: const Offset(0, 12),
-          ),
-        ],
-      ),
-      child: Column(
-        children: [
-          Row(
-            children: [
-              Container(
-                width: 42,
-                height: 42,
-                decoration: BoxDecoration(
-                  color: dark
-                      ? const Color(0xFF1A433E)
-                      : AhramColors.emeraldSoft,
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: const Icon(
-                  Icons.sensors_rounded,
-                  color: AhramColors.emerald,
-                ),
-              ),
-              const SizedBox(width: 11),
-              Expanded(
-                child: Text(
-                  'المراقبة المباشرة نشطة',
-                  style: TextStyle(
-                    color: colors.onSurface,
-                    fontWeight: FontWeight.w900,
-                    fontSize: 15,
+    return Center(
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 620),
+        child: ExecutorSurface(
+          accent: ExecutorUiColors.cobalt,
+          padding: const EdgeInsetsDirectional.fromSTEB(20, 18, 20, 22),
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(minHeight: 430),
+            child: Column(
+              children: [
+                const ExecutorSectionHeading(
+                  title: 'المراقبة المباشرة نشطة',
+                  subtitle: 'اتصال مباشر وآمن بخادم العمليات',
+                  icon: Icons.sensors_rounded,
+                  trailing: StatusPill(
+                    label: 'متصل',
+                    color: ExecutorUiColors.jade,
                   ),
                 ),
-              ),
-              Container(
-                width: 9,
-                height: 9,
-                decoration: const BoxDecoration(
-                  color: AhramColors.emerald,
-                  shape: BoxShape.circle,
+                const SizedBox(height: 10),
+                ExecutorLiveHalo(
+                  size: 248,
+                  child: Image.asset(
+                    'assets/images/executor-live-bell.png',
+                    height: 212,
+                    fit: BoxFit.contain,
+                    filterQuality: FilterQuality.high,
+                  ),
                 ),
-              ),
-              const SizedBox(width: 6),
-              Text(
-                'متصل',
-                style: TextStyle(
-                  color: colors.onSurfaceVariant,
-                  fontSize: 12,
-                  fontWeight: FontWeight.w700,
+                Text(
+                  title,
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: colors.onSurface,
+                    fontSize: 21,
+                    fontWeight: FontWeight.w900,
+                  ),
                 ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 22),
-          SizedBox(
-            height: 238,
-            child: AnimatedBuilder(
-              animation: _animation,
-              builder: (context, child) {
-                final lift = -7 * _animation.value;
-                final scale = 0.96 + (0.04 * _animation.value);
-                return Stack(
-                  alignment: Alignment.center,
-                  children: [
-                    Positioned(
-                      top: 26,
-                      left: 12,
-                      right: 12,
-                      child: Container(
-                        height: 1,
-                        color: colors.outlineVariant.withValues(alpha: 0.70),
-                      ),
+                const SizedBox(height: 7),
+                Text(
+                  message,
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: colors.onSurfaceVariant,
+                    height: 1.45,
+                    fontSize: 13,
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 13,
+                    vertical: 11,
+                  ),
+                  decoration: BoxDecoration(
+                    color: ExecutorUiColors.cobalt.withValues(alpha: 0.08),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(
+                      color: ExecutorUiColors.cobalt.withValues(alpha: 0.18),
                     ),
-                    Positioned(
-                      bottom: 30,
-                      left: 12,
-                      right: 12,
-                      child: Container(
-                        height: 1,
-                        color: colors.outlineVariant.withValues(alpha: 0.70),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(
+                        Icons.notifications_active_outlined,
+                        color: ExecutorUiColors.cobalt,
+                        size: 20,
                       ),
-                    ),
-                    Positioned(
-                      top: 24,
-                      left: 12 + (28 * _animation.value),
-                      child: Container(
-                        width: 56,
-                        height: 5,
-                        decoration: BoxDecoration(
-                          color: AhramColors.sky,
-                          borderRadius: BorderRadius.circular(99),
+                      const SizedBox(width: 9),
+                      Expanded(
+                        child: Text(
+                          'سيصلك تنبيه صوتي فور وصول مهمة جديدة',
+                          style: TextStyle(
+                            color: colors.onSurface,
+                            fontWeight: FontWeight.w800,
+                            fontSize: 12,
+                          ),
                         ),
                       ),
-                    ),
-                    Transform.translate(
-                      offset: Offset(0, lift),
-                      child: Transform.scale(scale: scale, child: child),
-                    ),
-                  ],
-                );
-              },
-              child: Image.asset(
-                'assets/images/executor-live-bell.png',
-                height: 226,
-                fit: BoxFit.contain,
-                filterQuality: FilterQuality.high,
-              ),
-            ),
-          ),
-          Text(
-            widget.title,
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              color: colors.onSurface,
-              fontSize: 23,
-              fontWeight: FontWeight.w900,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            widget.message,
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              color: colors.onSurfaceVariant,
-              height: 1.45,
-              fontSize: 14,
-            ),
-          ),
-          const SizedBox(height: 18),
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-            decoration: BoxDecoration(
-              color: dark ? const Color(0xFF173248) : const Color(0xFFF1F7FF),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Row(
-              children: [
-                const Icon(Icons.notifications_active_outlined, size: 20),
-                const SizedBox(width: 9),
-                Expanded(
-                  child: Text(
-                    'سيصلك تنبيه صوتي فور وصول مهمة جديدة',
-                    style: TextStyle(
-                      color: colors.onSurface,
-                      fontWeight: FontWeight.w800,
-                      fontSize: 12,
-                    ),
+                    ],
                   ),
                 ),
               ],
             ),
           ),
-        ],
+        ),
       ),
     );
   }
@@ -14418,29 +14429,14 @@ class ExecutorConnectionCard extends StatelessWidget {
     final time = lastUpdated == null
         ? '--:--'
         : DateFormat('h:mm a', 'ar').format(lastUpdated!);
-    return Container(
+    return ExecutorSurface(
+      elevated: false,
       padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 15),
-      decoration: BoxDecoration(
-        color: colors.surface,
-        borderRadius: BorderRadius.circular(17),
-        border: Border.all(color: colors.outlineVariant),
-        boxShadow: [
-          BoxShadow(
-            color: _navy.withValues(
-              alpha: Theme.of(context).brightness == Brightness.dark
-                  ? 0.26
-                  : 0.08,
-            ),
-            blurRadius: 18,
-            offset: const Offset(0, 8),
-          ),
-        ],
-      ),
       child: Row(
         children: [
-          GlassIconBadge(
+          const ExecutorMetalIcon(
             icon: Icons.support_agent_outlined,
-            color: _green,
+            color: ExecutorUiColors.jade,
             size: 48,
           ),
           const SizedBox(width: 10),
@@ -14456,15 +14452,19 @@ class ExecutorConnectionCard extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: 3),
-                const Row(
+                Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Icon(Icons.circle, color: _green, size: 9),
-                    SizedBox(width: 5),
+                    const Icon(
+                      Icons.circle,
+                      color: ExecutorUiColors.jade,
+                      size: 9,
+                    ),
+                    const SizedBox(width: 5),
                     Text(
                       'متصل',
                       style: TextStyle(
-                        color: AhramColors.emeraldDeep,
+                        color: colors.onSurface,
                         fontWeight: FontWeight.w900,
                       ),
                     ),
@@ -14475,9 +14475,9 @@ class ExecutorConnectionCard extends StatelessWidget {
           ),
           Container(width: 1, height: 42, color: colors.outlineVariant),
           const SizedBox(width: 14),
-          GlassIconBadge(
+          const ExecutorMetalIcon(
             icon: Icons.schedule_outlined,
-            color: AhramColors.sky,
+            color: ExecutorUiColors.cobalt,
             size: 45,
           ),
           const SizedBox(width: 9),
@@ -14526,31 +14526,25 @@ class ExecutorUrgentAlertCard extends StatelessWidget {
     final message = '${alert['emergencyAlert'] ?? 'طلب يحتاج إلى تدخل عاجل'}'
         .trim();
     final taskId = '${alert['txId'] ?? alert['customId'] ?? '-'}';
-    return Container(
+    return ExecutorSurface(
+      accent: ExecutorUiColors.coral,
       padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: _danger.withValues(alpha: 0.08),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: _danger.withValues(alpha: 0.42)),
-        boxShadow: [
-          BoxShadow(
-            color: _danger.withValues(alpha: 0.10),
-            blurRadius: 18,
-            offset: const Offset(0, 8),
-          ),
-        ],
-      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              GlassIconBadge(
-                icon: alarmPlaying
-                    ? Icons.notifications_active_outlined
-                    : Icons.notifications_paused_outlined,
-                color: _danger,
-                size: 46,
+              ExecutorLiveHalo(
+                size: 58,
+                color: ExecutorUiColors.coral,
+                child: ExecutorMetalIcon(
+                  icon: alarmPlaying
+                      ? Icons.notifications_active_outlined
+                      : Icons.notifications_paused_outlined,
+                  color: ExecutorUiColors.coral,
+                  size: 46,
+                  selected: alarmPlaying,
+                ),
               ),
               const SizedBox(width: 12),
               Expanded(
@@ -14632,10 +14626,15 @@ class ExecutorUrgentAlertDialog extends StatelessWidget {
     final message = '${alert['emergencyAlert'] ?? 'طلب يحتاج إلى تدخل عاجل'}'
         .trim();
     return AlertDialog(
-      icon: const Icon(
-        Icons.notification_important_outlined,
-        color: _danger,
-        size: 34,
+      icon: const ExecutorLiveHalo(
+        size: 92,
+        color: ExecutorUiColors.coral,
+        child: ExecutorMetalIcon(
+          icon: Icons.notification_important_rounded,
+          color: ExecutorUiColors.coral,
+          size: 62,
+          selected: true,
+        ),
       ),
       title: const Text('إنذار استعجال من الإدارة'),
       content: ConstrainedBox(
@@ -15723,27 +15722,16 @@ class ExecutorMetricCard extends StatelessWidget {
     return SizedBox(
       width: 156,
       height: 112,
-      child: Container(
+      child: ExecutorSurface(
         padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: colors.surface,
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: color.withValues(alpha: 0.22)),
-          boxShadow: [
-            BoxShadow(
-              color: _navy.withValues(alpha: 0.06),
-              blurRadius: 14,
-              offset: const Offset(0, 6),
-            ),
-          ],
-        ),
+        accent: color,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                GlassIconBadge(icon: icon, color: color, size: 34),
+                ExecutorMetalIcon(icon: icon, color: color, size: 34),
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
@@ -15797,7 +15785,8 @@ class ExecutorReportOperationTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
     final executorName = '${operation['executorName'] ?? ''}'.trim();
-    return SurfacePanel(
+    return ExecutorSurface(
+      accent: cancelled ? ExecutorUiColors.coral : ExecutorUiColors.jade,
       child: Column(
         children: [
           Row(
@@ -16114,13 +16103,24 @@ class _ExecutorSettingsScreenState extends State<ExecutorSettingsScreen> {
     required String subtitle,
     bool mandatory = false,
   }) {
+    final color = switch (key) {
+      'urgent' => ExecutorUiColors.coral,
+      'tasks' => ExecutorUiColors.jade,
+      'balance' => ExecutorUiColors.amber,
+      _ => ExecutorUiColors.cobalt,
+    };
     return SwitchListTile.adaptive(
       contentPadding: EdgeInsets.zero,
       value: mandatory || (_notificationPreferences[key] ?? true),
       onChanged: mandatory || _preferenceBusy
           ? null
           : (value) => _setNotificationPreference(key, value),
-      secondary: Icon(icon),
+      secondary: ExecutorMetalIcon(
+        icon: icon,
+        color: color,
+        size: 36,
+        selected: mandatory,
+      ),
       title: Text(title, style: const TextStyle(fontWeight: FontWeight.w800)),
       subtitle: Text(subtitle),
     );
@@ -16223,7 +16223,7 @@ class _ExecutorSettingsScreenState extends State<ExecutorSettingsScreen> {
             children: [
               Row(
                 children: [
-                  const BrandMark(compact: true),
+                  const ExecutorWordmark(),
                   const SizedBox(width: 12),
                   Expanded(
                     child: Text(
@@ -16261,17 +16261,30 @@ class _ExecutorSettingsScreenState extends State<ExecutorSettingsScreen> {
           ),
         ),
         const SizedBox(height: 18),
-        SurfacePanel(
+        ExecutorSurface(
+          accent: notificationsReady
+              ? ExecutorUiColors.jade
+              : ExecutorUiColors.coral,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               Row(
                 children: [
-                  Icon(
-                    notificationsReady
-                        ? Icons.notifications_active_outlined
-                        : Icons.notifications_off_outlined,
-                    color: notificationsReady ? _green : _danger,
+                  ExecutorLiveHalo(
+                    size: 54,
+                    color: notificationsReady
+                        ? ExecutorUiColors.jade
+                        : ExecutorUiColors.coral,
+                    child: ExecutorMetalIcon(
+                      icon: notificationsReady
+                          ? Icons.notifications_active_outlined
+                          : Icons.notifications_off_outlined,
+                      color: notificationsReady
+                          ? ExecutorUiColors.jade
+                          : ExecutorUiColors.coral,
+                      size: 42,
+                      selected: notificationsReady,
+                    ),
                   ),
                   const SizedBox(width: 10),
                   const Expanded(
@@ -16472,12 +16485,18 @@ class _ExecutorSettingsScreenState extends State<ExecutorSettingsScreen> {
         ),
         if (widget.controller.isExecutorManager) ...[
           const SizedBox(height: 18),
-          SurfacePanel(
+          ExecutorSurface(
+            accent: ExecutorUiColors.amber,
             child: SwitchListTile.adaptive(
               contentPadding: EdgeInsets.zero,
               value: _manualTaskRoutingEnabled,
               onChanged: _routingBusy ? null : _toggleManualTaskRouting,
-              secondary: const Icon(Icons.route_outlined),
+              secondary: const ExecutorMetalIcon(
+                icon: Icons.route_outlined,
+                color: ExecutorUiColors.amber,
+                size: 38,
+                selected: true,
+              ),
               title: const Text(
                 'التوجيه اليدوي للمهام',
                 style: TextStyle(fontWeight: FontWeight.w900),
@@ -16518,7 +16537,7 @@ class _ExecutorSettingsScreenState extends State<ExecutorSettingsScreen> {
             value:
                 '${formatEgpAmount(numberValue(performance['totalEGP']))} ج.م',
             icon: Icons.person_outline,
-            color: const Color(0xFF7A57D1),
+            color: ExecutorUiColors.cobalt,
           ),
         ],
       ],
@@ -16824,7 +16843,9 @@ class _ExecutorEmployeesScreenState extends State<ExecutorEmployeesScreen> {
       child: [
         ExecutorEmployeesSummary(summary: _summary),
         const SizedBox(height: 14),
-        SurfacePanel(
+        ExecutorSurface(
+          accent: ExecutorUiColors.cobalt,
+          elevated: false,
           child: LayoutBuilder(
             builder: (context, constraints) {
               final compact = constraints.maxWidth < 650;
@@ -17048,7 +17069,7 @@ class ExecutorEmployeesSummary extends StatelessWidget {
         label: 'تنفيذات اليوم',
         value: '${numberValue(summary['completedCount']).toInt()}',
         icon: Icons.task_alt_outlined,
-        color: const Color(0xFF6B57C8),
+        color: ExecutorUiColors.cobalt,
       ),
     ];
 
@@ -17139,23 +17160,12 @@ class _EmployeeSummaryCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
-    return Container(
+    return ExecutorSurface(
       padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: colors.surface,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: color.withValues(alpha: 0.22)),
-        boxShadow: [
-          BoxShadow(
-            color: _navy.withValues(alpha: 0.07),
-            blurRadius: 14,
-            offset: const Offset(0, 6),
-          ),
-        ],
-      ),
+      accent: color,
       child: Row(
         children: [
-          GlassIconBadge(icon: icon, color: color, size: 39),
+          ExecutorMetalIcon(icon: icon, color: color, size: 39),
           const SizedBox(width: 9),
           Expanded(
             child: Column(
@@ -17277,7 +17287,7 @@ class ExecutorEmployeeTile extends StatelessWidget {
                   Stack(
                     clipBehavior: Clip.none,
                     children: [
-                      GlassIconBadge(
+                      ExecutorMetalIcon(
                         icon: roleIcon,
                         color: roleColor,
                         size: 48,
@@ -18676,6 +18686,12 @@ class _CancelTaskDialogState extends State<CancelTaskDialog> {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
+      icon: const ExecutorMetalIcon(
+        icon: Icons.cancel_outlined,
+        color: ExecutorUiColors.coral,
+        size: 58,
+        selected: true,
+      ),
       title: const Text('إلغاء العملية'),
       content: Column(
         mainAxisSize: MainAxisSize.min,
@@ -18829,7 +18845,17 @@ class _CompleteTaskDialogState extends State<CompleteTaskDialog> {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      title: const Text('إرسال إثبات التنفيذ'),
+      icon: const ExecutorLiveHalo(
+        size: 82,
+        color: ExecutorUiColors.jade,
+        child: ExecutorMetalIcon(
+          icon: Icons.task_alt_rounded,
+          color: ExecutorUiColors.jade,
+          size: 56,
+          selected: true,
+        ),
+      ),
+      title: const Text('إتمام المهمة'),
       content: SizedBox(
         width: 420,
         child: SingleChildScrollView(
@@ -20884,23 +20910,24 @@ class ExecutorTaskTile extends StatelessWidget {
     final amount = formatEgpAmount(numberValue(task['amount']));
     final notes = '${task['notes'] ?? ''}'.trim();
     final receivedAt = task['executorReceivedAt'] ?? task['createdAt'];
-    return SurfacePanel(
+    return ExecutorSurface(
+      accent: acceptedByMe
+          ? ExecutorUiColors.jade
+          : (takenByAnother ? ExecutorUiColors.amber : ExecutorUiColors.cobalt),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              Container(
-                width: 46,
-                height: 46,
-                decoration: BoxDecoration(
-                  color: AhramColors.sky.withValues(alpha: 0.11),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: const Icon(
-                  Icons.bolt_outlined,
-                  color: Color(0xFF1976D2),
-                ),
+              ExecutorMetalIcon(
+                icon: accepted
+                    ? Icons.lock_open_rounded
+                    : Icons.assignment_turned_in_outlined,
+                color: acceptedByMe
+                    ? ExecutorUiColors.jade
+                    : ExecutorUiColors.cobalt,
+                size: 46,
+                selected: accepted,
               ),
               const SizedBox(width: 12),
               Expanded(
@@ -21062,7 +21089,7 @@ class ExecutorTaskTile extends StatelessWidget {
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
               decoration: BoxDecoration(
                 color: AhramColors.emeraldSoft.withValues(alpha: 0.72),
-                borderRadius: BorderRadius.circular(10),
+                borderRadius: BorderRadius.circular(8),
                 border: Border.all(
                   color: AhramColors.emerald.withValues(alpha: 0.25),
                 ),
@@ -21107,7 +21134,7 @@ class ExecutorTaskTile extends StatelessWidget {
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
                 color: AhramColors.sky.withValues(alpha: 0.10),
-                borderRadius: BorderRadius.circular(10),
+                borderRadius: BorderRadius.circular(8),
                 border: Border.all(
                   color: AhramColors.sky.withValues(alpha: 0.28),
                 ),
