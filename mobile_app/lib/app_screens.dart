@@ -16538,14 +16538,25 @@ class ExecutorEmployeesScreen extends StatefulWidget {
 
 class _ExecutorEmployeesScreenState extends State<ExecutorEmployeesScreen> {
   List<Map<String, dynamic>> _employees = <Map<String, dynamic>>[];
+  Map<String, dynamic> _summary = <String, dynamic>{};
+  final TextEditingController _searchController = TextEditingController();
   Object? _error;
   bool _loading = true;
   String? _busyId;
+  String _roleFilter = 'all';
+  String _statusFilter = 'all';
+  String _sortMode = 'activity';
 
   @override
   void initState() {
     super.initState();
     _load();
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
   }
 
   Future<void> _load() async {
@@ -16556,13 +16567,83 @@ class _ExecutorEmployeesScreenState extends State<ExecutorEmployeesScreen> {
       });
     }
     try {
-      final employees = await widget.controller.api.executorEmployees();
-      if (mounted) setState(() => _employees = employees);
+      final workspace = await widget.controller.api
+          .executorEmployeesWorkspace();
+      final rawEmployees = workspace['employees'];
+      final employees = rawEmployees is List
+          ? rawEmployees
+                .whereType<Map>()
+                .map((item) => Map<String, dynamic>.from(item))
+                .toList()
+          : <Map<String, dynamic>>[];
+      final rawSummary = workspace['summary'];
+      if (mounted) {
+        setState(() {
+          _employees = employees;
+          _summary = rawSummary is Map
+              ? Map<String, dynamic>.from(rawSummary)
+              : <String, dynamic>{};
+        });
+      }
     } catch (error) {
       if (mounted) setState(() => _error = error);
     } finally {
       if (mounted) setState(() => _loading = false);
     }
+  }
+
+  List<Map<String, dynamic>> get _visibleEmployees {
+    final query = _searchController.text.trim().toLowerCase();
+    final visible = _employees.where((employee) {
+      final role = '${employee['role']}';
+      final status = '${employee['status']}';
+      final presence = employee['presence'] is Map
+          ? Map<String, dynamic>.from(employee['presence'] as Map)
+          : const <String, dynamic>{};
+      final hasTask = employee['currentTask'] is Map;
+      final searchable = <dynamic>[
+        employee['name'],
+        employee['phone'],
+        employee['webUsername'],
+      ].join(' ').toLowerCase();
+
+      if (query.isNotEmpty && !searchable.contains(query)) return false;
+      if (_roleFilter != 'all' && role != _roleFilter) return false;
+      if (_statusFilter == 'active' && status != 'active') return false;
+      if (_statusFilter == 'suspended' && status == 'active') return false;
+      if (_statusFilter == 'online' && presence['isOnline'] != true) {
+        return false;
+      }
+      if (_statusFilter == 'busy' && !hasTask) return false;
+      return true;
+    }).toList();
+
+    int completedCount(Map<String, dynamic> employee) {
+      final metrics = employee['metrics'];
+      return metrics is Map
+          ? numberValue(metrics['completedCount']).toInt()
+          : 0;
+    }
+
+    int activityRank(Map<String, dynamic> employee) {
+      if (employee['currentTask'] is Map) return 3;
+      final presence = employee['presence'];
+      if (presence is Map && presence['isOnline'] == true) return 2;
+      return employee['status'] == 'active' ? 1 : 0;
+    }
+
+    visible.sort((left, right) {
+      if (_sortMode == 'name') {
+        return '${left['name']}'.compareTo('${right['name']}');
+      }
+      if (_sortMode == 'performance') {
+        return completedCount(right).compareTo(completedCount(left));
+      }
+      final activity = activityRank(right).compareTo(activityRank(left));
+      if (activity != 0) return activity;
+      return completedCount(right).compareTo(completedCount(left));
+    });
+    return visible;
   }
 
   Future<void> _editEmployee([Map<String, dynamic>? employee]) async {
@@ -16634,13 +16715,34 @@ class _ExecutorEmployeesScreenState extends State<ExecutorEmployeesScreen> {
     }
   }
 
-  Future<void> _delete(Map<String, dynamic> employee) async {
+  Future<void> _toggleReportsPermission(Map<String, dynamic> employee) async {
+    final id = '${employee['id']}';
+    setState(() => _busyId = id);
+    try {
+      await widget.controller.api.toggleExecutorEmployeeReports(id);
+      if (mounted) {
+        showSnack(
+          context,
+          employee['canViewAllReports'] == true
+              ? 'تم تقييد التقارير على حساب الموظف.'
+              : 'تم السماح للموظف بعرض تقارير الشركة.',
+        );
+      }
+      await _load();
+    } on ApiFailure catch (error) {
+      if (mounted) showSnack(context, error.message, error: true);
+    } finally {
+      if (mounted) setState(() => _busyId = null);
+    }
+  }
+
+  Future<void> _archive(Map<String, dynamic> employee) async {
     final approved = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('حذف الموظف'),
+        title: const Text('أرشفة حساب الموظف'),
         content: Text(
-          'سيتم إلغاء حساب ${employee['name'] ?? 'الموظف'} مع بقاء العمليات في السجل.',
+          'سيتم إيقاف دخول ${employee['name'] ?? 'الموظف'} وإخفاء الحساب من الفريق، مع الاحتفاظ بجميع عملياته وتقاريره في السجل.',
         ),
         actions: [
           TextButton(
@@ -16650,7 +16752,7 @@ class _ExecutorEmployeesScreenState extends State<ExecutorEmployeesScreen> {
           FilledButton(
             style: FilledButton.styleFrom(backgroundColor: _danger),
             onPressed: () => Navigator.pop(context, true),
-            child: const Text('حذف'),
+            child: const Text('أرشفة الحساب'),
           ),
         ],
       ),
@@ -16660,7 +16762,7 @@ class _ExecutorEmployeesScreenState extends State<ExecutorEmployeesScreen> {
     setState(() => _busyId = id);
     try {
       await widget.controller.api.deleteExecutorEmployee(id);
-      if (mounted) showSnack(context, 'تم حذف حساب الموظف.');
+      if (mounted) showSnack(context, 'تمت أرشفة الحساب مع حفظ سجل العمليات.');
       await _load();
     } on ApiFailure catch (error) {
       if (mounted) showSnack(context, error.message, error: true);
@@ -16684,44 +16786,407 @@ class _ExecutorEmployeesScreenState extends State<ExecutorEmployeesScreen> {
     );
   }
 
+  void _openEmployee(Map<String, dynamic> employee) {
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => ExecutorEmployeeDetailsScreen(
+          employee: employee,
+          busy: _busyId == '${employee['id']}',
+          onEdit: () => _editEmployee(employee),
+          onResetPassword: () => _resetPassword(employee),
+          onToggleStatus: () => _toggleStatus(employee),
+          onToggleReports: () => _toggleReportsPermission(employee),
+          onReport: () => _openReport(employee),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     if (_loading && _employees.isEmpty) return const PageLoading();
     if (_error != null && _employees.isEmpty) {
       return ErrorPage(error: _error!, onRetry: _load);
     }
+    final visibleEmployees = _visibleEmployees;
     return PageFrame(
-      title: 'موظفو التنفيذ',
-      subtitle: 'إدارة حسابات التشغيل والتقارير الفردية.',
+      title: 'فريق التنفيذ',
+      subtitle: 'متابعة الحضور والمهام والأداء وإدارة صلاحيات الفريق.',
       onRefresh: _load,
-      action: FilledButton.icon(
+      action: FilledButton(
         onPressed: _loading ? null : () => _editEmployee(),
-        icon: const Icon(Icons.person_add_alt_1_outlined),
-        label: const Text('موظف جديد'),
+        style: FilledButton.styleFrom(
+          padding: const EdgeInsets.all(12),
+          minimumSize: const Size.square(44),
+        ),
+        child: const Icon(Icons.person_add_alt_1_outlined),
       ),
       child: [
+        ExecutorEmployeesSummary(summary: _summary),
+        const SizedBox(height: 14),
+        SurfacePanel(
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final compact = constraints.maxWidth < 650;
+              final filterWidth = compact
+                  ? (constraints.maxWidth - 10) / 2
+                  : (constraints.maxWidth - 20) / 3;
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  TextField(
+                    controller: _searchController,
+                    onChanged: (_) => setState(() {}),
+                    decoration: InputDecoration(
+                      labelText: 'بحث عن موظف',
+                      hintText: 'الاسم أو الهاتف أو اسم المستخدم',
+                      prefixIcon: const Icon(Icons.search_rounded),
+                      suffixIcon: _searchController.text.isEmpty
+                          ? null
+                          : IconButton(
+                              tooltip: 'مسح البحث',
+                              onPressed: () {
+                                _searchController.clear();
+                                setState(() {});
+                              },
+                              icon: const Icon(Icons.close_rounded),
+                            ),
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  Wrap(
+                    spacing: 10,
+                    runSpacing: 10,
+                    children: [
+                      SizedBox(
+                        width: filterWidth,
+                        child: DropdownButtonFormField<String>(
+                          initialValue: _roleFilter,
+                          decoration: const InputDecoration(
+                            labelText: 'الوظيفة',
+                            prefixIcon: Icon(Icons.badge_outlined),
+                          ),
+                          items: const [
+                            DropdownMenuItem(
+                              value: 'all',
+                              child: Text('كل الوظائف'),
+                            ),
+                            DropdownMenuItem(
+                              value: 'operator',
+                              child: Text('موظف تنفيذ'),
+                            ),
+                            DropdownMenuItem(
+                              value: 'accountant',
+                              child: Text('محاسب'),
+                            ),
+                            DropdownMenuItem(
+                              value: 'manager',
+                              child: Text('مدير'),
+                            ),
+                          ],
+                          onChanged: (value) =>
+                              setState(() => _roleFilter = value ?? 'all'),
+                        ),
+                      ),
+                      SizedBox(
+                        width: filterWidth,
+                        child: DropdownButtonFormField<String>(
+                          initialValue: _statusFilter,
+                          decoration: const InputDecoration(
+                            labelText: 'الحالة',
+                            prefixIcon: Icon(Icons.radar_outlined),
+                          ),
+                          items: const [
+                            DropdownMenuItem(
+                              value: 'all',
+                              child: Text('كل الحالات'),
+                            ),
+                            DropdownMenuItem(
+                              value: 'online',
+                              child: Text('متصل الآن'),
+                            ),
+                            DropdownMenuItem(
+                              value: 'busy',
+                              child: Text('لديه مهمة'),
+                            ),
+                            DropdownMenuItem(
+                              value: 'active',
+                              child: Text('نشط'),
+                            ),
+                            DropdownMenuItem(
+                              value: 'suspended',
+                              child: Text('موقوف'),
+                            ),
+                          ],
+                          onChanged: (value) =>
+                              setState(() => _statusFilter = value ?? 'all'),
+                        ),
+                      ),
+                      SizedBox(
+                        width: compact ? constraints.maxWidth : filterWidth,
+                        child: DropdownButtonFormField<String>(
+                          initialValue: _sortMode,
+                          decoration: const InputDecoration(
+                            labelText: 'الترتيب',
+                            prefixIcon: Icon(Icons.sort_rounded),
+                          ),
+                          items: const [
+                            DropdownMenuItem(
+                              value: 'activity',
+                              child: Text('النشاط الحالي'),
+                            ),
+                            DropdownMenuItem(
+                              value: 'performance',
+                              child: Text('أداء اليوم'),
+                            ),
+                            DropdownMenuItem(
+                              value: 'name',
+                              child: Text('الاسم'),
+                            ),
+                          ],
+                          onChanged: (value) =>
+                              setState(() => _sortMode = value ?? 'activity'),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              );
+            },
+          ),
+        ),
+        const SizedBox(height: 16),
+        Row(
+          children: [
+            Expanded(
+              child: Text(
+                'أعضاء الفريق',
+                style: Theme.of(
+                  context,
+                ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900),
+              ),
+            ),
+            StatusPill(
+              label: '${visibleEmployees.length} حساب',
+              color: Theme.of(context).colorScheme.primary,
+            ),
+          ],
+        ),
+        const SizedBox(height: 10),
         if (_employees.isEmpty)
           const EmptyPanel(
             icon: Icons.groups_outlined,
             title: 'لا توجد حسابات موظفين',
             message: 'أضف موظف تنفيذ أو محاسباً لشركة التنفيذ.',
           )
+        else if (visibleEmployees.isEmpty)
+          EmptyPanel(
+            icon: Icons.manage_search_outlined,
+            title: 'لا توجد نتائج مطابقة',
+            message: 'غيّر البحث أو الفلاتر لعرض أعضاء الفريق.',
+            action: TextButton.icon(
+              onPressed: () {
+                _searchController.clear();
+                setState(() {
+                  _roleFilter = 'all';
+                  _statusFilter = 'all';
+                });
+              },
+              icon: const Icon(Icons.restart_alt_rounded),
+              label: const Text('إعادة الضبط'),
+            ),
+          )
         else
-          ..._employees.map(
+          ...visibleEmployees.map(
             (employee) => Padding(
               padding: const EdgeInsets.only(bottom: 12),
               child: ExecutorEmployeeTile(
                 employee: employee,
                 busy: _busyId == '${employee['id']}',
+                onOpen: () => _openEmployee(employee),
                 onEdit: () => _editEmployee(employee),
                 onResetPassword: () => _resetPassword(employee),
                 onToggleStatus: () => _toggleStatus(employee),
+                onToggleReports: () => _toggleReportsPermission(employee),
                 onReport: () => _openReport(employee),
-                onDelete: () => _delete(employee),
+                onArchive: () => _archive(employee),
               ),
             ),
           ),
       ],
+    );
+  }
+}
+
+class ExecutorEmployeesSummary extends StatelessWidget {
+  const ExecutorEmployeesSummary({super.key, required this.summary});
+
+  final Map<String, dynamic> summary;
+
+  @override
+  Widget build(BuildContext context) {
+    final items = <({String label, String value, IconData icon, Color color})>[
+      (
+        label: 'أعضاء الفريق',
+        value: '${numberValue(summary['totalEmployees']).toInt()}',
+        icon: Icons.groups_2_outlined,
+        color: AhramColors.sky,
+      ),
+      (
+        label: 'متصلون الآن',
+        value: '${numberValue(summary['onlineEmployees']).toInt()}',
+        icon: Icons.wifi_tethering_rounded,
+        color: _green,
+      ),
+      (
+        label: 'مهام نشطة',
+        value: '${numberValue(summary['busyEmployees']).toInt()}',
+        icon: Icons.pending_actions_outlined,
+        color: _gold,
+      ),
+      (
+        label: 'تنفيذات اليوم',
+        value: '${numberValue(summary['completedCount']).toInt()}',
+        icon: Icons.task_alt_outlined,
+        color: const Color(0xFF6B57C8),
+      ),
+    ];
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final columns = constraints.maxWidth >= 760 ? 4 : 2;
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            GridView.builder(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: columns,
+                crossAxisSpacing: 10,
+                mainAxisSpacing: 10,
+                childAspectRatio: columns == 4 ? 2.35 : 1.75,
+              ),
+              itemCount: items.length,
+              itemBuilder: (context, index) {
+                final item = items[index];
+                return _EmployeeSummaryCard(
+                  label: item.label,
+                  value: item.value,
+                  icon: item.icon,
+                  color: item.color,
+                );
+              },
+            ),
+            const SizedBox(height: 9),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+              decoration: BoxDecoration(
+                color: Theme.of(
+                  context,
+                ).colorScheme.primary.withValues(alpha: 0.06),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Row(
+                children: [
+                  Icon(
+                    Icons.payments_outlined,
+                    size: 18,
+                    color: Theme.of(context).colorScheme.primary,
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'إجمالي تنفيذات اليوم',
+                      style: TextStyle(
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                  Text(
+                    '${formatEgpAmount(numberValue(summary['totalEGP']))} ج.م',
+                    textDirection: ui.TextDirection.ltr,
+                    style: const TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+}
+
+class _EmployeeSummaryCard extends StatelessWidget {
+  const _EmployeeSummaryCard({
+    required this.label,
+    required this.value,
+    required this.icon,
+    required this.color,
+  });
+
+  final String label;
+  final String value;
+  final IconData icon;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: colors.surface,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: color.withValues(alpha: 0.22)),
+        boxShadow: [
+          BoxShadow(
+            color: _navy.withValues(alpha: 0.07),
+            blurRadius: 14,
+            offset: const Offset(0, 6),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          GlassIconBadge(icon: icon, color: color, size: 39),
+          const SizedBox(width: 9),
+          Expanded(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  value,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  textDirection: ui.TextDirection.ltr,
+                  style: const TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+                Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: colors.onSurfaceVariant,
+                    fontSize: 10,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -16731,20 +17196,24 @@ class ExecutorEmployeeTile extends StatelessWidget {
     super.key,
     required this.employee,
     required this.busy,
+    required this.onOpen,
     required this.onEdit,
     required this.onResetPassword,
     required this.onToggleStatus,
+    required this.onToggleReports,
     required this.onReport,
-    required this.onDelete,
+    required this.onArchive,
   });
 
   final Map<String, dynamic> employee;
   final bool busy;
+  final VoidCallback onOpen;
   final VoidCallback onEdit;
   final VoidCallback onResetPassword;
   final VoidCallback onToggleStatus;
+  final VoidCallback onToggleReports;
   final VoidCallback onReport;
-  final VoidCallback onDelete;
+  final VoidCallback onArchive;
 
   String get _role {
     switch ('${employee['role']}') {
@@ -16762,6 +17231,16 @@ class ExecutorEmployeeTile extends StatelessWidget {
     final isManager = employee['role'] == 'manager';
     final active = employee['status'] == 'active';
     final colors = Theme.of(context).colorScheme;
+    final metrics = employee['metrics'] is Map
+        ? Map<String, dynamic>.from(employee['metrics'] as Map)
+        : const <String, dynamic>{};
+    final presence = employee['presence'] is Map
+        ? Map<String, dynamic>.from(employee['presence'] as Map)
+        : const <String, dynamic>{};
+    final currentTask = employee['currentTask'] is Map
+        ? Map<String, dynamic>.from(employee['currentTask'] as Map)
+        : null;
+    final online = presence['isOnline'] == true;
     final roleColor = employee['role'] == 'accountant'
         ? _gold
         : isManager
@@ -16772,180 +17251,663 @@ class ExecutorEmployeeTile extends StatelessWidget {
         : isManager
         ? Icons.admin_panel_settings_outlined
         : Icons.support_agent_outlined;
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: colors.surface,
+    return Material(
+      color: colors.surface,
+      shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: roleColor.withValues(alpha: 0.24)),
-        boxShadow: [
-          BoxShadow(
-            color: _navy.withValues(alpha: 0.08),
-            blurRadius: 16,
-            offset: const Offset(0, 7),
-          ),
-          BoxShadow(
-            color: Colors.white.withValues(alpha: 0.78),
-            blurRadius: 0,
-            offset: const Offset(0, -1),
-          ),
-        ],
+        side: BorderSide(
+          color: currentTask != null
+              ? colors.primary.withValues(alpha: 0.38)
+              : roleColor.withValues(alpha: 0.22),
+        ),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
+      elevation: 2,
+      shadowColor: _navy.withValues(alpha: 0.18),
+      child: InkWell(
+        onTap: onOpen,
+        borderRadius: BorderRadius.circular(8),
+        child: Padding(
+          padding: const EdgeInsets.all(14),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              GlassIconBadge(icon: roleIcon, color: roleColor, size: 52),
-              const SizedBox(width: 12),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Stack(
+                    clipBehavior: Clip.none,
+                    children: [
+                      GlassIconBadge(
+                        icon: roleIcon,
+                        color: roleColor,
+                        size: 48,
+                      ),
+                      PositionedDirectional(
+                        end: -2,
+                        bottom: -2,
+                        child: Container(
+                          width: 13,
+                          height: 13,
+                          decoration: BoxDecoration(
+                            color: online ? _green : colors.outlineVariant,
+                            shape: BoxShape.circle,
+                            border: Border.all(color: colors.surface, width: 2),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          '${employee['name'] ?? '-'}',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontWeight: FontWeight.w900,
+                            color: colors.onSurface,
+                            fontSize: 16,
+                          ),
+                        ),
+                        const SizedBox(height: 5),
+                        Wrap(
+                          spacing: 6,
+                          runSpacing: 6,
+                          children: [
+                            StatusPill(label: _role, color: roleColor),
+                            StatusPill(
+                              label: online
+                                  ? 'متصل الآن'
+                                  : active
+                                  ? 'غير متصل'
+                                  : 'موقوف',
+                              color: online
+                                  ? _green
+                                  : active
+                                  ? colors.onSurfaceVariant
+                                  : _danger,
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                  if (busy)
+                    const Padding(
+                      padding: EdgeInsets.all(8),
+                      child: SizedBox.square(
+                        dimension: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      ),
+                    )
+                  else if (!isManager)
+                    PopupMenuButton<String>(
+                      tooltip: 'إجراءات الموظف',
+                      onSelected: (value) {
+                        if (value == 'edit') onEdit();
+                        if (value == 'password') onResetPassword();
+                        if (value == 'reports') onToggleReports();
+                        if (value == 'status') onToggleStatus();
+                        if (value == 'archive') onArchive();
+                      },
+                      itemBuilder: (context) => [
+                        const PopupMenuItem(
+                          value: 'edit',
+                          child: ListTile(
+                            dense: true,
+                            leading: Icon(Icons.edit_outlined),
+                            title: Text('تعديل البيانات'),
+                          ),
+                        ),
+                        const PopupMenuItem(
+                          value: 'password',
+                          child: ListTile(
+                            dense: true,
+                            leading: Icon(Icons.key_outlined),
+                            title: Text('تغيير كلمة المرور'),
+                          ),
+                        ),
+                        PopupMenuItem(
+                          value: 'reports',
+                          child: ListTile(
+                            dense: true,
+                            leading: const Icon(Icons.policy_outlined),
+                            title: Text(
+                              employee['canViewAllReports'] == true
+                                  ? 'تقييد التقارير'
+                                  : 'السماح بتقارير الشركة',
+                            ),
+                          ),
+                        ),
+                        PopupMenuItem(
+                          value: 'status',
+                          child: ListTile(
+                            dense: true,
+                            leading: Icon(
+                              active
+                                  ? Icons.pause_circle_outline
+                                  : Icons.play_circle_outline,
+                            ),
+                            title: Text(
+                              active ? 'إيقاف الحساب' : 'تفعيل الحساب',
+                            ),
+                          ),
+                        ),
+                        const PopupMenuDivider(),
+                        const PopupMenuItem(
+                          value: 'archive',
+                          child: ListTile(
+                            dense: true,
+                            leading: Icon(
+                              Icons.archive_outlined,
+                              color: _danger,
+                            ),
+                            title: Text(
+                              'أرشفة الحساب',
+                              style: TextStyle(color: _danger),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                ],
+              ),
+              if (currentTask != null) ...[
+                const SizedBox(height: 12),
+                Container(
+                  padding: const EdgeInsets.all(11),
+                  decoration: BoxDecoration(
+                    color: colors.primary.withValues(alpha: 0.07),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(
+                      color: colors.primary.withValues(alpha: 0.18),
+                    ),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(
+                        Icons.assignment_turned_in_outlined,
+                        color: colors.primary,
+                      ),
+                      const SizedBox(width: 9),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'ينفذ الآن ${currentTask['customId'] ?? ''}',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w900,
+                                fontSize: 12,
+                              ),
+                            ),
+                            const SizedBox(height: 3),
+                            Text(
+                              '${currentTask['recipient'] ?? '-'} · ${formatEgpAmount(numberValue(currentTask['amount']))} ج.م',
+                              textDirection: ui.TextDirection.ltr,
+                              style: TextStyle(
+                                color: colors.onSurfaceVariant,
+                                fontSize: 12,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      TaskElapsedTimer(startedAt: currentTask['receivedAt']),
+                    ],
+                  ),
+                ),
+              ],
+              const SizedBox(height: 13),
+              Row(
+                children: [
+                  Expanded(
+                    child: EmployeeMetricCell(
+                      label: 'عمليات اليوم',
+                      value:
+                          '${numberValue(metrics['completedCount']).toInt()}',
+                    ),
+                  ),
+                  Expanded(
+                    child: EmployeeMetricCell(
+                      label: 'إجمالي اليوم',
+                      value:
+                          '${formatEgpAmount(numberValue(metrics['totalEGP']))} ج.م',
+                    ),
+                  ),
+                  Expanded(
+                    child: EmployeeMetricCell(
+                      label: 'متوسط التنفيذ',
+                      value: metrics['averageDurationSeconds'] == null
+                          ? '-'
+                          : formatExecutionDuration(
+                              metrics['averageDurationSeconds'],
+                            ),
+                    ),
+                  ),
+                ],
+              ),
+              const Divider(height: 22),
+              Row(
+                children: [
+                  Expanded(
+                    child: TextButton.icon(
+                      onPressed: onOpen,
+                      icon: const Icon(Icons.person_search_outlined),
+                      label: const Text('فتح الملف'),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  OutlinedButton.icon(
+                    onPressed: busy ? null : onReport,
+                    icon: const Icon(Icons.assessment_outlined),
+                    label: const Text('التقرير'),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class EmployeeMetricCell extends StatelessWidget {
+  const EmployeeMetricCell({
+    super.key,
+    required this.label,
+    required this.value,
+  });
+
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: TextStyle(color: colors.onSurfaceVariant, fontSize: 10),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          value,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          textDirection: ui.TextDirection.ltr,
+          style: TextStyle(
+            color: colors.onSurface,
+            fontSize: 12,
+            fontWeight: FontWeight.w900,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class ExecutorEmployeeDetailsScreen extends StatelessWidget {
+  const ExecutorEmployeeDetailsScreen({
+    super.key,
+    required this.employee,
+    required this.busy,
+    required this.onEdit,
+    required this.onResetPassword,
+    required this.onToggleStatus,
+    required this.onToggleReports,
+    required this.onReport,
+  });
+
+  final Map<String, dynamic> employee;
+  final bool busy;
+  final VoidCallback onEdit;
+  final VoidCallback onResetPassword;
+  final VoidCallback onToggleStatus;
+  final VoidCallback onToggleReports;
+  final VoidCallback onReport;
+
+  String get _roleLabel => switch ('${employee['role']}') {
+    'manager' => 'مدير تنفيذي',
+    'accountant' => 'محاسب',
+    _ => 'موظف تنفيذ',
+  };
+
+  Map<String, dynamic> get _metrics => employee['metrics'] is Map
+      ? Map<String, dynamic>.from(employee['metrics'] as Map)
+      : const <String, dynamic>{};
+
+  Map<String, dynamic> get _presence => employee['presence'] is Map
+      ? Map<String, dynamic>.from(employee['presence'] as Map)
+      : const <String, dynamic>{};
+
+  Map<String, dynamic>? get _currentTask => employee['currentTask'] is Map
+      ? Map<String, dynamic>.from(employee['currentTask'] as Map)
+      : null;
+
+  @override
+  Widget build(BuildContext context) {
+    final active = employee['status'] == 'active';
+    final online = _presence['isOnline'] == true;
+    return DefaultTabController(
+      length: 3,
+      child: Scaffold(
+        appBar: AppBar(
+          title: Text('${employee['name'] ?? 'ملف الموظف'}'),
+          actions: [
+            IconButton(
+              tooltip: 'فتح التقرير',
+              onPressed: onReport,
+              icon: const Icon(Icons.assessment_outlined),
+            ),
+          ],
+          bottom: const TabBar(
+            tabs: [
+              Tab(text: 'نظرة عامة'),
+              Tab(text: 'المهمة الحالية'),
+              Tab(text: 'الحساب'),
+            ],
+          ),
+        ),
+        body: TabBarView(
+          children: [
+            _employeeOverview(context, online),
+            _employeeTask(context),
+            _employeeAccount(context, active),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _employeeOverview(BuildContext context, bool online) {
+    final colors = Theme.of(context).colorScheme;
+    final successRate = _metrics['successRate'];
+    return ListView(
+      padding: const EdgeInsets.all(18),
+      children: [
+        SurfacePanel(
+          child: Row(
+            children: [
+              Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  GlassIconBadge(
+                    icon: employee['role'] == 'accountant'
+                        ? Icons.calculate_outlined
+                        : employee['role'] == 'manager'
+                        ? Icons.admin_panel_settings_outlined
+                        : Icons.support_agent_outlined,
+                    color: employee['role'] == 'accountant'
+                        ? _gold
+                        : employee['role'] == 'manager'
+                        ? AhramColors.sky
+                        : _green,
+                    size: 58,
+                  ),
+                  PositionedDirectional(
+                    end: -1,
+                    bottom: -1,
+                    child: Container(
+                      width: 15,
+                      height: 15,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: online ? _green : colors.outlineVariant,
+                        border: Border.all(color: colors.surface, width: 2),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(width: 14),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
                       '${employee['name'] ?? '-'}',
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
+                      style: const TextStyle(
+                        fontSize: 18,
                         fontWeight: FontWeight.w900,
-                        color: colors.onSurface,
-                        fontSize: 16,
                       ),
                     ),
-                    const SizedBox(height: 4),
-                    StatusPill(label: _role, color: roleColor),
+                    const SizedBox(height: 5),
+                    Text(
+                      '$_roleLabel · ${online ? 'متصل الآن' : 'آخر ظهور ${formatDate(_presence['lastSeenAt'])}'}',
+                      style: TextStyle(
+                        color: colors.onSurfaceVariant,
+                        fontSize: 12,
+                      ),
+                    ),
                   ],
                 ),
               ),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.end,
+            ],
+          ),
+        ),
+        const SizedBox(height: 12),
+        GridView.count(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          crossAxisCount: 2,
+          crossAxisSpacing: 10,
+          mainAxisSpacing: 10,
+          childAspectRatio: 1.9,
+          children: [
+            _EmployeeSummaryCard(
+              label: 'عمليات اليوم',
+              value: '${numberValue(_metrics['completedCount']).toInt()}',
+              icon: Icons.task_alt_outlined,
+              color: _green,
+            ),
+            _EmployeeSummaryCard(
+              label: 'إجمالي اليوم',
+              value:
+                  '${formatEgpAmount(numberValue(_metrics['totalEGP']))} ج.م',
+              icon: Icons.payments_outlined,
+              color: AhramColors.sky,
+            ),
+            _EmployeeSummaryCard(
+              label: 'متوسط التنفيذ',
+              value: _metrics['averageDurationSeconds'] == null
+                  ? '-'
+                  : formatExecutionDuration(_metrics['averageDurationSeconds']),
+              icon: Icons.timer_outlined,
+              color: _gold,
+            ),
+            _EmployeeSummaryCard(
+              label: 'نسبة النجاح',
+              value: successRate == null
+                  ? '-'
+                  : '${numberValue(successRate).toInt()}%',
+              icon: Icons.trending_up_rounded,
+              color: const Color(0xFF6B57C8),
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        SizedBox(
+          width: double.infinity,
+          child: FilledButton.icon(
+            onPressed: onReport,
+            icon: const Icon(Icons.assessment_outlined),
+            label: const Text('فتح التقرير الفردي'),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _employeeTask(BuildContext context) {
+    final task = _currentTask;
+    if (task == null) {
+      return ListView(
+        padding: const EdgeInsets.all(18),
+        children: const [
+          EmptyPanel(
+            icon: Icons.task_alt_outlined,
+            title: 'لا توجد مهمة نشطة',
+            message: 'الموظف متاح لاستقبال عملية جديدة.',
+          ),
+        ],
+      );
+    }
+    return ListView(
+      padding: const EdgeInsets.all(18),
+      children: [
+        SurfacePanel(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Row(
                 children: [
-                  StatusPill(
-                    label: active ? 'نشط' : 'موقوف',
-                    color: active ? _green : _danger,
+                  const GlassIconBadge(
+                    icon: Icons.pending_actions_outlined,
+                    color: AhramColors.sky,
+                    size: 46,
                   ),
-                  if (!isManager) ...[
-                    const SizedBox(height: 6),
-                    PopupMenuButton<String>(
-                      enabled: !busy,
-                      tooltip: 'إجراءات الموظف',
-                      icon: GlassIconBadge(
-                        icon: Icons.more_horiz_outlined,
-                        color: colors.onSurfaceVariant,
-                        size: 34,
-                      ),
-                      onSelected: (value) {
-                        if (value == 'status') onToggleStatus();
-                        if (value == 'delete') onDelete();
-                      },
-                      itemBuilder: (context) => [
-                        PopupMenuItem<String>(
-                          value: 'status',
-                          child: Text(active ? 'إيقاف الحساب' : 'تفعيل الحساب'),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'عملية قيد التنفيذ',
+                          style: TextStyle(fontWeight: FontWeight.w900),
                         ),
-                        const PopupMenuItem<String>(
-                          value: 'delete',
-                          child: Text('حذف الحساب'),
+                        Text(
+                          '${task['customId'] ?? '-'}',
+                          textDirection: ui.TextDirection.ltr,
                         ),
                       ],
                     ),
-                  ],
-                ],
-              ),
-            ],
-          ),
-          const Divider(height: 28),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: [
-              EmployeeInfoChip(
-                icon: Icons.phone_outlined,
-                value: '${employee['phone'] ?? '-'}',
-              ),
-              EmployeeInfoChip(
-                icon: Icons.alternate_email_outlined,
-                value: '${employee['webUsername'] ?? '-'}',
-                ltr: true,
-              ),
-            ],
-          ),
-          if (!isManager) ...[
-            const SizedBox(height: 14),
-            Row(
-              children: [
-                GlassIconButton(
-                  tooltip: 'تعديل البيانات',
-                  onPressed: busy ? null : onEdit,
-                  icon: const Icon(Icons.edit_outlined),
-                ),
-                const SizedBox(width: 8),
-                GlassIconButton(
-                  tooltip: 'تغيير كلمة المرور',
-                  onPressed: busy ? null : onResetPassword,
-                  icon: const Icon(Icons.key_outlined),
-                ),
-                const SizedBox(width: 8),
-                GlassIconButton(
-                  tooltip: 'فتح تقرير الموظف',
-                  onPressed: busy ? null : onReport,
-                  icon: const Icon(Icons.assessment_outlined),
-                ),
-                if (busy) ...[
-                  const SizedBox(width: 12),
-                  const SizedBox(
-                    width: 18,
-                    height: 18,
-                    child: CircularProgressIndicator(strokeWidth: 2),
                   ),
+                  TaskElapsedTimer(startedAt: task['receivedAt']),
                 ],
-              ],
-            ),
-          ],
-        ],
-      ),
+              ),
+              const Divider(height: 28),
+              DetailLine(
+                label: 'الخدمة',
+                value: serviceLabel('${task['transferType']}'),
+              ),
+              DetailLine(
+                label: 'رقم المستلم',
+                value: '${task['recipient'] ?? '-'}',
+              ),
+              DetailLine(
+                label: 'القيمة',
+                value: '${formatEgpAmount(numberValue(task['amount']))} ج.م',
+              ),
+              DetailLine(
+                label: 'وقت الوصول',
+                value: formatTaskArrival(task['receivedAt']),
+              ),
+            ],
+          ),
+        ),
+      ],
     );
   }
-}
 
-class EmployeeInfoChip extends StatelessWidget {
-  const EmployeeInfoChip({
-    super.key,
-    required this.icon,
-    required this.value,
-    this.ltr = false,
-  });
-
-  final IconData icon;
-  final String value;
-  final bool ltr;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = Theme.of(context).colorScheme;
-    return Container(
-      constraints: const BoxConstraints(maxWidth: 250),
-      padding: const EdgeInsetsDirectional.fromSTEB(9, 7, 11, 7),
-      decoration: BoxDecoration(
-        color: colors.primary.withValues(alpha: 0.06),
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: colors.primary.withValues(alpha: 0.12)),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 16, color: colors.primary),
-          const SizedBox(width: 6),
-          Flexible(
-            child: Text(
-              value,
-              overflow: TextOverflow.ellipsis,
-              textDirection: ltr ? ui.TextDirection.ltr : null,
-              style: TextStyle(color: colors.onSurfaceVariant, fontSize: 12),
+  Widget _employeeAccount(BuildContext context, bool active) {
+    final isManager = employee['role'] == 'manager';
+    return ListView(
+      padding: const EdgeInsets.all(18),
+      children: [
+        SurfacePanel(
+          child: Column(
+            children: [
+              DetailLine(label: 'الوظيفة', value: _roleLabel),
+              DetailLine(label: 'حالة الحساب', value: active ? 'نشط' : 'موقوف'),
+              DetailLine(
+                label: 'رقم الهاتف',
+                value: '${employee['phone'] ?? '-'}',
+              ),
+              DetailLine(
+                label: 'اسم المستخدم',
+                value: '${employee['webUsername'] ?? '-'}',
+              ),
+              DetailLine(
+                label: 'تاريخ الانضمام',
+                value: formatDate(employee['createdAt']),
+              ),
+              DetailLine(
+                label: 'إشعارات الهاتف',
+                value: _presence['pushReady'] == true
+                    ? 'جاهزة'
+                    : 'تحتاج إعداداً',
+              ),
+              if ('${_presence['deviceName'] ?? ''}'.isNotEmpty)
+                DetailLine(
+                  label: 'آخر جهاز',
+                  value: '${_presence['deviceName']}',
+                ),
+            ],
+          ),
+        ),
+        if (!isManager) ...[
+          const SizedBox(height: 12),
+          SurfacePanel(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Text(
+                  'إدارة الحساب',
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                FilledButton.icon(
+                  onPressed: busy ? null : onEdit,
+                  icon: const Icon(Icons.edit_outlined),
+                  label: const Text('تعديل بيانات الموظف'),
+                ),
+                const SizedBox(height: 9),
+                OutlinedButton.icon(
+                  onPressed: busy ? null : onResetPassword,
+                  icon: const Icon(Icons.key_outlined),
+                  label: const Text('تغيير كلمة المرور'),
+                ),
+                const SizedBox(height: 9),
+                OutlinedButton.icon(
+                  onPressed: busy ? null : onToggleReports,
+                  icon: const Icon(Icons.policy_outlined),
+                  label: Text(
+                    employee['canViewAllReports'] == true
+                        ? 'تقييد التقارير على حسابه'
+                        : 'السماح بعرض تقارير الشركة',
+                  ),
+                ),
+                const SizedBox(height: 9),
+                OutlinedButton.icon(
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: active ? _danger : _green,
+                  ),
+                  onPressed: busy ? null : onToggleStatus,
+                  icon: Icon(
+                    active
+                        ? Icons.pause_circle_outline
+                        : Icons.play_circle_outline,
+                  ),
+                  label: Text(active ? 'إيقاف الحساب' : 'تفعيل الحساب'),
+                ),
+              ],
             ),
           ),
         ],
-      ),
+      ],
     );
   }
 }
@@ -20506,11 +21468,13 @@ class EmptyPanel extends StatelessWidget {
     required this.icon,
     required this.title,
     required this.message,
+    this.action,
   });
 
   final IconData icon;
   final String title;
   final String message;
+  final Widget? action;
 
   @override
   Widget build(BuildContext context) {
@@ -20547,6 +21511,7 @@ class EmptyPanel extends StatelessWidget {
                 color: dark ? const Color(0xFFCFD9E1) : colors.onSurfaceVariant,
               ),
             ),
+            if (action != null) ...[const SizedBox(height: 12), action!],
           ],
         ),
       ),

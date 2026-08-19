@@ -3176,10 +3176,14 @@ router.get('/executor/reports/download.pdf', async (req, res) => {
 router.get('/executor/employees', authenticateJWT, async (req, res) => {
     try {
         const { userId } = req.user;
-        const list = await mobileWebParityService.getEmployeesList(userId);
+        const workspace = await mobileWebParityService.getEmployeesWorkspace({
+            executorId: userId,
+            tenantId: req.tenant ? req.tenant._id : null
+        });
         return res.json({
             success: true,
-            employees: list.map(emp => mobileWebParityMapper.toEmployeeDto(emp))
+            employees: workspace.employees.map(emp => mobileWebParityMapper.toEmployeeDto(emp)),
+            summary: workspace.summary
         });
     } catch (e) {
         if (e.message === 'UNAUTHORIZED') {
@@ -3349,7 +3353,7 @@ router.delete('/executor/employees/:id', authenticateJWT, async (req, res) => {
         });
         return res.json({
             success: true,
-            message: 'تم حذف الموظف بنجاح'
+            message: 'تمت أرشفة الموظف مع الاحتفاظ بسجل عملياته'
         });
     } catch (e) {
         if (e.message === 'UNAUTHORIZED') {

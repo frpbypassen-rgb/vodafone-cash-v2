@@ -17,6 +17,7 @@ const AgentEmployee = require('../models/AgentEmployee');
 const SupportTicket = require('../models/SupportTicket');
 const Admin = require('../models/Admin');
 const Counter = require('../models/Counter');
+const MobilePushDevice = require('../models/MobilePushDevice');
 
 const { executeBalanceTransfer } = require('./balanceTransferService');
 const { resolveAccountByCode, normalizeAccountCode } = require('./accountCodeService');
@@ -1518,7 +1519,188 @@ async function checkManagerPermission(executorId) {
 
 async function getEmployeesList(executorId) {
     const manager = await checkManagerPermission(executorId);
-    return await Employee.find({ groupId: manager.groupId }).sort({ role: 1, createdAt: -1 }).lean();
+    return await Employee.find({
+        groupId: manager.groupId,
+        $or: [
+            { archivedAt: null },
+            { archivedAt: { $exists: false } }
+        ]
+    }).sort({ role: 1, createdAt: -1 }).lean();
+}
+
+const EMPLOYEE_ONLINE_WINDOW_MS = 5 * 60 * 1000;
+
+const employeeRecipient = (transaction) => String(
+    transaction.vodafoneNumber
+    || transaction.accountNumber
+    || transaction.serviceDetails?.recipientPhone
+    || transaction.serviceDetails?.clientPhone
+    || ''
+).trim();
+
+const employeeCurrentTask = (transaction) => {
+    if (!transaction) return null;
+    return {
+        id: String(transaction._id),
+        customId: transaction.customId || '',
+        status: transaction.status,
+        transferType: transaction.transferType || 'vodafone',
+        recipient: employeeRecipient(transaction),
+        amount: Number(transaction.amount || 0),
+        receivedAt: transaction.executorReceivedAt || transaction.updatedAt || transaction.createdAt || null
+    };
+};
+
+/**
+ * Operational employee workspace for executor managers. All figures are built
+ * on the server so the mobile client cannot widen the company scope.
+ */
+async function getEmployeesWorkspace({ executorId, tenantId }) {
+    const manager = await checkManagerPermission(executorId);
+    const today = resolveExecutorReportPeriod({ dateType: 'day', dateValue: tripoliDateValue() });
+    const groupQuery = executorGroupQuery(manager.groupId, tenantId || manager.tenantId || null);
+    const activeEmployeeQuery = {
+        groupId: manager.groupId,
+        $or: [
+            { archivedAt: null },
+            { archivedAt: { $exists: false } }
+        ]
+    };
+
+    const [employees, todayTransactions, currentTasks, devices] = await Promise.all([
+        Employee.find(activeEmployeeQuery).sort({ role: 1, createdAt: -1 }).lean(),
+        Transaction.find({
+            ...groupQuery,
+            createdAt: { $gte: today.start, $lte: today.end }
+        }).sort({ createdAt: -1 }).lean(),
+        Transaction.find({ ...groupQuery, status: 'accepted' })
+            .sort({ executorReceivedAt: 1, createdAt: 1 })
+            .lean(),
+        MobilePushDevice.find({
+            accountType: 'executor',
+            executorGroupId: manager.groupId,
+            enabled: true
+        }).lean()
+    ]);
+
+    const metricsByEmployee = new Map();
+    const taskByEmployee = new Map();
+    const presenceByEmployee = new Map();
+
+    const ensureMetrics = (employeeId) => {
+        const id = String(employeeId || '').trim();
+        if (!id) return null;
+        if (!metricsByEmployee.has(id)) {
+            metricsByEmployee.set(id, {
+                completedCount: 0,
+                cancelledCount: 0,
+                pendingCount: 0,
+                totalEGP: 0,
+                durations: []
+            });
+        }
+        return metricsByEmployee.get(id);
+    };
+
+    todayTransactions.forEach((transaction) => {
+        const metrics = ensureMetrics(transaction.operatorId);
+        if (!metrics) return;
+        if (transaction.status === 'completed') {
+            metrics.completedCount += 1;
+            metrics.totalEGP += Number(transaction.amount || 0);
+            const duration = executorDurationSeconds(transaction);
+            if (duration !== null) metrics.durations.push(duration);
+        } else if (isCancelledExecutorTransaction(transaction)) {
+            metrics.cancelledCount += 1;
+        } else if (EXECUTOR_PENDING_STATUSES.has(transaction.status)) {
+            metrics.pendingCount += 1;
+        }
+    });
+
+    currentTasks.forEach((transaction) => {
+        const employeeId = String(transaction.operatorId || '').trim();
+        if (employeeId && !taskByEmployee.has(employeeId)) {
+            taskByEmployee.set(employeeId, employeeCurrentTask(transaction));
+        }
+    });
+
+    devices.forEach((device) => {
+        const employeeId = String(device.accountId || '').trim();
+        if (!employeeId) return;
+        const current = presenceByEmployee.get(employeeId);
+        const seenAt = device.lastSeenAt ? new Date(device.lastSeenAt) : null;
+        const currentSeenAt = current?.lastSeenAt ? new Date(current.lastSeenAt) : null;
+        if (!current || (seenAt && (!currentSeenAt || seenAt > currentSeenAt))) {
+            presenceByEmployee.set(employeeId, {
+                lastSeenAt: seenAt,
+                deviceName: device.deviceName || '',
+                pushReady: ['authorized', 'provisional'].includes(device.permissionStatus),
+                lastSuccessfulPushAt: device.lastSuccessfulPushAt || null
+            });
+        } else if (['authorized', 'provisional'].includes(device.permissionStatus)) {
+            current.pushReady = true;
+        }
+    });
+
+    const now = Date.now();
+    const enrichedEmployees = employees.map((employee) => {
+        const employeeId = String(employee._id);
+        const rawMetrics = metricsByEmployee.get(employeeId) || {
+            completedCount: 0,
+            cancelledCount: 0,
+            pendingCount: 0,
+            totalEGP: 0,
+            durations: []
+        };
+        const completedAndCancelled = rawMetrics.completedCount + rawMetrics.cancelledCount;
+        const presence = presenceByEmployee.get(employeeId) || {};
+        const lastSeenAt = presence.lastSeenAt || null;
+        const isOnline = employee.status === 'active'
+            && Boolean(lastSeenAt)
+            && now - new Date(lastSeenAt).getTime() <= EMPLOYEE_ONLINE_WINDOW_MS;
+
+        return {
+            ...employee,
+            metrics: {
+                completedCount: rawMetrics.completedCount,
+                cancelledCount: rawMetrics.cancelledCount,
+                pendingCount: rawMetrics.pendingCount,
+                totalEGP: rawMetrics.totalEGP,
+                averageDurationSeconds: rawMetrics.durations.length
+                    ? Math.round(rawMetrics.durations.reduce((sum, value) => sum + value, 0) / rawMetrics.durations.length)
+                    : null,
+                successRate: completedAndCancelled
+                    ? Math.round((rawMetrics.completedCount / completedAndCancelled) * 100)
+                    : null
+            },
+            presence: {
+                isOnline,
+                lastSeenAt,
+                deviceName: presence.deviceName || '',
+                pushReady: Boolean(presence.pushReady),
+                lastSuccessfulPushAt: presence.lastSuccessfulPushAt || null
+            },
+            currentTask: taskByEmployee.get(employeeId) || null
+        };
+    });
+
+    const allDurations = [...metricsByEmployee.values()].flatMap((metrics) => metrics.durations);
+    return {
+        employees: enrichedEmployees,
+        summary: {
+            totalEmployees: enrichedEmployees.length,
+            activeEmployees: enrichedEmployees.filter((employee) => employee.status === 'active').length,
+            onlineEmployees: enrichedEmployees.filter((employee) => employee.presence.isOnline).length,
+            busyEmployees: enrichedEmployees.filter((employee) => employee.currentTask).length,
+            completedCount: enrichedEmployees.reduce((sum, employee) => sum + employee.metrics.completedCount, 0),
+            cancelledCount: enrichedEmployees.reduce((sum, employee) => sum + employee.metrics.cancelledCount, 0),
+            totalEGP: enrichedEmployees.reduce((sum, employee) => sum + employee.metrics.totalEGP, 0),
+            averageDurationSeconds: allDurations.length
+                ? Math.round(allDurations.reduce((sum, value) => sum + value, 0) / allDurations.length)
+                : null,
+            generatedAt: new Date()
+        }
+    };
 }
 
 async function createEmployee({ executorId, name, phone, role, webUsername, webPassword, tenantId }) {
@@ -1632,7 +1814,27 @@ async function deleteEmployee({ executorId, targetId }) {
     if (!emp || String(emp.groupId) !== String(manager.groupId)) throw new Error('NOT_FOUND');
     if (emp.role === 'manager') throw new Error('FORBIDDEN');
 
-    await Employee.findByIdAndDelete(targetId);
+    emp.status = 'suspended';
+    emp.archivedAt = new Date();
+    emp.archivedBy = String(manager._id);
+    emp.refreshToken = undefined;
+    await emp.save();
+
+    await MobilePushDevice.updateMany(
+        { accountType: 'executor', accountId: String(emp._id) },
+        { $set: { enabled: false } }
+    );
+
+    await logAction({
+        action: 'USER_ARCHIVED',
+        performedById: manager._id,
+        performedByModel: 'Employee',
+        performedByName: manager.name,
+        targetId: emp._id,
+        targetModel: 'Employee',
+        result: 'ناجح',
+        metadata: { username: emp.webUsername, name: emp.name, role: emp.role }
+    });
     return true;
 }
 
@@ -1651,6 +1853,7 @@ module.exports = {
     getExecutorReports,
     getExecutorOverview,
     getEmployeesList,
+    getEmployeesWorkspace,
     createEmployee,
     updateEmployeeProfile,
     toggleEmployeeStatus,

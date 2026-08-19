@@ -231,6 +231,9 @@ const toExecutorSupportTicketDto = (ticket) => {
 };
 
 const toEmployeeDto = (emp) => {
+    const metrics = emp.metrics || {};
+    const presence = emp.presence || {};
+    const currentTask = emp.currentTask || null;
     return {
         id: String(emp._id),
         name: emp.name,
@@ -239,7 +242,35 @@ const toEmployeeDto = (emp) => {
         status: emp.status,
         webUsername: emp.webUsername,
         canViewAllReports: !!emp.canViewAllReports,
-        createdAt: emp.createdAt ? new Date(emp.createdAt).toISOString() : null
+        createdAt: emp.createdAt ? new Date(emp.createdAt).toISOString() : null,
+        metrics: {
+            completedCount: Number(metrics.completedCount || 0),
+            cancelledCount: Number(metrics.cancelledCount || 0),
+            pendingCount: Number(metrics.pendingCount || 0),
+            totalEGP: Number(metrics.totalEGP || 0),
+            averageDurationSeconds: metrics.averageDurationSeconds == null
+                ? null
+                : Number(metrics.averageDurationSeconds),
+            successRate: metrics.successRate == null ? null : Number(metrics.successRate)
+        },
+        presence: {
+            isOnline: !!presence.isOnline,
+            lastSeenAt: presence.lastSeenAt ? new Date(presence.lastSeenAt).toISOString() : null,
+            deviceName: presence.deviceName || '',
+            pushReady: !!presence.pushReady,
+            lastSuccessfulPushAt: presence.lastSuccessfulPushAt
+                ? new Date(presence.lastSuccessfulPushAt).toISOString()
+                : null
+        },
+        currentTask: currentTask ? {
+            id: String(currentTask.id || ''),
+            customId: currentTask.customId || '',
+            status: currentTask.status || '',
+            transferType: currentTask.transferType || '',
+            recipient: currentTask.recipient || '',
+            amount: Number(currentTask.amount || 0),
+            receivedAt: currentTask.receivedAt ? new Date(currentTask.receivedAt).toISOString() : null
+        } : null
     };
 };
 

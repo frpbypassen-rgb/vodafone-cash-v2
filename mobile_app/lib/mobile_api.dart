@@ -1080,6 +1080,10 @@ class MobileApi {
     return _extractList(response, 'employees');
   }
 
+  Future<Map<String, dynamic>> executorEmployeesWorkspace() {
+    return _request('GET', '/executor/employees');
+  }
+
   Future<Map<String, dynamic>> createExecutorEmployee({
     required String name,
     required String phone,
@@ -1114,6 +1118,10 @@ class MobileApi {
 
   Future<Map<String, dynamic>> toggleExecutorEmployeeStatus(String id) {
     return _request('PATCH', '/executor/employees/$id/status');
+  }
+
+  Future<Map<String, dynamic>> toggleExecutorEmployeeReports(String id) {
+    return _request('PATCH', '/executor/employees/$id/reports-permission');
   }
 
   Future<Map<String, dynamic>> resetExecutorEmployeePassword({

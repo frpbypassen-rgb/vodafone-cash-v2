@@ -22,6 +22,7 @@ const employeeSchema = new mongoose.Schema({
 
 employeeSchema.index({ webUsername: 1, groupId: 1 }, { unique: true });
 employeeSchema.index({ tenantId: 1 });
+employeeSchema.index({ groupId: 1, archivedAt: 1, role: 1 });
 
 employeeSchema.pre('save', async function() {
     if (!this.isModified('webPassword') || !this.webPassword) return;
