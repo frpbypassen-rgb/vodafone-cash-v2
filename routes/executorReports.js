@@ -35,11 +35,13 @@ router.post('/reports/filter', requireExecutorAuth, async (req, res) => {
     try {
         const emp = req.executorEmployee;
         if (!emp) return res.status(401).json({ error: 'Unauthorized' });
-        const { dateType, dateValue } = req.body || {};
+        const { dateType, dateValue, dateFrom, dateTo } = req.body || {};
         const report = await mobileWebParityService.getExecutorReports({
             executorId: emp._id,
             dateType,
             dateValue,
+            dateFrom,
+            dateTo,
             tenantId: req.tenant ? req.tenant._id : null
         });
         return res.json({ success: true, data: mobileWebParityMapper.toClientReportDto(report) });

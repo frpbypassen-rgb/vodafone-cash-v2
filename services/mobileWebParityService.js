@@ -1095,11 +1095,131 @@ const executorRoleLabel = (role) => ({
     operator: 'موظف تنفيذ'
 }[role] || 'موظف تنفيذ');
 
+const EXECUTOR_REPORT_MAX_RANGE_DAYS = 366;
+const EXECUTOR_PENDING_STATUSES = new Set(['pending', 'processing', 'accepted']);
+
+const parseReportDate = (value, endOfDay = false) => {
+    const normalized = String(value || '').trim();
+    const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(normalized);
+    if (!match) throw new Error('INVALID_PERIOD');
+
+    const year = Number(match[1]);
+    const month = Number(match[2]);
+    const day = Number(match[3]);
+    const validationDate = new Date(Date.UTC(year, month - 1, day));
+    if (
+        validationDate.getUTCFullYear() !== year ||
+        validationDate.getUTCMonth() !== month - 1 ||
+        validationDate.getUTCDate() !== day
+    ) {
+        throw new Error('INVALID_PERIOD');
+    }
+    // Libya uses UTC+02:00. Building an explicit offset keeps reports aligned
+    // with Tripoli even when the host server is configured to another zone.
+    const time = endOfDay ? '23:59:59.999' : '00:00:00.000';
+    return new Date(`${normalized}T${time}+02:00`);
+};
+
+const resolveExecutorReportPeriod = ({ dateType, dateValue, dateFrom, dateTo }) => {
+    const today = tripoliDateValue();
+    const finalDateType = ['day', 'month', 'range'].includes(dateType) ? dateType : 'day';
+
+    if (finalDateType === 'range') {
+        const from = String(dateFrom || '').trim();
+        const to = String(dateTo || '').trim();
+        const start = parseReportDate(from);
+        const end = parseReportDate(to, true);
+        const rangeDays = Math.floor((end.getTime() - start.getTime()) / 86400000) + 1;
+        if (rangeDays < 1 || rangeDays > EXECUTOR_REPORT_MAX_RANGE_DAYS) {
+            throw new Error('INVALID_PERIOD');
+        }
+        return { type: 'range', value: `${from} - ${to}`, start, end, from, to };
+    }
+
+    if (finalDateType === 'month') {
+        const value = String(dateValue || today.slice(0, 7)).trim();
+        if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(value)) throw new Error('INVALID_PERIOD');
+        const [year, month] = value.split('-').map(Number);
+        const lastDay = new Date(Date.UTC(year, month, 0)).getUTCDate();
+        const start = parseReportDate(`${value}-01`);
+        const end = parseReportDate(`${value}-${String(lastDay).padStart(2, '0')}`, true);
+        return { type: 'month', value, start, end, from: value, to: value };
+    }
+
+    const value = String(dateValue || today).trim();
+    const start = parseReportDate(value);
+    const end = parseReportDate(value, true);
+    return { type: 'day', value, start, end, from: value, to: value };
+};
+
+const executorDurationSeconds = (transaction) => {
+    if (!transaction.executorReceivedAt || !transaction.completedAt) return null;
+    const duration = Math.floor(
+        (new Date(transaction.completedAt).getTime() - new Date(transaction.executorReceivedAt).getTime()) / 1000
+    );
+    return Number.isFinite(duration) && duration >= 0 ? duration : null;
+};
+
+const executorReportMetrics = (transactions) => {
+    const completed = transactions.filter((tx) => tx.status === 'completed');
+    const cancelled = transactions.filter(isCancelledExecutorTransaction);
+    const pending = transactions.filter((tx) => EXECUTOR_PENDING_STATUSES.has(tx.status));
+    const durations = completed.map(executorDurationSeconds).filter((value) => value !== null);
+    const totalEGP = completed.reduce((sum, tx) => sum + Number(tx.amount || 0), 0);
+    return {
+        totalEGP,
+        completedCount: completed.length,
+        cancelledCount: cancelled.length,
+        pendingCount: pending.length,
+        averageDurationSeconds: durations.length
+            ? Math.round(durations.reduce((sum, value) => sum + value, 0) / durations.length)
+            : null,
+        fastestDurationSeconds: durations.length ? Math.min(...durations) : null
+    };
+};
+
+const buildExecutorTeamPerformance = (transactions) => {
+    const rows = new Map();
+    transactions.forEach((tx) => {
+        const operatorId = String(tx.operatorId || '').trim();
+        if (!operatorId) return;
+        const row = rows.get(operatorId) || {
+            employeeId: operatorId,
+            employeeName: tx.executorName || 'منفذ غير مسمى',
+            completedCount: 0,
+            cancelledCount: 0,
+            totalEGP: 0,
+            durations: []
+        };
+        if (tx.status === 'completed') {
+            row.completedCount += 1;
+            row.totalEGP += Number(tx.amount || 0);
+            const duration = executorDurationSeconds(tx);
+            if (duration !== null) row.durations.push(duration);
+        } else if (isCancelledExecutorTransaction(tx)) {
+            row.cancelledCount += 1;
+        }
+        rows.set(operatorId, row);
+    });
+    return [...rows.values()]
+        .map((row) => ({
+            employeeId: row.employeeId,
+            employeeName: row.employeeName,
+            completedCount: row.completedCount,
+            cancelledCount: row.cancelledCount,
+            totalEGP: row.totalEGP,
+            averageDurationSeconds: row.durations.length
+                ? Math.round(row.durations.reduce((sum, value) => sum + value, 0) / row.durations.length)
+                : null
+        }))
+        .sort((left, right) => right.completedCount - left.completedCount || right.totalEGP - left.totalEGP);
+};
+
 /**
  * The mobile client never controls the report scope. This prevents a staff
  * account from requesting a wider time range or another employee's records.
  */
-async function getExecutorReports({ executorId, dateType, dateValue, employeeId, tenantId }) {
+async function getExecutorReports({ executorId, dateType, dateValue, dateFrom, dateTo, employeeId, tenantId }) {
     const emp = await Employee.findById(executorId);
     if (!emp) throw new Error('UNAUTHORIZED');
 
@@ -1109,13 +1229,7 @@ async function getExecutorReports({ executorId, dateType, dateValue, employeeId,
     const isManager = emp.role === 'manager';
     const isAccountant = emp.role === 'accountant';
     const isOperator = !isManager && !isAccountant;
-    const today = tripoliDateValue();
-    let finalDateType = dateType === 'month' ? 'month' : 'day';
-    let finalDateValue = String(dateValue || '').trim();
-
-    if (!finalDateValue) {
-        finalDateValue = finalDateType === 'month' ? today.slice(0, 7) : today;
-    }
+    const reportPeriod = resolveExecutorReportPeriod({ dateType, dateValue, dateFrom, dateTo });
 
     let targetEmployee = null;
     if (employeeId) {
@@ -1126,45 +1240,43 @@ async function getExecutorReports({ executorId, dateType, dateValue, employeeId,
         }
     }
 
-    const { start, end } = getDateRange(
-        finalDateType === 'day' ? finalDateValue : null,
-        finalDateType === 'month' ? finalDateValue : null
-    );
+    const { start, end } = reportPeriod;
     const groupQuery = executorGroupQuery(emp.groupId, tenantId);
     const scopedEmployee = targetEmployee || (isOperator ? emp : null);
     const baseQuery = { ...groupQuery };
     if (scopedEmployee) baseQuery.operatorId = String(scopedEmployee._id);
 
-    const [currentTransactions, groupPeriodTransactions] = await Promise.all([
-        Transaction
-            .find({ ...baseQuery, createdAt: { $gte: start, $lte: end } })
-            .sort({ createdAt: -1 })
-            .lean(),
-        scopedEmployee
-            ? Promise.resolve(null)
-            : Transaction.find({ ...groupQuery, createdAt: { $gte: start, $lte: end } }).lean(),
-    ]);
+    const currentTransactions = await Transaction
+        .find({ ...baseQuery, createdAt: { $gte: start, $lte: end } })
+        .sort({ createdAt: -1 })
+        .lean();
     const deposits = currentTransactions.filter((tx) =>
         ['deposit', 'deduction', 'deposit_pending'].includes(tx.status)
     );
     const reportTransactions = currentTransactions.filter((tx) => !deposits.includes(tx));
     // Keep cancelled work isolated from the financial operations list. It is
     // still returned for auditing, but is never included in employee totals.
-    const operations = reportTransactions.filter((tx) => !isCancelledExecutorTransaction(tx));
+    const operations = reportTransactions.filter((tx) => tx.status === 'completed');
+    const pendingOperations = reportTransactions.filter((tx) => EXECUTOR_PENDING_STATUSES.has(tx.status));
     const cancelledOperations = reportTransactions.filter(isCancelledExecutorTransaction);
     const totals = executorReportTotals(reportTransactions);
-    const groupOperations = (groupPeriodTransactions || currentTransactions)
-        .filter((tx) => !['deposit', 'deduction', 'deposit_pending'].includes(tx.status));
-    const groupTotals = executorReportTotals(groupOperations);
+    const groupTotals = executorReportTotals(reportTransactions);
+    const summary = executorReportMetrics(reportTransactions);
     const ownTransactions = currentTransactions.filter((tx) => String(tx.operatorId || '') === String(emp._id));
     const ownTotals = executorReportTotals(ownTransactions);
     const reportOwner = scopedEmployee || emp;
     const isPersonalReport = Boolean(scopedEmployee);
     // Personal reports deliberately use only that employee's completed work.
     // This prevents an operator from inferring the execution company's balance.
+    const additions = deposits
+        .filter((tx) => tx.status === 'deposit')
+        .reduce((sum, tx) => sum + Number(tx.amount || 0), 0);
+    const deductions = deposits
+        .filter((tx) => tx.status === 'deduction')
+        .reduce((sum, tx) => sum + Number(tx.amount || 0), 0);
     const periodBalance = isPersonalReport
         ? -Number(totals.totalEGP || 0)
-        : -Number(groupTotals.totalEGP || 0);
+        : additions - deductions - Number(groupTotals.totalEGP || 0);
     const currentBalance = isPersonalReport
         ? periodBalance
         : Number(group.balance || 0);
@@ -1172,11 +1284,19 @@ async function getExecutorReports({ executorId, dateType, dateValue, employeeId,
     const personalReport = {
         operationCount: operations.length,
         operations,
+        pendingOperations,
         cancelledOperations,
+        summary,
         ...totals,
         role: emp.role,
         scope: 'employee',
-        reportPeriod: { type: finalDateType, value: finalDateValue, start, end },
+        reportPeriod,
+        capabilities: {
+            canViewCompanyBalance: false,
+            canViewTeamPerformance: false,
+            canViewReconciliation: false,
+            canFilterEmployee: isManager
+        },
         targetEmployee: {
             id: reportOwner._id,
             name: reportOwner.name,
@@ -1200,13 +1320,30 @@ async function getExecutorReports({ executorId, dateType, dateValue, employeeId,
         operationCount: operations.length,
         currentTransactions,
         operations,
+        pendingOperations,
         cancelledOperations,
         deposits,
+        summary,
         ...totals,
-        totalDeposits: deposits.reduce((sum, tx) => sum + Number(tx.amount || tx.costLYD || 0), 0),
+        totalDeposits: additions,
         role: emp.role,
-        scope: isPersonalReport ? 'employee' : 'group',
-        reportPeriod: { type: finalDateType, value: finalDateValue, start, end },
+        scope: 'group',
+        reportPeriod,
+        capabilities: {
+            canViewCompanyBalance: true,
+            canViewTeamPerformance: isManager,
+            canViewReconciliation: true,
+            canFilterEmployee: isManager
+        },
+        financialSummary: {
+            openingBalance: currentBalance - periodBalance,
+            additions,
+            deductions,
+            executedAmount: Number(groupTotals.totalEGP || 0),
+            netMovement: periodBalance,
+            closingBalance: currentBalance
+        },
+        teamPerformance: isManager ? buildExecutorTeamPerformance(reportTransactions) : null,
         company: {
             id: group._id,
             name: group.name,

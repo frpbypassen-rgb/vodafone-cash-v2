@@ -14751,23 +14751,60 @@ class ExecutorReportsScreen extends StatefulWidget {
   State<ExecutorReportsScreen> createState() => _ExecutorReportsScreenState();
 }
 
+enum _ExecutorReportPeriodMode { day, month, range }
+
+enum _ExecutorReportTab { summary, operations, cancelled, reconciliation }
+
 class _ExecutorReportsScreenState extends State<ExecutorReportsScreen> {
   Map<String, dynamic>? _report;
   Object? _error;
   bool _loading = true;
   bool _downloading = false;
-  bool _month = false;
+  _ExecutorReportPeriodMode _periodMode = _ExecutorReportPeriodMode.day;
+  _ExecutorReportTab _tab = _ExecutorReportTab.summary;
   DateTime _selectedDate = DateTime.now();
+  late DateTimeRange _selectedRange;
 
   bool get _operatorOnly => widget.controller.isExecutorOperator;
 
-  String get _dateValue => _month
-      ? DateFormat('yyyy-MM').format(_selectedDate)
-      : DateFormat('yyyy-MM-dd').format(_selectedDate);
+  String get _dateType => switch (_periodMode) {
+    _ExecutorReportPeriodMode.day => 'day',
+    _ExecutorReportPeriodMode.month => 'month',
+    _ExecutorReportPeriodMode.range => 'range',
+  };
+
+  String get _dateValue => switch (_periodMode) {
+    _ExecutorReportPeriodMode.day => DateFormat(
+      'yyyy-MM-dd',
+    ).format(_selectedDate),
+    _ExecutorReportPeriodMode.month => DateFormat(
+      'yyyy-MM',
+    ).format(_selectedDate),
+    _ExecutorReportPeriodMode.range => '',
+  };
+
+  String? get _dateFrom => _periodMode == _ExecutorReportPeriodMode.range
+      ? DateFormat('yyyy-MM-dd').format(_selectedRange.start)
+      : null;
+
+  String? get _dateTo => _periodMode == _ExecutorReportPeriodMode.range
+      ? DateFormat('yyyy-MM-dd').format(_selectedRange.end)
+      : null;
+
+  String get _periodButtonLabel => switch (_periodMode) {
+    _ExecutorReportPeriodMode.day => _dateValue,
+    _ExecutorReportPeriodMode.month => _dateValue,
+    _ExecutorReportPeriodMode.range => '$_dateFrom ← $_dateTo',
+  };
 
   @override
   void initState() {
     super.initState();
+    final now = DateTime.now();
+    _selectedRange = DateTimeRange(
+      start: DateTime(now.year, now.month, 1),
+      end: now,
+    );
     _load();
   }
 
@@ -14780,8 +14817,10 @@ class _ExecutorReportsScreenState extends State<ExecutorReportsScreen> {
     }
     try {
       final response = await widget.controller.api.executorReports(
-        dateType: _month ? 'month' : 'day',
+        dateType: _dateType,
         dateValue: _dateValue,
+        dateFrom: _dateFrom,
+        dateTo: _dateTo,
         employeeId: widget.employeeId,
       );
       final data = response['data'];
@@ -14796,12 +14835,29 @@ class _ExecutorReportsScreenState extends State<ExecutorReportsScreen> {
   }
 
   Future<void> _pickPeriod() async {
+    if (_periodMode == _ExecutorReportPeriodMode.range) {
+      final result = await showDateRangePicker(
+        context: context,
+        initialDateRange: _selectedRange,
+        firstDate: DateTime(2024),
+        lastDate: DateTime.now(),
+        helpText: 'اختر فترة التقرير',
+        saveText: 'اعتماد الفترة',
+      );
+      if (result != null && mounted) {
+        setState(() => _selectedRange = result);
+        await _load();
+      }
+      return;
+    }
     final result = await showDatePicker(
       context: context,
       initialDate: _selectedDate,
       firstDate: DateTime(2024),
       lastDate: DateTime.now(),
-      helpText: _month ? 'اختر أي يوم من الشهر' : 'اختر اليوم',
+      helpText: _periodMode == _ExecutorReportPeriodMode.month
+          ? 'اختر أي يوم من الشهر'
+          : 'اختر اليوم',
     );
     if (result != null && mounted) {
       setState(() => _selectedDate = result);
@@ -14815,8 +14871,10 @@ class _ExecutorReportsScreenState extends State<ExecutorReportsScreen> {
     setState(() => _downloading = true);
     try {
       final url = await widget.controller.api.executorReportDownloadUrl(
-        dateType: _month ? 'month' : 'day',
+        dateType: _dateType,
         dateValue: _dateValue,
+        dateFrom: _dateFrom,
+        dateTo: _dateTo,
         employeeId: widget.employeeId,
       );
       final opened = await openPreparedReportDownload(downloadTarget, url);
@@ -14836,6 +14894,170 @@ class _ExecutorReportsScreenState extends State<ExecutorReportsScreen> {
     }
   }
 
+  List<Map<String, dynamic>> _rows(String key) {
+    final value = _report?[key];
+    if (value is! List) return <Map<String, dynamic>>[];
+    return value
+        .whereType<Map>()
+        .map((item) => Map<String, dynamic>.from(item))
+        .toList();
+  }
+
+  Map<String, dynamic> _map(String key) {
+    final value = _report?[key];
+    return value is Map
+        ? Map<String, dynamic>.from(value)
+        : <String, dynamic>{};
+  }
+
+  List<_ExecutorReportTab> _availableTabs(bool canReconcile) =>
+      <_ExecutorReportTab>[
+        _ExecutorReportTab.summary,
+        _ExecutorReportTab.operations,
+        _ExecutorReportTab.cancelled,
+        if (canReconcile) _ExecutorReportTab.reconciliation,
+      ];
+
+  Widget _tabButton(_ExecutorReportTab tab, int count) {
+    final selected = _tab == tab;
+    final color = switch (tab) {
+      _ExecutorReportTab.summary => AhramColors.sky,
+      _ExecutorReportTab.operations => _green,
+      _ExecutorReportTab.cancelled => _danger,
+      _ExecutorReportTab.reconciliation => _gold,
+    };
+    final label = switch (tab) {
+      _ExecutorReportTab.summary => 'الملخص',
+      _ExecutorReportTab.operations => 'العمليات',
+      _ExecutorReportTab.cancelled => 'الملغاة',
+      _ExecutorReportTab.reconciliation => 'التسوية',
+    };
+    final icon = switch (tab) {
+      _ExecutorReportTab.summary => Icons.dashboard_outlined,
+      _ExecutorReportTab.operations => Icons.receipt_long_outlined,
+      _ExecutorReportTab.cancelled => Icons.cancel_outlined,
+      _ExecutorReportTab.reconciliation => Icons.balance_outlined,
+    };
+    return Padding(
+      padding: const EdgeInsetsDirectional.only(end: 8),
+      child: ChoiceChip(
+        selected: selected,
+        onSelected: (_) => setState(() => _tab = tab),
+        avatar: Icon(icon, size: 18, color: selected ? color : null),
+        label: Text(count > 0 ? '$label  $count' : label),
+        side: BorderSide(
+          color: color.withValues(alpha: selected ? 0.45 : 0.18),
+        ),
+        selectedColor: color.withValues(alpha: 0.12),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(7)),
+      ),
+    );
+  }
+
+  Widget _periodChoice(
+    _ExecutorReportPeriodMode mode,
+    String label,
+    IconData icon,
+  ) {
+    final selected = _periodMode == mode;
+    return ChoiceChip(
+      selected: selected,
+      avatar: Icon(icon, size: 17),
+      label: Text(label),
+      onSelected: (_) async {
+        if (_periodMode == mode) return;
+        setState(() => _periodMode = mode);
+        await _load();
+      },
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(7)),
+    );
+  }
+
+  Widget _operationsTab({
+    required List<Map<String, dynamic>> operations,
+    required List<Map<String, dynamic>> pending,
+    required bool personal,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        if (pending.isNotEmpty) ...[
+          const SectionTitle(
+            title: 'عمليات جارية',
+            icon: Icons.hourglass_top_outlined,
+            color: Color(0xFF1976D2),
+          ),
+          const SizedBox(height: 8),
+          ...pending.map(
+            (operation) => Padding(
+              padding: const EdgeInsets.only(bottom: 9),
+              child: ExecutorReportOperationTile(operation: operation),
+            ),
+          ),
+          const SizedBox(height: 12),
+        ],
+        const SectionTitle(
+          title: 'العمليات الناجحة',
+          icon: Icons.task_alt_outlined,
+          color: _green,
+        ),
+        const SizedBox(height: 8),
+        if (operations.isEmpty)
+          EmptyPanel(
+            icon: Icons.receipt_long_outlined,
+            title: 'لا توجد عمليات ناجحة',
+            message: personal
+                ? 'لا توجد عمليات منفذة على حسابك في هذه الفترة.'
+                : 'لم تسجل شركة التنفيذ عمليات ناجحة في هذه الفترة.',
+          )
+        else
+          ...operations.map(
+            (operation) => Padding(
+              padding: const EdgeInsets.only(bottom: 9),
+              child: ExecutorReportOperationTile(operation: operation),
+            ),
+          ),
+      ],
+    );
+  }
+
+  Widget _cancelledTab(List<Map<String, dynamic>> cancelled) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: _danger.withValues(alpha: 0.07),
+            borderRadius: BorderRadius.circular(7),
+            border: Border.all(color: _danger.withValues(alpha: 0.2)),
+          ),
+          child: const Text(
+            'هذا القسم مستقل للمراجعة ولا تدخل عملياته ضمن الإجماليات المالية.',
+            style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
+          ),
+        ),
+        const SizedBox(height: 12),
+        if (cancelled.isEmpty)
+          const EmptyPanel(
+            icon: Icons.verified_outlined,
+            title: 'لا توجد عمليات ملغاة',
+            message: 'لم تسجل عمليات ملغاة أو مرفوضة في هذه الفترة.',
+          )
+        else
+          ...cancelled.map(
+            (operation) => Padding(
+              padding: const EdgeInsets.only(bottom: 9),
+              child: ExecutorReportOperationTile(
+                operation: operation,
+                cancelled: true,
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     if (_loading && _report == null) return const PageLoading();
@@ -14844,28 +15066,30 @@ class _ExecutorReportsScreenState extends State<ExecutorReportsScreen> {
     }
 
     final report = _report ?? <String, dynamic>{};
-    final operations = report['operations'] is List
-        ? (report['operations'] as List)
-              .whereType<Map>()
-              .map((item) => Map<String, dynamic>.from(item))
-              .toList()
-        : <Map<String, dynamic>>[];
-    final cancelledOperations = report['cancelledOperations'] is List
-        ? (report['cancelledOperations'] as List)
-              .whereType<Map>()
-              .map((item) => Map<String, dynamic>.from(item))
-              .toList()
-        : <Map<String, dynamic>>[];
+    final operations = _rows('operations');
+    final pendingOperations = _rows('pendingOperations');
+    final cancelledOperations = _rows('cancelledOperations');
+    final deposits = _rows('deposits');
+    final capabilities = _map('capabilities');
+    final personal = report['scope'] == 'employee';
+    final canReconcile = capabilities['canViewReconciliation'] == true;
+    final canViewTeam = capabilities['canViewTeamPerformance'] == true;
+    final availableTabs = _availableTabs(canReconcile);
+    final activeTab = availableTabs.contains(_tab)
+        ? _tab
+        : _ExecutorReportTab.summary;
     final period = report['reportPeriod'];
     final periodValue = period is Map
-        ? '${period['value'] ?? _dateValue}'
-        : _dateValue;
+        ? '${period['value'] ?? _periodButtonLabel}'
+        : _periodButtonLabel;
     final title = widget.employeeName == null
         ? (_operatorOnly ? 'تقاريري' : 'تقارير التنفيذ')
         : 'تقرير ${widget.employeeName}';
-    final subtitle = _operatorOnly
-        ? 'عرض عملياتك المنفذة فقط في الفترة التي تختارها.'
-        : 'مطابقة الحركات اليومية والشهرية مع حساب شركة التنفيذ.';
+    final subtitle = personal
+        ? 'تقرير شخصي محمي يعرض عمليات صاحب الحساب فقط.'
+        : widget.controller.isExecutorAccountant
+        ? 'تسوية مالية وقراءة دقيقة لحساب شركة التنفيذ.'
+        : 'متابعة أداء شركة التنفيذ والموظفين من شاشة واحدة.';
 
     return PageFrame(
       title: title,
@@ -14895,88 +15119,84 @@ class _ExecutorReportsScreenState extends State<ExecutorReportsScreen> {
               ),
               const SizedBox(height: 10),
               Wrap(
-                spacing: 12,
-                runSpacing: 12,
+                spacing: 8,
+                runSpacing: 8,
                 crossAxisAlignment: WrapCrossAlignment.center,
                 children: [
-                  SegmentedButton<bool>(
-                    segments: const [
-                      ButtonSegment<bool>(
-                        value: false,
-                        label: Text('يوم محدد'),
-                        icon: Icon(Icons.today_outlined),
-                      ),
-                      ButtonSegment<bool>(
-                        value: true,
-                        label: Text('شهر محدد'),
-                        icon: Icon(Icons.calendar_month_outlined),
-                      ),
-                    ],
-                    selected: <bool>{_month},
-                    onSelectionChanged: (value) {
-                      setState(() => _month = value.first);
-                      _load();
-                    },
+                  _periodChoice(
+                    _ExecutorReportPeriodMode.day,
+                    'يوم',
+                    Icons.today_outlined,
+                  ),
+                  _periodChoice(
+                    _ExecutorReportPeriodMode.month,
+                    'شهر',
+                    Icons.calendar_month_outlined,
+                  ),
+                  _periodChoice(
+                    _ExecutorReportPeriodMode.range,
+                    'فترة',
+                    Icons.date_range_outlined,
                   ),
                   OutlinedButton.icon(
                     onPressed: _pickPeriod,
                     icon: const Icon(Icons.date_range_outlined),
-                    label: Text(periodValue),
+                    label: Text(
+                      periodValue,
+                      textDirection: ui.TextDirection.ltr,
+                    ),
                   ),
                 ],
               ),
             ],
           ),
         ),
-        const SizedBox(height: 16),
-        ExecutorReportSummary(report: report, operatorView: _operatorOnly),
-        const SizedBox(height: 20),
-        SectionTitle(
-          title: 'العمليات المسجلة',
-          icon: Icons.receipt_long_outlined,
-        ),
-        const SizedBox(height: 10),
-        if (operations.isEmpty)
-          EmptyPanel(
-            icon: Icons.receipt_long_outlined,
-            title: 'لا توجد عمليات في هذه الفترة',
-            message: _operatorOnly
-                ? 'ستظهر عملياتك المنفذة في اليوم الذي اخترته.'
-                : 'ستظهر حركات التنفيذ فور تسجيلها على حساب الشركة.',
-          )
-        else
-          ...operations.map(
-            (operation) => Padding(
-              padding: const EdgeInsets.only(bottom: 10),
-              child: ExecutorReportOperationTile(operation: operation),
-            ),
-          ),
-        if (cancelledOperations.isNotEmpty) ...[
-          const SizedBox(height: 22),
-          SectionTitle(
-            title: 'العمليات الملغاة',
-            icon: Icons.cancel_outlined,
-            color: _danger,
-          ),
-          const SizedBox(height: 6),
-          Text(
-            'للمراجعة فقط ولا تدخل ضمن إجمالي مبالغ التقرير.',
-            style: TextStyle(
-              color: Theme.of(context).colorScheme.onSurfaceVariant,
-              fontSize: 12,
-            ),
-          ),
-          const SizedBox(height: 10),
-          ...cancelledOperations.map(
-            (operation) => Padding(
-              padding: const EdgeInsets.only(bottom: 10),
-              child: ExecutorReportOperationTile(
-                operation: operation,
-                cancelled: true,
-              ),
-            ),
-          ),
+        if (_loading) ...[
+          const SizedBox(height: 8),
+          const LinearProgressIndicator(minHeight: 2),
         ],
+        const SizedBox(height: 14),
+        SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: Row(
+            children: availableTabs.map((tab) {
+              final count = switch (tab) {
+                _ExecutorReportTab.operations =>
+                  operations.length + pendingOperations.length,
+                _ExecutorReportTab.cancelled => cancelledOperations.length,
+                _ => 0,
+              };
+              return _tabButton(tab, count);
+            }).toList(),
+          ),
+        ),
+        const SizedBox(height: 16),
+        if (activeTab == _ExecutorReportTab.summary) ...[
+          ExecutorReportSummary(
+            report: report,
+            personalView: personal,
+            accountantView: widget.controller.isExecutorAccountant,
+          ),
+          if (canViewTeam) ...[
+            const SizedBox(height: 20),
+            ExecutorTeamPerformancePanel(
+              rows: _rows('teamPerformance'),
+              controller: widget.controller,
+            ),
+          ],
+        ] else if (activeTab == _ExecutorReportTab.operations)
+          _operationsTab(
+            operations: operations,
+            pending: pendingOperations,
+            personal: personal,
+          )
+        else if (activeTab == _ExecutorReportTab.cancelled)
+          _cancelledTab(cancelledOperations)
+        else
+          ExecutorReconciliationPanel(
+            summary: _map('financialSummary'),
+            deposits: deposits,
+          ),
       ],
     );
   }
@@ -14986,38 +15206,101 @@ class ExecutorReportSummary extends StatelessWidget {
   const ExecutorReportSummary({
     super.key,
     required this.report,
-    required this.operatorView,
+    required this.personalView,
+    required this.accountantView,
   });
 
   final Map<String, dynamic> report;
-  final bool operatorView;
+  final bool personalView;
+  final bool accountantView;
 
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
     final tiles = <Widget>[];
 
-    final period = report['reportPeriod'];
-    final isMonthly = period is Map && period['type'] == 'month';
-    if (operatorView) {
-      final totalAmount = numberValue(report['totalEGP']);
-      final periodLabel = isMonthly ? 'الشهر' : 'اليوم';
+    final summary = report['summary'] is Map
+        ? Map<String, dynamic>.from(report['summary'] as Map)
+        : <String, dynamic>{};
+    final financial = report['financialSummary'] is Map
+        ? Map<String, dynamic>.from(report['financialSummary'] as Map)
+        : <String, dynamic>{};
+    if (personalView) {
       return Wrap(
         spacing: 12,
         runSpacing: 12,
         children: [
           ExecutorMetricCard(
-            label: 'عمليات $periodLabel',
-            value: '${numberValue(report['operationCount']).toInt()}',
+            label: 'العمليات الناجحة',
+            value: '${numberValue(summary['completedCount']).toInt()}',
             icon: Icons.receipt_long_outlined,
             color: AhramColors.sky,
           ),
           ExecutorMetricCard(
-            label: 'إجمالي مبلغ $periodLabel',
-            value: '${formatEgpAmount(totalAmount)} ج.م',
+            label: 'إجمالي التنفيذ',
+            value: '${formatEgpAmount(numberValue(summary['totalEGP']))} ج.م',
             icon: Icons.payments_outlined,
             color: _green,
             valueColor: _green,
+          ),
+          ExecutorMetricCard(
+            label: 'متوسط مدة التنفيذ',
+            value: formatExecutionDuration(summary['averageDurationSeconds']),
+            icon: Icons.timer_outlined,
+            color: const Color(0xFF1976D2),
+          ),
+          ExecutorMetricCard(
+            label: 'العمليات الملغاة',
+            value: '${numberValue(summary['cancelledCount']).toInt()}',
+            icon: Icons.cancel_outlined,
+            color: _danger,
+            valueColor: _danger,
+          ),
+        ],
+      );
+    }
+
+    if (accountantView && financial.isNotEmpty) {
+      return Wrap(
+        spacing: 12,
+        runSpacing: 12,
+        children: [
+          ExecutorMetricCard(
+            label: 'الرصيد الافتتاحي',
+            value:
+                '${formatEgpAmount(numberValue(financial['openingBalance']))} ج.م',
+            icon: Icons.account_balance_wallet_outlined,
+            color: AhramColors.sky,
+          ),
+          ExecutorMetricCard(
+            label: 'الإضافات',
+            value:
+                '${formatEgpAmount(numberValue(financial['additions']))} ج.م',
+            icon: Icons.add_circle_outline,
+            color: _green,
+            valueColor: _green,
+          ),
+          ExecutorMetricCard(
+            label: 'الخصومات',
+            value:
+                '${formatEgpAmount(numberValue(financial['deductions']))} ج.م',
+            icon: Icons.remove_circle_outline,
+            color: _danger,
+            valueColor: _danger,
+          ),
+          ExecutorMetricCard(
+            label: 'إجمالي التنفيذ',
+            value:
+                '${formatEgpAmount(numberValue(financial['executedAmount']))} ج.م',
+            icon: Icons.payments_outlined,
+            color: _gold,
+          ),
+          ExecutorMetricCard(
+            label: 'الرصيد الختامي',
+            value:
+                '${formatEgpAmount(numberValue(financial['closingBalance']))} ج.م',
+            icon: Icons.fact_check_outlined,
+            color: colors.primary,
           ),
         ],
       );
@@ -15034,10 +15317,17 @@ class ExecutorReportSummary extends StatelessWidget {
 
     tiles.addAll([
       ExecutorMetricCard(
-        label: 'عدد العمليات',
-        value: '${numberValue(report['operationCount']).toInt()}',
+        label: 'العمليات الناجحة',
+        value: '${numberValue(summary['completedCount']).toInt()}',
         icon: Icons.receipt_long_outlined,
         color: AhramColors.sky,
+      ),
+      ExecutorMetricCard(
+        label: 'إجمالي التنفيذ',
+        value: '${formatEgpAmount(numberValue(summary['totalEGP']))} ج.م',
+        icon: Icons.payments_outlined,
+        color: _green,
+        valueColor: _green,
       ),
       ExecutorMetricCard(
         label: 'الرصيد السابق',
@@ -15047,7 +15337,7 @@ class ExecutorReportSummary extends StatelessWidget {
         valueColor: balanceColor(previousBalance),
       ),
       ExecutorMetricCard(
-        label: isMonthly ? 'صافي الشهر' : 'رصيد اليوم',
+        label: 'صافي الفترة',
         value: '${formatEgpAmount(periodBalance)} ج.م',
         icon: Icons.swap_vert_circle_outlined,
         color: balanceColor(periodBalance),
@@ -15060,9 +15350,354 @@ class ExecutorReportSummary extends StatelessWidget {
         color: balanceColor(currentBalance),
         valueColor: balanceColor(currentBalance),
       ),
+      ExecutorMetricCard(
+        label: 'قيد التنفيذ',
+        value: '${numberValue(summary['pendingCount']).toInt()}',
+        icon: Icons.hourglass_top_outlined,
+        color: const Color(0xFF1976D2),
+      ),
+      ExecutorMetricCard(
+        label: 'الملغاة',
+        value: '${numberValue(summary['cancelledCount']).toInt()}',
+        icon: Icons.cancel_outlined,
+        color: _danger,
+        valueColor: _danger,
+      ),
     ]);
 
     return Wrap(spacing: 12, runSpacing: 12, children: tiles);
+  }
+}
+
+class ExecutorTeamPerformancePanel extends StatelessWidget {
+  const ExecutorTeamPerformancePanel({
+    super.key,
+    required this.rows,
+    required this.controller,
+  });
+
+  final List<Map<String, dynamic>> rows;
+  final SessionController controller;
+
+  void _openEmployeeReport(
+    BuildContext context,
+    Map<String, dynamic> employee,
+  ) {
+    final id = '${employee['employeeId'] ?? ''}'.trim();
+    if (id.isEmpty) return;
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => Scaffold(
+          appBar: AppBar(
+            title: Text('تقرير ${employee['employeeName'] ?? 'الموظف'}'),
+          ),
+          body: ExecutorReportsScreen(
+            controller: controller,
+            employeeId: id,
+            employeeName: '${employee['employeeName'] ?? 'الموظف'}',
+          ),
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const SectionTitle(
+          title: 'أداء فريق التنفيذ',
+          icon: Icons.groups_2_outlined,
+          color: Color(0xFF7A57D1),
+        ),
+        const SizedBox(height: 6),
+        Text(
+          'ترتيب الموظفين وفق العمليات الناجحة في الفترة المحددة.',
+          style: TextStyle(color: colors.onSurfaceVariant, fontSize: 12),
+        ),
+        const SizedBox(height: 10),
+        if (rows.isEmpty)
+          const EmptyPanel(
+            icon: Icons.query_stats_outlined,
+            title: 'لا توجد بيانات أداء',
+            message: 'يظهر ترتيب الموظفين بعد تنفيذ أول عملية في الفترة.',
+          )
+        else
+          ...rows.asMap().entries.map((entry) {
+            final rank = entry.key + 1;
+            final row = entry.value;
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 9),
+              child: InkWell(
+                onTap: () => _openEmployeeReport(context, row),
+                borderRadius: BorderRadius.circular(8),
+                child: Container(
+                  padding: const EdgeInsets.all(13),
+                  decoration: BoxDecoration(
+                    color: colors.surface,
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(
+                      color: const Color(0xFF7A57D1).withValues(alpha: 0.2),
+                    ),
+                  ),
+                  child: Row(
+                    children: [
+                      CircleAvatar(
+                        radius: 20,
+                        backgroundColor: rank == 1
+                            ? _gold.withValues(alpha: 0.18)
+                            : colors.surfaceContainerHighest,
+                        child: Text(
+                          '$rank',
+                          style: TextStyle(
+                            fontWeight: FontWeight.w900,
+                            color: rank == 1 ? const Color(0xFF8A6200) : null,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 11),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              '${row['employeeName'] ?? 'منفذ'}',
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w900,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              '${numberValue(row['completedCount']).toInt()} ناجحة · ${numberValue(row['cancelledCount']).toInt()} ملغاة · ${formatExecutionDuration(row['averageDurationSeconds'])}',
+                              style: TextStyle(
+                                color: colors.onSurfaceVariant,
+                                fontSize: 11,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.end,
+                        children: [
+                          Text(
+                            '${formatEgpAmount(numberValue(row['totalEGP']))} ج.م',
+                            textDirection: ui.TextDirection.ltr,
+                            style: const TextStyle(
+                              color: _green,
+                              fontWeight: FontWeight.w900,
+                            ),
+                          ),
+                          const SizedBox(height: 3),
+                          Icon(
+                            Icons.arrow_forward_ios_rounded,
+                            size: 13,
+                            color: colors.onSurfaceVariant,
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            );
+          }),
+      ],
+    );
+  }
+}
+
+class ExecutorReconciliationPanel extends StatelessWidget {
+  const ExecutorReconciliationPanel({
+    super.key,
+    required this.summary,
+    required this.deposits,
+  });
+
+  final Map<String, dynamic> summary;
+  final List<Map<String, dynamic>> deposits;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    final opening = numberValue(summary['openingBalance']);
+    final additions = numberValue(summary['additions']);
+    final deductions = numberValue(summary['deductions']);
+    final executed = numberValue(summary['executedAmount']);
+    final net = numberValue(summary['netMovement']);
+    final closing = numberValue(summary['closingBalance']);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        SurfacePanel(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              const SectionTitle(
+                title: 'معادلة التسوية المالية',
+                icon: Icons.balance_outlined,
+                color: _gold,
+              ),
+              const SizedBox(height: 14),
+              ExecutorReconciliationRow(
+                label: 'الرصيد الافتتاحي',
+                value: opening,
+                color: colors.onSurface,
+              ),
+              ExecutorReconciliationRow(
+                label: 'إضافات الرصيد',
+                value: additions,
+                color: _green,
+                prefix: '+',
+              ),
+              ExecutorReconciliationRow(
+                label: 'خصومات إدارية',
+                value: deductions,
+                color: _danger,
+                prefix: '-',
+              ),
+              ExecutorReconciliationRow(
+                label: 'عمليات منفذة',
+                value: executed,
+                color: const Color(0xFF1976D2),
+                prefix: '-',
+              ),
+              const Divider(height: 20),
+              ExecutorReconciliationRow(
+                label: 'صافي حركة الفترة',
+                value: net,
+                color: net < 0 ? _danger : _green,
+                bold: true,
+              ),
+              ExecutorReconciliationRow(
+                label: 'الرصيد الختامي',
+                value: closing,
+                color: closing < 0 ? _green : _danger,
+                bold: true,
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 18),
+        const SectionTitle(
+          title: 'الإيداعات والخصومات',
+          icon: Icons.account_balance_outlined,
+          color: AhramColors.sky,
+        ),
+        const SizedBox(height: 8),
+        if (deposits.isEmpty)
+          const EmptyPanel(
+            icon: Icons.account_balance_wallet_outlined,
+            title: 'لا توجد حركات رصيد',
+            message: 'لا توجد إيداعات أو خصومات خلال الفترة المحددة.',
+          )
+        else
+          ...deposits.map((item) {
+            final deduction = item['status'] == 'deduction';
+            final pending = item['status'] == 'deposit_pending';
+            final color = pending
+                ? const Color(0xFF8A6200)
+                : deduction
+                ? _danger
+                : _green;
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 9),
+              child: SurfacePanel(
+                child: Row(
+                  children: [
+                    GlassIconBadge(
+                      icon: deduction
+                          ? Icons.remove_circle_outline
+                          : pending
+                          ? Icons.schedule_outlined
+                          : Icons.add_circle_outline,
+                      color: color,
+                      size: 42,
+                    ),
+                    const SizedBox(width: 11),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            pending
+                                ? 'إيداع قيد الاعتماد'
+                                : deduction
+                                ? 'خصم'
+                                : 'إيداع',
+                            style: const TextStyle(fontWeight: FontWeight.w900),
+                          ),
+                          Text(
+                            '${item['customId'] ?? '-'} · ${formatDate(item['createdAt'])}',
+                            style: TextStyle(
+                              color: colors.onSurfaceVariant,
+                              fontSize: 11,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Text(
+                      '${deduction ? '-' : '+'}${formatEgpAmount(numberValue(item['amount']))} ج.م',
+                      textDirection: ui.TextDirection.ltr,
+                      style: TextStyle(
+                        color: color,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          }),
+      ],
+    );
+  }
+}
+
+class ExecutorReconciliationRow extends StatelessWidget {
+  const ExecutorReconciliationRow({
+    super.key,
+    required this.label,
+    required this.value,
+    required this.color,
+    this.prefix = '',
+    this.bold = false,
+  });
+
+  final String label;
+  final double value;
+  final Color color;
+  final String prefix;
+  final bool bold;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 5),
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(
+              label,
+              style: TextStyle(fontWeight: bold ? FontWeight.w900 : null),
+            ),
+          ),
+          Text(
+            '$prefix${formatEgpAmount(value)} ج.م',
+            textDirection: ui.TextDirection.ltr,
+            style: TextStyle(
+              color: color,
+              fontWeight: bold ? FontWeight.w900 : FontWeight.w700,
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }
 
@@ -15086,9 +15721,10 @@ class ExecutorMetricCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
     return SizedBox(
-      width: 205,
+      width: 156,
+      height: 112,
       child: Container(
-        padding: const EdgeInsets.all(15),
+        padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
           color: colors.surface,
           borderRadius: BorderRadius.circular(8),
@@ -15101,33 +15737,43 @@ class ExecutorMetricCard extends StatelessWidget {
             ),
           ],
         ),
-        child: Row(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            GlassIconBadge(icon: icon, color: color, size: 42),
-            const SizedBox(width: 11),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                GlassIconBadge(icon: icon, color: color, size: 34),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
                     label,
+                    maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
-                      fontSize: 12,
+                      height: 1.35,
+                      fontSize: 11,
                       color: colors.onSurfaceVariant,
                     ),
                   ),
-                  const SizedBox(height: 4),
-                  Text(
-                    value,
-                    overflow: TextOverflow.ellipsis,
-                    textDirection: ui.TextDirection.ltr,
-                    style: TextStyle(
-                      fontWeight: FontWeight.w900,
-                      color: valueColor ?? colors.onSurface,
-                    ),
+                ),
+              ],
+            ),
+            const Spacer(),
+            Align(
+              alignment: AlignmentDirectional.centerStart,
+              child: FittedBox(
+                fit: BoxFit.scaleDown,
+                alignment: AlignmentDirectional.centerStart,
+                child: Text(
+                  value,
+                  textDirection: ui.TextDirection.ltr,
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w900,
+                    color: valueColor ?? colors.onSurface,
                   ),
-                ],
+                ),
               ),
             ),
           ],

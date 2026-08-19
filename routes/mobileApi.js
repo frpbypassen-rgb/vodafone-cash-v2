@@ -3059,12 +3059,14 @@ router.post('/executor/reports/filter', authenticateJWT, executorReportsValidato
             return sendMobileError(res, 403, 'FORBIDDEN', 'صلاحيات غير كافية', req.correlationId);
         }
         const { userId } = req.user;
-        const { dateType, dateValue, employeeId } = req.body;
+        const { dateType, dateValue, dateFrom, dateTo, employeeId } = req.body;
         
         const result = await mobileWebParityService.getExecutorReports({
             executorId: userId,
             dateType,
             dateValue,
+            dateFrom,
+            dateTo,
             employeeId,
             tenantId: req.tenant ? req.tenant._id : null
         });
@@ -3084,6 +3086,9 @@ router.post('/executor/reports/filter', authenticateJWT, executorReportsValidato
         if (e.message === 'NOT_FOUND') {
             return sendMobileError(res, 404, 'NOT_FOUND', 'الموظف غير موجود ضمن شركة التنفيذ', req.correlationId);
         }
+        if (e.message === 'INVALID_PERIOD') {
+            return sendMobileError(res, 422, 'INVALID_PERIOD', 'الفترة غير صالحة أو تتجاوز سنة واحدة', req.correlationId);
+        }
         return sendServerError(res, req, 'حدث خطأ أثناء جلب التقارير');
     }
 });
@@ -3094,19 +3099,23 @@ router.post('/executor/reports/download-link', authenticateJWT, executorReportsV
         if (req.user.accountType !== 'executor') {
             return sendMobileError(res, 403, 'FORBIDDEN', 'صلاحيات غير كافية', req.correlationId);
         }
-        const { dateType, dateValue, employeeId } = req.body;
+        const { dateType, dateValue, dateFrom, dateTo, employeeId } = req.body;
         await mobileWebParityService.getExecutorReports({
             executorId: req.user.userId,
             dateType,
             dateValue,
+            dateFrom,
+            dateTo,
             employeeId,
             tenantId: req.tenant ? req.tenant._id : null
         });
 
         const token = createReportDownloadToken({
             executorId: String(req.user.userId),
-            dateType: dateType === 'month' ? 'month' : 'day',
+            dateType: ['month', 'range'].includes(dateType) ? dateType : 'day',
             dateValue: String(dateValue || ''),
+            dateFrom: dateFrom ? String(dateFrom) : null,
+            dateTo: dateTo ? String(dateTo) : null,
             employeeId: employeeId ? String(employeeId) : null,
             tenantId: req.tenant ? String(req.tenant._id) : null,
             expiresAt: Date.now() + REPORT_DOWNLOAD_TTL_MS
@@ -3124,6 +3133,9 @@ router.post('/executor/reports/download-link', authenticateJWT, executorReportsV
         if (e.code === 'REPORT_DOWNLOAD_NOT_CONFIGURED') {
             return sendMobileError(res, 503, 'REPORT_DOWNLOAD_NOT_CONFIGURED', 'إعداد تنزيل التقارير غير مكتمل على الخادم', req.correlationId);
         }
+        if (e.message === 'INVALID_PERIOD') {
+            return sendMobileError(res, 422, 'INVALID_PERIOD', 'الفترة غير صالحة أو تتجاوز سنة واحدة', req.correlationId);
+        }
         return sendServerError(res, req, 'حدث خطأ أثناء تجهيز ملف التقرير');
     }
 });
@@ -3135,6 +3147,8 @@ router.get('/executor/reports/download.pdf', async (req, res) => {
             executorId: payload.executorId,
             dateType: payload.dateType,
             dateValue: payload.dateValue,
+            dateFrom: payload.dateFrom,
+            dateTo: payload.dateTo,
             employeeId: payload.employeeId,
             tenantId: payload.tenantId || null
         });

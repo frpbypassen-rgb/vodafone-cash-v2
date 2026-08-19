@@ -87,4 +87,117 @@ describe('executor employee reports', () => {
         expect(dto.operations[0].executorName).toBeNull();
         expect(dto.cancelledOperations[0].executorName).toBeNull();
     });
+
+    test('builds manager team performance and a balanced financial summary', async () => {
+        Employee.findById.mockResolvedValue({
+            _id: 'manager-1',
+            groupId: 'group-1',
+            role: 'manager',
+            name: 'مدير التنفيذ',
+            phone: '0940000000',
+            webUsername: 'manager@ahram.com'
+        });
+        ExecutorGroup.findById.mockReturnValue(leanResult({
+            _id: 'group-1',
+            name: 'شركة التنفيذ',
+            balance: 900
+        }));
+        Transaction.find.mockImplementation(() => ({
+            sort: jest.fn().mockReturnValue(leanResult([
+                {
+                    _id: 'completed-1', customId: 'ATT-10', status: 'completed', amount: 100,
+                    operatorId: 'operator-1', executorName: 'أحمد',
+                    executorReceivedAt: new Date('2026-08-14T10:00:00.000Z'),
+                    completedAt: new Date('2026-08-14T10:02:00.000Z'),
+                    createdAt: new Date('2026-08-14T10:00:00.000Z')
+                },
+                {
+                    _id: 'deposit-1', customId: 'DEP-1', status: 'deposit', amount: 300,
+                    createdAt: new Date('2026-08-14T09:00:00.000Z')
+                },
+                {
+                    _id: 'deduction-1', customId: 'DED-1', status: 'deduction', amount: 50,
+                    createdAt: new Date('2026-08-14T09:30:00.000Z')
+                },
+                {
+                    _id: 'accepted-1', customId: 'ATT-11', status: 'accepted', amount: 75,
+                    operatorId: 'operator-1', executorName: 'أحمد',
+                    createdAt: new Date('2026-08-14T11:00:00.000Z')
+                }
+            ]))
+        }));
+
+        const report = await getExecutorReports({
+            executorId: 'manager-1',
+            dateType: 'range',
+            dateFrom: '2026-08-01',
+            dateTo: '2026-08-14'
+        });
+
+        expect(report.scope).toBe('group');
+        expect(report.reportPeriod.type).toBe('range');
+        const reportQuery = Transaction.find.mock.calls[0][0];
+        expect(reportQuery.createdAt.$gte.toISOString()).toBe('2026-07-31T22:00:00.000Z');
+        expect(reportQuery.createdAt.$lte.toISOString()).toBe('2026-08-14T21:59:59.999Z');
+        expect(report.summary.pendingCount).toBe(1);
+        expect(report.summary.averageDurationSeconds).toBe(120);
+        expect(report.financialSummary).toEqual(expect.objectContaining({
+            openingBalance: 750,
+            additions: 300,
+            deductions: 50,
+            executedAmount: 100,
+            netMovement: 150,
+            closingBalance: 900
+        }));
+        expect(report.teamPerformance).toEqual([
+            expect.objectContaining({
+                employeeId: 'operator-1',
+                employeeName: 'أحمد',
+                completedCount: 1,
+                totalEGP: 100
+            })
+        ]);
+    });
+
+    test('allows accountants to reconcile the group without exposing team ranking', async () => {
+        Employee.findById.mockResolvedValue({
+            _id: 'accountant-1',
+            groupId: 'group-1',
+            role: 'accountant',
+            name: 'محاسب التنفيذ',
+            phone: '0920000000',
+            webUsername: 'accountant@ahram.com'
+        });
+
+        const dto = toClientReportDto(await getExecutorReports({
+            executorId: 'accountant-1',
+            dateType: 'day',
+            dateValue: '2026-08-14'
+        }));
+
+        expect(dto.scope).toBe('group');
+        expect(dto.capabilities.canViewReconciliation).toBe(true);
+        expect(dto.capabilities.canViewTeamPerformance).toBe(false);
+        expect(dto.teamPerformance).toEqual([]);
+        expect(dto.financialSummary).not.toBeNull();
+    });
+
+    test('rejects attempts by an operator to request another employee report', async () => {
+        await expect(getExecutorReports({
+            executorId: 'employee-1',
+            employeeId: 'employee-2',
+            dateType: 'day',
+            dateValue: '2026-08-14'
+        })).rejects.toThrow('FORBIDDEN');
+        expect(Transaction.find).not.toHaveBeenCalled();
+    });
+
+    test('rejects report ranges longer than one year', async () => {
+        await expect(getExecutorReports({
+            executorId: 'employee-1',
+            dateType: 'range',
+            dateFrom: '2025-01-01',
+            dateTo: '2026-08-14'
+        })).rejects.toThrow('INVALID_PERIOD');
+    });
 });

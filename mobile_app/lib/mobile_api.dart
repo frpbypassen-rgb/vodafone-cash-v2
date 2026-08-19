@@ -1030,6 +1030,8 @@ class MobileApi {
   Future<Map<String, dynamic>> executorReports({
     required String dateType,
     required String dateValue,
+    String? dateFrom,
+    String? dateTo,
     String? employeeId,
   }) {
     return _request(
@@ -1038,6 +1040,8 @@ class MobileApi {
       data: <String, dynamic>{
         'dateType': dateType,
         'dateValue': dateValue,
+        if (dateFrom != null && dateFrom.isNotEmpty) 'dateFrom': dateFrom,
+        if (dateTo != null && dateTo.isNotEmpty) 'dateTo': dateTo,
         if (employeeId != null && employeeId.isNotEmpty)
           'employeeId': employeeId,
       },
@@ -1047,6 +1051,8 @@ class MobileApi {
   Future<Uri> executorReportDownloadUrl({
     required String dateType,
     required String dateValue,
+    String? dateFrom,
+    String? dateTo,
     String? employeeId,
   }) async {
     final response = await _request(
@@ -1055,6 +1061,8 @@ class MobileApi {
       data: <String, dynamic>{
         'dateType': dateType,
         'dateValue': dateValue,
+        if (dateFrom != null && dateFrom.isNotEmpty) 'dateFrom': dateFrom,
+        if (dateTo != null && dateTo.isNotEmpty) 'dateTo': dateTo,
         if (employeeId != null && employeeId.isNotEmpty)
           'employeeId': employeeId,
       },

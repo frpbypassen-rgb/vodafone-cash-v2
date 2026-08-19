@@ -476,11 +476,25 @@ const executorReportsValidator = [
     body('dateType')
         .optional()
         .trim()
-        .isIn(['day', 'month']).withMessage('Ù†ÙˆØ¹ Ø§Ù„ØªØ§Ø±ÙŠØ® ØºÙŠØ± ØµØ§Ù„Ø­'),
+        .isIn(['day', 'month', 'range']).withMessage('نوع التاريخ غير صالح'),
     body('dateValue')
         .optional()
         .trim()
-        .isLength({ min: 4, max: 20 }).withMessage('Ù‚ÙŠÙ…Ø© Ø§Ù„ØªØ§Ø±ÙŠØ® ØºÙŠØ± ØµØ§Ù„Ø­Ø©'),
+        .isLength({ min: 4, max: 20 }).withMessage('قيمة التاريخ غير صالحة'),
+    body('dateFrom')
+        .optional({ nullable: true, checkFalsy: true })
+        .trim()
+        .isISO8601({ strict: true, strictSeparator: true }).withMessage('تاريخ بداية التقرير غير صالح'),
+    body('dateTo')
+        .optional({ nullable: true, checkFalsy: true })
+        .trim()
+        .isISO8601({ strict: true, strictSeparator: true }).withMessage('تاريخ نهاية التقرير غير صالح'),
+    body().custom((payload) => {
+        if (payload.dateType === 'range' && (!payload.dateFrom || !payload.dateTo)) {
+            throw new Error('يجب تحديد تاريخ البداية والنهاية');
+        }
+        return true;
+    }),
     validate
 ];
 

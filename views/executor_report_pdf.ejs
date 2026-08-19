@@ -40,6 +40,7 @@
         .note { text-align: right; }
         .status { display: inline-block; padding: 2px 5px; border: 1px solid #a9b8c7; font-size: 7px; font-weight: 800; }
         .status.success { color: #08765f; border-color: #8bcfc2; background: #effaf7; }
+        .status.pending { color: #1557a6; border-color: #9ec1e8; background: #f0f7ff; }
         .status.cancelled { color: #a62c39; border-color: #e0a8ae; background: #fff3f4; }
         .empty { padding: 14px; color: #677789; text-align: center; }
         .cancelled { break-before: page; page-break-before: always; }
@@ -55,8 +56,12 @@
     const isClientReport = report.scope === 'client';
     const isPersonalReport = report.scope === 'employee' || isClientReport;
     const operations = report.operations || [];
+    const pendingOperations = report.pendingOperations || [];
     const cancelledOperations = report.cancelledOperations || [];
     const deposits = report.deposits || [];
+    const summary = report.summary || {};
+    const financial = report.financialSummary || {};
+    const teamPerformance = report.teamPerformance || [];
     const tripoli = 'Africa/Tripoli';
     const money = (value, digits = 2) => Number(value || 0).toLocaleString('en-US', { minimumFractionDigits: digits, maximumFractionDigits: digits });
     const dateTime = (value) => value ? new Date(value).toLocaleString('en-GB', { timeZone: tripoli, hour12: true }) : '---';
@@ -82,15 +87,19 @@
     <article class="metric"><span>عدد العمليات</span><strong class="mono"><%= Number(report.operationCount || operations.length) %></strong></article>
     <% if (isPersonalReport) { %>
     <article class="metric green"><span>إجمالي مبلغ الفترة</span><strong class="mono"><%= money(report.totalEGP, 0) %> EGP</strong></article>
-    <% if (isClientReport) { %>
+    <% if (!isClientReport) { %>
+    <article class="metric gold"><span>متوسط مدة التنفيذ</span><strong class="mono"><%= summary.averageDurationSeconds ? `${Math.floor(summary.averageDurationSeconds / 60)} د ${summary.averageDurationSeconds % 60} ث` : '---' %></strong></article>
+    <article class="metric"><span>قيد التنفيذ</span><strong class="mono"><%= Number(summary.pendingCount || 0) %></strong></article>
+    <article class="metric red"><span>عمليات ملغاة</span><strong class="mono"><%= cancelledOperations.length %></strong></article>
+    <% } else { %>
     <article class="metric gold"><span>إجمالي الليبي</span><strong class="mono"><%= money(report.totalLYD) %> LYD</strong></article>
     <article class="metric red"><span>عمليات ملغاة</span><strong class="mono"><%= cancelledOperations.length %></strong></article>
     <% } %>
     <% } else { %>
     <article class="metric gold"><span>الرصيد السابق</span><strong class="mono"><%= money(report.previousBalance) %> EGP</strong></article>
-    <article class="metric green"><span>رصيد الفترة</span><strong class="mono"><%= money(report.periodBalance) %> EGP</strong></article>
+    <article class="metric green"><span>إجمالي التنفيذ</span><strong class="mono"><%= money(report.totalEGP, 0) %> EGP</strong></article>
     <article class="metric red"><span>الرصيد الحالي</span><strong class="mono"><%= money(report.currentBalance) %> EGP</strong></article>
-    <article class="metric green"><span>عمليات ناجحة</span><strong class="mono"><%= Number(report.completedCount || 0) %></strong></article>
+    <article class="metric red"><span>عمليات ملغاة</span><strong class="mono"><%= cancelledOperations.length %></strong></article>
     <% } %>
 </section>
 <section class="section">
@@ -100,6 +109,28 @@
     <% completed.forEach((item, index) => { const seconds = Number(item.executionDurationSeconds || 0); const duration = seconds ? `${Math.floor(seconds / 60)} د ${seconds % 60} ث` : '---'; %><tr><td><%= item.serialNumber || index + 1 %></td><td class="mono"><%= item.customId || '---' %></td><td><%= item.transferTypeLabel || item.transferType || '---' %></td><td class="mono"><%= item.recipientNumber || '---' %></td><td class="mono"><%= money(item.amount, 0) %></td><td class="mono"><%= duration %></td><% if (!isPersonalReport) { %><td><%= item.executorName || '---' %></td><% } %><td class="mono"><%= dateTime(item.completedAt || item.createdAt) %></td><td><span class="status success">ناجحة</span></td></tr><% }) %>
     </tbody></table>
 </section>
+<% if (pendingOperations.length) { %>
+<section class="section">
+    <div class="section-heading"><div><span>للمتابعة التشغيلية ولا تدخل في الإجماليات</span><h2>العمليات الجارية</h2></div><strong><%= pendingOperations.length %> عملية</strong></div>
+    <table><thead><tr><th>#</th><th>رقم العملية</th><th>الخدمة</th><th>رقم الهاتف</th><th>القيمة EGP</th><% if (!isPersonalReport) { %><th>المنفذ</th><% } %><th>وقت الوصول</th><th>الحالة</th></tr></thead><tbody>
+    <% pendingOperations.forEach((item, index) => { %><tr><td><%= index + 1 %></td><td class="mono"><%= item.customId || '---' %></td><td><%= item.transferTypeLabel || item.transferType || '---' %></td><td class="mono"><%= item.recipientNumber || '---' %></td><td class="mono"><%= money(item.amount, 0) %></td><% if (!isPersonalReport) { %><td><%= item.executorName || '---' %></td><% } %><td class="mono"><%= dateTime(item.executorReceivedAt || item.createdAt) %></td><td><span class="status pending"><%= item.status === 'accepted' ? 'قيد التنفيذ' : 'قيد الانتظار' %></span></td></tr><% }) %>
+    </tbody></table>
+</section>
+<% } %>
+<% if (!isPersonalReport && report.capabilities && report.capabilities.canViewReconciliation) { %>
+<section class="section">
+    <div class="section-heading"><div><span>مطابقة حركة حساب شركة التنفيذ</span><h2>التسوية المالية</h2></div><strong class="mono"><%= money(financial.closingBalance) %> EGP</strong></div>
+    <table><thead><tr><th>الرصيد الافتتاحي</th><th>الإضافات</th><th>الخصومات</th><th>إجمالي التنفيذ</th><th>صافي الحركة</th><th>الرصيد الختامي</th></tr></thead><tbody><tr><td class="mono"><%= money(financial.openingBalance) %></td><td class="mono"><%= money(financial.additions) %></td><td class="mono"><%= money(financial.deductions) %></td><td class="mono"><%= money(financial.executedAmount, 0) %></td><td class="mono"><%= money(financial.netMovement) %></td><td class="mono"><%= money(financial.closingBalance) %></td></tr></tbody></table>
+</section>
+<% } %>
+<% if (!isPersonalReport && report.capabilities && report.capabilities.canViewTeamPerformance && teamPerformance.length) { %>
+<section class="section">
+    <div class="section-heading"><div><span>مرتب حسب عدد العمليات الناجحة</span><h2>أداء فريق التنفيذ</h2></div><strong><%= teamPerformance.length %> منفذ</strong></div>
+    <table><thead><tr><th>#</th><th>اسم المنفذ</th><th>العمليات الناجحة</th><th>العمليات الملغاة</th><th>إجمالي التنفيذ EGP</th><th>متوسط المدة</th></tr></thead><tbody>
+    <% teamPerformance.forEach((item, index) => { const avg = Number(item.averageDurationSeconds || 0); %><tr><td><%= index + 1 %></td><td><%= item.employeeName || '---' %></td><td class="mono"><%= Number(item.completedCount || 0) %></td><td class="mono"><%= Number(item.cancelledCount || 0) %></td><td class="mono"><%= money(item.totalEGP, 0) %></td><td class="mono"><%= avg ? `${Math.floor(avg / 60)} د ${avg % 60} ث` : '---' %></td></tr><% }) %>
+    </tbody></table>
+</section>
+<% } %>
 <section class="section">
     <div class="section-heading"><div><span>حركات منفصلة عن التحويلات</span><h2>الإيداعات والخصومات</h2></div><strong><%= deposits.length %> حركة</strong></div>
     <table><thead><tr><th>#</th><th>رقم الحركة</th><th>النوع</th><th>القيمة</th><th>التاريخ</th><th>الملاحظة</th></tr></thead><tbody>

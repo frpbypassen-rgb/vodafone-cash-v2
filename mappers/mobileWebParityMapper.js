@@ -33,6 +33,25 @@ const toClientReportDto = (data) => {
             executorName: isPersonalReport ? null : (tx.executorName || null),
             hasProofImage: !!(tx.proofImage || (tx.proofImages && tx.proofImages.length > 0))
         })),
+        pendingOperations: (data.pendingOperations || []).map((tx, index) => ({
+            serialNumber: index + 1,
+            id: String(tx._id),
+            customId: tx.customId,
+            transferType: tx.transferType,
+            transferTypeLabel: getTransferServiceLabel(tx.transferType),
+            recipientNumber: tx.vodafoneNumber || tx.accountNumber || null,
+            recipientName: tx.accountName || null,
+            amount: Number(tx.amount || 0),
+            status: tx.status,
+            createdAt: tx.createdAt ? new Date(tx.createdAt).toISOString() : null,
+            executorReceivedAt: tx.executorReceivedAt ? new Date(tx.executorReceivedAt).toISOString() : null,
+            completedAt: tx.completedAt ? new Date(tx.completedAt).toISOString() : null,
+            executionDurationSeconds: tx.executorReceivedAt
+                ? Math.max(0, Math.floor((Date.now() - new Date(tx.executorReceivedAt).getTime()) / 1000))
+                : null,
+            notes: tx.notes || null,
+            executorName: isPersonalReport ? null : (tx.executorName || tx.assignedExecutorName || null)
+        })),
         cancelledOperations: (data.cancelledOperations || []).map((tx, index) => ({
             serialNumber: index + 1,
             id: String(tx._id),
@@ -73,6 +92,18 @@ const toClientReportDto = (data) => {
         completedCount: Number(data.completedCount || 0),
         rejectedCount: Number(data.rejectedCount || 0),
         totalDeposits: Number(data.totalDeposits || 0),
+        summary: {
+            totalEGP: Number(data.summary?.totalEGP || data.totalEGP || 0),
+            completedCount: Number(data.summary?.completedCount || data.completedCount || 0),
+            cancelledCount: Number(data.summary?.cancelledCount || data.rejectedCount || 0),
+            pendingCount: Number(data.summary?.pendingCount || 0),
+            averageDurationSeconds: data.summary?.averageDurationSeconds === null || data.summary?.averageDurationSeconds === undefined
+                ? null
+                : Number(data.summary.averageDurationSeconds),
+            fastestDurationSeconds: data.summary?.fastestDurationSeconds === null || data.summary?.fastestDurationSeconds === undefined
+                ? null
+                : Number(data.summary.fastestDurationSeconds)
+        },
         role: data.role || null,
         scope: data.scope || 'group',
         reportPeriod: data.reportPeriod ? {
@@ -89,6 +120,32 @@ const toClientReportDto = (data) => {
         companyBalance: isPersonalReport || data.companyBalance === null || data.companyBalance === undefined
             ? null
             : Number(data.companyBalance),
+        capabilities: {
+            canViewCompanyBalance: !isPersonalReport && !!data.capabilities?.canViewCompanyBalance,
+            canViewTeamPerformance: !isPersonalReport && !!data.capabilities?.canViewTeamPerformance,
+            canViewReconciliation: !isPersonalReport && !!data.capabilities?.canViewReconciliation,
+            canFilterEmployee: !!data.capabilities?.canFilterEmployee
+        },
+        financialSummary: !isPersonalReport && data.financialSummary ? {
+            openingBalance: Number(data.financialSummary.openingBalance || 0),
+            additions: Number(data.financialSummary.additions || 0),
+            deductions: Number(data.financialSummary.deductions || 0),
+            executedAmount: Number(data.financialSummary.executedAmount || 0),
+            netMovement: Number(data.financialSummary.netMovement || 0),
+            closingBalance: Number(data.financialSummary.closingBalance || 0)
+        } : null,
+        teamPerformance: !isPersonalReport && Array.isArray(data.teamPerformance)
+            ? data.teamPerformance.map(item => ({
+                employeeId: item.employeeId ? String(item.employeeId) : null,
+                employeeName: item.employeeName || '---',
+                completedCount: Number(item.completedCount || 0),
+                cancelledCount: Number(item.cancelledCount || 0),
+                totalEGP: Number(item.totalEGP || 0),
+                averageDurationSeconds: item.averageDurationSeconds === null || item.averageDurationSeconds === undefined
+                    ? null
+                    : Number(item.averageDurationSeconds)
+            }))
+            : [],
         myPerformance: !isPersonalReport && data.myPerformance ? {
             totalEGP: Number(data.myPerformance.totalEGP || 0),
             completedCount: Number(data.myPerformance.completedCount || 0)
