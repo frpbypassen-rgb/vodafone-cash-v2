@@ -14,6 +14,8 @@ const {
 } = require('./firebasePushService');
 const { getTransferServiceLabel } = require('../utils/mobileTransferServiceCatalog');
 const { DEFAULT_PREFERENCES, definitionFor } = require('../utils/executorNotificationCatalog');
+const { taskRecipientPrefix } = require('../utils/executorTaskPrivacy');
+const { sendExecutorWebPush } = require('./executorWebPushService');
 const logger = require('../utils/logger');
 
 const WORKER_INTERVAL_MS = Math.max(1000, Number(process.env.FCM_WORKER_INTERVAL_MS || 3000));
@@ -72,7 +74,7 @@ const formatAmount = (value) => {
 
 const taskMessage = (tx, reminder = false) => {
     const service = getTransferServiceLabel(tx?.transferType) || 'تحويل مالي';
-    const number = recipientNumber(tx) || 'غير محدد';
+    const number = taskRecipientPrefix(recipientNumber(tx)) || 'غير محدد';
     const amount = formatAmount(tx?.amount);
     return {
         title: reminder ? 'طلب تنفيذ ما زال بانتظارك' : 'وصل طلب تنفيذ جديد',
@@ -767,6 +769,16 @@ const scheduleNextReminder = async (outbox, tx) => {
     });
 };
 
+const executorPortalUrlForNotification = (outbox) => {
+    const category = String(outbox?.category || '');
+    if (category === 'executor_support_reply') return '/executor-portal/support';
+    if (['executor_report_ready', 'executor_task_completed', 'executor_task_cancelled'].includes(category)) {
+        return '/executor-portal/reports';
+    }
+    if (['executor_balance_warning', 'executor_security_alert'].includes(category)) return '/executor-portal/settings';
+    return '/executor-portal/dashboard';
+};
+
 const processOutboxItem = async (outbox) => {
     const tx = outbox.transactionId ? await Transaction.findById(outbox.transactionId).lean() : null;
     if (!actionableTask(outbox, tx)) {
@@ -779,59 +791,93 @@ const processOutboxItem = async (outbox) => {
 
     const employeeIds = await resolveAudienceEmployeeIds(outbox, tx);
     const devices = await resolveAudienceDevices(outbox, tx, employeeIds);
-    if (devices.length === 0) {
+    const notificationData = {
+        ...outbox.data,
+        category: outbox.category,
+        route: outbox.route || definitionFor(outbox.category).route,
+        url: outbox.route || definitionFor(outbox.category).route || '/executor-portal/dashboard',
+        priority: outbox.priority || definitionFor(outbox.category).priority,
+        referenceId: String(outbox.referenceId || '')
+    };
+    const mobileResult = devices.length > 0
+        ? await sendPushToTokens({
+            tokens: devices.map((device) => device.token),
+            title: outbox.title,
+            body: outbox.body,
+            data: notificationData,
+            visible: outbox.visible,
+            channelId: outbox.channelId,
+            sound: outbox.sound,
+            collapseKey: outbox.collapseKey,
+            androidDataOnly: outbox.visible
+        })
+        : { successCount: 0, failureCount: 0, responses: [] };
+    if (devices.length > 0) await updateDeviceDeliveryResults(devices, mobileResult.responses);
+
+    let browserResult;
+    try {
+        browserResult = await sendExecutorWebPush({
+            employeeIds,
+            title: outbox.title,
+            body: outbox.body,
+            category: outbox.category,
+            data: { ...notificationData, url: executorPortalUrlForNotification(outbox) },
+            collapseKey: outbox.collapseKey,
+            urgency: notificationData.priority === 'urgent' ? 'high' : 'normal',
+            ttl: Math.max(120, Math.ceil(REMINDER_INTERVAL_MS / 1000) + 60)
+        });
+    } catch (error) {
+        browserResult = { configured: true, attempted: 0, sent: 0, failed: 0, error: error.message };
+        logger.error('Executor browser push delivery failed without blocking mobile push', {
+            eventKey: outbox.eventKey,
+            error: error.message
+        });
+    }
+    const attemptedCount = devices.length + Number(browserResult.attempted || 0);
+    const successCount = Number(mobileResult.successCount || 0) + Number(browserResult.sent || 0);
+    const failureCount = Number(mobileResult.failureCount || 0) + Number(browserResult.failed || 0);
+
+    if (attemptedCount === 0) {
         await recordInboxEntries(outbox, employeeIds, 'skipped');
         await PushNotificationOutbox.updateOne(
             { _id: outbox._id },
             { $set: { status: 'skipped', processedAt: new Date(), lastErrorCode: 'NO_ELIGIBLE_DEVICES' } }
         );
-        return { status: 'skipped' };
+        return { status: 'skipped', browser: browserResult };
     }
 
-    const result = await sendPushToTokens({
-        tokens: devices.map((device) => device.token),
-        title: outbox.title,
-        body: outbox.body,
-        data: {
-            ...outbox.data,
-            category: outbox.category,
-            route: outbox.route || definitionFor(outbox.category).route,
-            priority: outbox.priority || definitionFor(outbox.category).priority,
-            referenceId: String(outbox.referenceId || '')
-        },
-        visible: outbox.visible,
-        channelId: outbox.channelId,
-        sound: outbox.sound,
-        collapseKey: outbox.collapseKey,
-        androidDataOnly: outbox.visible
-    });
-    await updateDeviceDeliveryResults(devices, result.responses);
-    if (result.successCount === 0 && result.failureCount > 0) {
+    if (successCount === 0 && failureCount > 0) {
         await recordInboxEntries(outbox, employeeIds, 'failed');
-        const error = new Error('Firebase rejected every target device');
-        error.code = 'FCM_ALL_DELIVERIES_FAILED';
+        const error = new Error('Every mobile and browser push delivery failed');
+        error.code = 'ALL_PUSH_DELIVERIES_FAILED';
         throw error;
     }
     await PushNotificationOutbox.updateOne(
         { _id: outbox._id },
         {
             $set: {
-                status: result.successCount > 0 ? 'sent' : 'failed',
+                status: successCount > 0 ? 'sent' : 'failed',
                 processedAt: new Date(),
-                sentCount: result.successCount,
-                failedCount: result.failureCount,
-                lastErrorCode: result.successCount > 0 ? '' : 'FCM_ALL_DELIVERIES_FAILED'
+                sentCount: successCount,
+                failedCount: failureCount,
+                lastErrorCode: successCount > 0 ? '' : 'ALL_PUSH_DELIVERIES_FAILED'
             }
         }
     );
     await recordInboxEntries(
         outbox,
         employeeIds,
-        result.successCount > 0 ? 'accepted' : 'failed',
-        result.successCount > 0 ? new Date() : null
+        successCount > 0 ? 'accepted' : 'failed',
+        successCount > 0 ? new Date() : null
     );
-    if (result.successCount > 0) await scheduleNextReminder(outbox, tx);
-    return { status: result.successCount > 0 ? 'sent' : 'failed', ...result };
+    if (successCount > 0) await scheduleNextReminder(outbox, tx);
+    return {
+        status: successCount > 0 ? 'sent' : 'failed',
+        successCount,
+        failureCount,
+        mobile: mobileResult,
+        browser: browserResult
+    };
 };
 
 const processNextPushNotification = async () => {

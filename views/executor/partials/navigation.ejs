@@ -1,0 +1,56 @@
+<%
+    const executorRole = String(emp?.role || 'operator');
+    const currentPage = String(typeof activePage === 'undefined' ? '' : activePage);
+    const executorRoleLabel = executorRole === 'manager'
+        ? 'مدير تنفيذي'
+        : (executorRole === 'accountant' ? 'محاسب' : 'موظف تنفيذ');
+    const canHandleTasks = executorRole !== 'accountant';
+    const canManageEmployees = executorRole === 'manager';
+    const navItems = [
+        ...(canHandleTasks ? [{ key: 'tasks', href: '/executor-portal/dashboard', icon: 'fa-list-check', label: 'مهام التنفيذ' }] : []),
+        { key: 'reports', href: '/executor-portal/reports', icon: 'fa-chart-column', label: 'التقارير' },
+        ...(canManageEmployees ? [{ key: 'employees', href: '/executor-portal/employees', icon: 'fa-users-gear', label: 'الموظفون' }] : []),
+        { key: 'support', href: '/executor-portal/support', icon: 'fa-headset', label: 'الدعم الفني' },
+        { key: 'settings', href: '/executor-portal/settings', icon: 'fa-sliders', label: 'الإعدادات' }
+    ];
+%>
+
+<aside class="executor-side-nav" aria-label="التنقل الرئيسي">
+    <div class="executor-side-brand">
+        <img src="/images/logo.jpg" alt="شعار الأهرام">
+        <div>
+            <strong>AL-AHRAM</strong>
+            <small>منصة إدارة التنفيذ</small>
+        </div>
+    </div>
+
+    <div class="executor-side-account">
+        <strong><%= emp?.name || 'حساب التنفيذ' %></strong>
+        <span><%= executorRoleLabel %> · <%= emp?.groupId?.name || 'شركة التنفيذ' %></span>
+    </div>
+
+    <nav class="executor-side-links">
+        <% navItems.forEach((item) => { %>
+            <a class="executor-side-link <%= currentPage === item.key ? 'is-active' : '' %>" href="<%= item.href %>" <%= currentPage === item.key ? 'aria-current="page"' : '' %>>
+                <i class="fa-solid <%= item.icon %>"></i>
+                <span><%= item.label %></span>
+            </a>
+        <% }) %>
+    </nav>
+
+    <div class="executor-side-footer">
+        <a class="executor-side-link" href="/executor-portal/logout">
+            <i class="fa-solid fa-arrow-right-from-bracket"></i>
+            <span>تسجيل الخروج</span>
+        </a>
+    </div>
+</aside>
+
+<nav class="executor-mobile-nav" aria-label="التنقل على الهاتف">
+    <% navItems.forEach((item) => { %>
+        <a class="executor-mobile-link <%= currentPage === item.key ? 'is-active' : '' %>" href="<%= item.href %>" <%= currentPage === item.key ? 'aria-current="page"' : '' %>>
+            <i class="fa-solid <%= item.icon %>"></i>
+            <span><%= item.label %></span>
+        </a>
+    <% }) %>
+</nav>

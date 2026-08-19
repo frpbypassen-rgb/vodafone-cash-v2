@@ -279,6 +279,7 @@
         }
     </style>
     <link rel="stylesheet" href="/css/brand-ui.css?v=20260804-brand1">
+    <link rel="stylesheet" href="/css/executor-workspace.css?v=20260819-1">
 
     <!-- PWA Setup -->
     <link rel="manifest" href="/manifest.json">
@@ -288,7 +289,9 @@
     <meta name="apple-mobile-web-app-title" content="Al-Ahram">
     <!-- End PWA Setup -->
 </head>
-<body>
+<body class="executor-portal-v2">
+
+<%- include('partials/navigation', { emp, activePage: 'employees' }) %>
 
 <nav class="navbar-glass">
     <div class="executor-info">
@@ -299,13 +302,28 @@
         </div>
     </div>
     <div class="nav-actions">
-        <span class="nav-btn text-success border border-success border-opacity-25" style="cursor: default; font-weight: 800;" title="المبلغ المتاح"><i class="fa-solid fa-wallet me-1"></i> <%= emp.groupId ? emp.groupId.balance.toFixed(2) : '0.00' %> EGP</span>
+        <span class="nav-btn text-success border border-success border-opacity-25" style="cursor: default; font-weight: 800;" title="المبلغ المتاح"><i class="fa-solid fa-wallet me-1"></i> <%= Number(emp.groupId?.balance || 0).toLocaleString('en-US', { maximumFractionDigits: 0 }) %> ج.م</span>
         <button class="nav-btn btn-theme shadow-sm" onclick="toggleTheme()" title="المظهر"><i class="fa-solid fa-moon" id="themeIcon"></i></button>
         <a href="/executor-portal/logout" class="nav-btn btn-logout"><i class="fa-solid fa-power-off"></i></a>
     </div>
 </nav>
 
 <div class="container-fluid px-3 px-md-4">
+    <div class="executor-page-heading">
+        <div>
+            <span class="executor-kicker"><i class="fa-solid fa-users-gear"></i> إدارة الفريق</span>
+            <h1>الموظفون وحالة التشغيل</h1>
+            <p>متابعة التوفر والمهام الحالية وأداء اليوم، مع إدارة الحسابات من مكان واحد.</p>
+        </div>
+        <button type="button" class="nav-btn" onclick="loadEmployees()" title="تحديث"><i class="fa-solid fa-rotate"></i></button>
+    </div>
+
+    <section class="executor-summary-grid mb-4">
+        <article class="executor-summary-card" style="--summary-color: var(--executor-blue)"><span class="summary-icon"><i class="fa-solid fa-users"></i></span><small>إجمالي الفريق</small><strong id="summaryTotal">0</strong></article>
+        <article class="executor-summary-card" style="--summary-color: var(--executor-green)"><span class="summary-icon"><i class="fa-solid fa-signal"></i></span><small>متصلون الآن</small><strong id="summaryOnline">0</strong></article>
+        <article class="executor-summary-card" style="--summary-color: var(--executor-gold)"><span class="summary-icon"><i class="fa-solid fa-bolt"></i></span><small>ينفذون الآن</small><strong id="summaryBusy">0</strong></article>
+        <article class="executor-summary-card" style="--summary-color: #7a57d1"><span class="summary-icon"><i class="fa-solid fa-check-double"></i></span><small>عمليات اليوم</small><strong id="summaryCompleted">0</strong></article>
+    </section>
     <!-- قسم إنشاء حساب جديد -->
     <div class="page-card mb-4">
         <h5 class="section-title"><i class="fa-solid fa-user-plus"></i> إنشاء حساب موظف جديد</h5>
@@ -350,7 +368,13 @@
 
     <!-- قسم قائمة الموظفين -->
     <div class="page-card">
-        <h5 class="section-title"><i class="fa-solid fa-users"></i> فريق العمل (<span id="empCount">0</span>)</h5>
+        <div class="d-flex flex-wrap align-items-center justify-content-between gap-3 mb-3">
+            <h5 class="section-title m-0"><i class="fa-solid fa-users"></i> فريق العمل (<span id="empCount">0</span>)</h5>
+            <div class="d-flex gap-2 flex-grow-1 justify-content-end" style="max-width:520px">
+                <input type="search" id="employeeSearch" class="form-control" placeholder="بحث بالاسم أو الهاتف أو اسم المستخدم">
+                <select id="employeeRoleFilter" class="form-select" style="max-width:155px"><option value="">كل الوظائف</option><option value="operator">موظف تنفيذ</option><option value="accountant">محاسب</option><option value="manager">مدير</option></select>
+            </div>
+        </div>
         
         <div class="table-responsive d-none d-md-block">
             <table class="emp-table">
@@ -360,7 +384,8 @@
                         <th>اسم المستخدم</th>
                         <th>الهاتف</th>
                         <th>الوظيفة</th>
-                        <th>الحالة</th>
+                        <th>الحالة والتوفر</th>
+                        <th>أداء اليوم</th>
                         <th>إجراءات</th>
                     </tr>
                 </thead>
@@ -379,6 +404,7 @@
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+<script src="/js/executor-workspace.js?v=20260819-1"></script>
 <script>
     function toggleTheme() {
         const html = document.documentElement;
@@ -437,89 +463,125 @@
         }
     });
 
-    // تحميل قائمة الموظفين
-    // تحميل قائمة الموظفين
+    let employeesCache = [];
+    const escapeEmployeeHtml = (value) => String(value ?? '').replace(/[&<>"']/g, (char) => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#039;' }[char]));
+    const employeeDuration = (seconds) => {
+        if (!Number.isFinite(Number(seconds))) return '---';
+        const value = Number(seconds);
+        return value >= 60 ? `${Math.floor(value / 60)}د ${value % 60}ث` : `${value}ث`;
+    };
+    const employeeLastSeen = (value) => value
+        ? new Date(value).toLocaleString('ar-LY', { timeZone:'Africa/Tripoli', month:'short', day:'numeric', hour:'2-digit', minute:'2-digit' })
+        : 'لم يسجل حضورًا';
+
+    function renderEmployees() {
+        const query = document.getElementById('employeeSearch').value.trim().toLowerCase();
+        const roleFilter = document.getElementById('employeeRoleFilter').value;
+        const employees = employeesCache.filter((employee) => {
+            const haystack = `${employee.name || ''} ${employee.webUsername || ''} ${employee.phone || ''}`.toLowerCase();
+            return (!query || haystack.includes(query)) && (!roleFilter || employee.role === roleFilter);
+        });
+        const tbody = document.getElementById('empTableBody');
+        const mobileList = document.getElementById('mobileEmpList');
+        const emptyState = document.getElementById('emptyState');
+        document.getElementById('empCount').textContent = employees.length;
+        tbody.innerHTML = '';
+        if (mobileList) mobileList.innerHTML = '';
+        emptyState.classList.toggle('d-none', employees.length > 0);
+
+        employees.forEach((employee) => {
+            const employeeId = employee.id || employee._id;
+            const roleLabel = employee.role === 'operator' ? 'موظف تنفيذ' : (employee.role === 'accountant' ? 'محاسب' : 'مدير');
+            const roleClass = employee.role === 'operator' ? 'role-operator' : (employee.role === 'accountant' ? 'role-accountant' : 'role-manager');
+            const statusIcon = employee.status === 'active' ? '<i class="fa-solid fa-circle-check status-active"></i> فعّال' : '<i class="fa-solid fa-circle-xmark status-suspended"></i> معلق';
+            const toggleClass = employee.status === 'active' ? 'btn-toggle-active' : 'btn-toggle-suspended';
+            const toggleIcon = employee.status === 'active' ? 'fa-ban' : 'fa-check';
+            const toggleTitle = employee.status === 'active' ? 'تعليق' : 'تفعيل';
+            const presence = employee.presence || {};
+            const metrics = employee.metrics || {};
+            const presenceHtml = presence.isOnline
+                ? '<span class="executor-status-pill" style="--pill-color:var(--executor-green)"><i class="fa-solid fa-circle"></i> متصل</span>'
+                : `<span class="small text-muted">${employeeLastSeen(presence.lastSeenAt)}</span>`;
+            const currentTaskHtml = employee.currentTask
+                ? `<span class="executor-status-pill" style="--pill-color:var(--executor-gold)"><i class="fa-solid fa-bolt"></i> ${escapeEmployeeHtml(employee.currentTask.customId || 'مهمة جارية')}</span>`
+                : '<span class="small text-muted">متاح</span>';
+            const performanceHtml = `<div class="d-grid gap-1"><strong>${Number(metrics.completedCount || 0)} عملية</strong><small class="text-muted">${Number(metrics.totalEGP || 0).toLocaleString('en-US', { maximumFractionDigits: 2 })} ج.م · متوسط ${employeeDuration(metrics.averageDurationSeconds)}</small></div>`;
+            const encodedName = encodeURIComponent(employee.name || '');
+            const encodedPhone = encodeURIComponent(employee.phone || '');
+            const actions = employee.role !== 'manager' ? `
+                <button onclick="editEmployee('${employeeId}', '${encodedName}', '${encodedPhone}')" class="btn-action" title="تعديل البيانات"><i class="fa-solid fa-pen"></i></button>
+                <button onclick="toggleEmployee('${employeeId}')" class="btn-action ${toggleClass}" title="${toggleTitle}"><i class="fa-solid ${toggleIcon}"></i></button>
+                <a href="/executor-portal/reports?employeeId=${employeeId}" class="btn-action" title="تقرير الموظف"><i class="fa-solid fa-chart-line"></i></a>
+                <button onclick="resetPassword('${employeeId}', '${encodedName}')" class="btn-action btn-reset" title="إعادة تعيين كلمة المرور"><i class="fa-solid fa-key"></i></button>
+                <button onclick="deleteEmployee('${employeeId}', '${encodedName}')" class="btn-action btn-delete" title="أرشفة"><i class="fa-solid fa-box-archive"></i></button>`
+                : '<span class="small text-muted">حساب المدير</span>';
+
+            tbody.innerHTML += `<tr>
+                <td class="fw-bold">${escapeEmployeeHtml(employee.name)}</td>
+                <td dir="ltr" class="font-monospace small">${escapeEmployeeHtml(employee.webUsername || '---')}</td>
+                <td dir="ltr">${escapeEmployeeHtml(employee.phone || '---')}</td>
+                <td><span class="role-badge ${roleClass}">${roleLabel}</span></td>
+                <td><div class="d-grid gap-1">${statusIcon}${presenceHtml}${currentTaskHtml}</div></td>
+                <td>${performanceHtml}</td>
+                <td><div class="d-flex gap-1 flex-wrap">${actions}</div></td>
+            </tr>`;
+
+            if (mobileList) {
+                mobileList.innerHTML += `<article class="mobile-emp-card">
+                    <div class="mobile-emp-header"><div><span class="emp-card-name">${escapeEmployeeHtml(employee.name)}</span><div class="emp-card-username text-muted">${escapeEmployeeHtml(employee.webUsername || '---')}</div></div><span class="role-badge ${roleClass}">${roleLabel}</span></div>
+                    <div class="mobile-emp-body">
+                        <div class="emp-info-item"><span class="info-label"><i class="fa-solid fa-phone"></i> الهاتف</span><span class="info-value" dir="ltr">${escapeEmployeeHtml(employee.phone || '---')}</span></div>
+                        <div class="emp-info-item"><span class="info-label"><i class="fa-solid fa-circle-info"></i> الحالة</span><span class="info-value">${statusIcon}</span></div>
+                        <div class="emp-info-item"><span class="info-label"><i class="fa-solid fa-signal"></i> التوفر</span><span class="info-value">${presenceHtml}</span></div>
+                        <div class="emp-info-item"><span class="info-label"><i class="fa-solid fa-list-check"></i> المهمة الحالية</span><span class="info-value">${currentTaskHtml}</span></div>
+                        <div class="emp-info-item"><span class="info-label"><i class="fa-solid fa-chart-simple"></i> أداء اليوم</span><span class="info-value">${performanceHtml}</span></div>
+                    </div>
+                    <div class="mobile-emp-actions mt-3 pt-2">${actions}</div>
+                </article>`;
+            }
+        });
+    }
+
     async function loadEmployees() {
         try {
-            const res = await executorApiFetch('/executor-portal/api/employees');
-            const data = await readExecutorApiResponse(res);
-            const tbody = document.getElementById('empTableBody');
-            const mobileList = document.getElementById('mobileEmpList');
-            const emptyState = document.getElementById('emptyState');
-            document.getElementById('empCount').textContent = data.employees.length;
-
-            tbody.innerHTML = '';
-            if (mobileList) mobileList.innerHTML = '';
-
-            if (data.employees.length === 0) {
-                emptyState.classList.remove('d-none');
-                return;
-            }
-            emptyState.classList.add('d-none');
-
-            data.employees.forEach(emp => {
-                const roleLabel = emp.role === 'operator' ? 'موظف تنفيذ' : (emp.role === 'accountant' ? 'محاسب' : (emp.role === 'manager' ? 'مدير' : emp.role));
-                const roleClass = emp.role === 'operator' ? 'role-operator' : (emp.role === 'accountant' ? 'role-accountant' : 'role-manager');
-                const statusIcon = emp.status === 'active' ? '<i class="fa-solid fa-circle-check status-active"></i> فعّال' : '<i class="fa-solid fa-circle-xmark status-suspended"></i> معلق';
-                const toggleClass = emp.status === 'active' ? 'btn-toggle-active' : 'btn-toggle-suspended';
-                const toggleIcon = emp.status === 'active' ? 'fa-ban' : 'fa-check';
-                const toggleTitle = emp.status === 'active' ? 'تعليق' : 'تفعيل';
-
-                const rowHtml = `<tr>
-                    <td class="fw-bold">${emp.name}</td>
-                    <td dir="ltr" class="font-monospace small">${emp.webUsername || '---'}</td>
-                    <td dir="ltr">${emp.phone || '---'}</td>
-                    <td><span class="role-badge ${roleClass}">${roleLabel}</span></td>
-                    <td>${statusIcon}</td>
-                    <td>
-                        <div class="d-flex gap-1 flex-wrap">
-                            ${emp.role !== 'manager' ? `
-                                <button onclick="toggleEmployee('${emp._id}')" class="btn-action ${toggleClass}" title="${toggleTitle}"><i class="fa-solid ${toggleIcon}"></i></button>
-                                <button onclick="toggleReports('${emp._id}')" class="btn-action ${emp.canViewAllReports ? 'text-success border-success' : 'text-muted'}" title="${emp.canViewAllReports ? 'تعطيل التقارير الشاملة' : 'السماح برؤية التقارير الشاملة'}"><i class="fa-solid fa-file-invoice"></i></button>
-                                <button onclick="resetPassword('${emp._id}', '${emp.name}')" class="btn-action btn-reset" title="إعادة تعيين كلمة المرور"><i class="fa-solid fa-key"></i></button>
-                                <button onclick="deleteEmployee('${emp._id}', '${emp.name}')" class="btn-action btn-delete" title="حذف"><i class="fa-solid fa-trash"></i></button>
-                            ` : '<span class="small text-muted">المدير</span>'}
-                        </div>
-                    </td>
-                </tr>`;
-
-                tbody.innerHTML += rowHtml;
-
-                if (mobileList) {
-                    mobileList.innerHTML += `
-                    <div class="mobile-emp-card">
-                        <div class="mobile-emp-header">
-                            <div>
-                                <span class="emp-card-name">${emp.name}</span>
-                                <div class="emp-card-username text-muted">@${emp.webUsername || '---'}</div>
-                            </div>
-                            <span class="role-badge ${roleClass}">${roleLabel}</span>
-                        </div>
-                        <div class="mobile-emp-body">
-                            <div class="emp-info-item">
-                                <span class="info-label"><i class="fa-solid fa-phone"></i> الهاتف</span>
-                                <span class="info-value" dir="ltr">${emp.phone || '---'}</span>
-                            </div>
-                            <div class="emp-info-item">
-                                <span class="info-label"><i class="fa-solid fa-circle-info"></i> الحالة</span>
-                                <span class="info-value">${statusIcon}</span>
-                            </div>
-                        </div>
-                        <div class="mobile-emp-actions mt-3 pt-2">
-                            ${emp.role !== 'manager' ? `
-                                <button onclick="toggleEmployee('${emp._id}')" class="btn-action ${toggleClass} flex-grow-1" title="${toggleTitle}"><i class="fa-solid ${toggleIcon} me-1"></i> ${toggleTitle}</button>
-                                <button onclick="toggleReports('${emp._id}')" class="btn-action ${emp.canViewAllReports ? 'text-success border-success' : 'text-muted'} flex-grow-1" title="صلاحية التقارير"><i class="fa-solid fa-file-invoice me-1"></i> التقارير</button>
-                                <button onclick="resetPassword('${emp._id}', '${emp.name}')" class="btn-action btn-reset flex-grow-1" title="كلمة المرور"><i class="fa-solid fa-key me-1"></i> كلمة المرور</button>
-                                <button onclick="deleteEmployee('${emp._id}', '${emp.name}')" class="btn-action btn-delete" style="padding: 6px 10px;" title="حذف"><i class="fa-solid fa-trash"></i></button>
-                            ` : '<span class="small text-muted w-100 text-center py-2">المدير</span>'}
-                        </div>
-                    </div>
-                    `;
-                }
-            });
-        } catch (e) {
-            console.error(e);
+            const data = await readExecutorApiResponse(await executorApiFetch('/executor-portal/api/employees'));
+            employeesCache = Array.isArray(data.employees) ? data.employees : [];
+            document.getElementById('summaryTotal').textContent = data.summary?.totalEmployees || employeesCache.length;
+            document.getElementById('summaryOnline').textContent = data.summary?.onlineEmployees || 0;
+            document.getElementById('summaryBusy').textContent = data.summary?.busyEmployees || 0;
+            document.getElementById('summaryCompleted').textContent = data.summary?.completedCount || 0;
+            renderEmployees();
+        } catch (error) {
+            console.error(error);
+            Swal.fire('تعذر تحميل الفريق', error.message || 'حدث خطأ أثناء جلب بيانات الموظفين.', 'error');
         }
+    }
+
+    document.getElementById('employeeSearch').addEventListener('input', renderEmployees);
+    document.getElementById('employeeRoleFilter').addEventListener('change', renderEmployees);
+
+    async function editEmployee(id, encodedName, encodedPhone) {
+        const currentName = decodeURIComponent(encodedName);
+        const currentPhone = decodeURIComponent(encodedPhone);
+        const result = await Swal.fire({
+            title: 'تعديل بيانات الموظف',
+            html: `<label class="form-label w-100 text-end">الاسم</label><input id="editEmpName" class="swal2-input m-0 mb-3 w-100" value="${escapeEmployeeHtml(currentName)}"><label class="form-label w-100 text-end">رقم الهاتف</label><input id="editEmpPhone" class="swal2-input m-0 w-100" dir="ltr" value="${escapeEmployeeHtml(currentPhone)}">`,
+            showCancelButton: true,
+            confirmButtonText: 'حفظ التعديل',
+            cancelButtonText: 'إلغاء',
+            preConfirm: () => {
+                const name = document.getElementById('editEmpName').value.trim();
+                const phone = document.getElementById('editEmpPhone').value.trim();
+                if (name.length < 3) return Swal.showValidationMessage('الاسم يجب ألا يقل عن 3 أحرف.');
+                return { name, phone };
+            }
+        });
+        if (!result.isConfirmed) return;
+        try {
+            await readExecutorApiResponse(await executorApiFetch('/executor-portal/api/employees/' + id, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(result.value) }));
+            Swal.fire({ icon:'success', title:'تم تعديل بيانات الموظف', timer:1300, showConfirmButton:false });
+            loadEmployees();
+        } catch (error) { Swal.fire('تعذر التعديل', error.message, 'error'); }
     }
 
     // تعليق / تفعيل موظف
@@ -551,7 +613,8 @@
     }
 
     // إعادة تعيين كلمة المرور
-    async function resetPassword(id, name) {
+    async function resetPassword(id, encodedName) {
+        const name = decodeURIComponent(encodedName);
         const { value: newPass } = await Swal.fire({
             title: 'إعادة تعيين كلمة المرور',
             html: `<p class="small text-muted">الموظف: <b>${name}</b></p>`,
@@ -575,13 +638,14 @@
     }
 
     // حذف موظف
-    async function deleteEmployee(id, name) {
+    async function deleteEmployee(id, encodedName) {
+        const name = decodeURIComponent(encodedName);
         const result = await Swal.fire({
-            title: 'تأكيد الحذف',
-            html: `<p>هل أنت متأكد من حذف الموظف <b>${name}</b>؟</p><p class="small text-danger">هذا الإجراء لا يمكن التراجع عنه!</p>`,
+            title: 'أرشفة حساب الموظف',
+            html: `<p>هل تريد إيقاف وأرشفة حساب <b>${escapeEmployeeHtml(name)}</b>؟</p><p class="small text-muted">تظل العمليات والتقارير السابقة محفوظة للمراجعة.</p>`,
             icon: 'warning',
             showCancelButton: true,
-            confirmButtonText: 'نعم، احذف',
+            confirmButtonText: 'أرشفة الحساب',
             cancelButtonText: 'إلغاء',
             confirmButtonColor: '#ef4444'
         });
@@ -589,7 +653,7 @@
             const res = await executorApiFetch('/executor-portal/api/employees/delete/' + id, { method: 'POST' });
             const data = await readExecutorApiResponse(res);
             if (data.success) {
-                Swal.fire({ icon: 'success', title: 'تم الحذف', timer: 1200, showConfirmButton: false });
+                Swal.fire({ icon: 'success', title: 'تمت أرشفة الحساب', timer: 1200, showConfirmButton: false });
                 loadEmployees();
             }
         }

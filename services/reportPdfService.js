@@ -139,10 +139,43 @@ const generateAdminReportPdf = async (app, data) => {
     }
 };
 
+const generateExecutorReportPdf = async (app, data) => {
+    const executablePath = findBrowserExecutable();
+    if (!executablePath) {
+        const error = new Error('PDF_BROWSER_NOT_FOUND');
+        error.code = 'PDF_BROWSER_NOT_FOUND';
+        throw error;
+    }
+
+    const html = await renderView(app, 'executor_report_pdf', {
+        ...data,
+        logoDataUri: logoDataUri()
+    });
+    let page;
+    try {
+        const browser = await getSharedBrowser(executablePath);
+        page = await browser.newPage();
+        await page.setContent(html, { waitUntil: 'load', timeout: 30000 });
+        await page.emulateMediaType('print');
+        const pdf = await page.pdf({
+            format: 'A4',
+            landscape: true,
+            printBackground: true,
+            preferCSSPageSize: true,
+            margin: { top: '11mm', right: '9mm', bottom: '13mm', left: '9mm' },
+            displayHeaderFooter: false
+        });
+        return Buffer.from(pdf);
+    } finally {
+        if (page) await page.close().catch(() => {});
+    }
+};
+
 module.exports = {
     closeReportPdfBrowser,
     findBrowserExecutable,
     generateAdminReportPdf,
+    generateExecutorReportPdf,
     getSharedBrowser,
     logoDataUri,
     preparePdfReport,

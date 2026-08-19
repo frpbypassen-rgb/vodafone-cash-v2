@@ -50,7 +50,6 @@ const toExecutorPortalTaskDto = (transaction = {}, executorId = null) => {
         recipientRevealed: recipient.recipientRevealed,
         accountName: transaction.accountName || null,
         notes: transaction.notes || '',
-        adminNotes: transaction.adminNotes || '',
         status: transaction.status || 'unknown',
         operatorId: transaction.operatorId ? stringId(transaction.operatorId) : null,
         executorName: transaction.executorName || null,

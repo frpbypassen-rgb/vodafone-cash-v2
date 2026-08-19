@@ -307,8 +307,11 @@
         [data-theme="dark"] .swal2-input, [data-theme="dark"] .swal2-textarea { background: rgba(255,255,255,0.04) !important; }
     </style>
     <link rel="stylesheet" href="/css/brand-ui.css?v=20260804-brand1">
+    <link rel="stylesheet" href="/css/executor-workspace.css?v=20260819-1">
 </head>
-<body>
+<body class="executor-portal-v2">
+
+<%- include('partials/navigation', { emp, activePage: 'tasks' }) %>
 
 <div id="emergencyOverlay">
     <i class="fa-solid fa-radiation shake-icon"></i>
@@ -333,7 +336,7 @@
         </div>
     </div>
     <div class="nav-actions">
-        <span class="nav-btn text-success border border-success border-opacity-25" style="cursor: default; font-weight: 800;" title="المبلغ المتاح"><i class="fa-solid fa-wallet me-1"></i> <%= emp.groupId ? emp.groupId.balance.toFixed(2) : '0.00' %> EGP</span>
+        <% if (emp.role === 'manager') { %><span class="nav-btn text-success border border-success border-opacity-25" style="cursor: default; font-weight: 800;" title="المبلغ المتاح"><i class="fa-solid fa-wallet me-1"></i> <%= Number(emp.groupId?.balance || 0).toLocaleString('en-US', { maximumFractionDigits: 0 }) %> ج.م</span><% } %>
         <button class="nav-btn btn-theme shadow-sm" onclick="toggleTheme()" title="المظهر"><i class="fa-solid fa-moon" id="themeIcon"></i></button>
         <a href="/executor-portal/logout" class="nav-btn btn-logout"><i class="fa-solid fa-power-off"></i></a>
     </div>
@@ -347,14 +350,9 @@
         <h4 class="fw-bold m-0" style="color: var(--text-main);">الرادار <span class="fs-6 fw-normal text-muted ms-1">(نظام الطابور)</span></h4>
     </div>
     <% if (emp.role === 'manager') { %>
-    <div id="manualRoutingControl" class="d-flex align-items-center justify-content-between gap-3 mb-4 p-3 rounded-4" style="background: rgba(14,165,233,0.08); border: 1px solid rgba(14,165,233,0.22);">
-        <div>
-            <div class="fw-bold" style="color: var(--text-main);"><i class="fa-solid fa-route text-primary me-2"></i>التوجيه اليدوي للمهام</div>
-            <div id="manualRoutingHint" class="small text-muted mt-1">عند تفعيله لا تظهر المهام للموظفين قبل توجيهها بالاسم.</div>
-        </div>
-        <button id="manualRoutingToggle" type="button" class="btn btn-outline-primary fw-bold rounded-3 px-3" onclick="toggleManualRouting()">
-            <i class="fa-solid fa-toggle-off me-1"></i> تفعيل
-        </button>
+    <div class="d-flex align-items-center justify-content-between gap-3 mb-4 p-3" style="background: var(--executor-surface); border: 1px solid var(--executor-line); border-radius: 8px;">
+        <div><div class="fw-bold" style="color: var(--text-main);"><i class="fa-solid fa-route text-primary me-2"></i>توزيع المهام</div><div class="small text-muted mt-1">يتم ضبط التوجيه اليدوي واختيار نمط توزيع العمليات من صفحة الإعدادات.</div></div>
+        <a href="/executor-portal/settings" class="btn btn-outline-primary fw-bold rounded-3 px-3"><i class="fa-solid fa-sliders me-1"></i> الإعدادات</a>
     </div>
     <% } %>
     
@@ -497,6 +495,7 @@
     <% } %>
 </div>
 
+<script src="/js/executor-workspace.js?v=20260819-1"></script>
 <script>
     // 🔀 Section Toggling Logic
     function switchSection(sectionId) {
@@ -678,6 +677,13 @@
         setTimeout(() => { element.innerHTML = originalHtml; element.style.borderColor = ""; element.style.background = ""; }, 1000);
     }
 
+    const escapeTaskHtml = (value) => String(value ?? '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+
     // 📡 جلب البيانات وفرز الكروت الديناميكي (Smart Sorting FIFO)
     let tasksRefreshInFlight = false;
     let manualTaskRoutingEnabled = false;
@@ -811,7 +817,7 @@
                 if (countEl) countEl.innerText = count;
                 
                 const sumEl = document.getElementById('completedSum');
-                if (sumEl) sumEl.innerText = sum.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 2 }) + ' EGP';
+                if (sumEl) sumEl.innerText = sum.toLocaleString('en-US', { maximumFractionDigits: 0 }) + ' ج.م';
                 
                 const listEl = document.getElementById('completedTasksList');
                 if (listEl) {
@@ -893,7 +899,9 @@
                     const canRoute = isExecutorManager && manualTaskRoutingEnabled && t.status === 'processing';
                     const recipientIsVisible = t.recipientRevealed === true && isMine;
                     const recipientDisplay = t.recipientNumber || t.recipientPrefix || '---';
+                    const encodedRecipient = encodeURIComponent(recipientDisplay);
                     const recipientLabel = recipientIsVisible ? 'الرقم / الحساب:' : 'بادئة الرقم / الحساب:';
+                    const formattedAmount = Number(t.amount || 0).toLocaleString('en-US', { maximumFractionDigits: 0 });
 
                     let cardClass = isMine ? 'task-mine' : (acceptedByOther ? 'task-locked' : 'task-pending');
                     let badgeClass = isMine ? 'badge-mine' : (acceptedByOther ? 'badge-locked' : 'badge-pending');
@@ -902,27 +910,15 @@
                     let typeLabel = t.transferType === 'post_account' ? '<i class="fa-solid fa-envelope text-warning"></i> بريد' : 
                                    (t.transferType === 'post_card' ? '<i class="fa-solid fa-id-card text-info"></i> بطاقة' : '<i class="fa-solid fa-mobile-screen text-danger"></i> كاش');
 
-                    // 🟢 استخلاص وإخفاء سجل الـ API
                     let displayNote = t.notes || '';
-                    let fullLogSource = [t.adminNotes, t.notes].filter(Boolean).join('\n');
-                    let hasApiLog = false;
-                    let rawLog = '';
-                    
-                    if (fullLogSource.includes('--- سجل الـ API (Terminal Log) ---')) {
-                        hasApiLog = true; rawLog = encodeURIComponent(fullLogSource);
-                        displayNote = displayNote.split('--- سجل الـ API (Terminal Log) ---')[0].trim();
-                    } else if (fullLogSource.includes('--- سجل الـ API ---')) {
-                        hasApiLog = true; rawLog = encodeURIComponent(fullLogSource);
-                        displayNote = displayNote.split('--- سجل الـ API ---')[0].trim();
-                    } else if (fullLogSource.includes('--- سجل الـ API')) {
-                        hasApiLog = true; rawLog = encodeURIComponent(fullLogSource);
-                        displayNote = displayNote.split('--- سجل الـ API')[0].trim();
-                    }
+                    displayNote = displayNote.split('--- سجل الـ API')[0].trim();
                     displayNote = displayNote.split(/\r?\n/).map(line => line.trim()).filter(line => {
                         if (!line) return false;
                         if (/رقم المحول|رقم المرسل|الرقم المرجعي|مرجع|reference|ref/i.test(line)) return true;
                         return !(/^سبب الرفض:|^\[تم |^\[فشل |^\[معلقة |^\[رقم الإلغاء:|^تحويل رصيد صادر إلى|^تحويل رصيد وارد من/.test(line));
                     }).join('\n');
+                    const safeDisplayNote = escapeTaskHtml(displayNote).replace(/\n/g, '<br>');
+                    const safeAccountName = escapeTaskHtml(t.accountName || '').replace(/\n/g, '<br>');
 
                     const taskArrivalAt = t.executorReceivedAt || t.createdAt;
                     html += `
@@ -931,7 +927,7 @@
                                 <div>
                                     <div class="task-header">
                                         <span class="cyber-badge ${badgeClass}">${badgeText}</span>
-                                        <span class="task-id">#${t.customId}</span>
+                                        <span class="task-id">#${escapeTaskHtml(t.customId)}</span>
                                     </div>
                                     
                                     <div class="mb-3 d-flex justify-content-between align-items-center p-2 rounded-3" style="background: rgba(128,128,128,0.05); border: 1px solid var(--glass-border);">
@@ -941,8 +937,8 @@
 
                                     <div class="mb-2">
                                         <span class="data-label">${typeLabel} ${recipientLabel}</span>
-                                        <div class="copy-box" ${recipientIsVisible ? `onclick="copyText('${recipientDisplay}', this)"` : ''}>
-                                            <span class="copy-val" dir="ltr">${recipientDisplay}</span>
+                                        <div class="copy-box" ${recipientIsVisible ? `onclick="copyText(decodeURIComponent('${encodedRecipient}'), this)"` : ''}>
+                                            <span class="copy-val" dir="ltr">${escapeTaskHtml(recipientDisplay)}</span>
                                             <i class="fa-solid ${recipientIsVisible ? 'fa-copy' : 'fa-lock'} copy-icon"></i>
                                         </div>
                                         ${recipientIsVisible ? '' : '<div class="small text-muted fw-bold mt-1"><i class="fa-solid fa-shield-halved me-1"></i> يظهر الرقم كاملاً بعد قبول المهمة للمنفذ الذي سحبها فقط.</div>'}
@@ -951,19 +947,18 @@
                                     <div class="mb-3">
                                         <span class="data-label">المبلغ المطلوب (EGP):</span>
                                         <div class="copy-box" onclick="copyText('${t.amount}', this)" style="border-color: rgba(16, 185, 129, 0.3);">
-                                            <span class="copy-val amount">${t.amount}</span>
+                                            <span class="copy-val amount">${formattedAmount} <small>ج.م</small></span>
                                             <i class="fa-solid fa-sack-dollar copy-icon" style="color: var(--accent-green);"></i>
                                         </div>
                                     </div>
 
-                                    ${displayNote ? `<div class="tx-notes"><i class="fa-solid fa-comment-dots me-1 opacity-50"></i> ${displayNote}</div>` : ''}
-                                    ${t.accountName && t.transferType !== 'vodafone' ? `<div class="tx-beneficiary"><i class="fa-solid fa-user me-1 opacity-50"></i> ${t.accountName.replace(/\n/g, '<br>')}</div>` : ''}
+                                    ${safeDisplayNote ? `<div class="tx-notes"><i class="fa-solid fa-comment-dots me-1 opacity-50"></i> ${safeDisplayNote}</div>` : ''}
+                                    ${safeAccountName && t.transferType !== 'vodafone' ? `<div class="tx-beneficiary"><i class="fa-solid fa-user me-1 opacity-50"></i> ${safeAccountName}</div>` : ''}
                                 </div>
                                 
                                 <div class="action-zone border-0">
-                                    ${hasApiLog ? `<button data-log="${rawLog}" onclick="showApiLogBtn(this)" class="btn-cyber-main mb-2" style="background: linear-gradient(45deg, #0f172a, #1e293b); color: #10b981; border: 1px solid rgba(16, 185, 129, 0.4);"><i class="fa-solid fa-terminal"></i> سجل السيرفر (API)</button>` : ''}
                                     ${canRoute ? `<button onclick="routeTask('${t._id}')" class="btn-accept-start"><i class="fa-solid fa-route me-1"></i> توجيه إلى منفذ</button>` :
-                                      acceptedByOther ? `<div class="p-2 rounded-3 text-center fw-bold text-muted border w-100 small" style="background: rgba(0,0,0,0.05);"><i class="fa-solid fa-user-gear me-1"></i> يُنفذ بواسطة: ${t.executorName}</div>` :
+                                      acceptedByOther ? `<div class="p-2 rounded-3 text-center fw-bold text-muted border w-100 small" style="background: rgba(0,0,0,0.05);"><i class="fa-solid fa-user-gear me-1"></i> يُنفذ بواسطة: ${escapeTaskHtml(t.executorName || t.assignedExecutorName || 'منفذ آخر')}</div>` :
                                       isMine ? `
                                          <button onclick="openUpload('${t._id}', '${t.transferType || ''}')" class="btn-cyber-main mb-1"><i class="fa-solid fa-check-double"></i> إنهاء العملية</button>
                                          <div class="horizontal-actions">

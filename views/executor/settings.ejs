@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>إعدادات التنفيذ | الأهرام</title>
+    <script>
+        const savedTheme = localStorage.getItem('ahram_theme') || 'light';
+        document.documentElement.setAttribute('data-theme', savedTheme);
+        document.documentElement.setAttribute('data-bs-theme', savedTheme);
+    </script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.rtl.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800;900&family=JetBrains+Mono:wght@700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/css/executor-workspace.css?v=20260819-1">
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <script>window.executorCsrfToken = <%- JSON.stringify(typeof csrfToken !== 'undefined' ? csrfToken : '') %>;</script>
+    <script src="/js/executor-api.js"></script>
+    <style>
+        body { font-family: 'Tajawal', sans-serif; }
+        .settings-container { width: min(1180px, calc(100% - 28px)); margin: 0 auto 34px; }
+        .settings-topbar { position: sticky; top: 0; z-index: 1100; min-height: 64px; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 20px; margin-bottom: 22px; border-bottom: 1px solid var(--executor-line); background: color-mix(in srgb, var(--executor-surface) 94%, transparent); backdrop-filter: blur(14px); }
+        .settings-brand { display: flex; align-items: center; gap: 10px; }
+        .settings-brand img { width: 38px; height: 38px; object-fit: cover; border-radius: 8px; border: 1px solid var(--executor-line); }
+        .settings-brand strong, .settings-brand small { display: block; }
+        .settings-brand strong { color: var(--executor-ink); font-size: .9rem; }
+        .settings-brand small { color: var(--executor-muted); font-size: .7rem; }
+        .icon-command { width: 38px; height: 38px; display: inline-grid; place-items: center; border: 1px solid var(--executor-line); border-radius: 8px; color: var(--executor-ink); background: var(--executor-surface); }
+        .settings-layout { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(320px, .85fr); gap: 16px; align-items: start; }
+        .settings-stack { display: grid; gap: 16px; }
+        .workspace-panel { padding: 20px; }
+        .panel-title { display: flex; align-items: center; gap: 10px; margin: 0 0 16px; color: var(--executor-ink); font-size: 1rem; font-weight: 900; }
+        .panel-title i { color: var(--executor-blue); }
+        .notification-status { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 12px; padding: 14px; margin-bottom: 14px; border: 1px solid var(--executor-line); border-radius: 8px; background: var(--executor-surface-soft); }
+        .notification-status > i { width: 38px; height: 38px; display: grid; place-items: center; border-radius: 8px; color: var(--executor-blue); background: color-mix(in srgb, var(--executor-blue) 10%, transparent); }
+        .notification-status strong, .notification-status small { display: block; }
+        .notification-status strong { color: var(--executor-ink); font-size: .84rem; }
+        .notification-status small { margin-top: 3px; color: var(--executor-muted); font-size: .72rem; }
+        .settings-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+        .settings-btn { min-height: 40px; display: inline-flex; align-items: center; justify-content: center; gap: 7px; padding: 8px 13px; border: 1px solid var(--executor-line); border-radius: 8px; color: var(--executor-ink); background: var(--executor-surface); font-weight: 900; font-size: .78rem; }
+        .settings-btn.primary { color: #fff; border-color: var(--executor-blue); background: var(--executor-blue); }
+        .settings-btn.danger { color: var(--executor-red); }
+        .routing-control { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+        .routing-control p { margin: 4px 0 0; color: var(--executor-muted); font-size: .77rem; line-height: 1.55; }
+        .form-check-input { width: 2.65rem !important; height: 1.35rem; cursor: pointer; }
+        .form-check-input:checked { border-color: var(--executor-blue); background-color: var(--executor-blue); }
+        .service-chip { --pill-color: var(--executor-gold); }
+        @media (max-width: 900px) { .settings-layout { grid-template-columns: 1fr; } }
+        @media (max-width: 767.98px) {
+            .settings-topbar { position: fixed; inset: 0 0 auto; margin: 0; padding: 8px 12px; }
+            .settings-container { width: min(100% - 20px, 680px); margin-top: 6px; }
+            .workspace-panel { padding: 15px; }
+            .notification-status { grid-template-columns: auto 1fr; }
+            .notification-status .executor-status-pill { grid-column: 1 / -1; justify-self: start; }
+            .settings-actions { display: grid; grid-template-columns: 1fr 1fr; }
+            .settings-btn { width: 100%; }
+        }
+    </style>
+</head>
+<body class="executor-portal-v2">
+<%- include('partials/navigation', { emp, activePage: 'settings' }) %>
+
+<header class="settings-topbar">
+    <div class="settings-brand">
+        <img src="/images/logo.jpg" alt="شعار الأهرام">
+        <div>
+            <strong><%= emp.groupId?.name || 'شركة التنفيذ' %></strong>
+            <small><%= emp.name %></small>
+        </div>
+    </div>
+    <div class="d-flex gap-2">
+        <button class="icon-command" type="button" data-executor-theme-toggle title="تبديل الوضع"><i class="fa-solid fa-moon" data-executor-theme-icon></i></button>
+        <a class="icon-command text-danger" href="/executor-portal/logout" title="تسجيل الخروج"><i class="fa-solid fa-arrow-right-from-bracket"></i></a>
+    </div>
+</header>
+
+<main class="settings-container">
+    <div class="executor-page-heading">
+        <div>
+            <span class="executor-kicker"><i class="fa-solid fa-sliders"></i> مركز التحكم</span>
+            <h1>إعدادات حساب التنفيذ</h1>
+            <p>بيانات الحساب، صلاحيات التشغيل، وإشعارات المتصفح في مكان واحد.</p>
+        </div>
+        <button class="icon-command" type="button" id="refreshOverview" title="تحديث البيانات"><i class="fa-solid fa-rotate"></i></button>
+    </div>
+
+    <section class="executor-summary-grid mb-3">
+        <% if (overview.permissions?.canViewCompanyBalance) { %>
+            <article class="executor-summary-card" style="--summary-color: var(--executor-green)">
+                <span class="summary-icon"><i class="fa-solid fa-wallet"></i></span>
+                <small>رصيد شركة التنفيذ</small>
+                <strong dir="ltr"><%= Number(overview.company?.balance || 0).toLocaleString('en-US', { maximumFractionDigits: 2 }) %> ج.م</strong>
+            </article>
+        <% } %>
+        <% if (emp.role !== 'accountant') { %>
+        <article class="executor-summary-card" style="--summary-color: var(--executor-blue)">
+            <span class="summary-icon"><i class="fa-solid fa-check-double"></i></span>
+            <small><%= emp.role === 'operator' ? 'عملياتك اليوم' : 'عمليات اليوم' %></small>
+            <strong><%= emp.role === 'manager' ? Number(overview.metrics?.todayOperations || 0) : Number(overview.myPerformance?.completedCount || 0) %></strong>
+        </article>
+        <article class="executor-summary-card" style="--summary-color: var(--executor-gold)">
+            <span class="summary-icon"><i class="fa-solid fa-calendar-days"></i></span>
+            <small>عمليات الشهر</small>
+            <strong><%= emp.role === 'manager' ? Number(overview.metrics?.monthOperations || 0) : 'حسب التقرير' %></strong>
+        </article>
+        <article class="executor-summary-card" style="--summary-color: var(--executor-navy)">
+            <span class="summary-icon"><i class="fa-solid fa-bolt"></i></span>
+            <small>قيمة تنفيذاتك اليوم</small>
+            <strong dir="ltr"><%= Number(overview.myPerformance?.totalEGP || 0).toLocaleString('en-US', { maximumFractionDigits: 2 }) %> ج.م</strong>
+        </article>
+        <% } %>
+    </section>
+
+    <div class="settings-layout">
+        <div class="settings-stack">
+            <section class="workspace-panel">
+                <h2 class="panel-title"><i class="fa-solid fa-building-shield"></i> بيانات التشغيل</h2>
+                <div class="executor-detail-row"><span>شركة التنفيذ</span><strong><%= overview.company?.name || emp.groupId?.name || '---' %></strong></div>
+                <div class="executor-detail-row"><span>اسم المنفذ</span><strong><%= overview.executor?.name || emp.name %></strong></div>
+                <div class="executor-detail-row"><span>رقم الهاتف</span><strong dir="ltr"><%= overview.executor?.phone || emp.phone || '---' %></strong></div>
+                <div class="executor-detail-row"><span>نوع الحساب</span><strong><span class="executor-role-pill"><%= emp.role === 'manager' ? 'مدير تنفيذي' : (emp.role === 'accountant' ? 'محاسب' : 'موظف تنفيذ') %></span></strong></div>
+                <div class="executor-detail-row"><span>الخدمة</span><strong><span class="executor-role-pill service-chip"><%= overview.company?.serviceKey || emp.groupId?.serviceKey || 'غير محددة' %></span></strong></div>
+                <div class="executor-detail-row"><span>حالة الحساب</span><strong><span class="executor-status-pill" style="--pill-color: var(--executor-green)"><i class="fa-solid fa-circle-check"></i> نشط</span></strong></div>
+            </section>
+
+            <% if (emp.role === 'manager') { %>
+            <section class="workspace-panel">
+                <div class="routing-control">
+                    <div>
+                        <h2 class="panel-title mb-0"><i class="fa-solid fa-route"></i> التوجيه اليدوي للمهام</h2>
+                        <p id="routingDescription"><%= emp.groupId?.manualTaskRoutingEnabled ? 'لا تظهر العملية للموظف إلا بعد أن يوجهها المدير إليه بالاسم.' : 'تظهر العمليات المتاحة للمدير والموظفين ويمكن لأول منفذ متاح قبولها.' %></p>
+                    </div>
+                    <div class="form-check form-switch m-0">
+                        <input class="form-check-input" type="checkbox" role="switch" id="manualRoutingSwitch" <%= emp.groupId?.manualTaskRoutingEnabled ? 'checked' : '' %>>
+                    </div>
+                </div>
+            </section>
+            <% } %>
+        </div>
+
+        <div class="settings-stack">
+            <section class="workspace-panel">
+                <h2 class="panel-title"><i class="fa-solid fa-bell"></i> إشعارات المهام على المتصفح</h2>
+                <div class="notification-status">
+                    <i class="fa-solid fa-bell"></i>
+                    <div>
+                        <strong id="pushStatusTitle">جاري فحص الإعداد...</strong>
+                        <small id="pushStatusHint">تصل التنبيهات حتى عند إغلاق صفحة البوابة بعد منح الإذن.</small>
+                    </div>
+                    <span class="executor-status-pill" id="pushStatusPill">فحص</span>
+                </div>
+                <div class="executor-detail-row"><span>دعم المتصفح</span><strong id="browserSupport">جاري الفحص</strong></div>
+                <div class="executor-detail-row"><span>إذن الإشعارات</span><strong id="browserPermission">جاري الفحص</strong></div>
+                <div class="executor-detail-row"><span>اتصال Web Push</span><strong id="serverPushStatus">جاري الفحص</strong></div>
+                <div class="executor-detail-row"><span>آخر إرسال ناجح</span><strong id="lastPushAt">لا يوجد</strong></div>
+                <div class="settings-actions mt-3">
+                    <button class="settings-btn primary" type="button" id="enablePush"><i class="fa-solid fa-bell"></i> تفعيل الإشعارات</button>
+                    <button class="settings-btn" type="button" id="testPush"><i class="fa-solid fa-paper-plane"></i> اختبار من الخادم</button>
+                    <button class="settings-btn" type="button" id="previewPush"><i class="fa-solid fa-volume-high"></i> معاينة</button>
+                    <button class="settings-btn danger" type="button" id="disablePush"><i class="fa-solid fa-bell-slash"></i> إيقاف</button>
+                </div>
+            </section>
+
+            <section class="workspace-panel">
+                <h2 class="panel-title"><i class="fa-solid fa-circle-info"></i> قواعد الإشعارات</h2>
+                <div class="executor-detail-row"><span>عملية جديدة</span><strong>تنبيه فوري</strong></div>
+                <div class="executor-detail-row"><span>عملية موجهة</span><strong>للمنفذ المحدد فقط</strong></div>
+                <div class="executor-detail-row"><span>إنذار الإدارة</span><strong>أولوية مرتفعة</strong></div>
+                <div class="executor-detail-row"><span>خصوصية الرقم</span><strong>أول 3 أرقام قبل القبول</strong></div>
+            </section>
+        </div>
+    </div>
+</main>
+
+<script src="/js/executor-workspace.js?v=20260819-1"></script>
+<script>
+    const formatDate = (value) => value
+        ? new Date(value).toLocaleString('ar-LY', { timeZone: 'Africa/Tripoli', dateStyle: 'medium', timeStyle: 'short' })
+        : 'لا يوجد';
+
+    const setPushBusy = (busy) => {
+        ['enablePush', 'testPush', 'previewPush', 'disablePush'].forEach((id) => {
+            const button = document.getElementById(id);
+            if (button) button.disabled = busy;
+        });
+    };
+
+    async function refreshPushStatus() {
+        try {
+            const status = await window.executorBrowserPush.status();
+            document.getElementById('browserSupport').textContent = status.supported ? 'مدعوم' : 'غير مدعوم';
+            document.getElementById('browserPermission').textContent = ({ granted: 'مسموح', denied: 'مرفوض', default: 'لم يطلب بعد' })[status.permission] || status.permission;
+            document.getElementById('serverPushStatus').textContent = status.configured ? 'جاهز' : 'إعداد الخادم غير مكتمل';
+            document.getElementById('lastPushAt').textContent = formatDate(status.lastSuccessAt);
+            const ready = status.supported && status.configured && status.subscribed && status.permission === 'granted';
+            document.getElementById('pushStatusTitle').textContent = ready ? 'الإشعارات تعمل على هذا المتصفح' : 'الإشعارات تحتاج إلى تفعيل';
+            document.getElementById('pushStatusPill').textContent = ready ? 'تعمل' : 'تحتاج إعدادًا';
+            document.getElementById('pushStatusPill').style.setProperty('--pill-color', ready ? 'var(--executor-green)' : 'var(--executor-red)');
+        } catch (_) {
+            document.getElementById('pushStatusTitle').textContent = 'تعذر فحص الإشعارات';
+            document.getElementById('pushStatusPill').textContent = 'غير متصل';
+        }
+    }
+
+    const pushAction = async (action, successText) => {
+        setPushBusy(true);
+        try {
+            await action();
+            await refreshPushStatus();
+            await Swal.fire({ icon: 'success', title: successText, timer: 1700, showConfirmButton: false });
+        } catch (error) {
+            await Swal.fire({ icon: 'error', title: 'تعذر إكمال الطلب', text: error.message || 'حدث خطأ غير متوقع.' });
+        } finally { setPushBusy(false); }
+    };
+
+    document.getElementById('enablePush').addEventListener('click', () => pushAction(() => window.executorBrowserPush.enable(), 'تم تفعيل إشعارات المتصفح'));
+    document.getElementById('testPush').addEventListener('click', () => pushAction(() => window.executorBrowserPush.test(), 'تم إرسال إشعار الاختبار'));
+    document.getElementById('previewPush').addEventListener('click', () => pushAction(() => window.executorBrowserPush.preview(), 'تم تشغيل المعاينة'));
+    document.getElementById('disablePush').addEventListener('click', () => pushAction(() => window.executorBrowserPush.disable(), 'تم إيقاف إشعارات هذا المتصفح'));
+    document.getElementById('refreshOverview').addEventListener('click', () => window.location.reload());
+
+    document.getElementById('manualRoutingSwitch')?.addEventListener('change', async (event) => {
+        const input = event.currentTarget;
+        input.disabled = true;
+        try {
+            const response = await executorApiFetch('/executor-portal/api/task-routing-mode', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ enabled: input.checked })
+            });
+            const data = await readExecutorApiResponse(response);
+            input.checked = data.manualTaskRoutingEnabled === true;
+            document.getElementById('routingDescription').textContent = input.checked
+                ? 'لا تظهر العملية للموظف إلا بعد أن يوجهها المدير إليه بالاسم.'
+                : 'تظهر العمليات المتاحة للمدير والموظفين ويمكن لأول منفذ متاح قبولها.';
+            Swal.fire({ icon: 'success', title: 'تم تحديث وضع التوجيه', timer: 1400, showConfirmButton: false });
+        } catch (error) {
+            input.checked = !input.checked;
+            Swal.fire({ icon: 'error', title: 'تعذر تحديث التوجيه', text: error.message });
+        } finally { input.disabled = false; }
+    });
+
+    refreshPushStatus();
+</script>
+</body>
+</html>

@@ -1,4 +1,3 @@
-const mongoose = require('mongoose');
 const { logAction } = require('../services/auditService');
 const { proofSourceUrl, streamProofImage } = require('../services/proofStorageService');
 const { escapeRegex } = require('../utils/helpers');
@@ -6,10 +5,6 @@ const { escapeRegex } = require('../utils/helpers');
 const Employee = require('../models/Employee');
 const Transaction = require('../models/Transaction');
 const ExecutorGroup = require('../models/ExecutorGroup');
-const ClientCompany = require('../models/ClientCompany');
-const Admin = require('../models/Admin');
-const User = require('../models/User');
-const ClientEmployee = require('../models/ClientEmployee');
 const {
     ExecutorAccountError,
     normalizeExecutorPhone,
@@ -22,6 +17,8 @@ const {
     routingErrorMessage
 } = require('../services/executorTaskRoutingService');
 const { toExecutorPortalTaskDto } = require('../utils/executorTaskPrivacy');
+const mobileWebParityService = require('../services/mobileWebParityService');
+const mobileWebParityMapper = require('../mappers/mobileWebParityMapper');
 
 const COMPLETED_TODAY_LIMIT = 60;
 
@@ -54,7 +51,34 @@ exports.getProxyImage = async (req, res) => {
 
 exports.getDashboard = async (req, res) => {
     const emp = req.executorEmployee || await Employee.findById(req.session.executorId).populate('groupId');
+    if (emp?.role === 'accountant') return res.redirect('/executor-portal/reports');
     res.render('executor/dashboard', { emp });
+};
+
+exports.getSettings = async (req, res) => {
+    try {
+        const emp = req.executorEmployee || await Employee.findById(req.session.executorId).populate('groupId');
+        const overview = await mobileWebParityService.getExecutorOverview({
+            executorId: emp._id,
+            tenantId: req.tenant ? req.tenant._id : null
+        });
+        return res.render('executor/settings', { emp, overview });
+    } catch (_) {
+        return res.redirect('/executor-portal/dashboard');
+    }
+};
+
+exports.getOverview = async (req, res) => {
+    try {
+        const emp = req.executorEmployee || await Employee.findById(req.session.executorId);
+        const overview = await mobileWebParityService.getExecutorOverview({
+            executorId: emp._id,
+            tenantId: req.tenant ? req.tenant._id : null
+        });
+        return res.json({ success: true, data: overview, serverTime: new Date().toISOString() });
+    } catch (_) {
+        return res.status(500).json({ success: false, error: 'تعذر جلب بيانات حساب التنفيذ.' });
+    }
 };
 
 // ===============================================
@@ -67,9 +91,31 @@ exports.getEmployees = async (req, res) => {
 
 exports.getEmployeesList = async (req, res) => {
     try {
-        const employees = await Employee.find({ groupId: req.managerEmp.groupId }).sort({ role: 1, createdAt: -1 }).lean();
-        res.json({ success: true, employees });
+        const workspace = await mobileWebParityService.getEmployeesWorkspace({
+            executorId: req.managerEmp._id,
+            tenantId: req.tenant ? req.tenant._id : null
+        });
+        res.json({
+            success: true,
+            employees: workspace.employees.map((employee) => mobileWebParityMapper.toEmployeeDto(employee)),
+            summary: workspace.summary
+        });
     } catch (e) { res.status(500).json({ success: false, error: e.message }); }
+};
+
+exports.postEmployeesUpdate = async (req, res) => {
+    try {
+        const updated = await mobileWebParityService.updateEmployeeProfile({
+            executorId: req.managerEmp._id,
+            targetId: req.params.id,
+            name: req.body?.name,
+            phone: req.body?.phone
+        });
+        return res.json({ success: true, employee: { id: String(updated._id), name: updated.name, phone: updated.phone } });
+    } catch (error) {
+        const status = error.message === 'NOT_FOUND' ? 404 : (error.message === 'FORBIDDEN' ? 403 : 400);
+        return res.status(status).json({ success: false, error: 'تعذر تعديل بيانات الموظف.' });
+    }
 };
 
 exports.postEmployeesCreate = async (req, res) => {
@@ -171,15 +217,15 @@ exports.postEmployeesResetPassword = async (req, res) => {
 
 exports.postEmployeesDelete = async (req, res) => {
     try {
-        const emp = await Employee.findById(req.params.id);
-        if (!emp) return res.status(404).json({ success: false, error: 'الموظف غير موجود.' });
-        if (!belongsToGroup(emp, req.managerEmp.groupId)) {
-            return res.status(403).json({ success: false, error: 'لا يمكن حذف موظف تابع لمنفذ آخر.' });
-        }
-        if (emp.role === 'manager') return res.json({ success: false, error: 'Cannot delete manager' });
-        await Employee.findByIdAndDelete(req.params.id);
-        res.json({ success: true });
-    } catch (e) { res.json({ success: false, error: e.message }); }
+        await mobileWebParityService.deleteEmployee({
+            executorId: req.managerEmp._id,
+            targetId: req.params.id
+        });
+        return res.json({ success: true, archived: true });
+    } catch (error) {
+        const status = error.message === 'NOT_FOUND' ? 404 : (error.message === 'FORBIDDEN' ? 403 : 400);
+        return res.status(status).json({ success: false, error: 'تعذر أرشفة حساب الموظف.' });
+    }
 };
 
 exports.postTaskRoutingMode = async (req, res) => {
@@ -323,7 +369,7 @@ exports.getLiveTasks = async (req, res) => {
             manualTaskRoutingEnabled: Boolean(emp.groupId?.manualTaskRoutingEnabled),
             canRouteTasks: emp.role === 'manager'
         });
-    } catch (e) { res.status(500).json({ error: true }); }
+    } catch (_) { res.status(500).json({ error: true }); }
 };
 
 exports.postClearAlert = async (req, res) => {
@@ -336,7 +382,7 @@ exports.postClearAlert = async (req, res) => {
         }, { $unset: { emergencyAlert: 1 } }, { strict: false });
         if (!result.matchedCount) return res.status(403).json({ success: false, error: 'لا تملك صلاحية تعديل هذا التنبيه.' });
         return res.json({ success: true });
-    } catch (e) { return res.status(500).json({ success: false, error: 'تعذر إغلاق التنبيه.' }); }
+    } catch (_) { return res.status(500).json({ success: false, error: 'تعذر إغلاق التنبيه.' }); }
 };
 
 exports.postClearDepAlert = async (req, res) => {
@@ -353,5 +399,5 @@ exports.postClearDepAlert = async (req, res) => {
         }, { $unset: { executorWebAlert: 1 } }, { strict: false });
         if (!result.matchedCount) return res.status(403).json({ success: false, error: 'لا تملك صلاحية تعديل هذا التنبيه.' });
         return res.json({ success: true });
-    } catch (e) { return res.status(500).json({ success: false, error: 'تعذر إغلاق التنبيه.' }); }
+    } catch (_) { return res.status(500).json({ success: false, error: 'تعذر إغلاق التنبيه.' }); }
 };

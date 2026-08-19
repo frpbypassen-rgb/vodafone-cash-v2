@@ -3,228 +3,337 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>غرفة الاتصال بالإدارة | التنفيذ</title>
-    
+    <title>الدعم الفني | بوابة التنفيذ</title>
     <script>
-        const savedTheme = localStorage.getItem('ahram_theme') || 'dark';
+        const savedTheme = localStorage.getItem('ahram_theme') || 'light';
         document.documentElement.setAttribute('data-theme', savedTheme);
+        document.documentElement.setAttribute('data-bs-theme', savedTheme);
     </script>
-
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.rtl.min.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
-    <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;700;900&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800;900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/css/executor-workspace.css?v=20260819-1">
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     <script>window.executorCsrfToken = <%- JSON.stringify(typeof csrfToken !== 'undefined' ? csrfToken : '') %>;</script>
     <script src="/js/executor-api.js"></script>
-    
     <style>
-        :root {
-            --bg-deep: #f8fafc;
-            --bg-card: #ffffff;
-            --bg-glass: rgba(255, 255, 255, 0.85);
-            --neon-blue: #0ea5e9;
-            --neon-green: #10b981;
-            --text-main: #1e293b;
-            --text-muted: #64748b;
-            --border-glass: rgba(0, 0, 0, 0.08);
-            --shadow-lg: 0 10px 30px rgba(0,0,0,0.05);
+        body { font-family: 'Tajawal', sans-serif; }
+        .support-topbar { position: sticky; top: 0; z-index: 1100; min-height: 64px; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 20px; margin-bottom: 20px; border-bottom: 1px solid var(--executor-line); background: color-mix(in srgb, var(--executor-surface) 94%, transparent); backdrop-filter: blur(14px); }
+        .support-topbar-title { display: flex; align-items: center; gap: 10px; }
+        .support-topbar-title i { width: 38px; height: 38px; display: grid; place-items: center; border-radius: 8px; color: var(--executor-blue); background: color-mix(in srgb, var(--executor-blue) 10%, transparent); }
+        .support-topbar-title strong, .support-topbar-title small { display: block; }
+        .support-topbar-title strong { color: var(--executor-ink); font-size: .9rem; }
+        .support-topbar-title small { color: var(--executor-muted); font-size: .7rem; }
+        .icon-command { width: 38px; height: 38px; display: inline-grid; place-items: center; border: 1px solid var(--executor-line); border-radius: 8px; color: var(--executor-ink); background: var(--executor-surface); }
+        .support-container { width: min(1320px, calc(100% - 28px)); margin: 0 auto 28px; }
+        .support-command-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+        .support-btn { min-height: 40px; display: inline-flex; align-items: center; justify-content: center; gap: 7px; padding: 8px 13px; border: 1px solid var(--executor-line); border-radius: 8px; color: var(--executor-ink); background: var(--executor-surface); font-size: .78rem; font-weight: 900; }
+        .support-btn.primary { color: #fff; border-color: var(--executor-blue); background: var(--executor-blue); }
+        .support-workspace { min-height: 620px; display: grid; grid-template-columns: minmax(290px, 370px) minmax(0, 1fr); overflow: hidden; border: 1px solid var(--executor-line); border-radius: 8px; background: var(--executor-surface); box-shadow: var(--executor-shadow); }
+        .ticket-pane { display: flex; flex-direction: column; border-left: 1px solid var(--executor-line); background: var(--executor-surface-soft); }
+        .ticket-filters { display: grid; gap: 9px; padding: 14px; border-bottom: 1px solid var(--executor-line); }
+        .ticket-filter-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+        .ticket-filters input, .ticket-filters select, .support-modal input, .support-modal select, .support-modal textarea, .reply-input { width: 100%; min-height: 42px; padding: 9px 11px; border: 1px solid var(--executor-line); border-radius: 8px; outline: none; color: var(--executor-ink); background: var(--executor-surface); font-family: inherit; font-weight: 700; }
+        .ticket-filters input:focus, .ticket-filters select:focus, .support-modal input:focus, .support-modal select:focus, .support-modal textarea:focus, .reply-input:focus { border-color: var(--executor-blue); box-shadow: 0 0 0 3px color-mix(in srgb, var(--executor-blue) 12%, transparent); }
+        .ticket-list { flex: 1; overflow-y: auto; padding: 8px; }
+        .ticket-card { width: 100%; display: grid; gap: 8px; padding: 12px; margin-bottom: 7px; border: 1px solid transparent; border-radius: 8px; text-align: right; color: var(--executor-ink); background: transparent; }
+        .ticket-card:hover, .ticket-card.is-active { border-color: var(--executor-line); background: var(--executor-surface); box-shadow: 0 5px 14px rgba(15, 34, 58, .06); }
+        .ticket-card-head, .ticket-card-foot { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+        .ticket-card strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: .82rem; }
+        .ticket-card p { display: -webkit-box; overflow: hidden; margin: 0; color: var(--executor-muted); font-size: .72rem; line-height: 1.5; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
+        .ticket-card-foot { color: var(--executor-muted); font-size: .66rem; }
+        .unread-badge { min-width: 22px; height: 22px; display: inline-grid; place-items: center; border-radius: 999px; color: #fff; background: var(--executor-red); font-size: .65rem; font-weight: 900; }
+        .conversation-pane { min-width: 0; display: flex; flex-direction: column; }
+        .conversation-empty { flex: 1; display: grid; place-items: center; padding: 30px; text-align: center; color: var(--executor-muted); }
+        .conversation-view { flex: 1; min-height: 0; display: none; flex-direction: column; }
+        .conversation-view.is-visible { display: flex; }
+        .conversation-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 15px 18px; border-bottom: 1px solid var(--executor-line); }
+        .conversation-head strong, .conversation-head small { display: block; }
+        .conversation-head strong { color: var(--executor-ink); font-size: .9rem; }
+        .conversation-head small { margin-top: 4px; color: var(--executor-muted); font-size: .7rem; }
+        .mobile-back { display: none; }
+        .message-list { flex: 1; min-height: 370px; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; padding: 18px; background: var(--executor-surface-soft); }
+        .message-bubble { max-width: min(74%, 620px); padding: 10px 12px; border: 1px solid var(--executor-line); border-radius: 8px; color: var(--executor-ink); background: var(--executor-surface); box-shadow: 0 3px 10px rgba(15, 34, 58, .04); }
+        .message-bubble.is-user { align-self: flex-start; border-color: color-mix(in srgb, var(--executor-green) 30%, var(--executor-line)); background: color-mix(in srgb, var(--executor-green) 7%, var(--executor-surface)); }
+        .message-bubble.is-admin { align-self: flex-end; border-color: color-mix(in srgb, var(--executor-blue) 30%, var(--executor-line)); }
+        .message-bubble b { display: block; margin-bottom: 4px; color: var(--executor-blue); font-size: .67rem; }
+        .message-bubble p { margin: 0; white-space: pre-wrap; font-size: .8rem; line-height: 1.65; }
+        .message-bubble img { width: min(300px, 100%); max-height: 250px; display: block; margin-bottom: 7px; object-fit: cover; border: 1px solid var(--executor-line); border-radius: 8px; cursor: pointer; }
+        .message-bubble time { display: block; margin-top: 6px; color: var(--executor-muted); font-size: .62rem; }
+        .reply-area { padding: 12px; border-top: 1px solid var(--executor-line); background: var(--executor-surface); }
+        .reply-row { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 8px; align-items: end; }
+        .reply-input { min-height: 44px; max-height: 120px; resize: vertical; }
+        .reply-icon { width: 42px; height: 42px; display: grid; place-items: center; border: 1px solid var(--executor-line); border-radius: 8px; color: var(--executor-ink); background: var(--executor-surface); }
+        .reply-icon.send { color: #fff; border-color: var(--executor-blue); background: var(--executor-blue); }
+        .attachment-preview { display: flex; flex-wrap: wrap; gap: 7px; margin-bottom: 8px; }
+        .attachment-preview img { width: 54px; height: 54px; object-fit: cover; border: 1px solid var(--executor-line); border-radius: 8px; }
+        .support-modal { color: var(--executor-ink); background: var(--executor-surface); }
+        .support-modal .modal-header, .support-modal .modal-footer { border-color: var(--executor-line); }
+        .support-modal label { margin-bottom: 5px; color: var(--executor-muted); font-size: .75rem; font-weight: 800; }
+        .diagnostic-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 9px; }
+        .diagnostic-item { padding: 11px; border: 1px solid var(--executor-line); border-radius: 8px; background: var(--executor-surface-soft); }
+        .diagnostic-item small, .diagnostic-item strong { display: block; }
+        .diagnostic-item small { color: var(--executor-muted); font-size: .68rem; }
+        .diagnostic-item strong { margin-top: 4px; color: var(--executor-ink); font-size: .82rem; }
+        @media (max-width: 767.98px) {
+            .support-topbar { position: fixed; inset: 0 0 auto; margin: 0; padding: 8px 12px; }
+            .support-container { width: calc(100% - 16px); margin-top: 4px; }
+            .support-command-row { display: grid; grid-template-columns: 1fr 1fr; }
+            .support-btn { width: 100%; }
+            .support-workspace { min-height: calc(100vh - 205px); grid-template-columns: 1fr; }
+            .ticket-pane { border-left: 0; }
+            .conversation-pane { display: none; }
+            .support-workspace.has-open-ticket .ticket-pane { display: none; }
+            .support-workspace.has-open-ticket .conversation-pane { display: flex; }
+            .mobile-back { display: inline-grid; }
+            .message-bubble { max-width: 88%; }
+            .diagnostic-grid { grid-template-columns: 1fr; }
         }
-
-        [data-theme="dark"] {
-            --bg-deep: #090e17;
-            --bg-card: rgba(15, 23, 42, 0.7);
-            --bg-glass: rgba(15, 23, 42, 0.85);
-            --neon-blue: #3b82f6;
-            --neon-green: #10b981;
-            --text-main: #f8fafc;
-            --text-muted: #94a3b8;
-            --border-glass: rgba(255, 255, 255, 0.08);
-            --shadow-lg: 0 10px 30px rgba(0,0,0,0.5);
-        }
-
-        body { font-family: 'Tajawal', sans-serif; background: var(--bg-deep); height: 100vh; display: flex; flex-direction: column; color: var(--text-main); transition: 0.3s; background-image: radial-gradient(circle at 50% 0%, rgba(59, 130, 246, 0.05) 0%, transparent 50%);}
-        
-        .glass-nav { background: var(--bg-glass); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); border-bottom: 1px solid var(--border-glass); padding: 15px 0; box-shadow: var(--shadow-lg);}
-        .nav-btn { background: rgba(0,0,0,0.03); border: 1px solid var(--border-glass); color: var(--text-main); padding: 8px 20px; border-radius: 12px; font-weight: 800; text-decoration: none; transition: 0.3s; display: inline-flex; align-items: center; gap: 8px; }
-        .nav-btn:hover { background: var(--neon-blue); color: white; border-color: var(--neon-blue); transform: translateY(-2px);}
-        [data-theme="dark"] .nav-btn { background: rgba(255,255,255,0.03); }
-
-        .chat-container { flex: 1; display: flex; flex-direction: column; background: var(--bg-card); backdrop-filter: blur(12px); border: 1px solid var(--border-glass); border-radius: 24px; overflow: hidden; margin: 20px auto; width: 100%; max-width: 800px; box-shadow: var(--shadow-lg); max-height: 85vh; transition: 0.3s;}
-        .chat-header { background: rgba(0,0,0,0.02); border-bottom: 1px solid var(--border-glass); padding: 15px 20px; display: flex; align-items: center; justify-content: space-between; }
-        [data-theme="dark"] .chat-header { background: rgba(0,0,0,0.2); }
-        
-        .chat-messages { flex: 1; padding: 20px; overflow-y: auto; display: flex; flex-direction: column; gap: 15px; }
-        .msg-bubble { max-width: 80%; padding: 12px 18px; border-radius: 16px; position: relative; font-weight: 600; font-size: 1rem; line-height: 1.5; box-shadow: 0 4px 10px rgba(0,0,0,0.05); }
-        
-        .msg-user { background: linear-gradient(135deg, rgba(16, 185, 129, 0.15), rgba(16, 185, 129, 0.05)); border: 1px solid rgba(16, 185, 129, 0.3); align-self: flex-start; border-top-right-radius: 4px; color: var(--text-main); }
-        .msg-admin { background: linear-gradient(135deg, rgba(59, 130, 246, 0.15), rgba(59, 130, 246, 0.05)); border: 1px solid rgba(59, 130, 246, 0.3); align-self: flex-end; border-top-left-radius: 4px; color: var(--text-main); }
-        
-        .msg-time { font-size: 0.75rem; color: var(--text-muted); display: block; text-align: right; margin-top: 5px; font-family: monospace; opacity: 0.7;}
-        
-        .chat-input-area { background: rgba(0,0,0,0.02); padding: 15px 20px; display: flex; gap: 10px; align-items: center; border-top: 1px solid var(--border-glass); transition: 0.3s;}
-        [data-theme="dark"] .chat-input-area { background: rgba(0,0,0,0.2); }
-        .chat-input { flex: 1; background: rgba(0,0,0,0.05); border: 1px solid var(--border-glass); color: var(--text-main); padding: 15px 20px; border-radius: 50px; outline: none; font-weight: bold; transition: 0.3s; }
-        [data-theme="dark"] .chat-input { background: rgba(255,255,255,0.05); }
-        .chat-input:focus { border-color: var(--neon-blue); box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1); background: transparent; }
-        .chat-input::placeholder { color: var(--text-muted); }
-        
-        .send-btn { background: var(--neon-blue); color: white; border: none; width: 55px; height: 55px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 1.2rem; transition: 0.3s; box-shadow: 0 5px 15px rgba(59, 130, 246, 0.3); }
-        .send-btn:hover { background: #2563eb; transform: scale(1.05); box-shadow: 0 8px 25px rgba(59, 130, 246, 0.5); }
-        .attach-btn { background: rgba(0,0,0,0.05); color: var(--text-muted); border: 1px solid var(--border-glass); width: 55px; height: 55px; border-radius: 50%; display: flex; align-items: center; justify-content: center; transition: 0.3s; cursor: pointer;}
-        [data-theme="dark"] .attach-btn { background: rgba(255,255,255,0.05); }
-        .attach-btn:hover { background: var(--neon-blue); color: white; border-color: var(--neon-blue); }
-
-        ::-webkit-scrollbar { width: 6px; }
-        ::-webkit-scrollbar-track { background: transparent; }
-        ::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.2); border-radius: 10px; }
-        [data-theme="dark"] ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); }
     </style>
-
-    <!-- PWA Setup -->
-    <link rel="manifest" href="/manifest.json">
-    <meta name="theme-color" content="#001a4d">
-    <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <meta name="apple-mobile-web-app-title" content="Al-Ahram">
-    <!-- End PWA Setup -->
 </head>
-<body>
-    <nav class="glass-nav">
-        <div class="container d-flex justify-content-between align-items-center">
-            <h4 class="m-0 fw-bold" style="color: var(--text-main);"><i class="fa-solid fa-satellite-dish text-info me-2"></i> اتصال بالإدارة</h4>
-            <div class="d-flex gap-2">
-                <button class="nav-btn" onclick="toggleTheme()" title="تغيير المظهر"><i class="fa-solid fa-circle-half-stroke" id="themeIcon"></i></button>
-                <a href="/executor-portal/dashboard" class="nav-btn"><i class="fa-solid fa-arrow-left me-1"></i> رجوع للرادار</a>
-            </div>
-        </div>
-    </nav>
+<body class="executor-portal-v2">
+<%- include('partials/navigation', { emp, activePage: 'support' }) %>
 
-    <div class="container d-flex flex-column px-2" style="flex: 1;">
-        <div id="imagePreviewContainer" class="p-3 border-bottom d-none" style="background: rgba(0,0,0,0.05); border-color: var(--border-glass) !important; border-radius: 20px 20px 0 0; display: flex; align-items: center; gap: 15px; margin: 20px auto 0; width: 100%; max-width: 800px;">
-            <img id="imagePreview" src="" style="height: 60px; border-radius: 8px; border: 1px solid var(--border-glass);">
-            <span class="text-info fw-bold small">الصورة جاهزة للإرسال...</span>
-            <button class="btn btn-sm btn-danger rounded-circle ms-auto" onclick="clearImage()" style="width:30px; height:30px;"><i class="fa-solid fa-xmark"></i></button>
+<header class="support-topbar">
+    <div class="support-topbar-title">
+        <i class="fa-solid fa-headset"></i>
+        <div><strong>الدعم الفني</strong><small><%= emp.groupId?.name || 'شركة التنفيذ' %> · <%= emp.name %></small></div>
+    </div>
+    <div class="d-flex gap-2">
+        <button class="icon-command" type="button" data-executor-theme-toggle title="تبديل الوضع"><i class="fa-solid fa-moon" data-executor-theme-icon></i></button>
+        <a class="icon-command text-danger" href="/executor-portal/logout" title="تسجيل الخروج"><i class="fa-solid fa-arrow-right-from-bracket"></i></a>
+    </div>
+</header>
+
+<main class="support-container">
+    <div class="executor-page-heading">
+        <div>
+            <span class="executor-kicker"><i class="fa-solid fa-shield-halved"></i> مركز المساندة</span>
+            <h1>طلبات الدعم والتواصل مع الإدارة</h1>
+            <p>أنشئ طلبًا مصنفًا، اربطه بعملية عند الحاجة، وتابع الردود في محادثة واحدة.</p>
         </div>
-        
-        <div class="chat-container m-0 mt-2 mx-auto">
-            <div class="chat-header">
-                <div class="d-flex align-items-center gap-3">
-                    <div class="rounded-circle d-flex justify-content-center align-items-center" style="width: 50px; height: 50px; background: rgba(59, 130, 246, 0.1); border: 1px solid var(--neon-blue);">
-                        <i class="fa-solid fa-user-shield fs-4" style="color: var(--neon-blue);"></i>
-                    </div>
-                    <div>
-                        <h5 class="m-0 fw-bold" style="color: var(--text-main);">الإدارة المركزية (غرفة الدعم)</h5>
-                        <small class="fw-bold" style="color: var(--neon-green);">القناة مشفرة ومؤمنة</small>
-                    </div>
-                </div>
-            </div>
-            
-            <div class="chat-messages" id="chatBox">
-                <div class="text-center w-100 mt-5"><i class="fa-solid fa-circle-notch fa-spin fa-2x text-muted opacity-50"></i></div>
-            </div>
-            
-            <form id="chatForm" class="chat-input-area">
-                <input type="file" id="imageInput" class="d-none" accept="image/*">
-                <div class="attach-btn" onclick="document.getElementById('imageInput').click()"><i class="fa-solid fa-image fs-5"></i></div>
-                <input type="text" id="msgInput" class="chat-input" placeholder="اكتب بلاغك للإدارة هنا..." autocomplete="off">
-                <button type="submit" class="send-btn" id="sendBtn"><i class="fa-solid fa-paper-plane"></i></button>
-            </form>
+        <div class="support-command-row">
+            <button class="support-btn" type="button" id="diagnosticsButton"><i class="fa-solid fa-stethoscope"></i> فحص الاتصال</button>
+            <button class="support-btn primary" type="button" data-bs-toggle="modal" data-bs-target="#newTicketModal"><i class="fa-solid fa-plus"></i> طلب جديد</button>
         </div>
     </div>
 
-    <script>
-        function toggleTheme() {
-            const html = document.documentElement;
-            const currentTheme = html.getAttribute('data-theme');
-            const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
-            html.setAttribute('data-theme', newTheme);
-            localStorage.setItem('ahram_theme', newTheme);
-            document.getElementById('themeIcon').className = newTheme === 'dark' ? 'fa-solid fa-sun text-warning' : 'fa-solid fa-moon';
+    <section class="executor-summary-grid mb-3">
+        <article class="executor-summary-card" style="--summary-color: var(--executor-blue)"><span class="summary-icon"><i class="fa-solid fa-folder-open"></i></span><small>طلبات نشطة</small><strong id="activeCount">0</strong></article>
+        <article class="executor-summary-card" style="--summary-color: var(--executor-red)"><span class="summary-icon"><i class="fa-solid fa-envelope"></i></span><small>ردود غير مقروءة</small><strong id="unreadCount">0</strong></article>
+        <article class="executor-summary-card" style="--summary-color: var(--executor-green)"><span class="summary-icon"><i class="fa-solid fa-circle-check"></i></span><small>طلبات مكتملة</small><strong id="closedCount">0</strong></article>
+        <article class="executor-summary-card" style="--summary-color: var(--executor-gold)"><span class="summary-icon"><i class="fa-solid fa-user-shield"></i></span><small>نطاق العرض</small><strong style="font-size:.86rem"><%= emp.role === 'manager' ? 'فريق التنفيذ' : 'طلباتي فقط' %></strong></article>
+    </section>
+
+    <section class="support-workspace" id="supportWorkspace">
+        <aside class="ticket-pane">
+            <div class="ticket-filters">
+                <input id="ticketSearch" type="search" placeholder="بحث برقم الطلب أو العملية...">
+                <div class="ticket-filter-row">
+                    <select id="ticketStatus"><option value="active">النشطة</option><option value="closed">المكتملة</option><option value="all">الكل</option></select>
+                    <select id="ticketCategory"><option value="">كل التصنيفات</option></select>
+                </div>
+            </div>
+            <div class="ticket-list" id="ticketList"><div class="text-center text-muted py-5"><i class="fa-solid fa-circle-notch fa-spin"></i></div></div>
+        </aside>
+
+        <div class="conversation-pane">
+            <div class="conversation-empty" id="conversationEmpty">
+                <div><div class="executor-empty-visual"><i class="fa-solid fa-comments"></i></div><strong class="d-block mb-2">اختر طلب دعم</strong><small>ستظهر المحادثة وسياق العملية هنا.</small></div>
+            </div>
+            <div class="conversation-view" id="conversationView">
+                <header class="conversation-head">
+                    <div class="d-flex align-items-center gap-2 min-w-0">
+                        <button class="icon-command mobile-back" type="button" id="conversationBack"><i class="fa-solid fa-arrow-right"></i></button>
+                        <div class="min-w-0"><strong id="conversationSubject">طلب دعم</strong><small id="conversationMeta">---</small></div>
+                    </div>
+                    <span class="executor-status-pill" id="conversationStatus">مفتوح</span>
+                </header>
+                <div class="message-list" id="messageList"></div>
+                <form class="reply-area" id="replyForm">
+                    <div class="attachment-preview" id="replyPreview"></div>
+                    <div class="reply-row">
+                        <button class="reply-icon" type="button" id="replyAttach" title="إرفاق صور"><i class="fa-solid fa-paperclip"></i></button>
+                        <textarea class="reply-input" id="replyText" rows="1" placeholder="اكتب ردك للإدارة..."></textarea>
+                        <button class="reply-icon send" type="submit" title="إرسال"><i class="fa-solid fa-paper-plane"></i></button>
+                    </div>
+                    <input class="d-none" id="replyFiles" type="file" accept="image/jpeg,image/png,image/webp" multiple>
+                </form>
+            </div>
+        </div>
+    </section>
+</main>
+
+<div class="modal fade" id="newTicketModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+        <form class="modal-content support-modal" id="newTicketForm">
+            <div class="modal-header"><h2 class="modal-title fs-5 fw-bold"><i class="fa-solid fa-ticket text-primary me-2"></i> طلب دعم جديد</h2><button class="btn-close" type="button" data-bs-dismiss="modal"></button></div>
+            <div class="modal-body">
+                <div class="row g-3">
+                    <div class="col-md-6"><label for="newCategory">نوع الطلب</label><select id="newCategory" required></select></div>
+                    <div class="col-md-6"><label for="newPriority">الأولوية</label><select id="newPriority"><option value="normal">عادية</option><option value="high">مرتفعة</option><option value="urgent">عاجلة</option><option value="low">منخفضة</option></select></div>
+                    <div class="col-12"><label for="newSubject">عنوان مختصر</label><input id="newSubject" maxlength="120" placeholder="مثال: العملية لا تظهر في التقارير" required></div>
+                    <div class="col-md-6"><label for="newTransactionRef">رقم العملية (اختياري)</label><input id="newTransactionRef" dir="ltr" placeholder="ATT-2608-0000"></div>
+                    <div class="col-md-6"><label for="newFiles">صور مساعدة (3 كحد أقصى)</label><input id="newFiles" type="file" accept="image/jpeg,image/png,image/webp" multiple></div>
+                    <div class="col-12"><label for="newMessage">شرح المشكلة</label><textarea id="newMessage" rows="5" maxlength="2000" placeholder="اكتب التفاصيل التي تساعد الإدارة على حل الطلب بسرعة..." required></textarea></div>
+                    <div class="col-12"><div class="attachment-preview" id="newPreview"></div></div>
+                </div>
+            </div>
+            <div class="modal-footer"><button class="support-btn" type="button" data-bs-dismiss="modal">إلغاء</button><button class="support-btn primary" type="submit"><i class="fa-solid fa-paper-plane"></i> إرسال الطلب</button></div>
+        </form>
+    </div>
+</div>
+
+<div class="modal fade" id="diagnosticsModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered"><div class="modal-content support-modal"><div class="modal-header"><h2 class="modal-title fs-5 fw-bold">فحص الاتصال</h2><button class="btn-close" type="button" data-bs-dismiss="modal"></button></div><div class="modal-body"><div class="diagnostic-grid" id="diagnosticGrid"></div></div></div></div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+<script src="/js/executor-workspace.js?v=20260819-1"></script>
+<script>
+(() => {
+    const categoryFallback = {
+        transaction: 'مشكلة في عملية', pending_transaction: 'عملية متأخرة', balance: 'الرصيد والمطابقة', report: 'التقارير', receipt: 'الإيصال أو الإثبات', cancellation: 'إلغاء عملية', application: 'مشكلة في التطبيق', notifications: 'الإشعارات', employee_account: 'حساب موظف', api: 'منفذ API', other: 'طلب آخر'
+    };
+    const state = { tickets: [], activeTicketId: '', categories: [], replyImages: [], newImages: [], loading: false };
+    const escapeHtml = (value) => String(value ?? '').replace(/[&<>"']/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' }[char]));
+    const formatDate = (value) => value ? new Date(value).toLocaleString('ar-LY', { timeZone: 'Africa/Tripoli', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '---';
+    const statusLabel = (status) => ({ open: 'مفتوح', answered: 'تم الرد', pending_internal: 'قيد المراجعة', resolved: 'تم الحل', closed: 'مغلق' })[status] || status;
+    const priorityColor = (priority) => ({ urgent: 'var(--executor-red)', high: '#b54708', low: 'var(--executor-muted)' })[priority] || 'var(--executor-blue)';
+
+    const filesToBase64 = async (files) => Promise.all(Array.from(files).slice(0, 3).map((file) => new Promise((resolve, reject) => {
+        if (!file.type.match(/^image\/(jpeg|png|webp)$/) || file.size > 2 * 1024 * 1024) return reject(new Error('الصور يجب أن تكون JPG أو PNG أو WEBP وأقل من 2 ميجابايت.'));
+        const reader = new FileReader(); reader.onload = () => resolve(reader.result); reader.onerror = reject; reader.readAsDataURL(file);
+    })));
+
+    const renderPreview = (containerId, images) => {
+        document.getElementById(containerId).innerHTML = images.map((src) => `<img src="${src}" alt="صورة مرفقة">`).join('');
+    };
+
+    const populateCategories = () => {
+        const options = state.categories.length ? state.categories : Object.keys(categoryFallback);
+        const filter = document.getElementById('ticketCategory');
+        const create = document.getElementById('newCategory');
+        const selectedFilter = filter.value;
+        filter.innerHTML = '<option value="">كل التصنيفات</option>' + options.map((key) => `<option value="${escapeHtml(key)}">${escapeHtml(categoryFallback[key] || key)}</option>`).join('');
+        filter.value = options.includes(selectedFilter) ? selectedFilter : '';
+        create.innerHTML = options.map((key) => `<option value="${escapeHtml(key)}">${escapeHtml(categoryFallback[key] || key)}</option>`).join('');
+    };
+
+    const renderTickets = () => {
+        const list = document.getElementById('ticketList');
+        if (!state.tickets.length) {
+            list.innerHTML = '<div class="text-center text-muted py-5"><i class="fa-regular fa-folder-open fs-3 d-block mb-2"></i><strong>لا توجد طلبات بهذه الفلاتر</strong></div>';
+            return;
         }
-        document.addEventListener('DOMContentLoaded', () => {
-            const theme = localStorage.getItem('ahram_theme') || 'dark';
-            document.getElementById('themeIcon').className = theme === 'dark' ? 'fa-solid fa-sun text-warning' : 'fa-solid fa-moon';
-        });
+        list.innerHTML = state.tickets.map((ticket) => `
+            <button class="ticket-card ${state.activeTicketId === ticket.id ? 'is-active' : ''}" type="button" data-ticket-id="${escapeHtml(ticket.id)}">
+                <span class="ticket-card-head"><strong>${escapeHtml(ticket.subject || ticket.categoryLabel)}</strong><span class="executor-status-pill" style="--pill-color:${priorityColor(ticket.priority)}">${escapeHtml(statusLabel(ticket.status))}</span></span>
+                <p>${escapeHtml(ticket.lastMessage || 'لم تتم إضافة ردود بعد.')}</p>
+                <span class="ticket-card-foot"><span dir="ltr">${escapeHtml(ticket.ticketId || '')}</span><span>${formatDate(ticket.updatedAt)}</span>${ticket.unreadCount ? `<span class="unread-badge">${ticket.unreadCount}</span>` : ''}</span>
+            </button>`).join('');
+        list.querySelectorAll('[data-ticket-id]').forEach((button) => button.addEventListener('click', () => openTicket(button.dataset.ticketId)));
+    };
 
-        const chatBox = document.getElementById('chatBox');
-        const chatForm = document.getElementById('chatForm');
-        const msgInput = document.getElementById('msgInput');
-        const sendBtn = document.getElementById('sendBtn');
-        const imageInput = document.getElementById('imageInput');
-        const previewContainer = document.getElementById('imagePreviewContainer');
-        const previewImg = document.getElementById('imagePreview');
-        let selectedBase64 = null;
+    async function loadTickets({ preserveSelection = true } = {}) {
+        if (state.loading) return;
+        state.loading = true;
+        try {
+            const params = new URLSearchParams({ status: document.getElementById('ticketStatus').value, category: document.getElementById('ticketCategory').value, search: document.getElementById('ticketSearch').value.trim() });
+            const response = await executorApiFetch(`/executor-portal/api/support/tickets?${params}`);
+            const data = await readExecutorApiResponse(response);
+            state.tickets = data.tickets || [];
+            state.categories = data.permissions?.categories || state.categories;
+            populateCategories();
+            document.getElementById('activeCount').textContent = data.summary?.active || 0;
+            document.getElementById('closedCount').textContent = data.summary?.closed || 0;
+            document.getElementById('unreadCount').textContent = data.summary?.unread || 0;
+            if (!preserveSelection || !state.tickets.some((ticket) => ticket.id === state.activeTicketId)) state.activeTicketId = '';
+            renderTickets();
+        } catch (error) {
+            document.getElementById('ticketList').innerHTML = `<div class="text-center text-danger py-5">${escapeHtml(error.message || 'تعذر تحميل الطلبات')}</div>`;
+        } finally { state.loading = false; }
+    }
 
-        function compressImage(file, callback) {
-            const reader = new FileReader();
-            reader.onload = function(event) {
-                const img = new Image();
-                img.onload = function() {
-                    const canvas = document.createElement('canvas');
-                    const MAX_WIDTH = 800; const MAX_HEIGHT = 800;
-                    let width = img.width; let height = img.height;
-                    if (width > height) { if (width > MAX_WIDTH) { height *= MAX_WIDTH / width; width = MAX_WIDTH; } } 
-                    else { if (height > MAX_HEIGHT) { width *= MAX_HEIGHT / height; height = MAX_HEIGHT; } }
-                    canvas.width = width; canvas.height = height;
-                    const ctx = canvas.getContext('2d'); ctx.drawImage(img, 0, 0, width, height);
-                    callback(canvas.toDataURL('image/jpeg', 0.6));
-                }
-                img.src = event.target.result;
-            }
-            reader.readAsDataURL(file);
-        }
+    async function openTicket(id) {
+        state.activeTicketId = id; renderTickets();
+        document.getElementById('supportWorkspace').classList.add('has-open-ticket');
+        try {
+            const response = await executorApiFetch(`/executor-portal/api/support/tickets/${id}`);
+            const data = await readExecutorApiResponse(response);
+            const ticket = data.ticket;
+            document.getElementById('conversationEmpty').style.display = 'none';
+            document.getElementById('conversationView').classList.add('is-visible');
+            document.getElementById('conversationSubject').textContent = ticket.subject || ticket.categoryLabel;
+            document.getElementById('conversationMeta').textContent = `${ticket.ticketId || ''} · ${ticket.categoryLabel || ''}${ticket.transaction?.customId ? ` · ${ticket.transaction.customId}` : ''}`;
+            document.getElementById('conversationStatus').textContent = statusLabel(ticket.status);
+            const list = document.getElementById('messageList');
+            list.innerHTML = (ticket.messages || []).map((message) => `
+                <article class="message-bubble ${message.sender === 'user' ? 'is-user' : 'is-admin'}">
+                    ${message.sender !== 'user' ? `<b><i class="fa-solid fa-user-shield"></i> ${escapeHtml(message.senderName || 'الإدارة')}</b>` : ''}
+                    ${message.imageUrl ? `<img src="${escapeHtml(message.imageUrl)}" alt="مرفق" data-open-image>` : ''}
+                    ${message.text ? `<p>${escapeHtml(message.text)}</p>` : ''}
+                    <time>${formatDate(message.createdAt)}</time>
+                </article>`).join('') || '<div class="text-center text-muted py-5">لا توجد رسائل بعد.</div>';
+            list.querySelectorAll('[data-open-image]').forEach((image) => image.addEventListener('click', () => window.open(image.src, '_blank', 'noopener')));
+            list.scrollTop = list.scrollHeight;
+            await loadTickets();
+        } catch (error) { Swal.fire('تعذر فتح الطلب', error.message, 'error'); }
+    }
 
-        imageInput.onchange = (e) => { const file = e.target.files[0]; if (file) compressImage(file, (b64) => { selectedBase64 = b64; previewImg.src = b64; previewContainer.classList.remove('d-none'); }); };
-        function clearImage() { selectedBase64 = null; imageInput.value = ''; previewContainer.classList.add('d-none'); }
+    document.getElementById('ticketStatus').addEventListener('change', () => loadTickets({ preserveSelection: false }));
+    document.getElementById('ticketCategory').addEventListener('change', () => loadTickets({ preserveSelection: false }));
+    let searchTimer;
+    document.getElementById('ticketSearch').addEventListener('input', () => { clearTimeout(searchTimer); searchTimer = setTimeout(() => loadTickets({ preserveSelection: false }), 350); });
+    document.getElementById('conversationBack').addEventListener('click', () => document.getElementById('supportWorkspace').classList.remove('has-open-ticket'));
 
-        const loadMessages = async () => {
-            try {
-                const res = await executorApiFetch('/executor-portal/api/support/messages');
-                const data = await res.json();
-                if(data.success) renderMessages(data.messages);
-            } catch(e) {}
-        };
+    document.getElementById('newFiles').addEventListener('change', async (event) => {
+        try { state.newImages = await filesToBase64(event.target.files); renderPreview('newPreview', state.newImages); }
+        catch (error) { state.newImages = []; event.target.value = ''; Swal.fire('مرفق غير صالح', error.message, 'error'); }
+    });
+    document.getElementById('replyFiles').addEventListener('change', async (event) => {
+        try { state.replyImages = await filesToBase64(event.target.files); renderPreview('replyPreview', state.replyImages); }
+        catch (error) { state.replyImages = []; event.target.value = ''; Swal.fire('مرفق غير صالح', error.message, 'error'); }
+    });
+    document.getElementById('replyAttach').addEventListener('click', () => document.getElementById('replyFiles').click());
 
-        const renderMessages = (messages) => {
-            if(messages.length === 0) {
-                chatBox.innerHTML = '<div class="text-center w-100 mt-5"><div style="background: rgba(0,0,0,0.05); border: 1px dashed var(--border-glass); padding: 15px; border-radius: 15px; display: inline-block; font-weight: bold; color: var(--text-muted);">غرفة الاتصال فارغة. أرسل رسالة للبدء.</div></div>';
-                return;
-            }
-            chatBox.innerHTML = '';
-            messages.forEach(msg => {
-                const isUser = msg.sender === 'user';
-                const time = new Date(msg.createdAt).toLocaleTimeString('en-GB', {timeZone:'Africa/Tripoli', hour:'2-digit', minute:'2-digit'});
-                const imgHtml = msg.imageUrl ? `<img src="${msg.imageUrl}" class="img-fluid rounded mb-2 d-block shadow-sm" style="max-height: 200px; border: 1px solid var(--border-glass); cursor: pointer;" onclick="window.open('${msg.imageUrl}')">` : '';
-                chatBox.innerHTML += `
-                    <div class="msg-bubble ${isUser ? 'msg-user' : 'msg-admin'}">
-                        ${!isUser ? `<div class="fw-bold mb-1" style="font-size: 0.75rem; color: var(--neon-blue);"><i class="fa-solid fa-shield-halved me-1"></i> ${msg.senderName}</div>` : ''}
-                        ${imgHtml}
-                        <div>${msg.text || ''}</div>
-                        <span class="msg-time">${time}</span>
-                    </div>`;
-            });
-            chatBox.scrollTop = chatBox.scrollHeight;
-        };
+    document.getElementById('newTicketForm').addEventListener('submit', async (event) => {
+        event.preventDefault();
+        const submit = event.submitter; submit.disabled = true;
+        try {
+            const response = await executorApiFetch('/executor-portal/api/support/tickets', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ category: document.getElementById('newCategory').value, priority: document.getElementById('newPriority').value, subject: document.getElementById('newSubject').value.trim(), transactionRef: document.getElementById('newTransactionRef').value.trim(), message: document.getElementById('newMessage').value.trim(), imagesBase64: state.newImages, diagnostics: { platform: navigator.platform, networkStatus: navigator.onLine ? 'online' : 'offline', notificationPermission: 'Notification' in window ? Notification.permission : 'unsupported' } }) });
+            const data = await readExecutorApiResponse(response);
+            bootstrap.Modal.getInstance(document.getElementById('newTicketModal')).hide();
+            event.currentTarget.reset(); state.newImages = []; renderPreview('newPreview', []);
+            await loadTickets({ preserveSelection: false }); await openTicket(data.ticket.id);
+        } catch (error) { Swal.fire('تعذر إنشاء الطلب', error.message, 'error'); }
+        finally { submit.disabled = false; }
+    });
 
-        chatForm.onsubmit = async (e) => {
-            e.preventDefault();
-            const text = msgInput.value.trim();
-            if(!text && !selectedBase64) return;
-            
-            const b64 = selectedBase64; msgInput.value = ''; clearImage();
-            sendBtn.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin"></i>';
-            
-            try {
-                const response = await executorApiFetch('/executor-portal/api/support/messages', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ text, imageBase64: b64 }) });
-                await readExecutorApiResponse(response);
-                await loadMessages();
-            } catch(e) {
-                Swal.fire('تعذر إرسال الرسالة', e.message || 'حدث خطأ أثناء الإرسال.', 'error');
-            }
-            sendBtn.innerHTML = '<i class="fa-solid fa-paper-plane"></i>';
-        };
+    document.getElementById('replyForm').addEventListener('submit', async (event) => {
+        event.preventDefault();
+        const message = document.getElementById('replyText').value.trim();
+        if (!state.activeTicketId || (!message && !state.replyImages.length)) return;
+        const submit = event.submitter; submit.disabled = true;
+        try {
+            await readExecutorApiResponse(await executorApiFetch(`/executor-portal/api/support/tickets/${state.activeTicketId}/replies`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ message, imagesBase64: state.replyImages }) }));
+            document.getElementById('replyText').value = ''; document.getElementById('replyFiles').value = ''; state.replyImages = []; renderPreview('replyPreview', []); await openTicket(state.activeTicketId);
+        } catch (error) { Swal.fire('تعذر إرسال الرد', error.message, 'error'); }
+        finally { submit.disabled = false; }
+    });
 
-        setInterval(loadMessages, 3000); loadMessages();
-    </script>
+    document.getElementById('diagnosticsButton').addEventListener('click', async () => {
+        try {
+            const data = await readExecutorApiResponse(await executorApiFetch('/executor-portal/api/support/diagnostics'));
+            const labels = { server: 'الخادم', database: 'قاعدة البيانات', account: 'الحساب', executorGroup: 'شركة التنفيذ', role: 'الصلاحية', serverTime: 'وقت الخادم' };
+            document.getElementById('diagnosticGrid').innerHTML = Object.entries(data.diagnostics || {}).map(([key, value]) => `<div class="diagnostic-item"><small>${escapeHtml(labels[key] || key)}</small><strong>${escapeHtml(key === 'serverTime' ? formatDate(value) : value)}</strong></div>`).join('');
+            bootstrap.Modal.getOrCreateInstance(document.getElementById('diagnosticsModal')).show();
+        } catch (error) { Swal.fire('تعذر تشغيل الفحص', error.message, 'error'); }
+    });
+
+    populateCategories(); loadTickets();
+    setInterval(() => { if (!document.hidden) loadTickets(); }, 12000);
+})();
+</script>
 </body>
 </html>
