@@ -86,6 +86,9 @@ app.locals.sessionStoreHealthy = true;
 app.locals.isShuttingDown = false;
 
 app.set('trust proxy', 1); 
+app.use(require('./middlewares/trustedProxyHttps').normalizeTrustedProxyHttps({
+    enabled: isProduction && process.env.TRUST_PROXY_HTTPS === 'true'
+}));
 
 const server = http.createServer(app);
 

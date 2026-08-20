@@ -76,6 +76,7 @@ upsert('PUBLIC_APP_URL', 'https://ahrampay.com');
 upsert('WEB_PUSH_SUBJECT', 'mailto:support@ahrampay.com');
 upsert('SECURE_COOKIE', 'true', { force: true });
 upsert('COOKIE_SAMESITE', 'lax');
+upsert('TRUST_PROXY_HTTPS', 'true', { force: true });
 
 const forcedSecurityValues = {
     FORCE_CLIENT_OTP: 'true',

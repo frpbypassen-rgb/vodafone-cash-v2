@@ -21,6 +21,7 @@ module.exports = {
         BYPASS_CLIENT_OTP: "false",
         DISABLE_OTP: "false",
         SECURE_COOKIE: "true",
+        TRUST_PROXY_HTTPS: "true",
         SESSION_STORE: "mongo",
         MONGO_TRANSACTIONS_REQUIRED: "true",
         TENANT_ISOLATION_REQUIRED: "true",
