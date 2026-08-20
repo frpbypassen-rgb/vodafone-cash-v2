@@ -3,7 +3,7 @@ const axios = require('axios');
 const fs = require('fs');
 const https = require('https');
 const path = require('path');
-const puppeteer = require('puppeteer');
+const { loadPuppeteer } = require('../utils/puppeteerLoader');
 const { SYSTEM_TIME_ZONE } = require('../config/systemTime');
 const { getApiProviderPreset } = require('../utils/apiProviderPresets');
 
@@ -555,6 +555,7 @@ const getApiProviderTransaction = async (apiBot, transactionNumber) => {
 const generateCustomReceipt = async (tx, apiResult) => {
     let browser;
     try {
+        const puppeteer = await loadPuppeteer();
         browser = await puppeteer.launch({ headless: "new", args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage', '--disable-gpu', '--single-process'] });
         const page = await browser.newPage();
         await page.setViewport({ width: 520, height: 860 });

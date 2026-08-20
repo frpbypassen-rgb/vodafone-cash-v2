@@ -18,6 +18,9 @@ const { createRegisteredExecutorAccount } = require('../services/executorAccount
 
 const visibleRequestStatuses = new Set(['pending', 'pending_agent', 'approved', 'rejected']);
 const appendAdminNote = (current, note) => [current, String(note || '').trim()].filter(Boolean).join('\n');
+const tenantFilter = (req, filter = {}) => (
+    req.tenant ? { ...filter, tenantId: req.tenant._id } : filter
+);
 
 // ─────────────────────────────────────────────────
 // 📋 عرض جميع طلبات التسجيل
@@ -25,17 +28,17 @@ const appendAdminNote = (current, note) => [current, String(note || '').trim()].
 router.get('/registration-requests', requireAuth, async (req, res) => {
     try {
         const statusFilter = visibleRequestStatuses.has(req.query.status) ? req.query.status : '';
-        const filter = statusFilter
+        const filter = tenantFilter(req, statusFilter
             ? { status: statusFilter }
-            : { status: { $in: ['pending', 'pending_agent'] } };
+            : { status: { $in: ['pending', 'pending_agent'] } });
         
         const [requests, pending, pendingAgent, approved, rejected, total] = await Promise.all([
             RegistrationRequest.find(filter).sort({ createdAt: -1 }).lean(),
-            RegistrationRequest.countDocuments({ status: 'pending' }),
-            RegistrationRequest.countDocuments({ status: 'pending_agent' }),
-            RegistrationRequest.countDocuments({ status: 'approved' }),
-            RegistrationRequest.countDocuments({ status: 'rejected' }),
-            RegistrationRequest.countDocuments({ status: { $ne: 'deleted' } })
+            RegistrationRequest.countDocuments(tenantFilter(req, { status: 'pending' })),
+            RegistrationRequest.countDocuments(tenantFilter(req, { status: 'pending_agent' })),
+            RegistrationRequest.countDocuments(tenantFilter(req, { status: 'approved' })),
+            RegistrationRequest.countDocuments(tenantFilter(req, { status: 'rejected' })),
+            RegistrationRequest.countDocuments(tenantFilter(req, { status: { $ne: 'deleted' } }))
         ]);
         const counts = { pending, pendingAgent, approved, rejected, total };
 
@@ -57,7 +60,7 @@ router.get('/registration-requests', requireAuth, async (req, res) => {
 // ─────────────────────────────────────────────────
 router.post('/registration-requests/:id/approve', requireAuth, requireMaster, async (req, res) => {
     try {
-        const regReq = await RegistrationRequest.findById(req.params.id);
+        const regReq = await RegistrationRequest.findOne(tenantFilter(req, { _id: req.params.id }));
         if (!regReq || regReq.status !== 'pending') {
             return res.redirect('/registration-requests?error=not_found');
         }
@@ -69,6 +72,8 @@ router.post('/registration-requests/:id/approve', requireAuth, requireMaster, as
             username: regReq.username,
             excludeRequestId: regReq._id
         });
+
+        const tenantId = regReq.tenantId || (req.tenant && req.tenant._id) || undefined;
 
         // ─── إنشاء الحساب حسب نوع الطلب ───
         if (regReq.accountType === 'direct') {
@@ -83,7 +88,8 @@ router.post('/registration-requests/:id/approve', requireAuth, requireMaster, as
                 tier: 1,
                 balance: 0,
                 status: 'active',
-                role: 'user'
+                role: 'user',
+                tenantId
             });
 
         } else if (regReq.accountType === 'new') {
@@ -99,7 +105,8 @@ router.post('/registration-requests/:id/approve', requireAuth, requireMaster, as
                 tier: 1,
                 balance: 0,
                 status: 'active',
-                role: 'user'
+                role: 'user',
+                tenantId
             });
 
         } else if (regReq.accountType === 'company') {
@@ -109,7 +116,8 @@ router.post('/registration-requests/:id/approve', requireAuth, requireMaster, as
                 phone: regReq.companyPhone,
                 tier: 3,
                 balance: 0,
-                status: 'active'
+                status: 'active',
+                tenantId
             });
 
             await ClientEmployee.create({
@@ -122,7 +130,8 @@ router.post('/registration-requests/:id/approve', requireAuth, requireMaster, as
                 canViewAllReports: true,
                 canManageCompany: true,
                 canCreateCompanyStaff: true,
-                status: 'active'
+                status: 'active',
+                tenantId
             });
 
         } else if (regReq.accountType === 'agent') {
@@ -137,7 +146,8 @@ router.post('/registration-requests/:id/approve', requireAuth, requireMaster, as
                 tier: 2,
                 balance: 0,
                 status: 'active',
-                role: 'agent'
+                role: 'agent',
+                tenantId
             });
             const accountCode = await assignGeneratedAccountCode({
                 Model: User,
@@ -157,7 +167,8 @@ router.post('/registration-requests/:id/approve', requireAuth, requireMaster, as
                 phone: regReq.phone,
                 webUsername: regReq.username,
                 webPassword: regReq.password,
-                executorServiceKey: regReq.executorServiceKey || 'vodafone'
+                executorServiceKey: regReq.executorServiceKey || 'vodafone',
+                tenantId
             });
         }
 
@@ -196,7 +207,7 @@ router.post('/registration-requests/:id/approve', requireAuth, requireMaster, as
 // ─────────────────────────────────────────────────
 router.post('/registration-requests/:id/reject', requireAuth, requireMaster, async (req, res) => {
     try {
-        const regReq = await RegistrationRequest.findById(req.params.id);
+        const regReq = await RegistrationRequest.findOne(tenantFilter(req, { _id: req.params.id }));
         if (!regReq || regReq.status !== 'pending') {
             return res.redirect('/registration-requests?error=not_found');
         }
@@ -234,10 +245,10 @@ router.post('/registration-requests/:id/reject', requireAuth, requireMaster, asy
 // حذف منطقي للطلب مع الاحتفاظ بسجل التدقيق
 router.post('/registration-requests/:id/delete', requireAuth, requireMaster, async (req, res) => {
     try {
-        const regReq = await RegistrationRequest.findOne({
+        const regReq = await RegistrationRequest.findOne(tenantFilter(req, {
             _id: req.params.id,
             status: { $in: ['pending', 'pending_agent'] }
-        });
+        }));
         if (!regReq) return res.redirect('/registration-requests?error=not_found');
 
         const adminName = req.session.adminName || 'مدير';

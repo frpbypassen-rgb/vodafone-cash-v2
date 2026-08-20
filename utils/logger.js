@@ -5,14 +5,17 @@
 
 const { createLogger, format, transports } = require('winston');
 const path = require('path');
+const { sanitizeLogInfo } = require('./logSanitizer');
 
 const LOG_DIR = path.join(__dirname, '..', 'logs');
+const redactMetadata = format((info) => sanitizeLogInfo(info));
 
 const logger = createLogger({
     level: process.env.LOG_LEVEL || 'info',
     format: format.combine(
         format.timestamp({ format: 'YYYY-MM-DD HH:mm:ss' }),
         format.errors({ stack: true }),
+        redactMetadata(),
         format.json()
     ),
     defaultMeta: { service: 'ahram-pay' },
@@ -21,6 +24,7 @@ const logger = createLogger({
         new transports.Console({
             format: format.combine(
                 format.colorize(),
+                redactMetadata(),
                 format.printf(({ timestamp, level, message, service, ...meta }) => {
                     const metaStr = Object.keys(meta).length ? ` ${JSON.stringify(meta)}` : '';
                     return `${timestamp} [${service}] ${level}: ${message}${metaStr}`;

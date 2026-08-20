@@ -13,6 +13,20 @@ if (!process.env.JWT_REFRESH_SECRET || process.env.JWT_REFRESH_SECRET.length < 3
 const JWT_SECRET = process.env.JWT_SECRET;
 const JWT_REFRESH_SECRET = process.env.JWT_REFRESH_SECRET;
 
+const cleanId = (value) => value === undefined || value === null ? '' : String(value).trim();
+const allowsLegacyTenantTokens = () => (
+    process.env.NODE_ENV !== 'production'
+    && String(process.env.ALLOW_LEGACY_TENANT_TOKENS || 'true').toLowerCase() === 'true'
+);
+const tokenMatchesRequestTenant = (decodedUser, req) => {
+    const requestTenantId = cleanId(req && req.tenant && req.tenant._id);
+    const tokenTenantId = cleanId(decodedUser && decodedUser.tenantId);
+
+    if (!requestTenantId) return process.env.NODE_ENV !== 'production';
+    if (!tokenTenantId) return allowsLegacyTenantTokens();
+    return requestTenantId === tokenTenantId;
+};
+
 const ensureActiveExecutor = async (decodedUser) => {
     if (!decodedUser || decodedUser.accountType !== 'executor') return true;
 
@@ -46,6 +60,7 @@ const ensureActiveCustomerSession = async (decodedUser) => {
     const session = await MobileDeviceSession.exists({
         accountId: decodedUser.userId,
         accountType: decodedUser.accountType,
+        ...(decodedUser.tenantId ? { tenantId: decodedUser.tenantId } : {}),
         sessionId: decodedUser.sessionId,
         active: true
     });
@@ -72,6 +87,14 @@ const authenticateJWT = (req, res, next) => {
                 });
             }
             try {
+                if (!tokenMatchesRequestTenant(decodedUser, req)) {
+                    return res.status(403).json({
+                        success: false,
+                        code: 'TENANT_ACCESS_DENIED',
+                        message: 'رمز الدخول لا يخص هذه المنظمة',
+                        correlationId: req.correlationId || null
+                    });
+                }
                 if (!await ensureActiveExecutor(decodedUser) || !await ensureActiveCustomerSession(decodedUser)) {
                     return res.status(401).json({
                         success: false,
@@ -101,4 +124,11 @@ const authenticateJWT = (req, res, next) => {
     }
 };
 
-module.exports = { authenticateJWT, ensureActiveExecutor, ensureActiveCustomerSession, JWT_SECRET, JWT_REFRESH_SECRET };
+module.exports = {
+    authenticateJWT,
+    ensureActiveExecutor,
+    ensureActiveCustomerSession,
+    tokenMatchesRequestTenant,
+    JWT_SECRET,
+    JWT_REFRESH_SECRET
+};

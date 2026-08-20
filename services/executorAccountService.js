@@ -103,7 +103,13 @@ const createExecutorAccount = async ({ groupData, managerData, openingBalance = 
         const manualReceiptPrefix = isApiBot
             ? undefined
             : await reserveManualExecutorReceiptPrefix(groupData?.manualReceiptPrefix);
-        group = await ExecutorGroup.create({ ...groupData, name, serviceKey, manualReceiptPrefix });
+        group = await ExecutorGroup.create({
+            ...groupData,
+            name,
+            serviceKey,
+            manualReceiptPrefix,
+            tenantId: tenantId || undefined
+        });
 
         if (preparedManager) {
             employee = await Employee.create({

@@ -30,15 +30,30 @@ const credentialLookup = (username) => {
     };
 };
 
-// Older customer records were created before tenant isolation was introduced.
-// They remain valid only on the current host, so include records without a
-// tenant while never falling through to a record owned by another tenant.
+const allowsLegacyTenantlessRecords = () => (
+    process.env.NODE_ENV !== 'production'
+    && String(process.env.ALLOW_LEGACY_TENANTLESS_RECORDS || 'true').toLowerCase() === 'true'
+);
+
+const tenantValue = (tenantId) => (
+    allowsLegacyTenantlessRecords()
+        ? { $in: [tenantId, null] }
+        : tenantId
+);
+
+// Tenantless records are accepted only in non-production migration/test
+// environments. Production always uses an exact tenant match.
 const applyTenantScope = (lookup, tenantId) => {
     if (!tenantId) return lookup;
     return {
         ...lookup,
-        tenantId: { $in: [tenantId, null] }
+        tenantId: tenantValue(tenantId)
     };
+};
+
+const findByIdWithTenant = (Model, userId, tenantId) => {
+    if (!tenantId) return Model.findById(userId);
+    return Model.findOne({ _id: userId, tenantId: tenantValue(tenantId) });
 };
 
 /**
@@ -71,13 +86,14 @@ const findByCredentials = async (username, password, tenantId) => {
     }
 
     // 2. فحص موظف الشركة (ClientEmployee)
-    const empDoc = await ClientEmployee.findOne(credentialLookup(username));
+    const empDoc = await ClientEmployee.findOne(applyTenantScope(credentialLookup(username), tenantId));
 
     if (empDoc) {
         const isMatch = await _comparePassword(searchPass, empDoc.webPassword, ClientEmployee, empDoc._id);
         if (isMatch) {
             if (empDoc.status !== 'active') return { error: 'ACCOUNT_BANNED', accountType: 'client_company' };
-            const company = await ClientCompany.findById(empDoc.companyId);
+            const company = await findByIdWithTenant(ClientCompany, empDoc.companyId, tenantId);
+            if (!company) return { error: 'ACCOUNT_BANNED', accountType: 'client_company' };
             return {
                 account: empDoc,
                 accountType: 'client_company',
@@ -89,13 +105,13 @@ const findByCredentials = async (username, password, tenantId) => {
     }
 
     // 3. فحص موظف الوكيل (AgentEmployee)
-    const agentEmpDoc = await AgentEmployee.findOne(credentialLookup(username));
+    const agentEmpDoc = await AgentEmployee.findOne(applyTenantScope(credentialLookup(username), tenantId));
 
     if (agentEmpDoc) {
         const isMatch = await _comparePassword(searchPass, agentEmpDoc.webPassword, AgentEmployee, agentEmpDoc._id);
         if (isMatch) {
             if (agentEmpDoc.status !== 'active') return { error: 'ACCOUNT_BANNED', accountType: 'agent_staff' };
-            const agent = await User.findById(agentEmpDoc.agentId);
+            const agent = await findByIdWithTenant(User, agentEmpDoc.agentId, tenantId);
             if (!agent || agent.status !== 'active' || agent.role !== 'agent') {
                 return { error: 'ACCOUNT_BANNED', accountType: 'agent_staff' };
             }
@@ -129,7 +145,7 @@ const findByCredentials = async (username, password, tenantId) => {
 
     // 5. فحص الحساب التابع (SubAccount)
     const SubAccount = require('../models/SubAccount');
-    const subQuery = credentialLookup(username);
+    const subQuery = applyTenantScope(credentialLookup(username), tenantId);
     const subDoc = await SubAccount.findOne(subQuery);
 
     if (subDoc) {
@@ -172,22 +188,11 @@ const _comparePassword = async (inputPass, storedPass, Model, docId) => {
  */
 const findById = async (userId, accountType, tenantId) => {
     const Model = _getModel(accountType);
-    if (tenantId && (accountType === 'executor' || accountType === 'client_user')) {
-        const tenantScope = accountType === 'client_user'
-            ? { tenantId: { $in: [tenantId, null] } }
-            : { tenantId };
-        const account = await Model.findOne({ _id: userId, ...tenantScope });
-        if (accountType === 'executor' && account) {
-            return Model.findOne({ _id: userId, ...tenantScope }).populate('groupId');
-        }
-        return account;
-    } else {
-        const account = await Model.findById(userId);
-        if (accountType === 'executor' && account) {
-            return Model.findById(userId).populate('groupId');
-        }
-        return account;
+    const query = findByIdWithTenant(Model, userId, tenantId);
+    if (accountType === 'executor' && query && typeof query.populate === 'function') {
+        return query.populate('groupId');
     }
+    return query;
 };
 
 /**
@@ -196,6 +201,15 @@ const findById = async (userId, accountType, tenantId) => {
 const updateRefreshToken = async (userId, accountType, token) => {
     const Model = _getModel(accountType);
     return Model.updateOne({ _id: userId }, { $set: { refreshToken: token } }, { strict: false });
+};
+
+const rotateRefreshToken = async (userId, accountType, currentToken, nextToken) => {
+    const Model = _getModel(accountType);
+    return Model.updateOne(
+        { _id: userId, refreshToken: currentToken },
+        { $set: { refreshToken: nextToken } },
+        { strict: false }
+    );
 };
 
 /**
@@ -236,6 +250,9 @@ module.exports = {
     findByCredentials,
     findById,
     updateRefreshToken,
+    rotateRefreshToken,
     clearRefreshToken,
-    getModelName
+    getModelName,
+    applyTenantScope,
+    allowsLegacyTenantlessRecords
 };

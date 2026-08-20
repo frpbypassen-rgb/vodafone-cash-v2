@@ -344,9 +344,9 @@ describe('Client Transaction Controller Tests', () => {
         }));
     });
 
-    test('postTransfer - يحسب تحويل سيفا بقيمة 5 وسعر 15 على أنه 75 دينار', async () => {
+    test('postTransfer - يحسب تحويل سيفا بقيمة 10 وسعر 15 على أنه 150 دينار', async () => {
         req.body = {
-            amount: '5',
+            amount: '10',
             phone: '123456789',
             number: '123456789',
             type: 'سيفا النيجر',
@@ -377,13 +377,13 @@ describe('Client Transaction Controller Tests', () => {
         await clientTransactionController.postTransfer(req, res);
 
         expect(User.findOneAndUpdate).toHaveBeenCalledWith(
-            expect.objectContaining({ _id: 'client123', balance: { $gte: 75 } }),
-            expect.objectContaining({ $inc: { balance: -75 } }),
+            expect.objectContaining({ _id: 'client123', balance: { $gte: 150 } }),
+            expect.objectContaining({ $inc: { balance: -150 } }),
             expect.any(Object)
         );
         expect(Transaction).toHaveBeenCalledWith(expect.objectContaining({
-            amount: 5,
-            costLYD: 75,
+            amount: 10,
+            costLYD: 150,
             exchangeRate: 15,
             transferType: 'sefa_niger',
             serviceDetails: expect.objectContaining({
@@ -433,5 +433,36 @@ describe('Client Transaction Controller Tests', () => {
             retryAfterSeconds: 90
         }));
         expect(User.findOneAndUpdate).not.toHaveBeenCalled();
+    });
+
+    test('postTransfer - يفشل قبل الخصم عند غياب Mongo transactions في production', async () => {
+        const originalNodeEnv = process.env.NODE_ENV;
+        const originalRequirement = process.env.MONGO_TRANSACTIONS_REQUIRED;
+        process.env.NODE_ENV = 'production';
+        process.env.MONGO_TRANSACTIONS_REQUIRED = 'true';
+        req.body = {
+            amount: '100',
+            phone: '01012345678',
+            type: 'كاش',
+            name: 'Recipient Name',
+            number: '01012345678'
+        };
+
+        try {
+            await clientTransactionController.postTransfer(req, res);
+
+            expect(res.status).toHaveBeenCalledWith(503);
+            expect(res.json).toHaveBeenCalledWith(expect.objectContaining({
+                success: false,
+                code: 'FINANCIAL_TRANSACTIONS_UNAVAILABLE'
+            }));
+            expect(User.findOneAndUpdate).not.toHaveBeenCalled();
+            expect(Transaction.prototype.save).not.toHaveBeenCalled();
+        } finally {
+            if (originalNodeEnv === undefined) delete process.env.NODE_ENV;
+            else process.env.NODE_ENV = originalNodeEnv;
+            if (originalRequirement === undefined) delete process.env.MONGO_TRANSACTIONS_REQUIRED;
+            else process.env.MONGO_TRANSACTIONS_REQUIRED = originalRequirement;
+        }
     });
 });

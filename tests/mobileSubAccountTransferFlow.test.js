@@ -267,7 +267,9 @@ describe('Mobile SubAccount Transfer Flow', () => {
         expect(res.body.txId).toBeDefined();
         expect(res.body.costLYD).toBe(47.244);
         expect(res.body.exchangeRate).toBe(6.35);
-        expect(mongoose.startSession).not.toHaveBeenCalled();
+        expect(mongoose.startSession).toHaveBeenCalledTimes(1);
+        expect(mongoose._session.startTransaction).toHaveBeenCalledTimes(1);
+        expect(mongoose._session.commitTransaction).toHaveBeenCalledTimes(1);
 
         // Check findOneAndUpdate calls
         expect(SubAccount.findOneAndUpdate).toHaveBeenCalled();

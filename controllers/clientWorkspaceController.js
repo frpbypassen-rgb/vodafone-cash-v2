@@ -14,7 +14,12 @@ const Admin = require('../models/Admin');
 const Transaction = require('../models/Transaction');
 const Counter = require('../models/Counter');
 const { assignGeneratedAccountCode, CODE_LENGTHS } = require('../services/accountCodeService');
-const { updateBalanceWithLedger, isMongoTransactionFallbackError } = require('../services/walletService');
+const {
+    updateBalanceWithLedger,
+    isMongoTransactionFallbackError,
+    requiresMongoTransactions,
+    financialTransactionsUnavailableError
+} = require('../services/walletService');
 const { notifyBalanceAdjustment } = require('../services/clientNotificationService');
 const { createDepositReceiptProof } = require('../services/depositReceiptService');
 const { buildClientReceiptImages } = require('../services/clientReceiptService');
@@ -84,18 +89,29 @@ const requireCustomerManager = (workspace) => {
 };
 
 const runDbTransaction = async (callback) => {
-    const session = await mongoose.startSession();
+    let session;
     try {
+        session = await mongoose.startSession();
         session.startTransaction();
         const result = await callback(session);
         await session.commitTransaction();
         return result;
     } catch (error) {
-        try { await session.abortTransaction(); } catch (_) {}
-        if (isMongoTransactionFallbackError(error)) return callback(null);
+        if (session) {
+            try { await session.abortTransaction(); } catch (_) {}
+        }
+        if (isMongoTransactionFallbackError(error)) {
+            if (requiresMongoTransactions()) {
+                throw financialTransactionsUnavailableError(error);
+            }
+            return callback(null);
+        }
+        if (!session && requiresMongoTransactions()) {
+            throw financialTransactionsUnavailableError(error);
+        }
         throw error;
     } finally {
-        session.endSession();
+        if (session) session.endSession();
     }
 };
 
@@ -151,6 +167,7 @@ exports.postCreateCustomer = async (req, res) => {
         const customer = await SubAccount.create({
             masterType: workspace.masterType,
             masterId: workspace.masterId,
+            tenantId: (req.tenant && req.tenant._id) || workspace.actor.tenantId || undefined,
             name,
             phone,
             webUsername,
@@ -441,6 +458,8 @@ exports.postAdjustCustomerBalance = async (req, res) => {
         console.error('[Business Portal] customer balance failed:', error.message);
         const code = error.message === 'FORBIDDEN'
             ? 'forbidden'
+            : error.code === 'FINANCIAL_TRANSACTIONS_UNAVAILABLE'
+                ? 'temporarily-unavailable'
             : error.message === 'INSUFFICIENT_BALANCE'
                 ? 'funds'
                 : error.message === 'ACCOUNT_NOT_FOUND'

@@ -247,6 +247,7 @@ const createSubAccount = async (req, res) => {
         const sub = await SubAccount.create({
             masterType: 'user',
             masterId: agent._id,
+            tenantId: (req.tenant && req.tenant._id) || agent.tenantId || undefined,
             name,
             phone,
             webUsername: username,

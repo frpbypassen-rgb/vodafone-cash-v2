@@ -312,6 +312,7 @@ exports.postAddStaff = async (req, res) => {
 
         const created = await ClientEmployee.create({
             companyId: company._id,
+            tenantId: (req.tenant && req.tenant._id) || account.tenantId || company.tenantId || undefined,
             name,
             phone,
             webUsername,

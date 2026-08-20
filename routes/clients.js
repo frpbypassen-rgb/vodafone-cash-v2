@@ -10,7 +10,12 @@ const Ledger = require('../models/Ledger');
 const ClientEmployee = require('../models/ClientEmployee');
 const SubAccount = require('../models/SubAccount');
 const { requireAuth, requireMaster } = require('../middlewares/auth');
-const { updateBalanceWithLedger, isMongoTransactionFallbackError } = require('../services/walletService');
+const {
+    updateBalanceWithLedger,
+    isMongoTransactionFallbackError,
+    requiresMongoTransactions,
+    financialTransactionsUnavailableError
+} = require('../services/walletService');
 const { createClientNotifications, notifyBalanceAdjustment } = require('../services/clientNotificationService');
 const { createDepositReceiptProof } = require('../services/depositReceiptService');
 const { voidBalanceAdjustment } = require('../services/balanceAdjustmentService');
@@ -174,7 +179,13 @@ const runDbTransaction = async (callback) => {
             isMongoTransactionFallbackError(error) ||
             (message.includes('Transaction') && message.includes('not supported'))
         ) {
+            if (requiresMongoTransactions()) {
+                throw financialTransactionsUnavailableError(error);
+            }
             return callback(null);
+        }
+        if (!session && requiresMongoTransactions()) {
+            throw financialTransactionsUnavailableError(error);
         }
         throw error;
     } finally {

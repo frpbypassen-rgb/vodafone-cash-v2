@@ -1,4 +1,6 @@
 require('dotenv').config();
+const { assertProductionSecurityEnv } = require('./config/securityPolicy');
+assertProductionSecurityEnv();
 const { SYSTEM_TIME_ZONE } = require('./config/systemTime');
 const { getAllowedOrigins, getMobileAllowedOrigins } = require('./config/corsOrigins');
 require('ts-node').register({
@@ -58,6 +60,10 @@ const { requireAuth, requireMaster } = require('./middlewares/auth');
 const { errorHandler, notFoundHandler } = require('./middlewares/errorHandler');
 const requestLogger = require('./middlewares/requestLogger');
 const { metricsMiddleware, metricsEndpoint } = require('./middlewares/metrics');
+const {
+    isAuthorizedOperationalSocket,
+    requireOperationalAccess
+} = require('./middlewares/operationalAccess');
 const csrfProtection = require('./middlewares/csrfProtection');
 const logger = require('./utils/logger');
 const { startApiCompletionMonitor } = require('./services/apiExecutionLifecycleService');
@@ -76,21 +82,29 @@ const { startExecutorPushNotificationWorker } = require('./services/executorPush
 const app = express();
 const isProduction = process.env.NODE_ENV === 'production';
 app.locals.systemTimeZone = SYSTEM_TIME_ZONE;
-
-// ==========================================
-// 🛡️ درع حماية السيرفر من الانهيار
-// ==========================================
-process.on('unhandledRejection', (reason, promise) => {
-    console.error('⚠️ [تخطي خطأ في الخلفية - Unhandled Rejection]:', reason.message || reason);
-});
-
-process.on('uncaughtException', (err) => {
-    console.error('🚨 [تخطي خطأ حرج - Uncaught Exception]:', err.stack || err.message);
-});
+app.locals.sessionStoreHealthy = true;
+app.locals.isShuttingDown = false;
 
 app.set('trust proxy', 1); 
 
 const server = http.createServer(app);
+
+let fatalShutdownStarted = false;
+const shutdownAfterFatalError = (origin, error) => {
+    const normalizedError = error instanceof Error ? error : new Error(String(error || origin));
+    logger.error(`Fatal process error: ${origin}`, { error: normalizedError.stack || normalizedError.message });
+    if (!isProduction || fatalShutdownStarted) return;
+
+    fatalShutdownStarted = true;
+    app.locals.isShuttingDown = true;
+    process.exitCode = 1;
+    const forceExitTimer = setTimeout(() => process.exit(1), 5000);
+    forceExitTimer.unref();
+    server.close(() => process.exit(1));
+};
+
+process.on('unhandledRejection', (reason) => shutdownAfterFatalError('unhandledRejection', reason));
+process.on('uncaughtException', (error) => shutdownAfterFatalError('uncaughtException', error));
 
 // ✅ إصلاح: تقييد CORS في Socket.IO بدل السماح لأي نطاق
 const allowedOrigins = getAllowedOrigins();
@@ -114,6 +128,14 @@ const io = new Server(server, {
 app.set('io', io);
 systemMonitor.attachSocketServer(io);
 io.on('connection', (socket) => {
+    if (
+        String(socket.handshake?.query?.monitor || '') === '1'
+        && !isAuthorizedOperationalSocket(socket, 'SYSTEM_MONITOR_AUTH_TOKEN')
+    ) {
+        socket.emit('monitor:error', { code: 'FORBIDDEN' });
+        socket.disconnect(true);
+        return;
+    }
     systemMonitor.handleSocket(socket);
 });
 
@@ -196,7 +218,7 @@ app.use((req, res, next) => {
 app.set('view engine', 'ejs');
 
 // Lightweight operational endpoints should not wait on sessions or tenant lookup.
-app.get('/metrics', metricsEndpoint);
+app.get('/metrics', requireOperationalAccess({ tokenEnv: 'METRICS_AUTH_TOKEN' }), metricsEndpoint);
 
 app.get('/health', (req, res) => {
     res.json({ status: 'ok', uptime: process.uptime(), timestamp: new Date().toISOString(), version: '2.0.0' });
@@ -206,13 +228,28 @@ app.get('/health/ready', async (req, res) => {
     try {
         const dbState = require('mongoose').connection.readyState;
         const dbStatus = dbState === 1 ? 'connected' : dbState === 2 ? 'connecting' : 'disconnected';
-        res.json({ status: dbState === 1 ? 'ok' : 'degraded', db: dbStatus, uptime: process.uptime() });
+        const ready = dbState === 1 && app.locals.sessionStoreHealthy && !app.locals.isShuttingDown;
+        res.status(ready ? 200 : 503).json({
+            status: ready ? 'ok' : 'degraded',
+            db: dbStatus,
+            sessionStore: app.locals.sessionStoreHealthy ? 'connected' : 'degraded',
+            shuttingDown: Boolean(app.locals.isShuttingDown),
+            uptime: process.uptime()
+        });
     } catch (e) {
         res.status(503).json({ status: 'error', db: 'unreachable' });
     }
 });
 
 app.use('/system-monitor', require('./routes/systemMonitor'));
+
+const configuredSessionMaxAgeMs = Number(process.env.SESSION_MAX_AGE_MS);
+const defaultSessionMaxAgeMs = isProduction ? 2 * 60 * 60 * 1000 : 24 * 60 * 60 * 1000;
+const sessionMaxAgeMs = Number.isFinite(configuredSessionMaxAgeMs)
+    && configuredSessionMaxAgeMs >= 5 * 60 * 1000
+    && configuredSessionMaxAgeMs <= 24 * 60 * 60 * 1000
+    ? configuredSessionMaxAgeMs
+    : defaultSessionMaxAgeMs;
 
 let sessionStore;
 try {
@@ -223,7 +260,7 @@ try {
         const { MongoStore } = require('connect-mongo');
         sessionStore = MongoStore.create({
             mongoUrl: process.env.MONGO_URI,
-            ttl: 24 * 60 * 60,
+            ttl: Math.ceil(sessionMaxAgeMs / 1000),
             autoRemove: 'native',
             mongoOptions: {
                 retryWrites: false,
@@ -233,32 +270,35 @@ try {
             }
         });
         sessionStore.on('error', (error) => {
+            app.locals.sessionStoreHealthy = false;
             logger.error('Session store error', { error: error.message });
+        });
+        sessionStore.on('connected', () => {
+            app.locals.sessionStoreHealthy = true;
         });
         console.log('✅ Session Store: MongoDB (connect-mongo)');
     }
 } catch (error) {
-    console.warn("⚠️ تحذير: تعذر تحميل connect-mongo — استخدام MemoryStore.", error);
+    if (isProduction) throw new Error(`Production session store initialization failed: ${error.message}`);
+    console.warn("⚠️ تحذير: تعذر تحميل connect-mongo — استخدام MemoryStore محلياً.", error);
     sessionStore = new session.MemoryStore();
 }
 
-if (isProduction && (!process.env.SESSION_SECRET || process.env.SESSION_SECRET.length < 32)) {
-    console.error('🚨 [FATAL] SESSION_SECRET غير موجود أو قصير جداً في بيئة الإنتاج.');
-    process.exit(1);
-}
-
 app.use(session({
+    name: 'ahram.sid',
     secret: process.env.SESSION_SECRET || 'dev-session-secret-change-me-only-local',
     resave: false, 
     saveUninitialized: false, 
-    store: sessionStore, 
+    rolling: true,
+    unset: 'destroy',
+    proxy: isProduction,
+    store: sessionStore,
     cookie: {
-        // IIS terminates TLS before forwarding to Node and may omit X-Forwarded-Proto.
-        // "auto" keeps the session usable while still marking it Secure when HTTPS is reported.
-        secure: process.env.SECURE_COOKIE === 'true' ? 'auto' : false,
+        secure: isProduction || process.env.SECURE_COOKIE === 'true',
         httpOnly: true,
         sameSite: process.env.COOKIE_SAMESITE || 'lax',
-        maxAge: 24 * 60 * 60 * 1000
+        maxAge: sessionMaxAgeMs,
+        priority: 'high'
     }
 }));
 

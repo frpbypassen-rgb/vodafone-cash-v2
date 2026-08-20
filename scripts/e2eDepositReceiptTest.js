@@ -5,7 +5,7 @@ const path = require('path');
 const { spawn } = require('child_process');
 const dotenv = require('dotenv');
 const mongoose = require('mongoose');
-const puppeteer = require('puppeteer');
+const { loadPuppeteer } = require('../utils/puppeteerLoader');
 
 dotenv.config();
 
@@ -139,11 +139,14 @@ async function verifyDatabase(testMongoUri, clientId) {
 }
 
 async function runBrowserFlow(baseUrl, clientId) {
+    const puppeteer = await loadPuppeteer();
+    let bundledExecutablePath = null;
+    try {
+        bundledExecutablePath = await puppeteer.executablePath();
+    } catch (_) {}
     const browserCandidates = [
         process.env.PUPPETEER_EXECUTABLE_PATH,
-        (() => {
-            try { return puppeteer.executablePath(); } catch (_) { return null; }
-        })(),
+        bundledExecutablePath,
         'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
         'C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe',
         'C:\\Program Files\\Microsoft\\Edge\\Application\\msedge.exe',

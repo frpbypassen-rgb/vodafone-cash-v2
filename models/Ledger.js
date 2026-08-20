@@ -1,5 +1,6 @@
 // models/Ledger.js
 const mongoose = require('mongoose');
+const { installAppendOnlyGuards } = require('../utils/financialRecordImmutability');
 
 const ledgerSchema = new mongoose.Schema({
     entityId: { type: mongoose.Schema.Types.ObjectId, required: true }, // أيدي العميل أو الشركة
@@ -21,5 +22,7 @@ ledgerSchema.index({ transactionId: 1 });
 ledgerSchema.index({ entityId: 1, type: 1, createdAt: -1 }); // فلتر نوع العملية + ترتيب زمني
 ledgerSchema.index({ type: 1, createdAt: -1 });               // تقارير نوع محدد
 ledgerSchema.index({ tenantId: 1 });
+
+installAppendOnlyGuards(ledgerSchema, 'ledger');
 
 module.exports = mongoose.models.Ledger || mongoose.model('Ledger', ledgerSchema);

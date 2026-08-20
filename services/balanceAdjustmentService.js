@@ -4,7 +4,12 @@ const crypto = require('crypto');
 const mongoose = require('mongoose');
 const Ledger = require('../models/Ledger');
 const Transaction = require('../models/Transaction');
-const { updateBalanceWithLedger, isMongoTransactionFallbackError } = require('./walletService');
+const {
+    updateBalanceWithLedger,
+    isMongoTransactionFallbackError,
+    requiresMongoTransactions,
+    financialTransactionsUnavailableError
+} = require('./walletService');
 
 const REVERSIBLE_MODELS = Object.freeze(['User', 'ClientCompany', 'SubAccount']);
 
@@ -27,7 +32,15 @@ const runWithOptionalTransaction = async (work) => {
         if (session) {
             try { await session.abortTransaction(); } catch (_) {}
         }
-        if (isMongoTransactionFallbackError(error)) return work(null);
+        if (isMongoTransactionFallbackError(error)) {
+            if (requiresMongoTransactions()) {
+                throw financialTransactionsUnavailableError(error);
+            }
+            return work(null);
+        }
+        if (!session && requiresMongoTransactions()) {
+            throw financialTransactionsUnavailableError(error);
+        }
         throw error;
     } finally {
         if (session) session.endSession();

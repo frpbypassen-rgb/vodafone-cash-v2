@@ -49,6 +49,9 @@ jest.mock('../validators/mobileValidators', () => {
         resetPasswordValidator: pass,
         executorReportsValidator: pass,
         executorSupportMessageValidator: pass,
+        customerProfilePhotoValidator: pass,
+        customerProfileValidator: pass,
+        customerPasswordValidator: pass,
     };
 });
 

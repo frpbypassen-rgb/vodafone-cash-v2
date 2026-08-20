@@ -40,6 +40,11 @@ const {
     acquireTransferCooldown,
     releaseTransferCooldown
 } = require('../services/transferCooldownService');
+const {
+    isMongoTransactionFallbackError,
+    requiresMongoTransactions,
+    financialTransactionsUnavailableError
+} = require('../services/walletService');
 
 const createClientError = (message, statusCode = 400) => {
     const error = new Error(message);
@@ -118,24 +123,27 @@ exports.postTransfer = async (req, res) => {
     let cooldownLock = null;
     let cooldownGuardFields = null;
     
-    // 🟢 بدء المعاملة الذرية (Transaction) — تدعم الوضع بدون Replica Set
     let session = null;
     let useTransaction = false;
+
     try {
-        const adminDb = mongoose.connection.db.admin();
-        const info = await adminDb.command({ replSetGetStatus: 1 }).catch(() => null);
-        if (info) {
+        try {
+            const hello = await mongoose.connection.db.admin().command({ hello: 1 });
+            const transactionCapable = Boolean(hello?.setName || hello?.msg === 'isdbgrid');
+            if (!transactionCapable) {
+                throw new Error('MongoDB transactions require a replica set or mongos');
+            }
             session = await mongoose.startSession();
             session.startTransaction();
             useTransaction = true;
+        } catch (error) {
+            if (requiresMongoTransactions()) {
+                throw financialTransactionsUnavailableError(error);
+            }
+            session = null;
+            useTransaction = false;
         }
-    } catch (e) {
-        // MongoDB standalone — لا يدعم transactions
-        session = null;
-        useTransaction = false;
-    }
 
-    try {
         await activatePendingRateUpdate({ app: req.app });
         // helper: ربط session بالاستعلام فقط إذا كان متاحاً
         const sessionOpts = useTransaction ? { session } : {};
@@ -439,6 +447,9 @@ exports.postTransfer = async (req, res) => {
         });
 
     } catch (error) {
+        if (requiresMongoTransactions() && isMongoTransactionFallbackError(error)) {
+            error = financialTransactionsUnavailableError(error);
+        }
         // 🔴 في حال أي خطأ يتم التراجع عن خصم الأرصدة وإلغاء الفواتير والدفتر
         if (!(error instanceof TransferCooldownError)) {
             console.error('[Transfer] خطأ:', error.message, error.stack);
@@ -486,6 +497,13 @@ exports.postTransfer = async (req, res) => {
         if (error.message === 'AGENT_NOT_FOUND') return isAjax ? res.status(404).json({ error: 'حساب الوكيل غير موجود أو غير نشط.' }) : null;
         if (error.message === 'INVALID_DATA') return isAjax ? res.status(400).json({ error: '❌ بيانات التحويل غير صحيحة.' }) : null;
         if (error.message.includes('INSUFFICIENT_BALANCE')) return isAjax ? res.status(400).json({ error: '❌ الرصيد غير كافٍ أو تغير أثناء العملية.' }) : null;
+        if (error.code === 'FINANCIAL_TRANSACTIONS_UNAVAILABLE') {
+            return res.status(503).json({
+                success: false,
+                code: error.code,
+                error: 'الخدمة المالية غير متاحة مؤقتًا. لم يتم خصم أي مبلغ.'
+            });
+        }
         if (error.statusCode) return isAjax ? res.status(error.statusCode).json({ error: error.message }) : null;
 
         return isAjax ? res.status(500).json({ error: '❌ خطأ داخلي.' }) : null;

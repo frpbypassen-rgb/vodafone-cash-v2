@@ -68,6 +68,10 @@ jest.mock('../models/SubAccount', () => {
     return M;
 });
 
+jest.mock('../models/MobileDeviceSession', () => ({
+    create: jest.fn().mockResolvedValue({ _id: 'device-session-id' })
+}));
+
 jest.mock('../middlewares/jwtAuth', () => ({
     JWT_SECRET: 'test-secret-key-that-is-long-enough-32chars',
     JWT_REFRESH_SECRET: 'test-refresh-secret-key-long-enough-32chars',
@@ -146,7 +150,8 @@ describe('Mobile SubClient Auth Contract', () => {
         expect(res.body.accountType).toBe('sub_client');
         expect(res.body.name).toBe('Sub Point of Sale');
         expect(res.body.balance).toBe(50);
-        expect(res.body.tier).toBe(2);
+        // Pricing levels are internal and must never be exposed to customers.
+        expect(res.body.tier).toBeUndefined();
         expect(res.body.baseExchangeRate).toBe(6.45);
         expect(res.body.exchangeRate).toBe(6.35); // 6.45 - 0.10 customMargin
         expect(res.body.serviceRates.vodafone).toBe(6.35);

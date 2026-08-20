@@ -1,4 +1,4 @@
-const puppeteer = require('puppeteer');
+const { loadPuppeteer } = require('./puppeteerLoader');
 const User = require('../models/User');
 const ClientCompany = require('../models/ClientCompany');
 const ExecutorGroup = require('../models/ExecutorGroup');
@@ -16,6 +16,7 @@ const renderHtmlPromisified = (appInstance, view, data) => {
 const sendBulkReportsInBg = async (periodType, dateValue, appReq) => {
     let browser; 
     try {
+        const puppeteer = await loadPuppeteer();
         browser = await puppeteer.launch({ headless: 'new', args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage'] });
         let start, end, dateLabel;
         if (periodType === 'daily') {

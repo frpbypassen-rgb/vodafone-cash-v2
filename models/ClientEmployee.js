@@ -13,10 +13,14 @@ const clientEmployeeSchema = new mongoose.Schema({
     webPassword: { type: String, required: true },
     otpCode: { type: String },
     otpExpires: { type: Date },
+    otpChallengeId: { type: String },
+    otpIssuedAt: { type: Date },
+    otpAttempts: { type: Number, default: 0 },
     role: { type: String, enum: ['owner', 'employee', 'accountant'], default: 'employee' },
     canViewAllReports: { type: Boolean, default: false }, // السماح برؤية جميع تقارير الشركة
     canManageCompany: { type: Boolean, default: false }, // صلاحيات مدير تشغيل بدون إنشاء حسابات
     canCreateCompanyStaff: { type: Boolean, default: false }, // مالك الشركة فقط ينشئ حسابات الموظفين
+    tenantId: { type: mongoose.Schema.Types.ObjectId, ref: 'Tenant' },
     lastOtpDate: { type: String },
     deletedCredentials: {
         phone: { type: String },
@@ -25,6 +29,8 @@ const clientEmployeeSchema = new mongoose.Schema({
     deletedAt: { type: Date },
     deletedBy: { type: String }
 }, { timestamps: true });
+
+clientEmployeeSchema.index({ tenantId: 1, companyId: 1 });
 
 // 🔐 تشفير كلمة المرور قبل الحفظ
 clientEmployeeSchema.pre('save', async function() {

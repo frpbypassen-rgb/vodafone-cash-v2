@@ -10,11 +10,15 @@ const agentEmployeeSchema = new mongoose.Schema({
     webPassword: { type: String, required: true },
     otpCode: { type: String },
     otpExpires: { type: Date },
+    otpChallengeId: { type: String },
+    otpIssuedAt: { type: Date },
+    otpAttempts: { type: Number, default: 0 },
     lastOtpDate: { type: String },
     role: { type: String, enum: ['employee', 'accountant'], default: 'employee' },
     canViewAllReports: { type: Boolean, default: false },
     canManageAgent: { type: Boolean, default: false },
     canCreateAgentStaff: { type: Boolean, default: false },
+    tenantId: { type: mongoose.Schema.Types.ObjectId, ref: 'Tenant' },
     refreshToken: { type: String },
     deletedCredentials: {
         phone: { type: String },
@@ -23,6 +27,8 @@ const agentEmployeeSchema = new mongoose.Schema({
     deletedAt: { type: Date },
     deletedBy: { type: String }
 }, { timestamps: true });
+
+agentEmployeeSchema.index({ tenantId: 1, agentId: 1 });
 
 agentEmployeeSchema.pre('save', async function() {
     if (!this.isModified('webPassword') || !this.webPassword) return;

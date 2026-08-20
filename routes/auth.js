@@ -1,9 +1,12 @@
 const express = require('express');
 const router = express.Router();
 const bcrypt = require('bcryptjs');
+const { randomUUID } = require('crypto');
 const rateLimit = require('express-rate-limit');
 const { escapeRegex, verifyAndUpgradePassword, getTodayString } = require('../utils/helpers');
 const { generateOtp, hashOtp, verifyOtp } = require('../utils/otp');
+const { shouldBypassClientOtp } = require('../config/securityPolicy');
+const { establishAuthenticatedSession } = require('../utils/sessionSecurity');
 const Admin = require('../models/Admin');
 const Employee = require('../models/Employee');
 const User = require('../models/User');
@@ -31,36 +34,6 @@ const passwordResetLimiter = rateLimit({
 });
 
 const renderLogin = (res, error = null) => res.render('unified_login', { error });
-
-const shouldBypassClientOtp = () => (
-    process.env.FORCE_CLIENT_OTP !== 'true'
-    && process.env.FORCE_OTP !== 'true'
-    || process.env.BYPASS_OTP === 'true'
-    || process.env.DISABLE_OTP === 'true'
-    || process.env.BYPASS_CLIENT_OTP === 'true'
-    || (
-        process.env.NODE_ENV !== 'production'
-        && ['demo', 'DEMO'].includes(process.env.MONGO_URI || '')
-    )
-);
-
-const clearLoginState = (session) => {
-    delete session.isLoggedIn;
-    delete session.adminName;
-    delete session.adminRole;
-    delete session.adminId;
-
-    delete session.isClientLoggedIn;
-    delete session.clientId;
-    delete session.accountType;
-    delete session.tempClientId;
-    delete session.tempAccountType;
-
-    delete session.isExecutorLoggedIn;
-    delete session.executorId;
-    delete session.executorGroupId;
-    delete session.tempExecutorId;
-};
 
 const redirectActiveSession = (req, res) => {
     if (req.session.isLoggedIn) {
@@ -121,11 +94,12 @@ const phoneMatches = (storedPhone, submittedPhone) => {
 const { logAction } = require('../services/auditService');
 
 const loginAsAdmin = async (req, res, adminData = null) => {
-    clearLoginState(req.session);
-    req.session.isLoggedIn = true;
-    req.session.adminName = adminData ? adminData.name : 'المدير الأساسي';
-    req.session.adminRole = adminData ? (adminData.role || 'admin') : 'master';
-    req.session.adminId = adminData ? adminData._id : 'master_admin';
+    await establishAuthenticatedSession(req, {
+        isLoggedIn: true,
+        adminName: adminData ? adminData.name : 'المدير الأساسي',
+        adminRole: adminData ? (adminData.role || 'admin') : 'master',
+        adminId: adminData ? adminData._id : 'master_admin'
+    });
 
     await logAction({
         action: 'LOGIN_SUCCESS',
@@ -140,10 +114,11 @@ const loginAsAdmin = async (req, res, adminData = null) => {
 };
 
 const loginAsExecutor = async (req, res, executor) => {
-    clearLoginState(req.session);
-    req.session.isExecutorLoggedIn = true;
-    req.session.executorId = executor._id;
-    req.session.executorGroupId = executor.groupId ? executor.groupId._id : null;
+    await establishAuthenticatedSession(req, {
+        isExecutorLoggedIn: true,
+        executorId: executor._id,
+        executorGroupId: executor.groupId ? executor.groupId._id : null
+    });
 
     await logAction({
         action: 'LOGIN_SUCCESS',
@@ -158,10 +133,11 @@ const loginAsExecutor = async (req, res, executor) => {
 };
 
 const loginAsClient = async (req, res, account, accountType) => {
-    clearLoginState(req.session);
-    req.session.isClientLoggedIn = true;
-    req.session.clientId = account._id;
-    req.session.accountType = accountType;
+    await establishAuthenticatedSession(req, {
+        isClientLoggedIn: true,
+        clientId: account._id,
+        accountType
+    });
     const performedByModel = accountType === 'company'
         ? 'ClientEmployee'
         : (accountType === 'agent_staff' ? 'AgentEmployee' : (accountType === 'sub_client' ? 'SubAccount' : 'User'));
@@ -179,12 +155,32 @@ const loginAsClient = async (req, res, account, accountType) => {
 };
 
 const startClientOtp = async (req, res, account, accountType, Model) => {
+    const pendingChallenge = String(req.session.otpChallengeId || '');
+    const hasReusableChallenge = (
+        String(req.session.tempClientId || '') === String(account._id)
+        && req.session.tempAccountType === accountType
+        && pendingChallenge
+        && pendingChallenge === String(account.otpChallengeId || '')
+        && account.otpExpires
+        && new Date(account.otpExpires) > new Date()
+    );
+    if (hasReusableChallenge) return saveAndRedirect(req, res, '/client/verify');
+
     const otp = generateOtp();
     const otpExpires = new Date(Date.now() + 5 * 60 * 1000);
+    const otpChallengeId = randomUUID();
 
     await Model.updateOne(
         { _id: account._id },
-        { $set: { otpCode: hashOtp(otp), otpExpires } },
+        {
+            $set: {
+                otpCode: hashOtp(otp),
+                otpExpires,
+                otpChallengeId,
+                otpIssuedAt: new Date(),
+                otpAttempts: 0
+            }
+        },
         { strict: false }
     );
 
@@ -211,7 +207,7 @@ const startClientOtp = async (req, res, account, accountType, Model) => {
     if (!delivery?.success) {
         await Model.updateOne(
             { _id: account._id },
-            { $unset: { otpCode: 1, otpExpires: 1 } },
+            { $unset: { otpCode: 1, otpExpires: 1, otpChallengeId: 1, otpIssuedAt: 1, otpAttempts: 1 } },
             { strict: false }
         );
         await logAction({
@@ -229,9 +225,11 @@ const startClientOtp = async (req, res, account, accountType, Model) => {
         return renderLogin(res, 'تعذر إرسال رمز التحقق عبر واتساب. تحقق من رقمك أو حاول بعد قليل.');
     }
 
-    clearLoginState(req.session);
-    req.session.tempClientId = account._id;
-    req.session.tempAccountType = accountType;
+    await establishAuthenticatedSession(req, {
+        tempClientId: account._id,
+        tempAccountType: accountType,
+        otpChallengeId
+    });
 
     const performedByModel = accountType === 'company'
         ? 'ClientEmployee'

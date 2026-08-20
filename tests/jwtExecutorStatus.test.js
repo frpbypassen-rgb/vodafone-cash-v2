@@ -8,7 +8,7 @@ jest.mock('../models/Employee', () => ({
 }));
 
 const Employee = require('../models/Employee');
-const { ensureActiveExecutor } = require('../middlewares/jwtAuth');
+const { ensureActiveExecutor, tokenMatchesRequestTenant } = require('../middlewares/jwtAuth');
 
 const employeeQuery = (result) => {
     const query = {
@@ -46,5 +46,29 @@ describe('JWT executor status guard', () => {
         await expect(ensureActiveExecutor({ accountType: 'company', userId: 'company-1' }))
             .resolves.toBe(true);
         expect(Employee.findById).not.toHaveBeenCalled();
+    });
+});
+
+describe('JWT tenant binding', () => {
+    const originalNodeEnv = process.env.NODE_ENV;
+    const originalLegacyFlag = process.env.ALLOW_LEGACY_TENANT_TOKENS;
+
+    afterEach(() => {
+        process.env.NODE_ENV = originalNodeEnv;
+        if (originalLegacyFlag === undefined) delete process.env.ALLOW_LEGACY_TENANT_TOKENS;
+        else process.env.ALLOW_LEGACY_TENANT_TOKENS = originalLegacyFlag;
+    });
+
+    test('allows a token only on its bound tenant', () => {
+        const req = { tenant: { _id: 'tenant-a' } };
+        expect(tokenMatchesRequestTenant({ tenantId: 'tenant-a' }, req)).toBe(true);
+        expect(tokenMatchesRequestTenant({ tenantId: 'tenant-b' }, req)).toBe(false);
+    });
+
+    test('rejects legacy tenantless tokens in production', () => {
+        process.env.NODE_ENV = 'production';
+        process.env.ALLOW_LEGACY_TENANT_TOKENS = 'false';
+        expect(tokenMatchesRequestTenant({}, { tenant: { _id: 'tenant-a' } })).toBe(false);
+        expect(tokenMatchesRequestTenant({ tenantId: 'tenant-a' }, {})).toBe(false);
     });
 });

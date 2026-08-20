@@ -163,7 +163,7 @@ const readReportDownloadToken = (token) => {
 };
 
 const generateExecutorReportPdf = async (app, data) => {
-    const executablePath = findBrowserExecutable();
+    const executablePath = await findBrowserExecutable();
     if (!executablePath) {
         const error = new Error('PDF_BROWSER_NOT_FOUND');
         error.code = 'PDF_BROWSER_NOT_FOUND';
@@ -436,6 +436,7 @@ router.post('/client/register/direct', directRegisterValidator, async (req, res)
 
         const regRequest = await RegistrationRequest.create({
             accountType: 'direct',
+            tenantId: (req.tenant && req.tenant._id) || undefined,
             fullName,
             phone,
             storeName,
@@ -494,6 +495,7 @@ router.post('/client/register/new', newRegisterValidator, async (req, res) => {
 
         const regRequest = await RegistrationRequest.create({
             accountType: 'new',
+            tenantId: (req.tenant && req.tenant._id) || agent.tenantId || undefined,
             fullName,
             phone,
             city,
@@ -551,6 +553,7 @@ router.post('/client/register/company', companyRegisterValidator, async (req, re
 
         const regRequest = await RegistrationRequest.create({
             accountType: 'company',
+            tenantId: (req.tenant && req.tenant._id) || undefined,
             companyName,
             companyContact,
             companyPhone,
@@ -603,6 +606,7 @@ router.post('/client/register/agent', agentRegisterValidator, async (req, res) =
 
         const regRequest = await RegistrationRequest.create({
             accountType: 'agent',
+            tenantId: (req.tenant && req.tenant._id) || undefined,
             companyName,
             fullName,
             companyContact: fullName,

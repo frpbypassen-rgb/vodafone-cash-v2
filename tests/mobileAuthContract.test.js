@@ -59,6 +59,12 @@ jest.mock('../models/SubAccount', () => {
     return M;
 });
 
+jest.mock('../models/MobileDeviceSession', () => ({
+    create: jest.fn().mockResolvedValue({ _id: 'device-session-id' }),
+    findOne: jest.fn(),
+    updateOne: jest.fn().mockResolvedValue({ modifiedCount: 1 })
+}));
+
 jest.mock('../models/Settings', () => ({
     findOne: jest.fn().mockReturnValue({
         lean: jest.fn().mockResolvedValue({
@@ -95,6 +101,7 @@ const Employee = require('../models/Employee');
 const ClientEmployee = require('../models/ClientEmployee');
 const ClientCompany = require('../models/ClientCompany');
 const AgentEmployee = require('../models/AgentEmployee');
+const MobileDeviceSession = require('../models/MobileDeviceSession');
 const bcrypt = require('bcryptjs');
 
 const RAW_RESPONSE_FIELDS = new Set([
@@ -516,7 +523,82 @@ describe('🔐 Contract Tests: Auth (Mobile API)', () => {
         expect(res.status).toBe(200);
         expect(res.body.success).toBe(true);
         expect(res.body.token).toBeDefined();
+        expect(res.body.refreshToken).toBeDefined();
+        expect(res.body.refreshToken).not.toBe('valid-refresh-token');
         expect(res.body.expiresIn).toBe(3600);
+        expect(res.body.refreshExpiresIn).toBe(2592000);
         expect(res.body.serverTime).toBeDefined();
+        expect(MobileDeviceSession.create).toHaveBeenCalledWith(expect.objectContaining({
+            accountId: 'user-id-123',
+            accountType: 'client_user',
+            refreshTokenHash: expect.stringMatching(/^[a-f0-9]{64}$/)
+        }));
+    });
+
+    test('rotates a device refresh token atomically and rejects reuse of the previous token', async () => {
+        const crypto = require('crypto');
+        const jwt = require('jsonwebtoken');
+        const oldRefreshToken = 'signed-refresh-token-from-device';
+        const oldHash = crypto.createHash('sha256').update(oldRefreshToken).digest('hex');
+        const mockUser = {
+            _id: 'user-id-123',
+            name: 'Client User',
+            status: 'active',
+            sessionVersion: 2
+        };
+
+        jest.spyOn(jwt, 'verify').mockImplementation((_token, _secret, callback) => {
+            callback(null, {
+                userId: 'user-id-123',
+                accountType: 'client_user',
+                sessionVersion: 2,
+                sessionId: 'device-session-1'
+            });
+        });
+        User.findById.mockResolvedValue(mockUser);
+        MobileDeviceSession.findOne.mockResolvedValueOnce({
+            _id: 'device-session-record',
+            refreshTokenHash: oldHash,
+            active: true
+        });
+
+        const rotated = await request(app)
+            .post('/refresh-token')
+            .send({ refreshToken: oldRefreshToken });
+
+        expect(rotated.status).toBe(200);
+        expect(rotated.body.refreshToken).toBeDefined();
+        expect(rotated.body.refreshToken).not.toBe(oldRefreshToken);
+        const rotationUpdate = MobileDeviceSession.updateOne.mock.calls[0];
+        expect(rotationUpdate[0]).toMatchObject({
+            _id: 'device-session-record',
+            active: true,
+            refreshTokenHash: oldHash
+        });
+        const nextHash = rotationUpdate[1].$set.refreshTokenHash;
+        expect(nextHash).toMatch(/^[a-f0-9]{64}$/);
+        expect(nextHash).not.toBe(oldHash);
+
+        MobileDeviceSession.findOne.mockResolvedValueOnce({
+            _id: 'device-session-record',
+            refreshTokenHash: nextHash,
+            active: true
+        });
+
+        const replay = await request(app)
+            .post('/refresh-token')
+            .send({ refreshToken: oldRefreshToken });
+
+        expect(replay.status).toBe(403);
+        expect(replay.body.code).toBe('TOKEN_REUSE_DETECTED');
+        expect(MobileDeviceSession.updateOne).toHaveBeenLastCalledWith(
+            { _id: 'device-session-record', active: true },
+            expect.objectContaining({
+                $set: expect.objectContaining({
+                    active: false,
+                    revokeReason: 'REFRESH_TOKEN_REUSE'
+                })
+            })
+        );
     });
 });

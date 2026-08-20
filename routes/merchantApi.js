@@ -20,14 +20,11 @@ const {
     acquireTransferCooldown,
     releaseTransferCooldown
 } = require('../services/transferCooldownService');
-
-const isTransactionUnsupportedError = (error) => {
-    const message = error && error.message ? error.message : '';
-    return message.includes('replica set')
-        || message.includes('Transaction numbers')
-        || message.includes('mongos')
-        || (message.includes('Transaction') && message.includes('not allowed'));
-};
+const {
+    isMongoTransactionFallbackError,
+    requiresMongoTransactions,
+    financialTransactionsUnavailableError
+} = require('../services/walletService');
 
 const merchantRequestError = (statusCode, message) => {
     const error = new Error(message);
@@ -74,7 +71,11 @@ const withOptionalTransaction = async (work) => {
         if (session) {
             try { await session.abortTransaction(); } catch (_) {}
         }
-        if (isTransactionUnsupportedError(error)) {
+        const transactionUnavailable = !session || isMongoTransactionFallbackError(error);
+        if (transactionUnavailable && requiresMongoTransactions()) {
+            throw financialTransactionsUnavailableError(error);
+        }
+        if (isMongoTransactionFallbackError(error)) {
             return work(null);
         }
         throw error;

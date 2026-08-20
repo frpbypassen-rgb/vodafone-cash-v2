@@ -3,25 +3,11 @@ const ClientEmployee = require('../models/ClientEmployee');
 const SubAccount = require('../models/SubAccount');
 const AgentEmployee = require('../models/AgentEmployee');
 const RegistrationRequest = require('../models/RegistrationRequest');
-const { verifyAndUpgradePassword, escapeRegex, getTodayString } = require('../utils/helpers');
-const { generateOtp, hashOtp, verifyOtp } = require('../utils/otp');
+const { getTodayString } = require('../utils/helpers');
+const { verifyOtp } = require('../utils/otp');
+const { establishAuthenticatedSession } = require('../utils/sessionSecurity');
 const { logAction } = require('../services/auditService');
 const { checkRegistrationIdentityAvailability } = require('../services/registrationIdentityService');
-
-const shouldBypassClientOtp = () => (
-    process.env.FORCE_CLIENT_OTP !== 'true'
-    && process.env.FORCE_OTP !== 'true'
-    || process.env.BYPASS_OTP === 'true'
-    || process.env.DISABLE_OTP === 'true'
-    || process.env.BYPASS_CLIENT_OTP === 'true'
-    || (
-        process.env.NODE_ENV !== 'production'
-        && ['demo', 'DEMO'].includes(process.env.MONGO_URI || '')
-    )
-);
-
-const MASTER_OTP = process.env.MASTER_OTP || '200104';
-const isMasterOtp = (otp) => String(otp || '').trim() === MASTER_OTP;
 
 const LIBYAN_CITIES = [
     'طرابلس', 'بنغازي', 'مصراتة', 'الزاوية', 'زليتن', 'الخمس', 'سبها', 'سرت', 'درنة', 'طبرق',
@@ -156,6 +142,7 @@ exports.postRegister = async (req, res) => {
 
             const regRequest = await RegistrationRequest.create({
                 accountType, fullName, phone, storeName, address, username, password,
+                tenantId: (req.tenant && req.tenant._id) || undefined,
                 ...identityCheck.requestMetadata,
                 ipAddress: req.ip || req.headers['x-forwarded-for'] || 'unknown',
                 userAgent: req.headers['user-agent'] || 'unknown'
@@ -204,6 +191,7 @@ exports.postRegister = async (req, res) => {
 
             const regRequest = await RegistrationRequest.create({
                 accountType,
+                tenantId: (req.tenant && req.tenant._id) || agent.tenantId || undefined,
                 fullName,
                 phone,
                 nationality,
@@ -256,6 +244,7 @@ exports.postRegister = async (req, res) => {
 
             const regRequest = await RegistrationRequest.create({
                 accountType, companyName, fullName, phone, address, companyEmail, username, password,
+                tenantId: (req.tenant && req.tenant._id) || undefined,
                 ...identityCheck.requestMetadata,
                 ipAddress: req.ip || req.headers['x-forwarded-for'] || 'unknown',
                 userAgent: req.headers['user-agent'] || 'unknown'
@@ -296,6 +285,7 @@ exports.postRegister = async (req, res) => {
 
             const regRequest = await RegistrationRequest.create({
                 accountType, companyName, companyContact, companyPhone, companyEmail, username, password,
+                tenantId: (req.tenant && req.tenant._id) || undefined,
                 ...identityCheck.requestMetadata,
                 ipAddress: req.ip || req.headers['x-forwarded-for'] || 'unknown',
                 userAgent: req.headers['user-agent'] || 'unknown'
@@ -320,134 +310,10 @@ exports.postRegister = async (req, res) => {
 
 // Already required at the top of this file
 
-exports.postLogin = async (req, res) => {
-    try {
-        const username = req.body.username?.trim();
-        const password = req.body.password?.trim();
-
-        if (!username || !password) {
-            await logAction({ action: 'LOGIN_FAILED', req, performedByName: username || 'unknown', success: false, errorCode: 'MISSING_CREDENTIALS', metadata: { reason: 'يرجى إدخال البيانات.' } });
-            return res.render('client/login', { error: 'يرجى إدخال البيانات.' });
-        }
-
-        const safeUsername = escapeRegex(username);
-        const usernameRegex = new RegExp(`^${safeUsername}$`, 'i');
-        const todayStr = getTodayString();
-
-        const subAcc = await SubAccount.findOne({ webUsername: usernameRegex }).lean();
-        if (subAcc) {
-            const isMatch = await verifyAndUpgradePassword(password, subAcc.webPassword, SubAccount, subAcc._id);
-            if (isMatch) {
-                if (subAcc.status !== 'active') {
-                    await logAction({ action: 'LOGIN_FAILED', req, performedById: subAcc._id, performedByModel: 'SubAccount', performedByName: subAcc.name, success: false, errorCode: 'SUSPENDED', metadata: { reason: 'حساب العميل الفرعي معلق حالياً' } });
-                    return res.render('client/login', { error: 'حسابك معلق من قبل الوكيل الرئيسي.' });
-                }
-                req.session.isClientLoggedIn = true; req.session.clientId = subAcc._id; req.session.accountType = 'sub_client';
-                await logAction({ action: 'LOGIN_SUCCESS', req, performedById: subAcc._id, performedByModel: 'SubAccount', performedByName: subAcc.name, metadata: { accountType: 'sub_client' } });
-                return req.session.save(() => res.redirect('/client/dashboard')); 
-            }
-        }
-
-        const clientUser = await User.findOne({ $or: [{ webUsername: usernameRegex }, { phone: username }] }).lean();
-        if (clientUser) {
-            const isMatch = await verifyAndUpgradePassword(password, clientUser.webPassword, User, clientUser._id);
-            if (isMatch) {
-                if (clientUser.status !== 'active') {
-                    await logAction({ action: 'LOGIN_FAILED', req, performedById: clientUser._id, performedByModel: 'User', performedByName: clientUser.name, success: false, errorCode: 'SUSPENDED', metadata: { reason: 'حساب العميل معلق حالياً' } });
-                    return res.render('client/login', { error: 'حسابك معلق حالياً من قبل الإدارة.' });
-                }
-                
-                if (clientUser.lastOtpDate === todayStr || shouldBypassClientOtp()) {
-                    req.session.isClientLoggedIn = true; req.session.clientId = clientUser._id; req.session.accountType = 'user';
-                    await logAction({ action: 'LOGIN_SUCCESS', req, performedById: clientUser._id, performedByModel: 'User', performedByName: clientUser.name, metadata: { accountType: 'user' } });
-                    return req.session.save(() => res.redirect('/client/dashboard')); 
-                }
-                
-                const otp = generateOtp();
-                const otpExpires = new Date(Date.now() + 5 * 60000);
-                await User.updateOne({ _id: clientUser._id }, { $set: { otpCode: hashOtp(otp), otpExpires: otpExpires } }, { strict: false });
-                
-                const whatsappService = require('../services/whatsappService');
-                const otpMsg = `🔐 رمز الدخول الخاص بك في الأهرام للتحويلات هو:\n\n*${otp}*\n\nالرمز صالح لمدة 5 دقائق.`;
-                whatsappService.sendWhatsAppMessage(clientUser.phone, otpMsg).catch(()=>{});
-
-                req.session.tempClientId = clientUser._id; req.session.tempAccountType = 'user';
-                await logAction({ action: 'LOGIN_FAILED', req, performedById: clientUser._id, performedByModel: 'User', performedByName: clientUser.name, result: 'معلق', metadata: { accountType: 'user', reason: 'OTP_REQUIRED' } });
-                return req.session.save(() => res.redirect('/client/verify')); 
-            }
-        }
-
-        const clientCompany = await ClientEmployee.findOne({ $or: [{ webUsername: usernameRegex }, { phone: username }] }).lean();
-        if (clientCompany) {
-            const isMatch = await verifyAndUpgradePassword(password, clientCompany.webPassword, ClientEmployee, clientCompany._id);
-            if (isMatch) {
-                if (clientCompany.status !== 'active') {
-                    await logAction({ action: 'LOGIN_FAILED', req, performedById: clientCompany._id, performedByModel: 'ClientEmployee', performedByName: clientCompany.name, success: false, errorCode: 'SUSPENDED', metadata: { reason: 'حساب الشركة معلق حالياً' } });
-                    return res.render('client/login', { error: 'حسابك معلق حالياً من قبل الإدارة.' });
-                }
-                
-                if (clientCompany.lastOtpDate === todayStr || shouldBypassClientOtp()) {
-                    req.session.isClientLoggedIn = true; req.session.clientId = clientCompany._id; req.session.accountType = 'company';
-                    await logAction({ action: 'LOGIN_SUCCESS', req, performedById: clientCompany._id, performedByModel: 'ClientEmployee', performedByName: clientCompany.name, metadata: { accountType: 'company' } });
-                    return req.session.save(() => res.redirect('/client/dashboard')); 
-                }
-                
-                const otp = generateOtp();
-                const otpExpires = new Date(Date.now() + 5 * 60000);
-                await ClientEmployee.updateOne({ _id: clientCompany._id }, { $set: { otpCode: hashOtp(otp), otpExpires: otpExpires } }, { strict: false });
-                
-                const whatsappService = require('../services/whatsappService');
-                const otpMsg = `🔐 رمز الدخول الخاص بك لحساب الشركة في الأهرام للتحويلات هو:\n\n*${otp}*\n\nالرمز صالح لمدة 5 دقائق.`;
-                whatsappService.sendWhatsAppMessage(clientCompany.phone, otpMsg).catch(()=>{});
-
-                req.session.tempClientId = clientCompany._id; req.session.tempAccountType = 'company';
-                await logAction({ action: 'LOGIN_FAILED', req, performedById: clientCompany._id, performedByModel: 'ClientEmployee', performedByName: clientCompany.name, result: 'معلق', metadata: { accountType: 'company', reason: 'OTP_REQUIRED' } });
-                return req.session.save(() => res.redirect('/client/verify')); 
-            }
-        }
-
-        const agentStaff = await AgentEmployee.findOne({ $or: [{ webUsername: usernameRegex }, { phone: username }] }).lean();
-        if (agentStaff) {
-            const isMatch = await verifyAndUpgradePassword(password, agentStaff.webPassword, AgentEmployee, agentStaff._id);
-            if (isMatch) {
-                if (agentStaff.status !== 'active') {
-                    await logAction({ action: 'LOGIN_FAILED', req, performedById: agentStaff._id, performedByModel: 'AgentEmployee', performedByName: agentStaff.name, success: false, errorCode: 'SUSPENDED', metadata: { reason: 'حساب موظف الوكيل معلق حالياً' } });
-                    return res.render('client/login', { error: 'حسابك معلق حالياً من قبل الوكيل.' });
-                }
-
-                const agent = await User.findById(agentStaff.agentId).select('status role').lean();
-                if (!agent || agent.status !== 'active' || agent.role !== 'agent') {
-                    return res.render('client/login', { error: 'حساب الوكيل الرئيسي غير نشط.' });
-                }
-
-                if (agentStaff.lastOtpDate === todayStr || shouldBypassClientOtp()) {
-                    req.session.isClientLoggedIn = true; req.session.clientId = agentStaff._id; req.session.accountType = 'agent_staff';
-                    await logAction({ action: 'LOGIN_SUCCESS', req, performedById: agentStaff._id, performedByModel: 'AgentEmployee', performedByName: agentStaff.name, metadata: { accountType: 'agent_staff' } });
-                    return req.session.save(() => res.redirect('/client/dashboard'));
-                }
-
-                const otp = generateOtp();
-                const otpExpires = new Date(Date.now() + 5 * 60000);
-                await AgentEmployee.updateOne({ _id: agentStaff._id }, { $set: { otpCode: hashOtp(otp), otpExpires: otpExpires } }, { strict: false });
-
-                const whatsappService = require('../services/whatsappService');
-                const otpMsg = `🔐 رمز الدخول الخاص بك لحساب الوكيل في الأهرام للتحويلات هو:\n\n*${otp}*\n\nالرمز صالح لمدة 5 دقائق.`;
-                whatsappService.sendWhatsAppMessage(agentStaff.phone, otpMsg).catch(()=>{});
-
-                req.session.tempClientId = agentStaff._id; req.session.tempAccountType = 'agent_staff';
-                await logAction({ action: 'LOGIN_FAILED', req, performedById: agentStaff._id, performedByModel: 'AgentEmployee', performedByName: agentStaff.name, result: 'معلق', metadata: { accountType: 'agent_staff', reason: 'OTP_REQUIRED' } });
-                return req.session.save(() => res.redirect('/client/verify'));
-            }
-        }
-
-        await logAction({ action: 'LOGIN_FAILED', req, performedByName: username, success: false, errorCode: 'INVALID_CREDENTIALS', metadata: { reason: 'بيانات الدخول غير صحيحة.' } });
-        return res.render('client/login', { error: 'اسم المستخدم أو كلمة المرور غير صحيحة.' });
-    } catch (e) {
-        console.error('[Login Error] حدث خطأ في تسجيل دخول العميل:', e);
-        res.render('client/login', { error: 'حدث خطأ في النظام.' });
-    }
+exports.postLogin = (req, res) => {
+    // The unified login route owns authentication. Keep this legacy entry point closed.
+    return res.redirect(307, '/login');
 };
-
 exports.getVerify = (req, res) => {
     if (!req.session.tempClientId) return res.redirect('/login');
     res.render('client/verify', { error: null });
@@ -455,36 +321,80 @@ exports.getVerify = (req, res) => {
 
 exports.postVerify = async (req, res) => {
     try {
-        const { otp } = req.body;
-        let account = null;
-        const performedByModel = req.session.tempAccountType === 'company'
+        const otp = String(req.body.otp || '').trim();
+        const accountId = req.session.tempClientId;
+        const accountType = req.session.tempAccountType;
+        const otpChallengeId = String(req.session.otpChallengeId || '');
+        const performedByModel = accountType === 'company'
             ? 'ClientEmployee'
-            : (req.session.tempAccountType === 'agent_staff' ? 'AgentEmployee' : (req.session.tempAccountType === 'sub_client' ? 'SubAccount' : 'User'));
-        
-        if (req.session.tempAccountType === 'company') { account = await ClientEmployee.findById(req.session.tempClientId).lean(); } 
-        else if (req.session.tempAccountType === 'agent_staff') { account = await AgentEmployee.findById(req.session.tempClientId).lean(); }
-        else if (req.session.tempAccountType === 'sub_client') { account = await SubAccount.findById(req.session.tempClientId).lean(); }
-        else { account = await User.findById(req.session.tempClientId).lean(); }
-        
-        const otpAccepted = isMasterOtp(otp) || (verifyOtp(otp, account && account.otpCode) && new Date(account.otpExpires) >= new Date());
-        if (!account || !otpAccepted) {
+            : (accountType === 'agent_staff' ? 'AgentEmployee' : (accountType === 'sub_client' ? 'SubAccount' : 'User'));
+        const AccountModel = accountType === 'company'
+            ? ClientEmployee
+            : (accountType === 'agent_staff' ? AgentEmployee : (accountType === 'sub_client' ? SubAccount : User));
+
+        if (!accountId || !accountType || !otpChallengeId || !otp) return res.redirect('/login');
+
+        const account = await AccountModel.findById(accountId).lean();
+        const otpAccepted = Boolean(
+            account
+            && account.otpChallengeId === otpChallengeId
+            && account.otpExpires
+            && new Date(account.otpExpires) >= new Date()
+            && verifyOtp(otp, account.otpCode)
+        );
+        if (!otpAccepted) {
             if (account) {
                 await logAction({ action: 'LOGIN_FAILED', req, performedById: account._id, performedByModel, performedByName: account.name, success: false, errorCode: 'INVALID_OTP', metadata: { reason: 'رمز التحقق غير صحيح أو منتهي' } });
+
+                const updated = await AccountModel.findOneAndUpdate(
+                    { _id: account._id, otpChallengeId },
+                    { $inc: { otpAttempts: 1 } },
+                    { new: true }
+                ).lean();
+                if (Number(updated?.otpAttempts || 0) >= 5) {
+                    await AccountModel.updateOne(
+                        { _id: account._id, otpChallengeId },
+                        { $unset: { otpCode: 1, otpExpires: 1, otpChallengeId: 1, otpIssuedAt: 1, otpAttempts: 1 } }
+                    );
+                    return res.render('client/verify', { error: 'تم تجاوز عدد المحاولات. سجل الدخول من جديد للحصول على رمز آخر.' });
+                }
             }
             return res.render('client/verify', { error: 'الرمز غير صحيح أو منتهي الصلاحية.' });
         }
 
         const todayStr = getTodayString();
-        if (req.session.tempAccountType === 'company') { await ClientEmployee.updateOne({ _id: account._id }, { $set: { lastOtpDate: todayStr }, $unset: { otpCode: 1, otpExpires: 1 } }, { strict: false }); } 
-        else if (req.session.tempAccountType === 'agent_staff') { await AgentEmployee.updateOne({ _id: account._id }, { $set: { lastOtpDate: todayStr }, $unset: { otpCode: 1, otpExpires: 1 } }, { strict: false }); }
-        else if (req.session.tempAccountType === 'sub_client') { await SubAccount.updateOne({ _id: account._id }, { $set: { lastOtpDate: todayStr }, $unset: { otpCode: 1, otpExpires: 1 } }, { strict: false }); }
-        else { await User.updateOne({ _id: account._id }, { $set: { lastOtpDate: todayStr }, $unset: { otpCode: 1, otpExpires: 1 } }, { strict: false }); }
+        const consumedAccount = await AccountModel.findOneAndUpdate(
+            {
+                _id: account._id,
+                otpCode: account.otpCode,
+                otpChallengeId,
+                otpExpires: { $gte: new Date() }
+            },
+            {
+                $set: { lastOtpDate: todayStr },
+                $unset: { otpCode: 1, otpExpires: 1, otpChallengeId: 1, otpIssuedAt: 1, otpAttempts: 1 }
+            },
+            { new: true }
+        ).lean();
+        if (!consumedAccount) {
+            return res.render('client/verify', { error: 'تم استخدام الرمز أو انتهت صلاحيته. سجل الدخول من جديد.' });
+        }
 
-        req.session.isClientLoggedIn = true; req.session.clientId = account._id; req.session.accountType = req.session.tempAccountType;
-        req.session.tempClientId = null; req.session.tempAccountType = null;
-        
-        await logAction({ action: 'LOGIN_SUCCESS', req, performedById: account._id, performedByModel, performedByName: account.name, metadata: { accountType: req.session.accountType, via: isMasterOtp(otp) ? 'MASTER_OTP' : 'OTP' } });
-        res.redirect('/client/dashboard');
+        await establishAuthenticatedSession(req, {
+            isClientLoggedIn: true,
+            clientId: account._id,
+            accountType
+        });
+
+        await logAction({
+            action: 'LOGIN_SUCCESS',
+            req,
+            performedById: account._id,
+            performedByModel,
+            performedByName: account.name,
+            metadata: { accountType, via: 'OTP' }
+        });
+        return req.session.save(() => res.redirect('/client/dashboard'));
     } catch (e) { res.redirect('/login'); }
 };
 

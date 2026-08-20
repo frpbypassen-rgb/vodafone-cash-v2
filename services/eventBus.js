@@ -7,6 +7,17 @@
 const EventEmitter = require('events');
 const logger = require('../utils/logger');
 
+const summarizeEventForLog = (eventName, data = {}) => {
+    const transaction = data.tx || data.transaction || {};
+    return {
+        eventName,
+        customId: transaction.customId,
+        status: transaction.status,
+        tenantId: transaction.tenantId,
+        hasProof: Boolean(transaction.proofImage || transaction.proofImages?.length)
+    };
+};
+
 class FinancialEventBus extends EventEmitter {
     constructor() {
         super();
@@ -21,7 +32,7 @@ class FinancialEventBus extends EventEmitter {
      * @param {Object} data - البيانات المصاحبة للحدث
      */
     publish(eventName, data) {
-        logger.info(`📢 [EventBus] Publishing event: ${eventName}`, { data });
+        logger.info(`📢 [EventBus] Publishing event: ${eventName}`, summarizeEventForLog(eventName, data));
         this.emit(eventName, data);
     }
 }
@@ -119,3 +130,4 @@ eventBus.on('transfer:cancelled', async (data) => {
 });
 
 module.exports = eventBus;
+module.exports.summarizeEventForLog = summarizeEventForLog;

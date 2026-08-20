@@ -3,7 +3,7 @@
 const fs = require('fs');
 const path = require('path');
 const { pathToFileURL } = require('url');
-const puppeteer = require('puppeteer');
+const { loadPuppeteer } = require('../utils/puppeteerLoader');
 const { createCanvas, loadImage } = require('canvas');
 
 const { createDepositReceiptProof } = require('../services/depositReceiptService');
@@ -143,6 +143,7 @@ const main = async () => {
 
     let browser = null;
     try {
+        const puppeteer = await loadPuppeteer();
         browser = await puppeteer.launch({
             headless: 'new',
             args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage', '--disable-gpu']

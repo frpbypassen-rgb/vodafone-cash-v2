@@ -558,7 +558,7 @@ async function requestExecutorDeposit({ executorId, amount, req }) {
         const emp = await Employee.findById(executorId).populate('groupId');
         assertExecutorTaskRole(emp);
 
-        const customId = await nextDepositRequestId(session);
+        const customId = await nextDepositRequestId();
         const tx = new Transaction({
             userId: 'admin',
             executorGroupId: emp.groupId._id,

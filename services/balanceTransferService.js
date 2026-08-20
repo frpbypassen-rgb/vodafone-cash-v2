@@ -11,6 +11,11 @@ const SubAccount = require('../models/SubAccount');
 const Notification = require('../models/Notification');
 const { resolveAccountByCode } = require('./accountCodeService');
 const { createBalanceTransferReceiptProof } = require('./balanceTransferReceiptService');
+const {
+    isMongoTransactionFallbackError,
+    requiresMongoTransactions,
+    financialTransactionsUnavailableError
+} = require('./walletService');
 
 const modelByName = {
     User,
@@ -163,16 +168,32 @@ const executeBalanceTransfer = async ({ source, targetCode, amount, notes = '', 
     const sourceAdminNotes = `تحويل رصيد صادر إلى ${accountName(target)} - ID: ${target.doc.accountCode || 'غير محدد'}`;
     const targetAdminNotes = `تحويل رصيد وارد من ${accountName(source)} - ID: ${source.doc.accountCode || 'غير محدد'}`;
 
-    const useTransaction = externalSession ? false : await canUseMongoTransactions();
+    let useTransaction = false;
     let session = externalSession || null;
     let sourceAfter;
     let targetAfter;
     let transferId;
 
     try {
-        if (useTransaction) {
-            session = await mongoose.startSession();
-            session.startTransaction();
+        if (!externalSession) {
+            useTransaction = await canUseMongoTransactions();
+            if (!useTransaction && requiresMongoTransactions()) {
+                throw financialTransactionsUnavailableError(
+                    new Error('MongoDB replica set or sharded cluster is unavailable')
+                );
+            }
+            if (useTransaction) {
+                try {
+                    session = await mongoose.startSession();
+                    session.startTransaction();
+                } catch (error) {
+                    if (requiresMongoTransactions()) {
+                        throw financialTransactionsUnavailableError(error);
+                    }
+                    useTransaction = false;
+                    session = null;
+                }
+            }
         }
 
         transferId = await nextBalanceTransferId(session);
@@ -260,6 +281,9 @@ const executeBalanceTransfer = async ({ source, targetCode, amount, notes = '', 
             }
             await Transaction.deleteMany({ customId: { $in: [`${transferId}-D`, `${transferId}-C`] } }).catch(() => {});
             await Ledger.deleteMany({ transactionId: transferId }).catch(() => {});
+        }
+        if (requiresMongoTransactions() && isMongoTransactionFallbackError(error)) {
+            throw financialTransactionsUnavailableError(error);
         }
         throw error;
     }

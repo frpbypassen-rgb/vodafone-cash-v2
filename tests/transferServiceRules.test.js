@@ -22,15 +22,15 @@ describe('Transfer service rules', () => {
         expect(validateTransferInput({
             ...validInput,
             serviceKey: 'post_account',
-            destination: '1234567890123456',
-            beneficiaryName: 'محمد أحمد علي محمود'
+            destination: '123456789012345',
+            beneficiaryName: 'محمد أحمد علي'
         })).toBeNull();
         expect(validateTransferInput({
             ...validInput,
             serviceKey: 'post_account',
-            destination: '1234567890123456',
+            destination: '123456789012345',
             beneficiaryName: 'محمد أحمد'
-        })).toContain('الرباعي');
+        })).toContain('ثلاث');
     });
 
     test('requires the same structured fields for postal card transfers', () => {
@@ -49,7 +49,7 @@ describe('Transfer service rules', () => {
         expect(validateTransferInput({ ...postalCard, hasIdentityImage: false })).toContain('صورة البطاقة');
     });
 
-    test('requires city only for NITA, accepts 8-10 digit accounts, and rejects fractional Sefa amounts', () => {
+    test('requires city only for NITA, accepts 8-11 digit accounts, and rejects fractional Sefa amounts', () => {
         const sefa = {
             ...validInput,
             serviceKey: 'sefa_niger',
@@ -62,8 +62,9 @@ describe('Transfer service rules', () => {
         expect(validateTransferInput({ ...sefa, city: 'نيامي' })).toBeNull();
         expect(validateTransferInput({ ...sefa, destination: '123456789', city: 'نيامي' })).toBeNull();
         expect(validateTransferInput({ ...sefa, destination: '1234567890', city: 'نيامي' })).toBeNull();
-        expect(validateTransferInput({ ...sefa, destination: '1234567', city: 'نيامي' })).toContain('8 إلى 10');
-        expect(validateTransferInput({ ...sefa, destination: '12345678901', city: 'نيامي' })).toContain('8 إلى 10');
+        expect(validateTransferInput({ ...sefa, destination: '1234567', city: 'نيامي' })).toContain('8 إلى 11');
+        expect(validateTransferInput({ ...sefa, destination: '12345678901', city: 'نيامي' })).toBeNull();
+        expect(validateTransferInput({ ...sefa, destination: '123456789012', city: 'نيامي' })).toContain('8 إلى 11');
         expect(validateTransferInput({ ...sefa, subtype: 'nita_account' })).toBeNull();
         expect(validateTransferInput({ ...sefa, subtype: 'nita_account', amount: 1000.5 })).toContain('كسور');
         expect(validateTransferInput({
@@ -77,6 +78,6 @@ describe('Transfer service rules', () => {
             enforceDataEntryAcknowledgement: true,
             dataEntryAcknowledged: true
         })).toBeNull();
-        expect(getTransferServiceRules('sefa_niger').destinationMaxLength).toBe(10);
+        expect(getTransferServiceRules('sefa_niger').destinationMaxLength).toBe(11);
     });
 });

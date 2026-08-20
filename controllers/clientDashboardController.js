@@ -322,6 +322,7 @@ exports.postAddSubAccount = async (req, res) => {
         await SubAccount.create({
             masterType,
             masterId,
+            tenantId: (req.tenant && req.tenant._id) || account.tenantId || undefined,
             name,
             phone,
             webUsername,

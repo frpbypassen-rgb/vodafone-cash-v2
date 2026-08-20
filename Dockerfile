@@ -22,6 +22,11 @@ RUN apk add --no-cache \
 # تحديد مجلد العمل داخل الحاوية
 WORKDIR /usr/src/app
 
+# Use the patched system Chromium package and avoid downloading a second browser.
+ENV PUPPETEER_SKIP_DOWNLOAD=true
+ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true
+ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium
+
 # نسخ ملفات التثبيت فقط أولاً (للاستفادة من الكاش)
 COPY package*.json ./
 
@@ -31,10 +36,8 @@ RUN npm ci --omit=dev
 # نسخ باقي ملفات المشروع السليمة
 COPY . .
 
-# إعداد متغيرات البيئة لـ Puppeteer
+# إعداد بيئة التشغيل
 ENV NODE_ENV=production
-ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true
-ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium-browser
 
 # فتح البورت
 EXPOSE 3000

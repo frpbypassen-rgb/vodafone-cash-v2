@@ -2,12 +2,12 @@
 
 const fs = require('fs');
 const path = require('path');
-const puppeteer = require('puppeteer');
 const { sanitizeAccountStatementReport } = require('../utils/accountStatementPrivacy');
+const { loadPuppeteer } = require('../utils/puppeteerLoader');
 
 let sharedBrowserPromise = null;
 
-const executableCandidates = () => {
+const executableCandidates = async () => {
     const candidates = [process.env.PUPPETEER_EXECUTABLE_PATH, process.env.CHROME_PATH];
     if (process.platform === 'win32') {
         candidates.push(
@@ -32,12 +32,15 @@ const executableCandidates = () => {
     }
 
     try {
-        candidates.unshift(puppeteer.executablePath());
+        const puppeteer = await loadPuppeteer();
+        candidates.unshift(await puppeteer.executablePath());
     } catch (_) {}
     return candidates.filter(Boolean);
 };
 
-const findBrowserExecutable = () => executableCandidates().find((candidate) => fs.existsSync(candidate));
+const findBrowserExecutable = async () => (
+    (await executableCandidates()).find((candidate) => fs.existsSync(candidate))
+);
 
 const renderView = (app, view, data) => new Promise((resolve, reject) => {
     app.render(view, data, (error, html) => {
@@ -61,20 +64,22 @@ const logoDataUri = () => {
 
 const getSharedBrowser = (executablePath) => {
     if (!sharedBrowserPromise) {
-        sharedBrowserPromise = puppeteer.launch({
-            headless: true,
-            executablePath,
-            args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage'],
-            protocolTimeout: 60000
-        }).then((browser) => {
-            browser.on('disconnected', () => {
+        sharedBrowserPromise = loadPuppeteer()
+            .then((puppeteer) => puppeteer.launch({
+                headless: true,
+                executablePath,
+                args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage'],
+                protocolTimeout: 60000
+            }))
+            .then((browser) => {
+                browser.on('disconnected', () => {
+                    sharedBrowserPromise = null;
+                });
+                return browser;
+            }).catch((error) => {
                 sharedBrowserPromise = null;
+                throw error;
             });
-            return browser;
-        }).catch((error) => {
-            sharedBrowserPromise = null;
-            throw error;
-        });
     }
     return sharedBrowserPromise;
 };
@@ -100,7 +105,7 @@ const preparePdfReport = (report = {}) => {
 };
 
 const generateAdminReportPdf = async (app, data) => {
-    const executablePath = findBrowserExecutable();
+    const executablePath = await findBrowserExecutable();
     if (!executablePath) {
         const error = new Error('PDF_BROWSER_NOT_FOUND');
         error.code = 'PDF_BROWSER_NOT_FOUND';
@@ -140,7 +145,7 @@ const generateAdminReportPdf = async (app, data) => {
 };
 
 const generateExecutorReportPdf = async (app, data) => {
-    const executablePath = findBrowserExecutable();
+    const executablePath = await findBrowserExecutable();
     if (!executablePath) {
         const error = new Error('PDF_BROWSER_NOT_FOUND');
         error.code = 'PDF_BROWSER_NOT_FOUND';

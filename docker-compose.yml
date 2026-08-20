@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   ahram_core:
     build: .
@@ -9,41 +7,69 @@ services:
       - "3000:3000"
     environment:
       - NODE_ENV=production
-      - REDIS_URL=redis://:${REDIS_PASSWORD:-ahram_redis_pass_2026}@redis_cache:6379
+      - REDIS_URL=redis://:${REDIS_PASSWORD:?REDIS_PASSWORD is required}@redis_cache:6379
     env_file:
       - .env
     depends_on:
-      - mongo_db
-      - redis_cache
+      mongo_rs_init:
+        condition: service_completed_successfully
+      redis_cache:
+        condition: service_healthy
 
   mongo_db:
     image: mongo:6.0
     container_name: ahram_mongodb
     restart: always
     ports:
-      - "27017:27017"
+      - "127.0.0.1:27017:27017"
     volumes:
       - ahram_mongo_data:/data/db
-    # 🟢 تفعيل الـ Replica Set إجبارياً لكي تعمل الـ (Transactions الذرية)
     command: ["--replSet", "rs0", "--bind_ip_all"]
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "quit(db.adminCommand({ ping: 1 }).ok ? 0 : 1)"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 10s
 
   mongo_rs_init:
     image: mongo:6.0
     container_name: ahram_mongo_rs_init
     depends_on:
-      - mongo_db
-    # تهيئة الـ Replica Set تلقائياً بمجرد تشغيل قاعدة البيانات
-    entrypoint: [ "/bin/bash", "-c", "sleep 5 && mongosh --host mongo_db --eval 'rs.initiate({_id: \"rs0\", members: [{_id: 0, host: \"mongo_db:27017\"}]})' || true" ]
+      mongo_db:
+        condition: service_healthy
+    restart: "no"
+    entrypoint: ["/bin/bash", "-c"]
+    command:
+      - |
+        mongosh --host mongo_db --quiet --eval '
+          try {
+            const status = rs.status();
+            if (!status.ok) quit(1);
+          } catch (error) {
+            const result = rs.initiate({ _id: "rs0", members: [{ _id: 0, host: "mongo_db:27017" }] });
+            if (!result.ok && result.codeName !== "AlreadyInitialized") quit(1);
+          }
+        '
+        until mongosh --host mongo_db --quiet --eval 'quit(rs.status().myState === 1 ? 0 : 1)'; do sleep 2; done
 
   redis_cache:
     image: redis:7-alpine
     container_name: ahram_redis
     restart: always
     ports:
-      - "6379:6379"
+      - "127.0.0.1:6379:6379"
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD:?REDIS_PASSWORD is required}
     volumes:
       - ahram_redis_data:/data
-    command: ["redis-server", "--requirepass", "${REDIS_PASSWORD:-ahram_redis_pass_2026}"]
+    command: ["redis-server", "--requirepass", "${REDIS_PASSWORD:?REDIS_PASSWORD is required}"]
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli -a \"$$REDIS_PASSWORD\" ping | grep PONG"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 5s
 
 volumes:
   ahram_mongo_data:

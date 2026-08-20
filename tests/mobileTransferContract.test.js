@@ -192,7 +192,10 @@ const fingerprintFor = (payload, userId = 'user-id-123', accountType = 'client_u
         name: payload.name || null,
         notes: payload.notes || null,
         serviceSubtype: payload.serviceSubtype || null,
-        city: payload.city || null
+        city: payload.city || null,
+        recipientPhone: payload.recipientPhone || null,
+        governorate: payload.governorate || null,
+        bankName: payload.bankName || null
     };
     return crypto.createHash('sha256').update(JSON.stringify(normalized)).digest('hex');
 };
@@ -331,10 +334,11 @@ describe('💸 Contract Tests: Transfer (Mobile API)', () => {
         [
             'bank_account',
             {
-                amount: 100,
-                number: 'EG1234567890123456',
+                amount: 500,
+                number: 'EG123456789012345678901234567',
                 transferType: 'bank_account',
-                name: 'Bank Recipient',
+                name: 'Bank Test Recipient',
+                bankName: 'البنك الأهلي المصري',
                 notes: 'bank transfer test'
             },
             6.35,
@@ -358,9 +362,10 @@ describe('💸 Contract Tests: Transfer (Mobile API)', () => {
             'bankak_sudan',
             {
                 amount: 100,
-                number: 'BK123456789',
+                number: '12345678901234',
                 transferType: 'bankak_sudan',
                 name: 'Bankak Recipient',
+                recipientPhone: '00249912345678',
                 notes: 'bankak transfer test'
             },
             6.65,

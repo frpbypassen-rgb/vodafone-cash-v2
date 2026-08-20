@@ -12,8 +12,11 @@ module.exports = [
     ignores: [
       'coverage/**',
       'dist/**',
+      'mobile_app/**',
       'node_modules/**',
-      'scratch/**'
+      'releases/**',
+      'scratch/**',
+      'test-artifacts/**'
     ],
   },
   {
@@ -25,6 +28,7 @@ module.exports = [
         ...globals.node,
         ...globals.browser,
         ...globals.jest,
+        Swal: 'readonly',
       },
     },
     rules: {

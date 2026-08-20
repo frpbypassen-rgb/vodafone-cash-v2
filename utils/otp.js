@@ -27,15 +27,10 @@ const safeEqual = (left, right) => {
 const verifyOtp = (submittedOtp, storedOtp) => {
     const submitted = String(submittedOtp || '').trim();
     const stored = String(storedOtp || '');
-    if (!submitted || !stored) return false;
+    if (!/^\d{6}$/.test(submitted) || !/^[a-f0-9]{64}$/i.test(stored)) return false;
 
     const submittedHash = hashOtp(submitted);
-    if (/^[a-f0-9]{64}$/i.test(stored)) {
-        return safeEqual(submittedHash, stored);
-    }
-
-    // Backward-compatible verification for OTPs issued before hashing was enabled.
-    return safeEqual(submitted, stored);
+    return safeEqual(submittedHash, stored);
 };
 
 module.exports = {

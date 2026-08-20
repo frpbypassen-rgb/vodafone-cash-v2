@@ -73,6 +73,14 @@ if (mongoUri && (!/^mongodb(?:\+srv)?:\/\//i.test(mongoUri) || /^demo$/i.test(mo
 for (const key of ['JWT_SECRET', 'JWT_REFRESH_SECRET', 'SESSION_SECRET', 'OTP_SECRET']) {
     requireValue(key, { minLength: 32 });
 }
+const secretKeys = ['JWT_SECRET', 'JWT_REFRESH_SECRET', 'SESSION_SECRET', 'OTP_SECRET'];
+for (let left = 0; left < secretKeys.length; left += 1) {
+    for (let right = left + 1; right < secretKeys.length; right += 1) {
+        if (clean(secretKeys[left]) && clean(secretKeys[left]) === clean(secretKeys[right])) {
+            addError('SECRET_REUSE', `${secretKeys[left]} and ${secretKeys[right]} must be different`);
+        }
+    }
+}
 
 requireValue('PANEL_USER');
 requireValue('PANEL_PASS', { minLength: 10 });
@@ -96,7 +104,7 @@ if (!allowedOrigins.length) {
     addWarning('ALLOWED_ORIGINS', 'does not include the PUBLIC_APP_URL origin');
 }
 
-if (!enabled('SECURE_COOKIE')) addWarning('SECURE_COOKIE', 'should be true behind production HTTPS');
+if (!enabled('SECURE_COOKIE')) addError('SECURE_COOKIE', 'must be true behind production HTTPS');
 const sameSite = clean('COOKIE_SAMESITE').toLowerCase();
 if (sameSite && !['lax', 'strict', 'none'].includes(sameSite)) {
     addError('COOKIE_SAMESITE', 'must be lax, strict, or none');
@@ -105,10 +113,38 @@ if (sameSite === 'none' && !enabled('SECURE_COOKIE')) {
     addError('SECURE_COOKIE', 'must be true when COOKIE_SAMESITE is none');
 }
 
-if (enabled('BYPASS_OTP') || enabled('BYPASS_CLIENT_OTP')) {
-    addWarning('OTP_BYPASS', 'an OTP bypass is enabled in production');
+if (enabled('BYPASS_OTP') || enabled('BYPASS_CLIENT_OTP') || enabled('DISABLE_OTP')) {
+    addError('OTP_BYPASS', 'OTP bypass flags cannot be enabled in production');
 }
-if (clean('MASTER_OTP')) addWarning('MASTER_OTP', 'a fixed master OTP is configured');
+if (clean('MASTER_OTP')) addError('MASTER_OTP', 'fixed master OTP values are not supported');
+if (!enabled('FORCE_CLIENT_OTP') && !enabled('FORCE_OTP')) {
+    addError('FORCE_CLIENT_OTP', 'must be true in production');
+}
+if (clean('SESSION_STORE').toLowerCase() === 'memory') {
+    addError('SESSION_STORE', 'memory sessions are forbidden in production');
+}
+if (enabled('ALLOW_PUBLIC_SYSTEM_MONITOR')) {
+    addError('ALLOW_PUBLIC_SYSTEM_MONITOR', 'cannot be enabled in production');
+}
+if (!enabled('MONGO_TRANSACTIONS_REQUIRED')) {
+    addError('MONGO_TRANSACTIONS_REQUIRED', 'must be true for production financial writes');
+}
+if (!enabled('TENANT_ISOLATION_REQUIRED')) {
+    addError('TENANT_ISOLATION_REQUIRED', 'must be true in production');
+}
+const tenantMode = clean('TENANT_MODE').toLowerCase();
+if (!['single', 'multi'].includes(tenantMode)) {
+    addError('TENANT_MODE', 'must be single or multi');
+}
+if (!clean('DEFAULT_TENANT_ID') && !clean('DEFAULT_TENANT_SLUG')) {
+    addError('DEFAULT_TENANT_SLUG', 'DEFAULT_TENANT_ID or DEFAULT_TENANT_SLUG is required');
+}
+if (tenantMode === 'multi' && !clean('TENANT_ROOT_DOMAIN')) {
+    addError('TENANT_ROOT_DOMAIN', 'is required when TENANT_MODE is multi');
+}
+if (enabled('ALLOW_LEGACY_TENANTLESS_RECORDS') || enabled('ALLOW_LEGACY_TENANT_TOKENS')) {
+    addError('TENANT_LEGACY_MODE', 'legacy tenantless records and tokens must be disabled in production');
+}
 
 if (enabled('REDIS_REQUIRED') && disabled('REDIS_ENABLED')) {
     addError('REDIS_ENABLED', 'cannot be false while REDIS_REQUIRED is true');

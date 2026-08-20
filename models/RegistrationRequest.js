@@ -32,6 +32,7 @@ const registrationRequestSchema = new mongoose.Schema({
     agentId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
     agentName: { type: String },
     executorServiceKey: { type: String, enum: EXECUTOR_SERVICE_KEYS, default: undefined },
+    tenantId: { type: mongoose.Schema.Types.ObjectId, ref: 'Tenant' },
 
     // حالة الطلب
     status: {
@@ -86,6 +87,7 @@ registrationRequestSchema.pre('save', function() {
 // فهارس
 registrationRequestSchema.index({ status: 1, createdAt: -1 });
 registrationRequestSchema.index({ phone: 1 });
+registrationRequestSchema.index({ tenantId: 1, status: 1, createdAt: -1 });
 // refCode لديه unique بالفعل في الشيما — لا حاجة لتكرار الفهرس
 
 module.exports = mongoose.model('RegistrationRequest', registrationRequestSchema);

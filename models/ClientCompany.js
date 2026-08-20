@@ -42,8 +42,11 @@ const clientCompanySchema = new mongoose.Schema({
     creditLimit: { type: Number, default: 0 }, 
     
     status: { type: String, default: 'active' }, // active, inactive
+    tenantId: { type: mongoose.Schema.Types.ObjectId, ref: 'Tenant' },
     deletedAt: { type: Date },
     deletedBy: { type: String }
 }, { timestamps: true });
+
+clientCompanySchema.index({ tenantId: 1 });
 
 module.exports = mongoose.model('ClientCompany', clientCompanySchema);

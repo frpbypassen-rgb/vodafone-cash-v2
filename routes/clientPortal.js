@@ -5,6 +5,7 @@ const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
 const multer = require('multer');
+const rateLimit = require('express-rate-limit');
 const SupportTicket = require('../models/SupportTicket');
 const User = require('../models/User');
 const ClientEmployee = require('../models/ClientEmployee');
@@ -18,6 +19,14 @@ const WebPushSubscription = require('../models/WebPushSubscription');
 const Settings = require('../models/Settings');
 const { activatePendingRateUpdate } = require('../services/rateChangeService');
 const { buildPendingRateAlertForClient } = require('../services/rateAlerts/rateAlertAudienceService');
+
+const otpVerifyLimiter = rateLimit({
+    windowMs: 5 * 60 * 1000,
+    max: 8,
+    message: 'تم تجاوز عدد محاولات رمز التحقق. سجل الدخول من جديد بعد خمس دقائق.',
+    standardHeaders: true,
+    legacyHeaders: false
+});
 
 // Middleware
 const endUnauthorizedClientSession = (req, res) => {
@@ -143,7 +152,7 @@ router.get('/register', clientAuthController.getRegister);
 router.get('/register/agent-lookup', clientAuthController.lookupAgent);
 router.post('/register', clientAuthController.postRegister);
 router.get('/verify', clientAuthController.getVerify);
-router.post('/verify', clientAuthController.postVerify);
+router.post('/verify', otpVerifyLimiter, clientAuthController.postVerify);
 router.get('/logout', clientAuthController.logout);
 
 // ===============================================

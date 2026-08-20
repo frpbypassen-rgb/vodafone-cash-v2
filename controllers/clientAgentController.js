@@ -280,6 +280,7 @@ exports.postAddStaff = async (req, res) => {
 
         const created = await AgentEmployee.create({
             agentId: agent._id,
+            tenantId: (req.tenant && req.tenant._id) || agent.tenantId || undefined,
             name,
             phone,
             webUsername,
@@ -404,6 +405,7 @@ exports.postApproveClientRequest = async (req, res) => {
         const subAccount = await SubAccount.create({
             masterType: 'user',
             masterId: agent._id,
+            tenantId: (req.tenant && req.tenant._id) || agent.tenantId || undefined,
             name: regReq.fullName,
             phone: regReq.phone,
             webUsername: regReq.username,

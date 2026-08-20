@@ -122,6 +122,7 @@ exports.postRegister = async (req, res) => {
 
         const regRequest = await RegistrationRequest.create({
             accountType: 'executor',
+            tenantId: (req.tenant && req.tenant._id) || undefined,
             fullName: managerName,
             phone: phone,
             username: finalUsername,

@@ -5,6 +5,19 @@
 const mongoose = require('mongoose');
 const Ledger = require('../models/Ledger');
 
+const requiresMongoTransactions = () => (
+    process.env.NODE_ENV === 'production'
+    || String(process.env.MONGO_TRANSACTIONS_REQUIRED || '').toLowerCase() === 'true'
+);
+
+const financialTransactionsUnavailableError = (cause) => {
+    const error = new Error('FINANCIAL_TRANSACTIONS_UNAVAILABLE');
+    error.code = 'FINANCIAL_TRANSACTIONS_UNAVAILABLE';
+    error.statusCode = 503;
+    error.cause = cause;
+    return error;
+};
+
 const isMongoTransactionFallbackError = (error) => {
     const message = error && error.message ? error.message : '';
     return message.includes('replica set')
@@ -30,7 +43,12 @@ const isMongoTransactionFallbackError = (error) => {
  * @returns {Promise<{success: boolean, balanceAfter: number}>}
  */
 const updateBalanceWithLedger = async (entityModel, entityId, amount, type, transactionId, description, options = {}) => {
-    const { minBalance = 0, allowNegative = false, session: externalSession } = options;
+    const {
+        minBalance = 0,
+        allowNegative = false,
+        session: externalSession,
+        tenantId: requestedTenantId
+    } = options;
     const Model = mongoose.model(entityModel);
 
     // ── المسار الرئيسي: استخدام Transaction ذري ──────────────────────
@@ -54,6 +72,7 @@ const updateBalanceWithLedger = async (entityModel, entityId, amount, type, tran
         const balanceAfter = account.balance;
 
         const ledger = new Ledger({
+            tenantId: requestedTenantId || account.tenantId || undefined,
             entityId,
             entityModel,
             transactionId: transactionId || 'SYS-SYNC',
@@ -90,8 +109,21 @@ const updateBalanceWithLedger = async (entityModel, entityId, amount, type, tran
 
         // 🛡️ وضع بديل للسيرفر المحلي الذي لا يدعم Transactions (Replica Set مطلوب)
         if (isMongoTransactionFallbackError(error)) {
+            if (requiresMongoTransactions()) {
+                throw financialTransactionsUnavailableError(error);
+            }
             console.warn(`⚠️ [WalletService] السيرفر لا يدعم Transactions. تفعيل الوضع البديل للعملية: ${transactionId}`);
-            return executeFallback(Model, entityId, amount, type, transactionId, description, minBalance, allowNegative);
+            return executeFallback(
+                Model,
+                entityId,
+                amount,
+                type,
+                transactionId,
+                description,
+                minBalance,
+                allowNegative,
+                requestedTenantId
+            );
         }
 
         throw error;
@@ -102,7 +134,17 @@ const updateBalanceWithLedger = async (entityModel, entityId, amount, type, tran
  * الوضع البديل — يُستخدم فقط عند تعذّر Transactions
  * يستخدم findOneAndUpdate الذري لضمان عدم تكرار العملية
  */
-const executeFallback = async (Model, entityId, amount, type, transactionId, description, minBalance, allowNegative = false) => {
+const executeFallback = async (
+    Model,
+    entityId,
+    amount,
+    type,
+    transactionId,
+    description,
+    minBalance,
+    allowNegative = false,
+    requestedTenantId = null
+) => {
     // ✅ قفل ذري: نفس الحماية من خلال شرط الرصيد في الـ filter
     const filter = amount < 0 && !allowNegative
         ? { _id: entityId, balance: { $gte: minBalance + Math.abs(amount) } }
@@ -123,6 +165,7 @@ const executeFallback = async (Model, entityId, amount, type, transactionId, des
 
     try {
         await Ledger.create({
+            tenantId: requestedTenantId || account.tenantId || undefined,
             entityId,
             entityModel: Model.modelName,
             transactionId: transactionId || 'SYS-SYNC',
@@ -140,4 +183,9 @@ const executeFallback = async (Model, entityId, amount, type, transactionId, des
     return { success: true, balanceBefore, balanceAfter };
 };
 
-module.exports = { updateBalanceWithLedger, isMongoTransactionFallbackError };
+module.exports = {
+    updateBalanceWithLedger,
+    isMongoTransactionFallbackError,
+    requiresMongoTransactions,
+    financialTransactionsUnavailableError
+};

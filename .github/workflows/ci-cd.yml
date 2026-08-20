@@ -10,6 +10,8 @@ env:
   NODE_ENV: test
   JWT_SECRET: ahram-ci-cd-test-secret-key-2026-must-be-32-chars
   JWT_REFRESH_SECRET: ahram-ci-cd-refresh-secret-key-2026-must-be-32-chars
+  SESSION_SECRET: ahram-ci-cd-session-secret-2026-must-be-32-chars
+  OTP_SECRET: ahram-ci-cd-otp-secret-2026-must-be-32-chars
 
 jobs:
   # ═══════════════════════════════════════════════
@@ -30,9 +32,8 @@ jobs:
     - name: Install Dependencies
       run: npm ci
 
-    - name: Run ESLint (if configured)
-      run: npx eslint . --ext .js --max-warnings=0 || echo "ESLint not configured — skipping"
-      continue-on-error: true
+    - name: Run ESLint
+      run: npm run lint
 
   # ═══════════════════════════════════════════════
   #  2️⃣ فحص الأمان (Security Audit)
@@ -52,22 +53,11 @@ jobs:
     - name: Install Dependencies
       run: npm ci
 
-    - name: Run npm audit
-      run: npm audit --audit-level=high
-      continue-on-error: true
+    - name: Run production dependency audit
+      run: npm audit --omit=dev --audit-level=high
 
-    - name: Check for known vulnerabilities
-      run: |
-        echo "🔍 Checking for critical CVEs..."
-        npm audit --json | node -e "
-          const data=require('fs').readFileSync('/dev/stdin','utf8');
-          try { const report=JSON.parse(data);
-            const critical=report.metadata?.vulnerabilities?.critical||0;
-            const high=report.metadata?.vulnerabilities?.high||0;
-            console.log('Critical:', critical, 'High:', high);
-            if(critical>0) process.exit(1);
-          } catch(e) { console.log('Audit completed'); }
-        " || echo "Security check completed"
+    - name: Run security regression tests
+      run: npm run test:security
 
   # ═══════════════════════════════════════════════
   #  3️⃣ اختبارات الوحدة + تقرير التغطية
@@ -77,7 +67,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        node-version: [18.x, 20.x]
+        node-version: [20.x, 22.x]
 
     steps:
     - uses: actions/checkout@v4
@@ -98,7 +88,7 @@ jobs:
         JWT_REFRESH_SECRET: ${{ env.JWT_REFRESH_SECRET }}
 
     - name: Upload Coverage Report
-      if: matrix.node-version == '20.x'
+      if: matrix.node-version == '22.x'
       uses: actions/upload-artifact@v4
       with:
         name: coverage-report
@@ -106,12 +96,12 @@ jobs:
         retention-days: 14
 
   # ═══════════════════════════════════════════════
-  #  4️⃣ اختبارات التكامل (مع MongoDB)
+  #  4️⃣ بناء صورة Docker
   # ═══════════════════════════════════════════════
-  integration-tests:
-    name: 🔗 Integration Tests
+  docker-build:
+    name: 🐳 Docker Build
     runs-on: ubuntu-latest
-    needs: [unit-tests]
+    needs: [lint, security, unit-tests]
 
     services:
       mongodb:
@@ -127,54 +117,52 @@ jobs:
     steps:
     - uses: actions/checkout@v4
 
-    - name: Use Node.js 20.x
-      uses: actions/setup-node@v4
-      with:
-        node-version: '20.x'
-        cache: 'npm'
-
-    - name: Install Dependencies
-      run: npm ci
-
-    - name: Run Integration Tests
-      run: npx jest tests/integration --forceExit --detectOpenHandles || echo "No integration tests found — skipping"
-      env:
-        MONGODB_URI: mongodb://localhost:27017/ahram-test
-        JWT_SECRET: ${{ env.JWT_SECRET }}
-        JWT_REFRESH_SECRET: ${{ env.JWT_REFRESH_SECRET }}
-
-  # ═══════════════════════════════════════════════
-  #  5️⃣ بناء صورة Docker
-  # ═══════════════════════════════════════════════
-  docker-build:
-    name: 🐳 Docker Build
-    runs-on: ubuntu-latest
-    needs: [lint, security, unit-tests]
-
-    steps:
-    - uses: actions/checkout@v4
-
     - name: Build Docker Image
       run: docker build -t ahram-core-api:${{ github.sha }} .
 
     - name: Test Docker Image
       run: |
-        docker run -d --name ahram-test \
+        set -euo pipefail
+        cleanup() { docker rm -f ahram-test >/dev/null 2>&1 || true; }
+        trap cleanup EXIT
+        docker run -d --name ahram-test --network host \
+          -e PORT=3080 \
+          -e MONGO_URI="mongodb://127.0.0.1:27017/ahram-docker-ci" \
           -e JWT_SECRET="${{ env.JWT_SECRET }}" \
           -e JWT_REFRESH_SECRET="${{ env.JWT_REFRESH_SECRET }}" \
-          -e NODE_ENV=test \
-          ahram-core-api:${{ github.sha }} || true
-        sleep 5
-        docker logs ahram-test 2>&1 | head -20
-        docker stop ahram-test || true
-        docker rm ahram-test || true
+          -e SESSION_SECRET="${{ env.SESSION_SECRET }}" \
+          -e OTP_SECRET="${{ env.OTP_SECRET }}" \
+          -e FORCE_CLIENT_OTP=true \
+          -e BYPASS_OTP=false \
+          -e BYPASS_CLIENT_OTP=false \
+          -e SECURE_COOKIE=true \
+          -e SESSION_STORE=mongo \
+          -e MONGO_TRANSACTIONS_REQUIRED=true \
+          -e TENANT_ISOLATION_REQUIRED=true \
+          -e TENANT_MODE=single \
+          -e DEFAULT_TENANT_SLUG=ahram \
+          -e ALLOW_LEGACY_TENANTLESS_RECORDS=false \
+          -e ALLOW_LEGACY_TENANT_TOKENS=false \
+          -e PUBLIC_APP_URL=https://ci.invalid \
+          -e REDIS_ENABLED=false \
+          -e REDIS_REQUIRED=false \
+          -e NODE_ENV=production \
+          ahram-core-api:${{ github.sha }}
+        for attempt in $(seq 1 30); do
+          if curl --fail --silent http://127.0.0.1:3080/health >/dev/null; then
+            exit 0
+          fi
+          sleep 2
+        done
+        docker logs ahram-test
+        exit 1
 
     - name: Tag Latest (main branch only)
       if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
       run: docker tag ahram-core-api:${{ github.sha }} ahram-core-api:latest
 
   # ═══════════════════════════════════════════════
-  #  6️⃣ ملخص النتائج
+  #  5️⃣ ملخص النتائج
   # ═══════════════════════════════════════════════
   summary:
     name: 📊 Pipeline Summary
@@ -196,3 +184,7 @@ jobs:
         echo "" >> $GITHUB_STEP_SUMMARY
         echo "**Commit:** \`${{ github.sha }}\`" >> $GITHUB_STEP_SUMMARY
         echo "**Branch:** \`${{ github.ref_name }}\`" >> $GITHUB_STEP_SUMMARY
+
+    - name: Enforce successful pipeline
+      if: needs.lint.result != 'success' || needs.security.result != 'success' || needs.unit-tests.result != 'success' || needs.docker-build.result != 'success'
+      run: exit 1

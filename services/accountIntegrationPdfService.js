@@ -110,7 +110,7 @@ const buildIntegrationDocumentData = ({
 };
 
 const generateAccountIntegrationPdf = async (app, documentData) => {
-    const executablePath = findBrowserExecutable();
+    const executablePath = await findBrowserExecutable();
     if (!executablePath) {
         const error = new Error('PDF_BROWSER_NOT_FOUND');
         error.code = 'PDF_BROWSER_NOT_FOUND';

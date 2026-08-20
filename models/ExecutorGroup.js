@@ -21,6 +21,7 @@ const executorGroupSchema = new mongoose.Schema({
     isManagerBot: { type: Boolean, default: false },
     parentGroupId: { type: mongoose.Schema.Types.ObjectId, ref: 'ExecutorGroup', default: null },
     parentBotId: { type: mongoose.Schema.Types.ObjectId, ref: 'ExecutorGroup', default: null },
+    tenantId: { type: mongoose.Schema.Types.ObjectId, ref: 'Tenant' },
 
     isApiGroup: { type: Boolean, default: false },
     isApiBot: { type: Boolean, default: false },
@@ -59,5 +60,6 @@ const executorGroupSchema = new mongoose.Schema({
 
 executorGroupSchema.index({ status: 1, archivedAt: -1 });
 executorGroupSchema.index({ manualReceiptPrefix: 1 }, { unique: true, sparse: true });
+executorGroupSchema.index({ tenantId: 1, status: 1, archivedAt: -1 });
 
 module.exports = mongoose.model('ExecutorGroup', executorGroupSchema);

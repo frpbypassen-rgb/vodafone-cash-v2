@@ -16,6 +16,8 @@ const mongoose = require('mongoose');
 describe('Wallet Service Deep Tests', () => {
     let mockSession;
     let mockModel;
+    const originalNodeEnv = process.env.NODE_ENV;
+    const originalTransactionRequirement = process.env.MONGO_TRANSACTIONS_REQUIRED;
 
     beforeEach(() => {
         jest.clearAllMocks();
@@ -35,6 +37,14 @@ describe('Wallet Service Deep Tests', () => {
         // إرجاع النموذج الوهمي عند استدعاء mongoose.model
         mongoose.model = jest.fn().mockReturnValue(mockModel);
         mongoose.startSession = jest.fn().mockResolvedValue(mockSession);
+        process.env.NODE_ENV = 'test';
+        process.env.MONGO_TRANSACTIONS_REQUIRED = 'false';
+    });
+
+    afterAll(() => {
+        process.env.NODE_ENV = originalNodeEnv;
+        if (originalTransactionRequirement === undefined) delete process.env.MONGO_TRANSACTIONS_REQUIRED;
+        else process.env.MONGO_TRANSACTIONS_REQUIRED = originalTransactionRequirement;
     });
 
     test('يجب أن يعمل بشكل طبيعي إذا كان السيرفر يدعم الجلسات', async () => {
@@ -78,6 +88,22 @@ describe('Wallet Service Deep Tests', () => {
         await expect(
             updateBalanceWithLedger('User', 'user1', -200, 'TRANSFER', 'TX-001', 'تحويل')
         ).rejects.toThrow('Connection timeout');
+    });
+
+    test('يجب أن يفشل مغلقاً في الإنتاج قبل تعديل الرصيد عند غياب Mongo Transactions', async () => {
+        process.env.NODE_ENV = 'production';
+        process.env.MONGO_TRANSACTIONS_REQUIRED = 'true';
+        mongoose.startSession.mockRejectedValue(
+            new Error('This MongoDB deployment does not support replica set transactions')
+        );
+
+        await expect(
+            updateBalanceWithLedger('User', 'user1', 200, 'DEPOSIT', 'TX-PROD', 'إيداع إنتاج')
+        ).rejects.toMatchObject({
+            code: 'FINANCIAL_TRANSACTIONS_UNAVAILABLE',
+            statusCode: 503
+        });
+        expect(mockModel.findOneAndUpdate).not.toHaveBeenCalled();
     });
 
     test('يجب دعم تمرير جلسة (Session) خارجية مباشرة واستخدامها', async () => {

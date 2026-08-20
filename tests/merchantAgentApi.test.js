@@ -171,6 +171,48 @@ describe('Merchant API agent authentication', () => {
         expect(session.endSession).toHaveBeenCalledTimes(1);
     });
 
+    test('fails closed before debiting when Mongo transactions are unavailable in production', async () => {
+        const originalNodeEnv = process.env.NODE_ENV;
+        const originalRequirement = process.env.MONGO_TRANSACTIONS_REQUIRED;
+        process.env.NODE_ENV = 'production';
+        process.env.MONGO_TRANSACTIONS_REQUIRED = 'true';
+
+        try {
+            const agent = {
+                _id: '66a112233445566778899002',
+                name: 'وكالة الاختبار',
+                phone: '0912345678',
+                role: 'agent',
+                status: 'active',
+                balance: 850,
+                creditLimit: 0
+            };
+            mongoose.startSession.mockRejectedValue(
+                new Error('Transaction numbers are only allowed on a replica set member or mongos')
+            );
+            ClientBot.findOne.mockReturnValue(leanResult(null));
+            User.findOne.mockReturnValue(leanResult(agent));
+
+            const response = await request(app)
+                .post('/api/v1/merchant/transfer')
+                .set('x-api-key', 'agent-private-api-key')
+                .send({ target_number: '01012345678', amount: 1000, transfer_type: 'vodafone' });
+
+            expect(response.status).toBe(503);
+            expect(response.body).toEqual(expect.objectContaining({
+                status: 'failed',
+                code: 'FINANCIAL_TRANSACTIONS_UNAVAILABLE'
+            }));
+            expect(User.findOneAndUpdate).not.toHaveBeenCalled();
+            expect(Transaction.create).not.toHaveBeenCalled();
+        } finally {
+            if (originalNodeEnv === undefined) delete process.env.NODE_ENV;
+            else process.env.NODE_ENV = originalNodeEnv;
+            if (originalRequirement === undefined) delete process.env.MONGO_TRANSACTIONS_REQUIRED;
+            else process.env.MONGO_TRANSACTIONS_REQUIRED = originalRequirement;
+        }
+    });
+
     test('returns a cooldown response before debiting an agent merchant', async () => {
         const agent = {
             _id: '66a112233445566778899002',

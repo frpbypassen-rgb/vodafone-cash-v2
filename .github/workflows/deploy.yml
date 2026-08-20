@@ -1,17 +1,51 @@
 name: Deploy to Server
 
 on:
-  push:
+  workflow_run:
+    workflows: ["Ahram Enterprise CI/CD Pipeline"]
+    types: [completed]
     branches: ["main"]
   workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
 
 concurrency:
   group: production-deploy
   cancel-in-progress: false
 
 jobs:
+  verify-ci:
+    name: Verify CI gate for deployment commit
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    outputs:
+      deploy_sha: ${{ steps.gate.outputs.deploy_sha }}
+    steps:
+      - name: Require a successful CI run for the same commit
+        id: gate
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const sha = context.eventName === 'workflow_run'
+              ? context.payload.workflow_run.head_sha
+              : context.sha;
+            const runs = await github.rest.actions.listWorkflowRuns({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              workflow_id: 'ci-cd.yml',
+              head_sha: sha,
+              status: 'completed',
+              per_page: 20
+            });
+            const passed = runs.data.workflow_runs.some((run) => run.conclusion === 'success');
+            if (!passed) core.setFailed(`No successful CI run exists for ${sha}.`);
+            core.setOutput('deploy_sha', sha);
+
   deploy:
     name: Deploy main to production server
+    needs: [verify-ci]
     runs-on: ubuntu-latest
     env:
       DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
@@ -22,7 +56,7 @@ jobs:
       DEPLOY_RESTART_COMMAND: ${{ secrets.DEPLOY_RESTART_COMMAND }}
       DEPLOY_SYSTEMD_SERVICE: ${{ secrets.DEPLOY_SYSTEMD_SERVICE }}
       APP_RUNTIME_ENV_BASE64: ${{ secrets.APP_RUNTIME_ENV_BASE64 }}
-      DEPLOY_SHA: ${{ github.sha }}
+      DEPLOY_SHA: ${{ needs.verify-ci.outputs.deploy_sha }}
       REPO_URL: https://github.com/${{ github.repository }}.git
 
     steps:
@@ -119,7 +153,17 @@ jobs:
             'EXECUTOR_PUSH_REMINDER_INTERVAL_MS',
             'EXECUTOR_PUSH_MAX_REMINDERS',
             'FCM_DEVICE_ACTIVE_DAYS',
-            'EXECUTOR_LOW_BALANCE_THRESHOLD'
+            'EXECUTOR_LOW_BALANCE_THRESHOLD',
+            'MONGO_TRANSACTIONS_REQUIRED',
+            'TENANT_ISOLATION_REQUIRED',
+            'TENANT_MODE',
+            'DEFAULT_TENANT_ID',
+            'DEFAULT_TENANT_SLUG',
+            'DEFAULT_TENANT_NAME',
+            'TENANT_ROOT_DOMAIN',
+            'TENANT_ROUTING_SECRET',
+            'ALLOW_LEGACY_TENANTLESS_RECORDS',
+            'ALLOW_LEGACY_TENANT_TOKENS'
           ]);
 
           const updates = new Map();
@@ -158,7 +202,11 @@ jobs:
 
           # Browser Push requires one stable VAPID key pair. Generate it once
           # on the server when absent; .env is preserved across git deploys.
+          node scripts/repairProductionEnv.js .env --apply
           node scripts/ensureWebPushKeys.js
+          node scripts/auditProductionEnv.js .env
+          node scripts/checkMongoTransactionSupport.js .env
+          node scripts/migrateTenantIsolation.js --apply --create-default
           chmod 600 .env
 
           if [ -n "${DEPLOY_RESTART_COMMAND:-}" ]; then

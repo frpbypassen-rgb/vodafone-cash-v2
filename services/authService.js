@@ -23,8 +23,30 @@ const ClientCompany = require('../models/ClientCompany');
 const MobileDeviceSession = require('../models/MobileDeviceSession');
 const { buildContext } = require('../mappers/mobileAuthMapper');
 
-const ACCESS_TOKEN_EXPIRY_SECONDS = 3600;      // 1 hour
+const requestedAccessTokenTtl = Number(process.env.ACCESS_TOKEN_TTL_SECONDS);
+const ACCESS_TOKEN_EXPIRY_SECONDS = Number.isFinite(requestedAccessTokenTtl)
+    ? Math.min(3600, Math.max(300, requestedAccessTokenTtl))
+    : (process.env.NODE_ENV === 'production' ? 900 : 3600);
 const REFRESH_TOKEN_EXPIRY_SECONDS = 2592000;   // 30 days
+const hashToken = (token) => crypto.createHash('sha256').update(String(token)).digest('hex');
+const cleanId = (value) => value === undefined || value === null ? '' : String(value).trim();
+const requestTenantId = (req) => cleanId(req && req.tenant && req.tenant._id);
+const allowsLegacyTenantTokens = () => (
+    process.env.NODE_ENV !== 'production'
+    && String(process.env.ALLOW_LEGACY_TENANT_TOKENS || 'true').toLowerCase() === 'true'
+);
+const tokenMatchesTenant = (decoded, req) => {
+    const currentTenantId = requestTenantId(req);
+    const tokenTenantId = cleanId(decoded && decoded.tenantId);
+    if (!currentTenantId) return process.env.NODE_ENV !== 'production';
+    if (!tokenTenantId) return allowsLegacyTenantTokens();
+    return currentTenantId === tokenTenantId;
+};
+const findTenantScopedById = (Model, id, req) => {
+    const tenantId = requestTenantId(req);
+    if (!tenantId) return Model.findById(id);
+    return Model.findOne(userRepo.applyTenantScope({ _id: id }, tenantId));
+};
 
 const CLIENT_PERMISSIONS = Object.freeze([
     'client.home.read',
@@ -308,13 +330,29 @@ const login = async (username, password, req) => {
 
     const isCustomerMobileSession = ['client_user', 'sub_client'].includes(accountType);
     const mobileSessionId = isCustomerMobileSession ? crypto.randomUUID() : null;
+    const tenantId = requestTenantId(req) || cleanId(account.tenantId) || null;
     const accessToken = jwt.sign(
-        { userId: account._id, accountType, telegramId, executorGroupId, sessionVersion: Number(account.sessionVersion || 0), sessionId: mobileSessionId },
+        {
+            userId: account._id,
+            accountType,
+            telegramId,
+            executorGroupId,
+            sessionVersion: Number(account.sessionVersion || 0),
+            sessionId: mobileSessionId,
+            tenantId
+        },
         JWT_SECRET,
         { expiresIn: `${ACCESS_TOKEN_EXPIRY_SECONDS}s` }
     );
     const refreshToken = jwt.sign(
-        { userId: account._id, accountType, sessionVersion: Number(account.sessionVersion || 0), sessionId: mobileSessionId },
+        {
+            userId: account._id,
+            accountType,
+            sessionVersion: Number(account.sessionVersion || 0),
+            sessionId: mobileSessionId,
+            tenantId,
+            jti: crypto.randomUUID()
+        },
         JWT_REFRESH_SECRET,
         { expiresIn: `${REFRESH_TOKEN_EXPIRY_SECONDS}s` }
     );
@@ -326,8 +364,9 @@ const login = async (username, password, req) => {
         await MobileDeviceSession.create({
             accountId: account._id,
             accountType,
+            tenantId: tenantId || undefined,
             sessionId: mobileSessionId,
-            refreshTokenHash: crypto.createHash('sha256').update(refreshToken).digest('hex'),
+            refreshTokenHash: hashToken(refreshToken),
             deviceFingerprint: device.deviceFingerprint,
             userAgent: device.userAgent,
             deviceType: 'هاتف'
@@ -357,7 +396,7 @@ const login = async (username, password, req) => {
     let subClientAccountCode = '';
 
     if (accountType === 'client_company') {
-        const company = await ClientCompany.findById(account.companyId);
+        const company = await findTenantScopedById(ClientCompany, account.companyId, req);
         tier = (company && company.tier) ? company.tier : 1;
         companyId = account.companyId;
         companyName = company ? company.name : null;
@@ -389,7 +428,7 @@ const login = async (username, password, req) => {
         mobileRole = identity.role;
         mobilePermissions = identity.permissions;
     } else if (accountType === 'agent_staff') {
-        const agent = await User.findById(account.agentId);
+        const agent = await findTenantScopedById(User, account.agentId, req);
         tier = agent ? (agent.tier || 1) : 1;
         rateContract = buildMobileRateContract(tier, settings);
         const identity = resolveAgentStaffIdentity(account);
@@ -402,9 +441,9 @@ const login = async (username, password, req) => {
     } else if (accountType === 'sub_client') {
         let masterObj;
         if (account.masterType === 'user') {
-            masterObj = await User.findById(account.masterId);
+            masterObj = await findTenantScopedById(User, account.masterId, req);
         } else {
-            masterObj = await ClientCompany.findById(account.masterId);
+            masterObj = await findTenantScopedById(ClientCompany, account.masterId, req);
         }
         tier = masterObj ? (masterObj.tier || 1) : 1;
         companyName = masterObj ? masterObj.name : null;
@@ -518,59 +557,168 @@ const refreshAccessToken = async (refreshToken, req) => {
 
             try {
                 const { userId, accountType } = decoded;
-                const account = await userRepo.findById(userId, accountType, req.tenant ? req.tenant._id : null);
-
-                const isCustomerMobileSession = ['client_user', 'sub_client'].includes(accountType);
-                const deviceSession = isCustomerMobileSession && decoded.sessionId
-                    ? await MobileDeviceSession.findOne({
-                        accountId: userId,
-                        accountType,
-                        sessionId: decoded.sessionId,
-                        active: true
-                    })
-                    : null;
-                const refreshTokenMatches = isCustomerMobileSession && decoded.sessionId
-                    ? Boolean(deviceSession && deviceSession.refreshTokenHash === crypto.createHash('sha256').update(refreshToken).digest('hex'))
-                    : account && account.refreshToken === refreshToken;
-
-                if (!account || !refreshTokenMatches || account.status !== 'active'
-                    || Number(account.sessionVersion || 0) !== Number(decoded.sessionVersion || 0)) {
+                if (!tokenMatchesTenant(decoded, req)) {
                     await logAction({
                         action: 'TOKEN_REFRESH',
                         req,
                         performedById: userId,
                         performedByModel: userRepo.getModelName(accountType),
                         success: false,
-                        errorCode: 'SESSION_REVOKED'
+                        errorCode: 'TENANT_TOKEN_MISMATCH'
                     });
                     return resolve({
                         success: false,
                         statusCode: 403,
-                        code: 'SESSION_REVOKED',
+                        code: 'TENANT_ACCESS_DENIED',
+                        message: 'رمز الدخول لا يخص هذه المنظمة'
+                    });
+                }
+                const account = await userRepo.findById(userId, accountType, req.tenant ? req.tenant._id : null);
+
+                const isCustomerMobileSession = ['client_user', 'sub_client'].includes(accountType);
+                const presentedTokenHash = hashToken(refreshToken);
+                const deviceSession = isCustomerMobileSession && decoded.sessionId
+                    ? await MobileDeviceSession.findOne({
+                        accountId: userId,
+                        accountType,
+                        ...(decoded.tenantId ? { tenantId: decoded.tenantId } : {}),
+                        sessionId: decoded.sessionId,
+                        active: true
+                    })
+                    : null;
+                const refreshTokenMatches = isCustomerMobileSession && decoded.sessionId
+                    ? Boolean(deviceSession && deviceSession.refreshTokenHash === presentedTokenHash)
+                    : account && account.refreshToken === refreshToken;
+
+                if (!account || !refreshTokenMatches || account.status !== 'active'
+                    || Number(account.sessionVersion || 0) !== Number(decoded.sessionVersion || 0)) {
+                    if (deviceSession && deviceSession.refreshTokenHash !== presentedTokenHash) {
+                        await MobileDeviceSession.updateOne(
+                            { _id: deviceSession._id, active: true },
+                            {
+                                $set: {
+                                    active: false,
+                                    revokedAt: new Date(),
+                                    revokeReason: 'REFRESH_TOKEN_REUSE'
+                                }
+                            }
+                        );
+                    }
+                    await logAction({
+                        action: 'TOKEN_REFRESH',
+                        req,
+                        performedById: userId,
+                        performedByModel: userRepo.getModelName(accountType),
+                        success: false,
+                        errorCode: deviceSession ? 'REFRESH_TOKEN_REUSE' : 'SESSION_REVOKED'
+                    });
+                    return resolve({
+                        success: false,
+                        statusCode: 403,
+                        code: deviceSession ? 'TOKEN_REUSE_DETECTED' : 'SESSION_REVOKED',
                         message: 'تم إبطال الجلسة'
                     });
                 }
 
                 const telegramId = account.telegramId;
                 const executorGroupId = accountType === 'executor' ? (account.groupId ? account.groupId._id : (account.botId ? account.botId._id : null)) : null;
+                const nextSessionId = decoded.sessionId || (isCustomerMobileSession ? crypto.randomUUID() : null);
+                const tenantId = requestTenantId(req) || cleanId(decoded.tenantId) || cleanId(account.tenantId) || null;
+                const nextRefreshToken = jwt.sign(
+                    {
+                        userId: account._id,
+                        accountType,
+                        sessionVersion: Number(account.sessionVersion || 0),
+                        sessionId: nextSessionId,
+                        tenantId,
+                        jti: crypto.randomUUID()
+                    },
+                    JWT_REFRESH_SECRET,
+                    { expiresIn: `${REFRESH_TOKEN_EXPIRY_SECONDS}s` }
+                );
                 const newAccessToken = jwt.sign(
-                    { userId: account._id, accountType, telegramId, executorGroupId, sessionVersion: Number(account.sessionVersion || 0), sessionId: decoded.sessionId || null },
+                    {
+                        userId: account._id,
+                        accountType,
+                        telegramId,
+                        executorGroupId,
+                        sessionVersion: Number(account.sessionVersion || 0),
+                        sessionId: nextSessionId,
+                        tenantId
+                    },
                     JWT_SECRET,
                     { expiresIn: `${ACCESS_TOKEN_EXPIRY_SECONDS}s` }
                 );
 
                 if (deviceSession) {
-                    await MobileDeviceSession.updateOne(
-                        { _id: deviceSession._id },
-                        { $set: { lastSeenAt: new Date() } }
+                    const rotation = await MobileDeviceSession.updateOne(
+                        { _id: deviceSession._id, active: true, refreshTokenHash: presentedTokenHash },
+                        {
+                            $set: {
+                                refreshTokenHash: hashToken(nextRefreshToken),
+                                lastSeenAt: new Date(),
+                                lastRotatedAt: new Date()
+                            },
+                            $inc: { rotationCounter: 1 }
+                        }
                     );
+                    if (rotation.modifiedCount !== 1) {
+                        return resolve({
+                            success: false,
+                            statusCode: 403,
+                            code: 'SESSION_REVOKED',
+                            message: 'تم إبطال الجلسة'
+                        });
+                    }
+                } else if (isCustomerMobileSession) {
+                    // One-time migration for refresh tokens issued before per-device sessions.
+                    const device = extractDeviceInfo(req);
+                    await MobileDeviceSession.create({
+                        accountId: account._id,
+                        accountType,
+                        tenantId: tenantId || undefined,
+                        sessionId: nextSessionId,
+                        refreshTokenHash: hashToken(nextRefreshToken),
+                        deviceFingerprint: device.deviceFingerprint,
+                        userAgent: device.userAgent,
+                        deviceType: 'هاتف',
+                        rotationCounter: 1,
+                        lastRotatedAt: new Date()
+                    });
+                    await userRepo.clearRefreshToken(account._id, accountType);
+                } else {
+                    const rotation = await userRepo.rotateRefreshToken(
+                        account._id,
+                        accountType,
+                        refreshToken,
+                        nextRefreshToken
+                    );
+                    if (rotation.modifiedCount !== 1) {
+                        return resolve({
+                            success: false,
+                            statusCode: 403,
+                            code: 'SESSION_REVOKED',
+                            message: 'تم إبطال الجلسة'
+                        });
+                    }
                 }
+
+                await logAction({
+                    action: 'TOKEN_REFRESH',
+                    req,
+                    performedById: userId,
+                    performedByModel: userRepo.getModelName(accountType),
+                    success: true,
+                    metadata: { sessionId: nextSessionId }
+                });
 
                 resolve({
                     success: true,
                     statusCode: 200,
                     token: newAccessToken,
+                    refreshToken: nextRefreshToken,
                     expiresIn: ACCESS_TOKEN_EXPIRY_SECONDS,
+                    refreshExpiresIn: REFRESH_TOKEN_EXPIRY_SECONDS,
                     serverTime: new Date().toISOString()
                 });
             } catch (e) {

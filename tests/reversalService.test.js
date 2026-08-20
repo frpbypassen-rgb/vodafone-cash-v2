@@ -90,6 +90,8 @@ const { reversalService } = require('../src/Application/Services/ReversalService
 
 describe('Reversal Service Tests', () => {
     let mockSession;
+    const originalNodeEnv = process.env.NODE_ENV;
+    const originalTransactionRequirement = process.env.MONGO_TRANSACTIONS_REQUIRED;
 
     beforeEach(() => {
         jest.clearAllMocks();
@@ -111,6 +113,14 @@ describe('Reversal Service Tests', () => {
             endSession: jest.fn()
         };
         mongoose.startSession = jest.fn().mockResolvedValue(mockSession);
+        process.env.NODE_ENV = 'test';
+        process.env.MONGO_TRANSACTIONS_REQUIRED = 'false';
+    });
+
+    afterAll(() => {
+        process.env.NODE_ENV = originalNodeEnv;
+        if (originalTransactionRequirement === undefined) delete process.env.MONGO_TRANSACTIONS_REQUIRED;
+        else process.env.MONGO_TRANSACTIONS_REQUIRED = originalTransactionRequirement;
     });
 
     test('Should reverse transaction and refund user balances correctly', async () => {
@@ -192,6 +202,29 @@ describe('Reversal Service Tests', () => {
             { strict: false }
         );
         expect(mockUser.balances.EGP).toBe(1150);
+    });
+
+    test('Should fail closed in production when MongoDB transactions are unavailable', async () => {
+        process.env.NODE_ENV = 'production';
+        process.env.MONGO_TRANSACTIONS_REQUIRED = 'true';
+        mongoose.startSession.mockRejectedValue(
+            new Error('Transaction numbers are only allowed on a replica set member or mongos')
+        );
+
+        const result = await reversalService.reverseTransaction(
+            'tx-id-123',
+            'Production safety check',
+            'Admin-Ali'
+        );
+
+        expect(result).toMatchObject({
+            success: false,
+            statusCode: 503,
+            code: 'FINANCIAL_TRANSACTIONS_UNAVAILABLE'
+        });
+        expect(Transaction.findById).not.toHaveBeenCalled();
+        expect(Transaction.findOneAndUpdate).not.toHaveBeenCalled();
+        expect(mockUser.balances.EGP).toBe(1000);
     });
 
     test('Should fail if transaction is not found', async () => {

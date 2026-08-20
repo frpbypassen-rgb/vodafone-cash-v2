@@ -27,6 +27,9 @@ const subAccountSchema = new mongoose.Schema({
     sessionVersion: { type: Number, default: 0 },
     otpCode: { type: String },
     otpExpires: { type: Date },
+    otpChallengeId: { type: String },
+    otpIssuedAt: { type: Date },
+    otpAttempts: { type: Number, default: 0 },
     lastOtpDate: { type: String },
     customMargin: { type: Number, default: 0 },
     marginPiasters: { type: Number, min: 0, max: 500 },
@@ -43,6 +46,7 @@ const subAccountSchema = new mongoose.Schema({
     creditLimitUpdatedByModel: { type: String, trim: true },
     creditLimitUpdatedById: { type: mongoose.Schema.Types.ObjectId },
     status: { type: String, default: 'active' },
+    tenantId: { type: mongoose.Schema.Types.ObjectId, ref: 'Tenant' },
     deletedCredentials: {
         phone: { type: String },
         webUsername: { type: String }
@@ -50,6 +54,8 @@ const subAccountSchema = new mongoose.Schema({
     deletedAt: { type: Date },
     deletedBy: { type: String }
 }, { timestamps: true });
+
+subAccountSchema.index({ tenantId: 1, masterType: 1, masterId: 1 });
 
 subAccountSchema.pre('save', async function() {
     if (!this.isModified('webPassword') || !this.webPassword) return;

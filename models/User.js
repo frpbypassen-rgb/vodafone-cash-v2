@@ -29,6 +29,9 @@ const userSchema = new mongoose.Schema({
     sessionVersion: { type: Number, default: 0 },
     otpCode: { type: String },
     otpExpires: { type: Date },
+    otpChallengeId: { type: String },
+    otpIssuedAt: { type: Date },
+    otpAttempts: { type: Number, default: 0 },
     lastOtpDate: { type: String },
     deletedCredentials: {
         phone: { type: String },

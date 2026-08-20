@@ -36,9 +36,19 @@ import logger from '../../../utils/logger';
 let transactionCapability: boolean | null = null;
 let transactionCapabilityCheckedAt = 0;
 
+const requiresMongoTransactions = (): boolean => {
+    if (String(process.env.NODE_ENV || '').trim().toLowerCase() === 'production') return true;
+    return ['1', 'true', 'yes', 'on'].includes(
+        String(process.env.MONGO_TRANSACTIONS_REQUIRED || '').trim().toLowerCase()
+    );
+};
+
 // A standalone MongoDB server rejects transaction commands. The deployed
 // application must continue to use its atomic balance guards in that setup.
 const canUseMongoTransactions = async (): Promise<boolean> => {
+    // Unit tests provide a controlled session implementation without a live Mongo topology.
+    if (String(process.env.NODE_ENV || '').trim().toLowerCase() === 'test') return true;
+
     const now = Date.now();
     if (transactionCapability !== null && now - transactionCapabilityCheckedAt < 60_000) {
         return transactionCapability;
@@ -47,8 +57,8 @@ const canUseMongoTransactions = async (): Promise<boolean> => {
     try {
         const db = mongoose.connection?.db;
         if (!db) return false;
-        const status = await db.admin().command({ replSetGetStatus: 1 });
-        transactionCapability = status?.ok === 1;
+        const topology = await db.admin().command({ hello: 1 });
+        transactionCapability = Boolean(topology?.setName || topology?.msg === 'isdbgrid');
     } catch (_) {
         transactionCapability = false;
     }
@@ -195,17 +205,34 @@ export class TransferService {
         }
 
         let session: any = null;
-        if (await canUseMongoTransactions()) {
+        const transactionsAvailable = await canUseMongoTransactions();
+        if (transactionsAvailable) {
             try {
                 session = await mongoose.startSession();
                 session.startTransaction();
             } catch (error: any) {
-                logger.warn('MongoDB transaction unavailable; using guarded transfer flow', {
+                logger.error('MongoDB transaction initialization failed', {
                     error: error.message,
                     accountType
                 });
                 session = null;
             }
+        }
+
+        if (!session && requiresMongoTransactions()) {
+            await releaseLock(lock);
+            return {
+                success: false,
+                statusCode: 503,
+                code: 'FINANCIAL_TRANSACTIONS_UNAVAILABLE',
+                message: 'خدمة التحويل متوقفة مؤقتاً لحماية سلامة الرصيد. يرجى المحاولة لاحقاً.'
+            };
+        }
+
+        if (!session) {
+            logger.warn('MongoDB transactions are unavailable; non-production guarded flow is active', {
+                accountType
+            });
         }
 
         try {

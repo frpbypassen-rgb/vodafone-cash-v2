@@ -1,6 +1,7 @@
 'use strict';
 
 const mongoose = require('mongoose');
+const { installAppendOnlyGuards } = require('../utils/financialRecordImmutability');
 
 const journalLineSchema = new mongoose.Schema({
     accountCode: { type: String, required: true, trim: true },
@@ -72,5 +73,7 @@ agencyJournalSchema.index({ ownerId: 1, createdAt: -1 });
 agencyJournalSchema.index({ ownerId: 1, customerId: 1, createdAt: -1 });
 agencyJournalSchema.index({ ownerId: 1, eventType: 1, createdAt: -1 });
 agencyJournalSchema.index({ ownerId: 1, idempotencyKey: 1 }, { unique: true, sparse: true });
+
+installAppendOnlyGuards(agencyJournalSchema, 'agency_journal');
 
 module.exports = mongoose.models?.AgencyJournal || mongoose.model('AgencyJournal', agencyJournalSchema);

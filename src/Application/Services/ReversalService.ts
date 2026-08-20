@@ -7,7 +7,10 @@ import logger from '../../../utils/logger';
 import eventBus from '../../../services/eventBus';
 
 const Counter = require('../../../models/Counter');
-const { isMongoTransactionFallbackError } = require('../../../services/walletService');
+const {
+    isMongoTransactionFallbackError,
+    requiresMongoTransactions
+} = require('../../../services/walletService');
 
 type ReversalStatus = 'rejected' | 'cancelled_by_admin';
 
@@ -20,6 +23,8 @@ interface ReversalResult {
     success: boolean;
     message: string;
     cancellationNumber?: string;
+    code?: string;
+    statusCode?: number;
 }
 
 export class ReversalService {
@@ -448,8 +453,31 @@ export class ReversalService {
      * تنفيذ استرجاع كامل لعملية تحويل (Refund / Rollback)
      */
     public async reverseTransaction(txId: string, reason: string, performedBy: string, options: ReversalOptions = {}): Promise<ReversalResult> {
-        const session = await mongoose.startSession();
-        session.startTransaction();
+        let session: any;
+        try {
+            session = await mongoose.startSession();
+            session.startTransaction();
+        } catch (error: any) {
+            if (isMongoTransactionFallbackError(error)) {
+                if (requiresMongoTransactions()) {
+                    logger.error(`Mongo transactions are required; reversal blocked for ${txId}`, {
+                        error: error.message
+                    });
+                    return {
+                        success: false,
+                        statusCode: 503,
+                        code: 'FINANCIAL_TRANSACTIONS_UNAVAILABLE',
+                        message: 'خدمة الاسترجاع متوقفة مؤقتاً لحماية الأرصدة'
+                    };
+                }
+                logger.warn(`Mongo transactions unavailable; using development fallback reversal for ${txId}`, {
+                    error: error.message
+                });
+                return this.reverseTransactionWithoutMongoTransaction(txId, reason, performedBy, options);
+            }
+            logger.error(`Failed to start reversal transaction ${txId}`, { error: error.message });
+            return { success: false, message: `فشل الاسترجاع: ${error.message}` };
+        }
 
         try {
             // 1. البحث عن العملية
@@ -689,6 +717,17 @@ export class ReversalService {
             await session.abortTransaction();
             session.endSession();
             if (isMongoTransactionFallbackError(error)) {
+                if (requiresMongoTransactions()) {
+                    logger.error(`Mongo transaction failed and production fallback is blocked for ${txId}`, {
+                        error: error.message
+                    });
+                    return {
+                        success: false,
+                        statusCode: 503,
+                        code: 'FINANCIAL_TRANSACTIONS_UNAVAILABLE',
+                        message: 'خدمة الاسترجاع متوقفة مؤقتاً لحماية الأرصدة'
+                    };
+                }
                 logger.warn(`Mongo transactions unavailable; falling back to non-transactional reversal for ${txId}`, { error: error.message });
                 return this.reverseTransactionWithoutMongoTransaction(txId, reason, performedBy, options);
             }

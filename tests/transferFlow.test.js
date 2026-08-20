@@ -250,6 +250,9 @@ jest.mock('../models/ClientBot',      () => {
 });
 jest.mock('../models/ExecutorBot',    () => { const M = jest.fn(); M.findByIdAndUpdate = jest.fn().mockResolvedValue(null); return M; });
 jest.mock('../models/Admin',          () => { const M = jest.fn(); M.find = jest.fn().mockResolvedValue([]); return M; });
+jest.mock('../models/MobileDeviceSession', () => ({
+    create: jest.fn().mockResolvedValue({ _id: 'device-session-id' })
+}));
 jest.mock('../validators/mobileValidators', () => {
     const pass = [(_r, _s, n) => n()];
     return {
@@ -270,6 +273,9 @@ jest.mock('../validators/mobileValidators', () => {
         resetPasswordValidator: pass,
         executorReportsValidator: pass,
         executorSupportMessageValidator: pass,
+        customerProfilePhotoValidator: pass,
+        customerProfileValidator: pass,
+        customerPasswordValidator: pass,
     };
 });
 jest.mock('../models/Counter', () => ({
@@ -392,8 +398,8 @@ describe('🏠 المرحلة 3: جلب الشاشة الرئيسية (GET /clie
     });
 
     test('✅ يعيد عقد أسعار الصرف الكامل للموبايل', () => {
-        expect(res.body.tier).toBe(2);
-        expect(res.body.tierLabel).toBe('مستوى 2');
+        expect(res.body.tier).toBeUndefined();
+        expect(res.body.tierLabel).toBeUndefined();
         expect(res.body.baseExchangeRate).toBe(6.45);
         expect(res.body.serviceRates).toEqual({
             vodafone: 6.45,

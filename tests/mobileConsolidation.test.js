@@ -462,9 +462,9 @@ describe('📱 Automated Tests: Mobile API Consolidation & Safety', () => {
     // 3. Conditional Transfer Validation Tests
     // ──────────────────────────────────────────────────────────
     describe('3. Conditional Transfer Validation & Image Uploads', () => {
-        test('Rejects post_card without quadruple recipientName', async () => {
+        test('Rejects post_card without triple recipientName', async () => {
             const payload = {
-                amount: 250,
+                amount: 500,
                 number: '12345678901234', // 14 digits ID
                 transferType: 'post_card',
                 name: 'أحمد علي', // Only 2 parts
@@ -478,12 +478,12 @@ describe('📱 Automated Tests: Mobile API Consolidation & Safety', () => {
 
             expect(res.status).toBe(400);
             expect(res.body.success).toBe(false);
-            expect(res.body.message).toContain('الاسم المستلم يجب أن يكون رباعياً');
+            expect(res.body.message).toContain('اسم المستلم يجب أن يكون ثلاثياً');
         });
 
         test('Rejects post_card without 14-digit recipientNationalId number', async () => {
             const payload = {
-                amount: 250,
+                amount: 500,
                 number: '12345', // Malformed ID
                 transferType: 'post_card',
                 name: 'أحمد علي محمد حسن',
@@ -502,10 +502,12 @@ describe('📱 Automated Tests: Mobile API Consolidation & Safety', () => {
 
         test('Rejects post_card without idCardImage', async () => {
             const payload = {
-                amount: 250,
+                amount: 500,
                 number: '12345678901234',
                 transferType: 'post_card',
-                name: 'أحمد علي محمد حسن'
+                name: 'أحمد علي محمد',
+                recipientPhone: '01012345678',
+                governorate: 'القاهرة'
             };
 
             const res = await request(app)
@@ -522,10 +524,12 @@ describe('📱 Automated Tests: Mobile API Consolidation & Safety', () => {
             // Decodes to size > 5MB
             const hugeBase64 = Buffer.alloc(6 * 1024 * 1024).toString('base64');
             const payload = {
-                amount: 250,
+                amount: 500,
                 number: '12345678901234',
                 transferType: 'post_card',
-                name: 'أحمد علي محمد حسن',
+                name: 'أحمد علي محمد',
+                recipientPhone: '01012345678',
+                governorate: 'القاهرة',
                 idCardImage: 'data:image/jpeg;base64,' + hugeBase64
             };
 

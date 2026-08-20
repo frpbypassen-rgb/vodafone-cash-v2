@@ -71,7 +71,7 @@ describe('Business portal service', () => {
         const byKey = Object.fromEntries(SERVICE_CATALOG.map((service) => [service.key, service]));
 
         expect(byKey.vodafone).toMatchObject({ destinationMaxLength: 11, beneficiaryRequired: false });
-        expect(byKey.post_account).toMatchObject({ destinationMaxLength: 16, beneficiaryMinWords: 4 });
+        expect(byKey.post_account).toMatchObject({ destinationMaxLength: 15, beneficiaryMinWords: 3 });
         expect(byKey.post_card).toMatchObject({
             destinationRequired: false,
             requiresNationalId: true,
@@ -81,7 +81,7 @@ describe('Business portal service', () => {
         expect(byKey.bank_account.requiresBankName).toBeUndefined();
         expect(byKey.sefa_niger).toMatchObject({
             integerAmount: true,
-            destinationMaxLength: 10,
+            destinationMaxLength: 11,
             amountCurrencyLabel: 'سيفا',
             rateDirection: 'source_to_lyd'
         });

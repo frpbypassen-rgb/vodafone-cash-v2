@@ -20,7 +20,12 @@ jest.mock('../models/Ledger', () => Ledger);
 jest.mock('../models/Transaction', () => Transaction);
 jest.mock('../services/walletService', () => ({
     updateBalanceWithLedger: jest.fn(),
-    isMongoTransactionFallbackError: (error) => String(error?.message || '').includes('replica set')
+    isMongoTransactionFallbackError: (error) => String(error?.message || '').includes('replica set'),
+    requiresMongoTransactions: () => false,
+    financialTransactionsUnavailableError: (cause) => Object.assign(
+        new Error('FINANCIAL_TRANSACTIONS_UNAVAILABLE'),
+        { code: 'FINANCIAL_TRANSACTIONS_UNAVAILABLE', statusCode: 503, cause }
+    )
 }));
 
 const mongoose = require('mongoose');
