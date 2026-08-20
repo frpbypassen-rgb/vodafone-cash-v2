@@ -29,19 +29,13 @@ const {
     releaseTransferCooldown
 } = require('../../../services/transferCooldownService');
 const { minimumBalanceForDebit } = require('../../../services/agencyCreditLimitService');
+const { requiresMongoTransactions } = require('../../../services/walletService');
 const { resolveAutoRouteExecutor, applyAutoRouteFields, enqueueAutoRouteIfNeeded } = require('../../../services/autoRouteService');
 const eventBus = require('../../../services/eventBus');
 import logger from '../../../utils/logger';
 
 let transactionCapability: boolean | null = null;
 let transactionCapabilityCheckedAt = 0;
-
-const requiresMongoTransactions = (): boolean => {
-    if (String(process.env.NODE_ENV || '').trim().toLowerCase() === 'production') return true;
-    return ['1', 'true', 'yes', 'on'].includes(
-        String(process.env.MONGO_TRANSACTIONS_REQUIRED || '').trim().toLowerCase()
-    );
-};
 
 // A standalone MongoDB server rejects transaction commands. The deployed
 // application must continue to use its atomic balance guards in that setup.
@@ -205,6 +199,20 @@ export class TransferService {
         }
 
         let session: any = null;
+        let standaloneCompensations: Array<() => Promise<any>> = [];
+        const compensateStandaloneWrites = async () => {
+            for (const compensate of standaloneCompensations.reverse()) {
+                try {
+                    await compensate();
+                } catch (compensationError: any) {
+                    logger.error('Standalone transfer compensation failed', {
+                        error: compensationError.message,
+                        accountType
+                    });
+                }
+            }
+            standaloneCompensations = [];
+        };
         const transactionsAvailable = await canUseMongoTransactions();
         if (transactionsAvailable) {
             try {
@@ -435,6 +443,12 @@ export class TransferService {
                     await abortSession(session);
                     return { success: false, statusCode: 400, code: 'INSUFFICIENT_BALANCE', message: 'رصيد الحساب التابع غير كافٍ لإتمام العملية' };
                 }
+                if (!session) {
+                    standaloneCompensations.push(() => SubAccount.updateOne(
+                        { _id: subAccount._id },
+                        { $inc: { balance: subCostLYD } }
+                    ));
+                }
 
                 // 🟢 الخصم الذري للرئيسي
                 updatedMaster = await MasterModel.findOneAndUpdate(
@@ -444,7 +458,14 @@ export class TransferService {
                 );
                 if (!updatedMaster) {
                     await abortSession(session);
+                    await compensateStandaloneWrites();
                     return { success: false, statusCode: 400, code: 'INSUFFICIENT_BALANCE', message: 'رصيد الحساب الرئيسي غير كافٍ لإتمام العملية' };
+                }
+                if (!session) {
+                    standaloneCompensations.push(() => MasterModel.updateOne(
+                        { _id: masterObj._id },
+                        { $inc: { balance: masterCostLYD } }
+                    ));
                 }
 
                 updatedClient = updatedSub;
@@ -465,6 +486,12 @@ export class TransferService {
                     await abortSession(session);
                     return { success: false, statusCode: 400, code: 'INSUFFICIENT_BALANCE', message: 'رصيد غير كافٍ أو تغير أثناء العملية' };
                 }
+                if (!session) {
+                    standaloneCompensations.push(() => TargetModel.updateOne(
+                        { _id: targetId },
+                        { $inc: { [balanceKey]: costLYD } }
+                    ));
+                }
             }
 
             // 7. توليد رقم العملية (ATT Invoice ID)
@@ -475,6 +502,15 @@ export class TransferService {
             const yy = now.getFullYear().toString().slice(-2);
             const mm = (now.getMonth() + 1).toString().padStart(2, '0');
             const customId = `ATT-${yy}${mm}-${counter.value.toString().padStart(4, '0')}`;
+            if (!session) {
+                standaloneCompensations.push(async () => {
+                    await Promise.all([
+                        Transaction.deleteMany({ customId }),
+                        Ledger.deleteMany({ transactionId: customId }),
+                        JournalEvent.deleteMany({ 'metadata.transactionId': customId })
+                    ]);
+                });
+            }
 
             // 8. إنشاء العملية وحفظها
             const { saveProofImage } = require('../../../services/proofStorageService');
@@ -625,6 +661,7 @@ export class TransferService {
             await newTx.save({ session });
 
             await commitSession(session);
+            standaloneCompensations = [];
 
             if (autoRouteExecutor) {
                 enqueueAutoRouteIfNeeded(newTx, autoRouteExecutor).catch((err: any) => {
@@ -661,6 +698,9 @@ export class TransferService {
             };
         } catch (error: any) {
             try { await abortSession(session); } catch (_) {}
+            if (!session && standaloneCompensations.length) {
+                await compensateStandaloneWrites();
+            }
             if (error instanceof TransferCooldownError) {
                 return {
                     success: false,

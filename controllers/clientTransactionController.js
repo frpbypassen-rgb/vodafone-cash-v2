@@ -356,6 +356,12 @@ exports.postTransfer = async (req, res) => {
 
             if (!updatedClient) throw new Error('INSUFFICIENT_BALANCE');
             balanceModel = updatedClient;
+            if (!useTransaction) {
+                standaloneCompensations.push(async () => {
+                    await Ledger.deleteMany({ transactionId: finalCustomId, entityId: balanceModel._id });
+                    await BModel.updateOne({ _id: balanceModel._id }, { $inc: { balance: masterCostLYD } });
+                });
+            }
 
             await new Ledger({
                 entityId: balanceModel._id, entityModel: BModel.modelName, transactionId: finalCustomId,

@@ -6,6 +6,7 @@ const clean = (value) => String(value || '').trim();
 const isEnabled = (value) => TRUE_VALUES.has(clean(value).toLowerCase());
 const isProductionEnvironment = (env = process.env) => clean(env.NODE_ENV).toLowerCase() === 'production';
 const MAX_EMERGENCY_OTP_BYPASS_MS = 24 * 60 * 60 * 1000;
+const MAX_EMERGENCY_STANDALONE_FINANCIAL_WRITES_MS = 24 * 60 * 60 * 1000;
 
 const getEmergencyClientOtpBypassState = (env = process.env, now = Date.now()) => {
     const enabled = isEnabled(env.EMERGENCY_CLIENT_OTP_BYPASS);
@@ -20,6 +21,24 @@ const getEmergencyClientOtpBypassState = (env = process.env, now = Date.now()) =
         active: enabled && validExpiry && expiresAtMs > now
     };
 };
+
+const getEmergencyStandaloneFinancialWritesState = (env = process.env, now = Date.now()) => {
+    const enabled = isEnabled(env.EMERGENCY_STANDALONE_FINANCIAL_WRITES);
+    const expiresAt = clean(env.EMERGENCY_STANDALONE_FINANCIAL_WRITES_EXPIRES_AT);
+    const expiresAtMs = Date.parse(expiresAt);
+    const validExpiry = Number.isFinite(expiresAtMs);
+    return {
+        enabled,
+        expiresAt,
+        expiresAtMs,
+        validExpiry,
+        active: enabled && validExpiry && expiresAtMs > now
+    };
+};
+
+const isEmergencyStandaloneFinancialWritesActive = (env = process.env, now = Date.now()) => (
+    getEmergencyStandaloneFinancialWritesState(env, now).active
+);
 
 const shouldBypassClientOtp = (env = process.env, now = Date.now()) => {
     const emergencyBypass = getEmergencyClientOtpBypassState(env, now);
@@ -84,6 +103,20 @@ const validateProductionSecurityEnv = (env = process.env) => {
     if (!isEnabled(env.MONGO_TRANSACTIONS_REQUIRED)) {
         errors.push('MONGO_TRANSACTIONS_REQUIRED=true is required in production.');
     }
+    const emergencyFinancialWrites = getEmergencyStandaloneFinancialWritesState(env);
+    if (emergencyFinancialWrites.enabled) {
+        if (!emergencyFinancialWrites.validExpiry) {
+            errors.push('EMERGENCY_STANDALONE_FINANCIAL_WRITES_EXPIRES_AT must be a valid ISO timestamp.');
+        } else if (emergencyFinancialWrites.expiresAtMs > Date.now() + MAX_EMERGENCY_STANDALONE_FINANCIAL_WRITES_MS) {
+            errors.push('Emergency standalone financial writes cannot remain active for more than 24 hours.');
+        } else if (emergencyFinancialWrites.active && !clean(env.EMERGENCY_STANDALONE_FINANCIAL_WRITES_REASON)) {
+            errors.push('EMERGENCY_STANDALONE_FINANCIAL_WRITES_REASON is required while the emergency mode is active.');
+        } else if (emergencyFinancialWrites.active) {
+            warnings.push(`Emergency standalone financial writes are active until ${emergencyFinancialWrites.expiresAt}.`);
+        } else {
+            warnings.push('Emergency standalone financial writes have expired and are inactive.');
+        }
+    }
     if (!isEnabled(env.TENANT_ISOLATION_REQUIRED)) {
         errors.push('TENANT_ISOLATION_REQUIRED=true is required in production.');
     }
@@ -140,7 +173,9 @@ const assertProductionSecurityEnv = (env = process.env) => {
 module.exports = {
     assertProductionSecurityEnv,
     getEmergencyClientOtpBypassState,
+    getEmergencyStandaloneFinancialWritesState,
     isEnabled,
+    isEmergencyStandaloneFinancialWritesActive,
     isProductionEnvironment,
     shouldBypassClientOtp,
     validateProductionSecurityEnv

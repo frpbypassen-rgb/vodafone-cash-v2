@@ -1,6 +1,7 @@
 'use strict';
 
 const {
+    isEmergencyStandaloneFinancialWritesActive,
     shouldBypassClientOtp,
     validateProductionSecurityEnv
 } = require('../config/securityPolicy');
@@ -79,6 +80,17 @@ describe('Production security policy', () => {
         });
 
         expect(shouldBypassClientOtp(env, Date.parse('2026-08-20T21:00:01Z'))).toBe(false);
+    });
+
+    test('allows guarded standalone financial writes only during the emergency window', () => {
+        const env = productionEnv({
+            EMERGENCY_STANDALONE_FINANCIAL_WRITES: 'true',
+            EMERGENCY_STANDALONE_FINANCIAL_WRITES_EXPIRES_AT: '2026-08-21T02:00:00Z',
+            EMERGENCY_STANDALONE_FINANCIAL_WRITES_REASON: 'Replica set incident'
+        });
+
+        expect(isEmergencyStandaloneFinancialWritesActive(env, Date.parse('2026-08-20T20:00:00Z'))).toBe(true);
+        expect(isEmergencyStandaloneFinancialWritesActive(env, Date.parse('2026-08-21T02:00:01Z'))).toBe(false);
     });
 
     test('rejects reused secrets and insecure cookies', () => {

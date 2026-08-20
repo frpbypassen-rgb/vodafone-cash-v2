@@ -28,6 +28,10 @@ module.exports = {
         TRUST_PROXY_HTTPS: "true",
         SESSION_STORE: "mongo",
         MONGO_TRANSACTIONS_REQUIRED: "true",
+        // Temporary guarded fallback while the production MongoDB instance is converted to a replica set.
+        EMERGENCY_STANDALONE_FINANCIAL_WRITES: "true",
+        EMERGENCY_STANDALONE_FINANCIAL_WRITES_EXPIRES_AT: "2026-08-21T19:45:00Z",
+        EMERGENCY_STANDALONE_FINANCIAL_WRITES_REASON: "Production MongoDB replica set incident",
         TENANT_ISOLATION_REQUIRED: "true",
         TENANT_MODE: "single",
         ALLOW_LEGACY_TENANTLESS_RECORDS: "false",

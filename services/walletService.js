@@ -4,10 +4,14 @@
 
 const mongoose = require('mongoose');
 const Ledger = require('../models/Ledger');
+const { isEmergencyStandaloneFinancialWritesActive } = require('../config/securityPolicy');
 
 const requiresMongoTransactions = () => (
-    process.env.NODE_ENV === 'production'
-    || String(process.env.MONGO_TRANSACTIONS_REQUIRED || '').toLowerCase() === 'true'
+    !isEmergencyStandaloneFinancialWritesActive()
+    && (
+        process.env.NODE_ENV === 'production'
+        || String(process.env.MONGO_TRANSACTIONS_REQUIRED || '').toLowerCase() === 'true'
+    )
 );
 
 const financialTransactionsUnavailableError = (cause) => {

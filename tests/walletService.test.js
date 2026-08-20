@@ -10,7 +10,7 @@ jest.mock('../models/Ledger', () => {
     };
 });
 
-const { updateBalanceWithLedger } = require('../services/walletService');
+const { updateBalanceWithLedger, requiresMongoTransactions } = require('../services/walletService');
 const mongoose = require('mongoose');
 
 describe('Wallet Service Deep Tests', () => {
@@ -18,6 +18,8 @@ describe('Wallet Service Deep Tests', () => {
     let mockModel;
     const originalNodeEnv = process.env.NODE_ENV;
     const originalTransactionRequirement = process.env.MONGO_TRANSACTIONS_REQUIRED;
+    const originalEmergencyFallback = process.env.EMERGENCY_STANDALONE_FINANCIAL_WRITES;
+    const originalEmergencyFallbackExpiry = process.env.EMERGENCY_STANDALONE_FINANCIAL_WRITES_EXPIRES_AT;
 
     beforeEach(() => {
         jest.clearAllMocks();
@@ -39,12 +41,18 @@ describe('Wallet Service Deep Tests', () => {
         mongoose.startSession = jest.fn().mockResolvedValue(mockSession);
         process.env.NODE_ENV = 'test';
         process.env.MONGO_TRANSACTIONS_REQUIRED = 'false';
+        delete process.env.EMERGENCY_STANDALONE_FINANCIAL_WRITES;
+        delete process.env.EMERGENCY_STANDALONE_FINANCIAL_WRITES_EXPIRES_AT;
     });
 
     afterAll(() => {
         process.env.NODE_ENV = originalNodeEnv;
         if (originalTransactionRequirement === undefined) delete process.env.MONGO_TRANSACTIONS_REQUIRED;
         else process.env.MONGO_TRANSACTIONS_REQUIRED = originalTransactionRequirement;
+        if (originalEmergencyFallback === undefined) delete process.env.EMERGENCY_STANDALONE_FINANCIAL_WRITES;
+        else process.env.EMERGENCY_STANDALONE_FINANCIAL_WRITES = originalEmergencyFallback;
+        if (originalEmergencyFallbackExpiry === undefined) delete process.env.EMERGENCY_STANDALONE_FINANCIAL_WRITES_EXPIRES_AT;
+        else process.env.EMERGENCY_STANDALONE_FINANCIAL_WRITES_EXPIRES_AT = originalEmergencyFallbackExpiry;
     });
 
     test('يجب أن يعمل بشكل طبيعي إذا كان السيرفر يدعم الجلسات', async () => {
@@ -104,6 +112,20 @@ describe('Wallet Service Deep Tests', () => {
             statusCode: 503
         });
         expect(mockModel.findOneAndUpdate).not.toHaveBeenCalled();
+    });
+
+    test('يسمح بالمسار المحمي مؤقتاً أثناء حادث MongoDB في الإنتاج', async () => {
+        process.env.NODE_ENV = 'production';
+        process.env.MONGO_TRANSACTIONS_REQUIRED = 'true';
+        process.env.EMERGENCY_STANDALONE_FINANCIAL_WRITES = 'true';
+        process.env.EMERGENCY_STANDALONE_FINANCIAL_WRITES_EXPIRES_AT = new Date(Date.now() + 60_000).toISOString();
+        mongoose.startSession.mockRejectedValue(new Error('This MongoDB deployment does not support replica set transactions'));
+        mockModel.findOneAndUpdate.mockResolvedValue({ _id: 'user1', balance: 800 });
+
+        expect(requiresMongoTransactions()).toBe(false);
+        await expect(
+            updateBalanceWithLedger('User', 'user1', -200, 'TRANSFER', 'TX-EMERGENCY', 'تحويل طوارئ')
+        ).resolves.toMatchObject({ success: true, balanceAfter: 800 });
     });
 
     test('يجب دعم تمرير جلسة (Session) خارجية مباشرة واستخدامها', async () => {
