@@ -8,6 +8,7 @@ on:
 
 env:
   NODE_ENV: test
+  TZ: Africa/Tripoli
   JWT_SECRET: ahram-ci-cd-test-secret-key-2026-must-be-32-chars
   JWT_REFRESH_SECRET: ahram-ci-cd-refresh-secret-key-2026-must-be-32-chars
   SESSION_SECRET: ahram-ci-cd-session-secret-2026-must-be-32-chars

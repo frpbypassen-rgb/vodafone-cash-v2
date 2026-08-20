@@ -11,9 +11,11 @@ module.exports = {
       max_memory_restart: "1G", // إعادة تشغيل تلقائية إذا استهلك الرام لحماية السيرفر
       env: {
         NODE_ENV: "development",
+        TZ: "Africa/Tripoli",
       },
       env_production: {
         NODE_ENV: "production",
+        TZ: "Africa/Tripoli",
         FORCE_CLIENT_OTP: "true",
         BYPASS_OTP: "false",
         BYPASS_CLIENT_OTP: "false",

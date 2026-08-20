@@ -26,6 +26,7 @@ WORKDIR /usr/src/app
 ENV PUPPETEER_SKIP_DOWNLOAD=true
 ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true
 ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium
+ENV TZ=Africa/Tripoli
 
 # نسخ ملفات التثبيت فقط أولاً (للاستفادة من الكاش)
 COPY package*.json ./
