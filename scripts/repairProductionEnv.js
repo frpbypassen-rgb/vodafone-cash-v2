@@ -1,5 +1,6 @@
 const fs = require('fs');
 const path = require('path');
+const crypto = require('crypto');
 
 const envPath = path.resolve(process.argv[2] || '.env');
 const shouldApply = process.argv.includes('--apply');
@@ -24,6 +25,9 @@ const cleanValue = (value) => {
     }
     return trimmed;
 };
+
+const placeholderPattern = /your_|change[_-]?me|generate_|placeholder|example\.com|not[_-]?for[_-]?production/i;
+const generateSecret = () => crypto.randomBytes(64).toString('hex');
 
 const scan = () => {
     const found = new Map();
@@ -73,6 +77,68 @@ upsert('WEB_PUSH_SUBJECT', 'mailto:support@ahrampay.com');
 upsert('SECURE_COOKIE', 'true', { force: true });
 upsert('COOKIE_SAMESITE', 'lax');
 
+const forcedSecurityValues = {
+    FORCE_CLIENT_OTP: 'true',
+    BYPASS_OTP: 'false',
+    BYPASS_CLIENT_OTP: 'false',
+    DISABLE_OTP: 'false',
+    MASTER_OTP: '',
+    SESSION_STORE: 'mongo',
+    MONGO_TRANSACTIONS_REQUIRED: 'true',
+    TENANT_ISOLATION_REQUIRED: 'true',
+    ALLOW_LEGACY_TENANTLESS_RECORDS: 'false',
+    ALLOW_LEGACY_TENANT_TOKENS: 'false',
+    ALLOW_PUBLIC_SYSTEM_MONITOR: 'false',
+    ALLOW_LEGACY_SAME_ORIGIN_CSRF: 'false'
+};
+
+for (const [key, value] of Object.entries(forcedSecurityValues)) {
+    upsert(key, value, { force: true });
+}
+
+if (!['single', 'multi'].includes(currentValue('TENANT_MODE').toLowerCase())) {
+    upsert('TENANT_MODE', 'single', { force: true });
+}
+if (!currentValue('DEFAULT_TENANT_ID') && !currentValue('DEFAULT_TENANT_SLUG')) {
+    upsert('DEFAULT_TENANT_SLUG', 'ahram');
+}
+
+const authenticationSecretKeys = ['JWT_SECRET', 'JWT_REFRESH_SECRET', 'SESSION_SECRET', 'OTP_SECRET'];
+const initialAuthenticationSecrets = new Map(
+    authenticationSecretKeys.map((key) => [key, currentValue(key)])
+);
+const authenticationSecretCounts = new Map();
+
+for (const value of initialAuthenticationSecrets.values()) {
+    if (!value) continue;
+    authenticationSecretCounts.set(value, (authenticationSecretCounts.get(value) || 0) + 1);
+}
+
+const generatedSecrets = new Set(
+    [...initialAuthenticationSecrets.values()].filter(Boolean)
+);
+const nextUniqueSecret = () => {
+    let value;
+    do value = generateSecret(); while (generatedSecrets.has(value));
+    generatedSecrets.add(value);
+    return value;
+};
+
+for (const key of authenticationSecretKeys) {
+    const existing = initialAuthenticationSecrets.get(key);
+    const invalid = existing.length < 32
+        || placeholderPattern.test(existing)
+        || authenticationSecretCounts.get(existing) > 1;
+    if (invalid) upsert(key, nextUniqueSecret(), { force: true });
+}
+
+for (const key of ['RECEIPT_SHARE_SECRET', 'TENANT_ROUTING_SECRET']) {
+    const existing = currentValue(key);
+    if (existing.length < 32 || placeholderPattern.test(existing)) {
+        upsert(key, nextUniqueSecret(), { force: true });
+    }
+}
+
 const safeDefaults = {
     WHATCHIMP_API_BASE_URL: 'https://app.whatchimp.com/api/v1/whatsapp',
     WHATCHIMP_OTP_TEMPLATE: 'power_pay_otp',
@@ -90,15 +156,9 @@ const safeDefaults = {
     API_RETURN_MONITOR_INTERVAL_MS: '300000',
     REDIS_ENABLED: 'false',
     REDIS_REQUIRED: 'false',
-    MONGO_TRANSACTIONS_REQUIRED: 'true',
-    TENANT_ISOLATION_REQUIRED: 'true',
-    TENANT_MODE: 'single',
-    DEFAULT_TENANT_SLUG: 'ahram',
     TENANT_ROOT_DOMAIN: 'ahrampay.com',
-    ALLOW_LEGACY_TENANTLESS_RECORDS: 'false',
-    ALLOW_LEGACY_TENANT_TOKENS: 'false',
     GLOBAL_RATE_LIMIT_MAX: '5000',
-    ALLOW_LEGACY_SAME_ORIGIN_CSRF: 'false'
+    ACCESS_TOKEN_TTL_SECONDS: '900'
 };
 
 for (const [key, value] of Object.entries(safeDefaults)) upsert(key, value);
