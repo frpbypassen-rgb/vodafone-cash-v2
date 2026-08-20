@@ -60,6 +60,27 @@ describe('Production security policy', () => {
         })).toBe(false);
     });
 
+    test('allows a time-limited audited emergency bypass in production', () => {
+        const now = Date.parse('2026-08-20T20:00:00Z');
+        const env = productionEnv({
+            EMERGENCY_CLIENT_OTP_BYPASS: 'true',
+            EMERGENCY_CLIENT_OTP_BYPASS_EXPIRES_AT: '2026-08-21T02:00:00Z',
+            EMERGENCY_CLIENT_OTP_BYPASS_REASON: 'Provider outage'
+        });
+
+        expect(shouldBypassClientOtp(env, now)).toBe(true);
+    });
+
+    test('does not bypass OTP after the emergency window expires', () => {
+        const env = productionEnv({
+            EMERGENCY_CLIENT_OTP_BYPASS: 'true',
+            EMERGENCY_CLIENT_OTP_BYPASS_EXPIRES_AT: '2026-08-20T21:00:00Z',
+            EMERGENCY_CLIENT_OTP_BYPASS_REASON: 'Provider outage'
+        });
+
+        expect(shouldBypassClientOtp(env, Date.parse('2026-08-20T21:00:01Z'))).toBe(false);
+    });
+
     test('rejects reused secrets and insecure cookies', () => {
         const sharedSecret = 'shared-secret-0123456789-abcdefghijklmnopqrstuvwxyz';
         const result = validateProductionSecurityEnv(productionEnv({

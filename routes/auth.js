@@ -5,7 +5,7 @@ const { randomUUID } = require('crypto');
 const rateLimit = require('express-rate-limit');
 const { escapeRegex, verifyAndUpgradePassword, getTodayString } = require('../utils/helpers');
 const { generateOtp, hashOtp, verifyOtp } = require('../utils/otp');
-const { shouldBypassClientOtp } = require('../config/securityPolicy');
+const { getEmergencyClientOtpBypassState, shouldBypassClientOtp } = require('../config/securityPolicy');
 const { establishAuthenticatedSession } = require('../utils/sessionSecurity');
 const Admin = require('../models/Admin');
 const Employee = require('../models/Employee');
@@ -148,7 +148,10 @@ const loginAsClient = async (req, res, account, accountType) => {
         performedById: account._id,
         performedByModel,
         performedByName: account.name,
-        metadata: { accountType }
+        metadata: {
+            accountType,
+            emergencyOtpBypass: getEmergencyClientOtpBypassState().active
+        }
     });
 
     return saveAndRedirect(req, res, '/client/dashboard');

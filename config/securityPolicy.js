@@ -5,9 +5,25 @@ const TRUE_VALUES = new Set(['1', 'true', 'yes', 'on']);
 const clean = (value) => String(value || '').trim();
 const isEnabled = (value) => TRUE_VALUES.has(clean(value).toLowerCase());
 const isProductionEnvironment = (env = process.env) => clean(env.NODE_ENV).toLowerCase() === 'production';
+const MAX_EMERGENCY_OTP_BYPASS_MS = 24 * 60 * 60 * 1000;
 
-const shouldBypassClientOtp = (env = process.env) => {
-    if (isProductionEnvironment(env)) return false;
+const getEmergencyClientOtpBypassState = (env = process.env, now = Date.now()) => {
+    const enabled = isEnabled(env.EMERGENCY_CLIENT_OTP_BYPASS);
+    const expiresAt = clean(env.EMERGENCY_CLIENT_OTP_BYPASS_EXPIRES_AT);
+    const expiresAtMs = Date.parse(expiresAt);
+    const validExpiry = Number.isFinite(expiresAtMs);
+    return {
+        enabled,
+        expiresAt,
+        expiresAtMs,
+        validExpiry,
+        active: enabled && validExpiry && expiresAtMs > now
+    };
+};
+
+const shouldBypassClientOtp = (env = process.env, now = Date.now()) => {
+    const emergencyBypass = getEmergencyClientOtpBypassState(env, now);
+    if (isProductionEnvironment(env)) return emergencyBypass.active;
     if (isEnabled(env.FORCE_CLIENT_OTP) || isEnabled(env.FORCE_OTP)) return false;
 
     const explicitBypass = isEnabled(env.BYPASS_OTP) || isEnabled(env.BYPASS_CLIENT_OTP);
@@ -49,6 +65,20 @@ const validateProductionSecurityEnv = (env = process.env) => {
     if (clean(env.MASTER_OTP)) errors.push('MASTER_OTP is not supported in production. Remove it from the environment.');
     if (!isEnabled(env.FORCE_CLIENT_OTP) && !isEnabled(env.FORCE_OTP)) {
         errors.push('FORCE_CLIENT_OTP=true is required in production.');
+    }
+    const emergencyBypass = getEmergencyClientOtpBypassState(env);
+    if (emergencyBypass.enabled) {
+        if (!emergencyBypass.validExpiry) {
+            errors.push('EMERGENCY_CLIENT_OTP_BYPASS_EXPIRES_AT must be a valid ISO timestamp.');
+        } else if (emergencyBypass.expiresAtMs > Date.now() + MAX_EMERGENCY_OTP_BYPASS_MS) {
+            errors.push('Emergency client OTP bypass cannot remain active for more than 24 hours.');
+        } else if (emergencyBypass.active && !clean(env.EMERGENCY_CLIENT_OTP_BYPASS_REASON)) {
+            errors.push('EMERGENCY_CLIENT_OTP_BYPASS_REASON is required while the emergency bypass is active.');
+        } else if (emergencyBypass.active) {
+            warnings.push(`Emergency client OTP bypass is active until ${emergencyBypass.expiresAt}.`);
+        } else {
+            warnings.push('Emergency client OTP bypass has expired and is inactive.');
+        }
     }
     if (!isEnabled(env.SECURE_COOKIE)) errors.push('SECURE_COOKIE=true is required in production.');
     if (!isEnabled(env.MONGO_TRANSACTIONS_REQUIRED)) {
@@ -109,6 +139,7 @@ const assertProductionSecurityEnv = (env = process.env) => {
 
 module.exports = {
     assertProductionSecurityEnv,
+    getEmergencyClientOtpBypassState,
     isEnabled,
     isProductionEnvironment,
     shouldBypassClientOtp,
