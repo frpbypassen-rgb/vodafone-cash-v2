@@ -370,6 +370,9 @@ router.get('/company/:id/sandbox-api-guide.pdf', requireAuth, requireMaster, asy
         if (error.code === 'SANDBOX_NOT_CONFIGURED' || error.code === 'SANDBOX_API_URL_INVALID' || error.code === 'SANDBOX_DATABASE_UNSAFE') {
             return res.status(503).send('بيئة اختبار API غير مهيأة بأمان. راجع SANDBOX_API_URL و SANDBOX_MONGO_URI في إعدادات الخادم.');
         }
+        if (error.code === 'SANDBOX_DATABASE_UNREACHABLE') {
+            return res.status(503).send('تعذر الاتصال بقاعدة بيانات بيئة الاختبار. راجع المنفذ وبيانات SANDBOX_MONGO_URI وتأكد أن MongoDB يعمل.');
+        }
         if (error.code === 'PDF_BROWSER_NOT_FOUND') {
             return res.status(503).send('تعذر إنشاء ملف PDF لعدم وجود متصفح للطباعة على الخادم.');
         }
@@ -390,6 +393,9 @@ router.get('/user/:id/sandbox-api-guide.pdf', requireAuth, requireMaster, async 
         console.error('[clients/agent-sandbox-api-guide] failed:', error.message);
         if (error.code === 'SANDBOX_NOT_CONFIGURED' || error.code === 'SANDBOX_API_URL_INVALID' || error.code === 'SANDBOX_DATABASE_UNSAFE') {
             return res.status(503).send('بيئة اختبار API غير مهيأة بأمان. راجع SANDBOX_API_URL و SANDBOX_MONGO_URI في إعدادات الخادم.');
+        }
+        if (error.code === 'SANDBOX_DATABASE_UNREACHABLE') {
+            return res.status(503).send('تعذر الاتصال بقاعدة بيانات بيئة الاختبار. راجع المنفذ وبيانات SANDBOX_MONGO_URI وتأكد أن MongoDB يعمل.');
         }
         if (error.code === 'PDF_BROWSER_NOT_FOUND') {
             return res.status(503).send('تعذر إنشاء ملف PDF لعدم وجود متصفح للطباعة على الخادم.');

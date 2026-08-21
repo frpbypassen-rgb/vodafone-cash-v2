@@ -51,7 +51,10 @@ const getSandboxModels = async (mongoUri) => {
             Tenant: connection.model('Tenant', Tenant.schema)
         })).catch((error) => {
             sandboxConnectionPromise = null;
-            throw error;
+            const unavailable = new Error('SANDBOX_DATABASE_UNREACHABLE');
+            unavailable.code = 'SANDBOX_DATABASE_UNREACHABLE';
+            unavailable.cause = error;
+            throw unavailable;
         });
     }
     return sandboxConnectionPromise;
