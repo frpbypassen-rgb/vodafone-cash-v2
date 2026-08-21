@@ -1,4 +1,6 @@
-require('dotenv').config();
+// PM2 supplies DOTENV_CONFIG_PATH for isolated environments such as staging.
+// Production keeps the existing default of .env.
+require('dotenv').config({ path: process.env.DOTENV_CONFIG_PATH || '.env' });
 const { assertProductionSecurityEnv } = require('./config/securityPolicy');
 assertProductionSecurityEnv();
 const { SYSTEM_TIME_ZONE } = require('./config/systemTime');

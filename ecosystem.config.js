@@ -41,6 +41,20 @@ module.exports = {
         REDIS_ENABLED: "false",
         REDIS_REQUIRED: "false",
       }
+    },
+    {
+      name: "Ahram_Staging_API",
+      script: "./app.js",
+      instances: 1,
+      exec_mode: "fork",
+      watch: false,
+      max_memory_restart: "768M",
+      env_staging: {
+        NODE_ENV: "staging",
+        TZ: "Africa/Tripoli",
+        PORT: "3100",
+        DOTENV_CONFIG_PATH: ".env.staging"
+      }
     }
   ]
 };
