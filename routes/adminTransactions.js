@@ -374,11 +374,20 @@ router.post('/transaction/:id/assign-executor', async (req, res) => {
                 await tx.save();
                 eventBus.publish('executor:task-available', { tx, source: 'admin-api-route' });
 
-                const { addTransferJob } = require('../services/bullQueueService');
-                await addTransferJob(String(tx._id), String(executorGroup._id));
+                // The operation is already routed and persisted. Queueing must
+                // never make the administrator see a failed routing action.
+                // The in-memory queue will continue processing in the background.
+                try {
+                    const { addTransferJob } = require('../services/bullQueueService');
+                    await addTransferJob(String(tx._id), String(executorGroup._id));
+                } catch (queueError) {
+                    console.error('[adminTransactions/assign-executor] API queue failed:', queueError.message);
+                    appendAdminNote(tx, `[تنبيه تشغيل: تعذر إدراج العملية في طابور API: ${queueError.message}]`);
+                    await tx.save();
+                }
                 return respondTransactionAction(req, res, 200, {
                     success: true,
-                    message: 'تم توجيه العملية إلى منفذ API وبدأ التنفيذ.',
+                    message: 'تم توجيه العملية إلى منفذ API.',
                     transaction: { id: String(tx._id), status: tx.status, executorName: tx.executorName }
                 });
 
