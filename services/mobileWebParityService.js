@@ -1065,6 +1065,15 @@ const tripoliDateValue = (date = new Date()) => {
     return `${parts.year}-${parts.month}-${parts.day}`;
 };
 
+const normalizeExecutorTenantScope = (tenantId) => {
+    if (!tenantId) return null;
+    // Mobile routes can pass a ready-made tenant predicate so legacy records
+    // remain visible only in an explicitly configured single-tenant instance.
+    if (typeof tenantId === 'object' && !Array.isArray(tenantId)) return tenantId;
+    const singleTenantMode = String(process.env.TENANT_MODE || '').trim().toLowerCase() === 'single';
+    return singleTenantMode ? { $in: [tenantId, null] } : tenantId;
+};
+
 const executorGroupQuery = (groupId, tenantId) => {
     const query = {
         $or: [
@@ -1072,10 +1081,8 @@ const executorGroupQuery = (groupId, tenantId) => {
             { managerGroupId: groupId }
         ]
     };
-    if (tenantId) {
-        const singleTenantMode = String(process.env.TENANT_MODE || '').trim().toLowerCase() === 'single';
-        query.tenantId = singleTenantMode ? { $in: [tenantId, null] } : tenantId;
-    }
+    const tenantScope = normalizeExecutorTenantScope(tenantId);
+    if (tenantScope) query.tenantId = tenantScope;
     return query;
 };
 
@@ -1569,6 +1576,10 @@ async function getEmployeesWorkspace({ executorId, tenantId }) {
             { archivedAt: { $exists: false } }
         ]
     };
+    const employeeTenantScope = normalizeExecutorTenantScope(
+        tenantId || manager.tenantId || null
+    );
+    if (employeeTenantScope) activeEmployeeQuery.tenantId = employeeTenantScope;
 
     const [employees, todayTransactions, currentTasks, devices] = await Promise.all([
         Employee.find(activeEmployeeQuery).sort({ role: 1, createdAt: -1 }).lean(),

@@ -147,6 +147,35 @@ describe('executor employee workspace', () => {
         });
     });
 
+    test('keeps legacy employees in the configured single-tenant workspace', async () => {
+        const previousTenantMode = process.env.TENANT_MODE;
+        process.env.TENANT_MODE = 'single';
+        Employee.findById.mockResolvedValue({
+            _id: 'manager-1',
+            name: 'Manager',
+            role: 'manager',
+            groupId: 'group-1',
+            tenantId: 'tenant-1'
+        });
+        Employee.find.mockReturnValue(sortedLean([]));
+        Transaction.find.mockReturnValue(sortedLean([]));
+        MobilePushDevice.find.mockReturnValue({ lean: jest.fn().mockResolvedValue([]) });
+
+        await getEmployeesWorkspace({
+            executorId: 'manager-1',
+            tenantId: { $in: ['tenant-1', null] }
+        });
+
+        expect(Employee.find).toHaveBeenCalledWith(expect.objectContaining({
+            groupId: 'group-1',
+            tenantId: { $in: ['tenant-1', null] }
+        }));
+        expect(Transaction.find).toHaveBeenCalledWith(expect.objectContaining({
+            tenantId: { $in: ['tenant-1', null] }
+        }));
+        process.env.TENANT_MODE = previousTenantMode;
+    });
+
     test('archives an employee and disables push devices without deleting history', async () => {
         const manager = {
             _id: 'manager-1',

@@ -16721,13 +16721,16 @@ class ExecutorEmployeesScreen extends StatefulWidget {
       _ExecutorEmployeesScreenState();
 }
 
-class _ExecutorEmployeesScreenState extends State<ExecutorEmployeesScreen> {
+class _ExecutorEmployeesScreenState extends State<ExecutorEmployeesScreen>
+    with WidgetsBindingObserver {
   List<Map<String, dynamic>> _employees = <Map<String, dynamic>>[];
   Map<String, dynamic> _summary = <String, dynamic>{};
   final TextEditingController _searchController = TextEditingController();
   Object? _error;
   bool _loading = true;
   String? _busyId;
+  String? _syncError;
+  DateTime? _lastUpdated;
   String _roleFilter = 'all';
   String _statusFilter = 'all';
   String _sortMode = 'activity';
@@ -16735,17 +16738,26 @@ class _ExecutorEmployeesScreenState extends State<ExecutorEmployeesScreen> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _load();
   }
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _searchController.dispose();
     super.dispose();
   }
 
-  Future<void> _load() async {
-    if (mounted) {
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed && _employees.isNotEmpty) {
+      unawaited(_load(silent: true));
+    }
+  }
+
+  Future<void> _load({bool silent = false}) async {
+    if (!silent && mounted) {
       setState(() {
         _loading = true;
         _error = null;
@@ -16768,12 +16780,19 @@ class _ExecutorEmployeesScreenState extends State<ExecutorEmployeesScreen> {
           _summary = rawSummary is Map
               ? Map<String, dynamic>.from(rawSummary)
               : <String, dynamic>{};
+          _syncError = null;
+          _lastUpdated = DateTime.now();
         });
       }
     } catch (error) {
-      if (mounted) setState(() => _error = error);
+      if (mounted) {
+        setState(() {
+          if (!silent || _employees.isEmpty) _error = error;
+          _syncError = 'تعذر تحديث فريق التنفيذ الآن. اضغط هنا لإعادة المحاولة.';
+        });
+      }
     } finally {
-      if (mounted) setState(() => _loading = false);
+      if (!silent && mounted) setState(() => _loading = false);
     }
   }
 
@@ -17007,7 +17026,48 @@ class _ExecutorEmployeesScreenState extends State<ExecutorEmployeesScreen> {
         child: const Icon(Icons.person_add_alt_1_outlined),
       ),
       child: [
+        if (_syncError != null) ...[
+          InkWell(
+            onTap: () => _load(),
+            borderRadius: BorderRadius.circular(8),
+            child: Container(
+              padding: const EdgeInsets.all(11),
+              decoration: BoxDecoration(
+                color: _gold.withValues(alpha: 0.10),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: _gold.withValues(alpha: 0.32)),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.sync_problem_outlined, color: _gold),
+                  const SizedBox(width: 9),
+                  Expanded(
+                    child: Text(
+                      _syncError!,
+                      style: const TextStyle(fontWeight: FontWeight.w700),
+                    ),
+                  ),
+                  const Icon(Icons.refresh_rounded, color: _gold),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 12),
+        ],
         ExecutorEmployeesSummary(summary: _summary),
+        if (_lastUpdated != null) ...[
+          const SizedBox(height: 7),
+          Align(
+            alignment: AlignmentDirectional.centerStart,
+            child: Text(
+              'آخر تحديث ${DateFormat('h:mm a', 'ar').format(_lastUpdated!)}',
+              style: TextStyle(
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+                fontSize: 11,
+              ),
+            ),
+          ),
+        ],
         const SizedBox(height: 14),
         ExecutorSurface(
           accent: ExecutorUiColors.cobalt,
