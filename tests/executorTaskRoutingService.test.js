@@ -37,14 +37,36 @@ describe('executor task routing service', () => {
         jest.clearAllMocks();
     });
 
-    test('hides unassigned processing tasks from operators when manual routing is enabled', () => {
+    test('shows an operator only its own accepted or routed tasks when manual routing is enabled', () => {
         const filter = taskOwnershipFilter(operator);
 
         expect(filter.$and).toHaveLength(2);
         expect(filter.$and[1].$or).toEqual([
-            { status: 'accepted' },
+            {
+                $or: [
+                    { status: 'accepted', operatorId: 'operator-1' },
+                    { status: 'accepted', assignedExecutorId: 'operator-1' }
+                ]
+            },
             { status: 'processing', assignedExecutorId: 'operator-1' }
         ]);
+    });
+
+    test('shows unassigned tasks but hides another operator\'s accepted task when direct pulling is enabled', () => {
+        const directOperator = {
+            ...operator,
+            groupId: { _id: 'group-1', manualTaskRoutingEnabled: false }
+        };
+        const filter = taskOwnershipFilter(directOperator);
+
+        expect(filter.$and[1].$or).toContainEqual({
+            status: 'processing',
+            $or: [
+                { assignedExecutorId: { $exists: false } },
+                { assignedExecutorId: null },
+                { assignedExecutorId: 'operator-1' }
+            ]
+        });
     });
 
     test('does not allow an executor with an accepted task to accept another one', async () => {

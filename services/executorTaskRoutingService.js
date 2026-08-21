@@ -17,8 +17,39 @@ const taskOwnershipFilter = (executor) => {
     const groupId = stringId(group);
     const base = taskGroupFilter(groupId);
 
-    if (executor?.role === 'manager' || !group.manualTaskRoutingEnabled) {
+    if (executor?.role === 'manager') {
         return base;
+    }
+
+    // An accepted task must remain private to the executor that accepted it.
+    // Some legacy rows only retained assignedExecutorId, so support both
+    // fields while never exposing another executor's active task.
+    const acceptedByCurrentExecutor = {
+        $or: [
+            { status: 'accepted', operatorId: employeeId },
+            { status: 'accepted', assignedExecutorId: employeeId }
+        ]
+    };
+
+    if (!group.manualTaskRoutingEnabled) {
+        return {
+            $and: [
+                base,
+                {
+                    $or: [
+                        acceptedByCurrentExecutor,
+                        {
+                            status: 'processing',
+                            $or: [
+                                { assignedExecutorId: { $exists: false } },
+                                { assignedExecutorId: null },
+                                { assignedExecutorId: employeeId }
+                            ]
+                        }
+                    ]
+                }
+            ]
+        };
     }
 
     return {
@@ -26,7 +57,7 @@ const taskOwnershipFilter = (executor) => {
             base,
             {
                 $or: [
-                    { status: 'accepted' },
+                    acceptedByCurrentExecutor,
                     { status: 'processing', assignedExecutorId: employeeId }
                 ]
             }

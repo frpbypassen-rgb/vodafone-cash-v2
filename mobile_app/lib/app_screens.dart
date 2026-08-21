@@ -13652,7 +13652,8 @@ class ExecutorTasksScreen extends StatefulWidget {
   State<ExecutorTasksScreen> createState() => _ExecutorTasksScreenState();
 }
 
-class _ExecutorTasksScreenState extends State<ExecutorTasksScreen> {
+class _ExecutorTasksScreenState extends State<ExecutorTasksScreen>
+    with WidgetsBindingObserver {
   Timer? _timer;
   Timer? _urgentToneTimer;
   List<Map<String, dynamic>> _tasks = <Map<String, dynamic>>[];
@@ -13666,12 +13667,14 @@ class _ExecutorTasksScreenState extends State<ExecutorTasksScreen> {
   bool _actionBusy = false;
   bool _urgentAlarmPlaying = false;
   bool _manualTaskRoutingEnabled = false;
+  String? _syncError;
   Map<String, dynamic>? _overview;
   DateTime? _lastUpdated;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _load();
     _timer = Timer.periodic(
       const Duration(seconds: 5),
@@ -13681,9 +13684,17 @@ class _ExecutorTasksScreenState extends State<ExecutorTasksScreen> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _timer?.cancel();
     _urgentToneTimer?.cancel();
     super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      unawaited(_load(silent: true));
+    }
   }
 
   Future<void> _playUrgentTone() async {
@@ -13839,12 +13850,19 @@ class _ExecutorTasksScreenState extends State<ExecutorTasksScreen> {
           _urgentAlerts = urgentAlerts;
           _manualTaskRoutingEnabled = manualTaskRoutingEnabled;
           _lastUpdated = DateTime.now();
+          _syncError = null;
         });
         _syncUrgentAlerts(urgentAlerts);
         _showNewUrgentAlertDialog(urgentAlerts);
       }
     } catch (error) {
-      if (!silent) _error = error;
+      if (mounted) {
+        setState(() {
+          if (!silent) _error = error;
+          _syncError =
+              'تعذر تحديث مهام التنفيذ. اضغط لإعادة المحاولة وتحقق من اتصال الخادم.';
+        });
+      }
     } finally {
       if (!silent && mounted) setState(() => _loading = false);
     }
@@ -14000,6 +14018,28 @@ class _ExecutorTasksScreenState extends State<ExecutorTasksScreen> {
       showHeading: false,
       onRefresh: _load,
       child: [
+        if (_syncError != null) ...[
+          Material(
+            color: _danger.withValues(alpha: 0.10),
+            borderRadius: BorderRadius.circular(8),
+            child: InkWell(
+              borderRadius: BorderRadius.circular(8),
+              onTap: () => _load(),
+              child: Padding(
+                padding: const EdgeInsets.all(11),
+                child: Row(
+                  children: [
+                    const Icon(Icons.sync_problem_outlined, color: _danger),
+                    const SizedBox(width: 8),
+                    Expanded(child: Text(_syncError!)),
+                    const Icon(Icons.refresh_rounded, color: _danger),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 10),
+        ],
         ExecutorTaskCommandHeader(
           taskCount: _tasks.length,
           lastUpdated: _lastUpdated,
