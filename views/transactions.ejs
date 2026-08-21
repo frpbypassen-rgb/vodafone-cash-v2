@@ -2046,14 +2046,18 @@
 
         try {
             const csrfToken = form.querySelector('input[name="_csrf"]')?.value || '';
+            // These actions do not upload files. Send URL-encoded data so the
+            // existing Express urlencoded parser receives req.body correctly.
+            const requestBody = new URLSearchParams(new FormData(form));
             const response = await fetch(form.action, {
                 method: 'POST',
                 headers: {
                     'Accept': 'application/json',
                     'X-Requested-With': 'XMLHttpRequest',
+                    'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8',
                     ...(csrfToken ? { 'X-CSRF-Token': csrfToken } : {})
                 },
-                body: new FormData(form),
+                body: requestBody,
                 credentials: 'same-origin'
             });
             const result = await response.json().catch(() => ({}));
