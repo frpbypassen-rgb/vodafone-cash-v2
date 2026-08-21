@@ -2045,11 +2045,13 @@
         }
 
         try {
+            const csrfToken = form.querySelector('input[name="_csrf"]')?.value || '';
             const response = await fetch(form.action, {
                 method: 'POST',
                 headers: {
                     'Accept': 'application/json',
-                    'X-Requested-With': 'XMLHttpRequest'
+                    'X-Requested-With': 'XMLHttpRequest',
+                    ...(csrfToken ? { 'X-CSRF-Token': csrfToken } : {})
                 },
                 body: new FormData(form),
                 credentials: 'same-origin'

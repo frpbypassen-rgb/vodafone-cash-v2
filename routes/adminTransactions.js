@@ -90,6 +90,17 @@ const respondTransactionAction = (req, res, status, payload, redirectUrl = '/tra
     return res.redirect(redirectUrl);
 };
 
+// Task delivery is an asynchronous side effect. A broken mobile push provider
+// must never roll back, or falsely report failure for, an already persisted
+// executor assignment.
+const publishExecutorTaskAvailable = (tx, source) => {
+    try {
+        eventBus.publish('executor:task-available', { tx, source });
+    } catch (error) {
+        console.error('[adminTransactions/assign-executor] task notification failed:', error.stack || error.message);
+    }
+};
+
 const customerFacingNotes = (notes) => {
     const raw = String(notes || '').trim();
     if (!raw) return '';
@@ -387,7 +398,7 @@ router.post('/transaction/:id/assign-executor', async (req, res) => {
             // 🚀 المسار الذكي: إذا كان هذا البوت آلياً (API Integration)
             // 🤖====================================================🤖
             if (executorGroup.isApiBot) {
-                eventBus.publish('executor:task-available', { tx: routedTx, source: 'admin-api-route' });
+                publishExecutorTaskAvailable(routedTx, 'admin-api-route');
 
                 // The operation is already routed and persisted. Queueing must
                 // never make the administrator see a failed routing action.
@@ -397,11 +408,6 @@ router.post('/transaction/:id/assign-executor', async (req, res) => {
                     await addTransferJob(String(routedTx._id), String(executorGroup._id));
                 } catch (queueError) {
                     console.error('[adminTransactions/assign-executor] API queue failed:', queueError.message);
-                    await Transaction.updateOne(
-                        { _id: routedTx._id },
-                        { $set: { apiQueueError: String(queueError.message || '').slice(0, 500) } },
-                        { runValidators: false }
-                    );
                 }
                 return respondTransactionAction(req, res, 200, {
                     success: true,
@@ -519,7 +525,7 @@ router.post('/transaction/:id/assign-executor', async (req, res) => {
             // المسار الكلاسيكي: للبوت البشري العادي
             // 👨‍💻====================================================👨‍💻
             // 🟢 الإشعارات ستكون عبر Socket.IO
-            eventBus.publish('executor:task-available', { tx: routedTx, source: 'admin-manual-route' });
+            publishExecutorTaskAvailable(routedTx, 'admin-manual-route');
             return respondTransactionAction(req, res, 200, {
                 success: true,
                 message: 'تم توجيه العملية إلى المنفذ.',
@@ -536,8 +542,19 @@ router.post('/transaction/:id/assign-executor', async (req, res) => {
             message: 'المنفذ المحدد غير موجود أو غير نشط.'
         });
     } catch (e) {
-        console.error('[adminTransactions/assign-executor] failed:', e.message);
-        return respondTransactionAction(req, res, 500, { success: false, message: 'تعذر توجيه العملية حالياً.' });
+        const errorId = `assign-${Date.now()}`;
+        console.error('[adminTransactions/assign-executor] failed:', {
+            errorId,
+            transactionId: req.params.id,
+            executorGroupId: req.body?.executorGroupId || req.body?.executorBotId,
+            error: e.stack || e.message
+        });
+        return respondTransactionAction(req, res, 500, {
+            success: false,
+            code: 'EXECUTOR_ASSIGN_FAILED',
+            errorId,
+            message: `تعذر توجيه العملية حالياً. رمز المتابعة: ${errorId}`
+        });
     }
 });
 
