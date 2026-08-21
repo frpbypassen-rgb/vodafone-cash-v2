@@ -47,6 +47,7 @@ const buildIntegrationDocumentData = ({
     apiKey,
     apiOrigin,
     serviceRates = {},
+    environment = 'production',
     generatedAt = new Date()
 }) => {
     const origin = normalizeOrigin(apiOrigin);
@@ -55,11 +56,19 @@ const buildIntegrationDocumentData = ({
     const reference = accountReference(account);
     const documentPrefix = accountType === 'agent' ? 'AG' : 'CO';
     const datePart = new Date(generatedAt).toISOString().slice(0, 10).replace(/-/g, '');
+    const isSandbox = environment === 'sandbox';
 
     return {
         logoDataUri: logoDataUri(),
         generatedAt,
-        documentNumber: `API-${documentPrefix}-${reference}-${datePart}`,
+        documentNumber: `${isSandbox ? 'SBX-API' : 'API'}-${documentPrefix}-${reference}-${datePart}`,
+        environment: {
+            isSandbox,
+            label: isSandbox ? 'بيئة الاختبار المعزولة' : 'بيئة الإنتاج',
+            warning: isSandbox
+                ? 'هذه بيانات اختبار فقط. لا تُرسل عمليات مالية حقيقية ولا تستخدم مفتاح الإنتاج في هذه البيئة.'
+                : 'هذه بيانات إنتاج. احفظ مفتاح API في Secret Manager ولا تشاركه مع أي جهة غير مخولة.'
+        },
         account: {
             name: account.name || 'جهة غير مسماة',
             typeLabel: accountLabel(accountType),

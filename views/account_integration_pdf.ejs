@@ -72,10 +72,11 @@
             <div class="document-chip"><%= documentNumber %></div>
         </div>
         <div class="cover-hero">
-            <p class="eyebrow">وثيقة تشغيل مخصصة للربط الخارجي</p>
-            <h1>وثيقة ربط واجهة API</h1>
+            <p class="eyebrow"><%= environment.label %> - وثيقة تشغيل مخصصة للربط الخارجي</p>
+            <h1><%= environment.isSandbox ? 'وثيقة اختبار واجهة API' : 'وثيقة ربط واجهة API' %></h1>
             <div class="partner-name"><%= account.name %></div>
             <p class="lead">أُعدت هذه الوثيقة خصيصًا لجهة الربط المذكورة، وتحتوي على بيانات التعريف ومفتاح المصادقة والمسارات الفنية والخطوات المطلوبة لإرسال التحويلات ومتابعتها عبر النظام.</p>
+            <% if (environment.isSandbox) { %><p class="notice" style="font-size:10px; margin-top:5mm;"><%= environment.warning %></p><% } %>
             <span class="status"><%= account.statusLabel %></span>
         </div>
         <div class="cover-footer">
@@ -104,7 +105,7 @@
         <table class="endpoint-table">
             <thead><tr><th>البند</th><th>القيمة المعتمدة</th></tr></thead>
             <tbody>
-                <tr><td>رابط الإنتاج</td><td><code><%= api.origin %></code></td></tr>
+                <tr><td>رابط <%= environment.isSandbox ? 'الاختبار' : 'الإنتاج' %></td><td><code><%= api.origin %></code></td></tr>
                 <tr><td>المسار الأساسي</td><td><code><%= api.basePath %></code></td></tr>
                 <tr><td>طريقة المصادقة</td><td><code>x-api-key: &lt;API_KEY&gt;</code></td></tr>
                 <tr><td>صيغة البيانات</td><td><code>Content-Type: application/json</code></td></tr>
@@ -114,7 +115,7 @@
         <div class="credential">
             <div class="credential-title">مفتاح API الخاص بهذه الجهة</div>
             <div class="credential-value"><%= account.apiKey %></div>
-            <div class="notice">هذا المفتاح يمنح صلاحية الاستعلام عن الرصيد وإرسال التحويلات لهذا الحساب فقط. احفظه في متغير بيئة أو Secret Manager، ولا ترسله في رابط أو رسالة عامة أو سجلات التطبيق.</div>
+            <div class="notice"><%= environment.isSandbox ? 'هذا مفتاح اختبار مستقل لهذا الحساب فقط. لا يعمل على بيئة الإنتاج ولا ينبغي استخدامه للعمليات الحقيقية.' : 'هذا المفتاح يمنح صلاحية الاستعلام عن الرصيد وإرسال التحويلات لهذا الحساب فقط. احفظه في متغير بيئة أو Secret Manager، ولا ترسله في رابط أو رسالة عامة أو سجلات التطبيق.' %></div>
         </div>
     </section>
 

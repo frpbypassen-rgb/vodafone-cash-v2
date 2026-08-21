@@ -15,6 +15,12 @@ const clientCompanySchema = new mongoose.Schema({
         sparse: true,
         default: () => crypto.randomBytes(24).toString('hex')
     },
+    // Used only by the isolated sandbox database to map a test merchant to its production account.
+    sandboxSource: {
+        reference: { type: String, trim: true, sparse: true },
+        productionAccountId: { type: String, trim: true },
+        productionAccountType: { type: String, enum: ['company', 'agent'] }
+    },
     
     // 🟢 تم التعديل: إضافة حقل سعر الصرف المخصص للشركة
     exchangeRate: { type: Number, default: 0 },
@@ -48,5 +54,6 @@ const clientCompanySchema = new mongoose.Schema({
 }, { timestamps: true });
 
 clientCompanySchema.index({ tenantId: 1 });
+clientCompanySchema.index({ 'sandboxSource.reference': 1, tenantId: 1 }, { sparse: true, unique: true });
 
 module.exports = mongoose.model('ClientCompany', clientCompanySchema);

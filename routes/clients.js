@@ -42,6 +42,7 @@ const {
     generateAccountIntegrationPdf,
     resolvePublicApiOrigin
 } = require('../services/accountIntegrationPdfService');
+const { provisionSandboxMerchant } = require('../services/sandboxMerchantProvisioningService');
 
 const accountCodeErrorQuery = (error) => {
     if (error.message === 'ACCOUNT_CODE_DUPLICATE') return 'duplicate';
@@ -107,6 +108,46 @@ const sendIntegrationDocument = async (req, res, { account, accountType }) => {
             accountName: account.name,
             accountCode: documentData.account.accountCode,
             apiBasePath: documentData.api.basePath
+        }
+    }).catch(() => {});
+
+    return res.end(pdf);
+};
+
+const sendSandboxIntegrationDocument = async (req, res, { account, accountType }) => {
+    const sandboxMerchant = await provisionSandboxMerchant({ account, accountType });
+    const settings = await Settings.findOne({}).lean() || {};
+    const documentData = buildIntegrationDocumentData({
+        account,
+        accountType,
+        apiKey: sandboxMerchant.apiKey,
+        apiOrigin: sandboxMerchant.apiOrigin,
+        serviceRates: getCompanyRateConfig(account, settings).effectiveRates,
+        environment: 'sandbox',
+        generatedAt: new Date()
+    });
+    const pdf = await generateAccountIntegrationPdf(req.app, documentData);
+    const fileReference = safeIntegrationFileReference(documentData.account.accountCode);
+
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Length', pdf.length);
+    res.setHeader('Content-Disposition', `attachment; filename="sandbox-api-test-${accountType}-${fileReference}.pdf"`);
+    res.setHeader('Cache-Control', 'private, no-store, max-age=0');
+
+    await logAction({
+        action: 'MERCHANT_API_SANDBOX_DOCUMENT_EXPORTED',
+        req,
+        performedById: req.session.adminId,
+        performedByModel: 'Admin',
+        performedByName: req.session.adminName || req.session.adminUsername || 'الإدارة',
+        targetId: account._id,
+        targetModel: accountType === 'agent' ? 'User' : 'ClientCompany',
+        result: 'نجاح',
+        metadata: {
+            accountType,
+            accountName: account.name,
+            accountCode: documentData.account.accountCode,
+            sandboxApiBasePath: documentData.api.basePath
         }
     }).catch(() => {});
 
@@ -316,6 +357,44 @@ router.get('/user/:id/integration-guide.pdf', requireAuth, requireMaster, async 
             return res.status(503).send('تعذر إنشاء ملف PDF لعدم وجود متصفح للطباعة على الخادم.');
         }
         return res.status(500).send('تعذر إنشاء وثيقة الربط.');
+    }
+});
+
+router.get('/company/:id/sandbox-api-guide.pdf', requireAuth, requireMaster, async (req, res) => {
+    try {
+        const company = await ClientCompany.findOne({ _id: req.params.id, ...visibleAccountFilter });
+        if (!company) return res.status(404).send('الحساب غير موجود.');
+        return await sendSandboxIntegrationDocument(req, res, { account: company, accountType: 'company' });
+    } catch (error) {
+        console.error('[clients/company-sandbox-api-guide] failed:', error.message);
+        if (error.code === 'SANDBOX_NOT_CONFIGURED' || error.code === 'SANDBOX_API_URL_INVALID' || error.code === 'SANDBOX_DATABASE_UNSAFE') {
+            return res.status(503).send('بيئة اختبار API غير مهيأة بأمان. راجع SANDBOX_API_URL و SANDBOX_MONGO_URI في إعدادات الخادم.');
+        }
+        if (error.code === 'PDF_BROWSER_NOT_FOUND') {
+            return res.status(503).send('تعذر إنشاء ملف PDF لعدم وجود متصفح للطباعة على الخادم.');
+        }
+        return res.status(500).send('تعذر إنشاء وثيقة الاختبار.');
+    }
+});
+
+router.get('/user/:id/sandbox-api-guide.pdf', requireAuth, requireMaster, async (req, res) => {
+    try {
+        const agent = await User.findOne({
+            _id: req.params.id,
+            role: 'agent',
+            ...visibleAccountFilter
+        });
+        if (!agent) return res.status(404).send('حساب الوكيل غير موجود.');
+        return await sendSandboxIntegrationDocument(req, res, { account: agent, accountType: 'agent' });
+    } catch (error) {
+        console.error('[clients/agent-sandbox-api-guide] failed:', error.message);
+        if (error.code === 'SANDBOX_NOT_CONFIGURED' || error.code === 'SANDBOX_API_URL_INVALID' || error.code === 'SANDBOX_DATABASE_UNSAFE') {
+            return res.status(503).send('بيئة اختبار API غير مهيأة بأمان. راجع SANDBOX_API_URL و SANDBOX_MONGO_URI في إعدادات الخادم.');
+        }
+        if (error.code === 'PDF_BROWSER_NOT_FOUND') {
+            return res.status(503).send('تعذر إنشاء ملف PDF لعدم وجود متصفح للطباعة على الخادم.');
+        }
+        return res.status(500).send('تعذر إنشاء وثيقة الاختبار.');
     }
 });
 

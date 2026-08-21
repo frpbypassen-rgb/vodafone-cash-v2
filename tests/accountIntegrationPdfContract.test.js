@@ -12,6 +12,8 @@ describe('Account integration PDF download contract', () => {
     test('protects the company and agent PDF endpoints with master access', () => {
         expect(routes).toContain("router.get('/company/:id/integration-guide.pdf', requireAuth, requireMaster");
         expect(routes).toContain("router.get('/user/:id/integration-guide.pdf', requireAuth, requireMaster");
+        expect(routes).toContain("router.get('/company/:id/sandbox-api-guide.pdf', requireAuth, requireMaster");
+        expect(routes).toContain("router.get('/user/:id/sandbox-api-guide.pdf', requireAuth, requireMaster");
         expect(routes).toContain("res.setHeader('Cache-Control', 'private, no-store, max-age=0')");
         expect(routes).toContain("action: 'MERCHANT_API_DOCUMENT_EXPORTED'");
     });
@@ -23,8 +25,8 @@ describe('Account integration PDF download contract', () => {
     });
 
     test('shows API test document downloads on registered company and agent cards', () => {
-        expect(clientsView).toContain('/company/<%= c._id %>/integration-guide.pdf');
-        expect(clientsView).toContain('/user/<%= agent._id %>/integration-guide.pdf');
+        expect(clientsView).toContain('/company/<%= c._id %>/sandbox-api-guide.pdf');
+        expect(clientsView).toContain('/user/<%= agent._id %>/sandbox-api-guide.pdf');
         expect(clientsView).toContain('تحميل ملف اختبار API');
     });
 });

@@ -89,4 +89,20 @@ describe('Account integration PDF document data', () => {
         if (previous === undefined) delete process.env.PUBLIC_APP_URL;
         else process.env.PUBLIC_APP_URL = previous;
     });
+
+    test('marks sandbox documents and keeps their endpoint isolated from production', () => {
+        const documentData = buildIntegrationDocumentData({
+            account,
+            accountType: 'agent',
+            apiKey: 'sandbox-key-456',
+            apiOrigin: 'https://sandbox-api.example.test',
+            environment: 'sandbox',
+            generatedAt: new Date('2026-08-08T10:00:00.000Z')
+        });
+
+        expect(documentData.documentNumber).toBe('SBX-API-AG-12345-20260808');
+        expect(documentData.environment).toMatchObject({ isSandbox: true, label: 'بيئة الاختبار المعزولة' });
+        expect(documentData.api.basePath).toBe(`https://sandbox-api.example.test${API_PATH}`);
+        expect(documentData.examples.balanceCurl).not.toContain('sandbox-key-456');
+    });
 });
