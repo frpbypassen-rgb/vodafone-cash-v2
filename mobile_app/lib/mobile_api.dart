@@ -976,6 +976,26 @@ class MobileApi {
     );
   }
 
+  Future<Map<String, dynamic>> executorSupportGroupChat() {
+    return _request('GET', '/executor/support/group-chat');
+  }
+
+  Future<Map<String, dynamic>> replyToExecutorSupportGroupChat({
+    String? message,
+    List<String> imagesBase64 = const <String>[],
+  }) {
+    return _request(
+      'POST',
+      '/executor/support/group-chat/replies',
+      data: <String, dynamic>{
+        if (message != null && message.trim().isNotEmpty)
+          'message': message.trim(),
+        if (imagesBase64.isNotEmpty) 'imagesBase64': imagesBase64,
+      },
+      idempotencyKey: _uuid.v4(),
+    );
+  }
+
   Future<Map<String, dynamic>> createExecutorSupportTicket({
     required String subject,
     required String category,

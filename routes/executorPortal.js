@@ -139,6 +139,23 @@ router.get('/api/support/tickets', requireExecutorAuth, async (req, res) => {
         return res.status(error.status || 500).json({ success: false, error: error.message || 'تعذر جلب طلبات الدعم.' });
     }
 });
+router.get('/api/support/group-chat', requireExecutorAuth, async (req, res) => {
+    try {
+        const workspace = await executorSupportService.getExecutorGroupChat({ executorId: req.executorEmployee._id });
+        return res.json({ success: true, ...workspace, serverTime: new Date().toISOString() });
+    } catch (error) {
+        return res.status(error.status || 500).json({ success: false, error: error.message || 'تعذر فتح مجموعة شركة التنفيذ.' });
+    }
+});
+router.post('/api/support/group-chat/replies', requireExecutorAuth, async (req, res) => {
+    try {
+        const workspace = await executorSupportService.replyToExecutorGroupChat({ executorId: req.executorEmployee._id, payload: req.body });
+        req.app.get('io')?.emit('support:ticket-updated', { ticketId: workspace.ticket.id, channel: 'portal', direction: 'inbound', status: workspace.ticket.status, source: 'executor_group_chat' });
+        return res.json({ success: true, ...workspace });
+    } catch (error) {
+        return res.status(error.status || 400).json({ success: false, error: error.message || 'تعذر إرسال رسالة المجموعة.' });
+    }
+});
 router.post('/api/support/tickets', requireExecutorAuth, async (req, res) => {
     try {
         const ticket = await executorSupportService.createExecutorTicket({ executorId: req.executorEmployee._id, payload: req.body });

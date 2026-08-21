@@ -16,6 +16,7 @@ const ACTIVE_STATUSES = ['open', 'answered', 'pending_internal'];
 const CLOSED_STATUSES = ['resolved', 'closed'];
 const SUPPORT_PRIORITIES = ['low', 'normal', 'high', 'urgent'];
 const SUPPORT_CATEGORIES = Object.freeze({
+    execution_group: 'مجموعة شركة التنفيذ',
     transaction: 'مشكلة في عملية',
     pending_transaction: 'عملية متأخرة',
     balance: 'الرصيد والمطابقة',
@@ -247,6 +248,111 @@ const serializeTicket = (ticket, { includeMessages = false } = {}) => {
     };
     if (includeMessages) result.messages = messages.map(serializeMessage);
     return result;
+};
+
+const listExecutionGroupMembers = async (groupId) => {
+    const employees = await Employee.find({ groupId, status: 'active' })
+        .select('_id name role phone webUsername status')
+        .sort({ role: 1, name: 1 })
+        .lean();
+    return [
+        { id: 'administration', name: 'الإدارة', role: 'admin', status: 'active' },
+        ...employees.map((employee) => ({
+            id: toId(employee._id),
+            name: employee.name || employee.webUsername || 'موظف تنفيذ',
+            role: employee.role || 'operator',
+            status: employee.status || 'active'
+        }))
+    ];
+};
+
+const getOrCreateExecutionGroupChat = async ({ employee, group }) => {
+    const groupChatKey = `executor-group:${toId(group._id)}`;
+    const filter = { groupChatKey };
+    let ticket = await SupportTicket.findOne(filter).sort({ updatedAt: -1 });
+    if (ticket) return ticket;
+
+    const createdAt = new Date();
+    try {
+        ticket = await SupportTicket.create({
+            entityType: 'executor_group',
+            entityId: group._id,
+            groupChatKey,
+            name: group.name || 'شركة التنفيذ',
+            channel: 'portal',
+            status: 'open',
+            priority: 'normal',
+            category: 'execution_group',
+            unreadAdmin: 0,
+            unreadUser: 0,
+            messages: [{
+                sender: 'system',
+                senderName: 'النظام',
+                text: `تم إنشاء مجموعة الدعم الخاصة بشركة ${group.name || 'التنفيذ'}.`,
+                channel: 'portal',
+                direction: 'inbound',
+                messageType: 'text',
+                createdAt
+            }],
+            metadata: {
+                conversationType: 'execution_group',
+                subject: `مجموعة دعم ${group.name || 'شركة التنفيذ'}`,
+                executorGroupId: toId(group._id),
+                executorGroupName: group.name || '',
+                createdByExecutorId: toId(employee._id)
+            }
+        });
+    } catch (error) {
+        if (error?.code !== 11000) throw error;
+        ticket = await SupportTicket.findOne(filter).sort({ updatedAt: -1 });
+        if (!ticket) throw error;
+    }
+    return ticket;
+};
+
+const serializeExecutionGroupChat = async ({ ticket, group }) => ({
+    ticket: {
+        ...serializeTicket(ticket.toObject ? ticket.toObject() : ticket, { includeMessages: true }),
+        isGroupChat: true,
+        subject: `مجموعة دعم ${group.name || 'شركة التنفيذ'}`,
+        category: 'execution_group',
+        categoryLabel: SUPPORT_CATEGORIES.execution_group
+    },
+    members: await listExecutionGroupMembers(group._id)
+});
+
+const getExecutorGroupChat = async ({ executorId }) => {
+    const { employee, group } = await getExecutorIdentity(executorId);
+    const ticket = await getOrCreateExecutionGroupChat({ employee, group });
+    return serializeExecutionGroupChat({ ticket, group });
+};
+
+const replyToExecutorGroupChat = async ({ executorId, payload = {} }) => {
+    const { employee, group } = await getExecutorIdentity(executorId);
+    const ticket = await getOrCreateExecutionGroupChat({ employee, group });
+    const text = cleanText(payload.message || payload.text, 2000);
+    const imageUrls = await saveSupportImages(payload.imagesBase64 || []);
+    if (!text && !imageUrls.length) throw supportError('VALIDATION_ERROR', 'اكتب رسالة أو أرفق صورة واحدة على الأقل.');
+
+    const createdAt = new Date();
+    if (text) {
+        ticket.messages.push({
+            sender: 'user', senderName: employee.name, text, channel: 'portal',
+            direction: 'inbound', messageType: 'text', createdAt
+        });
+    }
+    imageUrls.forEach((imageUrl) => ticket.messages.push({
+        sender: 'user', senderName: employee.name, text: '', imageUrl, channel: 'portal',
+        direction: 'inbound', messageType: 'image', createdAt
+    }));
+    ticket.status = 'open';
+    ticket.unreadAdmin = Number(ticket.unreadAdmin || 0) + 1;
+    await ticket.save();
+    await notifyAdmins({
+        title: `رسالة في مجموعة ${group.name || 'التنفيذ'}`,
+        message: `${employee.name}: ${text || 'أرفق صورة جديدة'}`
+    });
+    return serializeExecutionGroupChat({ ticket, group });
 };
 
 const listExecutorTickets = async ({ executorId, status = 'active', category, search, page = 1, limit = 30 }) => {
@@ -486,5 +592,7 @@ module.exports = {
     createExecutorTicket,
     getExecutorTicket,
     replyToExecutorTicket,
+    getExecutorGroupChat,
+    replyToExecutorGroupChat,
     getExecutorDiagnostics
 };

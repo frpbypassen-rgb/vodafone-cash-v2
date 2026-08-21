@@ -2921,6 +2921,42 @@ router.get('/executor/support/tickets', authenticateJWT, async (req, res) => {
     }
 });
 
+// One persistent internal group per executor company. Membership is derived
+// from active company employees, so removed employees immediately lose access.
+router.get('/executor/support/group-chat', authenticateJWT, async (req, res) => {
+    try {
+        if (req.user.accountType !== 'executor') {
+            return sendMobileError(res, 403, 'FORBIDDEN', 'هذه الصفحة مخصصة لحسابات التنفيذ.', req.correlationId);
+        }
+        const workspace = await executorSupportService.getExecutorGroupChat({ executorId: req.user.userId });
+        return res.json({ success: true, ...workspace, serverTime: new Date().toISOString() });
+    } catch (error) {
+        return sendExecutorSupportError(res, req, error, 'تعذر فتح مجموعة شركة التنفيذ.');
+    }
+});
+
+router.post('/executor/support/group-chat/replies', authenticateJWT, async (req, res) => {
+    try {
+        if (req.user.accountType !== 'executor') {
+            return sendMobileError(res, 403, 'FORBIDDEN', 'هذه الصفحة مخصصة لحسابات التنفيذ.', req.correlationId);
+        }
+        const workspace = await executorSupportService.replyToExecutorGroupChat({
+            executorId: req.user.userId,
+            payload: req.body
+        });
+        req.app.get('io')?.emit('support:ticket-updated', {
+            ticketId: workspace.ticket.id,
+            channel: 'portal',
+            direction: 'inbound',
+            status: workspace.ticket.status,
+            source: 'executor_group_chat'
+        });
+        return res.json({ success: true, ...workspace, serverTime: new Date().toISOString() });
+    } catch (error) {
+        return sendExecutorSupportError(res, req, error, 'تعذر إرسال رسالة المجموعة.');
+    }
+});
+
 router.post('/executor/support/tickets', authenticateJWT, async (req, res) => {
     try {
         if (req.user.accountType !== 'executor') {

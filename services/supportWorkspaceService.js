@@ -32,6 +32,7 @@ const SUPPORT_CATEGORIES = [
     'notifications',
     'employee_account',
     'api',
+    'execution_group',
     'other'
 ];
 const ACTIVE_SUPPORT_STATUSES = ['open', 'answered', 'pending_internal'];

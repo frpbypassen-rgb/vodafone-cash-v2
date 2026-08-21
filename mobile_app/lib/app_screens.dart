@@ -12052,6 +12052,18 @@ class _ExecutorSupportScreenState extends State<ExecutorSupportScreen> {
     if (updated == true) await _load();
   }
 
+  Future<void> _openGroupChat() async {
+    final updated = await Navigator.of(context).push<bool>(
+      MaterialPageRoute(
+        builder: (_) => ExecutorSupportConversationScreen(
+          controller: widget.controller,
+          groupChat: true,
+        ),
+      ),
+    );
+    if (updated == true) await _load(quiet: true);
+  }
+
   Future<void> _showDiagnostics() async {
     showDialog<void>(
       context: context,
@@ -12191,10 +12203,24 @@ class _ExecutorSupportScreenState extends State<ExecutorSupportScreen> {
                 ],
               ),
               const SizedBox(height: 14),
-              FilledButton.icon(
-                onPressed: _createTicket,
-                icon: const Icon(Icons.add_comment_outlined),
-                label: const Text('فتح طلب دعم جديد'),
+              Row(
+                children: [
+                  Expanded(
+                    child: FilledButton.icon(
+                      onPressed: _openGroupChat,
+                      icon: const Icon(Icons.groups_2_outlined),
+                      label: const Text('مجموعة الشركة'),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: _createTicket,
+                      icon: const Icon(Icons.add_comment_outlined),
+                      label: const Text('طلب جديد'),
+                    ),
+                  ),
+                ],
               ),
             ],
           ),
@@ -12971,11 +12997,13 @@ class ExecutorSupportConversationScreen extends StatefulWidget {
   const ExecutorSupportConversationScreen({
     super.key,
     required this.controller,
-    required this.ticketId,
+    this.ticketId = '',
+    this.groupChat = false,
   });
 
   final SessionController controller;
   final String ticketId;
+  final bool groupChat;
 
   @override
   State<ExecutorSupportConversationScreen> createState() =>
@@ -12989,6 +13017,7 @@ class _ExecutorSupportConversationScreenState
   final _picker = ImagePicker();
   final List<Uint8List> _images = <Uint8List>[];
   Map<String, dynamic>? _ticket;
+  List<Map<String, dynamic>> _members = <Map<String, dynamic>>[];
   Timer? _poll;
   Object? _error;
   bool _loading = true;
@@ -13015,9 +13044,11 @@ class _ExecutorSupportConversationScreenState
   Future<void> _load({bool quiet = false}) async {
     if (!quiet && mounted) setState(() => _loading = true);
     try {
-      final response = await widget.controller.api.executorSupportTicketDetails(
-        widget.ticketId,
-      );
+      final response = widget.groupChat
+          ? await widget.controller.api.executorSupportGroupChat()
+          : await widget.controller.api.executorSupportTicketDetails(
+              widget.ticketId,
+            );
       final raw = response['ticket'];
       if (!mounted || raw is! Map) return;
       final next = Map<String, dynamic>.from(raw);
@@ -13025,6 +13056,13 @@ class _ExecutorSupportConversationScreenState
       final nextMessages = (next['messages'] as List?)?.length ?? 0;
       setState(() {
         _ticket = next;
+        final rawMembers = response['members'];
+        _members = rawMembers is List
+            ? rawMembers
+                .whereType<Map>()
+                .map((item) => Map<String, dynamic>.from(item))
+                .toList()
+            : <Map<String, dynamic>>[];
         _error = null;
         if (nextMessages != oldMessages) _changed = true;
       });
@@ -13064,13 +13102,21 @@ class _ExecutorSupportConversationScreenState
     if (text.isEmpty && _images.isEmpty) return;
     setState(() => _sending = true);
     try {
-      await widget.controller.api.replyToExecutorSupportTicket(
-        id: widget.ticketId,
-        message: text,
-        imagesBase64: _images
-            .map((image) => 'data:image/jpeg;base64,${base64Encode(image)}')
-            .toList(),
-      );
+      final imagesBase64 = _images
+          .map((image) => 'data:image/jpeg;base64,${base64Encode(image)}')
+          .toList();
+      if (widget.groupChat) {
+        await widget.controller.api.replyToExecutorSupportGroupChat(
+          message: text,
+          imagesBase64: imagesBase64,
+        );
+      } else {
+        await widget.controller.api.replyToExecutorSupportTicket(
+          id: widget.ticketId,
+          message: text,
+          imagesBase64: imagesBase64,
+        );
+      }
       _reply.clear();
       _images.clear();
       _changed = true;
@@ -13111,7 +13157,7 @@ class _ExecutorSupportConversationScreenState
           title: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('${ticket?['subject'] ?? 'طلب دعم'}'),
+              Text(widget.groupChat ? 'مجموعة شركة التنفيذ' : '${ticket?['subject'] ?? 'طلب دعم'}'),
               Text(
                 '${ticket?['ticketId'] ?? ''}',
                 textDirection: ui.TextDirection.ltr,
@@ -13182,6 +13228,28 @@ class _ExecutorSupportConversationScreenState
                                 value: statusLabel(
                                   '${transaction['status'] ?? ''}',
                                 ),
+                              ),
+                            ],
+                            if (widget.groupChat && _members.isNotEmpty) ...[
+                              const Divider(height: 24),
+                              Text(
+                                'الأعضاء (${_members.length})',
+                                style: const TextStyle(fontWeight: FontWeight.w900),
+                              ),
+                              const SizedBox(height: 7),
+                              Wrap(
+                                spacing: 6,
+                                runSpacing: 6,
+                                children: _members.map((member) => Chip(
+                                  avatar: Icon(
+                                    '${member['role'] ?? ''}' == 'admin'
+                                        ? Icons.admin_panel_settings_outlined
+                                        : Icons.person_outline,
+                                    size: 16,
+                                  ),
+                                  label: Text('${member['name'] ?? 'عضو'}'),
+                                  visualDensity: VisualDensity.compact,
+                                )).toList(),
                               ),
                             ],
                           ],

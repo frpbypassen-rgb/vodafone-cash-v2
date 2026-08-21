@@ -87,6 +87,16 @@ const resolveSupportTicketNotificationUserIds = async (ticket) => {
         ]);
     }
 
+    if (ticket.entityType === 'executor_group') {
+        const employees = await Employee.find({ groupId: entityId, status: 'active' })
+            .select('_id webUsername phone')
+            .lean();
+        return unique([
+            ...fallback,
+            ...employees.flatMap((employee) => [employee.webUsername, employee.phone, employee._id])
+        ]);
+    }
+
     if (ticket.entityType === 'client_company') {
         const employee = await ClientEmployee.findById(entityId)
             .select('_id webUsername phone companyId')
@@ -144,7 +154,7 @@ const createSupportReplyNotifications = async ({ ticket, channel }) => {
     const userIds = await resolveSupportTicketNotificationUserIds(ticket);
     const docs = await Promise.all(userIds.map((userId) => Notification.create({
         userId,
-        audience: ticket.entityType === 'executor' ? 'executor' : 'client',
+        audience: ['executor', 'executor_group'].includes(ticket.entityType) ? 'executor' : 'client',
         targetModel: 'SupportTicket',
         targetId: ticket._id,
         title: 'رد جديد من الدعم الفني',
@@ -164,6 +174,15 @@ const createSupportReplyNotifications = async ({ ticket, channel }) => {
             message: 'لديك رد جديد داخل محادثة الدعم.',
             channel
         });
+    }
+    if (ticket.entityType === 'executor_group' && ticket.entityId) {
+        const employees = await Employee.find({ groupId: ticket.entityId, status: 'active' }).select('_id').lean();
+        employees.forEach((employee) => eventBus.publish('executor:support-reply', {
+            employeeId: String(employee._id),
+            ticketId: String(ticket._id),
+            message: 'لديك رد جديد داخل مجموعة شركة التنفيذ.',
+            channel
+        }));
     }
     return created;
 };

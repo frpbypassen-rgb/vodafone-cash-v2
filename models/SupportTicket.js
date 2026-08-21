@@ -27,7 +27,9 @@ const supportTicketSchema = new mongoose.Schema({
             return 'TCK-' + Math.floor(100000 + Math.random() * 900000);
         }
     },
-    entityType: { type: String, enum: ['client_user', 'client_company', 'executor', 'sub_client', 'whatsapp'], required: true },
+    // Present only for the one persistent support room of an executor company.
+    groupChatKey: { type: String, trim: true, unique: true, sparse: true },
+    entityType: { type: String, enum: ['client_user', 'client_company', 'executor', 'executor_group', 'sub_client', 'whatsapp'], required: true },
     entityId: { type: mongoose.Schema.Types.ObjectId },
     telegramId: { type: String },
     name: { type: String, required: true },
@@ -98,5 +100,6 @@ supportTicketSchema.index({ channel: 1, phoneNormalized: 1, status: 1, updatedAt
 supportTicketSchema.index({ status: 1, priority: 1, lastMessageAt: -1 });
 supportTicketSchema.index({ assignedToId: 1, status: 1, lastMessageAt: -1 });
 supportTicketSchema.index({ activeHandlerExpiresAt: 1 });
+supportTicketSchema.index({ entityType: 1, entityId: 1, updatedAt: -1 });
 
 module.exports = mongoose.model('SupportTicket', supportTicketSchema);
