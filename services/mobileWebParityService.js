@@ -1072,7 +1072,10 @@ const executorGroupQuery = (groupId, tenantId) => {
             { managerGroupId: groupId }
         ]
     };
-    if (tenantId) query.tenantId = tenantId;
+    if (tenantId) {
+        const singleTenantMode = String(process.env.TENANT_MODE || '').trim().toLowerCase() === 'single';
+        query.tenantId = singleTenantMode ? { $in: [tenantId, null] } : tenantId;
+    }
     return query;
 };
 

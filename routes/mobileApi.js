@@ -118,6 +118,15 @@ const {
 
 const router = express.Router();
 
+// Legacy execution records created before tenant migration have no tenantId.
+// They are accepted only by the configured single-tenant deployment.
+const executorTenantScope = (req) => {
+    if (!req.tenant?._id) return null;
+    return String(process.env.TENANT_MODE || '').trim().toLowerCase() === 'single'
+        ? { $in: [req.tenant._id, null] }
+        : req.tenant._id;
+};
+
 const REPORT_DOWNLOAD_TTL_MS = 2 * 60 * 1000;
 
 const reportDownloadSecret = () => (
@@ -1294,7 +1303,7 @@ router.get('/executor/live-tasks', authenticateJWT, async (req, res) => {
         }
 
         const employeeQuery = { _id: userId };
-        if (req.tenant) employeeQuery.tenantId = req.tenant._id;
+        if (req.tenant) employeeQuery.tenantId = executorTenantScope(req);
         const employeeLookup = Employee.findOne(employeeQuery);
         const employee = typeof employeeLookup?.populate === 'function'
             ? await employeeLookup.populate('groupId')
@@ -1311,7 +1320,7 @@ router.get('/executor/live-tasks', authenticateJWT, async (req, res) => {
             ...taskOwnershipFilter(employee),
             status: { $in: ['processing', 'accepted'] }
         };
-        if (req.tenant) queryTasks.tenantId = req.tenant._id;
+        if (req.tenant) queryTasks.tenantId = executorTenantScope(req);
         const tasks = await Transaction.find(queryTasks).sort({ createdAt: 1 }).lean();
 
         const queryAlerts = {
@@ -1319,7 +1328,7 @@ router.get('/executor/live-tasks', authenticateJWT, async (req, res) => {
             emergencyAlert: { $exists: true, $ne: null },
             status: { $in: ['processing', 'accepted'] }
         };
-        if (req.tenant) queryAlerts.tenantId = req.tenant._id;
+        if (req.tenant) queryAlerts.tenantId = executorTenantScope(req);
         const alerts = await Transaction.find(queryAlerts).lean();
 
         return res.json({
@@ -1365,7 +1374,7 @@ router.post('/executor/accept-task/:id', authenticateJWT, async (req, res) => {
         }
 
         const empQuery = { _id: userId };
-        if (req.tenant) empQuery.tenantId = req.tenant._id;
+        if (req.tenant) empQuery.tenantId = executorTenantScope(req);
         const emp = await Employee.findOne(empQuery).populate('groupId');
         if (!emp) {
             return sendMobileError(res, 404, 'EMPLOYEE_NOT_FOUND', 'لم يتم العثور على حساب المنفذ', req.correlationId);
