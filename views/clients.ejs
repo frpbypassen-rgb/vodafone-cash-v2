@@ -678,6 +678,9 @@
                                             <a href="/admin/accounts/company/<%= c._id %>/edit" class="btn-3d" style="color:#087f74; border-color:rgba(8,127,116,.35);">
                                                 <i class="fa-solid fa-pen-to-square me-2"></i> تعديل بيانات الشركة
                                             </a>
+                                            <a href="/company/<%= c._id %>/integration-guide.pdf" class="btn-3d" style="color:#5b21b6; border-color:rgba(91,33,182,.35);" title="تنزيل ملف اختبار وربط API الخاص بالشركة">
+                                                <i class="fa-solid fa-flask me-2"></i> تحميل ملف اختبار API
+                                            </a>
                                         <% } %>
                                         <form action="/company/<%= c._id %>/delete" method="POST" class="delete-account-form" onsubmit="return confirm('هل أنت متأكد من حذف هذه الشركة؟ سيتم إيقاف دخول موظفيها وإخفاؤها من القائمة مع حفظ العمليات السابقة.');">
                                             <button type="submit" class="btn-3d btn-delete-account">
@@ -750,6 +753,9 @@
                                         <% if (typeof isMaster !== 'undefined' && isMaster) { %>
                                             <a href="/admin/accounts/agent/<%= agent._id %>/edit" class="btn-3d" style="color:#087f74; border-color:rgba(8,127,116,.35);">
                                                 <i class="fa-solid fa-pen-to-square me-2"></i> تعديل بيانات الوكيل
+                                            </a>
+                                            <a href="/user/<%= agent._id %>/integration-guide.pdf" class="btn-3d" style="color:#92400e; border-color:rgba(146,64,14,.35);" title="تنزيل ملف اختبار وربط API الخاص بالوكيل">
+                                                <i class="fa-solid fa-flask me-2"></i> تحميل ملف اختبار API
                                             </a>
                                         <% } %>
                                         <form action="/user/<%= agent._id %>/delete" method="POST" class="delete-account-form" onsubmit="return confirm('هل أنت متأكد من حذف هذا الوكيل؟ سيتم إيقاف الحساب والعملاء التابعين له مع حفظ العمليات السابقة.');">

@@ -7,6 +7,7 @@ describe('Account integration PDF download contract', () => {
     const routes = fs.readFileSync(path.join(__dirname, '../routes/clients.js'), 'utf8');
     const companyView = fs.readFileSync(path.join(__dirname, '../views/company_details.ejs'), 'utf8');
     const userView = fs.readFileSync(path.join(__dirname, '../views/user_details.ejs'), 'utf8');
+    const clientsView = fs.readFileSync(path.join(__dirname, '../views/clients.ejs'), 'utf8');
 
     test('protects the company and agent PDF endpoints with master access', () => {
         expect(routes).toContain("router.get('/company/:id/integration-guide.pdf', requireAuth, requireMaster");
@@ -19,5 +20,11 @@ describe('Account integration PDF download contract', () => {
         expect(companyView).toContain('/company/<%= company._id %>/integration-guide.pdf');
         expect(userView).toContain('<% if (isAgentAccount) { %>');
         expect(userView).toContain('/user/<%= user._id %>/integration-guide.pdf');
+    });
+
+    test('shows API test document downloads on registered company and agent cards', () => {
+        expect(clientsView).toContain('/company/<%= c._id %>/integration-guide.pdf');
+        expect(clientsView).toContain('/user/<%= agent._id %>/integration-guide.pdf');
+        expect(clientsView).toContain('تحميل ملف اختبار API');
     });
 });
