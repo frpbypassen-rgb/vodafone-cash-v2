@@ -11969,26 +11969,38 @@ class ExecutorSupportScreen extends StatefulWidget {
   State<ExecutorSupportScreen> createState() => _ExecutorSupportScreenState();
 }
 
-class _ExecutorSupportScreenState extends State<ExecutorSupportScreen> {
+class _ExecutorSupportScreenState extends State<ExecutorSupportScreen>
+    with WidgetsBindingObserver {
   final _search = TextEditingController();
   List<Map<String, dynamic>> _tickets = <Map<String, dynamic>>[];
   Map<String, dynamic> _summary = <String, dynamic>{};
   Map<String, dynamic> _permissions = <String, dynamic>{};
   Object? _error;
   bool _loading = true;
+  String? _syncError;
+  DateTime? _lastUpdated;
   String _status = 'active';
   String _category = '';
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _load();
   }
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _search.dispose();
     super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed && _tickets.isNotEmpty) {
+      unawaited(_load(quiet: true));
+    }
   }
 
   Future<void> _load({bool quiet = false}) async {
@@ -12020,9 +12032,16 @@ class _ExecutorSupportScreenState extends State<ExecutorSupportScreen> {
             ? Map<String, dynamic>.from(response['permissions'] as Map)
             : <String, dynamic>{};
         _error = null;
+        _syncError = null;
+        _lastUpdated = DateTime.now();
       });
     } catch (error) {
-      if (mounted) setState(() => _error = error);
+      if (mounted) {
+        setState(() {
+          if (!quiet || _tickets.isEmpty) _error = error;
+          _syncError = 'تعذر تحديث طلبات الدعم الآن. اضغط هنا لإعادة المحاولة.';
+        });
+      }
     } finally {
       if (mounted) setState(() => _loading = false);
     }
@@ -12131,6 +12150,34 @@ class _ExecutorSupportScreenState extends State<ExecutorSupportScreen> {
         icon: const Icon(Icons.health_and_safety_outlined),
       ),
       child: [
+        if (_syncError != null) ...[
+          InkWell(
+            onTap: () => _load(),
+            borderRadius: BorderRadius.circular(8),
+            child: Container(
+              padding: const EdgeInsets.all(11),
+              decoration: BoxDecoration(
+                color: _gold.withValues(alpha: 0.10),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: _gold.withValues(alpha: 0.32)),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.sync_problem_outlined, color: _gold),
+                  const SizedBox(width: 9),
+                  Expanded(
+                    child: Text(
+                      _syncError!,
+                      style: const TextStyle(fontWeight: FontWeight.w700),
+                    ),
+                  ),
+                  const Icon(Icons.refresh_rounded, color: _gold),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 12),
+        ],
         ExecutorSurface(
           accent: ExecutorUiColors.jade,
           child: Column(
@@ -12225,6 +12272,19 @@ class _ExecutorSupportScreenState extends State<ExecutorSupportScreen> {
             ],
           ),
         ),
+        if (_lastUpdated != null) ...[
+          const SizedBox(height: 7),
+          Align(
+            alignment: AlignmentDirectional.centerStart,
+            child: Text(
+              'آخر تحديث ${DateFormat('h:mm a', 'ar').format(_lastUpdated!)}',
+              style: TextStyle(
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+                fontSize: 11,
+              ),
+            ),
+          ),
+        ],
         const SizedBox(height: 14),
         ExecutorSurface(
           accent: ExecutorUiColors.cobalt,
