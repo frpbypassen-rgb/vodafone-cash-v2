@@ -88,6 +88,27 @@ describe('executor employee reports', () => {
         expect(dto.cancelledOperations[0].executorName).toBeNull();
     });
 
+    test('includes legacy execution rows in the configured single-tenant report scope', async () => {
+        const previousTenantMode = process.env.TENANT_MODE;
+        process.env.TENANT_MODE = 'single';
+        try {
+            await getExecutorReports({
+                executorId: 'employee-1',
+                dateType: 'day',
+                dateValue: '2026-08-14',
+                tenantId: 'tenant-1'
+            });
+        } finally {
+            if (previousTenantMode === undefined) delete process.env.TENANT_MODE;
+            else process.env.TENANT_MODE = previousTenantMode;
+        }
+
+        expect(Transaction.find).toHaveBeenCalledWith(expect.objectContaining({
+            tenantId: { $in: ['tenant-1', null] },
+            operatorId: 'employee-1'
+        }));
+    });
+
     test('builds manager team performance and a balanced financial summary', async () => {
         Employee.findById.mockResolvedValue({
             _id: 'manager-1',

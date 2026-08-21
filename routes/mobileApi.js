@@ -3112,7 +3112,7 @@ router.get('/executor/overview', authenticateJWT, async (req, res) => {
         }
         const result = await mobileWebParityService.getExecutorOverview({
             executorId: req.user.userId,
-            tenantId: req.tenant ? req.tenant._id : null
+            tenantId: req.tenant ? executorTenantScope(req) : null
         });
         return res.json({ success: true, data: result, serverTime: new Date().toISOString() });
     } catch (e) {
@@ -3138,7 +3138,7 @@ router.post('/executor/reports/filter', authenticateJWT, executorReportsValidato
             dateFrom,
             dateTo,
             employeeId,
-            tenantId: req.tenant ? req.tenant._id : null
+            tenantId: req.tenant ? executorTenantScope(req) : null
         });
         
         return res.json({
@@ -3177,7 +3177,7 @@ router.post('/executor/reports/download-link', authenticateJWT, executorReportsV
             dateFrom,
             dateTo,
             employeeId,
-            tenantId: req.tenant ? req.tenant._id : null
+            tenantId: req.tenant ? executorTenantScope(req) : null
         });
 
         const token = createReportDownloadToken({
@@ -3248,7 +3248,7 @@ router.get('/executor/employees', authenticateJWT, async (req, res) => {
         const { userId } = req.user;
         const workspace = await mobileWebParityService.getEmployeesWorkspace({
             executorId: userId,
-            tenantId: req.tenant ? req.tenant._id : null
+            tenantId: req.tenant ? executorTenantScope(req) : null
         });
         return res.json({
             success: true,

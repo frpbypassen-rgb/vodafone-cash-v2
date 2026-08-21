@@ -14862,11 +14862,14 @@ enum _ExecutorReportPeriodMode { day, month, range }
 
 enum _ExecutorReportTab { summary, operations, cancelled, reconciliation }
 
-class _ExecutorReportsScreenState extends State<ExecutorReportsScreen> {
+class _ExecutorReportsScreenState extends State<ExecutorReportsScreen>
+    with WidgetsBindingObserver {
   Map<String, dynamic>? _report;
   Object? _error;
   bool _loading = true;
   bool _downloading = false;
+  String? _syncError;
+  DateTime? _lastUpdated;
   _ExecutorReportPeriodMode _periodMode = _ExecutorReportPeriodMode.day;
   _ExecutorReportTab _tab = _ExecutorReportTab.summary;
   DateTime _selectedDate = DateTime.now();
@@ -14907,6 +14910,7 @@ class _ExecutorReportsScreenState extends State<ExecutorReportsScreen> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     final now = DateTime.now();
     _selectedRange = DateTimeRange(
       start: DateTime(now.year, now.month, 1),
@@ -14915,8 +14919,21 @@ class _ExecutorReportsScreenState extends State<ExecutorReportsScreen> {
     _load();
   }
 
-  Future<void> _load() async {
-    if (mounted) {
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed && _report != null) {
+      unawaited(_load(silent: true));
+    }
+  }
+
+  Future<void> _load({bool silent = false}) async {
+    if (!silent && mounted) {
       setState(() {
         _loading = true;
         _error = null;
@@ -14931,13 +14948,25 @@ class _ExecutorReportsScreenState extends State<ExecutorReportsScreen> {
         employeeId: widget.employeeId,
       );
       final data = response['data'];
-      if (mounted && data is Map) {
-        setState(() => _report = Map<String, dynamic>.from(data));
+      if (data is! Map) {
+        throw const ApiFailure('تعذر قراءة بيانات تقرير التنفيذ من الخادم.');
+      }
+      if (mounted) {
+        setState(() {
+          _report = Map<String, dynamic>.from(data);
+          _syncError = null;
+          _lastUpdated = DateTime.now();
+        });
       }
     } catch (error) {
-      if (mounted) setState(() => _error = error);
+      if (mounted) {
+        setState(() {
+          if (!silent || _report == null) _error = error;
+          _syncError = 'تعذر تحديث التقرير الآن. اضغط هنا لإعادة المحاولة.';
+        });
+      }
     } finally {
-      if (mounted) setState(() => _loading = false);
+      if (!silent && mounted) setState(() => _loading = false);
     }
   }
 
@@ -15214,6 +15243,28 @@ class _ExecutorReportsScreenState extends State<ExecutorReportsScreen> {
             : const Icon(Icons.download_outlined),
       ),
       child: [
+        if (_syncError != null) ...[
+          Material(
+            color: _danger.withValues(alpha: 0.10),
+            borderRadius: BorderRadius.circular(8),
+            child: InkWell(
+              borderRadius: BorderRadius.circular(8),
+              onTap: _load,
+              child: Padding(
+                padding: const EdgeInsets.all(11),
+                child: Row(
+                  children: [
+                    const Icon(Icons.sync_problem_outlined, color: _danger),
+                    const SizedBox(width: 8),
+                    Expanded(child: Text(_syncError!)),
+                    const Icon(Icons.refresh_rounded, color: _danger),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 10),
+        ],
         SurfacePanel(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -15255,6 +15306,13 @@ class _ExecutorReportsScreenState extends State<ExecutorReportsScreen> {
                   ),
                 ],
               ),
+              if (_lastUpdated != null) ...[
+                const SizedBox(height: 9),
+                Text(
+                  'آخر تحديث ${DateFormat('h:mm a', 'ar').format(_lastUpdated!)}',
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
+              ],
             ],
           ),
         ),
