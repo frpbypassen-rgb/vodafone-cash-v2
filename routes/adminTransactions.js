@@ -80,6 +80,16 @@ const logAdminFinancialChange = (req, action, tx, oldData, newData, metadata = {
     metadata: reportAuditMetadata(tx, metadata)
 });
 
+const isAsyncTransactionRequest = (req) => (
+    req.get('x-requested-with') === 'XMLHttpRequest'
+    || String(req.get('accept') || '').includes('application/json')
+);
+
+const respondTransactionAction = (req, res, status, payload, redirectUrl = '/transactions') => {
+    if (isAsyncTransactionRequest(req)) return res.status(status).json(payload);
+    return res.redirect(redirectUrl);
+};
+
 const customerFacingNotes = (notes) => {
     const raw = String(notes || '').trim();
     if (!raw) return '';
@@ -110,7 +120,7 @@ const customerFacingNotes = (notes) => {
 router.get('/transactions', async (req, res) => {
     try {
         const page = parseInt(req.query.page) || 1;
-        const limit = 25;
+        const limit = 100;
         const search = req.query.search || '';
         const statusFilter = req.query.status || '';
         let fromDate = req.query.fromDate;
@@ -336,7 +346,12 @@ router.get('/transactions/print', async (req, res) => {
 router.post('/transaction/:id/assign-executor', async (req, res) => {
     try {
         const txId = req.params.id; const executorGroupId = req.body.executorGroupId || req.body.executorBotId; const tx = await Transaction.findById(txId);
-        if (!tx || tx.status !== 'pending') return res.redirect('/transactions');
+        if (!tx || tx.status !== 'pending') {
+            return respondTransactionAction(req, res, 409, {
+                success: false,
+                message: 'هذه العملية لم تعد متاحة للتوجيه.'
+            });
+        }
 
         const executorGroup = await ExecutorGroup.findById(executorGroupId);
 
@@ -361,7 +376,11 @@ router.post('/transaction/:id/assign-executor', async (req, res) => {
 
                 const { addTransferJob } = require('../services/bullQueueService');
                 await addTransferJob(String(tx._id), String(executorGroup._id));
-                return res.redirect('/transactions');
+                return respondTransactionAction(req, res, 200, {
+                    success: true,
+                    message: 'تم توجيه العملية إلى منفذ API وبدأ التنفيذ.',
+                    transaction: { id: String(tx._id), status: tx.status, executorName: tx.executorName }
+                });
 
                 // التخاطب مع سيرفر الشركة الخارجية
                 const apiResult = await executeTransferViaApi(tx, executorGroup);
@@ -479,30 +498,51 @@ router.post('/transaction/:id/assign-executor', async (req, res) => {
             await tx.save();
             eventBus.publish('executor:task-available', { tx, source: 'admin-manual-route' });
         } else if (executorGroup) {
-            return res.redirect('/transactions?routeError=service_mismatch');
+            return respondTransactionAction(req, res, 422, {
+                success: false,
+                message: 'خدمة المنفذ لا تطابق نوع العملية.'
+            }, '/transactions?routeError=service_mismatch');
         }
-        res.redirect('/transactions');
-    } catch (e) { res.redirect('/transactions'); }
+        return respondTransactionAction(req, res, 200, {
+            success: true,
+            message: 'تم توجيه العملية إلى المنفذ.',
+            transaction: { id: String(tx._id), status: tx.status, executorName: tx.executorName }
+        });
+    } catch (e) {
+        console.error('[adminTransactions/assign-executor] failed:', e.message);
+        return respondTransactionAction(req, res, 500, { success: false, message: 'تعذر توجيه العملية حالياً.' });
+    }
 });
 
 router.post('/transaction/:id/pull-task', async (req, res) => {
     try {
         const tx = await Transaction.findById(req.params.id);
-        if (tx && (tx.status === 'processing' || tx.status === 'accepted')) {
-            const oldGroupId = tx.executorGroupId; const displayId = tx.customId || tx._id.toString();
-
-            tx.status = 'pending'; tx.executorGroupId = undefined; tx.managerGroupId = undefined; tx.executorName = undefined; tx.operatorId = undefined; tx.assignedExecutorId = undefined; tx.assignedExecutorName = undefined; tx.assignedExecutorAt = undefined; tx.broadcastMessages = []; tx.adminMessages = []; tx.emergencyAlert = undefined;
-
-            // 🟢 إشعارات الانسحاب عبر Socket.IO
-
-            await tx.save();
-            eventBus.publish('executor:task-withdrawn', {
-                tx: { ...tx.toObject(), executorGroupId: oldGroupId },
-                source: 'admin-pull'
+        if (!tx || !['processing', 'accepted'].includes(tx.status)) {
+            return respondTransactionAction(req, res, 409, {
+                success: false,
+                message: 'هذه العملية ليست موجهة حالياً ولا يمكن سحبها.'
             });
         }
-        res.redirect('/transactions');
-    } catch (e) { res.redirect('/transactions'); }
+        const oldGroupId = tx.executorGroupId; const displayId = tx.customId || tx._id.toString();
+
+        tx.status = 'pending'; tx.executorGroupId = undefined; tx.managerGroupId = undefined; tx.executorName = undefined; tx.operatorId = undefined; tx.assignedExecutorId = undefined; tx.assignedExecutorName = undefined; tx.assignedExecutorAt = undefined; tx.broadcastMessages = []; tx.adminMessages = []; tx.emergencyAlert = undefined;
+
+        // 🟢 إشعارات الانسحاب عبر Socket.IO
+
+        await tx.save();
+        eventBus.publish('executor:task-withdrawn', {
+            tx: { ...tx.toObject(), executorGroupId: oldGroupId },
+            source: 'admin-pull'
+        });
+        return respondTransactionAction(req, res, 200, {
+            success: true,
+            message: `تم سحب العملية ${displayId} إلى الإدارة.`,
+            transaction: { id: String(tx._id), status: tx.status }
+        });
+    } catch (e) {
+        console.error('[adminTransactions/pull-task] failed:', e.message);
+        return respondTransactionAction(req, res, 500, { success: false, message: 'تعذر سحب العملية حالياً.' });
+    }
 });
 
 router.post('/transaction/:id/emergency-alert', async (req, res) => {

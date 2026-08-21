@@ -622,7 +622,7 @@
                                                     <% if(eligibleExecutorBots.length > 0) { %>
                                                         <% eligibleExecutorBots.forEach(bot => { %>
                                                             <li>
-                                                                <form action="/transaction/<%= tx._id %>/assign-executor" method="POST" class="m-0 p-0">
+                                                                <form action="/transaction/<%= tx._id %>/assign-executor" method="POST" class="m-0 p-0 js-transaction-action">
                                                                     <input type="hidden" name="executorBotId" value="<%= bot._id %>">
                                                                     <button type="submit" class="dropdown-item py-2 fw-bold text-dark d-flex align-items-center"><i class="fa-solid fa-robot text-primary me-2"></i> <span><%= bot.name %><small class="d-block text-muted"><%= bot.serviceLabel %></small></span></button>
                                                                 </form>
@@ -634,7 +634,7 @@
                                                 </ul>
                                             </div>
                                         <% } else if(tx.status === 'processing' || tx.status === 'accepted') { %>
-                                            <form action="/transaction/<%= tx._id %>/pull-task" method="POST" class="mb-0" onsubmit="return confirm('تأكيد سحب المهمة؟')">
+                                            <form action="/transaction/<%= tx._id %>/pull-task" method="POST" class="mb-0 js-transaction-action" data-confirm="تأكيد سحب المهمة؟">
                                                 <button class="btn btn-sm btn-warning fw-bold rounded-3 text-dark px-3" title="سحب للإدارة">سحب</button>
                                             </form>
                                             <form action="/transaction/<%= tx._id %>/emergency-alert" method="POST" class="mb-0" onsubmit="return confirmEmergencyAlert(this);">
@@ -783,7 +783,7 @@
                                             <% if(mobileEligibleExecutorBots.length > 0) { %>
                                                 <% mobileEligibleExecutorBots.forEach(bot => { %>
                                                     <li>
-                                                        <form action="/transaction/<%= tx._id %>/assign-executor" method="POST" class="m-0 p-0">
+                                                        <form action="/transaction/<%= tx._id %>/assign-executor" method="POST" class="m-0 p-0 js-transaction-action">
                                                             <input type="hidden" name="executorBotId" value="<%= bot._id %>">
                                                             <button type="submit" class="dropdown-item py-2 fw-bold text-dark d-flex align-items-center"><i class="fa-solid fa-user-gear text-primary me-2"></i> <span><%= bot.name %><small class="d-block text-muted"><%= bot.serviceLabel %></small></span></button>
                                                         </form>
@@ -795,7 +795,7 @@
                                         </ul>
                                     </div>
                                 <% } else if(tx.status === 'processing' || tx.status === 'accepted') { %>
-                                    <form action="/transaction/<%= tx._id %>/pull-task" method="POST" class="m-0 flex-fill" onsubmit="return confirm('تأكيد سحب المهمة؟')">
+                                    <form action="/transaction/<%= tx._id %>/pull-task" method="POST" class="m-0 flex-fill js-transaction-action" data-confirm="تأكيد سحب المهمة؟">
                                         <button class="btn btn-sm btn-warning fw-bold rounded-3 text-dark w-100"><i class="fa-solid fa-hand me-1"></i> سحب</button>
                                     </form>
                                     <form action="/transaction/<%= tx._id %>/emergency-alert" method="POST" class="m-0 flex-fill" onsubmit="return confirmEmergencyAlert(this);">
@@ -2028,6 +2028,55 @@
     }
 
     let transactionsAutoRefreshInFlight = false;
+    document.addEventListener('submit', async (event) => {
+        const form = event.target.closest('form.js-transaction-action');
+        if (!form) return;
+        event.preventDefault();
+
+        const confirmation = String(form.dataset.confirm || '').trim();
+        if (confirmation && !window.confirm(confirmation)) return;
+
+        const submitter = event.submitter || form.querySelector('button[type="submit"], button:not([type])');
+        if (submitter?.disabled) return;
+        const originalHtml = submitter?.innerHTML;
+        if (submitter) {
+            submitter.disabled = true;
+            submitter.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i>';
+        }
+
+        try {
+            const response = await fetch(form.action, {
+                method: 'POST',
+                headers: {
+                    'Accept': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest'
+                },
+                body: new FormData(form),
+                credentials: 'same-origin'
+            });
+            const result = await response.json().catch(() => ({}));
+            if (!response.ok || !result.success) throw new Error(result.message || 'تعذر تنفيذ العملية.');
+
+            await refreshTransactionsList();
+            Swal.fire({
+                toast: true,
+                position: 'top',
+                icon: 'success',
+                title: result.message || 'تم تحديث العملية.',
+                showConfirmButton: false,
+                timer: 2200,
+                timerProgressBar: true
+            });
+        } catch (error) {
+            Swal.fire('تعذر التنفيذ', error.message || 'تعذر تنفيذ العملية حالياً.', 'error');
+        } finally {
+            if (submitter) {
+                submitter.disabled = false;
+                submitter.innerHTML = originalHtml;
+            }
+        }
+    });
+
     async function refreshTransactionsList() {
         if (document.hidden || transactionsAutoRefreshInFlight) return;
         const isModalOpen = document.querySelector('.modal.show'); const isDropdownOpen = document.querySelector('.dropdown-menu.show'); 
