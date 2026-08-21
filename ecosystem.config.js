@@ -31,10 +31,9 @@ module.exports = {
         TRUST_PROXY_HTTPS: "true",
         SESSION_STORE: "mongo",
         MONGO_TRANSACTIONS_REQUIRED: "true",
-        // Temporary guarded fallback while the production MongoDB instance is converted to a replica set.
-        EMERGENCY_STANDALONE_FINANCIAL_WRITES: "true",
-        EMERGENCY_STANDALONE_FINANCIAL_WRITES_EXPIRES_AT: "2026-08-21T19:45:00Z",
-        EMERGENCY_STANDALONE_FINANCIAL_WRITES_REASON: "Production MongoDB replica set incident",
+        // Emergency financial-write controls deliberately come from .env only.
+        // PM2 environment values override dotenv; keeping them here would make a
+        // time-limited operational override silently expire while blocking .env.
         TENANT_ISOLATION_REQUIRED: "true",
         TENANT_MODE: "single",
         ALLOW_LEGACY_TENANTLESS_RECORDS: "false",
