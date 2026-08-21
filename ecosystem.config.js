@@ -16,14 +16,16 @@ module.exports = {
       env_production: {
         NODE_ENV: "production",
         TZ: "Africa/Tripoli",
-        FORCE_CLIENT_OTP: "true",
+        // Client OTP is deliberately disabled by the system owner until it is re-enabled.
+        CLIENT_OTP_ENABLED: "false",
+        CLIENT_OTP_DISABLED_REASON: "Temporary operational access requested by system owner",
+        FORCE_CLIENT_OTP: "false",
         BYPASS_OTP: "false",
         BYPASS_CLIENT_OTP: "false",
         DISABLE_OTP: "false",
-        // Temporary incident access. It expires automatically on 2026-08-22 at 13:45 Tripoli time.
-        EMERGENCY_CLIENT_OTP_BYPASS: "true",
-        EMERGENCY_CLIENT_OTP_BYPASS_EXPIRES_AT: "2026-08-22T11:45:00Z",
-        EMERGENCY_CLIENT_OTP_BYPASS_REASON: "WhatsApp OTP provider outage",
+        EMERGENCY_CLIENT_OTP_BYPASS: "false",
+        EMERGENCY_CLIENT_OTP_BYPASS_EXPIRES_AT: "",
+        EMERGENCY_CLIENT_OTP_BYPASS_REASON: "",
         OTP_RESEND_COOLDOWN_SECONDS: "60",
         SECURE_COOKIE: "true",
         TRUST_PROXY_HTTPS: "true",

@@ -5,6 +5,7 @@ const TRUE_VALUES = new Set(['1', 'true', 'yes', 'on']);
 const clean = (value) => String(value || '').trim();
 const isEnabled = (value) => TRUE_VALUES.has(clean(value).toLowerCase());
 const isProductionEnvironment = (env = process.env) => clean(env.NODE_ENV).toLowerCase() === 'production';
+const isClientOtpDisabled = (env = process.env) => clean(env.CLIENT_OTP_ENABLED).toLowerCase() === 'false';
 const MAX_EMERGENCY_OTP_BYPASS_MS = 24 * 60 * 60 * 1000;
 const MAX_EMERGENCY_STANDALONE_FINANCIAL_WRITES_MS = 24 * 60 * 60 * 1000;
 
@@ -42,6 +43,7 @@ const isEmergencyStandaloneFinancialWritesActive = (env = process.env, now = Dat
 
 const shouldBypassClientOtp = (env = process.env, now = Date.now()) => {
     const emergencyBypass = getEmergencyClientOtpBypassState(env, now);
+    if (isClientOtpDisabled(env)) return true;
     if (isProductionEnvironment(env)) return emergencyBypass.active;
     if (isEnabled(env.FORCE_CLIENT_OTP) || isEnabled(env.FORCE_OTP)) return false;
 
@@ -82,8 +84,16 @@ const validateProductionSecurityEnv = (env = process.env) => {
     }
 
     if (clean(env.MASTER_OTP)) errors.push('MASTER_OTP is not supported in production. Remove it from the environment.');
-    if (!isEnabled(env.FORCE_CLIENT_OTP) && !isEnabled(env.FORCE_OTP)) {
+    const clientOtpDisabled = isClientOtpDisabled(env);
+    if (!clientOtpDisabled && !isEnabled(env.FORCE_CLIENT_OTP) && !isEnabled(env.FORCE_OTP)) {
         errors.push('FORCE_CLIENT_OTP=true is required in production.');
+    }
+    if (clientOtpDisabled) {
+        if (!clean(env.CLIENT_OTP_DISABLED_REASON)) {
+            errors.push('CLIENT_OTP_DISABLED_REASON is required while client OTP is disabled.');
+        } else {
+            warnings.push('Client OTP is disabled by an explicit operational setting.');
+        }
     }
     const emergencyBypass = getEmergencyClientOtpBypassState(env);
     if (emergencyBypass.enabled) {
