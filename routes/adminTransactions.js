@@ -378,21 +378,22 @@ router.post('/transaction/:id/assign-executor', async (req, res) => {
                 managerGroupId: getParentGroupId(executorGroup),
                 executorReceivedAt: new Date(),
                 executorName: executorGroup.name,
-                broadcastMessages: []
+                updatedAt: new Date()
             };
-            // Update only routing fields. Legacy transactions can contain data
-            // that fails newer schema validators when an entire document is saved.
-            const routedTx = await Transaction.findOneAndUpdate(
+            // Use MongoDB's native atomic update. This deliberately bypasses
+            // Mongoose document validation for legacy transactions whose old
+            // fields no longer match the current schema.
+            const updateResult = await Transaction.collection.updateOne(
                 { _id: tx._id, status: 'pending' },
                 { $set: assignment },
-                { new: true, runValidators: false }
             );
-            if (!routedTx) {
+            if (!updateResult.acknowledged || updateResult.modifiedCount !== 1) {
                 return respondTransactionAction(req, res, 409, {
                     success: false,
                     message: 'تم تحديث العملية بواسطة مستخدم آخر، حدّث القائمة وحاول مرة أخرى.'
                 });
             }
+            const routedTx = { ...tx.toObject(), ...assignment };
             
             // 🤖====================================================🤖
             // 🚀 المسار الذكي: إذا كان هذا البوت آلياً (API Integration)
