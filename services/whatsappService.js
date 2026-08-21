@@ -270,6 +270,14 @@ const sendWhatChimpText = async ({ phone, message }) => {
 const sendOtp = async ({ phone, otp, expiresMinutes = 5, accountName = '', accountType = '' }) => {
     const config = getWhatChimpConfig();
     if (config.enabled) {
+        if (!config.apiToken || !config.phoneNumberId || !config.otpTemplate) {
+            return {
+                success: false,
+                provider: 'whatchimp',
+                code: 'WHATCHIMP_OTP_CONFIG_MISSING',
+                message: 'بيانات WhatsApp أو قالب رمز التحقق غير مكتملة.'
+            };
+        }
         return sendWhatChimpTemplate({
             phone,
             templateName: config.otpTemplate,

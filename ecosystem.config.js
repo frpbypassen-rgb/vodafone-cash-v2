@@ -20,10 +20,11 @@ module.exports = {
         BYPASS_OTP: "false",
         BYPASS_CLIENT_OTP: "false",
         DISABLE_OTP: "false",
-        // Temporary incident access. It expires automatically on 2026-08-21 at 09:56 Tripoli time.
+        // Temporary incident access. It expires automatically on 2026-08-22 at 13:45 Tripoli time.
         EMERGENCY_CLIENT_OTP_BYPASS: "true",
-        EMERGENCY_CLIENT_OTP_BYPASS_EXPIRES_AT: "2026-08-21T07:56:27Z",
+        EMERGENCY_CLIENT_OTP_BYPASS_EXPIRES_AT: "2026-08-22T11:45:00Z",
         EMERGENCY_CLIENT_OTP_BYPASS_REASON: "WhatsApp OTP provider outage",
+        OTP_RESEND_COOLDOWN_SECONDS: "60",
         SECURE_COOKIE: "true",
         TRUST_PROXY_HTTPS: "true",
         SESSION_STORE: "mongo",

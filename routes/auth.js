@@ -159,6 +159,13 @@ const loginAsClient = async (req, res, account, accountType) => {
 
 const startClientOtp = async (req, res, account, accountType, Model) => {
     const pendingChallenge = String(req.session.otpChallengeId || '');
+    const resendCooldownSeconds = Math.min(
+        300,
+        Math.max(30, Number(process.env.OTP_RESEND_COOLDOWN_SECONDS) || 60)
+    );
+    const issuedAtMs = new Date(account.otpIssuedAt || 0).getTime();
+    const resendCooldownActive = Number.isFinite(issuedAtMs)
+        && (Date.now() - issuedAtMs) < (resendCooldownSeconds * 1000);
     const hasReusableChallenge = (
         String(req.session.tempClientId || '') === String(account._id)
         && req.session.tempAccountType === accountType
@@ -166,6 +173,7 @@ const startClientOtp = async (req, res, account, accountType, Model) => {
         && pendingChallenge === String(account.otpChallengeId || '')
         && account.otpExpires
         && new Date(account.otpExpires) > new Date()
+        && resendCooldownActive
     );
     if (hasReusableChallenge) return saveAndRedirect(req, res, '/client/verify');
 
@@ -225,7 +233,33 @@ const startClientOtp = async (req, res, account, accountType, Model) => {
             errorCode: delivery?.code || 'WHATSAPP_OTP_FAILED',
             metadata: { accountType, reason: 'OTP_DELIVERY_FAILED', provider: delivery?.provider || 'whatchimp' }
         });
-        return renderLogin(res, 'تعذر إرسال رمز التحقق عبر واتساب. تحقق من رقمك أو حاول بعد قليل.');
+
+        // During a documented provider outage, retain access without creating a permanent shared OTP.
+        if (getEmergencyClientOtpBypassState().active) {
+            await logAction({
+                action: 'LOGIN_OTP_EMERGENCY_BYPASS',
+                req,
+                performedById: account._id,
+                performedByModel: accountType === 'company'
+                    ? 'ClientEmployee'
+                    : (accountType === 'agent_staff' ? 'AgentEmployee' : (accountType === 'sub_client' ? 'SubAccount' : 'User')),
+                performedByName: account.name,
+                success: true,
+                metadata: {
+                    accountType,
+                    provider: delivery?.provider || 'whatchimp',
+                    deliveryFailureCode: delivery?.code || 'WHATSAPP_OTP_FAILED',
+                    emergencyExpiresAt: getEmergencyClientOtpBypassState().expiresAt
+                }
+            });
+            return loginAsClient(req, res, account, accountType);
+        }
+
+        const failureCode = String(delivery?.code || 'WHATSAPP_OTP_FAILED').replace(/[^A-Z0-9_]/g, '');
+        return renderLogin(
+            res,
+            `تعذر إرسال رمز التحقق عبر واتساب حالياً. أعد المحاولة بعد دقيقة. رمز الحالة: ${failureCode}`
+        );
     }
 
     await establishAuthenticatedSession(req, {
