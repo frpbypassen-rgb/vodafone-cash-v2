@@ -361,34 +361,52 @@ router.post('/transaction/:id/assign-executor', async (req, res) => {
             && !executorGroup.isManagerBot
             && executorSupportsTransferType(executorGroup, tx.transferType)
         ) {
+            const assignment = {
+                status: 'processing',
+                executorGroupId: executorGroup._id,
+                managerGroupId: getParentGroupId(executorGroup),
+                executorReceivedAt: new Date(),
+                executorName: executorGroup.name,
+                broadcastMessages: []
+            };
+            // Update only routing fields. Legacy transactions can contain data
+            // that fails newer schema validators when an entire document is saved.
+            const routedTx = await Transaction.findOneAndUpdate(
+                { _id: tx._id, status: 'pending' },
+                { $set: assignment },
+                { new: true, runValidators: false }
+            );
+            if (!routedTx) {
+                return respondTransactionAction(req, res, 409, {
+                    success: false,
+                    message: 'تم تحديث العملية بواسطة مستخدم آخر، حدّث القائمة وحاول مرة أخرى.'
+                });
+            }
             
             // 🤖====================================================🤖
             // 🚀 المسار الذكي: إذا كان هذا البوت آلياً (API Integration)
             // 🤖====================================================🤖
             if (executorGroup.isApiBot) {
-                tx.status = 'processing';
-                tx.executorGroupId = executorGroup._id;
-                tx.managerGroupId = getParentGroupId(executorGroup);
-                tx.executorReceivedAt = new Date();
-                tx.executorName = executorGroup.name;
-                await tx.save();
-                eventBus.publish('executor:task-available', { tx, source: 'admin-api-route' });
+                eventBus.publish('executor:task-available', { tx: routedTx, source: 'admin-api-route' });
 
                 // The operation is already routed and persisted. Queueing must
                 // never make the administrator see a failed routing action.
                 // The in-memory queue will continue processing in the background.
                 try {
                     const { addTransferJob } = require('../services/bullQueueService');
-                    await addTransferJob(String(tx._id), String(executorGroup._id));
+                    await addTransferJob(String(routedTx._id), String(executorGroup._id));
                 } catch (queueError) {
                     console.error('[adminTransactions/assign-executor] API queue failed:', queueError.message);
-                    appendAdminNote(tx, `[تنبيه تشغيل: تعذر إدراج العملية في طابور API: ${queueError.message}]`);
-                    await tx.save();
+                    await Transaction.updateOne(
+                        { _id: routedTx._id },
+                        { $set: { apiQueueError: String(queueError.message || '').slice(0, 500) } },
+                        { runValidators: false }
+                    );
                 }
                 return respondTransactionAction(req, res, 200, {
                     success: true,
                     message: 'تم توجيه العملية إلى منفذ API.',
-                    transaction: { id: String(tx._id), status: tx.status, executorName: tx.executorName }
+                    transaction: { id: String(routedTx._id), status: routedTx.status, executorName: routedTx.executorName }
                 });
 
                 // التخاطب مع سيرفر الشركة الخارجية
@@ -500,22 +518,22 @@ router.post('/transaction/:id/assign-executor', async (req, res) => {
             // 👨‍💻====================================================👨‍💻
             // المسار الكلاسيكي: للبوت البشري العادي
             // 👨‍💻====================================================👨‍💻
-            tx.executorGroupId = executorGroup._id; tx.managerGroupId = getParentGroupId(executorGroup); tx.executorReceivedAt = new Date(); tx.executorName = executorGroup.name; tx.status = 'processing'; tx.broadcastMessages = [];
-
             // 🟢 الإشعارات ستكون عبر Socket.IO
-
-            await tx.save();
-            eventBus.publish('executor:task-available', { tx, source: 'admin-manual-route' });
+            eventBus.publish('executor:task-available', { tx: routedTx, source: 'admin-manual-route' });
+            return respondTransactionAction(req, res, 200, {
+                success: true,
+                message: 'تم توجيه العملية إلى المنفذ.',
+                transaction: { id: String(routedTx._id), status: routedTx.status, executorName: routedTx.executorName }
+            });
         } else if (executorGroup) {
             return respondTransactionAction(req, res, 422, {
                 success: false,
                 message: 'خدمة المنفذ لا تطابق نوع العملية.'
             }, '/transactions?routeError=service_mismatch');
         }
-        return respondTransactionAction(req, res, 200, {
-            success: true,
-            message: 'تم توجيه العملية إلى المنفذ.',
-            transaction: { id: String(tx._id), status: tx.status, executorName: tx.executorName }
+        return respondTransactionAction(req, res, 404, {
+            success: false,
+            message: 'المنفذ المحدد غير موجود أو غير نشط.'
         });
     } catch (e) {
         console.error('[adminTransactions/assign-executor] failed:', e.message);
