@@ -1930,7 +1930,12 @@ router.post('/executor/complete-task/:id', authenticateJWT, completeTaskValidato
             return sendMobileError(res, 403, 'TASKS_FORBIDDEN', 'صلاحيات المحاسب لا تسمح بتنفيذ العمليات', req.correlationId);
         }
 
-        if (!tx || tx.status !== 'accepted' || tx.operatorId !== emp._id.toString()) {
+        const currentEmployeeId = String(emp._id);
+        const operatorId = tx?.operatorId ? String(tx.operatorId) : '';
+        const assignedExecutorId = tx?.assignedExecutorId ? String(tx.assignedExecutorId) : '';
+        const ownedByCurrentExecutor = operatorId === currentEmployeeId
+            || assignedExecutorId === currentEmployeeId;
+        if (!tx || tx.status !== 'accepted' || !ownedByCurrentExecutor) {
             return sendMobileError(res, 409, 'INVALID_STATE', 'الطلب غير متاح للإنهاء', req.correlationId);
         }
         let senderEntries;
