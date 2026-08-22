@@ -1773,7 +1773,8 @@ router.post('/executor/cancel-task/:id', authenticateJWT, cancelTaskValidator, a
 
         const empQuery = { _id: userId };
         if (req.tenant) empQuery.tenantId = req.tenant._id;
-        const emp = await Employee.findOne(empQuery);
+        const employeeRecord = await Employee.findOne(empQuery).populate('groupId');
+        const emp = executorWithSessionGroup(employeeRecord, req.user.executorGroupId);
         if (!emp) throw new Error('EMPLOYEE_NOT_FOUND');
         if (emp.role === 'accountant') throw new Error('TASKS_FORBIDDEN');
 
@@ -1928,7 +1929,8 @@ router.post('/executor/complete-task/:id', authenticateJWT, completeTaskValidato
         }
         const empQuery = { _id: userId };
         if (req.tenant) empQuery.tenantId = req.tenant._id;
-        const emp = await Employee.findOne(empQuery).populate('groupId');
+        const employeeRecord = await Employee.findOne(empQuery).populate('groupId');
+        const emp = executorWithSessionGroup(employeeRecord, req.user.executorGroupId);
         if (!emp) {
             return sendMobileError(res, 404, 'EMPLOYEE_NOT_FOUND', 'لم يتم العثور على حساب المنفذ', req.correlationId);
         }
