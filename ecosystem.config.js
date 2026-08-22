@@ -16,6 +16,11 @@ module.exports = {
       env_production: {
         NODE_ENV: "production",
         TZ: "Africa/Tripoli",
+        PORT: "3000",
+        // Pin the production environment file explicitly. PM2 preserves old
+        // process variables across restarts, so a previous staging value must
+        // never be allowed to redirect the core API to .env.staging.
+        DOTENV_CONFIG_PATH: ".env",
         // Client OTP is deliberately disabled by the system owner until it is re-enabled.
         CLIENT_OTP_ENABLED: "false",
         CLIENT_OTP_DISABLED_REASON: "Temporary operational access requested by system owner",
