@@ -13083,6 +13083,7 @@ class _ExecutorSupportConversationScreenState
   bool _loading = true;
   bool _sending = false;
   bool _changed = false;
+  String? _syncError;
 
   @override
   void initState() {
@@ -13124,11 +13125,17 @@ class _ExecutorSupportConversationScreenState
                 .toList()
             : <Map<String, dynamic>>[];
         _error = null;
+        _syncError = null;
         if (nextMessages != oldMessages) _changed = true;
       });
       if (nextMessages != oldMessages) _scrollToEnd();
     } catch (error) {
-      if (mounted && !quiet) setState(() => _error = error);
+      if (mounted) {
+        setState(() {
+          if (!quiet || _ticket == null) _error = error;
+          _syncError = 'تعذر تحديث المحادثة الآن. اضغط لإعادة المحاولة.';
+        });
+      }
     } finally {
       if (mounted) setState(() => _loading = false);
     }
@@ -13242,7 +13249,46 @@ class _ExecutorSupportConversationScreenState
                   child: ListView(
                     controller: _scroll,
                     padding: const EdgeInsets.all(14),
-                    children: [
+            children: [
+                      if (_syncError != null)
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: 10),
+                          child: InkWell(
+                            onTap: () => _load(),
+                            borderRadius: BorderRadius.circular(8),
+                            child: Container(
+                              padding: const EdgeInsets.all(10),
+                              decoration: BoxDecoration(
+                                color: _gold.withValues(alpha: 0.10),
+                                borderRadius: BorderRadius.circular(8),
+                                border: Border.all(
+                                  color: _gold.withValues(alpha: 0.32),
+                                ),
+                              ),
+                              child: Row(
+                                children: [
+                                  const Icon(
+                                    Icons.sync_problem_outlined,
+                                    color: _gold,
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: Text(
+                                      _syncError!,
+                                      style: const TextStyle(
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                    ),
+                                  ),
+                                  const Icon(
+                                    Icons.refresh_rounded,
+                                    color: _gold,
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
                       SurfacePanel(
                         child: Column(
                           children: [

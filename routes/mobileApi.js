@@ -2536,7 +2536,15 @@ router.get('/client/transactions/:id', authenticateJWT, async (req, res) => {
                 status: tx.status,
                 createdAt: tx.createdAt ? new Date(tx.createdAt).toISOString() : null,
                 notes: customerFacingNotes(customerNoteFromTransaction(tx)),
-                hasProofImage: !!(tx.proofImage || (tx.proofImages && tx.proofImages.length > 0))
+                cancellationNumber: tx.cancellationNumber || null,
+                cancellationReason: tx.cancellationReason || null,
+                hasProofImage: !!(tx.proofImage || (tx.proofImages && tx.proofImages.length > 0)),
+                // Keep the detail response consistent with the transaction list.
+                // This is also the official cancellation receipt when the operation
+                // was rejected or cancelled by the administration.
+                receiptUrl: (tx.proofImage || (tx.proofImages && tx.proofImages.length > 0))
+                    ? createReceiptImageUrl({ transactionId: tx._id, index: 0 })
+                    : null
             }
         });
     } catch (e) {
