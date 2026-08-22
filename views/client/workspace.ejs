@@ -58,7 +58,7 @@
         </main>
 
         <nav class="bw-mobile-dock" aria-label="التنقل السريع">
-            <% navigation.filter(item => ['overview', 'services', 'transactions', 'customers', 'reports'].includes(item.key)).slice(0, 5).forEach(item => { %>
+            <% navigation.filter(item => ['overview', 'services', 'transactions', 'reports', 'settings'].includes(item.key)).slice(0, 5).forEach(item => { %>
                 <a href="<%= item.href %>" class="<%= item.active ? 'active' : '' %>">
                     <i class="fa-solid <%= item.icon %>"></i>
                     <span><%= item.label.replace('الخدمات والتحويل', 'تحويل').replace('المعاملات', 'العمليات') %></span>

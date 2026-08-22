@@ -431,6 +431,57 @@ a {
     gap: 10px;
 }
 
+.bw-topbar-brand {
+    display: inline-flex;
+    min-height: 40px;
+    align-items: center;
+    gap: 8px;
+    padding-left: 12px;
+    color: var(--bw-strong);
+    border-left: 1px solid var(--bw-border);
+    font-size: 0.82rem;
+    font-weight: 900;
+    letter-spacing: 0.04em;
+    text-decoration: none;
+}
+
+.bw-topbar-brand img {
+    width: 32px;
+    height: 32px;
+    object-fit: cover;
+    background: var(--bw-surface);
+    border: 1px solid var(--bw-border);
+    border-radius: 8px;
+    box-shadow: var(--bw-shadow-sm);
+}
+
+.bw-topbar-brand:hover { color: var(--bw-blue); }
+
+.bw-balance-chip {
+    display: inline-flex;
+    min-height: 38px;
+    align-items: center;
+    gap: 6px;
+    padding: 0 11px;
+    background: var(--bw-surface);
+    border: 1px solid var(--bw-border);
+    border-radius: 8px;
+    box-shadow: var(--bw-shadow-sm);
+    white-space: nowrap;
+}
+
+.bw-balance-chip span,
+.bw-balance-chip small {
+    color: var(--bw-muted);
+    font-size: 0.67rem;
+    font-weight: 800;
+}
+
+.bw-balance-chip strong { font-size: 0.82rem; }
+.bw-balance-chip strong.is-positive { color: var(--bw-green); }
+.bw-balance-chip strong.is-negative { color: var(--bw-red); }
+.bw-balance-chip small { color: var(--bw-blue); }
+
 .bw-menu-button {
     display: none !important;
 }
@@ -549,6 +600,8 @@ a {
     background: var(--bw-red-soft);
     border-color: color-mix(in srgb, var(--bw-red) 32%, var(--bw-border));
 }
+
+.bw-topbar-link { display: inline-grid; }
 
 .bw-icon-button.success {
     color: var(--bw-green);
@@ -3787,6 +3840,62 @@ a {
 [data-theme="dark"] .bw-sefa-disclaimer-icon {
     color: #67e8f9;
     background: rgba(8, 145, 178, 0.16);
+}
+
+/* A restrained depth system keeps the portal tactile without making it look like a game. */
+.bw-section,
+.bw-command-strip,
+.bw-filter-band,
+.bw-report-cover,
+.bw-service-card,
+.bw-metric-card {
+    transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
+}
+
+.bw-section:hover,
+.bw-service-card:hover,
+.bw-metric-card:hover {
+    border-color: color-mix(in srgb, var(--bw-blue) 28%, var(--bw-border));
+    box-shadow: var(--bw-shadow-md);
+}
+
+.bw-command-strip {
+    box-shadow: 0 18px 36px rgba(15, 23, 42, 0.16), inset 0 1px rgba(255, 255, 255, 0.06);
+}
+
+[data-theme="dark"] .bw-topbar {
+    background: color-mix(in srgb, var(--bw-surface) 90%, transparent);
+}
+
+[data-theme="dark"] .bw-topbar-brand img {
+    border-color: var(--bw-border-strong);
+}
+
+@media (max-width: 760px) {
+    .bw-topbar-brand {
+        padding-left: 0;
+        border-left: 0;
+        font-size: 0.75rem;
+    }
+
+    .bw-topbar-brand img {
+        width: 30px;
+        height: 30px;
+    }
+
+    .bw-topbar-brand span { display: none; }
+
+    .bw-balance-chip {
+        min-height: 34px;
+        gap: 4px;
+        padding: 0 7px;
+    }
+
+    .bw-balance-chip span { display: none; }
+    .bw-balance-chip strong { font-size: 0.72rem; }
+    .bw-balance-chip small { font-size: 0.6rem; }
+    .bw-topbar-actions { gap: 5px; }
+    .bw-topbar-link { width: 34px; height: 34px; flex-basis: 34px; }
 }
 
 @media print {

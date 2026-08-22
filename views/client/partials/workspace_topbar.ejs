@@ -3,6 +3,10 @@
         <button type="button" class="bw-icon-button bw-menu-button" data-sidebar-toggle aria-controls="businessSidebar" aria-expanded="false" title="فتح القائمة">
             <i class="fa-solid fa-bars-staggered"></i>
         </button>
+        <a href="/client/dashboard?home=1" class="bw-topbar-brand" aria-label="AL-AHRAM - الرئيسية">
+            <img src="/images/logo.jpeg" alt="" onerror="this.onerror=null;this.src='/images/logo.jpg'">
+            <span>AL-AHRAM</span>
+        </a>
         <div class="bw-breadcrumbs">
             <span><%= workspace.portalLabel %></span>
             <i class="fa-solid fa-chevron-left"></i>
@@ -10,13 +14,26 @@
         </div>
     </div>
     <div class="bw-topbar-actions">
+        <% if (workspace.permissions.canViewBalance) { %>
+            <div class="bw-balance-chip" aria-label="الرصيد الحالي">
+                <span>الرصيد</span>
+                <strong class="bw-mono <%= Number(workspace.entity.balance || 0) < 0 ? 'is-negative' : 'is-positive' %>"><%= Number(workspace.entity.balance || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) %></strong>
+                <small>LYD</small>
+            </div>
+        <% } %>
         <time class="bw-topbar-date" datetime="<%= now.toISOString() %>">
             <i class="fa-regular fa-calendar"></i>
             <span><%= now.toLocaleDateString('ar-LY', { timeZone: 'Africa/Tripoli', weekday: 'long', day: 'numeric', month: 'long' }) %></span>
         </time>
+        <a href="/client/settings" class="bw-icon-button bw-topbar-link" title="الإعدادات والحماية" aria-label="الإعدادات والحماية">
+            <i class="fa-solid fa-shield-halved"></i>
+        </a>
         <button type="button" class="bw-icon-button" data-theme-toggle title="تغيير المظهر" aria-label="تغيير المظهر">
             <i class="fa-solid fa-moon"></i>
         </button>
+        <a href="/client/logout" class="bw-icon-button danger bw-topbar-link" title="تسجيل الخروج" aria-label="تسجيل الخروج">
+            <i class="fa-solid fa-arrow-right-from-bracket"></i>
+        </a>
         <div class="bw-user-menu">
             <span class="bw-avatar"><%= String(workspace.actor.name || 'م').trim().charAt(0) %></span>
             <span>

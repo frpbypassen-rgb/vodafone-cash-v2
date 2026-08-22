@@ -78,6 +78,33 @@
     .mfa-recovery-box div { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; direction: ltr; }
     .mfa-recovery-box code { padding: 5px; color: #1e3a8a; background: #fff; border-radius: 5px; text-align: center; font-size: .72rem; }
     .mfa-confirm-row input { min-width: 230px; flex: 1; padding: 9px 10px; border: 1px solid #cbd5e1; border-radius: 9px; direction: ltr; text-align: center; }
+    [data-theme="dark"] .mfa-security-panel { border-color: #34465b; background: #182333; box-shadow: 0 16px 34px rgba(0, 0, 0, .24); }
+    [data-theme="dark"] .mfa-panel-heading h2,
+    [data-theme="dark"] .mfa-device-summary strong,
+    [data-theme="dark"] .mfa-recovery-box strong { color: #f3f7fb; }
+    [data-theme="dark"] .mfa-panel-heading p,
+    [data-theme="dark"] .mfa-device-summary span,
+    [data-theme="dark"] .mfa-secret-label { color: #aebdcd; }
+    [data-theme="dark"] .mfa-state { color: #c1cedc; background: #263446; }
+    [data-theme="dark"] .mfa-state.ready { color: #7ee2bb; background: #163d32; }
+    [data-theme="dark"] .mfa-state.warn { color: #f4c56d; background: #493916; }
+    [data-theme="dark"] .mfa-device-summary > div { border-color: #34465b; background: rgba(255, 255, 255, .035); }
+    [data-theme="dark"] .mfa-button { color: #d6e4f5; border-color: #43566c; background: #202d3e; }
+    [data-theme="dark"] .mfa-button.primary { color: #fff; border-color: #4f8df7; background: #2563eb; }
+    [data-theme="dark"] .mfa-button.danger { color: #ff9a9f; }
+    [data-theme="dark"] .mfa-message { color: #a9c9ff; background: #1a3158; }
+    [data-theme="dark"] .mfa-message.error { color: #ffadb2; background: #4a2328; }
+    [data-theme="dark"] .mfa-setup { border-top-color: #34465b; }
+    [data-theme="dark"] .mfa-notice { color: #f6d68a; background: #47391c; }
+    [data-theme="dark"] .mfa-secret-row code,
+    [data-theme="dark"] .mfa-uri-row code,
+    [data-theme="dark"] .mfa-recovery-box { color: #dce8f5; border-color: #43566c; background: #202d3e; }
+    [data-theme="dark"] .mfa-secret-row code,
+    [data-theme="dark"] .mfa-uri-row code { color: #e8f0fa; }
+    [data-theme="dark"] .mfa-recovery-box code { color: #c4d9ff; background: #2a3a4d; }
+    [data-theme="dark"] .mfa-secret-row button,
+    [data-theme="dark"] .mfa-uri-row button { color: #9fc1ff; border-color: #43566c; background: #202d3e; }
+    [data-theme="dark"] .mfa-confirm-row input { color: #f3f7fb; border-color: #43566c; background: #202d3e; }
     @media (max-width: 620px) { .mfa-device-summary { grid-template-columns: 1fr; } .mfa-panel-heading { display: block; } .mfa-state { display: inline-block; margin-top: 10px; } .mfa-recovery-box div { grid-template-columns: repeat(2, minmax(0, 1fr)); } .mfa-confirm-row input, .mfa-confirm-row .mfa-button { width: 100%; } }
 </style>
 
