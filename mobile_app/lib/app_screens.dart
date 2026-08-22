@@ -12419,10 +12419,11 @@ class _ExecutorSupportSummaryCard extends StatelessWidget {
         border: Border.all(color: color.withValues(alpha: 0.18)),
       ),
       child: Column(
+        mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           ExecutorMetalIcon(icon: icon, color: color, size: 30),
-          const Spacer(),
+          const SizedBox(height: 8),
           Text(
             value,
             style: TextStyle(
