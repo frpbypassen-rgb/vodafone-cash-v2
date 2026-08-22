@@ -13,7 +13,11 @@ const SupportTicket = require('../models/SupportTicket');
 const { syncBotBalance } = require('../utils/helpers');
 const { logAction } = require('../services/auditService');
 const { acquireLock, releaseLock } = require('../services/lockService');
-const { acceptExecutorTask, routingErrorMessage } = require('../services/executorTaskRoutingService');
+const {
+    acceptExecutorTask,
+    isTaskOwnedByExecutor,
+    routingErrorMessage
+} = require('../services/executorTaskRoutingService');
 const {
     ManualExecutionNumberError,
     maskManualExecutionNumber,
@@ -173,10 +177,25 @@ exports.postAcceptTask = async (req, res) => {
         if (!emp || !emp.groupId) return res.status(401).json({ success: false, error: 'حساب المنفذ غير صالح.' });
         const result = await acceptExecutorTask({ transactionId: req.params.id, executor: emp });
         if (!result.ok) {
-            const status = result.code === 'ACTIVE_TASK_EXISTS' || result.code === 'TASK_UNAVAILABLE' ? 409 : 400;
-            return res.status(status).json({ success: false, code: result.code, error: routingErrorMessage(result.code) });
+            const conflictCodes = new Set([
+                'ACTIVE_TASK_EXISTS',
+                'TASK_UNAVAILABLE',
+                'TASK_NOT_FOUND',
+                'TASK_TENANT_MISMATCH',
+                'TASK_GROUP_MISMATCH',
+                'TASK_TAKEN',
+                'TASK_ASSIGNED_TO_OTHER',
+                'TASK_STATE_CHANGED'
+            ]);
+            const status = conflictCodes.has(result.code) ? 409 : 400;
+            const message = result.acceptedByName
+                ? `${routingErrorMessage(result.code)} (${result.acceptedByName})`
+                : result.assignedExecutorName
+                ? `${routingErrorMessage(result.code)} (${result.assignedExecutorName})`
+                : routingErrorMessage(result.code);
+            return res.status(status).json({ success: false, code: result.code, error: message });
         }
-        return res.json({ success: true });
+        return res.json({ success: true, replayed: result.replayed === true });
     } catch(e) { return res.status(500).json({ success: false, error: 'تعذر سحب العملية.' }); }
 };
 
@@ -319,12 +338,48 @@ exports.postCompleteTask = async (req, res) => {
         }
 
         const groupId = emp.groupId._id || emp.groupId;
-        const tx = await Transaction.findOne({
+        let tx = await Transaction.findOne({
             _id: req.params.id,
             status: 'accepted',
             operatorId: emp._id.toString(),
             $or: [{ executorGroupId: groupId }, { managerGroupId: groupId }]
         });
+        if (!tx) {
+            // Compatibility for accepted rows created before the executor
+            // ownership fields were normalized. The fallback is deliberately
+            // restricted to the same group and the same executor name, and
+            // only applies when the old owner values do not resolve to a
+            // different Employee record.
+            const candidate = await Transaction.findById(req.params.id);
+            const groupIds = [candidate?.executorGroupId, candidate?.managerGroupId]
+                .map((value) => String(value?._id || value || ''))
+                .filter(Boolean);
+            const employeeGroupId = String(groupId?._id || groupId || '');
+            const employeeName = String(emp.name || '').trim();
+            const taskOwnerName = String(candidate?.executorName || candidate?.assignedExecutorName || '').trim();
+            const sameLegacyOwner = Boolean(
+                candidate
+                && candidate.status === 'accepted'
+                && groupIds.includes(employeeGroupId)
+                && employeeName
+                && taskOwnerName
+                && employeeName === taskOwnerName
+            );
+            if (sameLegacyOwner && !isTaskOwnedByExecutor(candidate, emp)) {
+                const ownerKeys = [candidate.operatorId, candidate.assignedExecutorId]
+                    .map((value) => String(value || '').trim())
+                    .filter(Boolean);
+                const ownerLookup = ownerKeys.length
+                    ? [{ webUsername: { $in: ownerKeys } }]
+                    : [];
+                const objectIds = ownerKeys.filter((value) => mongoose.Types.ObjectId.isValid(value));
+                if (objectIds.length) ownerLookup.push({ _id: { $in: objectIds } });
+                const knownOwnerCount = ownerLookup.length
+                    ? await Employee.countDocuments({ $or: ownerLookup })
+                    : 0;
+                if (knownOwnerCount === 0) tx = candidate;
+            }
+        }
         if (!tx) {
             return res.status(409).json({ success: false, error: 'العملية غير متاحة للإنهاء أو تم إنهاؤها مسبقاً.' });
         }

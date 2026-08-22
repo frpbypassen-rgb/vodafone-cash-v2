@@ -33,6 +33,7 @@ jest.mock('../services/manualExecutorReceiptReferenceService', () => ({
 }));
 
 const fs = require('fs');
+const Employee = require('../models/Employee');
 const Transaction = require('../models/Transaction');
 const { syncBotBalance } = require('../utils/helpers');
 const { acquireLock, releaseLock } = require('../services/lockService');
@@ -126,6 +127,25 @@ describe('Executor web transaction completion', () => {
         expect(res.status).toHaveBeenCalledWith(409);
         expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ success: false }));
         expect(fs.writeFileSync).not.toHaveBeenCalled();
+    });
+
+    test('completes a legacy accepted task when its stale owner key cannot resolve to another employee', async () => {
+        const legacyTx = {
+            ...tx,
+            operatorId: 'legacy-executor-login',
+            executorGroupId: 'group-1',
+            executorName: 'منفذ الاختبار'
+        };
+        Transaction.findOne.mockResolvedValue(null);
+        Transaction.findById.mockResolvedValue(legacyTx);
+        Employee.countDocuments.mockResolvedValue(0);
+
+        await controller.postCompleteTask(req, res);
+
+        expect(Transaction.findById).toHaveBeenCalledWith('tx-1');
+        expect(Employee.countDocuments).toHaveBeenCalled();
+        expect(legacyTx.status).toBe('completed');
+        expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ success: true }));
     });
 
     test('allows a Sefa Niger task to complete with a generated receipt only', async () => {
