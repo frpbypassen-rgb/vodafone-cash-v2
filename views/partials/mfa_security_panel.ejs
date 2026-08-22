@@ -116,7 +116,7 @@
         setBusy(true); setMessage('');
         try {
             const data = await request('/security/mfa/setup', { method: 'POST', body: '{}' });
-            $('[data-mfa-secret]').textContent = data.setup.secret; $('[data-mfa-uri]').textContent = data.setup.otpauthUri;
+            $('[data-mfa-secret]').textContent = data.setup.secret; $('[data-mfa-uri]').textContent = data.setup.qrUri;
             $('[data-mfa-recovery]').innerHTML = (data.setup.recoveryCodes || []).map((code) => `<code>${code}</code>`).join(''); $('[data-mfa-setup]').hidden = false; $('[data-mfa-start]').hidden = true; setMessage('أدخل المفتاح في تطبيق Authenticator ثم اكتب الرمز الحالي للتأكيد.');
         } catch (error) { setMessage(error.message, true); } finally { setBusy(false); }
     });

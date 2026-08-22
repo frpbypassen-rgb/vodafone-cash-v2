@@ -16,6 +16,7 @@ const AgentEmployee = require('../models/AgentEmployee');
 const SubAccount = require('../models/SubAccount');
 const SupportTicket = require('../models/SupportTicket');
 const PasswordResetRequest = require('../models/PasswordResetRequest');
+const TrustedDevice = require('../models/TrustedDevice');
 const accountMfaService = require('../services/accountMfaService');
 
 const resolveWebMfaContext = async (req) => {
@@ -159,8 +160,9 @@ router.get('/security/mfa/status', requireWebMfaContext, async (req, res) => {
     try {
         const { account, accountType } = req.webMfaContext;
         const deviceId = webMfaDeviceId(req, res);
-        const status = await accountMfaService.status({ account, accountType, deviceId });
-        return res.json({ success: true, ...status });
+        const status = accountMfaService.status(account);
+        const trustedDevice = await accountMfaService.isDeviceTrusted({ account, accountType, deviceId });
+        return res.json({ success: true, ...status, trustedDevice });
     } catch (error) {
         return res.status(500).json({ success: false, error: 'MFA_STATUS_FAILED' });
     }
@@ -169,7 +171,7 @@ router.get('/security/mfa/status', requireWebMfaContext, async (req, res) => {
 router.post('/security/mfa/setup', requireWebMfaContext, async (req, res) => {
     try {
         const { account, accountType } = req.webMfaContext;
-        const setup = await accountMfaService.setup({ account, accountType });
+        const setup = accountMfaService.setup(account);
         return res.json({ success: true, setup });
     } catch (error) {
         const status = error.message === 'MFA_ALREADY_ENABLED' ? 409 : 400;
@@ -180,18 +182,17 @@ router.post('/security/mfa/setup', requireWebMfaContext, async (req, res) => {
 router.post('/security/mfa/confirm', requireWebMfaContext, async (req, res) => {
     try {
         const { account, accountType } = req.webMfaContext;
-        const confirmed = await accountMfaService.confirm({
+        const confirmed = await accountMfaService.confirmSetup(
             account,
-            accountType,
-            secret: req.body?.secret,
-            token: req.body?.token,
-            recoveryCodes: req.body?.recoveryCodes
-        });
+            String(req.body?.secret || '').trim().toUpperCase(),
+            String(req.body?.token || '').trim(),
+            Array.isArray(req.body?.recoveryCodes) ? req.body.recoveryCodes : []
+        );
         const deviceId = webMfaDeviceId(req, res);
         await accountMfaService.trustDevice({ account, accountType, deviceId, req });
         return res.json({ success: true, status: confirmed });
     } catch (error) {
-        const status = error.message === 'INVALID_MFA_TOKEN' ? 422 : 400;
+        const status = error.code === 'MFA_INVALID' ? 422 : 400;
         return res.status(status).json({ success: false, error: error.message });
     }
 });
@@ -199,14 +200,10 @@ router.post('/security/mfa/confirm', requireWebMfaContext, async (req, res) => {
 router.post('/security/mfa/disable', requireWebMfaContext, async (req, res) => {
     try {
         const { account, accountType } = req.webMfaContext;
-        const status = await accountMfaService.disable({
-            account,
-            accountType,
-            token: req.body?.token
-        });
+        const status = await accountMfaService.disable(account, String(req.body?.token || '').trim());
         return res.json({ success: true, status });
     } catch (error) {
-        const code = error.message === 'INVALID_MFA_TOKEN' ? 422 : 400;
+        const code = error.code === 'MFA_INVALID' ? 422 : 400;
         return res.status(code).json({ success: false, error: error.message });
     }
 });
@@ -214,7 +211,10 @@ router.post('/security/mfa/disable', requireWebMfaContext, async (req, res) => {
 router.post('/security/mfa/trusted-device/revoke', requireWebMfaContext, async (req, res) => {
     try {
         const { account, accountType } = req.webMfaContext;
-        await accountMfaService.revokeTrustedDevices({ account, accountType });
+        await TrustedDevice.updateMany(
+            { accountId: account._id, accountType, active: true },
+            { $set: { active: false, revokedAt: new Date(), revokeReason: 'user_revoked' } }
+        );
         return res.json({ success: true });
     } catch (error) {
         return res.status(400).json({ success: false, error: error.message });
