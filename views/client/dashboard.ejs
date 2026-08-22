@@ -663,6 +663,7 @@
         }
     </style>
     <link rel="stylesheet" href="/css/brand-ui.css?v=20260804-brand1">
+    <link rel="stylesheet" href="/css/client-direct-modern.css?v=20260823-1">
 
     <!-- PWA Setup -->
     <link rel="manifest" href="/manifest.json">
@@ -672,7 +673,7 @@
     <meta name="apple-mobile-web-app-title" content="Al-Ahram">
     <!-- End PWA Setup -->
 </head>
-<body>
+<body class="client-direct-modern">
 <%
     const cleanClientTxNotes = (tx = {}) => {
         const explicitCustomerNotes = String(tx.customerNotes || '').trim();
@@ -699,11 +700,14 @@
     <header class="mobile-header no-print">
         <div class="mobile-logo-wrapper">
             <img src="/images/logo.jpeg" alt="Logo" onerror="this.onerror=null; this.src='/images/logo.jpg';">
-            <h1>Al-Ahram Pay</h1>
+            <div class="direct-brand-copy">
+                <h1>AL-AHRAM</h1>
+                <span>بوابة العميل</span>
+            </div>
         </div>
         <div class="d-flex align-items-center gap-2">
             <!-- Balance badge -->
-            <div class="pe-none" style="
+            <div class="direct-balance-chip pe-none" style="
                 background: <%= (user.canViewBalance ? user.balance : 0) >= 0 ? 'linear-gradient(45deg, #10b981, #059669)' : 'linear-gradient(45deg, #ef4444, #dc2626)' %>;
                 color: white;
                 padding: 6px 12px;
@@ -720,6 +724,7 @@
             </div>
             
             <button class="nav-btn btn-theme" onclick="toggleTheme()" style="padding: 6px; width: 36px; height: 36px; border-radius: 10px; display: flex; align-items: center; justify-content: center;"><i class="fa-solid fa-moon" id="mobileThemeIcon"></i></button>
+            <a href="/client/settings" class="nav-btn direct-security-button" title="الإعدادات والحماية" aria-label="الإعدادات والحماية"><i class="fa-solid fa-shield-halved"></i></a>
             <a href="/client/logout" class="nav-btn nav-logout" style="background: rgba(239, 68, 68, 0.1); color: #ef4444; border-color: rgba(239, 68, 68, 0.3); padding: 6px; width: 36px; height: 36px; border-radius: 10px; display: flex; align-items: center; justify-content: center;"><i class="fa-solid fa-power-off"></i></a>
         </div>
     </header>
@@ -728,11 +733,15 @@
         <div class="container d-flex justify-content-between align-items-center">
             <div class="d-flex align-items-center gap-2">
                 <img src="/images/logo.jpeg" alt="Logo" class="logo-img" onerror="this.onerror=null; this.src='/images/logo.jpg';">
+                <div class="direct-brand-copy desktop-brand-copy">
+                    <strong>AL-AHRAM</strong>
+                    <span>بوابة العميل</span>
+                </div>
             </div>
     
             <div class="d-flex align-items-center gap-2">
                 <!-- الرصيد المتاح في الشريط العلوي بشكل جميل -->
-                <div class="d-flex align-items-center pe-none" style="
+                <div class="direct-balance-chip d-flex align-items-center pe-none" style="
                     background: <%= (user.canViewBalance ? user.balance : 0) >= 0 ? 'linear-gradient(45deg, #10b981, #059669)' : 'linear-gradient(45deg, #ef4444, #dc2626)' %>;
                     color: white;
                     padding: 8px 16px;
@@ -747,6 +756,7 @@
                 </div>
                 
                 <button class="nav-btn btn-theme" onclick="toggleTheme()" title="الوضع الليلي/النهاري"><i class="fa-solid fa-moon" id="themeIcon"></i></button>
+                <a href="/client/settings" class="nav-btn direct-security-button" title="الإعدادات والحماية" aria-label="الإعدادات والحماية"><i class="fa-solid fa-shield-halved"></i><span class="d-none d-lg-inline">الحماية</span></a>
                 <a href="/client/logout" class="nav-btn nav-logout" style="background: rgba(239, 68, 68, 0.1); color: #ef4444; border-color: rgba(239, 68, 68, 0.3);"><i class="fa-solid fa-power-off"></i> <span class="d-none d-sm-inline ms-1">خروج</span></a>
             </div>
         </div>
