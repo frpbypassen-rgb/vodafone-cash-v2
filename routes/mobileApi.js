@@ -1936,7 +1936,38 @@ router.post('/executor/complete-task/:id', authenticateJWT, completeTaskValidato
             return sendMobileError(res, 403, 'TASKS_FORBIDDEN', 'صلاحيات المحاسب لا تسمح بتنفيذ العمليات', req.correlationId);
         }
 
-        if (!tx || tx.status !== 'accepted' || !isTaskOwnedByExecutor(tx, emp)) {
+        let ownedByCurrentExecutor = isTaskOwnedByExecutor(tx, emp);
+        if (!ownedByCurrentExecutor && tx?.status === 'accepted') {
+            const employeeGroupId = String(emp.groupId?._id || emp.groupId || '');
+            const transactionGroupIds = [tx.executorGroupId, tx.managerGroupId]
+                .map((value) => String(value?._id || value || ''))
+                .filter(Boolean);
+            const employeeName = String(emp.name || '').trim();
+            const taskOwnerName = String(tx.executorName || tx.assignedExecutorName || '').trim();
+            const legacyNameMatch = Boolean(
+                employeeGroupId
+                && transactionGroupIds.includes(employeeGroupId)
+                && employeeName
+                && taskOwnerName
+                && employeeName === taskOwnerName
+            );
+
+            // Only allow the name fallback when the persisted owner values are
+            // legacy values that do not resolve to another Employee record.
+            if (legacyNameMatch) {
+                const persistedOwnerKeys = [tx.operatorId, tx.assignedExecutorId]
+                    .map((value) => String(value || '').trim())
+                    .filter(Boolean);
+                const ownerLookup = [{ webUsername: { $in: persistedOwnerKeys } }];
+                const objectIds = persistedOwnerKeys.filter((value) => mongoose.Types.ObjectId.isValid(value));
+                if (objectIds.length) ownerLookup.push({ _id: { $in: objectIds } });
+                const knownOwnerCount = persistedOwnerKeys.length
+                    ? await Employee.countDocuments({ $or: ownerLookup })
+                    : 0;
+                ownedByCurrentExecutor = knownOwnerCount === 0;
+            }
+        }
+        if (!tx || tx.status !== 'accepted' || !ownedByCurrentExecutor) {
             return sendMobileError(res, 409, 'INVALID_STATE', 'الطلب غير متاح للإنهاء', req.correlationId);
         }
         let senderEntries;
