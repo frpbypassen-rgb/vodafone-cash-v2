@@ -1257,8 +1257,14 @@ async function getExecutorReports({ executorId, dateType, dateValue, dateFrom, d
     const baseQuery = { ...groupQuery };
     if (scopedEmployee) baseQuery.operatorId = String(scopedEmployee._id);
 
-    const currentTransactions = await Transaction
-        .find({ ...baseQuery, createdAt: { $gte: start, $lte: end } })
+    const transactionQuery = Transaction
+        .find({ ...baseQuery, createdAt: { $gte: start, $lte: end } });
+    // Mongoose exposes `select`, while lightweight model doubles used by
+    // consumers and tests may expose only the sortable query methods.
+    const selectedTransactionQuery = typeof transactionQuery.select === 'function'
+        ? transactionQuery.select('+executorExecutionNumber +executorSenderEntries')
+        : transactionQuery;
+    const currentTransactions = await selectedTransactionQuery
         .sort({ createdAt: -1 })
         .lean();
     const deposits = currentTransactions.filter((tx) =>
