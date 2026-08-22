@@ -109,7 +109,7 @@ const eventBus = require('../services/eventBus');
 const {
     acceptExecutorTask,
     executorIdentityKeys,
-    isTaskOwnedByExecutor,
+    findOwnedAcceptedExecutorTask,
     taskOwnershipFilter,
     listRouteCandidates,
     routeExecutorTask,
@@ -1921,12 +1921,6 @@ router.post('/executor/complete-task/:id', authenticateJWT, completeTaskValidato
             throw error;
         }
 
-        let tx;
-        if (req.tenant) {
-            tx = await Transaction.findOne({ _id: req.params.id, tenantId: req.tenant._id });
-        } else {
-            tx = await Transaction.findById(req.params.id);
-        }
         const empQuery = { _id: userId };
         if (req.tenant) empQuery.tenantId = req.tenant._id;
         const employeeRecord = await Employee.findOne(empQuery).populate('groupId');
@@ -1938,38 +1932,12 @@ router.post('/executor/complete-task/:id', authenticateJWT, completeTaskValidato
             return sendMobileError(res, 403, 'TASKS_FORBIDDEN', 'صلاحيات المحاسب لا تسمح بتنفيذ العمليات', req.correlationId);
         }
 
-        let ownedByCurrentExecutor = isTaskOwnedByExecutor(tx, emp);
-        if (!ownedByCurrentExecutor && tx?.status === 'accepted') {
-            const employeeGroupId = String(emp.groupId?._id || emp.groupId || '');
-            const transactionGroupIds = [tx.executorGroupId, tx.managerGroupId]
-                .map((value) => String(value?._id || value || ''))
-                .filter(Boolean);
-            const employeeName = String(emp.name || '').trim();
-            const taskOwnerName = String(tx.executorName || tx.assignedExecutorName || '').trim();
-            const legacyNameMatch = Boolean(
-                employeeGroupId
-                && transactionGroupIds.includes(employeeGroupId)
-                && employeeName
-                && taskOwnerName
-                && employeeName === taskOwnerName
-            );
-
-            // Only allow the name fallback when the persisted owner values are
-            // legacy values that do not resolve to another Employee record.
-            if (legacyNameMatch) {
-                const persistedOwnerKeys = [tx.operatorId, tx.assignedExecutorId]
-                    .map((value) => String(value || '').trim())
-                    .filter(Boolean);
-                const ownerLookup = [{ webUsername: { $in: persistedOwnerKeys } }];
-                const objectIds = persistedOwnerKeys.filter((value) => mongoose.Types.ObjectId.isValid(value));
-                if (objectIds.length) ownerLookup.push({ _id: { $in: objectIds } });
-                const knownOwnerCount = persistedOwnerKeys.length
-                    ? await Employee.countDocuments({ $or: ownerLookup })
-                    : 0;
-                ownedByCurrentExecutor = knownOwnerCount === 0;
-            }
-        }
-        if (!tx || tx.status !== 'accepted' || !ownedByCurrentExecutor) {
+        const tx = await findOwnedAcceptedExecutorTask({
+            transactionId: req.params.id,
+            executor: emp,
+            tenantId: req.tenant ? executorTenantScope(req) : null
+        });
+        if (!tx) {
             return sendMobileError(res, 409, 'INVALID_STATE', 'الطلب غير متاح للإنهاء', req.correlationId);
         }
         let senderEntries;

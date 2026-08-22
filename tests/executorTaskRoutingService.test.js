@@ -16,7 +16,8 @@ const {
     taskOwnershipFilter,
     acceptExecutorTask,
     routeExecutorTask,
-    isTaskOwnedByExecutor
+    isTaskOwnedByExecutor,
+    findOwnedAcceptedExecutorTask
 } = require('../services/executorTaskRoutingService');
 
 const manager = {
@@ -60,6 +61,54 @@ describe('executor task routing service', () => {
         const legacyExecutor = { ...operator, webUsername: 'executor.demo' };
         expect(isTaskOwnedByExecutor({ operatorId: 'executor.demo' }, legacyExecutor)).toBe(true);
         expect(isTaskOwnedByExecutor({ assignedExecutorId: 'operator-2' }, legacyExecutor)).toBe(false);
+    });
+
+    test('resolves accepted task ownership consistently for exact and legacy records', async () => {
+        const exactTask = {
+            _id: 'tx-exact',
+            status: 'accepted',
+            operatorId: 'operator-1',
+            executorGroupId: 'group-1'
+        };
+        Transaction.findOne.mockResolvedValueOnce(exactTask);
+
+        await expect(findOwnedAcceptedExecutorTask({
+            transactionId: 'tx-exact',
+            executor: operator
+        })).resolves.toBe(exactTask);
+
+        const legacyTask = {
+            _id: 'tx-legacy-complete',
+            status: 'accepted',
+            operatorId: 'old-login-value',
+            executorGroupId: 'group-1',
+            executorName: 'منفذ الاختبار'
+        };
+        Transaction.findOne.mockResolvedValueOnce(null);
+        Transaction.findById.mockResolvedValueOnce(legacyTask);
+        Employee.countDocuments.mockResolvedValueOnce(0);
+
+        await expect(findOwnedAcceptedExecutorTask({
+            transactionId: 'tx-legacy-complete',
+            executor: operator
+        })).resolves.toBe(legacyTask);
+    });
+
+    test('does not resolve an accepted task owned by another executor', async () => {
+        const otherTask = {
+            _id: 'tx-other',
+            status: 'accepted',
+            operatorId: 'operator-2',
+            executorGroupId: 'group-1',
+            executorName: 'منفذ آخر'
+        };
+        Transaction.findOne.mockResolvedValueOnce(null);
+        Transaction.findById.mockResolvedValueOnce(otherTask);
+
+        await expect(findOwnedAcceptedExecutorTask({
+            transactionId: 'tx-other',
+            executor: operator
+        })).resolves.toBeNull();
     });
 
     test('shows unassigned tasks but hides another operator\'s accepted task when direct pulling is enabled', () => {

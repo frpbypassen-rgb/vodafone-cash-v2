@@ -97,8 +97,7 @@ describe('Executor web transaction completion', () => {
 
         expect(Transaction.findOne).toHaveBeenCalledWith(expect.objectContaining({
             _id: 'tx-1',
-            status: 'accepted',
-            operatorId: 'employee-1'
+            status: 'accepted'
         }));
         expect(reserveManualExecutorReceiptReference).toHaveBeenCalledWith({ group: req.executorEmployee.groupId });
         expect(generateManualExecutorReceiptBase64).toHaveBeenCalledWith(expect.objectContaining({
@@ -202,8 +201,7 @@ describe('Executor web transaction completion', () => {
         expect(acquireLock).toHaveBeenCalledWith('executor-complete:tx-1', 30000, { retryCount: 1 });
         expect(Transaction.findOne).toHaveBeenCalledWith(expect.objectContaining({
             _id: 'tx-1',
-            status: 'accepted',
-            operatorId: 'employee-1'
+            status: 'accepted'
         }));
         expect(fs.writeFileSync).toHaveBeenCalledTimes(2);
         expect(tx.status).toBe('completed');

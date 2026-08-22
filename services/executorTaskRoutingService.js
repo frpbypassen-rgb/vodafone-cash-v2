@@ -1,5 +1,6 @@
 'use strict';
 
+const mongoose = require('mongoose');
 const Employee = require('../models/Employee');
 const Transaction = require('../models/Transaction');
 const { acquireLock, releaseLock } = require('./lockService');
@@ -27,6 +28,58 @@ const isTaskOwnedByExecutor = (transaction, executor) => {
     return [transaction.operatorId, transaction.assignedExecutorId]
         .map(stringId)
         .some((ownerId) => identities.has(ownerId));
+};
+
+// Both the web portal and the mobile app must resolve accepted-task ownership
+// identically. This also repairs legacy rows that stored a login name instead
+// of the Employee id without allowing a different employee to take the task.
+const findOwnedAcceptedExecutorTask = async ({ transactionId, executor, tenantId = null }) => {
+    const employeeId = stringId(executor?._id);
+    const groupId = stringId(executor?.groupId);
+    if (!employeeId || !groupId) return null;
+
+    const identities = executorIdentityKeys(executor);
+    const query = {
+        _id: transactionId,
+        status: 'accepted',
+        $and: [
+            taskGroupFilter(groupId),
+            {
+                $or: [
+                    { operatorId: { $in: identities } },
+                    { assignedExecutorId: { $in: identities } }
+                ]
+            }
+        ]
+    };
+    if (tenantId) query.tenantId = tenantId;
+
+    const ownedTask = await Transaction.findOne(query);
+    if (ownedTask) return ownedTask;
+
+    const candidate = typeof Transaction.findById === 'function'
+        ? await Transaction.findById(transactionId)
+        : null;
+    if (!candidate || candidate.status !== 'accepted') return null;
+    if (!taskTenantMatches(candidate, tenantId) || !taskBelongsToGroup(candidate, groupId)) return null;
+    if (isTaskOwnedByExecutor(candidate, executor)) return candidate;
+
+    const employeeName = String(executor.name || '').trim();
+    const taskOwnerName = String(candidate.executorName || candidate.assignedExecutorName || '').trim();
+    if (!employeeName || !taskOwnerName || employeeName !== taskOwnerName) return null;
+
+    const ownerKeys = [candidate.operatorId, candidate.assignedExecutorId]
+        .map((value) => String(value || '').trim())
+        .filter(Boolean);
+    const ownerLookup = ownerKeys.length
+        ? [{ webUsername: { $in: ownerKeys } }]
+        : [];
+    const objectIds = ownerKeys.filter((value) => mongoose.Types.ObjectId.isValid(value));
+    if (objectIds.length) ownerLookup.push({ _id: { $in: objectIds } });
+    const knownOwnerCount = ownerLookup.length
+        ? await Employee.countDocuments({ $or: ownerLookup })
+        : 0;
+    return knownOwnerCount === 0 ? candidate : null;
 };
 
 const taskGroupFilter = (groupId) => ({
@@ -314,6 +367,7 @@ module.exports = {
     stringId,
     executorIdentityKeys,
     isTaskOwnedByExecutor,
+    findOwnedAcceptedExecutorTask,
     taskGroupFilter,
     taskOwnershipFilter,
     ACCEPTABLE_TASK_STATUSES,

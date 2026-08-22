@@ -15,7 +15,7 @@ const { logAction } = require('../services/auditService');
 const { acquireLock, releaseLock } = require('../services/lockService');
 const {
     acceptExecutorTask,
-    isTaskOwnedByExecutor,
+    findOwnedAcceptedExecutorTask,
     routingErrorMessage
 } = require('../services/executorTaskRoutingService');
 const {
@@ -338,48 +338,10 @@ exports.postCompleteTask = async (req, res) => {
         }
 
         const groupId = emp.groupId._id || emp.groupId;
-        let tx = await Transaction.findOne({
-            _id: req.params.id,
-            status: 'accepted',
-            operatorId: emp._id.toString(),
-            $or: [{ executorGroupId: groupId }, { managerGroupId: groupId }]
+        const tx = await findOwnedAcceptedExecutorTask({
+            transactionId: req.params.id,
+            executor: emp
         });
-        if (!tx) {
-            // Compatibility for accepted rows created before the executor
-            // ownership fields were normalized. The fallback is deliberately
-            // restricted to the same group and the same executor name, and
-            // only applies when the old owner values do not resolve to a
-            // different Employee record.
-            const candidate = await Transaction.findById(req.params.id);
-            const groupIds = [candidate?.executorGroupId, candidate?.managerGroupId]
-                .map((value) => String(value?._id || value || ''))
-                .filter(Boolean);
-            const employeeGroupId = String(groupId?._id || groupId || '');
-            const employeeName = String(emp.name || '').trim();
-            const taskOwnerName = String(candidate?.executorName || candidate?.assignedExecutorName || '').trim();
-            const sameLegacyOwner = Boolean(
-                candidate
-                && candidate.status === 'accepted'
-                && groupIds.includes(employeeGroupId)
-                && employeeName
-                && taskOwnerName
-                && employeeName === taskOwnerName
-            );
-            if (sameLegacyOwner && !isTaskOwnedByExecutor(candidate, emp)) {
-                const ownerKeys = [candidate.operatorId, candidate.assignedExecutorId]
-                    .map((value) => String(value || '').trim())
-                    .filter(Boolean);
-                const ownerLookup = ownerKeys.length
-                    ? [{ webUsername: { $in: ownerKeys } }]
-                    : [];
-                const objectIds = ownerKeys.filter((value) => mongoose.Types.ObjectId.isValid(value));
-                if (objectIds.length) ownerLookup.push({ _id: { $in: objectIds } });
-                const knownOwnerCount = ownerLookup.length
-                    ? await Employee.countDocuments({ $or: ownerLookup })
-                    : 0;
-                if (knownOwnerCount === 0) tx = candidate;
-            }
-        }
         if (!tx) {
             return res.status(409).json({ success: false, error: 'العملية غير متاحة للإنهاء أو تم إنهاؤها مسبقاً.' });
         }
