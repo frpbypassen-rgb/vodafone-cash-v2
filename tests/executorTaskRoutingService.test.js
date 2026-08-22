@@ -15,7 +15,8 @@ const eventBus = require('../services/eventBus');
 const {
     taskOwnershipFilter,
     acceptExecutorTask,
-    routeExecutorTask
+    routeExecutorTask,
+    isTaskOwnedByExecutor
 } = require('../services/executorTaskRoutingService');
 
 const manager = {
@@ -53,6 +54,12 @@ describe('executor task routing service', () => {
                 assignedExecutorId: 'operator-1'
             }
         ]);
+    });
+
+    test('recognizes a legacy task that stored the executor login name', () => {
+        const legacyExecutor = { ...operator, webUsername: 'executor.demo' };
+        expect(isTaskOwnedByExecutor({ operatorId: 'executor.demo' }, legacyExecutor)).toBe(true);
+        expect(isTaskOwnedByExecutor({ assignedExecutorId: 'operator-2' }, legacyExecutor)).toBe(false);
     });
 
     test('shows unassigned tasks but hides another operator\'s accepted task when direct pulling is enabled', () => {

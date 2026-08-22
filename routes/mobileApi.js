@@ -108,6 +108,8 @@ const { reversalService } = require('../src/Application/Services/ReversalService
 const eventBus = require('../services/eventBus');
 const {
     acceptExecutorTask,
+    executorIdentityKeys,
+    isTaskOwnedByExecutor,
     taskOwnershipFilter,
     listRouteCandidates,
     routeExecutorTask,
@@ -1775,10 +1777,14 @@ router.post('/executor/cancel-task/:id', authenticateJWT, cancelTaskValidator, a
         if (!emp) throw new Error('EMPLOYEE_NOT_FOUND');
         if (emp.role === 'accountant') throw new Error('TASKS_FORBIDDEN');
 
+        const executorIdentityQuery = executorIdentityKeys(emp);
         const txQuery = {
             _id: req.params.id,
             status: 'accepted',
-            operatorId: emp._id.toString()
+            $or: [
+                { operatorId: { $in: executorIdentityQuery } },
+                { assignedExecutorId: { $in: executorIdentityQuery } }
+            ]
         };
         if (req.tenant) txQuery.tenantId = req.tenant._id;
         const tx = await Transaction.findOne(txQuery);
@@ -1930,12 +1936,7 @@ router.post('/executor/complete-task/:id', authenticateJWT, completeTaskValidato
             return sendMobileError(res, 403, 'TASKS_FORBIDDEN', 'صلاحيات المحاسب لا تسمح بتنفيذ العمليات', req.correlationId);
         }
 
-        const currentEmployeeId = String(emp._id);
-        const operatorId = tx?.operatorId ? String(tx.operatorId) : '';
-        const assignedExecutorId = tx?.assignedExecutorId ? String(tx.assignedExecutorId) : '';
-        const ownedByCurrentExecutor = operatorId === currentEmployeeId
-            || assignedExecutorId === currentEmployeeId;
-        if (!tx || tx.status !== 'accepted' || !ownedByCurrentExecutor) {
+        if (!tx || tx.status !== 'accepted' || !isTaskOwnedByExecutor(tx, emp)) {
             return sendMobileError(res, 409, 'INVALID_STATE', 'الطلب غير متاح للإنهاء', req.correlationId);
         }
         let senderEntries;

@@ -8,6 +8,27 @@ const eventBus = require('./eventBus');
 const stringId = (value) => String(value?._id || value || '');
 const ACCEPTABLE_TASK_STATUSES = ['processing', 'pending'];
 
+// Older task rows in production sometimes stored the executor's login name
+// instead of the Employee _id. Keep that compatibility narrowly scoped to
+// the authenticated executor's own persisted identities.
+const executorIdentityKeys = (executor) => {
+    if (!executor || typeof executor !== 'object') {
+        return [stringId(executor)].filter(Boolean);
+    }
+    return [...new Set([
+        stringId(executor._id),
+        String(executor.webUsername || '').trim()
+    ].filter(Boolean))];
+};
+
+const isTaskOwnedByExecutor = (transaction, executor) => {
+    if (!transaction) return false;
+    const identities = new Set(executorIdentityKeys(executor));
+    return [transaction.operatorId, transaction.assignedExecutorId]
+        .map(stringId)
+        .some((ownerId) => identities.has(ownerId));
+};
+
 const taskGroupFilter = (groupId) => ({
     $or: [{ executorGroupId: groupId }, { managerGroupId: groupId }]
 });
@@ -291,6 +312,8 @@ const routingErrorMessage = (code) => {
 
 module.exports = {
     stringId,
+    executorIdentityKeys,
+    isTaskOwnedByExecutor,
     taskGroupFilter,
     taskOwnershipFilter,
     ACCEPTABLE_TASK_STATUSES,
