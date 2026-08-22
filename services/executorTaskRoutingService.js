@@ -6,6 +6,7 @@ const { acquireLock, releaseLock } = require('./lockService');
 const eventBus = require('./eventBus');
 
 const stringId = (value) => String(value?._id || value || '');
+const ACCEPTABLE_TASK_STATUSES = ['processing', 'pending'];
 
 const taskGroupFilter = (groupId) => ({
     $or: [{ executorGroupId: groupId }, { managerGroupId: groupId }]
@@ -39,7 +40,7 @@ const taskOwnershipFilter = (executor) => {
                     $or: [
                         acceptedByCurrentExecutor,
                         {
-                            status: 'processing',
+                            status: { $in: ACCEPTABLE_TASK_STATUSES },
                             $or: [
                                 { assignedExecutorId: { $exists: false } },
                                 { assignedExecutorId: null },
@@ -58,7 +59,7 @@ const taskOwnershipFilter = (executor) => {
             {
                 $or: [
                     acceptedByCurrentExecutor,
-                    { status: 'processing', assignedExecutorId: employeeId }
+                    { status: { $in: ACCEPTABLE_TASK_STATUSES }, assignedExecutorId: employeeId }
                 ]
             }
         ]
@@ -79,6 +80,68 @@ const assignmentEligibilityFilter = (employeeId) => ({
     ]
 });
 
+const taskTenantMatches = (transaction, tenantScope) => {
+    if (!tenantScope) return true;
+    const currentTenant = transaction?.tenantId;
+    if (tenantScope && typeof tenantScope === 'object' && Array.isArray(tenantScope.$in)) {
+        return tenantScope.$in.some((allowedTenant) => (
+            allowedTenant === null
+                ? currentTenant === null || currentTenant === undefined
+                : stringId(currentTenant) === stringId(allowedTenant)
+        ));
+    }
+    return stringId(currentTenant) === stringId(tenantScope);
+};
+
+const taskBelongsToGroup = (transaction, groupId) => (
+    stringId(transaction?.executorGroupId) === stringId(groupId)
+    || stringId(transaction?.managerGroupId) === stringId(groupId)
+);
+
+const loadUnavailableTask = async (transactionId) => {
+    const lookup = Transaction.findOne({ _id: transactionId });
+    return typeof lookup?.lean === 'function' ? lookup.lean() : lookup;
+};
+
+const classifyUnavailableTask = ({ transaction, employeeId, groupId, tenantId }) => {
+    if (!transaction) return { code: 'TASK_NOT_FOUND' };
+    if (!taskTenantMatches(transaction, tenantId)) return { code: 'TASK_TENANT_MISMATCH' };
+    if (!taskBelongsToGroup(transaction, groupId)) return { code: 'TASK_GROUP_MISMATCH' };
+
+    if (transaction.status === 'accepted') {
+        // Older accepted rows may only have assignedExecutorId. Treat either
+        // persisted ownership field as the same executor's replay.
+        const operatorId = stringId(transaction.operatorId);
+        const assignedExecutorId = stringId(transaction.assignedExecutorId);
+        const ownedByCurrentExecutor = (
+            (!operatorId || operatorId === stringId(employeeId))
+            && (!assignedExecutorId || assignedExecutorId === stringId(employeeId))
+            && (operatorId === stringId(employeeId) || assignedExecutorId === stringId(employeeId))
+        );
+        if (ownedByCurrentExecutor) {
+            return { code: 'TASK_ACCEPT_REPLAY', ok: true, replayed: true, transaction };
+        }
+        return {
+            code: 'TASK_TAKEN',
+            acceptedByName: transaction.executorName || transaction.assignedExecutorName || null
+        };
+    }
+
+    if (!ACCEPTABLE_TASK_STATUSES.includes(transaction.status)) {
+        return { code: 'TASK_STATE_CHANGED', currentStatus: transaction.status || null };
+    }
+    if (
+        transaction.assignedExecutorId
+        && stringId(transaction.assignedExecutorId) !== stringId(employeeId)
+    ) {
+        return {
+            code: 'TASK_ASSIGNED_TO_OTHER',
+            assignedExecutorName: transaction.assignedExecutorName || null
+        };
+    }
+    return { code: 'TASK_UNAVAILABLE' };
+};
+
 const acceptExecutorTask = async ({ transactionId, executor, tenantId = null }) => {
     const employeeId = stringId(executor?._id);
     const group = executor?.groupId || {};
@@ -93,13 +156,25 @@ const acceptExecutorTask = async ({ transactionId, executor, tenantId = null }) 
     try {
         lock = await acquireLock(`executor-active-task:${employeeId}`, 10000, { retryCount: 1 });
 
+        // A timeout or duplicate tap can cause the same accept request to be
+        // sent again after the first request already succeeded. Treat that
+        // exact state as a replay instead of showing a false failure.
+        const existingTask = await loadUnavailableTask(transactionId);
+        const replay = classifyUnavailableTask({
+            transaction: existingTask,
+            employeeId,
+            groupId,
+            tenantId
+        });
+        if (replay.ok === true) return replay;
+
         if (await Transaction.exists(busyTaskFilter(employeeId, tenantId))) {
             return { ok: false, code: 'ACTIVE_TASK_EXISTS' };
         }
 
         const query = {
             _id: transactionId,
-            status: 'processing',
+            status: { $in: ACCEPTABLE_TASK_STATUSES },
             $and: [taskGroupFilter(groupId), assignmentEligibilityFilter(employeeId)]
         };
         if (tenantId) query.tenantId = tenantId;
@@ -123,7 +198,17 @@ const acceptExecutorTask = async ({ transactionId, executor, tenantId = null }) 
             eventBus.publish('executor:task-accepted', { transactionId, tx: transaction, employee: executor });
             return { ok: true, transaction };
         }
-        return { ok: false, code: 'TASK_UNAVAILABLE' };
+
+        const currentTask = await loadUnavailableTask(transactionId);
+        return {
+            ok: false,
+            ...classifyUnavailableTask({
+                transaction: currentTask,
+                employeeId,
+                groupId,
+                tenantId
+            })
+        };
     } finally {
         await releaseLock(lock);
     }
@@ -158,7 +243,7 @@ const routeExecutorTask = async ({ transactionId, manager, employeeId, tenantId 
 
         const taskQuery = {
             _id: transactionId,
-            status: 'processing',
+            status: { $in: ACCEPTABLE_TASK_STATUSES },
             ...taskGroupFilter(groupId)
         };
         if (tenantId) taskQuery.tenantId = tenantId;
@@ -192,6 +277,12 @@ const routingErrorMessage = (code) => {
         ROUTING_DISABLED: 'فعّل التوجيه اليدوي من لوحة المدير أولاً.',
         INVALID_OPERATOR: 'الموظف المختار غير متاح ضمن فريق التنفيذ.',
         TASK_UNAVAILABLE: 'العملية لم تعد متاحة أو تم سحبها من القائمة.',
+        TASK_NOT_FOUND: 'لم تعد العملية موجودة في النظام. حدّث قائمة المهام.',
+        TASK_TENANT_MISMATCH: 'العملية لا تتبع حساب شركة التنفيذ الحالي.',
+        TASK_GROUP_MISMATCH: 'العملية لم تعد ضمن مجموعة التنفيذ الحالية.',
+        TASK_TAKEN: 'تم قبول العملية بالفعل من منفذ آخر.',
+        TASK_ASSIGNED_TO_OTHER: 'تم توجيه العملية إلى منفذ آخر.',
+        TASK_STATE_CHANGED: 'تغيرت حالة العملية قبل قبولها. حدّث قائمة المهام.',
         INVALID_EXECUTOR: 'حساب المنفذ غير مرتبط بمجموعة تنفيذ صالحة.',
         FORBIDDEN: 'هذه العملية متاحة لمدير التنفيذ فقط.'
     };
@@ -202,6 +293,7 @@ module.exports = {
     stringId,
     taskGroupFilter,
     taskOwnershipFilter,
+    ACCEPTABLE_TASK_STATUSES,
     acceptExecutorTask,
     listRouteCandidates,
     routeExecutorTask,

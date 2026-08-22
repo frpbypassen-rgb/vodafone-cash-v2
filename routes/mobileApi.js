@@ -25,6 +25,7 @@ const { logAction } = require('../services/auditService');
 const { verifyAndUpgradePassword } = require('../utils/helpers');
 const { proofSourceUrl, saveProofImage, streamProofImage } = require('../services/proofStorageService');
 const { createReceiptImageUrl } = require('../services/receiptShareService');
+const { getClientReceiptProofIds } = require('../services/clientReceiptService');
 const { saveProfilePhoto, streamProfilePhoto, removeProfilePhoto } = require('../services/profilePhotoStorageService');
 const authController = require('../controllers/auth/authController');
 const transferService = require('../services/transferService');
@@ -79,6 +80,10 @@ const {
 const { sendMobileError, mobileErrorHandler } = require('../mappers/mobileErrorMapper');
 const { checkRegistrationIdentityAvailability } = require('../services/registrationIdentityService');
 const { customerNoteFromTransaction } = require('../utils/transactionNotes');
+const {
+    ExecutorSenderEntriesError,
+    normalizeExecutorSenderEntries
+} = require('../utils/executorSenderEntries');
 const {
     ManualExecutionNumberError,
     maskManualExecutionNumber,
@@ -331,7 +336,15 @@ const toExecutorTaskDto = (tx, currentExecutorId = null) => {
             String(tx.assignedExecutorId) === String(currentExecutorId)
         ),
         acceptedByName: tx.status === 'accepted' ? (tx.executorName || null) : null,
-        isOwnedByCurrentExecutor: recipient.recipientRevealed,
+        isOwnedByCurrentExecutor: Boolean(
+            currentExecutorId && tx.status === 'accepted' && (() => {
+                const operatorId = tx.operatorId ? String(tx.operatorId) : '';
+                const assignedExecutorId = tx.assignedExecutorId ? String(tx.assignedExecutorId) : '';
+                return (!operatorId || operatorId === String(currentExecutorId))
+                    && (!assignedExecutorId || assignedExecutorId === String(currentExecutorId))
+                    && (operatorId === String(currentExecutorId) || assignedExecutorId === String(currentExecutorId));
+            })()
+        ),
         executorReceivedAt: tx.executorReceivedAt
             ? new Date(tx.executorReceivedAt).toISOString()
             : (tx.createdAt ? new Date(tx.createdAt).toISOString() : null),
@@ -1338,7 +1351,10 @@ router.get('/executor/live-tasks', authenticateJWT, async (req, res) => {
 
         const queryTasks = {
             ...taskOwnershipFilter(effectiveEmployee),
-            status: { $in: ['processing', 'accepted'] }
+            // Some legacy/queue transitions expose a grouped task as pending
+            // for a short period. Keep it actionable instead of showing a
+            // stale card that inevitably fails on accept.
+            status: { $in: ['processing', 'pending', 'accepted'] }
         };
         if (req.tenant) queryTasks.tenantId = executorTenantScope(req);
         const tasks = await Transaction.find(queryTasks).sort({ createdAt: 1 }).lean();
@@ -1346,7 +1362,7 @@ router.get('/executor/live-tasks', authenticateJWT, async (req, res) => {
         const queryAlerts = {
             ...taskOwnershipFilter(effectiveEmployee),
             emergencyAlert: { $exists: true, $ne: null },
-            status: { $in: ['processing', 'accepted'] }
+            status: { $in: ['processing', 'pending', 'accepted'] }
         };
         if (req.tenant) queryAlerts.tenantId = executorTenantScope(req);
         const alerts = await Transaction.find(queryAlerts).lean();
@@ -1416,10 +1432,25 @@ router.post('/executor/accept-task/:id', authenticateJWT, async (req, res) => {
             tenantId: req.tenant ? executorTenantScope(req) : null
         });
         if (!acceptance.ok) {
-            const status = acceptance.code === 'ACTIVE_TASK_EXISTS' || acceptance.code === 'TASK_UNAVAILABLE' ? 409 : 400;
-            return sendMobileError(res, status, acceptance.code, routingErrorMessage(acceptance.code), req.correlationId);
+            const conflictCodes = new Set([
+                'ACTIVE_TASK_EXISTS',
+                'TASK_UNAVAILABLE',
+                'TASK_NOT_FOUND',
+                'TASK_TENANT_MISMATCH',
+                'TASK_GROUP_MISMATCH',
+                'TASK_TAKEN',
+                'TASK_ASSIGNED_TO_OTHER',
+                'TASK_STATE_CHANGED'
+            ]);
+            const status = conflictCodes.has(acceptance.code) ? 409 : 400;
+            const message = acceptance.acceptedByName
+                ? `${routingErrorMessage(acceptance.code)} (${acceptance.acceptedByName})`
+                : acceptance.assignedExecutorName
+                ? `${routingErrorMessage(acceptance.code)} (${acceptance.assignedExecutorName})`
+                : routingErrorMessage(acceptance.code);
+            return sendMobileError(res, status, acceptance.code, message, req.correlationId);
         }
-        return res.json({ success: true });
+        return res.json({ success: true, replayed: acceptance.replayed === true });
 
     } catch (e) {
         return sendServerError(res, req);
@@ -1832,20 +1863,47 @@ router.post('/executor/cancel-task/:id', authenticateJWT, cancelTaskValidator, a
  *                 example: "data:image/jpeg;base64,/9j/4AAQSkZJR..."
  *               senderPhone:
  *                 type: string
- *                 description: رقم الهاتف الذي تم التحويل منه
+ *                 description: رقم مرسل legacy اختياري عند استخدام رقم واحد
  *                 example: "01012345678"
+ *               senderEntries:
+ *                 type: array
+ *                 maxItems: 5
+ *                 description: أرقام مرسل اختيارية. عند إدخال رقم واحد تُسند إليه قيمة العملية تلقائياً، وعند إدخال أكثر من رقم يجب إرسال قيمة كل رقم ومطابقة مجموعها لقيمة العملية.
+ *                 items:
+ *                   type: object
+ *                   required:
+ *                     - phone
+ *                   properties:
+ *                     phone:
+ *                       type: string
+ *                       pattern: '^\\d{11}$'
+ *                       example: "01108172258"
+ *                     amount:
+ *                       type: number
+ *                       minimum: 0.01
+ *                       example: 40
  *     responses:
  *       200:
  *         description: تم إنهاء العملية بنجاح وإرسال الإثبات
  */
 router.post('/executor/complete-task/:id', authenticateJWT, completeTaskValidator, async (req, res) => {
     try {
-        const { imageBase64, imagesBase64, executionNumber: requestedExecutionNumber, senderPhone } = req.body;
+        const {
+            imageBase64,
+            imagesBase64,
+            executionNumber: requestedExecutionNumber,
+            senderPhone,
+            senderEntries: requestedSenderEntries
+        } = req.body;
         const executionNumber = String(requestedExecutionNumber ?? senderPhone ?? '').trim();
         const { userId, accountType } = req.user;
         if (accountType !== 'executor') {
             return sendMobileError(res, 403, 'FORBIDDEN', 'صلاحيات غير كافية', req.correlationId);
         }
+        if (!/^\d{11}$/.test(executionNumber)) {
+            return sendMobileError(res, 400, 'INVALID_EXECUTION_NUMBER', 'رقم التنفيذ يجب أن يتكون من 11 رقماً', req.correlationId);
+        }
+
         let maskedExecutionNumber = '';
         try {
             maskedExecutionNumber = maskManualExecutionNumber(executionNumber);
@@ -1874,6 +1932,19 @@ router.post('/executor/complete-task/:id', authenticateJWT, completeTaskValidato
 
         if (!tx || tx.status !== 'accepted' || tx.operatorId !== emp._id.toString()) {
             return sendMobileError(res, 409, 'INVALID_STATE', 'الطلب غير متاح للإنهاء', req.correlationId);
+        }
+        let senderEntries;
+        try {
+            senderEntries = normalizeExecutorSenderEntries({
+                requestedSenderEntries,
+                senderPhone,
+                operationAmount: tx.amount
+            });
+        } catch (error) {
+            if (error instanceof ExecutorSenderEntriesError) {
+                return sendMobileError(res, error.statusCode, error.code, error.message, req.correlationId);
+            }
+            throw error;
         }
         const executorReceipt = await reserveManualExecutorReceiptReference({ group: emp.groupId });
         const completedAt = new Date();
@@ -1912,7 +1983,8 @@ router.post('/executor/complete-task/:id', authenticateJWT, completeTaskValidato
         tx.proofImage = systemReceiptId || undefined;
         tx.executorProofImages = savedFileIds;
         tx.executorExecutionNumber = executionNumber || undefined;
-        tx.executorSenderPhone = maskedExecutionNumber || undefined;
+        tx.executorSenderPhone = senderEntries[0]?.phone || undefined;
+        tx.executorSenderEntries = senderEntries;
         tx.executorExecutionNumberMasked = maskedExecutionNumber || undefined;
         tx.manualExecutorReceiptReference = executorReceipt.reference;
         tx.completedAt = completedAt;
@@ -2070,7 +2142,18 @@ router.get('/transaction/image/:id', authenticateJWT, async (req, res) => {
             return sendMobileError(res, 403, 'FORBIDDEN', 'غير مصرح لك بعرض هذا المرفق', req.correlationId);
         }
 
-        const photoId = tx.proofImages && tx.proofImages.length > 0 ? tx.proofImages[0] : tx.proofImage;
+        const evidenceSource = String(req.query.source || '').trim().toLowerCase();
+        let photoId;
+        if (evidenceSource === 'executor') {
+            const employee = await Employee.findById(userId).lean();
+            if (accountType !== 'executor' || employee?.role !== 'manager') {
+                return sendMobileError(res, 403, 'FORBIDDEN', 'صور إثبات المنفذ متاحة للمدير فقط', req.correlationId);
+            }
+            const evidenceIndex = Math.max(0, Number.parseInt(req.query.index, 10) || 0);
+            photoId = Array.isArray(tx.executorProofImages) ? tx.executorProofImages[evidenceIndex] : null;
+        } else {
+            photoId = tx.proofImages && tx.proofImages.length > 0 ? tx.proofImages[0] : tx.proofImage;
+        }
         if (!photoId) {
             return sendMobileError(res, 404, 'NOT_FOUND', 'لا توجد صورة إثبات', req.correlationId);
         }
@@ -2384,6 +2467,8 @@ router.get('/client/transactions', authenticateJWT, async (req, res) => {
                     status: tx.status,
                     createdAt: tx.createdAt ? new Date(tx.createdAt).toISOString() : null,
                     notes: customerFacingNotes(customerNoteFromTransaction(tx)),
+                    cancellationNumber: tx.cancellationNumber || null,
+                    cancellationReason: tx.cancellationReason || null,
                     hasProofImage: hasOfficialReceipt,
                     receiptUrl: hasOfficialReceipt
                         ? createReceiptImageUrl({ transactionId: tx._id, index: 0 })
@@ -2549,6 +2634,61 @@ router.get('/client/transactions/:id', authenticateJWT, async (req, res) => {
         });
     } catch (e) {
         return sendServerError(res, req, 'حدث خطأ أثناء جلب تفاصيل العملية');
+    }
+});
+
+// Authenticated receipt fallback for mobile clients. The public signed URL is
+// useful for sharing, but the app must still be able to display a receipt when
+// PUBLIC_APP_URL or RECEIPT_SHARE_SECRET is not configured on the server.
+router.get('/client/transactions/:id/receipt', authenticateJWT, async (req, res) => {
+    try {
+        const { userId, accountType } = req.user;
+        const index = Math.max(0, Number.parseInt(req.query.index, 10) || 0);
+        const tx = req.tenant
+            ? await Transaction.findOne({ _id: req.params.id, tenantId: req.tenant._id }).lean()
+            : await Transaction.findById(req.params.id).lean();
+
+        if (!tx) {
+            return sendMobileError(res, 404, 'NOT_FOUND', 'العملية غير موجودة', req.correlationId);
+        }
+
+        let hasAccess = false;
+        if (accountType === 'client_user') {
+            const user = await User.findById(userId).lean();
+            const allowedIds = user
+                ? [user.phone, user.webUsername, String(user._id)].filter(Boolean).map(String)
+                : [];
+            hasAccess = allowedIds.includes(String(tx.userId));
+        } else if (accountType === 'client_company') {
+            const employee = await ClientEmployee.findById(userId).lean();
+            hasAccess = Boolean(
+                employee && tx.companyId && String(tx.companyId) === String(employee.companyId)
+            );
+        } else if (accountType === 'agent_staff') {
+            const agentQuery = await buildAgentStaffTransactionQuery(userId);
+            if (agentQuery) {
+                hasAccess = Boolean(await Transaction.exists({ _id: tx._id, ...agentQuery }));
+            }
+        }
+
+        if (!hasAccess) {
+            return sendMobileError(res, 403, 'FORBIDDEN', 'غير مصرح لك بعرض إيصال هذه العملية', req.correlationId);
+        }
+
+        if (!['completed', 'cancelled', 'canceled', 'cancelled_by_admin', 'rejected', 'failed'].includes(tx.status)) {
+            return sendMobileError(res, 404, 'NOT_FOUND', 'الإيصال غير متاح قبل اكتمال العملية', req.correlationId);
+        }
+
+        const photoId = getClientReceiptProofIds(tx)[index];
+        if (!photoId) {
+            return sendMobileError(res, 404, 'NOT_FOUND', 'صورة الإيصال غير متاحة', req.correlationId);
+        }
+
+        res.setHeader('X-Robots-Tag', 'noindex, noarchive, nosnippet');
+        res.setHeader('Content-Disposition', 'inline; filename="receipt.jpg"');
+        await streamProofImage(proofSourceUrl(photoId), res);
+    } catch (e) {
+        return sendServerError(res, req, 'تعذر تحميل إيصال العملية');
     }
 });
 
