@@ -8,7 +8,8 @@ export interface IDeviceSignature {
 }
 
 export class DeviceTrustEngine {
-    private trustedDevices: Map<string, Set<string>> = new Map(); // mapping userId -> Set of Device Fingerprints
+    private trustedDevices: Map<string, { fingerprint: string; expiresAt: number }> = new Map();
+    private readonly trustTtlMs = Math.max(60 * 60 * 1000, Number(process.env.MFA_TRUST_TTL_SECONDS || 86400) * 1000);
 
     /**
      * حساب بصمة الجهاز الفريدة
@@ -23,10 +24,7 @@ export class DeviceTrustEngine {
      */
     public registerDevice(userId: string, sig: IDeviceSignature): void {
         const fingerprint = this.calculateFingerprint(sig);
-        if (!this.trustedDevices.has(userId)) {
-            this.trustedDevices.set(userId, new Set());
-        }
-        this.trustedDevices.get(userId)!.add(fingerprint);
+        this.trustedDevices.set(userId, { fingerprint, expiresAt: Date.now() + this.trustTtlMs });
         logger.info(`Registered trusted device fingerprint for user ${userId}`, { fingerprint });
     }
 
@@ -34,15 +32,13 @@ export class DeviceTrustEngine {
      * التحقق مما إذا كان الجهاز موثوقاً
      */
     public isDeviceTrusted(userId: string, sig: IDeviceSignature): boolean {
-        // إذا كان المستخدم لا يملك أجهزة مسجلة، نعتمد الجهاز الحالي كأول جهاز موثوق
-        if (!this.trustedDevices.has(userId) || this.trustedDevices.get(userId)!.size === 0) {
-            this.registerDevice(userId, sig);
-            return true;
-        }
-
         const fingerprint = this.calculateFingerprint(sig);
-        const userDevices = this.trustedDevices.get(userId)!;
-        const trusted = userDevices.has(fingerprint);
+        const record = this.trustedDevices.get(userId);
+        if (!record || record.expiresAt <= Date.now()) {
+            this.trustedDevices.delete(userId);
+            return false;
+        }
+        const trusted = record.fingerprint === fingerprint;
 
         if (!trusted) {
             logger.warn(`Suspicious access attempt: Untrusted device fingerprint detected for user ${userId}`, { fingerprint });

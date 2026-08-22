@@ -6,11 +6,12 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:uuid/uuid.dart';
 
 class ApiFailure implements Exception {
-  const ApiFailure(this.message, {this.statusCode, this.code});
+  const ApiFailure(this.message, {this.statusCode, this.code, this.data});
 
   final String message;
   final int? statusCode;
   final String? code;
+  final Map<String, dynamic>? data;
 
   @override
   String toString() => message;
@@ -207,6 +208,7 @@ class SessionStore {
   static const _pushInstallationIdKey = 'ahram_pay_push_installation_id_v1';
   static const _pendingPushInteractionKey =
       'ahram_pay_pending_push_interaction_v1';
+  static const _deviceIdKey = 'ahram_pay_mfa_device_id_v1';
   final FlutterSecureStorage _storage = const FlutterSecureStorage();
 
   Future<MobileSession?> read() async {
@@ -266,6 +268,14 @@ class SessionStore {
   }
 
   Future<void> clearSavedLogin() => _storage.delete(key: _savedLoginKey);
+
+  Future<String> readOrCreateDeviceId() async {
+    final existing = await _storage.read(key: _deviceIdKey);
+    if (existing != null && existing.trim().isNotEmpty) return existing.trim();
+    final id = const Uuid().v4();
+    await _storage.write(key: _deviceIdKey, value: id);
+    return id;
+  }
 
   Future<bool> readCustomerNotificationsEnabled() async {
     final raw = await _storage.read(key: _customerNotificationsKey);
@@ -342,12 +352,22 @@ class MobileApi {
   Future<MobileSession> login({
     required String username,
     required String password,
+    String? mfaToken,
+    bool trustDevice = true,
   }) async {
+    final deviceId = await _store.readOrCreateDeviceId();
     final response = await _request(
       'POST',
       '/login',
-      data: <String, dynamic>{'username': username, 'password': password},
+      data: <String, dynamic>{
+        'username': username,
+        'password': password,
+        if (mfaToken != null && mfaToken.trim().isNotEmpty)
+          'mfaToken': mfaToken.trim(),
+        'trustDevice': trustDevice,
+      },
       authenticated: false,
+      extraHeaders: <String, dynamic>{'X-Device-Id': deviceId},
     );
     final session = MobileSession.fromJson(response);
     if (session.token.isEmpty || session.refreshToken.isEmpty) {
@@ -645,6 +665,48 @@ class MobileApi {
     await _request('POST', '/client/security/logout-all');
   }
 
+  Future<Map<String, dynamic>> mfaStatus() =>
+      _request('GET', '/security/mfa/status');
+
+  Future<Map<String, dynamic>> beginMfaSetup() =>
+      _request('POST', '/security/mfa/setup');
+
+  Future<Map<String, dynamic>> confirmMfaSetup({
+    required String secret,
+    required String token,
+    required List<String> recoveryCodes,
+  }) {
+    return _request(
+      'POST',
+      '/security/mfa/confirm',
+      data: <String, dynamic>{
+        'secret': secret,
+        'token': token,
+        'recoveryCodes': recoveryCodes,
+      },
+    );
+  }
+
+  Future<Map<String, dynamic>> disableMfa(String token) {
+    return _request(
+      'POST',
+      '/security/mfa/disable',
+      data: <String, dynamic>{'token': token},
+    );
+  }
+
+  Future<Map<String, dynamic>> trustedMfaDevice() async {
+    final deviceId = await _store.readOrCreateDeviceId();
+    return _request(
+      'GET',
+      '/security/mfa/trusted-device',
+      extraHeaders: <String, dynamic>{'X-Device-Id': deviceId},
+    );
+  }
+
+  Future<Map<String, dynamic>> revokeTrustedMfaDevice() =>
+      _request('POST', '/security/mfa/trusted-device/revoke');
+
   Future<List<Map<String, dynamic>>> clientTransactions({
     int limit = 100,
     String? dateFrom,
@@ -667,6 +729,48 @@ class MobileApi {
 
   Future<Map<String, dynamic>> transactionDetails(String id) {
     return _request('GET', '/client/transactions/$id');
+  }
+
+  /// Downloads the official customer-facing receipt through the authenticated
+  /// mobile session. This keeps receipt viewing/sharing working even when the
+  /// optional public receipt URL is not configured on the server.
+  Future<Uint8List> clientReceiptImageBytes(String id, {int index = 0}) async {
+    final session = await _store.read();
+    if (session == null) {
+      throw const ApiFailure(
+        'انتهت جلسة الدخول، يرجى تسجيل الدخول مجدداً.',
+        statusCode: 401,
+      );
+    }
+
+    try {
+      final response = await _dio.get<List<int>>(
+        '/client/transactions/$id/receipt',
+        queryParameters: <String, dynamic>{'index': index},
+        options: Options(
+          responseType: ResponseType.bytes,
+          headers: <String, dynamic>{
+            'Authorization': 'Bearer ${session.token}',
+            'X-Correlation-Id': _uuid.v4(),
+          },
+        ),
+      );
+      final bytes = response.data;
+      if (bytes == null || bytes.isEmpty) {
+        throw const ApiFailure('الإيصال غير متاح حالياً.');
+      }
+      return Uint8List.fromList(bytes);
+    } on DioException catch (error) {
+      if (error.response?.statusCode == 401 && await _refresh()) {
+        return clientReceiptImageBytes(id, index: index);
+      }
+      final body = _asMap(error.response?.data);
+      throw ApiFailure(
+        _failureMessage(body, fallback: _networkMessage(error)),
+        statusCode: error.response?.statusCode,
+        code: body['code']?.toString(),
+      );
+    }
   }
 
   Future<Map<String, dynamic>> clientReport({
@@ -1068,6 +1172,58 @@ class MobileApi {
     );
   }
 
+  Future<Uint8List> executorTransactionImageBytes(
+    String id, {
+    String source = 'official',
+    int index = 0,
+  }) async {
+    final ticketResponse = await _request(
+      'GET',
+      '/transaction/image/$id',
+      query: <String, dynamic>{
+        if (source == 'executor') 'source': source,
+        'index': index,
+      },
+    );
+    final rawUrl = '${ticketResponse['url'] ?? ''}'.trim();
+    final uri = Uri.tryParse(rawUrl);
+    if (uri == null || !uri.hasScheme) {
+      throw const ApiFailure('تعذر تجهيز صورة الإيصال.');
+    }
+    final session = await _store.read();
+    if (session == null) {
+      throw const ApiFailure(
+        'انتهت جلسة الدخول، يرجى تسجيل الدخول مجدداً.',
+        statusCode: 401,
+      );
+    }
+    try {
+      final response = await _dio.get<List<int>>(
+        uri.toString(),
+        options: Options(
+          responseType: ResponseType.bytes,
+          headers: <String, dynamic>{
+            'Authorization': 'Bearer ${session.token}',
+            'X-Correlation-Id': _uuid.v4(),
+          },
+        ),
+      );
+      final bytes = response.data;
+      if (bytes == null || bytes.isEmpty) {
+        throw const ApiFailure('صورة الإيصال غير متاحة.');
+      }
+      return Uint8List.fromList(bytes);
+    } on DioException catch (error) {
+      throw ApiFailure(
+        _failureMessage(
+          _asMap(error.response?.data),
+          fallback: _networkMessage(error),
+        ),
+        statusCode: error.response?.statusCode,
+      );
+    }
+  }
+
   Future<Uri> executorReportDownloadUrl({
     required String dateType,
     required String dateValue,
@@ -1159,8 +1315,15 @@ class MobileApi {
     return _request('DELETE', '/executor/employees/$id');
   }
 
-  Future<Map<String, dynamic>> acceptTask(String id) {
-    return _request('POST', '/executor/accept-task/$id');
+  Future<Map<String, dynamic>> acceptTask(String id, {String? idempotencyKey}) {
+    // Keep the key across the automatic 401 refresh retry. The server also
+    // treats a completed accept as a replay, covering duplicate taps and
+    // network retries without showing a false failure to the executor.
+    return _request(
+      'POST',
+      '/executor/accept-task/$id',
+      idempotencyKey: idempotencyKey ?? 'executor-accept-${id}_${_uuid.v4()}',
+    );
   }
 
   Future<Map<String, dynamic>> setExecutorTaskRoutingMode(bool enabled) {
@@ -1200,6 +1363,7 @@ class MobileApi {
     required String executionNumber,
     String? imageBase64,
     List<String>? imagesBase64,
+    List<Map<String, dynamic>>? senderEntries,
   }) {
     return _request(
       'POST',
@@ -1210,6 +1374,8 @@ class MobileApi {
           'imageBase64': imageBase64,
         if (imagesBase64 != null && imagesBase64.isNotEmpty)
           'imagesBase64': imagesBase64,
+        if (senderEntries != null && senderEntries.isNotEmpty)
+          'senderEntries': senderEntries,
       },
     );
   }
@@ -1234,11 +1400,14 @@ class MobileApi {
     bool authenticated = true,
     bool retryAfterRefresh = true,
     String? idempotencyKey,
+    Map<String, dynamic>? extraHeaders,
   }) async {
-    final headers = <String, dynamic>{
-      'X-Correlation-Id': _uuid.v4(),
-      'Idempotency-Key': ?idempotencyKey,
-    };
+    final headers = <String, dynamic>{'X-Correlation-Id': _uuid.v4()};
+    headers['X-Device-Id'] = await _store.readOrCreateDeviceId();
+    if (extraHeaders != null) headers.addAll(extraHeaders);
+    if (idempotencyKey != null && idempotencyKey.isNotEmpty) {
+      headers['Idempotency-Key'] = idempotencyKey;
+    }
     if (authenticated) {
       final session = await _store.read();
       if (session == null) {
@@ -1263,6 +1432,7 @@ class MobileApi {
           _failureMessage(body),
           statusCode: response.statusCode,
           code: body['code']?.toString(),
+          data: body,
         );
       }
       return body;
@@ -1280,6 +1450,7 @@ class MobileApi {
           authenticated: authenticated,
           retryAfterRefresh: false,
           idempotencyKey: idempotencyKey,
+          extraHeaders: extraHeaders,
         );
       }
       final body = _asMap(error.response?.data);
@@ -1287,6 +1458,7 @@ class MobileApi {
         _failureMessage(body, fallback: _networkMessage(error)),
         statusCode: status,
         code: body['code']?.toString(),
+        data: body,
       );
     }
   }
@@ -1423,8 +1595,15 @@ class SessionController extends ChangeNotifier {
   Future<void> signIn({
     required String username,
     required String password,
+    String? mfaToken,
+    bool trustDevice = true,
   }) async {
-    final nextSession = await api.login(username: username, password: password);
+    final nextSession = await api.login(
+      username: username,
+      password: password,
+      mfaToken: mfaToken,
+      trustDevice: trustDevice,
+    );
     session = nextSession;
     await store.write(nextSession);
     notifyListeners();

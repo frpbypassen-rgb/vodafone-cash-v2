@@ -105,6 +105,7 @@ const {
 const { activatePendingRateUpdate } = require('../services/rateChangeService');
 const { buildPendingRateAlertForClient } = require('../services/rateAlerts/rateAlertAudienceService');
 const { reversalService } = require('../src/Application/Services/ReversalService');
+const accountMfaService = require('../services/accountMfaService');
 const eventBus = require('../services/eventBus');
 const {
     acceptExecutorTask,
@@ -356,6 +357,15 @@ const toExecutorTaskDto = (tx, currentExecutorId = null) => {
 };
 
 router.use(correlationId);
+
+const resolveMfaAccount = async (req) => {
+    if (!req.user?.userId || !req.user?.accountType) return null;
+    return accountMfaService.loadAccount(
+        req.user.accountType,
+        req.user.userId,
+        req.user.tenantId || (req.tenant && req.tenant._id) || null
+    );
+};
 
 const loginLimiter = rateLimit({
     windowMs: 15 * 60 * 1000,
@@ -1659,6 +1669,123 @@ router.get('/client/security/devices', authenticateJWT, async (req, res) => {
         return res.json({ success: true, devices });
     } catch (_) {
         return sendServerError(res, req, 'تعذر تحميل الأجهزة المسجل منها الدخول');
+    }
+});
+
+// ─────────────────────────────────────────────────────────────────────────
+// MFA / Authenticator — حساب واحد، جهاز موثوق واحد، مدة الثقة 24 ساعة.
+// هذه المسارات مستقلة عن منطق التحويلات حتى لا تتأثر العمليات المالية.
+router.get('/security/mfa/status', authenticateJWT, async (req, res) => {
+    try {
+        const account = await resolveMfaAccount(req);
+        if (!account) return sendMobileError(res, 404, 'USER_NOT_FOUND', 'الحساب غير موجود', req.correlationId);
+        const trustedDevice = await accountMfaService.isDeviceTrusted({
+            account,
+            accountType: req.user.accountType,
+            deviceId: accountMfaService.deviceIdFor(req),
+            sessionId: req.user.sessionId
+        });
+        const activeTrust = trustedDevice
+            ? await require('../models/TrustedDevice').findOne({
+                accountId: account._id,
+                accountType: req.user.accountType,
+                active: true,
+                expiresAt: { $gt: new Date() },
+                deviceIdHash: require('crypto').createHash('sha256').update(accountMfaService.deviceIdFor(req)).digest('hex')
+            }).select('deviceType userAgent trustedAt expiresAt lastSeenAt').lean()
+            : null;
+        return res.json({ success: true, ...accountMfaService.status(account), trustedDevice: activeTrust || null });
+    } catch (_) {
+        return sendServerError(res, req, 'تعذر تحميل إعدادات المصادقة الثنائية');
+    }
+});
+
+router.post('/security/mfa/setup', authenticateJWT, async (req, res) => {
+    try {
+        const account = await resolveMfaAccount(req);
+        if (!account) return sendMobileError(res, 404, 'USER_NOT_FOUND', 'الحساب غير موجود', req.correlationId);
+        if (accountMfaService.isEnabled(account)) {
+            return sendMobileError(res, 409, 'MFA_ALREADY_ENABLED', 'المصادقة الثنائية مفعلة بالفعل', req.correlationId);
+        }
+        const data = accountMfaService.setup(account);
+        return res.json({
+            success: true,
+            type: 'totp',
+            secret: data.secret,
+            qrUri: data.qrUri,
+            recoveryCodes: data.recoveryCodes,
+            message: 'امسح رمز QR في تطبيق Authenticator ثم أدخل الرمز للتأكيد. رموز الاسترداد تظهر مرة واحدة فقط.'
+        });
+    } catch (_) {
+        return sendServerError(res, req, 'تعذر بدء إعداد المصادقة الثنائية');
+    }
+});
+
+router.post('/security/mfa/confirm', authenticateJWT, async (req, res) => {
+    try {
+        const account = await resolveMfaAccount(req);
+        const secret = String(req.body?.secret || '').trim().toUpperCase();
+        const token = String(req.body?.token || '').trim();
+        const recoveryCodes = Array.isArray(req.body?.recoveryCodes) ? req.body.recoveryCodes : [];
+        if (!account || !secret || !token || recoveryCodes.length < 6) {
+            return sendMobileError(res, 400, 'VALIDATION_ERROR', 'بيانات تفعيل Authenticator غير مكتملة', req.correlationId);
+        }
+        await accountMfaService.confirmSetup(account, secret, token, recoveryCodes);
+        await accountMfaService.trustDevice({
+            account,
+            accountType: req.user.accountType,
+            tenantId: req.user.tenantId || (req.tenant && req.tenant._id) || null,
+            deviceId: accountMfaService.deviceIdFor(req),
+            sessionId: req.user.sessionId || null,
+            req
+        });
+        return res.json({ success: true, ...accountMfaService.status(account), message: 'تم تفعيل المصادقة الثنائية بنجاح' });
+    } catch (error) {
+        if (error.code === 'MFA_INVALID') return sendMobileError(res, 400, 'MFA_INVALID', 'رمز Authenticator غير صحيح', req.correlationId);
+        return sendServerError(res, req, 'تعذر تأكيد تفعيل المصادقة الثنائية');
+    }
+});
+
+router.post('/security/mfa/disable', authenticateJWT, async (req, res) => {
+    try {
+        const account = await resolveMfaAccount(req);
+        if (!account) return sendMobileError(res, 404, 'USER_NOT_FOUND', 'الحساب غير موجود', req.correlationId);
+        await accountMfaService.disable(account, String(req.body?.token || ''));
+        return res.json({ success: true, ...accountMfaService.status(account), message: 'تم إيقاف المصادقة الثنائية وإلغاء الأجهزة الموثوقة' });
+    } catch (error) {
+        if (error.code === 'MFA_INVALID') return sendMobileError(res, 400, 'MFA_INVALID', 'رمز Authenticator أو رمز الاسترداد غير صحيح', req.correlationId);
+        return sendServerError(res, req, 'تعذر إيقاف المصادقة الثنائية');
+    }
+});
+
+router.get('/security/mfa/trusted-device', authenticateJWT, async (req, res) => {
+    try {
+        const account = await resolveMfaAccount(req);
+        if (!account) return sendMobileError(res, 404, 'USER_NOT_FOUND', 'الحساب غير موجود', req.correlationId);
+        const device = await require('../models/TrustedDevice').findOne({
+            accountId: account._id,
+            accountType: req.user.accountType,
+            active: true,
+            expiresAt: { $gt: new Date() },
+            deviceIdHash: require('crypto').createHash('sha256').update(accountMfaService.deviceIdFor(req)).digest('hex')
+        }).select('deviceType userAgent trustedAt expiresAt lastSeenAt').lean();
+        return res.json({ success: true, device: device || null });
+    } catch (_) {
+        return sendServerError(res, req, 'تعذر تحميل الجهاز الموثوق');
+    }
+});
+
+router.post('/security/mfa/trusted-device/revoke', authenticateJWT, async (req, res) => {
+    try {
+        const account = await resolveMfaAccount(req);
+        if (!account) return sendMobileError(res, 404, 'USER_NOT_FOUND', 'الحساب غير موجود', req.correlationId);
+        await require('../models/TrustedDevice').updateMany(
+            { accountId: account._id, accountType: req.user.accountType, active: true },
+            { $set: { active: false, revokedAt: new Date(), revokeReason: 'user_revoked' } }
+        );
+        return res.json({ success: true, message: 'تم إلغاء الجهاز الموثوق. سيطلب النظام رمز Authenticator عند الدخول القادم.' });
+    } catch (_) {
+        return sendServerError(res, req, 'تعذر إلغاء الجهاز الموثوق');
     }
 });
 

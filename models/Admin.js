@@ -5,7 +5,13 @@ const adminSchema = new mongoose.Schema({
     name: { type: String, default: 'بدون اسم' },
     role: { type: String, default: 'admin' }, 
     webUsername: { type: String, unique: true, required: true },
-    webPassword: { type: String, required: true }
+    webPassword: { type: String, required: true },
+    mfaEnabled: { type: Boolean, default: false },
+    mfaType: { type: String, enum: ['none', 'totp'], default: 'none' },
+    totpSecretEncrypted: { type: String, select: false },
+    mfaRecoveryCodeHashes: { type: [String], select: false, default: [] },
+    mfaConfiguredAt: { type: Date, default: null },
+    mfaLastUsedStep: { type: Number, default: null }
 }, { timestamps: true });
 
 // 🛡️ دالة التشفير الآلي قبل الحفظ

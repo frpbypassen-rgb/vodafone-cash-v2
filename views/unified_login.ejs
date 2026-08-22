@@ -236,11 +236,21 @@
                 <input type="hidden" name="longitude" id="longitudeInput">
                 <div class="position-relative mb-3">
                     <div class="form-floating">
-                        <input type="text" class="form-control" id="usernameInput" name="username" placeholder="اسم المستخدم" required autocomplete="off" dir="ltr">
+                        <input type="text" class="form-control" id="usernameInput" name="username" placeholder="اسم المستخدم" value="<%= typeof submittedUsername !== 'undefined' ? submittedUsername : '' %>" required autocomplete="username" dir="ltr">
                         <label for="usernameInput">اسم المستخدم أو رقم الهاتف</label>
                     </div>
                     <i class="fa-solid fa-user-shield input-icon"></i>
                 </div>
+
+                <% if (typeof mfaRequired !== 'undefined' && mfaRequired) { %>
+                    <div class="position-relative mb-4">
+                        <div class="form-floating">
+                            <input type="text" inputmode="numeric" pattern="[0-9]{6}" maxlength="6" class="form-control" id="mfaTokenInput" name="mfaToken" placeholder="رمز Authenticator" required autocomplete="one-time-code" dir="ltr">
+                            <label for="mfaTokenInput">رمز Authenticator المكون من 6 أرقام</label>
+                        </div>
+                        <i class="fa-solid fa-shield-halved input-icon"></i>
+                    </div>
+                <% } %>
                 
                 <div class="position-relative mb-4">
                     <div class="form-floating">

@@ -25,6 +25,18 @@ const login = async (req, res) => {
         const result = await authService.login(username, password, req);
 
         if (!result.success) {
+            if (result.code === 'MFA_REQUIRED') {
+                return res.status(result.statusCode || 403).json({
+                    success: false,
+                    code: result.code,
+                    message: result.message,
+                    mfaRequired: true,
+                    mfaType: result.mfaType || 'totp',
+                    mfaChallengeToken: result.mfaChallengeToken,
+                    trustTtlSeconds: result.trustTtlSeconds,
+                    correlationId: req.correlationId || null
+                });
+            }
             return sendMobileError(res, result.statusCode, result.code, result.message, req.correlationId);
         }
 

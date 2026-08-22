@@ -1,7 +1,7 @@
 import { Response, NextFunction } from 'express';
-import { deviceTrustEngine, IDeviceSignature } from '../../Application/Services/DeviceTrustEngine';
 import { IAuthRequest } from './mfaMiddleware';
 import logger from '../../../utils/logger';
+const accountMfaService = require('../../../services/accountMfaService');
 
 export const deviceTrustMiddleware = async (req: IAuthRequest, res: Response, next: NextFunction) => {
     try {
@@ -9,29 +9,26 @@ export const deviceTrustMiddleware = async (req: IAuthRequest, res: Response, ne
             return next();
         }
 
-        const ip = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() || req.ip || 'unknown';
-        const userAgent = req.headers['user-agent'] || 'unknown';
-        const fingerprintHeader = req.headers['x-device-fingerprint'] as string;
-
-        const sig: IDeviceSignature = {
-            ip,
-            userAgent,
-            fingerprint: fingerprintHeader
-        };
-
-        const isTrusted = deviceTrustEngine.isDeviceTrusted(req.user.userId, sig);
+        const account = await accountMfaService.loadAccount(req.user.accountType, req.user.userId, req.user.tenantId || null);
+        const deviceId = accountMfaService.deviceIdFor(req);
+        const isTrusted = Boolean(account) && await accountMfaService.isDeviceTrusted({
+            account,
+            accountType: req.user.accountType,
+            deviceId,
+            sessionId: req.user.sessionId
+        });
 
         // إرفاق حالة موثوقية الجهاز مع كائن الطلب لاستخدامها في محرك كشف الاحتيال
         (req as any).isDeviceTrusted = isTrusted;
-        (req as any).deviceFingerprint = deviceTrustEngine.calculateFingerprint(sig);
+        (req as any).deviceFingerprint = deviceId;
 
         if (!isTrusted) {
-            logger.warn(`Device not trusted for user ${req.user.userId}. Request details: IP: ${ip}, UA: ${userAgent}`);
+            logger.warn(`Device not trusted for user ${req.user.userId}`, { accountType: req.user.accountType });
         }
 
         next();
     } catch (err: any) {
         logger.error('Device trust middleware error', { error: err.message });
-        next(); // لا نعطل العميل في حال حدوث خطأ داخلي في محرك التحقق من الجهاز
+        next();
     }
 };

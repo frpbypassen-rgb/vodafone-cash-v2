@@ -1,13 +1,13 @@
 import { Request, Response, NextFunction } from 'express';
-import { mfaService } from '../../Application/Services/MfaService';
-import User from '../../Domain/Entities/User';
 import logger from '../../../utils/logger';
-const ClientEmployee = require('../../../models/ClientEmployee');
+const accountMfaService = require('../../../services/accountMfaService');
 
 export interface IAuthRequest extends Request {
     user?: {
         userId: string;
         accountType: string;
+        tenantId?: string;
+        sessionId?: string;
         telegramId?: string;
         executorBotId?: string;
     };
@@ -24,14 +24,24 @@ export const mfaMiddleware = async (req: IAuthRequest, res: Response, next: Next
             return res.status(401).json({ success: false, code: 'UNAUTHORIZED', message: 'غير مصرح بالوصول' });
         }
 
-        const Model = req.user.accountType === 'client_company' ? ClientEmployee : User;
-        const user = await Model.findById(req.user.userId);
+        const user = await accountMfaService.loadAccount(req.user.accountType, req.user.userId, req.user.tenantId || null);
         if (!user) {
             return res.status(404).json({ success: false, code: 'USER_NOT_FOUND', message: 'المستخدم غير موجود' });
         }
 
         // إذا لم يكن العميل قد فعّل الـ MFA، لا داعي للتحقق
         if (!user.mfaEnabled || user.mfaType === 'none') {
+            return next();
+        }
+
+        const deviceId = accountMfaService.deviceIdFor(req);
+        if (await accountMfaService.isDeviceTrusted({
+            account: user,
+            accountType: req.user.accountType,
+            deviceId,
+            sessionId: req.user.sessionId
+        })) {
+            (req as any).mfaVerified = true;
             return next();
         }
 
@@ -45,19 +55,7 @@ export const mfaMiddleware = async (req: IAuthRequest, res: Response, next: Next
             });
         }
 
-        let isValid = false;
-
-        if (user.mfaType === 'totp' && user.totpSecret) {
-            isValid = mfaService.verifyTotp(user.totpSecret, mfaToken);
-        } else if ((user.mfaType === 'sms' || user.mfaType === 'email') && user.otpCode && user.otpExpires) {
-            if (user.otpCode === mfaToken && user.otpExpires.getTime() > Date.now()) {
-                isValid = true;
-                // استهلاك الكود لمنع استخدامه مرة أخرى
-                user.otpCode = undefined;
-                user.otpExpires = undefined;
-                await user.save();
-            }
-        }
+        const isValid = await accountMfaService.verifyAccountToken(user, mfaToken);
 
         if (!isValid) {
             logger.warn(`MFA verification failed for user ${user._id} using ${user.mfaType}`);

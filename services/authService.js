@@ -22,6 +22,7 @@ const User = require('../models/User');
 const ClientCompany = require('../models/ClientCompany');
 const MobileDeviceSession = require('../models/MobileDeviceSession');
 const { buildContext } = require('../mappers/mobileAuthMapper');
+const accountMfaService = require('./accountMfaService');
 
 const requestedAccessTokenTtl = Number(process.env.ACCESS_TOKEN_TTL_SECONDS);
 const ACCESS_TOKEN_EXPIRY_SECONDS = Number.isFinite(requestedAccessTokenTtl)
@@ -326,6 +327,43 @@ const login = async (username, password, req) => {
 
     // 3. نجاح المصادقة → توليد التوكنات
     const { account, accountType, telegramId, executorGroupId, balance } = result;
+    const mfaAccount = await accountMfaService.loadAccount(
+        accountType,
+        account._id,
+        requestTenantId(req) || cleanId(account.tenantId) || null
+    );
+    const deviceId = accountMfaService.deviceIdFor(req);
+    const mfaToken = String(req.body?.mfaToken || req.headers['x-mfa-token'] || '').trim();
+    let mfaVerifiedWithCode = false;
+    if (mfaAccount && accountMfaService.isEnabled(mfaAccount)) {
+        const trusted = await accountMfaService.isDeviceTrusted({
+            account: mfaAccount,
+            accountType,
+            deviceId
+        });
+        if (trusted) {
+            // Keep the original 24-hour expiry. Successful password logins do
+            // not silently extend trust without a fresh Authenticator code.
+        } else if (mfaToken && await accountMfaService.verifyAccountToken(mfaAccount, mfaToken)) {
+            mfaVerifiedWithCode = true;
+        } else {
+            return {
+                success: false,
+                statusCode: 403,
+                code: 'MFA_REQUIRED',
+                message: 'أدخل رمز Authenticator لإكمال تسجيل الدخول من هذا الجهاز',
+                mfaRequired: true,
+                mfaType: 'totp',
+                mfaChallengeToken: accountMfaService.createChallenge({
+                    account,
+                    accountType,
+                    tenantId: requestTenantId(req) || cleanId(account.tenantId) || null,
+                    deviceId
+                }),
+                trustTtlSeconds: Math.floor(accountMfaService.TRUST_TTL_MS / 1000)
+            };
+        }
+    }
     resetFailedAttempts(username);
 
     const isCustomerMobileSession = ['client_user', 'sub_client'].includes(accountType);
@@ -373,6 +411,16 @@ const login = async (username, password, req) => {
         });
     } else {
         await userRepo.updateRefreshToken(account._id, accountType, refreshToken);
+    }
+    if (mfaVerifiedWithCode && req.body?.trustDevice !== false) {
+        await accountMfaService.trustDevice({
+            account: mfaAccount || account,
+            accountType,
+            tenantId,
+            deviceId,
+            sessionId: mobileSessionId,
+            req
+        });
     }
 
     // 4. حساب سعر الصرف

@@ -3,10 +3,12 @@ import 'dart:convert';
 import 'dart:math' as math;
 import 'dart:ui' as ui;
 
+import 'package:dio/dio.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
+import 'package:share_plus/share_plus.dart';
 
 import 'appearance_controller.dart';
 import 'brand_theme.dart';
@@ -141,6 +143,46 @@ class _LoginScreenState extends State<LoginScreen> {
   bool _rememberLogin = true;
   String? _error;
 
+  Future<String?> _requestAuthenticatorCode() async {
+    final code = TextEditingController();
+    try {
+      return await showDialog<String>(
+        context: context,
+        barrierDismissible: false,
+        builder: (dialogContext) => AlertDialog(
+          title: const Text('رمز Authenticator'),
+          content: TextField(
+            controller: code,
+            autofocus: true,
+            keyboardType: TextInputType.number,
+            maxLength: 6,
+            textAlign: TextAlign.center,
+            decoration: const InputDecoration(
+              labelText: 'أدخل الرمز المكون من 6 أرقام',
+              prefixIcon: Icon(Icons.security_outlined),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: const Text('إلغاء'),
+            ),
+            FilledButton(
+              onPressed: () {
+                final value = code.text.trim();
+                if (!RegExp(r'^\d{6}$').hasMatch(value)) return;
+                Navigator.pop(dialogContext, value);
+              },
+              child: const Text('متابعة'),
+            ),
+          ],
+        ),
+      );
+    } finally {
+      code.dispose();
+    }
+  }
+
   @override
   void initState() {
     super.initState();
@@ -187,7 +229,34 @@ class _LoginScreenState extends State<LoginScreen> {
         await ExecutorAlertService.instance.requestPermissionsAndStart();
       }
     } on ApiFailure catch (error) {
-      if (mounted) setState(() => _error = error.message);
+      if (error.code == 'MFA_REQUIRED') {
+        final code = await _requestAuthenticatorCode();
+        if (code != null && code.isNotEmpty) {
+          try {
+            await widget.controller.signIn(
+              username: _username.text.trim(),
+              password: _password.text,
+              mfaToken: code,
+              trustDevice: true,
+            );
+            if (_rememberLogin) {
+              await widget.controller.saveLogin(
+                username: _username.text.trim(),
+                password: _password.text,
+              );
+            }
+            if (widget.controller.isExecutor ||
+                widget.controller.isCustomerAccount) {
+              await ExecutorAlertService.instance.requestPermissionsAndStart();
+            }
+            return;
+          } on ApiFailure catch (mfaError) {
+            if (mounted) setState(() => _error = mfaError.message);
+          }
+        }
+      } else if (mounted) {
+        setState(() => _error = error.message);
+      }
     } catch (_) {
       if (mounted) {
         setState(
@@ -2435,6 +2504,13 @@ class _CustomerAccountScreenState extends State<CustomerAccountScreen> {
     );
   }
 
+  Future<void> _manageAuthenticator() async {
+    await showDialog<void>(
+      context: context,
+      builder: (context) => _AuthenticatorDialog(controller: widget.controller),
+    );
+  }
+
   Future<void> _changePassword() async {
     final changed = await showDialog<bool>(
       context: context,
@@ -2867,6 +2943,15 @@ class _CustomerAccountScreenState extends State<CustomerAccountScreen> {
               onTap: _changePassword,
             ),
             _CustomerActionRow(
+              icon: Icons.phonelink_lock_outlined,
+              title: t('Authenticator والحماية الإضافية', 'Authenticator security'),
+              subtitle: t(
+                'جهاز موثوق واحد لمدة 24 ساعة مع رمز جديد لأي جهاز آخر.',
+                'One trusted device for 24 hours; other devices require a new code.',
+              ),
+              onTap: _manageAuthenticator,
+            ),
+            _CustomerActionRow(
               icon: Icons.devices_outlined,
               title: t('الأجهزة المسجل منها الدخول', 'Signed-in devices'),
               subtitle: t(
@@ -3004,6 +3089,201 @@ class _CustomerProfileSection extends StatelessWidget {
           ...children,
         ],
       ),
+    );
+  }
+}
+
+class _AuthenticatorDialog extends StatefulWidget {
+  const _AuthenticatorDialog({required this.controller});
+
+  final SessionController controller;
+
+  @override
+  State<_AuthenticatorDialog> createState() => _AuthenticatorDialogState();
+}
+
+class _AuthenticatorDialogState extends State<_AuthenticatorDialog> {
+  late Future<Map<String, dynamic>> _statusFuture;
+  Map<String, dynamic>? _setup;
+  final _token = TextEditingController();
+  bool _busy = false;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _statusFuture = widget.controller.api.mfaStatus();
+  }
+
+  @override
+  void dispose() {
+    _token.dispose();
+    super.dispose();
+  }
+
+  String t(String arabic, String english) => localized(context, arabic, english);
+
+  Future<void> _startSetup() async {
+    setState(() {
+      _busy = true;
+      _error = null;
+    });
+    try {
+      final setup = await widget.controller.api.beginMfaSetup();
+      if (mounted) setState(() => _setup = setup);
+    } on ApiFailure catch (error) {
+      if (mounted) setState(() => _error = error.message);
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _confirm() async {
+    final setup = _setup;
+    final token = _token.text.trim();
+    final codes = (setup?['recoveryCodes'] as List? ?? const [])
+        .map((item) => '$item')
+        .toList();
+    if (setup == null || !RegExp(r'^\d{6}$').hasMatch(token)) {
+      setState(() => _error = t('أدخل رمز Authenticator المكون من 6 أرقام.', 'Enter the 6-digit Authenticator code.'));
+      return;
+    }
+    setState(() {
+      _busy = true;
+      _error = null;
+    });
+    try {
+      await widget.controller.api.confirmMfaSetup(
+        secret: '${setup['secret'] ?? ''}',
+        token: token,
+        recoveryCodes: codes,
+      );
+      if (mounted) {
+        await showDialog<void>(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: Text(t('تم تفعيل Authenticator', 'Authenticator enabled')),
+            content: Text(t(
+              'احفظ رموز الاسترداد في مكان آمن. سيبقى هذا الجهاز موثوقاً لمدة 24 ساعة فقط.',
+              'Save the recovery codes securely. This device is trusted for 24 hours only.',
+            )),
+            actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('حسناً'))],
+          ),
+        );
+        if (mounted) Navigator.pop(context);
+      }
+    } on ApiFailure catch (error) {
+      if (mounted) setState(() => _error = error.message);
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _disable() async {
+    final token = _token.text.trim();
+    if (token.isEmpty) {
+      setState(() => _error = t('أدخل رمز Authenticator أو رمز استرداد.', 'Enter an Authenticator or recovery code.'));
+      return;
+    }
+    setState(() {
+      _busy = true;
+      _error = null;
+    });
+    try {
+      await widget.controller.api.disableMfa(token);
+      if (mounted) Navigator.pop(context);
+    } on ApiFailure catch (error) {
+      if (mounted) setState(() => _error = error.message);
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: Row(
+        children: [
+          const Icon(Icons.phonelink_lock_outlined),
+          const SizedBox(width: 8),
+          Expanded(child: Text(t('المصادقة الثنائية', 'Two-factor authentication'))),
+        ],
+      ),
+      content: SizedBox(
+        width: 470,
+        child: FutureBuilder<Map<String, dynamic>>(
+          future: _statusFuture,
+          builder: (context, snapshot) {
+            if (snapshot.connectionState != ConnectionState.done) {
+              return const SizedBox(height: 130, child: Center(child: CircularProgressIndicator()));
+            }
+            if (snapshot.hasError) return Text(t('تعذر تحميل حالة الحماية.', 'Unable to load security status.'));
+            final enabled = snapshot.data?['enabled'] == true;
+            if (enabled && _setup == null) {
+              return Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Text(t('Authenticator مفعّل لهذا الحساب.', 'Authenticator is enabled for this account.')),
+                  const SizedBox(height: 10),
+                  Text(t('الجهاز الموثوق صالح لمدة 24 ساعة فقط، وبعدها يطلب رمز جديد.', 'The trusted device expires after 24 hours and then requires a new code.')),
+                  const SizedBox(height: 16),
+                  TextField(
+                    controller: _token,
+                    keyboardType: TextInputType.text,
+                    maxLength: 8,
+                    decoration: InputDecoration(labelText: t('رمز Authenticator أو الاسترداد', 'Authenticator or recovery code')),
+                  ),
+                  if (_error != null) InlineMessage(message: _error!, color: _danger),
+                  const SizedBox(height: 8),
+                  FilledButton.icon(
+                    onPressed: _busy ? null : _disable,
+                    icon: const Icon(Icons.remove_circle_outline),
+                    label: Text(t('إيقاف Authenticator', 'Disable Authenticator')),
+                  ),
+                ],
+              );
+            }
+            final setup = _setup;
+            return Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Text(t('فعّل Authenticator من Google أو Microsoft Authenticator. سيظهر مفتاح الإعداد مرة واحدة فقط.', 'Enable Authenticator with Google or Microsoft Authenticator. The setup key is shown once.')),
+                if (setup == null) ...[
+                  const SizedBox(height: 16),
+                  FilledButton.icon(
+                    onPressed: _busy ? null : _startSetup,
+                    icon: const Icon(Icons.qr_code_2_outlined),
+                    label: Text(t('بدء الإعداد', 'Start setup')),
+                  ),
+                ] else ...[
+                  const SizedBox(height: 14),
+                  SelectableText('${setup['secret'] ?? ''}', textAlign: TextAlign.center, style: const TextStyle(fontWeight: FontWeight.w900, letterSpacing: 2)),
+                  const SizedBox(height: 8),
+                  TextButton.icon(
+                    onPressed: () => Clipboard.setData(ClipboardData(text: '${setup['qrUri'] ?? ''}')),
+                    icon: const Icon(Icons.copy_outlined),
+                    label: Text(t('نسخ رابط الإعداد', 'Copy setup URI')),
+                  ),
+                  Text(t('رموز الاسترداد (احفظها الآن):', 'Recovery codes (save them now):'), style: const TextStyle(fontWeight: FontWeight.w800)),
+                  SelectableText((setup['recoveryCodes'] as List? ?? const []).join('  ')),
+                  const SizedBox(height: 10),
+                  TextField(
+                    controller: _token,
+                    keyboardType: TextInputType.number,
+                    maxLength: 6,
+                    decoration: InputDecoration(labelText: t('رمز التفعيل', 'Activation code')),
+                  ),
+                  if (_error != null) InlineMessage(message: _error!, color: _danger),
+                  FilledButton.icon(onPressed: _busy ? null : _confirm, icon: const Icon(Icons.verified_outlined), label: Text(t('تأكيد التفعيل', 'Confirm activation'))),
+                ],
+              ],
+            );
+          },
+        ),
+      ),
+      actions: [TextButton(onPressed: _busy ? null : () => Navigator.pop(context), child: Text(t('إغلاق', 'Close')))],
     );
   }
 }
@@ -10412,11 +10692,17 @@ class _CustomerReportsScreenState extends State<CustomerReportsScreen> {
     if (id.isEmpty) return;
     try {
       final response = await widget.controller.api.transactionDetails(id);
-      final detail = response['transaction'] is Map
-          ? Map<String, dynamic>.from(response['transaction'] as Map)
-          : transaction;
+      final detail = <String, dynamic>{
+        ...transaction,
+        if (response['transaction'] is Map)
+          ...Map<String, dynamic>.from(response['transaction'] as Map),
+      };
       if (!mounted) return;
-      await showCustomerReceiptSheet(context, detail);
+      await showCustomerReceiptSheet(
+        context,
+        detail,
+        api: widget.controller.api,
+      );
     } on ApiFailure catch (error) {
       if (mounted) showSnack(context, error.message, error: true);
     }
@@ -10833,11 +11119,17 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
     if (id.isEmpty) return;
     try {
       final response = await widget.controller.api.transactionDetails(id);
-      final detail = response['transaction'] is Map
-          ? Map<String, dynamic>.from(response['transaction'] as Map)
-          : tx;
+      final detail = <String, dynamic>{
+        ...tx,
+        if (response['transaction'] is Map)
+          ...Map<String, dynamic>.from(response['transaction'] as Map),
+      };
       if (!mounted) return;
-      await showCustomerReceiptSheet(context, detail);
+      await showCustomerReceiptSheet(
+        context,
+        detail,
+        api: widget.controller.api,
+      );
     } on ApiFailure catch (error) {
       if (mounted) showSnack(context, error.message, error: true);
     }
@@ -12019,16 +12311,18 @@ class _ExecutorSupportScreenState extends State<ExecutorSupportScreen>
       });
     }
     try {
-      final response = await widget.controller.api.executorSupportTickets(
-        status: _status,
-        category: _category,
-        search: _search.text,
-      ).timeout(
-        const Duration(seconds: 12),
-        onTimeout: () => throw const ApiFailure(
-          'انتهت مهلة الاتصال بالدعم. تحقق من الخادم ثم أعد المحاولة.',
-        ),
-      );
+      final response = await widget.controller.api
+          .executorSupportTickets(
+            status: _status,
+            category: _category,
+            search: _search.text,
+          )
+          .timeout(
+            const Duration(seconds: 12),
+            onTimeout: () => throw const ApiFailure(
+              'انتهت مهلة الاتصال بالدعم. تحقق من الخادم ثم أعد المحاولة.',
+            ),
+          );
       final rawTickets = response['tickets'];
       if (!mounted) return;
       setState(() {
@@ -13135,9 +13429,9 @@ class _ExecutorSupportConversationScreenState
         final rawMembers = response['members'];
         _members = rawMembers is List
             ? rawMembers
-                .whereType<Map>()
-                .map((item) => Map<String, dynamic>.from(item))
-                .toList()
+                  .whereType<Map>()
+                  .map((item) => Map<String, dynamic>.from(item))
+                  .toList()
             : <Map<String, dynamic>>[];
         _error = null;
         _syncError = null;
@@ -13239,7 +13533,11 @@ class _ExecutorSupportConversationScreenState
           title: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(widget.groupChat ? 'مجموعة شركة التنفيذ' : '${ticket?['subject'] ?? 'طلب دعم'}'),
+              Text(
+                widget.groupChat
+                    ? 'مجموعة شركة التنفيذ'
+                    : '${ticket?['subject'] ?? 'طلب دعم'}',
+              ),
               Text(
                 '${ticket?['ticketId'] ?? ''}',
                 textDirection: ui.TextDirection.ltr,
@@ -13264,7 +13562,7 @@ class _ExecutorSupportConversationScreenState
                   child: ListView(
                     controller: _scroll,
                     padding: const EdgeInsets.all(14),
-            children: [
+                    children: [
                       if (_syncError != null)
                         Padding(
                           padding: const EdgeInsets.only(bottom: 10),
@@ -13355,22 +13653,31 @@ class _ExecutorSupportConversationScreenState
                               const Divider(height: 24),
                               Text(
                                 'الأعضاء (${_members.length})',
-                                style: const TextStyle(fontWeight: FontWeight.w900),
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.w900,
+                                ),
                               ),
                               const SizedBox(height: 7),
                               Wrap(
                                 spacing: 6,
                                 runSpacing: 6,
-                                children: _members.map((member) => Chip(
-                                  avatar: Icon(
-                                    '${member['role'] ?? ''}' == 'admin'
-                                        ? Icons.admin_panel_settings_outlined
-                                        : Icons.person_outline,
-                                    size: 16,
-                                  ),
-                                  label: Text('${member['name'] ?? 'عضو'}'),
-                                  visualDensity: VisualDensity.compact,
-                                )).toList(),
+                                children: _members
+                                    .map(
+                                      (member) => Chip(
+                                        avatar: Icon(
+                                          '${member['role'] ?? ''}' == 'admin'
+                                              ? Icons
+                                                    .admin_panel_settings_outlined
+                                              : Icons.person_outline,
+                                          size: 16,
+                                        ),
+                                        label: Text(
+                                          '${member['name'] ?? 'عضو'}',
+                                        ),
+                                        visualDensity: VisualDensity.compact,
+                                      ),
+                                    )
+                                    .toList(),
                               ),
                             ],
                           ],
@@ -13990,14 +14297,75 @@ class _ExecutorTasksScreenState extends State<ExecutorTasksScreen>
   }
 
   Future<void> _accept(Map<String, dynamic> task) async {
+    final taskId = '${task['id'] ?? ''}'.trim();
+    if (taskId.isEmpty) {
+      if (mounted) {
+        showSnack(
+          context,
+          'معرف العملية غير صالح. حدّث قائمة المهام.',
+          error: true,
+        );
+      }
+      return;
+    }
     setState(() => _actionBusy = true);
+    final acceptKey =
+        'executor-accept-${taskId}_${DateTime.now().microsecondsSinceEpoch}';
     try {
-      await widget.controller.api.acceptTask('${task['id']}');
+      await widget.controller.api.acceptTask(taskId, idempotencyKey: acceptKey);
       if (mounted) {
         showSnack(context, 'تم قبول العملية وأصبحت في قائمة تنفيذك.');
       }
       await _load();
     } on ApiFailure catch (error) {
+      // The server may commit the atomic accept and lose the HTTP response
+      // (or receive a duplicate tap). Confirm the authoritative task state
+      // before showing a false failure to the executor.
+      if (error.statusCode == null || (error.statusCode ?? 0) >= 500) {
+        try {
+          await widget.controller.api.acceptTask(
+            taskId,
+            idempotencyKey: acceptKey,
+          );
+          if (mounted) {
+            showSnack(context, 'تم قبول العملية وأصبحت في قائمة تنفيذك.');
+          }
+          await _load();
+          return;
+        } on ApiFailure catch (_) {
+          // Confirm the authoritative state below before showing an error.
+        }
+      }
+      {
+        try {
+          final response = await widget.controller.api.executorLiveTasks();
+          final rawTasks = response['data'];
+          final currentExecutorId = widget.controller.session?.id ?? '';
+          final acceptedByMe =
+              rawTasks is List &&
+              rawTasks.whereType<Map>().any((item) {
+                final candidate = Map<String, dynamic>.from(item);
+                return '${candidate['id'] ?? ''}' == taskId &&
+                    candidate['status'] == 'accepted' &&
+                    (candidate['isOwnedByCurrentExecutor'] == true ||
+                        candidate['isAssignedToCurrentExecutor'] == true ||
+                        '${candidate['operatorId'] ?? ''}' ==
+                            currentExecutorId);
+              });
+          if (acceptedByMe) {
+            if (mounted) {
+              showSnack(
+                context,
+                'تم قبول العملية بالفعل وأصبحت في قائمة تنفيذك.',
+              );
+            }
+            await _load();
+            return;
+          }
+        } catch (_) {
+          // Keep the original server error if the confirmation request fails.
+        }
+      }
       if (mounted) showSnack(context, error.message, error: true);
       await _load(silent: true);
     } finally {
@@ -15234,6 +15602,7 @@ class _ExecutorReportsScreenState extends State<ExecutorReportsScreen>
     required List<Map<String, dynamic>> operations,
     required List<Map<String, dynamic>> pending,
     required bool personal,
+    required bool canViewEvidence,
   }) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -15248,7 +15617,12 @@ class _ExecutorReportsScreenState extends State<ExecutorReportsScreen>
           ...pending.map(
             (operation) => Padding(
               padding: const EdgeInsets.only(bottom: 9),
-              child: ExecutorReportOperationTile(operation: operation),
+              child: ExecutorReportOperationTile(
+                operation: operation,
+                onTap: canViewEvidence
+                    ? () => _openReportOperation(operation, canViewEvidence)
+                    : null,
+              ),
             ),
           ),
           const SizedBox(height: 12),
@@ -15271,14 +15645,22 @@ class _ExecutorReportsScreenState extends State<ExecutorReportsScreen>
           ...operations.map(
             (operation) => Padding(
               padding: const EdgeInsets.only(bottom: 9),
-              child: ExecutorReportOperationTile(operation: operation),
+              child: ExecutorReportOperationTile(
+                operation: operation,
+                onTap: canViewEvidence
+                    ? () => _openReportOperation(operation, canViewEvidence)
+                    : null,
+              ),
             ),
           ),
       ],
     );
   }
 
-  Widget _cancelledTab(List<Map<String, dynamic>> cancelled) {
+  Widget _cancelledTab(
+    List<Map<String, dynamic>> cancelled, {
+    required bool canViewEvidence,
+  }) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -15308,6 +15690,9 @@ class _ExecutorReportsScreenState extends State<ExecutorReportsScreen>
               child: ExecutorReportOperationTile(
                 operation: operation,
                 cancelled: true,
+                onTap: canViewEvidence
+                    ? () => _openReportOperation(operation, canViewEvidence)
+                    : null,
               ),
             ),
           ),
@@ -15331,6 +15716,7 @@ class _ExecutorReportsScreenState extends State<ExecutorReportsScreen>
     final personal = report['scope'] == 'employee';
     final canReconcile = capabilities['canViewReconciliation'] == true;
     final canViewTeam = capabilities['canViewTeamPerformance'] == true;
+    final canViewEvidence = report['role'] == 'manager';
     final availableTabs = _availableTabs(canReconcile);
     final activeTab = availableTabs.contains(_tab)
         ? _tab
@@ -15475,15 +15861,32 @@ class _ExecutorReportsScreenState extends State<ExecutorReportsScreen>
             operations: operations,
             pending: pendingOperations,
             personal: personal,
+            canViewEvidence: canViewEvidence,
           )
         else if (activeTab == _ExecutorReportTab.cancelled)
-          _cancelledTab(cancelledOperations)
+          _cancelledTab(cancelledOperations, canViewEvidence: canViewEvidence)
         else
           ExecutorReconciliationPanel(
             summary: _map('financialSummary'),
             deposits: deposits,
           ),
       ],
+    );
+  }
+
+  Future<void> _openReportOperation(
+    Map<String, dynamic> operation,
+    bool canViewEvidence,
+  ) async {
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => ExecutorReportOperationSheet(
+        operation: operation,
+        api: widget.controller.api,
+        canViewEvidence: canViewEvidence,
+      ),
     );
   }
 }
@@ -16063,16 +16466,18 @@ class ExecutorReportOperationTile extends StatelessWidget {
     super.key,
     required this.operation,
     this.cancelled = false,
+    this.onTap,
   });
 
   final Map<String, dynamic> operation;
   final bool cancelled;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
     final executorName = '${operation['executorName'] ?? ''}'.trim();
-    return ExecutorSurface(
+    final surface = ExecutorSurface(
       accent: cancelled ? ExecutorUiColors.coral : ExecutorUiColors.jade,
       child: Column(
         children: [
@@ -16159,6 +16564,230 @@ class ExecutorReportOperationTile extends StatelessWidget {
         ],
       ),
     );
+    return onTap == null
+        ? surface
+        : Material(
+            color: Colors.transparent,
+            borderRadius: BorderRadius.circular(10),
+            child: InkWell(
+              onTap: onTap,
+              borderRadius: BorderRadius.circular(10),
+              child: surface,
+            ),
+          );
+  }
+}
+
+class ExecutorReportOperationSheet extends StatelessWidget {
+  const ExecutorReportOperationSheet({
+    super.key,
+    required this.operation,
+    required this.api,
+    required this.canViewEvidence,
+  });
+
+  final Map<String, dynamic> operation;
+  final MobileApi api;
+  final bool canViewEvidence;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    final senderEntries = operation['executorSenderEntries'] is List
+        ? (operation['executorSenderEntries'] as List)
+              .whereType<Map>()
+              .map((entry) => Map<String, dynamic>.from(entry))
+              .toList()
+        : <Map<String, dynamic>>[];
+    final proofCount = numberValue(operation['executorProofCount']).toInt();
+    return FractionallySizedBox(
+      heightFactor: 0.92,
+      child: Material(
+        color: colors.surface,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(14)),
+        child: SafeArea(
+          top: false,
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.fromLTRB(18, 12, 18, 24),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Center(
+                  child: Container(
+                    width: 44,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: colors.outlineVariant,
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 14),
+                Row(
+                  children: [
+                    IconButton(
+                      onPressed: () => Navigator.pop(context),
+                      icon: const Icon(Icons.close_rounded),
+                    ),
+                    const Spacer(),
+                    const Text(
+                      'تفاصيل العملية والإيصال',
+                      style: TextStyle(fontWeight: FontWeight.w900),
+                    ),
+                  ],
+                ),
+                ExecutorSurface(
+                  accent: _green,
+                  child: Column(
+                    children: [
+                      DetailLine(
+                        label: 'رقم العملية',
+                        value: '${operation['customId'] ?? '-'}',
+                      ),
+                      DetailLine(
+                        label: 'المستلم',
+                        value: '${operation['recipientNumber'] ?? '-'}',
+                      ),
+                      DetailLine(
+                        label: 'القيمة',
+                        value:
+                            '${formatEgpAmount(numberValue(operation['amount']))} ج.م',
+                      ),
+                      DetailLine(
+                        label: 'الحالة',
+                        value: statusLabel(operation['status']?.toString()),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 14),
+                const SectionTitle(
+                  title: 'الإيصال الرسمي',
+                  icon: Icons.receipt_long_outlined,
+                  color: _green,
+                ),
+                const SizedBox(height: 8),
+                ExecutorReportImageCard(
+                  title: 'إيصال العملية',
+                  future: api.executorTransactionImageBytes(
+                    '${operation['id']}',
+                  ),
+                ),
+                if (canViewEvidence) ...[
+                  const SizedBox(height: 18),
+                  const SectionTitle(
+                    title: 'بيانات المنفذ الخاصة بالمدير',
+                    icon: Icons.admin_panel_settings_outlined,
+                    color: _gold,
+                  ),
+                  const SizedBox(height: 8),
+                  ExecutorSurface(
+                    accent: _gold,
+                    child: Column(
+                      children: [
+                        DetailLine(
+                          label: 'رقم التنفيذ الكامل',
+                          value:
+                              '${operation['executorExecutionNumber'] ?? '-'}',
+                        ),
+                        if (senderEntries.isEmpty)
+                          const DetailLine(
+                            label: 'أرقام المرسل',
+                            value: 'لم تُسجل',
+                          )
+                        else
+                          ...senderEntries.map(
+                            (entry) => DetailLine(
+                              label: senderEntries.length > 1
+                                  ? 'رقم المرسل'
+                                  : 'رقم المرسل المسجل',
+                              value:
+                                  '${entry['phone'] ?? '-'}${entry['amount'] == null ? '' : ' · ${formatEgpAmount(numberValue(entry['amount']))} ج.م'}',
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  if (proofCount == 0)
+                    const EmptyPanel(
+                      icon: Icons.image_not_supported_outlined,
+                      title: 'لا توجد صور مرفوعة من المنفذ',
+                      message: 'تم حفظ الإيصال الرسمي فقط.',
+                    )
+                  else
+                    ...List<Widget>.generate(
+                      proofCount,
+                      (index) => Padding(
+                        padding: const EdgeInsets.only(bottom: 10),
+                        child: ExecutorReportImageCard(
+                          title: 'إثبات المنفذ ${index + 1}',
+                          future: api.executorTransactionImageBytes(
+                            '${operation['id']}',
+                            source: 'executor',
+                            index: index,
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class ExecutorReportImageCard extends StatelessWidget {
+  const ExecutorReportImageCard({
+    super.key,
+    required this.title,
+    required this.future,
+  });
+
+  final String title;
+  final Future<Uint8List> future;
+
+  @override
+  Widget build(BuildContext context) {
+    return ExecutorSurface(
+      accent: _green,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(title, style: const TextStyle(fontWeight: FontWeight.w900)),
+          const SizedBox(height: 8),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(8),
+            child: FutureBuilder<Uint8List>(
+              future: future,
+              builder: (context, snapshot) {
+                if (snapshot.connectionState != ConnectionState.done) {
+                  return const SizedBox(
+                    height: 180,
+                    child: Center(child: CircularProgressIndicator()),
+                  );
+                }
+                if (snapshot.hasError || snapshot.data == null) {
+                  return const SizedBox(
+                    height: 120,
+                    child: Center(child: _ReceiptImageUnavailable()),
+                  );
+                }
+                return Image.memory(
+                  snapshot.data!,
+                  height: 280,
+                  width: double.infinity,
+                  fit: BoxFit.contain,
+                );
+              },
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }
 
@@ -16181,9 +16810,6 @@ class _ExecutorSettingsScreenState extends State<ExecutorSettingsScreen> {
   Map<String, dynamic> _localPushDiagnostics = <String, dynamic>{};
   Object? _pushStatusError;
   bool _backgroundServiceRunning = false;
-  Map<String, bool> _notificationPreferences = Map<String, bool>.from(
-    defaultMobileNotificationPreferences,
-  );
   String _pushTestCategory = 'executor_task_new';
   bool _pushBusy = false;
   bool _preferenceBusy = false;
@@ -16227,20 +16853,6 @@ class _ExecutorSettingsScreenState extends State<ExecutorSettingsScreen> {
         pushStatusError = error;
       }
       if (mounted && raw is Map) {
-        final rawDevice = pushStatus['device'];
-        final rawPreferences = rawDevice is Map
-            ? rawDevice['notificationPreferences']
-            : null;
-        final preferences = Map<String, bool>.from(
-          defaultMobileNotificationPreferences,
-        );
-        if (rawPreferences is Map) {
-          for (final key in preferences.keys) {
-            if (rawPreferences[key] is bool) {
-              preferences[key] = rawPreferences[key] == true;
-            }
-          }
-        }
         setState(() {
           _overview = Map<String, dynamic>.from(raw);
           _manualTaskRoutingEnabled = manualTaskRoutingEnabled;
@@ -16248,7 +16860,6 @@ class _ExecutorSettingsScreenState extends State<ExecutorSettingsScreen> {
           _pushStatusError = pushStatusError;
           _localPushDiagnostics = localPushDiagnostics;
           _backgroundServiceRunning = backgroundServiceRunning;
-          _notificationPreferences = preferences;
         });
       }
     } catch (error) {
@@ -16347,70 +16958,63 @@ class _ExecutorSettingsScreenState extends State<ExecutorSettingsScreen> {
     }
   }
 
-  Future<void> _setNotificationPreference(String key, bool enabled) async {
-    if (_preferenceBusy || key == 'tasks' || key == 'urgent') return;
-    final previous = Map<String, bool>.from(_notificationPreferences);
-    final next = Map<String, bool>.from(previous)..[key] = enabled;
+  Future<void> _toggleAllNotifications(bool enabled) async {
+    if (_preferenceBusy || _pushBusy) return;
     setState(() {
-      _notificationPreferences = next;
       _preferenceBusy = true;
+      _pushBusy = enabled;
     });
     try {
-      final installationId = await widget.controller.store
-          .readOrCreatePushInstallationId();
-      final response = await widget.controller.api.updatePushPreferences(
-        installationId: installationId,
-        preferences: next,
-      );
-      final raw = response['preferences'];
-      if (mounted && raw is Map) {
-        setState(() {
-          _notificationPreferences = <String, bool>{
-            for (final entry in defaultMobileNotificationPreferences.entries)
-              entry.key: raw[entry.key] is bool
-                  ? raw[entry.key] == true
-                  : entry.value,
-          };
-        });
+      if (enabled) {
+        await MobilePushService.instance.requestPermissionAndRegister();
+        final diagnostics = await MobilePushService.instance.localDiagnostics();
+        if (diagnostics['permissionEnabled'] != true) {
+          throw const ApiFailure(
+            'إذن إشعارات الهاتف غير مسموح. فعّله من إعدادات الهاتف ثم أعد المحاولة.',
+          );
+        }
+        await ExecutorAlertService.instance.startForStoredAccount();
+        final installationId = await widget.controller.store
+            .readOrCreatePushInstallationId();
+        await widget.controller.api.updatePushPreferences(
+          installationId: installationId,
+          preferences: Map<String, bool>.from(
+            defaultMobileNotificationPreferences,
+          ),
+        );
+      } else {
+        // Remove this installation from server push delivery before stopping
+        // the local monitor, so notifications are also disabled in background.
+        await MobilePushService.instance.unregisterCurrentSession();
+        await ExecutorAlertService.instance.stop();
       }
-    } on ApiFailure catch (error) {
       if (mounted) {
-        setState(() => _notificationPreferences = previous);
-        showSnack(context, error.message, error: true);
+        showSnack(
+          context,
+          enabled ? 'تم تشغيل جميع الإشعارات.' : 'تم إيقاف جميع الإشعارات.',
+        );
+      }
+      await _load();
+    } on ApiFailure catch (error) {
+      if (mounted) showSnack(context, error.message, error: true);
+    } catch (_) {
+      if (mounted) {
+        showSnack(
+          context,
+          enabled
+              ? 'تعذر تشغيل الإشعارات. تحقق من إذن الهاتف.'
+              : 'تعذر إيقاف الإشعارات حالياً.',
+          error: true,
+        );
       }
     } finally {
-      if (mounted) setState(() => _preferenceBusy = false);
+      if (mounted) {
+        setState(() {
+          _preferenceBusy = false;
+          _pushBusy = false;
+        });
+      }
     }
-  }
-
-  Widget _notificationPreferenceTile({
-    required String key,
-    required IconData icon,
-    required String title,
-    required String subtitle,
-    bool mandatory = false,
-  }) {
-    final color = switch (key) {
-      'urgent' => ExecutorUiColors.coral,
-      'tasks' => ExecutorUiColors.jade,
-      'balance' => ExecutorUiColors.amber,
-      _ => ExecutorUiColors.cobalt,
-    };
-    return SwitchListTile.adaptive(
-      contentPadding: EdgeInsets.zero,
-      value: mandatory || (_notificationPreferences[key] ?? true),
-      onChanged: mandatory || _preferenceBusy
-          ? null
-          : (value) => _setNotificationPreference(key, value),
-      secondary: ExecutorMetalIcon(
-        icon: icon,
-        color: color,
-        size: 36,
-        selected: mandatory,
-      ),
-      title: Text(title, style: const TextStyle(fontWeight: FontWeight.w800)),
-      subtitle: Text(subtitle),
-    );
   }
 
   Future<void> _toggleManualTaskRouting(bool enabled) async {
@@ -16704,68 +17308,31 @@ class _ExecutorSettingsScreenState extends State<ExecutorSettingsScreen> {
                 ),
               ],
               const Divider(height: 32),
-              const Text(
-                'قنوات الإشعارات',
-                style: TextStyle(fontWeight: FontWeight.w900),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                'يمكن تخصيص التنبيهات الاختيارية. وصول المهام وإنذارات الإدارة يظلان مفعّلين لضمان التشغيل.',
-                style: TextStyle(
-                  color: Theme.of(context).colorScheme.onSurfaceVariant,
-                  fontSize: 12,
-                  height: 1.45,
+              SwitchListTile.adaptive(
+                contentPadding: EdgeInsets.zero,
+                value: notificationsReady,
+                onChanged: _preferenceBusy || _pushBusy
+                    ? null
+                    : _toggleAllNotifications,
+                secondary: ExecutorMetalIcon(
+                  icon: notificationsReady
+                      ? Icons.notifications_active_outlined
+                      : Icons.notifications_off_outlined,
+                  color: notificationsReady
+                      ? ExecutorUiColors.jade
+                      : ExecutorUiColors.coral,
+                  size: 38,
+                  selected: notificationsReady,
                 ),
-              ),
-              _notificationPreferenceTile(
-                key: 'tasks',
-                icon: Icons.assignment_turned_in_outlined,
-                title: 'المهام الجديدة والموجهة',
-                subtitle: 'تنبيه فوري مع نغمة وصول مخصصة.',
-                mandatory: true,
-              ),
-              _notificationPreferenceTile(
-                key: 'urgent',
-                icon: Icons.notification_important_outlined,
-                title: 'إنذارات الإدارة العاجلة',
-                subtitle: 'إنذار مرتفع الأولوية مع زر إيقاف.',
-                mandatory: true,
-              ),
-              _notificationPreferenceTile(
-                key: 'reminders',
-                icon: Icons.alarm_outlined,
-                title: 'تذكير المهام المفتوحة',
-                subtitle: 'تذكير دوري ما دامت المهمة لم تُفتح أو تُستلم.',
-              ),
-              _notificationPreferenceTile(
-                key: 'taskStatus',
-                icon: Icons.task_alt_outlined,
-                title: 'تحديثات حالة العمليات',
-                subtitle: 'القبول والنجاح والإلغاء وسبب الإلغاء.',
-              ),
-              _notificationPreferenceTile(
-                key: 'support',
-                icon: Icons.support_agent_outlined,
-                title: 'رسائل الدعم الفني',
-                subtitle: 'إشعار عند وصول رد جديد من الإدارة.',
-              ),
-              _notificationPreferenceTile(
-                key: 'balance',
-                icon: Icons.account_balance_wallet_outlined,
-                title: 'تنبيهات الرصيد',
-                subtitle: 'للمدير والمحاسب عند انخفاض رصيد التنفيذ.',
-              ),
-              _notificationPreferenceTile(
-                key: 'security',
-                icon: Icons.shield_outlined,
-                title: 'تنبيهات الأمان',
-                subtitle: 'تسجيل الدخول والأجهزة الجديدة.',
-              ),
-              _notificationPreferenceTile(
-                key: 'reports',
-                icon: Icons.description_outlined,
-                title: 'جاهزية التقارير',
-                subtitle: 'تنبيه بعد تجهيز التقرير المطلوب.',
+                title: Text(
+                  notificationsReady ? 'إيقاف الإشعارات' : 'تشغيل الإشعارات',
+                  style: const TextStyle(fontWeight: FontWeight.w900),
+                ),
+                subtitle: Text(
+                  notificationsReady
+                      ? 'إشعارات المهام والعمليات والدعم تعمل الآن.'
+                      : 'الإشعارات متوقفة على هذا الجهاز.',
+                ),
               ),
             ],
           ),
@@ -16915,7 +17482,8 @@ class _ExecutorEmployeesScreenState extends State<ExecutorEmployeesScreen>
       if (mounted) {
         setState(() {
           if (!silent || _employees.isEmpty) _error = error;
-          _syncError = 'تعذر تحديث فريق التنفيذ الآن. اضغط هنا لإعادة المحاولة.';
+          _syncError =
+              'تعذر تحديث فريق التنفيذ الآن. اضغط هنا لإعادة المحاولة.';
         });
       }
     } finally {
@@ -19115,13 +19683,36 @@ class _CompleteTaskDialogState extends State<CompleteTaskDialog> {
   final _execution = TextEditingController();
   final _picker = ImagePicker();
   final List<Uint8List> _images = <Uint8List>[];
+  final List<TextEditingController> _senderPhones = <TextEditingController>[];
+  final List<TextEditingController> _senderAmounts = <TextEditingController>[];
   bool _busy = false;
   String? _error;
 
   @override
   void dispose() {
     _execution.dispose();
+    for (final controller in _senderPhones) {
+      controller.dispose();
+    }
+    for (final controller in _senderAmounts) {
+      controller.dispose();
+    }
     super.dispose();
+  }
+
+  void _addSender() {
+    if (_senderPhones.length >= 5) return;
+    setState(() {
+      _senderPhones.add(TextEditingController());
+      _senderAmounts.add(TextEditingController());
+    });
+  }
+
+  void _removeSender(int index) {
+    setState(() {
+      _senderPhones.removeAt(index).dispose();
+      _senderAmounts.removeAt(index).dispose();
+    });
   }
 
   Future<void> _pick() async {
@@ -19169,9 +19760,44 @@ class _CompleteTaskDialogState extends State<CompleteTaskDialog> {
   }
 
   Future<void> _complete() async {
-    if (_execution.text.trim().length < 3) {
-      setState(() => _error = 'أدخل رقم التنفيذ الذي ظهر لك بعد التحويل.');
+    final executionNumber = _execution.text.trim();
+    if (!RegExp(r'^\d{11}$').hasMatch(executionNumber)) {
+      setState(() => _error = 'رقم التنفيذ إجباري ويجب أن يتكون من 11 رقماً.');
       return;
+    }
+    final senderEntries = <Map<String, dynamic>>[];
+    for (var index = 0; index < _senderPhones.length; index++) {
+      final phone = _senderPhones[index].text.trim();
+      if (!RegExp(r'^\d{11}$').hasMatch(phone)) {
+        setState(() => _error = 'كل رقم مرسل يجب أن يتكون من 11 رقماً.');
+        return;
+      }
+      final entry = <String, dynamic>{'phone': phone};
+      if (_senderPhones.length > 1) {
+        final amount = double.tryParse(_senderAmounts[index].text.trim());
+        if (amount == null || amount <= 0) {
+          setState(
+            () => _error = 'أدخل قيمة كل رقم مرسل عند وجود أكثر من رقم.',
+          );
+          return;
+        }
+        entry['amount'] = amount;
+      }
+      senderEntries.add(entry);
+    }
+    if (senderEntries.length > 1) {
+      final total = senderEntries.fold<double>(
+        0,
+        (sum, entry) => sum + numberValue(entry['amount']),
+      );
+      final operationAmount = numberValue(widget.task['amount']);
+      if ((total - operationAmount).abs() > 0.01) {
+        setState(
+          () => _error =
+              'مجموع قيم أرقام المرسلين يجب أن يساوي ${formatEgpAmount(operationAmount)} ج.م.',
+        );
+        return;
+      }
     }
     setState(() {
       _busy = true;
@@ -19183,7 +19809,8 @@ class _CompleteTaskDialogState extends State<CompleteTaskDialog> {
           .toList();
       await widget.api.completeTask(
         id: '${widget.task['id']}',
-        executionNumber: _execution.text.trim(),
+        executionNumber: executionNumber,
+        senderEntries: senderEntries,
         // Keep the first attachment for servers that still accept the legacy
         // single-image field while the full list reaches updated servers.
         imageBase64: proofImages.isEmpty ? null : proofImages.first,
@@ -19233,12 +19860,95 @@ class _CompleteTaskDialogState extends State<CompleteTaskDialog> {
               TextField(
                 controller: _execution,
                 textDirection: ui.TextDirection.ltr,
+                keyboardType: TextInputType.number,
+                maxLength: 11,
+                inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                 decoration: const InputDecoration(
-                  labelText: 'رقم التنفيذ',
+                  labelText: 'رقم التنفيذ (11 رقماً) *',
                   prefixIcon: Icon(Icons.tag_outlined),
                 ),
               ),
               const SizedBox(height: 12),
+              Text(
+                'رقم المرسل (اختياري)',
+                style: Theme.of(
+                  context,
+                ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w900),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                _senderPhones.isEmpty
+                    ? 'يمكن إكمال العملية دون إضافة رقم مرسل.'
+                    : _senderPhones.length == 1
+                    ? 'تُستخدم قيمة العملية تلقائياً لهذا الرقم.'
+                    : 'أدخل قيمة كل رقم، ويجب أن يساوي مجموعها قيمة العملية.',
+                style: TextStyle(
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  fontSize: 12,
+                ),
+              ),
+              const SizedBox(height: 8),
+              ...List<Widget>.generate(_senderPhones.length, (index) {
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Row(
+                        children: [
+                          Expanded(
+                            child: TextField(
+                              controller: _senderPhones[index],
+                              textDirection: ui.TextDirection.ltr,
+                              keyboardType: TextInputType.phone,
+                              maxLength: 11,
+                              inputFormatters: [
+                                FilteringTextInputFormatter.digitsOnly,
+                              ],
+                              decoration: InputDecoration(
+                                labelText: 'رقم المرسل ${index + 1}',
+                                prefixIcon: const Icon(
+                                  Icons.phone_android_outlined,
+                                ),
+                                counterText: '',
+                              ),
+                            ),
+                          ),
+                          if (_senderPhones.length > 1)
+                            IconButton(
+                              tooltip: 'حذف الرقم',
+                              onPressed: () => _removeSender(index),
+                              icon: const Icon(Icons.remove_circle_outline),
+                            ),
+                        ],
+                      ),
+                      if (_senderPhones.length > 1) ...[
+                        const SizedBox(height: 6),
+                        TextField(
+                          controller: _senderAmounts[index],
+                          textDirection: ui.TextDirection.ltr,
+                          keyboardType: const TextInputType.numberWithOptions(
+                            decimal: true,
+                          ),
+                          decoration: const InputDecoration(
+                            labelText: 'قيمة هذا الرقم بالجنيه المصري',
+                            prefixIcon: Icon(Icons.payments_outlined),
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                );
+              }),
+              Align(
+                alignment: AlignmentDirectional.centerStart,
+                child: TextButton.icon(
+                  onPressed: _senderPhones.length >= 5 ? null : _addSender,
+                  icon: const Icon(Icons.add_circle_outline),
+                  label: const Text('إضافة رقم مرسل'),
+                ),
+              ),
+              const SizedBox(height: 4),
               ExecutorProofAttachments(
                 images: _images,
                 onPick: _pick,
@@ -20228,20 +20938,22 @@ class DetailLine extends StatelessWidget {
 
 Future<void> showCustomerReceiptSheet(
   BuildContext context,
-  Map<String, dynamic> transaction,
-) {
+  Map<String, dynamic> transaction, {
+  MobileApi? api,
+}) {
   return showModalBottomSheet<void>(
     context: context,
     isScrollControlled: true,
     backgroundColor: Colors.transparent,
-    builder: (_) => CustomerReceiptSheet(transaction: transaction),
+    builder: (_) => CustomerReceiptSheet(transaction: transaction, api: api),
   );
 }
 
 class CustomerReceiptSheet extends StatelessWidget {
-  const CustomerReceiptSheet({super.key, required this.transaction});
+  const CustomerReceiptSheet({super.key, required this.transaction, this.api});
 
   final Map<String, dynamic> transaction;
+  final MobileApi? api;
 
   bool get _isCancelled => const {
     'cancelled',
@@ -20254,6 +20966,34 @@ class CustomerReceiptSheet extends StatelessWidget {
   bool get _isCompleted => '${transaction['status'] ?? ''}' == 'completed';
 
   String get _receiptUrl => '${transaction['receiptUrl'] ?? ''}'.trim();
+
+  String get _transactionId =>
+      '${transaction['id'] ?? transaction['_id'] ?? ''}'.trim();
+
+  bool get _canLoadReceipt =>
+      _receiptUrl.isNotEmpty || (api != null && _transactionId.isNotEmpty);
+
+  Future<Uint8List?> _loadReceiptBytes() async {
+    if (_receiptUrl.isNotEmpty) {
+      try {
+        final response = await Dio().get<List<int>>(
+          _receiptUrl,
+          options: Options(responseType: ResponseType.bytes),
+        );
+        final bytes = response.data;
+        if (bytes != null && bytes.isNotEmpty) return Uint8List.fromList(bytes);
+      } catch (_) {
+        // The signed public URL is optional. Fall back to the authenticated
+        // mobile endpoint below when the public route is unavailable.
+      }
+    }
+    if (api == null || _transactionId.isEmpty) return null;
+    try {
+      return await api!.clientReceiptImageBytes(_transactionId);
+    } catch (_) {
+      return null;
+    }
+  }
 
   Future<void> _copy(BuildContext context, String value, String label) async {
     if (value.isEmpty || value == '-') return;
@@ -20271,22 +21011,46 @@ class CustomerReceiptSheet extends StatelessWidget {
       ..writeln(
         'القيمة: ${formatEgpAmount(numberValue(transaction['amount']))} ج.م',
       );
-    if (_receiptUrl.isNotEmpty) message.writeln('الإيصال: $_receiptUrl');
+    final shareText = message.toString().trim();
+    try {
+      final bytes = await _loadReceiptBytes();
+      if (bytes != null && bytes.isNotEmpty) {
+        await Share.shareXFiles(
+          [
+            XFile.fromData(
+              bytes,
+              name: 'ahram-pay-receipt.jpg',
+              mimeType: 'image/jpeg',
+            ),
+          ],
+          text: shareText,
+          subject: 'إيصال تحويل الأهرام',
+        );
+        return;
+      }
 
-    final whatsappUrl = Uri.https('wa.me', '/', <String, String>{
-      'text': message.toString().trim(),
-    });
-    final opened = await openExternalLink(whatsappUrl);
-    if (!opened) {
-      await Clipboard.setData(ClipboardData(text: message.toString().trim()));
+      final whatsappUrl = Uri.https('wa.me', '/', <String, String>{
+        'text': shareText,
+      });
+      final opened = await openExternalLink(whatsappUrl);
+      if (!opened) throw StateError('WHATSAPP_NOT_OPENED');
+    } catch (_) {
+      await Clipboard.setData(ClipboardData(text: shareText));
       if (context.mounted) {
-        showSnack(context, 'تم نسخ بيانات الإيصال للمشاركة.');
+        showSnack(
+          context,
+          !_canLoadReceipt
+              ? 'تم نسخ بيانات الإيصال للمشاركة.'
+              : 'تعذر إرفاق الصورة تلقائياً، تم نسخ بيانات الإيصال. افتح واتساب وأرفق الصورة من زر عرض الإيصال.',
+          error: _canLoadReceipt,
+        );
       }
     }
   }
 
   void _openReceipt(BuildContext context) {
-    if (_receiptUrl.isEmpty) return;
+    if (!_canLoadReceipt) return;
+    final receiptFuture = _loadReceiptBytes();
     showDialog<void>(
       context: context,
       builder: (_) => Dialog.fullscreen(
@@ -20311,8 +21075,9 @@ class CustomerReceiptSheet extends StatelessWidget {
                     ),
                     IconButton(
                       tooltip: 'نسخ رابط الإيصال',
-                      onPressed: () =>
-                          _copy(context, _receiptUrl, 'رابط الإيصال'),
+                      onPressed: _receiptUrl.isEmpty
+                          ? null
+                          : () => _copy(context, _receiptUrl, 'رابط الإيصال'),
                       icon: const Icon(Icons.link_rounded),
                     ),
                   ],
@@ -20324,19 +21089,22 @@ class CustomerReceiptSheet extends StatelessWidget {
                   minScale: 0.8,
                   maxScale: 4,
                   child: Center(
-                    child: Image.network(
-                      _receiptUrl,
-                      fit: BoxFit.contain,
-                      loadingBuilder: (context, child, progress) {
-                        if (progress == null) return child;
-                        return const SizedBox(
-                          width: 34,
-                          height: 34,
-                          child: CircularProgressIndicator(strokeWidth: 3),
-                        );
+                    child: FutureBuilder<Uint8List?>(
+                      future: receiptFuture,
+                      builder: (context, snapshot) {
+                        if (snapshot.connectionState != ConnectionState.done) {
+                          return const SizedBox(
+                            width: 34,
+                            height: 34,
+                            child: CircularProgressIndicator(strokeWidth: 3),
+                          );
+                        }
+                        final bytes = snapshot.data;
+                        if (bytes != null && bytes.isNotEmpty) {
+                          return Image.memory(bytes, fit: BoxFit.contain);
+                        }
+                        return const _ReceiptImageUnavailable();
                       },
-                      errorBuilder: (_, _, _) =>
-                          const _ReceiptImageUnavailable(),
                     ),
                   ),
                 ),
@@ -20595,12 +21363,12 @@ class CustomerReceiptSheet extends StatelessWidget {
                       ),
                       IconButton(
                         tooltip: 'عرض الإيصال',
-                        onPressed: _receiptUrl.isEmpty
+                        onPressed: !_canLoadReceipt
                             ? null
                             : () => _openReceipt(context),
                         icon: Icon(
                           Icons.visibility_outlined,
-                          color: _receiptUrl.isEmpty ? colors.outline : _green,
+                          color: !_canLoadReceipt ? colors.outline : _green,
                         ),
                       ),
                     ],
@@ -20611,7 +21379,7 @@ class CustomerReceiptSheet extends StatelessWidget {
                   children: [
                     Expanded(
                       child: OutlinedButton.icon(
-                        onPressed: _receiptUrl.isEmpty
+                        onPressed: !_canLoadReceipt
                             ? null
                             : () => _openReceipt(context),
                         icon: const Icon(Icons.receipt_long_outlined),
@@ -20895,18 +21663,7 @@ class TransactionTile extends StatelessWidget {
           ),
           child: Row(
             children: [
-              Container(
-                width: 44,
-                height: 44,
-                decoration: BoxDecoration(
-                  color: statusColor(status).withValues(alpha: 0.11),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Icon(
-                  Icons.receipt_long_outlined,
-                  color: statusColor(status),
-                ),
-              ),
+              _TransactionReceiptPreview(transaction: transaction),
               const SizedBox(width: 12),
               Expanded(
                 child: Column(
@@ -20980,6 +21737,59 @@ class TransactionTile extends StatelessWidget {
                 ],
               ),
             ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _TransactionReceiptPreview extends StatelessWidget {
+  const _TransactionReceiptPreview({required this.transaction});
+
+  final Map<String, dynamic> transaction;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    final url = '${transaction['receiptUrl'] ?? ''}'.trim();
+    final hasReceipt = transaction['hasProofImage'] == true && url.isNotEmpty;
+    if (!hasReceipt) {
+      final status = transaction['status']?.toString();
+      return Container(
+        width: 44,
+        height: 44,
+        decoration: BoxDecoration(
+          color: statusColor(status).withValues(alpha: 0.11),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Icon(Icons.receipt_long_outlined, color: statusColor(status)),
+      );
+    }
+
+    return Semantics(
+      label: 'صورة الإيصال متاحة',
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(8),
+        child: Container(
+          width: 44,
+          height: 44,
+          color: colors.surfaceContainerHighest,
+          child: Image.network(
+            url,
+            fit: BoxFit.cover,
+            errorBuilder: (_, _, _) =>
+                Icon(Icons.receipt_long_outlined, color: colors.primary),
+            loadingBuilder: (context, child, progress) {
+              if (progress == null) return child;
+              return const Center(
+                child: SizedBox(
+                  width: 16,
+                  height: 16,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                ),
+              );
+            },
           ),
         ),
       ),

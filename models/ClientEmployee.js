@@ -11,6 +11,12 @@ const clientEmployeeSchema = new mongoose.Schema({
     // بيانات موقع العملاء
     webUsername: { type: String, unique: true, required: true }, 
     webPassword: { type: String, required: true },
+    mfaEnabled: { type: Boolean, default: false },
+    mfaType: { type: String, enum: ['none', 'totp'], default: 'none' },
+    totpSecretEncrypted: { type: String, select: false },
+    mfaRecoveryCodeHashes: { type: [String], select: false, default: [] },
+    mfaConfiguredAt: { type: Date, default: null },
+    mfaLastUsedStep: { type: Number, default: null },
     otpCode: { type: String },
     otpExpires: { type: Date },
     otpChallengeId: { type: String },

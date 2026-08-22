@@ -16,6 +16,47 @@ const AgentEmployee = require('../models/AgentEmployee');
 const SubAccount = require('../models/SubAccount');
 const SupportTicket = require('../models/SupportTicket');
 const PasswordResetRequest = require('../models/PasswordResetRequest');
+const accountMfaService = require('../services/accountMfaService');
+
+const resolveWebMfaContext = async (req) => {
+    const session = req.session || {};
+    let accountType = null;
+    let accountId = null;
+
+    if (session.isLoggedIn && session.adminId && session.adminId !== 'master_admin') {
+        accountType = 'admin';
+        accountId = session.adminId;
+    } else if (session.isExecutorLoggedIn && session.executorId) {
+        accountType = 'executor';
+        accountId = session.executorId;
+    } else if (session.isClientLoggedIn && session.clientId) {
+        accountType = ({
+            company: 'client_company',
+            agent_staff: 'agent_staff',
+            sub_client: 'sub_client',
+            user: 'client_user',
+        })[session.accountType] || 'client_user';
+        accountId = session.clientId;
+    }
+
+    if (!accountType || !accountId) return null;
+    const account = await accountMfaService.loadAccount(accountType, accountId);
+    if (!account) return null;
+    return { account, accountType };
+};
+
+const requireWebMfaContext = async (req, res, next) => {
+    try {
+        const context = await resolveWebMfaContext(req);
+        if (!context) return res.status(401).json({ success: false, error: 'انتهت جلسة الدخول.' });
+        req.webMfaContext = context;
+        return next();
+    } catch (error) {
+        return res.status(500).json({ success: false, error: 'تعذر قراءة إعدادات الحماية.' });
+    }
+};
+
+const webMfaDeviceId = (req, res) => webDeviceId(req, res);
 
 const loginLimiter = rateLimit({
     windowMs: 1 * 60 * 1000,
@@ -34,7 +75,68 @@ const passwordResetLimiter = rateLimit({
     legacyHeaders: false,
 });
 
-const renderLogin = (res, error = null) => res.render('unified_login', { error });
+const renderLogin = (res, error = null, data = {}) => res.render('unified_login', {
+    error,
+    mfaRequired: false,
+    submittedUsername: '',
+    ...data
+});
+
+const cookieValue = (req, name) => String(req.headers.cookie || '')
+    .split(';')
+    .map((item) => item.trim().split('='))
+    .find(([key]) => key === name)?.[1] || '';
+
+const webDeviceId = (req, res) => {
+    const existing = decodeURIComponent(cookieValue(req, 'ahrampay_device_id') || '').trim();
+    if (existing) return existing.slice(0, 200);
+    const value = randomUUID();
+    res.cookie('ahrampay_device_id', value, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'lax',
+        maxAge: 365 * 24 * 60 * 60 * 1000
+    });
+    return value;
+};
+
+const guardWebMfa = async (req, res, account, accountType, onVerified) => {
+    const canonicalType = ({ user: 'client_user', company: 'client_company' })[accountType] || accountType;
+    const mfaAccount = await accountMfaService.loadAccount(
+        canonicalType,
+        account._id,
+        account.tenantId || (req.tenant && req.tenant._id) || null
+    );
+    if (!mfaAccount || !accountMfaService.isEnabled(mfaAccount)) return false;
+
+    const deviceId = webDeviceId(req, res);
+    const trusted = await accountMfaService.isDeviceTrusted({
+        account: mfaAccount,
+        accountType: canonicalType,
+        deviceId
+    });
+    const token = String(req.body.mfaToken || '').trim();
+    if (trusted || (token && await accountMfaService.verifyAccountToken(mfaAccount, token))) {
+        if (!trusted) {
+            await accountMfaService.trustDevice({
+                account: mfaAccount,
+                accountType: canonicalType,
+                tenantId: account.tenantId || (req.tenant && req.tenant._id) || null,
+                deviceId,
+                sessionId: null,
+                req
+            });
+        }
+        await onVerified();
+        return true;
+    }
+
+    renderLogin(res, token ? 'رمز Authenticator غير صحيح.' : 'أدخل رمز Authenticator لإكمال الدخول من هذا الجهاز.', {
+        mfaRequired: true,
+        submittedUsername: String(req.body.username || '')
+    });
+    return true;
+};
 
 const redirectActiveSession = (req, res) => {
     if (req.session.isLoggedIn) {
@@ -51,6 +153,73 @@ const redirectActiveSession = (req, res) => {
     }
     return false;
 };
+
+// Web account security is intentionally isolated from login and financial routes.
+router.get('/security/mfa/status', requireWebMfaContext, async (req, res) => {
+    try {
+        const { account, accountType } = req.webMfaContext;
+        const deviceId = webMfaDeviceId(req, res);
+        const status = await accountMfaService.status({ account, accountType, deviceId });
+        return res.json({ success: true, ...status });
+    } catch (error) {
+        return res.status(500).json({ success: false, error: 'MFA_STATUS_FAILED' });
+    }
+});
+
+router.post('/security/mfa/setup', requireWebMfaContext, async (req, res) => {
+    try {
+        const { account, accountType } = req.webMfaContext;
+        const setup = await accountMfaService.setup({ account, accountType });
+        return res.json({ success: true, setup });
+    } catch (error) {
+        const status = error.message === 'MFA_ALREADY_ENABLED' ? 409 : 400;
+        return res.status(status).json({ success: false, error: error.message });
+    }
+});
+
+router.post('/security/mfa/confirm', requireWebMfaContext, async (req, res) => {
+    try {
+        const { account, accountType } = req.webMfaContext;
+        const confirmed = await accountMfaService.confirm({
+            account,
+            accountType,
+            secret: req.body?.secret,
+            token: req.body?.token,
+            recoveryCodes: req.body?.recoveryCodes
+        });
+        const deviceId = webMfaDeviceId(req, res);
+        await accountMfaService.trustDevice({ account, accountType, deviceId, req });
+        return res.json({ success: true, status: confirmed });
+    } catch (error) {
+        const status = error.message === 'INVALID_MFA_TOKEN' ? 422 : 400;
+        return res.status(status).json({ success: false, error: error.message });
+    }
+});
+
+router.post('/security/mfa/disable', requireWebMfaContext, async (req, res) => {
+    try {
+        const { account, accountType } = req.webMfaContext;
+        const status = await accountMfaService.disable({
+            account,
+            accountType,
+            token: req.body?.token
+        });
+        return res.json({ success: true, status });
+    } catch (error) {
+        const code = error.message === 'INVALID_MFA_TOKEN' ? 422 : 400;
+        return res.status(code).json({ success: false, error: error.message });
+    }
+});
+
+router.post('/security/mfa/trusted-device/revoke', requireWebMfaContext, async (req, res) => {
+    try {
+        const { account, accountType } = req.webMfaContext;
+        await accountMfaService.revokeTrustedDevices({ account, accountType });
+        return res.json({ success: true });
+    } catch (error) {
+        return res.status(400).json({ success: false, error: error.message });
+    }
+});
 
 const saveAndRedirect = (req, res, target) => req.session.save(() => res.redirect(target));
 
@@ -424,7 +593,10 @@ router.post('/login', loginLimiter, async (req, res) => {
         const adminData = await Admin.findOne(webUsernameLookup(username)).lean();
         if (adminData?.webPassword) {
             const isMatch = await verifyAndUpgradePassword(password, adminData.webPassword, Admin, adminData._id);
-            if (isMatch) return loginAsAdmin(req, res, adminData);
+            if (isMatch) {
+                if (await guardWebMfa(req, res, adminData, 'admin', () => loginAsAdmin(req, res, adminData))) return;
+                return loginAsAdmin(req, res, adminData);
+            }
         }
 
         const executor = await Employee.findOne(personLookup(username)).populate('groupId').lean();
@@ -435,6 +607,7 @@ router.post('/login', loginLimiter, async (req, res) => {
                     await logLoginFailure(req, username, 'SUSPENDED', 'حساب التنفيذ أو مجموعته غير مفعلة حالياً');
                     return renderLogin(res, 'حساب التنفيذ أو مجموعة التنفيذ غير مفعلة حالياً.');
                 }
+                if (await guardWebMfa(req, res, executor, 'executor', () => loginAsExecutor(req, res, executor))) return;
                 return loginAsExecutor(req, res, executor);
             }
         }
@@ -447,6 +620,7 @@ router.post('/login', loginLimiter, async (req, res) => {
                     await logLoginFailure(req, username, 'SUSPENDED', 'حساب العميل الفرعي معلق حالياً');
                     return renderLogin(res, 'حساب العميل الفرعي معلق حالياً.');
                 }
+                if (await guardWebMfa(req, res, subAccount, 'sub_client', () => loginAsClient(req, res, subAccount, 'sub_client'))) return;
                 const todayStr = getTodayString();
                 if (subAccount.lastOtpDate === todayStr || shouldBypassClientOtp()) {
                     return loginAsClient(req, res, subAccount, 'sub_client');
@@ -464,6 +638,7 @@ router.post('/login', loginLimiter, async (req, res) => {
                     await logLoginFailure(req, username, 'SUSPENDED', 'حساب العميل معلق حالياً');
                     return renderLogin(res, 'حساب العميل معلق حالياً.');
                 }
+                if (await guardWebMfa(req, res, clientUser, 'user', () => loginAsClient(req, res, clientUser, 'user'))) return;
                 if (clientUser.lastOtpDate === todayStr || shouldBypassClientOtp()) {
                     return loginAsClient(req, res, clientUser, 'user');
                 }
@@ -479,6 +654,7 @@ router.post('/login', loginLimiter, async (req, res) => {
                     await logLoginFailure(req, username, 'SUSPENDED', 'حساب الشركة معلق حالياً');
                     return renderLogin(res, 'حساب الشركة معلق حالياً.');
                 }
+                if (await guardWebMfa(req, res, clientCompany, 'company', () => loginAsClient(req, res, clientCompany, 'company'))) return;
                 if (clientCompany.lastOtpDate === todayStr || shouldBypassClientOtp()) {
                     return loginAsClient(req, res, clientCompany, 'company');
                 }
@@ -499,6 +675,7 @@ router.post('/login', loginLimiter, async (req, res) => {
                     await logLoginFailure(req, username, 'SUSPENDED', 'حساب الوكيل الرئيسي غير نشط');
                     return renderLogin(res, 'حساب الوكيل الرئيسي غير نشط.');
                 }
+                if (await guardWebMfa(req, res, agentStaff, 'agent_staff', () => loginAsClient(req, res, agentStaff, 'agent_staff'))) return;
                 if (agentStaff.lastOtpDate === todayStr || shouldBypassClientOtp()) {
                     return loginAsClient(req, res, agentStaff, 'agent_staff');
                 }

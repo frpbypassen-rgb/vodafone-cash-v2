@@ -27,8 +27,9 @@ describe('Device Trust Engine Tests', () => {
     test('Should register and trust device', () => {
         const userId = 'user-123';
         const isTrustedBefore = deviceTrustEngine.isDeviceTrusted(userId, sig1);
-        expect(isTrustedBefore).toBe(true); // first device is auto trusted
+        expect(isTrustedBefore).toBe(false); // unknown devices require explicit MFA verification
 
+        deviceTrustEngine.registerDevice(userId, sig1);
         const isTrustedAfterSig1 = deviceTrustEngine.isDeviceTrusted(userId, sig1);
         expect(isTrustedAfterSig1).toBe(true);
 
