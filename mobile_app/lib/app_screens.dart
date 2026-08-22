@@ -66,6 +66,14 @@ String formatExecutionDuration(dynamic value) {
   return '${minutes ~/ 60} س ${minutes % 60} د';
 }
 
+String formatSupportUpdatedAt(DateTime value) {
+  final local = value.toLocal();
+  final hour = local.hour % 12 == 0 ? 12 : local.hour % 12;
+  final minute = local.minute.toString().padLeft(2, '0');
+  final period = local.hour < 12 ? 'ص' : 'م';
+  return '$hour:$minute $period';
+}
+
 double numberValue(dynamic value, [double fallback = 0]) {
   if (value is num) return value.toDouble();
   return double.tryParse('$value') ?? fallback;
@@ -12283,7 +12291,7 @@ class _ExecutorSupportScreenState extends State<ExecutorSupportScreen>
           Align(
             alignment: AlignmentDirectional.centerStart,
             child: Text(
-              'آخر تحديث ${DateFormat('h:mm a', 'ar').format(_lastUpdated!)}',
+              'آخر تحديث ${formatSupportUpdatedAt(_lastUpdated!)}',
               style: TextStyle(
                 color: Theme.of(context).colorScheme.onSurfaceVariant,
                 fontSize: 11,
