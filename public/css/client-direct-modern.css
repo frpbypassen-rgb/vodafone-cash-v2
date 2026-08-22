@@ -250,3 +250,204 @@ body.client-direct-modern {
         transition-duration: 0.01ms !important;
     }
 }
+
+/* Approved customer-first direction: calm hierarchy, compact actions, and heritage accents. */
+.client-direct-modern .main-container::before {
+    content: '';
+    display: block;
+    height: 3px;
+    margin: 0 auto 18px;
+    max-width: 1180px;
+    border-top: 1px solid rgba(181, 138, 36, 0.28);
+    border-bottom: 1px solid rgba(15, 159, 139, 0.22);
+}
+
+.client-direct-modern .desktop-only-layout > .row {
+    align-items: stretch;
+    gap: 0;
+}
+
+.client-direct-modern .desktop-only-layout .col-md-7 > .card:first-child,
+.client-direct-modern #ratesCardContainer,
+.client-direct-modern .ledger-section,
+.client-direct-modern .desktop-only-layout .row.g-3 > div > .card {
+    background: var(--direct-surface) !important;
+    border: 1px solid var(--direct-border) !important;
+    box-shadow: var(--direct-shadow) !important;
+}
+
+.client-direct-modern .desktop-only-layout .col-md-7 > .card:first-child {
+    border-radius: 16px !important;
+    padding: 22px !important;
+}
+
+.client-direct-modern .desktop-only-layout .col-md-7 > .card:first-child h5,
+.client-direct-modern #ratesCardContainer h5,
+.client-direct-modern .ledger-title {
+    color: var(--direct-ink) !important;
+    letter-spacing: 0;
+}
+
+.client-direct-modern .desktop-only-layout .col-md-7 .row.g-3 {
+    margin-top: 12px !important;
+}
+
+.client-direct-modern .desktop-only-layout .col-md-7 .row.g-3 .btn {
+    min-height: 72px;
+    border: 1px solid var(--direct-border) !important;
+    border-radius: 14px !important;
+    background: var(--direct-surface) !important;
+    color: var(--direct-ink) !important;
+    box-shadow: var(--direct-shadow) !important;
+}
+
+.client-direct-modern .desktop-only-layout .col-md-7 .row.g-3 .btn:hover {
+    border-color: var(--direct-teal) !important;
+    color: var(--direct-blue) !important;
+    transform: translateY(-3px) !important;
+}
+
+.client-direct-modern .desktop-only-layout .col-md-7 .row.g-3 .btn i {
+    color: var(--direct-teal);
+}
+
+.client-direct-modern .desktop-only-layout .col-md-7 .row.g-3 .col-12 .btn {
+    min-height: 58px;
+    background: var(--direct-blue) !important;
+    color: #fff !important;
+    border-color: var(--direct-blue) !important;
+}
+
+.client-direct-modern .desktop-only-layout .col-md-7 .row.g-3 .col-12 .btn i {
+    color: #fff;
+}
+
+.client-direct-modern #ratesCardContainer {
+    border-radius: 16px !important;
+}
+
+.client-direct-modern #ratesCardContainer .d-flex.flex-column > .d-flex {
+    min-height: 48px;
+    border: 1px solid rgba(223, 229, 236, 0.8);
+    background: var(--direct-bg) !important;
+    border-radius: 10px !important;
+    padding: 8px 10px !important;
+}
+
+.client-direct-modern #ratesCardContainer h5 i,
+.client-direct-modern .bottom-nav-item.active i {
+    animation: directStatusPulse 2.4s ease-in-out infinite;
+}
+
+@keyframes directStatusPulse {
+    0%, 100% { filter: drop-shadow(0 0 0 rgba(15, 159, 139, 0)); }
+    50% { filter: drop-shadow(0 0 5px rgba(15, 159, 139, 0.35)); }
+}
+
+[data-theme="dark"] .client-direct-modern #ratesCardContainer .d-flex.flex-column > .d-flex {
+    border-color: var(--direct-border);
+}
+
+.client-direct-modern .desktop-only-layout .row.g-3.mb-4 {
+    margin-top: 6px;
+}
+
+.client-direct-modern .desktop-only-layout .row.g-3.mb-4 .card {
+    min-height: 105px;
+    border-radius: 14px !important;
+}
+
+.client-direct-modern .ledger-section {
+    border-radius: 16px;
+    padding: 18px;
+}
+
+.client-direct-modern .filter-box {
+    background: var(--direct-bg);
+    border-color: var(--direct-border);
+    border-radius: 12px;
+    box-shadow: none;
+}
+
+.client-direct-modern .filter-input {
+    border: 1px solid var(--direct-border);
+    color: var(--direct-ink);
+}
+
+.client-direct-modern .filter-btn {
+    background: var(--direct-blue);
+    border-radius: 9px;
+}
+
+.client-direct-modern .rateChangeCountdown,
+.client-direct-modern #rateChangeCountdown,
+.client-direct-modern #rateChangeActivated {
+    border-radius: 14px;
+    border: 1px solid rgba(181, 138, 36, 0.3);
+    box-shadow: var(--direct-shadow);
+}
+
+.client-direct-modern #rateChangeCountdown:not([hidden]) {
+    animation: directNotificationIn 260ms ease-out both;
+}
+
+@keyframes directNotificationIn {
+    from { opacity: 0; transform: translateY(-8px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+.client-direct-modern .modal-content {
+    border-radius: 18px !important;
+    background: var(--direct-surface) !important;
+    border-color: var(--direct-border) !important;
+}
+
+.client-direct-modern .services-desktop-grid,
+.client-direct-modern .services-mobile-grid {
+    gap: 12px;
+}
+
+.client-direct-modern .service-card-item-desktop,
+.client-direct-modern .service-card-item {
+    border: 1px solid var(--direct-border) !important;
+    border-radius: 14px !important;
+    background: var(--direct-surface) !important;
+    box-shadow: var(--direct-shadow) !important;
+}
+
+.client-direct-modern .service-card-item-desktop:hover,
+.client-direct-modern .service-card-item:hover {
+    border-color: var(--direct-teal) !important;
+    transform: translateY(-3px);
+}
+
+.client-direct-modern .mobile-profile-card-header {
+    border-bottom: 1px solid var(--direct-border);
+    padding-bottom: 12px;
+}
+
+.client-direct-modern .mobile-profile-row {
+    min-height: 42px;
+    border-bottom-color: var(--direct-border) !important;
+}
+
+@media (max-width: 768px) {
+    .client-direct-modern .main-container::before {
+        margin-bottom: 10px;
+    }
+
+    .client-direct-modern .mobile-tab-content > h5,
+    .client-direct-modern .mobile-tab-content > .fw-bold {
+        letter-spacing: 0;
+    }
+
+    .client-direct-modern .mobile-profile-card,
+    .client-direct-modern .mobile-tx-card,
+    .client-direct-modern #ratesCardContainer {
+        box-shadow: 0 7px 20px rgba(20, 34, 53, 0.07) !important;
+    }
+
+    .client-direct-modern .mobile-profile-row:last-child {
+        border-bottom: 0 !important;
+    }
+}
