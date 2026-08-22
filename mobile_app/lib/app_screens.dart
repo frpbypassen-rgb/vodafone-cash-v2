@@ -12015,6 +12015,11 @@ class _ExecutorSupportScreenState extends State<ExecutorSupportScreen>
         status: _status,
         category: _category,
         search: _search.text,
+      ).timeout(
+        const Duration(seconds: 12),
+        onTimeout: () => throw const ApiFailure(
+          'انتهت مهلة الاتصال بالدعم. تحقق من الخادم ثم أعد المحاولة.',
+        ),
       );
       final rawTickets = response['tickets'];
       if (!mounted) return;
@@ -12124,9 +12129,6 @@ class _ExecutorSupportScreenState extends State<ExecutorSupportScreen>
 
   @override
   Widget build(BuildContext context) {
-    if (_loading && _tickets.isEmpty && _error == null) {
-      return const PageLoading();
-    }
     if (_error != null && _tickets.isEmpty) {
       return ErrorPage(error: _error!, onRetry: _load);
     }
@@ -16871,7 +16873,13 @@ class _ExecutorEmployeesScreenState extends State<ExecutorEmployeesScreen>
     }
     try {
       final workspace = await widget.controller.api
-          .executorEmployeesWorkspace();
+          .executorEmployeesWorkspace()
+          .timeout(
+            const Duration(seconds: 12),
+            onTimeout: () => throw const ApiFailure(
+              'انتهت مهلة الاتصال ببيانات الموظفين. تحقق من الخادم ثم أعد المحاولة.',
+            ),
+          );
       final rawEmployees = workspace['employees'];
       final employees = rawEmployees is List
           ? rawEmployees
@@ -17180,8 +17188,11 @@ class _ExecutorEmployeesScreenState extends State<ExecutorEmployeesScreen>
           elevated: false,
           child: LayoutBuilder(
             builder: (context, constraints) {
+              final phone = constraints.maxWidth < 430;
               final compact = constraints.maxWidth < 650;
-              final filterWidth = compact
+              final filterWidth = phone
+                  ? constraints.maxWidth
+                  : compact
                   ? (constraints.maxWidth - 10) / 2
                   : (constraints.maxWidth - 20) / 3;
               return Column(
@@ -17276,7 +17287,9 @@ class _ExecutorEmployeesScreenState extends State<ExecutorEmployeesScreen>
                         ),
                       ),
                       SizedBox(
-                        width: compact ? constraints.maxWidth : filterWidth,
+                        width: phone || compact
+                            ? constraints.maxWidth
+                            : filterWidth,
                         child: DropdownButtonFormField<String>(
                           initialValue: _sortMode,
                           decoration: const InputDecoration(
