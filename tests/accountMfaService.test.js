@@ -68,4 +68,22 @@ describe('accountMfaService', () => {
         expect(result.recoveryCodes).toHaveLength(8);
         expect(result.recoveryCodeHashes).toHaveLength(8);
     });
+
+    test.each([
+        ['user', 'client_user'],
+        ['agent', 'client_user'],
+        ['company', 'client_company'],
+        ['sub_client', 'sub_client'],
+        ['agent_staff', 'agent_staff'],
+        ['executor', 'executor']
+    ])('normalizes %s to the protected account type %s', (input, expected) => {
+        expect(accountMfaService.normalizeAccountType(input)).toBe(expected);
+    });
+
+    test('maps all login model names to canonical protected account types', () => {
+        expect(accountMfaService.accountTypeForModel({ $modelName: 'User' })).toBe('client_user');
+        expect(accountMfaService.accountTypeForModel({ $modelName: 'ClientEmployee' })).toBe('client_company');
+        expect(accountMfaService.accountTypeForModel({ $modelName: 'AgentEmployee' })).toBe('agent_staff');
+        expect(accountMfaService.accountTypeForModel({ $modelName: 'Employee' })).toBe('executor');
+    });
 });

@@ -16,6 +16,23 @@ const TRUST_TTL_MS = Math.max(60 * 60 * 1000, Number(process.env.MFA_TRUST_TTL_S
 const CHALLENGE_TTL_SECONDS = Math.max(60, Number(process.env.MFA_CHALLENGE_TTL_SECONDS || 300));
 const ISSUER = String(process.env.MFA_ISSUER || 'Al-Ahram Pay').trim();
 
+const ACCOUNT_TYPE_ALIASES = Object.freeze({
+    user: 'client_user',
+    client: 'client_user',
+    agent: 'client_user',
+    company: 'client_company',
+    client_user: 'client_user',
+    sub_client: 'sub_client',
+    client_company: 'client_company',
+    executor: 'executor',
+    agent_staff: 'agent_staff',
+    admin: 'admin'
+});
+
+const normalizeAccountType = (accountType) => (
+    ACCOUNT_TYPE_ALIASES[String(accountType || '').trim().toLowerCase()] || 'client_user'
+);
+
 const modelFor = (accountType) => ({
     client_user: User,
     sub_client: SubAccount,
@@ -23,10 +40,11 @@ const modelFor = (accountType) => ({
     executor: Employee,
     agent_staff: AgentEmployee,
     admin: Admin
-}[accountType] || User);
+}[normalizeAccountType(accountType)] || User);
 
 const loadAccount = (accountType, accountId, tenantId) => {
-    const Model = modelFor(accountType);
+    const canonicalType = normalizeAccountType(accountType);
+    const Model = modelFor(canonicalType);
     const filter = { _id: accountId };
     if (tenantId && Model.schema && typeof Model.schema.path === 'function' && Model.schema.path('tenantId')) {
         filter.tenantId = tenantId;
@@ -37,7 +55,14 @@ const loadAccount = (accountType, accountId, tenantId) => {
         : query;
 };
 
-const accountTypeForModel = (account) => String(account?.$modelName || account?.constructor?.modelName || 'User');
+const accountTypeForModel = (account) => normalizeAccountType({
+    User: 'client_user',
+    SubAccount: 'sub_client',
+    ClientEmployee: 'client_company',
+    Employee: 'executor',
+    AgentEmployee: 'agent_staff',
+    Admin: 'admin'
+}[String(account?.$modelName || account?.constructor?.modelName || 'User')] || 'client_user');
 
 const encryptionKey = () => {
     const raw = String(process.env.MFA_ENCRYPTION_KEY || '').trim();
@@ -191,11 +216,12 @@ const verifyAccountToken = (account, token) => {
 const deviceIdFor = (req) => String(req?.headers?.['x-device-id'] || '').trim().slice(0, 200) || hash(`${req?.headers?.['user-agent'] || ''}|${req?.ip || ''}`);
 
 const trustDevice = async ({ account, accountType, tenantId, deviceId, sessionId, req }) => {
+    const canonicalType = normalizeAccountType(accountType);
     const deviceIdHash = hash(deviceId);
-    await TrustedDevice.updateMany({ accountId: account._id, accountType, active: true }, { $set: { active: false, revokedAt: new Date(), revokeReason: 'replaced_by_new_device' } });
+    await TrustedDevice.updateMany({ accountId: account._id, accountType: canonicalType, active: true }, { $set: { active: false, revokedAt: new Date(), revokeReason: 'replaced_by_new_device' } });
     return TrustedDevice.create({
         accountId: account._id,
-        accountType,
+        accountType: canonicalType,
         tenantId: tenantId || null,
         deviceIdHash,
         sessionId: sessionId || null,
@@ -207,14 +233,14 @@ const trustDevice = async ({ account, accountType, tenantId, deviceId, sessionId
 
 const isDeviceTrusted = async ({ account, accountType, deviceId, sessionId }) => {
     if (!TrustedDevice || typeof TrustedDevice.findOne !== 'function') return false;
-    const query = { accountId: account._id, accountType, active: true, expiresAt: { $gt: new Date() }, deviceIdHash: hash(deviceId) };
+    const query = { accountId: account._id, accountType: normalizeAccountType(accountType), active: true, expiresAt: { $gt: new Date() }, deviceIdHash: hash(deviceId) };
     if (sessionId) query.sessionId = sessionId;
     const record = await TrustedDevice.findOne(query);
     if (record) await TrustedDevice.updateOne({ _id: record._id }, { $set: { lastSeenAt: new Date() } });
     return Boolean(record);
 };
 
-const createChallenge = ({ account, accountType, tenantId, deviceId }) => jwt.sign({ kind: 'mfa-login', userId: String(account._id), accountType, tenantId: tenantId || null, deviceIdHash: hash(deviceId) }, JWT_SECRET, { expiresIn: CHALLENGE_TTL_SECONDS });
+const createChallenge = ({ account, accountType, tenantId, deviceId }) => jwt.sign({ kind: 'mfa-login', userId: String(account._id), accountType: normalizeAccountType(accountType), tenantId: tenantId || null, deviceIdHash: hash(deviceId) }, JWT_SECRET, { expiresIn: CHALLENGE_TTL_SECONDS });
 const verifyChallenge = (token) => {
     const payload = jwt.verify(token, JWT_SECRET);
     if (payload.kind !== 'mfa-login') throw new Error('MFA_CHALLENGE_INVALID');
@@ -229,6 +255,7 @@ const status = (account) => ({
 });
 
 module.exports = {
+    normalizeAccountType,
     modelFor,
     loadAccount,
     accountTypeForModel,
