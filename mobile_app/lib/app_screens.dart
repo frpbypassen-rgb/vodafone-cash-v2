@@ -12111,7 +12111,7 @@ class _ExecutorSupportScreenState extends State<ExecutorSupportScreen>
       if (attach == true && mounted) {
         await _createTicket(
           diagnostics: <String, dynamic>{
-            'appVersion': '1.2.18+23',
+            'appVersion': '1.2.26+32',
             'platform': 'Flutter',
             'apiBaseUrl': widget.controller.api.baseUrl,
             'networkStatus': '${diagnostics['server'] ?? 'unknown'}',
@@ -12133,12 +12133,16 @@ class _ExecutorSupportScreenState extends State<ExecutorSupportScreen>
       return ErrorPage(error: _error!, onRetry: _load);
     }
     final role = '${_permissions['role'] ?? widget.controller.executorRole}';
-    final categories =
-        (_permissions['categories'] as List? ??
-                _executorSupportCategoriesFor(role))
-            .map((item) => '$item')
-            .where(_executorSupportCategoryLabels.containsKey)
-            .toList();
+    // Older API builds returned permissions.categories as null or an object.
+    // Never let that response shape break the whole support page during build.
+    final rawCategories = _permissions['categories'];
+    final categorySource = rawCategories is List
+        ? rawCategories
+        : _executorSupportCategoriesFor(role);
+    final categories = categorySource
+        .map((item) => '$item')
+        .where(_executorSupportCategoryLabels.containsKey)
+        .toList();
 
     return PageFrame(
       title: 'الدعم الفني',
