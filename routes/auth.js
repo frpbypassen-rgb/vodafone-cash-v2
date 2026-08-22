@@ -6,6 +6,7 @@ const rateLimit = require('express-rate-limit');
 const { escapeRegex, verifyAndUpgradePassword, getTodayString } = require('../utils/helpers');
 const { generateOtp, hashOtp, verifyOtp } = require('../utils/otp');
 const { getEmergencyClientOtpBypassState, shouldBypassClientOtp } = require('../config/securityPolicy');
+const { isEnvironmentAdminLoginEnabled } = require('../config/adminAuthPolicy');
 const { establishAuthenticatedSession } = require('../utils/sessionSecurity');
 const Admin = require('../models/Admin');
 const Employee = require('../models/Employee');
@@ -414,7 +415,7 @@ router.post('/login', loginLimiter, async (req, res) => {
         const envAdminUser = (process.env.PANEL_USER || '').trim();
         const envAdminPass = (process.env.PANEL_PASS || '').trim();
 
-        if (envAdminUser && envAdminPass &&
+        if (isEnvironmentAdminLoginEnabled() && envAdminUser && envAdminPass &&
             username.toLowerCase() === envAdminUser.toLowerCase() &&
             password === envAdminPass) {
             return loginAsAdmin(req, res);
