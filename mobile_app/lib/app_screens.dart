@@ -2696,6 +2696,11 @@ class _CustomerAccountScreenState extends State<CustomerAccountScreen> {
         'Your personal profile and Ahram account details.',
       ),
       onRefresh: _refresh,
+      action: OutlinedButton.icon(
+        onPressed: _manageAuthenticator,
+        icon: const Icon(Icons.shield_outlined, size: 18),
+        label: Text(t('الحماية', 'Security')),
+      ),
       child: [
         ExecutorSurface(
           accent: ExecutorUiColors.cobalt,
@@ -2944,7 +2949,10 @@ class _CustomerAccountScreenState extends State<CustomerAccountScreen> {
             ),
             _CustomerActionRow(
               icon: Icons.phonelink_lock_outlined,
-              title: t('Authenticator والحماية الإضافية', 'Authenticator security'),
+              title: t(
+                'Authenticator والحماية الإضافية',
+                'Authenticator security',
+              ),
               subtitle: t(
                 'جهاز موثوق واحد لمدة 24 ساعة مع رمز جديد لأي جهاز آخر.',
                 'One trusted device for 24 hours; other devices require a new code.',
@@ -3121,7 +3129,8 @@ class _AuthenticatorDialogState extends State<_AuthenticatorDialog> {
     super.dispose();
   }
 
-  String t(String arabic, String english) => localized(context, arabic, english);
+  String t(String arabic, String english) =>
+      localized(context, arabic, english);
 
   Future<void> _startSetup() async {
     setState(() {
@@ -3145,7 +3154,12 @@ class _AuthenticatorDialogState extends State<_AuthenticatorDialog> {
         .map((item) => '$item')
         .toList();
     if (setup == null || !RegExp(r'^\d{6}$').hasMatch(token)) {
-      setState(() => _error = t('أدخل رمز Authenticator المكون من 6 أرقام.', 'Enter the 6-digit Authenticator code.'));
+      setState(
+        () => _error = t(
+          'أدخل رمز Authenticator المكون من 6 أرقام.',
+          'Enter the 6-digit Authenticator code.',
+        ),
+      );
       return;
     }
     setState(() {
@@ -3163,11 +3177,18 @@ class _AuthenticatorDialogState extends State<_AuthenticatorDialog> {
           context: context,
           builder: (context) => AlertDialog(
             title: Text(t('تم تفعيل Authenticator', 'Authenticator enabled')),
-            content: Text(t(
-              'احفظ رموز الاسترداد في مكان آمن. سيبقى هذا الجهاز موثوقاً لمدة 24 ساعة فقط.',
-              'Save the recovery codes securely. This device is trusted for 24 hours only.',
-            )),
-            actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('حسناً'))],
+            content: Text(
+              t(
+                'احفظ رموز الاسترداد في مكان آمن. سيبقى هذا الجهاز موثوقاً لمدة 24 ساعة فقط.',
+                'Save the recovery codes securely. This device is trusted for 24 hours only.',
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('حسناً'),
+              ),
+            ],
           ),
         );
         if (mounted) Navigator.pop(context);
@@ -3182,7 +3203,12 @@ class _AuthenticatorDialogState extends State<_AuthenticatorDialog> {
   Future<void> _disable() async {
     final token = _token.text.trim();
     if (token.isEmpty) {
-      setState(() => _error = t('أدخل رمز Authenticator أو رمز استرداد.', 'Enter an Authenticator or recovery code.'));
+      setState(
+        () => _error = t(
+          'أدخل رمز Authenticator أو رمز استرداد.',
+          'Enter an Authenticator or recovery code.',
+        ),
+      );
       return;
     }
     setState(() {
@@ -3206,7 +3232,9 @@ class _AuthenticatorDialogState extends State<_AuthenticatorDialog> {
         children: [
           const Icon(Icons.phonelink_lock_outlined),
           const SizedBox(width: 8),
-          Expanded(child: Text(t('المصادقة الثنائية', 'Two-factor authentication'))),
+          Expanded(
+            child: Text(t('المصادقة الثنائية', 'Two-factor authentication')),
+          ),
         ],
       ),
       content: SizedBox(
@@ -3215,31 +3243,58 @@ class _AuthenticatorDialogState extends State<_AuthenticatorDialog> {
           future: _statusFuture,
           builder: (context, snapshot) {
             if (snapshot.connectionState != ConnectionState.done) {
-              return const SizedBox(height: 130, child: Center(child: CircularProgressIndicator()));
+              return const SizedBox(
+                height: 130,
+                child: Center(child: CircularProgressIndicator()),
+              );
             }
-            if (snapshot.hasError) return Text(t('تعذر تحميل حالة الحماية.', 'Unable to load security status.'));
+            if (snapshot.hasError)
+              return Text(
+                t(
+                  'تعذر تحميل حالة الحماية.',
+                  'Unable to load security status.',
+                ),
+              );
             final enabled = snapshot.data?['enabled'] == true;
             if (enabled && _setup == null) {
               return Column(
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  Text(t('Authenticator مفعّل لهذا الحساب.', 'Authenticator is enabled for this account.')),
+                  Text(
+                    t(
+                      'Authenticator مفعّل لهذا الحساب.',
+                      'Authenticator is enabled for this account.',
+                    ),
+                  ),
                   const SizedBox(height: 10),
-                  Text(t('الجهاز الموثوق صالح لمدة 24 ساعة فقط، وبعدها يطلب رمز جديد.', 'The trusted device expires after 24 hours and then requires a new code.')),
+                  Text(
+                    t(
+                      'الجهاز الموثوق صالح لمدة 24 ساعة فقط، وبعدها يطلب رمز جديد.',
+                      'The trusted device expires after 24 hours and then requires a new code.',
+                    ),
+                  ),
                   const SizedBox(height: 16),
                   TextField(
                     controller: _token,
                     keyboardType: TextInputType.text,
                     maxLength: 8,
-                    decoration: InputDecoration(labelText: t('رمز Authenticator أو الاسترداد', 'Authenticator or recovery code')),
+                    decoration: InputDecoration(
+                      labelText: t(
+                        'رمز Authenticator أو الاسترداد',
+                        'Authenticator or recovery code',
+                      ),
+                    ),
                   ),
-                  if (_error != null) InlineMessage(message: _error!, color: _danger),
+                  if (_error != null)
+                    InlineMessage(message: _error!, color: _danger),
                   const SizedBox(height: 8),
                   FilledButton.icon(
                     onPressed: _busy ? null : _disable,
                     icon: const Icon(Icons.remove_circle_outline),
-                    label: Text(t('إيقاف Authenticator', 'Disable Authenticator')),
+                    label: Text(
+                      t('إيقاف Authenticator', 'Disable Authenticator'),
+                    ),
                   ),
                 ],
               );
@@ -3249,7 +3304,12 @@ class _AuthenticatorDialogState extends State<_AuthenticatorDialog> {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Text(t('فعّل Authenticator من Google أو Microsoft Authenticator. سيظهر مفتاح الإعداد مرة واحدة فقط.', 'Enable Authenticator with Google or Microsoft Authenticator. The setup key is shown once.')),
+                Text(
+                  t(
+                    'فعّل Authenticator من Google أو Microsoft Authenticator. سيظهر مفتاح الإعداد مرة واحدة فقط.',
+                    'Enable Authenticator with Google or Microsoft Authenticator. The setup key is shown once.',
+                  ),
+                ),
                 if (setup == null) ...[
                   const SizedBox(height: 16),
                   FilledButton.icon(
@@ -3259,31 +3319,60 @@ class _AuthenticatorDialogState extends State<_AuthenticatorDialog> {
                   ),
                 ] else ...[
                   const SizedBox(height: 14),
-                  SelectableText('${setup['secret'] ?? ''}', textAlign: TextAlign.center, style: const TextStyle(fontWeight: FontWeight.w900, letterSpacing: 2)),
+                  SelectableText(
+                    '${setup['secret'] ?? ''}',
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: 2,
+                    ),
+                  ),
                   const SizedBox(height: 8),
                   TextButton.icon(
-                    onPressed: () => Clipboard.setData(ClipboardData(text: '${setup['qrUri'] ?? ''}')),
+                    onPressed: () => Clipboard.setData(
+                      ClipboardData(text: '${setup['qrUri'] ?? ''}'),
+                    ),
                     icon: const Icon(Icons.copy_outlined),
                     label: Text(t('نسخ رابط الإعداد', 'Copy setup URI')),
                   ),
-                  Text(t('رموز الاسترداد (احفظها الآن):', 'Recovery codes (save them now):'), style: const TextStyle(fontWeight: FontWeight.w800)),
-                  SelectableText((setup['recoveryCodes'] as List? ?? const []).join('  ')),
+                  Text(
+                    t(
+                      'رموز الاسترداد (احفظها الآن):',
+                      'Recovery codes (save them now):',
+                    ),
+                    style: const TextStyle(fontWeight: FontWeight.w800),
+                  ),
+                  SelectableText(
+                    (setup['recoveryCodes'] as List? ?? const []).join('  '),
+                  ),
                   const SizedBox(height: 10),
                   TextField(
                     controller: _token,
                     keyboardType: TextInputType.number,
                     maxLength: 6,
-                    decoration: InputDecoration(labelText: t('رمز التفعيل', 'Activation code')),
+                    decoration: InputDecoration(
+                      labelText: t('رمز التفعيل', 'Activation code'),
+                    ),
                   ),
-                  if (_error != null) InlineMessage(message: _error!, color: _danger),
-                  FilledButton.icon(onPressed: _busy ? null : _confirm, icon: const Icon(Icons.verified_outlined), label: Text(t('تأكيد التفعيل', 'Confirm activation'))),
+                  if (_error != null)
+                    InlineMessage(message: _error!, color: _danger),
+                  FilledButton.icon(
+                    onPressed: _busy ? null : _confirm,
+                    icon: const Icon(Icons.verified_outlined),
+                    label: Text(t('تأكيد التفعيل', 'Confirm activation')),
+                  ),
                 ],
               ],
             );
           },
         ),
       ),
-      actions: [TextButton(onPressed: _busy ? null : () => Navigator.pop(context), child: Text(t('إغلاق', 'Close')))],
+      actions: [
+        TextButton(
+          onPressed: _busy ? null : () => Navigator.pop(context),
+          child: Text(t('إغلاق', 'Close')),
+        ),
+      ],
     );
   }
 }
@@ -4133,6 +4222,13 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
     }
   }
 
+  Future<void> _openAuthenticator() async {
+    await showDialog<void>(
+      context: context,
+      builder: (context) => _AuthenticatorDialog(controller: widget.controller),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     if (_loading && _home == null) return const PageLoading();
@@ -4141,21 +4237,27 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
     }
     final session = widget.controller.session!;
     final home = _home ?? <String, dynamic>{};
+    final balance = numberValue(home['balance'], session.balance);
+    final english = usesEnglish(context);
     return PageFrame(
-      title: widget.controller.isCustomerAccount
-          ? 'الحساب'
-          : (widget.controller.isCompany ? 'ملخص الشركة' : 'ملخص الحساب'),
+      title: widget.controller.isCompany ? 'ملخص الشركة' : 'مساحة العميل',
       subtitle: widget.controller.isCompany
           ? 'متابعة الرصيد وأسعار الخدمات والعمليات الجارية.'
-          : 'آخر حالة لحسابك وأسعار الخدمات المتاحة.',
+          : 'كل ما تحتاجه لإدارة تحويلاتك في واجهة واحدة.',
       onRefresh: _load,
+      action: OutlinedButton.icon(
+        onPressed: _openAuthenticator,
+        icon: const Icon(Icons.shield_outlined, size: 18),
+        label: Text(english ? 'Security' : 'الحماية'),
+      ),
       child: [
-        AccountHero(
+        CustomerWelcomePanel(
           name: session.name,
           role: widget.controller.isCompany ? 'حساب شركة' : 'حساب عميل',
-          balance: numberValue(home['balance'], session.balance),
+          balance: balance,
           showBalance: !widget.controller.hidesBalance,
           systemOpen: home['isOpen'] != false,
+          onSecurity: _openAuthenticator,
         ),
         if (session.availableToSpend != null &&
             !widget.controller.hidesBalance) ...[
@@ -4168,7 +4270,359 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
             color: const Color(0xFF3366CC),
           ),
         ],
+        const SizedBox(height: 18),
+        CustomerHomeSection(
+          title: english ? 'Your workspace' : 'مساحتك اليومية',
+          subtitle: english
+              ? 'Quick access to the actions you use most.'
+              : 'وصول سريع إلى الأدوات التي تستخدمها أكثر.',
+          children: [
+            CustomerQuickTile(
+              icon: Icons.send_to_mobile_outlined,
+              title: english ? 'New transfer' : 'تحويل جديد',
+              caption: english ? 'Send money securely' : 'ابدأ طلب تحويل آمن',
+              color: AhramColors.sky,
+            ),
+            CustomerQuickTile(
+              icon: Icons.currency_exchange_outlined,
+              title: english ? 'Exchange rates' : 'أسعار الصرف',
+              caption: english
+                  ? 'Live rates and calculator'
+                  : 'الأسعار الحالية والحاسبة',
+              color: AhramColors.emerald,
+            ),
+            CustomerQuickTile(
+              icon: Icons.receipt_long_outlined,
+              title: english ? 'Activity' : 'سجل العمليات',
+              caption: english
+                  ? 'Track your recent requests'
+                  : 'تابع طلباتك الأخيرة',
+              color: AhramColors.gold,
+            ),
+            CustomerQuickTile(
+              icon: Icons.support_agent_outlined,
+              title: english ? 'Support' : 'الدعم الفني',
+              caption: english ? 'We are ready to help' : 'نحن جاهزون لمساعدتك',
+              color: const Color(0xFF7C5CFC),
+            ),
+          ],
+        ),
       ],
+    );
+  }
+}
+
+class CustomerWelcomePanel extends StatelessWidget {
+  const CustomerWelcomePanel({
+    super.key,
+    required this.name,
+    required this.role,
+    required this.balance,
+    required this.showBalance,
+    required this.systemOpen,
+    required this.onSecurity,
+  });
+
+  final String name;
+  final String role;
+  final double balance;
+  final bool showBalance;
+  final bool systemOpen;
+  final VoidCallback onSecurity;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    final dark = Theme.of(context).brightness == Brightness.dark;
+    final balanceColor = balance < 0
+        ? colors.error
+        : balance > 0
+        ? AhramColors.emerald
+        : colors.onSurfaceVariant;
+    return TweenAnimationBuilder<double>(
+      tween: Tween(begin: 0.96, end: 1),
+      duration: const Duration(milliseconds: 520),
+      curve: Curves.easeOutCubic,
+      builder: (context, scale, child) => Transform.scale(
+        scale: scale,
+        alignment: AlignmentDirectional.topCenter,
+        child: child,
+      ),
+      child: Container(
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          color: dark ? const Color(0xFF142C3B) : Colors.white,
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(color: AhramColors.gold.withValues(alpha: 0.42)),
+          boxShadow: [
+            BoxShadow(
+              color: AhramColors.ink.withValues(alpha: dark ? 0.28 : 0.10),
+              blurRadius: 24,
+              offset: const Offset(0, 12),
+            ),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const BrandMark(compact: true),
+                const Spacer(),
+                Container(
+                  padding: const EdgeInsetsDirectional.fromSTEB(10, 6, 10, 6),
+                  decoration: BoxDecoration(
+                    color: (systemOpen ? AhramColors.emerald : colors.error)
+                        .withValues(alpha: 0.10),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        systemOpen
+                            ? Icons.check_circle_outline
+                            : Icons.pause_circle_outline,
+                        size: 17,
+                        color: systemOpen ? AhramColors.emerald : colors.error,
+                      ),
+                      const SizedBox(width: 5),
+                      Text(
+                        systemOpen ? 'الخدمات متاحة' : 'الخدمات متوقفة',
+                        style: TextStyle(
+                          color: systemOpen
+                              ? AhramColors.emerald
+                              : colors.error,
+                          fontWeight: FontWeight.w800,
+                          fontSize: 12,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 20),
+            Text(
+              'مرحباً، $name',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                color: colors.onSurface,
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              role,
+              style: TextStyle(
+                color: colors.onSurfaceVariant,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            const SizedBox(height: 18),
+            Container(
+              padding: const EdgeInsets.all(15),
+              decoration: BoxDecoration(
+                color: balanceColor.withValues(alpha: dark ? 0.12 : 0.065),
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: balanceColor.withValues(alpha: 0.22)),
+              ),
+              child: Row(
+                children: [
+                  Container(
+                    width: 42,
+                    height: 42,
+                    decoration: BoxDecoration(
+                      color: balanceColor.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Icon(
+                      Icons.account_balance_wallet_outlined,
+                      color: balanceColor,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'الرصيد الحالي',
+                          style: TextStyle(
+                            color: colors.onSurfaceVariant,
+                            fontSize: 12,
+                          ),
+                        ),
+                        const SizedBox(height: 3),
+                        Text(
+                          showBalance
+                              ? '${formatAmount(balance)} د.ل'
+                              : 'غير معروض',
+                          textDirection: ui.TextDirection.ltr,
+                          style: TextStyle(
+                            color: balanceColor,
+                            fontSize: 20,
+                            fontWeight: FontWeight.w900,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  IconButton(
+                    tooltip: 'إعدادات الحماية',
+                    onPressed: onSecurity,
+                    icon: Icon(Icons.shield_outlined, color: colors.primary),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 14),
+            Row(
+              children: [
+                Expanded(
+                  child: Container(
+                    height: 4,
+                    decoration: const BoxDecoration(color: AhramColors.sky),
+                  ),
+                ),
+                const SizedBox(width: 3),
+                Expanded(
+                  child: Container(
+                    height: 4,
+                    decoration: const BoxDecoration(color: AhramColors.gold),
+                  ),
+                ),
+                const SizedBox(width: 3),
+                Expanded(
+                  child: Container(
+                    height: 4,
+                    decoration: const BoxDecoration(color: AhramColors.emerald),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class CustomerHomeSection extends StatelessWidget {
+  const CustomerHomeSection({
+    super.key,
+    required this.title,
+    required this.subtitle,
+    required this.children,
+  });
+
+  final String title;
+  final String subtitle;
+  final List<Widget> children;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Text(
+          title,
+          style: Theme.of(
+            context,
+          ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          subtitle,
+          style: TextStyle(
+            color: Theme.of(context).colorScheme.onSurfaceVariant,
+          ),
+        ),
+        const SizedBox(height: 12),
+        LayoutBuilder(
+          builder: (context, constraints) {
+            final columns = constraints.maxWidth >= 760
+                ? 4
+                : constraints.maxWidth >= 430
+                ? 2
+                : 1;
+            final width =
+                (constraints.maxWidth - ((columns - 1) * 12)) / columns;
+            return Wrap(
+              spacing: 12,
+              runSpacing: 12,
+              children: children
+                  .map((child) => SizedBox(width: width, child: child))
+                  .toList(),
+            );
+          },
+        ),
+      ],
+    );
+  }
+}
+
+class CustomerQuickTile extends StatelessWidget {
+  const CustomerQuickTile({
+    super.key,
+    required this.icon,
+    required this.title,
+    required this.caption,
+    required this.color,
+  });
+
+  final IconData icon;
+  final String title;
+  final String caption;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    return SurfacePanel(
+      child: Row(
+        children: [
+          Container(
+            width: 42,
+            height: 42,
+            decoration: BoxDecoration(
+              color: color.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Icon(icon, color: color),
+          ),
+          const SizedBox(width: 11),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: colors.onSurface,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  caption,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: colors.onSurfaceVariant,
+                    fontSize: 11,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Icon(Icons.chevron_left, color: colors.onSurfaceVariant, size: 19),
+        ],
+      ),
     );
   }
 }
