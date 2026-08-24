@@ -80,7 +80,13 @@ const rotateAdminCredentials = async () => {
                             webPassword: passwordHash,
                             status: 'active',
                             permissions: ['*'],
-                            mustEnrollSecurity: true
+                            mustEnrollSecurity: true,
+                            mfaEnabled: false,
+                            mfaType: 'none',
+                            totpSecretEncrypted: '',
+                            mfaRecoveryCodeHashes: [],
+                            mfaConfiguredAt: null,
+                            mfaLastUsedStep: null
                         },
                         $inc: { sessionVersion: 1 }
                     },
@@ -94,7 +100,13 @@ const rotateAdminCredentials = async () => {
                     webPassword: passwordHash,
                     status: 'active',
                     permissions: ['*'],
-                    mustEnrollSecurity: true
+                    mustEnrollSecurity: true,
+                    mfaEnabled: false,
+                    mfaType: 'none',
+                    totpSecretEncrypted: '',
+                    mfaRecoveryCodeHashes: [],
+                    mfaConfiguredAt: null,
+                    mfaLastUsedStep: null
                 }], { session: dbSession });
                 targetId = created[0]._id;
             }
@@ -155,6 +167,7 @@ const rotateAdminCredentials = async () => {
     console.log(`Active sessions invalidated: ${removedSessions}`);
     console.log('Account device protection: ENABLED');
     console.log('Administrator device protection: PENDING PASSKEY ENROLLMENT');
+    console.log('Administrator Authenticator state: RESET FOR SECURE RE-ENROLLMENT');
     console.log('Next step: sign in on the main device, allow location, then register Windows Hello from /admin/security.');
     console.log('Password was not printed or written to the repository.');
 };
