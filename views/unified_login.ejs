@@ -141,6 +141,11 @@
         .btn-executor-account:hover { color: #fff; background: rgba(255,255,255,0.14); }
 
         .custom-alert { background: #fef2f2; border-right: 4px solid #ef4444; color: #b91c1c; border-radius: 12px; padding: 12px 15px; font-weight: 800; font-size: 0.9rem; margin-bottom: 25px; display: flex; align-items: center; gap: 10px; border-left: 0; border-top: 0; border-bottom: 0;}
+        .mfa-challenge { text-align: center; padding: 5px 0 12px; }
+        .mfa-challenge-icon { width: 72px; height: 72px; display: grid; place-items: center; margin: 0 auto 18px; border-radius: 22px; color: var(--theme-gold); background: rgba(212,175,55,.12); font-size: 2rem; }
+        .mfa-challenge h5 { font-weight: 900; color: var(--bg-navy); }
+        .mfa-challenge p { color: #64748b; font-weight: 700; font-size: .9rem; line-height: 1.8; }
+        .mfa-token-input { text-align: center !important; letter-spacing: .38em; font-size: 1.4rem !important; }
         .footer-text { text-align: center; margin-top: 25px; font-size: 0.85rem; color: rgba(255,255,255,0.5); font-weight: 600; }
 
         /* Biometric switch checked color */
@@ -244,6 +249,18 @@
                         <p class="text-muted small fw-bold lh-lg">تم التحقق من كلمة المرور. استخدم Windows Hello أو بصمة الجهاز لإكمال الجلسة.</p>
                         <button type="button" class="btn-submit" id="passkeyLoginBtn" onclick="triggerPasskeyLogin()">تأكيد مفتاح المرور <i class="fa-solid fa-key"></i></button>
                     </div>
+                <% } else if (typeof executorMfaChallenge !== 'undefined' && executorMfaChallenge) { %>
+                    <section class="mfa-challenge" role="dialog" aria-modal="true" aria-labelledby="executor-mfa-title">
+                        <div class="mfa-challenge-icon"><i class="fa-solid fa-shield-halved"></i></div>
+                        <h5 id="executor-mfa-title">تأكيد رمز Authenticator</h5>
+                        <p>تم التحقق من اسم المستخدم وكلمة المرور. أدخل رمز الـ6 أرقام من تطبيق Authenticator لإكمال الدخول.</p>
+                        <div class="form-floating mb-3">
+                            <input type="text" inputmode="numeric" pattern="[0-9]{6}" maxlength="6" class="form-control mfa-token-input" id="mfaTokenInput" name="mfaToken" placeholder="000000" required autocomplete="one-time-code" dir="ltr" autofocus>
+                            <label for="mfaTokenInput">رمز Authenticator</label>
+                        </div>
+                        <button type="submit" class="btn-submit" id="submitBtn">تحقق والدخول <i class="fa-solid fa-arrow-left"></i></button>
+                        <a href="/login" class="d-inline-block mt-3 text-muted fw-bold small text-decoration-none">العودة لتسجيل الدخول</a>
+                    </section>
                 <% } else { %>
                 <div class="position-relative mb-3">
                     <div class="form-floating">

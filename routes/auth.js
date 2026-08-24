@@ -93,6 +93,8 @@ const renderLogin = (res, error = null, data = {}) => res.render('unified_login'
     ...data
 });
 
+const EXECUTOR_MFA_CHALLENGE_TTL_MS = 5 * 60 * 1000;
+
 const cookieValue = (req, name) => String(req.headers.cookie || '')
     .split(';')
     .map((item) => item.trim().split('='))
@@ -148,6 +150,63 @@ const guardWebMfa = async (req, res, account, accountType, onVerified) => {
         submittedUsername: String(req.body.username || '')
     });
     return true;
+};
+
+const renderExecutorMfaChallenge = (res, error = null, username = '') => renderLogin(res, error, {
+    mfaRequired: true,
+    executorMfaChallenge: true,
+    submittedUsername: username
+});
+
+const beginExecutorMfaChallenge = async (req, res, executor) => {
+    const mfaAccount = await accountMfaService.loadAccount('executor', executor._id, executor.tenantId || null);
+    if (!mfaAccount || !accountMfaService.isEnabled(mfaAccount)) return false;
+
+    // Authenticator is an account-level protection: it is enforced even when
+    // the optional global verification policy is disabled.
+    req.session.pendingExecutorMfaLogin = {
+        executorId: String(executor._id),
+        username: executor.webUsername || String(req.body.username || ''),
+        createdAt: Date.now()
+    };
+    await new Promise((resolve, reject) => req.session.save((error) => error ? reject(error) : resolve()));
+    renderExecutorMfaChallenge(res, null, req.session.pendingExecutorMfaLogin.username);
+    return true;
+};
+
+const completeExecutorMfaChallenge = async (req, res) => {
+    const pending = req.session.pendingExecutorMfaLogin;
+    if (!pending?.executorId) return false;
+    const expired = Date.now() - Number(pending.createdAt || 0) > EXECUTOR_MFA_CHALLENGE_TTL_MS;
+    if (expired) {
+        delete req.session.pendingExecutorMfaLogin;
+        await new Promise((resolve) => req.session.save(resolve));
+        renderLogin(res, 'انتهت مهلة التحقق. أدخل اسم المستخدم وكلمة المرور مرة أخرى.');
+        return true;
+    }
+
+    const executor = await Employee.findOne({ _id: pending.executorId, status: 'active' }).populate('groupId').lean();
+    if (!executor?.groupId || executor.groupId.status !== 'active') {
+        delete req.session.pendingExecutorMfaLogin;
+        await new Promise((resolve) => req.session.save(resolve));
+        renderLogin(res, 'حساب التنفيذ أو مجموعة التنفيذ غير مفعلة حالياً.');
+        return true;
+    }
+
+    const mfaAccount = await accountMfaService.loadAccount('executor', executor._id, executor.tenantId || null);
+    if (!mfaAccount || !accountMfaService.isEnabled(mfaAccount)) {
+        delete req.session.pendingExecutorMfaLogin;
+        return loginAsExecutor(req, res, executor, { showMfaEnableNotice: true });
+    }
+
+    const token = String(req.body.mfaToken || '').trim();
+    if (!token || !(await accountMfaService.verifyAccountToken(mfaAccount, token))) {
+        renderExecutorMfaChallenge(res, 'رمز Authenticator غير صحيح.', pending.username);
+        return true;
+    }
+
+    delete req.session.pendingExecutorMfaLogin;
+    return loginAsExecutor(req, res, executor);
 };
 
 const redirectActiveSession = (req, res) => {
@@ -558,7 +617,7 @@ const completeExecutorSession = async (req, executor) => {
     });
 };
 
-const loginAsExecutor = async (req, res, executor) => {
+const loginAsExecutor = async (req, res, executor, { showMfaEnableNotice = false } = {}) => {
     const principal = { principalType: 'executor', principalId: String(executor._id), principalName: executor.name || 'منفذ' };
     const authorization = await securityControl.authorizeLogin({ req, res, principal, accountClass: 'account', allowFirstDevice: true });
     if (!authorization.allowed) {
@@ -567,6 +626,7 @@ const loginAsExecutor = async (req, res, executor) => {
     }
     if (await requirePasskeyLogin({ req, res, principal, authorization, accountClass: 'account', loginKind: 'executor' })) return;
     await completeExecutorSession(req, executor);
+    if (showMfaEnableNotice) req.session.showMfaEnableNotice = true;
 
     return saveAndRedirect(req, res, '/executor-portal/dashboard');
 };
@@ -953,6 +1013,13 @@ const createPasswordResetTicket = async (resetRequest) => {
 
 router.get('/login', async (req, res) => {
     if (redirectActiveSession(req, res)) return;
+    const pendingExecutorMfa = req.session.pendingExecutorMfaLogin;
+    if (pendingExecutorMfa?.executorId) {
+        if (Date.now() - Number(pendingExecutorMfa.createdAt || 0) <= EXECUTOR_MFA_CHALLENGE_TTL_MS) {
+            return renderExecutorMfaChallenge(res, null, pendingExecutorMfa.username || '');
+        }
+        delete req.session.pendingExecutorMfaLogin;
+    }
     if (!isSecurityVerificationRequired()) {
         delete req.session.pendingPasskeyLogin;
         return renderLogin(res);
@@ -979,6 +1046,9 @@ router.get('/login', async (req, res) => {
 
 router.post('/login', loginLimiter, async (req, res) => {
     try {
+        if (req.session.pendingExecutorMfaLogin?.executorId) {
+            return completeExecutorMfaChallenge(req, res);
+        }
         const username = req.body.username?.trim();
         const password = req.body.password?.trim();
 
@@ -1066,8 +1136,8 @@ router.post('/login', loginLimiter, async (req, res) => {
                     await logLoginFailure(req, username, 'SUSPENDED', 'حساب التنفيذ أو مجموعته غير مفعلة حالياً');
                     return renderLogin(res, 'حساب التنفيذ أو مجموعة التنفيذ غير مفعلة حالياً.');
                 }
-                if (await guardWebMfa(req, res, executor, 'executor', () => loginAsExecutor(req, res, executor))) return;
-                return loginAsExecutor(req, res, executor);
+                if (await beginExecutorMfaChallenge(req, res, executor)) return;
+                return loginAsExecutor(req, res, executor, { showMfaEnableNotice: true });
             }
         }
 
