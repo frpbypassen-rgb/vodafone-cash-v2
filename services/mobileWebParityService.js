@@ -29,6 +29,7 @@ const { recordTransferRepricing } = require('./agencyJournalService');
 const { generateExecutorReceiptBase64 } = require('../utils/manualExecutorReceipt');
 const { calculateTransferCostLYD, isSourceToLydRate } = require('../utils/transferPricing');
 const eventBus = require('./eventBus');
+const { findReportTransactions } = require('./unifiedReportService');
 
 const appendNoteText = (current, note) => {
     const cleanNote = String(note || '').trim();
@@ -258,7 +259,10 @@ async function getClientReports({ userId, accountType, dateType, dateValue, date
         baseQuery.isSubAccountTx = { $ne: true };
     }
 
-    const prevTransactions = await Transaction.find({ ...baseQuery, createdAt: { $lt: start } }).select('status amount costLYD').lean();
+    const prevTransactions = await findReportTransactions(
+        { ...baseQuery, createdAt: { $lt: start } },
+        { select: 'status amount costLYD' }
+    );
     let previousBalance = 0;
     prevTransactions.forEach(tx => {
         if (tx.status === 'completed') previousBalance -= (tx.costLYD || 0);
@@ -266,7 +270,10 @@ async function getClientReports({ userId, accountType, dateType, dateValue, date
         else if (tx.status === 'deduction') previousBalance -= (tx.amount || 0);
     });
 
-    const currentTransactions = await Transaction.find({ ...baseQuery, createdAt: { $gte: start, $lte: end } }).sort({ createdAt: -1 }).lean();
+    const currentTransactions = await findReportTransactions(
+        { ...baseQuery, createdAt: { $gte: start, $lte: end } },
+        { sort: { createdAt: -1 } }
+    );
 
     let totalLYD = 0; let totalEGP = 0;
     let completedCount = 0; let rejectedCount = 0; let totalDeposits = 0;
@@ -1257,16 +1264,13 @@ async function getExecutorReports({ executorId, dateType, dateValue, dateFrom, d
     const baseQuery = { ...groupQuery };
     if (scopedEmployee) baseQuery.operatorId = String(scopedEmployee._id);
 
-    const transactionQuery = Transaction
-        .find({ ...baseQuery, createdAt: { $gte: start, $lte: end } });
-    // Mongoose exposes `select`, while lightweight model doubles used by
-    // consumers and tests may expose only the sortable query methods.
-    const selectedTransactionQuery = typeof transactionQuery.select === 'function'
-        ? transactionQuery.select('+executorExecutionNumber +executorSenderEntries')
-        : transactionQuery;
-    const currentTransactions = await selectedTransactionQuery
-        .sort({ createdAt: -1 })
-        .lean();
+    const currentTransactions = await findReportTransactions(
+        { ...baseQuery, createdAt: { $gte: start, $lte: end } },
+        {
+            select: '+executorExecutionNumber +executorSenderEntries',
+            sort: { createdAt: -1 }
+        }
+    );
     const deposits = currentTransactions.filter((tx) =>
         ['deposit', 'deduction', 'deposit_pending'].includes(tx.status)
     );
@@ -1399,8 +1403,8 @@ async function getExecutorOverview({ executorId, tenantId }) {
     const monthRange = getDateRange(null, month);
     const query = executorGroupQuery(emp.groupId, tenantId);
     const [todayTransactions, monthTransactions] = await Promise.all([
-        Transaction.find({ ...query, createdAt: { $gte: todayRange.start, $lte: todayRange.end } }).lean(),
-        Transaction.find({ ...query, createdAt: { $gte: monthRange.start, $lte: monthRange.end } }).lean()
+        findReportTransactions({ ...query, createdAt: { $gte: todayRange.start, $lte: todayRange.end } }),
+        findReportTransactions({ ...query, createdAt: { $gte: monthRange.start, $lte: monthRange.end } })
     ]);
     const ownToday = todayTransactions.filter((tx) => String(tx.operatorId || '') === String(emp._id));
     const ownTotals = executorReportTotals(ownToday);
@@ -1478,7 +1482,10 @@ async function getLegacyExecutorReports({ executorId, dateType, dateValue }) {
         }
     }
 
-    const currentTransactions = await Transaction.find({ ...baseQuery, createdAt: { $gte: start, $lte: end } }).sort({ createdAt: -1 }).lean();
+    const currentTransactions = await findReportTransactions(
+        { ...baseQuery, createdAt: { $gte: start, $lte: end } },
+        { sort: { createdAt: -1 } }
+    );
 
     let totalLYD = 0; let totalEGP = 0;
     let completedCount = 0; let rejectedCount = 0;

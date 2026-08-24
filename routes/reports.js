@@ -11,6 +11,7 @@ const { requireAuth } = require('../middlewares/auth');
 const { loadAdminReport } = require('../services/adminReportService');
 const { logAction } = require('../services/auditService');
 const { generateAdminReportPdf } = require('../services/reportPdfService');
+const { getUnifiedReportStatus } = require('../services/unifiedReportService');
 
 const reportInput = (source = {}) => ({
     mainCategory: String(source.mainCategory || ''),
@@ -82,6 +83,15 @@ router.post('/api/reports/filter', requireAuth, async (req, res) => {
         console.error('[reports/filter] failed:', error.stack || error.message);
         return res.status(['INVALID_REPORT_DATE', 'REPORT_SCOPE_REQUIRED', 'INVALID_REPORT_SCOPE'].includes(error.message) ? 400 : 500)
             .json({ success: false, error: reportError(error) });
+    }
+});
+
+router.get('/api/reports/unified-status', requireAuth, async (_req, res) => {
+    try {
+        return res.json({ success: true, data: await getUnifiedReportStatus() });
+    } catch (error) {
+        console.error('[reports/unified-status] failed:', error.stack || error.message);
+        return res.status(500).json({ success: false, error: 'تعذر قراءة حالة مركز التقارير.' });
     }
 });
 

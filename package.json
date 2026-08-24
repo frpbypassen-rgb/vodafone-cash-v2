@@ -15,6 +15,7 @@
     "rotate:admin": "node scripts/rotateAdminCredentials.js",
     "authorize:admin-device": "node scripts/authorizeAdminDevice.js",
     "migrate:tenant": "node scripts/migrateTenantIsolation.js",
+    "backfill:reports": "node scripts/backfillUnifiedReports.js",
     "setup:web-push": "node scripts/ensureWebPushKeys.js",
     "seed:zayn-executor": "node scripts/seedZaynApiExecutor.js",
     "lint": "eslint . --quiet",

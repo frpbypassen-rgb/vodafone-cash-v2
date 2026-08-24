@@ -6,7 +6,7 @@ const Employee = require('../models/Employee');
 const ExecutorGroup = require('../models/ExecutorGroup');
 const Ledger = require('../models/Ledger');
 const SubAccount = require('../models/SubAccount');
-const Transaction = require('../models/Transaction');
+const { findReportTransactions } = require('./unifiedReportService');
 const User = require('../models/User');
 const { systemDateKey } = require('../config/systemTime');
 const { buildReportSummary } = require('../utils/adminReportCalculations');
@@ -341,8 +341,8 @@ const loadAdminReport = async (input = {}) => {
     const currentQuery = { ...scope.baseQuery, createdAt: { $gte: range.start, $lte: range.end } };
 
     const [previousTransactions, currentTransactions, settlements] = await Promise.all([
-        Transaction.find(previousQuery).select('status amount costLYD').lean(),
-        Transaction.find(currentQuery).sort({ createdAt: -1 }).lean(),
+        findReportTransactions(previousQuery, { select: 'status amount costLYD' }),
+        findReportTransactions(currentQuery, { sort: { createdAt: -1 } }),
         ensureDailySettlements(range.start, range.end)
     ]);
 

@@ -79,6 +79,7 @@ const { closeEligibleDailySettlement } = require('./services/settlementService')
 const systemMonitor = require('./services/systemMonitorService');
 const { restorePendingRateActivation, startRateChangeActivationMonitor } = require('./services/rateChangeService');
 const { startExecutorPushNotificationWorker } = require('./services/executorPushNotificationService');
+const { ensureUnifiedReportInfrastructure } = require('./services/unifiedReportService');
 
 // 🟢 استدعاء طابور المهام الجديد (Queue System)
 
@@ -400,7 +401,8 @@ Promise.all([connectDB(), initRedis()]).then(async () => {
     await Promise.all([
         ensureApiReconciliationIndexes(),
         ensurePerformanceIndexes(),
-        ensureSecurityDeviceIndexes()
+        ensureSecurityDeviceIndexes(),
+        ensureUnifiedReportInfrastructure()
     ]);
     await restorePendingRateActivation({ app });
     startRateChangeActivationMonitor({ app });
