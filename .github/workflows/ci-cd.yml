@@ -104,19 +104,30 @@ jobs:
     runs-on: ubuntu-latest
     needs: [lint, security, unit-tests]
 
-    services:
-      mongodb:
-        image: mongo:7
-        ports:
-          - 27017:27017
-        options: >-
-          --health-cmd "mongosh --eval 'db.adminCommand({ping:1})'"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-
     steps:
     - uses: actions/checkout@v4
+
+    - name: Start transactional MongoDB
+      run: |
+        set -euo pipefail
+        docker run -d --name mongo-ci --network host mongo:7 --replSet rs0 --bind_ip_all
+        for attempt in $(seq 1 30); do
+          if docker exec mongo-ci mongosh --quiet --eval "db.adminCommand({ ping: 1 }).ok" | grep -q 1; then
+            break
+          fi
+          sleep 2
+        done
+        docker exec mongo-ci mongosh --quiet --eval \
+          "rs.initiate({_id:'rs0',members:[{_id:0,host:'127.0.0.1:27017'}]})"
+        for attempt in $(seq 1 30); do
+          if docker exec mongo-ci mongosh --quiet --eval \
+            "db.hello().isWritablePrimary" | grep -q true; then
+            exit 0
+          fi
+          sleep 2
+        done
+        docker logs mongo-ci
+        exit 1
 
     - name: Build Docker Image
       run: docker build -t ahram-core-api:${{ github.sha }} .
@@ -128,7 +139,7 @@ jobs:
         trap cleanup EXIT
         docker run -d --name ahram-test --network host \
           -e PORT=3080 \
-          -e MONGO_URI="mongodb://127.0.0.1:27017/ahram-docker-ci" \
+          -e MONGO_URI="mongodb://127.0.0.1:27017/ahram-docker-ci?replicaSet=rs0" \
           -e JWT_SECRET="${{ env.JWT_SECRET }}" \
           -e JWT_REFRESH_SECRET="${{ env.JWT_REFRESH_SECRET }}" \
           -e SESSION_SECRET="${{ env.SESSION_SECRET }}" \
@@ -161,6 +172,10 @@ jobs:
     - name: Tag Latest (main branch only)
       if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
       run: docker tag ahram-core-api:${{ github.sha }} ahram-core-api:latest
+
+    - name: Stop transactional MongoDB
+      if: always()
+      run: docker rm -f mongo-ci >/dev/null 2>&1 || true
 
   # ═══════════════════════════════════════════════
   #  5️⃣ ملخص النتائج
