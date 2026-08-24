@@ -1,7 +1,7 @@
 // PM2 supplies DOTENV_CONFIG_PATH for isolated environments such as staging.
 // Production keeps the existing default of .env.
 require('dotenv').config({ path: process.env.DOTENV_CONFIG_PATH || '.env' });
-const { assertProductionSecurityEnv } = require('./config/securityPolicy');
+const { assertProductionSecurityEnv, isPasswordOnlyLoginMode } = require('./config/securityPolicy');
 assertProductionSecurityEnv();
 const { SYSTEM_TIME_ZONE } = require('./config/systemTime');
 const { getAllowedOrigins, getMobileAllowedOrigins } = require('./config/corsOrigins');
@@ -228,7 +228,13 @@ app.set('view engine', 'ejs');
 app.get('/metrics', requireOperationalAccess({ tokenEnv: 'METRICS_AUTH_TOKEN' }), metricsEndpoint);
 
 app.get('/health', (req, res) => {
-    res.json({ status: 'ok', uptime: process.uptime(), timestamp: new Date().toISOString(), version: '2.0.0' });
+    res.json({
+        status: 'ok',
+        uptime: process.uptime(),
+        timestamp: new Date().toISOString(),
+        version: '2.0.0',
+        authenticationMode: isPasswordOnlyLoginMode() ? 'password-only' : 'enhanced-verification'
+    });
 });
 
 app.get('/health/ready', async (req, res) => {

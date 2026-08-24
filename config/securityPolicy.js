@@ -9,10 +9,15 @@ const isClientOtpDisabled = (env = process.env) => clean(env.CLIENT_OTP_ENABLED)
 const getSecurityVerificationMode = (env = process.env) => (
     clean(env.SECURITY_VERIFICATION_MODE).toLowerCase() === 'required' ? 'required' : 'optional'
 );
+const isPasswordOnlyLoginMode = (env = process.env) => (
+    clean(env.PASSWORD_ONLY_LOGIN_MODE).toLowerCase() !== 'false'
+);
 const isSecurityVerificationEnforcementEnabled = (env = process.env) => (
     isEnabled(env.SECURITY_VERIFICATION_ENFORCEMENT_ENABLED)
 );
 const isSecurityVerificationRequired = (env = process.env) => (
+    !isPasswordOnlyLoginMode(env)
+    &&
     isSecurityVerificationEnforcementEnabled(env)
     && getSecurityVerificationMode(env) === 'required'
 );
@@ -214,6 +219,7 @@ module.exports = {
     isEmergencyStandaloneFinancialWritesActive,
     isProductionEnvironment,
     isPasskeyRequired,
+    isPasswordOnlyLoginMode,
     isSecurityVerificationEnforcementEnabled,
     isSecurityVerificationRequired,
     shouldBypassClientOtp,

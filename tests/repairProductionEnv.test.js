@@ -59,6 +59,7 @@ describe('repairProductionEnv', () => {
         expect(new Set(authenticationSecrets).size).toBe(4);
         expect(authenticationSecrets.every((value) => value.length >= 64)).toBe(true);
         expect(repaired.NODE_ENV).toBe('production');
+        expect(repaired.PASSWORD_ONLY_LOGIN_MODE).toBe('true');
         expect(repaired.SECURITY_VERIFICATION_ENFORCEMENT_ENABLED).toBe('false');
         expect(repaired.SECURITY_VERIFICATION_MODE).toBe('optional');
         expect(repaired.PASSKEY_REQUIRED).toBe('false');

@@ -3,7 +3,8 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width,initial-scale=1">
-    <title>تأمين الجهاز | Ahram Pay</title>
+    <title>فتح الحساب | Ahram Pay</title>
+    <meta http-equiv="refresh" content="0;url=<%= returnUrl %>">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;700;800;900&display=swap" rel="stylesheet">
     <style>
@@ -14,11 +15,11 @@
 <main class="shell">
     <div class="brand"><strong>Ahram Pay</strong><a href="/logout"><i class="fa-solid fa-right-from-bracket"></i> تسجيل الخروج</a></div>
     <section class="intro">
-        <h1>تأمين الجهاز الحالي</h1>
-        <p>مرحبًا <%= principalName %>. يجب تسجيل بصمة الهاتف أو Windows Hello لهذا الجهاز قبل استخدام الحساب.</p>
-        <span class="required"><i class="fa-solid fa-shield-halved"></i> خطوة إلزامية لمرة واحدة على هذا الجهاز</span>
+        <h1>جارٍ فتح الحساب</h1>
+        <p>وسائل حماية الجلسة اختيارية ويمكن تفعيلها لاحقًا من الإعدادات.</p>
+        <a href="<%= returnUrl %>">متابعة إلى الحساب</a>
     </section>
-    <%- include('partials/mfa_security_panel', { securityEnrollmentRequired: true, securityReturnUrl: returnUrl }) %>
 </main>
+<script>window.location.replace(<%- JSON.stringify(returnUrl) %>);</script>
 </body>
 </html>
