@@ -15,6 +15,10 @@ const {
     normalizeExecutorServiceKey
 } = require('../utils/executorServiceCatalog');
 
+// Do not leave an authenticated-password step open indefinitely while waiting
+// for the Authenticator code.
+const EXECUTOR_MFA_CHALLENGE_TTL_MS = 5 * 60 * 1000;
+
 const executorRegistrationFormData = (body = {}) => ({
     companyName: String(body.companyName || '').trim(),
     managerName: String(body.managerName || '').trim(),
@@ -34,6 +38,8 @@ const renderExecutorRegistration = (res, { error = null, success = null, formDat
 
 
 const completeExecutorLogin = async (req, res, executor, { showMfaNotice = false } = {}) => {
+    delete req.session.pendingExecutorMfaId;
+    delete req.session.pendingExecutorMfaStartedAt;
     req.session.isExecutorLoggedIn = true;
     req.session.executorId = executor._id;
     req.session.executorGroupId = executor.groupId ? executor.groupId._id : null;
@@ -63,16 +69,38 @@ exports.postLogin = async (req, res) => {
         const mfaToken = String(req.body.mfaToken || '').trim();
         const pendingMfaId = req.session.pendingExecutorMfaId;
 
+        // A pending challenge may only be completed with its Authenticator code;
+        // do not allow a second password submission to bypass that state.
+        if (pendingMfaId && !mfaToken) {
+            return res.render('executor/login', {
+                error: 'أدخل رمز Authenticator لإكمال الدخول.',
+                mfaRequired: true,
+                mfaNotice: false,
+                submittedUsername: ''
+            });
+        }
+
         if (mfaToken && pendingMfaId) {
+            const challengeStartedAt = Number(req.session.pendingExecutorMfaStartedAt || 0);
+            if (!challengeStartedAt || Date.now() - challengeStartedAt > EXECUTOR_MFA_CHALLENGE_TTL_MS) {
+                delete req.session.pendingExecutorMfaId;
+                delete req.session.pendingExecutorMfaStartedAt;
+                return req.session.save(() => res.render('executor/login', {
+                    error: 'انتهت مهلة التحقق. أدخل اسم المستخدم وكلمة المرور مرة أخرى.',
+                    mfaRequired: false,
+                    mfaNotice: false,
+                    submittedUsername: ''
+                }));
+            }
             const executor = await Employee.findById(pendingMfaId).populate('groupId');
             if (!executor) {
                 delete req.session.pendingExecutorMfaId;
+                delete req.session.pendingExecutorMfaStartedAt;
                 return req.session.save(() => res.render('executor/login', { error: 'انتهت جلسة الدخول، أعد المحاولة.', mfaRequired: false, mfaNotice: false, submittedUsername: '' }));
             }
             const mfaAccount = await accountMfaService.loadAccount('executor', executor._id, executor.tenantId || null);
             if (!mfaAccount || !accountMfaService.isEnabled(mfaAccount)) {
-                delete req.session.pendingExecutorMfaId;
-                return completeExecutorLogin(req, res, executor);
+                return completeExecutorLogin(req, res, executor, { showMfaNotice: true });
             }
             const valid = await accountMfaService.verifyAccountToken(mfaAccount, mfaToken);
             if (!valid) {
@@ -108,6 +136,7 @@ exports.postLogin = async (req, res) => {
         const mfaAccount = await accountMfaService.loadAccount('executor', executor._id, executor.tenantId || null);
         if (mfaAccount && accountMfaService.isEnabled(mfaAccount)) {
             req.session.pendingExecutorMfaId = String(executor._id);
+            req.session.pendingExecutorMfaStartedAt = Date.now();
             return req.session.save(() => res.render('executor/login', {
                 error: null,
                 mfaRequired: true,

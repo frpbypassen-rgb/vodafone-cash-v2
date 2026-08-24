@@ -53,6 +53,12 @@
         .x-alert-danger { background: rgba(251, 113, 133, 0.1); border: 1px solid rgba(251, 113, 133, 0.25); color: var(--x-red, #fb7185); }
         .x-alert-info { background: rgba(34, 211, 238, 0.08); border: 1px solid rgba(34, 211, 238, 0.2); color: var(--x-cyan, #22d3ee); }
         .x-secure-badge { display: inline-flex; align-items: center; gap: 8px; color: var(--x-green, #34d399); font-size: 0.75rem; font-weight: 800; margin-bottom: 20px; }
+        .x-mfa-dialog { text-align: center; padding: 8px 2px 2px; }
+        .x-mfa-icon { width: 64px; height: 64px; display: grid; place-items: center; margin: 0 auto 16px; border-radius: 20px; color: var(--x-cyan, #22d3ee); background: rgba(34, 211, 238, .1); border: 1px solid rgba(34, 211, 238, .24); font-size: 1.6rem; }
+        .x-mfa-dialog h2 { color: var(--x-text, #f8fafc); font-size: 1.15rem; font-weight: 900; margin-bottom: 8px; }
+        .x-mfa-dialog p { color: var(--x-muted, #94a3b8); font-size: .84rem; line-height: 1.7; margin-bottom: 22px; }
+        .x-mfa-token { text-align: center; letter-spacing: .42em; font-family: 'JetBrains Mono', monospace; font-size: 1.35rem; }
+        .x-back-link { color: var(--x-muted, #94a3b8); font-size: .8rem; text-decoration: none; }
         @keyframes cardEnter { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: translateY(0); } }
         @media (max-width: 480px) { .x-login-card { padding: 28px 20px; } }
     </style>
@@ -77,11 +83,17 @@
 
         <form action="/executor-portal/login" method="POST">
             <% if (mfaRequired) { %>
-            <div class="mb-3">
-                <label class="x-form-label"><i class="fa-solid fa-shield-halved me-1"></i> رمز Authenticator</label>
-                <input type="text" name="mfaToken" class="x-form-control" inputmode="numeric" pattern="[0-9]{6}" maxlength="6" placeholder="000000" required dir="ltr" autocomplete="one-time-code">
-            </div>
-            <button type="submit" class="x-btn-primary">تحقق والدخول <i class="fa-solid fa-arrow-left ms-1"></i></button>
+            <section class="x-mfa-dialog" role="dialog" aria-modal="true" aria-labelledby="mfa-title" aria-describedby="mfa-description">
+                <div class="x-mfa-icon"><i class="fa-solid fa-shield-halved"></i></div>
+                <h2 id="mfa-title">التحقق برمز Authenticator</h2>
+                <p id="mfa-description">حسابك محمي. أدخل الرمز المكوّن من 6 أرقام الظاهر في تطبيق Authenticator لإكمال الدخول.</p>
+                <div class="mb-3 text-start">
+                    <label class="x-form-label" for="mfaToken">رمز التحقق</label>
+                    <input id="mfaToken" type="text" name="mfaToken" class="x-form-control x-mfa-token" inputmode="numeric" pattern="[0-9]{6}" maxlength="6" placeholder="000000" required dir="ltr" autocomplete="one-time-code" autofocus>
+                </div>
+                <button type="submit" class="x-btn-primary">تحقق والدخول <i class="fa-solid fa-arrow-left ms-1"></i></button>
+                <a href="/executor-portal/login" class="x-back-link d-inline-block mt-3"><i class="fa-solid fa-arrow-right me-1"></i> العودة لتسجيل الدخول</a>
+            </section>
             <% } else { %>
             <div class="mb-3">
                 <label class="x-form-label">اسم المستخدم</label>
