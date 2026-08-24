@@ -2,6 +2,7 @@
 
 require('dotenv').config({ path: process.env.DOTENV_CONFIG_PATH || '.env' });
 
+const crypto = require('crypto');
 const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
 const Admin = require('../models/Admin');
@@ -45,6 +46,8 @@ const rotateAdminCredentials = async () => {
     validateInputs();
 
     const passwordHash = await bcrypt.hash(password, 12);
+    const emergencyCode = `AHRAM-${crypto.randomBytes(4).toString('hex').toUpperCase()}-${crypto.randomBytes(4).toString('hex').toUpperCase()}`;
+    const emergencyCodeHash = await bcrypt.hash(emergencyCode, 12);
     delete process.env.ADMIN_ROTATION_PASSWORD;
 
     await mongoose.connect(process.env.MONGO_URI, {
@@ -145,8 +148,11 @@ const rotateAdminCredentials = async () => {
                         highConfidenceVpnBlockEnabled: true,
                         adminSessionHours: 12,
                         accountSessionHours: 12,
+                        emergencyCodeHash,
+                        emergencyCodeRotatedAt: new Date(),
                         updatedBy: 'primary_admin_security_initialization'
                     },
+                    $inc: { emergencyCodeVersion: 1 },
                     $setOnInsert: { key: 'global' }
                 },
                 { upsert: true, session: dbSession, setDefaultsOnInsert: true }
@@ -168,6 +174,8 @@ const rotateAdminCredentials = async () => {
     console.log('Account device protection: ENABLED');
     console.log('Administrator device protection: PENDING PASSKEY ENROLLMENT');
     console.log('Administrator Authenticator state: RESET FOR SECURE RE-ENROLLMENT');
+    console.log('Emergency recovery code (shown once; store it offline):');
+    console.log(emergencyCode);
     console.log('Next step: sign in on the main device, allow location, then register Windows Hello from /admin/security.');
     console.log('Password was not printed or written to the repository.');
 };

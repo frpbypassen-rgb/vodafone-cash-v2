@@ -547,6 +547,16 @@ const rotateEmergencyCode = async (updatedBy) => {
     return plain;
 };
 
+const verifyEmergencyCode = async (code) => {
+    const normalized = String(code || '').trim().toUpperCase();
+    if (!normalized) return false;
+    const state = await getState({ fresh: true, includeSecret: true });
+    return Boolean(
+        state.emergencyCodeHash
+        && await bcrypt.compare(normalized, state.emergencyCodeHash)
+    );
+};
+
 const activateEmergencyLockdown = async ({ code, activatedBy, reason, minutes = DEFAULT_LOCKDOWN_MINUTES }) => {
     const state = await getState({ fresh: true, includeSecret: true });
     if (!state.emergencyCodeHash || !(await bcrypt.compare(String(code || ''), state.emergencyCodeHash))) {
@@ -593,6 +603,7 @@ module.exports = {
     ensureSecurityDeviceIndexes,
     applySessionSecurity,
     rotateEmergencyCode,
+    verifyEmergencyCode,
     activateEmergencyLockdown,
     isLockdownActive
 };

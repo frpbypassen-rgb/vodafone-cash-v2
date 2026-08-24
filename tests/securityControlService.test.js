@@ -7,6 +7,8 @@ process.env.JWT_REFRESH_SECRET = process.env.JWT_REFRESH_SECRET || 'jwt-refresh-
 const securityControl = require('../services/securityControlService');
 const { protectedMutation } = require('../middlewares/securityControl');
 const passkeyService = require('../services/passkeyService');
+const bcrypt = require('bcryptjs');
+const SecurityState = require('../models/SecurityState');
 
 describe('securityControlService', () => {
     test('uses an explicit mobile device identifier without setting a cookie', () => {
@@ -57,6 +59,22 @@ describe('securityControlService', () => {
     test('blocks only high-confidence anonymizer signals', () => {
         expect(securityControl.assessNetworkRisk({ headers: { 'x-vpn-detected': 'true' } }).highRisk).toBe(true);
         expect(securityControl.assessNetworkRisk({ headers: { 'user-agent': 'VPN Browser Name' } }).highRisk).toBe(false);
+    });
+
+    test('verifies the one-time administrator recovery enrollment code', async () => {
+        const emergencyCodeHash = await bcrypt.hash('AHRAM-12345678-ABCDEF12', 4);
+        const query = {
+            select: jest.fn().mockReturnThis(),
+            exec: jest.fn().mockResolvedValue({ emergencyCodeHash, lockdownActive: false })
+        };
+        const stateLookup = jest.spyOn(SecurityState, 'findOneAndUpdate').mockReturnValue(query);
+        securityControl.invalidateStateCache();
+
+        await expect(securityControl.verifyEmergencyCode('ahram-12345678-abcdef12')).resolves.toBe(true);
+        await expect(securityControl.verifyEmergencyCode('AHRAM-WRONG-CODE')).resolves.toBe(false);
+
+        stateLookup.mockRestore();
+        securityControl.invalidateStateCache();
     });
 
     test.each([

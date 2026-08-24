@@ -82,6 +82,7 @@ const passwordResetLimiter = rateLimit({
 const renderLogin = (res, error = null, data = {}) => res.render('unified_login', {
     error,
     mfaRequired: false,
+    recoveryCodeRequired: false,
     passkeyLoginRequired: false,
     submittedUsername: '',
     ...data
@@ -1013,6 +1014,22 @@ router.post('/login', loginLimiter, async (req, res) => {
                 if (adminData.status === 'suspended') {
                     await logLoginFailure(req, username, 'SUSPENDED', 'حساب الإدارة موقوف');
                     return renderLogin(res, 'حساب الإدارة موقوف حالياً.');
+                }
+                if (adminData.mustEnrollSecurity) {
+                    const recoveryCode = String(req.body.recoveryCode || '').trim();
+                    if (!recoveryCode) {
+                        return renderLogin(res, 'أدخل رمز الاستعادة الذي ظهر عند تأسيس حساب الإدارة.', {
+                            recoveryCodeRequired: true,
+                            submittedUsername: username
+                        });
+                    }
+                    if (!(await securityControl.verifyEmergencyCode(recoveryCode))) {
+                        await logLoginFailure(req, username, 'INVALID_ADMIN_BOOTSTRAP_RECOVERY_CODE', 'رمز استعادة تأسيس المدير غير صحيح');
+                        return renderLogin(res, 'رمز الاستعادة غير صحيح.', {
+                            recoveryCodeRequired: true,
+                            submittedUsername: username
+                        });
+                    }
                 }
                 if (await guardWebMfa(req, res, adminData, 'admin', () => loginAsAdmin(req, res, adminData))) return;
                 return loginAsAdmin(req, res, adminData);

@@ -253,6 +253,19 @@
                     <i class="fa-solid fa-user-shield input-icon"></i>
                 </div>
 
+                <% if (typeof recoveryCodeRequired !== 'undefined' && recoveryCodeRequired) { %>
+                    <div class="position-relative mb-3">
+                        <div class="form-floating">
+                            <input type="password" class="form-control" id="recoveryCodeInput" name="recoveryCode" placeholder="رمز الاستعادة" required autocomplete="one-time-code" dir="ltr">
+                            <label for="recoveryCodeInput">رمز استعادة الإدارة الرئيسي</label>
+                        </div>
+                        <i class="fa-solid fa-shield-keyhole input-icon"></i>
+                    </div>
+                    <div class="small fw-bold text-muted mb-3 lh-lg">
+                        يُطلب هذا الرمز في التأسيس الأول فقط. بعد اعتماده سيُطلب تسجيل بصمة الجهاز أو Windows Hello.
+                    </div>
+                <% } %>
+
                 <% if (typeof mfaRequired !== 'undefined' && mfaRequired) { %>
                     <div class="position-relative mb-4">
                         <div class="form-floating">
