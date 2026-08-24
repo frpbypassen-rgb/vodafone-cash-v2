@@ -275,6 +275,7 @@ router.get('/security/enroll', requireWebMfaContext, (req, res) => {
     const returnUrl = req.session.isExecutorLoggedIn
         ? '/executor-portal/dashboard'
         : '/client/dashboard';
+    if (!isPasskeyRequired()) return res.redirect(returnUrl);
     return res.render('security_enroll', {
         principalName: webSecurityPrincipal(req)?.principalName || 'الحساب',
         returnUrl

@@ -2,8 +2,8 @@
     <div class="mfa-panel-heading">
         <div>
             <span class="mfa-kicker"><i class="fa-solid fa-shield-halved"></i> أمان الحساب</span>
-            <h2>بصمة الجهاز وAuthenticator</h2>
-            <p>يمكنك تفعيل البصمة وAuthenticator لزيادة حماية الحساب، وكلاهما اختياري حاليًا.</p>
+            <h2>حماية الحساب الاختيارية</h2>
+            <p>موافقة الإدارة على الجهاز كافية للدخول. يمكنك إضافة البصمة أو Authenticator اختياريًا دون أن يمنعا استخدام الحساب.</p>
         </div>
         <span class="mfa-state" data-mfa-state>جاري الفحص</span>
     </div>
@@ -138,7 +138,7 @@
         const trusted = data.trustedDevice === true;
         const passkeyEnrolled = data.passkeyEnrolled === true;
         const passkeyRequired = data.passkeyRequired === true;
-        $('[data-passkey-enabled]').textContent = passkeyEnrolled ? 'مسجلة' : (passkeyRequired ? 'مطلوبة' : 'اختيارية');
+        $('[data-passkey-enabled]').textContent = passkeyEnrolled ? 'مسجلة (اختيارية)' : (passkeyRequired ? 'مطلوبة' : 'غير مطلوبة');
         $('[data-passkey-register]').hidden = passkeyEnrolled;
         $('[data-mfa-enabled]').textContent = enabled ? 'مفعّل' : 'غير مفعّل';
         $('[data-mfa-device]').textContent = trusted ? 'موثوق' : 'يحتاج رمزًا';
