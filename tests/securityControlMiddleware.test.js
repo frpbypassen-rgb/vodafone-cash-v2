@@ -14,7 +14,9 @@ jest.mock('../services/securityControlService', () => ({
 }));
 
 const securityControl = require('../services/securityControlService');
+const Admin = require('../models/Admin');
 const {
+    enforceSecuritySession,
     enforceEmergencyLockdown,
     enforceAdminPermissions
 } = require('../middlewares/securityControl');
@@ -76,5 +78,43 @@ describe('security control middleware', () => {
 
         expect(response.status).toBe(403);
         expect(response.body.code).toBe('ADMIN_PERMISSION_DENIED');
+    });
+
+    test('forces a newly initialized primary administrator into security enrollment', async () => {
+        securityControl.sessionPrincipal.mockReturnValue({
+            principalType: 'admin',
+            principalId: '507f1f77bcf86cd799439011',
+            principalName: 'Primary administrator'
+        });
+        securityControl.getState.mockResolvedValue({
+            adminSessionHours: 12,
+            accountSessionHours: 12,
+            highConfidenceVpnBlockEnabled: true,
+            adminDeviceEnforcementEnabled: false,
+            accountDeviceEnforcementEnabled: true
+        });
+        const findById = jest.spyOn(Admin, 'findById').mockReturnValue({
+            select: () => ({
+                lean: async () => ({ status: 'active', sessionVersion: 0, mustEnrollSecurity: true })
+            })
+        });
+        const req = {
+            path: '/transactions',
+            method: 'GET',
+            headers: {},
+            session: { adminSessionVersion: 0 }
+        };
+        const res = {
+            redirect: jest.fn(),
+            status: jest.fn().mockReturnThis(),
+            json: jest.fn()
+        };
+        const next = jest.fn();
+
+        await enforceSecuritySession(req, res, next);
+
+        expect(res.redirect).toHaveBeenCalledWith('/admin/security?enroll=1');
+        expect(next).not.toHaveBeenCalled();
+        findById.mockRestore();
     });
 });

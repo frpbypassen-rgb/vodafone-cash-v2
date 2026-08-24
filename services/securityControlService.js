@@ -71,9 +71,15 @@ const requestIp = (req) => String(
 ).trim().replace(/^::ffff:/, '');
 
 const parseLocation = (req) => {
-    const latitude = Number(req.body?.latitude ?? req.headers?.['x-client-latitude']);
-    const longitude = Number(req.body?.longitude ?? req.headers?.['x-client-longitude']);
-    const accuracy = Number(req.body?.locationAccuracy ?? req.headers?.['x-client-location-accuracy']);
+    const pending = req.session?.pendingSecurityLocation || req.session?.securityLocation || {};
+    const firstPresent = (...values) => values.find((value) => (
+        value !== undefined
+        && value !== null
+        && String(value).trim() !== ''
+    ));
+    const latitude = Number(firstPresent(req.body?.latitude, req.headers?.['x-client-latitude'], pending.latitude));
+    const longitude = Number(firstPresent(req.body?.longitude, req.headers?.['x-client-longitude'], pending.longitude));
+    const accuracy = Number(firstPresent(req.body?.locationAccuracy, req.headers?.['x-client-location-accuracy'], pending.accuracy));
     if (!Number.isFinite(latitude) || latitude < -90 || latitude > 90
         || !Number.isFinite(longitude) || longitude < -180 || longitude > 180) return null;
     return {
@@ -170,7 +176,7 @@ const createAccessRequest = async ({ req, principal, deviceIdHash }) => {
     const device = detectDevice(req);
     const channel = requestChannel(req);
     const risk = assessNetworkRisk(req);
-    const location = parseLocation(req);
+    const location = parseLocation(req) || req.session?.securityLocation || null;
     const existing = await SecurityAccessRequest.findOne({
         principalType: principal.principalType,
         principalId: principal.principalId,
@@ -214,7 +220,7 @@ const activateDevice = async ({ req, res, principal, credential = null, approved
     const deviceId = ensureDeviceId(req, res);
     const deviceIdHash = hashDeviceId(deviceId);
     const device = detectDevice(req);
-    const location = parseLocation(req);
+    const location = parseLocation(req) || req.session?.securityLocation || null;
     const ipAddress = requestIp(req);
     const channel = requestChannel(req);
     await SecurityDevice.updateMany(

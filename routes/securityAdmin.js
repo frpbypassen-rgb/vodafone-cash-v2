@@ -82,7 +82,11 @@ router.get('/', async (req, res) => {
         auditLogs,
         permissions: PERMISSIONS,
         currentPrincipal: currentPrincipal(req),
-        currentAdminRole: req.session.adminRole
+        currentAdminRole: req.session.adminRole,
+        enrollmentRequired: admins.some((admin) => (
+            String(admin._id) === String(req.session.adminId)
+            && admin.mustEnrollSecurity
+        ))
     });
 });
 
@@ -128,6 +132,21 @@ router.post('/passkeys/register/verify', requireSecurityManager, async (req, res
             },
             approvedBy: req.session.adminName || 'الإدارة'
         });
+        if (principal.principalType === 'admin') {
+            await Admin.updateOne(
+                { _id: principal.principalId },
+                { $set: { mustEnrollSecurity: false } }
+            );
+        }
+        const state = await securityControl.getState({ fresh: true });
+        state.adminDeviceEnforcementEnabled = true;
+        state.accountDeviceEnforcementEnabled = true;
+        state.adminPermissionEnforcementEnabled = true;
+        state.locationRequired = true;
+        state.highConfidenceVpnBlockEnabled = true;
+        state.updatedBy = req.session.adminName || 'الإدارة';
+        await state.save();
+        securityControl.invalidateStateCache();
         delete req.session.passkeyRegistrationChallenge;
         req.session.securityStepUpUntil = Date.now() + 10 * 60 * 1000;
         await logAction({
@@ -136,7 +155,7 @@ router.post('/passkeys/register/verify', requireSecurityManager, async (req, res
             performedByModel: 'Admin', performedByName: req.session.adminName,
             severity: 'warning', metadata: { principalType: principal.principalType }
         });
-        return res.json({ success: true });
+        return res.json({ success: true, policyActivated: true });
     } catch (error) {
         console.error('[SecurityAdmin] passkey registration verification failed:', error.message);
         return res.status(422).json({ success: false, error: 'فشل التحقق من مفتاح المرور.' });

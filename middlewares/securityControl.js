@@ -44,16 +44,32 @@ const enforceSecuritySession = async (req, res, next) => {
             return endSession(req, res, 401, 'SECURITY_SESSION_EXPIRED', 'انتهت الجلسة الآمنة. سجل الدخول مرة أخرى.');
         }
 
+        let currentAdmin = null;
         if (principal.principalType === 'admin') {
-            const admin = await Admin.findById(principal.principalId).select('status sessionVersion').lean();
+            const admin = await Admin.findById(principal.principalId).select('status sessionVersion mustEnrollSecurity').lean();
             if (!admin || admin.status !== 'active' || Number(admin.sessionVersion || 0) !== Number(req.session.adminSessionVersion || 0)) {
                 return endSession(req, res, 401, 'ADMIN_SESSION_REVOKED', 'تم إنهاء الجلسة الإدارية. سجل الدخول مرة أخرى.');
             }
+            currentAdmin = admin;
         }
 
         const risk = securityControl.assessNetworkRisk(req);
         if (state.highConfidenceVpnBlockEnabled && risk.highRisk) {
             return endSession(req, res, 403, 'NETWORK_RISK_BLOCKED', 'تعذر متابعة الجلسة من هذه الشبكة.');
+        }
+
+        if (currentAdmin?.mustEnrollSecurity) {
+            const enrollmentPath = req.path.startsWith('/admin/security');
+            if (!enrollmentPath && req.path !== '/logout') {
+                if (wantsJson(req)) {
+                    return res.status(428).json({
+                        success: false,
+                        code: 'ADMIN_SECURITY_ENROLLMENT_REQUIRED',
+                        error: 'يجب تسجيل بصمة الجهاز الإداري قبل استخدام لوحة الإدارة.'
+                    });
+                }
+                return res.redirect('/admin/security?enroll=1');
+            }
         }
 
         const enforcementEnabled = accountClass === 'admin'

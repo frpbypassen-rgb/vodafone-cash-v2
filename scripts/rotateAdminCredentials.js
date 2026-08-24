@@ -5,6 +5,9 @@ require('dotenv').config({ path: process.env.DOTENV_CONFIG_PATH || '.env' });
 const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
 const Admin = require('../models/Admin');
+const SecurityDevice = require('../models/SecurityDevice');
+const SecurityAccessRequest = require('../models/SecurityAccessRequest');
+const SecurityState = require('../models/SecurityState');
 
 const getArgument = (name) => {
     const index = process.argv.indexOf(name);
@@ -74,8 +77,12 @@ const rotateAdminCredentials = async () => {
                             name: target.name || 'Primary administrator',
                             role: 'master',
                             webUsername: username,
-                            webPassword: passwordHash
-                        }
+                            webPassword: passwordHash,
+                            status: 'active',
+                            permissions: ['*'],
+                            mustEnrollSecurity: true
+                        },
+                        $inc: { sessionVersion: 1 }
                     },
                     { session: dbSession }
                 );
@@ -84,10 +91,54 @@ const rotateAdminCredentials = async () => {
                     name: 'Primary administrator',
                     role: 'master',
                     webUsername: username,
-                    webPassword: passwordHash
+                    webPassword: passwordHash,
+                    status: 'active',
+                    permissions: ['*'],
+                    mustEnrollSecurity: true
                 }], { session: dbSession });
                 targetId = created[0]._id;
             }
+
+            await SecurityDevice.updateMany(
+                { principalType: { $in: ['master_admin', 'admin'] } },
+                {
+                    $set: {
+                        status: 'revoked',
+                        revokedAt: new Date(),
+                        revokedReason: 'primary_admin_security_reinitialized'
+                    }
+                },
+                { session: dbSession }
+            );
+            await SecurityAccessRequest.updateMany(
+                { principalType: { $in: ['master_admin', 'admin'] }, status: 'pending' },
+                {
+                    $set: {
+                        status: 'rejected',
+                        reviewedAt: new Date(),
+                        reviewedBy: 'admin_rotation',
+                        reviewNote: 'Superseded by primary administrator security initialization.'
+                    }
+                },
+                { session: dbSession }
+            );
+            await SecurityState.findOneAndUpdate(
+                { key: 'global' },
+                {
+                    $set: {
+                        adminDeviceEnforcementEnabled: false,
+                        accountDeviceEnforcementEnabled: true,
+                        adminPermissionEnforcementEnabled: true,
+                        locationRequired: true,
+                        highConfidenceVpnBlockEnabled: true,
+                        adminSessionHours: 12,
+                        accountSessionHours: 12,
+                        updatedBy: 'primary_admin_security_initialization'
+                    },
+                    $setOnInsert: { key: 'global' }
+                },
+                { upsert: true, session: dbSession, setDefaultsOnInsert: true }
+            );
 
             const sessionCollection = mongoose.connection.db.collection('sessions');
             const sessionRemoval = await sessionCollection.deleteMany({}, { session: dbSession });
@@ -102,6 +153,9 @@ const rotateAdminCredentials = async () => {
     console.log(`Username: ${username}`);
     console.log(`Other admin accounts removed: ${removedAdmins}`);
     console.log(`Active sessions invalidated: ${removedSessions}`);
+    console.log('Account device protection: ENABLED');
+    console.log('Administrator device protection: PENDING PASSKEY ENROLLMENT');
+    console.log('Next step: sign in on the main device, allow location, then register Windows Hello from /admin/security.');
     console.log('Password was not printed or written to the repository.');
 };
 

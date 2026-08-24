@@ -39,7 +39,19 @@ describe('securityControlService', () => {
         expect(securityControl.parseLocation({ body: { latitude: '32.88', longitude: '13.18', locationAccuracy: '12' }, headers: {} }))
             .toMatchObject({ latitude: 32.88, longitude: 13.18, accuracy: 12 });
         expect(securityControl.parseLocation({ body: { latitude: '200', longitude: '13' }, headers: {} })).toBeNull();
+        expect(securityControl.parseLocation({ body: { latitude: '', longitude: '' }, headers: {} })).toBeNull();
         expect(securityControl.parseLocation({ body: {}, headers: {} })).toBeNull();
+    });
+
+    test('restores a verified pre-authentication location after an OTP redirect', () => {
+        const location = securityControl.parseLocation({
+            body: {},
+            headers: {},
+            session: {
+                pendingSecurityLocation: { latitude: 32.8872, longitude: 13.1913, accuracy: 18 }
+            }
+        });
+        expect(location).toMatchObject({ latitude: 32.8872, longitude: 13.1913, accuracy: 18 });
     });
 
     test('blocks only high-confidence anonymizer signals', () => {

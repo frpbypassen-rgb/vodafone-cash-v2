@@ -495,6 +495,18 @@ const loginAsAdmin = async (req, res, adminData = null) => {
         principalId: adminData ? String(adminData._id) : 'master_admin',
         principalName: adminData ? adminData.name : 'المدير الأساسي'
     };
+    if (adminData?.mustEnrollSecurity) {
+        const state = await securityControl.getState();
+        const risk = securityControl.assessNetworkRisk(req);
+        if (state.highConfidenceVpnBlockEnabled && risk.highRisk) {
+            await logLoginFailure(req, req.body.username, 'NETWORK_RISK_BLOCKED', 'تم رفض شبكة عالية الخطورة أثناء تأسيس المدير الرئيسي');
+            return renderLogin(res, 'تعذر إكمال الدخول من هذه الشبكة.', { submittedUsername: String(req.body.username || '') });
+        }
+        if (state.locationRequired && !securityControl.parseLocation(req)) {
+            await logLoginFailure(req, req.body.username, 'LOCATION_REQUIRED', 'لم يتم السماح بالموقع أثناء تأسيس المدير الرئيسي');
+            return renderLogin(res, 'يجب السماح بالوصول إلى الموقع لتسجيل الجهاز الإداري الرئيسي.', { submittedUsername: String(req.body.username || '') });
+        }
+    }
     const authorization = await securityControl.authorizeLogin({
         req, res, principal, accountClass: 'admin', allowFirstDevice: true
     });
@@ -504,7 +516,7 @@ const loginAsAdmin = async (req, res, adminData = null) => {
     }
     if (await requirePasskeyLogin({ req, res, principal, authorization, accountClass: 'admin', loginKind: 'admin' })) return;
     await completeAdminSession(req, adminData);
-    return saveAndRedirect(req, res, '/');
+    return saveAndRedirect(req, res, adminData?.mustEnrollSecurity ? '/admin/security?enroll=1' : '/');
 };
 
 const completeExecutorSession = async (req, executor) => {
@@ -582,6 +594,8 @@ const loginAsClient = async (req, res, account, accountType) => {
 };
 
 const startClientOtp = async (req, res, account, accountType, Model) => {
+    req.session.pendingSecurityLocation = securityControl.parseLocation(req);
+    req.session.pendingSecurityUsername = String(req.body.username || '');
     const pendingChallenge = String(req.session.otpChallengeId || '');
     const resendCooldownSeconds = Math.min(
         300,
@@ -689,7 +703,9 @@ const startClientOtp = async (req, res, account, accountType, Model) => {
     await establishAuthenticatedSession(req, {
         tempClientId: account._id,
         tempAccountType: accountType,
-        otpChallengeId
+        otpChallengeId,
+        pendingSecurityLocation: securityControl.parseLocation(req),
+        pendingSecurityUsername: String(req.body.username || '')
     });
 
     const performedByModel = accountType === 'company'
@@ -918,6 +934,14 @@ const createPasswordResetTicket = async (resetRequest) => {
 
 router.get('/login', async (req, res) => {
     if (redirectActiveSession(req, res)) return;
+    const pendingPasskey = req.session.pendingPasskeyLogin;
+    if (pendingPasskey?.principalId
+        && Date.now() - Number(pendingPasskey.createdAt || 0) <= 3 * 60 * 1000) {
+        return renderLogin(res, null, {
+            passkeyLoginRequired: true,
+            submittedUsername: pendingPasskey.username || ''
+        });
+    }
     try {
         const state = await securityControl.getState();
         const risk = securityControl.assessNetworkRisk(req);

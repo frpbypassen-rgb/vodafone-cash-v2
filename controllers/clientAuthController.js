@@ -7,6 +7,7 @@ const { getTodayString } = require('../utils/helpers');
 const { verifyOtp } = require('../utils/otp');
 const { establishAuthenticatedSession } = require('../utils/sessionSecurity');
 const { logAction } = require('../services/auditService');
+const securityControl = require('../services/securityControlService');
 const { checkRegistrationIdentityAvailability } = require('../services/registrationIdentityService');
 
 const LIBYAN_CITIES = [
@@ -380,11 +381,53 @@ exports.postVerify = async (req, res) => {
             return res.render('client/verify', { error: 'تم استخدام الرمز أو انتهت صلاحيته. سجل الدخول من جديد.' });
         }
 
+        const principalType = ({
+            user: 'client_user',
+            company: 'client_company',
+            agent_staff: 'agent_staff',
+            sub_client: 'sub_client'
+        })[accountType] || 'client_user';
+        const principal = {
+            principalType,
+            principalId: String(account._id),
+            principalName: account.name || account.webUsername || 'حساب عميل'
+        };
+        const authorization = await securityControl.authorizeLogin({
+            req,
+            res,
+            principal,
+            accountClass: 'account',
+            allowFirstDevice: true
+        });
+        if (!authorization.allowed) {
+            return res.render('client/verify', { error: authorization.message });
+        }
+
+        if (authorization.device?.credentialId) {
+            req.session.pendingPasskeyLogin = {
+                ...principal,
+                loginKind: 'client',
+                accountType,
+                username: req.session.pendingSecurityUsername || '',
+                createdAt: Date.now()
+            };
+            delete req.session.tempClientId;
+            delete req.session.tempAccountType;
+            delete req.session.otpChallengeId;
+            return req.session.save(() => res.redirect('/login?passkey=1'));
+        }
+
+        const pendingLocation = req.session.pendingSecurityLocation || null;
         await establishAuthenticatedSession(req, {
             isClientLoggedIn: true,
             clientId: account._id,
-            accountType
+            accountType,
+            clientName: principal.principalName,
+            pendingSecurityLocation: pendingLocation
         });
+        await securityControl.applySessionSecurity(req, principal, 'account');
+        delete req.session.pendingSecurityLocation;
+        delete req.session.pendingSecurityUsername;
 
         await logAction({
             action: 'LOGIN_SUCCESS',
