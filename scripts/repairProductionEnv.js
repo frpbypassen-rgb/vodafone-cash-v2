@@ -80,6 +80,7 @@ upsert('TRUST_PROXY_HTTPS', 'true', { force: true });
 
 const forcedSecurityValues = {
     SECURITY_VERIFICATION_MODE: 'optional',
+    PASSKEY_REQUIRED: 'false',
     FORCE_CLIENT_OTP: 'false',
     BYPASS_OTP: 'false',
     BYPASS_CLIENT_OTP: 'false',

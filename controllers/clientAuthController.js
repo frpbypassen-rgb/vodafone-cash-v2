@@ -8,6 +8,7 @@ const { verifyOtp } = require('../utils/otp');
 const { establishAuthenticatedSession } = require('../utils/sessionSecurity');
 const { logAction } = require('../services/auditService');
 const securityControl = require('../services/securityControlService');
+const { isPasskeyRequired } = require('../config/securityPolicy');
 const { checkRegistrationIdentityAvailability } = require('../services/registrationIdentityService');
 
 const LIBYAN_CITIES = [
@@ -403,7 +404,7 @@ exports.postVerify = async (req, res) => {
             return res.render('client/verify', { error: authorization.message });
         }
 
-        if (authorization.device?.credentialId) {
+        if (isPasskeyRequired() && authorization.device?.credentialId) {
             req.session.pendingPasskeyLogin = {
                 ...principal,
                 loginKind: 'client',

@@ -11,6 +11,7 @@ const SecurityAccessRequest = require('../models/SecurityAccessRequest');
 const securityControl = require('../services/securityControlService');
 const passkeyService = require('../services/passkeyService');
 const { logAction } = require('../services/auditService');
+const { isPasskeyRequired } = require('../config/securityPolicy');
 
 const PERMISSIONS = Object.freeze([
     ['dashboard.read', 'عرض لوحة القيادة'],
@@ -46,6 +47,7 @@ const requireSecurityManager = (req, res, next) => {
 
 const requireRecentPasskey = async (req, res, next) => {
     try {
+        if (!isPasskeyRequired()) return next();
         const principal = currentPrincipal(req);
         const active = principal && await SecurityDevice.findOne({
             principalType: principal.principalType,
@@ -85,6 +87,7 @@ router.get('/', async (req, res) => {
         currentAdminRole: req.session.adminRole,
         enrollmentRequired: admins.some((admin) => (
             String(admin._id) === String(req.session.adminId)
+            && isPasskeyRequired()
             && admin.mustEnrollSecurity
         ))
     });
@@ -138,15 +141,6 @@ router.post('/passkeys/register/verify', requireSecurityManager, async (req, res
                 { $set: { mustEnrollSecurity: false } }
             );
         }
-        const state = await securityControl.getState({ fresh: true });
-        state.adminDeviceEnforcementEnabled = true;
-        state.accountDeviceEnforcementEnabled = true;
-        state.adminPermissionEnforcementEnabled = true;
-        state.locationRequired = true;
-        state.highConfidenceVpnBlockEnabled = true;
-        state.updatedBy = req.session.adminName || 'الإدارة';
-        await state.save();
-        securityControl.invalidateStateCache();
         delete req.session.passkeyRegistrationChallenge;
         req.session.securityStepUpUntil = Date.now() + 10 * 60 * 1000;
         await logAction({

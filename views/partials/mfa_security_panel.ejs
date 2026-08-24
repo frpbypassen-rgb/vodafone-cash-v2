@@ -3,7 +3,7 @@
         <div>
             <span class="mfa-kicker"><i class="fa-solid fa-shield-halved"></i> أمان الحساب</span>
             <h2>بصمة الجهاز وAuthenticator</h2>
-            <p>جلسة موقع واحدة وجلسة تطبيق واحدة، وتحتاج الأجهزة الجديدة إلى موافقة آمنة.</p>
+            <p>يمكنك تفعيل البصمة وAuthenticator لزيادة حماية الحساب، وكلاهما اختياري حاليًا.</p>
         </div>
         <span class="mfa-state" data-mfa-state>جاري الفحص</span>
     </div>
@@ -137,7 +137,8 @@
         const enabled = data.enabled === true;
         const trusted = data.trustedDevice === true;
         const passkeyEnrolled = data.passkeyEnrolled === true;
-        $('[data-passkey-enabled]').textContent = passkeyEnrolled ? 'مسجلة ونشطة' : 'مطلوبة';
+        const passkeyRequired = data.passkeyRequired === true;
+        $('[data-passkey-enabled]').textContent = passkeyEnrolled ? 'مسجلة' : (passkeyRequired ? 'مطلوبة' : 'اختيارية');
         $('[data-passkey-register]').hidden = passkeyEnrolled;
         $('[data-mfa-enabled]').textContent = enabled ? 'مفعّل' : 'غير مفعّل';
         $('[data-mfa-device]').textContent = trusted ? 'موثوق' : 'يحتاج رمزًا';

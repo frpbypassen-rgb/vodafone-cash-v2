@@ -3,6 +3,7 @@
 const {
     getSecurityVerificationMode,
     isEmergencyStandaloneFinancialWritesActive,
+    isPasskeyRequired,
     isSecurityVerificationRequired,
     shouldBypassClientOtp,
     validateProductionSecurityEnv
@@ -40,6 +41,11 @@ describe('Production security policy', () => {
         expect(isSecurityVerificationRequired(env)).toBe(false);
         expect(shouldBypassClientOtp(env)).toBe(true);
         expect(validateProductionSecurityEnv(env).valid).toBe(true);
+    });
+
+    test('keeps passkey optional unless it is explicitly required', () => {
+        expect(isPasskeyRequired(productionEnv({ PASSKEY_REQUIRED: 'false' }))).toBe(false);
+        expect(isPasskeyRequired(productionEnv({ PASSKEY_REQUIRED: 'true' }))).toBe(true);
     });
 
     test('accepts a hardened production configuration', () => {

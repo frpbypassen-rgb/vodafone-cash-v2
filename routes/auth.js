@@ -7,6 +7,7 @@ const { escapeRegex, verifyAndUpgradePassword, getTodayString } = require('../ut
 const { generateOtp, hashOtp, verifyOtp } = require('../utils/otp');
 const {
     getEmergencyClientOtpBypassState,
+    isPasskeyRequired,
     isSecurityVerificationRequired,
     shouldBypassClientOtp
 } = require('../config/securityPolicy');
@@ -180,7 +181,13 @@ router.get('/security/mfa/status', requireWebMfaContext, async (req, res) => {
             status: 'active',
             credentialId: { $ne: null }
         }));
-        return res.json({ success: true, ...status, trustedDevice, passkeyEnrolled });
+        return res.json({
+            success: true,
+            ...status,
+            trustedDevice,
+            passkeyEnrolled,
+            passkeyRequired: isPasskeyRequired()
+        });
     } catch (error) {
         return res.status(500).json({ success: false, error: 'MFA_STATUS_FAILED' });
     }
@@ -471,7 +478,7 @@ const completeAdminSession = async (req, adminData = null) => {
 };
 
 const requirePasskeyLogin = async ({ req, res, principal, authorization, accountClass, loginKind, accountType = '' }) => {
-    if (!isSecurityVerificationRequired()) return false;
+    if (!isPasskeyRequired()) return false;
     const state = await securityControl.getState();
     const enforcementEnabled = accountClass === 'admin'
         ? state.adminDeviceEnforcementEnabled
@@ -502,7 +509,7 @@ const loginAsAdmin = async (req, res, adminData = null) => {
         principalId: adminData ? String(adminData._id) : 'master_admin',
         principalName: adminData ? adminData.name : 'المدير الأساسي'
     };
-    if (isSecurityVerificationRequired() && adminData?.mustEnrollSecurity) {
+    if (isPasskeyRequired() && adminData?.mustEnrollSecurity) {
         const state = await securityControl.getState();
         const risk = securityControl.assessNetworkRisk(req);
         if (state.highConfidenceVpnBlockEnabled && risk.highRisk) {
@@ -526,7 +533,7 @@ const loginAsAdmin = async (req, res, adminData = null) => {
     return saveAndRedirect(
         req,
         res,
-        isSecurityVerificationRequired() && adminData?.mustEnrollSecurity ? '/admin/security?enroll=1' : '/'
+        isPasskeyRequired() && adminData?.mustEnrollSecurity ? '/admin/security?enroll=1' : '/'
     );
 };
 
@@ -1029,7 +1036,7 @@ router.post('/login', loginLimiter, async (req, res) => {
                     await logLoginFailure(req, username, 'SUSPENDED', 'حساب الإدارة موقوف');
                     return renderLogin(res, 'حساب الإدارة موقوف حالياً.');
                 }
-                if (isSecurityVerificationRequired() && adminData.mustEnrollSecurity) {
+                if (isPasskeyRequired() && adminData.mustEnrollSecurity) {
                     const recoveryCode = String(req.body.recoveryCode || '').trim();
                     if (!recoveryCode) {
                         return renderLogin(res, 'أدخل رمز الاستعادة الذي ظهر عند تأسيس حساب الإدارة.', {

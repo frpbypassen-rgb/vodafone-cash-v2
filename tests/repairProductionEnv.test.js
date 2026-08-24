@@ -60,6 +60,7 @@ describe('repairProductionEnv', () => {
         expect(authenticationSecrets.every((value) => value.length >= 64)).toBe(true);
         expect(repaired.NODE_ENV).toBe('production');
         expect(repaired.SECURITY_VERIFICATION_MODE).toBe('optional');
+        expect(repaired.PASSKEY_REQUIRED).toBe('false');
         expect(repaired.FORCE_CLIENT_OTP).toBe('false');
         expect(repaired.BYPASS_OTP).toBe('false');
         expect(repaired.BYPASS_CLIENT_OTP).toBe('false');

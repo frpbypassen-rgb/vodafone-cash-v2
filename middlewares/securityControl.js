@@ -4,7 +4,7 @@ const crypto = require('crypto');
 const SecurityDevice = require('../models/SecurityDevice');
 const Admin = require('../models/Admin');
 const securityControl = require('../services/securityControlService');
-const { isSecurityVerificationRequired } = require('../config/securityPolicy');
+const { isPasskeyRequired, isSecurityVerificationRequired } = require('../config/securityPolicy');
 
 const wantsJson = (req) => Boolean(
     req.xhr
@@ -63,7 +63,7 @@ const enforceSecuritySession = async (req, res, next) => {
             return endSession(req, res, 403, 'NETWORK_RISK_BLOCKED', 'تعذر متابعة الجلسة من هذه الشبكة.');
         }
 
-        if (currentAdmin?.mustEnrollSecurity) {
+        if (isPasskeyRequired() && currentAdmin?.mustEnrollSecurity) {
             const enrollmentPath = req.path.startsWith('/admin/security');
             if (!enrollmentPath && req.path !== '/logout') {
                 if (wantsJson(req)) {
@@ -97,7 +97,7 @@ const enforceSecuritySession = async (req, res, next) => {
         active.lastIp = securityControl.requestIp(req);
         await active.save();
         req.securityDevice = active;
-        if (!active.credentialId) {
+        if (isPasskeyRequired() && !active.credentialId) {
             const adminEnrollmentPath = req.path.startsWith('/admin/security');
             const accountEnrollmentPath = req.path.startsWith('/security/enroll')
                 || req.path.startsWith('/security/passkey/')

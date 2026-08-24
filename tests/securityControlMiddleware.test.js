@@ -23,9 +23,11 @@ const {
 
 describe('security control middleware', () => {
     const previousVerificationMode = process.env.SECURITY_VERIFICATION_MODE;
+    const previousPasskeyRequired = process.env.PASSKEY_REQUIRED;
 
     beforeEach(() => {
         process.env.SECURITY_VERIFICATION_MODE = 'required';
+        process.env.PASSKEY_REQUIRED = 'true';
         jest.clearAllMocks();
         securityControl.getState.mockResolvedValue({
             lockdownActive: true,
@@ -38,6 +40,8 @@ describe('security control middleware', () => {
     afterAll(() => {
         if (previousVerificationMode === undefined) delete process.env.SECURITY_VERIFICATION_MODE;
         else process.env.SECURITY_VERIFICATION_MODE = previousVerificationMode;
+        if (previousPasskeyRequired === undefined) delete process.env.PASSKEY_REQUIRED;
+        else process.env.PASSKEY_REQUIRED = previousPasskeyRequired;
     });
 
     test('blocks protected financial mutations with HTTP 423 during lockdown', async () => {

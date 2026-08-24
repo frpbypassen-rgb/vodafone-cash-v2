@@ -10,6 +10,9 @@ const getSecurityVerificationMode = (env = process.env) => (
     clean(env.SECURITY_VERIFICATION_MODE).toLowerCase() === 'required' ? 'required' : 'optional'
 );
 const isSecurityVerificationRequired = (env = process.env) => getSecurityVerificationMode(env) === 'required';
+const isPasskeyRequired = (env = process.env) => (
+    isSecurityVerificationRequired(env) && isEnabled(env.PASSKEY_REQUIRED)
+);
 const MAX_EMERGENCY_OTP_BYPASS_MS = 24 * 60 * 60 * 1000;
 const MAX_EMERGENCY_STANDALONE_FINANCIAL_WRITES_MS = 24 * 60 * 60 * 1000;
 
@@ -204,6 +207,7 @@ module.exports = {
     isEnabled,
     isEmergencyStandaloneFinancialWritesActive,
     isProductionEnvironment,
+    isPasskeyRequired,
     isSecurityVerificationRequired,
     shouldBypassClientOtp,
     validateProductionSecurityEnv
