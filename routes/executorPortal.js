@@ -61,8 +61,8 @@ const requireExecutorManager = async (req, res, next) => {
 
 const requireExecutorTaskAccess = (req, res, next) => {
     const employee = req.executorEmployee;
-    if (!employee || employee.role === 'accountant') {
-        return res.status(403).json({ success: false, error: 'حساب المحاسب لا يملك صلاحية تنفيذ العمليات.' });
+    if (!employee || employee.role === 'accountant' || employee.role === 'external') {
+        return res.status(403).json({ success: false, error: 'هذا الحساب لا يملك صلاحية تنفيذ العمليات.' });
     }
     return next();
 };
@@ -75,13 +75,8 @@ router.get('/', (req, res) => {
 });
 
 // --- Auth Routes ---
-router.get('/login', (req, res) => {
-    if (req.session.isExecutorLoggedIn && req.session.executorId) {
-        return res.redirect('/executor-portal/dashboard');
-    }
-    return res.redirect('/login');
-});
-router.post('/login', (req, res) => res.redirect(307, '/login'));
+router.get('/login', authController.getLogin);
+router.post('/login', authController.postLogin);
 router.get('/register', authController.getRegister);
 router.post('/register', authController.postRegister);
 router.get('/verify', authController.getVerify);
@@ -93,6 +88,7 @@ router.get('/dashboard', requireExecutorAuth, dashboardController.getDashboard);
 router.get('/settings', requireExecutorAuth, dashboardController.getSettings);
 router.get('/proxy/image/:id', requireExecutorAuth, dashboardController.getProxyImage);
 router.get('/proxy/image/:id/:index', requireExecutorAuth, dashboardController.getProxyImage);
+router.get('/proxy/executor-image/:id/:index', requireExecutorAuth, dashboardController.getProxyExecutorImage);
 router.get('/api/overview', requireExecutorAuth, dashboardController.getOverview);
 router.get('/api/live-tasks', requireExecutorAuth, requireExecutorTaskAccess, dashboardController.getLiveTasks);
 router.post('/api/clear-alert/:id', requireExecutorAuth, requireExecutorTaskAccess, dashboardController.postClearAlert);
@@ -107,6 +103,7 @@ router.post('/api/employees/toggle/:id', requireExecutorManager, dashboardContro
 router.post('/api/employees/toggle-reports/:id', requireExecutorManager, dashboardController.postEmployeesToggleReports);
 router.post('/api/employees/reset-password/:id', requireExecutorManager, dashboardController.postEmployeesResetPassword);
 router.post('/api/employees/delete/:id', requireExecutorManager, dashboardController.postEmployeesDelete);
+router.post('/api/employees/external-transaction/:id', requireExecutorManager, dashboardController.postExternalEmployeeTransaction);
 router.post('/api/task-routing-mode', requireExecutorManager, dashboardController.postTaskRoutingMode);
 router.get('/api/route-candidates', requireExecutorManager, dashboardController.getRouteCandidates);
 router.post('/api/route-task/:id', requireExecutorManager, dashboardController.postRouteTask);
@@ -119,6 +116,8 @@ router.post('/api/cancel-task/:id', requireExecutorAuth, requireExecutorTaskAcce
 router.post('/api/return-task/:id', requireExecutorAuth, requireExecutorTaskAccess, transactionController.postReturnTask);
 router.post('/api/complete-task/:id', requireExecutorAuth, requireExecutorTaskAccess, transactionController.postCompleteTask);
 router.post('/api/zaynpay-execute/:id', requireExecutorAuth, requireExecutorTaskAccess, transactionController.executeViaZaynPay);
+router.post('/api/rate-task/:id', requireExecutorAuth, transactionController.postRateExecutor);
+router.post('/api/voice-note/:id', requireExecutorAuth, transactionController.postVoiceNote);
 
 // --- Support Routes ---
 router.get('/support', requireExecutorAuth, transactionController.getSupport);

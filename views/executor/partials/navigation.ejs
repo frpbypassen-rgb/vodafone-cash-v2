@@ -7,49 +7,80 @@
     const canHandleTasks = executorRole !== 'accountant';
     const canManageEmployees = executorRole === 'manager';
     const navItems = [
-        ...(canHandleTasks ? [{ key: 'tasks', href: '/executor-portal/dashboard', icon: 'fa-list-check', label: 'مهام التنفيذ' }] : []),
-        { key: 'reports', href: '/executor-portal/reports', icon: 'fa-chart-column', label: 'التقارير' },
-        ...(canManageEmployees ? [{ key: 'employees', href: '/executor-portal/employees', icon: 'fa-users-gear', label: 'الموظفون' }] : []),
-        { key: 'support', href: '/executor-portal/support', icon: 'fa-headset', label: 'الدعم الفني' },
-        { key: 'settings', href: '/executor-portal/settings', icon: 'fa-sliders', label: 'الإعدادات' }
+        ...(canHandleTasks ? [{ key: 'tasks', href: '/executor-portal/dashboard', icon: 'tasks', fa: 'fa-list-check', label: 'المهام' }] : []),
+        { key: 'reports', href: '/executor-portal/reports', icon: 'reports', fa: 'fa-chart-column', label: 'التقارير' },
+        ...(canManageEmployees ? [{ key: 'employees', href: '/executor-portal/employees', icon: 'employees', fa: 'fa-users-gear', label: 'الفريق' }] : []),
+        { key: 'support', href: '/executor-portal/support', icon: 'support', fa: 'fa-headset', label: 'الدعم' },
+        { key: 'settings', href: '/executor-portal/settings', icon: 'settings', fa: 'fa-sliders', label: 'الإعدادات' }
     ];
 %>
+<%- include('exo-icons') %>
 
-<aside class="executor-side-nav" aria-label="التنقل الرئيسي">
-    <div class="executor-side-brand">
-        <img src="/images/logo.jpg" alt="شعار الأهرام">
-        <div>
-            <strong>AL-AHRAM</strong>
-            <small>منصة إدارة التنفيذ</small>
-        </div>
+<% if (typeof showMfaNotice !== 'undefined' && showMfaNotice) { %>
+<div class="container-fluid px-3 px-md-4 pt-3">
+    <div class="alert alert-info alert-dismissible fade show mb-0 rounded-3 border-0" role="alert" style="background: rgba(34, 211, 238, 0.08); border: 1px solid rgba(34, 211, 238, 0.2) !important; color: #22d3ee; font-weight: 800; font-size: 0.85rem;">
+        <i class="fa-solid fa-shield-halved me-1"></i>
+        حسابك غير محمي برمز <b>Authenticator</b>. نوصي بتفعيله من <a href="/executor-portal/settings" class="text-decoration-underline" style="color: #22d3ee;">الإعدادات</a> لأمان أعلى.
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="إغلاق" style="filter: invert(0.7);"></button>
     </div>
-
-    <div class="executor-side-account">
-        <strong><%= emp?.name || 'حساب التنفيذ' %></strong>
-        <span><%= executorRoleLabel %> · <%= emp?.groupId?.name || 'شركة التنفيذ' %></span>
+</div>
+<% } %>
+<div id="offlineIndicator" class="container-fluid px-3 px-md-4 pt-3 d-none">
+    <div class="alert alert-warning rounded-3 border-0 mb-0" role="alert" style="background: rgba(250, 204, 21, 0.08); border: 1px solid rgba(250, 204, 21, 0.2) !important; color: #facc15; font-weight: 800; font-size: 0.85rem;">
+        <i class="fa-solid fa-wifi me-1"></i> أنت في وضع offline. بعض البيانات قد لا تكون محدثة حتى يعود الاتصال.
     </div>
+</div>
+<script>
+    (function() {
+        const el = document.getElementById('offlineIndicator');
+        const update = () => el?.classList.toggle('d-none', navigator.onLine);
+        window.addEventListener('online', update);
+        window.addEventListener('offline', update);
+        update();
+    })();
+</script>
+<% if (typeof emp !== 'undefined' && emp.role === 'manager' && emp.groupId && Number(emp.groupId.balance || 0) < 1000) { %>
+<div class="container-fluid px-3 px-md-4 pt-3">
+    <div class="alert alert-warning alert-dismissible fade show mb-0 rounded-3 border-0" role="alert" style="background: rgba(250, 204, 21, 0.08); border: 1px solid rgba(250, 204, 21, 0.2) !important; color: #facc15; font-weight: 800; font-size: 0.85rem;">
+        <i class="fa-solid fa-triangle-exclamation me-1"></i>
+        رصيد شركة التنفيذ منخفض (<b><%= Number(emp.groupId.balance || 0).toLocaleString('en-US') %> ج.م</b>). يرجى الإيداع لتجنب توقف العمليات.
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="إغلاق" style="filter: invert(0.7);"></button>
+    </div>
+</div>
+<% } %>
 
-    <nav class="executor-side-links">
+<aside class="exo-rail" aria-label="التنقل الرئيسي">
+    <a class="exo-rail-brand" href="<%= canHandleTasks ? '/executor-portal/dashboard' : '/executor-portal/reports' %>">
+        <img src="/images/logo.jpg" alt="">
+        <span>AH</span>
+    </a>
+    <div class="exo-rail-live" title="متصل">
+        <i></i>
+    </div>
+    <nav class="exo-rail-links">
         <% navItems.forEach((item) => { %>
-            <a class="executor-side-link <%= currentPage === item.key ? 'is-active' : '' %>" href="<%= item.href %>" <%= currentPage === item.key ? 'aria-current="page"' : '' %>>
-                <i class="fa-solid <%= item.icon %>"></i>
-                <span><%= item.label %></span>
+            <a class="exo-rail-link <%= currentPage === item.key ? 'is-active' : '' %>" href="<%= item.href %>" <%= currentPage === item.key ? 'aria-current="page"' : '' %> title="<%= item.label %>">
+                <span class="exo-ico-wrap">
+                    <svg class="exo-ico"><use href="#exo-<%= item.icon %>"></use></svg>
+                </span>
+                <span class="exo-rail-label"><%= item.label %></span>
             </a>
         <% }) %>
     </nav>
-
-    <div class="executor-side-footer">
-        <a class="executor-side-link" href="/executor-portal/logout">
-            <i class="fa-solid fa-arrow-right-from-bracket"></i>
-            <span>تسجيل الخروج</span>
-        </a>
-    </div>
+    <a class="exo-rail-link is-exit" href="/executor-portal/logout" title="خروج">
+        <span class="exo-ico-wrap">
+            <svg class="exo-ico"><use href="#exo-logout"></use></svg>
+        </span>
+        <span class="exo-rail-label">خروج</span>
+    </a>
 </aside>
 
-<nav class="executor-mobile-nav" aria-label="التنقل على الهاتف">
+<nav class="exo-dock" aria-label="التنقل على الهاتف">
     <% navItems.forEach((item) => { %>
-        <a class="executor-mobile-link <%= currentPage === item.key ? 'is-active' : '' %>" href="<%= item.href %>" <%= currentPage === item.key ? 'aria-current="page"' : '' %>>
-            <i class="fa-solid <%= item.icon %>"></i>
+        <a class="exo-dock-link <%= currentPage === item.key ? 'is-active' : '' %>" href="<%= item.href %>" <%= currentPage === item.key ? 'aria-current="page"' : '' %>>
+            <span class="exo-ico-wrap">
+                <svg class="exo-ico"><use href="#exo-<%= item.icon %>"></use></svg>
+            </span>
             <span><%= item.label %></span>
         </a>
     <% }) %>

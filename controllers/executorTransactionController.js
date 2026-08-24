@@ -601,3 +601,52 @@ exports.executeViaZaynPay = async (req, res) => {
         res.json({ success: false, error: e.message });
     }
 };
+
+
+exports.postRateExecutor = async (req, res) => {
+    try {
+        const tx = await Transaction.findById(req.params.id);
+        if (!tx) return res.status(404).json({ success: false, error: 'العملية غير موجودة.' });
+        const emp = req.executorEmployee || await Employee.findById(req.session.executorId);
+        if (!emp) return res.status(401).json({ success: false, error: 'Unauthorized' });
+        const employeeGroupId = objectIdString(emp.groupId);
+        const ownsExecutorTask = objectIdString(tx.executorGroupId) === employeeGroupId;
+        const ownsManagerTask = objectIdString(tx.managerGroupId) === employeeGroupId;
+        if (!ownsExecutorTask && !ownsManagerTask) return res.status(403).json({ success: false, error: 'Forbidden' });
+        const { rating, note } = req.body;
+        if (!Number.isFinite(Number(rating)) || Number(rating) < 1 || Number(rating) > 5) {
+            return res.status(400).json({ success: false, error: 'التقييم يجب أن يكون بين 1 و 5.' });
+        }
+        tx.executorRating = Number(rating);
+        tx.executorRatingNote = String(note || '').trim() || null;
+        tx.executorRatedAt = new Date();
+        await tx.save();
+        return res.json({ success: true, rating: tx.executorRating });
+    } catch (e) {
+        console.error(e);
+        return res.status(500).json({ success: false, error: 'تعذر حفظ التقييم.' });
+    }
+};
+
+exports.postVoiceNote = async (req, res) => {
+    try {
+        const tx = await Transaction.findById(req.params.id);
+        if (!tx) return res.status(404).json({ success: false, error: 'العملية غير موجودة.' });
+        const emp = req.executorEmployee || await Employee.findById(req.session.executorId);
+        if (!emp) return res.status(401).json({ success: false, error: 'Unauthorized' });
+        const employeeGroupId = objectIdString(emp.groupId);
+        const ownsExecutorTask = objectIdString(tx.executorGroupId) === employeeGroupId;
+        const ownsManagerTask = objectIdString(tx.managerGroupId) === employeeGroupId;
+        if (!ownsExecutorTask && !ownsManagerTask) return res.status(403).json({ success: false, error: 'Forbidden' });
+        const { base64 } = req.body;
+        if (!base64 || !base64.startsWith('data:audio/')) {
+            return res.status(400).json({ success: false, error: 'ملاحظة صوتية غير صالحة.' });
+        }
+        tx.voiceNote = String(base64);
+        await tx.save();
+        return res.json({ success: true });
+    } catch (e) {
+        console.error(e);
+        return res.status(500).json({ success: false, error: 'تعذر حفظ الملاحظة الصوتية.' });
+    }
+};

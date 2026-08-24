@@ -8,7 +8,7 @@
     <title>منصة التنفيذ | الأهرام</title>
     
     <script>
-        const savedTheme = localStorage.getItem('ahram_theme') || 'dark';
+        const savedTheme = localStorage.getItem('ahram_theme') || 'light';
         document.documentElement.setAttribute('data-theme', savedTheme);
         document.documentElement.setAttribute('data-bs-theme', savedTheme);
     </script>
@@ -307,9 +307,10 @@
         [data-theme="dark"] .swal2-input, [data-theme="dark"] .swal2-textarea { background: rgba(255,255,255,0.04) !important; }
     </style>
     <link rel="stylesheet" href="/css/brand-ui.css?v=20260804-brand1">
-    <link rel="stylesheet" href="/css/executor-workspace.css?v=20260819-1">
+    <link rel="stylesheet" href="/css/executor-workspace.css?v=20260824-2030">
+    <link rel="stylesheet" href="/css/executor-2030-override.css?v=20260824-2030">
 </head>
-<body class="executor-portal-v2">
+<body class="executor-portal-v2 executor-page-dashboard">
 
 <%- include('partials/navigation', { emp, activePage: 'tasks' }) %>
 
@@ -343,20 +344,41 @@
 </nav>
 
 <div class="container-fluid px-3 px-md-4 mt-2 mb-5">
-    <!-- 📡 قسم الرادار -->
     <div id="radarSection">
-    <div class="radar-box mb-4 px-2">
-        <div class="pulse-dot"></div>
-        <h4 class="fw-bold m-0" style="color: var(--text-main);">الرادار <span class="fs-6 fw-normal text-muted ms-1">(نظام الطابور)</span></h4>
-    </div>
-    <% if (emp.role === 'manager') { %>
-    <div class="d-flex align-items-center justify-content-between gap-3 mb-4 p-3" style="background: var(--executor-surface); border: 1px solid var(--executor-line); border-radius: 8px;">
-        <div><div class="fw-bold" style="color: var(--text-main);"><i class="fa-solid fa-route text-primary me-2"></i>توزيع المهام</div><div class="small text-muted mt-1">يتم ضبط التوجيه اليدوي واختيار نمط توزيع العمليات من صفحة الإعدادات.</div></div>
-        <a href="/executor-portal/settings" class="btn btn-outline-primary fw-bold rounded-3 px-3"><i class="fa-solid fa-sliders me-1"></i> الإعدادات</a>
-    </div>
-    <% } %>
-    
-    <div id="tasksList" class="row g-3 g-xl-4"></div>
+        <header class="executor-live-heading">
+            <div>
+                <h1>غرفة التنفيذ</h1>
+                <p>تصل المهام الجديدة فورًا، ويظهر رقم المستلم كاملًا بعد قبول المهمة.</p>
+            </div>
+            <div class="d-flex align-items-center gap-2">
+                <% if (emp.role === 'manager') { %>
+                    <a href="/executor-portal/settings" class="nav-btn" title="إعدادات توزيع المهام"><i class="fa-solid fa-route"></i><span class="d-none d-md-inline"> التوجيه</span></a>
+                <% } %>
+                <span class="executor-live-status"><i></i> المراقبة نشطة</span>
+            </div>
+        </header>
+
+        <div class="executor-task-layout">
+            <section class="executor-task-stage">
+                <div id="tasksList" class="row g-3"></div>
+            </section>
+
+            <aside class="executor-monitor-rail" aria-label="مراقبة غرفة العمليات">
+                <section class="executor-monitor-panel">
+                    <div>
+                        <div class="executor-monitor-visual"><img src="/images/executor-3d-alert.png" alt="رادار مراقبة العمليات"></div>
+                        <strong>الرادار يعمل</strong>
+                        <small>متصل بغرفة العمليات لحظة بلحظة</small>
+                    </div>
+                </section>
+                <section class="executor-day-panel">
+                    <h2>ملخص اليوم</h2>
+                    <div class="executor-day-stat"><span>تم التنفيذ</span><strong id="monitorCompletedCount">0</strong></div>
+                    <div class="executor-day-stat"><span>إجمالي القيمة</span><strong id="monitorCompletedAmount">0 ج.م</strong></div>
+                    <div class="executor-day-stat"><span>قيد التنفيذ</span><strong id="monitorActiveCount" class="is-live">0</strong></div>
+                </section>
+            </aside>
+        </div>
     </div>
 
     <!-- 👤 قسم حسابي -->
@@ -553,7 +575,7 @@
         document.getElementById('themeIcon').className = newTheme === 'dark' ? 'fa-solid fa-sun text-warning' : 'fa-solid fa-moon text-dark';
     }
     document.addEventListener('DOMContentLoaded', () => {
-        const theme = localStorage.getItem('ahram_theme') || 'dark';
+        const theme = localStorage.getItem('ahram_theme') || 'light';
         document.getElementById('themeIcon').className = theme === 'dark' ? 'fa-solid fa-sun text-warning' : 'fa-solid fa-moon text-dark';
     });
 
@@ -829,6 +851,21 @@
                     `;
                 }
             }
+
+            const monitorSummary = data.completedTodaySummary || {};
+            const monitorCount = Number.isFinite(Number(monitorSummary.count))
+                ? Number(monitorSummary.count)
+                : (Array.isArray(data.completedToday) ? data.completedToday.length : 0);
+            const monitorAmount = Number.isFinite(Number(monitorSummary.amount)) ? Number(monitorSummary.amount) : 0;
+            const monitorActive = Array.isArray(data.tasks)
+                ? data.tasks.filter((task) => task.status === 'accepted').length
+                : 0;
+            const monitorCountEl = document.getElementById('monitorCompletedCount');
+            const monitorAmountEl = document.getElementById('monitorCompletedAmount');
+            const monitorActiveEl = document.getElementById('monitorActiveCount');
+            if (monitorCountEl) monitorCountEl.textContent = monitorCount.toLocaleString('en-US');
+            if (monitorAmountEl) monitorAmountEl.textContent = monitorAmount.toLocaleString('en-US', { maximumFractionDigits: 0 }) + ' ج.م';
+            if (monitorActiveEl) monitorActiveEl.textContent = monitorActive.toLocaleString('en-US');
             
             // 🚨 الطوارئ الذكية: تحديد إذا كان الموظف مشغولاً أم لا
             const amIBusy = data.tasks.some(t => t.operatorId === myExecutorId && t.status === 'accepted');
@@ -907,8 +944,10 @@
                     let badgeClass = isMine ? 'badge-mine' : (acceptedByOther ? 'badge-locked' : 'badge-pending');
                     let badgeText = isMine ? '<i class="fa-solid fa-bolt me-1"></i> معك' : (acceptedByOther ? '<i class="fa-solid fa-lock me-1"></i> لزميل' : '<i class="fa-solid fa-circle-dot fa-fade me-1"></i> متاح');
 
-                    let typeLabel = t.transferType === 'post_account' ? '<i class="fa-solid fa-envelope text-warning"></i> بريد' : 
-                                   (t.transferType === 'post_card' ? '<i class="fa-solid fa-id-card text-info"></i> بطاقة' : '<i class="fa-solid fa-mobile-screen text-danger"></i> كاش');
+                    const taskTypeName = t.transferType === 'post_account' ? 'تحويل بريد حساب' :
+                        (t.transferType === 'post_card' ? 'تحويل بريد بطاقة' : 'تحويل محفظة كاش');
+                    const taskTypeIcon = t.transferType === 'post_account' ? 'fa-envelope' :
+                        (t.transferType === 'post_card' ? 'fa-id-card' : 'fa-mobile-screen-button');
 
                     let displayNote = t.notes || '';
                     displayNote = displayNote.split('--- سجل الـ API')[0].trim();
@@ -922,38 +961,41 @@
 
                     const taskArrivalAt = t.executorReceivedAt || t.createdAt;
                     html += `
-                        <div class="col-12 col-md-6 col-lg-4 col-xl-3">
+                        <div class="col-12 col-xxl-6">
                             <div class="task-card ${cardClass}">
-                                <div>
+                                <div class="executor-task-card-body">
                                     <div class="task-header">
+                                        <div class="executor-task-title">
+                                            <div class="executor-task-icon"><i class="fa-solid ${taskTypeIcon}"></i></div>
+                                            <div><h2>${taskTypeName}</h2><span>#${escapeTaskHtml(t.customId)}</span></div>
+                                        </div>
                                         <span class="cyber-badge ${badgeClass}">${badgeText}</span>
-                                        <span class="task-id">#${escapeTaskHtml(t.customId)}</span>
-                                    </div>
-                                    
-                                    <div class="mb-3 d-flex justify-content-between align-items-center p-2 rounded-3" style="background: rgba(128,128,128,0.05); border: 1px solid var(--glass-border);">
-                                        <span class="data-label m-0"><i class="fa-solid fa-stopwatch text-warning me-1"></i> وقت الانتظار:</span>
-                                        <span class="fw-bold fs-5 live-timer" data-time="${taskArrivalAt}" style="color: var(--text-main); font-family: monospace;">0s</span>
                                     </div>
 
-                                    <div class="mb-2">
-                                        <span class="data-label">${typeLabel} ${recipientLabel}</span>
+                                    <div class="executor-task-data">
+                                      <div class="executor-task-data-cell">
+                                        <span class="data-label">${recipientLabel}</span>
                                         <div class="copy-box" ${recipientIsVisible ? `onclick="copyText(decodeURIComponent('${encodedRecipient}'), this)"` : ''}>
                                             <span class="copy-val" dir="ltr">${escapeTaskHtml(recipientDisplay)}</span>
                                             <i class="fa-solid ${recipientIsVisible ? 'fa-copy' : 'fa-lock'} copy-icon"></i>
                                         </div>
-                                        ${recipientIsVisible ? '' : '<div class="small text-muted fw-bold mt-1"><i class="fa-solid fa-shield-halved me-1"></i> يظهر الرقم كاملاً بعد قبول المهمة للمنفذ الذي سحبها فقط.</div>'}
-                                    </div>
-
-                                    <div class="mb-3">
-                                        <span class="data-label">المبلغ المطلوب (EGP):</span>
-                                        <div class="copy-box" onclick="copyText('${t.amount}', this)" style="border-color: rgba(16, 185, 129, 0.3);">
+                                      </div>
+                                      <div class="executor-task-data-cell">
+                                        <span class="data-label">القيمة المطلوبة</span>
+                                        <div class="copy-box" onclick="copyText('${t.amount}', this)">
                                             <span class="copy-val amount">${formattedAmount} <small>ج.م</small></span>
-                                            <i class="fa-solid fa-sack-dollar copy-icon" style="color: var(--accent-green);"></i>
+                                            <i class="fa-regular fa-copy copy-icon"></i>
                                         </div>
+                                      </div>
+                                      <div class="executor-task-data-cell">
+                                        <span class="data-label">وقت الانتظار</span>
+                                        <span class="live-timer" data-time="${taskArrivalAt}">0s</span>
+                                      </div>
                                     </div>
 
                                     ${safeDisplayNote ? `<div class="tx-notes"><i class="fa-solid fa-comment-dots me-1 opacity-50"></i> ${safeDisplayNote}</div>` : ''}
                                     ${safeAccountName && t.transferType !== 'vodafone' ? `<div class="tx-beneficiary"><i class="fa-solid fa-user me-1 opacity-50"></i> ${safeAccountName}</div>` : ''}
+                                    ${recipientIsVisible ? '' : '<div class="executor-task-privacy"><i class="fa-solid fa-shield-halved"></i><span>يظهر الرقم كاملًا بعد قبول المهمة للمنفذ الذي سحبها فقط.</span></div>'}
                                 </div>
                                 
                                 <div class="action-zone border-0">
@@ -972,7 +1014,7 @@
                             </div>
                         </div>`;
                 });
-                container.innerHTML = html || '<div class="col-12"><div class="empty-state"><i class="fa-solid fa-satellite-dish"></i><p>الرادار هادئ... في انتظار طلبات جديدة</p></div></div>';
+                container.innerHTML = html || `<div class="col-12"><div class="executor-empty-state-live"><div><img src="/images/executor-3d-alert.png" alt="في انتظار عمليات جديدة"><h2>غرفة العمليات هادئة</h2><p>سيظهر الطلب هنا فور وصول عملية جديدة.</p></div></div></div>`;
             }
         } catch(e) {
         } finally {

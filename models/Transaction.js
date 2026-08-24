@@ -157,6 +157,14 @@ const transactionSchema = new mongoose.Schema({
     oldReceiptImage: { type: String },
     resolutionImage: { type: String },
 
+    // ⭐ تقييم أداء المنفذ بعد إتمام العملية (1-5 نجوم)
+    executorRating: { type: Number, min: 1, max: 5, default: null },
+    executorRatingNote: { type: String, trim: true, default: null },
+    executorRatedAt: { type: Date, default: null },
+
+    // 🎙️ ملاحظة صوتية مرفقة بالعملية
+    voiceNote: { type: String, default: null },
+
     // Multi-tenant
     tenantId: { type: mongoose.Schema.Types.ObjectId, ref: 'Tenant' }
 }, { 

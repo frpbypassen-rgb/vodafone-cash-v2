@@ -1267,7 +1267,7 @@ async function getExecutorReports({ executorId, dateType, dateValue, dateFrom, d
     const currentTransactions = await findReportTransactions(
         { ...baseQuery, createdAt: { $gte: start, $lte: end } },
         {
-            select: '+executorExecutionNumber +executorSenderEntries',
+            select: '+executorExecutionNumber +executorSenderEntries +executorProofImages',
             sort: { createdAt: -1 }
         }
     );

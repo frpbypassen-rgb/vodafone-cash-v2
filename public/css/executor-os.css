@@ -1,0 +1,702 @@
+/* Executor OS 2030 — spatial shell + kinetic SVG icons */
+:root {
+    --exo-bg: #071018;
+    --exo-panel: rgba(12, 28, 42, 0.78);
+    --exo-solid: #102434;
+    --exo-ink: #f4f8fb;
+    --exo-muted: #8aa0b5;
+    --exo-line: rgba(130, 188, 220, 0.16);
+    --exo-cyan: #3ee8c8;
+    --exo-blue: #5b9dff;
+    --exo-gold: #f0c14d;
+    --exo-red: #ff6b7a;
+    --exo-radius: 22px;
+    --exo-rail: 92px;
+    --exo-ease: cubic-bezier(.22, 1, .36, 1);
+    --executor-canvas: var(--exo-bg);
+    --executor-surface: var(--exo-solid);
+    --executor-surface-soft: #163044;
+    --executor-ink: var(--exo-ink);
+    --executor-muted: var(--exo-muted);
+    --executor-line: var(--exo-line);
+    --executor-blue: var(--exo-blue);
+    --executor-gold: var(--exo-gold);
+    --executor-green: var(--exo-cyan);
+    --executor-red: var(--exo-red);
+    --executor-navy: var(--exo-ink);
+    --executor-shadow: 0 18px 50px rgba(0, 0, 0, 0.28);
+}
+
+[data-theme="light"] {
+    --exo-bg: #e7eef6;
+    --exo-panel: rgba(255, 255, 255, 0.82);
+    --exo-solid: #ffffff;
+    --exo-ink: #0c1b2c;
+    --exo-muted: #5d7388;
+    --exo-line: rgba(20, 50, 80, 0.1);
+    --exo-cyan: #0e9b86;
+    --exo-blue: #1b6fe8;
+    --exo-gold: #c79220;
+    --exo-red: #dc4d5d;
+    --executor-surface-soft: #f3f7fb;
+    --executor-shadow: 0 18px 40px rgba(16, 42, 67, 0.1);
+}
+
+.exo-sprite {
+    position: absolute;
+    width: 0;
+    height: 0;
+    overflow: hidden;
+}
+
+body.executor-os {
+    min-height: 100vh;
+    margin: 0;
+    padding: 18px var(--exo-rail) 28px 22px !important;
+    overflow-x: hidden;
+    color: var(--exo-ink);
+    background:
+        radial-gradient(900px 480px at 12% -10%, rgba(62, 232, 200, 0.16), transparent 55%),
+        radial-gradient(700px 420px at 92% 8%, rgba(91, 157, 255, 0.18), transparent 50%),
+        radial-gradient(600px 400px at 70% 110%, rgba(240, 193, 77, 0.1), transparent 46%),
+        var(--exo-bg) !important;
+    font-family: 'Tajawal', sans-serif;
+}
+
+body.executor-os::before {
+    content: "";
+    position: fixed;
+    inset: 0 var(--exo-rail) 0 0;
+    z-index: -1;
+    pointer-events: none;
+    background-image:
+        linear-gradient(rgba(255, 255, 255, 0.03) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
+    background-size: 56px 56px;
+    mask-image: radial-gradient(circle at 50% 30%, #000 40%, transparent 100%);
+}
+
+[data-theme="light"] body.executor-os::before {
+    background-image:
+        linear-gradient(rgba(12, 40, 70, 0.04) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(12, 40, 70, 0.04) 1px, transparent 1px);
+}
+
+.exo-ico {
+    width: 22px;
+    height: 22px;
+    display: block;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.8;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+
+.exo-ico use {
+    pointer-events: none;
+}
+
+.exo-ico-wrap {
+    position: relative;
+    width: 44px;
+    height: 44px;
+    display: grid;
+    place-items: center;
+    border-radius: 16px;
+    background: rgba(255, 255, 255, 0.04);
+    overflow: hidden;
+}
+
+.exo-rail-link.is-active .exo-ico-wrap,
+.exo-dock-link.is-active .exo-ico-wrap {
+    color: #062018;
+    background: linear-gradient(160deg, var(--exo-cyan), #7cf0d8);
+    box-shadow: 0 10px 24px rgba(62, 232, 200, 0.28);
+}
+
+.exo-rail-link.is-active .exo-ico,
+.exo-dock-link.is-active .exo-ico {
+    animation: exoIcoPulse 1.8s var(--exo-ease) infinite;
+}
+
+.exo-ico-wrap::after {
+    content: "";
+    position: absolute;
+    inset: 6px;
+    border-radius: inherit;
+    border: 1px solid transparent;
+}
+
+.exo-rail-link.is-active .exo-ico-wrap::after,
+.exo-dock-link.is-active .exo-ico-wrap::after {
+    border-color: rgba(255, 255, 255, 0.35);
+    animation: exoRing 2.2s ease-out infinite;
+}
+
+@keyframes exoIcoPulse {
+    0%, 100% { transform: translateY(0) scale(1); }
+    50% { transform: translateY(-2px) scale(1.08); }
+}
+
+@keyframes exoRing {
+    0% { transform: scale(0.72); opacity: 0.7; }
+    100% { transform: scale(1.45); opacity: 0; }
+}
+
+@keyframes exoOrbit {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+
+@keyframes exoFloat {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-8px); }
+}
+
+@keyframes exoRise {
+    from { opacity: 0; transform: translateY(16px) scale(0.98); }
+    to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.exo-rail {
+    position: fixed;
+    z-index: 1400;
+    inset: 14px 12px 14px auto;
+    width: 72px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+    padding: 12px 8px;
+    border: 1px solid var(--exo-line);
+    border-radius: 28px;
+    background: var(--exo-panel);
+    box-shadow: 0 20px 50px rgba(0, 0, 0, 0.28);
+}
+
+.exo-rail-brand {
+    width: 48px;
+    height: 48px;
+    position: relative;
+    display: grid;
+    place-items: center;
+    border-radius: 18px;
+    overflow: hidden;
+    border: 1px solid var(--exo-line);
+}
+
+.exo-rail-brand img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.exo-rail-brand span {
+    position: absolute;
+    inset: auto 4px 4px auto;
+    font-size: 0.55rem;
+    font-weight: 900;
+    color: #fff;
+    text-shadow: 0 1px 4px #000;
+}
+
+.exo-rail-live {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: var(--exo-cyan);
+    box-shadow: 0 0 0 6px rgba(62, 232, 200, 0.12);
+    animation: exoIcoPulse 1.6s ease-in-out infinite;
+}
+
+.exo-rail-links {
+    display: grid;
+    gap: 8px;
+    flex: 1;
+}
+
+.exo-rail-link {
+    display: grid;
+    justify-items: center;
+    gap: 4px;
+    color: var(--exo-muted);
+    text-decoration: none;
+}
+
+.exo-rail-label {
+    font-size: 0.58rem;
+    font-weight: 800;
+}
+
+.exo-rail-link.is-exit { margin-top: auto; color: var(--exo-red); }
+.exo-rail-link.is-exit .exo-ico-wrap { background: rgba(255, 107, 122, 0.1); }
+
+.exo-dock { display: none; }
+
+.exo-command {
+    min-height: 72px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 18px;
+    padding: 10px 14px;
+    border: 1px solid var(--exo-line);
+    border-radius: 24px;
+    background: var(--exo-panel);
+    animation: exoRise 420ms var(--exo-ease) both;
+}
+
+.exo-who {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-width: 0;
+}
+
+.exo-avatar {
+    width: 44px;
+    height: 44px;
+    display: grid;
+    place-items: center;
+    border-radius: 16px;
+    color: #062018;
+    background: linear-gradient(160deg, var(--exo-gold), #ffe08a);
+    font-weight: 900;
+    animation: exoIcoPulse 3s ease-in-out infinite;
+}
+
+.exo-who strong,
+.exo-who small { display: block; }
+.exo-who strong { font-size: 0.95rem; }
+.exo-who small { color: var(--exo-muted); font-size: 0.72rem; font-weight: 700; }
+
+.exo-command-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.exo-chip,
+.exo-icon-btn {
+    min-height: 42px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 7px;
+    border: 1px solid var(--exo-line);
+    border-radius: 14px;
+    color: var(--exo-ink);
+    background: rgba(255, 255, 255, 0.04);
+    text-decoration: none;
+    font-weight: 800;
+    font-size: 0.8rem;
+}
+
+.exo-chip { padding: 0 12px; }
+.exo-icon-btn { width: 42px; cursor: pointer; }
+.exo-icon-btn.is-danger { color: var(--exo-red); }
+
+.exo-stage { width: min(1320px, 100%); margin-inline: auto; }
+
+.exo-hero {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 16px;
+    margin-bottom: 18px;
+}
+
+.exo-kicker {
+    margin: 0 0 6px;
+    color: var(--exo-cyan);
+    font-size: 0.72rem;
+    font-weight: 900;
+    letter-spacing: 0.12em;
+}
+
+.exo-hero h1 {
+    margin: 0;
+    font-size: clamp(1.5rem, 3vw, 2.2rem);
+    font-weight: 900;
+    line-height: 1.2;
+}
+
+.exo-hero p {
+    margin: 6px 0 0;
+    color: var(--exo-muted);
+    font-size: 0.86rem;
+    max-width: 36rem;
+}
+
+.exo-live-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    min-height: 44px;
+    padding: 8px 14px;
+    border: 1px solid color-mix(in srgb, var(--exo-cyan) 35%, transparent);
+    border-radius: 999px;
+    color: var(--exo-cyan);
+    background: color-mix(in srgb, var(--exo-cyan) 10%, transparent);
+    font-size: 0.75rem;
+    font-weight: 900;
+    white-space: nowrap;
+}
+
+.exo-orb {
+    width: 14px;
+    height: 14px;
+    position: relative;
+    border-radius: 50%;
+    background: var(--exo-cyan);
+    box-shadow: 0 0 16px var(--exo-cyan);
+}
+
+.exo-orb::before,
+.exo-orb::after {
+    content: "";
+    position: absolute;
+    inset: -7px;
+    border: 1px solid var(--exo-cyan);
+    border-radius: 50%;
+    animation: exoRing 2s linear infinite;
+}
+
+.exo-orb::after { animation-delay: 1s; inset: -13px; }
+
+.exo-bento {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 250px;
+    gap: 16px;
+    align-items: start;
+}
+
+.exo-task-stream {
+    display: grid;
+    gap: 14px;
+}
+
+.exo-intel {
+    display: grid;
+    gap: 12px;
+    position: sticky;
+    top: 18px;
+}
+
+.exo-panel {
+    padding: 16px;
+    border: 1px solid var(--exo-line);
+    border-radius: var(--exo-radius);
+    background: var(--exo-panel);
+    box-shadow: var(--executor-shadow);
+}
+
+.exo-radar {
+    min-height: 210px;
+    display: grid;
+    place-items: center;
+    text-align: center;
+}
+
+.exo-radar-core {
+    width: 118px;
+    height: 118px;
+    position: relative;
+    display: grid;
+    place-items: center;
+    margin: 0 auto 10px;
+}
+
+.exo-radar-core i {
+    z-index: 2;
+    color: var(--exo-cyan);
+    font-size: 2rem;
+    animation: exoFloat 3.2s ease-in-out infinite;
+}
+
+.exo-radar-core span {
+    position: absolute;
+    inset: 0;
+    border: 1px solid color-mix(in srgb, var(--exo-cyan) 35%, transparent);
+    border-radius: 50%;
+    animation: exoRing 2.6s ease-out infinite;
+}
+
+.exo-radar-core span:nth-child(2) { animation-delay: 0.8s; }
+.exo-radar-core span:nth-child(3) { inset: 16px; animation-delay: 1.6s; }
+
+.exo-stat {
+    display: flex;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 10px 0;
+    border-top: 1px solid var(--exo-line);
+    color: var(--exo-muted);
+    font-size: 0.78rem;
+    font-weight: 700;
+}
+
+.exo-stat:first-of-type { border-top: 0; }
+.exo-stat strong { color: var(--exo-ink); font-size: 1rem; }
+.exo-stat strong.is-live { color: var(--exo-cyan); }
+
+body.executor-os .task-card {
+    display: flex;
+    flex-direction: column;
+    padding: 0;
+    overflow: hidden;
+    border: 1px solid var(--exo-line);
+    border-radius: var(--exo-radius);
+    background: var(--exo-panel);
+    box-shadow: var(--executor-shadow);
+    animation: exoRise 480ms var(--exo-ease) both;
+    backdrop-filter: none;
+}
+
+body.executor-os .task-card::before {
+    inset: 0 0 auto;
+    width: 100%;
+    height: 3px;
+    border-radius: 0;
+    background: linear-gradient(90deg, var(--exo-cyan), var(--exo-blue), var(--exo-gold));
+}
+
+body.executor-os .task-card:hover {
+    transform: translateY(-4px);
+    border-color: color-mix(in srgb, var(--exo-cyan) 40%, var(--exo-line));
+}
+
+body.executor-os .executor-task-card-body { padding: 18px; }
+body.executor-os .action-zone { padding: 0 18px 18px; border: 0; }
+
+body.executor-os .executor-task-icon {
+    width: 48px;
+    height: 48px;
+    border-radius: 16px;
+    color: var(--exo-blue);
+    background: color-mix(in srgb, var(--exo-blue) 14%, transparent);
+    border: 1px solid color-mix(in srgb, var(--exo-blue) 22%, transparent);
+    animation: exoIcoPulse 2.6s ease-in-out infinite;
+}
+
+body.executor-os .task-card.task-pending .executor-task-icon {
+    color: var(--exo-gold);
+    background: color-mix(in srgb, var(--exo-gold) 14%, transparent);
+}
+
+body.executor-os .task-card.task-mine .executor-task-icon {
+    color: var(--exo-cyan);
+    background: color-mix(in srgb, var(--exo-cyan) 14%, transparent);
+}
+
+body.executor-os .executor-task-data {
+    border-color: var(--exo-line);
+    border-radius: 16px;
+    background: rgba(255, 255, 255, 0.03);
+}
+
+body.executor-os .btn-accept-start,
+body.executor-os .btn-cyber-main {
+    min-height: 50px;
+    border-radius: 16px;
+    font-weight: 900;
+}
+
+body.executor-os .btn-accept-start { background: linear-gradient(135deg, var(--exo-blue), #3a78ff); }
+body.executor-os .btn-cyber-main { background: linear-gradient(135deg, var(--exo-cyan), #19c3a6); color: #05241c; }
+body.executor-os .btn-cyber-sub { min-height: 44px; border-radius: 14px; }
+
+body.executor-os .btn-accept-start i,
+body.executor-os .btn-cyber-main i {
+    animation: exoIcoPulse 1.4s ease-in-out infinite;
+}
+
+.exo-empty {
+    min-height: 420px;
+    display: grid;
+    place-items: center;
+    text-align: center;
+    border: 1px dashed var(--exo-line);
+    border-radius: var(--exo-radius);
+    background: var(--exo-panel);
+}
+
+.exo-empty .exo-radar-core { margin-bottom: 16px; }
+
+body.executor-os .navbar-glass,
+body.executor-os .executor-side-nav,
+body.executor-os .executor-mobile-nav,
+body.executor-os .bottom-nav-mobile,
+body.executor-os .support-topbar,
+body.executor-os .settings-topbar {
+    display: none !important;
+}
+
+body.executor-os .container-fluid,
+body.executor-os .settings-container,
+body.executor-os .support-container {
+    width: min(1320px, 100%);
+    margin-inline: auto;
+}
+
+body.executor-os .page-card,
+body.executor-os .card-glass,
+body.executor-os .workspace-panel,
+body.executor-os .support-workspace,
+body.executor-os .stat-card {
+    border: 1px solid var(--exo-line) !important;
+    border-radius: var(--exo-radius) !important;
+    background: var(--exo-panel) !important;
+    box-shadow: var(--executor-shadow);
+    color: var(--exo-ink);
+}
+
+body.executor-os .executor-page-heading h1,
+body.executor-os .executor-live-heading h1 { color: var(--exo-ink); }
+body.executor-os .form-control,
+body.executor-os .form-select,
+body.executor-os .input-group-text {
+    color: var(--exo-ink);
+    background: rgba(255, 255, 255, 0.04);
+    border-color: var(--exo-line);
+    border-radius: 14px;
+}
+
+body.executor-os.executor-page-support .support-topbar,
+body.executor-os.executor-page-settings .settings-topbar { display: none !important; }
+
+.executor-login-os {
+    min-height: 100vh;
+    display: grid;
+    place-items: center;
+    padding: 24px;
+}
+
+.executor-login-os .exo-login {
+    width: min(440px, 100%);
+    padding: 28px 24px;
+    border: 1px solid var(--exo-line);
+    border-radius: 28px;
+    background: var(--exo-panel);
+    box-shadow: var(--executor-shadow);
+    animation: exoRise 500ms var(--exo-ease) both;
+}
+
+.exo-login-mark {
+    width: 72px;
+    height: 72px;
+    display: grid;
+    place-items: center;
+    margin: 0 auto 16px;
+    border-radius: 24px;
+    color: var(--exo-cyan);
+    background: color-mix(in srgb, var(--exo-cyan) 12%, transparent);
+    border: 1px solid color-mix(in srgb, var(--exo-cyan) 28%, transparent);
+}
+
+.exo-login-mark i { font-size: 1.8rem; animation: exoFloat 3s ease-in-out infinite; }
+.exo-login h1 { margin: 0; text-align: center; font-size: 1.4rem; }
+.exo-login p { margin: 6px 0 22px; text-align: center; color: var(--exo-muted); }
+.executor-login-os .form-control {
+    min-height: 48px;
+    margin-top: 6px;
+    border-radius: 14px;
+    border: 1px solid var(--exo-line);
+    background: rgba(255,255,255,0.04);
+    color: var(--exo-ink);
+}
+.executor-login-os .form-label {
+    color: var(--exo-muted);
+    font-weight: 800;
+    font-size: 0.78rem;
+}
+.exo-login .btn-login {
+    min-height: 50px;
+    width: 100%;
+    border: 0;
+    border-radius: 16px;
+    color: #05241c;
+    background: linear-gradient(135deg, var(--exo-cyan), #7cf0d8);
+    font-weight: 900;
+}
+
+@media (max-width: 1100px) {
+    .exo-bento { grid-template-columns: 1fr; }
+    .exo-intel { position: static; grid-template-columns: 1fr 1fr; }
+}
+
+@media (max-width: 767.98px) {
+    :root { --exo-rail: 0px; }
+    body.executor-os {
+        padding: 76px 12px 96px !important;
+    }
+    body.executor-os::before { inset: 0; }
+    .exo-rail { display: none; }
+    .exo-dock {
+        position: fixed;
+        z-index: 1500;
+        right: 12px;
+        bottom: max(10px, env(safe-area-inset-bottom));
+        left: 12px;
+        min-height: 72px;
+        display: grid;
+        grid-auto-flow: column;
+        grid-auto-columns: minmax(0, 1fr);
+        align-items: center;
+        padding: 8px;
+        border: 1px solid var(--exo-line);
+        border-radius: 24px;
+        background: var(--exo-panel);
+        box-shadow: 0 18px 40px rgba(0, 0, 0, 0.28);
+    }
+    .exo-dock-link {
+        min-width: 0;
+        height: 56px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 2px;
+        color: var(--exo-muted);
+        text-decoration: none;
+        font-size: 0.58rem;
+        font-weight: 800;
+    }
+    .exo-dock-link .exo-ico-wrap {
+        width: 34px;
+        height: 34px;
+        border-radius: 12px;
+    }
+    .exo-dock-link .exo-ico { width: 18px; height: 18px; }
+    .exo-command {
+        position: fixed;
+        z-index: 1450;
+        inset: 8px 12px auto;
+        min-height: 60px;
+        margin: 0;
+        padding: 8px 10px;
+        border-radius: 20px;
+    }
+    .exo-who small,
+    .exo-chip span { display: none; }
+    .exo-chip { padding: 0 9px; font-size: 0.7rem; }
+    .exo-hero { align-items: flex-start; flex-direction: column; }
+    body.executor-os .executor-task-data { grid-template-columns: 1fr; }
+    body.executor-os .executor-task-data-cell {
+        min-height: 52px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        border-left: 0;
+        border-bottom: 1px solid var(--exo-line);
+    }
+    .exo-avatar { width: 36px; height: 36px; border-radius: 12px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .exo-ico, .exo-ico-wrap, .exo-orb, .exo-radar-core i, .exo-avatar, .exo-rail-live {
+        animation: none !important;
+    }
+}

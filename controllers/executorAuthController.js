@@ -3,6 +3,7 @@ const RegistrationRequest = require('../models/RegistrationRequest');
 const Admin = require('../models/Admin');
 const { escapeRegex, verifyAndUpgradePassword, getTodayString } = require('../utils/helpers');
 const { verifyOtp } = require('../utils/otp');
+const accountMfaService = require('../services/accountMfaService');
 const {
     ExecutorAccountError,
     normalizeExecutorPhone,
@@ -31,44 +32,88 @@ const renderExecutorRegistration = (res, { error = null, success = null, formDat
 );
 
 
+const completeExecutorLogin = async (req, res, executor, { showMfaNotice = false } = {}) => {
+    req.session.isExecutorLoggedIn = true;
+    req.session.executorId = executor._id;
+    req.session.executorGroupId = executor.groupId ? executor.groupId._id : null;
+    if (showMfaNotice) {
+        req.session.showMfaEnableNotice = true;
+    }
+    await logAction({
+        action: 'LOGIN_SUCCESS',
+        req,
+        performedById: executor._id,
+        performedByModel: 'Employee',
+        performedByName: executor.name,
+        metadata: { role: executor.role, groupId: req.session.executorGroupId, mfaEnabled: accountMfaService.isEnabled(executor) }
+    });
+    return req.session.save(() => res.redirect('/executor-portal/dashboard'));
+};
+
 exports.getLogin = (req, res) => {
     if (req.session.isExecutorLoggedIn) return res.redirect('/executor-portal/dashboard');
-    res.redirect('/login');
+    res.render('executor/login', { error: null, mfaRequired: false, mfaNotice: false, submittedUsername: '' });
 };
 
 exports.postLogin = async (req, res) => {
     try {
         const username = req.body.username?.trim();
         const password = req.body.password?.trim();
+        const mfaToken = String(req.body.mfaToken || '').trim();
+        const pendingMfaId = req.session.pendingExecutorMfaId;
+
+        if (mfaToken && pendingMfaId) {
+            const executor = await Employee.findById(pendingMfaId).populate('groupId');
+            if (!executor) {
+                delete req.session.pendingExecutorMfaId;
+                return req.session.save(() => res.render('executor/login', { error: 'انتهت جلسة الدخول، أعد المحاولة.' }));
+            }
+            const mfaAccount = await accountMfaService.loadAccount('executor', executor._id, executor.tenantId || null);
+            if (!mfaAccount || !accountMfaService.isEnabled(mfaAccount)) {
+                delete req.session.pendingExecutorMfaId;
+                return completeExecutorLogin(req, res, executor);
+            }
+            const valid = await accountMfaService.verifyAccountToken(mfaAccount, mfaToken);
+            if (!valid) {
+                return res.render('executor/login', {
+                    error: 'رمز Authenticator غير صحيح.',
+                    mfaRequired: true,
+                    submittedUsername: executor.webUsername || ''
+                });
+            }
+            delete req.session.pendingExecutorMfaId;
+            return completeExecutorLogin(req, res, executor);
+        }
 
         if (!username || !password) return res.render('executor/login', { error: 'يرجى إدخال البيانات.' });
 
         const safeUsername = escapeRegex(username);
         const usernameRegex = new RegExp('^' + safeUsername + '$', 'i');
-        const todayStr = getTodayString();
 
-        const executor = await Employee.findOne({ 
+        const executor = await Employee.findOne({
             $or: [{ webUsername: usernameRegex }, { phone: username }]
         }).populate('groupId').lean();
 
-        if (executor) {
-            const isMatch = await verifyAndUpgradePassword(password, executor.webPassword, Employee, executor._id);
+        if (!executor) return res.render('executor/login', { error: 'اسم المستخدم أو كلمة المرور غير صحيحة.' });
 
-            if (isMatch) {
-                if (executor.status !== 'active' || !executor.groupId || executor.groupId.status !== 'active') {
-                    return res.render('executor/login', { error: 'حسابك أو مجموعة التنفيذ غير مفعلة حالياً.' });
-                }
+        const isMatch = await verifyAndUpgradePassword(password, executor.webPassword, Employee, executor._id);
+        if (!isMatch) return res.render('executor/login', { error: 'اسم المستخدم أو كلمة المرور غير صحيحة.' });
 
-                // دخول مباشر بدون OTP (بعد إلغاء التيليجرام)
-                req.session.isExecutorLoggedIn = true; 
-                req.session.executorId = executor._id; 
-                req.session.executorGroupId = executor.groupId ? executor.groupId._id : null;
-                return req.session.save(() => res.redirect('/executor-portal/dashboard')); 
-            }
+        if (executor.status !== 'active' || !executor.groupId || executor.groupId.status !== 'active') {
+            return res.render('executor/login', { error: 'حسابك أو مجموعة التنفيذ غير مفعلة حالياً.' });
         }
 
-        return res.render('executor/login', { error: 'اسم المستخدم أو كلمة المرور غير صحيحة.' });
+        const mfaAccount = await accountMfaService.loadAccount('executor', executor._id, executor.tenantId || null);
+        if (mfaAccount && accountMfaService.isEnabled(mfaAccount)) {
+            req.session.pendingExecutorMfaId = String(executor._id);
+            return req.session.save(() => res.render('executor/login', {
+                error: null,
+                mfaRequired: true,
+                submittedUsername: executor.webUsername || ''
+            }));
+        }
 
+        return completeExecutorLogin(req, res, executor, { showMfaNotice: true });
     } catch (e) {
         console.error(e);
         res.render('executor/login', { error: 'حدث خطأ في النظام.' });

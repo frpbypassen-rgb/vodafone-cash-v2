@@ -6,7 +6,7 @@
     <title>إدارة الموظفين | الأهرام</title>
     
     <script>
-        const savedTheme = localStorage.getItem('ahram_theme') || 'dark';
+        const savedTheme = localStorage.getItem('ahram_theme') || 'light';
         document.documentElement.setAttribute('data-theme', savedTheme);
         document.documentElement.setAttribute('data-bs-theme', savedTheme);
     </script>
@@ -279,7 +279,8 @@
         }
     </style>
     <link rel="stylesheet" href="/css/brand-ui.css?v=20260804-brand1">
-    <link rel="stylesheet" href="/css/executor-workspace.css?v=20260819-1">
+    <link rel="stylesheet" href="/css/executor-workspace.css?v=20260824-2030">
+    <link rel="stylesheet" href="/css/executor-2030-override.css?v=20260824-2030">
 
     <!-- PWA Setup -->
     <link rel="manifest" href="/manifest.json">
@@ -289,7 +290,7 @@
     <meta name="apple-mobile-web-app-title" content="Al-Ahram">
     <!-- End PWA Setup -->
 </head>
-<body class="executor-portal-v2">
+<body class="executor-portal-v2 executor-page-employees">
 
 <%- include('partials/navigation', { emp, activePage: 'employees' }) %>
 
@@ -343,6 +344,7 @@
                     <select id="empRole" class="form-select">
                         <option value="operator">موظف تنفيذ (Operator)</option>
                         <option value="accountant">محاسب (Accountant)</option>
+                        <option value="external">موظف خارجي (External)</option>
                     </select>
                 </div>
             </div>
@@ -372,7 +374,7 @@
             <h5 class="section-title m-0"><i class="fa-solid fa-users"></i> فريق العمل (<span id="empCount">0</span>)</h5>
             <div class="d-flex gap-2 flex-grow-1 justify-content-end" style="max-width:520px">
                 <input type="search" id="employeeSearch" class="form-control" placeholder="بحث بالاسم أو الهاتف أو اسم المستخدم">
-                <select id="employeeRoleFilter" class="form-select" style="max-width:155px"><option value="">كل الوظائف</option><option value="operator">موظف تنفيذ</option><option value="accountant">محاسب</option><option value="manager">مدير</option></select>
+                <select id="employeeRoleFilter" class="form-select" style="max-width:155px"><option value="">كل الوظائف</option><option value="operator">موظف تنفيذ</option><option value="accountant">محاسب</option><option value="external">خارجي</option><option value="manager">مدير</option></select>
             </div>
         </div>
         
@@ -416,7 +418,7 @@
         document.getElementById('themeIcon').className = newTheme === 'dark' ? 'fa-solid fa-sun text-warning' : 'fa-solid fa-moon text-dark';
     }
     document.addEventListener('DOMContentLoaded', () => {
-        const theme = localStorage.getItem('ahram_theme') || 'dark';
+        const theme = localStorage.getItem('ahram_theme') || 'light';
         document.getElementById('themeIcon').className = theme === 'dark' ? 'fa-solid fa-sun text-warning' : 'fa-solid fa-moon text-dark';
         loadEmployees();
     });
@@ -491,8 +493,8 @@
 
         employees.forEach((employee) => {
             const employeeId = employee.id || employee._id;
-            const roleLabel = employee.role === 'operator' ? 'موظف تنفيذ' : (employee.role === 'accountant' ? 'محاسب' : 'مدير');
-            const roleClass = employee.role === 'operator' ? 'role-operator' : (employee.role === 'accountant' ? 'role-accountant' : 'role-manager');
+            const roleLabel = employee.role === 'operator' ? 'موظف تنفيذ' : (employee.role === 'accountant' ? 'محاسب' : (employee.role === 'external' ? 'موظف خارجي' : 'مدير'));
+            const roleClass = employee.role === 'operator' ? 'role-operator' : (employee.role === 'accountant' ? 'role-accountant' : (employee.role === 'external' ? 'role-external' : 'role-manager'));
             const statusIcon = employee.status === 'active' ? '<i class="fa-solid fa-circle-check status-active"></i> فعّال' : '<i class="fa-solid fa-circle-xmark status-suspended"></i> معلق';
             const toggleClass = employee.status === 'active' ? 'btn-toggle-active' : 'btn-toggle-suspended';
             const toggleIcon = employee.status === 'active' ? 'fa-ban' : 'fa-check';
@@ -508,10 +510,14 @@
             const performanceHtml = `<div class="d-grid gap-1"><strong>${Number(metrics.completedCount || 0)} عملية</strong><small class="text-muted">${Number(metrics.totalEGP || 0).toLocaleString('en-US', { maximumFractionDigits: 2 })} ج.م · متوسط ${employeeDuration(metrics.averageDurationSeconds)}</small></div>`;
             const encodedName = encodeURIComponent(employee.name || '');
             const encodedPhone = encodeURIComponent(employee.phone || '');
+            const externalActions = employee.role === 'external' ? `
+                <button onclick="externalTransaction('${employeeId}', '${encodedName}', 'deposit')" class="btn-action" style="color:var(--executor-green)" title="إيداع للموظف الخارجي"><i class="fa-solid fa-arrow-down"></i></button>
+                <button onclick="externalTransaction('${employeeId}', '${encodedName}', 'deduction')" class="btn-action" style="color:var(--executor-red)" title="خصم من الموظف الخارجي"><i class="fa-solid fa-arrow-up"></i></button>` : '';
             const actions = employee.role !== 'manager' ? `
                 <button onclick="editEmployee('${employeeId}', '${encodedName}', '${encodedPhone}')" class="btn-action" title="تعديل البيانات"><i class="fa-solid fa-pen"></i></button>
                 <button onclick="toggleEmployee('${employeeId}')" class="btn-action ${toggleClass}" title="${toggleTitle}"><i class="fa-solid ${toggleIcon}"></i></button>
                 <a href="/executor-portal/reports?employeeId=${employeeId}" class="btn-action" title="تقرير الموظف"><i class="fa-solid fa-chart-line"></i></a>
+                ${externalActions}
                 <button onclick="resetPassword('${employeeId}', '${encodedName}')" class="btn-action btn-reset" title="إعادة تعيين كلمة المرور"><i class="fa-solid fa-key"></i></button>
                 <button onclick="deleteEmployee('${employeeId}', '${encodedName}')" class="btn-action btn-delete" title="أرشفة"><i class="fa-solid fa-box-archive"></i></button>`
                 : '<span class="small text-muted">حساب المدير</span>';
@@ -635,6 +641,36 @@
             const data = await readExecutorApiResponse(res);
             if (data.success) Swal.fire({ icon: 'success', title: 'تم تغيير كلمة المرور', timer: 1500, showConfirmButton: false });
         }
+    }
+
+    // إيداع / خصم موظف خارجي
+    async function externalTransaction(id, encodedName, type) {
+        const name = decodeURIComponent(encodedName);
+        const title = type === 'deposit' ? 'إيداع للموظف الخارجي' : 'خصم من الموظف الخارجي';
+        const result = await Swal.fire({
+            title,
+            html: `<p class="small text-muted mb-2">الموظف: <b>${escapeEmployeeHtml(name)}</b></p><label class="form-label w-100 text-end">المبلغ (ج.م)</label><input id="extAmount" type="number" class="swal2-input m-0 mb-3 w-100" placeholder="0.00"><label class="form-label w-100 text-end">ملاحظة (اختياري)</label><input id="extNote" class="swal2-input m-0 w-100">`,
+            showCancelButton: true,
+            confirmButtonText: type === 'deposit' ? 'تسجيل إيداع' : 'تسجيل خصم',
+            cancelButtonText: 'إلغاء',
+            confirmButtonColor: type === 'deposit' ? '#10b981' : '#ef4444',
+            preConfirm: () => {
+                const amount = Number(document.getElementById('extAmount').value);
+                if (!amount || amount <= 0) return Swal.showValidationMessage('أدخل مبلغًا صحيحًا أكبر من صفر.');
+                return { amount, note: document.getElementById('extNote').value.trim() };
+            }
+        });
+        if (!result.isConfirmed) return;
+        try {
+            const res = await executorApiFetch('/executor-portal/api/employees/external-transaction/' + id, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ type, amount: result.value.amount, note: result.value.note })
+            });
+            const data = await readExecutorApiResponse(res);
+            if (data.success) Swal.fire({ icon: 'success', title: 'تم تسجيل العملية', text: `رقم العملية: ${data.customId}`, timer: 1500, showConfirmButton: false });
+            loadEmployees();
+        } catch (error) { Swal.fire('خطأ', error.message || 'تعذر تسجيل العملية', 'error'); }
     }
 
     // حذف موظف

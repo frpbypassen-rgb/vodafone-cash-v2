@@ -49,10 +49,32 @@ exports.getProxyImage = async (req, res) => {
     } catch (error) { console.error(error); res.status(500).send('Server error'); }
 };
 
+exports.getProxyExecutorImage = async (req, res) => {
+    try {
+        const tx = await Transaction.findById(req.params.id);
+        if (!tx) return res.status(404).send('Not found');
+        const emp = req.executorEmployee || await Employee.findById(req.session.executorId);
+        const employeeGroupId = objectIdString(emp?.groupId);
+        const ownsExecutorTask = objectIdString(tx.executorGroupId) === employeeGroupId;
+        const ownsManagerTask = objectIdString(tx.managerGroupId) === employeeGroupId;
+        if (!emp || (!ownsExecutorTask && !ownsManagerTask)) {
+             return res.status(403).send('Forbidden');
+        }
+        const index = req.params.index ? parseInt(req.params.index) : 0;
+        const photoId = Array.isArray(tx.executorProofImages) && tx.executorProofImages.length > index ? tx.executorProofImages[index] : null;
+        if (!photoId) return res.status(404).send('No photo');
+
+        await streamProofImage(proofSourceUrl(photoId), res);
+        return;
+    } catch (error) { console.error(error); res.status(500).send('Server error'); }
+};
+
 exports.getDashboard = async (req, res) => {
     const emp = req.executorEmployee || await Employee.findById(req.session.executorId).populate('groupId');
-    if (emp?.role === 'accountant') return res.redirect('/executor-portal/reports');
-    res.render('executor/dashboard', { emp });
+    if (emp?.role === 'accountant' || emp?.role === 'external') return res.redirect('/executor-portal/reports');
+    const showMfaNotice = Boolean(req.session.showMfaEnableNotice);
+    delete req.session.showMfaEnableNotice;
+    res.render('executor/dashboard', { emp, showMfaNotice });
 };
 
 exports.getSettings = async (req, res) => {
@@ -62,7 +84,9 @@ exports.getSettings = async (req, res) => {
             executorId: emp._id,
             tenantId: req.tenant ? req.tenant._id : null
         });
-        return res.render('executor/settings', { emp, overview });
+        const showMfaNotice = Boolean(req.session.showMfaEnableNotice);
+        delete req.session.showMfaEnableNotice;
+        return res.render('executor/settings', { emp, overview, showMfaNotice });
     } catch (_) {
         return res.redirect('/executor-portal/dashboard');
     }
@@ -86,7 +110,9 @@ exports.getOverview = async (req, res) => {
 // ===============================================
 exports.getEmployees = async (req, res) => {
     const emp = req.managerEmp || await Employee.findById(req.session.executorId).populate('groupId');
-    res.render('executor/employees', { emp });
+    const showMfaNotice = Boolean(req.session.showMfaEnableNotice);
+    delete req.session.showMfaEnableNotice;
+    res.render('executor/employees', { emp, showMfaNotice });
 };
 
 exports.getEmployeesList = async (req, res) => {
@@ -125,7 +151,7 @@ exports.postEmployeesCreate = async (req, res) => {
         if (cleanName.length < 3 || !phone || !webUsername || !webPassword) {
             return res.status(400).json({ success: false, error: 'يرجى إدخال جميع البيانات المطلوبة.' });
         }
-        if (!['operator', 'accountant'].includes(role)) {
+        if (!['operator', 'accountant', 'external'].includes(role)) {
             return res.status(400).json({ success: false, error: 'نوع الحساب غير صالح.' });
         }
         if (String(webPassword).length < 6) {
@@ -225,6 +251,46 @@ exports.postEmployeesDelete = async (req, res) => {
     } catch (error) {
         const status = error.message === 'NOT_FOUND' ? 404 : (error.message === 'FORBIDDEN' ? 403 : 400);
         return res.status(status).json({ success: false, error: 'تعذر أرشفة حساب الموظف.' });
+    }
+};
+
+exports.postExternalEmployeeTransaction = async (req, res) => {
+    try {
+        const { type, amount, note } = req.body;
+        const parsedAmount = Number(amount);
+        if (!['deposit', 'deduction'].includes(type) || !Number.isFinite(parsedAmount) || parsedAmount <= 0) {
+            return res.status(400).json({ success: false, error: 'نوع العملية أو المبلغ غير صالح.' });
+        }
+        const emp = await Employee.findById(req.params.id);
+        if (!emp) return res.status(404).json({ success: false, error: 'الموظف غير موجود.' });
+        if (!belongsToGroup(emp, req.managerEmp.groupId)) {
+            return res.status(403).json({ success: false, error: 'لا يمكن التعامل مع موظف تابع لمنفذ آخر.' });
+        }
+        if (emp.role !== 'external') {
+            return res.status(400).json({ success: false, error: 'هذا الإجراء مخصص للموظفين الخارجيين فقط.' });
+        }
+        const customId = `EXT-${Date.now().toString().slice(-8)}`;
+        await Transaction.create({
+            customId,
+            userId: 'external-employee',
+            executorGroupId: req.managerEmp.groupId,
+            managerGroupId: req.managerEmp.groupId,
+            operatorId: String(emp._id),
+            executorName: emp.name,
+            employeeName: emp.name,
+            amount: parsedAmount,
+            costLYD: 0,
+            status: type,
+            notes: note || '',
+            adminNotes: `${type === 'deposit' ? 'إيداع' : 'خصم'} موظف خارجي (${emp.name}) بواسطة المدير`,
+            companyName: 'موظف خارجي',
+            vodafoneNumber: '---',
+            transferType: 'external_balance'
+        });
+        return res.json({ success: true, customId });
+    } catch (e) {
+        console.error(e);
+        return res.status(500).json({ success: false, error: 'تعذر تسجيل العملية.' });
     }
 };
 

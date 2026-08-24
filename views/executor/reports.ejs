@@ -1,6 +1,5 @@
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
-
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
@@ -10,36 +9,27 @@
     <script src="/js/executor-api.js"></script>
 
     <script>
-        const savedTheme = localStorage.getItem('ahram_theme') || 'dark';
+        const savedTheme = localStorage.getItem('ahram_theme') || 'light';
         document.documentElement.setAttribute('data-theme', savedTheme);
         document.documentElement.setAttribute('data-bs-theme', savedTheme);
-    
+
         window.showReceiptModal = function(proofImage, proofImagesStr) {
             let images = [];
             if (proofImagesStr) images = proofImagesStr.split(',').filter(i => i.trim() !== '');
             if (proofImage && proofImage !== 'undefined' && proofImage !== 'null' && !images.includes(proofImage)) images.push(proofImage);
-            
             if (images.length === 0) return Swal.fire('تنبيه', 'لا توجد صورة إيصال متاحة لهذه العملية', 'info');
-            
             let html = '<div class="receipt-container" style="text-align: center;">';
             images.forEach(img => {
                 let src = img;
-                if (!img.startsWith('http') && !img.startsWith('data:') && img.includes('.')) {
-                    src = '/uploads/proofs/' + img;
-                }
+                if (!img.startsWith('http') && !img.startsWith('data:') && img.includes('.')) src = '/uploads/proofs/' + img;
                 html += `<img src="${src}" class="img-fluid rounded mb-3 shadow-sm border" style="max-height: 50vh; max-width: 100%; object-fit: contain;" />`;
             });
             html += '</div>';
-            
-            const mappedImages = images.map(img => {
-                if (!img.startsWith('http') && !img.startsWith('data:') && img.includes('.')) return '/uploads/proofs/' + img;
-                return img;
-            });
+            const mappedImages = images.map(img => (!img.startsWith('http') && !img.startsWith('data:') && img.includes('.')) ? '/uploads/proofs/' + img : img);
             const imagesJoined = mappedImages.join(',');
-            
             Swal.fire({
                 title: '<i class="fa-solid fa-receipt me-2 text-success"></i> إيصال التحويل',
-                html: html,
+                html,
                 showCloseButton: true,
                 showConfirmButton: false,
                 footer: `
@@ -66,9 +56,7 @@
                     a.click();
                     document.body.removeChild(a);
                     window.URL.revokeObjectURL(url);
-                } catch(e) {
-                    console.error('Download error:', e);
-                }
+                } catch(e) { console.error('Download error:', e); }
             }
         };
 
@@ -83,25 +71,15 @@
                         filesArray.push(new File([blob], `receipt_${i}.jpg`, { type: blob.type || 'image/jpeg' }));
                     }
                     if (navigator.canShare && navigator.canShare({ files: filesArray })) {
-                        await navigator.share({
-                            files: filesArray,
-                            title: 'إيصال التحويل',
-                            text: 'مرفق إيصال العملية'
-                        });
+                        await navigator.share({ files: filesArray, title: 'إيصال التحويل', text: 'مرفق إيصال العملية' });
                     } else {
-                        await navigator.share({
-                            title: 'إيصال التحويل',
-                            url: images[0]
-                        });
+                        await navigator.share({ title: 'إيصال التحويل', url: images[0] });
                     }
-                } catch (error) {
-                    console.error('Error sharing:', error);
-                }
+                } catch (error) { console.error('Error sharing:', error); }
             } else {
                 Swal.fire('تنبيه', 'المشاركة المباشرة غير مدعومة في متصفحك، يرجى استخدام زر التحميل بدلاً من ذلك.', 'info');
             }
         };
-
     </script>
 
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.rtl.min.css">
@@ -109,478 +87,91 @@
     <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800;900&family=JetBrains+Mono:wght@700&display=swap" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+    <link rel="stylesheet" href="/css/executor-workspace.css?v=20260824-2030">
+    <link rel="stylesheet" href="/css/executor-2030-override.css?v=20260824-2030">
 
     <style>
-        /* 🎨 المتغيرات (الوضع النهاري) */
-        :root {
-            --bg-body: #f0f4f8;
-            --bg-gradient: linear-gradient(135deg, #f0f4f8 0%, #e2e8f0 50%, #f0f4f8 100%);
-            --glass-bg: rgba(255, 255, 255, 0.92);
-            --glass-border: rgba(0, 0, 0, 0.06);
-            --text-main: #0f172a;
-            --text-muted: #64748b;
-            --accent-gold: #d4af37;
-            --accent-blue: #0ea5e9;
-            --accent-green: #10b981;
-            --accent-red: #ef4444;
-            --shadow-glass: 0 8px 32px 0 rgba(31, 38, 135, 0.06);
-            --shadow-card: 0 4px 20px rgba(0, 0, 0, 0.04);
-            --nav-gradient: linear-gradient(135deg, rgba(255, 255, 255, 0.95) 0%, rgba(241, 245, 249, 0.95) 100%);
-        }
-
-        /* 🌙 المتغيرات (الوضع الليلي) */
-        [data-theme="dark"] {
-            --bg-body: #0c1222;
-            --bg-gradient: linear-gradient(135deg, #0c1222 0%, #131d35 50%, #0c1222 100%);
-            --glass-bg: rgba(22, 33, 55, 0.88);
-            --glass-border: rgba(255, 255, 255, 0.07);
-            --text-main: #f1f5f9;
-            --text-muted: #8899b0;
-            --shadow-glass: 0 8px 32px 0 rgba(0, 0, 0, 0.35);
-            --shadow-card: 0 4px 20px rgba(0, 0, 0, 0.2);
-            --accent-gold: #fbbf24;
-            --accent-blue: #38bdf8;
-            --nav-gradient: linear-gradient(135deg, rgba(22, 33, 55, 0.95) 0%, rgba(15, 23, 42, 0.95) 100%);
-        }
-
-        * { box-sizing: border-box; }
-
-        body { background: var(--bg-gradient); background-attachment: fixed; color: var(--text-main); font-family: 'Tajawal', sans-serif; transition: background 0.4s, color 0.3s; padding-bottom: 80px; overflow-x: hidden; min-height: 100vh; }
-
-        ::-webkit-scrollbar { width: 5px; }
-        ::-webkit-scrollbar-track { background: transparent; }
-        ::-webkit-scrollbar-thumb { background: rgba(100, 116, 139, 0.3); border-radius: 10px; }
-        ::-webkit-scrollbar-thumb:hover { background: rgba(100, 116, 139, 0.5); }
-
-        /* 🛸 Navbar Glassmorphism */
-        .navbar-glass {
-            background: var(--nav-gradient); backdrop-filter: blur(20px) saturate(1.2); -webkit-backdrop-filter: blur(20px) saturate(1.2);
-            border-bottom: 1px solid var(--glass-border); padding: 14px 24px; position: sticky; top: 0; z-index: 1000;
-            box-shadow: 0 1px 20px rgba(0, 0, 0, 0.06);
-            display: flex; justify-content: space-between; align-items: center; gap: 16px; margin-bottom: 24px; transition: 0.3s;
-        }
-
-        [data-theme="dark"] .navbar-glass { box-shadow: 0 1px 20px rgba(0, 0, 0, 0.25); }
-
-        .executor-info { display: flex; align-items: center; gap: 12px; }
-        .executor-avatar {
-            width: 44px; height: 44px; border-radius: 14px;
-            background: linear-gradient(135deg, rgba(212, 175, 55, 0.15), rgba(212, 175, 55, 0.05));
-            color: var(--accent-gold); display: flex; align-items: center; justify-content: center; font-size: 1.3rem;
-            border: 1px solid rgba(212, 175, 55, 0.25); transition: 0.3s;
-        }
-
-        .executor-name { font-weight: 900; font-size: 1.05rem; margin: 0; color: var(--text-main); letter-spacing: -0.3px; }
-        .executor-role { font-size: 0.72rem; color: var(--text-muted); font-weight: 700; }
-
-        .nav-actions { display: flex; gap: 6px; align-items: center; }
-        .nav-btn {
-            background: transparent; border: 1px solid var(--glass-border); color: var(--text-main);
-            padding: 7px 14px; border-radius: 10px; font-weight: 700; text-decoration: none;
-            transition: all 0.25s ease; display: inline-flex; align-items: center; justify-content: center; gap: 5px; font-size: 0.85rem;
-            font-family: 'Tajawal', sans-serif;
-        }
-
-        .nav-btn:hover { background: rgba(14, 165, 233, 0.08); border-color: rgba(14, 165, 233, 0.25); transform: translateY(-1px); color: var(--accent-blue); }
-        .nav-btn.active { background: rgba(14, 165, 233, 0.1); border-color: rgba(14, 165, 233, 0.3); color: var(--accent-blue); }
-        .btn-logout { background: rgba(239, 68, 68, 0.06); color: var(--accent-red); border-color: rgba(239, 68, 68, 0.2); }
-        .btn-logout:hover { background: var(--accent-red); color: white; border-color: var(--accent-red); }
-        .btn-theme { padding: 7px 11px; border-radius: 50%; color: var(--accent-gold); font-size: 0.95rem; }
-        .btn-theme:hover { background: rgba(251, 191, 36, 0.12); transform: rotate(20deg) translateY(-1px); }
-
-        /* Report Styles */
-        .card-glass {
-            background: var(--glass-bg);
-            border: 1px solid var(--glass-border);
+        .x-stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 14px; margin-bottom: 24px; }
+        .x-stat-box {
+            position: relative;
+            padding: 18px 16px;
             border-radius: 16px;
-            box-shadow: var(--shadow-soft);
-            padding: 20px;
-            margin-bottom: 20px;
+            background: var(--x-surface, rgba(13, 18, 35, 0.85));
+            border: 1px solid var(--x-border, rgba(94, 234, 212, 0.18));
+            box-shadow: 0 15px 35px rgba(0,0,0,0.25), 0 0 20px rgba(34, 211, 238, 0.04);
+            transition: transform 0.2s, box-shadow 0.2s;
+            overflow: hidden;
+            animation: cardEnter 0.4s ease both;
         }
+        .x-stat-box:hover { transform: translateY(-3px); box-shadow: 0 20px 45px rgba(0,0,0,0.3), 0 0 25px rgba(34, 211, 238, 0.08); }
+        .x-stat-box::before { content: ""; position: absolute; inset: 0 0 auto; height: 3px; background: var(--stat-color, var(--x-cyan, #22d3ee)); opacity: 0.9; }
+        .x-stat-box i { position: absolute; left: 14px; top: 14px; font-size: 1.1rem; color: var(--stat-color, var(--x-cyan, #22d3ee)); opacity: 0.35; }
+        .x-stat-box small { display: block; color: var(--x-muted, #94a3b8); font-size: 0.72rem; font-weight: 800; margin-bottom: 6px; }
+        .x-stat-box strong { display: block; color: #fff; font-size: 1.25rem; font-weight: 900; font-family: 'JetBrains Mono', monospace; }
+        .x-stat-box.stat-green { --stat-color: var(--x-green, #34d399); }
+        .x-stat-box.stat-gold { --stat-color: var(--x-gold, #facc15); }
+        .x-stat-box.stat-red { --stat-color: var(--x-red, #fb7185); }
+        .x-stat-box.stat-blue { --stat-color: var(--x-cyan, #22d3ee); }
 
-        .form-select,
-        .form-control {
-            background-color: rgba(0, 0, 0, 0.04);
-            color: var(--text-main);
-            border: 1px solid var(--glass-border);
-            border-radius: 10px;
-            padding: 10px;
-            font-weight: bold;
-        }
+        .x-report-table { border-collapse: separate; border-spacing: 0; width: 100%; }
+        .x-report-table th { padding: 12px 14px; color: var(--x-muted, #94a3b8); font-size: 0.72rem; font-weight: 800; background: rgba(255,255,255,0.04); border-bottom: 1px solid var(--x-border, rgba(94, 234, 212, 0.18)); }
+        .x-report-table td { padding: 14px; color: var(--x-text, #e2e8f0); font-size: 0.84rem; border-bottom: 1px solid rgba(255,255,255,0.05); }
+        .x-report-table tr { transition: background 0.15s; cursor: pointer; }
+        .x-report-table tr:hover { background: rgba(34, 211, 238, 0.06); }
+        .x-report-table .badge-st { display: inline-flex; align-items: center; gap: 6px; padding: 5px 10px; border-radius: 999px; font-size: 0.68rem; font-weight: 800; }
+        .badge-st.st-done { background: rgba(52, 211, 153, 0.12); color: var(--x-green, #34d399); border: 1px solid rgba(52, 211, 153, 0.25); }
+        .badge-st.st-fail { background: rgba(251, 113, 133, 0.12); color: var(--x-red, #fb7185); border: 1px solid rgba(251, 113, 133, 0.25); }
+        .badge-st.st-pending { background: rgba(250, 204, 21, 0.12); color: var(--x-gold, #facc15); border: 1px solid rgba(250, 204, 21, 0.25); }
+        .indicator-dot { width: 6px; height: 6px; border-radius: 50%; }
+        .dot-done { background: var(--x-green, #34d399); }
+        .dot-fail { background: var(--x-red, #fb7185); }
+        .dot-pending { background: var(--x-gold, #facc15); }
 
-        [data-theme="dark"] .form-select,
-        [data-theme="dark"] .form-control {
-            background-color: rgba(255, 255, 255, 0.04);
-        }
-
-        .form-select:focus,
-        .form-control:focus {
-            background-color: transparent;
-            color: var(--text-main);
-            border-color: var(--accent-blue);
-            box-shadow: 0 0 0 3px rgba(14, 165, 233, 0.1);
-        }
-
-        .stat-card {
-            background: linear-gradient(135deg, rgba(212, 175, 55, 0.1), rgba(212, 175, 55, 0.02));
-            border: 1px solid rgba(212, 175, 55, 0.2);
-            border-radius: 16px;
-            padding: 20px;
-            text-align: center;
-            color: var(--accent-gold);
-        }
-
-        .table-custom {
-            width: 100%;
-            border-collapse: separate;
-            border-spacing: 0 12px;
-            margin-top: 10px;
-        }
-
-        .table-custom th {
-            color: var(--text-muted);
-            font-weight: 700;
-            padding: 14px 16px;
-            font-size: 0.85rem;
-            border: none;
-            text-align: center;
-            letter-spacing: 0.5px;
-            text-transform: uppercase;
-        }
-
-        .table-custom tr {
-            transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1);
-        }
-
-        .table-custom td {
-            background: var(--glass-bg);
-            border-top: 1px solid var(--glass-border);
-            border-bottom: 1px solid var(--glass-border);
-            padding: 16px 14px;
-            vertical-align: middle;
-            text-align: center;
-            font-size: 0.9rem;
-            color: var(--text-main);
-            transition: background 0.25s ease, box-shadow 0.25s ease, border-color 0.25s ease;
-            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.03), 0 2px 4px -1px rgba(0, 0, 0, 0.02);
-        }
-
-        [data-theme="dark"] .table-custom td {
-            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.15);
-        }
-
-        .table-custom tr td:first-child {
-            border-right: 1px solid var(--glass-border);
-            border-top-right-radius: 14px;
-            border-bottom-right-radius: 14px;
-        }
-
-        .table-custom tr td:last-child {
-            border-left: 1px solid var(--glass-border);
-            border-top-left-radius: 14px;
-            border-bottom-left-radius: 14px;
-        }
-
-        /* 🛸 Premium Hover Effects */
-        .table-custom tbody tr:hover {
-            transform: translateY(-3px) scale(1.005);
-        }
-
-        .table-custom tbody tr:hover td {
-            background: rgba(255, 255, 255, 0.98);
-            border-color: rgba(14, 165, 233, 0.3);
-            box-shadow: 0 12px 20px -5px rgba(0, 0, 0, 0.08), 0 8px 10px -6px rgba(0, 0, 0, 0.06);
-        }
-
-        [data-theme="dark"] .table-custom tbody tr:hover td {
-            background: rgba(30, 41, 59, 0.98);
-            border-color: rgba(251, 191, 36, 0.3);
-            box-shadow: 0 12px 25px -5px rgba(0, 0, 0, 0.4), 0 8px 15px -6px rgba(0, 0, 0, 0.35);
-        }
-
-        .badge-st {
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            padding: 6px 14px;
-            border-radius: 30px;
-            font-size: 0.78rem;
-            font-weight: 700;
-            line-height: 1;
-        }
-
-        .st-done {
-            background: rgba(16, 185, 129, 0.1);
-            color: #10b981;
-            border: 1px solid rgba(16, 185, 129, 0.2);
-        }
-
-        .st-fail {
-            background: rgba(239, 68, 68, 0.1);
-            color: #ef4444;
-            border: 1px solid rgba(239, 68, 68, 0.2);
-        }
-
-        /* Indicator dots for badges */
-        .indicator-dot {
-            display: inline-block;
-            width: 7px;
-            height: 7px;
-            border-radius: 50%;
-            margin-left: 6px;
-            vertical-align: middle;
-        }
-        .dot-done {
-            background-color: #10b981;
-            box-shadow: 0 0 6px #10b981;
-        }
-        .dot-fail {
-            background-color: #ef4444;
-            box-shadow: 0 0 6px #ef4444;
-        }
-        
-        /* 📱 شاشات الهواتف الذكية (Native App Layout) */
-        @media (max-width: 768px) {
-            body {
-                padding-top: 75px !important;
-                padding-bottom: 90px !important;
-            }
-            
-            .navbar-glass {
-                position: fixed !important;
-                top: 0;
-                left: 0;
-                right: 0;
-                z-index: 1050;
-                margin-bottom: 0 !important;
-                flex-direction: row !important;
-                justify-content: space-between !important;
-                align-items: center !important;
-                padding: 10px 16px !important;
-                border-radius: 0 0 16px 16px !important;
-                box-shadow: 0 4px 20px rgba(0,0,0,0.15) !important;
-            }
-            .executor-info {
-                width: auto !important;
-                justify-content: flex-start !important;
-                gap: 8px !important;
-            }
-            .executor-avatar {
-                width: 36px !important;
-                height: 36px !important;
-                border-radius: 10px !important;
-                font-size: 1.1rem !important;
-            }
-            .executor-name {
-                font-size: 0.9rem !important;
-            }
-            .executor-role {
-                display: none !important;
-            }
-            .nav-actions {
-                width: auto !important;
-                justify-content: flex-end !important;
-                gap: 6px !important;
-            }
-            .nav-btn {
-                padding: 6px 10px !important;
-                font-size: 0.8rem !important;
-                border-radius: 8px !important;
-                flex: none !important;
-            }
-            .nav-btn span {
-                display: none; /* إخفاء نص الأزرار لتوفير مساحة */
-            }
-
-            #statsSection {
-                display: grid !important;
-                grid-template-columns: repeat(3, 1fr) !important;
-                gap: 8px !important;
-            }
-            .stat-card {
-                padding: 10px 5px !important;
-                border-radius: 12px !important;
-            }
-            .stat-card h5 {
-                font-size: 0.95rem !important;
-                margin-bottom: 2px !important;
-            }
-            .stat-card small {
-                font-size: 0.62rem !important;
-            }
-        }
-
-        /* 📱 شريط التنقل السفلي للهواتف */
-        .bottom-nav-mobile {
-            position: fixed;
-            bottom: 0;
-            left: 0;
-            right: 0;
-            height: 64px;
-            background: var(--nav-gradient);
-            backdrop-filter: blur(20px) saturate(1.2);
-            -webkit-backdrop-filter: blur(20px) saturate(1.2);
-            border-top: 1px solid var(--glass-border);
-            display: flex;
-            justify-content: space-around;
-            align-items: center;
-            z-index: 1000;
-            box-shadow: 0 -4px 16px rgba(0, 0, 0, 0.08);
-            padding-bottom: env(safe-area-inset-bottom);
-        }
-        .bottom-nav-item {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            gap: 4px;
-            color: var(--text-muted);
-            text-decoration: none;
-            flex: 1;
-            height: 100%;
-            transition: all 0.2s ease;
-            font-size: 0.72rem;
-            font-weight: 700;
-        }
-        .bottom-nav-item i {
-            font-size: 1.25rem;
-            transition: transform 0.2s ease;
-        }
-        .bottom-nav-item:hover {
-            color: var(--text-main);
-        }
-        .bottom-nav-item.active {
-            color: var(--accent-gold);
-        }
-        .bottom-nav-item.active i {
-            transform: translateY(-2px);
-        }
-
-        /* بطاقات العمليات للهواتف */
-        .mobile-tx-card {
-            background: var(--glass-bg);
-            border: 1px solid var(--glass-border);
-            border-radius: 16px;
+        .x-mobile-card {
             padding: 16px;
-            display: flex;
-            flex-direction: column;
-            gap: 12px;
-            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.03);
-            transition: transform 0.15s ease, background 0.15s ease;
+            border-radius: 16px;
+            background: var(--x-surface, rgba(13, 18, 35, 0.85));
+            border: 1px solid var(--x-border, rgba(94, 234, 212, 0.18));
+            cursor: pointer;
+            transition: transform 0.15s, border-color 0.15s;
         }
-        .mobile-tx-card:active {
-            transform: scale(0.98);
-            background: rgba(255, 255, 255, 0.95);
-        }
-        [data-theme="dark"] .mobile-tx-card:active {
-            background: rgba(30, 41, 59, 0.95);
-        }
-        .mobile-tx-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-        .tx-custom-id {
-            font-family: 'JetBrains Mono', monospace;
-            font-weight: 800;
-            font-size: 0.95rem;
-            color: var(--accent-gold);
-        }
-        .mobile-tx-body {
-            display: flex;
-            justify-content: space-between;
-            align-items: flex-end;
-        }
-        .tx-amount-wrapper {
-            display: flex;
-            align-items: baseline;
-            gap: 4px;
-        }
-        .tx-amount {
-            font-size: 1.4rem;
-            font-weight: 900;
-            color: var(--text-main);
-        }
-        .tx-currency {
-            font-size: 0.8rem;
-            font-weight: 700;
-            color: var(--text-muted);
-        }
-        .tx-executor {
-            display: flex;
-            align-items: center;
-            gap: 6px;
-            font-size: 0.85rem;
-            font-weight: 700;
-            color: var(--text-main);
-            background: rgba(0, 0, 0, 0.04);
-            padding: 4px 10px;
-            border-radius: 20px;
-        }
-        [data-theme="dark"] .tx-executor {
-            background: rgba(255, 255, 255, 0.04);
-        }
-        .mobile-tx-divider {
-            height: 1px;
-            background: var(--glass-border);
-            margin: 4px 0;
-        }
-        .mobile-tx-footer {
-            display: grid;
-            grid-template-columns: repeat(3, 1fr);
-            gap: 8px;
-            background: rgba(0, 0, 0, 0.02);
-            padding: 8px;
-            border-radius: 12px;
-        }
-        [data-theme="dark"] .mobile-tx-footer {
-            background: rgba(255, 255, 255, 0.02);
-        }
-        .tx-time-item {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            gap: 4px;
-        }
-        .time-label {
-            font-size: 0.7rem;
-            color: var(--text-muted);
-            font-weight: 700;
-        }
-        .time-value {
-            font-size: 0.75rem;
-            font-family: 'JetBrains Mono', monospace;
-            font-weight: bold;
-            color: var(--text-main);
-        }
-        .mobile-tx-date-row {
-            font-size: 0.75rem;
-            color: var(--text-muted);
-            font-weight: 700;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 4px;
-        }
+        .x-mobile-card:hover { transform: translateY(-2px); border-color: rgba(34, 211, 238, 0.35); }
+        .x-mobile-card-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+        .x-mobile-card-id { font-weight: 900; font-family: 'JetBrains Mono', monospace; color: #fff; }
+        .x-mobile-card-body { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+        .x-mobile-amount { font-size: 1.2rem; font-weight: 900; font-family: 'JetBrains Mono', monospace; color: var(--x-green, #34d399); }
+        .x-mobile-meta { color: var(--x-muted, #94a3b8); font-size: 0.75rem; }
 
-        /* SweetAlert */
-        .swal2-popup { background: var(--glass-bg) !important; backdrop-filter: blur(15px); color: var(--text-main) !important; border: 1px solid var(--glass-border); border-radius: 20px !important; }
-        .swal2-title, .swal2-html-container { color: var(--text-main) !important; }
-        .swal2-input, .swal2-textarea { background: rgba(0,0,0,0.04) !important; color: var(--text-main) !important; border-color: var(--glass-border) !important; border-radius: 10px !important; }
-        [data-theme="dark"] .swal2-input, [data-theme="dark"] .swal2-textarea { background: rgba(255,255,255,0.04) !important; }
+        .x-detail-modal .modal-content { background: var(--x-surface-elev, rgba(20, 26, 48, 0.95)); border: 1px solid var(--x-border, rgba(94, 234, 212, 0.18)); border-radius: 20px; color: var(--x-text, #e2e8f0); }
+        .x-detail-modal .modal-header { border-bottom-color: rgba(255,255,255,0.06); }
+        .x-detail-modal .modal-title { color: #fff; font-weight: 900; }
+        .x-detail-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin-bottom: 18px; }
+        .x-detail-item { padding: 12px; border-radius: 12px; background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.06); }
+        .x-detail-item.full { grid-column: 1 / -1; }
+        .x-detail-item label { display: block; font-size: 0.68rem; color: var(--x-muted, #94a3b8); font-weight: 800; margin-bottom: 5px; }
+        .x-detail-item span { font-size: 0.9rem; color: #fff; font-weight: 800; font-family: 'JetBrains Mono', monospace; }
+        .x-detail-images { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 10px; }
+        .x-detail-images img { width: 100%; height: 120px; object-fit: cover; border-radius: 12px; border: 1px solid var(--x-border, rgba(94, 234, 212, 0.18)); cursor: pointer; transition: transform 0.15s; }
+        .x-detail-images img:hover { transform: scale(1.03); }
+        .x-detail-section-title { font-size: 0.85rem; font-weight: 900; color: #fff; margin: 16px 0 10px; display: flex; align-items: center; gap: 8px; }
+        .x-star-rating { display: inline-flex; gap: 6px; font-size: 1.4rem; color: #475569; cursor: pointer; }
+        .x-star-rating .star.active { color: #facc15; }
+        .x-voice-note { display: flex; align-items: center; gap: 10px; padding: 10px; border-radius: 12px; background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.06); }
+        .x-voice-note audio { flex: 1; height: 36px; }
+
+        .x-empty-box { min-height: 220px; display: grid; place-items: center; text-align: center; color: var(--x-muted, #94a3b8); }
+
+        @keyframes cardEnter { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
+
+        @media (max-width: 768px) {
+            .x-stat-grid { grid-template-columns: repeat(2, 1fr); gap: 10px; }
+            .x-stat-box { padding: 14px 12px; }
+            .x-stat-box strong { font-size: 1rem; }
+            .x-detail-grid { grid-template-columns: 1fr; }
+        }
     </style>
-
-    <!-- PWA Setup -->
-    <link rel="manifest" href="/manifest.json">
-    <meta name="theme-color" content="#001a4d">
-    <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <meta name="apple-mobile-web-app-title" content="Al-Ahram">
-    <!-- End PWA Setup -->
-    <link rel="stylesheet" href="/css/executor-workspace.css?v=20260819-1">
 </head>
-
-<body class="executor-portal-v2">
+<body class="executor-portal-v2 executor-page-reports">
     <%- include('partials/navigation', { emp, activePage: 'reports' }) %>
     <nav class="navbar-glass">
         <div class="executor-info">
@@ -604,13 +195,13 @@
             <div>
                 <span class="executor-kicker"><i class="fa-solid fa-chart-column"></i> مركز التقارير</span>
                 <h1><%= emp.role === 'operator' ? 'تقاريري الشخصية' : 'تقارير شركة التنفيذ' %></h1>
-                <p><%= emp.role === 'operator' ? 'يعرض هذا القسم عمليات حسابك فقط دون أرصدة الشركة أو بيانات زملائك.' : 'مراجعة العمليات والأرصدة وأداء فريق التنفيذ حسب الفترة المحددة.' %></p>
+                <p><%= emp.role === 'operator' ? 'يعرض هذا القسم عمليات حسابك فقط.' : 'مراجعة العمليات والأرصدة وأداء فريق التنفيذ حسب الفترة.' %></p>
             </div>
         </div>
 
-        <!-- فلاتر التقرير -->
-        <div class="card-glass">
-            <div class="row g-3 align-items-end justify-content-center">
+        <!-- Filters -->
+        <div class="card-glass mb-4">
+            <div class="row g-3 align-items-end">
                 <div class="col-md-3">
                     <label class="form-label text-muted fw-bold">الفترة الزمنية</label>
                     <select id="dateType" class="form-select" onchange="toggleDateInput()">
@@ -619,21 +210,21 @@
                         <option value="range">فترة من / إلى</option>
                     </select>
                 </div>
-
                 <div class="col-md-3">
-                    <label class="form-label text-muted fw-bold">&nbsp;</label>
+                    <label class="form-label text-muted fw-bold">التاريخ</label>
                     <input type="date" id="dateValueDay" class="form-control">
                     <input type="month" id="dateValueMonth" class="form-control" style="display:none;">
-                    <div id="dateRangeInputs" class="d-none d-grid gap-2" style="grid-template-columns:1fr 1fr"><input type="date" id="dateFrom" class="form-control" aria-label="من تاريخ"><input type="date" id="dateTo" class="form-control" aria-label="إلى تاريخ"></div>
+                    <div id="dateRangeInputs" class="d-none d-grid gap-2" style="grid-template-columns:1fr 1fr">
+                        <input type="date" id="dateFrom" class="form-control" aria-label="من تاريخ">
+                        <input type="date" id="dateTo" class="form-control" aria-label="إلى تاريخ">
+                    </div>
                 </div>
-
                 <% if (emp.role === 'manager') { %>
                 <div class="col-md-3">
                     <label class="form-label text-muted fw-bold">نطاق الموظف</label>
                     <select id="employeeFilter" class="form-select"><option value="">كل شركة التنفيذ</option></select>
                 </div>
                 <% } %>
-
                 <div class="col-md-<%= emp.role === 'manager' ? '3' : '3' %> text-end">
                     <button class="btn btn-warning w-100 fw-bold py-2" onclick="fetchReport()">
                         <i class="fa-solid fa-search"></i> عرض التقرير
@@ -641,71 +232,104 @@
                 </div>
                 <div class="col-md-3 text-end">
                     <button id="btnDownloadPdf" class="btn btn-danger w-100 fw-bold py-2 d-none" onclick="downloadReportPdf()">
-                        <i class="fa-solid fa-file-pdf"></i> تحميل التقرير
+                        <i class="fa-solid fa-file-pdf"></i> PDF
+                    </button>
+                </div>
+                <div class="col-md-3 text-end">
+                    <button id="btnDownloadCsv" class="btn btn-success w-100 fw-bold py-2 d-none" onclick="downloadReportCsv()">
+                        <i class="fa-solid fa-file-excel"></i> Excel
                     </button>
                 </div>
             </div>
-        </div>
-
-        <!-- الإحصائيات -->
-        <div class="row g-3 mb-4 d-none" id="statsSection">
-            <div class="col-6 col-lg-3">
-                <div class="stat-card" style="background: linear-gradient(135deg, rgba(239,68,68,0.1), rgba(239,68,68,0.02)); border-color: rgba(239,68,68,0.2);">
-                    <h5 class="fw-bold mb-2 text-danger" id="statCompletedCount">0</h5>
-                    <small class="text-danger fw-bold">عدد العمليات</small>
+            <div class="row g-2 mt-2 align-items-center">
+                <div class="col-md-6">
+                    <div class="btn-group w-100" role="group">
+                        <button type="button" class="btn btn-outline-secondary btn-sm fw-bold" onclick="setQuickPeriod('today')">اليوم</button>
+                        <button type="button" class="btn btn-outline-secondary btn-sm fw-bold" onclick="setQuickPeriod('yesterday')">الأمس</button>
+                        <button type="button" class="btn btn-outline-secondary btn-sm fw-bold" onclick="setQuickPeriod('last7')">آخر 7 أيام</button>
+                        <button type="button" class="btn btn-outline-secondary btn-sm fw-bold" onclick="setQuickPeriod('thisMonth')">الشهر الحالي</button>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="input-group">
+                        <span class="input-group-text bg-transparent border-secondary"><i class="fa-solid fa-search text-muted"></i></span>
+                        <input type="search" id="reportSearch" class="form-control" placeholder="ابحث برقم العملية أو المبلغ أو المنفذ..." oninput="filterReportTable()">
+                    </div>
                 </div>
             </div>
-            <div class="col-6 col-lg-3">
-                <div class="stat-card" style="background: linear-gradient(135deg, rgba(16,185,129,0.1), rgba(16,185,129,0.02)); border-color: rgba(16,185,129,0.2);">
-                    <h5 class="fw-bold mb-2 text-success" id="statTotalOps">0.00</h5>
-                    <small class="text-success fw-bold">إجمالي عمليات الفترة (EGP)</small>
-                </div>
-            </div>
-            <div class="col-6 col-lg-3"><div class="stat-card"><h5 class="fw-bold mb-2" id="statThird">0</h5><small class="text-muted fw-bold" id="statThirdLabel">العمليات الملغاة</small></div></div>
-            <div class="col-6 col-lg-3"><div class="stat-card"><h5 class="fw-bold mb-2" id="statFourth">---</h5><small class="text-muted fw-bold" id="statFourthLabel">متوسط مدة التنفيذ</small></div></div>
         </div>
 
-        <!-- جدول العمليات -->
+        <!-- Stats -->
+        <div id="statsSection" class="d-none">
+            <div id="statsGrid" class="x-stat-grid"></div>
+        </div>
+
+        <!-- Operations Table -->
         <div class="card-glass d-none" id="tableSection">
             <h5 class="fw-bold mb-3"><i class="fa-solid fa-list text-muted me-1"></i> تفاصيل العمليات</h5>
             <div class="table-responsive d-none d-md-block">
-                <table class="table-custom">
+                <table class="x-report-table">
                     <thead>
                         <tr>
                             <th>#</th>
                             <th>رقم العملية</th>
-                            <th>المبلغ بالمصري</th>
-                            <th>وقت وصول العملية</th>
-                            <th>وقت اكمال العملية</th>
-                            <th>مدة اكمال العملية</th>
-                            <th>حالة العملية</th>
-                            <th>التاريخ والوقت</th>
-                            <% if (emp.role !== 'operator') { %><th id="executorColumnHeader">اسم المنفذ</th><% } %>
+                            <th>النوع</th>
+                            <th>المبلغ</th>
+                            <th>وقت الوصول</th>
+                            <th>وقت الإكمال</th>
+                            <th>المدة</th>
+                            <th>الحالة</th>
+                            <th>التاريخ</th>
+                            <% if (emp.role !== 'operator') { %><th id="executorColumnHeader">المنفذ</th><% } %>
                         </tr>
                     </thead>
-                    <tbody id="reportTableBody">
-                    </tbody>
+                    <tbody id="reportTableBody"></tbody>
                 </table>
             </div>
-            <!-- قائمة العمليات للموبايل (تظهر كبطاقات تطبيق) -->
-            <div class="mobile-ops-list d-flex flex-column gap-3 d-md-none" id="mobileReportList"></div>
+            <div class="d-md-none d-flex flex-column gap-3" id="mobileReportList"></div>
+
+            <!-- Chart -->
+            <div class="mt-4 pt-3 border-top border-secondary border-opacity-25">
+                <h6 class="fw-bold mb-3" style="color: var(--x-muted, #94a3b8);"><i class="fa-solid fa-chart-column me-1"></i> توزيع العمليات حسب اليوم</h6>
+                <div style="height: 220px;"><canvas id="reportChart"></canvas></div>
+            </div>
         </div>
+
+        <!-- Cancelled Section -->
         <div class="card-glass d-none mt-3" id="cancelledSection">
             <div class="d-flex align-items-center justify-content-between mb-3">
                 <h5 class="fw-bold m-0 text-danger"><i class="fa-solid fa-ban me-1"></i> العمليات الملغاة</h5>
-                <small class="text-muted">للمراجعة فقط ولا تدخل في الإجمالي</small>
+                <small class="text-muted">لا تُحسب في الإجمالي</small>
             </div>
             <div class="table-responsive d-none d-md-block">
-                <table class="table-custom">
-                    <thead><tr><th>#</th><th>رقم العملية</th><th>المبلغ بالمصري</th><th>التاريخ والوقت</th><th>الحالة</th></tr></thead>
+                <table class="x-report-table">
+                    <thead><tr><th>#</th><th>رقم العملية</th><th>المبلغ</th><th>التاريخ</th><th>الحالة</th></tr></thead>
                     <tbody id="cancelledReportTableBody"></tbody>
                 </table>
             </div>
-            <div class="mobile-ops-list d-flex flex-column gap-3 d-md-none" id="mobileCancelledList"></div>
+            <div class="d-md-none d-flex flex-column gap-3" id="mobileCancelledList"></div>
+        </div>
+    </div>
+
+    <!-- Detail Modal -->
+    <div class="modal fade x-detail-modal" id="operationDetailModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-lg modal-dialog-centered px-2">
+            <div class="modal-content">
+                <div class="modal-header border-0 pb-0">
+                    <h5 class="modal-title" id="detailModalTitle">تفاصيل العملية</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close" style="filter: invert(0.5);"></button>
+                </div>
+                <div class="modal-body p-4" id="detailModalBody"></div>
+                <div class="modal-footer border-0 pt-0">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">إغلاق</button>
+                    <button type="button" class="btn btn-primary" id="detailDownloadBtn"><i class="fa-solid fa-download me-1"></i> تحميل الإيصال</button>
+                </div>
+            </div>
         </div>
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
     <script src="/js/executor-workspace.js?v=20260819-1"></script>
     <script>
         function toggleTheme() {
@@ -718,11 +342,10 @@
             document.getElementById('themeIcon').className = newTheme === 'dark' ? 'fa-solid fa-sun text-warning' : 'fa-solid fa-moon text-dark';
         }
         document.addEventListener('DOMContentLoaded', () => {
-            const theme = localStorage.getItem('ahram_theme') || 'dark';
+            const theme = localStorage.getItem('ahram_theme') || 'light';
             document.getElementById('themeIcon').className = theme === 'dark' ? 'fa-solid fa-sun text-warning' : 'fa-solid fa-moon text-dark';
         });
 
-        // تهيئة التواريخ
         document.getElementById('dateValueDay').valueAsDate = new Date();
         const yyyyMM = new Date().toISOString().substring(0, 7);
         if(document.getElementById('dateValueMonth')) document.getElementById('dateValueMonth').value = yyyyMM;
@@ -731,26 +354,15 @@
 
         function toggleDateInput() {
             const type = document.getElementById('dateType').value;
-            if (type === 'day') {
-                document.getElementById('dateValueDay').style.display = 'block';
-                if(document.getElementById('dateValueMonth')) document.getElementById('dateValueMonth').style.display = 'none';
-                document.getElementById('dateRangeInputs').classList.add('d-none');
-            } else if (type === 'month') {
-                document.getElementById('dateValueDay').style.display = 'none';
-                if(document.getElementById('dateValueMonth')) document.getElementById('dateValueMonth').style.display = 'block';
-                document.getElementById('dateRangeInputs').classList.add('d-none');
-            } else {
-                document.getElementById('dateValueDay').style.display = 'none';
-                if(document.getElementById('dateValueMonth')) document.getElementById('dateValueMonth').style.display = 'none';
-                document.getElementById('dateRangeInputs').classList.remove('d-none');
-            }
+            document.getElementById('dateValueDay').style.display = type === 'day' ? 'block' : 'none';
+            if(document.getElementById('dateValueMonth')) document.getElementById('dateValueMonth').style.display = type === 'month' ? 'block' : 'none';
+            document.getElementById('dateRangeInputs').classList.toggle('d-none', type !== 'range');
         }
 
         let lastReportData = null;
         let lastReportRequest = null;
         let isPersonalExecutorReport = <%= emp.role === 'operator' ? 'true' : 'false' %>;
-
-        const formatEgp = (value) => `${Number(value || 0).toLocaleString('en-US', { maximumFractionDigits: 0 })} ج.م`;
+        const formatEgp = (value) => `${Number(value || 0).toLocaleString('en-US', { maximumFractionDigits: 2 })} ج.م`;
 
         async function loadEmployeeFilter() {
             const select = document.getElementById('employeeFilter');
@@ -759,18 +371,14 @@
                 const response = await executorApiFetch('/executor-portal/api/employees');
                 const data = await readExecutorApiResponse(response);
                 const requestedId = new URLSearchParams(window.location.search).get('employeeId') || '';
-                (data.employees || [])
-                    .filter((employee) => employee.role !== 'manager')
-                    .forEach((employee) => {
-                        const option = document.createElement('option');
-                        option.value = employee.id;
-                        option.textContent = `${employee.name} - ${employee.role === 'accountant' ? 'محاسب' : 'موظف تنفيذ'}`;
-                        select.appendChild(option);
-                    });
+                (data.employees || []).filter((employee) => employee.role !== 'manager').forEach((employee) => {
+                    const option = document.createElement('option');
+                    option.value = employee.id;
+                    option.textContent = `${employee.name} - ${employee.role === 'accountant' ? 'محاسب' : 'موظف'}`;
+                    select.appendChild(option);
+                });
                 if ([...select.options].some((option) => option.value === requestedId)) select.value = requestedId;
-            } catch (error) {
-                select.innerHTML = '<option value="">كل شركة التنفيذ</option>';
-            }
+            } catch (error) { select.innerHTML = '<option value="">كل شركة التنفيذ</option>'; }
         }
 
         async function fetchReport() {
@@ -797,163 +405,405 @@
                     body: JSON.stringify({ dateType, dateValue, dateFrom, dateTo, employeeId: employeeId || null })
                 });
                 const data = await res.json();
-
                 if (!data.success) throw new Error(data.error);
 
                 isPersonalExecutorReport = data.data.scope === 'employee';
                 lastReportRequest = { dateType, dateValue, dateFrom, dateTo, employeeId: employeeId || null };
-                document.getElementById('executorColumnHeader')?.classList.toggle('d-none', isPersonalExecutorReport);
-
-                // Update Stats
-                document.getElementById('statTotalOps').textContent = formatEgp(data.data.totalEGP || 0);
-                document.getElementById('statCompletedCount').innerHTML = data.data.operationCount || 0;
-                document.getElementById('statThird').textContent = Number(data.data.summary?.cancelledCount || data.data.cancelledOperations?.length || 0);
-                const averageSeconds = data.data.summary?.averageDurationSeconds;
-                document.getElementById('statFourth').textContent = Number.isFinite(Number(averageSeconds))
-                    ? (Number(averageSeconds) >= 60 ? `${Math.floor(Number(averageSeconds) / 60)}د ${Number(averageSeconds) % 60}ث` : `${Number(averageSeconds)}ث`)
-                    : '---';
-                if (data.data.capabilities?.canViewCompanyBalance && data.data.financialSummary) {
-                    document.getElementById('statThird').innerHTML = `${Number(data.data.financialSummary.openingBalance || 0).toLocaleString('en-US', { maximumFractionDigits: 2 })} <small>EGP</small>`;
-                    document.getElementById('statThirdLabel').textContent = 'الرصيد السابق';
-                    document.getElementById('statFourth').innerHTML = `${Number(data.data.financialSummary.closingBalance || 0).toLocaleString('en-US', { maximumFractionDigits: 2 })} <small>EGP</small>`;
-                    document.getElementById('statFourthLabel').textContent = 'الرصيد الحالي';
-                } else {
-                    document.getElementById('statThirdLabel').textContent = 'العمليات الملغاة';
-                    document.getElementById('statFourthLabel').textContent = 'متوسط مدة التنفيذ';
-                }
-
                 lastReportData = data.data;
+                document.getElementById('executorColumnHeader')?.classList.toggle('d-none', isPersonalExecutorReport);
+                renderStats(data.data);
+                renderOperations(data.data);
+                renderReportChart(data.data);
                 document.getElementById('statsSection').classList.remove('d-none');
                 document.getElementById('tableSection').classList.remove('d-none');
                 document.getElementById('btnDownloadPdf').classList.remove('d-none');
-
-                // Render Operations Table
-                const tbody = document.getElementById('reportTableBody');
-                tbody.innerHTML = '';
-                const mobileList = document.getElementById('mobileReportList');
-                if (mobileList) mobileList.innerHTML = '';
-                const cancelled = Array.isArray(data.data.cancelledOperations) ? data.data.cancelledOperations : [];
-                const cancelledTbody = document.getElementById('cancelledReportTableBody');
-                const mobileCancelledList = document.getElementById('mobileCancelledList');
-                cancelledTbody.innerHTML = '';
-                if (mobileCancelledList) mobileCancelledList.innerHTML = '';
-                document.getElementById('cancelledSection').classList.toggle('d-none', cancelled.length === 0);
-
-                if (data.data.operations.length === 0) {
-                    tbody.innerHTML = `<tr><td colspan="${isPersonalExecutorReport ? 8 : 9}" class="text-center text-muted py-4">لا توجد عمليات في هذه الفترة</td></tr>`;
-                    if (mobileList) mobileList.innerHTML = '<div class="text-center text-muted py-4">لا توجد عمليات في هذه الفترة</div>';
-                } else {
-                    data.data.operations.forEach((tx, i) => {
-                        let stHtml = '';
-                        if (tx.status === 'completed') stHtml = '<span class="badge-st st-done"><span class="indicator-dot dot-done"></span>مكتمل</span>';
-                        else if (tx.status === 'rejected' || tx.status === 'cancelled_by_admin') stHtml = '<span class="badge-st st-fail"><span class="indicator-dot dot-fail"></span>مرفوض</span>';
-                        else stHtml = '<span class="badge-st bg-secondary text-white"><span class="indicator-dot bg-light"></span>' + tx.status + '</span>';
-
-                        let by = tx.operatorName || tx.executorName || tx.employeeName || '---';
-                        
-                        const dateObj = new Date(tx.createdAt);
-                        const dateStr = dateObj.toLocaleDateString('en-GB', { timeZone: 'Africa/Tripoli' });
-                        const timeStr = dateObj.toLocaleTimeString('en-US', { timeZone: 'Africa/Tripoli', hour: '2-digit', minute: '2-digit', hour12: true });
-
-                        // وقت وصول العملية
-                        const arrivalTimeStr = dateObj.toLocaleTimeString('en-US', { timeZone: 'Africa/Tripoli', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true });
-
-                        // وقت إكمال العملية
-                        let completionTimeStr = '---';
-                        if (tx.status === 'completed' && tx.completedAt) {
-                            const completedDate = new Date(tx.completedAt);
-                            completionTimeStr = completedDate.toLocaleTimeString('en-US', { timeZone: 'Africa/Tripoli', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true });
-                        }
-
-                        // مدة إكمال العملية
-                        let durationText = '---';
-                        if (tx.status === 'completed' && tx.completedAt && tx.createdAt) {
-                            const diffMs = new Date(tx.completedAt) - new Date(tx.executorReceivedAt || tx.createdAt);
-                            const diffSec = Math.floor(diffMs / 1000);
-                            if (diffSec >= 0) {
-                                const m = Math.floor(diffSec / 60);
-                                const s = diffSec % 60;
-                                durationText = m > 0 ? `${m} د و ${s} ث` : `${s} ث`;
-                            }
-                        }
-
-                        // Desktop Row Render
-                        tbody.innerHTML += `
-                        <tr>
-                            <td class="text-muted fw-bold">${i + 1}</td>
-                            <td dir="ltr" class="fw-bold text-center">#${tx.customId || String(tx.id || '').slice(-6)}</td>
-                            <td class="fw-bold">${formatEgp(tx.amount)}</td>
-                            <td dir="ltr" class="text-center" style="font-size:0.85rem; font-family:monospace;">${arrivalTimeStr}</td>
-                            <td dir="ltr" class="text-center" style="font-size:0.85rem; font-family:monospace;">${completionTimeStr}</td>
-                            <td class="fw-bold text-success" style="font-size:0.85rem;">${durationText}</td>
-                            <td>${stHtml}</td>
-                            <td>
-                                <div dir="ltr" style="font-size:0.85em;" class="text-center fw-bold">${dateStr}</div>
-                                <div dir="ltr" style="font-size:0.75rem; color: #94a3b8;" class="text-center">${timeStr}</div>
-                            </td>
-                            ${isPersonalExecutorReport ? '' : `<td>${by}</td>`}
-                        </tr>
-                        `;
-
-                        // Mobile Card Render
-                        if (mobileList) {
-                            mobileList.innerHTML += `
-                            <div class="mobile-tx-card">
-                                <div class="mobile-tx-header">
-                                    <span class="tx-custom-id">#${tx.customId || String(tx.id || '').slice(-6)}</span>
-                                    <span>${stHtml}</span>
-                                </div>
-                                <div class="mobile-tx-body">
-                                    <div class="tx-amount-wrapper">
-                                        <span class="tx-amount">${Number(tx.amount || 0).toLocaleString('en-US', { maximumFractionDigits: 0 })}</span>
-                                        <span class="tx-currency">ج.م</span>
-                                    </div>
-                                    ${isPersonalExecutorReport ? '' : `<div class="tx-executor">
-                                        <i class="fa-solid fa-user-astronaut me-1"></i>
-                                        <span>${by}</span>
-                                    </div>`}
-                                </div>
-                                <div class="mobile-tx-divider"></div>
-                                <div class="mobile-tx-footer">
-                                    <div class="tx-time-item">
-                                        <span class="time-label"><i class="fa-solid fa-clock text-muted"></i> وصول</span>
-                                        <span class="time-value">${arrivalTimeStr}</span>
-                                    </div>
-                                    <div class="tx-time-item">
-                                        <span class="time-label"><i class="fa-solid fa-circle-check text-muted"></i> إكمال</span>
-                                        <span class="time-value">${completionTimeStr}</span>
-                                    </div>
-                                    <div class="tx-time-item">
-                                        <span class="time-label"><i class="fa-solid fa-hourglass-half text-success"></i> المدة</span>
-                                        <span class="time-value fw-bold text-success">${durationText}</span>
-                                    </div>
-                                </div>
-                                <div class="mobile-tx-date-row">
-                                    <span><i class="fa-solid fa-calendar-alt text-muted"></i> ${dateStr} - ${timeStr}</span>
-                                </div>
-                            </div>
-                            `;
-                        }
-                    });
-                }
-
-                cancelled.forEach((tx, index) => {
-                    const date = new Date(tx.completedAt || tx.createdAt);
-                    const dateText = date.toLocaleString('en-GB', { timeZone: 'Africa/Tripoli', hour12: true });
-                    const reference = tx.customId || tx.id || '---';
-                    const amount = Number(tx.amount || 0).toLocaleString('en-US', { maximumFractionDigits: 0 });
-                    cancelledTbody.innerHTML += `<tr><td>${index + 1}</td><td dir="ltr" class="fw-bold">${reference}</td><td>${amount} ج.م</td><td dir="ltr">${dateText}</td><td><span class="badge-st st-fail">ملغاة</span></td></tr>`;
-                    if (mobileCancelledList) {
-                        mobileCancelledList.innerHTML += `<div class="mobile-tx-card"><div class="mobile-tx-header"><span class="tx-custom-id">#${reference}</span><span class="badge-st st-fail">ملغاة</span></div><div class="mobile-tx-body"><div class="tx-amount-wrapper"><span class="tx-amount">${amount}</span><span class="tx-currency">ج.م</span></div></div><div class="mobile-tx-date-row"><span><i class="fa-solid fa-calendar-alt text-muted"></i> ${dateText}</span></div></div>`;
-                    }
-                });
-
+                document.getElementById('btnDownloadCsv').classList.remove('d-none');
             } catch (e) {
                 Swal.fire({ icon: 'error', title: 'خطأ', text: e.message || 'فشل جلب التقرير' });
             } finally {
                 btn.innerHTML = originalBtnHtml;
                 btn.disabled = false;
             }
+        }
+
+        function renderStats(data) {
+            const grid = document.getElementById('statsGrid');
+            const fs = data.financialSummary;
+            const isPersonal = data.scope === 'employee';
+
+            const stats = [
+                { icon: 'fa-list-check', color: 'stat-blue', label: 'عدد العمليات', value: data.operationCount || 0 },
+                { icon: 'fa-sack-dollar', color: 'stat-green', label: 'إجمالي العمليات', value: formatEgp(data.totalEGP || 0) },
+            ];
+
+            if (!isPersonal && fs) {
+                stats.push(
+                    { icon: 'fa-wallet', color: 'stat-gold', label: 'الرصيد السابق', value: formatEgp(fs.openingBalance) },
+                    { icon: 'fa-arrow-down', color: 'stat-green', label: 'الإيداعات', value: formatEgp(fs.additions) },
+                    { icon: 'fa-arrow-up', color: 'stat-red', label: 'الخصومات', value: formatEgp(fs.deductions) },
+                    { icon: 'fa-scale-balanced', color: 'stat-blue', label: 'الإجمالي / الرصيد الحالي', value: formatEgp(fs.closingBalance) }
+                );
+            } else {
+                stats.push(
+                    { icon: 'fa-ban', color: 'stat-red', label: 'الملغاة', value: data.summary?.cancelledCount || 0 },
+                    { icon: 'fa-clock', color: 'stat-gold', label: 'متوسط المدة', value: data.summary?.averageDurationSeconds ? `${Math.floor(data.summary.averageDurationSeconds / 60)}د ${data.summary.averageDurationSeconds % 60}ث` : '---' }
+                );
+            }
+
+            grid.innerHTML = stats.map((s, i) => `
+                <div class="x-stat-box ${s.color}" style="animation-delay:${i * 0.05}s">
+                    <i class="fa-solid ${s.icon}"></i>
+                    <small>${s.label}</small>
+                    <strong>${s.value}</strong>
+                </div>
+            `).join('');
+        }
+
+        function renderOperations(data) {
+            const tbody = document.getElementById('reportTableBody');
+            tbody.innerHTML = '';
+            const mobileList = document.getElementById('mobileReportList');
+            if (mobileList) mobileList.innerHTML = '';
+
+            const cancelled = Array.isArray(data.cancelledOperations) ? data.cancelledOperations : [];
+            const cancelledTbody = document.getElementById('cancelledReportTableBody');
+            const mobileCancelledList = document.getElementById('mobileCancelledList');
+            cancelledTbody.innerHTML = '';
+            if (mobileCancelledList) mobileCancelledList.innerHTML = '';
+            document.getElementById('cancelledSection').classList.toggle('d-none', cancelled.length === 0);
+
+            if (data.operations.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="${isPersonalExecutorReport ? 9 : 10}" class="text-center text-muted py-4">لا توجد عمليات في هذه الفترة</td></tr>`;
+                if (mobileList) mobileList.innerHTML = '<div class="x-empty-box">لا توجد عمليات في هذه الفترة</div>';
+            } else {
+                data.operations.forEach((tx, i) => {
+                    const row = buildRow(tx, i, false);
+                    tbody.appendChild(row);
+                    if (mobileList) mobileList.appendChild(buildMobileCard(tx, i, false));
+                });
+            }
+
+            cancelled.forEach((tx, index) => {
+                const date = new Date(tx.completedAt || tx.createdAt);
+                const dateText = date.toLocaleString('en-GB', { timeZone: 'Africa/Tripoli', hour12: true });
+                const reference = tx.customId || tx.id || '---';
+                const amount = Number(tx.amount || 0).toLocaleString('en-US', { maximumFractionDigits: 0 });
+                const tr = document.createElement('tr');
+                tr.innerHTML = `<td class="text-muted">${index + 1}</td><td dir="ltr" class="fw-bold">${reference}</td><td>${amount} ج.م</td><td dir="ltr">${dateText}</td><td><span class="badge-st st-fail">ملغاة</span></td>`;
+                cancelledTbody.appendChild(tr);
+                if (mobileCancelledList) {
+                    const card = document.createElement('div');
+                    card.className = 'x-mobile-card';
+                    card.innerHTML = `<div class="x-mobile-card-header"><span class="x-mobile-card-id">#${reference}</span><span class="badge-st st-fail">ملغاة</span></div><div class="x-mobile-card-body"><span class="x-mobile-amount">${amount} ج.م</span><span class="x-mobile-meta">${dateText}</span></div>`;
+                    mobileCancelledList.appendChild(card);
+                }
+            });
+        }
+
+        let reportChartInstance = null;
+        function renderReportChart(data) {
+            const ctx = document.getElementById('reportChart');
+            if (!ctx) return;
+            if (reportChartInstance) { reportChartInstance.destroy(); }
+            const days = {};
+            (data.operations || []).forEach((tx) => {
+                if (!tx.createdAt) return;
+                const d = new Date(tx.createdAt).toLocaleDateString('en-GB', { timeZone: 'Africa/Tripoli' });
+                days[d] = (days[d] || 0) + 1;
+            });
+            const labels = Object.keys(days).sort();
+            const values = labels.map((d) => days[d]);
+            if (labels.length === 0) {
+                ctx.parentElement.innerHTML = '<div class="text-center text-muted small py-4">لا توجد بيانات كافية للرسم البياني</div>';
+                return;
+            }
+            reportChartInstance = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels,
+                    datasets: [{
+                        label: 'عدد العمليات',
+                        data: values,
+                        backgroundColor: 'rgba(34, 211, 238, 0.25)',
+                        borderColor: '#22d3ee',
+                        borderWidth: 1,
+                        borderRadius: 8
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: {
+                        y: { beginAtZero: true, grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#94a3b8' } },
+                        x: { grid: { display: false }, ticks: { color: '#94a3b8' } }
+                    }
+                }
+            });
+        }
+
+        function buildRow(tx, i, isPending) {
+            const tr = document.createElement('tr');
+            tr.onclick = () => openOperationDetail(tx);
+            let statusHtml = '';
+            if (tx.status === 'completed') statusHtml = '<span class="badge-st st-done"><span class="indicator-dot dot-done"></span>مكتمل</span>';
+            else if (tx.status === 'rejected' || tx.status === 'cancelled_by_admin') statusHtml = '<span class="badge-st st-fail"><span class="indicator-dot dot-fail"></span>مرفوض</span>';
+            else statusHtml = '<span class="badge-st st-pending"><span class="indicator-dot dot-pending"></span>قيد التنفيذ</span>';
+
+            const dateObj = new Date(tx.createdAt);
+            const dateStr = dateObj.toLocaleDateString('en-GB', { timeZone: 'Africa/Tripoli' });
+            const arrivalTime = dateObj.toLocaleTimeString('en-US', { timeZone: 'Africa/Tripoli', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true });
+            let completionTime = '---';
+            if (tx.completedAt) {
+                completionTime = new Date(tx.completedAt).toLocaleTimeString('en-US', { timeZone: 'Africa/Tripoli', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true });
+            }
+            let duration = '---';
+            if (tx.executionDurationSeconds !== null && tx.executionDurationSeconds !== undefined) {
+                const m = Math.floor(tx.executionDurationSeconds / 60);
+                const s = tx.executionDurationSeconds % 60;
+                duration = m > 0 ? `${m}د ${s}ث` : `${s}ث`;
+            }
+            const by = tx.executorName || '---';
+            const typeLabel = tx.transferTypeLabel || 'محافظ كاش';
+
+            tr.innerHTML = `
+                <td class="text-muted fw-bold">${i + 1}</td>
+                <td dir="ltr" class="fw-bold text-center">#${tx.customId || String(tx.id || '').slice(-6)}</td>
+                <td>${typeLabel}</td>
+                <td class="fw-bold">${formatEgp(tx.amount)}</td>
+                <td dir="ltr" class="text-center" style="font-size:0.85rem; font-family:monospace;">${arrivalTime}</td>
+                <td dir="ltr" class="text-center" style="font-size:0.85rem; font-family:monospace;">${completionTime}</td>
+                <td class="fw-bold text-success" style="font-size:0.85rem;">${duration}</td>
+                <td>${statusHtml}</td>
+                <td><div dir="ltr" style="font-size:0.85em;" class="text-center fw-bold">${dateStr}</div></td>
+                ${isPersonalExecutorReport ? '' : `<td>${by}</td>`}
+            `;
+            return tr;
+        }
+
+        function buildMobileCard(tx, i, isPending) {
+            const card = document.createElement('div');
+            card.className = 'x-mobile-card';
+            card.onclick = () => openOperationDetail(tx);
+            let statusHtml = '';
+            if (tx.status === 'completed') statusHtml = '<span class="badge-st st-done">مكتمل</span>';
+            else if (tx.status === 'rejected' || tx.status === 'cancelled_by_admin') statusHtml = '<span class="badge-st st-fail">مرفوض</span>';
+            else statusHtml = '<span class="badge-st st-pending">قيد التنفيذ</span>';
+            const dateObj = new Date(tx.createdAt);
+            const dateStr = dateObj.toLocaleDateString('en-GB', { timeZone: 'Africa/Tripoli' });
+            const typeLabel = tx.transferTypeLabel || 'محافظ كاش';
+            card.innerHTML = `
+                <div class="x-mobile-card-header">
+                    <span class="x-mobile-card-id">#${tx.customId || String(tx.id || '').slice(-6)}</span>
+                    <span>${statusHtml}</span>
+                </div>
+                <div class="x-mobile-card-body">
+                    <span class="x-mobile-amount">${Number(tx.amount || 0).toLocaleString('en-US', { maximumFractionDigits: 0 })} ج.م</span>
+                    <span class="x-mobile-meta">${typeLabel}<br>${dateStr}</span>
+                </div>
+            `;
+            return card;
+        }
+
+        function openOperationDetail(tx) {
+            const modal = new bootstrap.Modal(document.getElementById('operationDetailModal'));
+            document.getElementById('detailModalTitle').textContent = `تفاصيل العملية #${tx.customId || String(tx.id || '').slice(-6)}`;
+
+            const dateObj = new Date(tx.createdAt);
+            const dateStr = dateObj.toLocaleDateString('en-GB', { timeZone: 'Africa/Tripoli' });
+            const arrivalTime = dateObj.toLocaleTimeString('en-US', { timeZone: 'Africa/Tripoli', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true });
+            const completionTime = tx.completedAt ? new Date(tx.completedAt).toLocaleTimeString('en-US', { timeZone: 'Africa/Tripoli', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true }) : '---';
+            let duration = '---';
+            if (tx.executionDurationSeconds !== null && tx.executionDurationSeconds !== undefined) {
+                const m = Math.floor(tx.executionDurationSeconds / 60);
+                const s = tx.executionDurationSeconds % 60;
+                duration = m > 0 ? `${m}د ${s}ث` : `${s}ث`;
+            }
+
+            let statusHtml = '';
+            if (tx.status === 'completed') statusHtml = '<span class="badge-st st-done">مكتمل</span>';
+            else if (tx.status === 'rejected' || tx.status === 'cancelled_by_admin') statusHtml = '<span class="badge-st st-fail">مرفوض</span>';
+            else statusHtml = '<span class="badge-st st-pending">قيد التنفيذ</span>';
+
+            let receiptImages = '';
+            if (tx.receiptUrl) {
+                receiptImages += `<a href="${tx.receiptUrl}" target="_blank"><img src="${tx.receiptUrl}" alt="إيصال النظام"></a>`;
+            }
+
+            let executorImages = '';
+            if (tx.executorProofImageUrls && tx.executorProofImageUrls.length > 0) {
+                executorImages = tx.executorProofImageUrls.map(url => `<a href="${url}" target="_blank"><img src="${url}" alt="إثبات المنفذ"></a>`).join('');
+            }
+
+            let senderInfo = '';
+            if (tx.executorExecutionNumber || tx.executorSenderPhone) {
+                senderInfo = `
+                    <div class="x-detail-section-title"><i class="fa-solid fa-phone"></i> بيانات المرسل</div>
+                    <div class="x-detail-grid">
+                        <div class="x-detail-item"><label>رقم هاتف المرسل</label><span dir="ltr">${tx.executorSenderPhone || tx.executorExecutionNumber || '---'}</span></div>
+                    </div>
+                `;
+            }
+
+            let ratingSection = '';
+            if (tx.status === 'completed') {
+                const isRated = tx.executorRating ? true : false;
+                const stars = [1, 2, 3, 4, 5].map((n) => `<span class="star ${(tx.executorRating || 0) >= n ? 'active' : ''}" data-star="${n}"><i class="fa-solid fa-star"></i></span>`).join('');
+                ratingSection = `
+                    <div class="x-detail-section-title"><i class="fa-solid fa-star"></i> تقييم أداء المنفذ</div>
+                    <div class="x-detail-item full">
+                        <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
+                            <div class="x-star-rating" id="ratingStars" data-tx="${tx.id}">${stars}</div>
+                            <div id="ratingStatus" class="small fw-bold" style="color: var(--x-muted, #94a3b8);">${isRated ? 'تم التقييم' : 'اضغط على النجوم للتقييم'}</div>
+                        </div>
+                        ${!isRated ? `<div class="mt-2"><textarea id="ratingNote" class="form-control form-control-sm bg-transparent text-white border-secondary" rows="2" placeholder="ملاحظة اختيارية..."></textarea></div>` : (tx.executorRatingNote ? `<div class="mt-2 text-white small" style="white-space:pre-line">${tx.executorRatingNote}</div>` : '')}
+                    </div>
+                `;
+            }
+
+            let voiceNoteSection = '';
+            if (tx.voiceNote) {
+                voiceNoteSection = `
+                    <div class="x-detail-section-title"><i class="fa-solid fa-microphone"></i> ملاحظة صوتية</div>
+                    <div class="x-voice-note"><audio controls src="${tx.voiceNote}"></audio></div>
+                `;
+            } else {
+                voiceNoteSection = `
+                    <div class="x-detail-section-title"><i class="fa-solid fa-microphone"></i> ملاحظة صوتية</div>
+                    <div class="x-detail-item full">
+                        <div class="d-flex align-items-center gap-2 flex-wrap">
+                            <button class="btn btn-sm btn-outline-info" id="voiceRecordBtn" data-tx="${tx.id}"><i class="fa-solid fa-microphone"></i> تسجيل</button>
+                            <input type="file" id="voiceFileInput" accept="audio/*" class="form-control form-control-sm bg-transparent text-white" style="max-width:220px">
+                            <button class="btn btn-sm btn-primary" id="voiceUploadBtn" data-tx="${tx.id}"><i class="fa-solid fa-upload"></i> رفع</button>
+                        </div>
+                        <div id="voiceRecorderArea" class="mt-2 d-none">
+                            <span class="badge bg-danger rounded-pill">تسجيل...</span>
+                            <button class="btn btn-sm btn-outline-light ms-2" id="voiceStopBtn">إيقاف</button>
+                        </div>
+                    </div>
+                `;
+            }
+
+            document.getElementById('detailModalBody').innerHTML = `
+                <div class="x-detail-grid">
+                    <div class="x-detail-item"><label>رقم العملية</label><span dir="ltr">#${tx.customId || String(tx.id || '').slice(-6)}</span></div>
+                    <div class="x-detail-item"><label>النوع</label><span>${tx.transferTypeLabel || '---'}</span></div>
+                    <div class="x-detail-item"><label>المبلغ</label><span class="text-success">${formatEgp(tx.amount)}</span></div>
+                    <div class="x-detail-item"><label>الحالة</label><span>${statusHtml}</span></div>
+                    <div class="x-detail-item"><label>وقت الوصول</label><span dir="ltr">${arrivalTime}</span></div>
+                    <div class="x-detail-item"><label>وقت الإكمال</label><span dir="ltr">${completionTime}</span></div>
+                    <div class="x-detail-item"><label>المدة</label><span>${duration}</span></div>
+                    <div class="x-detail-item"><label>التاريخ</label><span dir="ltr">${dateStr}</span></div>
+                    ${tx.executorName && !isPersonalExecutorReport ? `<div class="x-detail-item full"><label>المنفذ</label><span>${tx.executorName}</span></div>` : ''}
+                    ${tx.recipientNumber ? `<div class="x-detail-item full"><label>رقم المستلم</label><span dir="ltr">${tx.recipientNumber}</span></div>` : ''}
+                    ${tx.recipientName ? `<div class="x-detail-item full"><label>اسم المستلم</label><span>${tx.recipientName}</span></div>` : ''}
+                    ${tx.notes ? `<div class="x-detail-item full"><label>ملاحظات</label><span style="font-family:inherit; white-space:pre-line; font-weight:400;">${tx.notes}</span></div>` : ''}
+                </div>
+                ${senderInfo}
+                ${receiptImages || executorImages ? `<div class="x-detail-section-title"><i class="fa-solid fa-images"></i> صور الإيصال والإثبات</div><div class="x-detail-images">${receiptImages}${executorImages}</div>` : ''}
+                ${tx.receiptUrl ? `
+                    <div class="x-detail-section-title"><i class="fa-solid fa-qrcode"></i> QR للتحقق من الإيصال</div>
+                    <div class="x-detail-item full" style="display:flex;align-items:center;gap:16px;flex-wrap:wrap">
+                        <img src="https://api.qrserver.com/v1/create-qr-code/?size=140x140&data=${encodeURIComponent(window.location.origin + tx.receiptUrl)}" alt="QR" style="width:120px;height:120px;border-radius:8px;border:1px solid var(--x-border)">
+                        <span style="font-family:inherit;font-weight:400;font-size:0.82rem;color:var(--x-muted)">امسح الكود للتحقق من صحة الإيصال.</span>
+                    </div>
+                ` : ''}
+                ${voiceNoteSection}
+                ${ratingSection}
+            `;
+
+            const ratingContainer = document.getElementById('ratingStars');
+            if (ratingContainer && !tx.executorRating) {
+                ratingContainer.querySelectorAll('.star').forEach((star) => {
+                    star.onclick = async () => {
+                        const value = Number(star.dataset.star);
+                        const txId = ratingContainer.dataset.tx;
+                        const note = document.getElementById('ratingNote')?.value || '';
+                        try {
+                            const res = await executorApiFetch(`/executor-portal/api/rate-task/${txId}`, {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ rating: value, note })
+                            });
+                            const data = await res.json();
+                            if (data.success) {
+                                ratingContainer.querySelectorAll('.star').forEach((s, i) => { if (i < value) s.classList.add('active'); else s.classList.remove('active'); });
+                                document.getElementById('ratingStatus').textContent = 'تم حفظ التقييم';
+                                document.getElementById('ratingNote')?.parentElement?.classList.add('d-none');
+                                Swal.fire({ icon: 'success', title: 'تم التقييم', timer: 1200, showConfirmButton: false });
+                            } else throw new Error(data.error);
+                        } catch (e) { Swal.fire('خطأ', e.message || 'تعذر حفظ التقييم', 'error'); }
+                    };
+                });
+            }
+
+            setupVoiceRecorder(tx.id);
+
+            const downloadBtn = document.getElementById('detailDownloadBtn');
+            if (tx.receiptUrl) {
+                downloadBtn.style.display = 'inline-flex';
+                downloadBtn.onclick = () => downloadImages(tx.receiptUrl);
+            } else {
+                downloadBtn.style.display = 'none';
+            }
+
+            modal.show();
+        }
+
+        function setupVoiceRecorder(txId) {
+            let mediaRecorder = null;
+            let chunks = [];
+            const recordBtn = document.getElementById('voiceRecordBtn');
+            const stopBtn = document.getElementById('voiceStopBtn');
+            const recorderArea = document.getElementById('voiceRecorderArea');
+            const fileInput = document.getElementById('voiceFileInput');
+            const uploadBtn = document.getElementById('voiceUploadBtn');
+
+            if (recordBtn) {
+                recordBtn.onclick = async () => {
+                    try {
+                        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                        mediaRecorder = new MediaRecorder(stream);
+                        chunks = [];
+                        mediaRecorder.ondataavailable = (e) => chunks.push(e.data);
+                        mediaRecorder.onstop = async () => {
+                            const blob = new Blob(chunks, { type: 'audio/webm' });
+                            await uploadVoiceNote(txId, blob);
+                            stream.getTracks().forEach((t) => t.stop());
+                            recorderArea.classList.add('d-none');
+                        };
+                        mediaRecorder.start();
+                        recorderArea.classList.remove('d-none');
+                    } catch (e) { Swal.fire('تنبيه', 'لا يمكن الوصول إلى الميكروفون.', 'warning'); }
+                };
+            }
+            if (stopBtn) stopBtn.onclick = () => mediaRecorder?.stop();
+            if (uploadBtn && fileInput) {
+                uploadBtn.onclick = async () => {
+                    if (!fileInput.files[0]) return Swal.fire('تنبيه', 'اختر ملف صوتي أولاً.', 'warning');
+                    await uploadVoiceNote(txId, fileInput.files[0]);
+                };
+            }
+        }
+
+        async function uploadVoiceNote(txId, blob) {
+            try {
+                const reader = new FileReader();
+                reader.onloadend = async () => {
+                    const base64 = reader.result;
+                    const res = await executorApiFetch(`/executor-portal/api/voice-note/${txId}`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ base64 })
+                    });
+                    const data = await res.json();
+                    if (data.success) {
+                        Swal.fire({ icon: 'success', title: 'تم حفظ الملاحظة الصوتية', timer: 1200, showConfirmButton: false });
+                        if (lastReportRequest) fetchReport();
+                    } else throw new Error(data.error);
+                };
+                reader.readAsDataURL(blob);
+            } catch (e) { Swal.fire('خطأ', e.message || 'تعذر رفع الملاحظة الصوتية', 'error'); }
         }
 
         async function downloadReportPdf() {
@@ -993,237 +843,77 @@
             }
         }
 
-        function generatePDF() {
-            if (!lastReportData) return;
-            const data = lastReportData;
-            const ei = data.entityInfo || {};
-
-            let html = `
-            <div style="font-family: 'Cairo', sans-serif; direction: rtl; padding: 15px; color: #000; background: #fff;">
-                
-                <!-- Header Section -->
-                <div style="text-align: center; border-bottom: 3px solid #000; padding-bottom: 20px; margin-bottom: 30px;">
-                    <h1 style="color: #000; margin: 0; font-size: 28px; font-weight: 900;">شركة الأهرام للخدمات المالية</h1>
-                    <h2 style="color: #000; margin: 5px 0 0 0; font-size: 18px; font-weight: 800;">تقرير حساب العميل الشامل</h2>
-                    <div style="margin-top: 10px; font-size: 12px; color: #000; font-weight: 600;">
-                        تاريخ الإصدار: ${new Date().toLocaleDateString('en-GB', { timeZone: 'Africa/Tripoli' })} | الوقت: ${new Date().toLocaleTimeString('en-US', { timeZone: 'Africa/Tripoli', hour: '2-digit', minute: '2-digit', hour12: true })}
-                    </div>
-                </div>
-                
-                <!-- Client Card 2030 Style -->
-                <div style="background: #fff; border: 2px solid #000; border-right: 6px solid #000; border-radius: 12px; padding: 20px; margin-bottom: 30px;">
-                    <h4 style="margin: 0 0 15px 0; color: #000; font-size: 16px; font-weight: 800; display: flex; align-items: center; border-bottom: 1px solid #ccc; padding-bottom: 10px;">
-                        <span style="background: #000; color: #fff; padding: 4px 12px; border-radius: 6px; margin-left: 10px; font-size: 12px;">بيانات الحساب</span>
-                    </h4>
-                    <table style="width: 100%; font-size: 14px; color: #000; border-spacing: 0 10px; font-weight: 700;">
-                        <tr>
-                            <td style="width: 50%;">
-                                <div style="color: #333; font-size: 12px; margin-bottom: 2px;">اسم العميل</div>
-                                <strong style="color: #000; font-size: 16px;">${ei.name || '---'}</strong>
-                            </td>
-                            <td style="width: 50%;">
-                                <div style="color: #333; font-size: 12px; margin-bottom: 2px;">رقم الهاتف</div>
-                                <strong dir="ltr" style="color: #000; font-size: 16px;">${ei.phone || '---'}</strong>
-                            </td>
-                        </tr>
-                        <tr>
-                            <td>
-                                <div style="color: #333; font-size: 12px; margin-bottom: 2px;">اسم المستخدم</div>
-                                <strong style="color: #000; font-size: 16px;">${ei.username || '---'}</strong>
-                            </td>
-                            <td>
-                                <div style="color: #333; font-size: 12px; margin-bottom: 2px;">تاريخ الانضمام</div>
-                                <strong style="color: #000; font-size: 16px;">${ei.joinDate ? new Date(ei.joinDate).toLocaleDateString('en-GB', { timeZone: 'Africa/Tripoli' }) : '---'}</strong>
-                            </td>
-                        </tr>
-                        <tr>
-                            <td colspan="2" style="padding-top: 10px; border-top: 1px solid #000;">
-                                <div style="color: #333; font-size: 12px; margin-bottom: 2px;">حالة العميل والتصنيف</div>
-                                <strong style="color: #000; font-size: 16px;">${ei.status || '---'}</strong>
-                            </td>
-                        </tr>
-                    </table>
-                </div>
-
-                <!-- Financial Summary 2030 Style -->
-                <div style="display: flex; justify-content: space-between; margin-bottom: 30px; gap: 10px;">
-                    <div style="flex: 1; padding: 15px; background: #fff; border: 2px solid #000; border-radius: 8px; text-align: center;">
-                        <div style="color: #000; font-size: 14px; font-weight: 700; margin-bottom: 8px; border-bottom: 1px dashed #000; padding-bottom: 5px;">إجمالي العمليات</div>
-                        <div style="font-size: 18px; color: #000; font-weight: 900;">${data.totalEGP.toFixed(2)}</div>
-                    </div>
-                    <div style="flex: 1; padding: 15px; background: #fff; border: 2px solid #000; border-radius: 8px; text-align: center;">
-                        <div style="color: #000; font-size: 14px; font-weight: 700; margin-bottom: 8px; border-bottom: 1px dashed #000; padding-bottom: 5px;">عمليات ناجحة</div>
-                        <div style="font-size: 18px; color: #000; font-weight: 900;">${data.completedCount}</div>
-                    </div>
-                    <div style="flex: 1; padding: 15px; background: #fff; border: 2px solid #000; border-radius: 8px; text-align: center;">
-                        <div style="color: #000; font-size: 14px; font-weight: 700; margin-bottom: 8px; border-bottom: 1px dashed #000; padding-bottom: 5px;">عمليات مرفوضة</div>
-                        <div style="font-size: 18px; color: #000; font-weight: 900;">${data.rejectedCount}</div>
-                    </div>
-                </div>
-            `;
-
-            const generateOpsHeader = (isContinuation = false) => `
-                <h4 style="color: #000; font-size: 18px; font-weight: 800; margin-bottom: 15px; padding-bottom: 8px; border-bottom: 2px solid #000;">
-                    كشف العمليات ${isContinuation ? '<span style="font-size: 14px;">(تكملة)</span>' : ''}
-                </h4>
-                <table style="width: 100%; border-collapse: separate; border-spacing: 0; font-size: 11px; margin-bottom: 30px; text-align: right; border: 2px solid #000; border-radius: 8px; overflow: hidden;">
-                    <thead>
-                        <tr style="background: #000; color: #fff;">
-                            <th style="padding: 10px 4px; border-bottom: 2px solid #000; font-weight: 800;">#</th>
-                            <th style="padding: 10px 4px; border-bottom: 2px solid #000; font-weight: 800;">رقم العملية</th>
-                            <th style="padding: 10px 4px; border-bottom: 2px solid #000; font-weight: 800;">المبلغ</th>
-                            <th style="padding: 10px 4px; border-bottom: 2px solid #000; font-weight: 800;">وقت الوصول</th>
-                            <th style="padding: 10px 4px; border-bottom: 2px solid #000; font-weight: 800;">وقت الإكمال</th>
-                            <th style="padding: 10px 4px; border-bottom: 2px solid #000; font-weight: 800;">مدة الإكمال</th>
-                            <th style="padding: 10px 4px; border-bottom: 2px solid #000; font-weight: 800;">الحالة</th>
-                            <th style="padding: 10px 4px; border-bottom: 2px solid #000; font-weight: 800;">التاريخ والوقت</th>
-                            <th style="padding: 10px 4px; border-bottom: 2px solid #000; font-weight: 800;">المنفذ</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-            `;
-
-            if (data.operations.length === 0) {
-                html += generateOpsHeader() + '<tr><td colspan="9" style="border: 1px solid #000; padding: 15px; text-align: center; color: #000; font-weight: bold;">لا توجد عمليات</td></tr></tbody></table>';
-            } else {
-                let sortedOps = [...data.operations].sort((a, b) => {
-                    const statusA = ['rejected', 'cancelled_by_admin'].includes(a.status) ? 1 : 0;
-                    const statusB = ['rejected', 'cancelled_by_admin'].includes(b.status) ? 1 : 0;
-                    if (statusA !== statusB) return statusA - statusB;
-                    return new Date(b.createdAt) - new Date(a.createdAt);
-                });
-
-                let opsChunks = [];
-                if (sortedOps.length > 10) {
-                    opsChunks.push(sortedOps.slice(0, 10));
-                    for (let i = 10; i < sortedOps.length; i += 20) {
-                        opsChunks.push(sortedOps.slice(i, i + 20));
-                    }
-                } else {
-                    opsChunks.push(sortedOps);
-                }
-
-                opsChunks.forEach((chunk, chunkIdx) => {
-                    if (chunkIdx > 0) {
-                        html += '<div style="page-break-before: always; margin-top: 20px;"></div>';
-                    }
-                    html += generateOpsHeader(chunkIdx > 0);
-
-                    chunk.forEach((tx, idxInChunk) => {
-                        const globalIdx = chunkIdx === 0 ? idxInChunk : 10 + ((chunkIdx - 1) * 20) + idxInChunk;
-
-                        let stTxt = 'معلقة'; let stCol = '#000'; let stBg = '#fff';
-                        if (tx.status === 'completed') { stTxt = 'ناجحة'; stCol = '#000'; stBg = '#fff'; }
-                        else if (['rejected', 'cancelled_by_admin'].includes(tx.status)) { stTxt = 'ملغية'; stCol = '#fff'; stBg = '#000'; }
-
-                        const dt = new Date(tx.createdAt);
-                        const arrivalTimeStr = dt.toLocaleTimeString('en-US', { timeZone: 'Africa/Tripoli', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true });
-
-                        let completionTimeStr = '---';
-                        if (tx.status === 'completed' && tx.updatedAt) {
-                            const completedDate = new Date(tx.updatedAt);
-                            completionTimeStr = completedDate.toLocaleTimeString('en-US', { timeZone: 'Africa/Tripoli', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true });
-                        }
-
-                        let durationText = '---';
-                        if (tx.status === 'completed' && tx.updatedAt && tx.createdAt) {
-                            const diffMs = new Date(tx.updatedAt) - new Date(tx.createdAt);
-                            const diffSec = Math.floor(diffMs / 1000);
-                            if (diffSec >= 0) {
-                                const m = Math.floor(diffSec / 60);
-                                const s = diffSec % 60;
-                                durationText = m > 0 ? `${m} د و ${s} ث` : `${s} ث`;
-                            }
-                        }
-
-                        let by = tx.operatorName || tx.executorName || tx.employeeName || 'الإدارة';
-
-                        html += `
-                        <tr style="background: ${globalIdx % 2 === 0 ? '#fff' : '#f8f8f8'};">
-                            <td style="padding: 8px 4px; border-bottom: 1px solid #000; color: #000; font-weight: 700;">${globalIdx + 1}</td>
-                            <td style="padding: 8px 4px; border-bottom: 1px solid #000; font-weight: 800; color: #000;" dir="ltr">${tx.customId || tx._id.toString().slice(-6)}</td>
-                            <td style="padding: 8px 4px; border-bottom: 1px solid #000; font-weight: 900; color: #000;" dir="ltr">${tx.amount} EGP</td>
-                            <td style="padding: 8px 4px; border-bottom: 1px solid #000; font-family: monospace;" dir="ltr">${arrivalTimeStr}</td>
-                            <td style="padding: 8px 4px; border-bottom: 1px solid #000; font-family: monospace;" dir="ltr">${completionTimeStr}</td>
-                            <td style="padding: 8px 4px; border-bottom: 1px solid #000; color: #10b981; font-weight: 800;">${durationText}</td>
-                            <td style="padding: 8px 4px; border-bottom: 1px solid #000;">
-                                <span style="background: ${stBg}; color: ${stCol}; padding: 3px 6px; border-radius: 4px; font-size: 11px; font-weight: 800; border: 2px solid #000;">${stTxt}</span>
-                            </td>
-                            <td style="padding: 8px 4px; border-bottom: 1px solid #000;" dir="ltr">
-                                <div style="color: #000; font-weight: 800;">${dt.toLocaleDateString('en-GB', { timeZone: 'Africa/Tripoli' })}</div>
-                                <div style="font-size: 10px; color: #000; font-weight: 700;">${dt.toLocaleTimeString('en-US', { timeZone: 'Africa/Tripoli', hour: '2-digit', minute: '2-digit', hour12: true })}</div>
-                            </td>
-                            <td style="padding: 8px 4px; border-bottom: 1px solid #000; color: #000; font-weight: 800;">${by}</td>
-                        </tr>
-                        `;
-                    });
-
-                    html += `
-                        </tbody>
-                    </table>
-                `;
-                });
+        function setQuickPeriod(kind) {
+            const today = new Date();
+            const y = today.getFullYear();
+            const m = String(today.getMonth() + 1).padStart(2, '0');
+            const d = String(today.getDate()).padStart(2, '0');
+            if (kind === 'today') {
+                document.getElementById('dateType').value = 'day';
+                document.getElementById('dateValueDay').value = `${y}-${m}-${d}`;
+            } else if (kind === 'yesterday') {
+                const yest = new Date(today); yest.setDate(yest.getDate() - 1);
+                document.getElementById('dateType').value = 'day';
+                document.getElementById('dateValueDay').value = yest.toISOString().slice(0, 10);
+            } else if (kind === 'last7') {
+                const from = new Date(today); from.setDate(from.getDate() - 6);
+                document.getElementById('dateType').value = 'range';
+                document.getElementById('dateFrom').value = from.toISOString().slice(0, 10);
+                document.getElementById('dateTo').value = `${y}-${m}-${d}`;
+            } else if (kind === 'thisMonth') {
+                document.getElementById('dateType').value = 'month';
+                document.getElementById('dateValueMonth').value = `${y}-${m}`;
             }
-
-            html += `</div>`;
-
-            const opt = {
-                margin: 10,
-                filename: 'تقرير_الموظف.pdf',
-                image: { type: 'jpeg', quality: 1.0 },
-                html2canvas: { scale: 2, useCORS: true },
-                jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
-            };
-
-            const container = document.createElement('div');
-            container.innerHTML = html;
-            html2pdf().set(opt).from(container).save();
+            toggleDateInput();
+            fetchReport();
         }
 
-        async function initializeReports() {
-            await loadEmployeeFilter();
-            await fetchReport();
-        }
-
-        initializeReports();
-        </script>
-        
-        <!-- شريط التنقل السفلي للهواتف (App-like Bottom Navigation) -->
-        <div class="bottom-nav-mobile d-md-none">
-            <!-- حسابي (الملف الشخصي والمنجزات) -->
-            <a href="/executor-portal/dashboard#profile" class="bottom-nav-item" id="nav-profile">
-                <i class="fa-solid fa-circle-user"></i>
-                <span>حسابي</span>
-            </a>
-            <!-- الرادار -->
-            <a href="/executor-portal/dashboard#radar" class="bottom-nav-item" id="nav-dash">
-                <i class="fa-solid fa-satellite-dish"></i>
-                <span>الرادار</span>
-            </a>
-            <!-- التقارير -->
-            <a href="/executor-portal/reports" class="bottom-nav-item" id="nav-rep">
-                <i class="fa-solid fa-chart-line"></i>
-                <span>التقارير</span>
-            </a>
-            <% if (emp.role === 'manager') { %>
-            <!-- الموظفين -->
-            <a href="/executor-portal/employees" class="bottom-nav-item" id="nav-emp">
-                <i class="fa-solid fa-users"></i>
-                <span>الموظفين</span>
-            </a>
-            <% } %>
-        </div>
-        <script>
-            document.addEventListener('DOMContentLoaded', () => {
-                const path = window.location.pathname;
-                if (path.includes('/dashboard')) {
-                    document.getElementById('nav-dash')?.classList.add('active');
-                } else if (path.includes('/reports')) {
-                    document.getElementById('nav-rep')?.classList.add('active');
-                } else if (path.includes('/employees')) {
-                    document.getElementById('nav-emp')?.classList.add('active');
-                }
+        function filterReportTable() {
+            const query = document.getElementById('reportSearch').value.trim().toLowerCase();
+            document.querySelectorAll('#reportTableBody tr, .x-mobile-card').forEach((row) => {
+                const text = row.textContent.toLowerCase();
+                row.style.display = query && !text.includes(query) ? 'none' : '';
             });
-        </script>
+        }
+
+        function downloadReportCsv() {
+            if (!lastReportData) return;
+            const rows = [
+                ['#', 'رقم العملية', 'النوع', 'المبلغ', 'رقم المستلم', 'حالة', 'تاريخ', 'المنفذ', 'ملاحظات']
+            ];
+            (lastReportData.operations || []).forEach((tx, i) => {
+                rows.push([
+                    i + 1,
+                    tx.customId || tx.id || '',
+                    tx.transferTypeLabel || '',
+                    tx.amount || 0,
+                    tx.recipientNumber || '',
+                    tx.status || '',
+                    tx.createdAt ? new Date(tx.createdAt).toLocaleString('en-GB', { timeZone: 'Africa/Tripoli' }) : '',
+                    tx.executorName || '',
+                    (tx.notes || '').replace(/\n/g, ' ')
+                ]);
+            });
+            const csv = rows.map((r) => r.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(',')).join('\n');
+            const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            const period = lastReportData?.reportPeriod?.value || new Date().toISOString().slice(0, 10);
+            a.download = `executor-report-${period}.csv`;
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+            URL.revokeObjectURL(url);
+            Swal.fire({ icon: 'success', title: 'تم تنزيل Excel', timer: 1200, showConfirmButton: false });
+        }
+
+        loadEmployeeFilter();
+
+        // تحديث تلقائي للتقرير كل 60 ثانية إذا كانت الصفحة ظاهرة وتم جلب تقرير
+        setInterval(() => {
+            if (!document.hidden && lastReportRequest) fetchReport();
+        }, 60000);
+    </script>
 </body>
 </html>
