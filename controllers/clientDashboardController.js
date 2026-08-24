@@ -203,12 +203,15 @@ exports.getDashboard = async (req, res) => {
             settings: set
         });
 
+        const showMfaNotice = Boolean(req.session.showMfaEnableNotice);
+        delete req.session.showMfaEnableNotice;
         res.render('client/dashboard', {
             user: { name: account.name, phone: account.phone || account.webUsername, balance: balance, role: account.role || 'user', accountType: req.session.accountType, accountCode, canViewBalance },
             isSubAccount, isMaster: !isSubAccount, masterTotalProfit, transactions: combinedTransactions.map(sanitizeStatementTransaction), currentRate, serviceRates, totals, targetDate, dateLabel, showMonth, search, query: req.query, storeCatalog,
             isSystemOpen,
             profile,
-            pendingRateUpdate
+            pendingRateUpdate,
+            showMfaNotice
         });
     } catch (error) {
         console.error("Dashboard Render Error:", error);

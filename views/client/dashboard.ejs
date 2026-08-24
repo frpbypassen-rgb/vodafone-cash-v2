@@ -674,6 +674,14 @@
     <!-- End PWA Setup -->
 </head>
 <body class="client-direct-modern">
+<% if (typeof showMfaNotice !== 'undefined' && showMfaNotice) { %>
+    <div id="mfaEnableNotice" class="alert alert-warning alert-dismissible shadow-sm position-fixed top-0 start-50 translate-middle-x mt-3 mx-3" role="alert" style="z-index: 3000; max-width: 760px; width: calc(100% - 32px);">
+        <i class="fa-solid fa-shield-halved ms-1"></i>
+        <strong>أمّن حسابك.</strong> لم يتم تفعيل رمز Authenticator بعد. لحماية بياناتك الشخصية، فعّله من إعدادات الحساب؛ الشركة غير مسؤولة عن أي تسريب ينتج عن عدم تأمين الحساب، وقد يعرّضك ذلك للخطر.
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="إغلاق"></button>
+    </div>
+    <script>window.setTimeout(() => document.getElementById('mfaEnableNotice')?.remove(), 60000);</script>
+<% } %>
 <%
     const cleanClientTxNotes = (tx = {}) => {
         const explicitCustomerNotes = String(tx.customerNotes || '').trim();

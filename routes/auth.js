@@ -622,6 +622,9 @@ const completeClientSession = async (req, account, accountType) => {
         accountType,
         clientName: account.name || account.webUsername || 'حساب عميل'
     });
+    if (!account.mfaEnabled || account.mfaType !== 'totp') {
+        req.session.showMfaEnableNotice = true;
+    }
     await securityControl.applySessionSecurity(req, principal, 'account');
     const performedByModel = accountType === 'company'
         ? 'ClientEmployee'
@@ -643,6 +646,11 @@ const completeClientSession = async (req, account, accountType) => {
 const loginAsClient = async (req, res, account, accountType) => {
     const principalType = ({ user: 'client_user', company: 'client_company', agent_staff: 'agent_staff', sub_client: 'sub_client' })[accountType] || 'client_user';
     const principal = { principalType, principalId: String(account._id), principalName: account.name || account.webUsername || 'حساب عميل' };
+    if (!securityControl.parseLocation(req)) {
+        return renderLogin(res, 'يجب السماح بالوصول إلى موقع الجهاز لإكمال تسجيل الدخول بأمان.', {
+            submittedUsername: String(req.body.username || '')
+        });
+    }
     const authorization = await securityControl.authorizeLogin({ req, res, principal, accountClass: 'account', allowFirstDevice: true });
     if (!authorization.allowed) {
         await logLoginFailure(req, req.body.username, authorization.code, authorization.message);
