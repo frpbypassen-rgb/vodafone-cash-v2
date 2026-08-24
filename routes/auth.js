@@ -93,6 +93,13 @@ const renderLogin = (res, error = null, data = {}) => res.render('unified_login'
 });
 
 const EXECUTOR_MFA_CHALLENGE_TTL_MS = 5 * 60 * 1000;
+const ACCOUNT_MFA_CHALLENGE_TTL_MS = 5 * 60 * 1000;
+const ACCOUNT_MFA_MODELS = {
+    user: User,
+    company: ClientEmployee,
+    sub_client: SubAccount,
+    agent_staff: AgentEmployee
+};
 
 const cookieValue = (req, name) => String(req.headers.cookie || '')
     .split(';')
@@ -189,6 +196,64 @@ const completeExecutorMfaChallenge = async (req, res) => {
 
     delete req.session.pendingExecutorMfaLogin;
     return loginAsExecutor(req, res, executor);
+};
+
+const renderAccountMfaChallenge = (res, error = null, username = '') => renderLogin(res, error, {
+    mfaRequired: true,
+    accountMfaChallenge: true,
+    submittedUsername: username
+});
+
+const beginAccountMfaChallenge = async (req, res, account, accountType) => {
+    const canonicalType = ({ user: 'client_user', company: 'client_company' })[accountType] || accountType;
+    const mfaAccount = await accountMfaService.loadAccount(canonicalType, account._id, account.tenantId || null);
+    if (!mfaAccount || !accountMfaService.isEnabled(mfaAccount)) return false;
+    req.session.pendingAccountMfaLogin = {
+        accountId: String(account._id),
+        accountType,
+        username: account.webUsername || String(req.body.username || ''),
+        createdAt: Date.now()
+    };
+    req.session.pendingSecurityLocation = securityControl.parseLocation(req);
+    await new Promise((resolve, reject) => req.session.save((error) => error ? reject(error) : resolve()));
+    renderAccountMfaChallenge(res, null, req.session.pendingAccountMfaLogin.username);
+    return true;
+};
+
+const completeAccountMfaChallenge = async (req, res) => {
+    const pending = req.session.pendingAccountMfaLogin;
+    if (!pending?.accountId || !ACCOUNT_MFA_MODELS[pending.accountType]) return false;
+    if (Date.now() - Number(pending.createdAt || 0) > ACCOUNT_MFA_CHALLENGE_TTL_MS) {
+        delete req.session.pendingAccountMfaLogin;
+        delete req.session.pendingSecurityLocation;
+        await new Promise((resolve) => req.session.save(resolve));
+        return renderLogin(res, 'انتهت مهلة التحقق. أدخل اسم المستخدم وكلمة المرور مرة أخرى.');
+    }
+    const Model = ACCOUNT_MFA_MODELS[pending.accountType];
+    const account = await Model.findById(pending.accountId).lean();
+    if (!account || account.status !== 'active') {
+        delete req.session.pendingAccountMfaLogin;
+        return renderLogin(res, 'الحساب غير مفعّل حالياً.');
+    }
+    if (pending.accountType === 'agent_staff') {
+        const agent = await User.findById(account.agentId).select('status role').lean();
+        if (!agent || agent.status !== 'active' || agent.role !== 'agent') {
+            delete req.session.pendingAccountMfaLogin;
+            return renderLogin(res, 'حساب الوكيل الرئيسي غير نشط.');
+        }
+    }
+    const canonicalType = ({ user: 'client_user', company: 'client_company' })[pending.accountType] || pending.accountType;
+    const mfaAccount = await accountMfaService.loadAccount(canonicalType, account._id, account.tenantId || null);
+    if (!mfaAccount || !accountMfaService.isEnabled(mfaAccount)) {
+        delete req.session.pendingAccountMfaLogin;
+        return loginAsClient(req, res, account, pending.accountType);
+    }
+    const token = String(req.body.mfaToken || '').trim();
+    if (!token || !(await accountMfaService.verifyAccountToken(mfaAccount, token))) {
+        return renderAccountMfaChallenge(res, 'رمز Authenticator غير صحيح.', pending.username);
+    }
+    delete req.session.pendingAccountMfaLogin;
+    return loginAsClient(req, res, account, pending.accountType);
 };
 
 const redirectActiveSession = (req, res) => {
@@ -1010,6 +1075,11 @@ router.get('/login', async (req, res) => {
         }
         delete req.session.pendingExecutorMfaLogin;
     }
+    const pendingAccountMfa = req.session.pendingAccountMfaLogin;
+    if (pendingAccountMfa?.accountId && Date.now() - Number(pendingAccountMfa.createdAt || 0) <= ACCOUNT_MFA_CHALLENGE_TTL_MS) {
+        return renderAccountMfaChallenge(res, null, pendingAccountMfa.username || '');
+    }
+    delete req.session.pendingAccountMfaLogin;
     if (!isSecurityVerificationRequired()) {
         delete req.session.pendingPasskeyLogin;
         return renderLogin(res);
@@ -1038,6 +1108,9 @@ router.post('/login', loginLimiter, async (req, res) => {
     try {
         if (req.session.pendingExecutorMfaLogin?.executorId) {
             return completeExecutorMfaChallenge(req, res);
+        }
+        if (req.session.pendingAccountMfaLogin?.accountId) {
+            return completeAccountMfaChallenge(req, res);
         }
         const username = req.body.username?.trim();
         const password = req.body.password?.trim();
@@ -1139,7 +1212,7 @@ router.post('/login', loginLimiter, async (req, res) => {
                     await logLoginFailure(req, username, 'SUSPENDED', 'حساب العميل الفرعي معلق حالياً');
                     return renderLogin(res, 'حساب العميل الفرعي معلق حالياً.');
                 }
-                if (await guardWebMfa(req, res, subAccount, 'sub_client', () => loginAsClient(req, res, subAccount, 'sub_client'))) return;
+                if (await beginAccountMfaChallenge(req, res, subAccount, 'sub_client')) return;
                 return loginAsClient(req, res, subAccount, 'sub_client');
             }
         }
@@ -1152,7 +1225,7 @@ router.post('/login', loginLimiter, async (req, res) => {
                     await logLoginFailure(req, username, 'SUSPENDED', 'حساب العميل معلق حالياً');
                     return renderLogin(res, 'حساب العميل معلق حالياً.');
                 }
-                if (await guardWebMfa(req, res, clientUser, 'user', () => loginAsClient(req, res, clientUser, 'user'))) return;
+                if (await beginAccountMfaChallenge(req, res, clientUser, 'user')) return;
                 return loginAsClient(req, res, clientUser, 'user');
             }
         }
@@ -1165,7 +1238,7 @@ router.post('/login', loginLimiter, async (req, res) => {
                     await logLoginFailure(req, username, 'SUSPENDED', 'حساب الشركة معلق حالياً');
                     return renderLogin(res, 'حساب الشركة معلق حالياً.');
                 }
-                if (await guardWebMfa(req, res, clientCompany, 'company', () => loginAsClient(req, res, clientCompany, 'company'))) return;
+                if (await beginAccountMfaChallenge(req, res, clientCompany, 'company')) return;
                 return loginAsClient(req, res, clientCompany, 'company');
             }
         }
@@ -1183,7 +1256,7 @@ router.post('/login', loginLimiter, async (req, res) => {
                     await logLoginFailure(req, username, 'SUSPENDED', 'حساب الوكيل الرئيسي غير نشط');
                     return renderLogin(res, 'حساب الوكيل الرئيسي غير نشط.');
                 }
-                if (await guardWebMfa(req, res, agentStaff, 'agent_staff', () => loginAsClient(req, res, agentStaff, 'agent_staff'))) return;
+                if (await beginAccountMfaChallenge(req, res, agentStaff, 'agent_staff')) return;
                 return loginAsClient(req, res, agentStaff, 'agent_staff');
             }
         }

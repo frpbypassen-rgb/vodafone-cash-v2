@@ -249,7 +249,7 @@
                         <p class="text-muted small fw-bold lh-lg">تم التحقق من كلمة المرور. استخدم Windows Hello أو بصمة الجهاز لإكمال الجلسة.</p>
                         <button type="button" class="btn-submit" id="passkeyLoginBtn" onclick="triggerPasskeyLogin()">تأكيد مفتاح المرور <i class="fa-solid fa-key"></i></button>
                     </div>
-                <% } else if (typeof executorMfaChallenge !== 'undefined' && executorMfaChallenge) { %>
+                <% } else if ((typeof executorMfaChallenge !== 'undefined' && executorMfaChallenge) || (typeof accountMfaChallenge !== 'undefined' && accountMfaChallenge)) { %>
                     <section class="mfa-challenge" role="dialog" aria-modal="true" aria-labelledby="executor-mfa-title">
                         <div class="mfa-challenge-icon"><i class="fa-solid fa-shield-halved"></i></div>
                         <h5 id="executor-mfa-title">تأكيد رمز Authenticator</h5>
