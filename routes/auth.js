@@ -5,7 +5,11 @@ const { randomUUID } = require('crypto');
 const rateLimit = require('express-rate-limit');
 const { escapeRegex, verifyAndUpgradePassword, getTodayString } = require('../utils/helpers');
 const { generateOtp, hashOtp, verifyOtp } = require('../utils/otp');
-const { getEmergencyClientOtpBypassState, shouldBypassClientOtp } = require('../config/securityPolicy');
+const {
+    getEmergencyClientOtpBypassState,
+    isSecurityVerificationRequired,
+    shouldBypassClientOtp
+} = require('../config/securityPolicy');
 const { isEnvironmentAdminLoginEnabled } = require('../config/adminAuthPolicy');
 const { establishAuthenticatedSession } = require('../utils/sessionSecurity');
 const Admin = require('../models/Admin');
@@ -107,6 +111,7 @@ const webDeviceId = (req, res) => {
 };
 
 const guardWebMfa = async (req, res, account, accountType, onVerified) => {
+    if (!isSecurityVerificationRequired()) return false;
     const canonicalType = ({ user: 'client_user', company: 'client_company' })[accountType] || accountType;
     const mfaAccount = await accountMfaService.loadAccount(
         canonicalType,
@@ -466,6 +471,7 @@ const completeAdminSession = async (req, adminData = null) => {
 };
 
 const requirePasskeyLogin = async ({ req, res, principal, authorization, accountClass, loginKind, accountType = '' }) => {
+    if (!isSecurityVerificationRequired()) return false;
     const state = await securityControl.getState();
     const enforcementEnabled = accountClass === 'admin'
         ? state.adminDeviceEnforcementEnabled
@@ -496,7 +502,7 @@ const loginAsAdmin = async (req, res, adminData = null) => {
         principalId: adminData ? String(adminData._id) : 'master_admin',
         principalName: adminData ? adminData.name : 'المدير الأساسي'
     };
-    if (adminData?.mustEnrollSecurity) {
+    if (isSecurityVerificationRequired() && adminData?.mustEnrollSecurity) {
         const state = await securityControl.getState();
         const risk = securityControl.assessNetworkRisk(req);
         if (state.highConfidenceVpnBlockEnabled && risk.highRisk) {
@@ -517,7 +523,11 @@ const loginAsAdmin = async (req, res, adminData = null) => {
     }
     if (await requirePasskeyLogin({ req, res, principal, authorization, accountClass: 'admin', loginKind: 'admin' })) return;
     await completeAdminSession(req, adminData);
-    return saveAndRedirect(req, res, adminData?.mustEnrollSecurity ? '/admin/security?enroll=1' : '/');
+    return saveAndRedirect(
+        req,
+        res,
+        isSecurityVerificationRequired() && adminData?.mustEnrollSecurity ? '/admin/security?enroll=1' : '/'
+    );
 };
 
 const completeExecutorSession = async (req, executor) => {
@@ -935,6 +945,10 @@ const createPasswordResetTicket = async (resetRequest) => {
 
 router.get('/login', async (req, res) => {
     if (redirectActiveSession(req, res)) return;
+    if (!isSecurityVerificationRequired()) {
+        delete req.session.pendingPasskeyLogin;
+        return renderLogin(res);
+    }
     const pendingPasskey = req.session.pendingPasskeyLogin;
     if (pendingPasskey?.principalId
         && Date.now() - Number(pendingPasskey.createdAt || 0) <= 3 * 60 * 1000) {
@@ -1015,7 +1029,7 @@ router.post('/login', loginLimiter, async (req, res) => {
                     await logLoginFailure(req, username, 'SUSPENDED', 'حساب الإدارة موقوف');
                     return renderLogin(res, 'حساب الإدارة موقوف حالياً.');
                 }
-                if (adminData.mustEnrollSecurity) {
+                if (isSecurityVerificationRequired() && adminData.mustEnrollSecurity) {
                     const recoveryCode = String(req.body.recoveryCode || '').trim();
                     if (!recoveryCode) {
                         return renderLogin(res, 'أدخل رمز الاستعادة الذي ظهر عند تأسيس حساب الإدارة.', {

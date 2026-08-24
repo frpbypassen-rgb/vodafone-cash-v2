@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import logger from '../../../utils/logger';
 const accountMfaService = require('../../../services/accountMfaService');
+const { isSecurityVerificationRequired } = require('../../../config/securityPolicy');
 
 export interface IAuthRequest extends Request {
     user?: {
@@ -20,6 +21,7 @@ export interface IAuthRequest extends Request {
 
 export const mfaMiddleware = async (req: IAuthRequest, res: Response, next: NextFunction) => {
     try {
+        if (!isSecurityVerificationRequired()) return next();
         if (!req.user || !req.user.userId) {
             return res.status(401).json({ success: false, code: 'UNAUTHORIZED', message: 'غير مصرح بالوصول' });
         }

@@ -23,6 +23,7 @@ const ClientCompany = require('../models/ClientCompany');
 const MobileDeviceSession = require('../models/MobileDeviceSession');
 const { buildContext } = require('../mappers/mobileAuthMapper');
 const accountMfaService = require('./accountMfaService');
+const { isSecurityVerificationRequired } = require('../config/securityPolicy');
 const securityControl = require('./securityControlService');
 
 const requestedAccessTokenTtl = Number(process.env.ACCESS_TOKEN_TTL_SECONDS);
@@ -340,7 +341,7 @@ const login = async (username, password, req) => {
     const deviceId = accountMfaService.deviceIdFor(req);
     const mfaToken = String(req.body?.mfaToken || req.headers['x-mfa-token'] || '').trim();
     let mfaVerifiedWithCode = false;
-    if (mfaAccount && accountMfaService.isEnabled(mfaAccount)) {
+    if (isSecurityVerificationRequired() && mfaAccount && accountMfaService.isEnabled(mfaAccount)) {
         const trusted = await accountMfaService.isDeviceTrusted({
             account: mfaAccount,
             accountType,

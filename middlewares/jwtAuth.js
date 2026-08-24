@@ -14,6 +14,7 @@ const JWT_SECRET = process.env.JWT_SECRET;
 const JWT_REFRESH_SECRET = process.env.JWT_REFRESH_SECRET;
 const securityControl = require('../services/securityControlService');
 const SecurityDevice = require('../models/SecurityDevice');
+const { isSecurityVerificationRequired } = require('../config/securityPolicy');
 
 const cleanId = (value) => value === undefined || value === null ? '' : String(value).trim();
 const allowsLegacyTenantTokens = () => (
@@ -72,6 +73,7 @@ const ensureActiveCustomerSession = async (decodedUser) => {
 const ensureBoundSecurityDevice = async (decodedUser, req) => {
     if (!decodedUser?.userId || !decodedUser?.accountType) return false;
     if (Number(decodedUser.absoluteSessionExpiresAt || 0) && Number(decodedUser.absoluteSessionExpiresAt) <= Date.now()) return false;
+    if (!isSecurityVerificationRequired()) return true;
     const state = await securityControl.getState();
     if (!state.accountDeviceEnforcementEnabled) return true;
     const deviceId = String(req.headers?.['x-device-id'] || '').trim();

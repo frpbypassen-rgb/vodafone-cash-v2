@@ -2,9 +2,14 @@ import { Response, NextFunction } from 'express';
 import { IAuthRequest } from './mfaMiddleware';
 import logger from '../../../utils/logger';
 const accountMfaService = require('../../../services/accountMfaService');
+const { isSecurityVerificationRequired } = require('../../../config/securityPolicy');
 
 export const deviceTrustMiddleware = async (req: IAuthRequest, res: Response, next: NextFunction) => {
     try {
+        if (!isSecurityVerificationRequired()) {
+            (req as any).isDeviceTrusted = true;
+            return next();
+        }
         if (!req.user || !req.user.userId) {
             return next();
         }

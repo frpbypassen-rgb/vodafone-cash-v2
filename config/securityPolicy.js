@@ -6,6 +6,10 @@ const clean = (value) => String(value || '').trim();
 const isEnabled = (value) => TRUE_VALUES.has(clean(value).toLowerCase());
 const isProductionEnvironment = (env = process.env) => clean(env.NODE_ENV).toLowerCase() === 'production';
 const isClientOtpDisabled = (env = process.env) => clean(env.CLIENT_OTP_ENABLED).toLowerCase() === 'false';
+const getSecurityVerificationMode = (env = process.env) => (
+    clean(env.SECURITY_VERIFICATION_MODE).toLowerCase() === 'required' ? 'required' : 'optional'
+);
+const isSecurityVerificationRequired = (env = process.env) => getSecurityVerificationMode(env) === 'required';
 const MAX_EMERGENCY_OTP_BYPASS_MS = 24 * 60 * 60 * 1000;
 const MAX_EMERGENCY_STANDALONE_FINANCIAL_WRITES_MS = 24 * 60 * 60 * 1000;
 
@@ -42,6 +46,7 @@ const isEmergencyStandaloneFinancialWritesActive = (env = process.env, now = Dat
 );
 
 const shouldBypassClientOtp = (env = process.env, now = Date.now()) => {
+    if (!isSecurityVerificationRequired(env)) return true;
     const emergencyBypass = getEmergencyClientOtpBypassState(env, now);
     if (isClientOtpDisabled(env)) return true;
     if (isProductionEnvironment(env)) return emergencyBypass.active;
@@ -84,16 +89,24 @@ const validateProductionSecurityEnv = (env = process.env) => {
     }
 
     if (clean(env.MASTER_OTP)) errors.push('MASTER_OTP is not supported in production. Remove it from the environment.');
+    const configuredVerificationMode = clean(env.SECURITY_VERIFICATION_MODE).toLowerCase();
+    if (configuredVerificationMode && !['optional', 'required'].includes(configuredVerificationMode)) {
+        errors.push('SECURITY_VERIFICATION_MODE must be either optional or required.');
+    }
+    const verificationRequired = isSecurityVerificationRequired(env);
     const clientOtpDisabled = isClientOtpDisabled(env);
-    if (!clientOtpDisabled && !isEnabled(env.FORCE_CLIENT_OTP) && !isEnabled(env.FORCE_OTP)) {
+    if (verificationRequired && !clientOtpDisabled && !isEnabled(env.FORCE_CLIENT_OTP) && !isEnabled(env.FORCE_OTP)) {
         errors.push('FORCE_CLIENT_OTP=true is required in production.');
     }
     if (clientOtpDisabled) {
-        if (!clean(env.CLIENT_OTP_DISABLED_REASON)) {
+        if (verificationRequired && !clean(env.CLIENT_OTP_DISABLED_REASON)) {
             errors.push('CLIENT_OTP_DISABLED_REASON is required while client OTP is disabled.');
         } else {
             warnings.push('Client OTP is disabled by an explicit operational setting.');
         }
+    }
+    if (!verificationRequired) {
+        warnings.push('Additional login verification is optional; OTP, Authenticator, location, device approval and passkey checks do not block login.');
     }
     const emergencyBypass = getEmergencyClientOtpBypassState(env);
     if (emergencyBypass.enabled) {
@@ -187,9 +200,11 @@ module.exports = {
     assertProductionSecurityEnv,
     getEmergencyClientOtpBypassState,
     getEmergencyStandaloneFinancialWritesState,
+    getSecurityVerificationMode,
     isEnabled,
     isEmergencyStandaloneFinancialWritesActive,
     isProductionEnvironment,
+    isSecurityVerificationRequired,
     shouldBypassClientOtp,
     validateProductionSecurityEnv
 };

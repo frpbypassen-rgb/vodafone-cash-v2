@@ -22,7 +22,10 @@ const {
 } = require('../middlewares/securityControl');
 
 describe('security control middleware', () => {
+    const previousVerificationMode = process.env.SECURITY_VERIFICATION_MODE;
+
     beforeEach(() => {
+        process.env.SECURITY_VERIFICATION_MODE = 'required';
         jest.clearAllMocks();
         securityControl.getState.mockResolvedValue({
             lockdownActive: true,
@@ -30,6 +33,11 @@ describe('security control middleware', () => {
             adminPermissionEnforcementEnabled: true
         });
         securityControl.isLockdownActive.mockResolvedValue(true);
+    });
+
+    afterAll(() => {
+        if (previousVerificationMode === undefined) delete process.env.SECURITY_VERIFICATION_MODE;
+        else process.env.SECURITY_VERIFICATION_MODE = previousVerificationMode;
     });
 
     test('blocks protected financial mutations with HTTP 423 during lockdown', async () => {
@@ -115,6 +123,44 @@ describe('security control middleware', () => {
 
         expect(res.redirect).toHaveBeenCalledWith('/admin/security?enroll=1');
         expect(next).not.toHaveBeenCalled();
+        findById.mockRestore();
+    });
+
+    test('does not force security enrollment while verification is optional', async () => {
+        process.env.SECURITY_VERIFICATION_MODE = 'optional';
+        securityControl.sessionPrincipal.mockReturnValue({
+            principalType: 'admin',
+            principalId: '507f1f77bcf86cd799439011',
+            principalName: 'Primary administrator'
+        });
+        securityControl.getState.mockResolvedValue({
+            adminSessionHours: 12,
+            accountSessionHours: 12,
+            highConfidenceVpnBlockEnabled: true,
+            adminDeviceEnforcementEnabled: true
+        });
+        const findById = jest.spyOn(Admin, 'findById').mockReturnValue({
+            select: () => ({
+                lean: async () => ({ status: 'active', sessionVersion: 0, mustEnrollSecurity: true })
+            })
+        });
+        const req = {
+            path: '/transactions',
+            method: 'GET',
+            headers: { 'x-vpn-detected': 'true' },
+            session: { adminSessionVersion: 0 }
+        };
+        const res = {
+            redirect: jest.fn(),
+            status: jest.fn().mockReturnThis(),
+            json: jest.fn()
+        };
+        const next = jest.fn();
+
+        await enforceSecuritySession(req, res, next);
+
+        expect(next).toHaveBeenCalledTimes(1);
+        expect(res.redirect).not.toHaveBeenCalled();
         findById.mockRestore();
     });
 });

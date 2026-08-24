@@ -21,12 +21,8 @@ module.exports = {
         // process variables across restarts, so a previous staging value must
         // never be allowed to redirect the core API to .env.staging.
         DOTENV_CONFIG_PATH: ".env",
-        // Client OTP is deliberately disabled by the system owner until it is re-enabled.
-        CLIENT_OTP_ENABLED: "false",
         // Never allow the legacy plaintext .env admin login in production.
         ENABLE_ENV_ADMIN_LOGIN: "false",
-        CLIENT_OTP_DISABLED_REASON: "Temporary operational access requested by system owner",
-        FORCE_CLIENT_OTP: "false",
         BYPASS_OTP: "false",
         BYPASS_CLIENT_OTP: "false",
         DISABLE_OTP: "false",

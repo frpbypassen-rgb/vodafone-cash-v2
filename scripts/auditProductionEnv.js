@@ -117,8 +117,15 @@ if (enabled('BYPASS_OTP') || enabled('BYPASS_CLIENT_OTP') || enabled('DISABLE_OT
     addError('OTP_BYPASS', 'OTP bypass flags cannot be enabled in production');
 }
 if (clean('MASTER_OTP')) addError('MASTER_OTP', 'fixed master OTP values are not supported');
-if (!enabled('FORCE_CLIENT_OTP') && !enabled('FORCE_OTP')) {
+const verificationMode = clean('SECURITY_VERIFICATION_MODE').toLowerCase() || 'optional';
+if (!['optional', 'required'].includes(verificationMode)) {
+    addError('SECURITY_VERIFICATION_MODE', 'must be optional or required');
+}
+if (verificationMode === 'required' && !enabled('FORCE_CLIENT_OTP') && !enabled('FORCE_OTP')) {
     addError('FORCE_CLIENT_OTP', 'must be true in production');
+}
+if (verificationMode === 'optional') {
+    addWarning('SECURITY_VERIFICATION_MODE', 'extra login verification is optional and does not block login');
 }
 if (clean('SESSION_STORE').toLowerCase() === 'memory') {
     addError('SESSION_STORE', 'memory sessions are forbidden in production');

@@ -4,6 +4,7 @@ const crypto = require('crypto');
 const SecurityDevice = require('../models/SecurityDevice');
 const Admin = require('../models/Admin');
 const securityControl = require('../services/securityControlService');
+const { isSecurityVerificationRequired } = require('../config/securityPolicy');
 
 const wantsJson = (req) => Boolean(
     req.xhr
@@ -52,6 +53,10 @@ const enforceSecuritySession = async (req, res, next) => {
             }
             currentAdmin = admin;
         }
+
+        // Optional mode keeps account status, session expiry and revocation
+        // protection active while making device/location/passkey checks advisory.
+        if (!isSecurityVerificationRequired()) return next();
 
         const risk = securityControl.assessNetworkRisk(req);
         if (state.highConfidenceVpnBlockEnabled && risk.highRisk) {

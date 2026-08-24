@@ -1,7 +1,9 @@
 'use strict';
 
 const {
+    getSecurityVerificationMode,
     isEmergencyStandaloneFinancialWritesActive,
+    isSecurityVerificationRequired,
     shouldBypassClientOtp,
     validateProductionSecurityEnv
 } = require('../config/securityPolicy');
@@ -14,6 +16,7 @@ const productionEnv = (overrides = {}) => ({
     JWT_REFRESH_SECRET: 'refresh-secret-0123456789-abcdefghijklmnopqrstuvwxyz',
     SESSION_SECRET: 'session-secret-0123456789-abcdefghijklmnopqrstuvwxyz',
     OTP_SECRET: 'otp-secret-0123456789-abcdefghijklmnopqrstuvwxyz',
+    SECURITY_VERIFICATION_MODE: 'required',
     FORCE_CLIENT_OTP: 'true',
     BYPASS_OTP: 'false',
     BYPASS_CLIENT_OTP: 'false',
@@ -31,6 +34,14 @@ const productionEnv = (overrides = {}) => ({
 });
 
 describe('Production security policy', () => {
+    test('uses optional verification by default and bypasses client OTP', () => {
+        const env = productionEnv({ SECURITY_VERIFICATION_MODE: '', FORCE_CLIENT_OTP: 'false' });
+        expect(getSecurityVerificationMode(env)).toBe('optional');
+        expect(isSecurityVerificationRequired(env)).toBe(false);
+        expect(shouldBypassClientOtp(env)).toBe(true);
+        expect(validateProductionSecurityEnv(env).valid).toBe(true);
+    });
+
     test('accepts a hardened production configuration', () => {
         const result = validateProductionSecurityEnv(productionEnv());
         expect(result.valid).toBe(true);
@@ -56,6 +67,7 @@ describe('Production security policy', () => {
         expect(shouldBypassClientOtp({ NODE_ENV: 'development', BYPASS_CLIENT_OTP: 'true' })).toBe(true);
         expect(shouldBypassClientOtp({
             NODE_ENV: 'development',
+            SECURITY_VERIFICATION_MODE: 'required',
             BYPASS_CLIENT_OTP: 'true',
             FORCE_CLIENT_OTP: 'true'
         })).toBe(false);

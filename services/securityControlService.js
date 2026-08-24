@@ -6,6 +6,7 @@ const SecurityDevice = require('../models/SecurityDevice');
 const SecurityAccessRequest = require('../models/SecurityAccessRequest');
 const SecurityState = require('../models/SecurityState');
 const Notification = require('../models/Notification');
+const { isSecurityVerificationRequired } = require('../config/securityPolicy');
 
 const DEVICE_COOKIE = 'ahrampay_security_device';
 const REQUEST_TTL_MS = 15 * 60 * 1000;
@@ -258,6 +259,9 @@ const authorizeLogin = async ({ req, res, principal, accountClass = 'account', a
     if (process.env.NODE_ENV === 'test'
         && process.env.SECURITY_CONTROL_TEST_ENFORCEMENT !== 'true') {
         return { allowed: true, enforcementEnabled: false };
+    }
+    if (!isSecurityVerificationRequired()) {
+        return { allowed: true, enforcementEnabled: false, verificationMode: 'optional' };
     }
     const state = await getState();
     const enabled = accountClass === 'admin'
