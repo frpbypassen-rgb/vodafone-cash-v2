@@ -16,6 +16,15 @@
   --x-glow: 0 0 20px rgba(34, 211, 238, 0.2);
 }
 
+/* Hide legacy navigation bars when the new rail/dock navigation is used */
+.navbar-glass,
+.bottom-nav-mobile,
+.executor-mobile-nav,
+.settings-topbar,
+.support-topbar {
+  display: none !important;
+}
+
 body.executor-portal-v2 {
   background: var(--x-bg) !important;
   color: var(--x-text) !important;

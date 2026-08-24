@@ -29,6 +29,7 @@ const { calculateTransferCostLYD, isSourceToLydRate } = require('../utils/transf
 
 const MAX_PROOF_IMAGES = 5;
 const MAX_PROOF_BYTES = 8 * 1024 * 1024;
+const objectIdString = (value) => String(value?._id || value || '');
 
 const parseProofImage = (value) => {
     const match = String(value || '').match(/^data:image\/(jpeg|jpg|png|webp);base64,([A-Za-z0-9+/=\r\n]+)$/i);

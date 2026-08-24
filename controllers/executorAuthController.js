@@ -4,6 +4,7 @@ const Admin = require('../models/Admin');
 const { escapeRegex, verifyAndUpgradePassword, getTodayString } = require('../utils/helpers');
 const { verifyOtp } = require('../utils/otp');
 const accountMfaService = require('../services/accountMfaService');
+const { logAction } = require('../services/auditService');
 const {
     ExecutorAccountError,
     normalizeExecutorPhone,
@@ -66,7 +67,7 @@ exports.postLogin = async (req, res) => {
             const executor = await Employee.findById(pendingMfaId).populate('groupId');
             if (!executor) {
                 delete req.session.pendingExecutorMfaId;
-                return req.session.save(() => res.render('executor/login', { error: 'انتهت جلسة الدخول، أعد المحاولة.' }));
+                return req.session.save(() => res.render('executor/login', { error: 'انتهت جلسة الدخول، أعد المحاولة.', mfaRequired: false, mfaNotice: false, submittedUsername: '' }));
             }
             const mfaAccount = await accountMfaService.loadAccount('executor', executor._id, executor.tenantId || null);
             if (!mfaAccount || !accountMfaService.isEnabled(mfaAccount)) {
@@ -78,6 +79,7 @@ exports.postLogin = async (req, res) => {
                 return res.render('executor/login', {
                     error: 'رمز Authenticator غير صحيح.',
                     mfaRequired: true,
+                    mfaNotice: false,
                     submittedUsername: executor.webUsername || ''
                 });
             }
@@ -85,7 +87,7 @@ exports.postLogin = async (req, res) => {
             return completeExecutorLogin(req, res, executor);
         }
 
-        if (!username || !password) return res.render('executor/login', { error: 'يرجى إدخال البيانات.' });
+        if (!username || !password) return res.render('executor/login', { error: 'يرجى إدخال البيانات.', mfaRequired: false, mfaNotice: false, submittedUsername: '' });
 
         const safeUsername = escapeRegex(username);
         const usernameRegex = new RegExp('^' + safeUsername + '$', 'i');
@@ -94,13 +96,13 @@ exports.postLogin = async (req, res) => {
             $or: [{ webUsername: usernameRegex }, { phone: username }]
         }).populate('groupId').lean();
 
-        if (!executor) return res.render('executor/login', { error: 'اسم المستخدم أو كلمة المرور غير صحيحة.' });
+        if (!executor) return res.render('executor/login', { error: 'اسم المستخدم أو كلمة المرور غير صحيحة.', mfaRequired: false, mfaNotice: false, submittedUsername: '' });
 
         const isMatch = await verifyAndUpgradePassword(password, executor.webPassword, Employee, executor._id);
-        if (!isMatch) return res.render('executor/login', { error: 'اسم المستخدم أو كلمة المرور غير صحيحة.' });
+        if (!isMatch) return res.render('executor/login', { error: 'اسم المستخدم أو كلمة المرور غير صحيحة.', mfaRequired: false, mfaNotice: false, submittedUsername: '' });
 
         if (executor.status !== 'active' || !executor.groupId || executor.groupId.status !== 'active') {
-            return res.render('executor/login', { error: 'حسابك أو مجموعة التنفيذ غير مفعلة حالياً.' });
+            return res.render('executor/login', { error: 'حسابك أو مجموعة التنفيذ غير مفعلة حالياً.', mfaRequired: false, mfaNotice: false, submittedUsername: '' });
         }
 
         const mfaAccount = await accountMfaService.loadAccount('executor', executor._id, executor.tenantId || null);
@@ -109,6 +111,7 @@ exports.postLogin = async (req, res) => {
             return req.session.save(() => res.render('executor/login', {
                 error: null,
                 mfaRequired: true,
+                mfaNotice: false,
                 submittedUsername: executor.webUsername || ''
             }));
         }
@@ -116,7 +119,7 @@ exports.postLogin = async (req, res) => {
         return completeExecutorLogin(req, res, executor, { showMfaNotice: true });
     } catch (e) {
         console.error(e);
-        res.render('executor/login', { error: 'حدث خطأ في النظام.' });
+        res.render('executor/login', { error: 'حدث خطأ في النظام.', mfaRequired: false, mfaNotice: false, submittedUsername: '' });
     }
 };
 

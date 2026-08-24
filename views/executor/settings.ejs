@@ -13,6 +13,8 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800;900&family=JetBrains+Mono:wght@700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="/css/executor-workspace.css?v=20260824-ops1">
+    <link rel="stylesheet" href="/css/executor-2030-override.css?v=20260824-2030">
+    <link rel="stylesheet" href="/css/executor-os.css?v=20260824-2030">
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     <script>window.executorCsrfToken = <%- JSON.stringify(typeof csrfToken !== 'undefined' ? csrfToken : '') %>;</script>
     <script src="/js/executor-api.js"></script>
@@ -57,7 +59,7 @@
         }
     </style>
 </head>
-<body class="executor-portal-v2 executor-page-settings">
+<body class="executor-os executor-portal-v2 executor-page-settings">
 <%- include('partials/navigation', { emp, activePage: 'settings' }) %>
 
 <header class="settings-topbar">
