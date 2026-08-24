@@ -3,13 +3,12 @@ const router = express.Router();
 const bcrypt = require('bcryptjs');
 const { randomUUID } = require('crypto');
 const rateLimit = require('express-rate-limit');
-const { escapeRegex, verifyAndUpgradePassword, getTodayString } = require('../utils/helpers');
+const { escapeRegex, verifyAndUpgradePassword } = require('../utils/helpers');
 const { generateOtp, hashOtp, verifyOtp } = require('../utils/otp');
 const {
     getEmergencyClientOtpBypassState,
     isPasskeyRequired,
-    isSecurityVerificationRequired,
-    shouldBypassClientOtp
+    isSecurityVerificationRequired
 } = require('../config/securityPolicy');
 const { isEnvironmentAdminLoginEnabled } = require('../config/adminAuthPolicy');
 const { establishAuthenticatedSession } = require('../utils/sessionSecurity');
@@ -114,7 +113,6 @@ const webDeviceId = (req, res) => {
 };
 
 const guardWebMfa = async (req, res, account, accountType, onVerified) => {
-    if (!isSecurityVerificationRequired()) return false;
     const canonicalType = ({ user: 'client_user', company: 'client_company' })[accountType] || accountType;
     const mfaAccount = await accountMfaService.loadAccount(
         canonicalType,
@@ -123,29 +121,13 @@ const guardWebMfa = async (req, res, account, accountType, onVerified) => {
     );
     if (!mfaAccount || !accountMfaService.isEnabled(mfaAccount)) return false;
 
-    const deviceId = webDeviceId(req, res);
-    const trusted = await accountMfaService.isDeviceTrusted({
-        account: mfaAccount,
-        accountType: canonicalType,
-        deviceId
-    });
     const token = String(req.body.mfaToken || '').trim();
-    if (trusted || (token && await accountMfaService.verifyAccountToken(mfaAccount, token))) {
-        if (!trusted) {
-            await accountMfaService.trustDevice({
-                account: mfaAccount,
-                accountType: canonicalType,
-                tenantId: account.tenantId || (req.tenant && req.tenant._id) || null,
-                deviceId,
-                sessionId: null,
-                req
-            });
-        }
+    if (token && await accountMfaService.verifyAccountToken(mfaAccount, token)) {
         await onVerified();
         return true;
     }
 
-    renderLogin(res, token ? 'رمز Authenticator غير صحيح.' : 'أدخل رمز Authenticator لإكمال الدخول من هذا الجهاز.', {
+    renderLogin(res, token ? 'رمز Authenticator غير صحيح.' : 'أدخل رمز Authenticator لإكمال الدخول.', {
         mfaRequired: true,
         submittedUsername: String(req.body.username || '')
     });
@@ -1150,15 +1132,10 @@ router.post('/login', loginLimiter, async (req, res) => {
                     return renderLogin(res, 'حساب العميل الفرعي معلق حالياً.');
                 }
                 if (await guardWebMfa(req, res, subAccount, 'sub_client', () => loginAsClient(req, res, subAccount, 'sub_client'))) return;
-                const todayStr = getTodayString();
-                if (subAccount.lastOtpDate === todayStr || shouldBypassClientOtp()) {
-                    return loginAsClient(req, res, subAccount, 'sub_client');
-                }
-                return startClientOtp(req, res, subAccount, 'sub_client', SubAccount);
+                return loginAsClient(req, res, subAccount, 'sub_client');
             }
         }
 
-        const todayStr = getTodayString();
         const clientUser = await User.findOne(personLookup(username)).lean();
         if (clientUser?.webPassword) {
             const isMatch = await verifyAndUpgradePassword(password, clientUser.webPassword, User, clientUser._id);
@@ -1168,10 +1145,7 @@ router.post('/login', loginLimiter, async (req, res) => {
                     return renderLogin(res, 'حساب العميل معلق حالياً.');
                 }
                 if (await guardWebMfa(req, res, clientUser, 'user', () => loginAsClient(req, res, clientUser, 'user'))) return;
-                if (clientUser.lastOtpDate === todayStr || shouldBypassClientOtp()) {
-                    return loginAsClient(req, res, clientUser, 'user');
-                }
-                return startClientOtp(req, res, clientUser, 'user', User);
+                return loginAsClient(req, res, clientUser, 'user');
             }
         }
 
@@ -1184,10 +1158,7 @@ router.post('/login', loginLimiter, async (req, res) => {
                     return renderLogin(res, 'حساب الشركة معلق حالياً.');
                 }
                 if (await guardWebMfa(req, res, clientCompany, 'company', () => loginAsClient(req, res, clientCompany, 'company'))) return;
-                if (clientCompany.lastOtpDate === todayStr || shouldBypassClientOtp()) {
-                    return loginAsClient(req, res, clientCompany, 'company');
-                }
-                return startClientOtp(req, res, clientCompany, 'company', ClientEmployee);
+                return loginAsClient(req, res, clientCompany, 'company');
             }
         }
 
@@ -1205,10 +1176,7 @@ router.post('/login', loginLimiter, async (req, res) => {
                     return renderLogin(res, 'حساب الوكيل الرئيسي غير نشط.');
                 }
                 if (await guardWebMfa(req, res, agentStaff, 'agent_staff', () => loginAsClient(req, res, agentStaff, 'agent_staff'))) return;
-                if (agentStaff.lastOtpDate === todayStr || shouldBypassClientOtp()) {
-                    return loginAsClient(req, res, agentStaff, 'agent_staff');
-                }
-                return startClientOtp(req, res, agentStaff, 'agent_staff', AgentEmployee);
+                return loginAsClient(req, res, agentStaff, 'agent_staff');
             }
         }
 

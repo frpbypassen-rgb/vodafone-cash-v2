@@ -3,29 +3,21 @@
         <div>
             <span class="mfa-kicker"><i class="fa-solid fa-shield-halved"></i> أمان الحساب</span>
             <h2>حماية الحساب الاختيارية</h2>
-            <p>موافقة الإدارة على الجهاز كافية للدخول. يمكنك إضافة البصمة أو Authenticator اختياريًا دون أن يمنعا استخدام الحساب.</p>
+            <p>أداة الحماية المتاحة لهذا الحساب هي <b>Authenticator</b>. تفعيلها اختياري، وعند تفعيلها يُطلب الرمز عند كل دخول.</p>
         </div>
         <span class="mfa-state" data-mfa-state>جاري الفحص</span>
     </div>
 
     <div class="mfa-device-summary">
-        <div><span>بصمة الجهاز</span><strong data-passkey-enabled>جاري الفحص</strong></div>
         <div><span>حالة Authenticator</span><strong data-mfa-enabled>جاري الفحص</strong></div>
-        <div><span>الجهاز الحالي</span><strong data-mfa-device>جاري الفحص</strong></div>
-        <div><span>الثقة المتبقية</span><strong data-mfa-ttl>جاري الفحص</strong></div>
+        <div><span>عند تسجيل الدخول</span><strong data-mfa-login-rule>جاري الفحص</strong></div>
     </div>
 
     <div class="mfa-message" data-mfa-message hidden></div>
 
     <div class="mfa-actions">
-        <button type="button" class="mfa-button primary" data-passkey-register>
-            <i class="fa-solid fa-fingerprint"></i> تسجيل بصمة الجهاز
-        </button>
         <button type="button" class="mfa-button primary" data-mfa-start>
             <i class="fa-solid fa-lock"></i> تفعيل Authenticator
-        </button>
-        <button type="button" class="mfa-button" data-mfa-revoke hidden>
-            <i class="fa-solid fa-mobile-screen-button"></i> إلغاء وثوق الجهاز
         </button>
         <button type="button" class="mfa-button danger" data-mfa-disable hidden>
             <i class="fa-solid fa-shield-slash"></i> إيقاف الحماية
@@ -61,7 +53,7 @@
     .mfa-state { flex: 0 0 auto; padding: 6px 10px; border-radius: 999px; color: #64748b; background: #f1f5f9; font-size: .72rem; font-weight: 900; }
     .mfa-state.ready { color: #047857; background: #d1fae5; }
     .mfa-state.warn { color: #b45309; background: #fef3c7; }
-    .mfa-device-summary { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; margin: 18px 0 14px; }
+    .mfa-device-summary { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin: 18px 0 14px; }
     .mfa-device-summary > div { padding: 12px; border: 1px solid #e2e8f0; border-radius: 10px; background: rgba(255,255,255,.72); }
     .mfa-device-summary span, .mfa-device-summary strong { display: block; }
     .mfa-device-summary span { color: #64748b; font-size: .7rem; }
@@ -121,8 +113,6 @@
     if (!panel || panel.dataset.bound === 'true') return;
     panel.dataset.bound = 'true';
     const csrf = <%- JSON.stringify(typeof csrfToken !== 'undefined' ? csrfToken : '') %>;
-    const enrollmentRequired = <%- JSON.stringify(typeof securityEnrollmentRequired !== 'undefined' && securityEnrollmentRequired === true) %>;
-    const enrollmentReturnUrl = <%- JSON.stringify(typeof securityReturnUrl !== 'undefined' ? securityReturnUrl : '') %>;
     const $ = (selector) => panel.querySelector(selector);
     const setMessage = (message, error = false) => { const node = $('[data-mfa-message]'); node.textContent = message || ''; node.hidden = !message; node.classList.toggle('error', error); };
     const request = async (path, options = {}) => {
@@ -132,56 +122,18 @@
         return data;
     };
     const setBusy = (busy) => panel.querySelectorAll('button').forEach((button) => { button.disabled = busy; });
-    const formatTtl = (seconds) => { const value = Math.max(0, Number(seconds) || 0); if (!value) return 'غير موثوق'; const hours = Math.floor(value / 3600); const minutes = Math.floor((value % 3600) / 60); return `${hours}س ${minutes}د`; };
     const render = (data) => {
         const enabled = data.enabled === true;
-        const trusted = data.trustedDevice === true;
-        const passkeyEnrolled = data.passkeyEnrolled === true;
-        const passkeyRequired = data.passkeyRequired === true;
-        $('[data-passkey-enabled]').textContent = passkeyEnrolled ? 'مسجلة (اختيارية)' : (passkeyRequired ? 'مطلوبة' : 'غير مطلوبة');
-        $('[data-passkey-register]').hidden = passkeyEnrolled;
         $('[data-mfa-enabled]').textContent = enabled ? 'مفعّل' : 'غير مفعّل';
-        $('[data-mfa-device]').textContent = trusted ? 'موثوق' : 'يحتاج رمزًا';
-        $('[data-mfa-ttl]').textContent = trusted ? formatTtl(data.trustTtlSeconds) : 'غير موثوق';
-        const state = $('[data-mfa-state]'); state.textContent = enabled ? (trusted ? 'حماية نشطة' : 'رمز مطلوب') : 'غير مفعّل'; state.classList.toggle('ready', enabled && trusted); state.classList.toggle('warn', enabled && !trusted);
+        $('[data-mfa-login-rule]').textContent = enabled ? 'رمز مطلوب' : 'دخول مباشر';
+        const state = $('[data-mfa-state]'); state.textContent = enabled ? 'حماية نشطة' : 'غير مفعّل'; state.classList.toggle('ready', enabled); state.classList.toggle('warn', false);
         $('[data-mfa-start]').hidden = enabled;
         $('[data-mfa-disable]').hidden = !enabled;
-        $('[data-mfa-revoke]').hidden = !trusted;
     };
-    const b64urlToBytes = (value) => Uint8Array.from(atob(value.replace(/-/g, '+').replace(/_/g, '/').padEnd(Math.ceil(value.length / 4) * 4, '=')), (char) => char.charCodeAt(0));
-    const bytesToB64url = (buffer) => btoa(String.fromCharCode(...new Uint8Array(buffer))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
-    const registrationPayload = (credential) => ({
-        id: credential.id,
-        rawId: bytesToB64url(credential.rawId),
-        type: credential.type,
-        authenticatorAttachment: credential.authenticatorAttachment,
-        response: {
-            clientDataJSON: bytesToB64url(credential.response.clientDataJSON),
-            attestationObject: bytesToB64url(credential.response.attestationObject),
-            transports: credential.response.getTransports?.() || []
-        },
-        clientExtensionResults: credential.getClientExtensionResults()
-    });
     const refresh = async () => { try { render(await request('/security/mfa/status', { method: 'GET', headers: {} })); } catch (error) { setMessage(error.message, true); } };
     const copy = async (value) => { await navigator.clipboard.writeText(value); setMessage('تم نسخ البيانات.'); setTimeout(() => setMessage(''), 1800); };
     $('[data-mfa-copy-secret]').addEventListener('click', () => copy($('[data-mfa-secret]').textContent));
     $('[data-mfa-copy-uri]').addEventListener('click', () => copy($('[data-mfa-uri]').textContent));
-    $('[data-passkey-register]').addEventListener('click', async () => {
-        setBusy(true); setMessage('');
-        try {
-            if (!window.PublicKeyCredential) throw new Error('هذا الجهاز لا يدعم البصمة أو مفتاح المرور. حدّث المتصفح أو استخدم جهازًا مدعومًا.');
-            const data = await request('/security/passkey/register/options', { method: 'GET', headers: {} });
-            const options = data.options;
-            options.challenge = b64urlToBytes(options.challenge);
-            options.user.id = b64urlToBytes(options.user.id);
-            options.excludeCredentials = (options.excludeCredentials || []).map((item) => ({ ...item, id: b64urlToBytes(item.id) }));
-            const credential = await navigator.credentials.create({ publicKey: options });
-            await request('/security/passkey/register/verify', { method: 'POST', body: JSON.stringify({ response: registrationPayload(credential) }) });
-            setMessage('تم تسجيل بصمة الجهاز بنجاح.');
-            if (enrollmentRequired && enrollmentReturnUrl) return window.location.assign(enrollmentReturnUrl);
-            await refresh();
-        } catch (error) { setMessage(error.message, true); } finally { setBusy(false); }
-    });
     $('[data-mfa-start]').addEventListener('click', async () => {
         setBusy(true); setMessage('');
         try {
@@ -200,7 +152,6 @@
         const token = window.prompt('أدخل رمز Authenticator أو رمز الاسترداد لإيقاف الحماية:')?.trim(); if (!token) return;
         setBusy(true); try { await request('/security/mfa/disable', { method: 'POST', body: JSON.stringify({ token }) }); setMessage('تم إيقاف Authenticator وإلغاء وثوق الأجهزة.'); await refresh(); } catch (error) { setMessage(error.message, true); } finally { setBusy(false); }
     });
-    $('[data-mfa-revoke]').addEventListener('click', async () => { setBusy(true); try { await request('/security/mfa/trusted-device/revoke', { method: 'POST', body: '{}' }); setMessage('تم إلغاء وثوق الجهاز الحالي. سيُطلب الرمز في الدخول القادم.'); await refresh(); } catch (error) { setMessage(error.message, true); } finally { setBusy(false); } });
     refresh();
 })();
 </script>
