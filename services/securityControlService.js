@@ -276,8 +276,31 @@ const authorizeLogin = async ({ req, res, principal, accountClass = 'account', a
         channel,
         status: 'active'
     }).select('+deviceIdHash');
-    if (!active && allowFirstDevice) {
+    const hasDeviceHistory = !active && allowFirstDevice
+        ? Boolean(await SecurityDevice.exists({
+            principalType: principal.principalType,
+            principalId: principal.principalId,
+            channel
+        }))
+        : false;
+    if (!active && allowFirstDevice && !hasDeviceHistory) {
         const device = await activateDevice({ req, res, principal, approvedBy: 'first_verified_login' });
+        await SecurityAccessRequest.updateMany(
+            {
+                principalType: principal.principalType,
+                principalId: principal.principalId,
+                channel,
+                status: 'pending'
+            },
+            {
+                $set: {
+                    status: 'rejected',
+                    reviewedBy: 'first_verified_login',
+                    reviewedAt: new Date(),
+                    reviewNote: 'Superseded by the first verified device enrollment.'
+                }
+            }
+        );
         return { allowed: true, enforcementEnabled: true, device };
     }
     if (active && hashesEqual(active.deviceIdHash, deviceIdHash)) {

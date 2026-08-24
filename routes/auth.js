@@ -166,7 +166,15 @@ router.get('/security/mfa/status', requireWebMfaContext, async (req, res) => {
         const deviceId = webMfaDeviceId(req, res);
         const status = accountMfaService.status(account);
         const trustedDevice = await accountMfaService.isDeviceTrusted({ account, accountType, deviceId });
-        return res.json({ success: true, ...status, trustedDevice });
+        const principal = webSecurityPrincipal(req);
+        const passkeyEnrolled = Boolean(principal && await SecurityDevice.exists({
+            principalType: principal.principalType,
+            principalId: principal.principalId,
+            channel: 'web',
+            status: 'active',
+            credentialId: { $ne: null }
+        }));
+        return res.json({ success: true, ...status, trustedDevice, passkeyEnrolled });
     } catch (error) {
         return res.status(500).json({ success: false, error: 'MFA_STATUS_FAILED' });
     }
@@ -248,6 +256,76 @@ router.get('/security/sessions', requireWebMfaContext, async (req, res) => {
         principalName: principal?.principalName || 'الحساب',
         returnUrl
     });
+});
+
+router.get('/security/enroll', requireWebMfaContext, (req, res) => {
+    const returnUrl = req.session.isExecutorLoggedIn
+        ? '/executor-portal/dashboard'
+        : '/client/dashboard';
+    return res.render('security_enroll', {
+        principalName: webSecurityPrincipal(req)?.principalName || 'الحساب',
+        returnUrl
+    });
+});
+
+router.get('/security/passkey/register/options', requireWebMfaContext, async (req, res) => {
+    try {
+        const principal = webSecurityPrincipal(req);
+        if (!principal) return res.status(401).json({ success: false, error: 'انتهت جلسة الدخول.' });
+        const devices = await SecurityDevice.find({
+            principalType: principal.principalType,
+            principalId: principal.principalId,
+            channel: 'web',
+            credentialId: { $ne: null }
+        }).lean();
+        const options = await passkeyService.registrationOptions({ req, principal, currentDevices: devices });
+        req.session.accountPasskeyRegistrationChallenge = options.challenge;
+        await new Promise((resolve, reject) => req.session.save((error) => error ? reject(error) : resolve()));
+        return res.json({ success: true, options });
+    } catch (error) {
+        console.error('[Account Security] passkey registration options failed:', error.message);
+        return res.status(400).json({ success: false, error: 'تعذر بدء تسجيل بصمة الجهاز.' });
+    }
+});
+
+router.post('/security/passkey/register/verify', requireWebMfaContext, async (req, res) => {
+    try {
+        const expectedChallenge = req.session.accountPasskeyRegistrationChallenge;
+        if (!expectedChallenge) return res.status(410).json({ success: false, error: 'انتهت محاولة التسجيل. ابدأ من جديد.' });
+        const verification = await passkeyService.verifyRegistration({
+            req,
+            response: req.body.response,
+            expectedChallenge
+        });
+        if (!verification.verified) return res.status(422).json({ success: false, error: 'لم يتم التحقق من بصمة الجهاز.' });
+        const principal = webSecurityPrincipal(req);
+        const credential = verification.registrationInfo.credential;
+        await securityControl.activateDevice({
+            req,
+            res,
+            principal,
+            credential: {
+                ...credential,
+                deviceType: verification.registrationInfo.credentialDeviceType,
+                backedUp: verification.registrationInfo.credentialBackedUp
+            },
+            approvedBy: principal.principalName
+        });
+        delete req.session.accountPasskeyRegistrationChallenge;
+        req.session.passkeyLoginVerifiedUntil = Date.now() + (10 * 60 * 1000);
+        await logAction({
+            action: 'SECURITY_PASSKEY_REGISTERED',
+            req,
+            performedById: principal.principalId,
+            performedByName: principal.principalName,
+            severity: 'warning',
+            metadata: { principalType: principal.principalType, channel: 'web' }
+        });
+        return res.json({ success: true });
+    } catch (error) {
+        console.error('[Account Security] passkey registration failed:', error.message);
+        return res.status(422).json({ success: false, error: 'فشل تسجيل بصمة الجهاز.' });
+    }
 });
 
 router.get('/security/sessions/data', requireWebMfaContext, async (req, res) => {
@@ -386,6 +464,31 @@ const completeAdminSession = async (req, adminData = null) => {
 
 };
 
+const requirePasskeyLogin = async ({ req, res, principal, authorization, accountClass, loginKind, accountType = '' }) => {
+    const state = await securityControl.getState();
+    const enforcementEnabled = accountClass === 'admin'
+        ? state.adminDeviceEnforcementEnabled
+        : state.accountDeviceEnforcementEnabled;
+    if (!enforcementEnabled
+        || !authorization.device?.credentialId
+        || Number(req.session.passkeyLoginVerifiedUntil || 0) > Date.now()) return false;
+    req.session.pendingPasskeyLogin = {
+        principalType: principal.principalType,
+        principalId: principal.principalId,
+        principalName: principal.principalName,
+        loginKind,
+        accountType,
+        username: String(req.body.username || ''),
+        createdAt: Date.now()
+    };
+    await new Promise((resolve, reject) => req.session.save((error) => error ? reject(error) : resolve()));
+    renderLogin(res, null, {
+        passkeyLoginRequired: true,
+        submittedUsername: String(req.body.username || '')
+    });
+    return true;
+};
+
 const loginAsAdmin = async (req, res, adminData = null) => {
     const principal = {
         principalType: adminData ? 'admin' : 'master_admin',
@@ -393,38 +496,19 @@ const loginAsAdmin = async (req, res, adminData = null) => {
         principalName: adminData ? adminData.name : 'المدير الأساسي'
     };
     const authorization = await securityControl.authorizeLogin({
-        req, res, principal, accountClass: 'admin', allowFirstDevice: false
+        req, res, principal, accountClass: 'admin', allowFirstDevice: true
     });
     if (!authorization.allowed) {
         await logLoginFailure(req, req.body.username, authorization.code, authorization.message);
         return renderLogin(res, authorization.message, { submittedUsername: String(req.body.username || '') });
     }
-    const state = await securityControl.getState();
-    if (state.adminDeviceEnforcementEnabled
-        && authorization.device?.credentialId
-        && Number(req.session.passkeyLoginVerifiedUntil || 0) <= Date.now()) {
-        req.session.pendingPasskeyLogin = {
-            adminId: adminData ? String(adminData._id) : 'master_admin',
-            username: String(req.body.username || ''),
-            createdAt: Date.now()
-        };
-        await new Promise((resolve, reject) => req.session.save((error) => error ? reject(error) : resolve()));
-        return renderLogin(res, null, {
-            passkeyLoginRequired: true,
-            submittedUsername: String(req.body.username || '')
-        });
-    }
+    if (await requirePasskeyLogin({ req, res, principal, authorization, accountClass: 'admin', loginKind: 'admin' })) return;
     await completeAdminSession(req, adminData);
     return saveAndRedirect(req, res, '/');
 };
 
-const loginAsExecutor = async (req, res, executor) => {
+const completeExecutorSession = async (req, executor) => {
     const principal = { principalType: 'executor', principalId: String(executor._id), principalName: executor.name || 'منفذ' };
-    const authorization = await securityControl.authorizeLogin({ req, res, principal, accountClass: 'account', allowFirstDevice: true });
-    if (!authorization.allowed) {
-        await logLoginFailure(req, req.body.username, authorization.code, authorization.message);
-        return renderLogin(res, authorization.message, { submittedUsername: String(req.body.username || '') });
-    }
     await establishAuthenticatedSession(req, {
         isExecutorLoggedIn: true,
         executorId: executor._id,
@@ -441,18 +525,24 @@ const loginAsExecutor = async (req, res, executor) => {
         performedByName: executor.name,
         metadata: { role: 'executor', groupId: req.session.executorGroupId }
     });
-
-    return saveAndRedirect(req, res, '/executor-portal/dashboard');
 };
 
-const loginAsClient = async (req, res, account, accountType) => {
-    const principalType = ({ user: 'client_user', company: 'client_company', agent_staff: 'agent_staff', sub_client: 'sub_client' })[accountType] || 'client_user';
-    const principal = { principalType, principalId: String(account._id), principalName: account.name || account.webUsername || 'حساب عميل' };
+const loginAsExecutor = async (req, res, executor) => {
+    const principal = { principalType: 'executor', principalId: String(executor._id), principalName: executor.name || 'منفذ' };
     const authorization = await securityControl.authorizeLogin({ req, res, principal, accountClass: 'account', allowFirstDevice: true });
     if (!authorization.allowed) {
         await logLoginFailure(req, req.body.username, authorization.code, authorization.message);
         return renderLogin(res, authorization.message, { submittedUsername: String(req.body.username || '') });
     }
+    if (await requirePasskeyLogin({ req, res, principal, authorization, accountClass: 'account', loginKind: 'executor' })) return;
+    await completeExecutorSession(req, executor);
+
+    return saveAndRedirect(req, res, '/executor-portal/dashboard');
+};
+
+const completeClientSession = async (req, account, accountType) => {
+    const principalType = ({ user: 'client_user', company: 'client_company', agent_staff: 'agent_staff', sub_client: 'sub_client' })[accountType] || 'client_user';
+    const principal = { principalType, principalId: String(account._id), principalName: account.name || account.webUsername || 'حساب عميل' };
     await establishAuthenticatedSession(req, {
         isClientLoggedIn: true,
         clientId: account._id,
@@ -475,6 +565,18 @@ const loginAsClient = async (req, res, account, accountType) => {
             emergencyOtpBypass: getEmergencyClientOtpBypassState().active
         }
     });
+};
+
+const loginAsClient = async (req, res, account, accountType) => {
+    const principalType = ({ user: 'client_user', company: 'client_company', agent_staff: 'agent_staff', sub_client: 'sub_client' })[accountType] || 'client_user';
+    const principal = { principalType, principalId: String(account._id), principalName: account.name || account.webUsername || 'حساب عميل' };
+    const authorization = await securityControl.authorizeLogin({ req, res, principal, accountClass: 'account', allowFirstDevice: true });
+    if (!authorization.allowed) {
+        await logLoginFailure(req, req.body.username, authorization.code, authorization.message);
+        return renderLogin(res, authorization.message, { submittedUsername: String(req.body.username || '') });
+    }
+    if (await requirePasskeyLogin({ req, res, principal, authorization, accountClass: 'account', loginKind: 'client', accountType })) return;
+    await completeClientSession(req, account, accountType);
 
     return saveAndRedirect(req, res, '/client/dashboard');
 };
@@ -625,14 +727,14 @@ const logLoginFailure = async (req, username, errorCode, reason) => {
 router.get('/security/passkey-login/options', async (req, res) => {
     try {
         const pending = req.session.pendingPasskeyLogin;
-        if (!pending || Date.now() - Number(pending.createdAt || 0) > 3 * 60 * 1000) {
+        if (!pending || !pending.principalType || !pending.principalId
+            || Date.now() - Number(pending.createdAt || 0) > 3 * 60 * 1000) {
             delete req.session.pendingPasskeyLogin;
             return res.status(410).json({ success: false, error: 'انتهت محاولة الدخول. أدخل بيانات الحساب من جديد.' });
         }
-        const principalType = pending.adminId === 'master_admin' ? 'master_admin' : 'admin';
         const devices = await SecurityDevice.find({
-            principalType,
-            principalId: String(pending.adminId),
+            principalType: pending.principalType,
+            principalId: String(pending.principalId),
             channel: 'web',
             status: 'active',
             credentialId: { $ne: null }
@@ -651,18 +753,18 @@ router.post('/security/passkey-login/verify', async (req, res) => {
     try {
         const pending = req.session.pendingPasskeyLogin;
         const challenge = req.session.passkeyLoginChallenge;
-        if (!pending || !challenge || Date.now() - Number(pending.createdAt || 0) > 3 * 60 * 1000) {
+        if (!pending || !pending.principalType || !pending.principalId || !challenge
+            || Date.now() - Number(pending.createdAt || 0) > 3 * 60 * 1000) {
             return res.status(410).json({ success: false, error: 'انتهت محاولة الدخول. ابدأ من جديد.' });
         }
-        const principalType = pending.adminId === 'master_admin' ? 'master_admin' : 'admin';
         const device = await SecurityDevice.findOne({
-            principalType,
-            principalId: String(pending.adminId),
+            principalType: pending.principalType,
+            principalId: String(pending.principalId),
             channel: 'web',
             status: 'active',
             credentialId: String(req.body.response?.id || '')
         }).select('+credentialPublicKey');
-        if (!device) return res.status(404).json({ success: false, error: 'مفتاح المرور غير مرتبط بالجهاز الإداري.' });
+        if (!device) return res.status(404).json({ success: false, error: 'مفتاح المرور غير مرتبط بهذا الجهاز.' });
         const verification = await passkeyService.verifyAuthentication({
             req,
             response: req.body.response,
@@ -670,23 +772,47 @@ router.post('/security/passkey-login/verify', async (req, res) => {
             device
         });
         if (!verification.verified) return res.status(422).json({ success: false, error: 'فشل توقيع مفتاح المرور.' });
-        const adminData = pending.adminId === 'master_admin'
-            ? null
-            : await Admin.findOne({ _id: pending.adminId, status: 'active' }).lean();
-        if (pending.adminId !== 'master_admin' && !adminData) {
-            return res.status(403).json({ success: false, error: 'حساب الإدارة موقوف أو غير موجود.' });
-        }
         const principal = {
-            principalType,
-            principalId: String(pending.adminId),
-            principalName: adminData?.name || 'المدير الأساسي'
+            principalType: pending.principalType,
+            principalId: String(pending.principalId),
+            principalName: pending.principalName || 'الحساب'
         };
-        const authorization = await securityControl.authorizeLogin({ req, res, principal, accountClass: 'admin' });
+        const accountClass = pending.loginKind === 'admin' ? 'admin' : 'account';
+        const authorization = await securityControl.authorizeLogin({ req, res, principal, accountClass });
         if (!authorization.allowed) {
             return res.status(403).json({ success: false, code: authorization.code, error: authorization.message });
         }
-        await completeAdminSession(req, adminData);
-        return req.session.save(() => res.json({ success: true, redirect: '/' }));
+        req.session.passkeyLoginVerifiedUntil = Date.now() + (10 * 60 * 1000);
+        req.body.username = pending.username || '';
+        delete req.session.pendingPasskeyLogin;
+        delete req.session.passkeyLoginChallenge;
+
+        let redirect = '/';
+        if (pending.loginKind === 'admin') {
+            const adminData = pending.principalId === 'master_admin'
+                ? null
+                : await Admin.findOne({ _id: pending.principalId, status: 'active' }).lean();
+            if (pending.principalId !== 'master_admin' && !adminData) {
+                return res.status(403).json({ success: false, error: 'حساب الإدارة موقوف أو غير موجود.' });
+            }
+            await completeAdminSession(req, adminData);
+        } else if (pending.loginKind === 'executor') {
+            const executor = await Employee.findOne({ _id: pending.principalId, status: 'active' }).populate('groupId').lean();
+            if (!executor?.groupId || executor.groupId.status !== 'active') {
+                return res.status(403).json({ success: false, error: 'حساب التنفيذ أو مجموعته غير مفعلة.' });
+            }
+            await completeExecutorSession(req, executor);
+            redirect = '/executor-portal/dashboard';
+        } else if (pending.loginKind === 'client') {
+            const model = ({ user: User, company: ClientEmployee, agent_staff: AgentEmployee, sub_client: SubAccount })[pending.accountType];
+            const account = model ? await model.findOne({ _id: pending.principalId, status: 'active' }).lean() : null;
+            if (!account) return res.status(403).json({ success: false, error: 'الحساب موقوف أو غير موجود.' });
+            await completeClientSession(req, account, pending.accountType);
+            redirect = '/client/dashboard';
+        } else {
+            return res.status(400).json({ success: false, error: 'نوع جلسة الدخول غير صالح.' });
+        }
+        return req.session.save(() => res.json({ success: true, redirect }));
     } catch (error) {
         console.error('[Unified Login] passkey verification failed:', error.message);
         return res.status(422).json({ success: false, error: 'تعذر التحقق من مفتاح المرور.' });

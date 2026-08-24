@@ -76,6 +76,22 @@ const enforceSecuritySession = async (req, res, next) => {
         active.lastIp = securityControl.requestIp(req);
         await active.save();
         req.securityDevice = active;
+        if (!active.credentialId) {
+            const adminEnrollmentPath = req.path.startsWith('/admin/security');
+            const accountEnrollmentPath = req.path.startsWith('/security/enroll')
+                || req.path.startsWith('/security/passkey/')
+                || req.path.startsWith('/security/mfa/')
+                || req.path.startsWith('/security/sessions')
+                || req.path === '/logout';
+            if (accountClass === 'admin' && !adminEnrollmentPath && req.path !== '/logout') {
+                if (wantsJson(req)) return res.status(428).json({ success: false, code: 'PASSKEY_ENROLLMENT_REQUIRED', error: 'يجب تسجيل بصمة الجهاز الإداري أولاً.' });
+                return res.redirect('/admin/security?enroll=1');
+            }
+            if (accountClass === 'account' && !accountEnrollmentPath) {
+                if (wantsJson(req)) return res.status(428).json({ success: false, code: 'PASSKEY_ENROLLMENT_REQUIRED', error: 'يجب تسجيل بصمة الجهاز أولاً.' });
+                return res.redirect('/security/enroll');
+            }
+        }
         return next();
     } catch (error) {
         console.error('[SecurityControl] session guard failed:', error.message);

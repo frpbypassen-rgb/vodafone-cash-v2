@@ -13,6 +13,7 @@
     "check:mongo-transactions": "node scripts/checkMongoTransactionSupport.js",
     "repair:env": "node scripts/repairProductionEnv.js .env --apply",
     "rotate:admin": "node scripts/rotateAdminCredentials.js",
+    "authorize:admin-device": "node scripts/authorizeAdminDevice.js",
     "migrate:tenant": "node scripts/migrateTenantIsolation.js",
     "setup:web-push": "node scripts/ensureWebPushKeys.js",
     "seed:zayn-executor": "node scripts/seedZaynApiExecutor.js",
