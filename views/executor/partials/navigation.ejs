@@ -18,15 +18,15 @@
 
 <% if (typeof showMfaNotice !== 'undefined' && showMfaNotice) { %>
 <div class="container-fluid px-3 px-md-4 pt-3">
-    <div class="alert alert-info alert-dismissible fade show mb-0 rounded-3 border-0" role="alert" style="background: rgba(34, 211, 238, 0.08); border: 1px solid rgba(34, 211, 238, 0.2) !important; color: #22d3ee; font-weight: 800; font-size: 0.85rem;">
+    <div class="alert alert-info alert-dismissible fade show mb-0 rounded-3 border-0 x-notice-info" role="alert">
         <i class="fa-solid fa-shield-halved me-1"></i>
-        حسابك غير محمي برمز <b>Authenticator</b>. نوصي بتفعيله من <a href="/executor-portal/settings" class="text-decoration-underline" style="color: #22d3ee;">الإعدادات</a> لأمان أعلى.
+        حسابك غير محمي برمز <b>Authenticator</b>. نوصي بتفعيله من <a href="/executor-portal/settings" class="text-decoration-underline">الإعدادات</a> لأمان أعلى.
         <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="إغلاق" style="filter: invert(0.7);"></button>
     </div>
 </div>
 <% } %>
 <div id="offlineIndicator" class="container-fluid px-3 px-md-4 pt-3 d-none">
-    <div class="alert alert-warning rounded-3 border-0 mb-0" role="alert" style="background: rgba(250, 204, 21, 0.08); border: 1px solid rgba(250, 204, 21, 0.2) !important; color: #facc15; font-weight: 800; font-size: 0.85rem;">
+    <div class="alert alert-warning rounded-3 border-0 mb-0 x-notice-warn" role="alert">
         <i class="fa-solid fa-wifi me-1"></i> أنت في وضع offline. بعض البيانات قد لا تكون محدثة حتى يعود الاتصال.
     </div>
 </div>
@@ -41,7 +41,7 @@
 </script>
 <% if (typeof emp !== 'undefined' && emp.role === 'manager' && emp.groupId && Number(emp.groupId.balance || 0) < 1000) { %>
 <div class="container-fluid px-3 px-md-4 pt-3">
-    <div class="alert alert-warning alert-dismissible fade show mb-0 rounded-3 border-0" role="alert" style="background: rgba(250, 204, 21, 0.08); border: 1px solid rgba(250, 204, 21, 0.2) !important; color: #facc15; font-weight: 800; font-size: 0.85rem;">
+    <div class="alert alert-warning alert-dismissible fade show mb-0 rounded-3 border-0 x-notice-warn" role="alert">
         <i class="fa-solid fa-triangle-exclamation me-1"></i>
         رصيد شركة التنفيذ منخفض (<b><%= Number(emp.groupId.balance || 0).toLocaleString('en-US') %> ج.م</b>). يرجى الإيداع لتجنب توقف العمليات.
         <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="إغلاق" style="filter: invert(0.7);"></button>

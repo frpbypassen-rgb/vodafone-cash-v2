@@ -87,9 +87,9 @@
     <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800;900&family=JetBrains+Mono:wght@700&display=swap" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
-    <link rel="stylesheet" href="/css/executor-workspace.css?v=20260824-2030">
-    <link rel="stylesheet" href="/css/executor-2030-override.css?v=20260824-2030">
-    <link rel="stylesheet" href="/css/executor-os.css?v=20260824-2030">
+    <link rel="stylesheet" href="/css/executor-workspace.css?v=20260824-contrast">
+    <link rel="stylesheet" href="/css/executor-2030-override.css?v=20260824-contrast">
+    <link rel="stylesheet" href="/css/executor-os.css?v=20260824-contrast">
 
     <style>
         .x-stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 14px; margin-bottom: 24px; }
@@ -108,7 +108,7 @@
         .x-stat-box::before { content: ""; position: absolute; inset: 0 0 auto; height: 3px; background: var(--stat-color, var(--x-cyan, #22d3ee)); opacity: 0.9; }
         .x-stat-box i { position: absolute; left: 14px; top: 14px; font-size: 1.1rem; color: var(--stat-color, var(--x-cyan, #22d3ee)); opacity: 0.35; }
         .x-stat-box small { display: block; color: var(--x-muted, #94a3b8); font-size: 0.72rem; font-weight: 800; margin-bottom: 6px; }
-        .x-stat-box strong { display: block; color: #fff; font-size: 1.25rem; font-weight: 900; font-family: 'JetBrains Mono', monospace; }
+        .x-stat-box strong { display: block; color: var(--x-text); font-size: 1.25rem; font-weight: 900; font-family: 'JetBrains Mono', monospace; }
         .x-stat-box.stat-green { --stat-color: var(--x-green, #34d399); }
         .x-stat-box.stat-gold { --stat-color: var(--x-gold, #facc15); }
         .x-stat-box.stat-red { --stat-color: var(--x-red, #fb7185); }
@@ -138,23 +138,23 @@
         }
         .x-mobile-card:hover { transform: translateY(-2px); border-color: rgba(34, 211, 238, 0.35); }
         .x-mobile-card-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
-        .x-mobile-card-id { font-weight: 900; font-family: 'JetBrains Mono', monospace; color: #fff; }
+        .x-mobile-card-id { font-weight: 900; font-family: 'JetBrains Mono', monospace; color: var(--x-text); }
         .x-mobile-card-body { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
         .x-mobile-amount { font-size: 1.2rem; font-weight: 900; font-family: 'JetBrains Mono', monospace; color: var(--x-green, #34d399); }
         .x-mobile-meta { color: var(--x-muted, #94a3b8); font-size: 0.75rem; }
 
         .x-detail-modal .modal-content { background: var(--x-surface-elev, rgba(20, 26, 48, 0.95)); border: 1px solid var(--x-border, rgba(94, 234, 212, 0.18)); border-radius: 20px; color: var(--x-text, #e2e8f0); }
         .x-detail-modal .modal-header { border-bottom-color: rgba(255,255,255,0.06); }
-        .x-detail-modal .modal-title { color: #fff; font-weight: 900; }
+        .x-detail-modal .modal-title { color: var(--x-text); font-weight: 900; }
         .x-detail-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin-bottom: 18px; }
         .x-detail-item { padding: 12px; border-radius: 12px; background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.06); }
         .x-detail-item.full { grid-column: 1 / -1; }
         .x-detail-item label { display: block; font-size: 0.68rem; color: var(--x-muted, #94a3b8); font-weight: 800; margin-bottom: 5px; }
-        .x-detail-item span { font-size: 0.9rem; color: #fff; font-weight: 800; font-family: 'JetBrains Mono', monospace; }
+        .x-detail-item span { font-size: 0.9rem; color: var(--x-text); font-weight: 800; font-family: 'JetBrains Mono', monospace; }
         .x-detail-images { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 10px; }
         .x-detail-images img { width: 100%; height: 120px; object-fit: cover; border-radius: 12px; border: 1px solid var(--x-border, rgba(94, 234, 212, 0.18)); cursor: pointer; transition: transform 0.15s; }
         .x-detail-images img:hover { transform: scale(1.03); }
-        .x-detail-section-title { font-size: 0.85rem; font-weight: 900; color: #fff; margin: 16px 0 10px; display: flex; align-items: center; gap: 8px; }
+        .x-detail-section-title { font-size: 0.85rem; font-weight: 900; color: var(--x-text); margin: 16px 0 10px; display: flex; align-items: center; gap: 8px; }
         .x-star-rating { display: inline-flex; gap: 6px; font-size: 1.4rem; color: #475569; cursor: pointer; }
         .x-star-rating .star.active { color: #facc15; }
         .x-voice-note { display: flex; align-items: center; gap: 10px; padding: 10px; border-radius: 12px; background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.06); }
