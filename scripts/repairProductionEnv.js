@@ -79,6 +79,7 @@ upsert('COOKIE_SAMESITE', 'lax');
 upsert('TRUST_PROXY_HTTPS', 'true', { force: true });
 
 const forcedSecurityValues = {
+    SECURITY_VERIFICATION_ENFORCEMENT_ENABLED: 'false',
     SECURITY_VERIFICATION_MODE: 'optional',
     PASSKEY_REQUIRED: 'false',
     FORCE_CLIENT_OTP: 'false',

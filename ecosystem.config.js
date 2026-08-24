@@ -21,6 +21,9 @@ module.exports = {
         // process variables across restarts, so a previous staging value must
         // never be allowed to redirect the core API to .env.staging.
         DOTENV_CONFIG_PATH: ".env",
+        // Operational kill switch: login is username/password only until the
+        // owner explicitly enables the complete verification rollout.
+        SECURITY_VERIFICATION_ENFORCEMENT_ENABLED: "false",
         // Never allow the legacy plaintext .env admin login in production.
         ENABLE_ENV_ADMIN_LOGIN: "false",
         BYPASS_OTP: "false",

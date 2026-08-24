@@ -22,10 +22,12 @@ const {
 } = require('../middlewares/securityControl');
 
 describe('security control middleware', () => {
+    const previousEnforcementEnabled = process.env.SECURITY_VERIFICATION_ENFORCEMENT_ENABLED;
     const previousVerificationMode = process.env.SECURITY_VERIFICATION_MODE;
     const previousPasskeyRequired = process.env.PASSKEY_REQUIRED;
 
     beforeEach(() => {
+        process.env.SECURITY_VERIFICATION_ENFORCEMENT_ENABLED = 'true';
         process.env.SECURITY_VERIFICATION_MODE = 'required';
         process.env.PASSKEY_REQUIRED = 'true';
         jest.clearAllMocks();
@@ -38,6 +40,8 @@ describe('security control middleware', () => {
     });
 
     afterAll(() => {
+        if (previousEnforcementEnabled === undefined) delete process.env.SECURITY_VERIFICATION_ENFORCEMENT_ENABLED;
+        else process.env.SECURITY_VERIFICATION_ENFORCEMENT_ENABLED = previousEnforcementEnabled;
         if (previousVerificationMode === undefined) delete process.env.SECURITY_VERIFICATION_MODE;
         else process.env.SECURITY_VERIFICATION_MODE = previousVerificationMode;
         if (previousPasskeyRequired === undefined) delete process.env.PASSKEY_REQUIRED;

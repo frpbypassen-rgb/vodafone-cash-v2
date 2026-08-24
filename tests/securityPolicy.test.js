@@ -4,6 +4,7 @@ const {
     getSecurityVerificationMode,
     isEmergencyStandaloneFinancialWritesActive,
     isPasskeyRequired,
+    isSecurityVerificationEnforcementEnabled,
     isSecurityVerificationRequired,
     shouldBypassClientOtp,
     validateProductionSecurityEnv
@@ -17,6 +18,7 @@ const productionEnv = (overrides = {}) => ({
     JWT_REFRESH_SECRET: 'refresh-secret-0123456789-abcdefghijklmnopqrstuvwxyz',
     SESSION_SECRET: 'session-secret-0123456789-abcdefghijklmnopqrstuvwxyz',
     OTP_SECRET: 'otp-secret-0123456789-abcdefghijklmnopqrstuvwxyz',
+    SECURITY_VERIFICATION_ENFORCEMENT_ENABLED: 'true',
     SECURITY_VERIFICATION_MODE: 'required',
     FORCE_CLIENT_OTP: 'true',
     BYPASS_OTP: 'false',
@@ -36,11 +38,28 @@ const productionEnv = (overrides = {}) => ({
 
 describe('Production security policy', () => {
     test('uses optional verification by default and bypasses client OTP', () => {
-        const env = productionEnv({ SECURITY_VERIFICATION_MODE: '', FORCE_CLIENT_OTP: 'false' });
+        const env = productionEnv({
+            SECURITY_VERIFICATION_ENFORCEMENT_ENABLED: 'false',
+            SECURITY_VERIFICATION_MODE: '',
+            FORCE_CLIENT_OTP: 'false'
+        });
         expect(getSecurityVerificationMode(env)).toBe('optional');
         expect(isSecurityVerificationRequired(env)).toBe(false);
         expect(shouldBypassClientOtp(env)).toBe(true);
         expect(validateProductionSecurityEnv(env).valid).toBe(true);
+    });
+
+    test('the central kill switch keeps verification optional despite stale required settings', () => {
+        const env = productionEnv({
+            SECURITY_VERIFICATION_ENFORCEMENT_ENABLED: 'false',
+            SECURITY_VERIFICATION_MODE: 'required',
+            PASSKEY_REQUIRED: 'true',
+            FORCE_CLIENT_OTP: 'true'
+        });
+        expect(isSecurityVerificationEnforcementEnabled(env)).toBe(false);
+        expect(isSecurityVerificationRequired(env)).toBe(false);
+        expect(isPasskeyRequired(env)).toBe(false);
+        expect(shouldBypassClientOtp(env)).toBe(true);
     });
 
     test('keeps passkey optional unless it is explicitly required', () => {
@@ -73,6 +92,7 @@ describe('Production security policy', () => {
         expect(shouldBypassClientOtp({ NODE_ENV: 'development', BYPASS_CLIENT_OTP: 'true' })).toBe(true);
         expect(shouldBypassClientOtp({
             NODE_ENV: 'development',
+            SECURITY_VERIFICATION_ENFORCEMENT_ENABLED: 'true',
             SECURITY_VERIFICATION_MODE: 'required',
             BYPASS_CLIENT_OTP: 'true',
             FORCE_CLIENT_OTP: 'true'
