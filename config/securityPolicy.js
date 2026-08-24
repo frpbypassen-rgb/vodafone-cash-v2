@@ -166,6 +166,9 @@ const validateProductionSecurityEnv = (env = process.env) => {
     if (!isEnabled(env.REDIS_REQUIRED)) {
         warnings.push('REDIS_REQUIRED is not enabled; distributed locks and rate limits are not guaranteed across multiple instances.');
     }
+    if (clean(env.SECURITY_DEVICE_HASH_SECRET).length < 32) {
+        warnings.push('SECURITY_DEVICE_HASH_SECRET should use a dedicated random value of at least 32 characters before device enforcement is enabled.');
+    }
 
     return { valid: errors.length === 0, errors, warnings };
 };

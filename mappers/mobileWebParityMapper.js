@@ -3,9 +3,33 @@
 
 const { getTransferServiceLabel } = require('../utils/mobileTransferServiceCatalog');
 const { buildExecutorTaskRecipient } = require('../utils/executorTaskPrivacy');
+const { createReceiptImageUrl } = require('../services/receiptShareService');
+
+const receiptFields = (tx) => {
+    const hasProofImage = Boolean(tx.proofImage || (tx.proofImages && tx.proofImages.length > 0));
+    return {
+        hasProofImage,
+        receiptUrl: hasProofImage ? createReceiptImageUrl({ transactionId: tx._id, index: 0 }) : null,
+        cancellationNumber: tx.cancellationNumber || null,
+        cancellationReason: tx.cancellationReason || null
+    };
+};
+
+const managerExecutorEvidence = (tx, canView) => canView ? {
+    executorExecutionNumber: tx.executorExecutionNumber || null,
+    executorSenderPhone: tx.executorSenderPhone || null,
+    executorSenderEntries: Array.isArray(tx.executorSenderEntries)
+        ? tx.executorSenderEntries.map(entry => ({
+            phone: entry.phone || null,
+            amount: entry.amount === undefined || entry.amount === null ? null : Number(entry.amount)
+        }))
+        : [],
+    executorProofCount: Array.isArray(tx.executorProofImages) ? tx.executorProofImages.length : 0
+} : {};
 
 const toClientReportDto = (data) => {
     const isPersonalReport = data.scope === 'employee';
+    const canViewExecutorEvidence = data.role === 'manager';
     return {
         previousBalance: Number(data.previousBalance || 0),
         periodBalance: Number(data.periodBalance || 0),
@@ -32,7 +56,8 @@ const toClientReportDto = (data) => {
                 : null,
             notes: tx.notes || null,
             executorName: isPersonalReport ? null : (tx.executorName || null),
-            hasProofImage: !!(tx.proofImage || (tx.proofImages && tx.proofImages.length > 0))
+            ...receiptFields(tx),
+            ...managerExecutorEvidence(tx, canViewExecutorEvidence)
         })),
         pendingOperations: (data.pendingOperations || []).map((tx, index) => ({
             serialNumber: index + 1,
@@ -51,7 +76,9 @@ const toClientReportDto = (data) => {
                 ? Math.max(0, Math.floor((Date.now() - new Date(tx.executorReceivedAt).getTime()) / 1000))
                 : null,
             notes: tx.notes || null,
-            executorName: isPersonalReport ? null : (tx.executorName || tx.assignedExecutorName || null)
+            executorName: isPersonalReport ? null : (tx.executorName || tx.assignedExecutorName || null),
+            ...receiptFields(tx),
+            ...managerExecutorEvidence(tx, canViewExecutorEvidence)
         })),
         cancelledOperations: (data.cancelledOperations || []).map((tx, index) => ({
             serialNumber: index + 1,
@@ -66,7 +93,9 @@ const toClientReportDto = (data) => {
             createdAt: tx.createdAt ? new Date(tx.createdAt).toISOString() : null,
             completedAt: tx.completedAt ? new Date(tx.completedAt).toISOString() : null,
             notes: tx.notes || null,
-            executorName: isPersonalReport ? null : (tx.executorName || null)
+            executorName: isPersonalReport ? null : (tx.executorName || null),
+            ...receiptFields(tx),
+            ...managerExecutorEvidence(tx, canViewExecutorEvidence)
         })),
         deposits: (data.deposits || []).map(tx => ({
             id: String(tx._id),

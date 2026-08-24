@@ -257,13 +257,23 @@ const completeTaskValidator = [
         .optional()
         .isString().withMessage('صورة الإثبات يجب أن تكون نص Base64'),
     body('executionNumber')
-        .optional()
+        .notEmpty().withMessage('رقم التنفيذ مطلوب')
         .trim()
-        .isLength({ min: 3, max: 20 }).withMessage('رقم التنفيذ غير صالح'),
+        .matches(/^\d{11}$/).withMessage('رقم التنفيذ يجب أن يتكون من 11 رقماً'),
     body('senderPhone')
         .optional()
         .trim()
         .isLength({ min: 7, max: 20 }).withMessage('Ø±Ù‚Ù… Ø§Ù„Ù…Ø±Ø³Ù„ ØºÙŠØ± ØµØ§Ù„Ø­'),
+    body('senderEntries')
+        .optional()
+        .isArray({ max: 5 }).withMessage('يمكن إدخال خمسة أرقام مرسل كحد أقصى'),
+    body('senderEntries.*.phone')
+        .optional()
+        .trim()
+        .matches(/^\d{11}$/).withMessage('كل رقم مرسل يجب أن يتكون من 11 رقماً'),
+    body('senderEntries.*.amount')
+        .optional({ nullable: true })
+        .isFloat({ min: 0.01 }).withMessage('قيمة رقم المرسل يجب أن تكون أكبر من صفر'),
     validate
 ];
 

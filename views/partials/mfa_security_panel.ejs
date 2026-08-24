@@ -3,7 +3,7 @@
         <div>
             <span class="mfa-kicker"><i class="fa-solid fa-shield-halved"></i> أمان الحساب</span>
             <h2>Authenticator والحماية الإضافية</h2>
-            <p>جهاز موثوق واحد فقط، وتحتاج الأجهزة الجديدة إلى رمز من تطبيق Authenticator.</p>
+            <p>جلسة موقع واحدة وجلسة تطبيق واحدة، وتحتاج الأجهزة الجديدة إلى موافقة آمنة.</p>
         </div>
         <span class="mfa-state" data-mfa-state>جاري الفحص</span>
     </div>
@@ -26,6 +26,9 @@
         <button type="button" class="mfa-button danger" data-mfa-disable hidden>
             <i class="fa-solid fa-shield-slash"></i> إيقاف الحماية
         </button>
+        <a class="mfa-button" href="/security/sessions">
+            <i class="fa-solid fa-display"></i> الأجهزة والجلسات
+        </a>
     </div>
 
     <div class="mfa-setup" data-mfa-setup hidden>
@@ -60,7 +63,7 @@
     .mfa-device-summary span { color: #64748b; font-size: .7rem; }
     .mfa-device-summary strong { margin-top: 5px; color: #0f172a; font-size: .82rem; }
     .mfa-actions, .mfa-confirm-row { display: flex; flex-wrap: wrap; gap: 8px; }
-    .mfa-button { min-height: 38px; display: inline-flex; align-items: center; justify-content: center; gap: 7px; padding: 8px 12px; border: 1px solid #cbd5e1; border-radius: 9px; color: #1e3a8a; background: #fff; font-weight: 900; font-size: .76rem; cursor: pointer; }
+    .mfa-button { min-height: 38px; display: inline-flex; align-items: center; justify-content: center; gap: 7px; padding: 8px 12px; border: 1px solid #cbd5e1; border-radius: 9px; color: #1e3a8a; background: #fff; font-weight: 900; font-size: .76rem; cursor: pointer; text-decoration: none; }
     .mfa-button.primary { color: #fff; border-color: #2563eb; background: #2563eb; }
     .mfa-button.danger { color: #b91c1c; }
     .mfa-button:disabled { opacity: .55; cursor: wait; }

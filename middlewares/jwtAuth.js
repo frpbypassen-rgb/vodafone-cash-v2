@@ -12,6 +12,8 @@ if (!process.env.JWT_REFRESH_SECRET || process.env.JWT_REFRESH_SECRET.length < 3
 
 const JWT_SECRET = process.env.JWT_SECRET;
 const JWT_REFRESH_SECRET = process.env.JWT_REFRESH_SECRET;
+const securityControl = require('../services/securityControlService');
+const SecurityDevice = require('../models/SecurityDevice');
 
 const cleanId = (value) => value === undefined || value === null ? '' : String(value).trim();
 const allowsLegacyTenantTokens = () => (
@@ -67,6 +69,22 @@ const ensureActiveCustomerSession = async (decodedUser) => {
     return Boolean(session);
 };
 
+const ensureBoundSecurityDevice = async (decodedUser, req) => {
+    if (!decodedUser?.userId || !decodedUser?.accountType) return false;
+    if (Number(decodedUser.absoluteSessionExpiresAt || 0) && Number(decodedUser.absoluteSessionExpiresAt) <= Date.now()) return false;
+    const state = await securityControl.getState();
+    if (!state.accountDeviceEnforcementEnabled) return true;
+    const deviceId = String(req.headers?.['x-device-id'] || '').trim();
+    if (!deviceId || (state.highConfidenceVpnBlockEnabled && securityControl.assessNetworkRisk(req).highRisk)) return false;
+    const active = await SecurityDevice.findOne({
+        principalType: decodedUser.accountType,
+        principalId: String(decodedUser.userId),
+        channel: 'app',
+        status: 'active'
+    }).select('+deviceIdHash').lean();
+    return Boolean(active && active.deviceIdHash === securityControl.hashDeviceId(deviceId));
+};
+
 const authenticateJWT = (req, res, next) => {
     const authHeader = req.headers.authorization;
 
@@ -95,7 +113,9 @@ const authenticateJWT = (req, res, next) => {
                         correlationId: req.correlationId || null
                     });
                 }
-                if (!await ensureActiveExecutor(decodedUser) || !await ensureActiveCustomerSession(decodedUser)) {
+                if (!await ensureActiveExecutor(decodedUser)
+                    || !await ensureActiveCustomerSession(decodedUser)
+                    || !await ensureBoundSecurityDevice(decodedUser, req)) {
                     return res.status(401).json({
                         success: false,
                         code: 'ACCOUNT_INACTIVE',
@@ -128,6 +148,7 @@ module.exports = {
     authenticateJWT,
     ensureActiveExecutor,
     ensureActiveCustomerSession,
+    ensureBoundSecurityDevice,
     tokenMatchesRequestTenant,
     JWT_SECRET,
     JWT_REFRESH_SECRET

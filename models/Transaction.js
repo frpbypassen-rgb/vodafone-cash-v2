@@ -120,6 +120,12 @@ const transactionSchema = new mongoose.Schema({
     operatorId: { type: String }, 
     executorName: { type: String, default: '---' },
     executorSenderPhone: { type: String },
+    // Full sender data is restricted to manager reports. Customer-facing
+    // mappers never expose these fields.
+    executorSenderEntries: [{
+        phone: { type: String, trim: true },
+        amount: { type: Number, min: 0 }
+    }],
     // القيمة الأصلية التي أدخلها المنفذ. مخفية افتراضياً ولا تُقرأ إلا في تفاصيل الإدارة.
     executorExecutionNumber: { type: String, trim: true, maxlength: 64, select: false },
     executorExecutionNumberMasked: { type: String },

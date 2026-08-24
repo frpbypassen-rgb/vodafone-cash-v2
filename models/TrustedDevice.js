@@ -2,11 +2,12 @@
 
 const mongoose = require('mongoose');
 
-// One active record is kept per account. A new trusted device revokes the
-// previous one instead of silently expanding the trust boundary.
+// One web trust and one app trust may coexist. A new device replaces only the
+// active trust in its own channel.
 const trustedDeviceSchema = new mongoose.Schema({
     accountId: { type: mongoose.Schema.Types.ObjectId, required: true, index: true },
     accountType: { type: String, required: true, index: true },
+    channel: { type: String, enum: ['web', 'app'], default: 'web', index: true },
     tenantId: { type: mongoose.Schema.Types.ObjectId, ref: 'Tenant', default: null },
     deviceIdHash: { type: String, required: true },
     sessionId: { type: String, default: null, index: true },
@@ -21,7 +22,7 @@ const trustedDeviceSchema = new mongoose.Schema({
     revokeReason: { type: String, default: '' }
 }, { timestamps: true, versionKey: false });
 
-trustedDeviceSchema.index({ accountId: 1, accountType: 1, active: 1 });
+trustedDeviceSchema.index({ accountId: 1, accountType: 1, channel: 1, active: 1 });
 trustedDeviceSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 });
 
 module.exports = mongoose.model('TrustedDevice', trustedDeviceSchema);

@@ -26,8 +26,10 @@ async function main() {
 
     try {
         await mongoose.connect(mongoUri, {
+            retryWrites: false,
             serverSelectionTimeoutMS: 10000,
-            connectTimeoutMS: 10000
+            connectTimeoutMS: 10000,
+            heartbeatFrequencyMS: 10000
         });
 
         const hello = await mongoose.connection.db.admin().command({ hello: 1 });

@@ -21,7 +21,14 @@ router.get('/receipt/:transactionId/image', async (req, res) => {
 
     try {
         const transaction = await Transaction.findById(req.params.transactionId).lean();
-        if (!transaction || !['completed', 'cancelled_by_admin'].includes(transaction.status)) {
+        if (!transaction || ![
+            'completed',
+            'cancelled',
+            'canceled',
+            'cancelled_by_admin',
+            'rejected',
+            'failed'
+        ].includes(transaction.status)) {
             return res.status(404).send('الإيصال غير متاح.');
         }
 

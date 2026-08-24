@@ -23,12 +23,17 @@ const ClientCompany = require('../models/ClientCompany');
 const MobileDeviceSession = require('../models/MobileDeviceSession');
 const { buildContext } = require('../mappers/mobileAuthMapper');
 const accountMfaService = require('./accountMfaService');
+const securityControl = require('./securityControlService');
 
 const requestedAccessTokenTtl = Number(process.env.ACCESS_TOKEN_TTL_SECONDS);
 const ACCESS_TOKEN_EXPIRY_SECONDS = Number.isFinite(requestedAccessTokenTtl)
     ? Math.min(3600, Math.max(300, requestedAccessTokenTtl))
     : (process.env.NODE_ENV === 'production' ? 900 : 3600);
 const REFRESH_TOKEN_EXPIRY_SECONDS = 2592000;   // 30 days
+const SECURITY_SESSION_TTL_SECONDS = Math.min(
+    24 * 60 * 60,
+    Math.max(60 * 60, Number(process.env.MOBILE_SECURITY_SESSION_TTL_SECONDS) || 12 * 60 * 60)
+);
 const hashToken = (token) => crypto.createHash('sha256').update(String(token)).digest('hex');
 const cleanId = (value) => value === undefined || value === null ? '' : String(value).trim();
 const requestTenantId = (req) => cleanId(req && req.tenant && req.tenant._id);
@@ -339,7 +344,8 @@ const login = async (username, password, req) => {
         const trusted = await accountMfaService.isDeviceTrusted({
             account: mfaAccount,
             accountType,
-            deviceId
+            deviceId,
+            req
         });
         if (trusted) {
             // Keep the original 24-hour expiry. Successful password logins do
@@ -364,11 +370,32 @@ const login = async (username, password, req) => {
             };
         }
     }
+    const deviceAuthorization = await securityControl.authorizeLogin({
+        req,
+        res: null,
+        principal: {
+            principalType: accountType,
+            principalId: String(account._id),
+            principalName: account.name || account.webUsername || 'Mobile account'
+        },
+        accountClass: 'account',
+        allowFirstDevice: true
+    });
+    if (!deviceAuthorization.allowed) {
+        return {
+            success: false,
+            statusCode: deviceAuthorization.code === 'DEVICE_APPROVAL_REQUIRED' ? 409 : 403,
+            code: deviceAuthorization.code,
+            message: deviceAuthorization.message,
+            requestCode: deviceAuthorization.requestCode || null
+        };
+    }
     resetFailedAttempts(username);
 
     const isCustomerMobileSession = ['client_user', 'sub_client'].includes(accountType);
     const mobileSessionId = isCustomerMobileSession ? crypto.randomUUID() : null;
     const tenantId = requestTenantId(req) || cleanId(account.tenantId) || null;
+    const absoluteSessionExpiresAt = Date.now() + (SECURITY_SESSION_TTL_SECONDS * 1000);
     const accessToken = jwt.sign(
         {
             userId: account._id,
@@ -377,7 +404,8 @@ const login = async (username, password, req) => {
             executorGroupId,
             sessionVersion: Number(account.sessionVersion || 0),
             sessionId: mobileSessionId,
-            tenantId
+            tenantId,
+            absoluteSessionExpiresAt
         },
         JWT_SECRET,
         { expiresIn: `${ACCESS_TOKEN_EXPIRY_SECONDS}s` }
@@ -389,16 +417,28 @@ const login = async (username, password, req) => {
             sessionVersion: Number(account.sessionVersion || 0),
             sessionId: mobileSessionId,
             tenantId,
+            absoluteSessionExpiresAt,
             jti: crypto.randomUUID()
         },
         JWT_REFRESH_SECRET,
         { expiresIn: `${REFRESH_TOKEN_EXPIRY_SECONDS}s` }
     );
 
-    // Sessions for customer mobile devices are independent. One device must not
-    // invalidate another customer's refresh token.
+    // One app session is allowed per account. The web session is tracked in a
+    // separate security channel and remains active.
     if (isCustomerMobileSession) {
         const device = extractDeviceInfo(req);
+        await MobileDeviceSession.updateMany(
+            { accountId: account._id, accountType, active: true },
+            {
+                $set: {
+                    active: false,
+                    revokedAt: new Date(),
+                    revokeReason: 'replaced_by_new_app_session',
+                    lastSeenAt: new Date()
+                }
+            }
+        );
         await MobileDeviceSession.create({
             accountId: account._id,
             accountType,
@@ -549,7 +589,7 @@ const login = async (username, password, req) => {
         token: accessToken,
         refreshToken,
         expiresIn: ACCESS_TOKEN_EXPIRY_SECONDS,
-        refreshExpiresIn: REFRESH_TOKEN_EXPIRY_SECONDS,
+        refreshExpiresIn: SECURITY_SESSION_TTL_SECONDS,
         id: String(account._id),
         accountType,
         name: account.name,
@@ -605,6 +645,14 @@ const refreshAccessToken = async (refreshToken, req) => {
 
             try {
                 const { userId, accountType } = decoded;
+                if (Number(decoded.absoluteSessionExpiresAt || 0) && Number(decoded.absoluteSessionExpiresAt) <= Date.now()) {
+                    return resolve({
+                        success: false,
+                        statusCode: 403,
+                        code: 'SECURITY_SESSION_EXPIRED',
+                        message: 'انتهت الجلسة الآمنة ذات 12 ساعة. سجل الدخول مرة أخرى.'
+                    });
+                }
                 if (!tokenMatchesTenant(decoded, req)) {
                     await logAction({
                         action: 'TOKEN_REFRESH',
@@ -672,6 +720,8 @@ const refreshAccessToken = async (refreshToken, req) => {
                 const executorGroupId = accountType === 'executor' ? (account.groupId ? account.groupId._id : (account.botId ? account.botId._id : null)) : null;
                 const nextSessionId = decoded.sessionId || (isCustomerMobileSession ? crypto.randomUUID() : null);
                 const tenantId = requestTenantId(req) || cleanId(decoded.tenantId) || cleanId(account.tenantId) || null;
+                const absoluteSessionExpiresAt = Number(decoded.absoluteSessionExpiresAt || 0)
+                    || (Date.now() + SECURITY_SESSION_TTL_SECONDS * 1000);
                 const nextRefreshToken = jwt.sign(
                     {
                         userId: account._id,
@@ -679,6 +729,7 @@ const refreshAccessToken = async (refreshToken, req) => {
                         sessionVersion: Number(account.sessionVersion || 0),
                         sessionId: nextSessionId,
                         tenantId,
+                        absoluteSessionExpiresAt,
                         jti: crypto.randomUUID()
                     },
                     JWT_REFRESH_SECRET,
@@ -692,7 +743,8 @@ const refreshAccessToken = async (refreshToken, req) => {
                         executorGroupId,
                         sessionVersion: Number(account.sessionVersion || 0),
                         sessionId: nextSessionId,
-                        tenantId
+                        tenantId,
+                        absoluteSessionExpiresAt
                     },
                     JWT_SECRET,
                     { expiresIn: `${ACCESS_TOKEN_EXPIRY_SECONDS}s` }
@@ -766,7 +818,7 @@ const refreshAccessToken = async (refreshToken, req) => {
                     token: newAccessToken,
                     refreshToken: nextRefreshToken,
                     expiresIn: ACCESS_TOKEN_EXPIRY_SECONDS,
-                    refreshExpiresIn: REFRESH_TOKEN_EXPIRY_SECONDS,
+                    refreshExpiresIn: Math.max(0, Math.floor((absoluteSessionExpiresAt - Date.now()) / 1000)),
                     serverTime: new Date().toISOString()
                 });
             } catch (e) {

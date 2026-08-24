@@ -74,6 +74,7 @@ const {
     startApiProviderReturnMonitor
 } = require('./services/apiProviderReconciliationService');
 const { ensurePerformanceIndexes } = require('./services/performanceIndexService');
+const { ensureSecurityDeviceIndexes } = require('./services/securityControlService');
 const { closeEligibleDailySettlement } = require('./services/settlementService');
 const systemMonitor = require('./services/systemMonitorService');
 const { restorePendingRateActivation, startRateChangeActivationMonitor } = require('./services/rateChangeService');
@@ -181,7 +182,7 @@ app.use(helmet({
     hsts: { maxAge: 31536000, includeSubDomains: true, preload: true },
     referrerPolicy: { policy: 'strict-origin-when-cross-origin' },
     permissionsPolicy: {
-        features: { camera: ["'none'"], microphone: ["'none'"], geolocation: ["'none'"] }
+        features: { camera: ["'none'"], microphone: ["'none'"], geolocation: ["'self'"] }
     }
 }));
 
@@ -323,9 +324,18 @@ app.use('/public', require('./routes/publicReceipts'));
 // WhatChimp delivers external messages here. This must remain before CSRF protection.
 app.use('/webhooks/whatchimp', require('./routes/whatChimpWebhook'));
 app.use(csrfProtection);
+app.use('/', require('./routes/emergencySecurity'));
 
 const { tenantResolver } = require('./middlewares/tenantResolver');
 app.use(tenantResolver);
+
+const {
+    enforceSecuritySession,
+    enforceEmergencyLockdown,
+    enforceAdminPermissions
+} = require('./middlewares/securityControl');
+app.use(enforceSecuritySession);
+app.use(enforceEmergencyLockdown);
 
 app.use((req, res, next) => {
     res.locals.adminName = req.session.adminName || 'مدير';
@@ -349,6 +359,8 @@ app.use('/api/v1/mobile', require('./routes/mobileApi'));
 app.use('/api/v1/merchant', require('./routes/merchantApi'));
 
 app.use('/', require('./routes/auth'));
+app.use('/admin/security', require('./routes/securityAdmin'));
+app.use(enforceAdminPermissions);
 app.use('/', require('./routes/dashboard'));
 app.use('/', require('./routes/adminTransactions'));
 app.use('/', require('./routes/financialMovements'));
@@ -385,7 +397,11 @@ app.use(errorHandler);
 
 const PORT = process.env.PORT || 3000;
 Promise.all([connectDB(), initRedis()]).then(async () => {
-    await Promise.all([ensureApiReconciliationIndexes(), ensurePerformanceIndexes()]);
+    await Promise.all([
+        ensureApiReconciliationIndexes(),
+        ensurePerformanceIndexes(),
+        ensureSecurityDeviceIndexes()
+    ]);
     await restorePendingRateActivation({ app });
     startRateChangeActivationMonitor({ app });
     startApiCompletionMonitor();

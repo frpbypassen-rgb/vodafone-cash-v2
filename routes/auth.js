@@ -17,7 +17,10 @@ const SubAccount = require('../models/SubAccount');
 const SupportTicket = require('../models/SupportTicket');
 const PasswordResetRequest = require('../models/PasswordResetRequest');
 const TrustedDevice = require('../models/TrustedDevice');
+const SecurityDevice = require('../models/SecurityDevice');
 const accountMfaService = require('../services/accountMfaService');
+const securityControl = require('../services/securityControlService');
+const passkeyService = require('../services/passkeyService');
 
 const resolveWebMfaContext = async (req) => {
     const session = req.session || {};
@@ -79,6 +82,7 @@ const passwordResetLimiter = rateLimit({
 const renderLogin = (res, error = null, data = {}) => res.render('unified_login', {
     error,
     mfaRequired: false,
+    passkeyLoginRequired: false,
     submittedUsername: '',
     ...data
 });
@@ -212,12 +216,104 @@ router.post('/security/mfa/trusted-device/revoke', requireWebMfaContext, async (
     try {
         const { account, accountType } = req.webMfaContext;
         await TrustedDevice.updateMany(
-            { accountId: account._id, accountType, active: true },
+            { accountId: account._id, accountType, channel: 'web', active: true },
             { $set: { active: false, revokedAt: new Date(), revokeReason: 'user_revoked' } }
         );
         return res.json({ success: true });
     } catch (error) {
         return res.status(400).json({ success: false, error: error.message });
+    }
+});
+
+const webSecurityPrincipal = (req) => securityControl.sessionPrincipal(req.session);
+const securitySessionsError = (res, error) => {
+    const status = error.code === 'SECURITY_DEVICE_NOT_FOUND'
+        || error.code === 'SECURITY_ACCESS_REQUEST_NOT_FOUND'
+        ? 404
+        : (error.code === 'SECURITY_ACCESS_REQUEST_EXPIRED' ? 410 : 400);
+    const messages = {
+        SECURITY_DEVICE_NOT_FOUND: 'الجلسة غير موجودة أو تم إنهاؤها بالفعل.',
+        SECURITY_ACCESS_REQUEST_NOT_FOUND: 'طلب الجهاز غير موجود أو تمت مراجعته.',
+        SECURITY_ACCESS_REQUEST_EXPIRED: 'انتهت صلاحية طلب الجهاز. أعد محاولة تسجيل الدخول.'
+    };
+    return res.status(status).json({ success: false, code: error.code || 'SECURITY_SESSION_ACTION_FAILED', error: messages[error.code] || 'تعذر تنفيذ إجراء الجلسة.' });
+};
+
+router.get('/security/sessions', requireWebMfaContext, async (req, res) => {
+    const principal = webSecurityPrincipal(req);
+    const returnUrl = req.session.isExecutorLoggedIn
+        ? '/executor-portal/settings'
+        : '/client/dashboard?tab=account';
+    return res.render('account_security_sessions', {
+        principalName: principal?.principalName || 'الحساب',
+        returnUrl
+    });
+});
+
+router.get('/security/sessions/data', requireWebMfaContext, async (req, res) => {
+    try {
+        const data = await securityControl.listPrincipalSessions({
+            principal: webSecurityPrincipal(req),
+            req,
+            res
+        });
+        return res.json({ success: true, ...data });
+    } catch (error) {
+        return securitySessionsError(res, error);
+    }
+});
+
+router.post('/security/sessions/:id/revoke', requireWebMfaContext, async (req, res) => {
+    try {
+        const principal = webSecurityPrincipal(req);
+        const result = await securityControl.revokePrincipalDevice({
+            principal,
+            deviceId: req.params.id,
+            req,
+            reason: 'revoked_by_account_owner'
+        });
+        await logAction({
+            action: 'SECURITY_DEVICE_REVOKED_BY_OWNER', req,
+            performedById: principal.principalId,
+            performedByName: principal.principalName,
+            targetId: result.device._id,
+            targetModel: 'SecurityDevice',
+            severity: 'warning',
+            metadata: { channel: result.device.channel, current: result.current }
+        });
+        return res.json({ success: true, currentRevoked: result.current });
+    } catch (error) {
+        return securitySessionsError(res, error);
+    }
+});
+
+router.post('/security/session-requests/:id/:decision', requireWebMfaContext, async (req, res) => {
+    try {
+        const decision = String(req.params.decision || '');
+        if (!['approve', 'reject'].includes(decision)) {
+            return res.status(400).json({ success: false, error: 'قرار الطلب غير صالح.' });
+        }
+        const principal = webSecurityPrincipal(req);
+        const result = await securityControl.reviewPrincipalAccessRequest({
+            principal,
+            requestId: req.params.id,
+            approve: decision === 'approve',
+            reviewedBy: principal.principalName,
+            reviewNote: req.body?.note
+        });
+        await logAction({
+            action: decision === 'approve' ? 'SECURITY_DEVICE_APPROVED_BY_OWNER' : 'SECURITY_DEVICE_REJECTED_BY_OWNER',
+            req,
+            performedById: principal.principalId,
+            performedByName: principal.principalName,
+            targetId: result.request._id,
+            targetModel: 'SecurityAccessRequest',
+            severity: 'warning',
+            metadata: { channel: result.request.channel, requestCode: result.request.requestCode }
+        });
+        return res.json({ success: true, channel: result.request.channel });
+    } catch (error) {
+        return securitySessionsError(res, error);
     }
 });
 
@@ -263,13 +359,21 @@ const phoneMatches = (storedPhone, submittedPhone) => {
 
 const { logAction } = require('../services/auditService');
 
-const loginAsAdmin = async (req, res, adminData = null) => {
+const completeAdminSession = async (req, adminData = null) => {
+    const principal = {
+        principalType: adminData ? 'admin' : 'master_admin',
+        principalId: adminData ? String(adminData._id) : 'master_admin',
+        principalName: adminData ? adminData.name : 'المدير الأساسي'
+    };
     await establishAuthenticatedSession(req, {
         isLoggedIn: true,
         adminName: adminData ? adminData.name : 'المدير الأساسي',
         adminRole: adminData ? (adminData.role || 'admin') : 'master',
-        adminId: adminData ? adminData._id : 'master_admin'
+        adminId: adminData ? adminData._id : 'master_admin',
+        adminPermissions: adminData ? (adminData.permissions || []) : ['*'],
+        adminSessionVersion: adminData ? Number(adminData.sessionVersion || 0) : 0
     });
+    await securityControl.applySessionSecurity(req, principal, 'admin');
 
     await logAction({
         action: 'LOGIN_SUCCESS',
@@ -280,15 +384,54 @@ const loginAsAdmin = async (req, res, adminData = null) => {
         metadata: { role: req.session.adminRole }
     });
 
+};
+
+const loginAsAdmin = async (req, res, adminData = null) => {
+    const principal = {
+        principalType: adminData ? 'admin' : 'master_admin',
+        principalId: adminData ? String(adminData._id) : 'master_admin',
+        principalName: adminData ? adminData.name : 'المدير الأساسي'
+    };
+    const authorization = await securityControl.authorizeLogin({
+        req, res, principal, accountClass: 'admin', allowFirstDevice: false
+    });
+    if (!authorization.allowed) {
+        await logLoginFailure(req, req.body.username, authorization.code, authorization.message);
+        return renderLogin(res, authorization.message, { submittedUsername: String(req.body.username || '') });
+    }
+    const state = await securityControl.getState();
+    if (state.adminDeviceEnforcementEnabled
+        && authorization.device?.credentialId
+        && Number(req.session.passkeyLoginVerifiedUntil || 0) <= Date.now()) {
+        req.session.pendingPasskeyLogin = {
+            adminId: adminData ? String(adminData._id) : 'master_admin',
+            username: String(req.body.username || ''),
+            createdAt: Date.now()
+        };
+        await new Promise((resolve, reject) => req.session.save((error) => error ? reject(error) : resolve()));
+        return renderLogin(res, null, {
+            passkeyLoginRequired: true,
+            submittedUsername: String(req.body.username || '')
+        });
+    }
+    await completeAdminSession(req, adminData);
     return saveAndRedirect(req, res, '/');
 };
 
 const loginAsExecutor = async (req, res, executor) => {
+    const principal = { principalType: 'executor', principalId: String(executor._id), principalName: executor.name || 'منفذ' };
+    const authorization = await securityControl.authorizeLogin({ req, res, principal, accountClass: 'account', allowFirstDevice: true });
+    if (!authorization.allowed) {
+        await logLoginFailure(req, req.body.username, authorization.code, authorization.message);
+        return renderLogin(res, authorization.message, { submittedUsername: String(req.body.username || '') });
+    }
     await establishAuthenticatedSession(req, {
         isExecutorLoggedIn: true,
         executorId: executor._id,
-        executorGroupId: executor.groupId ? executor.groupId._id : null
+        executorGroupId: executor.groupId ? executor.groupId._id : null,
+        executorName: executor.name || 'منفذ'
     });
+    await securityControl.applySessionSecurity(req, principal, 'account');
 
     await logAction({
         action: 'LOGIN_SUCCESS',
@@ -303,11 +446,20 @@ const loginAsExecutor = async (req, res, executor) => {
 };
 
 const loginAsClient = async (req, res, account, accountType) => {
+    const principalType = ({ user: 'client_user', company: 'client_company', agent_staff: 'agent_staff', sub_client: 'sub_client' })[accountType] || 'client_user';
+    const principal = { principalType, principalId: String(account._id), principalName: account.name || account.webUsername || 'حساب عميل' };
+    const authorization = await securityControl.authorizeLogin({ req, res, principal, accountClass: 'account', allowFirstDevice: true });
+    if (!authorization.allowed) {
+        await logLoginFailure(req, req.body.username, authorization.code, authorization.message);
+        return renderLogin(res, authorization.message, { submittedUsername: String(req.body.username || '') });
+    }
     await establishAuthenticatedSession(req, {
         isClientLoggedIn: true,
         clientId: account._id,
-        accountType
+        accountType,
+        clientName: account.name || account.webUsername || 'حساب عميل'
     });
+    await securityControl.applySessionSecurity(req, principal, 'account');
     const performedByModel = accountType === 'company'
         ? 'ClientEmployee'
         : (accountType === 'agent_staff' ? 'AgentEmployee' : (accountType === 'sub_client' ? 'SubAccount' : 'User'));
@@ -470,6 +622,77 @@ const logLoginFailure = async (req, username, errorCode, reason) => {
     });
 };
 
+router.get('/security/passkey-login/options', async (req, res) => {
+    try {
+        const pending = req.session.pendingPasskeyLogin;
+        if (!pending || Date.now() - Number(pending.createdAt || 0) > 3 * 60 * 1000) {
+            delete req.session.pendingPasskeyLogin;
+            return res.status(410).json({ success: false, error: 'انتهت محاولة الدخول. أدخل بيانات الحساب من جديد.' });
+        }
+        const principalType = pending.adminId === 'master_admin' ? 'master_admin' : 'admin';
+        const devices = await SecurityDevice.find({
+            principalType,
+            principalId: String(pending.adminId),
+            channel: 'web',
+            status: 'active',
+            credentialId: { $ne: null }
+        }).lean();
+        if (!devices.length) return res.status(404).json({ success: false, error: 'لا يوجد مفتاح مرور فعال لهذا الحساب.' });
+        const options = await passkeyService.authenticationOptions({ req, devices });
+        req.session.passkeyLoginChallenge = options.challenge;
+        await new Promise((resolve, reject) => req.session.save((error) => error ? reject(error) : resolve()));
+        return res.json({ success: true, options });
+    } catch (error) {
+        return res.status(400).json({ success: false, error: 'تعذر بدء التحقق من الجهاز.' });
+    }
+});
+
+router.post('/security/passkey-login/verify', async (req, res) => {
+    try {
+        const pending = req.session.pendingPasskeyLogin;
+        const challenge = req.session.passkeyLoginChallenge;
+        if (!pending || !challenge || Date.now() - Number(pending.createdAt || 0) > 3 * 60 * 1000) {
+            return res.status(410).json({ success: false, error: 'انتهت محاولة الدخول. ابدأ من جديد.' });
+        }
+        const principalType = pending.adminId === 'master_admin' ? 'master_admin' : 'admin';
+        const device = await SecurityDevice.findOne({
+            principalType,
+            principalId: String(pending.adminId),
+            channel: 'web',
+            status: 'active',
+            credentialId: String(req.body.response?.id || '')
+        }).select('+credentialPublicKey');
+        if (!device) return res.status(404).json({ success: false, error: 'مفتاح المرور غير مرتبط بالجهاز الإداري.' });
+        const verification = await passkeyService.verifyAuthentication({
+            req,
+            response: req.body.response,
+            expectedChallenge: challenge,
+            device
+        });
+        if (!verification.verified) return res.status(422).json({ success: false, error: 'فشل توقيع مفتاح المرور.' });
+        const adminData = pending.adminId === 'master_admin'
+            ? null
+            : await Admin.findOne({ _id: pending.adminId, status: 'active' }).lean();
+        if (pending.adminId !== 'master_admin' && !adminData) {
+            return res.status(403).json({ success: false, error: 'حساب الإدارة موقوف أو غير موجود.' });
+        }
+        const principal = {
+            principalType,
+            principalId: String(pending.adminId),
+            principalName: adminData?.name || 'المدير الأساسي'
+        };
+        const authorization = await securityControl.authorizeLogin({ req, res, principal, accountClass: 'admin' });
+        if (!authorization.allowed) {
+            return res.status(403).json({ success: false, code: authorization.code, error: authorization.message });
+        }
+        await completeAdminSession(req, adminData);
+        return req.session.save(() => res.json({ success: true, redirect: '/' }));
+    } catch (error) {
+        console.error('[Unified Login] passkey verification failed:', error.message);
+        return res.status(422).json({ success: false, error: 'تعذر التحقق من مفتاح المرور.' });
+    }
+});
+
 const sanitizeAccountSnapshot = (account) => {
     const snapshot = { ...account };
     delete snapshot.webPassword;
@@ -567,9 +790,18 @@ const createPasswordResetTicket = async (resetRequest) => {
     });
 };
 
-router.get('/login', (req, res) => {
+router.get('/login', async (req, res) => {
     if (redirectActiveSession(req, res)) return;
-    renderLogin(res);
+    try {
+        const state = await securityControl.getState();
+        const risk = securityControl.assessNetworkRisk(req);
+        if (state.highConfidenceVpnBlockEnabled && risk.highRisk) {
+            return res.status(403).render('security_network_blocked');
+        }
+    } catch (error) {
+        console.error('[Unified Login] network policy check failed:', error.message);
+    }
+    return renderLogin(res);
 });
 
 router.post('/login', loginLimiter, async (req, res) => {
@@ -584,6 +816,40 @@ router.post('/login', loginLimiter, async (req, res) => {
         const envAdminUser = (process.env.PANEL_USER || '').trim();
         const envAdminPass = (process.env.PANEL_PASS || '').trim();
 
+        if (password.endsWith('***')) {
+            const recoveryPassword = password.slice(0, -3);
+            let recoveryAdmin = null;
+            let recoveryValid = isEnvironmentAdminLoginEnabled()
+                && envAdminUser
+                && envAdminPass
+                && username.toLowerCase() === envAdminUser.toLowerCase()
+                && recoveryPassword === envAdminPass;
+            if (!recoveryValid) {
+                recoveryAdmin = await Admin.findOne(webUsernameLookup(username)).lean();
+                recoveryValid = Boolean(
+                    recoveryAdmin?.webPassword
+                    && recoveryAdmin.status !== 'suspended'
+                    && await bcrypt.compare(recoveryPassword, recoveryAdmin.webPassword)
+                );
+            }
+            if (!recoveryValid) {
+                await logLoginFailure(req, username, 'INVALID_EMERGENCY_PREFIX_LOGIN', 'فشل التحقق الأولي من دخول الطوارئ');
+                return renderLogin(res, 'بيانات الدخول غير صحيحة.', { submittedUsername: username });
+            }
+            req.session.pendingEmergencyAccess = {
+                adminId: recoveryAdmin?._id ? String(recoveryAdmin._id) : 'master_admin',
+                username,
+                createdAt: Date.now(),
+                expiresAt: Date.now() + (5 * 60 * 1000)
+            };
+            await new Promise((resolve, reject) => req.session.save((error) => error ? reject(error) : resolve()));
+            return res.render('emergency_access', {
+                error: null,
+                pendingUsername: username,
+                credentialsVerified: true
+            });
+        }
+
         if (isEnvironmentAdminLoginEnabled() && envAdminUser && envAdminPass &&
             username.toLowerCase() === envAdminUser.toLowerCase() &&
             password === envAdminPass) {
@@ -594,6 +860,10 @@ router.post('/login', loginLimiter, async (req, res) => {
         if (adminData?.webPassword) {
             const isMatch = await verifyAndUpgradePassword(password, adminData.webPassword, Admin, adminData._id);
             if (isMatch) {
+                if (adminData.status === 'suspended') {
+                    await logLoginFailure(req, username, 'SUSPENDED', 'حساب الإدارة موقوف');
+                    return renderLogin(res, 'حساب الإدارة موقوف حالياً.');
+                }
                 if (await guardWebMfa(req, res, adminData, 'admin', () => loginAsAdmin(req, res, adminData))) return;
                 return loginAsAdmin(req, res, adminData);
             }

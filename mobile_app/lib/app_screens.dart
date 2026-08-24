@@ -2954,8 +2954,8 @@ class _CustomerAccountScreenState extends State<CustomerAccountScreen> {
                 'Authenticator security',
               ),
               subtitle: t(
-                'جهاز موثوق واحد لمدة 24 ساعة مع رمز جديد لأي جهاز آخر.',
-                'One trusted device for 24 hours; other devices require a new code.',
+                'ثقة مستقلة للموقع والتطبيق لمدة 24 ساعة لكل منهما.',
+                'Separate 24-hour trust for one web and one app session.',
               ),
               onTap: _manageAuthenticator,
             ),
@@ -3248,13 +3248,14 @@ class _AuthenticatorDialogState extends State<_AuthenticatorDialog> {
                 child: Center(child: CircularProgressIndicator()),
               );
             }
-            if (snapshot.hasError)
+            if (snapshot.hasError) {
               return Text(
                 t(
                   'تعذر تحميل حالة الحماية.',
                   'Unable to load security status.',
                 ),
               );
+            }
             final enabled = snapshot.data?['enabled'] == true;
             if (enabled && _setup == null) {
               return Column(
@@ -3368,6 +3369,17 @@ class _AuthenticatorDialogState extends State<_AuthenticatorDialog> {
         ),
       ),
       actions: [
+        OutlinedButton.icon(
+          onPressed: _busy
+              ? null
+              : () => showDialog<void>(
+                  context: context,
+                  builder: (context) =>
+                      _CustomerDevicesDialog(controller: widget.controller),
+                ),
+          icon: const Icon(Icons.devices_outlined),
+          label: Text(t('الأجهزة والجلسات', 'Devices and sessions')),
+        ),
         TextButton(
           onPressed: _busy ? null : () => Navigator.pop(context),
           child: Text(t('إغلاق', 'Close')),
@@ -3992,21 +4004,121 @@ class _CustomerDevicesDialog extends StatefulWidget {
 }
 
 class _CustomerDevicesDialogState extends State<_CustomerDevicesDialog> {
-  late final Future<List<Map<String, dynamic>>> _devices = widget.controller
-      .customerSecurityDevices();
-  bool _endingOtherDevices = false;
+  Map<String, dynamic>? _data;
+  Object? _error;
+  String? _busyId;
 
-  Future<void> _endOtherDevices() async {
-    setState(() => _endingOtherDevices = true);
+  String t(String arabic, String english) =>
+      localized(context, arabic, english);
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
     try {
-      await widget.controller.logoutCustomerDevices();
-      if (mounted) Navigator.pop(context, true);
+      final data = await widget.controller.securitySessions();
+      if (mounted) {
+        setState(() {
+          _data = data;
+          _error = null;
+        });
+      }
+    } catch (error) {
+      if (mounted) setState(() => _error = error);
+    }
+  }
+
+  List<Map<String, dynamic>> _items(String key) {
+    final raw = _data?[key];
+    if (raw is! List) return <Map<String, dynamic>>[];
+    return raw
+        .whereType<Map>()
+        .map((item) => Map<String, dynamic>.from(item))
+        .toList();
+  }
+
+  Future<void> _revoke(Map<String, dynamic> device) async {
+    final id = '${device['id'] ?? ''}';
+    if (id.isEmpty) return;
+    final approved = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(t('إنهاء الجلسة', 'End session')),
+        content: Text(
+          t(
+            device['current'] == true
+                ? 'سيتم تسجيل خروجك من هذا التطبيق. هل تريد المتابعة؟'
+                : 'سيتم منع هذا الجهاز من الوصول إلى الحساب.',
+            device['current'] == true
+                ? 'You will be signed out of this app. Continue?'
+                : 'This device will no longer have access to the account.',
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: Text(t('إلغاء', 'Cancel')),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: Text(t('إنهاء', 'End')),
+          ),
+        ],
+      ),
+    );
+    if (approved != true || !mounted) return;
+    setState(() => _busyId = id);
+    try {
+      final response = await widget.controller.revokeSecuritySession(id);
+      if (response['currentRevoked'] == true) {
+        await widget.controller.clearLocalSession();
+        if (mounted) Navigator.of(context).popUntil((route) => route.isFirst);
+        return;
+      }
+      await _load();
+      if (mounted) showSnack(context, t('تم إنهاء الجلسة.', 'Session ended.'));
     } on ApiFailure catch (error) {
       if (mounted) showSnack(context, error.message, error: true);
     } finally {
-      if (mounted) setState(() => _endingOtherDevices = false);
+      if (mounted) setState(() => _busyId = null);
     }
   }
+
+  Future<void> _review(Map<String, dynamic> request, bool approve) async {
+    final id = '${request['id'] ?? ''}';
+    if (id.isEmpty) return;
+    setState(() => _busyId = id);
+    try {
+      final response = await widget.controller.reviewSecuritySessionRequest(
+        id: id,
+        approve: approve,
+      );
+      if (approve && response['channel'] == 'app') {
+        await widget.controller.clearLocalSession();
+        if (mounted) Navigator.of(context).popUntil((route) => route.isFirst);
+        return;
+      }
+      await _load();
+      if (mounted) {
+        showSnack(
+          context,
+          approve
+              ? t('تم اعتماد الجهاز الجديد.', 'New device approved.')
+              : t('تم رفض طلب الجهاز.', 'Device request rejected.'),
+        );
+      }
+    } on ApiFailure catch (error) {
+      if (mounted) showSnack(context, error.message, error: true);
+    } finally {
+      if (mounted) setState(() => _busyId = null);
+    }
+  }
+
+  String _channelLabel(Object? value) =>
+      value == 'app' ? t('تطبيق الهاتف', 'Mobile app') : t('موقع الويب', 'Web');
 
   @override
   Widget build(BuildContext context) {
@@ -4015,69 +4127,164 @@ class _CustomerDevicesDialogState extends State<_CustomerDevicesDialog> {
     return AlertDialog(
       title: Text(t('الأجهزة المسجل منها الدخول', 'Signed-in devices')),
       content: SizedBox(
-        width: 460,
-        child: FutureBuilder<List<Map<String, dynamic>>>(
-          future: _devices,
-          builder: (context, snapshot) {
-            if (snapshot.connectionState != ConnectionState.done) {
-              return const SizedBox(
-                height: 120,
+        width: 500,
+        child: _data == null && _error == null
+            ? const SizedBox(
+                height: 160,
                 child: Center(child: CircularProgressIndicator()),
-              );
-            }
-            if (snapshot.hasError) {
-              return Text(
-                t(
-                  'تعذر تحميل قائمة الأجهزة حالياً.',
-                  'Unable to load the device list right now.',
-                ),
-              );
-            }
-            final devices = snapshot.data ?? const <Map<String, dynamic>>[];
-            if (devices.isEmpty) {
-              return Text(
-                t(
-                  'لا توجد عمليات دخول مسجلة بعد.',
-                  'No sign-ins have been recorded yet.',
-                ),
-              );
-            }
-            return ConstrainedBox(
-              constraints: const BoxConstraints(maxHeight: 360),
-              child: ListView.separated(
-                shrinkWrap: true,
-                itemCount: devices.length,
-                separatorBuilder: (_, _) => const Divider(height: 1),
-                itemBuilder: (context, index) {
-                  final device = devices[index];
-                  return ListTile(
-                    contentPadding: EdgeInsets.zero,
-                    leading: const Icon(Icons.devices_other_outlined),
-                    title: Text(
-                      device['current'] == true
-                          ? '${device['deviceType'] ?? t('هاتف', 'Phone')} - ${t('الجهاز الحالي', 'Current device')}'
-                          : '${device['deviceType'] ?? t('هاتف', 'Phone')}',
+              )
+            : _error != null
+            ? Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(
+                    Icons.cloud_off_outlined,
+                    size: 42,
+                    color: _danger,
+                  ),
+                  const SizedBox(height: 10),
+                  Text(t('تعذر تحميل الجلسات.', 'Unable to load sessions.')),
+                  const SizedBox(height: 10),
+                  OutlinedButton.icon(
+                    onPressed: _load,
+                    icon: const Icon(Icons.refresh),
+                    label: Text(t('إعادة المحاولة', 'Retry')),
+                  ),
+                ],
+              )
+            : ConstrainedBox(
+                constraints: const BoxConstraints(maxHeight: 520),
+                child: ListView(
+                  shrinkWrap: true,
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: _green.withValues(alpha: .08),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Text(
+                        t(
+                          'يمكنك استخدام موقع واحد وتطبيق واحد معًا. أي جهاز إضافي يحتاج موافقتك.',
+                          'You can use one web session and one app session together. Any additional device requires your approval.',
+                        ),
+                        style: const TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
                     ),
-                    subtitle: Text(
-                      '${t('آخر دخول', 'Last sign-in')}: ${formatDate(device['lastSeenAt'])}',
+                    const SizedBox(height: 14),
+                    Text(
+                      t('الجلسات النشطة', 'Active sessions'),
+                      style: const TextStyle(fontWeight: FontWeight.w900),
                     ),
-                  );
-                },
+                    const SizedBox(height: 6),
+                    if (_items('devices').isEmpty)
+                      Text(t('لا توجد جلسات مسجلة.', 'No sessions recorded.')),
+                    ..._items('devices').map(
+                      (device) => Card(
+                        margin: const EdgeInsets.only(bottom: 8),
+                        child: ListTile(
+                          leading: Icon(
+                            device['channel'] == 'app'
+                                ? Icons.phone_android_outlined
+                                : Icons.computer_outlined,
+                            color: device['channel'] == 'app'
+                                ? _green
+                                : const Color(0xFF2563EB),
+                          ),
+                          title: Text(
+                            '${device['displayName'] ?? _channelLabel(device['channel'])}',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          subtitle: Text(
+                            '${_channelLabel(device['channel'])} · ${t('آخر نشاط', 'Last active')}: ${formatDate(device['lastSeenAt'])}',
+                          ),
+                          trailing: _busyId == '${device['id']}'
+                              ? const SizedBox.square(
+                                  dimension: 20,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                  ),
+                                )
+                              : IconButton(
+                                  tooltip: t('إنهاء الجلسة', 'End session'),
+                                  onPressed: () => _revoke(device),
+                                  icon: const Icon(
+                                    Icons.logout,
+                                    color: _danger,
+                                  ),
+                                ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Text(
+                      t('طلبات أجهزة جديدة', 'New device requests'),
+                      style: const TextStyle(fontWeight: FontWeight.w900),
+                    ),
+                    const SizedBox(height: 6),
+                    if (_items('requests').isEmpty)
+                      Text(t('لا توجد طلبات معلقة.', 'No pending requests.')),
+                    ..._items('requests').map(
+                      (request) => Card(
+                        margin: const EdgeInsets.only(bottom: 8),
+                        child: Padding(
+                          padding: const EdgeInsets.all(12),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                '${request['displayName'] ?? _channelLabel(request['channel'])}',
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.w900,
+                                ),
+                              ),
+                              const SizedBox(height: 3),
+                              Text(
+                                '${_channelLabel(request['channel'])} · ${request['requestCode'] ?? ''}',
+                                style: Theme.of(context).textTheme.bodySmall,
+                              ),
+                              const SizedBox(height: 10),
+                              if (_busyId == '${request['id']}')
+                                const Center(child: CircularProgressIndicator())
+                              else
+                                Row(
+                                  children: [
+                                    Expanded(
+                                      child: FilledButton.icon(
+                                        onPressed: () => _review(request, true),
+                                        icon: const Icon(Icons.check),
+                                        label: Text(t('موافقة', 'Approve')),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Expanded(
+                                      child: OutlinedButton.icon(
+                                        onPressed: () =>
+                                            _review(request, false),
+                                        icon: const Icon(Icons.close),
+                                        label: Text(t('رفض', 'Reject')),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
               ),
-            );
-          },
-        ),
       ),
       actions: [
-        OutlinedButton.icon(
-          style: OutlinedButton.styleFrom(foregroundColor: _danger),
-          onPressed: _endingOtherDevices ? null : _endOtherDevices,
-          icon: const Icon(Icons.devices_other_outlined),
-          label: Text(
-            _endingOtherDevices
-                ? t('جارٍ الإنهاء...', 'Signing out...')
-                : t('إنهاء الأجهزة الأخرى', 'Sign out other devices'),
-          ),
+        IconButton(
+          onPressed: _load,
+          tooltip: t('تحديث', 'Refresh'),
+          icon: const Icon(Icons.refresh),
         ),
         TextButton(
           onPressed: () => Navigator.pop(context),
@@ -17323,6 +17530,11 @@ class _ExecutorSettingsScreenState extends State<ExecutorSettingsScreen> {
     }
   }
 
+  Future<void> _showSecuritySessions() => showDialog<void>(
+    context: context,
+    builder: (context) => _CustomerDevicesDialog(controller: widget.controller),
+  );
+
   Future<void> _testPushNotification() async {
     setState(() => _pushBusy = true);
     try {
@@ -17603,6 +17815,28 @@ class _ExecutorSettingsScreenState extends State<ExecutorSettingsScreen> {
                       '${formatEgpAmount(numberValue(company['balance']))} ج.م',
                 ),
             ],
+          ),
+        ),
+        const SizedBox(height: 18),
+        ExecutorSurface(
+          accent: ExecutorUiColors.cobalt,
+          child: ListTile(
+            contentPadding: EdgeInsets.zero,
+            leading: const ExecutorMetalIcon(
+              icon: Icons.devices_outlined,
+              color: ExecutorUiColors.cobalt,
+              size: 42,
+              selected: true,
+            ),
+            title: const Text(
+              'الأجهزة والجلسات',
+              style: TextStyle(fontWeight: FontWeight.w900),
+            ),
+            subtitle: const Text(
+              'جلسة موقع واحدة وجلسة تطبيق واحدة مع مراجعة طلبات الأجهزة الجديدة.',
+            ),
+            trailing: const Icon(Icons.chevron_left),
+            onTap: _showSecuritySessions,
           ),
         ),
         const SizedBox(height: 18),

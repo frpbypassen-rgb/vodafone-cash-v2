@@ -69,6 +69,7 @@ jest.mock('../models/SubAccount', () => {
 });
 
 jest.mock('../models/MobileDeviceSession', () => ({
+    updateMany: jest.fn().mockResolvedValue({ modifiedCount: 0 }),
     create: jest.fn().mockResolvedValue({ _id: 'device-session-id' })
 }));
 

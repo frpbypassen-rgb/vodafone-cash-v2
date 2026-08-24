@@ -7,6 +7,17 @@ const DEFAULT_WHATCHIMP_API_BASE_URL = 'https://app.whatchimp.com/api/v1/whatsap
 const OTP_DEFAULT_VARIABLE_ORDER = ['otp', 'expiresMinutes', 'accountName', 'accountType'];
 const RECEIPT_DEFAULT_VARIABLE_ORDER = ['accountName', 'reference', 'amount', 'currency', 'completedAt', 'receiptUrl'];
 const RATE_CHANGE_DEFAULT_VARIABLE_ORDER = ['accountName', 'countdown', 'rateChanges', 'effectiveAt'];
+const OTP_TEMPLATE_CACHE_TTL_MS = 60 * 1000;
+
+let otpTemplateCache = {
+    key: '',
+    expiresAt: 0,
+    value: null
+};
+
+const resetOtpTemplateCache = () => {
+    otpTemplateCache = { key: '', expiresAt: 0, value: null };
+};
 
 const isEnabled = (value) => ['1', 'true', 'yes', 'on'].includes(String(value || '').trim().toLowerCase());
 
@@ -21,6 +32,9 @@ const getWhatChimpConfig = () => {
     const receiptTemplate = cleanText(process.env.WHATCHIMP_RECEIPT_TEMPLATE);
     const receiptMediaTemplateId = cleanText(process.env.WHATCHIMP_RECEIPT_MEDIA_TEMPLATE_ID);
     const rateChangeTemplate = cleanText(process.env.WHATCHIMP_RATE_CHANGE_TEMPLATE);
+    const otpTemplateAutoDiscovery = process.env.WHATCHIMP_OTP_AUTO_DISCOVERY === undefined
+        ? true
+        : isEnabled(process.env.WHATCHIMP_OTP_AUTO_DISCOVERY);
 
     return {
         enabled,
@@ -28,6 +42,11 @@ const getWhatChimpConfig = () => {
         apiToken,
         phoneNumberId,
         otpTemplate,
+        otpTemplateAutoDiscovery,
+        otpTemplateCandidates: parseVariableOrder(
+            process.env.WHATCHIMP_OTP_TEMPLATE_CANDIDATES,
+            otpTemplate ? [otpTemplate] : []
+        ),
         otpLanguage: cleanText(process.env.WHATCHIMP_OTP_TEMPLATE_LANGUAGE || 'ar'),
         receiptTemplate,
         receiptLanguage: cleanText(process.env.WHATCHIMP_RECEIPT_TEMPLATE_LANGUAGE || 'ar'),
@@ -59,7 +78,9 @@ const getWhatChimpConfigurationStatus = () => {
         provider: config.enabled ? 'whatchimp' : 'disabled',
         enabled: config.enabled,
         credentialsReady: config.enabled && credentialIssues.length === 0,
-        otpReady: config.enabled && credentialIssues.length === 0 && Boolean(config.otpTemplate),
+        otpReady: config.enabled
+            && credentialIssues.length === 0
+            && Boolean(config.otpTemplate || config.otpTemplateAutoDiscovery),
         receiptReady: config.enabled
             && credentialIssues.length === 0
             && Boolean(config.receiptMediaTemplateId || config.receiptTemplate),
@@ -69,7 +90,9 @@ const getWhatChimpConfigurationStatus = () => {
         missing: [
             ...(!config.enabled ? ['WHATCHIMP_ENABLED=true'] : []),
             ...credentialIssues,
-            ...(config.enabled && !config.otpTemplate ? ['WHATCHIMP_OTP_TEMPLATE'] : []),
+            ...(config.enabled && !config.otpTemplate && !config.otpTemplateAutoDiscovery
+                ? ['WHATCHIMP_OTP_TEMPLATE']
+                : []),
             ...(config.enabled && !config.receiptMediaTemplateId && !config.receiptTemplate
                 ? ['WHATCHIMP_RECEIPT_MEDIA_TEMPLATE_ID or WHATCHIMP_RECEIPT_TEMPLATE']
                 : []),
@@ -133,9 +156,70 @@ const getTemplateList = (data = {}) => {
     return candidates.find(Array.isArray) || [];
 };
 
-const normalizeTemplateStatus = (value) => String(value || '').trim().toLowerCase();
-
 const isApprovedTemplateStatus = (value) => /^(approved|active|enabled|live)$/i.test(String(value || '').trim());
+
+const getTemplateName = (template = {}) => cleanText(template.template_name || template.name);
+
+const getTemplateLocale = (template = {}) => cleanText(
+    template.locale || template.language || template.language_code
+);
+
+const getTemplateCategory = (template = {}) => cleanText(
+    template.template_category || template.category
+).toLowerCase();
+
+const isAuthenticationTemplate = (template = {}) => getTemplateCategory(template) === 'authentication';
+
+const matchesLanguage = (template = {}, languageCode = '') => {
+    const expected = cleanText(languageCode).toLowerCase();
+    const actual = getTemplateLocale(template).toLowerCase();
+    if (!expected || !actual) return true;
+    return actual === expected || actual.split(/[_-]/)[0] === expected.split(/[_-]/)[0];
+};
+
+const getTemplateVariableCount = (template = {}) => {
+    try {
+        const variableMap = typeof template.variable_map === 'string'
+            ? JSON.parse(template.variable_map)
+            : template.variable_map;
+        const bodyKeys = Object.keys(variableMap?.body || {});
+        if (bodyKeys.length) return bodyKeys.length;
+    } catch (_error) {
+        // Fall through to the template body when the provider returns malformed metadata.
+    }
+
+    const source = [template.body_content, template.body, template.template_json]
+        .map((value) => String(value || ''))
+        .join(' ');
+    const indexes = [...source.matchAll(/\{\{\s*(\d+)\s*\}\}/g)]
+        .map((match) => Number(match[1]))
+        .filter(Number.isFinite);
+    return indexes.length ? Math.max(...indexes) : 1;
+};
+
+const selectApprovedOtpTemplate = (templates, config) => {
+    const approvedAuthenticationTemplates = (Array.isArray(templates) ? templates : [])
+        .filter((template) => isApprovedTemplateStatus(template.status || template.state))
+        .filter(isAuthenticationTemplate)
+        .filter((template) => matchesLanguage(template, config.otpLanguage));
+    if (!approvedAuthenticationTemplates.length) return null;
+
+    const preferredNames = [config.otpTemplate, ...config.otpTemplateCandidates]
+        .map(cleanText)
+        .filter(Boolean);
+    for (const name of preferredNames) {
+        const exact = approvedAuthenticationTemplates.find((template) => getTemplateName(template) === name);
+        if (exact) return exact;
+    }
+
+    if (!config.otpTemplateAutoDiscovery) return null;
+    return approvedAuthenticationTemplates
+        .sort((left, right) => {
+            const rightTime = Date.parse(right.updated_at || right.updatedAt || 0) || 0;
+            const leftTime = Date.parse(left.updated_at || left.updatedAt || 0) || 0;
+            return rightTime - leftTime;
+        })[0];
+};
 
 const isSuccessfulResponse = (data = {}) => (
     data.success === true
@@ -267,10 +351,55 @@ const sendWhatChimpText = async ({ phone, message }) => {
     }, config);
     return { ...result, phone: phoneNumber };
 };
+
+const resolveOtpTemplate = async (config = getWhatChimpConfig()) => {
+    const cacheKey = [
+        config.phoneNumberId,
+        config.otpTemplate,
+        config.otpLanguage,
+        config.otpTemplateCandidates.join(','),
+        config.otpTemplateAutoDiscovery ? 'auto' : 'fixed'
+    ].join('|');
+    if (otpTemplateCache.key === cacheKey && otpTemplateCache.expiresAt > Date.now()) {
+        return otpTemplateCache.value;
+    }
+
+    const connection = await testWhatChimpConnection();
+    if (!connection.success) {
+        return {
+            success: false,
+            code: connection.code || 'WHATCHIMP_REQUEST_FAILED',
+            message: connection.message || 'تعذر التحقق من قوالب WhatChimp.'
+        };
+    }
+
+    const selected = selectApprovedOtpTemplate(connection.templates, config);
+    const value = selected
+        ? {
+            success: true,
+            template: selected,
+            name: getTemplateName(selected),
+            language: getTemplateLocale(selected) || config.otpLanguage,
+            variableCount: getTemplateVariableCount(selected)
+        }
+        : {
+            success: false,
+            code: 'WHATCHIMP_OTP_TEMPLATE_NOT_APPROVED',
+            message: 'لا يوجد قالب مصادقة OTP معتمد ومطابق للغة الحساب في WhatChimp.'
+        };
+
+    otpTemplateCache = {
+        key: cacheKey,
+        expiresAt: Date.now() + OTP_TEMPLATE_CACHE_TTL_MS,
+        value
+    };
+    return value;
+};
+
 const sendOtp = async ({ phone, otp, expiresMinutes = 5, accountName = '', accountType = '' }) => {
     const config = getWhatChimpConfig();
     if (config.enabled) {
-        if (!config.apiToken || !config.phoneNumberId || !config.otpTemplate) {
+        if (!config.apiToken || !config.phoneNumberId) {
             return {
                 success: false,
                 provider: 'whatchimp',
@@ -280,16 +409,21 @@ const sendOtp = async ({ phone, otp, expiresMinutes = 5, accountName = '', accou
                 message: 'بيانات WhatsApp أو قالب رمز التحقق غير مكتملة.'
             };
         }
+        const resolvedTemplate = await resolveOtpTemplate(config);
+        if (!resolvedTemplate.success) {
+            return { ...resolvedTemplate, provider: 'whatchimp' };
+        }
+        const variables = buildTemplateVariables(config.otpVariableOrder, {
+            otp,
+            expiresMinutes,
+            accountName,
+            accountType
+        }).slice(0, resolvedTemplate.variableCount);
         return sendWhatChimpTemplate({
             phone,
-            templateName: config.otpTemplate,
-            languageCode: config.otpLanguage,
-            variables: buildTemplateVariables(config.otpVariableOrder, {
-                otp,
-                expiresMinutes,
-                accountName,
-                accountType
-            })
+            templateName: resolvedTemplate.name,
+            languageCode: resolvedTemplate.language,
+            variables
         });
     }
 
@@ -406,7 +540,8 @@ const getWhatChimpTemplateReadiness = async () => {
     const receiptTemplate = config.receiptMediaTemplateId
         ? findTemplate({ id: config.receiptMediaTemplateId })
         : findTemplate({ name: config.receiptTemplate });
-    const otpTemplate = findTemplate({ name: config.otpTemplate });
+    const configuredOtpTemplate = findTemplate({ name: config.otpTemplate });
+    const otpTemplate = selectApprovedOtpTemplate(templates, config) || configuredOtpTemplate;
     const rateChangeTemplate = findTemplate({ name: config.rateChangeTemplate });
     const toState = (template, required) => {
         if (!required) return { required: false, found: false, status: '', approved: false };
@@ -417,7 +552,9 @@ const getWhatChimpTemplateReadiness = async () => {
             id: template?.id ? String(template.id) : '',
             name: String(template?.template_name || template?.name || ''),
             status,
-            approved: isApprovedTemplateStatus(status)
+            approved: isApprovedTemplateStatus(status),
+            category: cleanText(template?.template_category || template?.category),
+            locale: getTemplateLocale(template)
         };
     };
     const receipt = toState(receiptTemplate, Boolean(config.receiptMediaTemplateId || config.receiptTemplate));
@@ -432,7 +569,12 @@ const getWhatChimpTemplateReadiness = async () => {
         otpTemplate: otp,
         rateChangeTemplate: rateChange,
         receiptOperational: Boolean(configuration.receiptReady && connection.success && receipt.approved),
-        otpOperational: Boolean(configuration.otpReady && connection.success && otp.approved),
+        otpOperational: Boolean(
+            configuration.otpReady
+            && connection.success
+            && otp.approved
+            && isAuthenticationTemplate(otpTemplate)
+        ),
         rateChangeOperational: Boolean(configuration.rateChangeReady && connection.success && rateChange.approved)
     };
 };
@@ -509,5 +651,6 @@ module.exports = {
     sendWhatsAppAlert,
     sendWhatsAppMessage,
     testWhatChimpConnection,
-    getWhatChimpTemplateReadiness
+    getWhatChimpTemplateReadiness,
+    resetOtpTemplateCache
 };

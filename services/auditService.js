@@ -22,6 +22,7 @@ const calculateHash = (entry, previousHash) => {
         initiator: entry.initiator,
         deviceType: entry.deviceType,
         location: entry.location,
+        severity: entry.severity,
         previousHash: previousHash
     };
     return crypto.createHash('sha256').update(JSON.stringify(data)).digest('hex');
@@ -64,7 +65,8 @@ const logAction = async (params) => {
             result,
             initiator,
             deviceType,
-            location
+            location,
+            severity
         } = params;
 
         const ipAddress = req
@@ -151,7 +153,8 @@ const logAction = async (params) => {
             initiator: finalInitiator,
             deviceType: finalDeviceType,
             location: finalLocation,
-            previousHash
+            previousHash,
+            severity: ['info', 'warning', 'critical'].includes(severity) ? severity : 'info'
         };
         entryData.hash = calculateHash(entryData, previousHash);
 

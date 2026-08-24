@@ -1,0 +1,146 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="csrf-token" content="<%= csrfToken || '' %>">
+    <title>الأجهزة والجلسات | Ahram Pay</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
+    <style>
+        :root { color-scheme: light; --navy:#0b1f3a; --blue:#1d5ed8; --green:#079b78; --red:#c73f52; --gold:#d7a51d; --muted:#64748b; --line:#dbe4ef; --surface:#fff; --bg:#f3f7fc; }
+        * { box-sizing: border-box; }
+        body { margin:0; min-height:100vh; font-family:"Cairo",sans-serif; color:var(--navy); background:linear-gradient(180deg,#fff 0,#f5f8fc 170px,#eef4fa 100%); }
+        button,a { font:inherit; }
+        .topbar { position:sticky; top:0; z-index:10; border-bottom:1px solid rgba(148,163,184,.3); background:rgba(255,255,255,.94); backdrop-filter:blur(16px); }
+        .topbar-inner,.page { width:min(1080px,calc(100% - 32px)); margin:auto; }
+        .topbar-inner { min-height:76px; display:flex; align-items:center; justify-content:space-between; gap:14px; }
+        .brand { display:flex; align-items:center; gap:11px; font-weight:900; letter-spacing:0; }
+        .brand-mark { width:42px; height:42px; display:grid; place-items:center; border:1px solid #d7e1ed; border-radius:8px; color:#fff; background:var(--navy); box-shadow:0 9px 20px rgba(11,31,58,.16); }
+        .back { min-height:40px; display:inline-flex; align-items:center; gap:8px; padding:8px 12px; border:1px solid var(--line); border-radius:8px; color:var(--navy); background:#fff; text-decoration:none; font-weight:800; font-size:.82rem; }
+        .page { padding:34px 0 54px; }
+        .hero { display:flex; align-items:flex-start; justify-content:space-between; gap:24px; padding-bottom:26px; border-bottom:1px solid var(--line); }
+        .hero-copy { max-width:700px; }
+        .kicker { display:inline-flex; align-items:center; gap:7px; margin-bottom:8px; color:var(--blue); font-size:.78rem; font-weight:900; }
+        h1 { margin:0; font-size:clamp(1.55rem,3vw,2.15rem); letter-spacing:0; }
+        .hero p { margin:9px 0 0; color:var(--muted); line-height:1.8; font-size:.88rem; }
+        .policy { flex:0 0 auto; display:grid; grid-template-columns:repeat(2,112px); gap:8px; }
+        .policy div { padding:11px; border:1px solid var(--line); border-radius:8px; background:rgba(255,255,255,.74); }
+        .policy span,.policy strong { display:block; }
+        .policy span { color:var(--muted); font-size:.68rem; }
+        .policy strong { margin-top:3px; font-size:.84rem; }
+        .status { display:none; margin:20px 0 0; padding:11px 13px; border-radius:8px; font-size:.8rem; font-weight:800; }
+        .status.show { display:block; }
+        .status.ok { color:#06745a; background:#dff7f0; }
+        .status.error { color:#a82f40; background:#fdebed; }
+        .section { padding:27px 0; border-bottom:1px solid var(--line); }
+        .section-heading { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:15px; }
+        .section-title { display:flex; align-items:center; gap:10px; }
+        .section-icon { width:38px; height:38px; display:grid; place-items:center; border-radius:8px; color:var(--blue); background:#e8f0ff; }
+        .section h2 { margin:0; font-size:1.05rem; }
+        .section-heading p { margin:3px 0 0; color:var(--muted); font-size:.72rem; }
+        .refresh { width:40px; height:40px; border:1px solid var(--line); border-radius:8px; color:var(--blue); background:#fff; cursor:pointer; }
+        .device-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; }
+        .device { min-width:0; padding:17px; border:1px solid var(--line); border-radius:8px; background:var(--surface); box-shadow:0 8px 24px rgba(15,42,77,.06); }
+        .device-head { display:flex; align-items:flex-start; gap:11px; }
+        .device-badge { width:46px; height:46px; flex:0 0 auto; display:grid; place-items:center; border-radius:8px; color:#fff; background:var(--blue); }
+        .device.app .device-badge { background:var(--green); }
+        .device-title { min-width:0; flex:1; }
+        .device-title strong { display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:.93rem; }
+        .device-title span { display:block; margin-top:3px; color:var(--muted); font-size:.7rem; }
+        .current { flex:0 0 auto; padding:4px 7px; border-radius:999px; color:#06745a; background:#dff7f0; font-size:.64rem; font-weight:900; }
+        .details { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:9px; margin:15px 0; }
+        .details div { min-width:0; padding:9px 10px; border-radius:7px; background:#f6f8fb; }
+        .details span,.details strong { display:block; }
+        .details span { color:var(--muted); font-size:.64rem; }
+        .details strong { margin-top:3px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; direction:ltr; text-align:right; font-size:.73rem; }
+        .danger { min-height:38px; width:100%; border:1px solid #efbac2; border-radius:8px; color:var(--red); background:#fff; cursor:pointer; font-weight:900; font-size:.76rem; }
+        .request { display:grid; grid-template-columns:auto 1fr auto; align-items:center; gap:13px; padding:15px; border:1px solid #efd997; border-radius:8px; background:#fffdf5; }
+        .request + .request { margin-top:10px; }
+        .request-icon { width:44px; height:44px; display:grid; place-items:center; border-radius:8px; color:#805e00; background:#f8e8aa; }
+        .request strong { display:block; font-size:.86rem; }
+        .request p { margin:4px 0 0; color:var(--muted); font-size:.69rem; line-height:1.7; }
+        .request-actions { display:flex; gap:7px; }
+        .request-actions button { min-height:38px; padding:7px 11px; border-radius:8px; cursor:pointer; font-weight:900; font-size:.72rem; }
+        .approve { color:#fff; border:1px solid var(--green); background:var(--green); }
+        .reject { color:var(--red); border:1px solid #efbac2; background:#fff; }
+        .empty,.loading { grid-column:1/-1; padding:34px; border:1px dashed #bdc9d8; border-radius:8px; color:var(--muted); text-align:center; background:rgba(255,255,255,.56); font-size:.82rem; }
+        .empty i,.loading i { display:block; margin-bottom:10px; color:#8ba0b8; font-size:1.55rem; }
+        .footnote { margin:20px 0 0; color:var(--muted); font-size:.72rem; line-height:1.8; }
+        @media(max-width:720px) { .topbar-inner,.page { width:min(100% - 22px,1080px); } .hero { display:block; } .policy { margin-top:18px; grid-template-columns:repeat(2,minmax(0,1fr)); } .device-grid { grid-template-columns:1fr; } .request { grid-template-columns:auto 1fr; } .request-actions { grid-column:1/-1; } .request-actions button { flex:1; } }
+        @media(prefers-color-scheme:dark) { :root { color-scheme:dark; --navy:#edf4ff; --muted:#a8b7c9; --line:#33455a; --surface:#162234; --bg:#0c1522; } body { background:linear-gradient(180deg,#101b2b,#0c1522); } .topbar { background:rgba(14,24,38,.94); } .brand-mark { color:#0b1f3a; background:#fff; } .back,.refresh,.danger,.reject { color:#d8e7f8; border-color:#40536a; background:#182538; } .device,.policy div { background:#162234; } .details div { background:#202e41; } .request { border-color:#66572a; background:#272617; } }
+    </style>
+</head>
+<body>
+    <header class="topbar"><div class="topbar-inner"><div class="brand"><span class="brand-mark"><i class="fa-solid fa-shield-halved"></i></span><span>AHRAM PAY</span></div><a class="back" href="<%= returnUrl %>"><i class="fa-solid fa-arrow-right"></i> رجوع للحساب</a></div></header>
+    <main class="page">
+        <section class="hero">
+            <div class="hero-copy"><span class="kicker"><i class="fa-solid fa-lock"></i> أمان <%= principalName %></span><h1>الأجهزة والجلسات المتصلة</h1><p>يسمح النظام بجلسة واحدة على الموقع وجلسة واحدة على التطبيق في الوقت نفسه. قبول جهاز جديد يستبدل الجلسة القديمة من النوع نفسه فقط.</p></div>
+            <div class="policy"><div><span>جلسات الموقع</span><strong>جهاز واحد</strong></div><div><span>جلسات التطبيق</span><strong>هاتف واحد</strong></div></div>
+        </section>
+        <div class="status" data-status></div>
+        <section class="section">
+            <div class="section-heading"><div class="section-title"><span class="section-icon"><i class="fa-solid fa-display"></i></span><div><h2>الجلسات النشطة</h2><p>راجع آخر نشاط والموقع وعنوان الاتصال.</p></div></div><button class="refresh" type="button" data-refresh title="تحديث"><i class="fa-solid fa-rotate"></i></button></div>
+            <div class="device-grid" data-devices><div class="loading"><i class="fa-solid fa-circle-notch fa-spin"></i>جاري تحميل الجلسات...</div></div>
+        </section>
+        <section class="section">
+            <div class="section-heading"><div class="section-title"><span class="section-icon"><i class="fa-solid fa-user-clock"></i></span><div><h2>طلبات الأجهزة الجديدة</h2><p>لا توافق على طلب لا تعرفه.</p></div></div></div>
+            <div data-requests><div class="loading"><i class="fa-solid fa-circle-notch fa-spin"></i>جاري تحميل الطلبات...</div></div>
+        </section>
+        <p class="footnote"><i class="fa-solid fa-circle-info"></i> إنهاء الجلسة الحالية يعيدك إلى شاشة الدخول. عند الاشتباه في دخول غير معروف، ارفض الطلب وغيّر كلمة المرور وراجع الدعم الفني.</p>
+    </main>
+    <script>
+    (() => {
+        const csrf = document.querySelector('meta[name="csrf-token"]').content;
+        const devicesNode = document.querySelector('[data-devices]');
+        const requestsNode = document.querySelector('[data-requests]');
+        const statusNode = document.querySelector('[data-status]');
+        const escapeHtml = (value) => String(value ?? '').replace(/[&<>'"]/g, (char) => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[char]));
+        const formatDate = (value) => value ? new Intl.DateTimeFormat('ar-LY',{dateStyle:'medium',timeStyle:'short'}).format(new Date(value)) : 'غير متوفر';
+        const channelLabel = (value) => value === 'app' ? 'تطبيق الهاتف' : 'موقع الويب';
+        const deviceIcon = (device) => device.channel === 'app' ? 'fa-mobile-screen-button' : 'fa-display';
+        const setStatus = (message, error = false) => { statusNode.textContent = message || ''; statusNode.className = `status${message ? ' show' : ''} ${error ? 'error' : 'ok'}`; };
+        const api = async (path, options = {}) => {
+            const response = await fetch(path,{credentials:'same-origin',...options,headers:{'Content-Type':'application/json','x-csrf-token':csrf,...(options.headers||{})}});
+            const data = await response.json().catch(() => ({}));
+            if (!response.ok || data.success === false) throw new Error(data.error || 'تعذر إكمال الطلب.');
+            return data;
+        };
+        const renderDevices = (devices) => {
+            if (!devices.length) { devicesNode.innerHTML = '<div class="empty"><i class="fa-solid fa-laptop-file"></i>لا توجد جلسات نشطة مسجلة.</div>'; return; }
+            devicesNode.innerHTML = devices.map((device) => `<article class="device ${escapeHtml(device.channel)}"><div class="device-head"><span class="device-badge"><i class="fa-solid ${deviceIcon(device)}"></i></span><div class="device-title"><strong>${escapeHtml(device.displayName || channelLabel(device.channel))}</strong><span>${channelLabel(device.channel)} · ${escapeHtml(device.platform || device.deviceType || 'جهاز غير معروف')}</span></div>${device.current ? '<span class="current">الجلسة الحالية</span>' : ''}</div><div class="details"><div><span>آخر نشاط</span><strong>${formatDate(device.lastSeenAt)}</strong></div><div><span>عنوان الاتصال</span><strong>${escapeHtml(device.lastIp || 'غير متوفر')}</strong></div><div><span>المتصفح</span><strong>${escapeHtml(device.browser || (device.channel === 'app' ? 'Ahram Pay' : 'غير معروف'))}</strong></div><div><span>تاريخ الاعتماد</span><strong>${formatDate(device.approvedAt)}</strong></div></div><button class="danger" data-revoke="${escapeHtml(device.id)}" data-current="${device.current === true}"><i class="fa-solid fa-right-from-bracket"></i> ${device.current ? 'إنهاء الجلسة الحالية' : 'إنهاء هذه الجلسة'}</button></article>`).join('');
+        };
+        const renderRequests = (requests) => {
+            if (!requests.length) { requestsNode.innerHTML = '<div class="empty"><i class="fa-solid fa-shield-circle-check"></i>لا توجد طلبات دخول معلقة.</div>'; return; }
+            requestsNode.innerHTML = requests.map((request) => `<article class="request"><span class="request-icon"><i class="fa-solid ${request.channel === 'app' ? 'fa-mobile-screen-button' : 'fa-display'}"></i></span><div><strong>${escapeHtml(request.displayName)} · ${channelLabel(request.channel)}</strong><p>الرمز ${escapeHtml(request.requestCode)} · ${escapeHtml(request.ipAddress || 'عنوان غير متوفر')} · ينتهي ${formatDate(request.expiresAt)}</p></div><div class="request-actions"><button class="approve" data-request="${escapeHtml(request.id)}" data-decision="approve"><i class="fa-solid fa-check"></i> موافقة</button><button class="reject" data-request="${escapeHtml(request.id)}" data-decision="reject"><i class="fa-solid fa-xmark"></i> رفض</button></div></article>`).join('');
+        };
+        const load = async () => { try { setStatus(''); const data = await api('/security/sessions/data'); renderDevices(data.devices || []); renderRequests(data.requests || []); } catch (error) { devicesNode.innerHTML = requestsNode.innerHTML = '<div class="empty"><i class="fa-solid fa-triangle-exclamation"></i>تعذر تحميل بيانات الجلسات.</div>'; setStatus(error.message,true); } };
+        document.addEventListener('click', async (event) => {
+            const revoke = event.target.closest('[data-revoke]');
+            const review = event.target.closest('[data-request]');
+            if (!revoke && !review) return;
+            const button = revoke || review; button.disabled = true;
+            try {
+                if (revoke) {
+                    if (!confirm('هل تريد إنهاء هذه الجلسة؟')) return;
+                    const data = await api(`/security/sessions/${encodeURIComponent(revoke.dataset.revoke)}/revoke`,{method:'POST',body:'{}'});
+                    if (data.currentRevoked) { window.location.assign('/logout'); return; }
+                    setStatus('تم إنهاء الجلسة بنجاح.');
+                } else {
+                    const approve = review.dataset.decision === 'approve';
+                    if (!confirm(approve ? 'سيتم استبدال الجلسة القديمة من النوع نفسه. هل تريد المتابعة؟' : 'هل تريد رفض طلب الجهاز؟')) return;
+                    const result = await api(`/security/session-requests/${encodeURIComponent(review.dataset.request)}/${review.dataset.decision}`,{method:'POST',body:'{}'});
+                    if (approve && result.channel === 'web') { window.location.assign('/logout'); return; }
+                    setStatus(approve ? 'تم اعتماد الجهاز الجديد.' : 'تم رفض طلب الجهاز.');
+                }
+                await load();
+            } catch (error) { setStatus(error.message,true); } finally { button.disabled = false; }
+        });
+        document.querySelector('[data-refresh]').addEventListener('click', load);
+        load();
+    })();
+    </script>
+</body>
+</html>

@@ -62,7 +62,8 @@ jest.mock('../models/SubAccount', () => {
 jest.mock('../models/MobileDeviceSession', () => ({
     create: jest.fn().mockResolvedValue({ _id: 'device-session-id' }),
     findOne: jest.fn(),
-    updateOne: jest.fn().mockResolvedValue({ modifiedCount: 1 })
+    updateOne: jest.fn().mockResolvedValue({ modifiedCount: 1 }),
+    updateMany: jest.fn().mockResolvedValue({ modifiedCount: 1 })
 }));
 
 jest.mock('../models/Settings', () => ({
@@ -188,6 +189,10 @@ describe('🔐 Contract Tests: Auth (Mobile API)', () => {
         expect(res.body.context).toBeDefined();
         expect(res.body.context.clientCompanyId).toBeNull();
         expect(res.body.context.agentId).toBeNull();
+        expect(MobileDeviceSession.updateMany).toHaveBeenCalledWith(
+            expect.objectContaining({ accountId: 'user-id-123', accountType: 'client_user', active: true }),
+            expect.objectContaining({ $set: expect.objectContaining({ revokeReason: 'replaced_by_new_app_session' }) })
+        );
 
         // T016: Should NOT return webPassword, password, or direct credentials
         expect(res.body.webPassword).toBeUndefined();
@@ -526,7 +531,8 @@ describe('🔐 Contract Tests: Auth (Mobile API)', () => {
         expect(res.body.refreshToken).toBeDefined();
         expect(res.body.refreshToken).not.toBe('valid-refresh-token');
         expect(res.body.expiresIn).toBe(3600);
-        expect(res.body.refreshExpiresIn).toBe(2592000);
+        expect(res.body.refreshExpiresIn).toBeGreaterThanOrEqual(43190);
+        expect(res.body.refreshExpiresIn).toBeLessThanOrEqual(43200);
         expect(res.body.serverTime).toBeDefined();
         expect(MobileDeviceSession.create).toHaveBeenCalledWith(expect.objectContaining({
             accountId: 'user-id-123',

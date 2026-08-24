@@ -37,6 +37,15 @@ const login = async (req, res) => {
                     correlationId: req.correlationId || null
                 });
             }
+            if (result.code === 'DEVICE_APPROVAL_REQUIRED') {
+                return res.status(result.statusCode || 409).json({
+                    success: false,
+                    code: result.code,
+                    message: result.message,
+                    requestCode: result.requestCode || null,
+                    correlationId: req.correlationId || null
+                });
+            }
             return sendMobileError(res, result.statusCode, result.code, result.message, req.correlationId);
         }
 

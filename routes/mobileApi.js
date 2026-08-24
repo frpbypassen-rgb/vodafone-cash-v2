@@ -17,6 +17,7 @@ const SupportTicket = require('../models/SupportTicket');
 const Notification = require('../models/Notification');
 const AuditLog = require('../models/AuditLog');
 const MobileDeviceSession = require('../models/MobileDeviceSession');
+const securityControl = require('../services/securityControlService');
 
 const { authenticateJWT } = require('../middlewares/jwtAuth');
 const correlationId = require('../middlewares/correlationId');
@@ -1644,31 +1645,111 @@ router.patch('/client/profile', authenticateJWT, customerProfileValidator, async
     }
 });
 
-router.get('/client/security/devices', authenticateJWT, async (req, res) => {
+const mobileSecurityPrincipal = (req) => ({
+    principalType: req.user.accountType,
+    principalId: String(req.user.userId),
+    principalName: String(req.user.name || req.user.webUsername || req.user.accountType || 'حساب التطبيق')
+});
+
+const mobileSecurityActionError = (res, req, error) => {
+    const status = error.code === 'SECURITY_DEVICE_NOT_FOUND'
+        || error.code === 'SECURITY_ACCESS_REQUEST_NOT_FOUND'
+        ? 404
+        : (error.code === 'SECURITY_ACCESS_REQUEST_EXPIRED' ? 410 : 400);
+    const messages = {
+        SECURITY_DEVICE_NOT_FOUND: 'الجلسة غير موجودة أو تم إنهاؤها بالفعل',
+        SECURITY_ACCESS_REQUEST_NOT_FOUND: 'طلب الجهاز غير موجود أو تمت مراجعته',
+        SECURITY_ACCESS_REQUEST_EXPIRED: 'انتهت صلاحية طلب الجهاز. أعد محاولة تسجيل الدخول'
+    };
+    return sendMobileError(
+        res,
+        status,
+        error.code || 'SECURITY_SESSION_ACTION_FAILED',
+        messages[error.code] || 'تعذر تنفيذ إجراء الجلسة',
+        req.correlationId
+    );
+};
+
+const getMobileSecuritySessions = async (req, res) => {
     try {
-        const { account } = await resolveCustomerProfileAccount(req);
-        if (!account) {
-            return sendMobileError(res, 403, 'FORBIDDEN', 'هذه الصفحة متاحة لحسابات العملاء فقط', req.correlationId);
+        const data = await securityControl.listPrincipalSessions({
+            principal: mobileSecurityPrincipal(req),
+            req
+        });
+        return res.json({ success: true, ...data });
+    } catch (error) {
+        return mobileSecurityActionError(res, req, error);
+    }
+};
+
+router.get('/security/sessions', authenticateJWT, getMobileSecuritySessions);
+router.get('/client/security/devices', authenticateJWT, getMobileSecuritySessions);
+
+router.post('/security/sessions/:id/revoke', authenticateJWT, async (req, res) => {
+    try {
+        const principal = mobileSecurityPrincipal(req);
+        const result = await securityControl.revokePrincipalDevice({
+            principal,
+            deviceId: req.params.id,
+            req,
+            reason: 'revoked_by_account_owner'
+        });
+        if (result.device.channel === 'app' && ['client_user', 'sub_client'].includes(req.user.accountType)) {
+            await MobileDeviceSession.updateMany(
+                { accountId: req.user.userId, accountType: req.user.accountType, active: true },
+                { $set: { active: false, revokedAt: new Date(), revokeReason: 'security_device_revoked', lastSeenAt: new Date() } }
+            );
         }
-        const sessions = await MobileDeviceSession.find({
-            accountId: account._id,
-            accountType: req.user.accountType,
-            active: true
-        })
-            .sort({ createdAt: -1 })
-            .limit(20)
-            .select('sessionId deviceType userAgent deviceFingerprint createdAt lastSeenAt')
-            .lean();
-        const devices = sessions.map((item) => ({
-            sessionId: item.sessionId,
-            deviceType: item.deviceType || 'هاتف',
-            userAgent: item.userAgent || 'جهاز غير معروف',
-            lastSeenAt: item.lastSeenAt || item.createdAt,
-            current: item.sessionId === req.user.sessionId
-        }));
-        return res.json({ success: true, devices });
-    } catch (_) {
-        return sendServerError(res, req, 'تعذر تحميل الأجهزة المسجل منها الدخول');
+        await logAction({
+            action: 'SECURITY_DEVICE_REVOKED_BY_OWNER', req,
+            performedById: principal.principalId,
+            performedByName: principal.principalName,
+            targetId: result.device._id,
+            targetModel: 'SecurityDevice',
+            severity: 'warning',
+            metadata: { channel: result.device.channel, current: result.current }
+        });
+        return res.json({ success: true, currentRevoked: result.current });
+    } catch (error) {
+        return mobileSecurityActionError(res, req, error);
+    }
+});
+
+router.post('/security/session-requests/:id/:decision', authenticateJWT, async (req, res) => {
+    try {
+        const decision = String(req.params.decision || '');
+        if (!['approve', 'reject'].includes(decision)) {
+            return sendMobileError(res, 400, 'VALIDATION_ERROR', 'قرار الطلب غير صالح', req.correlationId);
+        }
+        const principal = mobileSecurityPrincipal(req);
+        const result = await securityControl.reviewPrincipalAccessRequest({
+            principal,
+            requestId: req.params.id,
+            approve: decision === 'approve',
+            reviewedBy: principal.principalName,
+            reviewNote: req.body?.note
+        });
+        if (decision === 'approve'
+            && result.request.channel === 'app'
+            && ['client_user', 'sub_client'].includes(req.user.accountType)) {
+            await MobileDeviceSession.updateMany(
+                { accountId: req.user.userId, accountType: req.user.accountType, active: true },
+                { $set: { active: false, revokedAt: new Date(), revokeReason: 'replaced_by_approved_app', lastSeenAt: new Date() } }
+            );
+        }
+        await logAction({
+            action: decision === 'approve' ? 'SECURITY_DEVICE_APPROVED_BY_OWNER' : 'SECURITY_DEVICE_REJECTED_BY_OWNER',
+            req,
+            performedById: principal.principalId,
+            performedByName: principal.principalName,
+            targetId: result.request._id,
+            targetModel: 'SecurityAccessRequest',
+            severity: 'warning',
+            metadata: { channel: result.request.channel, requestCode: result.request.requestCode }
+        });
+        return res.json({ success: true, channel: result.request.channel });
+    } catch (error) {
+        return mobileSecurityActionError(res, req, error);
     }
 });
 
@@ -1689,6 +1770,7 @@ router.get('/security/mfa/status', authenticateJWT, async (req, res) => {
             ? await require('../models/TrustedDevice').findOne({
                 accountId: account._id,
                 accountType: req.user.accountType,
+                channel: 'app',
                 active: true,
                 expiresAt: { $gt: new Date() },
                 deviceIdHash: require('crypto').createHash('sha256').update(accountMfaService.deviceIdFor(req)).digest('hex')
@@ -1765,6 +1847,7 @@ router.get('/security/mfa/trusted-device', authenticateJWT, async (req, res) => 
         const device = await require('../models/TrustedDevice').findOne({
             accountId: account._id,
             accountType: req.user.accountType,
+            channel: 'app',
             active: true,
             expiresAt: { $gt: new Date() },
             deviceIdHash: require('crypto').createHash('sha256').update(accountMfaService.deviceIdFor(req)).digest('hex')
@@ -1780,7 +1863,7 @@ router.post('/security/mfa/trusted-device/revoke', authenticateJWT, async (req, 
         const account = await resolveMfaAccount(req);
         if (!account) return sendMobileError(res, 404, 'USER_NOT_FOUND', 'الحساب غير موجود', req.correlationId);
         await require('../models/TrustedDevice').updateMany(
-            { accountId: account._id, accountType: req.user.accountType, active: true },
+            { accountId: account._id, accountType: req.user.accountType, channel: 'app', active: true },
             { $set: { active: false, revokedAt: new Date(), revokeReason: 'user_revoked' } }
         );
         return res.json({ success: true, message: 'تم إلغاء الجهاز الموثوق. سيطلب النظام رمز Authenticator عند الدخول القادم.' });

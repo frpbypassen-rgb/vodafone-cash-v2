@@ -12,6 +12,8 @@ const environmentKeys = [
     'WHATCHIMP_OTP_TEMPLATE',
     'WHATCHIMP_OTP_TEMPLATE_LANGUAGE',
     'WHATCHIMP_OTP_VARIABLE_ORDER',
+    'WHATCHIMP_OTP_TEMPLATE_CANDIDATES',
+    'WHATCHIMP_OTP_AUTO_DISCOVERY',
     'WHATCHIMP_RECEIPT_MEDIA_TEMPLATE_ID',
     'WHATCHIMP_RECEIPT_TEMPLATE',
     'WHATCHIMP_RECEIPT_TEMPLATE_LANGUAGE',
@@ -31,6 +33,7 @@ const configureWhatChimp = () => {
 describe('WhatChimp WhatsApp service', () => {
     beforeEach(() => {
         jest.clearAllMocks();
+        whatsappService.resetOtpTemplateCache();
         environmentKeys.forEach((key) => delete process.env[key]);
     });
 
@@ -52,7 +55,24 @@ describe('WhatChimp WhatsApp service', () => {
     test('sends OTP via approved WhatChimp template with the configured variable order', async () => {
         configureWhatChimp();
         process.env.WHATCHIMP_OTP_VARIABLE_ORDER = 'otp,expiresMinutes';
-        axios.post.mockResolvedValue({ data: { status: '1', wa_message_id: 'wamid.otp.1' } });
+        axios.post.mockImplementation((url) => {
+            if (url.endsWith('/template/list')) {
+                return Promise.resolve({
+                    data: {
+                        status: '1',
+                        message: [{
+                            id: 71,
+                            template_name: 'power_pay_otp',
+                            template_category: 'Authentication',
+                            locale: 'ar',
+                            variable_map: JSON.stringify({ body: { 1: '#!otp!#', 2: '#!expiresMinutes!#' } }),
+                            status: 'Approved'
+                        }]
+                    }
+                });
+            }
+            return Promise.resolve({ data: { status: '1', wa_message_id: 'wamid.otp.1' } });
+        });
 
         const result = await whatsappService.sendOtp({
             phone: '01108172258',
@@ -63,15 +83,85 @@ describe('WhatChimp WhatsApp service', () => {
         });
 
         expect(result).toMatchObject({ success: true, provider: 'whatchimp', messageId: 'wamid.otp.1', phone: '201108172258' });
-        expect(axios.post).toHaveBeenCalledWith(
+        expect(axios.post).toHaveBeenNthCalledWith(
+            2,
             'https://app.whatchimp.com/api/v1/whatsapp/send',
             expect.stringContaining('template_name=power_pay_otp'),
             expect.objectContaining({ headers: { 'Content-Type': 'application/x-www-form-urlencoded' } })
         );
-        const payload = axios.post.mock.calls[0][1];
+        const payload = axios.post.mock.calls[1][1];
         expect(payload).toContain('phone_number=201108172258');
         expect(payload).toContain('variable1=483920');
         expect(payload).toContain('variable2=5');
+    });
+
+    test('falls back to the newest approved authentication template and sends only its variables', async () => {
+        configureWhatChimp();
+        process.env.WHATCHIMP_OTP_VARIABLE_ORDER = 'otp,expiresMinutes';
+        axios.post.mockImplementation((url) => {
+            if (url.endsWith('/template/list')) {
+                return Promise.resolve({
+                    data: {
+                        status: '1',
+                        message: [
+                            {
+                                id: 70,
+                                template_name: 'power_pay_otp',
+                                template_category: 'Utility',
+                                locale: 'ar',
+                                status: 'Rejected'
+                            },
+                            {
+                                id: 72,
+                                template_name: 'ahram_pay_login_code',
+                                template_category: 'Authentication',
+                                locale: 'ar',
+                                variable_map: JSON.stringify({ body: { 1: '#!otp!#' } }),
+                                updated_at: '2026-08-22 10:00:00',
+                                status: 'Approved'
+                            }
+                        ]
+                    }
+                });
+            }
+            return Promise.resolve({ data: { status: '1', wa_message_id: 'wamid.otp.2' } });
+        });
+
+        const result = await whatsappService.sendOtp({
+            phone: '0940719000',
+            otp: '654321',
+            expiresMinutes: 5
+        });
+
+        expect(result).toMatchObject({ success: true, templateName: 'ahram_pay_login_code' });
+        const payload = axios.post.mock.calls[1][1];
+        expect(payload).toContain('template_name=ahram_pay_login_code');
+        expect(payload).toContain('variable1=654321');
+        expect(payload).not.toContain('variable2=');
+    });
+
+    test('does not send OTP through an approved template outside the Authentication category', async () => {
+        configureWhatChimp();
+        axios.post.mockResolvedValue({
+            data: {
+                status: '1',
+                message: [{
+                    id: 73,
+                    template_name: 'utility_code',
+                    template_category: 'Utility',
+                    locale: 'ar',
+                    status: 'Approved'
+                }]
+            }
+        });
+
+        const result = await whatsappService.sendOtp({ phone: '01108172258', otp: '123456' });
+
+        expect(result).toMatchObject({
+            success: false,
+            code: 'WHATCHIMP_OTP_TEMPLATE_NOT_APPROVED'
+        });
+        expect(axios.post).toHaveBeenCalledTimes(1);
     });
 
     test('sends a free-text support reply through the WhatChimp session endpoint', async () => {

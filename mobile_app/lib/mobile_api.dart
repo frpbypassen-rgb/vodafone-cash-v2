@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:geolocator/geolocator.dart';
 import 'package:uuid/uuid.dart';
 
 class ApiFailure implements Exception {
@@ -329,6 +330,7 @@ class MobileApi {
             'Accept': 'application/json',
             'Content-Type': 'application/json',
             'X-Client-Platform': 'app',
+            'X-Client-Channel': 'app',
           },
         ),
       );
@@ -356,6 +358,26 @@ class MobileApi {
     bool trustDevice = true,
   }) async {
     final deviceId = await _store.readOrCreateDeviceId();
+    Position? securityPosition;
+    try {
+      if (await Geolocator.isLocationServiceEnabled()) {
+        var permission = await Geolocator.checkPermission();
+        if (permission == LocationPermission.denied) {
+          permission = await Geolocator.requestPermission();
+        }
+        if (permission == LocationPermission.always ||
+            permission == LocationPermission.whileInUse) {
+          securityPosition = await Geolocator.getCurrentPosition(
+            locationSettings: const LocationSettings(
+              accuracy: LocationAccuracy.high,
+              timeLimit: Duration(seconds: 10),
+            ),
+          );
+        }
+      }
+    } catch (_) {
+      // The server decides whether location is mandatory for this account.
+    }
     final response = await _request(
       'POST',
       '/login',
@@ -365,6 +387,11 @@ class MobileApi {
         if (mfaToken != null && mfaToken.trim().isNotEmpty)
           'mfaToken': mfaToken.trim(),
         'trustDevice': trustDevice,
+        if (securityPosition != null) ...<String, dynamic>{
+          'latitude': securityPosition.latitude,
+          'longitude': securityPosition.longitude,
+          'locationAccuracy': securityPosition.accuracy,
+        },
       },
       authenticated: false,
       extraHeaders: <String, dynamic>{'X-Device-Id': deviceId},
@@ -642,10 +669,24 @@ class MobileApi {
     );
   }
 
+  Future<Map<String, dynamic>> securitySessions() =>
+      _request('GET', '/security/sessions');
+
   Future<List<Map<String, dynamic>>> customerSecurityDevices() async {
-    final response = await _request('GET', '/client/security/devices');
+    final response = await securitySessions();
     return _extractList(response, 'devices');
   }
+
+  Future<Map<String, dynamic>> revokeSecuritySession(String id) =>
+      _request('POST', '/security/sessions/$id/revoke');
+
+  Future<Map<String, dynamic>> reviewSecuritySessionRequest({
+    required String id,
+    required bool approve,
+  }) => _request(
+    'POST',
+    '/security/session-requests/$id/${approve ? 'approve' : 'reject'}',
+  );
 
   Future<void> changeCustomerPassword({
     required String currentPassword,
@@ -1404,6 +1445,7 @@ class MobileApi {
   }) async {
     final headers = <String, dynamic>{'X-Correlation-Id': _uuid.v4()};
     headers['X-Device-Id'] = await _store.readOrCreateDeviceId();
+    headers['X-Client-Channel'] = 'app';
     if (extraHeaders != null) headers.addAll(extraHeaders);
     if (idempotencyKey != null && idempotencyKey.isNotEmpty) {
       headers['Idempotency-Key'] = idempotencyKey;
@@ -1477,7 +1519,11 @@ class MobileApi {
         '/refresh-token',
         data: <String, dynamic>{'refreshToken': session.refreshToken},
         options: Options(
-          headers: <String, dynamic>{'X-Correlation-Id': _uuid.v4()},
+          headers: <String, dynamic>{
+            'X-Correlation-Id': _uuid.v4(),
+            'X-Device-Id': await _store.readOrCreateDeviceId(),
+            'X-Client-Channel': 'app',
+          },
         ),
       );
       final body = _asMap(response.data);
@@ -1680,6 +1726,16 @@ class SessionController extends ChangeNotifier {
     return api.customerSecurityDevices();
   }
 
+  Future<Map<String, dynamic>> securitySessions() => api.securitySessions();
+
+  Future<Map<String, dynamic>> revokeSecuritySession(String id) =>
+      api.revokeSecuritySession(id);
+
+  Future<Map<String, dynamic>> reviewSecuritySessionRequest({
+    required String id,
+    required bool approve,
+  }) => api.reviewSecuritySessionRequest(id: id, approve: approve);
+
   Future<void> setCustomerNotificationsEnabled(bool enabled) async {
     customerNotificationsEnabled = enabled;
     await store.setCustomerNotificationsEnabled(enabled);
@@ -1708,6 +1764,12 @@ class SessionController extends ChangeNotifier {
 
   Future<void> signOut() async {
     await api.logout();
+    await store.clear();
+    session = null;
+    notifyListeners();
+  }
+
+  Future<void> clearLocalSession() async {
     await store.clear();
     session = null;
     notifyListeners();

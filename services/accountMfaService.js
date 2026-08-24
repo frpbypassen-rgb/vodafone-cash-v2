@@ -215,13 +215,21 @@ const verifyAccountToken = (account, token) => {
 
 const deviceIdFor = (req) => String(req?.headers?.['x-device-id'] || '').trim().slice(0, 200) || hash(`${req?.headers?.['user-agent'] || ''}|${req?.ip || ''}`);
 
+const trustChannel = ({ sessionId, req } = {}) => {
+    const explicit = String(req?.headers?.['x-client-channel'] || req?.headers?.['x-client-platform'] || '').toLowerCase();
+    if (sessionId || ['app', 'mobile', 'android', 'ios'].includes(explicit)) return 'app';
+    return 'web';
+};
+
 const trustDevice = async ({ account, accountType, tenantId, deviceId, sessionId, req }) => {
     const canonicalType = normalizeAccountType(accountType);
     const deviceIdHash = hash(deviceId);
-    await TrustedDevice.updateMany({ accountId: account._id, accountType: canonicalType, active: true }, { $set: { active: false, revokedAt: new Date(), revokeReason: 'replaced_by_new_device' } });
+    const channel = trustChannel({ sessionId, req });
+    await TrustedDevice.updateMany({ accountId: account._id, accountType: canonicalType, channel, active: true }, { $set: { active: false, revokedAt: new Date(), revokeReason: 'replaced_by_new_device' } });
     return TrustedDevice.create({
         accountId: account._id,
         accountType: canonicalType,
+        channel,
         tenantId: tenantId || null,
         deviceIdHash,
         sessionId: sessionId || null,
@@ -231,9 +239,9 @@ const trustDevice = async ({ account, accountType, tenantId, deviceId, sessionId
     });
 };
 
-const isDeviceTrusted = async ({ account, accountType, deviceId, sessionId }) => {
+const isDeviceTrusted = async ({ account, accountType, deviceId, sessionId, req }) => {
     if (!TrustedDevice || typeof TrustedDevice.findOne !== 'function') return false;
-    const query = { accountId: account._id, accountType: normalizeAccountType(accountType), active: true, expiresAt: { $gt: new Date() }, deviceIdHash: hash(deviceId) };
+    const query = { accountId: account._id, accountType: normalizeAccountType(accountType), channel: trustChannel({ sessionId, req }), active: true, expiresAt: { $gt: new Date() }, deviceIdHash: hash(deviceId) };
     if (sessionId) query.sessionId = sessionId;
     const record = await TrustedDevice.findOne(query);
     if (record) await TrustedDevice.updateOne({ _id: record._id }, { $set: { lastSeenAt: new Date() } });
@@ -266,6 +274,7 @@ module.exports = {
     isEnabled,
     status,
     deviceIdFor,
+    trustChannel,
     trustDevice,
     isDeviceTrusted,
     createChallenge,

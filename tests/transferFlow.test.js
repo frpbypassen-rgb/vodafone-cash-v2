@@ -251,6 +251,7 @@ jest.mock('../models/ClientBot',      () => {
 jest.mock('../models/ExecutorBot',    () => { const M = jest.fn(); M.findByIdAndUpdate = jest.fn().mockResolvedValue(null); return M; });
 jest.mock('../models/Admin',          () => { const M = jest.fn(); M.find = jest.fn().mockResolvedValue([]); return M; });
 jest.mock('../models/MobileDeviceSession', () => ({
+    updateMany: jest.fn().mockResolvedValue({ modifiedCount: 0 }),
     create: jest.fn().mockResolvedValue({ _id: 'device-session-id' })
 }));
 jest.mock('../validators/mobileValidators', () => {

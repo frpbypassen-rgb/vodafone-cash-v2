@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>الأمان والتحكم في الوصول | الأهرام</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.rtl.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800;900&family=JetBrains+Mono:wght@700&display=swap" rel="stylesheet">
+    <style>
+        .security-shell { max-width: 1480px; margin: 0 auto; }
+        .security-header { display:flex; align-items:center; justify-content:space-between; gap:20px; padding:24px 0; }
+        .security-header h1 { font-size:1.6rem; font-weight:900; margin:0; }
+        .security-header p { margin:6px 0 0; color:var(--text-muted); }
+        .status-pill { display:inline-flex; align-items:center; gap:8px; padding:9px 13px; border:1px solid var(--border-glass); border-radius:6px; font-weight:800; background:var(--card-bg); }
+        .lockdown-live { display:flex; align-items:center; justify-content:space-between; gap:18px; padding:18px 20px; border:1px solid rgba(220,53,69,.45); border-right:5px solid #dc3545; border-radius:8px; background:rgba(220,53,69,.08); }
+        .lockdown-live strong,.lockdown-live span { display:block; }
+        .lockdown-clock { direction:ltr; font:900 1.55rem 'JetBrains Mono',monospace; color:#dc3545; }
+        .security-section { border-top:1px solid var(--border-glass); padding:28px 0; }
+        .section-heading { display:flex; justify-content:space-between; align-items:end; gap:16px; margin-bottom:18px; }
+        .section-heading h2 { font-size:1.15rem; font-weight:900; margin:0; }
+        .section-heading p { margin:5px 0 0; color:var(--text-muted); font-size:.86rem; }
+        .security-grid { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:12px; }
+        .metric { min-height:112px; border:1px solid var(--border-glass); border-radius:8px; background:var(--card-bg); padding:18px; display:flex; justify-content:space-between; gap:12px; }
+        .metric i { width:40px; height:40px; display:grid; place-items:center; border-radius:8px; color:#0d6efd; background:rgba(13,110,253,.1); }
+        .metric strong { display:block; font:800 1.5rem 'JetBrains Mono',monospace; }
+        .metric span { color:var(--text-muted); font-size:.78rem; font-weight:800; }
+        .policy-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; }
+        .policy-item { display:flex; justify-content:space-between; align-items:center; gap:14px; border:1px solid var(--border-glass); border-radius:8px; padding:16px; background:var(--card-bg); }
+        .policy-item strong,.policy-item small { display:block; }
+        .policy-item small { color:var(--text-muted); margin-top:4px; }
+        .action-row { display:flex; flex-wrap:wrap; gap:10px; align-items:center; margin-top:16px; }
+        .table-wrap { overflow:auto; border:1px solid var(--border-glass); border-radius:8px; background:var(--card-bg); }
+        .table-wrap table { min-width:920px; margin:0; }
+        .table-wrap td,.table-wrap th { vertical-align:middle; padding:14px; }
+        .mono { font-family:'JetBrains Mono',monospace; direction:ltr; }
+        .emergency-band { border:1px solid rgba(220,53,69,.35); border-right:5px solid #dc3545; padding:20px; border-radius:8px; background:rgba(220,53,69,.05); }
+        .emergency-code { direction:ltr; font:800 1.1rem 'JetBrains Mono',monospace; border:1px dashed #dc3545; background:var(--card-bg); padding:12px; display:none; margin-top:14px; text-align:center; }
+        .permission-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:8px; max-height:280px; overflow:auto; }
+        .permission-item { border:1px solid var(--border-glass); border-radius:6px; padding:10px; font-size:.78rem; background:var(--input-bg); }
+        .admin-create { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:10px; }
+        .security-dialog { width:min(720px,calc(100vw - 28px)); max-height:88vh; overflow:auto; color:var(--text-main); background:var(--card-bg); border:1px solid var(--border-glass); border-radius:8px; padding:0; box-shadow:0 30px 80px rgba(0,0,0,.35); }
+        .security-dialog::backdrop { background:rgba(4,12,24,.72); backdrop-filter:blur(5px); }
+        .dialog-header { display:flex; align-items:center; justify-content:space-between; gap:16px; padding:18px 20px; border-bottom:1px solid var(--border-glass); }
+        .dialog-body { padding:20px; }
+        .icon-button { width:38px; height:38px; display:grid; place-items:center; border-radius:7px; }
+        .security-toast { position:fixed; left:24px; bottom:24px; min-width:280px; max-width:440px; padding:14px 16px; border-radius:7px; color:#fff; background:#0f766e; box-shadow:0 16px 35px rgba(0,0,0,.22); z-index:2000; display:none; }
+        @media(max-width:1100px){.security-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.admin-create{grid-template-columns:repeat(2,minmax(0,1fr))}.permission-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+        @media(max-width:720px){.security-header,.section-heading{align-items:stretch;display:grid}.security-grid,.policy-grid,.admin-create,.permission-grid{grid-template-columns:1fr}.main-content{padding:18px!important}.security-header h1{font-size:1.3rem}.metric{min-height:96px}.action-row .btn{width:100%}}
+    </style>
+</head>
+<body>
+<button class="mobile-nav-toggle" onclick="toggleSidebar()"><i class="fa-solid fa-bars"></i></button>
+<div class="sidebar-overlay" onclick="toggleSidebar()"></div>
+<%- include('partials/sidebar', { activePage: 'security' }) %>
+
+<div class="main-content">
+<main class="security-shell">
+    <header class="security-header">
+        <div>
+            <h1><i class="fa-solid fa-shield-halved text-primary ms-2"></i>الأمان والتحكم في الوصول</h1>
+            <p>إدارة الأجهزة الموثوقة والصلاحيات والاستجابة للطوارئ من نقطة واحدة.</p>
+        </div>
+        <span class="status-pill <%= securityState.lockdownActive ? 'text-danger' : 'text-success' %>">
+            <i class="fa-solid <%= securityState.lockdownActive ? 'fa-lock' : 'fa-circle-check' %>"></i>
+            <%= securityState.lockdownActive ? 'إيقاف أمني نشط' : 'المعاملات متاحة' %>
+        </span>
+    </header>
+
+    <% if (securityState.lockdownActive && securityState.lockdownEndsAt) { %>
+    <section class="lockdown-live" data-lockdown-end="<%= new Date(securityState.lockdownEndsAt).toISOString() %>"><div><strong>الإيقاف الأمني مفعل</strong><span class="text-muted small">المعاملات والتغييرات الحساسة متوقفة حتى نهاية المهلة.</span></div><time class="lockdown-clock" id="lockdownClock">60:00</time></section>
+    <% } %>
+
+    <section class="security-section">
+        <div class="security-grid">
+            <div class="metric"><div><strong><%= devices.filter(d => d.status === 'active').length %></strong><span>أجهزة نشطة</span></div><i class="fa-solid fa-laptop-shield"></i></div>
+            <div class="metric"><div><strong><%= accessRequests.length %></strong><span>طلبات أجهزة معلقة</span></div><i class="fa-solid fa-user-clock"></i></div>
+            <div class="metric"><div><strong><%= admins.filter(a => a.status === 'active').length %></strong><span>حسابات إدارة نشطة</span></div><i class="fa-solid fa-users-gear"></i></div>
+            <div class="metric"><div><strong><%= securityState.adminSessionHours %>h</strong><span>مدة جلسة الإدارة</span></div><i class="fa-solid fa-hourglass-half"></i></div>
+        </div>
+    </section>
+
+    <section class="security-section">
+        <div class="section-heading"><div><h2>مفتاح مرور الجهاز الإداري</h2><p>تحقق حقيقي عبر Windows Hello أو بصمة الهاتف. لا تُحفظ كلمة المرور في المتصفح.</p></div></div>
+        <div class="action-row">
+            <button class="btn btn-primary fw-bold" onclick="registerPasskey()"><i class="fa-solid fa-fingerprint ms-2"></i>تسجيل هذا الجهاز</button>
+            <button class="btn btn-outline-primary fw-bold" onclick="authenticatePasskey()"><i class="fa-solid fa-key ms-2"></i>اختبار مفتاح المرور</button>
+            <span class="text-muted small">يجب تسجيل الجهاز قبل تفعيل قفل الإدارة.</span>
+        </div>
+    </section>
+
+    <section class="security-section">
+        <div class="section-heading"><div><h2>سياسة الدخول والجلسات</h2><p>التفعيل تدريجي ولا يغيّر حالة النظام قبل الحفظ.</p></div></div>
+        <div class="policy-grid" id="policyGrid">
+            <% [
+                ['adminDeviceEnforcementEnabled','قفل حساب الإدارة على جهاز واحد','يتطلب مفتاح مرور مسجلاً.'],
+                ['accountDeviceEnforcementEnabled','موقع واحد وتطبيق واحد لكل حساب','جلسة مستقلة لكل قناة، وأي جهاز إضافي يحتاج موافقة صاحب الحساب أو الإدارة.'],
+                ['adminPermissionEnforcementEnabled','فرض صلاحيات حسابات الإدارة','لا يظهر أو ينفذ الحساب إلا ما تم منحه له.'],
+                ['locationRequired','طلب الموقع عند الدخول','الموقع إشارة أمان مساندة وليس بديلاً عن مفتاح المرور.'],
+                ['highConfidenceVpnBlockEnabled','حظر الشبكات عالية الخطورة','يعمل عند وصول إشارة موثوقة من مزود الحماية فقط.']
+            ].forEach(([key,label,help]) => { %>
+            <label class="policy-item"><span><strong><%= label %></strong><small><%= help %></small></span><input class="form-check-input" type="checkbox" data-policy="<%= key %>" <%= securityState[key] ? 'checked' : '' %>></label>
+            <% }) %>
+            <label class="policy-item"><span><strong>مدة جلسة الإدارة</strong><small>من 1 إلى 24 ساعة</small></span><input class="form-control text-center mono" style="width:90px" type="number" min="1" max="24" data-policy="adminSessionHours" value="<%= securityState.adminSessionHours %>"></label>
+            <label class="policy-item"><span><strong>مدة جلسة الحسابات</strong><small>الافتراضي المطلوب 12 ساعة</small></span><input class="form-control text-center mono" style="width:90px" type="number" min="1" max="24" data-policy="accountSessionHours" value="<%= securityState.accountSessionHours %>"></label>
+        </div>
+        <div class="action-row"><button class="btn btn-success fw-bold" onclick="savePolicy()"><i class="fa-solid fa-floppy-disk ms-2"></i>حفظ سياسة الأمان</button></div>
+    </section>
+
+    <section class="security-section">
+        <div class="section-heading"><div><h2>طلبات نقل الجهاز</h2><p>لا يُنهى الجهاز السابق إلا بعد موافقة صريحة، مع حفظ IP والموقع وإشارات المخاطر.</p></div></div>
+        <div class="table-wrap"><table class="table"><thead><tr><th>الحساب</th><th>رمز الطلب</th><th>الجهاز</th><th>الشبكة والموقع</th><th>المخاطر</th><th>الإجراء</th></tr></thead><tbody>
+            <% if (!accessRequests.length) { %><tr><td colspan="6" class="text-center text-muted py-4">لا توجد طلبات معلقة.</td></tr><% } %>
+            <% accessRequests.forEach(request => { %><tr>
+                <td><strong><%= request.principalName || request.principalId %></strong><small class="d-block text-muted"><%= request.principalType %></small></td>
+                <td class="mono"><%= request.requestCode %></td>
+                <td><%= request.displayName %><small class="d-block text-muted"><%= request.deviceType %> · <%= request.platform || 'غير محدد' %></small></td>
+                <td><span class="mono"><%= request.ipAddress %></span><small class="d-block text-muted"><%= request.location?.latitude ? `${request.location.latitude.toFixed(4)}, ${request.location.longitude.toFixed(4)}` : 'لم يرسل الموقع' %></small></td>
+                <td><%= request.riskSignals?.length ? request.riskSignals.join(', ') : 'لا توجد إشارة عالية' %></td>
+                <td><div class="d-flex gap-2"><button class="btn btn-sm btn-success" onclick="decideRequest('<%= request._id %>','approve')">موافقة</button><button class="btn btn-sm btn-outline-danger" onclick="decideRequest('<%= request._id %>','reject')">رفض</button></div></td>
+            </tr><% }) %>
+        </tbody></table></div>
+    </section>
+
+    <section class="security-section">
+        <div class="section-heading"><div><h2>الأجهزة المسجلة</h2><p>سجل مستقل لكل جهاز مع آخر ظهور وعنوان شبكة.</p></div></div>
+        <div class="table-wrap"><table class="table"><thead><tr><th>الحساب</th><th>الجهاز</th><th>الحالة</th><th>آخر IP</th><th>آخر ظهور</th><th>الإجراء</th></tr></thead><tbody>
+            <% devices.forEach(device => { %><tr>
+                <td><strong><%= device.principalId %></strong><small class="d-block text-muted"><%= device.principalType %></small></td>
+                <td><%= device.displayName %><small class="d-block text-muted"><%= device.credentialId ? 'مفتاح مرور مسجل' : 'ربط جهاز فقط' %></small></td>
+                <td><span class="badge <%= device.status === 'active' ? 'bg-success' : device.status === 'pending' ? 'bg-warning text-dark' : 'bg-secondary' %>"><%= device.status %></span></td>
+                <td class="mono"><%= device.lastIp || '-' %></td><td><%= device.lastSeenAt ? new Date(device.lastSeenAt).toLocaleString('ar-LY') : '-' %></td>
+                <td><% if (device.status === 'active') { %><button class="btn btn-sm btn-outline-danger" onclick="revokeDevice('<%= device._id %>')"><i class="fa-solid fa-ban"></i></button><% } %></td>
+            </tr><% }) %>
+        </tbody></table></div>
+    </section>
+
+    <section class="security-section">
+        <div class="section-heading"><div><h2>حسابات الإدارة والصلاحيات</h2><p>كل حساب إداري مستقل ويرتبط بجهاز واحد عند تفعيل السياسة.</p></div></div>
+        <form id="adminCreateForm" onsubmit="createAdmin(event)">
+            <div class="admin-create">
+                <input class="form-control" name="name" placeholder="اسم المدير" required>
+                <input class="form-control mono" name="webUsername" placeholder="admin@ahram.com" required dir="ltr">
+                <input class="form-control mono" name="password" type="password" placeholder="كلمة مرور قوية (12+)" required dir="ltr">
+                <select class="form-select" name="role"><option value="admin">مدير بصلاحيات</option><% if (currentAdminRole === 'master') { %><option value="master">مدير رئيسي</option><% } %></select>
+            </div>
+            <div class="permission-grid mt-3"><% permissions.forEach(([value,label]) => { %><label class="permission-item"><input class="form-check-input ms-2" type="checkbox" name="permissions" value="<%= value %>"><%= label %></label><% }) %></div>
+            <div class="action-row"><button class="btn btn-primary fw-bold" type="submit"><i class="fa-solid fa-user-plus ms-2"></i>إنشاء حساب الإدارة</button></div>
+        </form>
+        <div class="table-wrap mt-4"><table class="table"><thead><tr><th>المدير</th><th>اسم المستخدم</th><th>الدور</th><th>الحالة</th><th>عدد الصلاحيات</th><th>الإجراء</th></tr></thead><tbody>
+            <% admins.forEach(admin => { %><tr><td><strong><%= admin.name %></strong></td><td class="mono"><%= admin.webUsername %></td><td><%= admin.role %></td><td><span class="badge <%= admin.status === 'active' ? 'bg-success' : 'bg-danger' %>"><%= admin.status %></span></td><td><%= admin.permissions?.length || 0 %></td><td><button type="button" class="btn btn-sm btn-outline-primary icon-button" title="إدارة الحساب" onclick="openAdminEditor('<%= admin._id %>')"><i class="fa-solid fa-user-shield"></i></button></td></tr><% }) %>
+        </tbody></table></div>
+    </section>
+
+    <section class="security-section">
+        <div class="emergency-band">
+            <h2 class="h5 fw-bold text-danger"><i class="fa-solid fa-triangle-exclamation ms-2"></i>رمز التأسيس والطوارئ</h2>
+            <p class="mb-2">يُعرض الرمز مرة واحدة. استخدامه يوقف تحويل وتنفيذ وتعديل المعاملات والحسابات لمدة 60 دقيقة، ثم يصبح الرمز غير صالح.</p>
+            <div class="action-row"><button class="btn btn-outline-danger fw-bold" onclick="rotateEmergencyCode()">إنشاء رمز طوارئ جديد</button></div>
+            <div class="emergency-code" id="emergencyCode"></div>
+            <hr>
+            <div class="row g-2"><div class="col-md-5"><input id="lockdownCode" class="form-control mono" dir="ltr" placeholder="AHRAM-XXXXXXXX-XXXXXXXX"></div><div class="col-md-5"><input id="lockdownReason" class="form-control" placeholder="سبب تفعيل الطوارئ"></div><div class="col-md-2"><button class="btn btn-danger w-100 fw-bold" onclick="activateLockdown()">إيقاف 60 دقيقة</button></div></div>
+        </div>
+    </section>
+
+    <section class="security-section">
+        <div class="section-heading"><div><h2>آخر أحداث الأمان</h2><p>سجل تدقيق غير قابل للتعديل داخل لوحة التشغيل.</p></div></div>
+        <div class="table-wrap"><table class="table"><thead><tr><th>الحدث</th><th>المنفذ</th><th>النتيجة</th><th>IP</th><th>الوقت</th></tr></thead><tbody>
+            <% if (!auditLogs.length) { %><tr><td colspan="5" class="text-center text-muted py-4">لا توجد أحداث مسجلة بعد.</td></tr><% } %>
+            <% auditLogs.forEach(log => { %><tr><td class="mono"><%= log.action %></td><td><%= log.performedByName %></td><td><%= log.result %></td><td class="mono"><%= log.ipAddress %></td><td><%= new Date(log.createdAt).toLocaleString('ar-LY') %></td></tr><% }) %>
+        </tbody></table></div>
+    </section>
+</main>
+</div>
+<dialog class="security-dialog" id="adminEditorDialog">
+    <form method="dialog" id="adminEditorForm" onsubmit="saveAdmin(event)">
+        <div class="dialog-header"><div><h2 class="h5 fw-bold mb-1">إدارة حساب المدير</h2><p class="text-muted small mb-0" id="adminEditorIdentity"></p></div><button type="button" class="btn btn-outline-secondary icon-button" title="إغلاق" onclick="closeAdminEditor()"><i class="fa-solid fa-xmark"></i></button></div>
+        <div class="dialog-body">
+            <label class="form-label fw-bold" for="adminEditorStatus">حالة الحساب</label>
+            <select class="form-select mb-3" id="adminEditorStatus"><option value="active">نشط</option><option value="suspended">معلق</option></select>
+            <div class="d-flex align-items-center justify-content-between gap-3 mb-2"><strong>الصلاحيات</strong><button type="button" class="btn btn-sm btn-outline-secondary" onclick="toggleEditorPermissions()">تحديد الكل</button></div>
+            <div class="permission-grid"><% permissions.forEach(([value,label]) => { %><label class="permission-item"><input class="form-check-input ms-2" type="checkbox" data-edit-permission value="<%= value %>"><%= label %></label><% }) %></div>
+            <label class="policy-item mt-3"><span><strong>إنهاء جميع جلسات هذا الحساب</strong><small>يفرض تسجيل الدخول مجدداً على كل الأجهزة.</small></span><input class="form-check-input" type="checkbox" id="adminEditorInvalidate"></label>
+            <div class="action-row"><button class="btn btn-primary fw-bold" type="submit"><i class="fa-solid fa-floppy-disk ms-2"></i>حفظ التعديلات</button><button class="btn btn-outline-secondary" type="button" onclick="closeAdminEditor()">إلغاء</button></div>
+        </div>
+    </form>
+</dialog>
+<div class="security-toast" id="securityToast"></div>
+
+<script>
+    const adminRecords=<%- JSON.stringify(admins.map(admin=>({id:String(admin._id),name:admin.name,username:admin.webUsername,role:admin.role,status:admin.status,permissions:admin.permissions||[]}))).replace(/</g,'\\u003c') %>;
+    let editingAdminId='';
+    function toggleSidebar(){document.querySelector('.sidebar')?.classList.toggle('active');document.querySelector('.sidebar-overlay')?.classList.toggle('active')}
+    const toast=(message,error=false)=>{const el=document.getElementById('securityToast');el.textContent=message;el.style.background=error?'#b91c1c':'#0f766e';el.style.display='block';clearTimeout(window.__securityToastTimer);window.__securityToastTimer=setTimeout(()=>el.style.display='none',4500)};
+    const b64urlToBytes=(value)=>Uint8Array.from(atob(value.replace(/-/g,'+').replace(/_/g,'/').padEnd(Math.ceil(value.length/4)*4,'=')),c=>c.charCodeAt(0));
+    const bytesToB64url=(buffer)=>btoa(String.fromCharCode(...new Uint8Array(buffer))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
+    const registrationPayload=(credential)=>({id:credential.id,rawId:bytesToB64url(credential.rawId),type:credential.type,authenticatorAttachment:credential.authenticatorAttachment,response:{clientDataJSON:bytesToB64url(credential.response.clientDataJSON),attestationObject:bytesToB64url(credential.response.attestationObject),transports:credential.response.getTransports?.()||[]},clientExtensionResults:credential.getClientExtensionResults()});
+    const authenticationPayload=(credential)=>({id:credential.id,rawId:bytesToB64url(credential.rawId),type:credential.type,authenticatorAttachment:credential.authenticatorAttachment,response:{clientDataJSON:bytesToB64url(credential.response.clientDataJSON),authenticatorData:bytesToB64url(credential.response.authenticatorData),signature:bytesToB64url(credential.response.signature),userHandle:credential.response.userHandle?bytesToB64url(credential.response.userHandle):null},clientExtensionResults:credential.getClientExtensionResults()});
+    async function jsonFetch(url,options={}){const response=await fetch(url,{...options,headers:{'Content-Type':'application/json',...(options.headers||{})}});const data=await response.json().catch(()=>({success:false,error:'استجابة غير صالحة من الخادم.'}));if(!response.ok||!data.success){const error=new Error(data.error||'تعذر تنفيذ الطلب.');error.code=data.code;throw error}return data}
+    async function registerPasskey(){try{if(!window.PublicKeyCredential)throw new Error('هذا المتصفح لا يدعم مفاتيح المرور.');const data=await jsonFetch('/admin/security/passkeys/register/options');const options=data.options;options.challenge=b64urlToBytes(options.challenge);options.user.id=b64urlToBytes(options.user.id);options.excludeCredentials=(options.excludeCredentials||[]).map(item=>({...item,id:b64urlToBytes(item.id)}));const credential=await navigator.credentials.create({publicKey:options});await jsonFetch('/admin/security/passkeys/register/verify',{method:'POST',body:JSON.stringify({response:registrationPayload(credential)})});toast('تم تسجيل الجهاز ومفتاح المرور بنجاح.');setTimeout(()=>location.reload(),800)}catch(error){toast(error.message,true)}}
+    async function authenticatePasskey(){if(!window.PublicKeyCredential)throw new Error('المتصفح لا يدعم مفاتيح المرور.');const data=await jsonFetch('/admin/security/passkeys/authenticate/options');const options=data.options;options.challenge=b64urlToBytes(options.challenge);options.allowCredentials=(options.allowCredentials||[]).map(item=>({...item,id:b64urlToBytes(item.id)}));const credential=await navigator.credentials.get({publicKey:options});await jsonFetch('/admin/security/passkeys/authenticate/verify',{method:'POST',body:JSON.stringify({response:authenticationPayload(credential)})});toast('تم تأكيد الهوية بمفتاح المرور.');return true}
+    async function guarded(action){try{return await action()}catch(error){if(error.code==='PASSKEY_STEP_UP_REQUIRED'){await authenticatePasskey();return action()}throw error}}
+    async function savePolicy(){try{const payload={};document.querySelectorAll('[data-policy]').forEach(input=>payload[input.dataset.policy]=input.type==='checkbox'?input.checked:Number(input.value));await guarded(()=>jsonFetch('/admin/security/policy',{method:'POST',body:JSON.stringify(payload)}));toast('تم حفظ سياسة الأمان.');setTimeout(()=>location.reload(),700)}catch(error){toast(error.message,true)}}
+    async function decideRequest(id,decision){try{await guarded(()=>jsonFetch(`/admin/security/access-requests/${id}/${decision}`,{method:'POST',body:'{}'}));toast('تم تسجيل القرار.');setTimeout(()=>location.reload(),600)}catch(error){toast(error.message,true)}}
+    async function revokeDevice(id){if(!confirm('سيتم إنهاء جلسات هذا الجهاز. متابعة؟'))return;try{await guarded(()=>jsonFetch(`/admin/security/devices/${id}/revoke`,{method:'POST',body:JSON.stringify({reason:'revoked_from_security_center'})}));toast('تم إلغاء الجهاز.');setTimeout(()=>location.reload(),600)}catch(error){toast(error.message,true)}}
+    async function rotateEmergencyCode(){if(!confirm('إنشاء رمز جديد يلغي الرمز السابق. هل تريد المتابعة؟'))return;try{const data=await guarded(()=>jsonFetch('/admin/security/emergency-code/rotate',{method:'POST',body:'{}'}));const box=document.getElementById('emergencyCode');box.textContent=data.code;box.style.display='block';toast('احفظ الرمز في مكان منفصل وآمن. لن يظهر مرة أخرى.')}catch(error){toast(error.message,true)}}
+    async function activateLockdown(){if(!confirm('سيتم إيقاف جميع المعاملات المالية لمدة 60 دقيقة. متابعة؟'))return;try{const code=document.getElementById('lockdownCode').value.trim();const reason=document.getElementById('lockdownReason').value.trim();await jsonFetch('/admin/security/lockdown/activate',{method:'POST',body:JSON.stringify({code,reason})});toast('تم تفعيل الإيقاف الأمني لمدة 60 دقيقة.');setTimeout(()=>location.reload(),800)}catch(error){toast(error.message,true)}}
+    async function createAdmin(event){event.preventDefault();try{const form=event.currentTarget;const payload={name:form.name.value,webUsername:form.webUsername.value,password:form.password.value,role:form.role.value,permissions:[...form.querySelectorAll('[name=permissions]:checked')].map(input=>input.value)};await guarded(()=>jsonFetch('/admin/security/admins',{method:'POST',body:JSON.stringify(payload)}));toast('تم إنشاء حساب الإدارة.');setTimeout(()=>location.reload(),700)}catch(error){toast(error.message,true)}}
+    function openAdminEditor(id){const admin=adminRecords.find(item=>item.id===id);if(!admin)return;editingAdminId=id;document.getElementById('adminEditorIdentity').textContent=`${admin.name} · ${admin.username} · ${admin.role}`;document.getElementById('adminEditorStatus').value=admin.status;document.getElementById('adminEditorInvalidate').checked=false;document.querySelectorAll('[data-edit-permission]').forEach(input=>input.checked=admin.permissions.includes(input.value));document.getElementById('adminEditorDialog').showModal()}
+    function closeAdminEditor(){document.getElementById('adminEditorDialog').close();editingAdminId=''}
+    function toggleEditorPermissions(){const inputs=[...document.querySelectorAll('[data-edit-permission]')];const shouldCheck=inputs.some(input=>!input.checked);inputs.forEach(input=>input.checked=shouldCheck)}
+    async function saveAdmin(event){event.preventDefault();if(!editingAdminId)return;try{const payload={status:document.getElementById('adminEditorStatus').value,permissions:[...document.querySelectorAll('[data-edit-permission]:checked')].map(input=>input.value),invalidateSessions:document.getElementById('adminEditorInvalidate').checked};await guarded(()=>jsonFetch(`/admin/security/admins/${editingAdminId}`,{method:'PATCH',body:JSON.stringify(payload)}));toast('تم تحديث حساب الإدارة وصلاحياته.');closeAdminEditor();setTimeout(()=>location.reload(),700)}catch(error){toast(error.message,true)}}
+    const lockdownPanel=document.querySelector('[data-lockdown-end]');if(lockdownPanel){const clock=document.getElementById('lockdownClock');const renderLockdownClock=()=>{const remaining=Math.max(0,Date.parse(lockdownPanel.dataset.lockdownEnd)-Date.now());const total=Math.ceil(remaining/1000);clock.textContent=`${String(Math.floor(total/60)).padStart(2,'0')}:${String(total%60).padStart(2,'0')}`;if(!remaining)setTimeout(()=>location.reload(),500)};renderLockdownClock();setInterval(renderLockdownClock,1000)}
+</script>
+</body>
+</html>

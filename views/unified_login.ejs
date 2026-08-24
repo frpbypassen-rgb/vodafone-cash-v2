@@ -234,6 +234,17 @@
             <form action="/login" method="POST" id="loginForm" onsubmit="handleFormSubmit(event)">
                 <input type="hidden" name="latitude" id="latitudeInput">
                 <input type="hidden" name="longitude" id="longitudeInput">
+                <input type="hidden" name="locationAccuracy" id="locationAccuracyInput">
+                <input type="hidden" name="devicePlatform" id="devicePlatformInput">
+                <input type="hidden" name="deviceName" id="deviceNameInput">
+                <% if (typeof passkeyLoginRequired !== 'undefined' && passkeyLoginRequired) { %>
+                    <div class="text-center py-3">
+                        <div class="mx-auto mb-3 d-flex align-items-center justify-content-center rounded-circle" style="width:72px;height:72px;background:rgba(212,175,55,.12);color:var(--theme-gold);font-size:2rem"><i class="fa-solid fa-fingerprint"></i></div>
+                        <h5 class="fw-bold">تأكيد الجهاز الإداري</h5>
+                        <p class="text-muted small fw-bold lh-lg">تم التحقق من كلمة المرور. استخدم Windows Hello أو بصمة الجهاز لإكمال الجلسة.</p>
+                        <button type="button" class="btn-submit" id="passkeyLoginBtn" onclick="triggerPasskeyLogin()">تأكيد مفتاح المرور <i class="fa-solid fa-key"></i></button>
+                    </div>
+                <% } else { %>
                 <div class="position-relative mb-3">
                     <div class="form-floating">
                         <input type="text" class="form-control" id="usernameInput" name="username" placeholder="اسم المستخدم" value="<%= typeof submittedUsername !== 'undefined' ? submittedUsername : '' %>" required autocomplete="username" dir="ltr">
@@ -267,18 +278,11 @@
                     </button>
                 </div>
 
-                <div class="form-check form-switch text-end mb-3 mt-2" dir="rtl" id="biometricSwitchContainer" style="display: none;">
-                    <input class="form-check-input float-end ms-2" type="checkbox" id="saveBiometricSwitch">
-                    <label class="form-check-label fw-bold text-muted small" for="saveBiometricSwitch">حفظ بيانات الدخول ببصمة الهاتف</label>
-                </div>
-
                 <button type="submit" class="btn-submit" id="submitBtn">
                     تسجيل الدخول <i class="fa-solid fa-arrow-left"></i>
                 </button>
-
-                <button type="button" class="btn-biometric" id="btnBiometricLogin" onclick="triggerBiometricLogin()" style="display: none;">
-                    الدخول ببصمة الهاتف <i class="fa-solid fa-fingerprint"></i>
-                </button>
+                <% } %>
+                <div class="small text-muted fw-bold text-center mt-3" id="locationStatus"><i class="fa-solid fa-location-crosshairs ms-1"></i>جاري تجهيز التحقق من الجهاز والموقع...</div>
             </form>
             <a href="/client/register" class="btn-create-account">
                 إنشاء حساب عميل <i class="fa-solid fa-user-plus"></i>
@@ -286,6 +290,7 @@
             <a href="/executor-portal/register" class="btn-create-account btn-executor-account">
                 التسجيل كمنفذ تنفيذ <i class="fa-solid fa-user-gear"></i>
             </a>
+            <a href="/security/emergency-access" class="d-block text-center small fw-bold text-danger mt-3 text-decoration-none">دخول الاستعادة الأمني</a>
         </div>
         
         <div class="footer-text">
@@ -355,19 +360,29 @@
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
     <script>
-        // Request GPS coordinates immediately
-        if (navigator.geolocation) {
+        document.getElementById('devicePlatformInput').value = navigator.userAgentData?.platform || navigator.platform || '';
+        document.getElementById('deviceNameInput').value = `${navigator.userAgentData?.platform || navigator.platform || 'Device'} - ${navigator.userAgentData?.brands?.[0]?.brand || 'Browser'}`;
+        const locationReady = new Promise((resolve) => {
+            const status = document.getElementById('locationStatus');
+            if (!navigator.geolocation) {
+                status.innerHTML = '<i class="fa-solid fa-triangle-exclamation ms-1"></i>المتصفح لا يدعم تحديد الموقع.';
+                return resolve(false);
+            }
             navigator.geolocation.getCurrentPosition(
                 (position) => {
                     document.getElementById('latitudeInput').value = position.coords.latitude;
                     document.getElementById('longitudeInput').value = position.coords.longitude;
+                    document.getElementById('locationAccuracyInput').value = position.coords.accuracy;
+                    status.innerHTML = '<i class="fa-solid fa-location-dot text-success ms-1"></i>تم تجهيز التحقق الآمن.';
+                    resolve(true);
                 },
-                (error) => {
-                    console.warn("GPS request warning:", error.message);
+                () => {
+                    status.innerHTML = '<i class="fa-solid fa-location-dot text-danger ms-1"></i>فعّل إذن الموقع عند طلبه لإكمال الدخول المحمي.';
+                    resolve(false);
                 },
-                { enableHighAccuracy: true, timeout: 8000, maximumAge: 0 }
+                { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
             );
-        }
+        });
 
         function togglePassword() {
             const pwd = document.getElementById("passwordInput");
@@ -490,118 +505,70 @@
             });
         });
 
-        // ─── Biometric Authentication (WebAuthn) Logic ───
-
-        document.addEventListener("DOMContentLoaded", () => {
-            let saved = null;
-            try {
-                saved = localStorage.getItem('biometric_creds');
-            } catch (e) {
-                console.warn("localStorage read failed:", e.message);
-            }
-            const biometricLoginBtn = document.getElementById('btnBiometricLogin');
-            const biometricSwitchContainer = document.getElementById('biometricSwitchContainer');
-
-            // WebAuthn check
-            if (window.PublicKeyCredential) {
-                if (biometricSwitchContainer) {
-                    biometricSwitchContainer.style.display = 'block';
-                }
-                if (saved && biometricLoginBtn) {
-                    biometricLoginBtn.style.display = 'flex';
-                }
-            }
-        });
-
-        function handleFormSubmit(event) {
-            const biometricSwitch = document.getElementById('saveBiometricSwitch');
-            const hasWebAuthn = typeof window !== 'undefined' && window.PublicKeyCredential;
-
-            if (biometricSwitch && biometricSwitch.checked && hasWebAuthn) {
-                event.preventDefault(); // Only prevent default if biometric enrollment is requested
-                showLoading();
-
-                const usernameInput = document.getElementById('usernameInput');
-                const passwordInput = document.getElementById('passwordInput');
-                const form = document.getElementById('loginForm');
-
-                // Perform async biometric enrollment
-                const userBytes = new TextEncoder().encode(usernameInput.value || "user");
-                const opt = {
-                    publicKey: {
-                        challenge: new Uint8Array([1, 2, 3, 4, 5]),
-                        rp: { name: "Ahram Pay" },
-                        user: {
-                            id: userBytes,
-                            name: usernameInput.value || "user",
-                            displayName: usernameInput.value || "user"
-                        },
-                        pubKeyCredParams: [{ type: "public-key", alg: -7 }],
-                        authenticatorSelection: { userVerification: "required" },
-                        timeout: 10000
-                    }
-                };
-
-                navigator.credentials.create(opt)
-                    .then((credential) => {
-                        if (credential) {
-                            try {
-                                const creds = {
-                                    u: btoa(encodeURIComponent(usernameInput.value)),
-                                    p: btoa(encodeURIComponent(passwordInput.value))
-                                };
-                                localStorage.setItem('biometric_creds', JSON.stringify(creds));
-                            } catch (e) {
-                                console.warn("localStorage write failed:", e.message);
-                            }
-                        }
-                        form.submit();
-                    })
-                    .catch((err) => {
-                        console.warn("Biometrics enrollment skipped/failed:", err.message);
-                        form.submit();
-                    });
-            } else {
-                // Let the browser submit the form natively and directly
-                showLoading();
-            }
+        async function handleFormSubmit(event) {
+            const form = document.getElementById('loginForm');
+            if (form.dataset.ready === '1') return showLoading();
+            event.preventDefault();
+            await locationReady;
+            form.dataset.ready = '1';
+            showLoading();
+            form.submit();
         }
 
-        async function triggerBiometricLogin() {
-            let saved = null;
+        const b64urlToBytes = (value) => Uint8Array.from(
+            atob(value.replace(/-/g, '+').replace(/_/g, '/').padEnd(Math.ceil(value.length / 4) * 4, '=')),
+            (char) => char.charCodeAt(0)
+        );
+        const bytesToB64url = (buffer) => btoa(String.fromCharCode(...new Uint8Array(buffer)))
+            .replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+        const authenticationPayload = (credential) => ({
+            id: credential.id,
+            rawId: bytesToB64url(credential.rawId),
+            type: credential.type,
+            authenticatorAttachment: credential.authenticatorAttachment,
+            response: {
+                clientDataJSON: bytesToB64url(credential.response.clientDataJSON),
+                authenticatorData: bytesToB64url(credential.response.authenticatorData),
+                signature: bytesToB64url(credential.response.signature),
+                userHandle: credential.response.userHandle ? bytesToB64url(credential.response.userHandle) : null
+            },
+            clientExtensionResults: credential.getClientExtensionResults()
+        });
+
+        async function triggerPasskeyLogin() {
+            const button = document.getElementById('passkeyLoginBtn');
+            const original = button.innerHTML;
             try {
-                saved = localStorage.getItem('biometric_creds');
-            } catch (e) {
-                console.warn("localStorage read failed:", e.message);
-            }
-            if (!saved) return;
-
-            try {
-                const creds = JSON.parse(saved);
-                if (!creds.u || !creds.p) return;
-
-                // Prompt user verification (Fingerprint/PIN)
-                const options = {
-                    publicKey: {
-                        challenge: new Uint8Array([1, 2, 3, 4, 5]),
-                        userVerification: "required"
-                    }
-                };
-
-                const assertion = await navigator.credentials.get(options);
-                if (assertion) {
-                    const username = decodeURIComponent(atob(creds.u));
-                    const password = decodeURIComponent(atob(creds.p));
-
-                    document.getElementById('usernameInput').value = username;
-                    document.getElementById('passwordInput').value = password;
-
-                    showLoading();
-                    document.getElementById('loginForm').submit();
-                }
-            } catch (err) {
-                console.error("Biometric authentication failed:", err);
-                alert("❌ فشل التحقق من البصمة. يرجى إدخال البيانات يدوياً.");
+                if (!window.PublicKeyCredential) throw new Error('هذا المتصفح لا يدعم مفتاح المرور.');
+                button.disabled = true;
+                button.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> جاري التحقق...';
+                await locationReady;
+                const optionsResponse = await fetch('/security/passkey-login/options');
+                const optionsData = await optionsResponse.json();
+                if (!optionsResponse.ok || !optionsData.success) throw new Error(optionsData.error || 'تعذر بدء التحقق.');
+                const options = optionsData.options;
+                options.challenge = b64urlToBytes(options.challenge);
+                options.allowCredentials = (options.allowCredentials || []).map((item) => ({ ...item, id: b64urlToBytes(item.id) }));
+                const credential = await navigator.credentials.get({ publicKey: options });
+                const verifyResponse = await fetch('/security/passkey-login/verify', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': <%- JSON.stringify(csrfToken || '') %> },
+                    body: JSON.stringify({
+                        response: authenticationPayload(credential),
+                        latitude: document.getElementById('latitudeInput').value,
+                        longitude: document.getElementById('longitudeInput').value,
+                        locationAccuracy: document.getElementById('locationAccuracyInput').value,
+                        devicePlatform: document.getElementById('devicePlatformInput').value,
+                        deviceName: document.getElementById('deviceNameInput').value
+                    })
+                });
+                const verifyData = await verifyResponse.json();
+                if (!verifyResponse.ok || !verifyData.success) throw new Error(verifyData.error || 'تعذر تأكيد الجهاز.');
+                window.location.assign(verifyData.redirect || '/');
+            } catch (error) {
+                alert(error.message);
+                button.disabled = false;
+                button.innerHTML = original;
             }
         }
     </script>
