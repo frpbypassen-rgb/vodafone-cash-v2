@@ -1,0 +1,19 @@
+/* Keep native dropdown labels readable in the executor's dark and light themes. */
+body.executor-os .card-glass .form-select {
+    color: #e8f0ff !important;
+    background-color: #15243a !important;
+    border-color: #5e7da8 !important;
+    font-weight: 800;
+}
+
+body.executor-os .card-glass .form-select option {
+    color: #0f1d31;
+    background: #f8fbff;
+    font-weight: 700;
+}
+
+[data-theme="light"] body.executor-os .card-glass .form-select {
+    color: #10233d !important;
+    background-color: #ffffff !important;
+    border-color: #8ba3c2 !important;
+}
