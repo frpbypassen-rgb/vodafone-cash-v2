@@ -1,0 +1,618 @@
+/* Client Portal — Nile to Mediterranean theme (Phase 1) */
+:root {
+    --nile-gold: #C9A227;
+    --nile-navy: #1A2744;
+    --nile-blue: #0077B6;
+    --nile-sand: #E8DCC4;
+    --nile-teal: #0E9B86;
+    --nile-ink: #152235;
+    --nile-muted: #6B7788;
+    --nile-surface: #ffffff;
+    --nile-bg: #F4F7FA;
+    --nile-border: rgba(26, 39, 68, 0.12);
+    --nile-glass: rgba(255, 255, 255, 0.78);
+    --nile-glass-border: rgba(255, 255, 255, 0.45);
+    --nile-shadow: 0 18px 44px rgba(26, 39, 68, 0.12);
+    --nile-shadow-soft: 0 8px 24px rgba(26, 39, 68, 0.08);
+    --nile-radius: 22px;
+    --nile-ease: cubic-bezier(0.22, 1, 0.36, 1);
+    --nile-rail-h: 78px;
+}
+
+[data-theme="dark"] {
+    --nile-ink: #F2F6FB;
+    --nile-muted: #A4B0BF;
+    --nile-surface: #17212C;
+    --nile-bg: #0D141C;
+    --nile-border: rgba(130, 160, 200, 0.16);
+    --nile-glass: rgba(23, 33, 44, 0.82);
+    --nile-glass-border: rgba(255, 255, 255, 0.08);
+    --nile-shadow: 0 20px 50px rgba(0, 0, 0, 0.32);
+    --nile-shadow-soft: 0 10px 28px rgba(0, 0, 0, 0.24);
+    --nile-sand: #3D3528;
+}
+
+/* ── Animations (transform/opacity only) ── */
+@keyframes nileRise {
+    from { opacity: 0; transform: translateY(18px) scale(0.98); }
+    to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@keyframes nileStaggerIn {
+    from { opacity: 0; transform: translateY(12px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes nileShimmer {
+    0% { transform: translateX(-120%) skewX(-18deg); opacity: 0; }
+    30% { opacity: 0.35; }
+    100% { transform: translateX(220%) skewX(-18deg); opacity: 0; }
+}
+
+@keyframes nileFloat {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-6px); }
+}
+
+@keyframes nilePulse {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(0, 119, 182, 0); }
+    50% { box-shadow: 0 0 0 6px rgba(0, 119, 182, 0.12); }
+}
+
+.nile-animate-rise {
+    animation: nileRise 0.65s var(--nile-ease) both;
+}
+
+/* ══════════════════════════════════════
+   LOGIN PAGE
+   ══════════════════════════════════════ */
+body.client-nile-login {
+    margin: 0;
+    min-height: 100vh;
+    font-family: 'Tajawal', sans-serif;
+    overflow-x: hidden;
+    background:
+        radial-gradient(900px 520px at 15% -8%, rgba(201, 162, 39, 0.18), transparent 55%),
+        radial-gradient(700px 420px at 88% 12%, rgba(0, 119, 182, 0.22), transparent 50%),
+        linear-gradient(165deg, var(--nile-navy) 0%, #0A3D62 42%, var(--nile-blue) 100%);
+}
+
+.nile-login-hero {
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px 16px;
+    position: relative;
+}
+
+.nile-login-hero::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    opacity: 0.07;
+    background-image:
+        repeating-linear-gradient(45deg, var(--nile-sand) 0 1px, transparent 1px 28px),
+        repeating-linear-gradient(-45deg, var(--nile-gold) 0 1px, transparent 1px 28px);
+    mask-image: radial-gradient(circle at 50% 40%, #000 30%, transparent 85%);
+}
+
+.nile-pattern {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    overflow: hidden;
+}
+
+.nile-pattern::before,
+.nile-pattern::after {
+    content: "𓂀 𓃭 𓆣 𓇳";
+    position: absolute;
+    font-size: clamp(3rem, 8vw, 6rem);
+    color: rgba(232, 220, 196, 0.06);
+    letter-spacing: 2rem;
+    white-space: nowrap;
+    animation: nileFloat 8s var(--nile-ease) infinite;
+}
+
+.nile-pattern::before { top: 8%; right: -5%; }
+.nile-pattern::after { bottom: 10%; left: -8%; animation-delay: -4s; opacity: 0.5; }
+
+.nile-login-card {
+    position: relative;
+    z-index: 1;
+    width: min(420px, 100%);
+    padding: 40px 36px 32px;
+    border-radius: var(--nile-radius);
+    background: var(--nile-glass);
+    border: 1px solid var(--nile-glass-border);
+    backdrop-filter: blur(18px);
+    box-shadow: var(--nile-shadow), inset 0 1px 0 rgba(255, 255, 255, 0.35);
+    transform: perspective(900px) rotateX(2deg);
+    transition: transform 0.4s var(--nile-ease), box-shadow 0.4s var(--nile-ease);
+}
+
+.nile-login-card:hover {
+    transform: perspective(900px) rotateX(0deg) translateY(-4px);
+    box-shadow: 0 28px 60px rgba(26, 39, 68, 0.22), inset 0 1px 0 rgba(255, 255, 255, 0.4);
+}
+
+.nile-login-card .logo-container {
+    text-align: center;
+    margin-bottom: 20px;
+    display: flex;
+    justify-content: center;
+}
+
+.nile-login-card .logo-engraved {
+    width: min(260px, 100%);
+    height: auto;
+    border-radius: 14px;
+    mix-blend-mode: multiply;
+    filter: contrast(1.1) saturate(1.05);
+}
+
+.nile-login-title {
+    text-align: center;
+    font-weight: 800;
+    color: var(--nile-navy);
+    margin-bottom: 28px;
+    font-size: 1.35rem;
+}
+
+.nile-login-title::after {
+    content: "";
+    display: block;
+    width: 56px;
+    height: 3px;
+    margin: 10px auto 0;
+    border-radius: 2px;
+    background: linear-gradient(90deg, var(--nile-gold), var(--nile-blue));
+}
+
+.client-nile-login .form-floating > .form-control {
+    border: 2px solid var(--nile-border);
+    border-radius: 14px;
+    background: rgba(255, 255, 255, 0.65);
+    font-weight: 600;
+    color: var(--nile-ink);
+    transition: border-color 0.25s, box-shadow 0.25s;
+}
+
+.client-nile-login .form-floating > .form-control:focus {
+    border-color: var(--nile-gold);
+    box-shadow: 0 0 0 4px rgba(201, 162, 39, 0.15);
+    background: #fff;
+}
+
+.client-nile-login .form-floating > label {
+    color: var(--nile-muted);
+    font-weight: 600;
+    padding-right: 1.5rem;
+}
+
+.client-nile-login .input-icon {
+    position: absolute;
+    top: 50%;
+    left: 15px;
+    transform: translateY(-50%);
+    color: var(--nile-muted);
+    font-size: 1.1rem;
+    z-index: 5;
+    transition: color 0.25s;
+}
+
+.client-nile-login .form-control:focus + .input-icon {
+    color: var(--nile-gold);
+}
+
+.client-nile-login .btn-nile-gold {
+    background: linear-gradient(135deg, var(--nile-gold) 0%, #A8861E 100%);
+    color: #fff;
+    font-weight: 800;
+    font-size: 1.05rem;
+    border: none;
+    border-radius: 14px;
+    padding: 14px;
+    width: 100%;
+    margin-top: 18px;
+    box-shadow: 0 10px 24px rgba(201, 162, 39, 0.32);
+    transition: transform 0.25s var(--nile-ease), box-shadow 0.25s;
+}
+
+.client-nile-login .btn-nile-gold:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 14px 30px rgba(201, 162, 39, 0.4);
+    color: #fff;
+}
+
+.client-nile-login .custom-alert {
+    background: rgba(255, 243, 205, 0.92);
+    border-right: 4px solid var(--nile-gold);
+    color: #856404;
+    border-radius: 10px;
+    padding: 12px 15px;
+    font-weight: 700;
+    font-size: 0.9rem;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.client-nile-login .footer-text {
+    text-align: center;
+    margin-top: 22px;
+    font-size: 0.84rem;
+    color: var(--nile-muted);
+    font-weight: 600;
+}
+
+.client-nile-login .footer-text i,
+.client-nile-login .nile-register-link {
+    color: var(--nile-gold);
+}
+
+.client-nile-login .nile-register-link {
+    font-weight: 700;
+    text-decoration: none;
+    font-size: 0.95rem;
+    transition: opacity 0.2s;
+}
+
+.client-nile-login .nile-register-link:hover {
+    opacity: 0.85;
+}
+
+/* ══════════════════════════════════════
+   DASHBOARD SHELL
+   ══════════════════════════════════════ */
+body.client-nile-theme {
+    background:
+        radial-gradient(800px 400px at 10% -5%, rgba(0, 119, 182, 0.08), transparent 55%),
+        radial-gradient(600px 360px at 95% 5%, rgba(201, 162, 39, 0.07), transparent 50%),
+        var(--nile-bg) !important;
+}
+
+body.client-nile-theme::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    z-index: -1;
+    pointer-events: none;
+    opacity: 0.04;
+    background-image:
+        linear-gradient(rgba(26, 39, 68, 0.06) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(26, 39, 68, 0.06) 1px, transparent 1px);
+    background-size: 48px 48px;
+}
+
+[data-theme="dark"] body.client-nile-theme::before {
+    opacity: 0.06;
+    background-image:
+        linear-gradient(rgba(255, 255, 255, 0.04) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255, 255, 255, 0.04) 1px, transparent 1px);
+}
+
+/* Glass topbar */
+.client-nile-theme .navbar-custom,
+.client-nile-theme .mobile-header {
+    background: var(--nile-glass) !important;
+    backdrop-filter: blur(16px);
+    border-bottom: 1px solid var(--nile-border) !important;
+    box-shadow: var(--nile-shadow-soft) !important;
+}
+
+.client-nile-theme .navbar-custom {
+    margin-bottom: 28px;
+}
+
+.client-nile-theme .direct-brand-copy strong,
+.client-nile-theme .direct-brand-copy h1,
+.client-nile-theme .navbar-brand {
+    color: var(--nile-navy) !important;
+}
+
+[data-theme="dark"] .client-nile-theme .direct-brand-copy strong,
+[data-theme="dark"] .client-nile-theme .direct-brand-copy h1,
+[data-theme="dark"] .client-nile-theme .navbar-brand {
+    color: var(--nile-gold) !important;
+}
+
+.client-nile-theme .direct-brand-copy span {
+    color: var(--nile-muted);
+}
+
+.client-nile-theme .nav-btn {
+    background: color-mix(in srgb, var(--nile-surface) 90%, transparent);
+    border-color: var(--nile-border);
+    color: var(--nile-ink);
+    border-radius: 12px;
+}
+
+.client-nile-theme .nav-btn:hover {
+    border-color: var(--nile-blue);
+    color: var(--nile-blue);
+}
+
+.client-nile-theme .btn-theme {
+    color: var(--nile-gold);
+}
+
+.client-nile-theme .btn-theme:hover {
+    background: var(--nile-gold);
+    color: var(--nile-navy);
+}
+
+/* 3D Wallet card */
+.client-nile-theme .wallet-wrapper {
+    perspective: 1100px;
+    margin-bottom: 24px;
+}
+
+.client-nile-theme .wallet-card,
+.client-nile-theme .nile-wallet-card {
+    background: linear-gradient(145deg, var(--nile-navy) 0%, #0A3D62 55%, var(--nile-blue) 100%) !important;
+    border-radius: 24px !important;
+    border: 1px solid rgba(255, 255, 255, 0.12) !important;
+    box-shadow: 0 24px 48px rgba(26, 39, 68, 0.35) !important;
+    min-height: 200px;
+    padding: 32px 36px !important;
+    transform-style: preserve-3d;
+    cursor: pointer;
+    position: relative;
+    overflow: hidden;
+}
+
+[data-theme="dark"] .client-nile-theme .wallet-card,
+[data-theme="dark"] .client-nile-theme .nile-wallet-card {
+    background: linear-gradient(145deg, #1E293B 0%, var(--nile-navy) 100%) !important;
+}
+
+.client-nile-theme .wallet-card::before {
+    background: radial-gradient(circle, rgba(201, 162, 39, 0.2) 0%, transparent 70%) !important;
+}
+
+.client-nile-theme .wallet-balance span {
+    color: var(--nile-gold) !important;
+}
+
+.client-nile-theme .wallet-logo {
+    color: var(--nile-gold) !important;
+}
+
+.client-nile-theme .nile-wallet-card::after {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 50%;
+    height: 100%;
+    background: linear-gradient(to right, transparent, rgba(255, 255, 255, 0.12), transparent);
+    transform: skewX(-20deg);
+    animation: nileShimmer 4s var(--nile-ease) infinite;
+    pointer-events: none;
+}
+
+.client-nile-theme .nile-wallet-card.is-flipped {
+    transform: rotateY(180deg);
+    transition: transform 0.55s var(--nile-ease);
+}
+
+/* Quick actions */
+.client-nile-theme .nile-quick-actions {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: 14px;
+    margin-bottom: 28px;
+}
+
+.client-nile-theme .nile-quick-btn {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    min-height: 96px;
+    padding: 16px 12px;
+    border: 1px solid var(--nile-border);
+    border-radius: 18px;
+    background: var(--nile-surface);
+    color: var(--nile-ink);
+    text-decoration: none;
+    font-weight: 800;
+    font-size: 0.88rem;
+    box-shadow: var(--nile-shadow-soft);
+    transition: transform 0.28s var(--nile-ease), box-shadow 0.28s, border-color 0.28s;
+    transform-style: preserve-3d;
+}
+
+.client-nile-theme .nile-quick-btn:hover {
+    transform: translateY(-5px) scale(1.02);
+    border-color: var(--nile-gold);
+    box-shadow: var(--nile-shadow);
+    color: var(--nile-ink);
+}
+
+.client-nile-theme .nile-quick-btn i,
+.client-nile-theme .nile-quick-btn .nile-quick-icon {
+    width: 48px;
+    height: 48px;
+    display: grid;
+    place-items: center;
+    border-radius: 14px;
+    font-size: 1.3rem;
+}
+
+.client-nile-theme .nile-quick-btn--transfer .nile-quick-icon {
+    background: rgba(0, 119, 182, 0.12);
+    color: var(--nile-blue);
+}
+
+.client-nile-theme .nile-quick-btn--recharge .nile-quick-icon {
+    background: rgba(14, 155, 134, 0.12);
+    color: var(--nile-teal);
+}
+
+.client-nile-theme .nile-quick-btn--reports .nile-quick-icon {
+    background: rgba(201, 162, 39, 0.14);
+    color: var(--nile-gold);
+}
+
+.client-nile-theme .nile-quick-btn--support .nile-quick-icon {
+    background: rgba(26, 39, 68, 0.1);
+    color: var(--nile-navy);
+}
+
+/* Cards & ledger */
+.client-nile-theme .desktop-only-layout .card,
+.client-nile-theme #ratesCardContainer,
+.client-nile-theme .ledger-section,
+.client-nile-theme .stat-card,
+.client-nile-theme .mobile-profile-card,
+.client-nile-theme .mobile-tx-card {
+    border-color: var(--nile-border) !important;
+    box-shadow: var(--nile-shadow-soft) !important;
+}
+
+.client-nile-theme .ledger-title {
+    color: var(--nile-ink) !important;
+}
+
+.client-nile-theme .filter-btn {
+    background: var(--nile-blue) !important;
+}
+
+[data-theme="dark"] .client-nile-theme .filter-btn {
+    background: var(--nile-gold) !important;
+    color: var(--nile-navy) !important;
+}
+
+/* Stagger animation for operations */
+.client-nile-theme .mobile-ops-list .mobile-tx-card {
+    animation: nileStaggerIn 0.45s var(--nile-ease) both;
+}
+
+.client-nile-theme .mobile-ops-list .mobile-tx-card:nth-child(1) { animation-delay: 0.04s; }
+.client-nile-theme .mobile-ops-list .mobile-tx-card:nth-child(2) { animation-delay: 0.08s; }
+.client-nile-theme .mobile-ops-list .mobile-tx-card:nth-child(3) { animation-delay: 0.12s; }
+.client-nile-theme .mobile-ops-list .mobile-tx-card:nth-child(4) { animation-delay: 0.16s; }
+.client-nile-theme .mobile-ops-list .mobile-tx-card:nth-child(5) { animation-delay: 0.20s; }
+.client-nile-theme .mobile-ops-list .mobile-tx-card:nth-child(n+6) { animation-delay: 0.24s; }
+
+.client-nile-theme .table-custom tbody tr {
+    animation: nileStaggerIn 0.4s var(--nile-ease) both;
+}
+
+.client-nile-theme .table-custom tbody tr:nth-child(1) { animation-delay: 0.03s; }
+.client-nile-theme .table-custom tbody tr:nth-child(2) { animation-delay: 0.06s; }
+.client-nile-theme .table-custom tbody tr:nth-child(3) { animation-delay: 0.09s; }
+.client-nile-theme .table-custom tbody tr:nth-child(4) { animation-delay: 0.12s; }
+.client-nile-theme .table-custom tbody tr:nth-child(5) { animation-delay: 0.15s; }
+.client-nile-theme .table-custom tbody tr:nth-child(n+6) { animation-delay: 0.18s; }
+
+/* Bottom navigation with FAB */
+.client-nile-theme .bottom-nav-mobile {
+    height: var(--nile-rail-h) !important;
+    background: var(--nile-glass) !important;
+    backdrop-filter: blur(18px);
+    border-top: 1px solid var(--nile-border) !important;
+    box-shadow: 0 -10px 32px rgba(26, 39, 68, 0.1) !important;
+    padding: 0 8px env(safe-area-inset-bottom) !important;
+    align-items: flex-end !important;
+    padding-bottom: calc(8px + env(safe-area-inset-bottom)) !important;
+}
+
+.client-nile-theme .bottom-nav-item {
+    color: var(--nile-muted);
+    font-size: 0.66rem;
+    padding-bottom: 6px;
+}
+
+.client-nile-theme .bottom-nav-item i {
+    width: 40px;
+    height: 32px;
+    display: grid;
+    place-items: center;
+    border-radius: 12px;
+    transition: transform 0.25s var(--nile-ease), background 0.25s;
+}
+
+.client-nile-theme .bottom-nav-item.active {
+    color: var(--nile-blue);
+}
+
+[data-theme="dark"] .client-nile-theme .bottom-nav-item.active {
+    color: var(--nile-gold);
+}
+
+.client-nile-theme .bottom-nav-item.active i {
+    background: rgba(0, 119, 182, 0.12);
+    transform: translateY(-2px);
+}
+
+[data-theme="dark"] .client-nile-theme .bottom-nav-item.active i {
+    background: rgba(201, 162, 39, 0.16);
+}
+
+.client-nile-theme .nile-fab {
+    position: relative;
+    top: -18px;
+    width: 58px;
+    height: 58px;
+    flex-shrink: 0;
+    border: none;
+    border-radius: 50%;
+    display: grid;
+    place-items: center;
+    font-size: 1.25rem;
+    color: #fff;
+    background: linear-gradient(145deg, var(--nile-blue), var(--nile-navy));
+    box-shadow: 0 12px 28px rgba(0, 119, 182, 0.4);
+    cursor: pointer;
+    transition: transform 0.28s var(--nile-ease), box-shadow 0.28s;
+    animation: nilePulse 3s ease-in-out infinite;
+}
+
+.client-nile-theme .nile-fab:hover {
+    transform: translateY(-4px) scale(1.06);
+    box-shadow: 0 16px 36px rgba(0, 119, 182, 0.5);
+}
+
+.client-nile-theme .nile-fab-slot {
+    flex: 1;
+    display: flex;
+    justify-content: center;
+    align-items: flex-end;
+    max-width: 72px;
+}
+
+/* Desktop sidebar accent */
+@media (min-width: 769px) {
+    .client-nile-theme .main-container::before {
+        border-top-color: rgba(201, 162, 39, 0.35);
+        border-bottom-color: rgba(0, 119, 182, 0.28);
+    }
+
+    .client-nile-theme .nile-quick-actions {
+        grid-template-columns: repeat(4, 1fr);
+    }
+}
+
+@media (max-width: 768px) {
+    body.client-nile-theme {
+        padding-bottom: calc(var(--nile-rail-h) + 12px) !important;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .client-nile-theme *,
+    .client-nile-login *,
+    .client-nile-theme *::before,
+    .client-nile-theme *::after,
+    .client-nile-login *::before,
+    .client-nile-login *::after {
+        animation-duration: 0.01ms !important;
+        transition-duration: 0.01ms !important;
+    }
+}

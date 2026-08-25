@@ -664,16 +664,17 @@
     </style>
     <link rel="stylesheet" href="/css/brand-ui.css?v=20260804-brand1">
     <link rel="stylesheet" href="/css/client-direct-modern.css?v=20260823-1">
+    <link rel="stylesheet" href="/css/client-nile-theme.css?v=20260825-nile1">
 
     <!-- PWA Setup -->
     <link rel="manifest" href="/manifest.json">
-    <meta name="theme-color" content="#001a4d">
+    <meta name="theme-color" content="#1A2744">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="Al-Ahram">
     <!-- End PWA Setup -->
 </head>
-<body class="client-direct-modern">
+<body class="client-direct-modern client-nile-theme">
 <% if (typeof showMfaNotice !== 'undefined' && showMfaNotice) { %>
     <div id="mfaEnableNotice" class="alert alert-warning alert-dismissible shadow-sm position-fixed top-0 start-50 translate-middle-x mt-3 mx-3" role="alert" style="z-index: 3000; max-width: 760px; width: calc(100% - 32px);">
         <i class="fa-solid fa-shield-halved ms-1"></i>
@@ -781,6 +782,42 @@
             <div><strong>تم تفعيل السعر الجديد</strong><small id="rateChangeActivatedDetails" class="d-block mt-1" style="white-space: pre-line;"></small></div>
         </div>
         <div class="desktop-only-layout d-none d-md-block">
+            <!-- 3D Balance Card -->
+            <div class="wallet-wrapper nile-animate-rise">
+                <div class="wallet-card nile-wallet-card" tabindex="0" role="button" aria-label="بطاقة الرصيد">
+                    <div>
+                        <div class="wallet-label">الرصيد المتاح</div>
+                        <h2 class="wallet-balance" dir="ltr"><%= user.canViewBalance ? user.balance.toFixed(2) : '***' %> <span>LYD</span></h2>
+                    </div>
+                    <div class="wallet-footer">
+                        <div class="wallet-name"><%= user.name %></div>
+                        <div class="wallet-logo"><i class="fa-solid fa-gem"></i></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Quick Actions -->
+            <div class="nile-quick-actions nile-animate-rise">
+                <% if (user.role !== 'accountant') { %>
+                <button type="button" class="nile-quick-btn nile-quick-btn--transfer border-0" data-bs-toggle="modal" data-bs-target="#transferModal">
+                    <span class="nile-quick-icon"><i class="fa-solid fa-money-bill-transfer"></i></span>
+                    <span>تحويل مالي</span>
+                </button>
+                <button type="button" class="nile-quick-btn nile-quick-btn--recharge border-0" onclick="openBalanceTransferModal()">
+                    <span class="nile-quick-icon"><i class="fa-solid fa-wallet"></i></span>
+                    <span>تحويل رصيد</span>
+                </button>
+                <% } %>
+                <a href="/client/reports" class="nile-quick-btn nile-quick-btn--reports">
+                    <span class="nile-quick-icon"><i class="fa-solid fa-chart-pie"></i></span>
+                    <span>التقارير</span>
+                </a>
+                <a href="/client/support" class="nile-quick-btn nile-quick-btn--support">
+                    <span class="nile-quick-icon"><i class="fa-solid fa-headset"></i></span>
+                    <span>الدعم</span>
+                </a>
+            </div>
+
             <div class="row">
                 <!-- اليمين: بطاقة العميل + الأزرار -->
                 <div class="col-md-7 col-lg-8 mb-4">
@@ -1542,6 +1579,7 @@
         const walletCard = document.querySelector('.wallet-card');
         if (walletCard) {
             walletCard.addEventListener('mousemove', (e) => {
+                if (window.innerWidth < 768) return;
                 const rect = walletCard.getBoundingClientRect();
                 const x = e.clientX - rect.left;
                 const y = e.clientY - rect.top;
@@ -1558,12 +1596,17 @@
 
             walletCard.addEventListener('mouseleave', () => {
                 walletCard.style.transform = `perspective(1000px) rotateX(0deg) rotateY(0deg) scale3d(1, 1, 1)`;
-                walletCard.style.boxShadow = `0 20px 40px -10px rgba(0, 26, 77, 0.4)`;
+                walletCard.style.boxShadow = `0 24px 48px rgba(26, 39, 68, 0.35)`;
                 walletCard.style.transition = `transform 0.5s ease-out, box-shadow 0.5s ease-out`;
             });
             
             walletCard.addEventListener('mouseenter', () => {
                 walletCard.style.transition = `none`; 
+            });
+
+            walletCard.addEventListener('click', () => {
+                if (window.innerWidth >= 768) return;
+                walletCard.classList.toggle('is-flipped');
             });
         }
 
@@ -2740,6 +2783,30 @@
             window.history.pushState({}, '', url);
         }
 
+        function openQuickTransfer() {
+            if (window.innerWidth >= 768) {
+                const modalEl = document.getElementById('transferModal');
+                if (modalEl) bootstrap.Modal.getOrCreateInstance(modalEl).show();
+                return;
+            }
+            switchMobileTab('transfers');
+        }
+
+        function openMobileOperations() {
+            switchMobileTab('account');
+            window.setTimeout(() => {
+                document.getElementById('mobileTransactionsListBrief')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }, 120);
+        }
+
+        function openMobileSettings(event) {
+            if (event) event.preventDefault();
+            document.querySelectorAll('.bottom-nav-mobile .bottom-nav-item').forEach(el => {
+                el.classList.toggle('active', el.getAttribute('data-tab') === 'settings');
+            });
+            openClientSecurityPanel(event);
+        }
+
         function selectTransferService(type) {
             // Set the service type in both desktop elements
             handleTransferTypeChange(type);
@@ -2935,27 +3002,28 @@
     </script>
 
     <!-- Mobile Bottom Navigation -->
-    <div class="bottom-nav-mobile no-print">
+    <nav class="bottom-nav-mobile no-print" aria-label="التنقل السفلي">
         <a href="javascript:void(0)" class="bottom-nav-item active" data-tab="account" onclick="switchMobileTab('account')">
-            <i class="fa-solid fa-user-circle"></i>
-            <span>الحساب</span>
-        </a>
-        <a href="javascript:void(0)" class="bottom-nav-item" data-tab="transfers" onclick="switchMobileTab('transfers')">
-            <i class="fa-solid fa-paper-plane"></i>
-            <span>التحويلات</span>
-        </a>
-        <a href="javascript:void(0)" class="bottom-nav-item" data-tab="rates" onclick="switchMobileTab('rates')">
-            <i class="fa-solid fa-chart-line"></i>
-            <span>اسعار الصرف</span>
+            <i class="fa-solid fa-house"></i>
+            <span>الرئيسية</span>
         </a>
         <a href="/client/reports" class="bottom-nav-item" data-tab="reports">
             <i class="fa-solid fa-chart-pie"></i>
             <span>التقارير</span>
         </a>
-        <a href="/client/support" class="bottom-nav-item" data-tab="support">
-            <i class="fa-solid fa-headset"></i>
-            <span>الدعم الفني</span>
+        <div class="nile-fab-slot">
+            <button type="button" class="nile-fab" onclick="openQuickTransfer()" aria-label="تحويل سريع">
+                <i class="fa-solid fa-paper-plane"></i>
+            </button>
+        </div>
+        <a href="javascript:void(0)" class="bottom-nav-item" data-tab="operations" onclick="openMobileOperations()">
+            <i class="fa-solid fa-list-check"></i>
+            <span>العمليات</span>
         </a>
-    </div>
+        <a href="javascript:void(0)" class="bottom-nav-item" data-tab="settings" onclick="openMobileSettings(event)">
+            <i class="fa-solid fa-gear"></i>
+            <span>الإعدادات</span>
+        </a>
+    </nav>
 </body>
 </html>
