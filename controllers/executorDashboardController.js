@@ -19,6 +19,7 @@ const {
 const { toExecutorPortalTaskDto } = require('../utils/executorTaskPrivacy');
 const mobileWebParityService = require('../services/mobileWebParityService');
 const mobileWebParityMapper = require('../mappers/mobileWebParityMapper');
+const { systemDayStart, systemDayEnd, systemDateKey } = require('../config/systemTime');
 
 const COMPLETED_TODAY_LIMIT = 60;
 
@@ -408,14 +409,22 @@ exports.getLiveTasks = async (req, res) => {
                 : Promise.resolve()
         ]);
 
-        // 🟢 جلب العمليات التي تم تنفيذها اليوم
-        const startOfToday = new Date();
-        startOfToday.setHours(0, 0, 0, 0);
+        // Completed-today follows Tripoli day boundaries and operational timestamps,
+        // not server-local midnight or updatedAt alone.
+        const todayKey = systemDateKey(new Date());
+        const dayStart = systemDayStart(todayKey);
+        const dayEnd = systemDayEnd(todayKey);
+        const completedTodayRange = dayStart && dayEnd ? { $gte: dayStart, $lte: dayEnd } : null;
 
-        let completedTodayQuery = {
-            status: 'completed',
-            updatedAt: { $gte: startOfToday }
-        };
+        let completedTodayQuery = { status: 'completed' };
+        if (completedTodayRange) {
+            completedTodayQuery.$or = [
+                { createdAt: completedTodayRange },
+                { updatedAt: completedTodayRange },
+                { completedAt: completedTodayRange },
+                { executorReceivedAt: completedTodayRange }
+            ];
+        }
 
         if (emp.role === 'manager') {
             // المدير يرى كل عمليات المجموعة المنفذة اليوم

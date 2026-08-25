@@ -109,6 +109,28 @@ describe('executor employee reports', () => {
         }));
     });
 
+    test('wraps ObjectId-like tenant ids in single-tenant legacy scope', async () => {
+        const tenantObjectId = { toString: () => 'tenant-1' };
+        const previousTenantMode = process.env.TENANT_MODE;
+        process.env.TENANT_MODE = 'single';
+        try {
+            await getExecutorReports({
+                executorId: 'employee-1',
+                dateType: 'day',
+                dateValue: '2026-08-14',
+                tenantId: tenantObjectId
+            });
+        } finally {
+            if (previousTenantMode === undefined) delete process.env.TENANT_MODE;
+            else process.env.TENANT_MODE = previousTenantMode;
+        }
+
+        expect(Transaction.find).toHaveBeenCalledWith(expect.objectContaining({
+            tenantId: { $in: [tenantObjectId, null] },
+            operatorId: 'employee-1'
+        }));
+    });
+
     test('builds manager team performance and a balanced financial summary', async () => {
         Employee.findById.mockResolvedValue({
             _id: 'manager-1',

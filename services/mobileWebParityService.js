@@ -1062,11 +1062,18 @@ async function sendExecutorSupportReply({ executorId, text, imageBase64 }) {
  */
 const tripoliDateValue = (date = new Date()) => systemDateKey(date);
 
+const isTenantQueryPredicate = (value) => (
+    Boolean(value)
+    && typeof value === 'object'
+    && !Array.isArray(value)
+    && Object.prototype.hasOwnProperty.call(value, '$in')
+);
+
 const normalizeExecutorTenantScope = (tenantId) => {
     if (!tenantId) return null;
     // Mobile routes can pass a ready-made tenant predicate so legacy records
     // remain visible only in an explicitly configured single-tenant instance.
-    if (typeof tenantId === 'object' && !Array.isArray(tenantId)) return tenantId;
+    if (isTenantQueryPredicate(tenantId)) return tenantId;
     const singleTenantMode = String(process.env.TENANT_MODE || '').trim().toLowerCase() === 'single';
     return singleTenantMode ? { $in: [tenantId, null] } : tenantId;
 };
@@ -1392,14 +1399,12 @@ async function getExecutorOverview({ executorId, tenantId }) {
 
     const today = tripoliDateValue();
     const month = today.slice(0, 7);
-    const [year, monthNumber] = month.split('-').map(Number);
-    const monthLastDay = new Date(Date.UTC(year, monthNumber, 0)).getUTCDate();
-    const todayCreatedAt = systemDateRange(today, today);
-    const monthCreatedAt = systemDateRange(`${month}-01`, `${month}-${String(monthLastDay).padStart(2, '0')}`);
+    const todayPeriod = resolveExecutorReportPeriod({ dateType: 'day', dateValue: today });
+    const monthPeriod = resolveExecutorReportPeriod({ dateType: 'month', dateValue: month });
     const query = executorGroupQuery(emp.groupId, tenantId);
     const [todayTransactions, monthTransactions] = await Promise.all([
-        findReportTransactions({ ...query, ...(todayCreatedAt ? { createdAt: todayCreatedAt } : {}) }),
-        findReportTransactions({ ...query, ...(monthCreatedAt ? { createdAt: monthCreatedAt } : {}) })
+        findReportTransactions({ ...query, ...executorReportDateQuery(todayPeriod.start, todayPeriod.end) }),
+        findReportTransactions({ ...query, ...executorReportDateQuery(monthPeriod.start, monthPeriod.end) })
     ]);
     const ownToday = todayTransactions.filter((tx) => String(tx.operatorId || '') === String(emp._id));
     const ownTotals = executorReportTotals(ownToday);
@@ -1593,7 +1598,7 @@ async function getEmployeesWorkspace({ executorId, tenantId }) {
         Employee.find(activeEmployeeQuery).sort({ role: 1, createdAt: -1 }).lean(),
         Transaction.find({
             ...groupQuery,
-            createdAt: { $gte: today.start, $lte: today.end }
+            ...executorReportDateQuery(today.start, today.end)
         }).sort({ createdAt: -1 }).lean(),
         Transaction.find({ ...groupQuery, status: 'accepted' })
             .sort({ executorReceivedAt: 1, createdAt: 1 })
