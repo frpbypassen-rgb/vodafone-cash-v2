@@ -87,9 +87,10 @@
     <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800;900&family=JetBrains+Mono:wght@700&display=swap" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
-    <link rel="stylesheet" href="/css/executor-workspace.css?v=20260824-contrast">
-    <link rel="stylesheet" href="/css/executor-2030-override.css?v=20260824-contrast">
-    <link rel="stylesheet" href="/css/executor-os.css?v=20260824-contrast">
+    <link rel="stylesheet" href="/css/executor-workspace.css?v=20260825-reports1">
+    <link rel="stylesheet" href="/css/executor-2030-override.css?v=20260825-reports1">
+    <link rel="stylesheet" href="/css/executor-os.css?v=20260825-reports1">
+    <link rel="stylesheet" href="/css/executor-report-controls.css?v=20260825-1">
 
     <style>
         .x-stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 14px; margin-bottom: 24px; }
@@ -206,6 +207,7 @@
                 <div class="col-md-3">
                     <label class="form-label text-muted fw-bold">الفترة الزمنية</label>
                     <select id="dateType" class="form-select" onchange="toggleDateInput()">
+                        <option value="all">كل العمليات</option>
                         <option value="day">يوم محدد</option>
                         <option value="month">شهر محدد</option>
                         <option value="range">فترة من / إلى</option>
@@ -347,11 +349,59 @@
             document.getElementById('themeIcon').className = theme === 'dark' ? 'fa-solid fa-sun text-warning' : 'fa-solid fa-moon text-dark';
         });
 
-        document.getElementById('dateValueDay').valueAsDate = new Date();
-        const yyyyMM = new Date().toISOString().substring(0, 7);
-        if(document.getElementById('dateValueMonth')) document.getElementById('dateValueMonth').value = yyyyMM;
-        document.getElementById('dateFrom').valueAsDate = new Date();
-        document.getElementById('dateTo').valueAsDate = new Date();
+        const TRIPOLI_TZ = 'Africa/Tripoli';
+
+        function tripoliDateParts(date = new Date()) {
+            return new Intl.DateTimeFormat('en-GB', {
+                timeZone: TRIPOLI_TZ,
+                year: 'numeric',
+                month: '2-digit',
+                day: '2-digit'
+            }).formatToParts(date).reduce((acc, part) => {
+                acc[part.type] = part.value;
+                return acc;
+            }, {});
+        }
+
+        function tripoliDateValue(date = new Date()) {
+            const parts = tripoliDateParts(date);
+            return `${parts.year}-${parts.month}-${parts.day}`;
+        }
+
+        function tripoliMonthValue(date = new Date()) {
+            return tripoliDateValue(date).slice(0, 7);
+        }
+
+        function addTripoliDays(dateStr, delta) {
+            const base = new Date(`${dateStr}T12:00:00+02:00`);
+            base.setUTCDate(base.getUTCDate() + delta);
+            return tripoliDateValue(base);
+        }
+
+        function setTripoliDateInputs() {
+            const today = tripoliDateValue();
+            document.getElementById('dateValueDay').value = today;
+            if (document.getElementById('dateValueMonth')) {
+                document.getElementById('dateValueMonth').value = tripoliMonthValue();
+            }
+            document.getElementById('dateFrom').value = today;
+            document.getElementById('dateTo').value = today;
+        }
+
+        function allReportOperations(data) {
+            const seen = new Set();
+            const merged = [];
+            [...(data.operations || []), ...(data.pendingOperations || [])].forEach((tx) => {
+                const key = String(tx.id || tx.customId || '');
+                if (key && seen.has(key)) return;
+                if (key) seen.add(key);
+                merged.push(tx);
+            });
+            merged.sort((left, right) => new Date(right.createdAt || 0) - new Date(left.createdAt || 0));
+            return merged;
+        }
+
+        setTripoliDateInputs();
 
         function toggleDateInput() {
             const type = document.getElementById('dateType').value;
@@ -359,6 +409,7 @@
             if(document.getElementById('dateValueMonth')) document.getElementById('dateValueMonth').style.display = type === 'month' ? 'block' : 'none';
             document.getElementById('dateRangeInputs').classList.toggle('d-none', type !== 'range');
         }
+        toggleDateInput();
 
         let lastReportData = null;
         let lastReportRequest = null;
@@ -389,7 +440,7 @@
             const dateTo = dateType === 'range' ? document.getElementById('dateTo').value : '';
             const employeeId = document.getElementById('employeeFilter')?.value || '';
 
-            if ((dateType !== 'range' && !dateValue) || (dateType === 'range' && (!dateFrom || !dateTo))) {
+            if ((dateType !== 'all' && dateType !== 'range' && !dateValue) || (dateType === 'range' && (!dateFrom || !dateTo))) {
                 return Swal.fire({ icon: 'warning', title: 'تنبيه', text: 'يرجى اختيار التاريخ.' });
             }
             if (dateType === 'range' && dateFrom > dateTo) return Swal.fire({ icon: 'warning', title: 'تنبيه', text: 'تاريخ البداية يجب أن يسبق تاريخ النهاية.' });
@@ -473,11 +524,12 @@
             if (mobileCancelledList) mobileCancelledList.innerHTML = '';
             document.getElementById('cancelledSection').classList.toggle('d-none', cancelled.length === 0);
 
-            if (data.operations.length === 0) {
+            const operations = allReportOperations(data);
+            if (operations.length === 0) {
                 tbody.innerHTML = `<tr><td colspan="${isPersonalExecutorReport ? 9 : 10}" class="text-center text-muted py-4">لا توجد عمليات في هذه الفترة</td></tr>`;
                 if (mobileList) mobileList.innerHTML = '<div class="x-empty-box">لا توجد عمليات في هذه الفترة</div>';
             } else {
-                data.operations.forEach((tx, i) => {
+                operations.forEach((tx, i) => {
                     const row = buildRow(tx, i, false);
                     tbody.appendChild(row);
                     if (mobileList) mobileList.appendChild(buildMobileCard(tx, i, false));
@@ -507,7 +559,7 @@
             if (!ctx) return;
             if (reportChartInstance) { reportChartInstance.destroy(); }
             const days = {};
-            (data.operations || []).forEach((tx) => {
+            allReportOperations(data).forEach((tx) => {
                 if (!tx.createdAt) return;
                 const d = new Date(tx.createdAt).toLocaleDateString('en-GB', { timeZone: 'Africa/Tripoli' });
                 days[d] = (days[d] || 0) + 1;
@@ -845,25 +897,20 @@
         }
 
         function setQuickPeriod(kind) {
-            const today = new Date();
-            const y = today.getFullYear();
-            const m = String(today.getMonth() + 1).padStart(2, '0');
-            const d = String(today.getDate()).padStart(2, '0');
+            const today = tripoliDateValue();
             if (kind === 'today') {
                 document.getElementById('dateType').value = 'day';
-                document.getElementById('dateValueDay').value = `${y}-${m}-${d}`;
+                document.getElementById('dateValueDay').value = today;
             } else if (kind === 'yesterday') {
-                const yest = new Date(today); yest.setDate(yest.getDate() - 1);
                 document.getElementById('dateType').value = 'day';
-                document.getElementById('dateValueDay').value = yest.toISOString().slice(0, 10);
+                document.getElementById('dateValueDay').value = addTripoliDays(today, -1);
             } else if (kind === 'last7') {
-                const from = new Date(today); from.setDate(from.getDate() - 6);
                 document.getElementById('dateType').value = 'range';
-                document.getElementById('dateFrom').value = from.toISOString().slice(0, 10);
-                document.getElementById('dateTo').value = `${y}-${m}-${d}`;
+                document.getElementById('dateFrom').value = addTripoliDays(today, -6);
+                document.getElementById('dateTo').value = today;
             } else if (kind === 'thisMonth') {
                 document.getElementById('dateType').value = 'month';
-                document.getElementById('dateValueMonth').value = `${y}-${m}`;
+                document.getElementById('dateValueMonth').value = tripoliMonthValue();
             }
             toggleDateInput();
             fetchReport();
@@ -909,12 +956,14 @@
             Swal.fire({ icon: 'success', title: 'تم تنزيل Excel', timer: 1200, showConfirmButton: false });
         }
 
-        loadEmployeeFilter();
+        // Load the full operational ledger immediately; no manual date filter
+        // is needed to see work from previous days or newly arriving tasks.
+        loadEmployeeFilter().finally(fetchReport);
 
-        // تحديث تلقائي للتقرير كل 60 ثانية إذا كانت الصفحة ظاهرة وتم جلب تقرير
+        // تحديث حي للتقرير كل 10 ثوانٍ لعرض العمليات لحظة بلحظة.
         setInterval(() => {
             if (!document.hidden && lastReportRequest) fetchReport();
-        }, 60000);
+        }, 10000);
     </script>
 </body>
 </html>

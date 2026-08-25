@@ -1140,7 +1140,11 @@ const parseReportDate = (value, endOfDay = false) => {
 
 const resolveExecutorReportPeriod = ({ dateType, dateValue, dateFrom, dateTo }) => {
     const today = tripoliDateValue();
-    const finalDateType = ['day', 'month', 'range'].includes(dateType) ? dateType : 'day';
+    const finalDateType = ['all', 'day', 'month', 'range'].includes(dateType) ? dateType : 'all';
+
+    if (finalDateType === 'all') {
+        return { type: 'all', value: 'all', start: null, end: null, from: null, to: null };
+    }
 
     if (finalDateType === 'range') {
         const from = String(dateFrom || '').trim();
@@ -1264,8 +1268,9 @@ async function getExecutorReports({ executorId, dateType, dateValue, dateFrom, d
     const baseQuery = { ...groupQuery };
     if (scopedEmployee) baseQuery.operatorId = String(scopedEmployee._id);
 
+    const dateQuery = start && end ? { createdAt: { $gte: start, $lte: end } } : {};
     const currentTransactions = await findReportTransactions(
-        { ...baseQuery, createdAt: { $gte: start, $lte: end } },
+        { ...baseQuery, ...dateQuery },
         {
             select: '+executorExecutionNumber +executorSenderEntries +executorProofImages',
             sort: { createdAt: -1 }
@@ -1277,7 +1282,9 @@ async function getExecutorReports({ executorId, dateType, dateValue, dateFrom, d
     const reportTransactions = currentTransactions.filter((tx) => !deposits.includes(tx));
     // Keep cancelled work isolated from the financial operations list. It is
     // still returned for auditing, but is never included in employee totals.
-    const operations = reportTransactions.filter((tx) => tx.status === 'completed');
+    // The live report is an operational ledger: completed and in-progress work
+    // both remain visible. Cancelled work is rendered in its own audit section.
+    const operations = reportTransactions.filter((tx) => !isCancelledExecutorTransaction(tx));
     const pendingOperations = reportTransactions.filter((tx) => EXECUTOR_PENDING_STATUSES.has(tx.status));
     const cancelledOperations = reportTransactions.filter(isCancelledExecutorTransaction);
     const totals = executorReportTotals(reportTransactions);

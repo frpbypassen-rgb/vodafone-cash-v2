@@ -12,7 +12,7 @@
   --x-green: #34d399;
   --x-red: #fb7185;
   --x-text: #f8fafc;
-  --x-muted: #d0dbe8;
+  --x-muted: #e2e8f0;
   --x-shadow: 0 0 40px rgba(34, 211, 238, 0.08);
   --x-glow: 0 0 20px rgba(34, 211, 238, 0.2);
   --x-cell: rgba(255, 255, 255, 0.05);
@@ -34,7 +34,7 @@
   --x-green: #047857;
   --x-red: #be123c;
   --x-text: #0b1929;
-  --x-muted: #334155;
+  --x-muted: #1e293b;
   --x-shadow: 0 12px 30px rgba(15, 40, 70, 0.08);
   --x-glow: 0 0 16px rgba(15, 118, 110, 0.12);
   --x-cell: rgba(15, 45, 75, 0.05);
@@ -573,17 +573,48 @@ body.executor-page-dashboard .executor-empty-state-live {
 body.executor-portal-v2 .form-control,
 body.executor-portal-v2 .form-select,
 body.executor-portal-v2 .input-group-text {
-  background: rgba(255, 255, 255, 0.05) !important;
-  border-color: rgba(255, 255, 255, 0.1) !important;
+  background: var(--x-surface) !important;
+  border-color: var(--x-border) !important;
   color: var(--x-text) !important;
   border-radius: 12px !important;
+}
+
+body.executor-portal-v2 .form-control::placeholder {
+  color: var(--x-muted) !important;
+  opacity: 0.75;
 }
 
 body.executor-portal-v2 .form-control:focus,
 body.executor-portal-v2 .form-select:focus {
   border-color: var(--x-cyan) !important;
   box-shadow: 0 0 20px rgba(34, 211, 238, 0.15) !important;
-  background: rgba(255, 255, 255, 0.08) !important;
+  background: var(--x-surface-elev) !important;
+  color: var(--x-text) !important;
+}
+
+body.executor-portal-v2 .form-select option,
+body.executor-portal-v2 select option {
+  background: var(--x-surface-elev) !important;
+  color: var(--x-text) !important;
+}
+
+[data-theme="light"] body.executor-portal-v2 .form-select option,
+[data-theme="light"] body.executor-portal-v2 select option {
+  background: #ffffff !important;
+  color: #0b1929 !important;
+}
+
+body.executor-portal-v2 .btn-outline-secondary {
+  color: var(--x-text) !important;
+  border-color: var(--x-border) !important;
+  background: var(--x-cell) !important;
+}
+
+body.executor-portal-v2 .btn-outline-secondary:hover,
+body.executor-portal-v2 .btn-outline-secondary:focus {
+  color: var(--x-text) !important;
+  border-color: var(--x-cyan) !important;
+  background: var(--x-surface-elev) !important;
 }
 
 body.executor-portal-v2 .form-label { color: var(--x-muted) !important; }
@@ -709,9 +740,16 @@ body.executor-portal-v2 .text-muted,
 body.executor-portal-v2 .data-label,
 body.executor-portal-v2 .executor-role,
 body.executor-portal-v2 .form-label,
-body.executor-portal-v2 .exo-rail-label,
 body.executor-portal-v2 small {
   color: var(--x-muted) !important;
+  opacity: 1 !important;
+}
+
+body.executor-portal-v2 .exo-rail-label,
+body.executor-portal-v2 .exo-dock-link span {
+  color: var(--x-text) !important;
+  font-size: 0.7rem !important;
+  opacity: 1 !important;
 }
 
 body.executor-portal-v2 .form-control,
@@ -728,7 +766,7 @@ body.executor-portal-v2 .form-control::placeholder,
 body.executor-portal-v2 input::placeholder,
 body.executor-portal-v2 textarea::placeholder {
   color: var(--x-muted) !important;
-  opacity: 0.9;
+  opacity: 1 !important;
 }
 
 body.executor-portal-v2 .table td,
