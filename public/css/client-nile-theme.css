@@ -1184,3 +1184,220 @@ body.client-nile-theme::before {
         opacity: 1;
     }
 }
+
+/* ══════════════════════════════════════
+   DESKTOP WORKSPACE — distinct from mobile Wallet Hub
+   ══════════════════════════════════════ */
+@media (min-width: 768px) {
+    body.client-nile-theme {
+        padding-bottom: 0 !important;
+    }
+
+    .client-nile-theme .bottom-nav-mobile {
+        display: none !important;
+    }
+
+    .client-nile-theme .mobile-header {
+        display: none !important;
+    }
+
+    .client-nile-theme .navbar-custom,
+    .client-nile-theme .glass-nav {
+        display: block !important;
+    }
+
+    .client-nile-theme .main-container {
+        max-width: 1440px;
+    }
+
+    .nile-desktop-workspace {
+        display: grid;
+        grid-template-columns: 240px minmax(0, 1fr) 300px;
+        gap: 24px;
+        align-items: start;
+    }
+
+    .nile-desktop-rail {
+        position: sticky;
+        top: 96px;
+        background: var(--nile-surface);
+        border: 1px solid var(--nile-border);
+        border-radius: 20px;
+        padding: 18px 14px;
+        box-shadow: var(--nile-shadow-soft);
+    }
+
+    .nile-rail-user {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding-bottom: 16px;
+        margin-bottom: 12px;
+        border-bottom: 1px solid var(--nile-border);
+    }
+
+    .nile-rail-avatar {
+        width: 44px;
+        height: 44px;
+        border-radius: 14px;
+        display: grid;
+        place-items: center;
+        background: rgba(0, 119, 182, 0.12);
+        color: var(--nile-blue);
+        flex-shrink: 0;
+    }
+
+    .nile-rail-user strong {
+        display: block;
+        font-size: 0.88rem;
+        color: var(--nile-ink);
+    }
+
+    .nile-rail-user small {
+        color: var(--nile-muted);
+        font-weight: 800;
+    }
+
+    .nile-rail-nav {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+    }
+
+    .nile-rail-link {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 11px 12px;
+        border-radius: 12px;
+        color: var(--nile-ink);
+        text-decoration: none;
+        font-weight: 800;
+        font-size: 0.88rem;
+        transition: background 0.2s, color 0.2s;
+    }
+
+    .nile-rail-link i {
+        width: 20px;
+        text-align: center;
+        color: var(--nile-blue);
+    }
+
+    .nile-rail-link:hover,
+    .nile-rail-link.active {
+        background: rgba(0, 119, 182, 0.08);
+        color: var(--nile-blue);
+    }
+
+    .nile-desktop-main {
+        min-width: 0;
+    }
+
+    .nile-desktop-hero {
+        display: grid;
+        grid-template-columns: minmax(280px, 380px) 1fr;
+        gap: 16px;
+        margin-bottom: 20px;
+    }
+
+    .nile-desktop-wallet .wallet-card {
+        min-height: 168px;
+    }
+
+    .nile-desktop-stats {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 12px;
+    }
+
+    .nile-desktop-stats .wh-stat {
+        height: 100%;
+    }
+
+    .nile-desktop-actions {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 12px;
+        margin-bottom: 20px;
+    }
+
+    .nile-desktop-actions .nile-quick-btn {
+        min-height: 88px;
+    }
+
+    .nile-desktop-ledger {
+        margin-top: 0;
+    }
+
+    .nile-desktop-aside {
+        position: sticky;
+        top: 96px;
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+    }
+
+    .nile-aside-card {
+        background: var(--nile-surface) !important;
+        border: 1px solid var(--nile-border) !important;
+        border-radius: 18px !important;
+        color: var(--nile-ink);
+    }
+
+    .nile-profile-line {
+        display: flex;
+        justify-content: space-between;
+        gap: 12px;
+        padding: 8px 0;
+        border-bottom: 1px dashed var(--nile-border);
+        font-size: 0.88rem;
+    }
+
+    .nile-profile-line span {
+        color: var(--nile-muted);
+        font-weight: 700;
+    }
+
+    .nile-rate-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 10px 12px;
+        border-radius: 12px;
+        background: color-mix(in srgb, var(--nile-surface) 92%, transparent);
+        border: 1px solid var(--nile-border);
+        font-weight: 700;
+    }
+
+    .nile-rate-row strong {
+        color: var(--nile-blue);
+    }
+
+    .client-nile-theme.client-satellite-page .chat-container {
+        max-width: 960px;
+        max-height: calc(100vh - 180px);
+    }
+
+    .client-nile-theme.client-satellite-page .container-fluid {
+        max-width: 1280px;
+    }
+}
+
+@media (max-width: 767.98px) {
+    .client-nile-theme .navbar-custom,
+    .client-nile-theme .glass-nav {
+        display: none !important;
+    }
+
+    .client-nile-theme .mobile-header {
+        display: flex !important;
+    }
+
+    .client-nile-theme .desktop-only-layout {
+        display: none !important;
+    }
+
+    .wh-hub {
+        max-width: 100%;
+    }
+}

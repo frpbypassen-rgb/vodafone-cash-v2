@@ -211,10 +211,7 @@
 
         .mobile-header { display: none; }
 
-        @media (max-width: 768px) {
-            .navbar-custom {
-                display: none !important; /* Hide desktop navbar */
-            }
+        @media (max-width: 767.98px) {
             .main-container {
                 padding-left: 12px !important;
                 padding-right: 12px !important;
@@ -613,7 +610,7 @@
     </style>
     <link rel="stylesheet" href="/css/brand-ui.css?v=20260804-brand1">
     <link rel="stylesheet" href="/css/client-direct-modern.css?v=20260823-1">
-    <link rel="stylesheet" href="/css/client-nile-theme.css?v=20260826-nile2">
+    <link rel="stylesheet" href="/css/client-nile-theme.css?v=20260826-nile3">
 
     <!-- PWA Setup -->
     <link rel="manifest" href="/manifest.json">
@@ -655,7 +652,7 @@
     <audio id="alertSound" src="https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3" preload="auto"></audio>
 
     <!-- Mobile Header -->
-    <header class="mobile-header no-print">
+    <header class="mobile-header no-print d-md-none">
         <div class="mobile-logo-wrapper">
             <img src="/images/logo.jpeg" alt="Logo" onerror="this.onerror=null; this.src='/images/logo.jpg';">
             <div class="direct-brand-copy">
@@ -687,7 +684,7 @@
         </div>
     </header>
 
-    <nav class="navbar-custom no-print">
+    <nav class="navbar-custom no-print d-none d-md-block">
         <div class="container d-flex justify-content-between align-items-center">
             <div class="d-flex align-items-center gap-2">
                 <img src="/images/logo.jpeg" alt="Logo" class="logo-img" onerror="this.onerror=null; this.src='/images/logo.jpg';">
@@ -731,29 +728,9 @@
             <div><strong>تم تفعيل السعر الجديد</strong><small id="rateChangeActivatedDetails" class="d-block mt-1" style="white-space: pre-line;"></small></div>
         </div>
         <% if (typeof walletHub !== 'undefined' && walletHub) { %>
-        <!-- Wallet Hub — desktop -->
+        <!-- Wallet Hub — desktop workspace (full layout) -->
         <div class="desktop-only-layout d-none d-md-block">
-            <div class="wh-hub-grid">
-                <%- include('partials/wallet_hub_home') %>
-            </div>
-            <div class="wh-operations-panel" id="desktopOperationsPanel" hidden>
-                <div class="ledger-section">
-                    <div class="ledger-header">
-                        <h3 class="ledger-title"><i class="fa-solid fa-list-check me-2 text-primary"></i> عمليات اليوم</h3>
-                        <form method="GET" action="/client/dashboard" class="filter-box">
-                            <input type="text" name="search" class="filter-input" placeholder="بحث..." value="<%= typeof search !== 'undefined' ? search : '' %>">
-                            <input type="date" name="date" class="filter-input" value="<%= typeof targetDate !== 'undefined' ? targetDate : '' %>">
-                            <button type="submit" class="filter-btn"><i class="fa-solid fa-filter"></i></button>
-                        </form>
-                    </div>
-                    <div class="table-responsive">
-                        <table class="table-custom" id="transactionsTable">
-                            <thead><tr><th>#</th><th>رقم العملية</th><th>المبلغ (EGP)</th><th>التكلفة / السعر</th><th>رقم الحساب</th><th>الوقت</th><th>الحالة</th><th>الإجراءات</th></tr></thead>
-                            <tbody id="tableBody"></tbody>
-                        </table>
-                    </div>
-                </div>
-            </div>
+            <%- include('partials/wallet_hub_desktop') %>
         </div>
         <% } else { %>
         <div class="desktop-only-layout d-none d-md-block">
