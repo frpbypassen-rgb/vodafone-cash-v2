@@ -664,7 +664,7 @@
     </style>
     <link rel="stylesheet" href="/css/brand-ui.css?v=20260804-brand1">
     <link rel="stylesheet" href="/css/client-direct-modern.css?v=20260823-1">
-    <link rel="stylesheet" href="/css/client-nile-theme.css?v=20260825-nile1">
+    <link rel="stylesheet" href="/css/client-nile-theme.css?v=20260825-wallet1">
 
     <!-- PWA Setup -->
     <link rel="manifest" href="/manifest.json">
@@ -781,6 +781,32 @@
             <i class="fa-solid fa-circle-check fs-4"></i>
             <div><strong>تم تفعيل السعر الجديد</strong><small id="rateChangeActivatedDetails" class="d-block mt-1" style="white-space: pre-line;"></small></div>
         </div>
+        <% if (typeof walletHub !== 'undefined' && walletHub) { %>
+        <!-- Wallet Hub — desktop -->
+        <div class="desktop-only-layout d-none d-md-block">
+            <div class="wh-hub-grid">
+                <%- include('partials/wallet_hub_home') %>
+            </div>
+            <div class="wh-operations-panel" id="desktopOperationsPanel" hidden>
+                <div class="ledger-section">
+                    <div class="ledger-header">
+                        <h3 class="ledger-title"><i class="fa-solid fa-list-check me-2 text-primary"></i> عمليات اليوم</h3>
+                        <form method="GET" action="/client/dashboard" class="filter-box">
+                            <input type="text" name="search" class="filter-input" placeholder="بحث..." value="<%= typeof search !== 'undefined' ? search : '' %>">
+                            <input type="date" name="date" class="filter-input" value="<%= typeof targetDate !== 'undefined' ? targetDate : '' %>">
+                            <button type="submit" class="filter-btn"><i class="fa-solid fa-filter"></i></button>
+                        </form>
+                    </div>
+                    <div class="table-responsive">
+                        <table class="table-custom" id="transactionsTable">
+                            <thead><tr><th>#</th><th>رقم العملية</th><th>المبلغ (EGP)</th><th>التكلفة / السعر</th><th>رقم الحساب</th><th>الوقت</th><th>الحالة</th><th>الإجراءات</th></tr></thead>
+                            <tbody id="tableBody"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <% } else { %>
         <div class="desktop-only-layout d-none d-md-block">
             <!-- 3D Balance Card -->
             <div class="wallet-wrapper nile-animate-rise">
@@ -1011,13 +1037,84 @@
             <!-- قائمة العمليات للموبايل (تظهر كبطاقات تطبيق) -->
             <div class="mobile-ops-list d-flex flex-column gap-3 d-md-none mb-4" id="mobileTransactionsList"></div>
         </div>
-        </div> <!-- End of desktop-only-layout -->
+        </div> <!-- End of desktop-only-layout (legacy) -->
+        <% } %>
 
         <!-- Mobile Tab-based Layout -->
         <div class="mobile-only-layout d-md-none px-1" style="margin-top: 15px;">
-            <!-- Tab 1: Account -->
+            <% if (typeof walletHub !== 'undefined' && walletHub) { %>
+            <!-- Tab 1: Wallet Hub Home -->
             <div class="mobile-tab-content active" id="mobile-tab-account">
-                <!-- Wallet Card (Client Balance Card) -->
+                <%- include('partials/wallet_hub_home') %>
+            </div>
+
+            <!-- Tab 2: Operations (full list) -->
+            <div class="mobile-tab-content" id="mobile-tab-operations">
+                <div class="ledger-header mb-3">
+                    <h3 class="ledger-title"><i class="fa-solid fa-list-check me-2 text-primary"></i> عمليات اليوم</h3>
+                    <form method="GET" action="/client/dashboard" class="filter-box">
+                        <input type="text" name="search" class="filter-input" placeholder="بحث..." value="<%= typeof search !== 'undefined' ? search : '' %>">
+                        <input type="date" name="date" class="filter-input" value="<%= typeof targetDate !== 'undefined' ? targetDate : '' %>">
+                        <button type="submit" class="filter-btn"><i class="fa-solid fa-filter"></i></button>
+                    </form>
+                </div>
+                <div class="mobile-ops-list d-flex flex-column gap-3 mb-4" id="mobileTransactionsList"></div>
+            </div>
+
+            <!-- Tab 3: Profile (from More) -->
+            <div class="mobile-tab-content" id="mobile-tab-profile">
+                <div class="mobile-profile-card mb-4">
+                    <div class="mobile-profile-card-header">
+                        <div class="mobile-profile-card-icon"><i class="fa-solid fa-address-card"></i></div>
+                        <h6 class="mobile-profile-card-title">الملف الشخصي</h6>
+                    </div>
+                    <% if (profile.canEditProfile) { %>
+                        <form method="POST" action="/client/profile" id="clientProfileForm" class="border rounded-4 p-3 mb-3" style="border-color: var(--border-glass) !important;">
+                            <div class="d-flex align-items-center gap-3 mb-3">
+                                <% if (profile.hasProfilePhoto) { %>
+                                    <img src="/client/profile-photo?v=<%= encodeURIComponent(profile.profilePhotoUpdatedAt || '') %>" alt="الصورة الشخصية" width="58" height="58" class="rounded-circle object-fit-cover border">
+                                <% } else { %>
+                                    <div class="rounded-circle d-flex align-items-center justify-content-center" style="width:58px;height:58px;background:rgba(16,185,129,.12);color:#10b981;"><i class="fa-solid fa-user fs-4"></i></div>
+                                <% } %>
+                                <div class="flex-grow-1"><strong>الصورة والبيانات</strong><small class="d-block text-muted">الاسم والعنوان والصورة فقط.</small></div>
+                            </div>
+                            <div class="row g-2">
+                                <div class="col-12"><input type="text" name="name" class="form-control" value="<%= profile.name %>" minlength="3" maxlength="100" required></div>
+                                <div class="col-12"><input type="text" name="address" class="form-control" value="<%= profile.address === 'غير مسجل' ? '' : profile.address %>" maxlength="200" placeholder="العنوان"></div>
+                                <div class="col-12"><input type="file" id="profileImageInput" class="form-control" accept="image/jpeg,image/png,image/webp"></div>
+                                <div class="col-12"><button type="submit" class="btn btn-success w-100 fw-bold"><i class="fa-solid fa-floppy-disk me-1"></i>حفظ</button></div>
+                            </div>
+                        </form>
+                    <% } %>
+                    <div class="mobile-profile-row"><span class="mobile-profile-label"><i class="fa-solid fa-user"></i>الاسم:</span><span class="mobile-profile-value"><%= profile.name %></span></div>
+                    <div class="mobile-profile-row"><span class="mobile-profile-label"><i class="fa-solid fa-phone"></i>الهاتف:</span><span class="mobile-profile-value" dir="ltr"><%= profile.phone %></span></div>
+                    <div class="mobile-profile-row"><span class="mobile-profile-label"><i class="fa-solid fa-id-badge"></i>ID:</span><span class="mobile-profile-value mono-num" dir="ltr"><%= profile.accountCode || '—' %></span></div>
+                </div>
+            </div>
+
+            <!-- Tab 4: Transfers (shared) -->
+            <div class="mobile-tab-content" id="mobile-tab-transfers">
+                <div id="mobile-transfer-services-grid" class="mb-4">
+                    <h5 class="fw-bold mb-3 text-center" style="color: var(--text-main); font-size: 1.15rem;"><i class="fa-solid fa-layer-group text-primary me-2"></i>اختر خدمة التحويل</h5>
+                    <div class="services-mobile-grid">
+                        <div class="service-card-item" onclick="selectTransferService('كاش')"><div class="service-card-icon sc-cash"><img src="/images/vodafone_cash_official.png" alt="كاش" style="width:100%;height:100%;object-fit:cover;border-radius:14px;"></div><span class="service-card-title">محافظ كاش</span></div>
+                        <div class="service-card-item" onclick="selectEgyptPostService()"><div class="service-card-icon sc-post-acc"><img src="/images/egypt_post_official.png" alt="بريد" style="width:100%;height:100%;object-fit:cover;border-radius:14px;"></div><span class="service-card-title">البريد المصري</span></div>
+                        <div class="service-card-item" onclick="selectTransferService('حساب بنكي')"><div class="service-card-icon sc-bank"><img src="/images/instapay_official.png" alt="بنك" style="width:100%;height:100%;object-fit:cover;border-radius:14px;"></div><span class="service-card-title">حساب بنكي</span></div>
+                        <div class="service-card-item" onclick="selectTransferService('سيفا النيجر')"><div class="service-card-icon sc-niger"><img src="/images/nita_official.png" alt="نيجر" style="width:100%;height:100%;object-fit:cover;border-radius:14px;"></div><span class="service-card-title">سيفا النيجر</span></div>
+                        <div class="service-card-item" onclick="selectTransferService('بنكك السودان')"><div class="service-card-icon sc-sudan"><img src="/images/bok_sudan_official.png" alt="سودان" style="width:100%;height:100%;object-fit:cover;border-radius:14px;"></div><span class="service-card-title">بنكك السودان</span></div>
+                    </div>
+                </div>
+                <div id="mobile-transfer-form-view" class="card p-4 shadow-sm mb-4" style="display:none;background:var(--card-bg);border:1px solid var(--border-glass);border-radius:20px;">
+                    <div class="d-flex align-items-center justify-content-between mb-4 border-bottom pb-2">
+                        <button type="button" class="btn btn-sm btn-outline-secondary" onclick="goBackToServices()"><i class="fa-solid fa-arrow-right me-1"></i>رجوع</button>
+                        <h6 class="fw-bold m-0 text-primary" id="selectedServiceTitle">تفاصيل التحويل</h6>
+                    </div>
+                    <div id="mobile-transfer-form-placeholder"></div>
+                </div>
+            </div>
+            <% } else { %>
+            <!-- Tab 1: Account (legacy) -->
+            <div class="mobile-tab-content active" id="mobile-tab-account">
                 <div id="mobile-wallet-card-placeholder" class="mb-4"></div>
 
                 <!-- Client Info Card for Mobile -->
@@ -1191,6 +1288,7 @@
                     <div id="mobile-rates-placeholder"></div>
                 </div>
             </div>
+            <% } %>
         </div>
     </div>
 
@@ -1481,6 +1579,10 @@
             </div>
         </div>
     </div>
+
+    <% if (typeof walletHub !== 'undefined' && walletHub) { %>
+    <%- include('partials/wallet_hub_more') %>
+    <% } %>
 
     <section id="client-security-panel" class="client-security-drawer no-print" hidden aria-labelledby="client-security-title">
         <div class="client-security-drawer-head">
@@ -2526,8 +2628,8 @@
                     </div>`;
                 }
 
-                // Mobile Brief Render (Account Tab - max 5 operations)
-                if (mobileListBrief && briefCount < 5) {
+                // Mobile Brief Render (Wallet Hub — max 3 operations)
+                if (mobileListBrief && briefCount < 3) {
                     briefCount++;
                     let mobileIdContent = hasProofImage
                         ? `<a class="tx-custom-id text-decoration-none" onclick="viewProof('${tx._id}')" style="cursor:pointer;">#${tx.customId || tx._id.toString().slice(-6)}</a>` 
@@ -2558,6 +2660,34 @@
                 }
             });
             tbody.innerHTML = html;
+            renderWalletHubRecent(transactions);
+        }
+
+        function renderWalletHubRecent(transactions) {
+            const hubList = document.getElementById('walletHubRecentList');
+            if (!hubList) return;
+            const recent = (transactions || []).slice(0, 3);
+            if (!recent.length) {
+                hubList.innerHTML = '<div class="wh-empty"><i class="fa-solid fa-folder-open"></i><span>لا توجد عمليات اليوم</span></div>';
+                return;
+            }
+            let briefHtml = '';
+            recent.forEach((tx) => {
+                const hasProof = !!(tx.proofImage || (tx.proofImages && tx.proofImages.length));
+                const txId = tx.customId || (tx._id ? String(tx._id).slice(-6) : '—');
+                const costVal = isSubAccount ? (tx.subAccountCostLYD || tx.costLYD || 0) : (tx.costLYD || 0);
+                const numStr = tx.vodafoneNumber || tx.accountNumber || '---';
+                let statusClass = 'st-wait', statusLabel = 'قيد المعالجة', statusIcon = 'fa-clock';
+                if (tx.status === 'completed') { statusClass = 'st-done'; statusLabel = 'مكتمل'; statusIcon = 'fa-check-circle'; }
+                else if (tx.status === 'accepted') { statusClass = 'st-accepted'; statusLabel = 'قيد العمل'; statusIcon = 'fa-gear fa-spin'; }
+                else if (tx.status === 'deposit') { statusClass = 'st-dep'; statusLabel = 'إيداع'; statusIcon = 'fa-arrow-down'; }
+                else if (tx.status === 'rejected' || tx.status === 'cancelled_by_admin') { statusClass = 'st-fail'; statusLabel = 'ملغي'; statusIcon = 'fa-ban'; }
+                const idHtml = hasProof
+                    ? `<a class="tx-custom-id text-decoration-none" onclick="viewProof('${tx._id}')" style="cursor:pointer;">#${txId}</a>`
+                    : `<span class="tx-custom-id text-muted">#${txId}</span>`;
+                briefHtml += `<article class="wh-tx-card mobile-tx-card"><div class="mobile-tx-header">${idHtml}<span class="badge-st ${statusClass}"><i class="fa-solid ${statusIcon}"></i> ${statusLabel}</span></div><div class="mobile-tx-body"><div class="tx-amount-section"><div class="tx-amount-wrapper"><span class="tx-amount">${(tx.amount || 0).toFixed(2)}</span><span class="tx-currency">EGP</span></div><div class="tx-cost-wrapper text-danger" style="font-size:0.82rem;"><span class="fw-bold">${Number(costVal).toFixed(2)}</span><span class="tx-currency">LYD</span></div></div><div class="text-start" style="font-size:0.85rem;"><span class="tx-phone">${numStr}</span></div></div></article>`;
+            });
+            hubList.innerHTML = briefHtml;
         }
 
         function updateTodaySummary(transactions) {
@@ -2571,10 +2701,14 @@
                     txCount++;
                 }
             });
-            document.getElementById('todayTotalLYD').innerHTML = totalLYD.toFixed(2) + ' <small class="text-muted" style="font-size: 0.6em;">LYD</small>';
-            document.getElementById('todayTotalEGP').innerHTML = totalEGP.toFixed(2) + ' <small class="text-muted" style="font-size: 0.7em;">EGP</small>';
-            document.getElementById('todayTotalDeposits').innerHTML = totalDeposits.toFixed(2) + ' <small class="text-muted" style="font-size: 0.6em;">LYD</small>';
-            document.getElementById('todayTxCount').innerText = txCount;
+            const lydEl = document.getElementById('todayTotalLYD');
+            const egpEl = document.getElementById('todayTotalEGP');
+            const depEl = document.getElementById('todayTotalDeposits');
+            const countEl = document.getElementById('todayTxCount');
+            if (lydEl) lydEl.innerHTML = totalLYD.toFixed(2) + ' <small class="text-muted" style="font-size: 0.6em;">LYD</small>';
+            if (egpEl) egpEl.innerHTML = totalEGP.toFixed(2) + ' <small class="text-muted" style="font-size: 0.7em;">EGP</small>';
+            if (depEl) depEl.innerHTML = totalDeposits.toFixed(2) + ' <small class="text-muted" style="font-size: 0.6em;">LYD</small>';
+            if (countEl) countEl.innerText = txCount;
         }
 
         async function sendToWhatsApp(txId) {
@@ -2752,6 +2886,7 @@
         }
 
         function switchMobileTab(tabName) {
+            closeWalletHubMore?.();
             // Reset transfers wizard if switching to transfers tab
             if (tabName === 'transfers') {
                 goBackToServices();
@@ -2793,18 +2928,36 @@
         }
 
         function openMobileOperations() {
-            switchMobileTab('account');
-            window.setTimeout(() => {
-                document.getElementById('mobileTransactionsListBrief')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-            }, 120);
+            if (window.innerWidth >= 768) {
+                const panel = document.getElementById('desktopOperationsPanel');
+                if (panel) {
+                    panel.hidden = false;
+                    panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                }
+                return;
+            }
+            switchMobileTab('operations');
         }
+
+        function openAllOperations() {
+            openMobileOperations();
+        }
+
+        function openWalletHubMore() {
+            const drawer = document.getElementById('walletHubMoreDrawer');
+            if (!drawer) return openClientSecurityPanel();
+            drawer.showModal();
+        }
+
+        function closeWalletHubMore() {
+            document.getElementById('walletHubMoreDrawer')?.close();
+        }
+
+        document.getElementById('walletHubMoreDrawer')?.querySelector('[data-wh-more-close]')?.addEventListener('click', closeWalletHubMore);
 
         function openMobileSettings(event) {
             if (event) event.preventDefault();
-            document.querySelectorAll('.bottom-nav-mobile .bottom-nav-item').forEach(el => {
-                el.classList.toggle('active', el.getAttribute('data-tab') === 'settings');
-            });
-            openClientSecurityPanel(event);
+            openWalletHubMore();
         }
 
         function selectTransferService(type) {
@@ -2935,7 +3088,7 @@
             // Check URL search params for tab
             const urlParams = new URLSearchParams(window.location.search);
             const initialTab = urlParams.get('tab') || 'account';
-            if (['account', 'transfers', 'rates'].includes(initialTab)) {
+            if (['account', 'transfers', 'operations', 'profile', 'rates'].includes(initialTab)) {
                 switchMobileTab(initialTab);
             }
 
@@ -3007,9 +3160,9 @@
             <i class="fa-solid fa-house"></i>
             <span>الرئيسية</span>
         </a>
-        <a href="/client/reports" class="bottom-nav-item" data-tab="reports">
-            <i class="fa-solid fa-chart-pie"></i>
-            <span>التقارير</span>
+        <a href="javascript:void(0)" class="bottom-nav-item" data-tab="transfers" onclick="switchMobileTab('transfers')">
+            <i class="fa-solid fa-paper-plane"></i>
+            <span>تحويل</span>
         </a>
         <div class="nile-fab-slot">
             <button type="button" class="nile-fab" onclick="openQuickTransfer()" aria-label="تحويل سريع">
@@ -3020,9 +3173,9 @@
             <i class="fa-solid fa-list-check"></i>
             <span>العمليات</span>
         </a>
-        <a href="javascript:void(0)" class="bottom-nav-item" data-tab="settings" onclick="openMobileSettings(event)">
-            <i class="fa-solid fa-gear"></i>
-            <span>الإعدادات</span>
+        <a href="javascript:void(0)" class="bottom-nav-item" data-tab="more" onclick="openWalletHubMore()">
+            <i class="fa-solid fa-ellipsis"></i>
+            <span>المزيد</span>
         </a>
     </nav>
 </body>

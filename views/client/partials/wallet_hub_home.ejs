@@ -1,0 +1,97 @@
+<%#
+  Wallet Hub homepage — 4 blocks: balance, quick actions, today summary, last 3 ops
+  Expects: user, profile, todayStats, recentTransactions, isSystemOpen, isSubAccount
+%>
+<section class="wh-hub nile-animate-rise" aria-label="مركز المحفظة">
+    <!-- Block 1: Balance card -->
+    <div class="wallet-wrapper">
+        <div class="wallet-card nile-wallet-card" tabindex="0" role="button" aria-label="بطاقة الرصيد">
+            <div>
+                <div class="wallet-label">الرصيد المتاح</div>
+                <h2 class="wallet-balance" dir="ltr"><%= user.canViewBalance ? user.balance.toFixed(2) : '***' %> <span>LYD</span></h2>
+            </div>
+            <div class="wallet-footer">
+                <div class="wallet-name"><%= user.name %></div>
+                <div class="wallet-logo"><i class="fa-solid fa-gem"></i></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Block 2: Quick actions -->
+    <div class="nile-quick-actions wh-quick-actions">
+        <% if (user.role !== 'accountant') { %>
+        <button type="button" class="nile-quick-btn nile-quick-btn--transfer border-0" data-bs-toggle="modal" data-bs-target="#transferModal">
+            <span class="nile-quick-icon"><i class="fa-solid fa-money-bill-transfer"></i></span>
+            <span>تحويل</span>
+        </button>
+        <button type="button" class="nile-quick-btn nile-quick-btn--recharge border-0" onclick="openBalanceTransferModal()">
+            <span class="nile-quick-icon"><i class="fa-solid fa-wallet"></i></span>
+            <span>تحويل رصيد</span>
+        </button>
+        <% } %>
+    </div>
+
+    <!-- Block 3: Today summary -->
+    <div class="wh-today-summary">
+        <article class="wh-stat">
+            <span class="wh-stat-label"><i class="fa-solid fa-list-ol"></i> عمليات اليوم</span>
+            <strong class="wh-stat-value mono-num" id="todayTxCount"><%= (todayStats && todayStats.count) || 0 %></strong>
+        </article>
+        <article class="wh-stat wh-stat--accent">
+            <span class="wh-stat-label"><i class="fa-solid fa-coins"></i> إجمالي EGP</span>
+            <strong class="wh-stat-value mono-num" id="todayTotalEGP"><%= ((todayStats && todayStats.totalEGP) || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) %> <small>EGP</small></strong>
+        </article>
+    </div>
+
+    <!-- Block 4: Last 3 transactions -->
+    <div class="wh-recent-section">
+        <header class="wh-section-head">
+            <h3><i class="fa-solid fa-clock-rotate-left"></i> آخر العمليات</h3>
+            <a href="javascript:void(0)" class="wh-view-all" onclick="openAllOperations()">عرض الكل</a>
+        </header>
+        <div class="wh-tx-list mobile-ops-list" id="walletHubRecentList">
+            <% const hubRecent = (typeof recentTransactions !== 'undefined' && recentTransactions.length) ? recentTransactions : []; %>
+            <% if (!hubRecent.length) { %>
+                <div class="wh-empty"><i class="fa-solid fa-folder-open"></i><span>لا توجد عمليات اليوم</span></div>
+            <% } else { %>
+                <% hubRecent.forEach((tx) => { %>
+                    <% const txId = tx.customId || (tx._id ? String(tx._id).slice(-6) : '—'); %>
+                    <% const hasProof = !!(tx.proofImage || (tx.proofImages && tx.proofImages.length)); %>
+                    <% const costVal = isSubAccount ? (tx.subAccountCostLYD || tx.costLYD || 0) : (tx.costLYD || 0); %>
+                    <% const numStr = tx.vodafoneNumber || tx.accountNumber || '---'; %>
+                    <% let statusClass = 'st-wait'; let statusLabel = 'قيد المعالجة'; let statusIcon = 'fa-clock'; %>
+                    <% if (tx.status === 'completed') { statusClass = 'st-done'; statusLabel = 'مكتمل'; statusIcon = 'fa-check-circle'; } %>
+                    <% else if (tx.status === 'accepted') { statusClass = 'st-accepted'; statusLabel = 'قيد العمل'; statusIcon = 'fa-gear fa-spin'; } %>
+                    <% else if (tx.status === 'deposit') { statusClass = 'st-dep'; statusLabel = 'إيداع'; statusIcon = 'fa-arrow-down'; } %>
+                    <% else if (tx.status === 'rejected' || tx.status === 'cancelled_by_admin') { statusClass = 'st-fail'; statusLabel = 'ملغي'; statusIcon = 'fa-ban'; } %>
+                    <article class="wh-tx-card mobile-tx-card">
+                        <div class="mobile-tx-header">
+                            <% if (hasProof) { %>
+                                <a class="tx-custom-id text-decoration-none" onclick="viewProof('<%= tx._id %>')" style="cursor:pointer;">#<%= txId %></a>
+                            <% } else { %>
+                                <span class="tx-custom-id text-muted">#<%= txId %></span>
+                            <% } %>
+                            <span class="badge-st <%= statusClass %>"><i class="fa-solid <%= statusIcon %>"></i> <%= statusLabel %></span>
+                        </div>
+                        <div class="mobile-tx-body">
+                            <div class="tx-amount-section">
+                                <div class="tx-amount-wrapper">
+                                    <span class="tx-amount"><%= (tx.amount || 0).toFixed(2) %></span>
+                                    <span class="tx-currency">EGP</span>
+                                </div>
+                                <div class="tx-cost-wrapper text-danger" style="font-size: 0.82rem;">
+                                    <span class="fw-bold"><%= Number(costVal).toFixed(2) %></span>
+                                    <span class="tx-currency">LYD</span>
+                                </div>
+                            </div>
+                            <div class="text-start" style="font-size: 0.85rem;">
+                                <span class="tx-phone"><%= numStr %></span>
+                            </div>
+                        </div>
+                    </article>
+                <% }); %>
+            <% } %>
+        </div>
+        <div class="mobile-ops-list d-none" id="mobileTransactionsListBrief" aria-hidden="true"></div>
+    </div>
+</section>

@@ -43,10 +43,13 @@ exports.getDashboard = async (req, res) => {
             return renderBusinessOverview(req, res);
         }
 
+        const isWalletHubUser = req.session.accountType === 'sub_client'
+            || (req.session.accountType === 'user' && account.role !== 'agent');
+
         const search = req.query.search ? req.query.search.trim() : '';
         let targetDate = req.query.date;
         const hasExplicitDateFilter = req.query.date !== undefined || req.query.month !== undefined;
-        let showMonth = req.query.month === 'true' || !hasExplicitDateFilter;
+        let showMonth = req.query.month === 'true' || (!hasExplicitDateFilter && !isWalletHubUser);
         let dateLabel = '';
 
         let filter = {};
@@ -203,11 +206,23 @@ exports.getDashboard = async (req, res) => {
             settings: set
         });
 
+        let todayStats = { count: 0, totalEGP: 0, totalLYD: 0 };
+        combinedTransactions.forEach((tx) => {
+            if (tx.status === 'deposit' || tx.status === 'deduction') return;
+            if (tx.status === 'rejected' || tx.status === 'cancelled_by_admin') return;
+            todayStats.count += 1;
+            todayStats.totalEGP += (tx.amount || 0);
+            todayStats.totalLYD += isSubAccount ? (tx.subAccountCostLYD || tx.costLYD || 0) : (tx.costLYD || 0);
+        });
+
+        const sanitizedTransactions = combinedTransactions.map(sanitizeStatementTransaction);
+        const recentTransactions = sanitizedTransactions.slice(0, 3);
+
         const showMfaNotice = Boolean(req.session.showMfaEnableNotice);
         delete req.session.showMfaEnableNotice;
         res.render('client/dashboard', {
             user: { name: account.name, phone: account.phone || account.webUsername, balance: balance, role: account.role || 'user', accountType: req.session.accountType, accountCode, canViewBalance },
-            isSubAccount, isMaster: !isSubAccount, masterTotalProfit, transactions: combinedTransactions.map(sanitizeStatementTransaction), currentRate, serviceRates, totals, targetDate, dateLabel, showMonth, search, query: req.query, storeCatalog,
+            isSubAccount, isMaster: !isSubAccount, masterTotalProfit, transactions: sanitizedTransactions, recentTransactions, todayStats, walletHub: isWalletHubUser, currentRate, serviceRates, totals, targetDate, dateLabel, showMonth, search, query: req.query, storeCatalog,
             isSystemOpen,
             profile,
             pendingRateUpdate,

@@ -1,0 +1,24 @@
+<%# More drawer — reports, support, settings, profile %>
+<dialog class="wh-more-drawer" id="walletHubMoreDrawer" aria-labelledby="walletHubMoreTitle">
+    <div class="wh-more-head">
+        <div>
+            <span class="wh-more-kicker"><i class="fa-solid fa-ellipsis"></i> المزيد</span>
+            <h2 id="walletHubMoreTitle"><%= user.name %></h2>
+            <small><%= profile.userRoleLabel || 'عميل' %> · <%= profile.accountCode || '' %></small>
+        </div>
+        <button type="button" class="nav-btn" data-wh-more-close aria-label="إغلاق"><i class="fa-solid fa-xmark"></i></button>
+    </div>
+    <nav class="wh-more-nav" aria-label="روابط إضافية">
+        <a href="/client/reports" class="wh-more-link"><span class="wh-more-icon reports"><i class="fa-solid fa-chart-pie"></i></span><span>التقارير</span><i class="fa-solid fa-chevron-left"></i></a>
+        <a href="/client/support" class="wh-more-link"><span class="wh-more-icon support"><i class="fa-solid fa-headset"></i></span><span>الدعم الفني</span><i class="fa-solid fa-chevron-left"></i></a>
+        <button type="button" class="wh-more-link border-0 bg-transparent w-100 text-end" onclick="closeWalletHubMore(); openClientSecurityPanel(event)">
+            <span class="wh-more-icon security"><i class="fa-solid fa-shield-halved"></i></span><span>الأمان والإعدادات</span><i class="fa-solid fa-chevron-left"></i>
+        </button>
+        <% if (profile.canEditProfile) { %>
+        <button type="button" class="wh-more-link border-0 bg-transparent w-100 text-end" onclick="closeWalletHubMore(); switchMobileTab('profile')">
+            <span class="wh-more-icon profile"><i class="fa-solid fa-user-pen"></i></span><span>الملف الشخصي</span><i class="fa-solid fa-chevron-left"></i>
+        </button>
+        <% } %>
+        <a href="/client/logout" class="wh-more-link danger"><span class="wh-more-icon logout"><i class="fa-solid fa-power-off"></i></span><span>تسجيل الخروج</span><i class="fa-solid fa-chevron-left"></i></a>
+    </nav>
+</dialog>
