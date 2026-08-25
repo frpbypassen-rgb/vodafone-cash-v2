@@ -660,6 +660,232 @@ body.client-nile-theme::before {
     color: var(--nile-gold);
 }
 
+/* Responsive dashboard sizing: preserve a focused workspace on desktop and a
+   touch-friendly application layout on phones. */
+@media (min-width: 1200px) {
+    .client-nile-theme .navbar-custom .container,
+    .client-nile-theme .main-container {
+        max-width: 1280px;
+    }
+
+    .client-nile-theme .main-container {
+        padding-right: 24px;
+        padding-left: 24px;
+    }
+
+    .client-nile-theme .wallet-card,
+    .client-nile-theme .nile-wallet-card {
+        min-height: 218px;
+        padding: 36px 40px !important;
+    }
+
+    .client-nile-theme .nile-quick-actions {
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+    }
+
+    .client-nile-theme .nile-quick-btn {
+        min-height: 104px;
+    }
+
+    .client-nile-theme #ratesCardContainer {
+        position: sticky;
+        top: 92px;
+    }
+}
+
+@media (min-width: 768px) and (max-width: 1199.98px) {
+    .client-nile-theme .main-container {
+        max-width: 100%;
+        padding-right: 20px;
+        padding-left: 20px;
+    }
+
+    .client-nile-theme .nile-quick-actions {
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 12px;
+    }
+
+    .client-nile-theme .nile-quick-btn {
+        min-height: 90px;
+        padding: 12px 8px;
+    }
+}
+
+@media (max-width: 767.98px) {
+    body.client-nile-theme {
+        padding-bottom: calc(var(--nile-rail-h) + 28px + env(safe-area-inset-bottom)) !important;
+    }
+
+    .client-nile-theme .mobile-header {
+        position: sticky;
+        top: 0;
+        z-index: 1100;
+        min-height: 62px;
+        padding: 8px 12px;
+    }
+
+    .client-nile-theme .mobile-header > * {
+        min-width: 0;
+    }
+
+    .client-nile-theme .mobile-logo-wrapper {
+        gap: 7px;
+        min-width: 0;
+    }
+
+    .client-nile-theme .mobile-logo-wrapper img {
+        width: 36px;
+        height: 36px;
+        flex: 0 0 auto;
+    }
+
+    .client-nile-theme .mobile-logo-wrapper h1 {
+        max-width: 132px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        font-size: 0.92rem;
+    }
+
+    .client-nile-theme .direct-balance-chip {
+        min-width: 0;
+        max-width: 112px;
+        padding: 7px 8px !important;
+        font-size: 0.67rem;
+    }
+
+    .client-nile-theme .main-container {
+        width: 100%;
+        margin-top: 12px !important;
+        margin-bottom: 0 !important;
+        padding: 0 12px !important;
+    }
+
+    .client-nile-theme .main-container::before {
+        margin-bottom: 10px;
+    }
+
+    .client-nile-theme .mobile-tab-content > h5 {
+        font-size: 1rem !important;
+        line-height: 1.45;
+    }
+
+    .client-nile-theme .mobile-profile-card,
+    .client-nile-theme .mobile-tx-card {
+        border-radius: 18px !important;
+    }
+
+    .client-nile-theme .mobile-profile-card {
+        padding: 18px 15px !important;
+    }
+
+    .client-nile-theme .mobile-profile-row {
+        min-height: 46px;
+        gap: 10px;
+        padding: 9px 0;
+    }
+
+    .client-nile-theme .mobile-profile-label {
+        flex: 1 1 48%;
+        min-width: 0;
+        font-size: 0.76rem;
+    }
+
+    .client-nile-theme .mobile-profile-value {
+        max-width: 52%;
+        overflow-wrap: anywhere;
+        text-align: left;
+        font-size: 0.8rem;
+    }
+
+    .client-nile-theme .mobile-tx-card {
+        padding: 14px;
+        gap: 10px;
+    }
+
+    .client-nile-theme .services-mobile-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 10px;
+        margin-top: 12px;
+    }
+
+    .client-nile-theme .service-card-item {
+        min-height: 126px;
+        padding: 14px 8px;
+        gap: 9px;
+        border-radius: 16px !important;
+    }
+
+    .client-nile-theme .service-card-icon {
+        width: 46px;
+        height: 46px;
+        border-radius: 13px;
+    }
+
+    .client-nile-theme .service-card-title {
+        min-height: 2.6em;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 0.76rem;
+        line-height: 1.3;
+    }
+
+    .client-nile-theme #mobile-transfer-form-view,
+    .client-nile-theme #mobile-tab-rates > .card {
+        padding: 18px 14px !important;
+        border-radius: 18px !important;
+    }
+
+    .client-nile-theme .bottom-nav-mobile {
+        height: calc(var(--nile-rail-h) + env(safe-area-inset-bottom)) !important;
+        padding-right: 4px !important;
+        padding-left: 4px !important;
+    }
+
+    .client-nile-theme .bottom-nav-item {
+        min-width: 0;
+        font-size: 0.63rem;
+    }
+
+    .client-nile-theme .nile-fab {
+        width: 54px;
+        height: 54px;
+        top: -15px;
+    }
+
+    .client-nile-theme .modal-dialog {
+        display: flex;
+        align-items: flex-end;
+        min-height: calc(100% - 1rem);
+        margin: 0.5rem;
+    }
+
+    .client-nile-theme .modal-content {
+        width: 100%;
+        max-height: calc(100vh - 1rem);
+        overflow-y: auto;
+        border-radius: 22px 22px 16px 16px !important;
+    }
+}
+
+@media (max-width: 380px) {
+    .client-nile-theme .mobile-logo-wrapper h1 {
+        max-width: 96px;
+        font-size: 0.84rem;
+    }
+
+    .client-nile-theme .direct-balance-chip {
+        max-width: 90px;
+        font-size: 0.61rem;
+    }
+
+    .client-nile-theme .service-card-item {
+        min-height: 116px;
+        padding: 12px 6px;
+    }
+}
+
 @media (max-width: 768px) {
     .client-nile-theme.client-satellite-page .glass-nav {
         display: none !important;
