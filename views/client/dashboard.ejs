@@ -728,7 +728,7 @@
                 align-items: center;
                 gap: 5px;
             ">
-                <span dir="ltr" style="font-family: 'JetBrains Mono', monospace;"><%= user.canViewBalance ? user.balance.toFixed(2) : '***' %> LYD</span>
+                <span dir="ltr" style="font-family: 'JetBrains Mono', monospace;"><%= user.canViewBalance ? Number(user.balance || 0).toFixed(2) : '***' %> LYD</span>
                 <i class="fa-solid fa-wallet"></i>
             </div>
             
@@ -760,7 +760,7 @@
                     border: 1px solid rgba(255,255,255,0.2);
                     gap: 8px;
                 ">
-                    <span dir="ltr" style="font-family: 'JetBrains Mono', monospace;"><%= user.canViewBalance ? user.balance.toFixed(2) : '***' %> LYD</span>
+                    <span dir="ltr" style="font-family: 'JetBrains Mono', monospace;"><%= user.canViewBalance ? Number(user.balance || 0).toFixed(2) : '***' %> LYD</span>
                     <i class="fa-solid fa-wallet"></i>
                 </div>
                 
@@ -813,7 +813,7 @@
                 <div class="wallet-card nile-wallet-card" tabindex="0" role="button" aria-label="بطاقة الرصيد">
                     <div>
                         <div class="wallet-label">الرصيد المتاح</div>
-                        <h2 class="wallet-balance" dir="ltr"><%= user.canViewBalance ? user.balance.toFixed(2) : '***' %> <span>LYD</span></h2>
+                        <h2 class="wallet-balance" dir="ltr"><%= user.canViewBalance ? Number(user.balance || 0).toFixed(2) : '***' %> <span>LYD</span></h2>
                     </div>
                     <div class="wallet-footer">
                         <div class="wallet-name"><%= user.name %></div>
@@ -1353,7 +1353,7 @@
             <tr><th>الرصيد السابق (مرحل):</th><td><%= prevBal.toFixed(2) %> LYD</td></tr>
             <tr><th>إجمالي المسدد للإدارة (+):</th><td><%= dLYD.toFixed(2) %> LYD</td></tr>
             <tr><th>إجمالي المسحوب للتحويلات (-):</th><td><%= (mLYD + sLYD).toFixed(2) %> LYD</td></tr>
-            <tr><th style="background:#001a4d !important; color:white;">الرصيد الختامي المتبقي:</th><td style="color:<%= (user.canViewBalance ? user.balance : 0) < 0 ? '#dc3545' : '#198754' %>; font-size:18px;"><%= user.canViewBalance ? user.balance.toFixed(2) : '***' %> LYD</td></tr>
+            <tr><th style="background:#001a4d !important; color:white;">الرصيد الختامي المتبقي:</th><td style="color:<%= (user.canViewBalance ? user.balance : 0) < 0 ? '#dc3545' : '#198754' %>; font-size:18px;"><%= user.canViewBalance ? Number(user.balance || 0).toFixed(2) : '***' %> LYD</td></tr>
         </table>
     </div>
 

@@ -8,7 +8,7 @@
         <div class="wallet-card nile-wallet-card" tabindex="0" role="button" aria-label="بطاقة الرصيد">
             <div>
                 <div class="wallet-label">الرصيد المتاح</div>
-                <h2 class="wallet-balance" dir="ltr"><%= user.canViewBalance ? user.balance.toFixed(2) : '***' %> <span>LYD</span></h2>
+                <h2 class="wallet-balance" dir="ltr"><%= user.canViewBalance ? Number(user.balance || 0).toFixed(2) : '***' %> <span>LYD</span></h2>
             </div>
             <div class="wallet-footer">
                 <div class="wallet-name"><%= user.name %></div>
@@ -59,11 +59,11 @@
                     <% const hasProof = !!(tx.proofImage || (tx.proofImages && tx.proofImages.length)); %>
                     <% const costVal = isSubAccount ? (tx.subAccountCostLYD || tx.costLYD || 0) : (tx.costLYD || 0); %>
                     <% const numStr = tx.vodafoneNumber || tx.accountNumber || '---'; %>
-                    <% let statusClass = 'st-wait'; let statusLabel = 'قيد المعالجة'; let statusIcon = 'fa-clock'; %>
-                    <% if (tx.status === 'completed') { statusClass = 'st-done'; statusLabel = 'مكتمل'; statusIcon = 'fa-check-circle'; } %>
-                    <% else if (tx.status === 'accepted') { statusClass = 'st-accepted'; statusLabel = 'قيد العمل'; statusIcon = 'fa-gear fa-spin'; } %>
-                    <% else if (tx.status === 'deposit') { statusClass = 'st-dep'; statusLabel = 'إيداع'; statusIcon = 'fa-arrow-down'; } %>
-                    <% else if (tx.status === 'rejected' || tx.status === 'cancelled_by_admin') { statusClass = 'st-fail'; statusLabel = 'ملغي'; statusIcon = 'fa-ban'; } %>
+                    <% let statusClass = 'st-wait'; let statusLabel = 'قيد المعالجة'; let statusIcon = 'fa-clock';
+                    if (tx.status === 'completed') { statusClass = 'st-done'; statusLabel = 'مكتمل'; statusIcon = 'fa-check-circle'; }
+                    else if (tx.status === 'accepted') { statusClass = 'st-accepted'; statusLabel = 'قيد العمل'; statusIcon = 'fa-gear fa-spin'; }
+                    else if (tx.status === 'deposit') { statusClass = 'st-dep'; statusLabel = 'إيداع'; statusIcon = 'fa-arrow-down'; }
+                    else if (tx.status === 'rejected' || tx.status === 'cancelled_by_admin') { statusClass = 'st-fail'; statusLabel = 'ملغي'; statusIcon = 'fa-ban'; } %>
                     <article class="wh-tx-card mobile-tx-card">
                         <div class="mobile-tx-header">
                             <% if (hasProof) { %>

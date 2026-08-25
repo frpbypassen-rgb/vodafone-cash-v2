@@ -218,10 +218,12 @@ exports.getDashboard = async (req, res) => {
         const sanitizedTransactions = combinedTransactions.map(sanitizeStatementTransaction);
         const recentTransactions = sanitizedTransactions.slice(0, 3);
 
+        balance = Number(balance || 0);
+
         const showMfaNotice = Boolean(req.session.showMfaEnableNotice);
         delete req.session.showMfaEnableNotice;
         res.render('client/dashboard', {
-            user: { name: account.name, phone: account.phone || account.webUsername, balance: balance, role: account.role || 'user', accountType: req.session.accountType, accountCode, canViewBalance },
+            user: { name: account.name, phone: account.phone || account.webUsername, balance, role: account.role || 'user', accountType: req.session.accountType, accountCode, canViewBalance },
             isSubAccount, isMaster: !isSubAccount, masterTotalProfit, transactions: sanitizedTransactions, recentTransactions, todayStats, walletHub: isWalletHubUser, currentRate, serviceRates, totals, targetDate, dateLabel, showMonth, search, query: req.query, storeCatalog,
             isSystemOpen,
             profile,
