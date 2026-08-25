@@ -330,6 +330,11 @@
 <script>
     const myExecutorId = '<%= emp._id %>';
     const isExecutorManager = <%= emp.role === 'manager' ? 'true' : 'false' %>;
+    const executorManualPolicy = {
+        proofRequired: <%= emp.groupId?.manualProofRequired ? 'true' : 'false' %>,
+        allowedPhoneLengths: <%= JSON.stringify(Array.isArray(emp.groupId?.manualAllowedPhoneLengths) ? emp.groupId.manualAllowedPhoneLengths : [3, 4, 11]) %>,
+        splitRequiresFullPhone: <%= emp.groupId?.manualSplitRequiresFullPhone !== false ? 'true' : 'false' %>
+    };
 </script>
 
 <nav class="navbar-glass">
@@ -478,10 +483,27 @@
                 
                 <div id="previewsGrid" class="row g-2 mb-3"></div>
 
-                <div class="mb-4">
-                    <label class="data-label mb-2"><i class="fa-solid fa-fingerprint me-1"></i> رقم التنفيذ (اختياري)</label>
+                <div class="mb-3">
+                    <div class="form-check form-switch">
+                        <input class="form-check-input" type="checkbox" id="splitOperationToggle" onchange="toggleSplitOperationMode()">
+                        <label class="form-check-label fw-bold" for="splitOperationToggle">تقسيم العملية على أكثر من رقم مرسل</label>
+                    </div>
+                    <small class="text-muted d-block mt-1" id="splitOperationHint">عند التفعيل، أدخل رقم الهاتف والمبلغ وصورة الإثبات لكل جزء حتى يساوي مجموع العملية.</small>
+                </div>
+
+                <div id="singleSenderBlock" class="mb-4">
+                    <label class="data-label mb-2"><i class="fa-solid fa-fingerprint me-1"></i> رقم التنفيذ / المرسل</label>
                     <input type="text" id="senderPhoneInput" class="form-control fw-bold text-center val-phone" placeholder="01108172258 أو 2258 أو 899" inputmode="numeric" maxlength="11" dir="ltr">
                     <div class="form-text text-muted">يظهر في الإيصال بصيغة مخفية، بينما رقم هاتف العميل يظهر كاملاً.</div>
+                </div>
+
+                <div id="splitSenderBlock" class="d-none mb-3">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <label class="data-label m-0"><i class="fa-solid fa-layer-group me-1"></i> أرقام المرسلين والمبالغ</label>
+                        <button type="button" class="btn btn-sm btn-outline-primary fw-bold" onclick="addSenderEntryRow()"><i class="fa-solid fa-plus"></i> إضافة رقم</button>
+                    </div>
+                    <div id="senderEntriesContainer" class="d-grid gap-3"></div>
+                    <div class="mt-2 small fw-bold" id="splitAmountSummary">المجموع: 0 / 0 ج.م</div>
                 </div>
                 
                 <button id="btnFinish" class="btn-cyber-main w-100 m-0">
@@ -656,18 +678,132 @@
     }
 
     function removeImageFromList(index) { selectedFilesArray.splice(index, 1); renderImagesGrid(); }
+    let currentCompletingAmount = 0;
+    let senderEntryRows = [];
+
+    function toggleSplitOperationMode() {
+        const enabled = document.getElementById('splitOperationToggle').checked;
+        document.getElementById('singleSenderBlock').classList.toggle('d-none', enabled);
+        document.getElementById('splitSenderBlock').classList.toggle('d-none', !enabled);
+        if (enabled && senderEntryRows.length === 0) {
+            addSenderEntryRow();
+            addSenderEntryRow();
+        }
+        updateSplitAmountSummary();
+    }
+
+    function addSenderEntryRow() {
+        if (senderEntryRows.length >= 5) {
+            Swal.fire('تنبيه', 'الحد الأقصى خمسة أرقام مرسل.', 'warning');
+            return;
+        }
+        const rowId = `sender-row-${Date.now()}-${senderEntryRows.length}`;
+        senderEntryRows.push({ id: rowId, file: null });
+        renderSenderEntryRows();
+    }
+
+    function removeSenderEntryRow(rowId) {
+        senderEntryRows = senderEntryRows.filter((row) => row.id !== rowId);
+        renderSenderEntryRows();
+    }
+
+    function renderSenderEntryRows() {
+        const container = document.getElementById('senderEntriesContainer');
+        if (!container) return;
+        container.innerHTML = senderEntryRows.map((row, index) => `
+            <div class="p-3 rounded-3 border" style="border-color: var(--glass-border) !important; background: rgba(255,255,255,0.02);">
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <strong class="small">مرسل #${index + 1}</strong>
+                    ${senderEntryRows.length > 1 ? `<button type="button" class="btn btn-sm btn-outline-danger" onclick="removeSenderEntryRow('${row.id}')"><i class="fa-solid fa-trash"></i></button>` : ''}
+                </div>
+                <div class="row g-2">
+                    <div class="col-md-6">
+                        <label class="form-label small fw-bold">رقم الهاتف</label>
+                        <input type="text" class="form-control fw-bold text-center sender-entry-phone" data-row-id="${row.id}" placeholder="01108172258" inputmode="numeric" maxlength="11" dir="ltr">
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label small fw-bold">المبلغ</label>
+                        <input type="number" class="form-control fw-bold text-center sender-entry-amount" data-row-id="${row.id}" min="1" step="1" placeholder="20000">
+                    </div>
+                    <div class="col-12">
+                        <label class="form-label small fw-bold">صورة الإثبات</label>
+                        <input type="file" class="form-control sender-entry-proof" data-row-id="${row.id}" accept="image/*">
+                        ${row.preview ? `<img src="${row.preview}" class="mt-2 rounded-3 border" style="max-height:90px; object-fit:cover;">` : ''}
+                    </div>
+                </div>
+            </div>
+        `).join('');
+
+        container.querySelectorAll('.sender-entry-amount').forEach((input) => {
+            input.addEventListener('input', updateSplitAmountSummary);
+        });
+        container.querySelectorAll('.sender-entry-proof').forEach((input) => {
+            input.addEventListener('change', async (event) => {
+                const rowId = event.target.dataset.rowId;
+                const file = event.target.files?.[0];
+                const row = senderEntryRows.find((item) => item.id === rowId);
+                if (!row || !file) return;
+                row.file = file;
+                row.preview = await compressSingleImagePromise(file);
+                renderSenderEntryRows();
+            });
+        });
+        updateSplitAmountSummary();
+    }
+
+    function updateSplitAmountSummary() {
+        const summary = document.getElementById('splitAmountSummary');
+        if (!summary) return;
+        const total = Array.from(document.querySelectorAll('.sender-entry-amount'))
+            .reduce((sum, input) => sum + Number(input.value || 0), 0);
+        summary.textContent = `المجموع: ${total.toLocaleString('en-US')} / ${Number(currentCompletingAmount || 0).toLocaleString('en-US')} ج.م`;
+        summary.className = `mt-2 small fw-bold ${Math.abs(total - Number(currentCompletingAmount || 0)) <= 0.01 ? 'text-success' : 'text-danger'}`;
+    }
+
+    function phoneLengthAllowed(digits) {
+        const lengths = executorManualPolicy.allowedPhoneLengths || [3, 4, 11];
+        return lengths.includes(digits.length);
+    }
+
+    function validateSenderPhoneInput(phone, isSplit) {
+        const digits = String(phone || '').replace(/\D/g, '');
+        if (!digits) return 'رقم المرسل مطلوب.';
+        if (isSplit && executorManualPolicy.splitRequiresFullPhone) {
+            return /^01\d{9}$/.test(digits) ? '' : 'عند تقسيم العملية يجب إدخال 11 رقمًا كاملة.';
+        }
+        if (!phoneLengthAllowed(digits)) {
+            return `طول الرقم غير مسموح. المسموح: ${(executorManualPolicy.allowedPhoneLengths || []).join(' أو ')} أرقام.`;
+        }
+        if (digits.length === 11 && !/^01\d{9}$/.test(digits)) {
+            return 'رقم الهاتف الكامل يجب أن يبدأ بـ 01.';
+        }
+        return '';
+    }
+
     function updateProofRequirement() {
         const title = document.getElementById('proofRequirementTitle');
         const hint = document.getElementById('proofRequirementHint');
-        if (title) title.textContent = 'إرفاق الصور اختياري';
-        if (hint) hint.textContent = 'يمكنك إرفاق حتى خمس صور، أو المتابعة لإنشاء إيصال نظام تلقائي';
-        dropZone.classList.remove('border-danger');
+        if (executorManualPolicy.proofRequired) {
+            if (title) title.textContent = 'إرفاق الصورة إجباري';
+            if (hint) hint.textContent = 'يجب إرفاق صورة إثبات لكل رقم مرسل عند تقسيم العملية، أو صورة واحدة على الأقل عند رقم واحد.';
+            dropZone.classList.add('border-danger');
+        } else {
+            if (title) title.textContent = 'إرفاق الصور اختياري';
+            if (hint) hint.textContent = 'يمكنك إرفاق حتى خمس صور، أو المتابعة لإنشاء إيصال نظام تلقائي';
+            dropZone.classList.remove('border-danger');
+        }
     }
+
     function resetUploadModal() {
         selectedFilesArray = [];
         proofInput.value = '';
         previewsGrid.innerHTML = '';
         document.getElementById('senderPhoneInput').value = '';
+        document.getElementById('splitOperationToggle').checked = false;
+        senderEntryRows = [];
+        document.getElementById('singleSenderBlock').classList.remove('d-none');
+        document.getElementById('splitSenderBlock').classList.add('d-none');
+        document.getElementById('senderEntriesContainer').innerHTML = '';
         updateProofRequirement();
     }
 
@@ -1006,7 +1142,7 @@
                                     ${canRoute ? `<button onclick="routeTask('${t._id}')" class="btn-accept-start"><i class="fa-solid fa-route me-1"></i> توجيه إلى منفذ</button>` :
                                       acceptedByOther ? `<div class="p-2 rounded-3 text-center fw-bold text-muted border w-100 small" style="background: rgba(0,0,0,0.05);"><i class="fa-solid fa-user-gear me-1"></i> يُنفذ بواسطة: ${escapeTaskHtml(t.executorName || t.assignedExecutorName || 'منفذ آخر')}</div>` :
                                       isMine ? `
-                                         <button onclick="openUpload('${t._id}', '${t.transferType || ''}')" class="btn-cyber-main mb-1"><i class="fa-solid fa-check-double"></i> إنهاء العملية</button>
+                                         <button onclick="openUpload('${t._id}', '${t.transferType || ''}', ${Number(t.amount || 0)})" class="btn-cyber-main mb-1"><i class="fa-solid fa-check-double"></i> إنهاء العملية</button>
                                          <div class="horizontal-actions">
                                             <button onclick="editAmount('${t._id}')" class="btn-cyber-sub btn-warning-neon" title="تعديل المبلغ"><i class="fa-solid fa-pen-to-square"></i> <span class="btn-text-hide ms-1">تعديل</span></button>
                                             <button onclick="returnTask('${t._id}')" class="btn-cyber-sub btn-info-neon" title="إرجاع الطلب للإدارة"><i class="fa-solid fa-reply"></i> <span class="btn-text-hide ms-1">إرجاع</span></button>
@@ -1072,27 +1208,74 @@
             await refreshTasks();
         }
     }
-    function openUpload(id, transferType) {
+    function openUpload(id, transferType, amount = 0) {
         currentCompletingId = id;
         currentCompletingTransferType = String(transferType || '').toLowerCase();
+        currentCompletingAmount = Number(amount || 0);
         resetUploadModal();
         new bootstrap.Modal(document.getElementById('uploadModal')).show();
     }
 
     document.getElementById('btnFinish').onclick = async function() {
-        const executionNumber = document.getElementById('senderPhoneInput').value.trim();
-        const executionDigits = executionNumber.replace(/\D/g, '');
-        if (executionDigits && !/^(?:01\d{9}|\d{3}|\d{4})$/.test(executionDigits)) {
-            Swal.fire('رقم التنفيذ غير صالح', 'أدخل رقم هاتف من 11 رقمًا، أو آخر 3 أو 4 أرقام فقط.', 'warning');
-            return;
-        }
-        const btn = this; btn.disabled = true; btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> ضغط وإرسال...';
+        const splitEnabled = document.getElementById('splitOperationToggle').checked;
+        const btn = this;
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> ضغط وإرسال...';
+
         try {
-            const compressedImagesBase64 = [];
-            for (let i = 0; i < selectedFilesArray.length; i++) { compressedImagesBase64.push(await compressSingleImagePromise(selectedFilesArray[i])); }
+            let payload = {};
+            if (splitEnabled) {
+                const rows = senderEntryRows.map((row) => {
+                    const phone = document.querySelector(`.sender-entry-phone[data-row-id="${row.id}"]`)?.value.trim() || '';
+                    const amountValue = Number(document.querySelector(`.sender-entry-amount[data-row-id="${row.id}"]`)?.value || 0);
+                    return { row, phone, amount: amountValue };
+                });
+                if (rows.length < 2) throw new Error('أضف رقمين مرسلين على الأقل عند تقسيم العملية.');
+                const total = rows.reduce((sum, item) => sum + item.amount, 0);
+                if (Math.abs(total - currentCompletingAmount) > 0.01) {
+                    throw new Error(`مجموع المبالغ (${total.toLocaleString('en-US')}) يجب أن يساوي قيمة العملية (${currentCompletingAmount.toLocaleString('en-US')}).`);
+                }
+                const senderEntries = [];
+                for (const item of rows) {
+                    const phoneError = validateSenderPhoneInput(item.phone, true);
+                    if (phoneError) throw new Error(phoneError);
+                    const entry = { phone: item.phone.replace(/\D/g, ''), amount: item.amount };
+                    if (item.row.file) {
+                        entry.proofImageBase64 = await compressSingleImagePromise(item.row.file);
+                    } else if (executorManualPolicy.proofRequired) {
+                        throw new Error('يجب إرفاق صورة إثبات لكل رقم مرسل.');
+                    }
+                    senderEntries.push(entry);
+                }
+                payload = {
+                    executionNumber: senderEntries[0].phone,
+                    senderEntries
+                };
+            } else {
+                const executionNumber = document.getElementById('senderPhoneInput').value.trim();
+                const executionDigits = executionNumber.replace(/\D/g, '');
+                if (executionDigits) {
+                    const phoneError = validateSenderPhoneInput(executionDigits, false);
+                    if (phoneError) throw new Error(phoneError);
+                }
+                const compressedImagesBase64 = [];
+                for (let i = 0; i < selectedFilesArray.length; i++) {
+                    compressedImagesBase64.push(await compressSingleImagePromise(selectedFilesArray[i]));
+                }
+                if (executorManualPolicy.proofRequired && compressedImagesBase64.length === 0) {
+                    throw new Error('إرفاق صورة الإثبات إجباري لهذا المنفذ.');
+                }
+                payload = {
+                    imageBase64: compressedImagesBase64[0],
+                    imagesBase64: compressedImagesBase64,
+                    executionNumber: executionNumber
+                };
+            }
+
             const res = await executorApiFetch('/executor-portal/api/complete-task/' + currentCompletingId, {
-                method: 'POST', headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({ imageBase64: compressedImagesBase64[0], imagesBase64: compressedImagesBase64, executionNumber: executionNumber })
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
             });
             await readExecutorApiResponse(res);
             window.location.reload();

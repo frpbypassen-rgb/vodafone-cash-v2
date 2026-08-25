@@ -2155,7 +2155,8 @@ router.post('/executor/complete-task/:id', authenticateJWT, completeTaskValidato
             senderEntries = normalizeExecutorSenderEntries({
                 requestedSenderEntries,
                 senderPhone,
-                operationAmount: tx.amount
+                operationAmount: tx.amount,
+                group: emp.groupId
             });
         } catch (error) {
             if (error instanceof ExecutorSenderEntriesError) {

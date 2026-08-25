@@ -15,18 +15,23 @@ const receiptFields = (tx) => {
     };
 };
 
+const mapSenderEntries = (tx) => (
+    Array.isArray(tx.executorSenderEntries)
+        ? tx.executorSenderEntries.map((entry) => ({
+            phone: entry.phone || null,
+            amount: entry.amount === undefined || entry.amount === null ? null : Number(entry.amount),
+            proofImage: entry.proofImage || null,
+            proofImageUrl: entry.proofImage ? `/executor-portal/proxy/image/${entry.proofImage}` : null
+        }))
+        : []
+);
+
 const managerExecutorEvidence = (tx, canView) => {
     if (!canView) return {};
     const executorProofImages = Array.isArray(tx.executorProofImages) ? tx.executorProofImages : [];
     return {
         executorExecutionNumber: tx.executorExecutionNumber || null,
         executorSenderPhone: tx.executorSenderPhone || null,
-        executorSenderEntries: Array.isArray(tx.executorSenderEntries)
-            ? tx.executorSenderEntries.map(entry => ({
-                phone: entry.phone || null,
-                amount: entry.amount === undefined || entry.amount === null ? null : Number(entry.amount)
-            }))
-            : [],
         executorProofCount: executorProofImages.length,
         executorProofImageUrls: executorProofImages.map((_, index) =>
             `/executor-portal/proxy/executor-image/${tx._id}/${index}`
@@ -67,6 +72,7 @@ const toClientReportDto = (data) => {
             executorRatingNote: tx.executorRatingNote || null,
             executorRatedAt: tx.executorRatedAt ? new Date(tx.executorRatedAt).toISOString() : null,
             voiceNote: tx.voiceNote || null,
+            executorSenderEntries: mapSenderEntries(tx),
             ...receiptFields(tx),
             ...managerExecutorEvidence(tx, canViewExecutorEvidence)
         })),
@@ -92,6 +98,7 @@ const toClientReportDto = (data) => {
             executorRatingNote: tx.executorRatingNote || null,
             executorRatedAt: tx.executorRatedAt ? new Date(tx.executorRatedAt).toISOString() : null,
             voiceNote: tx.voiceNote || null,
+            executorSenderEntries: mapSenderEntries(tx),
             ...receiptFields(tx),
             ...managerExecutorEvidence(tx, canViewExecutorEvidence)
         })),
@@ -113,6 +120,7 @@ const toClientReportDto = (data) => {
             executorRatingNote: tx.executorRatingNote || null,
             executorRatedAt: tx.executorRatedAt ? new Date(tx.executorRatedAt).toISOString() : null,
             voiceNote: tx.voiceNote || null,
+            executorSenderEntries: mapSenderEntries(tx),
             ...receiptFields(tx),
             ...managerExecutorEvidence(tx, canViewExecutorEvidence)
         })),

@@ -31,6 +31,7 @@ const {
     ManualExecutorReceiptReferenceError,
     normalizeManualExecutorReceiptPrefix
 } = require('../services/manualExecutorReceiptReferenceService');
+const { serializeAllowedPhoneLengths } = require('../utils/executorManualPolicy');
 
 const normalizeText = (value) => String(value || '').trim();
 const parseNumberOrDefault = (value, fallback) => {
@@ -352,6 +353,9 @@ router.get('/executor/:id', requireAuth, async (req, res) => {
             bot,
             transactions,
             managerBots,
+            externalEmployees: bot.isManagerBot
+                ? await Employee.find({ groupId: bot._id, role: 'external', status: 'active' }).select('name balance phone webUsername').lean()
+                : [],
             adminName: req.session.adminName,
             isMaster: req.session.adminRole === 'master',
             query: req.query
@@ -659,6 +663,40 @@ router.post('/executor/:id/receipt-prefix', requireAuth, requireMaster, async (r
             ? 'INVALID'
             : 'UPDATE_FAILED';
         return res.redirect(`/executor/${req.params.id}?receiptPrefixError=${code}`);
+    }
+});
+
+router.post('/executor/:id/manual-policy', requireAuth, requireMaster, async (req, res) => {
+    try {
+        const bot = await ExecutorGroup.findById(req.params.id);
+        if (!bot || bot.status === 'archived' || bot.isApiBot || bot.isManagerBot) {
+            return res.redirect('/executors?manualPolicyError=NOT_AVAILABLE');
+        }
+
+        bot.manualProofRequired = req.body.manualProofRequired === 'on';
+        bot.manualAllowedPhoneLengths = serializeAllowedPhoneLengths(req.body);
+        bot.manualSplitRequiresFullPhone = req.body.manualSplitRequiresFullPhone === 'on';
+        await bot.save();
+
+        await logAction({
+            action: 'EXECUTOR_MANUAL_POLICY_UPDATED',
+            req,
+            performedById: req.session.adminId,
+            performedByModel: 'Admin',
+            performedByName: req.session.adminName || 'الإدارة',
+            targetId: bot._id,
+            targetModel: 'ExecutorGroup',
+            newData: {
+                manualProofRequired: bot.manualProofRequired,
+                manualAllowedPhoneLengths: bot.manualAllowedPhoneLengths,
+                manualSplitRequiresFullPhone: bot.manualSplitRequiresFullPhone
+            },
+            metadata: { executorName: bot.name }
+        }).catch(() => {});
+
+        return res.redirect(`/executor/${bot._id}?manualPolicyUpdated=1`);
+    } catch (_) {
+        return res.redirect(`/executor/${req.params.id}?manualPolicyError=UPDATE_FAILED`);
     }
 });
 

@@ -26,6 +26,11 @@ const {
 const { reserveManualExecutorReceiptReference } = require('../services/manualExecutorReceiptReferenceService');
 const { attachCancellationReceipt } = require('../services/cancellationReceiptService');
 const { calculateTransferCostLYD, isSourceToLydRate } = require('../utils/transferPricing');
+const {
+    ExecutorSenderEntriesError,
+    normalizeExecutorSenderEntries
+} = require('../utils/executorSenderEntries');
+const { readExecutorManualPolicy } = require('../utils/executorManualPolicy');
 
 const MAX_PROOF_IMAGES = 5;
 const MAX_PROOF_BYTES = 8 * 1024 * 1024;
@@ -47,6 +52,28 @@ const getProofImages = (body = {}) => {
     if (rawImages.length === 0) return [];
     if (rawImages.length > MAX_PROOF_IMAGES) throw new Error('TOO_MANY_PROOFS');
     return rawImages.map(parseProofImage);
+};
+
+const saveProofBuffer = ({ tx, proofsDir, savedPaths, buffer, extension, suffix = '' }) => {
+    const safeId = (tx.customId || tx._id.toString().slice(-6)).toString().replace(/[^a-zA-Z0-9_-]/g, '');
+    const fileName = `${safeId}_${Date.now().toString(36)}${suffix ? `_${suffix}` : ''}.${extension}`;
+    const filePath = path.join(proofsDir, fileName);
+    fs.writeFileSync(filePath, buffer);
+    savedPaths.push(filePath);
+    return fileName;
+};
+
+const saveProofImageBase64 = ({ tx, proofsDir, savedPaths, imageBase64, suffix = '' }) => {
+    if (!imageBase64) return null;
+    const parsed = parseProofImage(imageBase64);
+    return saveProofBuffer({
+        tx,
+        proofsDir,
+        savedPaths,
+        buffer: parsed.buffer,
+        extension: parsed.extension,
+        suffix
+    });
 };
 
 const getTransferServiceLabel = (transferType) => {
@@ -322,23 +349,12 @@ exports.postCompleteTask = async (req, res) => {
     let transactionCompleted = false;
     try {
         lock = await acquireLock(`executor-complete:${req.params.id}`, 30000, { retryCount: 1 });
-        const proofs = getProofImages(req.body);
-        const executionNumber = String(req.body.executionNumber ?? req.body.senderPhone ?? '').trim();
-        let maskedExecutionNumber = '';
-        try {
-            maskedExecutionNumber = maskManualExecutionNumber(executionNumber);
-        } catch (error) {
-            if (error instanceof ManualExecutionNumberError) {
-                return res.status(400).json({ success: false, error: error.message });
-            }
-            throw error;
-        }
         const emp = req.executorEmployee || await Employee.findById(req.session.executorId).populate('groupId');
         if (!emp || emp.status !== 'active' || !emp.groupId || emp.groupId.status !== 'active') {
             return res.status(401).json({ success: false, error: 'حساب المنفذ غير مفعل.' });
         }
 
-        const groupId = emp.groupId._id || emp.groupId;
+        const manualPolicy = readExecutorManualPolicy(emp.groupId);
         const tx = await findOwnedAcceptedExecutorTask({
             transactionId: req.params.id,
             executor: emp
@@ -346,6 +362,50 @@ exports.postCompleteTask = async (req, res) => {
         if (!tx) {
             return res.status(409).json({ success: false, error: 'العملية غير متاحة للإنهاء أو تم إنهاؤها مسبقاً.' });
         }
+
+        const requestedSenderEntries = Array.isArray(req.body.senderEntries)
+            ? req.body.senderEntries.map((entry, index) => ({
+                phone: entry?.phone,
+                amount: entry?.amount,
+                proofImage: entry?.proofImageBase64 || entry?.proofImage || null
+            }))
+            : null;
+        let senderEntries;
+        try {
+            senderEntries = normalizeExecutorSenderEntries({
+                requestedSenderEntries,
+                senderPhone: req.body.executionNumber ?? req.body.senderPhone,
+                operationAmount: tx.amount,
+                group: emp.groupId
+            });
+        } catch (error) {
+            if (error instanceof ExecutorSenderEntriesError) {
+                return res.status(error.statusCode).json({ success: false, error: error.message });
+            }
+            throw error;
+        }
+
+        const executionNumber = String(
+            req.body.executionNumber
+            ?? req.body.senderPhone
+            ?? senderEntries[0]?.phone
+            ?? ''
+        ).trim();
+        let maskedExecutionNumber = '';
+        try {
+            maskedExecutionNumber = maskManualExecutionNumber(executionNumber || senderEntries[0]?.phone || '');
+        } catch (error) {
+            if (error instanceof ManualExecutionNumberError) {
+                return res.status(400).json({ success: false, error: error.message });
+            }
+            throw error;
+        }
+
+        const proofs = getProofImages(req.body);
+        if (manualPolicy.proofRequired && proofs.length === 0 && senderEntries.every((entry) => !entry.proofImage)) {
+            return res.status(400).json({ success: false, error: 'إرفاق صورة الإثبات إجباري لهذا المنفذ.' });
+        }
+
         const executorReceipt = await reserveManualExecutorReceiptReference({ group: emp.groupId });
         const completedAt = new Date();
         tx.completedAt = completedAt;
@@ -360,17 +420,34 @@ exports.postCompleteTask = async (req, res) => {
             proofsDir,
             savedPaths
         }));
+
+        const persistedSenderEntries = senderEntries.map((entry, index) => {
+            const proofImage = saveProofImageBase64({
+                tx,
+                proofsDir,
+                savedPaths,
+                imageBase64: entry.proofImage,
+                suffix: `sender_${index + 1}`
+            });
+            return {
+                phone: entry.phone,
+                amount: entry.amount,
+                proofImage
+            };
+        });
+
         for (let i = 0; i < proofs.length; i++) {
-            const safeId = (tx.customId || tx._id.toString().slice(-6)).toString().replace(/[^a-zA-Z0-9_-]/g, '');
-            const suffix = proofs.length > 1 ? `_${i + 1}` : '';
-            const fileName = `${safeId}_${Date.now().toString(36)}${suffix}.${proofs[i].extension}`;
-            const filePath = path.join(proofsDir, fileName);
-            fs.writeFileSync(filePath, proofs[i].buffer);
-            savedPaths.push(filePath);
-            localFileNames.push(fileName);
+            localFileNames.push(saveProofBuffer({
+                tx,
+                proofsDir,
+                savedPaths,
+                buffer: proofs[i].buffer,
+                extension: proofs[i].extension,
+                suffix: `${i + 1}`
+            }));
         }
 
-        const proofSource = proofs.length
+        const proofSource = proofs.length || persistedSenderEntries.some((entry) => entry.proofImage)
             ? 'system-generated-with-executor-upload'
             : 'system-generated';
         const systemReceiptId = localFileNames[0];
@@ -381,9 +458,10 @@ exports.postCompleteTask = async (req, res) => {
         tx.proofImage = systemReceiptId;
         tx.proofImages = systemReceiptId ? [systemReceiptId] : [];
         tx.executorProofImages = executorProofImages;
-        tx.executorExecutionNumber = executionNumber || undefined;
+        tx.executorExecutionNumber = executionNumber || senderEntries[0]?.phone || undefined;
         tx.executorSenderPhone = maskedExecutionNumber || undefined;
         tx.executorExecutionNumberMasked = maskedExecutionNumber || undefined;
+        tx.executorSenderEntries = persistedSenderEntries;
         tx.manualExecutorReceiptReference = executorReceipt.reference;
         tx.completedAt = completedAt;
         tx.completedBy = emp._id;
@@ -392,6 +470,7 @@ exports.postCompleteTask = async (req, res) => {
         await tx.save();
         transactionCompleted = true;
 
+        const groupId = emp.groupId._id || emp.groupId;
         const parentGroupId = emp.groupId.parentGroupId || emp.groupId.parentBotId;
         await syncBotBalance(groupId).catch(() => {});
         if (parentGroupId) await syncBotBalance(parentGroupId).catch(() => {});
@@ -410,7 +489,8 @@ exports.postCompleteTask = async (req, res) => {
                 proofCount: tx.proofImages.length,
                 executorProofCount: executorProofImages.length,
                 proofSource,
-                proofRequired: false,
+                proofRequired: manualPolicy.proofRequired,
+                senderEntryCount: persistedSenderEntries.length,
                 manualExecutorReceiptReference: executorReceipt.reference,
                 executorExecutionNumberMasked: maskedExecutionNumber || null
             },

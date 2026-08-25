@@ -1,5 +1,7 @@
 'use strict';
 
+const { validateSenderPhoneDigits, readExecutorManualPolicy } = require('./executorManualPolicy');
+
 class ExecutorSenderEntriesError extends Error {
     constructor(code, message) {
         super(message);
@@ -12,24 +14,33 @@ class ExecutorSenderEntriesError extends Error {
 const normalizeExecutorSenderEntries = ({
     requestedSenderEntries,
     senderPhone,
-    operationAmount
+    operationAmount,
+    group = null,
+    policy = null
 }) => {
+    const manualPolicy = policy || readExecutorManualPolicy(group);
     const rawEntries = Array.isArray(requestedSenderEntries)
         ? requestedSenderEntries
         : (senderPhone ? [{ phone: senderPhone }] : []);
-    const entries = rawEntries.map((entry) => ({
-        phone: String(entry?.phone || '').trim(),
-        amount: entry?.amount === undefined || entry?.amount === null || entry?.amount === ''
-            ? null
-            : Number(entry.amount)
-    }));
+    const isSplit = rawEntries.length > 1;
 
-    if (entries.some((entry) => !/^\d{11}$/.test(entry.phone))) {
-        throw new ExecutorSenderEntriesError(
-            'INVALID_SENDER_PHONE',
-            'كل رقم مرسل يجب أن يتكون من 11 رقماً'
-        );
-    }
+    const entries = rawEntries.map((entry) => {
+        const validation = validateSenderPhoneDigits(entry?.phone, {
+            allowedPhoneLengths: manualPolicy.allowedPhoneLengths,
+            splitRequiresFullPhone: manualPolicy.splitRequiresFullPhone,
+            isSplit
+        });
+        if (!validation.ok) {
+            throw new ExecutorSenderEntriesError(validation.code, validation.message);
+        }
+        return {
+            phone: validation.digits,
+            amount: entry?.amount === undefined || entry?.amount === null || entry?.amount === ''
+                ? null
+                : Number(entry.amount),
+            proofImage: entry?.proofImage || entry?.proofImageBase64 || null
+        };
+    });
 
     if (entries.length > 1) {
         if (entries.some((entry) => !Number.isFinite(entry.amount) || entry.amount <= 0)) {
@@ -49,7 +60,16 @@ const normalizeExecutorSenderEntries = ({
         entries[0].amount = Number(operationAmount || 0);
     }
 
-    return entries;
+    if (manualPolicy.proofRequired && entries.length > 0) {
+        if (entries.some((entry) => !entry.proofImage)) {
+            throw new ExecutorSenderEntriesError(
+                'PROOF_REQUIRED',
+                'يجب إرفاق صورة إثبات لكل رقم مرسل.'
+            );
+        }
+    }
+
+    return entries.map(({ phone, amount, proofImage }) => ({ phone, amount, proofImage }));
 };
 
 module.exports = {

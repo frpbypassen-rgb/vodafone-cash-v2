@@ -121,6 +121,13 @@
             <div class="alert alert-danger fw-bold shadow-sm"><i class="fa-solid fa-triangle-exclamation me-2"></i> تعذر حفظ رمز المرجع. تأكد أنه مكون من 3 أرقام وغير مستخدم لدى منفذ آخر.</div>
         <% } %>
 
+        <% if (typeof query !== 'undefined' && query.manualPolicyUpdated === '1') { %>
+            <div class="alert alert-success fw-bold shadow-sm"><i class="fa-solid fa-circle-check me-2"></i> تم تحديث صلاحيات المنفذ اليدوي بنجاح.</div>
+        <% } %>
+        <% if (typeof query !== 'undefined' && query.manualPolicyError) { %>
+            <div class="alert alert-danger fw-bold shadow-sm"><i class="fa-solid fa-triangle-exclamation me-2"></i> تعذر حفظ صلاحيات المنفذ اليدوي.</div>
+        <% } %>
+
         <div class="row g-4 mb-4">
             <div class="col-xl-4 col-lg-5">
                 <div class="glass-card h-100" style="border-top: 5px solid <%= bot.isManagerBot ? '#3b82f6' : '#10b981' %>;">
@@ -131,8 +138,36 @@
                     <p class="text-center text-muted fw-bold mb-3 small"><%= bot.isManagerBot ? 'وكالة إدارية (لا تنفذ مباشر)' : 'طاقم تنفيذ (كاشير)' %></p>
 
                     <div class="info-box d-block text-center border-0 shadow-sm py-3" style="background: rgba(16, 185, 129, 0.05); border-right: 4px solid #10b981 !important;">
-                        <span class="d-block small text-muted fw-bold mb-1"><i class="fa-solid fa-wallet me-1"></i> الرصيد الحالي (EGP)</span>
-                        <h2 class="m-0 fw-900 mono-num <%= bot.balance < 0 ? 'text-danger' : 'text-success' %>" dir="ltr"><%= bot.balance.toFixed(2) %></h2>
+                        <span class="d-block small text-muted fw-bold mb-1"><i class="fa-solid fa-wallet me-1"></i> <%= bot.isManagerBot ? 'الإجمالي المتاح داخل الشركة (EGP)' : 'الرصيد الحالي (EGP)' %></span>
+                        <% const externalTotal = Array.isArray(externalEmployees) ? externalEmployees.reduce((sum, item) => sum + Number(item.balance || 0), 0) : 0; %>
+                        <% const companyDirectBalance = Number(bot.balance || 0); %>
+                        <% const combinedBalance = bot.isManagerBot ? companyDirectBalance + externalTotal : companyDirectBalance; %>
+                        <h2 class="m-0 fw-900 mono-num <%= combinedBalance < 0 ? 'text-danger' : 'text-success' %>" dir="ltr"><%= combinedBalance.toFixed(2) %></h2>
+                        <% if (bot.isManagerBot) { %>
+                            <div class="mt-3 text-start small">
+                                <div class="d-flex justify-content-between py-1 border-bottom" style="border-color: var(--glass-border) !important;">
+                                    <span class="text-muted fw-bold">المتاح في الشركة مباشرة</span>
+                                    <strong class="mono-num" dir="ltr"><%= companyDirectBalance.toFixed(2) %></strong>
+                                </div>
+                                <div class="d-flex justify-content-between py-1 border-bottom" style="border-color: var(--glass-border) !important;">
+                                    <span class="text-muted fw-bold">المتاح عند المنفذين الخارجيين</span>
+                                    <strong class="mono-num" dir="ltr"><%= externalTotal.toFixed(2) %></strong>
+                                </div>
+                                <% if (Array.isArray(externalEmployees) && externalEmployees.length) { %>
+                                    <details class="mt-2">
+                                        <summary class="fw-bold text-primary" style="cursor:pointer;">عرض تفاصيل المنفذين الخارجيين</summary>
+                                        <div class="mt-2 d-grid gap-2">
+                                            <% externalEmployees.forEach((member) => { %>
+                                                <div class="info-box py-2 px-3 m-0">
+                                                    <span class="fw-bold"><%= member.name %></span>
+                                                    <strong class="mono-num <%= Number(member.balance || 0) < 0 ? 'text-danger' : 'text-success' %>" dir="ltr"><%= Number(member.balance || 0).toFixed(2) %> EGP</strong>
+                                                </div>
+                                            <% }) %>
+                                        </div>
+                                    </details>
+                                <% } %>
+                            </div>
+                        <% } %>
                     </div>
 
                     <% if(!bot.isManagerBot) { %>
@@ -165,6 +200,47 @@
                     
                     <div class="row g-3">
                         <% if (!bot.isApiBot && typeof isMaster !== 'undefined' && isMaster) { %>
+                            <div class="col-12">
+                                <div class="info-box border-0 m-0 shadow-sm control-card-3d d-block" style="background: rgba(59, 130, 246, 0.06); border-right: 4px solid #3b82f6 !important;">
+                                    <label class="form-label fw-bold text-dark small mb-2"><i class="fa-solid fa-sliders text-primary me-1"></i> صلاحيات إتمام العملية للمنفذ اليدوي</label>
+                                    <form action="/executor/<%= bot._id %>/manual-policy" method="POST" class="row g-3">
+                                        <div class="col-md-4">
+                                            <div class="form-check">
+                                                <input class="form-check-input" type="checkbox" id="manualProofRequired" name="manualProofRequired" <%= bot.manualProofRequired ? 'checked' : '' %>>
+                                                <label class="form-check-label fw-bold small" for="manualProofRequired">إرفاق الصورة إجباري</label>
+                                            </div>
+                                        </div>
+                                        <div class="col-md-4">
+                                            <div class="form-check">
+                                                <input class="form-check-input" type="checkbox" id="manualSplitRequiresFullPhone" name="manualSplitRequiresFullPhone" <%= bot.manualSplitRequiresFullPhone !== false ? 'checked' : '' %>>
+                                                <label class="form-check-label fw-bold small" for="manualSplitRequiresFullPhone">عند تقسيم العملية: 11 رقم كاملة</label>
+                                            </div>
+                                        </div>
+                                        <div class="col-12">
+                                            <div class="fw-bold small mb-2">أطوال رقم الهاتف المسموحة (اختر واحداً أو أكثر)</div>
+                                            <div class="d-flex flex-wrap gap-3">
+                                                <% const allowedLengths = Array.isArray(bot.manualAllowedPhoneLengths) ? bot.manualAllowedPhoneLengths : [3,4,11]; %>
+                                                <div class="form-check">
+                                                    <input class="form-check-input" type="checkbox" id="allowPhone3" name="allowPhone3" <%= allowedLengths.includes(3) ? 'checked' : '' %>>
+                                                    <label class="form-check-label fw-bold small" for="allowPhone3">3 أرقام</label>
+                                                </div>
+                                                <div class="form-check">
+                                                    <input class="form-check-input" type="checkbox" id="allowPhone4" name="allowPhone4" <%= allowedLengths.includes(4) ? 'checked' : '' %>>
+                                                    <label class="form-check-label fw-bold small" for="allowPhone4">4 أرقام</label>
+                                                </div>
+                                                <div class="form-check">
+                                                    <input class="form-check-input" type="checkbox" id="allowPhone11" name="allowPhone11" <%= allowedLengths.includes(11) ? 'checked' : '' %>>
+                                                    <label class="form-check-label fw-bold small" for="allowPhone11">11 رقم</label>
+                                                </div>
+                                            </div>
+                                            <small class="text-muted d-block mt-1">إذا اخترت أكثر من طول، يسمح للمنفذ باستخدام أي طول من المحدد فقط.</small>
+                                        </div>
+                                        <div class="col-12 d-grid d-md-flex justify-content-md-end">
+                                            <button type="submit" class="btn btn-primary fw-bold"><i class="fa-solid fa-floppy-disk me-1"></i> حفظ الصلاحيات</button>
+                                        </div>
+                                    </form>
+                                </div>
+                            </div>
                             <div class="col-12">
                                 <div class="info-box border-0 m-0 shadow-sm control-card-3d d-block" style="background: rgba(16, 185, 129, 0.06); border-right: 4px solid #10b981 !important;">
                                     <label class="form-label fw-bold text-dark small mb-2"><i class="fa-solid fa-receipt text-success me-1"></i> رمز مرجع الإيصالات اليدوية</label>

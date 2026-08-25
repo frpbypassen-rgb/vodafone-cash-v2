@@ -176,7 +176,7 @@ describe('Executor web transaction completion', () => {
         expect(tx.proofImages).toEqual([tx.proofImage]);
         expect(tx.proofImage).toMatch(/^EXEC-TEST-001_manual_[a-z0-9]+\.jpg$/);
         expect(tx.executorProofImages).toHaveLength(1);
-        expect(tx.executorProofImages[0]).toMatch(/^EXEC-TEST-001_[a-z0-9]+\.png$/);
+        expect(tx.executorProofImages[0]).toMatch(/^EXEC-TEST-001_[a-z0-9]+(?:_\d+)?\.png$/);
         expect(tx.executorExecutionNumber).toBe('2258');
         expect(tx.executorExecutionNumberMasked).toBe('01*****2258');
     });

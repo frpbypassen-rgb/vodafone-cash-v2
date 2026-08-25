@@ -124,7 +124,8 @@ const transactionSchema = new mongoose.Schema({
     // mappers never expose these fields.
     executorSenderEntries: [{
         phone: { type: String, trim: true },
-        amount: { type: Number, min: 0 }
+        amount: { type: Number, min: 0 },
+        proofImage: { type: String, default: null }
     }],
     // القيمة الأصلية التي أدخلها المنفذ. مخفية افتراضياً ولا تُقرأ إلا في تفاصيل الإدارة.
     executorExecutionNumber: { type: String, trim: true, maxlength: 64, select: false },

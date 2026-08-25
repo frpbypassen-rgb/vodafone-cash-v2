@@ -236,14 +236,9 @@
                         <i class="fa-solid fa-search"></i> عرض التقرير
                     </button>
                 </div>
-                <div class="col-md-3 text-end">
+                <div class="col-md-<%= emp.role === 'manager' ? '6' : '9' %> text-end">
                     <button id="btnDownloadPdf" class="btn btn-danger w-100 fw-bold py-2 d-none" onclick="downloadReportPdf()">
-                        <i class="fa-solid fa-file-pdf"></i> PDF
-                    </button>
-                </div>
-                <div class="col-md-3 text-end">
-                    <button id="btnDownloadCsv" class="btn btn-success w-100 fw-bold py-2 d-none" onclick="downloadReportCsv()">
-                        <i class="fa-solid fa-file-excel"></i> Excel
+                        <i class="fa-solid fa-file-pdf"></i> تحميل PDF
                     </button>
                 </div>
             </div>
@@ -281,6 +276,7 @@
                             <th>رقم العملية</th>
                             <th>النوع</th>
                             <th>المبلغ</th>
+                            <th>رقم العميل</th>
                             <th>وقت الوصول</th>
                             <th>وقت الإكمال</th>
                             <th>المدة</th>
@@ -472,7 +468,6 @@
                 document.getElementById('statsSection').classList.remove('d-none');
                 document.getElementById('tableSection').classList.remove('d-none');
                 document.getElementById('btnDownloadPdf').classList.remove('d-none');
-                document.getElementById('btnDownloadCsv').classList.remove('d-none');
             } catch (e) {
                 Swal.fire({ icon: 'error', title: 'خطأ', text: e.message || 'فشل جلب التقرير' });
             } finally {
@@ -529,7 +524,7 @@
 
             const operations = allReportOperations(data);
             if (operations.length === 0) {
-                tbody.innerHTML = `<tr><td colspan="${isPersonalExecutorReport ? 9 : 10}" class="text-center text-muted py-4">لا توجد عمليات في هذه الفترة</td></tr>`;
+                tbody.innerHTML = `<tr><td colspan="${isPersonalExecutorReport ? 10 : 11}" class="text-center text-muted py-4">لا توجد عمليات في هذه الفترة</td></tr>`;
                 if (mobileList) mobileList.innerHTML = '<div class="x-empty-box">لا توجد عمليات في هذه الفترة</div>';
             } else {
                 operations.forEach((tx, i) => {
@@ -627,6 +622,7 @@
                 <td dir="ltr" class="fw-bold text-center">#${tx.customId || String(tx.id || '').slice(-6)}</td>
                 <td>${typeLabel}</td>
                 <td class="fw-bold">${formatEgp(tx.amount)}</td>
+                <td dir="ltr" class="text-center" style="font-size:0.85rem; font-family:monospace;">${tx.recipientNumber || '---'}</td>
                 <td dir="ltr" class="text-center" style="font-size:0.85rem; font-family:monospace;">${arrivalTime}</td>
                 <td dir="ltr" class="text-center" style="font-size:0.85rem; font-family:monospace;">${completionTime}</td>
                 <td class="fw-bold text-success" style="font-size:0.85rem;">${duration}</td>
@@ -655,7 +651,7 @@
                 </div>
                 <div class="x-mobile-card-body">
                     <span class="x-mobile-amount">${Number(tx.amount || 0).toLocaleString('en-US', { maximumFractionDigits: 0 })} ج.م</span>
-                    <span class="x-mobile-meta">${typeLabel}<br>${dateStr}</span>
+                    <span class="x-mobile-meta">${typeLabel}<br>${tx.recipientNumber || '---'}<br>${dateStr}</span>
                 </div>
             `;
             return card;
@@ -692,7 +688,22 @@
             }
 
             let senderInfo = '';
-            if (tx.executorExecutionNumber || tx.executorSenderPhone) {
+            const senderEntries = Array.isArray(tx.executorSenderEntries) ? tx.executorSenderEntries : [];
+            if (senderEntries.length > 0) {
+                senderInfo = `
+                    <div class="x-detail-section-title"><i class="fa-solid fa-phone"></i> أرقام المرسلين والمبالغ</div>
+                    <div class="d-grid gap-2">
+                        ${senderEntries.map((entry, index) => `
+                            <div class="x-detail-item full" style="display:block;">
+                                <div class="fw-bold mb-1">مرسل #${index + 1}</div>
+                                <div><label>رقم الهاتف</label><span dir="ltr">${entry.phone || '---'}</span></div>
+                                <div><label>المبلغ</label><span>${formatEgp(entry.amount || 0)}</span></div>
+                                ${entry.proofImageUrl ? `<div class="mt-2"><a href="${entry.proofImageUrl}" target="_blank"><img src="${entry.proofImageUrl}" alt="إثبات المرسل" style="max-height:120px;border-radius:10px;border:1px solid var(--x-border)"></a></div>` : ''}
+                            </div>
+                        `).join('')}
+                    </div>
+                `;
+            } else if (tx.executorExecutionNumber || tx.executorSenderPhone) {
                 senderInfo = `
                     <div class="x-detail-section-title"><i class="fa-solid fa-phone"></i> بيانات المرسل</div>
                     <div class="x-detail-grid">
@@ -925,38 +936,6 @@
                 const text = row.textContent.toLowerCase();
                 row.style.display = query && !text.includes(query) ? 'none' : '';
             });
-        }
-
-        function downloadReportCsv() {
-            if (!lastReportData) return;
-            const rows = [
-                ['#', 'رقم العملية', 'النوع', 'المبلغ', 'رقم المستلم', 'حالة', 'تاريخ', 'المنفذ', 'ملاحظات']
-            ];
-            (lastReportData.operations || []).forEach((tx, i) => {
-                rows.push([
-                    i + 1,
-                    tx.customId || tx.id || '',
-                    tx.transferTypeLabel || '',
-                    tx.amount || 0,
-                    tx.recipientNumber || '',
-                    tx.status || '',
-                    tx.createdAt ? new Date(tx.createdAt).toLocaleString('en-GB', { timeZone: 'Africa/Tripoli' }) : '',
-                    tx.executorName || '',
-                    (tx.notes || '').replace(/\n/g, ' ')
-                ]);
-            });
-            const csv = rows.map((r) => r.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(',')).join('\n');
-            const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            const period = lastReportData?.reportPeriod?.value || new Date().toISOString().slice(0, 10);
-            a.download = `executor-report-${period}.csv`;
-            document.body.appendChild(a);
-            a.click();
-            a.remove();
-            URL.revokeObjectURL(url);
-            Swal.fire({ icon: 'success', title: 'تم تنزيل Excel', timer: 1200, showConfirmButton: false });
         }
 
         // Load the full operational ledger immediately; no manual date filter

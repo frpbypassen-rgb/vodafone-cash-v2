@@ -9,6 +9,10 @@ const executorGroupSchema = new mongoose.Schema({
     manualReceiptPrefix: { type: String, trim: true, match: /^\d{3}$/ },
     // When enabled, only the manager can distribute incoming tasks to operators.
     manualTaskRoutingEnabled: { type: Boolean, default: false },
+    // Manual executor completion policies (admin-controlled).
+    manualProofRequired: { type: Boolean, default: false },
+    manualAllowedPhoneLengths: { type: [Number], default: [3, 4, 11] },
+    manualSplitRequiresFullPhone: { type: Boolean, default: true },
 
     archivedAt: { type: Date, default: null },
     archivedBy: { type: String, default: '' },

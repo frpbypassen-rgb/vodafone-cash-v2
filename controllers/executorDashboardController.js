@@ -269,6 +269,27 @@ exports.postExternalEmployeeTransaction = async (req, res) => {
         if (emp.role !== 'external') {
             return res.status(400).json({ success: false, error: 'هذا الإجراء مخصص للموظفين الخارجيين فقط.' });
         }
+
+        const group = await ExecutorGroup.findById(req.managerEmp.groupId);
+        if (!group) return res.status(404).json({ success: false, error: 'مجموعة التنفيذ غير موجودة.' });
+
+        const currentEmployeeBalance = Number(emp.balance || 0);
+        const currentGroupBalance = Number(group.balance || 0);
+        if (type === 'deposit' && currentGroupBalance < parsedAmount) {
+            return res.status(400).json({ success: false, error: 'رصيد الشركة غير كافٍ لإتمام الإيداع.' });
+        }
+        if (type === 'deduction' && currentEmployeeBalance < parsedAmount) {
+            return res.status(400).json({ success: false, error: 'رصيد الموظف الخارجي غير كافٍ للخصم.' });
+        }
+
+        if (type === 'deposit') {
+            group.balance = currentGroupBalance - parsedAmount;
+            emp.balance = currentEmployeeBalance + parsedAmount;
+        } else {
+            group.balance = currentGroupBalance + parsedAmount;
+            emp.balance = currentEmployeeBalance - parsedAmount;
+        }
+
         const customId = `EXT-${Date.now().toString().slice(-8)}`;
         await Transaction.create({
             customId,
@@ -287,7 +308,13 @@ exports.postExternalEmployeeTransaction = async (req, res) => {
             vodafoneNumber: '---',
             transferType: 'external_balance'
         });
-        return res.json({ success: true, customId });
+        await Promise.all([group.save(), emp.save()]);
+        return res.json({
+            success: true,
+            customId,
+            companyBalance: group.balance,
+            employeeBalance: emp.balance
+        });
     } catch (e) {
         console.error(e);
         return res.status(500).json({ success: false, error: 'تعذر تسجيل العملية.' });
