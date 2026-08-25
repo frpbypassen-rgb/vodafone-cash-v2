@@ -417,24 +417,26 @@ exports.getLiveTasks = async (req, res) => {
         const completedTodayRange = dayStart && dayEnd ? { $gte: dayStart, $lte: dayEnd } : null;
 
         let completedTodayQuery = { status: 'completed' };
+        const seesGroupCompletedToday = emp.role === 'manager' || emp.role === 'accountant';
+        const completedTodayScope = seesGroupCompletedToday
+            ? { $or: [{ executorGroupId: emp.groupId }, { managerGroupId: emp.groupId }] }
+            : { operatorId: emp._id.toString() };
         if (completedTodayRange) {
-            completedTodayQuery.$or = [
-                { createdAt: completedTodayRange },
-                { updatedAt: completedTodayRange },
-                { completedAt: completedTodayRange },
-                { executorReceivedAt: completedTodayRange }
+            const completedTodayClauses = [
+                completedTodayQuery,
+                completedTodayScope,
+                {
+                    $or: [
+                        { createdAt: completedTodayRange },
+                        { updatedAt: completedTodayRange },
+                        { completedAt: completedTodayRange },
+                        { executorReceivedAt: completedTodayRange }
+                    ]
+                }
             ];
-        }
-
-        if (emp.role === 'manager') {
-            // المدير يرى كل عمليات المجموعة المنفذة اليوم
-            completedTodayQuery.$or = [
-                { executorGroupId: emp.groupId },
-                { managerGroupId: emp.groupId }
-            ];
+            completedTodayQuery = { $and: completedTodayClauses };
         } else {
-            // الموظف العادي يرى عملياته فقط
-            completedTodayQuery.operatorId = emp._id.toString();
+            completedTodayQuery = { ...completedTodayQuery, ...completedTodayScope };
         }
 
         const [alerts, depAlerts, completedToday, completedTodayStats] = await Promise.all([

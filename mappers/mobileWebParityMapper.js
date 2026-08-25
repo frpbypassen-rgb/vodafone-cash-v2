@@ -41,6 +41,7 @@ const managerExecutorEvidence = (tx, canView) => {
 
 const toClientReportDto = (data) => {
     const isPersonalReport = data.scope === 'employee';
+    const isExternalPersonalReport = isPersonalReport && data.role === 'external';
     const canViewExecutorEvidence = data.role === 'manager';
     return {
         previousBalance: Number(data.previousBalance || 0),
@@ -180,10 +181,10 @@ const toClientReportDto = (data) => {
         capabilities: {
             canViewCompanyBalance: !isPersonalReport && !!data.capabilities?.canViewCompanyBalance,
             canViewTeamPerformance: !isPersonalReport && !!data.capabilities?.canViewTeamPerformance,
-            canViewReconciliation: !isPersonalReport && !!data.capabilities?.canViewReconciliation,
+            canViewReconciliation: isExternalPersonalReport || (!isPersonalReport && !!data.capabilities?.canViewReconciliation),
             canFilterEmployee: !!data.capabilities?.canFilterEmployee
         },
-        financialSummary: !isPersonalReport && data.financialSummary ? {
+        financialSummary: (!isPersonalReport || isExternalPersonalReport) && data.financialSummary ? {
             openingBalance: Number(data.financialSummary.openingBalance || 0),
             additions: Number(data.financialSummary.additions || 0),
             deductions: Number(data.financialSummary.deductions || 0),

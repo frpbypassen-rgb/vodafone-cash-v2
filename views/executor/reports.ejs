@@ -187,7 +187,7 @@
             </div>
         </div>
         <div class="nav-actions">
-            <% if (emp.role !== 'operator') { %>
+            <% if (!['operator', 'external'].includes(emp.role)) { %>
             <span class="nav-btn text-success border border-success border-opacity-25" style="cursor: default; font-weight: 800;" title="المبلغ المتاح"><i class="fa-solid fa-wallet me-1"></i> <%= Number(emp.groupId?.balance || 0).toLocaleString('en-US', { maximumFractionDigits: 0 }) %> ج.م</span>
             <% } %>
             <button class="nav-btn btn-theme shadow-sm" onclick="toggleTheme()" title="المظهر"><i class="fa-solid fa-moon" id="themeIcon"></i></button>
@@ -199,8 +199,8 @@
         <div class="executor-page-heading">
             <div>
                 <span class="executor-kicker"><i class="fa-solid fa-chart-column"></i> مركز التقارير</span>
-                <h1><%= emp.role === 'operator' ? 'تقاريري الشخصية' : 'تقارير شركة التنفيذ' %></h1>
-                <p><%= emp.role === 'operator' ? 'يعرض هذا القسم عمليات حسابك فقط.' : 'مراجعة العمليات والأرصدة وأداء فريق التنفيذ حسب الفترة.' %></p>
+                <h1><%= ['operator', 'external'].includes(emp.role) ? 'تقاريري الشخصية' : 'تقارير شركة التنفيذ' %></h1>
+                <p><%= ['operator', 'external'].includes(emp.role) ? 'يعرض هذا القسم عمليات حسابك فقط.' : 'مراجعة العمليات والأرصدة وأداء فريق التنفيذ حسب الفترة.' %></p>
             </div>
         </div>
 
@@ -282,7 +282,7 @@
                             <th>المدة</th>
                             <th>الحالة</th>
                             <th>التاريخ</th>
-                            <% if (emp.role !== 'operator') { %><th id="executorColumnHeader">المنفذ</th><% } %>
+                            <% if (!['operator', 'external'].includes(emp.role)) { %><th id="executorColumnHeader">المنفذ</th><% } %>
                         </tr>
                     </thead>
                     <tbody id="reportTableBody"></tbody>
@@ -412,7 +412,7 @@
 
         let lastReportData = null;
         let lastReportRequest = null;
-        let isPersonalExecutorReport = <%= emp.role === 'operator' ? 'true' : 'false' %>;
+        let isPersonalExecutorReport = <%= ['operator', 'external'].includes(emp.role) ? 'true' : 'false' %>;
         const formatEgp = (value) => `${Number(value || 0).toLocaleString('en-US', { maximumFractionDigits: 2 })} ج.م`;
 
         async function loadEmployeeFilter() {

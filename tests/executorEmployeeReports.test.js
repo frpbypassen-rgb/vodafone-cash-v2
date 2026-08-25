@@ -12,6 +12,22 @@ const { toClientReportDto } = require('../mappers/mobileWebParityMapper');
 
 const leanResult = (value) => ({ lean: jest.fn().mockResolvedValue(value) });
 
+const expectGroupAndDateFilters = (query) => {
+    expect(query.$and).toEqual(expect.arrayContaining([
+        expect.objectContaining({
+            $or: expect.arrayContaining([
+                { executorGroupId: 'group-1' },
+                { managerGroupId: 'group-1' }
+            ])
+        }),
+        expect.objectContaining({
+            $or: expect.arrayContaining([
+                expect.objectContaining({ createdAt: expect.any(Object) })
+            ])
+        })
+    ]));
+};
+
 describe('executor employee reports', () => {
     beforeEach(() => {
         jest.clearAllMocks();
@@ -61,7 +77,9 @@ describe('executor employee reports', () => {
         });
 
         expect(Transaction.find).toHaveBeenCalledWith(expect.objectContaining({
-            operatorId: 'employee-1'
+            $and: expect.arrayContaining([
+                expect.objectContaining({ operatorId: 'employee-1' })
+            ])
         }));
         expect(report.scope).toBe('employee');
         expect(report.company).toBeUndefined();
@@ -104,8 +122,12 @@ describe('executor employee reports', () => {
         }
 
         expect(Transaction.find).toHaveBeenCalledWith(expect.objectContaining({
-            tenantId: { $in: ['tenant-1', null] },
-            operatorId: 'employee-1'
+            $and: expect.arrayContaining([
+                expect.objectContaining({
+                    tenantId: { $in: ['tenant-1', null] },
+                    operatorId: 'employee-1'
+                })
+            ])
         }));
     });
 
@@ -126,8 +148,12 @@ describe('executor employee reports', () => {
         }
 
         expect(Transaction.find).toHaveBeenCalledWith(expect.objectContaining({
-            tenantId: { $in: [tenantObjectId, null] },
-            operatorId: 'employee-1'
+            $and: expect.arrayContaining([
+                expect.objectContaining({
+                    tenantId: { $in: [tenantObjectId, null] },
+                    operatorId: 'employee-1'
+                })
+            ])
         }));
     });
 
@@ -180,22 +206,23 @@ describe('executor employee reports', () => {
         expect(report.scope).toBe('group');
         expect(report.reportPeriod.type).toBe('range');
         const reportQuery = Transaction.find.mock.calls[0][0];
-        expect(reportQuery.$or).toEqual(expect.arrayContaining([
+        expectGroupAndDateFilters(reportQuery);
+        expect(reportQuery.$and).toEqual(expect.arrayContaining([
             expect.objectContaining({
-                createdAt: {
-                    $gte: expect.any(Date),
-                    $lte: expect.any(Date)
-                }
-            }),
-            expect.objectContaining({
-                updatedAt: {
-                    $gte: expect.any(Date),
-                    $lte: expect.any(Date)
-                }
+                $or: expect.arrayContaining([
+                    expect.objectContaining({
+                        updatedAt: {
+                            $gte: expect.any(Date),
+                            $lte: expect.any(Date)
+                        }
+                    })
+                ])
             })
         ]));
-        expect(reportQuery.$or[0].createdAt.$gte.toISOString()).toBe('2026-07-31T22:00:00.000Z');
-        expect(reportQuery.$or[0].createdAt.$lte.toISOString()).toBe('2026-08-14T21:59:59.999Z');
+        const dateClause = reportQuery.$and.find((clause) => clause.$or?.some((entry) => entry.createdAt));
+        expect(dateClause.$or[0].createdAt.$gte.toISOString()).toBe('2026-07-31T22:00:00.000Z');
+        expect(dateClause.$or[0].createdAt.$lte.toISOString()).toBe('2026-08-14T21:59:59.999Z');
+        expect(reportQuery.operatorId).toBeUndefined();
         expect(report.summary.pendingCount).toBe(1);
         expect(report.summary.averageDurationSeconds).toBe(120);
         expect(report.financialSummary).toEqual(expect.objectContaining({
@@ -232,11 +259,67 @@ describe('executor employee reports', () => {
             dateValue: '2026-08-14'
         }));
 
+        const reportQuery = Transaction.find.mock.calls[0][0];
+        expectGroupAndDateFilters(reportQuery);
+        expect(reportQuery.operatorId).toBeUndefined();
         expect(dto.scope).toBe('group');
         expect(dto.capabilities.canViewReconciliation).toBe(true);
         expect(dto.capabilities.canViewTeamPerformance).toBe(false);
         expect(dto.teamPerformance).toEqual([]);
         expect(dto.financialSummary).not.toBeNull();
+    });
+
+    test('limits external employees to their own operations and deposits', async () => {
+        Employee.findById.mockResolvedValue({
+            _id: 'external-1',
+            groupId: 'group-1',
+            role: 'external',
+            name: 'موظف خارجي',
+            phone: '0930000000',
+            webUsername: 'external@ahram.com',
+            balance: 250,
+            createdAt: new Date('2026-08-01T00:00:00.000Z')
+        });
+        Transaction.find.mockImplementation(() => ({
+            sort: jest.fn().mockReturnValue(leanResult([
+                {
+                    _id: 'completed-ext',
+                    customId: 'ATT-EXT-1',
+                    status: 'completed',
+                    amount: 90,
+                    operatorId: 'external-1',
+                    createdAt: new Date('2026-08-14T10:00:00.000Z')
+                },
+                {
+                    _id: 'deposit-ext',
+                    customId: 'DEP-EXT-1',
+                    status: 'deposit',
+                    amount: 120,
+                    operatorId: 'external-1',
+                    createdAt: new Date('2026-08-14T09:00:00.000Z')
+                }
+            ]))
+        }));
+
+        const report = await getExecutorReports({
+            executorId: 'external-1',
+            dateType: 'day',
+            dateValue: '2026-08-14'
+        });
+        const dto = toClientReportDto(report);
+
+        expect(Transaction.find).toHaveBeenCalledWith(expect.objectContaining({
+            $and: expect.arrayContaining([
+                expect.objectContaining({ operatorId: 'external-1' })
+            ])
+        }));
+        expect(report.scope).toBe('employee');
+        expect(report.deposits).toHaveLength(1);
+        expect(report.deposits[0].customId).toBe('DEP-EXT-1');
+        expect(dto.financialSummary).toEqual(expect.objectContaining({
+            additions: 120,
+            closingBalance: 250
+        }));
     });
 
     test('rejects attempts by an operator to request another employee report', async () => {
@@ -272,10 +355,7 @@ describe('executor employee reports', () => {
         });
 
         const reportQuery = Transaction.find.mock.calls[0][0];
-        expect(reportQuery.$or).toEqual(expect.arrayContaining([
-            expect.objectContaining({ completedAt: expect.any(Object) }),
-            expect.objectContaining({ updatedAt: expect.any(Object) })
-        ]));
+        expectGroupAndDateFilters(reportQuery);
         expect(report.operations.map((item) => item.customId)).toEqual(['ATT-TODAY']);
     });
 

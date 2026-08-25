@@ -1101,13 +1101,14 @@ const executorReportTotals = (transactions) => transactions.reduce((summary, tx)
 }, { totalEGP: 0, completedCount: 0, rejectedCount: 0 });
 
 const isCancelledExecutorTransaction = (transaction) => (
-    ['rejected', 'cancelled_by_admin', 'failed'].includes(transaction.status)
+    ['rejected', 'cancelled', 'cancelled_by_admin', 'failed'].includes(transaction.status)
 );
 
 const executorRoleLabel = (role) => ({
     manager: 'مدير شركة تنفيذ',
     accountant: 'محاسب شركة تنفيذ',
-    operator: 'موظف تنفيذ'
+    operator: 'موظف تنفيذ',
+    external: 'موظف خارجي'
 }[role] || 'موظف تنفيذ');
 
 const EXECUTOR_REPORT_MAX_RANGE_DAYS = 366;
@@ -1166,6 +1167,16 @@ const executorReportDateQuery = (start, end) => {
         ]
     };
 };
+
+// Group scope and activity-date filters both use $or. Spread-merge would drop one.
+const buildExecutorReportQuery = (...filters) => {
+    const clauses = filters.filter((filter) => filter && Object.keys(filter).length > 0);
+    if (clauses.length === 0) return {};
+    if (clauses.length === 1) return clauses[0];
+    return { $and: clauses };
+};
+
+const isSelfScopedExecutorRole = (role) => ['operator', 'external'].includes(role);
 
 const executorDurationSeconds = (transaction) => {
     if (!transaction.executorReceivedAt || !transaction.completedAt) return null;
@@ -1243,7 +1254,7 @@ async function getExecutorReports({ executorId, dateType, dateValue, dateFrom, d
 
     const isManager = emp.role === 'manager';
     const isAccountant = emp.role === 'accountant';
-    const isOperator = !isManager && !isAccountant;
+    const isExternal = emp.role === 'external';
     const reportPeriod = resolveExecutorReportPeriod({ dateType, dateValue, dateFrom, dateTo });
 
     let targetEmployee = null;
@@ -1256,14 +1267,12 @@ async function getExecutorReports({ executorId, dateType, dateValue, dateFrom, d
     }
 
     const { start, end } = reportPeriod;
-    const groupQuery = executorGroupQuery(emp.groupId, tenantId);
-    const scopedEmployee = targetEmployee || (isOperator ? emp : null);
-    const baseQuery = { ...groupQuery };
-    if (scopedEmployee) baseQuery.operatorId = String(scopedEmployee._id);
+    const scopeQuery = { ...executorGroupQuery(emp.groupId, tenantId) };
+    const scopedEmployee = targetEmployee || (isSelfScopedExecutorRole(emp.role) ? emp : null);
+    if (scopedEmployee) scopeQuery.operatorId = String(scopedEmployee._id);
 
-    const dateQuery = executorReportDateQuery(start, end);
     const currentTransactions = await findReportTransactions(
-        { ...baseQuery, ...dateQuery },
+        buildExecutorReportQuery(scopeQuery, executorReportDateQuery(start, end)),
         {
             select: '+executorExecutionNumber +executorSenderEntries +executorProofImages',
             sort: { createdAt: -1 }
@@ -1315,7 +1324,7 @@ async function getExecutorReports({ executorId, dateType, dateValue, dateFrom, d
         capabilities: {
             canViewCompanyBalance: false,
             canViewTeamPerformance: false,
-            canViewReconciliation: false,
+            canViewReconciliation: isExternal,
             canFilterEmployee: isManager
         },
         targetEmployee: {
@@ -1331,6 +1340,19 @@ async function getExecutorReports({ executorId, dateType, dateValue, dateFrom, d
             status: executorRoleLabel(reportOwner.role)
         }
     };
+
+    if (isExternal) {
+        personalReport.deposits = deposits;
+        personalReport.totalDeposits = additions;
+        personalReport.financialSummary = {
+            openingBalance: Number(reportOwner.balance || 0) - (additions - deductions),
+            additions,
+            deductions,
+            executedAmount: Number(totals.totalEGP || 0),
+            netMovement: additions - deductions - Number(totals.totalEGP || 0),
+            closingBalance: Number(reportOwner.balance || 0)
+        };
+    }
 
     if (isPersonalReport) return personalReport;
 
@@ -1403,8 +1425,8 @@ async function getExecutorOverview({ executorId, tenantId }) {
     const monthPeriod = resolveExecutorReportPeriod({ dateType: 'month', dateValue: month });
     const query = executorGroupQuery(emp.groupId, tenantId);
     const [todayTransactions, monthTransactions] = await Promise.all([
-        findReportTransactions({ ...query, ...executorReportDateQuery(todayPeriod.start, todayPeriod.end) }),
-        findReportTransactions({ ...query, ...executorReportDateQuery(monthPeriod.start, monthPeriod.end) })
+        findReportTransactions(buildExecutorReportQuery(query, executorReportDateQuery(todayPeriod.start, todayPeriod.end))),
+        findReportTransactions(buildExecutorReportQuery(query, executorReportDateQuery(monthPeriod.start, monthPeriod.end)))
     ]);
     const ownToday = todayTransactions.filter((tx) => String(tx.operatorId || '') === String(emp._id));
     const ownTotals = executorReportTotals(ownToday);
@@ -1596,10 +1618,9 @@ async function getEmployeesWorkspace({ executorId, tenantId }) {
 
     const [employees, todayTransactions, currentTasks, devices] = await Promise.all([
         Employee.find(activeEmployeeQuery).sort({ role: 1, createdAt: -1 }).lean(),
-        Transaction.find({
-            ...groupQuery,
-            ...executorReportDateQuery(today.start, today.end)
-        }).sort({ createdAt: -1 }).lean(),
+        Transaction.find(
+            buildExecutorReportQuery(groupQuery, executorReportDateQuery(today.start, today.end))
+        ).sort({ createdAt: -1 }).lean(),
         Transaction.find({ ...groupQuery, status: 'accepted' })
             .sort({ executorReceivedAt: 1, createdAt: 1 })
             .lean(),
