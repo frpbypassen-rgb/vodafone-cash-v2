@@ -2,6 +2,9 @@
     const exoName = String(emp?.name || 'منفذ');
     const exoInitial = exoName.trim().charAt(0) || 'أ';
     const exoShowBalance = typeof showBalance === 'undefined' ? (emp?.role === 'manager') : showBalance;
+    const exoBalance = Number(emp?.groupId?.balance || 0);
+    const exoBalanceClass = exoBalance > 0 ? 'is-positive' : (exoBalance < 0 ? 'is-negative' : 'is-zero');
+    const exoBalanceText = exoBalance.toLocaleString('en-US', { maximumFractionDigits: 2 });
 %>
 <header class="exo-command">
     <div class="exo-who">
@@ -13,9 +16,10 @@
     </div>
     <div class="exo-command-actions">
         <% if (exoShowBalance) { %>
-            <span class="exo-chip" title="الرصيد المتاح">
+            <span id="executorManagerBalance" class="exo-chip exo-balance <%= exoBalanceClass %>" title="الرصيد الحالي">
                 <i class="fa-solid fa-wallet"></i>
-                <%= Number(emp.groupId?.balance || 0).toLocaleString('en-US', { maximumFractionDigits: 0 }) %> ج.م
+                <span>الرصيد الحالي</span>
+                <strong dir="ltr"><%= exoBalanceText %> ج.م</strong>
             </span>
         <% } %>
         <%- typeof extras === 'string' ? extras : '' %>

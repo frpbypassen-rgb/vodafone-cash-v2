@@ -87,9 +87,9 @@
     <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800;900&family=JetBrains+Mono:wght@700&display=swap" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
-    <link rel="stylesheet" href="/css/executor-workspace.css?v=20260825-reports1">
-    <link rel="stylesheet" href="/css/executor-2030-override.css?v=20260825-reports1">
-    <link rel="stylesheet" href="/css/executor-os.css?v=20260825-reports1">
+    <link rel="stylesheet" href="/css/executor-workspace.css?v=20260825-balance1">
+    <link rel="stylesheet" href="/css/executor-2030-override.css?v=20260825-balance1">
+    <link rel="stylesheet" href="/css/executor-os.css?v=20260825-balance1">
     <link rel="stylesheet" href="/css/executor-report-controls.css?v=20260825-1">
 
     <style>
@@ -174,7 +174,10 @@
     </style>
 </head>
 <body class="executor-os executor-portal-v2 executor-page-reports">
-    <%- include('partials/navigation', { emp, activePage: 'reports' }) %>
+<%- include('partials/navigation', { emp, activePage: 'reports' }) %>
+    <div class="exo-stage">
+        <%- include('partials/command-bar', { emp }) %>
+    </div>
     <nav class="navbar-glass">
         <div class="executor-info">
             <div class="executor-avatar"><i class="fa-solid fa-user-astronaut"></i></div>

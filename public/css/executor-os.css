@@ -295,6 +295,22 @@ body.executor-os::before {
 }
 
 .exo-chip { padding: 0 12px; }
+.exo-chip.exo-balance strong { font-family: 'JetBrains Mono', 'Cairo', monospace; font-size: 0.82rem; letter-spacing: 0.01em; }
+.exo-chip.exo-balance.is-positive {
+    color: var(--executor-green);
+    border-color: color-mix(in srgb, var(--executor-green) 42%, var(--exo-line));
+    background: color-mix(in srgb, var(--executor-green) 14%, transparent);
+}
+.exo-chip.exo-balance.is-negative {
+    color: var(--executor-red);
+    border-color: color-mix(in srgb, var(--executor-red) 42%, var(--exo-line));
+    background: color-mix(in srgb, var(--executor-red) 14%, transparent);
+}
+.exo-chip.exo-balance.is-zero {
+    color: var(--exo-muted);
+    border-color: var(--exo-line);
+    background: rgba(255, 255, 255, 0.04);
+}
 .exo-icon-btn { width: 42px; cursor: pointer; }
 .exo-icon-btn.is-danger { color: var(--exo-red); }
 

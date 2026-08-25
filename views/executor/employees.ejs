@@ -281,9 +281,9 @@
         }
     </style>
     <link rel="stylesheet" href="/css/brand-ui.css?v=20260804-brand1">
-    <link rel="stylesheet" href="/css/executor-workspace.css?v=20260825-reports1">
-    <link rel="stylesheet" href="/css/executor-2030-override.css?v=20260825-reports1">
-    <link rel="stylesheet" href="/css/executor-os.css?v=20260825-reports1">
+    <link rel="stylesheet" href="/css/executor-workspace.css?v=20260825-balance1">
+    <link rel="stylesheet" href="/css/executor-2030-override.css?v=20260825-balance1">
+    <link rel="stylesheet" href="/css/executor-os.css?v=20260825-balance1">
 
     <!-- PWA Setup -->
     <link rel="manifest" href="/manifest.json">
@@ -296,6 +296,9 @@
 <body class="executor-os executor-portal-v2 executor-page-employees">
 
 <%- include('partials/navigation', { emp, activePage: 'employees' }) %>
+<div class="exo-stage">
+    <%- include('partials/command-bar', { emp }) %>
+</div>
 
 <nav class="navbar-glass">
     <div class="executor-info">
