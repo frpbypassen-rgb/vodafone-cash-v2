@@ -158,8 +158,22 @@ describe('executor employee reports', () => {
         expect(report.scope).toBe('group');
         expect(report.reportPeriod.type).toBe('range');
         const reportQuery = Transaction.find.mock.calls[0][0];
-        expect(reportQuery.createdAt.$gte.toISOString()).toBe('2026-07-31T22:00:00.000Z');
-        expect(reportQuery.createdAt.$lte.toISOString()).toBe('2026-08-14T21:59:59.999Z');
+        expect(reportQuery.$or).toEqual(expect.arrayContaining([
+            expect.objectContaining({
+                createdAt: {
+                    $gte: expect.any(Date),
+                    $lte: expect.any(Date)
+                }
+            }),
+            expect.objectContaining({
+                updatedAt: {
+                    $gte: expect.any(Date),
+                    $lte: expect.any(Date)
+                }
+            })
+        ]));
+        expect(reportQuery.$or[0].createdAt.$gte.toISOString()).toBe('2026-07-31T22:00:00.000Z');
+        expect(reportQuery.$or[0].createdAt.$lte.toISOString()).toBe('2026-08-14T21:59:59.999Z');
         expect(report.summary.pendingCount).toBe(1);
         expect(report.summary.averageDurationSeconds).toBe(120);
         expect(report.financialSummary).toEqual(expect.objectContaining({
@@ -211,6 +225,61 @@ describe('executor employee reports', () => {
             dateValue: '2026-08-14'
         })).rejects.toThrow('FORBIDDEN');
         expect(Transaction.find).not.toHaveBeenCalled();
+    });
+
+    test('includes tasks completed today even when created on an earlier day', async () => {
+        Transaction.find.mockImplementation(() => ({
+            sort: jest.fn().mockReturnValue(leanResult([
+                {
+                    _id: 'completed-today',
+                    customId: 'ATT-TODAY',
+                    status: 'completed',
+                    amount: 200,
+                    operatorId: 'employee-1',
+                    createdAt: new Date('2026-08-22T10:00:00.000Z'),
+                    completedAt: new Date('2026-08-25T10:00:00.000Z'),
+                    updatedAt: new Date('2026-08-25T10:00:00.000Z')
+                }
+            ]))
+        }));
+
+        const report = await getExecutorReports({
+            executorId: 'employee-1',
+            dateType: 'day',
+            dateValue: '2026-08-25'
+        });
+
+        const reportQuery = Transaction.find.mock.calls[0][0];
+        expect(reportQuery.$or).toEqual(expect.arrayContaining([
+            expect.objectContaining({ completedAt: expect.any(Object) }),
+            expect.objectContaining({ updatedAt: expect.any(Object) })
+        ]));
+        expect(report.operations.map((item) => item.customId)).toEqual(['ATT-TODAY']);
+    });
+
+    test('includes tasks completed yesterday even when created earlier', async () => {
+        Transaction.find.mockImplementation(() => ({
+            sort: jest.fn().mockReturnValue(leanResult([
+                {
+                    _id: 'completed-yesterday',
+                    customId: 'ATT-YDAY',
+                    status: 'completed',
+                    amount: 150,
+                    operatorId: 'employee-1',
+                    createdAt: new Date('2026-08-20T08:00:00.000Z'),
+                    completedAt: new Date('2026-08-24T12:00:00.000Z'),
+                    updatedAt: new Date('2026-08-24T12:00:00.000Z')
+                }
+            ]))
+        }));
+
+        const report = await getExecutorReports({
+            executorId: 'employee-1',
+            dateType: 'day',
+            dateValue: '2026-08-24'
+        });
+
+        expect(report.operations.map((item) => item.customId)).toEqual(['ATT-YDAY']);
     });
 
     test('rejects report ranges longer than one year', async () => {

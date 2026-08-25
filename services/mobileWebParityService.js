@@ -30,6 +30,7 @@ const { generateExecutorReceiptBase64 } = require('../utils/manualExecutorReceip
 const { calculateTransferCostLYD, isSourceToLydRate } = require('../utils/transferPricing');
 const eventBus = require('./eventBus');
 const { findReportTransactions } = require('./unifiedReportService');
+const { systemDateKey, systemDayEnd, systemDayStart, systemDateRange } = require('../config/systemTime');
 
 const appendNoteText = (current, note) => {
     const cleanNote = String(note || '').trim();
@@ -1059,18 +1060,7 @@ async function sendExecutorSupportReply({ executorId, text, imageBase64 }) {
 /**
  * 📊 Executor Reports Parity
  */
-const tripoliDateValue = (date = new Date()) => {
-    const parts = new Intl.DateTimeFormat('en-GB', {
-        timeZone: 'Africa/Tripoli',
-        year: 'numeric',
-        month: '2-digit',
-        day: '2-digit'
-    }).formatToParts(date).reduce((result, part) => {
-        result[part.type] = part.value;
-        return result;
-    }, {});
-    return `${parts.year}-${parts.month}-${parts.day}`;
-};
+const tripoliDateValue = (date = new Date()) => systemDateKey(date);
 
 const normalizeExecutorTenantScope = (tenantId) => {
     if (!tenantId) return null;
@@ -1116,28 +1106,6 @@ const executorRoleLabel = (role) => ({
 const EXECUTOR_REPORT_MAX_RANGE_DAYS = 366;
 const EXECUTOR_PENDING_STATUSES = new Set(['pending', 'processing', 'accepted']);
 
-const parseReportDate = (value, endOfDay = false) => {
-    const normalized = String(value || '').trim();
-    const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(normalized);
-    if (!match) throw new Error('INVALID_PERIOD');
-
-    const year = Number(match[1]);
-    const month = Number(match[2]);
-    const day = Number(match[3]);
-    const validationDate = new Date(Date.UTC(year, month - 1, day));
-    if (
-        validationDate.getUTCFullYear() !== year ||
-        validationDate.getUTCMonth() !== month - 1 ||
-        validationDate.getUTCDate() !== day
-    ) {
-        throw new Error('INVALID_PERIOD');
-    }
-    // Libya uses UTC+02:00. Building an explicit offset keeps reports aligned
-    // with Tripoli even when the host server is configured to another zone.
-    const time = endOfDay ? '23:59:59.999' : '00:00:00.000';
-    return new Date(`${normalized}T${time}+02:00`);
-};
-
 const resolveExecutorReportPeriod = ({ dateType, dateValue, dateFrom, dateTo }) => {
     const today = tripoliDateValue();
     const finalDateType = ['all', 'day', 'month', 'range'].includes(dateType) ? dateType : 'all';
@@ -1149,8 +1117,9 @@ const resolveExecutorReportPeriod = ({ dateType, dateValue, dateFrom, dateTo }) 
     if (finalDateType === 'range') {
         const from = String(dateFrom || '').trim();
         const to = String(dateTo || '').trim();
-        const start = parseReportDate(from);
-        const end = parseReportDate(to, true);
+        const start = systemDayStart(from);
+        const end = systemDayEnd(to);
+        if (!start || !end) throw new Error('INVALID_PERIOD');
         const rangeDays = Math.floor((end.getTime() - start.getTime()) / 86400000) + 1;
         if (rangeDays < 1 || rangeDays > EXECUTOR_REPORT_MAX_RANGE_DAYS) {
             throw new Error('INVALID_PERIOD');
@@ -1163,15 +1132,32 @@ const resolveExecutorReportPeriod = ({ dateType, dateValue, dateFrom, dateTo }) 
         if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(value)) throw new Error('INVALID_PERIOD');
         const [year, month] = value.split('-').map(Number);
         const lastDay = new Date(Date.UTC(year, month, 0)).getUTCDate();
-        const start = parseReportDate(`${value}-01`);
-        const end = parseReportDate(`${value}-${String(lastDay).padStart(2, '0')}`, true);
+        const start = systemDayStart(`${value}-01`);
+        const end = systemDayEnd(`${value}-${String(lastDay).padStart(2, '0')}`);
+        if (!start || !end) throw new Error('INVALID_PERIOD');
         return { type: 'month', value, start, end, from: value, to: value };
     }
 
     const value = String(dateValue || today).trim();
-    const start = parseReportDate(value);
-    const end = parseReportDate(value, true);
+    const start = systemDayStart(value);
+    const end = systemDayEnd(value);
+    if (!start || !end) throw new Error('INVALID_PERIOD');
     return { type: 'day', value, start, end, from: value, to: value };
+};
+
+// Day filters must follow operational activity, not creation time alone. Tasks
+// accepted or completed today can still carry an older createdAt timestamp.
+const executorReportDateQuery = (start, end) => {
+    if (!start || !end) return {};
+    const inRange = { $gte: start, $lte: end };
+    return {
+        $or: [
+            { createdAt: inRange },
+            { updatedAt: inRange },
+            { completedAt: inRange },
+            { executorReceivedAt: inRange }
+        ]
+    };
 };
 
 const executorDurationSeconds = (transaction) => {
@@ -1268,7 +1254,7 @@ async function getExecutorReports({ executorId, dateType, dateValue, dateFrom, d
     const baseQuery = { ...groupQuery };
     if (scopedEmployee) baseQuery.operatorId = String(scopedEmployee._id);
 
-    const dateQuery = start && end ? { createdAt: { $gte: start, $lte: end } } : {};
+    const dateQuery = executorReportDateQuery(start, end);
     const currentTransactions = await findReportTransactions(
         { ...baseQuery, ...dateQuery },
         {
@@ -1406,12 +1392,14 @@ async function getExecutorOverview({ executorId, tenantId }) {
 
     const today = tripoliDateValue();
     const month = today.slice(0, 7);
-    const todayRange = getDateRange(today, null);
-    const monthRange = getDateRange(null, month);
+    const [year, monthNumber] = month.split('-').map(Number);
+    const monthLastDay = new Date(Date.UTC(year, monthNumber, 0)).getUTCDate();
+    const todayCreatedAt = systemDateRange(today, today);
+    const monthCreatedAt = systemDateRange(`${month}-01`, `${month}-${String(monthLastDay).padStart(2, '0')}`);
     const query = executorGroupQuery(emp.groupId, tenantId);
     const [todayTransactions, monthTransactions] = await Promise.all([
-        findReportTransactions({ ...query, createdAt: { $gte: todayRange.start, $lte: todayRange.end } }),
-        findReportTransactions({ ...query, createdAt: { $gte: monthRange.start, $lte: monthRange.end } })
+        findReportTransactions({ ...query, ...(todayCreatedAt ? { createdAt: todayCreatedAt } : {}) }),
+        findReportTransactions({ ...query, ...(monthCreatedAt ? { createdAt: monthCreatedAt } : {}) })
     ]);
     const ownToday = todayTransactions.filter((tx) => String(tx.operatorId || '') === String(emp._id));
     const ownTotals = executorReportTotals(ownToday);
