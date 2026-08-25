@@ -613,6 +613,15 @@ body.client-nile-theme::before {
 }
 
 @media (max-width: 768px) {
+    .client-nile-theme .bottom-nav-mobile {
+        display: flex !important;
+        position: fixed;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        z-index: 1000;
+    }
+
     body.client-nile-theme.client-satellite-page {
         padding-bottom: calc(var(--nile-rail-h) + 16px) !important;
     }
@@ -624,6 +633,207 @@ body.client-nile-theme::before {
     border-radius: var(--nile-radius);
     box-shadow: var(--nile-shadow-soft);
     backdrop-filter: blur(14px);
+}
+
+/* Satellite pages (support, reports) */
+.client-nile-theme.client-satellite-page {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    font-family: 'Tajawal', sans-serif;
+    color: var(--nile-ink);
+}
+
+.client-nile-theme .glass-nav {
+    background: var(--nile-glass);
+    backdrop-filter: blur(16px);
+    border-bottom: 1px solid var(--nile-border);
+    padding: 15px 0;
+    box-shadow: var(--nile-shadow-soft);
+}
+
+.client-nile-theme .nile-page-title {
+    color: var(--nile-ink);
+}
+
+.client-nile-theme .nile-page-title i {
+    color: var(--nile-gold);
+}
+
+@media (max-width: 768px) {
+    .client-nile-theme.client-satellite-page .glass-nav {
+        display: none !important;
+    }
+}
+
+/* Support chat */
+.client-nile-theme.nile-support-page {
+    height: 100vh;
+}
+
+.client-nile-theme .nile-support-body {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+}
+
+.client-nile-theme .chat-container {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    margin: 20px auto;
+    width: 100%;
+    max-width: 800px;
+    max-height: 85vh;
+}
+
+.client-nile-theme .chat-header {
+    background: color-mix(in srgb, var(--nile-surface) 88%, transparent);
+    border-bottom: 1px solid var(--nile-border);
+    padding: 15px 20px;
+}
+
+.client-nile-theme .chat-messages {
+    flex: 1;
+    padding: 20px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+}
+
+.client-nile-theme .msg-bubble {
+    max-width: 80%;
+    padding: 12px 18px;
+    border-radius: 16px;
+    font-weight: 600;
+    font-size: 1rem;
+    line-height: 1.5;
+    box-shadow: 0 4px 10px rgba(26, 39, 68, 0.06);
+    color: var(--nile-ink);
+}
+
+.client-nile-theme .msg-user {
+    background: linear-gradient(135deg, rgba(201, 162, 39, 0.14), rgba(201, 162, 39, 0.05));
+    border: 1px solid rgba(201, 162, 39, 0.28);
+    align-self: flex-start;
+    border-top-right-radius: 4px;
+}
+
+.client-nile-theme .msg-admin {
+    background: linear-gradient(135deg, rgba(0, 119, 182, 0.14), rgba(0, 119, 182, 0.05));
+    border: 1px solid rgba(0, 119, 182, 0.28);
+    align-self: flex-end;
+    border-top-left-radius: 4px;
+}
+
+[data-theme="dark"] .client-nile-theme .msg-admin {
+    background: linear-gradient(135deg, rgba(201, 162, 39, 0.14), rgba(201, 162, 39, 0.05));
+    border-color: rgba(201, 162, 39, 0.28);
+}
+
+.client-nile-theme .msg-time {
+    font-size: 0.75rem;
+    color: var(--nile-muted);
+    display: block;
+    text-align: right;
+    margin-top: 5px;
+    font-family: 'JetBrains Mono', monospace;
+    opacity: 0.75;
+}
+
+.client-nile-theme .chat-input-area {
+    background: color-mix(in srgb, var(--nile-surface) 88%, transparent);
+    padding: 15px 20px;
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    border-top: 1px solid var(--nile-border);
+}
+
+.client-nile-theme .chat-input {
+    flex: 1;
+    background: color-mix(in srgb, var(--nile-surface) 90%, transparent);
+    border: 1px solid var(--nile-border);
+    color: var(--nile-ink);
+    padding: 15px 20px;
+    border-radius: 50px;
+    outline: none;
+    font-weight: 700;
+}
+
+.client-nile-theme .chat-input:focus {
+    border-color: var(--nile-blue);
+    box-shadow: 0 0 0 3px rgba(0, 119, 182, 0.12);
+}
+
+.client-nile-theme .chat-input::placeholder {
+    color: var(--nile-muted);
+}
+
+.client-nile-theme .send-btn {
+    background: linear-gradient(145deg, var(--nile-blue), var(--nile-navy));
+    color: #fff;
+    border: none;
+    width: 55px;
+    height: 55px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.2rem;
+    box-shadow: 0 5px 15px rgba(0, 119, 182, 0.25);
+    transition: transform 0.2s var(--nile-ease), filter 0.2s;
+}
+
+[data-theme="dark"] .client-nile-theme .send-btn {
+    background: linear-gradient(145deg, var(--nile-gold), #b8860b);
+    color: var(--nile-navy);
+}
+
+.client-nile-theme .send-btn:hover {
+    transform: scale(1.05);
+    filter: brightness(1.08);
+}
+
+.client-nile-theme .attach-btn {
+    background: color-mix(in srgb, var(--nile-surface) 90%, transparent);
+    color: var(--nile-muted);
+    border: 1px solid var(--nile-border);
+    width: 55px;
+    height: 55px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: background 0.2s, color 0.2s, border-color 0.2s;
+}
+
+.client-nile-theme .attach-btn:hover {
+    background: var(--nile-blue);
+    color: #fff;
+    border-color: var(--nile-blue);
+}
+
+[data-theme="dark"] .client-nile-theme .attach-btn:hover {
+    background: var(--nile-gold);
+    color: var(--nile-navy);
+    border-color: var(--nile-gold);
+}
+
+.client-nile-theme .nile-image-preview {
+    background: color-mix(in srgb, var(--nile-surface) 90%, transparent);
+    border-color: var(--nile-border) !important;
+}
+
+@media (max-width: 768px) {
+    .client-nile-theme .chat-container {
+        margin: 10px auto !important;
+        border-radius: 16px !important;
+        max-height: calc(100vh - 150px) !important;
+    }
 }
 
 /* Desktop sidebar accent */

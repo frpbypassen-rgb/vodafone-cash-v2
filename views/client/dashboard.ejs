@@ -210,12 +210,8 @@
         .swal2-title, .swal2-html-container { color: var(--text-main) !important; }
 
         .mobile-header { display: none; }
-        .bottom-nav-mobile { display: none; }
 
         @media (max-width: 768px) {
-            body {
-                padding-bottom: 85px !important; /* Space for bottom navigation */
-            }
             .navbar-custom {
                 display: none !important; /* Hide desktop navbar */
             }
@@ -297,53 +293,6 @@
             }
             [data-theme="dark"] .mobile-logo-wrapper h1 {
                 color: var(--brand-gold);
-            }
-            
-            /* Bottom Navigation */
-            .bottom-nav-mobile {
-                display: flex !important;
-                position: fixed;
-                bottom: 0;
-                left: 0;
-                right: 0;
-                height: 65px;
-                background: var(--card-bg);
-                border-top: 1px solid var(--border-glass);
-                justify-content: space-around;
-                align-items: center;
-                z-index: 1000;
-                box-shadow: 0 -4px 16px rgba(0, 0, 0, 0.08);
-                padding-bottom: env(safe-area-inset-bottom);
-            }
-            .bottom-nav-item {
-                display: flex;
-                flex-direction: column;
-                align-items: center;
-                justify-content: center;
-                gap: 4px;
-                color: var(--text-muted);
-                text-decoration: none;
-                flex: 1;
-                height: 100%;
-                font-size: 0.72rem;
-                font-weight: bold;
-                transition: 0.2s;
-            }
-            .bottom-nav-item i {
-                font-size: 1.25rem;
-                transition: transform 0.2s;
-            }
-            .bottom-nav-item:hover {
-                color: var(--text-main);
-            }
-            .bottom-nav-item.active {
-                color: var(--brand-primary);
-            }
-            [data-theme="dark"] .bottom-nav-item.active {
-                color: var(--brand-gold);
-            }
-            .bottom-nav-item.active i {
-                transform: translateY(-2px);
             }
 
             /* Mobile transaction cards */
@@ -664,7 +613,7 @@
     </style>
     <link rel="stylesheet" href="/css/brand-ui.css?v=20260804-brand1">
     <link rel="stylesheet" href="/css/client-direct-modern.css?v=20260823-1">
-    <link rel="stylesheet" href="/css/client-nile-theme.css?v=20260825-wallet2">
+    <link rel="stylesheet" href="/css/client-nile-theme.css?v=20260826-nile">
 
     <!-- PWA Setup -->
     <link rel="manifest" href="/manifest.json">
@@ -3088,7 +3037,9 @@
             // Check URL search params for tab
             const urlParams = new URLSearchParams(window.location.search);
             const initialTab = urlParams.get('tab') || 'account';
-            if (['account', 'transfers', 'operations', 'profile', 'rates'].includes(initialTab)) {
+            if (initialTab === 'more') {
+                openWalletHubMore();
+            } else if (['account', 'transfers', 'operations', 'profile', 'rates'].includes(initialTab)) {
                 switchMobileTab(initialTab);
             }
 
@@ -3155,7 +3106,7 @@
     </script>
 
     <!-- Mobile Bottom Navigation -->
-    <nav class="bottom-nav-mobile no-print" aria-label="التنقل السفلي">
+    <nav class="bottom-nav-mobile no-print d-md-none" aria-label="التنقل السفلي">
         <a href="javascript:void(0)" class="bottom-nav-item active" data-tab="account" onclick="switchMobileTab('account')">
             <i class="fa-solid fa-house"></i>
             <span>الرئيسية</span>

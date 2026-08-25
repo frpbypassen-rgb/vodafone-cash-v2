@@ -307,47 +307,11 @@
         }
 
         .mobile-header { display: none; }
-        .bottom-nav-mobile { display: none; }
 
         /* 📱 شاشات الهواتف الذكية (Native App Layout) */
         @media (max-width: 768px) {
-            body {
-                padding-bottom: 90px; /* مساحة للشريط السفلي */
-            }
-            
             .navbar-custom {
-                display: none !important; /* Hide desktop navbar */
-            }
-            
-            .mobile-header {
-                display: flex !important;
-                justify-content: space-between;
-                align-items: center;
-                background: var(--card-bg);
-                border-bottom: 1px solid var(--border-glass);
-                padding: 10px 16px;
-                position: sticky;
-                top: 0;
-                z-index: 999;
-                box-shadow: var(--shadow-soft);
-            }
-            .mobile-logo-wrapper {
-                display: flex;
-                align-items: center;
-                gap: 8px;
-            }
-            .mobile-logo-wrapper img {
-                height: 32px;
-                border-radius: 6px;
-            }
-            .mobile-logo-wrapper h1 {
-                font-size: 1.15rem;
-                font-weight: 900;
-                margin: 0;
-                color: var(--brand-primary);
-            }
-            [data-theme="dark"] .mobile-logo-wrapper h1 {
-                color: var(--brand-gold);
+                display: none !important;
             }
 
             #statsSection {
@@ -366,53 +330,6 @@
             .stat-card small {
                 font-size: 0.62rem !important;
             }
-        }
-
-        /* 📱 شريط التنقل السفلي للهواتف */
-        .bottom-nav-mobile {
-            position: fixed;
-            bottom: 0;
-            left: 0;
-            right: 0;
-            height: 65px;
-            background: var(--card-bg);
-            border-top: 1px solid var(--border-glass);
-            display: flex;
-            justify-content: space-around;
-            align-items: center;
-            z-index: 1000;
-            box-shadow: 0 -4px 16px rgba(0, 0, 0, 0.08);
-            padding-bottom: env(safe-area-inset-bottom);
-        }
-        .bottom-nav-item {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            gap: 4px;
-            color: var(--text-muted);
-            text-decoration: none;
-            flex: 1;
-            height: 100%;
-            transition: all 0.2s ease;
-            font-size: 0.72rem;
-            font-weight: 700;
-        }
-        .bottom-nav-item i {
-            font-size: 1.25rem;
-            transition: transform 0.2s ease;
-        }
-        .bottom-nav-item:hover {
-            color: var(--text-main);
-        }
-        .bottom-nav-item.active {
-            color: var(--brand-primary);
-        }
-        [data-theme="dark"] .bottom-nav-item.active {
-            color: var(--brand-gold);
-        }
-        .bottom-nav-item.active i {
-            transform: translateY(-2px);
         }
 
         /* بطاقات العمليات للهواتف */
@@ -482,7 +399,7 @@
         .swal2-title, .swal2-html-container { color: var(--text-main) !important; }
     </style>
     <link rel="stylesheet" href="/css/brand-ui.css?v=20260804-brand1">
-    <link rel="stylesheet" href="/css/client-nile-theme.css?v=20260825-wallet2">
+    <link rel="stylesheet" href="/css/client-nile-theme.css?v=20260826-nile">
 
     <!-- PWA Setup -->
     <link rel="manifest" href="/manifest.json">

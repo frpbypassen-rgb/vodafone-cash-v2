@@ -110,6 +110,7 @@ const clientTransactionController = require('../controllers/clientTransactionCon
 const clientCompanyController = require('../controllers/clientCompanyController');
 const clientAgentController = require('../controllers/clientAgentController');
 const clientWorkspaceController = require('../controllers/clientWorkspaceController');
+const businessPortalService = require('../services/businessPortalService');
 
 const clientDocumentUpload = multer({
     storage: multer.diskStorage({
@@ -324,11 +325,23 @@ router.get(['/proxy/image/:id', '/proxy/image/:id/:index'], requireClientAuth, c
 // ===============================================
 // 📞 Support Routes
 // ===============================================
-router.get('/support', requireClientAuth, clientWorkspaceController.renderPage('support'), async (req, res) => {
+router.get('/support', requireClientAuth, async (req, res) => {
     try {
-        const { account } = await getSupportIdentity(req);
-        res.render('client/support', { account, accountType: req.session.accountType });
-    } catch (e) { res.status(500).send('Error'); }
+        const context = await businessPortalService.loadPageContext(req, 'support');
+        return res.render('client/workspace', context);
+    } catch (error) {
+        if (error.message === 'NOT_BUSINESS_PORTAL') {
+            try {
+                const { account } = await getSupportIdentity(req);
+                return res.render('client/support', { account, accountType: req.session.accountType });
+            } catch (e) {
+                return res.status(500).send('Error');
+            }
+        }
+        if (error.message === 'FORBIDDEN_PAGE') return res.status(403).redirect('/client/dashboard?portalError=forbidden');
+        console.error('[Support] render failed:', error.message);
+        return res.redirect('/client/logout');
+    }
 });
 
 router.get('/api/support/messages', requireClientAuth, async (req, res) => {
