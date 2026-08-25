@@ -1,0 +1,24 @@
+<% const navActive = typeof activeNav !== 'undefined' ? activeNav : ''; %>
+<nav class="bottom-nav-mobile no-print d-md-none" aria-label="التنقل السفلي">
+    <a href="/client/dashboard" class="bottom-nav-item <%= navActive === 'home' ? 'active' : '' %>">
+        <i class="fa-solid fa-house"></i>
+        <span>الرئيسية</span>
+    </a>
+    <a href="/client/dashboard?tab=transfers" class="bottom-nav-item <%= navActive === 'transfer' ? 'active' : '' %>">
+        <i class="fa-solid fa-paper-plane"></i>
+        <span>تحويل</span>
+    </a>
+    <div class="nile-fab-slot">
+        <a href="/client/dashboard?tab=transfers" class="nile-fab" aria-label="تحويل سريع">
+            <i class="fa-solid fa-plus"></i>
+        </a>
+    </div>
+    <a href="/client/dashboard?tab=operations" class="bottom-nav-item <%= navActive === 'operations' ? 'active' : '' %>">
+        <i class="fa-solid fa-list-check"></i>
+        <span>العمليات</span>
+    </a>
+    <a href="/client/reports" class="bottom-nav-item <%= navActive === 'reports' || navActive === 'support' || navActive === 'more' ? 'active' : '' %>">
+        <i class="fa-solid fa-ellipsis"></i>
+        <span>المزيد</span>
+    </a>
+</nav>

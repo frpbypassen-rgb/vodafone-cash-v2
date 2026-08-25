@@ -1,0 +1,23 @@
+<%
+    const shellAccount = (typeof account !== 'undefined' && account) ? account : (typeof user !== 'undefined' ? user : {});
+    const shellBalance = Number(shellAccount.balance || 0);
+    const shellCanView = shellAccount.canViewBalance !== false;
+    const shellName = shellAccount.name || 'Al-Ahram Pay';
+%>
+<header class="mobile-header no-print d-md-none">
+    <div class="mobile-logo-wrapper direct-brand-copy">
+        <img src="/images/logo.jpeg" alt="Logo" onerror="this.onerror=null; this.src='/images/logo.jpg';">
+        <div>
+            <strong>Al-Ahram Pay</strong>
+            <span><%= shellName %></span>
+        </div>
+    </div>
+    <div class="d-flex align-items-center gap-2">
+        <div class="pe-none nile-balance-chip <%= shellBalance >= 0 ? 'is-positive' : 'is-negative' %>">
+            <span dir="ltr" class="mono-num"><%= shellCanView ? shellBalance.toFixed(2) : '***' %> LYD</span>
+            <i class="fa-solid fa-wallet"></i>
+        </div>
+        <button class="nav-btn btn-theme" type="button" onclick="toggleTheme()" title="تبديل الوضع"><i class="fa-solid fa-moon" id="mobileThemeIcon"></i></button>
+        <a href="/client/logout" class="nav-btn nav-logout" title="خروج"><i class="fa-solid fa-power-off"></i></a>
+    </div>
+</header>

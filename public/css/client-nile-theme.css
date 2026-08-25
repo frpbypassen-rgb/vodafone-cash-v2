@@ -587,6 +587,45 @@ body.client-nile-theme::before {
     max-width: 72px;
 }
 
+.client-nile-theme .nile-fab {
+    text-decoration: none;
+}
+
+.client-nile-theme .nile-balance-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 12px;
+    border-radius: 12px;
+    font-weight: 800;
+    font-size: 0.82rem;
+    color: #fff;
+}
+
+.client-nile-theme .nile-balance-chip.is-positive {
+    background: linear-gradient(135deg, var(--nile-teal), #059669);
+    box-shadow: 0 4px 12px rgba(14, 155, 134, 0.25);
+}
+
+.client-nile-theme .nile-balance-chip.is-negative {
+    background: linear-gradient(135deg, #ef4444, #dc2626);
+    box-shadow: 0 4px 12px rgba(239, 68, 68, 0.25);
+}
+
+@media (max-width: 768px) {
+    body.client-nile-theme.client-satellite-page {
+        padding-bottom: calc(var(--nile-rail-h) + 16px) !important;
+    }
+}
+
+.client-nile-theme .nile-page-card {
+    background: var(--nile-glass);
+    border: 1px solid var(--nile-border);
+    border-radius: var(--nile-radius);
+    box-shadow: var(--nile-shadow-soft);
+    backdrop-filter: blur(14px);
+}
+
 /* Desktop sidebar accent */
 @media (min-width: 769px) {
     .client-nile-theme .main-container::before {

@@ -482,6 +482,7 @@
         .swal2-title, .swal2-html-container { color: var(--text-main) !important; }
     </style>
     <link rel="stylesheet" href="/css/brand-ui.css?v=20260804-brand1">
+    <link rel="stylesheet" href="/css/client-nile-theme.css?v=20260825-wallet2">
 
     <!-- PWA Setup -->
     <link rel="manifest" href="/manifest.json">
@@ -491,36 +492,9 @@
     <meta name="apple-mobile-web-app-title" content="Al-Ahram">
     <!-- End PWA Setup -->
 </head>
-<body>
+<body class="client-nile-theme client-satellite-page">
 
-    <!-- Mobile Header -->
-    <header class="mobile-header no-print">
-        <div class="mobile-logo-wrapper">
-            <img src="/images/logo.jpeg" alt="Logo" onerror="this.onerror=null; this.src='/images/logo.jpg';">
-            <h1>Al-Ahram Pay</h1>
-        </div>
-        <div class="d-flex align-items-center gap-2">
-            <!-- Balance badge -->
-            <div class="pe-none" style="
-                background: <%= (account.canViewBalance ? account.balance : 0) >= 0 ? 'linear-gradient(45deg, #10b981, #059669)' : 'linear-gradient(45deg, #ef4444, #dc2626)' %>;
-                color: white;
-                padding: 6px 12px;
-                border-radius: 10px;
-                font-weight: 800;
-                box-shadow: 0 4px 10px <%= (account.canViewBalance ? account.balance : 0) >= 0 ? 'rgba(16, 185, 129, 0.2)' : 'rgba(239, 68, 68, 0.2)' %>;
-                font-size: 0.82rem;
-                display: flex;
-                align-items: center;
-                gap: 5px;
-            ">
-                <span dir="ltr" style="font-family: 'JetBrains Mono', monospace;"><%= account.canViewBalance ? account.balance.toFixed(2) : '***' %> LYD</span>
-                <i class="fa-solid fa-wallet"></i>
-            </div>
-            
-            <button class="nav-btn btn-theme" onclick="toggleTheme()" style="padding: 6px; width: 36px; height: 36px; border-radius: 10px; display: flex; align-items: center; justify-content: center;"><i class="fa-solid fa-moon" id="mobileThemeIcon"></i></button>
-            <a href="/client/logout" class="nav-btn nav-logout" style="background: rgba(239, 68, 68, 0.1); color: #ef4444; border-color: rgba(239, 68, 68, 0.3); padding: 6px; width: 36px; height: 36px; border-radius: 10px; display: flex; align-items: center; justify-content: center;"><i class="fa-solid fa-power-off"></i></a>
-        </div>
-    </header>
+    <%- include('partials/wallet_shell_topbar') %>
 
     <nav class="navbar-custom">
         <div class="container-fluid px-4">
@@ -1188,28 +1162,6 @@
         }
     </script>
     
-    <!-- Mobile Bottom Navigation -->
-    <div class="bottom-nav-mobile no-print">
-        <a href="/client/dashboard?tab=account" class="bottom-nav-item" data-tab="account">
-            <i class="fa-solid fa-user-circle"></i>
-            <span>الحساب</span>
-        </a>
-        <a href="/client/dashboard?tab=transfers" class="bottom-nav-item" data-tab="transfers">
-            <i class="fa-solid fa-paper-plane"></i>
-            <span>التحويلات</span>
-        </a>
-        <a href="/client/dashboard?tab=rates" class="bottom-nav-item" data-tab="rates">
-            <i class="fa-solid fa-chart-line"></i>
-            <span>اسعار الصرف</span>
-        </a>
-        <a href="/client/reports" class="bottom-nav-item active" data-tab="reports">
-            <i class="fa-solid fa-chart-pie"></i>
-            <span>التقارير</span>
-        </a>
-        <a href="/client/support" class="bottom-nav-item" data-tab="support">
-            <i class="fa-solid fa-headset"></i>
-            <span>الدعم الفني</span>
-        </a>
-    </div>
+    <%- include('partials/wallet_shell_bottom_nav', { activeNav: 'reports' }) %>
 </body>
 </html>
