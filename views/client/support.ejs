@@ -15,7 +15,8 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800;900&family=JetBrains+Mono:wght@700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="/css/brand-ui.css?v=20260804-brand1">
-    <link rel="stylesheet" href="/css/client-nile-theme.css?v=20260826-nile">
+    <link rel="stylesheet" href="/css/client-nile-theme.css?v=20260826-nile2">
+    <script src="/js/client-theme.js?v=20260826-nile2" defer></script>
 
     <!-- PWA Setup -->
     <link rel="manifest" href="/manifest.json">
@@ -40,7 +41,7 @@
 
     <div class="container d-flex flex-column px-2 nile-support-body" style="flex: 1;">
         <div id="imagePreviewContainer" class="p-3 border-bottom d-none nile-image-preview" style="border-radius: 20px 20px 0 0; display: flex; align-items: center; gap: 15px; margin: 20px auto 0; width: 100%; max-width: 800px;">
-            <img id="imagePreview" src="" style="height: 60px; border-radius: 8px; border: 1px solid var(--border-glass);">
+            <img id="imagePreview" src="" style="height: 60px; border-radius: 8px; border: 1px solid var(--nile-border);">
             <span class="text-primary fw-bold small">الصورة جاهزة للإرسال...</span>
             <button class="btn btn-sm btn-danger rounded-circle ms-auto" onclick="clearImage()" style="width:30px; height:30px;"><i class="fa-solid fa-xmark"></i></button>
         </div>
@@ -48,12 +49,12 @@
         <div class="chat-container m-0 mt-2 mx-auto nile-page-card">
             <div class="chat-header">
                 <div class="d-flex align-items-center gap-3">
-                    <div class="rounded-circle d-flex justify-content-center align-items-center" style="width: 50px; height: 50px; background: rgba(212, 175, 55, 0.1); border: 1px solid var(--brand-gold);">
-                        <i class="fa-solid fa-user-shield fs-4" style="color: var(--brand-gold);"></i>
+                    <div class="rounded-circle d-flex justify-content-center align-items-center nile-support-avatar">
+                        <i class="fa-solid fa-user-shield fs-4"></i>
                     </div>
                     <div>
-                        <h5 class="m-0 fw-bold" style="color: var(--text-main);">فريق الدعم الفني</h5>
-                        <small class="fw-bold opacity-75" style="color: var(--brand-primary);">جاهزون لمساعدتك</small>
+                        <h5 class="m-0 fw-bold nile-support-title">فريق الدعم الفني</h5>
+                        <small class="fw-bold opacity-75 nile-support-subtitle">جاهزون لمساعدتك</small>
                     </div>
                 </div>
             </div>
@@ -115,17 +116,17 @@
 
         const renderMessages = (messages) => {
             if(messages.length === 0) {
-                chatBox.innerHTML = '<div class="text-center w-100 mt-5"><div style="background: rgba(0,0,0,0.05); border: 1px dashed var(--border-glass); padding: 15px; border-radius: 15px; display: inline-block; font-weight: bold; color: var(--text-muted);">أرسل رسالة لفتح تذكرة دعم فني جديدة 👋</div></div>';
+                chatBox.innerHTML = '<div class="text-center w-100 mt-5"><div class="nile-chat-empty">أرسل رسالة لفتح تذكرة دعم فني جديدة 👋</div></div>';
                 return;
             }
             chatBox.innerHTML = '';
             messages.forEach(msg => {
                 const isUser = msg.sender === 'user';
                 const time = new Date(msg.createdAt).toLocaleTimeString('en-GB', {timeZone:'Africa/Tripoli', hour:'2-digit', minute:'2-digit'});
-                const imgHtml = msg.imageUrl ? `<img src="${msg.imageUrl}" class="img-fluid rounded mb-2 d-block shadow-sm" style="max-height: 200px; border: 1px solid var(--border-glass); cursor: pointer;" onclick="window.open('${msg.imageUrl}')">` : '';
+                const imgHtml = msg.imageUrl ? `<img src="${msg.imageUrl}" class="img-fluid rounded mb-2 d-block shadow-sm" style="max-height: 200px; border: 1px solid var(--nile-border); cursor: pointer;" onclick="window.open('${msg.imageUrl}')">` : '';
                 chatBox.innerHTML += `
                     <div class="msg-bubble ${isUser ? 'msg-user' : 'msg-admin'}">
-                        ${!isUser ? `<div class="fw-bold mb-1" style="font-size: 0.75rem; color: var(--brand-primary);"><i class="fa-solid fa-shield-halved me-1"></i> ${msg.senderName}</div>` : ''}
+                        ${!isUser ? `<div class="fw-bold mb-1 nile-admin-label"><i class="fa-solid fa-shield-halved me-1"></i> ${msg.senderName}</div>` : ''}
                         ${imgHtml}
                         <div>${msg.text || ''}</div>
                         <span class="msg-time">${time}</span>
@@ -145,27 +146,6 @@
             try { await fetch('/client/api/support/messages', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ text, imageBase64: b64 }) }); await loadMessages(); } catch(e) {}
             sendBtn.innerHTML = '<i class="fa-solid fa-paper-plane"></i>';
         };
-
-        // Theme Toggle
-        function toggleTheme() {
-            const current = document.documentElement.getAttribute('data-theme');
-            const next = current === 'dark' ? 'light' : 'dark';
-            document.documentElement.setAttribute('data-theme', next);
-            document.documentElement.setAttribute('data-bs-theme', next);
-            localStorage.setItem('ahram_theme', next);
-            const icon = document.getElementById('themeIcon');
-            if (icon) icon.className = next === 'dark' ? 'fa-solid fa-moon' : 'fa-solid fa-sun';
-            const mIcon = document.getElementById('mobileThemeIcon');
-            if (mIcon) mIcon.className = next === 'dark' ? 'fa-solid fa-moon' : 'fa-solid fa-sun';
-        }
-        // Set initial icon
-        (function() {
-            const theme = document.documentElement.getAttribute('data-theme') || 'dark';
-            const icon = document.getElementById('themeIcon');
-            if (icon) icon.className = theme === 'dark' ? 'fa-solid fa-moon' : 'fa-solid fa-sun';
-            const mIcon = document.getElementById('mobileThemeIcon');
-            if (mIcon) mIcon.className = theme === 'dark' ? 'fa-solid fa-moon' : 'fa-solid fa-sun';
-        })();
 
         setInterval(loadMessages, 3000); loadMessages();
     </script>

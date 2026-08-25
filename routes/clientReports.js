@@ -5,6 +5,7 @@ const ClientCompany = require('../models/ClientCompany');
 const User = require('../models/User');
 const SubAccount = require('../models/SubAccount');
 const AgentEmployee = require('../models/AgentEmployee');
+const businessPortalService = require('../services/businessPortalService');
 const { getClientReports } = require('../services/mobileWebParityService');
 
 const requireClientAuth = async (req, res, next) => {
@@ -44,6 +45,17 @@ const requireClientAuth = async (req, res, next) => {
 };
 
 router.get('/reports', requireClientAuth, async (req, res) => {
+    try {
+        const context = await businessPortalService.loadPageContext(req, 'reports');
+        return res.render('client/workspace', context);
+    } catch (error) {
+        if (error.message !== 'NOT_BUSINESS_PORTAL') {
+            if (error.message === 'FORBIDDEN_PAGE') return res.status(403).redirect('/client/dashboard?portalError=forbidden');
+            console.error('[Reports] workspace render failed:', error.message);
+            return res.redirect('/client/logout');
+        }
+    }
+
     try {
         const isCompanyEmployee = req.session.accountType === 'company';
         const isAgentStaff = req.session.accountType === 'agent_staff';

@@ -612,7 +612,7 @@ body.client-nile-theme::before {
     box-shadow: 0 4px 12px rgba(239, 68, 68, 0.25);
 }
 
-@media (max-width: 768px) {
+@media (max-width: 767.98px) {
     .client-nile-theme .bottom-nav-mobile {
         display: flex !important;
         position: fixed;
@@ -828,11 +828,49 @@ body.client-nile-theme::before {
     border-color: var(--nile-border) !important;
 }
 
-@media (max-width: 768px) {
+.client-nile-theme .nile-support-avatar {
+    width: 50px;
+    height: 50px;
+    background: rgba(201, 162, 39, 0.12);
+    border: 1px solid rgba(201, 162, 39, 0.35);
+    color: var(--nile-gold);
+}
+
+.client-nile-theme .nile-support-title {
+    color: var(--nile-ink);
+}
+
+.client-nile-theme .nile-support-subtitle {
+    color: var(--nile-blue);
+}
+
+[data-theme="dark"] .client-nile-theme .nile-support-subtitle {
+    color: var(--nile-gold);
+}
+
+.client-nile-theme .nile-chat-empty {
+    background: color-mix(in srgb, var(--nile-surface) 90%, transparent);
+    border: 1px dashed var(--nile-border);
+    padding: 15px;
+    border-radius: 15px;
+    display: inline-block;
+    font-weight: 700;
+    color: var(--nile-muted);
+}
+
+.client-nile-theme .nile-admin-label {
+    font-size: 0.75rem;
+    color: var(--nile-blue);
+}
+
+[data-theme="dark"] .client-nile-theme .nile-admin-label {
+    color: var(--nile-gold);
+}
+
+@media (max-width: 767.98px) {
     .client-nile-theme .chat-container {
         margin: 10px auto !important;
         border-radius: 16px !important;
-        max-height: calc(100vh - 150px) !important;
     }
 }
 
@@ -848,7 +886,7 @@ body.client-nile-theme::before {
     }
 }
 
-@media (max-width: 768px) {
+@media (max-width: 767.98px) {
     body.client-nile-theme {
         padding-bottom: calc(var(--nile-rail-h) + 12px) !important;
     }

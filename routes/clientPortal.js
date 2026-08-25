@@ -175,7 +175,6 @@ router.get('/finance/profits', requireClientAuth, clientWorkspaceController.rend
 router.get('/customers', requireClientAuth, clientWorkspaceController.renderPage('customers'));
 router.get('/customers/:id', requireClientAuth, clientWorkspaceController.renderPage('customer_profile'));
 router.get('/staff', requireClientAuth, clientWorkspaceController.renderPage('staff'));
-router.get('/reports', requireClientAuth, clientWorkspaceController.renderPage('reports'));
 router.get('/settings', requireClientAuth, clientWorkspaceController.renderPage('settings'));
 router.get('/reports/export.csv', requireClientAuth, clientWorkspaceController.exportReportCsv);
 router.get('/transactions/:id/details', requireClientAuth, clientWorkspaceController.getTransactionDetails);
@@ -335,7 +334,8 @@ router.get('/support', requireClientAuth, async (req, res) => {
                 const { account } = await getSupportIdentity(req);
                 return res.render('client/support', { account, accountType: req.session.accountType });
             } catch (e) {
-                return res.status(500).send('Error');
+                console.error('[Support] identity/render failed:', e);
+                return res.redirect('/client/dashboard?supportError=1');
             }
         }
         if (error.message === 'FORBIDDEN_PAGE') return res.status(403).redirect('/client/dashboard?portalError=forbidden');

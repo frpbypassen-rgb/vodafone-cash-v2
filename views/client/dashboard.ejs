@@ -613,7 +613,7 @@
     </style>
     <link rel="stylesheet" href="/css/brand-ui.css?v=20260804-brand1">
     <link rel="stylesheet" href="/css/client-direct-modern.css?v=20260823-1">
-    <link rel="stylesheet" href="/css/client-nile-theme.css?v=20260826-nile">
+    <link rel="stylesheet" href="/css/client-nile-theme.css?v=20260826-nile2">
 
     <!-- PWA Setup -->
     <link rel="manifest" href="/manifest.json">
@@ -2406,12 +2406,12 @@
                         }
                     }
 
-                    if(data.availableBalance !== undefined) {
+                    if (data.availableBalance != null && Number.isFinite(Number(data.availableBalance))) {
                         const balHolder = document.getElementById('liveBalanceHolder');
-                        if (balHolder) balHolder.innerHTML = `<span class="currency-symbol">LYD</span>${data.availableBalance.toFixed(2)}`;
+                        if (balHolder) balHolder.innerHTML = `<span class="currency-symbol">LYD</span>${Number(data.availableBalance).toFixed(2)}`;
                     }
-                    if(data.totalDeductions !== undefined && document.getElementById('liveDeductionsHolder')) {
-                        document.getElementById('liveDeductionsHolder').innerText = data.totalDeductions.toFixed(2);
+                    if (data.totalDeductions != null && Number.isFinite(Number(data.totalDeductions)) && document.getElementById('liveDeductionsHolder')) {
+                        document.getElementById('liveDeductionsHolder').innerText = Number(data.totalDeductions).toFixed(2);
                     }
 
                     const currentHash = JSON.stringify(data.transactions);
@@ -2436,7 +2436,7 @@
             if (mobileListBrief) mobileListBrief.innerHTML = '';
             
             if (!transactions || transactions.length === 0) {
-                 tbody.innerHTML = `<tr><td colspan="8" style="text-align: center; padding: 40px; color: var(--text-muted); font-weight: bold; border:none; background: transparent;"><i class="fa-solid fa-folder-open fs-1 opacity-25 d-block mb-3"></i> لا توجد عمليات لعرضها.</td></tr>`;
+                 if (tbody) tbody.innerHTML = `<tr><td colspan="8" style="text-align: center; padding: 40px; color: var(--text-muted); font-weight: bold; border:none; background: transparent;"><i class="fa-solid fa-folder-open fs-1 opacity-25 d-block mb-3"></i> لا توجد عمليات لعرضها.</td></tr>`;
                  if (mobileList) {
                      mobileList.innerHTML = `<div class="text-center text-muted py-5 fw-bold"><i class="fa-solid fa-folder-open d-block fs-1 opacity-25 mb-2"></i> لا توجد عمليات لعرضها.</div>`;
                  }
@@ -2608,7 +2608,7 @@
                     </div>`;
                 }
             });
-            tbody.innerHTML = html;
+            if (tbody) tbody.innerHTML = html;
             renderWalletHubRecent(transactions);
         }
 

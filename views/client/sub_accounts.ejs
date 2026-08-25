@@ -32,6 +32,11 @@
         }
 
         body { background-color: var(--bg-body); color: var(--text-main); font-family: 'Tajawal', sans-serif; transition: 0.3s; padding-bottom: 50px; overflow-x: hidden; }
+
+        @media (max-width: 767.98px) {
+            .navbar-custom { display: none !important; }
+            body.client-nile-theme.client-satellite-page { padding-bottom: calc(var(--nile-rail-h) + 16px); }
+        }
         
         .navbar-custom { background: var(--card-bg); border-bottom: 1px solid var(--border-glass); padding: 15px 0; position: sticky; top: 0; z-index: 1000; box-shadow: var(--shadow-soft); transition: 0.3s; margin-bottom: 40px;}
         .logo-img { height: 40px; transition: 0.3s; mix-blend-mode: multiply; filter: contrast(1.2); }
@@ -60,7 +65,8 @@
         .mono-num { font-family: 'JetBrains Mono', monospace; font-size: 1.1rem; }
     </style>
     <link rel="stylesheet" href="/css/brand-ui.css?v=20260804-brand1">
-    <link rel="stylesheet" href="/css/client-nile-theme.css?v=20260826-nile">
+    <link rel="stylesheet" href="/css/client-nile-theme.css?v=20260826-nile2">
+    <script src="/js/client-theme.js?v=20260826-nile2" defer></script>
 
     <!-- PWA Setup -->
     <link rel="manifest" href="/manifest.json">
