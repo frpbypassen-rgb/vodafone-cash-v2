@@ -20,6 +20,7 @@ const { toExecutorPortalTaskDto } = require('../utils/executorTaskPrivacy');
 const mobileWebParityService = require('../services/mobileWebParityService');
 const mobileWebParityMapper = require('../mappers/mobileWebParityMapper');
 const { systemDayStart, systemDayEnd, systemDateKey } = require('../config/systemTime');
+const executorDepositRequestService = require('../services/executorDepositRequestService');
 
 const COMPLETED_TODAY_LIMIT = 60;
 
@@ -90,6 +91,38 @@ exports.getSettings = async (req, res) => {
         return res.render('executor/settings', { emp, overview, showMfaNotice });
     } catch (_) {
         return res.redirect('/executor-portal/dashboard');
+    }
+};
+
+exports.getDeposits = async (req, res) => {
+    const emp = req.managerEmp || req.executorEmployee || await Employee.findById(req.session.executorId).populate('groupId');
+    if (!emp || emp.role !== 'manager') return res.redirect('/executor-portal/dashboard');
+    const showMfaNotice = Boolean(req.session.showMfaEnableNotice);
+    delete req.session.showMfaEnableNotice;
+    return res.render('executor/deposits', { emp, showMfaNotice });
+};
+
+exports.getDepositRequests = async (req, res) => {
+    try {
+        const requests = await executorDepositRequestService.listDepositRequests({ employee: req.managerEmp || req.executorEmployee });
+        return res.json({ success: true, requests });
+    } catch (error) {
+        return res.status(error.status || 500).json({ success: false, error: error.message || 'تعذر تحميل طلبات الإيداع.' });
+    }
+};
+
+exports.postDepositRequest = async (req, res) => {
+    try {
+        const request = await executorDepositRequestService.createDepositRequest({
+            employee: req.managerEmp || req.executorEmployee,
+            amount: req.body?.amount,
+            note: req.body?.note,
+            receipts: req.body?.receiptsBase64
+        });
+        req.app.get('io')?.emit('support:ticket-updated', { source: 'executor_deposit_request' });
+        return res.status(201).json({ success: true, request, message: 'تم إرسال طلب الإيداع للدعم للمراجعة.' });
+    } catch (error) {
+        return res.status(error.status || 500).json({ success: false, error: error.message || 'تعذر إرسال طلب الإيداع.' });
     }
 };
 

@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>إيداعات شركة التنفيذ | الأهرام</title>
+    <script>window.executorCsrfToken = <%- JSON.stringify(typeof csrfToken !== 'undefined' ? csrfToken : '') %>;</script>
+    <script>document.documentElement.setAttribute('data-theme', localStorage.getItem('ahram_theme') || 'light');</script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.rtl.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800;900&family=JetBrains+Mono:wght@700&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <script src="/js/executor-api.js"></script>
+    <link rel="stylesheet" href="/css/executor-workspace.css?v=20260826-deposits1">
+    <link rel="stylesheet" href="/css/executor-2030-override.css?v=20260826-deposits1">
+    <link rel="stylesheet" href="/css/executor-os.css?v=20260826-deposits1">
+    <style>
+        body { font-family: Tajawal, sans-serif; background: var(--x-bg, #08111f); color: var(--x-text, #edf5ff); }
+        .deposit-main { max-width: 1180px; margin: 0 auto; padding: 30px 22px 110px; }
+        .deposit-hero { display:flex; align-items:flex-start; justify-content:space-between; gap:18px; margin-bottom:22px; }
+        .deposit-hero h1 { font-size:clamp(1.35rem, 3vw, 2rem); font-weight:900; margin:0 0 6px; }
+        .deposit-hero p { color:var(--x-muted,#9cadc3); margin:0; }
+        .deposit-grid { display:grid; grid-template-columns:minmax(300px,.95fr) minmax(0,1.45fr); gap:18px; align-items:start; }
+        .deposit-card { background:var(--x-surface,rgba(17,29,48,.93)); border:1px solid var(--x-border,rgba(94,234,212,.18)); border-radius:20px; padding:20px; box-shadow:0 18px 45px rgba(0,0,0,.18); }
+        .deposit-card h2 { font-size:1.05rem; font-weight:900; margin:0 0 18px; }
+        .deposit-card h2 i { color:var(--x-cyan,#22d3ee); margin-left:7px; }
+        .deposit-form label { color:var(--x-muted,#9cadc3); font-size:.8rem; font-weight:800; margin-bottom:7px; }
+        .deposit-form .form-control { background:rgba(255,255,255,.04); border-color:var(--x-border,rgba(94,234,212,.18)); color:inherit; border-radius:12px; padding:12px; }
+        .drop-zone { border:1px dashed rgba(34,211,238,.45); background:rgba(34,211,238,.04); border-radius:15px; padding:16px; text-align:center; cursor:pointer; color:var(--x-muted,#9cadc3); }
+        .drop-zone input { display:none; }.drop-zone i{font-size:1.35rem;color:var(--x-cyan,#22d3ee);display:block;margin-bottom:6px}.drop-zone strong{color:var(--x-text,#edf5ff);display:block}.drop-zone small{font-size:.72rem}
+        .receipt-preview { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; margin-top:10px; }.receipt-preview img{width:100%;aspect-ratio:1;object-fit:cover;border-radius:10px;border:1px solid var(--x-border,rgba(94,234,212,.18));}
+        .submit-deposit { width:100%; border:0; border-radius:13px; padding:13px; background:linear-gradient(135deg,#0e9b86,#0077b6);color:white;font-weight:900; }
+        .deposit-list { display:flex; flex-direction:column; gap:10px; }.deposit-row{display:grid;grid-template-columns:1fr auto;gap:12px;align-items:center;padding:14px;border:1px solid var(--x-border,rgba(94,234,212,.18));border-radius:14px;background:rgba(255,255,255,.025)}
+        .deposit-ref{font-family:'JetBrains Mono',monospace;font-size:.75rem;color:var(--x-cyan,#22d3ee)}.deposit-value{font-family:'JetBrains Mono',monospace;font-size:1.02rem;font-weight:900}.deposit-meta{color:var(--x-muted,#9cadc3);font-size:.76rem;margin-top:4px}.status{display:inline-flex;align-items:center;gap:5px;border-radius:999px;padding:5px 9px;font-size:.72rem;font-weight:900}.status.pending{color:#facc15;background:rgba(250,204,21,.12)}.status.deposit{color:#34d399;background:rgba(52,211,153,.12)}.status.rejected{color:#fb7185;background:rgba(251,113,133,.12)}.empty{text-align:center;color:var(--x-muted,#9cadc3);padding:42px 12px}.empty i{display:block;font-size:2rem;margin-bottom:8px}
+        @media(max-width:850px){.deposit-main{padding:20px 14px 104px}.deposit-grid{grid-template-columns:1fr}.deposit-hero{display:block}.deposit-hero p{margin-bottom:12px}.deposit-card{padding:16px}}
+    </style>
+</head>
+<body class="executor-os">
+    <%- include('partials/navigation', { emp, activePage: 'deposits', showMfaNotice }) %>
+    <main class="deposit-main">
+        <header class="deposit-hero"><div><h1><i class="fa-solid fa-building-columns text-info ms-2"></i>إيداعات شركة التنفيذ</h1><p>أرسل الإيصالات للدعم. لا يُضاف الرصيد إلا بعد المراجعة والقبول.</p></div></header>
+        <section class="deposit-grid">
+            <form class="deposit-card deposit-form" id="depositForm">
+                <h2><i class="fa-solid fa-circle-plus"></i>طلب إيداع جديد</h2>
+                <div class="mb-3"><label for="depositAmount">قيمة الإيداع (EGP)</label><input id="depositAmount" class="form-control" type="number" min="1" max="1000000" step="0.01" required placeholder="مثال: 5000"></div>
+                <div class="mb-3"><label for="depositNote">ملاحظة للدعم</label><textarea id="depositNote" class="form-control" rows="3" maxlength="1000" placeholder="مرجع التحويل أو أي تفاصيل تساعد المراجعة"></textarea></div>
+                <div class="mb-3"><label>إيصالات الإيداع</label><label class="drop-zone" for="depositReceipts"><i class="fa-solid fa-images"></i><strong>اختر صور الإيصالات</strong><small>من 1 إلى 5 صور — JPG أو PNG أو WEBP — حتى 5MB للصورة</small><input id="depositReceipts" type="file" accept="image/jpeg,image/png,image/webp" multiple required></label><div class="receipt-preview" id="receiptPreview"></div></div>
+                <button class="submit-deposit" type="submit"><i class="fa-solid fa-paper-plane ms-1"></i>إرسال طلب الإيداع للمراجعة</button>
+            </form>
+            <section class="deposit-card"><h2><i class="fa-solid fa-clock-rotate-left"></i>متابعة طلبات الإيداع</h2><div class="deposit-list" id="depositList"><div class="empty"><i class="fa-solid fa-circle-notch fa-spin"></i>جارٍ تحميل الطلبات...</div></div></section>
+        </section>
+    </main>
+    <script>
+        const input = document.getElementById('depositReceipts'); const preview = document.getElementById('receiptPreview');
+        const esc = value => String(value || '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c]));
+        const date = value => value ? new Date(value).toLocaleString('ar-LY', { dateStyle:'medium', timeStyle:'short' }) : '---';
+        function drawPreview(){ const files=[...input.files]; if(files.length>5){ input.value=''; preview.innerHTML=''; Swal.fire('تنبيه','الحد الأقصى خمسة إيصالات.','warning'); return; } preview.innerHTML=''; files.forEach(file=>{if(file.size>5*1024*1024){input.value='';preview.innerHTML='';Swal.fire('تنبيه','حجم كل صورة يجب ألا يتجاوز 5MB.','warning');return;}const img=document.createElement('img');img.src=URL.createObjectURL(file);img.onload=()=>URL.revokeObjectURL(img.src);preview.appendChild(img);}); }
+        input.addEventListener('change', drawPreview);
+        async function toDataUrl(file){return new Promise((ok,no)=>{const r=new FileReader();r.onload=()=>ok(r.result);r.onerror=no;r.readAsDataURL(file);});}
+        function status(request){return request.status==='deposit'?['deposit','مقبول','fa-circle-check']:request.status==='rejected'?['rejected','مرفوض','fa-circle-xmark']:['pending','قيد التنفيذ','fa-clock'];}
+        async function loadRequests(){try{const data=await readExecutorApiResponse(await executorApiFetch('/executor-portal/api/deposits'));const list=document.getElementById('depositList');if(!data.requests.length){list.innerHTML='<div class="empty"><i class="fa-regular fa-folder-open"></i>لا توجد طلبات إيداع حتى الآن.</div>';return;}list.innerHTML=data.requests.map(request=>{const [tone,label,icon]=status(request);return `<article class="deposit-row"><div><div class="deposit-ref">${esc(request.customId)}</div><div class="deposit-meta">${esc(request.note||'لا توجد ملاحظة')} · ${date(request.createdAt)} · ${request.receiptCount} إيصال</div>${request.rejectionReason?`<div class="deposit-meta text-danger">سبب الرفض: ${esc(request.rejectionReason)}</div>`:''}</div><div class="text-start"><div class="deposit-value">${Number(request.amount).toLocaleString('en-US',{maximumFractionDigits:2})} EGP</div><span class="status ${tone}"><i class="fa-solid ${icon}"></i>${label}</span></div></article>`;}).join('');}catch(error){document.getElementById('depositList').innerHTML=`<div class="empty text-danger">${esc(error.message)}</div>`;}}
+        document.getElementById('depositForm').addEventListener('submit',async event=>{event.preventDefault();const files=[...input.files];if(!files.length)return;const button=event.currentTarget.querySelector('button');button.disabled=true;try{const receiptsBase64=await Promise.all(files.map(toDataUrl));const response=await executorApiFetch('/executor-portal/api/deposits',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({amount:document.getElementById('depositAmount').value,note:document.getElementById('depositNote').value,receiptsBase64})});const data=await readExecutorApiResponse(response);await Swal.fire('تم الإرسال',`الطلب ${data.request.customId} قيد المراجعة لدى الدعم.`, 'success');event.currentTarget.reset();preview.innerHTML='';loadRequests();}catch(error){Swal.fire('تعذر الإرسال',error.message,'error');}finally{button.disabled=false;}});
+        loadRequests();
+    </script>
+</body></html>

@@ -59,6 +59,18 @@ const transactionSchema = new mongoose.Schema({
         voidToken: { type: String, trim: true },
         voidStartedAt: { type: Date }
     },
+    // طلب إيداع شركة التنفيذ: لا يتحول إلى رصيد فعلي إلا بعد اعتماد الدعم.
+    depositRequest: {
+        note: { type: String, trim: true, maxlength: 1000 },
+        receiptImages: [{ type: String }],
+        supportTicketId: { type: mongoose.Schema.Types.ObjectId, ref: 'SupportTicket' },
+        submittedById: { type: mongoose.Schema.Types.ObjectId, ref: 'Employee' },
+        submittedByName: { type: String, trim: true },
+        reviewedById: { type: String, trim: true },
+        reviewedByName: { type: String, trim: true },
+        reviewedAt: { type: Date },
+        rejectionReason: { type: String, trim: true, maxlength: 1000 }
+    },
 
     // 📊 البيانات المالية والمحاسبية 
     costLYD: { type: Number, default: 0, min: 0 }, // ✅ تحقق: لا قيم سالبة

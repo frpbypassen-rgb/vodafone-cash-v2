@@ -86,6 +86,7 @@ router.get('/logout', authController.logout);
 // --- Dashboard Routes ---
 router.get('/dashboard', requireExecutorAuth, dashboardController.getDashboard);
 router.get('/settings', requireExecutorAuth, dashboardController.getSettings);
+router.get('/deposits', requireExecutorManager, dashboardController.getDeposits);
 router.get('/proxy/image/:id', requireExecutorAuth, dashboardController.getProxyImage);
 router.get('/proxy/image/:id/:index', requireExecutorAuth, dashboardController.getProxyImage);
 router.get('/proxy/executor-image/:id/:index', requireExecutorAuth, dashboardController.getProxyExecutorImage);
@@ -93,6 +94,8 @@ router.get('/api/overview', requireExecutorAuth, dashboardController.getOverview
 router.get('/api/live-tasks', requireExecutorAuth, requireExecutorTaskAccess, dashboardController.getLiveTasks);
 router.post('/api/clear-alert/:id', requireExecutorAuth, requireExecutorTaskAccess, dashboardController.postClearAlert);
 router.post('/api/clear-dep-alert/:id', requireExecutorAuth, requireExecutorTaskAccess, dashboardController.postClearDepAlert);
+router.get('/api/deposits', requireExecutorManager, dashboardController.getDepositRequests);
+router.post('/api/deposits', requireExecutorManager, dashboardController.postDepositRequest);
 
 // --- Employee Management Routes (Manager only) ---
 router.get('/employees', requireExecutorManager, dashboardController.getEmployees);

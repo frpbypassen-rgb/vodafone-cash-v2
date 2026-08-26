@@ -125,7 +125,12 @@
     };
 
     const requestJson = async (url, options = {}) => {
-        const response = await fetch(url, options);
+        const requestOptions = { ...options };
+        const method = String(requestOptions.method || 'GET').toUpperCase();
+        const headers = new Headers(requestOptions.headers || {});
+        if (!['GET', 'HEAD', 'OPTIONS'].includes(method)) headers.set('x-csrf-token', config.csrfToken || '');
+        requestOptions.headers = headers;
+        const response = await fetch(url, requestOptions);
         let data = {};
         try { data = await response.json(); } catch (_error) {}
         if (!response.ok || data.success === false) {
@@ -444,6 +449,15 @@
         `;
     };
 
+    const renderExecutorDepositActions = (ticket, disabled) => {
+        const deposit = ticket.metadata?.depositRequest;
+        if (ticket.metadata?.type !== 'executor_deposit' || !deposit) return '';
+        if (deposit.status === 'approved') return '<div class="support-password-action"><span><i class="fa-solid fa-circle-check text-success"></i> تم قبول الإيداع وإضافة الرصيد للشركة.</span></div>';
+        if (deposit.status === 'rejected') return '<div class="support-password-action"><span><i class="fa-solid fa-circle-xmark text-danger"></i> تم رفض طلب الإيداع.</span></div>';
+        if (config.admin?.role !== 'master') return '<div class="support-password-action"><span><i class="fa-solid fa-lock"></i> الإيداع بانتظار اعتماد المدير الأساسي.</span></div>';
+        return `<div class="support-password-action"><span><i class="fa-solid fa-building-columns"></i> طلب إيداع ${escapeHtml(deposit.customId || '')}: <b>${escapeHtml(String(deposit.amount || 0))} EGP</b> · ${escapeHtml(String(deposit.receiptCount || 0))} إيصال</span><span class="support-password-buttons"><button type="button" class="btn btn-success" data-action="executor-deposit" data-deposit-action="approve" ${disabled ? 'disabled' : ''}>قبول وإضافة الرصيد</button><button type="button" class="btn btn-outline-danger" data-action="executor-deposit" data-deposit-action="reject" ${disabled ? 'disabled' : ''}>رفض</button></span></div>`;
+    };
+
     const renderMessages = (messages = []) => {
         if (!messages.length) {
             return '<div class="support-empty-state"><i class="fa-regular fa-comments"></i><h3>لا توجد رسائل بعد</h3><p>اكتب أول رد لبدء المحادثة مع العميل.</p></div>';
@@ -520,6 +534,7 @@
                 </div>
                 ${lockedByOther ? `<div class="conversation-lock"><i class="fa-solid fa-user-lock"></i><span>يعالج ${escapeHtml(lock.holderName || 'مدير آخر')} هذه التذكرة الآن. تم تعطيل الرد لمنع إرسال ردين متعارضين.</span></div>` : ''}
                 ${renderPasswordResetActions(ticket, disabled)}
+                ${renderExecutorDepositActions(ticket, disabled)}
                 <div class="conversation-messages" id="supportMessages">${renderMessages(ticket.messages)}</div>
                 ${!closed ? `<div class="conversation-quick-replies">${quickReplies.map((reply) => `<button type="button" class="quick-reply" data-action="quick-reply" data-reply="${escapeHtml(reply)}" ${disabled ? 'disabled' : ''}>${escapeHtml(reply)}</button>`).join('')}</div>` : ''}
                 ${!closed ? `<form class="conversation-composer" id="supportReplyForm"><textarea id="supportReplyInput" maxlength="4096" placeholder="اكتب ردًا واضحًا للعميل..." ${disabled ? 'disabled' : ''}>${escapeHtml(draft)}</textarea><button type="submit" title="إرسال الرد" ${disabled ? 'disabled' : ''}><i class="fa-solid fa-paper-plane"></i></button></form>` : '<div class="conversation-lock"><i class="fa-solid fa-circle-check"></i><span>هذه التذكرة منتهية. يمكن إعادة فتحها من قائمة الحالة عند الحاجة.</span></div>'}
@@ -709,6 +724,24 @@
         }
     };
 
+    const handleExecutorDeposit = async (action) => {
+        if (!state.currentTicketId) return;
+        let reason = '';
+        if (action === 'reject') {
+            const result = await Swal.fire({ title: 'سبب رفض الإيداع', input: 'textarea', inputPlaceholder: 'اكتب سببًا واضحًا للشركة...', inputValidator: value => value && value.trim().length >= 3 ? undefined : 'سبب الرفض مطلوب.', showCancelButton: true, confirmButtonText: 'تأكيد الرفض', cancelButtonText: 'تراجع', confirmButtonColor: '#c73c4a' });
+            if (!result.isConfirmed) return;
+            reason = result.value.trim();
+        } else {
+            const result = await Swal.fire({ icon: 'warning', title: 'قبول الإيداع وإضافة الرصيد؟', text: 'سيُضاف المبلغ إلى رصيد شركة التنفيذ مرة واحدة ولا يمكن التراجع من هذه الشاشة.', showCancelButton: true, confirmButtonText: 'قبول وإضافة الرصيد', cancelButtonText: 'تراجع', confirmButtonColor: '#0d8f67' });
+            if (!result.isConfirmed) return;
+        }
+        try {
+            await requestJson(`/api/support/tickets/${state.currentTicketId}/executor-deposit/${action}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ reason }) });
+            showToast(action === 'approve' ? 'تم قبول الإيداع وإضافة الرصيد.' : 'تم رفض طلب الإيداع.');
+            await refreshCurrentTicket();
+        } catch (error) { showToast(error.message, 'error'); }
+    };
+
     const updateCountdowns = () => {
         document.querySelectorAll('[data-sla-due]').forEach((element) => {
             const due = new Date(element.dataset.slaDue).getTime();
@@ -735,6 +768,7 @@
             if (action === 'whatsapp-test') await openWhatsAppTestDialog();
             if (action === 'ticket-whatsapp-test') await sendTicketWhatsAppTest();
             if (action === 'close-ticket') await closeTicket();
+            if (action === 'executor-deposit') await handleExecutorDeposit(actionButton.dataset.depositAction);
             if (action === 'quick-reply') {
                 const input = byId('supportReplyInput');
                 if (input) { input.value = actionButton.dataset.reply || ''; input.focus(); }

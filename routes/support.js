@@ -12,6 +12,7 @@ const {
     isWhatsAppSupportTicket
 } = require('../services/whatChimpSupportService');
 const { createSupportReplyNotifications } = require('../services/clientNotificationService');
+const { resolveDepositTicket } = require('../services/executorDepositRequestService');
 const { recordWhatsAppDeliveryAttempt } = require('../services/whatsappReceiptDeliveryService');
 const {
     SUPPORT_STATUSES,
@@ -625,6 +626,25 @@ router.post('/api/support/tickets/:id/password-reset/reject', requireAuth, requi
         return res.json({ success: true });
     } catch (e) {
         return res.json({ success: false, error: e.message });
+    }
+});
+
+// Financial approval is intentionally limited to the master administrator.
+// The transaction update is atomic, so two support agents cannot credit it twice.
+router.post('/api/support/tickets/:id/executor-deposit/:decision', requireAuth, requireMaster, async (req, res) => {
+    try {
+        const decision = String(req.params.decision || '');
+        if (!['approve', 'reject'].includes(decision)) return res.status(422).json({ success: false, error: 'قرار المراجعة غير صالح.' });
+        const result = await resolveDepositTicket({
+            ticketId: req.params.id,
+            admin: getAdminIdentity(req),
+            approved: decision === 'approve',
+            reason: req.body?.reason
+        });
+        emitTicketUpdate(req, result.ticket);
+        return res.json({ success: true, status: decision === 'approve' ? 'approved' : 'rejected' });
+    } catch (error) {
+        return res.status(error.status || 500).json({ success: false, error: error.message || 'تعذر مراجعة طلب الإيداع.' });
     }
 });
 
