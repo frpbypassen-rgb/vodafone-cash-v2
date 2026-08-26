@@ -591,6 +591,9 @@ router.post('/executor/:id/settle', requireAuth, async (req, res) => {
     try {
         const bot = await ExecutorGroup.findById(req.params.id); const amount = parseFloat(req.body.amount); const notes = req.body.notes ? req.body.notes.trim() : ''; 
         if (!bot || bot.status === 'archived') return res.redirect('/executors?tab=archive&archiveError=READ_ONLY');
+        if (Number.isFinite(amount) && amount > 0) {
+            return res.redirect('/support?category=deposit');
+        }
         let targetBotId = bot._id; let targetBotName = bot.name;
 
         const parentGroupId = bot.parentGroupId || bot.parentBotId;

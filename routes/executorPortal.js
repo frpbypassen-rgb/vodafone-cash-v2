@@ -94,8 +94,8 @@ router.get('/api/overview', requireExecutorAuth, dashboardController.getOverview
 router.get('/api/live-tasks', requireExecutorAuth, requireExecutorTaskAccess, dashboardController.getLiveTasks);
 router.post('/api/clear-alert/:id', requireExecutorAuth, requireExecutorTaskAccess, dashboardController.postClearAlert);
 router.post('/api/clear-dep-alert/:id', requireExecutorAuth, requireExecutorTaskAccess, dashboardController.postClearDepAlert);
-router.get('/api/deposits', requireExecutorManager, dashboardController.getDepositRequests);
-router.post('/api/deposits', requireExecutorManager, dashboardController.postDepositRequest);
+router.get('/api/deposits', requireExecutorAuth, dashboardController.getDepositRequests);
+router.post('/api/deposits', requireExecutorAuth, dashboardController.postDepositRequest);
 
 // --- Employee Management Routes (Manager only) ---
 router.get('/employees', requireExecutorManager, dashboardController.getEmployees);

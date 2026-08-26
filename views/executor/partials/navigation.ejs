@@ -6,10 +6,11 @@
         : (executorRole === 'accountant' ? 'محاسب' : (executorRole === 'external' ? 'موظف خارجي' : 'موظف تنفيذ'));
     const canHandleTasks = executorRole !== 'accountant';
     const canManageEmployees = executorRole === 'manager';
+    const canRequestDeposits = executorRole !== 'accountant';
     const navItems = [
         ...(canHandleTasks ? [{ key: 'tasks', href: '/executor-portal/dashboard', icon: 'tasks', fa: 'fa-list-check', label: 'المهام' }] : []),
         { key: 'reports', href: '/executor-portal/reports', icon: 'reports', fa: 'fa-chart-column', label: 'التقارير' },
-        ...(canManageEmployees ? [{ key: 'deposits', href: '/executor-portal/deposits', icon: 'wallet', fa: 'fa-building-columns', label: 'الإيداعات' }] : []),
+        ...(canRequestDeposits ? [{ key: 'deposits', href: '/executor-portal/deposits', icon: 'wallet', fa: 'fa-building-columns', label: 'الإيداعات' }] : []),
         ...(canManageEmployees ? [{ key: 'employees', href: '/executor-portal/employees', icon: 'employees', fa: 'fa-users-gear', label: 'الفريق' }] : []),
         { key: 'support', href: '/executor-portal/support', icon: 'support', fa: 'fa-headset', label: 'الدعم' },
         { key: 'settings', href: '/executor-portal/settings', icon: 'settings', fa: 'fa-sliders', label: 'الإعدادات' }

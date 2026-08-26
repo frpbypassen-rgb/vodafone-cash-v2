@@ -2,6 +2,7 @@
     'use strict';
 
     const config = window.supportWorkspaceConfig || {};
+    const requestedCategory = new URLSearchParams(window.location.search).get('category');
     const state = {
         tickets: [],
         agents: [],
@@ -219,6 +220,7 @@
         if (status) params.set('status', status);
         if (priority) params.set('priority', priority);
         if (channel) params.set('channel', channel);
+        if (requestedCategory) params.set('category', requestedCategory);
         if (state.assignedFilter) params.set('assigned', state.assignedFilter);
         if (state.unreadOnly) params.set('unread', 'true');
         return params;

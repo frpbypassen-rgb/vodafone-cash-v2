@@ -172,6 +172,9 @@ const buildTicketFilter = (query = {}, adminIdentity = { id: '' }) => {
     const channel = cleanText(query.channel, 20);
     if (['portal', 'whatsapp'].includes(channel)) filter.channel = channel;
 
+    const category = cleanText(query.category, 40);
+    if (SUPPORT_CATEGORIES.includes(category)) filter.category = category;
+
     const assigned = cleanText(query.assigned, 80);
     if (assigned === 'mine') filter.assignedToId = adminIdentity.id;
     else if (assigned === 'unassigned') filter.assignedToId = { $in: [null, ''] };

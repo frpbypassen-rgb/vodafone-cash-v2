@@ -51,7 +51,7 @@ async function notifyAdmins({ title, message, type = 'deposit_pending' }) {
 }
 
 async function createDepositRequest({ employee, amount, note, receipts }) {
-    if (!employee?.groupId || employee.role !== 'manager') throw failure('طلب إيداع الشركة متاح لمدير شركة التنفيذ فقط.', 403);
+    if (!employee?.groupId || employee.role === 'accountant') throw failure('هذا الحساب لا يملك صلاحية طلب إيداع للشركة.', 403);
     const parsedAmount = Number(amount);
     if (!Number.isFinite(parsedAmount) || parsedAmount <= 0 || parsedAmount > 1000000) throw failure('قيمة الإيداع غير صالحة.');
     const cleanNote = String(note || '').replace(/\u0000/g, '').trim().slice(0, 1000);

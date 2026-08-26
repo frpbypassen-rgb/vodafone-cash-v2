@@ -96,7 +96,7 @@ exports.getSettings = async (req, res) => {
 
 exports.getDeposits = async (req, res) => {
     const emp = req.managerEmp || req.executorEmployee || await Employee.findById(req.session.executorId).populate('groupId');
-    if (!emp || emp.role !== 'manager') return res.redirect('/executor-portal/dashboard');
+    if (!emp || emp.role === 'accountant') return res.redirect('/executor-portal/reports');
     const showMfaNotice = Boolean(req.session.showMfaEnableNotice);
     delete req.session.showMfaEnableNotice;
     return res.render('executor/deposits', { emp, showMfaNotice });
