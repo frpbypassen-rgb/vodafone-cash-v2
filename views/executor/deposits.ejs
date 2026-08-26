@@ -146,6 +146,7 @@
         let selectedFiles = [];
         let refreshTimer = null;
         let requestsCache = [];
+        const canReviewAdminDeposits = <%= emp.role === 'manager' ? 'true' : 'false' %>;
 
         if (window.matchMedia('(pointer: coarse)').matches) {
             input.setAttribute('capture', 'environment');
@@ -276,13 +277,18 @@
                 const rejectBlock = request.rejectionReason
                     ? `<div class="deposit-meta text-danger">سبب الرفض: ${esc(request.rejectionReason)}</div><button type="button" class="deposit-new-btn" data-scroll-form="1"><i class="fa-solid fa-rotate-right ms-1"></i>إنشاء طلب جديد</button>`
                     : '';
+                const fromAdmin = request.submittedByRole === 'admin';
+                const reviewActions = fromAdmin && request.status === 'pending' && canReviewAdminDeposits
+                    ? `<div class="d-flex gap-2 flex-wrap mt-2"><button type="button" class="btn btn-success btn-sm fw-bold" data-admin-deposit-review="approve" data-request-id="${esc(request.id)}"><i class="fa-solid fa-circle-check ms-1"></i>قبول الإيداع</button><button type="button" class="btn btn-outline-danger btn-sm fw-bold" data-admin-deposit-review="reject" data-request-id="${esc(request.id)}"><i class="fa-solid fa-ban ms-1"></i>رفض</button></div>`
+                    : (fromAdmin && request.status === 'pending' ? `<div class="deposit-meta text-warning">طلب وارد من الإدارة بانتظار موافقة مدير الشركة.</div>` : '');
                 return `
                     <article class="deposit-row ${tone === 'pending' ? 'is-pending' : ''}">
                         <div>
                             <div class="deposit-ref">${esc(request.customId)}</div>
-                            <div class="deposit-meta">${esc(request.note || 'لا توجد ملاحظة')} · ${date(request.createdAt)} · ${request.receiptCount || 0} إيصال</div>
+                            <div class="deposit-meta">${fromAdmin ? 'طلب وارد من الإدارة' : 'طلب مقدم من الشركة'} · ${esc(request.note || 'لا توجد ملاحظة')} · ${date(request.createdAt)} · ${request.receiptCount || 0} إيصال</div>
                             ${reviewedLine}
                             ${rejectBlock}
+                            ${reviewActions}
                             ${thumbs ? `<div class="deposit-thumbs">${thumbs}</div>` : ''}
                         </div>
                         <div class="text-start">
@@ -375,6 +381,27 @@
             if (event.target.closest('[data-scroll-form="1"]')) {
                 document.getElementById('depositAmount').focus();
                 window.scrollTo({ top: 0, behavior: 'smooth' });
+                return;
+            }
+            const reviewButton = event.target.closest('[data-admin-deposit-review]');
+            if (reviewButton) {
+                const decision = reviewButton.dataset.adminDepositReview;
+                let reason = '';
+                if (decision === 'reject') {
+                    const result = await Swal.fire({ title: 'سبب رفض الإيداع', input: 'textarea', inputPlaceholder: 'اكتب سبباً واضحاً للإدارة...', showCancelButton: true, confirmButtonText: 'تأكيد الرفض', cancelButtonText: 'تراجع', inputValidator: value => value?.trim().length >= 3 ? undefined : 'سبب الرفض مطلوب.' });
+                    if (!result.isConfirmed) return;
+                    reason = result.value.trim();
+                } else {
+                    const result = await Swal.fire({ icon: 'warning', title: 'قبول الإيداع؟', text: 'سيضاف المبلغ إلى رصيد الشركة مرة واحدة فقط.', showCancelButton: true, confirmButtonText: 'قبول وإضافة الرصيد', cancelButtonText: 'تراجع', confirmButtonColor: '#0e9b86' });
+                    if (!result.isConfirmed) return;
+                }
+                reviewButton.disabled = true;
+                try {
+                    const response = await executorApiFetch(`/executor-portal/api/deposits/${reviewButton.dataset.requestId}/review`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ decision, reason }) });
+                    await readExecutorApiResponse(response);
+                    await Swal.fire(decision === 'approve' ? 'تم القبول' : 'تم الرفض', decision === 'approve' ? 'تمت إضافة الرصيد إلى الشركة.' : 'تم إرسال قرار الرفض إلى الإدارة.', 'success');
+                    await loadRequests();
+                } catch (error) { Swal.fire('تعذر حفظ القرار', error.message, 'error'); }
             }
         });
 

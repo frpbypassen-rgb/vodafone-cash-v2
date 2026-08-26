@@ -71,7 +71,7 @@ async function createDepositRequest({ employee, group: requestedGroup, submitted
         status: 'deposit_pending', customId, companyName: group.name || 'شركة التنفيذ', employeeName: submitter.name,
         executorName: submitter.name, notes: cleanNote, proofImage: receiptImages[0], proofImages: receiptImages,
         executorWebAlert: submittedFromAdmin ? { type: 'warning', text: `تم تسجيل طلب إيداع إداري ${customId} بقيمة ${parsedAmount} EGP وهو قيد المراجعة.` } : undefined,
-        depositRequest: { note: cleanNote, receiptImages, submittedById: submitter.id, submittedByName: submitter.name }
+        depositRequest: { note: cleanNote, receiptImages, submittedById: submitter.id, submittedByName: submitter.name, submittedByRole: submittedFromAdmin ? 'admin' : 'executor' }
     });
 
     const messageActor = { name: submitter.name };
@@ -95,6 +95,7 @@ async function createDepositRequest({ employee, group: requestedGroup, submitted
                 receiptCount: receiptImages.length,
                 receiptImages,
                 submittedByName: submitter.name,
+                submittedByRole: submittedFromAdmin ? 'admin' : 'executor',
                 status: 'pending'
             }
         }
@@ -128,6 +129,7 @@ async function listDepositRequests({ employee }) {
             rejectionReason: row.depositRequest?.rejectionReason || '',
             receiptCount: proofImages.length,
             receiptUrls: proofImages.map(toReceiptUrl).filter(Boolean),
+            submittedByRole: row.depositRequest?.submittedByRole || 'executor',
             reviewedByName: row.depositRequest?.reviewedByName || '',
             reviewedAt: row.depositRequest?.reviewedAt || null,
             createdAt: row.createdAt,
@@ -164,4 +166,12 @@ async function resolveDepositTicket({ ticketId, admin, approved, reason = '' }) 
     return { transaction: tx, ticket };
 }
 
-module.exports = { createDepositRequest, listDepositRequests, resolveDepositTicket };
+async function reviewAdminDepositRequest({ employee, requestId, approved, reason = '' }) {
+    if (!employee?.groupId || employee.role !== 'manager') throw failure('الموافقة على إيداعات الإدارة متاحة لمدير شركة التنفيذ فقط.', 403);
+    if (!mongoose.isValidObjectId(requestId)) throw failure('طلب الإيداع غير صالح.', 404);
+    const tx = await Transaction.findOne({ _id: requestId, executorGroupId: employee.groupId._id, status: 'deposit_pending', 'depositRequest.submittedByRole': 'admin' }).select('depositRequest');
+    if (!tx?.depositRequest?.supportTicketId) throw failure('هذا الطلب غير متاح للمراجعة أو تمت مراجعته سابقًا.', 404);
+    return resolveDepositTicket({ ticketId: String(tx.depositRequest.supportTicketId), admin: { id: objectId(employee._id), name: employee.name }, approved, reason });
+}
+
+module.exports = { createDepositRequest, listDepositRequests, resolveDepositTicket, reviewAdminDepositRequest };

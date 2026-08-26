@@ -96,6 +96,7 @@ router.post('/api/clear-alert/:id', requireExecutorAuth, requireExecutorTaskAcce
 router.post('/api/clear-dep-alert/:id', requireExecutorAuth, requireExecutorTaskAccess, dashboardController.postClearDepAlert);
 router.get('/api/deposits', requireExecutorAuth, dashboardController.getDepositRequests);
 router.post('/api/deposits', requireExecutorAuth, dashboardController.postDepositRequest);
+router.post('/api/deposits/:id/review', requireExecutorManager, dashboardController.postReviewAdminDeposit);
 
 // --- Employee Management Routes (Manager only) ---
 router.get('/employees', requireExecutorManager, dashboardController.getEmployees);

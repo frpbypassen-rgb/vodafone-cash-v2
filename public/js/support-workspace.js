@@ -483,6 +483,7 @@
             : (status === 'rejected' ? 'is-rejected' : 'is-pending');
         const companyName = ticket.metadata?.executorGroupName || ticket.name || 'شركة التنفيذ';
         const isMaster = config.admin?.role === 'master';
+        const requiresExecutorApproval = deposit.submittedByRole === 'admin';
         const galleryHtml = receiptUrls.length
             ? `<div class="deposit-review-gallery">${receiptUrls.map((url, index) => `
                 <button type="button" class="deposit-review-thumb" data-action="deposit-lightbox" data-image-url="${escapeHtml(url)}" title="إيصال ${index + 1}">
@@ -496,6 +497,8 @@
             actionsHtml = `<div class="deposit-review-footnote is-success"><i class="fa-solid fa-circle-check"></i> تم قبول الإيداع وإضافة الرصيد للشركة${deposit.reviewedByName ? ` بواسطة ${escapeHtml(deposit.reviewedByName)}` : ''}${deposit.reviewedAt ? ` · ${escapeHtml(formatDateTime(deposit.reviewedAt))}` : ''}.</div>`;
         } else if (status === 'rejected') {
             actionsHtml = `<div class="deposit-review-footnote is-danger"><i class="fa-solid fa-circle-xmark"></i> تم رفض طلب الإيداع${deposit.reviewedByName ? ` بواسطة ${escapeHtml(deposit.reviewedByName)}` : ''}.${deposit.rejectionReason ? `<strong>السبب:</strong> ${escapeHtml(deposit.rejectionReason)}` : ''}</div>`;
+        } else if (requiresExecutorApproval) {
+            actionsHtml = `<div class="deposit-review-footnote is-warn"><i class="fa-solid fa-building-shield"></i> الطلب صادر من الإدارة وينتظر مراجعة وقبول مدير شركة التنفيذ. لا يمكن للإدارة اعتماد هذا الطلب.</div>`;
         } else if (!isMaster) {
             actionsHtml = `<div class="deposit-review-footnote is-warn"><i class="fa-solid fa-lock"></i> يمكنك مراجعة الإيصالات هنا. القبول النهائي وإضافة الرصيد للمدير الأساسي فقط.</div>`;
         } else {

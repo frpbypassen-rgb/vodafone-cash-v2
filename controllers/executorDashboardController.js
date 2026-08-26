@@ -126,6 +126,18 @@ exports.postDepositRequest = async (req, res) => {
     }
 };
 
+exports.postReviewAdminDeposit = async (req, res) => {
+    try {
+        const decision = String(req.body?.decision || '');
+        if (!['approve', 'reject'].includes(decision)) return res.status(422).json({ success: false, error: 'قرار المراجعة غير صالح.' });
+        const result = await executorDepositRequestService.reviewAdminDepositRequest({ employee: req.managerEmp || req.executorEmployee, requestId: req.params.id, approved: decision === 'approve', reason: req.body?.reason });
+        req.app.get('io')?.emit('support:ticket-updated', { source: 'executor_admin_deposit_review' });
+        return res.json({ success: true, status: decision === 'approve' ? 'approved' : 'rejected', requestId: String(result.transaction._id) });
+    } catch (error) {
+        return res.status(error.status || 500).json({ success: false, error: error.message || 'تعذر مراجعة طلب الإيداع.' });
+    }
+};
+
 exports.getOverview = async (req, res) => {
     try {
         const emp = req.executorEmployee || await Employee.findById(req.session.executorId);
