@@ -28,6 +28,7 @@
         .deposit-step strong { display: block; font-size: 0.82rem; margin-bottom: 4px; }
         .deposit-step small { color: var(--x-muted, #9cadc3); font-size: 0.72rem; line-height: 1.5; }
         .deposit-grid { display: grid; grid-template-columns: minmax(300px, 0.95fr) minmax(0, 1.45fr); gap: 18px; align-items: start; }
+        .deposit-grid.review-only { grid-template-columns: minmax(0, 1fr); }
         .deposit-card { background: var(--x-surface, rgba(17, 29, 48, 0.93)); border: 1px solid var(--x-border, rgba(94, 234, 212, 0.18)); border-radius: 20px; padding: 20px; box-shadow: 0 18px 45px rgba(0, 0, 0, 0.18); }
         .deposit-card h2 { font-size: 1.05rem; font-weight: 900; margin: 0 0 18px; }
         .deposit-card h2 i { color: var(--x-cyan, #22d3ee); margin-left: 7px; }
@@ -62,6 +63,11 @@
         .status.deposit { color: #34d399; background: rgba(52, 211, 153, 0.12); }
         .status.rejected { color: #fb7185; background: rgba(251, 113, 133, 0.12); }
         .deposit-new-btn { margin-top: 8px; border: 0; border-radius: 999px; padding: 6px 10px; background: rgba(34, 211, 238, 0.12); color: var(--x-cyan, #22d3ee); font-size: 0.72rem; font-weight: 900; }
+        .deposit-review-actions { display: grid; grid-template-columns: repeat(2, minmax(150px, 1fr)); gap: 10px; max-width: 430px; margin-top: 14px; }
+        .deposit-review-action { min-height: 44px; border-radius: 12px; border: 1px solid transparent; font-family: inherit; font-weight: 900; transition: transform .18s ease, filter .18s ease; }
+        .deposit-review-action:hover { transform: translateY(-1px); filter: brightness(1.06); }
+        .deposit-review-action.is-approve { color: #052e27; background: linear-gradient(135deg, #5eead4, #22c55e); box-shadow: 0 8px 20px rgba(34, 197, 94, .2); }
+        .deposit-review-action.is-cancel { color: #fecaca; background: rgba(127, 29, 29, .24); border-color: rgba(251, 113, 133, .5); }
         .empty { text-align: center; color: var(--x-muted, #9cadc3); padding: 42px 12px; }
         .empty i { display: block; font-size: 2rem; margin-bottom: 8px; }
         @media (max-width: 850px) {
@@ -70,6 +76,7 @@
             .deposit-hero { grid-template-columns: 1fr; }
             .deposit-balance-card { width: 100%; }
             .deposit-card { padding: 16px; }
+            .deposit-review-actions { max-width: none; }
         }
     </style>
 </head>
@@ -79,7 +86,7 @@
         <header class="deposit-hero">
             <div>
                 <h1><i class="fa-solid fa-building-columns text-info ms-2"></i>إيداعات شركة التنفيذ</h1>
-                <p>أرسل قيمة الإيداع مع الإيصالات للدعم. لا يُضاف الرصيد إلى الشركة إلا بعد مراجعة الإدارة والقبول النهائي.</p>
+                <p>تصل إليك طلبات الإيداع الصادرة من الإدارة مع الإيصالات. راجع الطلب ثم اقبله أو ألغِه من هذه الصفحة.</p>
             </div>
             <div class="deposit-balance-card">
                 <span><i class="fa-solid fa-wallet ms-1"></i> الرصيد المتاح حالياً</span>
@@ -87,14 +94,8 @@
             </div>
         </header>
 
-        <section class="deposit-steps">
-            <article class="deposit-step"><strong>1. أرسل الطلب</strong><small>القيمة، ملاحظة، ومن 1 إلى 5 صور إيصال.</small></article>
-            <article class="deposit-step"><strong>2. مراجعة الدعم</strong><small>يراجع الفريق الإيصالات ويحدّث الحالة لحظة بلحظة.</small></article>
-            <article class="deposit-step"><strong>3. القبول أو الرفض</strong><small>عند القبول يُضاف المبلغ مرة واحدة فقط إلى رصيد الشركة.</small></article>
-        </section>
-
-        <section class="deposit-grid">
-            <form class="deposit-card deposit-form" id="depositForm">
+        <section class="deposit-grid review-only">
+            <form class="deposit-card deposit-form d-none" id="depositForm" aria-hidden="true">
                 <h2><i class="fa-solid fa-circle-plus"></i>طلب إيداع جديد</h2>
                 <div class="mb-3">
                     <label for="depositAmount">قيمة الإيداع (EGP)</label>
@@ -282,7 +283,7 @@
                 // pending rows. The protected server endpoint remains the final
                 // authority and only settles a genuine administration request.
                 const reviewActions = request.status === 'pending' && canReviewAdminDeposits
-                    ? `<div class="d-flex gap-2 flex-wrap mt-2"><button type="button" class="btn btn-success btn-sm fw-bold" data-admin-deposit-review="approve" data-request-id="${esc(request.id)}"><i class="fa-solid fa-circle-check ms-1"></i>قبول الإيداع</button><button type="button" class="btn btn-outline-danger btn-sm fw-bold" data-admin-deposit-review="reject" data-request-id="${esc(request.id)}"><i class="fa-solid fa-ban ms-1"></i>رفض</button></div>`
+                    ? `<div class="deposit-review-actions"><button type="button" class="deposit-review-action is-approve" data-admin-deposit-review="approve" data-request-id="${esc(request.id)}"><i class="fa-solid fa-circle-check ms-1"></i>قبول الإيداع</button><button type="button" class="deposit-review-action is-cancel" data-admin-deposit-review="reject" data-request-id="${esc(request.id)}"><i class="fa-solid fa-ban ms-1"></i>إلغاء الطلب</button></div>`
                     : (request.status === 'pending' ? `<div class="deposit-meta text-warning">طلب قيد المراجعة بانتظار موافقة مدير الشركة.</div>` : '');
                 return `
                     <article class="deposit-row ${tone === 'pending' ? 'is-pending' : ''}">
@@ -391,7 +392,7 @@
                 const decision = reviewButton.dataset.adminDepositReview;
                 let reason = '';
                 if (decision === 'reject') {
-                    const result = await Swal.fire({ title: 'سبب رفض الإيداع', input: 'textarea', inputPlaceholder: 'اكتب سبباً واضحاً للإدارة...', showCancelButton: true, confirmButtonText: 'تأكيد الرفض', cancelButtonText: 'تراجع', inputValidator: value => value?.trim().length >= 3 ? undefined : 'سبب الرفض مطلوب.' });
+                    const result = await Swal.fire({ title: 'سبب إلغاء الإيداع', input: 'textarea', inputPlaceholder: 'اكتب سبباً واضحاً للإدارة...', showCancelButton: true, confirmButtonText: 'تأكيد الإلغاء', cancelButtonText: 'تراجع', inputValidator: value => value?.trim().length >= 3 ? undefined : 'سبب الإلغاء مطلوب.' });
                     if (!result.isConfirmed) return;
                     reason = result.value.trim();
                 } else {
@@ -402,7 +403,7 @@
                 try {
                     const response = await executorApiFetch(`/executor-portal/api/deposits/${reviewButton.dataset.requestId}/review`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ decision, reason }) });
                     await readExecutorApiResponse(response);
-                    await Swal.fire(decision === 'approve' ? 'تم القبول' : 'تم الرفض', decision === 'approve' ? 'تمت إضافة الرصيد إلى الشركة.' : 'تم إرسال قرار الرفض إلى الإدارة.', 'success');
+                    await Swal.fire(decision === 'approve' ? 'تم القبول' : 'تم الإلغاء', decision === 'approve' ? 'تمت إضافة الرصيد إلى الشركة.' : 'تم إرسال قرار الإلغاء إلى الإدارة.', 'success');
                     await loadRequests();
                 } catch (error) { Swal.fire('تعذر حفظ القرار', error.message, 'error'); }
             }
