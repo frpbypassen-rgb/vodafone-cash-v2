@@ -23,6 +23,7 @@ const PasswordResetRequest = require('../models/PasswordResetRequest');
 const TrustedDevice = require('../models/TrustedDevice');
 const SecurityDevice = require('../models/SecurityDevice');
 const accountMfaService = require('../services/accountMfaService');
+const { findByCredentials } = require('../repositories/userRepository');
 const securityControl = require('../services/securityControlService');
 const passkeyService = require('../services/passkeyService');
 
@@ -1191,73 +1192,65 @@ router.post('/login', loginLimiter, async (req, res) => {
             }
         }
 
-        const executor = await Employee.findOne(personLookup(username)).populate('groupId').lean();
-        if (executor?.webPassword) {
-            const isMatch = await verifyAndUpgradePassword(password, executor.webPassword, Employee, executor._id);
-            if (isMatch) {
-                if (executor.status !== 'active' || !executor.groupId || executor.groupId.status !== 'active') {
+        const tenantId = req.tenant?._id || null;
+        let authResult = await findByCredentials(username, password, tenantId);
+        if (!authResult && tenantId) {
+            authResult = await findByCredentials(username, password, null);
+        }
+
+        if (authResult?.error === 'ACCOUNT_BANNED') {
+            await logLoginFailure(req, username, 'SUSPENDED', 'الحساب غير مفعّل حالياً');
+            if (authResult.accountType === 'executor') {
+                return renderLogin(res, 'حساب التنفيذ أو مجموعة التنفيذ غير مفعلة حالياً.', { submittedUsername: username });
+            }
+            if (authResult.accountType === 'sub_client') {
+                return renderLogin(res, 'حساب العميل الفرعي معلق حالياً.', { submittedUsername: username });
+            }
+            if (authResult.accountType === 'client_company') {
+                return renderLogin(res, 'حساب الشركة معلق حالياً.', { submittedUsername: username });
+            }
+            if (authResult.accountType === 'agent_staff') {
+                return renderLogin(res, 'حساب موظف الوكيل معلق حالياً.', { submittedUsername: username });
+            }
+            return renderLogin(res, 'حساب العميل معلق حالياً.', { submittedUsername: username });
+        }
+
+        if (authResult?.account && authResult?.accountType) {
+            const { account, accountType } = authResult;
+
+            if (accountType === 'executor') {
+                const executor = await Employee.findById(account._id).populate('groupId').lean();
+                if (!executor || executor.status !== 'active' || !executor.groupId || executor.groupId.status !== 'active') {
                     await logLoginFailure(req, username, 'SUSPENDED', 'حساب التنفيذ أو مجموعته غير مفعلة حالياً');
-                    return renderLogin(res, 'حساب التنفيذ أو مجموعة التنفيذ غير مفعلة حالياً.');
+                    return renderLogin(res, 'حساب التنفيذ أو مجموعة التنفيذ غير مفعلة حالياً.', { submittedUsername: username });
                 }
                 if (await beginExecutorMfaChallenge(req, res, executor)) return;
                 return loginAsExecutor(req, res, executor, { showMfaEnableNotice: true });
             }
-        }
 
-        const subAccount = await SubAccount.findOne(personLookup(username)).lean();
-        if (subAccount?.webPassword) {
-            const isMatch = await verifyAndUpgradePassword(password, subAccount.webPassword, SubAccount, subAccount._id);
-            if (isMatch) {
-                if (subAccount.status !== 'active') {
-                    await logLoginFailure(req, username, 'SUSPENDED', 'حساب العميل الفرعي معلق حالياً');
-                    return renderLogin(res, 'حساب العميل الفرعي معلق حالياً.');
-                }
-                if (await beginAccountMfaChallenge(req, res, subAccount, 'sub_client')) return;
-                return loginAsClient(req, res, subAccount, 'sub_client');
+            if (accountType === 'sub_client') {
+                if (await beginAccountMfaChallenge(req, res, account, 'sub_client')) return;
+                return loginAsClient(req, res, account, 'sub_client');
             }
-        }
 
-        const clientUser = await User.findOne(personLookup(username)).lean();
-        if (clientUser?.webPassword) {
-            const isMatch = await verifyAndUpgradePassword(password, clientUser.webPassword, User, clientUser._id);
-            if (isMatch) {
-                if (clientUser.status !== 'active') {
-                    await logLoginFailure(req, username, 'SUSPENDED', 'حساب العميل معلق حالياً');
-                    return renderLogin(res, 'حساب العميل معلق حالياً.');
-                }
-                if (await beginAccountMfaChallenge(req, res, clientUser, 'user')) return;
-                return loginAsClient(req, res, clientUser, 'user');
+            if (accountType === 'client_user') {
+                if (await beginAccountMfaChallenge(req, res, account, 'user')) return;
+                return loginAsClient(req, res, account, 'user');
             }
-        }
 
-        const clientCompany = await ClientEmployee.findOne(personLookup(username)).lean();
-        if (clientCompany?.webPassword) {
-            const isMatch = await verifyAndUpgradePassword(password, clientCompany.webPassword, ClientEmployee, clientCompany._id);
-            if (isMatch) {
-                if (clientCompany.status !== 'active') {
-                    await logLoginFailure(req, username, 'SUSPENDED', 'حساب الشركة معلق حالياً');
-                    return renderLogin(res, 'حساب الشركة معلق حالياً.');
-                }
-                if (await beginAccountMfaChallenge(req, res, clientCompany, 'company')) return;
-                return loginAsClient(req, res, clientCompany, 'company');
+            if (accountType === 'client_company') {
+                if (await beginAccountMfaChallenge(req, res, account, 'company')) return;
+                return loginAsClient(req, res, account, 'company');
             }
-        }
 
-        const agentStaff = await AgentEmployee.findOne(personLookup(username)).lean();
-        if (agentStaff?.webPassword) {
-            const isMatch = await verifyAndUpgradePassword(password, agentStaff.webPassword, AgentEmployee, agentStaff._id);
-            if (isMatch) {
-                if (agentStaff.status !== 'active') {
-                    await logLoginFailure(req, username, 'SUSPENDED', 'حساب موظف الوكيل معلق حالياً');
-                    return renderLogin(res, 'حساب موظف الوكيل معلق حالياً.');
-                }
-                const agent = await User.findById(agentStaff.agentId).select('status role').lean();
+            if (accountType === 'agent_staff') {
+                const agent = await User.findById(account.agentId).select('status role').lean();
                 if (!agent || agent.status !== 'active' || agent.role !== 'agent') {
                     await logLoginFailure(req, username, 'SUSPENDED', 'حساب الوكيل الرئيسي غير نشط');
-                    return renderLogin(res, 'حساب الوكيل الرئيسي غير نشط.');
+                    return renderLogin(res, 'حساب الوكيل الرئيسي غير نشط.', { submittedUsername: username });
                 }
-                if (await beginAccountMfaChallenge(req, res, agentStaff, 'agent_staff')) return;
-                return loginAsClient(req, res, agentStaff, 'agent_staff');
+                if (await beginAccountMfaChallenge(req, res, account, 'agent_staff')) return;
+                return loginAsClient(req, res, account, 'agent_staff');
             }
         }
 

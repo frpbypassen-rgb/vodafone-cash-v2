@@ -13,6 +13,19 @@ const bcrypt = require('bcryptjs');
 
 const escapeRegex = (value) => String(value || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
+const getPhoneCandidates = (phone) => {
+    const raw = String(phone || '').trim();
+    const digits = raw.replace(/\D/g, '');
+    const candidates = [raw, digits];
+
+    if (digits.startsWith('218') && digits.length === 12) candidates.push(`0${digits.slice(3)}`);
+    if (digits.startsWith('20') && digits.length === 12) candidates.push(`0${digits.slice(2)}`);
+    if (digits.startsWith('00218')) candidates.push(`0${digits.slice(5)}`);
+    if (digits.startsWith('0020')) candidates.push(`0${digits.slice(4)}`);
+
+    return [...new Set(candidates.filter(Boolean))];
+};
+
 // Keep the mobile API aligned with the unified website login: users may enter
 // either the stored username (for example user@ahram.com), its short form, or
 // their phone number. Username matching is intentionally case-insensitive.
@@ -22,10 +35,11 @@ const credentialLookup = (username) => {
     const usernameClauses = [...new Set(candidates.filter(Boolean))].map((candidate) => ({
         webUsername: new RegExp(`^${escapeRegex(candidate)}$`, 'i')
     }));
+    const phoneClauses = getPhoneCandidates(value).map((phone) => ({ phone }));
     return {
         $or: [
             ...usernameClauses,
-            { phone: value }
+            ...phoneClauses
         ]
     };
 };
@@ -65,24 +79,23 @@ const findByIdWithTenant = (Model, userId, tenantId) => {
 const findByCredentials = async (username, password, tenantId) => {
     const searchPass = password.trim();
 
-    // 1. فحص المنفذ (Employee)
+    // 1. فحص المنفذ (Employee) — قد يتكرر webUsername بين مجموعات مختلفة
     const execQuery = applyTenantScope(credentialLookup(username), tenantId);
-    const execDoc = await Employee.findOne(execQuery).populate('groupId');
+    const execDocs = await Employee.find(execQuery).populate('groupId');
 
-    if (execDoc) {
+    for (const execDoc of execDocs) {
         const isMatch = await _comparePassword(searchPass, execDoc.webPassword, Employee, execDoc._id);
-        if (isMatch) {
-            if (execDoc.status !== 'active') return { error: 'ACCOUNT_BANNED', accountType: 'executor' };
-            const executorGroupId = execDoc.groupId ? execDoc.groupId._id : (execDoc.botId ? execDoc.botId._id : null);
-            const balance = execDoc.groupId ? execDoc.groupId.balance : (execDoc.botId ? execDoc.botId.balance : 0);
-            return {
-                account: execDoc,
-                accountType: 'executor',
-                telegramId: execDoc.telegramId,
-                executorGroupId,
-                balance
-            };
-        }
+        if (!isMatch) continue;
+        if (execDoc.status !== 'active') return { error: 'ACCOUNT_BANNED', accountType: 'executor' };
+        const executorGroupId = execDoc.groupId ? execDoc.groupId._id : (execDoc.botId ? execDoc.botId._id : null);
+        const balance = execDoc.groupId ? execDoc.groupId.balance : (execDoc.botId ? execDoc.botId.balance : 0);
+        return {
+            account: execDoc,
+            accountType: 'executor',
+            telegramId: execDoc.telegramId,
+            executorGroupId,
+            balance
+        };
     }
 
     // 2. فحص موظف الشركة (ClientEmployee)

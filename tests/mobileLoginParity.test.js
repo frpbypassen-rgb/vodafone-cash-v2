@@ -7,7 +7,7 @@ jest.mock('../models/User', () => ({
 }));
 jest.mock('../models/ClientEmployee', () => ({ findOne: jest.fn(), updateOne: jest.fn() }));
 jest.mock('../models/AgentEmployee', () => ({ findOne: jest.fn(), updateOne: jest.fn() }));
-jest.mock('../models/Employee', () => ({ findOne: jest.fn(), updateOne: jest.fn() }));
+jest.mock('../models/Employee', () => ({ findOne: jest.fn(), find: jest.fn(), updateOne: jest.fn() }));
 jest.mock('../models/ClientCompany', () => ({ findById: jest.fn(), findOne: jest.fn() }));
 jest.mock('../models/SubAccount', () => ({ findOne: jest.fn(), updateOne: jest.fn() }));
 jest.mock('bcryptjs', () => ({ compare: jest.fn() }));
@@ -28,6 +28,7 @@ describe('mobile login parity with website login', () => {
     beforeEach(() => {
         jest.clearAllMocks();
         Employee.findOne.mockReturnValue({ populate: jest.fn().mockResolvedValue(null) });
+        Employee.find.mockReturnValue({ populate: jest.fn().mockResolvedValue([]) });
         ClientEmployee.findOne.mockResolvedValue(null);
         AgentEmployee.findOne.mockResolvedValue(null);
         SubAccount.findOne.mockResolvedValue(null);
@@ -96,7 +97,7 @@ describe('mobile login parity with website login', () => {
         const result = await findByCredentials('CLIENT.DEMO', 'pass1234', 'tenant-current');
 
         expect(result.accountType).toBe('client_user');
-        expect(Employee.findOne.mock.calls[0][0].tenantId).toBe('tenant-current');
+        expect(Employee.find.mock.calls[0][0].tenantId).toBe('tenant-current');
         expect(ClientEmployee.findOne.mock.calls[0][0].tenantId).toBe('tenant-current');
         expect(AgentEmployee.findOne.mock.calls[0][0].tenantId).toBe('tenant-current');
         expect(User.findOne.mock.calls[0][0].tenantId).toBe('tenant-current');
