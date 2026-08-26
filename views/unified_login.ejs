@@ -237,6 +237,7 @@
             <% } %>
 
             <form action="/login" method="POST" id="loginForm" onsubmit="handleFormSubmit(event)">
+                <input type="hidden" name="_csrf" value="<%= typeof csrfToken !== 'undefined' ? csrfToken : '' %>">
                 <input type="hidden" name="latitude" id="latitudeInput">
                 <input type="hidden" name="longitude" id="longitudeInput">
                 <input type="hidden" name="locationAccuracy" id="locationAccuracyInput">
