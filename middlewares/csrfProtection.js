@@ -10,6 +10,11 @@ const EXEMPT_PREFIXES = [
     '/metrics',
     '/health'
 ];
+const AUTH_LOGIN_POST_PATHS = new Set([
+    '/login',
+    '/client/login',
+    '/executor-portal/login'
+]);
 
 const escapeHtml = (value) => String(value)
     .replace(/&/g, '&amp;')
@@ -25,23 +30,31 @@ const ensureToken = (req) => {
     return req.session.csrfToken;
 };
 
+const addOriginVariants = (allowed, rawOrigin) => {
+    try {
+        const url = new URL(String(rawOrigin || '').trim());
+        if (!url.origin || url.origin === 'null') return;
+        allowed.add(url.origin);
+        const host = url.hostname;
+        const portSuffix = url.port ? `:${url.port}` : '';
+        if (host.startsWith('www.')) {
+            allowed.add(`${url.protocol}//${host.slice(4)}${portSuffix}`);
+        } else {
+            allowed.add(`${url.protocol}//www.${host}${portSuffix}`);
+        }
+    } catch (_) {}
+};
+
 const hasSameOrigin = (req) => {
     const origin = req.get('origin');
     const referer = req.get('referer');
     const host = req.get('host');
     if (!host) return false;
 
-    const allowed = new Set([
-        `http://${host}`,
-        `https://${host}`
-    ]);
-    // خلف الـ reverse proxy قد يصل Host إلى Node كعنوان داخلي مثل
-    // 127.0.0.1:3000، بينما Origin الصحيح الذي يرسله المتصفح هو النطاق
-    // العام. أضف النطاق المعرّف رسميًا ولا تثق في قيمة قادمة من العميل.
-    try {
-        const publicOrigin = new URL(String(process.env.PUBLIC_APP_URL || '').trim()).origin;
-        if (publicOrigin && publicOrigin !== 'null') allowed.add(publicOrigin);
-    } catch (_) {}
+    const allowed = new Set();
+    addOriginVariants(allowed, `https://${host}`);
+    addOriginVariants(allowed, `http://${host}`);
+    addOriginVariants(allowed, String(process.env.PUBLIC_APP_URL || '').trim());
 
     if (origin) return allowed.has(origin);
     if (referer) {
@@ -54,9 +67,24 @@ const hasSameOrigin = (req) => {
     return false;
 };
 
+const normalizePath = (req) => {
+    const raw = String(req.path || req.originalUrl || '').split('?')[0];
+    return raw.length > 1 ? raw.replace(/\/+$/, '') : raw;
+};
+
+const isAuthLoginPost = (req) => (
+    req.method === 'POST' && AUTH_LOGIN_POST_PATHS.has(normalizePath(req))
+);
+
 const shouldSkip = (req) => {
-    const path = req.path || req.originalUrl || '';
-    return EXEMPT_PREFIXES.some((prefix) => path === prefix || path.startsWith(`${prefix}/`));
+    const path = normalizePath(req);
+    if (EXEMPT_PREFIXES.some((prefix) => path === prefix || path.startsWith(`${prefix}/`))) {
+        return true;
+    }
+    // Login is the session entry point; behind some reverse proxies the CSRF
+    // cookie/session pair may not round-trip reliably on the first POST.
+    if (isAuthLoginPost(req)) return true;
+    return false;
 };
 
 // نموذج إيداع المنفذ الإداري يدعم رفع الإيصالات مباشرة كـ multipart.

@@ -82,6 +82,7 @@
         <% } %>
 
         <form action="/executor-portal/login" method="POST">
+            <input type="hidden" name="_csrf" value="<%= typeof csrfToken !== 'undefined' ? csrfToken : '' %>">
             <% if (mfaRequired) { %>
             <section class="x-mfa-dialog" role="dialog" aria-modal="true" aria-labelledby="mfa-title" aria-describedby="mfa-description">
                 <div class="x-mfa-icon"><i class="fa-solid fa-shield-halved"></i></div>
