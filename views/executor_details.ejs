@@ -78,6 +78,19 @@
         .form-control:focus, .form-select:focus { background: transparent; border-color: var(--brand-primary); box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.2); color: var(--text-main); }
         
         .unified-height { min-height: 42px; display: flex; align-items: center; }
+        .settlement-card { background: linear-gradient(135deg, rgba(245,158,11,.13), rgba(16,185,129,.08)); border: 1px solid rgba(245,158,11,.3); border-radius: 18px; padding: 20px; position: relative; overflow: hidden; }
+        .settlement-card::after { content:''; position:absolute; inset:auto -45px -70px auto; width:170px; height:170px; border-radius:50%; background:rgba(245,158,11,.12); pointer-events:none; }
+        .settlement-head { display:flex; align-items:flex-start; gap:12px; position:relative; z-index:1; margin-bottom:16px; }
+        .settlement-icon { width:42px; height:42px; border-radius:13px; display:grid; place-items:center; color:#1f2937; background:linear-gradient(135deg,#fde68a,#f59e0b); font-size:1.1rem; }
+        .settlement-head h6 { color:var(--text-main); font-weight:900; margin:0 0 3px; }
+        .settlement-head p { color:var(--text-muted); font-size:.76rem; margin:0; }
+        .receipt-drop { min-height:52px; border:1px dashed rgba(16,185,129,.65); border-radius:12px; background:rgba(16,185,129,.07); display:flex; align-items:center; gap:9px; padding:8px 12px; cursor:pointer; position:relative; z-index:1; }
+        .receipt-drop i { color:#10b981; font-size:1.15rem; }
+        .receipt-drop strong { color:var(--text-main); font-size:.8rem; display:block; }
+        .receipt-drop small { color:var(--text-muted); font-size:.68rem; display:block; }
+        .receipt-drop input { position:absolute; opacity:0; inset:0; cursor:pointer; }
+        .settlement-submit { min-height:52px; border:0; border-radius:12px; font-weight:900; background:linear-gradient(135deg,#fbbf24,#f59e0b); color:#1f2937; position:relative; z-index:1; }
+        .settlement-submit:disabled { opacity:.65; }
 
         /* 🔘 Switch */
         .switch-container { display: flex; align-items: center; justify-content: space-between; background: var(--input-bg); border-radius: 14px; padding: 15px; border: 1px solid var(--glass-border); }
@@ -263,9 +276,9 @@
                             </div>
                         <% } %>
                         <div class="col-12">
-                            <div class="info-box border-0 m-0 shadow-sm control-card-3d d-block" style="background: rgba(245, 158, 11, 0.05); border-right: 4px solid #f59e0b !important;">
-                                <label class="form-label fw-bold text-dark small mb-2"><i class="fa-solid fa-money-bill-transfer text-warning me-1"></i> إيداع أو خصم الرصيد</label>
-                                <form action="/executor/<%= bot._id %>/settle" method="POST" enctype="multipart/form-data" class="row g-2 align-items-center">
+                            <div class="settlement-card shadow-sm">
+                                <div class="settlement-head"><span class="settlement-icon"><i class="fa-solid fa-building-columns"></i></span><div><h6>إيداع أو خصم الرصيد</h6><p>الإيداع الموجب يرسل للمراجعة مع الإيصالات؛ الخصم السالب ينفذ مباشرة.</p></div></div>
+                                <form id="settlementForm" action="/executor/<%= bot._id %>/settle" method="POST" class="row g-2 align-items-center">
                                     <div class="col-md-4">
                                         <div class="input-group shadow-sm">
                                             <input type="number" step="any" name="amount" class="form-control mono-num fw-bold text-center unified-height border-0" placeholder="المبلغ..." required>
@@ -279,11 +292,10 @@
                                         </div>
                                     </div>
                                     <div class="col-md-4">
-                                        <input type="file" name="receipts" class="form-control" accept="image/jpeg,image/png,image/webp" multiple>
-                                        <small class="text-muted d-block mt-1">الإيداع الموجب يتطلب من 1 إلى 5 صور إيصال (5MB لكل صورة).</small>
+                                        <label class="receipt-drop mb-0"><i class="fa-solid fa-images"></i><span><strong id="receiptLabel">إرفاق الإيصالات</strong><small>مطلوب للإيداع: حتى 5 صور، 5MB للصورة</small></span><input id="settlementReceipts" type="file" accept="image/jpeg,image/png,image/webp" multiple></label>
                                     </div>
                                     <div class="col-md-3">
-                                        <button type="submit" class="btn btn-warning w-100 fw-bold text-dark btn-3d-hover unified-height justify-content-center shadow-sm"><i class="fa-solid fa-paper-plane me-1"></i> إرسال</button>
+                                        <button id="settlementSubmit" type="submit" class="settlement-submit w-100"><i class="fa-solid fa-paper-plane me-1"></i> إرسال للمراجعة</button>
                                     </div>
                                 </form>
                             </div>
@@ -349,6 +361,33 @@
 </div>
 
 <script>
+    const adminCsrfToken = <%- JSON.stringify(typeof csrfToken !== 'undefined' ? csrfToken : '') %>;
+    const settlementForm = document.getElementById('settlementForm');
+    if (settlementForm) {
+        const amountInput = settlementForm.querySelector('[name="amount"]');
+        const receiptInput = document.getElementById('settlementReceipts');
+        const receiptLabel = document.getElementById('receiptLabel');
+        const submitButton = document.getElementById('settlementSubmit');
+        receiptInput.addEventListener('change', () => { receiptLabel.textContent = receiptInput.files.length ? `${receiptInput.files.length} إيصال جاهز للإرسال` : 'إرفاق الإيصالات'; });
+        const toDataUrl = (file) => new Promise((resolve, reject) => { const reader = new FileReader(); reader.onload = () => resolve(reader.result); reader.onerror = reject; reader.readAsDataURL(file); });
+        settlementForm.addEventListener('submit', async (event) => {
+            const amount = Number(amountInput.value);
+            if (!(amount > 0)) return;
+            event.preventDefault();
+            const files = [...receiptInput.files];
+            if (!files.length) return Swal.fire('الإيصال مطلوب', 'أرفق إيصال إيداع واحدًا على الأقل.', 'warning');
+            if (files.length > 5 || files.some((file) => file.size > 5 * 1024 * 1024)) return Swal.fire('حجم الإيصالات غير صالح', 'الحد الأقصى 5 صور، وبحجم 5MB لكل صورة.', 'warning');
+            submitButton.disabled = true;
+            try {
+                const response = await fetch(settlementForm.action, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': adminCsrfToken, 'X-Requested-With': 'XMLHttpRequest' }, body: JSON.stringify({ amount: amountInput.value, notes: settlementForm.querySelector('[name="notes"]').value, receiptsBase64: await Promise.all(files.map(toDataUrl)) }) });
+                const data = await response.json();
+                if (!response.ok || !data.success) throw new Error(data.error || 'تعذر إرسال الطلب.');
+                await Swal.fire('تم الإرسال', `طلب الإيداع ${data.request.customId} قيد المراجعة الآن.`, 'success');
+                window.location.href = `${settlementForm.action.replace('/settle', '')}?depositRequest=${encodeURIComponent(data.request.customId)}`;
+            } catch (error) { Swal.fire('تعذر الإرسال', error.message, 'error'); } finally { submitButton.disabled = false; }
+        });
+    }
+
     function toggleSidebar() { 
         document.querySelector('.sidebar').classList.toggle('active');
         document.querySelector('.sidebar-overlay').classList.toggle('active'); 

@@ -32,14 +32,7 @@ const {
     normalizeManualExecutorReceiptPrefix
 } = require('../services/manualExecutorReceiptReferenceService');
 const { serializeAllowedPhoneLengths } = require('../utils/executorManualPolicy');
-const multer = require('multer');
 const { createDepositRequest } = require('../services/executorDepositRequestService');
-
-const adminDepositUpload = multer({
-    storage: multer.memoryStorage(),
-    limits: { files: 5, fileSize: 5 * 1024 * 1024 },
-    fileFilter: (_req, file, callback) => callback(null, /^image\/(jpeg|png|webp)$/i.test(file.mimetype || ''))
-});
 
 const normalizeText = (value) => String(value || '').trim();
 const parseNumberOrDefault = (value, fallback) => {
@@ -595,7 +588,7 @@ router.post('/executor/:id/test-transfer', requireAuth, async (req, res) => {
     }
 });
 
-router.post('/executor/:id/settle', requireAuth, requireMaster, adminDepositUpload.array('receipts', 5), async (req, res) => {
+router.post('/executor/:id/settle', requireAuth, requireMaster, async (req, res) => {
     try {
         const bot = await ExecutorGroup.findById(req.params.id); const amount = parseFloat(req.body.amount); const notes = req.body.notes ? req.body.notes.trim() : ''; 
         if (!bot || bot.status === 'archived') return res.redirect('/executors?tab=archive&archiveError=READ_ONLY');
@@ -605,11 +598,11 @@ router.post('/executor/:id/settle', requireAuth, requireMaster, adminDepositUplo
         if (!bot.isManagerBot && parentGroupId) { targetBotId = parentGroupId; const parentBot = await ExecutorGroup.findById(targetBotId); if (parentBot) { targetBotName = parentBot.name; } }
         
         if (Number.isFinite(amount) && amount > 0) {
-            if (!Array.isArray(req.files) || !req.files.length) {
+            const receipts = Array.isArray(req.body?.receiptsBase64) ? req.body.receiptsBase64 : [];
+            if (!receipts.length) {
                 return res.redirect(`/executor/${bot._id}?settlementError=RECEIPT_REQUIRED`);
             }
             const targetBot = await ExecutorGroup.findById(targetBotId);
-            const receipts = req.files.map((file) => `data:${file.mimetype};base64,${file.buffer.toString('base64')}`);
             const request = await createDepositRequest({
                 group: targetBot,
                 submittedBy: { id: req.session.adminId, name: req.session.adminName || 'الإدارة المركزية' },
@@ -619,6 +612,9 @@ router.post('/executor/:id/settle', requireAuth, requireMaster, adminDepositUplo
                 submittedFromAdmin: true
             });
             req.app.get('io')?.emit('support:ticket-updated', { source: 'admin_executor_deposit_request' });
+            if (req.get('x-requested-with') === 'XMLHttpRequest') {
+                return res.status(201).json({ success: true, request, message: 'تم إرسال طلب الإيداع إلى الدعم للمراجعة.' });
+            }
             return res.redirect(`/executor/${bot._id}?depositRequest=${encodeURIComponent(request.customId)}`);
         }
 
@@ -648,7 +644,12 @@ router.post('/executor/:id/settle', requireAuth, requireMaster, adminDepositUplo
             }
         }
         res.redirect(`/executor/${bot._id}`);
-    } catch (e) { res.redirect('/executors'); }
+    } catch (e) {
+        if (req.get('x-requested-with') === 'XMLHttpRequest') {
+            return res.status(e.status || 500).json({ success: false, error: e.message || 'تعذر إرسال طلب الإيداع.' });
+        }
+        return res.redirect('/executors');
+    }
 });
 
 router.post('/executor/:id/receipt-prefix', requireAuth, requireMaster, async (req, res) => {
