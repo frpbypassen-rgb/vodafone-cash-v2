@@ -11,9 +11,9 @@
     <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800;900&family=JetBrains+Mono:wght@700&display=swap" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     <script src="/js/executor-api.js"></script>
-    <link rel="stylesheet" href="/css/executor-workspace.css?v=20260826-deposits2">
-    <link rel="stylesheet" href="/css/executor-2030-override.css?v=20260826-deposits2">
-    <link rel="stylesheet" href="/css/executor-os.css?v=20260826-deposits2">
+    <link rel="stylesheet" href="/css/executor-workspace.css?v=20260826-deposits3">
+    <link rel="stylesheet" href="/css/executor-2030-override.css?v=20260826-deposits3">
+    <link rel="stylesheet" href="/css/executor-os.css?v=20260826-deposits3">
     <style>
         body { font-family: Tajawal, sans-serif; background: var(--x-bg, #08111f); color: var(--x-text, #edf5ff); }
         .deposit-main { max-width: 1180px; margin: 0 auto; padding: 30px 22px 110px; }
@@ -34,7 +34,7 @@
         .deposit-form label { color: var(--x-muted, #9cadc3); font-size: 0.8rem; font-weight: 800; margin-bottom: 7px; }
         .deposit-form .form-control { background: rgba(255, 255, 255, 0.04); border-color: var(--x-border, rgba(94, 234, 212, 0.18)); color: inherit; border-radius: 12px; padding: 12px; }
         .drop-zone { border: 1px dashed rgba(34, 211, 238, 0.45); background: rgba(34, 211, 238, 0.04); border-radius: 15px; padding: 16px; text-align: center; cursor: pointer; color: var(--x-muted, #9cadc3); transition: 0.2s; }
-        .drop-zone:hover { border-color: rgba(34, 211, 238, 0.75); background: rgba(34, 211, 238, 0.08); }
+        .drop-zone:hover, .drop-zone.is-dragover { border-color: rgba(34, 211, 238, 0.75); background: rgba(34, 211, 238, 0.08); }
         .drop-zone input { display: none; }
         .drop-zone i { font-size: 1.35rem; color: var(--x-cyan, #22d3ee); display: block; margin-bottom: 6px; }
         .drop-zone strong { color: var(--x-text, #edf5ff); display: block; }
@@ -106,11 +106,11 @@
                 </div>
                 <div class="mb-3">
                     <label>إيصالات الإيداع</label>
-                    <label class="drop-zone" for="depositReceipts">
+                    <label class="drop-zone" id="depositDropZone" for="depositReceipts">
                         <i class="fa-solid fa-images"></i>
                         <strong>اسحب الصور أو اضغط للاختيار</strong>
                         <small>من 1 إلى 5 صور — JPG أو PNG أو WEBP — حتى 5MB للصورة</small>
-                        <input id="depositReceipts" type="file" accept="image/jpeg,image/png,image/webp" capture="environment" multiple required>
+                        <input id="depositReceipts" type="file" accept="image/jpeg,image/png,image/webp" multiple>
                     </label>
                     <div class="receipt-toolbar">
                         <span id="receiptCountLabel">لم تُرفق صور بعد</span>
@@ -136,8 +136,10 @@
     </main>
     <script>
         const input = document.getElementById('depositReceipts');
+        const dropZone = document.getElementById('depositDropZone');
         const preview = document.getElementById('receiptPreview');
         const submitBtn = document.getElementById('submitDepositBtn');
+        const amountInput = document.getElementById('depositAmount');
         const receiptCountLabel = document.getElementById('receiptCountLabel');
         const clearReceiptsBtn = document.getElementById('clearReceipts');
         const depositLiveBadge = document.getElementById('depositLiveBadge');
@@ -145,18 +147,31 @@
         let refreshTimer = null;
         let requestsCache = [];
 
+        if (window.matchMedia('(pointer: coarse)').matches) {
+            input.setAttribute('capture', 'environment');
+        }
+
         const esc = (value) => String(value || '').replace(/[&<>"']/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' }[char]));
         const date = (value) => value ? new Date(value).toLocaleString('ar-LY', { dateStyle: 'medium', timeStyle: 'short' }) : '---';
 
+        function updateSubmitState() {
+            const amount = Number(amountInput.value);
+            submitBtn.disabled = !(selectedFiles.length > 0 && Number.isFinite(amount) && amount > 0);
+        }
+
         function syncInputFiles() {
-            const dataTransfer = new DataTransfer();
-            selectedFiles.forEach((file) => dataTransfer.items.add(file));
-            input.files = dataTransfer.files;
-            submitBtn.disabled = selectedFiles.length === 0;
+            try {
+                const dataTransfer = new DataTransfer();
+                selectedFiles.forEach((file) => dataTransfer.items.add(file));
+                input.files = dataTransfer.files;
+            } catch (_) {
+                // بعض المتصفحات القديمة لا تدعم DataTransfer — selectedFiles تكفي للإرسال.
+            }
             receiptCountLabel.textContent = selectedFiles.length
                 ? `${selectedFiles.length} / 5 إيصالات جاهزة للإرسال`
                 : 'لم تُرفق صور بعد';
             clearReceiptsBtn.classList.toggle('d-none', !selectedFiles.length);
+            updateSubmitState();
         }
 
         function drawPreview() {
@@ -200,8 +215,27 @@
         }
 
         input.addEventListener('change', () => {
-            addFiles(input.files);
+            const picked = [...input.files];
             input.value = '';
+            addFiles(picked);
+        });
+
+        amountInput.addEventListener('input', updateSubmitState);
+
+        ['dragenter', 'dragover'].forEach((eventName) => {
+            dropZone.addEventListener(eventName, (event) => {
+                event.preventDefault();
+                dropZone.classList.add('is-dragover');
+            });
+        });
+        ['dragleave', 'drop'].forEach((eventName) => {
+            dropZone.addEventListener(eventName, (event) => {
+                event.preventDefault();
+                dropZone.classList.remove('is-dragover');
+            });
+        });
+        dropZone.addEventListener('drop', (event) => {
+            addFiles(event.dataTransfer?.files || []);
         });
 
         clearReceiptsBtn.addEventListener('click', () => {
@@ -282,8 +316,17 @@
 
         document.getElementById('depositForm').addEventListener('submit', async (event) => {
             event.preventDefault();
-            if (!selectedFiles.length) return;
+            const amount = Number(amountInput.value);
+            if (!selectedFiles.length) {
+                await Swal.fire('إيصال مطلوب', 'أرفق صورة إيصال واحدة على الأقل قبل إرسال الطلب.', 'warning');
+                return;
+            }
+            if (!Number.isFinite(amount) || amount <= 0) {
+                await Swal.fire('قيمة غير صالحة', 'أدخل قيمة إيداع أكبر من صفر.', 'warning');
+                return;
+            }
             submitBtn.disabled = true;
+            const form = event.currentTarget;
             try {
                 const receiptsBase64 = await Promise.all(selectedFiles.map(toDataUrl));
                 const response = await executorApiFetch('/executor-portal/api/deposits', {
@@ -305,14 +348,15 @@
                     html: `<p>رقم الطلب: <b dir="ltr">${esc(data.request.customId)}</b></p><p class="small text-muted mb-0">الحالة الآن: <b>قيد المراجعة</b>. سيتم تحديث القائمة تلقائياً عند قبول أو رفض الطلب.</p>`,
                     confirmButtonColor: '#0e9b86'
                 });
-                event.currentTarget.reset();
+                form.reset();
+                amountInput.value = '';
                 selectedFiles = [];
                 drawPreview();
                 await loadRequests();
             } catch (error) {
                 Swal.fire('تعذر الإرسال', error.message, 'error');
             } finally {
-                submitBtn.disabled = selectedFiles.length === 0;
+                updateSubmitState();
             }
         });
 
