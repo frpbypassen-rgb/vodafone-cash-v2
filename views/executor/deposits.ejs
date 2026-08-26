@@ -11,9 +11,9 @@
     <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800;900&family=JetBrains+Mono:wght@700&display=swap" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     <script src="/js/executor-api.js"></script>
-    <link rel="stylesheet" href="/css/executor-workspace.css?v=20260826-deposits3">
-    <link rel="stylesheet" href="/css/executor-2030-override.css?v=20260826-deposits3">
-    <link rel="stylesheet" href="/css/executor-os.css?v=20260826-deposits3">
+    <link rel="stylesheet" href="/css/executor-workspace.css?v=20260826-deposit-review">
+    <link rel="stylesheet" href="/css/executor-2030-override.css?v=20260826-deposit-review">
+    <link rel="stylesheet" href="/css/executor-os.css?v=20260826-deposit-review">
     <style>
         body { font-family: Tajawal, sans-serif; background: var(--x-bg, #08111f); color: var(--x-text, #edf5ff); }
         .deposit-main { max-width: 1180px; margin: 0 auto; padding: 30px 22px 110px; }
@@ -50,24 +50,33 @@
         .deposit-list-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 12px; }
         .deposit-live { display: inline-flex; align-items: center; gap: 6px; color: var(--x-muted, #9cadc3); font-size: 0.72rem; font-weight: 800; }
         .deposit-live.is-active { color: #facc15; }
-        .deposit-list { display: flex; flex-direction: column; gap: 10px; }
-        .deposit-row { display: grid; grid-template-columns: 1fr auto; gap: 12px; align-items: center; padding: 14px; border: 1px solid var(--x-border, rgba(94, 234, 212, 0.18)); border-radius: 14px; background: rgba(255, 255, 255, 0.025); }
-        .deposit-row.is-pending { border-color: rgba(250, 204, 21, 0.28); }
-        .deposit-ref { font-family: 'JetBrains Mono', monospace; font-size: 0.75rem; color: var(--x-cyan, #22d3ee); }
-        .deposit-value { font-family: 'JetBrains Mono', monospace; font-size: 1.02rem; font-weight: 900; }
+        .deposit-list { display: flex; flex-direction: column; gap: 12px; }
+        .deposit-review-card { display: flex; flex-direction: column; gap: 12px; padding: 16px; border-radius: 16px; border: 1px solid var(--x-border, rgba(94, 234, 212, 0.18)); background: rgba(255, 255, 255, 0.025); }
+        .deposit-review-card.is-pending { border-color: rgba(250, 204, 21, 0.32); box-shadow: 0 10px 28px rgba(250, 204, 21, 0.06); }
+        .deposit-review-card-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+        .deposit-review-card-side { text-align: start; flex: 0 0 auto; }
+        .deposit-ref { font-family: 'JetBrains Mono', monospace; font-size: 0.78rem; color: var(--x-cyan, #22d3ee); }
+        .deposit-value { font-family: 'JetBrains Mono', monospace; font-size: 1.08rem; font-weight: 900; margin-bottom: 6px; }
         .deposit-meta { color: var(--x-muted, #9cadc3); font-size: 0.76rem; margin-top: 4px; line-height: 1.6; }
-        .deposit-thumbs { display: flex; gap: 6px; margin-top: 8px; flex-wrap: wrap; }
-        .deposit-thumbs img { width: 42px; height: 42px; object-fit: cover; border-radius: 8px; border: 1px solid var(--x-border, rgba(94, 234, 212, 0.18)); cursor: zoom-in; }
+        .deposit-thumbs { display: flex; gap: 8px; flex-wrap: wrap; }
+        .deposit-thumbs img { width: 52px; height: 52px; object-fit: cover; border-radius: 10px; border: 1px solid var(--x-border, rgba(94, 234, 212, 0.18)); cursor: zoom-in; }
         .status { display: inline-flex; align-items: center; gap: 5px; border-radius: 999px; padding: 5px 9px; font-size: 0.72rem; font-weight: 900; }
         .status.pending { color: #facc15; background: rgba(250, 204, 21, 0.12); }
         .status.deposit { color: #34d399; background: rgba(52, 211, 153, 0.12); }
         .status.rejected { color: #fb7185; background: rgba(251, 113, 133, 0.12); }
         .deposit-new-btn { margin-top: 8px; border: 0; border-radius: 999px; padding: 6px 10px; background: rgba(34, 211, 238, 0.12); color: var(--x-cyan, #22d3ee); font-size: 0.72rem; font-weight: 900; }
-        .deposit-review-actions { display: grid; grid-template-columns: repeat(2, minmax(150px, 1fr)); gap: 10px; max-width: 430px; margin-top: 14px; }
-        .deposit-review-action { min-height: 44px; border-radius: 12px; border: 1px solid transparent; font-family: inherit; font-weight: 900; transition: transform .18s ease, filter .18s ease; }
+        .deposit-review-box { padding: 12px; border-radius: 14px; border: 1px dashed rgba(34, 211, 238, 0.35); background: rgba(34, 211, 238, 0.05); display: flex; flex-direction: column; gap: 10px; }
+        .deposit-review-box-label { display: flex; align-items: center; gap: 6px; font-size: 0.74rem; font-weight: 900; color: var(--x-cyan, #22d3ee); }
+        .deposit-review-box-note { margin: 0; font-size: 0.72rem; line-height: 1.55; color: var(--x-muted, #9cadc3); font-weight: 700; }
+        .deposit-review-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; width: 100%; }
+        .deposit-review-action { min-height: 46px; border-radius: 12px; border: 1px solid transparent; font-family: inherit; font-weight: 900; font-size: 0.82rem; display: inline-flex; align-items: center; justify-content: center; gap: 6px; transition: transform .18s ease, filter .18s ease; }
         .deposit-review-action:hover { transform: translateY(-1px); filter: brightness(1.06); }
         .deposit-review-action.is-approve { color: #052e27; background: linear-gradient(135deg, #5eead4, #22c55e); box-shadow: 0 8px 20px rgba(34, 197, 94, .2); }
         .deposit-review-action.is-cancel { color: #fecaca; background: rgba(127, 29, 29, .24); border-color: rgba(251, 113, 133, .5); }
+        .deposit-review-result { padding: 10px 12px; border-radius: 12px; font-size: 0.74rem; font-weight: 800; line-height: 1.55; }
+        .deposit-review-result.is-success { color: #34d399; background: rgba(52, 211, 153, 0.1); border: 1px solid rgba(52, 211, 153, 0.22); }
+        .deposit-review-result.is-danger { color: #fb7185; background: rgba(251, 113, 133, 0.1); border: 1px solid rgba(251, 113, 133, 0.22); }
+        .deposit-review-result.is-warn { color: #facc15; background: rgba(250, 204, 21, 0.1); border: 1px solid rgba(250, 204, 21, 0.22); }
         .empty { text-align: center; color: var(--x-muted, #9cadc3); padding: 42px 12px; }
         .empty i { display: block; font-size: 2rem; margin-bottom: 8px; }
         @media (max-width: 850px) {
@@ -76,7 +85,9 @@
             .deposit-hero { grid-template-columns: 1fr; }
             .deposit-balance-card { width: 100%; }
             .deposit-card { padding: 16px; }
-            .deposit-review-actions { max-width: none; }
+            .deposit-review-card-head { flex-direction: column; }
+            .deposit-review-card-side { width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+            .deposit-review-actions { grid-template-columns: 1fr; }
         }
     </style>
 </head>
@@ -279,26 +290,34 @@
                     ? `<div class="deposit-meta text-danger">سبب الرفض: ${esc(request.rejectionReason)}</div><button type="button" class="deposit-new-btn" data-scroll-form="1"><i class="fa-solid fa-rotate-right ms-1"></i>إنشاء طلب جديد</button>`
                     : '';
                 const fromAdmin = request.submittedByRole === 'admin';
-                // Always expose the review controls to the company manager for
-                // pending rows. The protected server endpoint remains the final
-                // authority and only settles a genuine administration request.
                 const reviewActions = request.status === 'pending' && canReviewAdminDeposits
-                    ? `<div class="deposit-review-actions"><button type="button" class="deposit-review-action is-approve" data-admin-deposit-review="approve" data-request-id="${esc(request.id)}"><i class="fa-solid fa-circle-check ms-1"></i>قبول الإيداع</button><button type="button" class="deposit-review-action is-cancel" data-admin-deposit-review="reject" data-request-id="${esc(request.id)}"><i class="fa-solid fa-ban ms-1"></i>إلغاء الطلب</button></div>`
-                    : (request.status === 'pending' ? `<div class="deposit-meta text-warning">طلب قيد المراجعة بانتظار موافقة مدير الشركة.</div>` : '');
+                    ? `<div class="deposit-review-box">
+                        <div class="deposit-review-box-label"><i class="fa-solid fa-scale-balanced"></i> قرار المراجعة</div>
+                        <p class="deposit-review-box-note">راجع الإيصالات ثم اختر قبول الإيداع لإضافة الرصيد، أو إلغاء الطلب مع توضيح السبب.</p>
+                        <div class="deposit-review-actions">
+                            <button type="button" class="deposit-review-action is-approve" data-admin-deposit-review="approve" data-request-id="${esc(request.id)}"><i class="fa-solid fa-circle-check"></i> قبول الإيداع</button>
+                            <button type="button" class="deposit-review-action is-cancel" data-admin-deposit-review="reject" data-request-id="${esc(request.id)}"><i class="fa-solid fa-ban"></i> إلغاء الطلب</button>
+                        </div>
+                    </div>`
+                    : (request.status === 'pending'
+                        ? `<div class="deposit-review-result is-warn"><i class="fa-solid fa-clock ms-1"></i> طلب قيد المراجعة بانتظار موافقة مدير الشركة.</div>`
+                        : '');
                 return `
-                    <article class="deposit-row ${tone === 'pending' ? 'is-pending' : ''}">
-                        <div>
-                            <div class="deposit-ref">${esc(request.customId)}</div>
-                            <div class="deposit-meta">${fromAdmin ? 'طلب وارد من الإدارة' : 'طلب مقدم من الشركة'} · ${esc(request.note || 'لا توجد ملاحظة')} · ${date(request.createdAt)} · ${request.receiptCount || 0} إيصال</div>
-                            ${reviewedLine}
-                            ${rejectBlock}
-                            ${reviewActions}
-                            ${thumbs ? `<div class="deposit-thumbs">${thumbs}</div>` : ''}
-                        </div>
-                        <div class="text-start">
-                            <div class="deposit-value">${Number(request.amount).toLocaleString('en-US', { maximumFractionDigits: 2 })} EGP</div>
-                            <span class="status ${tone}"><i class="fa-solid ${icon}"></i>${label}</span>
-                        </div>
+                    <article class="deposit-review-card ${tone === 'pending' ? 'is-pending' : ''}">
+                        <header class="deposit-review-card-head">
+                            <div>
+                                <div class="deposit-ref">${esc(request.customId)}</div>
+                                <div class="deposit-meta">${fromAdmin ? 'طلب وارد من الإدارة' : 'طلب مقدم من الشركة'} · ${esc(request.note || 'لا توجد ملاحظة')} · ${date(request.createdAt)} · ${request.receiptCount || 0} إيصال</div>
+                                ${reviewedLine}
+                                ${rejectBlock}
+                            </div>
+                            <div class="deposit-review-card-side">
+                                <div class="deposit-value">${Number(request.amount).toLocaleString('en-US', { maximumFractionDigits: 2 })} EGP</div>
+                                <span class="status ${tone}"><i class="fa-solid ${icon}"></i>${label}</span>
+                            </div>
+                        </header>
+                        ${thumbs ? `<div class="deposit-thumbs">${thumbs}</div>` : ''}
+                        ${reviewActions}
                     </article>
                 `;
             }).join('');

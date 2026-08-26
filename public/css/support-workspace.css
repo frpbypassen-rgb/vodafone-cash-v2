@@ -944,10 +944,13 @@ button.context-list-item:hover { border-color: var(--support-accent); }
 
 .deposit-review-panel {
     margin: 8px 10px 0;
-    padding: 12px;
+    padding: 14px;
     border: 1px solid rgba(20, 99, 214, 0.28);
-    border-radius: 10px;
+    border-radius: 14px;
     background: linear-gradient(180deg, rgba(20, 99, 214, 0.08), rgba(20, 99, 214, 0.03));
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
 }
 
 .deposit-review-header {
@@ -1100,16 +1103,56 @@ button.context-list-item:hover { border-color: var(--support-accent); }
     font-weight: 700;
 }
 
-.deposit-review-actions {
+.deposit-review-actions-box {
+    margin-top: 2px;
+    padding: 12px;
+    border-radius: 12px;
+    border: 1px dashed rgba(20, 99, 214, 0.35);
+    background: rgba(255, 255, 255, 0.45);
     display: flex;
-    flex-wrap: wrap;
-    gap: 7px;
+    flex-direction: column;
+    gap: 10px;
 }
 
-.deposit-review-actions .btn {
-    min-height: 34px;
-    font-size: 0.72rem;
+[data-theme="dark"] .deposit-review-actions-box {
+    background: rgba(15, 23, 42, 0.45);
+}
+
+.deposit-review-actions-label {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.74rem;
     font-weight: 900;
+    color: var(--support-accent);
+}
+
+.deposit-review-actions-note {
+    margin: 0;
+    font-size: 0.72rem;
+    line-height: 1.55;
+    color: var(--text-muted);
+    font-weight: 700;
+}
+
+.deposit-review-actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+    width: 100%;
+}
+
+.deposit-review-actions .btn,
+.deposit-review-btn {
+    min-height: 44px;
+    font-size: 0.78rem;
+    font-weight: 900;
+    border-radius: 10px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    width: 100%;
 }
 
 .deposit-review-footnote {
@@ -1253,6 +1296,32 @@ button.context-list-item:hover { border-color: var(--support-accent); }
     .conversation-sla { min-width: 72px; }
     .conversation-controls { grid-template-columns: repeat(2, minmax(0, 1fr)); }
     .message-bubble { max-width: 88%; }
+
+    .deposit-review-panel {
+        margin: 6px 4px 0;
+        padding: 12px;
+    }
+
+    .deposit-review-header {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .deposit-review-status {
+        align-self: flex-start;
+    }
+
+    .deposit-review-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .deposit-review-gallery {
+        grid-template-columns: repeat(auto-fill, minmax(72px, 1fr));
+    }
+
+    .deposit-review-actions {
+        grid-template-columns: 1fr;
+    }
 }
 
 @media (prefers-reduced-motion: reduce) {

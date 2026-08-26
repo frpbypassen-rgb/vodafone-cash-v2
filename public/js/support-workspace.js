@@ -502,7 +502,14 @@
         } else if (!isMaster) {
             actionsHtml = `<div class="deposit-review-footnote is-warn"><i class="fa-solid fa-lock"></i> يمكنك مراجعة الإيصالات هنا. القبول النهائي وإضافة الرصيد للمدير الأساسي فقط.</div>`;
         } else {
-            actionsHtml = `<div class="deposit-review-actions"><button type="button" class="btn btn-success" data-action="executor-deposit" data-deposit-action="approve" ${disabled ? 'disabled' : ''}><i class="fa-solid fa-circle-check ms-1"></i> قبول وإضافة الرصيد</button><button type="button" class="btn btn-outline-danger" data-action="executor-deposit" data-deposit-action="reject" ${disabled ? 'disabled' : ''}><i class="fa-solid fa-ban ms-1"></i> رفض مع سبب</button></div>`;
+            actionsHtml = `<div class="deposit-review-actions-box">
+                <div class="deposit-review-actions-label"><i class="fa-solid fa-scale-balanced"></i> قرار المراجعة</div>
+                <p class="deposit-review-actions-note">بعد مراجعة الإيصالات، اختر قبول الإيداع لإضافة الرصيد أو الرفض مع سبب واضح.</p>
+                <div class="deposit-review-actions">
+                    <button type="button" class="btn btn-success deposit-review-btn" data-action="executor-deposit" data-deposit-action="approve" ${disabled ? 'disabled' : ''}><i class="fa-solid fa-circle-check ms-1"></i> قبول وإضافة الرصيد</button>
+                    <button type="button" class="btn btn-outline-danger deposit-review-btn" data-action="executor-deposit" data-deposit-action="reject" ${disabled ? 'disabled' : ''}><i class="fa-solid fa-ban ms-1"></i> رفض مع سبب</button>
+                </div>
+            </div>`;
         }
 
         return `
