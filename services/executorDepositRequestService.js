@@ -141,7 +141,10 @@ async function listDepositRequests({ employee }) {
             rejectionReason: row.depositRequest?.rejectionReason || '',
             receiptCount: proofImages.length,
             receiptUrls: proofImages.map(toReceiptUrl).filter(Boolean),
-            submittedByRole: row.depositRequest?.submittedByRole || submittedRoles.get(objectId(row.depositRequest?.supportTicketId)) || 'executor',
+            // A legacy transaction may have received the schema default
+            // "executor" after it was created. The source ticket is the
+            // authoritative origin in that case.
+            submittedByRole: submittedRoles.get(objectId(row.depositRequest?.supportTicketId)) || row.depositRequest?.submittedByRole || 'executor',
             reviewedByName: row.depositRequest?.reviewedByName || '',
             reviewedAt: row.depositRequest?.reviewedAt || null,
             createdAt: row.createdAt,
