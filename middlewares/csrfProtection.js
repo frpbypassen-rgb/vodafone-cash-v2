@@ -52,6 +52,16 @@ const shouldSkip = (req) => {
     return EXEMPT_PREFIXES.some((prefix) => path === prefix || path.startsWith(`${prefix}/`));
 };
 
+// نموذج إيداع المنفذ الإداري يدعم رفع الإيصالات مباشرة كـ multipart.
+// لا يكون req.body متاحاً قبل محلل الملفات، لذلك نسمح فقط بهذا المسار المحدد
+// عندما يثبت Origin/Referer أنه صادر من نفس نطاق لوحة الإدارة.
+const isSameOriginExecutorSettlementUpload = (req) => (
+    req.method === 'POST'
+    && /^\/executor\/[^/]+\/settle\/?$/.test(req.path || req.originalUrl || '')
+    && String(req.get('content-type') || '').toLowerCase().startsWith('multipart/form-data')
+    && hasSameOrigin(req)
+);
+
 const injectTokenIntoHtml = (html, token) => {
     if (!token || typeof html !== 'string' || !html.includes('<form')) return html;
     const hiddenInput = `<input type="hidden" name="_csrf" value="${escapeHtml(token)}">`;
@@ -72,6 +82,10 @@ const csrfProtection = (req, res, next) => {
     };
 
     if (SAFE_METHODS.has(req.method) || shouldSkip(req)) {
+        return next();
+    }
+
+    if (isSameOriginExecutorSettlementUpload(req)) {
         return next();
     }
 

@@ -278,7 +278,7 @@
                         <div class="col-12">
                             <div class="settlement-card shadow-sm">
                                 <div class="settlement-head"><span class="settlement-icon"><i class="fa-solid fa-building-columns"></i></span><div><h6>إيداع أو خصم الرصيد</h6><p>الإيداع الموجب يرسل للمراجعة مع الإيصالات؛ الخصم السالب ينفذ مباشرة.</p></div></div>
-                                <form id="settlementForm" action="/executor/<%= bot._id %>/settle" method="POST" class="row g-2 align-items-center">
+                                <form id="settlementForm" action="/executor/<%= bot._id %>/settle" method="POST" enctype="multipart/form-data" class="row g-2 align-items-center">
                                     <div class="col-md-4">
                                         <div class="input-group shadow-sm">
                                             <input type="number" step="any" name="amount" class="form-control mono-num fw-bold text-center unified-height border-0" placeholder="المبلغ..." required>

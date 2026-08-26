@@ -32,7 +32,14 @@ const {
     normalizeManualExecutorReceiptPrefix
 } = require('../services/manualExecutorReceiptReferenceService');
 const { serializeAllowedPhoneLengths } = require('../utils/executorManualPolicy');
+const multer = require('multer');
 const { createDepositRequest } = require('../services/executorDepositRequestService');
+
+const adminDepositUpload = multer({
+    storage: multer.memoryStorage(),
+    limits: { files: 5, fileSize: 5 * 1024 * 1024 },
+    fileFilter: (_req, file, callback) => callback(null, /^image\/(jpeg|png|webp)$/i.test(file.mimetype || ''))
+});
 
 const normalizeText = (value) => String(value || '').trim();
 const parseNumberOrDefault = (value, fallback) => {
@@ -588,7 +595,7 @@ router.post('/executor/:id/test-transfer', requireAuth, async (req, res) => {
     }
 });
 
-router.post('/executor/:id/settle', requireAuth, requireMaster, async (req, res) => {
+router.post('/executor/:id/settle', requireAuth, requireMaster, adminDepositUpload.array('receipts', 5), async (req, res) => {
     try {
         const bot = await ExecutorGroup.findById(req.params.id); const amount = parseFloat(req.body.amount); const notes = req.body.notes ? req.body.notes.trim() : ''; 
         if (!bot || bot.status === 'archived') return res.redirect('/executors?tab=archive&archiveError=READ_ONLY');
@@ -598,7 +605,9 @@ router.post('/executor/:id/settle', requireAuth, requireMaster, async (req, res)
         if (!bot.isManagerBot && parentGroupId) { targetBotId = parentGroupId; const parentBot = await ExecutorGroup.findById(targetBotId); if (parentBot) { targetBotName = parentBot.name; } }
         
         if (Number.isFinite(amount) && amount > 0) {
-            const receipts = Array.isArray(req.body?.receiptsBase64) ? req.body.receiptsBase64 : [];
+            const receipts = Array.isArray(req.files) && req.files.length
+                ? req.files.map((file) => `data:${file.mimetype};base64,${file.buffer.toString('base64')}`)
+                : (Array.isArray(req.body?.receiptsBase64) ? req.body.receiptsBase64 : []);
             if (!receipts.length) {
                 return res.redirect(`/executor/${bot._id}?settlementError=RECEIPT_REQUIRED`);
             }
