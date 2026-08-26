@@ -211,8 +211,11 @@ app.use(metricsMiddleware);
 const requireIp = require('./middlewares/ipCheck');
 app.use(requireIp);
 
-app.use(express.json({ limit: '10mb' }));
-app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+// إيصالات إيداع شركة التنفيذ تُرسل كصور Base64. خمس صور بحجم 5MB
+// تحتاج مساحة أكبر من حجم الملفات الأصلي بسبب ترميز Base64 (نحو 33%).
+// يبقى التحقق الصارم من عدد الصور وحجم كل صورة داخل خدمة الإيداعات.
+app.use(express.json({ limit: '40mb' }));
+app.use(express.urlencoded({ extended: true, limit: '40mb' }));
 
 // 🚫 منع تخزين الصفحات في الكاش المؤقت لضمان تحديث البيانات فوراً (حل مشكلة عدم تحديث البيانات بعد الإرسال)
 app.use((req, res, next) => {

@@ -86,7 +86,7 @@ router.get('/logout', authController.logout);
 // --- Dashboard Routes ---
 router.get('/dashboard', requireExecutorAuth, dashboardController.getDashboard);
 router.get('/settings', requireExecutorAuth, dashboardController.getSettings);
-router.get('/deposits', requireExecutorManager, dashboardController.getDeposits);
+router.get('/deposits', requireExecutorAuth, dashboardController.getDeposits);
 router.get('/proxy/image/:id', requireExecutorAuth, dashboardController.getProxyImage);
 router.get('/proxy/image/:id/:index', requireExecutorAuth, dashboardController.getProxyImage);
 router.get('/proxy/executor-image/:id/:index', requireExecutorAuth, dashboardController.getProxyExecutorImage);
@@ -112,7 +112,9 @@ router.get('/api/route-candidates', requireExecutorManager, dashboardController.
 router.post('/api/route-task/:id', requireExecutorManager, dashboardController.postRouteTask);
 
 // --- Transaction Routes ---
-router.post('/api/request-deposit', requireExecutorAuth, requireExecutorTaskAccess, transactionController.postRequestDeposit);
+// المسار القديم كان ينشئ إيداعاً مباشراً بلا إيصالات. نُبقيه للتوافق،
+// لكن نمرره إلى تدفق المراجعة نفسه الذي يفرض إرفاق الإيصالات.
+router.post('/api/request-deposit', requireExecutorAuth, requireExecutorTaskAccess, dashboardController.postDepositRequest);
 router.post('/api/accept-task/:id', requireExecutorAuth, requireExecutorTaskAccess, transactionController.postAcceptTask);
 router.post('/api/edit-amount/:id', requireExecutorAuth, requireExecutorTaskAccess, transactionController.postEditAmount);
 router.post('/api/cancel-task/:id', requireExecutorAuth, requireExecutorTaskAccess, transactionController.postCancelTask);

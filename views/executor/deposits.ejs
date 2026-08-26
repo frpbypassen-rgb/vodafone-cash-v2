@@ -110,7 +110,7 @@
                         <i class="fa-solid fa-images"></i>
                         <strong>اسحب الصور أو اضغط للاختيار</strong>
                         <small>من 1 إلى 5 صور — JPG أو PNG أو WEBP — حتى 5MB للصورة</small>
-                        <input id="depositReceipts" type="file" accept="image/jpeg,image/png,image/webp" multiple required>
+                        <input id="depositReceipts" type="file" accept="image/jpeg,image/png,image/webp" capture="environment" multiple required>
                     </label>
                     <div class="receipt-toolbar">
                         <span id="receiptCountLabel">لم تُرفق صور بعد</span>
@@ -295,6 +295,9 @@
                         receiptsBase64
                     })
                 });
+                if (response.status === 413) {
+                    throw new Error('إجمالي الإيصالات كبير جداً. أرسل حتى 5 صور، وبحجم لا يتجاوز 5MB للصورة.');
+                }
                 const data = await readExecutorApiResponse(response);
                 await Swal.fire({
                     icon: 'success',
