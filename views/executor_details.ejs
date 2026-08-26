@@ -127,6 +127,12 @@
         <% if (typeof query !== 'undefined' && query.manualPolicyError) { %>
             <div class="alert alert-danger fw-bold shadow-sm"><i class="fa-solid fa-triangle-exclamation me-2"></i> تعذر حفظ صلاحيات المنفذ اليدوي.</div>
         <% } %>
+        <% if (typeof query !== 'undefined' && query.depositRequest) { %>
+            <div class="alert alert-info fw-bold shadow-sm"><i class="fa-solid fa-clock me-2"></i>تم إرسال طلب الإيداع <span dir="ltr"><%= query.depositRequest %></span> إلى الدعم مع الإيصالات. سيصل الرصيد إلى المنفذ بعد القبول النهائي.</div>
+        <% } %>
+        <% if (typeof query !== 'undefined' && query.settlementError === 'RECEIPT_REQUIRED') { %>
+            <div class="alert alert-danger fw-bold shadow-sm"><i class="fa-solid fa-image me-2"></i>أرفق إيصال إيداع واحدًا على الأقل قبل إرسال الطلب.</div>
+        <% } %>
 
         <div class="row g-4 mb-4">
             <div class="col-xl-4 col-lg-5">
@@ -258,8 +264,8 @@
                         <% } %>
                         <div class="col-12">
                             <div class="info-box border-0 m-0 shadow-sm control-card-3d d-block" style="background: rgba(245, 158, 11, 0.05); border-right: 4px solid #f59e0b !important;">
-                                <label class="form-label fw-bold text-dark small mb-2"><i class="fa-solid fa-money-bill-transfer text-warning me-1"></i> تسوية الرصيد (موجب للإيداع / سالب للخصم)</label>
-                                <form action="/executor/<%= bot._id %>/settle" method="POST" class="row g-2 align-items-center">
+                                <label class="form-label fw-bold text-dark small mb-2"><i class="fa-solid fa-money-bill-transfer text-warning me-1"></i> إيداع أو خصم الرصيد</label>
+                                <form action="/executor/<%= bot._id %>/settle" method="POST" enctype="multipart/form-data" class="row g-2 align-items-center">
                                     <div class="col-md-4">
                                         <div class="input-group shadow-sm">
                                             <input type="number" step="any" name="amount" class="form-control mono-num fw-bold text-center unified-height border-0" placeholder="المبلغ..." required>
@@ -272,8 +278,12 @@
                                             <input type="text" name="notes" class="form-control fw-bold unified-height border-0" placeholder="ملاحظة للتسوية...">
                                         </div>
                                     </div>
+                                    <div class="col-md-4">
+                                        <input type="file" name="receipts" class="form-control" accept="image/jpeg,image/png,image/webp" multiple>
+                                        <small class="text-muted d-block mt-1">الإيداع الموجب يتطلب من 1 إلى 5 صور إيصال (5MB لكل صورة).</small>
+                                    </div>
                                     <div class="col-md-3">
-                                        <button type="submit" class="btn btn-warning w-100 fw-bold text-dark btn-3d-hover unified-height justify-content-center shadow-sm"><i class="fa-solid fa-floppy-disk me-1"></i> تنفيذ</button>
+                                        <button type="submit" class="btn btn-warning w-100 fw-bold text-dark btn-3d-hover unified-height justify-content-center shadow-sm"><i class="fa-solid fa-paper-plane me-1"></i> إرسال</button>
                                     </div>
                                 </form>
                             </div>

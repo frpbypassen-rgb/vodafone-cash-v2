@@ -50,28 +50,37 @@ async function notifyAdmins({ title, message, type = 'deposit_pending' }) {
     }).catch(() => null)));
 }
 
-async function createDepositRequest({ employee, amount, note, receipts }) {
-    if (!employee?.groupId || employee.role === 'accountant') throw failure('هذا الحساب لا يملك صلاحية طلب إيداع للشركة.', 403);
+async function createDepositRequest({ employee, group: requestedGroup, submittedBy, amount, note, receipts, submittedFromAdmin = false }) {
+    if ((!employee?.groupId && !requestedGroup) || (employee && employee.role === 'accountant')) throw failure('هذا الحساب لا يملك صلاحية طلب إيداع للشركة.', 403);
     const parsedAmount = Number(amount);
     if (!Number.isFinite(parsedAmount) || parsedAmount <= 0 || parsedAmount > 1000000) throw failure('قيمة الإيداع غير صالحة.');
     const cleanNote = String(note || '').replace(/\u0000/g, '').trim().slice(0, 1000);
-    const group = employee.groupId;
+    const group = requestedGroup || employee.groupId;
+    const submitter = submittedBy || {
+        id: employee?._id,
+        name: employee?.name || 'شركة التنفيذ',
+        phone: employee?.phone || ''
+    };
     const customId = `DEPREQ-${Date.now().toString().slice(-8)}-${crypto.randomBytes(2).toString('hex').toUpperCase()}`;
     const receiptImages = saveReceipts(receipts, customId);
     const createdAt = new Date();
 
     const tx = await Transaction.create({
         userId: 'admin', executorGroupId: group._id, managerGroupId: group.isManagerGroup ? group._id : undefined,
-        operatorId: objectId(employee._id), amount: parsedAmount, costLYD: 0, vodafoneNumber: 'طلب إيداع شركة تنفيذ',
-        status: 'deposit_pending', customId, companyName: group.name || 'شركة التنفيذ', employeeName: employee.name,
-        executorName: employee.name, notes: cleanNote, proofImage: receiptImages[0], proofImages: receiptImages,
-        depositRequest: { note: cleanNote, receiptImages, submittedById: employee._id, submittedByName: employee.name }
+        operatorId: objectId(submitter.id), amount: parsedAmount, costLYD: 0, vodafoneNumber: 'طلب إيداع شركة تنفيذ',
+        status: 'deposit_pending', customId, companyName: group.name || 'شركة التنفيذ', employeeName: submitter.name,
+        executorName: submitter.name, notes: cleanNote, proofImage: receiptImages[0], proofImages: receiptImages,
+        executorWebAlert: submittedFromAdmin ? { type: 'warning', text: `تم تسجيل طلب إيداع إداري ${customId} بقيمة ${parsedAmount} EGP وهو قيد المراجعة.` } : undefined,
+        depositRequest: { note: cleanNote, receiptImages, submittedById: submitter.id, submittedByName: submitter.name }
     });
 
-    const messages = [{ sender: 'user', senderName: employee.name, text: depositMessage({ group, employee, amount: parsedAmount, note: cleanNote, customId }), channel: 'portal', direction: 'inbound', messageType: 'text', createdAt }];
-    receiptImages.forEach((image) => messages.push({ sender: 'user', senderName: employee.name, text: '', imageUrl: `/uploads/${image}`, channel: 'portal', direction: 'inbound', messageType: 'image', createdAt }));
+    const messageActor = { name: submitter.name };
+    const messageSender = submittedFromAdmin ? 'admin' : 'user';
+    const messageDirection = submittedFromAdmin ? 'outbound' : 'inbound';
+    const messages = [{ sender: messageSender, senderName: submitter.name, text: depositMessage({ group, employee: messageActor, amount: parsedAmount, note: cleanNote, customId }), channel: 'portal', direction: messageDirection, messageType: 'text', createdAt }];
+    receiptImages.forEach((image) => messages.push({ sender: messageSender, senderName: submitter.name, text: '', imageUrl: `/uploads/${image}`, channel: 'portal', direction: messageDirection, messageType: 'image', createdAt }));
     const ticket = await SupportTicket.create({
-        entityType: 'executor_group', entityId: group._id, name: group.name || 'شركة التنفيذ', phone: employee.phone || '',
+        entityType: 'executor_group', entityId: group._id, name: group.name || 'شركة التنفيذ', phone: submitter.phone || '',
         channel: 'portal', status: 'open', priority: 'high', category: 'deposit', unreadAdmin: 1, unreadUser: 0, messages,
         metadata: {
             type: 'executor_deposit',
@@ -85,7 +94,7 @@ async function createDepositRequest({ employee, amount, note, receipts }) {
                 note: cleanNote,
                 receiptCount: receiptImages.length,
                 receiptImages,
-                submittedByName: employee.name,
+                submittedByName: submitter.name,
                 status: 'pending'
             }
         }

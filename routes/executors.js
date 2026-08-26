@@ -32,6 +32,14 @@ const {
     normalizeManualExecutorReceiptPrefix
 } = require('../services/manualExecutorReceiptReferenceService');
 const { serializeAllowedPhoneLengths } = require('../utils/executorManualPolicy');
+const multer = require('multer');
+const { createDepositRequest } = require('../services/executorDepositRequestService');
+
+const adminDepositUpload = multer({
+    storage: multer.memoryStorage(),
+    limits: { files: 5, fileSize: 5 * 1024 * 1024 },
+    fileFilter: (_req, file, callback) => callback(null, /^image\/(jpeg|png|webp)$/i.test(file.mimetype || ''))
+});
 
 const normalizeText = (value) => String(value || '').trim();
 const parseNumberOrDefault = (value, fallback) => {
@@ -587,18 +595,33 @@ router.post('/executor/:id/test-transfer', requireAuth, async (req, res) => {
     }
 });
 
-router.post('/executor/:id/settle', requireAuth, async (req, res) => {
+router.post('/executor/:id/settle', requireAuth, requireMaster, adminDepositUpload.array('receipts', 5), async (req, res) => {
     try {
         const bot = await ExecutorGroup.findById(req.params.id); const amount = parseFloat(req.body.amount); const notes = req.body.notes ? req.body.notes.trim() : ''; 
         if (!bot || bot.status === 'archived') return res.redirect('/executors?tab=archive&archiveError=READ_ONLY');
-        if (Number.isFinite(amount) && amount > 0) {
-            return res.redirect('/support?category=deposit');
-        }
         let targetBotId = bot._id; let targetBotName = bot.name;
 
         const parentGroupId = bot.parentGroupId || bot.parentBotId;
         if (!bot.isManagerBot && parentGroupId) { targetBotId = parentGroupId; const parentBot = await ExecutorGroup.findById(targetBotId); if (parentBot) { targetBotName = parentBot.name; } }
         
+        if (Number.isFinite(amount) && amount > 0) {
+            if (!Array.isArray(req.files) || !req.files.length) {
+                return res.redirect(`/executor/${bot._id}?settlementError=RECEIPT_REQUIRED`);
+            }
+            const targetBot = await ExecutorGroup.findById(targetBotId);
+            const receipts = req.files.map((file) => `data:${file.mimetype};base64,${file.buffer.toString('base64')}`);
+            const request = await createDepositRequest({
+                group: targetBot,
+                submittedBy: { id: req.session.adminId, name: req.session.adminName || 'الإدارة المركزية' },
+                amount,
+                note: notes,
+                receipts,
+                submittedFromAdmin: true
+            });
+            req.app.get('io')?.emit('support:ticket-updated', { source: 'admin_executor_deposit_request' });
+            return res.redirect(`/executor/${bot._id}?depositRequest=${encodeURIComponent(request.customId)}`);
+        }
+
         if (!isNaN(amount) && amount !== 0) {
             const tx = await Transaction.create({
                 userId: 'admin', executorGroupId: targetBotId, amount: Math.abs(amount), costLYD: 0, vodafoneNumber: 'تسديد حساب',
