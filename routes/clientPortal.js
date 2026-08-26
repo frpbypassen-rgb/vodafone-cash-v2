@@ -110,6 +110,7 @@ const clientTransactionController = require('../controllers/clientTransactionCon
 const clientCompanyController = require('../controllers/clientCompanyController');
 const clientAgentController = require('../controllers/clientAgentController');
 const clientWorkspaceController = require('../controllers/clientWorkspaceController');
+const clientDepositController = require('../controllers/clientDepositController');
 const businessPortalService = require('../services/businessPortalService');
 
 const clientDocumentUpload = multer({
@@ -160,6 +161,9 @@ router.get('/logout', clientAuthController.logout);
 // 📊 Dashboard Routes
 // ===============================================
 router.get('/dashboard', requireClientAuth, clientDashboardController.getDashboard);
+router.get('/deposits', requireClientAuth, clientDepositController.getDepositsPage);
+router.get('/api/deposits', requireClientAuth, clientDepositController.getDepositRequests);
+router.post('/api/deposits', requireClientAuth, clientDepositController.postDepositRequest);
 router.get('/profile-photo', requireClientAuth, clientDashboardController.getProfilePhoto);
 router.post('/profile', requireClientAuth, clientDashboardController.postUpdateOwnProfile);
 router.get('/api/transactions', requireClientAuth, clientDashboardController.getApiTransactions);

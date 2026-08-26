@@ -13,6 +13,7 @@ const {
 } = require('../services/whatChimpSupportService');
 const { createSupportReplyNotifications } = require('../services/clientNotificationService');
 const { resolveDepositTicket } = require('../services/executorDepositRequestService');
+const { resolveClientDepositTicket } = require('../services/clientDepositRequestService');
 const { recordWhatsAppDeliveryAttempt } = require('../services/whatsappReceiptDeliveryService');
 const {
     SUPPORT_STATUSES,
@@ -649,6 +650,25 @@ router.post('/api/support/tickets/:id/executor-deposit/:decision', requireAuth, 
         return res.json({ success: true, status: decision === 'approve' ? 'approved' : 'rejected' });
     } catch (error) {
         return res.status(error.status || 500).json({ success: false, error: error.message || 'تعذر مراجعة طلب الإيداع.' });
+    }
+});
+
+router.post('/api/support/tickets/:id/client-deposit/:decision', requireAuth, requireMaster, async (req, res) => {
+    try {
+        const decision = String(req.params.decision || '');
+        if (!['approve', 'reject'].includes(decision)) {
+            return res.status(422).json({ success: false, error: 'قرار المراجعة غير صالح.' });
+        }
+        const result = await resolveClientDepositTicket({
+            ticketId: req.params.id,
+            admin: getAdminIdentity(req),
+            approved: decision === 'approve',
+            reason: req.body?.reason
+        });
+        emitTicketUpdate(req, result.ticket);
+        return res.json({ success: true, status: decision === 'approve' ? 'approved' : 'rejected' });
+    } catch (error) {
+        return res.status(error.status || 500).json({ success: false, error: error.message || 'تعذر مراجعة طلب إيداع العميل.' });
     }
 });
 

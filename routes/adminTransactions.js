@@ -608,24 +608,42 @@ router.post('/transaction/:id/emergency-alert', async (req, res) => {
 
 router.post('/transaction/:id/accept-deposit-web', async (req, res) => {
     try {
-        const { imageBase64 } = req.body; const tx = await Transaction.findById(req.params.id);
-        if (!tx || tx.status !== 'deposit_pending') return res.json({success: false, error: 'الطلب غير متاح'});
+        const tx = await Transaction.findById(req.params.id);
+        if (!tx || tx.status !== 'deposit_pending') return res.json({ success: false, error: 'الطلب غير متاح' });
 
-        // 🟢 إزالة التيليجرام 
+        if (tx.depositRequest?.submittedByRole === 'client' && tx.depositRequest?.supportTicketId) {
+            const { resolveClientDepositTicket } = require('../services/clientDepositRequestService');
+            await resolveClientDepositTicket({
+                ticketId: String(tx.depositRequest.supportTicketId),
+                admin: { id: req.session.adminId || req.session.adminUsername || 'admin', name: req.session.adminName || 'الإدارة' },
+                approved: true
+            });
+            return res.json({ success: true });
+        }
+
         let fileId = `deposit_${Date.now()}.jpg`;
-
         tx.status = 'deposit'; tx.proofImage = fileId; tx.updatedAt = new Date();
-        
         await Transaction.updateOne({ _id: tx._id }, { $set: { executorWebAlert: { type: 'success', text: `تم قبول طلب الإيداع بقيمة ${tx.amount} EGP وتمت إضافة الرصيد لحسابك بنجاح.`, imageUrl: `/proxy/image/${tx._id}/0` } } }, { strict: false });
-        await tx.save(); if (tx.executorGroupId) await syncBotBalance(tx.executorGroupId); 
-        res.json({success: true});
-    } catch(e) { res.json({success: false, error: e.message}); }
+        await tx.save(); if (tx.executorGroupId) await syncBotBalance(tx.executorGroupId);
+        res.json({ success: true });
+    } catch (e) { res.json({ success: false, error: e.message }); }
 });
 
 router.post('/transaction/:id/reject-deposit-web', async (req, res) => {
     try {
         const { reason } = req.body; const tx = await Transaction.findById(req.params.id);
         if (!tx || tx.status !== 'deposit_pending') return res.redirect('/transactions');
+
+        if (tx.depositRequest?.submittedByRole === 'client' && tx.depositRequest?.supportTicketId) {
+            const { resolveClientDepositTicket } = require('../services/clientDepositRequestService');
+            await resolveClientDepositTicket({
+                ticketId: String(tx.depositRequest.supportTicketId),
+                admin: { id: req.session.adminId || req.session.adminUsername || 'admin', name: req.session.adminName || 'الإدارة' },
+                approved: false,
+                reason
+            });
+            return res.redirect('/transactions');
+        }
 
         tx.status = 'rejected'; appendAdminNote(tx, `[تم رفض الإيداع | السبب: ${reason || '---'}]`); tx.updatedAt = new Date();
         await Transaction.updateOne({ _id: tx._id }, { $set: { executorWebAlert: { type: 'error', text: `تم رفض طلب الإيداع بقيمة ${tx.amount} EGP.<br><b>السبب:</b> ${reason}` } } }, { strict: false });

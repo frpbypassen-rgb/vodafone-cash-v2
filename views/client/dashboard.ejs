@@ -764,6 +764,12 @@
                     <span class="nile-quick-icon"><i class="fa-solid fa-chart-pie"></i></span>
                     <span>التقارير</span>
                 </a>
+                <% if (user.role !== 'agent') { %>
+                <a href="/client/deposits" class="nile-quick-btn nile-quick-btn--deposit">
+                    <span class="nile-quick-icon"><i class="fa-solid fa-arrow-down"></i></span>
+                    <span>طلب إيداع</span>
+                </a>
+                <% } %>
                 <a href="/client/support" class="nile-quick-btn nile-quick-btn--support">
                     <span class="nile-quick-icon"><i class="fa-solid fa-headset"></i></span>
                     <span>الدعم</span>

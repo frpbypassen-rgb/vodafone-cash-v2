@@ -66,7 +66,7 @@ const transactionSchema = new mongoose.Schema({
         supportTicketId: { type: mongoose.Schema.Types.ObjectId, ref: 'SupportTicket' },
         submittedById: { type: mongoose.Schema.Types.ObjectId, ref: 'Employee' },
         submittedByName: { type: String, trim: true },
-        submittedByRole: { type: String, enum: ['admin', 'executor'], default: 'executor' },
+        submittedByRole: { type: String, enum: ['admin', 'executor', 'client'], default: 'executor' },
         reviewedById: { type: String, trim: true },
         reviewedByName: { type: String, trim: true },
         reviewedAt: { type: Date },
