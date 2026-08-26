@@ -278,9 +278,12 @@
                     ? `<div class="deposit-meta text-danger">سبب الرفض: ${esc(request.rejectionReason)}</div><button type="button" class="deposit-new-btn" data-scroll-form="1"><i class="fa-solid fa-rotate-right ms-1"></i>إنشاء طلب جديد</button>`
                     : '';
                 const fromAdmin = request.submittedByRole === 'admin';
-                const reviewActions = fromAdmin && request.status === 'pending' && canReviewAdminDeposits
+                // Always expose the review controls to the company manager for
+                // pending rows. The protected server endpoint remains the final
+                // authority and only settles a genuine administration request.
+                const reviewActions = request.status === 'pending' && canReviewAdminDeposits
                     ? `<div class="d-flex gap-2 flex-wrap mt-2"><button type="button" class="btn btn-success btn-sm fw-bold" data-admin-deposit-review="approve" data-request-id="${esc(request.id)}"><i class="fa-solid fa-circle-check ms-1"></i>قبول الإيداع</button><button type="button" class="btn btn-outline-danger btn-sm fw-bold" data-admin-deposit-review="reject" data-request-id="${esc(request.id)}"><i class="fa-solid fa-ban ms-1"></i>رفض</button></div>`
-                    : (fromAdmin && request.status === 'pending' ? `<div class="deposit-meta text-warning">طلب وارد من الإدارة بانتظار موافقة مدير الشركة.</div>` : '');
+                    : (request.status === 'pending' ? `<div class="deposit-meta text-warning">طلب قيد المراجعة بانتظار موافقة مدير الشركة.</div>` : '');
                 return `
                     <article class="deposit-row ${tone === 'pending' ? 'is-pending' : ''}">
                         <div>
