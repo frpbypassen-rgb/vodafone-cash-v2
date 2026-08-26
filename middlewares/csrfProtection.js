@@ -35,6 +35,13 @@ const hasSameOrigin = (req) => {
         `http://${host}`,
         `https://${host}`
     ]);
+    // خلف الـ reverse proxy قد يصل Host إلى Node كعنوان داخلي مثل
+    // 127.0.0.1:3000، بينما Origin الصحيح الذي يرسله المتصفح هو النطاق
+    // العام. أضف النطاق المعرّف رسميًا ولا تثق في قيمة قادمة من العميل.
+    try {
+        const publicOrigin = new URL(String(process.env.PUBLIC_APP_URL || '').trim()).origin;
+        if (publicOrigin && publicOrigin !== 'null') allowed.add(publicOrigin);
+    } catch (_) {}
 
     if (origin) return allowed.has(origin);
     if (referer) {
