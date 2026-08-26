@@ -452,18 +452,93 @@
     const renderExecutorDepositActions = (ticket, disabled) => {
         const deposit = ticket.metadata?.depositRequest;
         if (ticket.metadata?.type !== 'executor_deposit' || !deposit) return '';
-        if (deposit.status === 'approved') return '<div class="support-password-action"><span><i class="fa-solid fa-circle-check text-success"></i> تم قبول الإيداع وإضافة الرصيد للشركة.</span></div>';
-        if (deposit.status === 'rejected') return '<div class="support-password-action"><span><i class="fa-solid fa-circle-xmark text-danger"></i> تم رفض طلب الإيداع.</span></div>';
-        if (config.admin?.role !== 'master') return '<div class="support-password-action"><span><i class="fa-solid fa-lock"></i> الإيداع بانتظار اعتماد المدير الأساسي.</span></div>';
-        return `<div class="support-password-action"><span><i class="fa-solid fa-building-columns"></i> طلب إيداع ${escapeHtml(deposit.customId || '')}: <b>${escapeHtml(String(deposit.amount || 0))} EGP</b> · ${escapeHtml(String(deposit.receiptCount || 0))} إيصال</span><span class="support-password-buttons"><button type="button" class="btn btn-success" data-action="executor-deposit" data-deposit-action="approve" ${disabled ? 'disabled' : ''}>قبول وإضافة الرصيد</button><button type="button" class="btn btn-outline-danger" data-action="executor-deposit" data-deposit-action="reject" ${disabled ? 'disabled' : ''}>رفض</button></span></div>`;
+
+        const toReceiptUrl = (imagePath) => {
+            const value = String(imagePath || '').trim();
+            if (!value) return '';
+            if (value.startsWith('http') || value.startsWith('/')) return safeMediaUrl(value) || value;
+            return safeMediaUrl(`/uploads/${value.replace(/^\/+/, '')}`) || `/uploads/${value.replace(/^\/+/, '')}`;
+        };
+
+        const receiptUrls = (Array.isArray(deposit.receiptImages) ? deposit.receiptImages : [])
+            .map(toReceiptUrl)
+            .filter(Boolean);
+        if (!receiptUrls.length) {
+            (ticket.messages || []).forEach((message) => {
+                if (message.messageType === 'image' && message.imageUrl) {
+                    const media = toReceiptUrl(message.imageUrl);
+                    if (media) receiptUrls.push(media);
+                }
+            });
+        }
+
+        const status = deposit.status || 'pending';
+        const statusLabel = status === 'approved'
+            ? 'مقبول'
+            : (status === 'rejected' ? 'مرفوض' : 'قيد المراجعة');
+        const statusClass = status === 'approved'
+            ? 'is-approved'
+            : (status === 'rejected' ? 'is-rejected' : 'is-pending');
+        const companyName = ticket.metadata?.executorGroupName || ticket.name || 'شركة التنفيذ';
+        const isMaster = config.admin?.role === 'master';
+        const galleryHtml = receiptUrls.length
+            ? `<div class="deposit-review-gallery">${receiptUrls.map((url, index) => `
+                <button type="button" class="deposit-review-thumb" data-action="deposit-lightbox" data-image-url="${escapeHtml(url)}" title="إيصال ${index + 1}">
+                    <img src="${escapeHtml(url)}" alt="إيصال ${index + 1}">
+                    <span>${index + 1}</span>
+                </button>`).join('')}</div>`
+            : '<div class="deposit-review-empty"><i class="fa-regular fa-image"></i> لا توجد صور إيصالات مرفقة.</div>';
+
+        let actionsHtml = '';
+        if (status === 'approved') {
+            actionsHtml = `<div class="deposit-review-footnote is-success"><i class="fa-solid fa-circle-check"></i> تم قبول الإيداع وإضافة الرصيد للشركة${deposit.reviewedByName ? ` بواسطة ${escapeHtml(deposit.reviewedByName)}` : ''}${deposit.reviewedAt ? ` · ${escapeHtml(formatDateTime(deposit.reviewedAt))}` : ''}.</div>`;
+        } else if (status === 'rejected') {
+            actionsHtml = `<div class="deposit-review-footnote is-danger"><i class="fa-solid fa-circle-xmark"></i> تم رفض طلب الإيداع${deposit.reviewedByName ? ` بواسطة ${escapeHtml(deposit.reviewedByName)}` : ''}.${deposit.rejectionReason ? `<strong>السبب:</strong> ${escapeHtml(deposit.rejectionReason)}` : ''}</div>`;
+        } else if (!isMaster) {
+            actionsHtml = `<div class="deposit-review-footnote is-warn"><i class="fa-solid fa-lock"></i> يمكنك مراجعة الإيصالات هنا. القبول النهائي وإضافة الرصيد للمدير الأساسي فقط.</div>`;
+        } else {
+            actionsHtml = `<div class="deposit-review-actions"><button type="button" class="btn btn-success" data-action="executor-deposit" data-deposit-action="approve" ${disabled ? 'disabled' : ''}><i class="fa-solid fa-circle-check ms-1"></i> قبول وإضافة الرصيد</button><button type="button" class="btn btn-outline-danger" data-action="executor-deposit" data-deposit-action="reject" ${disabled ? 'disabled' : ''}><i class="fa-solid fa-ban ms-1"></i> رفض مع سبب</button></div>`;
+        }
+
+        return `
+            <section class="deposit-review-panel">
+                <header class="deposit-review-header">
+                    <div>
+                        <span class="deposit-review-kicker"><i class="fa-solid fa-building-columns"></i> طلب إيداع شركة تنفيذ</span>
+                        <h3 class="deposit-review-title">${escapeHtml(deposit.customId || 'طلب إيداع')}</h3>
+                        <p class="deposit-review-subtitle">${escapeHtml(companyName)}${deposit.submittedByName ? ` · ${escapeHtml(deposit.submittedByName)}` : ''}</p>
+                    </div>
+                    <span class="deposit-review-status ${statusClass}">${escapeHtml(statusLabel)}</span>
+                </header>
+                <dl class="deposit-review-grid">
+                    <div><dt>القيمة</dt><dd dir="ltr">${escapeHtml(formatMoney(deposit.amount, 'EGP'))}</dd></div>
+                    <div><dt>عدد الإيصالات</dt><dd>${escapeHtml(String(receiptUrls.length || deposit.receiptCount || 0))}</dd></div>
+                    <div class="is-wide"><dt>ملاحظة الشركة</dt><dd>${escapeHtml(deposit.note || 'لا توجد ملاحظة')}</dd></div>
+                </dl>
+                <div class="deposit-review-gallery-wrap">
+                    <div class="deposit-review-gallery-label"><i class="fa-solid fa-images"></i> معرض الإيصالات</div>
+                    ${galleryHtml}
+                </div>
+                ${actionsHtml}
+            </section>
+        `;
     };
 
-    const renderMessages = (messages = []) => {
+    const renderMessages = (messages = [], ticket = null) => {
         if (!messages.length) {
             return '<div class="support-empty-state"><i class="fa-regular fa-comments"></i><h3>لا توجد رسائل بعد</h3><p>اكتب أول رد لبدء المحادثة مع العميل.</p></div>';
         }
 
-        return messages.map((message) => {
+        const isExecutorDeposit = ticket?.metadata?.type === 'executor_deposit';
+        const visibleMessages = isExecutorDeposit
+            ? messages.filter((message) => !(message.messageType === 'image' && message.imageUrl))
+            : messages;
+
+        if (!visibleMessages.length) {
+            return '<div class="support-empty-state"><i class="fa-regular fa-comments"></i><h3>تفاصيل الطلب في البطاقة أعلاه</h3><p>يمكنك متابعة المحادثة أو إرسال رد للشركة عند الحاجة.</p></div>';
+        }
+
+        return visibleMessages.map((message) => {
             const isAdmin = ['admin', 'ai', 'system'].includes(message.sender);
             const media = safeMediaUrl(message.imageUrl);
             const channelIcon = message.channel === 'whatsapp' ? '<i class="fa-brands fa-whatsapp"></i>' : '<i class="fa-regular fa-window-maximize"></i>';
@@ -535,7 +610,7 @@
                 ${lockedByOther ? `<div class="conversation-lock"><i class="fa-solid fa-user-lock"></i><span>يعالج ${escapeHtml(lock.holderName || 'مدير آخر')} هذه التذكرة الآن. تم تعطيل الرد لمنع إرسال ردين متعارضين.</span></div>` : ''}
                 ${renderPasswordResetActions(ticket, disabled)}
                 ${renderExecutorDepositActions(ticket, disabled)}
-                <div class="conversation-messages" id="supportMessages">${renderMessages(ticket.messages)}</div>
+                <div class="conversation-messages" id="supportMessages">${renderMessages(ticket.messages, ticket)}</div>
                 ${!closed ? `<div class="conversation-quick-replies">${quickReplies.map((reply) => `<button type="button" class="quick-reply" data-action="quick-reply" data-reply="${escapeHtml(reply)}" ${disabled ? 'disabled' : ''}>${escapeHtml(reply)}</button>`).join('')}</div>` : ''}
                 ${!closed ? `<form class="conversation-composer" id="supportReplyForm"><textarea id="supportReplyInput" maxlength="4096" placeholder="اكتب ردًا واضحًا للعميل..." ${disabled ? 'disabled' : ''}>${escapeHtml(draft)}</textarea><button type="submit" title="إرسال الرد" ${disabled ? 'disabled' : ''}><i class="fa-solid fa-paper-plane"></i></button></form>` : '<div class="conversation-lock"><i class="fa-solid fa-circle-check"></i><span>هذه التذكرة منتهية. يمكن إعادة فتحها من قائمة الحالة عند الحاجة.</span></div>'}
             </div>
@@ -732,7 +807,20 @@
             if (!result.isConfirmed) return;
             reason = result.value.trim();
         } else {
-            const result = await Swal.fire({ icon: 'warning', title: 'قبول الإيداع وإضافة الرصيد؟', text: 'سيُضاف المبلغ إلى رصيد شركة التنفيذ مرة واحدة ولا يمكن التراجع من هذه الشاشة.', showCancelButton: true, confirmButtonText: 'قبول وإضافة الرصيد', cancelButtonText: 'تراجع', confirmButtonColor: '#0d8f67' });
+            const deposit = state.workspace?.ticket?.metadata?.depositRequest;
+            const companyName = state.workspace?.ticket?.metadata?.executorGroupName || state.workspace?.ticket?.name || 'شركة التنفيذ';
+            const amountText = deposit?.amount != null
+                ? `${Number(deposit.amount).toLocaleString('en-US', { maximumFractionDigits: 2 })} EGP`
+                : '';
+            const result = await Swal.fire({
+                icon: 'warning',
+                title: 'قبول الإيداع وإضافة الرصيد؟',
+                html: `<p>سيُضاف <b dir="ltr">${escapeHtml(amountText)}</b> إلى رصيد <b>${escapeHtml(companyName)}</b> مرة واحدة فقط.</p><p class="small text-muted mb-0">لا يمكن التراجع من هذه الشاشة بعد التأكيد.</p>`,
+                showCancelButton: true,
+                confirmButtonText: 'قبول وإضافة الرصيد',
+                cancelButtonText: 'تراجع',
+                confirmButtonColor: '#0d8f67'
+            });
             if (!result.isConfirmed) return;
         }
         try {
@@ -769,6 +857,20 @@
             if (action === 'ticket-whatsapp-test') await sendTicketWhatsAppTest();
             if (action === 'close-ticket') await closeTicket();
             if (action === 'executor-deposit') await handleExecutorDeposit(actionButton.dataset.depositAction);
+            if (action === 'deposit-lightbox') {
+                const imageUrl = actionButton.dataset.imageUrl;
+                if (imageUrl) {
+                    await Swal.fire({
+                        imageUrl,
+                        imageAlt: 'إيصال الإيداع',
+                        showConfirmButton: false,
+                        showCloseButton: true,
+                        width: 'min(920px, 96vw)',
+                        background: 'rgba(15, 23, 42, 0.96)',
+                        customClass: { image: 'deposit-lightbox-image' }
+                    });
+                }
+            }
             if (action === 'quick-reply') {
                 const input = byId('supportReplyInput');
                 if (input) { input.value = actionButton.dataset.reply || ''; input.focus(); }

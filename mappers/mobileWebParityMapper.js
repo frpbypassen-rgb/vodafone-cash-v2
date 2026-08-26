@@ -330,7 +330,8 @@ const toEmployeeDto = (emp) => {
             recipient: currentTask.recipient || '',
             amount: Number(currentTask.amount || 0),
             receivedAt: currentTask.receivedAt ? new Date(currentTask.receivedAt).toISOString() : null
-        } : null
+        } : null,
+        ...(emp.role === 'external' ? { balance: Number(emp.balance || 0) } : {})
     };
 };
 

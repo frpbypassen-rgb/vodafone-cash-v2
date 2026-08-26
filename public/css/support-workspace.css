@@ -942,6 +942,204 @@ button.context-list-item:hover { border-color: var(--support-accent); }
     font-weight: 800;
 }
 
+.deposit-review-panel {
+    margin: 8px 10px 0;
+    padding: 12px;
+    border: 1px solid rgba(20, 99, 214, 0.28);
+    border-radius: 10px;
+    background: linear-gradient(180deg, rgba(20, 99, 214, 0.08), rgba(20, 99, 214, 0.03));
+}
+
+.deposit-review-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 10px;
+    margin-bottom: 10px;
+}
+
+.deposit-review-kicker {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    color: var(--support-accent);
+    font-size: 0.68rem;
+    font-weight: 800;
+}
+
+.deposit-review-title {
+    margin: 4px 0 2px;
+    font-size: 0.92rem;
+    font-weight: 900;
+    font-family: 'JetBrains Mono', monospace;
+}
+
+.deposit-review-subtitle {
+    margin: 0;
+    color: var(--text-muted);
+    font-size: 0.72rem;
+    font-weight: 700;
+}
+
+.deposit-review-status {
+    flex: 0 0 auto;
+    padding: 5px 9px;
+    border-radius: 999px;
+    font-size: 0.68rem;
+    font-weight: 900;
+}
+
+.deposit-review-status.is-pending {
+    color: var(--support-warning);
+    background: rgba(184, 107, 0, 0.12);
+}
+
+.deposit-review-status.is-approved {
+    color: var(--support-success);
+    background: rgba(13, 143, 103, 0.12);
+}
+
+.deposit-review-status.is-rejected {
+    color: var(--support-danger);
+    background: rgba(199, 60, 74, 0.12);
+}
+
+.deposit-review-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+    margin: 0 0 10px;
+}
+
+.deposit-review-grid div {
+    padding: 8px 9px;
+    border-radius: 7px;
+    background: rgba(255, 255, 255, 0.55);
+    border: 1px solid var(--border-glass);
+}
+
+[data-theme="dark"] .deposit-review-grid div {
+    background: rgba(15, 23, 42, 0.45);
+}
+
+.deposit-review-grid div.is-wide {
+    grid-column: 1 / -1;
+}
+
+.deposit-review-grid dt {
+    margin: 0 0 3px;
+    color: var(--text-muted);
+    font-size: 0.64rem;
+    font-weight: 800;
+}
+
+.deposit-review-grid dd {
+    margin: 0;
+    font-size: 0.78rem;
+    font-weight: 900;
+}
+
+.deposit-review-gallery-wrap {
+    margin-bottom: 10px;
+}
+
+.deposit-review-gallery-label {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 7px;
+    font-size: 0.7rem;
+    font-weight: 900;
+}
+
+.deposit-review-gallery {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(84px, 1fr));
+    gap: 7px;
+}
+
+.deposit-review-thumb {
+    position: relative;
+    padding: 0;
+    border: 1px solid var(--border-glass);
+    border-radius: 8px;
+    overflow: hidden;
+    background: #fff;
+    cursor: zoom-in;
+}
+
+.deposit-review-thumb img {
+    width: 100%;
+    aspect-ratio: 1;
+    object-fit: cover;
+    display: block;
+}
+
+.deposit-review-thumb span {
+    position: absolute;
+    top: 4px;
+    left: 4px;
+    min-width: 18px;
+    height: 18px;
+    display: grid;
+    place-items: center;
+    border-radius: 999px;
+    background: rgba(15, 23, 42, 0.78);
+    color: #fff;
+    font-size: 0.62rem;
+    font-weight: 900;
+}
+
+.deposit-review-empty {
+    padding: 18px 10px;
+    text-align: center;
+    border: 1px dashed var(--border-glass);
+    border-radius: 8px;
+    color: var(--text-muted);
+    font-size: 0.72rem;
+    font-weight: 700;
+}
+
+.deposit-review-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 7px;
+}
+
+.deposit-review-actions .btn {
+    min-height: 34px;
+    font-size: 0.72rem;
+    font-weight: 900;
+}
+
+.deposit-review-footnote {
+    padding: 8px 10px;
+    border-radius: 7px;
+    font-size: 0.72rem;
+    font-weight: 800;
+    line-height: 1.6;
+}
+
+.deposit-review-footnote.is-success {
+    color: var(--support-success);
+    background: rgba(13, 143, 103, 0.1);
+}
+
+.deposit-review-footnote.is-danger {
+    color: var(--support-danger);
+    background: rgba(199, 60, 74, 0.1);
+}
+
+.deposit-review-footnote.is-warn {
+    color: var(--support-warning);
+    background: rgba(184, 107, 0, 0.1);
+}
+
+.deposit-lightbox-image {
+    max-height: 78vh;
+    object-fit: contain;
+}
+
 .support-mobile-back,
 .support-mobile-context-toggle {
     display: none;

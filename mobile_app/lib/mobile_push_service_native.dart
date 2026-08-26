@@ -476,6 +476,7 @@ class MobilePushService {
       AuthorizationStatus.authorized => 'authorized',
       AuthorizationStatus.provisional => 'provisional',
       AuthorizationStatus.denied => 'denied',
+      AuthorizationStatus.deniedPermanently => 'denied_permanently',
       AuthorizationStatus.notDetermined => 'not_determined',
     };
   }

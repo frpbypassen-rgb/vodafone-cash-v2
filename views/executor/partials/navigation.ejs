@@ -3,7 +3,7 @@
     const currentPage = String(typeof activePage === 'undefined' ? '' : activePage);
     const executorRoleLabel = executorRole === 'manager'
         ? 'مدير تنفيذي'
-        : (executorRole === 'accountant' ? 'محاسب' : 'موظف تنفيذ');
+        : (executorRole === 'accountant' ? 'محاسب' : (executorRole === 'external' ? 'موظف خارجي' : 'موظف تنفيذ'));
     const canHandleTasks = executorRole !== 'accountant';
     const canManageEmployees = executorRole === 'manager';
     const navItems = [

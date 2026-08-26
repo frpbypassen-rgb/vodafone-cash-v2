@@ -73,7 +73,22 @@ async function createDepositRequest({ employee, amount, note, receipts }) {
     const ticket = await SupportTicket.create({
         entityType: 'executor_group', entityId: group._id, name: group.name || 'شركة التنفيذ', phone: employee.phone || '',
         channel: 'portal', status: 'open', priority: 'high', category: 'deposit', unreadAdmin: 1, unreadUser: 0, messages,
-        metadata: { type: 'executor_deposit', subject: `طلب إيداع ${customId}`, executorGroupId: objectId(group._id), executorGroupName: group.name || '', depositRequest: { transactionId: objectId(tx._id), customId, amount: parsedAmount, note: cleanNote, receiptCount: receiptImages.length, status: 'pending' } }
+        metadata: {
+            type: 'executor_deposit',
+            subject: `طلب إيداع ${customId}`,
+            executorGroupId: objectId(group._id),
+            executorGroupName: group.name || '',
+            depositRequest: {
+                transactionId: objectId(tx._id),
+                customId,
+                amount: parsedAmount,
+                note: cleanNote,
+                receiptCount: receiptImages.length,
+                receiptImages,
+                submittedByName: employee.name,
+                status: 'pending'
+            }
+        }
     });
     tx.depositRequest.supportTicketId = ticket._id;
     await tx.save();
@@ -86,13 +101,30 @@ async function listDepositRequests({ employee }) {
     const rows = await Transaction.find({ executorGroupId: employee.groupId._id, status: { $in: ['deposit_pending', 'deposit', 'rejected'] }, 'depositRequest.submittedById': { $exists: true } })
         .select('customId amount status createdAt updatedAt proofImages depositRequest executorWebAlert')
         .sort({ createdAt: -1 }).limit(100).lean();
-    return rows.map((row) => ({
-        id: objectId(row._id), customId: row.customId, amount: Number(row.amount || 0),
-        status: row.status === 'deposit_pending' ? 'pending' : row.status,
-        note: row.depositRequest?.note || '', rejectionReason: row.depositRequest?.rejectionReason || '',
-        receiptCount: Array.isArray(row.proofImages) ? row.proofImages.length : 0,
-        createdAt: row.createdAt, updatedAt: row.updatedAt
-    }));
+    const toReceiptUrl = (imagePath) => {
+        const value = String(imagePath || '').trim();
+        if (!value) return '';
+        if (value.startsWith('http') || value.startsWith('/')) return value;
+        return `/uploads/${value.replace(/^\/+/, '')}`;
+    };
+
+    return rows.map((row) => {
+        const proofImages = Array.isArray(row.proofImages) ? row.proofImages : [];
+        return {
+            id: objectId(row._id),
+            customId: row.customId,
+            amount: Number(row.amount || 0),
+            status: row.status === 'deposit_pending' ? 'pending' : row.status,
+            note: row.depositRequest?.note || '',
+            rejectionReason: row.depositRequest?.rejectionReason || '',
+            receiptCount: proofImages.length,
+            receiptUrls: proofImages.map(toReceiptUrl).filter(Boolean),
+            reviewedByName: row.depositRequest?.reviewedByName || '',
+            reviewedAt: row.depositRequest?.reviewedAt || null,
+            createdAt: row.createdAt,
+            updatedAt: row.updatedAt
+        };
+    });
 }
 
 async function resolveDepositTicket({ ticketId, admin, approved, reason = '' }) {
@@ -113,6 +145,10 @@ async function resolveDepositTicket({ ticketId, admin, approved, reason = '' }) 
     ticket.closedAt = approved ? ticket.closedAt : reviewedAt;
     ticket.unreadUser = Number(ticket.unreadUser || 0) + 1;
     ticket.metadata.depositRequest.status = approved ? 'approved' : 'rejected';
+    ticket.metadata.depositRequest.reviewedById = admin.id;
+    ticket.metadata.depositRequest.reviewedByName = admin.name;
+    ticket.metadata.depositRequest.reviewedAt = reviewedAt;
+    if (!approved) ticket.metadata.depositRequest.rejectionReason = cleanReason;
     ticket.messages.push({ sender: 'admin', senderName: admin.name, text: approved ? `تم قبول الإيداع وإضافة ${tx.amount} EGP إلى رصيد الشركة.` : `تم رفض طلب الإيداع. السبب: ${cleanReason}`, channel: 'portal', direction: 'outbound', messageType: 'text', createdAt: reviewedAt });
     await ticket.save();
     if (approved) await syncBotBalance(tx.executorGroupId);

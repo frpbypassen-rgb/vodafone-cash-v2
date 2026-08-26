@@ -61,7 +61,7 @@ const requireExecutorManager = async (req, res, next) => {
 
 const requireExecutorTaskAccess = (req, res, next) => {
     const employee = req.executorEmployee;
-    if (!employee || employee.role === 'accountant' || employee.role === 'external') {
+    if (!employee || employee.role === 'accountant') {
         return res.status(403).json({ success: false, error: 'هذا الحساب لا يملك صلاحية تنفيذ العمليات.' });
     }
     return next();

@@ -73,7 +73,7 @@ exports.getProxyExecutorImage = async (req, res) => {
 
 exports.getDashboard = async (req, res) => {
     const emp = req.executorEmployee || await Employee.findById(req.session.executorId).populate('groupId');
-    if (emp?.role === 'accountant' || emp?.role === 'external') return res.redirect('/executor-portal/reports');
+    if (emp?.role === 'accountant') return res.redirect('/executor-portal/reports');
     const showMfaNotice = Boolean(req.session.showMfaEnableNotice);
     delete req.session.showMfaEnableNotice;
     res.render('executor/dashboard', { emp, showMfaNotice });

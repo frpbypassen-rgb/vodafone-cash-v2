@@ -1,0 +1,458 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>توثيق مسار إيداع شركة التنفيذ | الأهرام Pay</title>
+    <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;700;800;900&family=JetBrains+Mono:wght@700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg: #0b1220;
+            --card: #121c31;
+            --line: rgba(148, 163, 184, 0.18);
+            --text: #edf5ff;
+            --muted: #94a3b8;
+            --cyan: #22d3ee;
+            --green: #34d399;
+            --gold: #facc15;
+            --red: #fb7185;
+            --blue: #1463d6;
+        }
+        * { box-sizing: border-box; }
+        body {
+            margin: 0;
+            font-family: Tajawal, sans-serif;
+            background: radial-gradient(circle at top, #15233f, var(--bg) 42%);
+            color: var(--text);
+            line-height: 1.7;
+        }
+        .wrap { max-width: 1080px; margin: 0 auto; padding: 32px 20px 80px; }
+        .hero {
+            padding: 28px;
+            border: 1px solid var(--line);
+            border-radius: 24px;
+            background: linear-gradient(135deg, rgba(20, 99, 214, 0.18), rgba(34, 211, 238, 0.08));
+            margin-bottom: 28px;
+        }
+        .hero h1 { margin: 0 0 8px; font-size: clamp(1.5rem, 3vw, 2.2rem); font-weight: 900; }
+        .hero p { margin: 0; color: var(--muted); max-width: 760px; }
+        .flow {
+            display: grid;
+            grid-template-columns: repeat(5, minmax(0, 1fr));
+            gap: 10px;
+            margin: 24px 0 34px;
+        }
+        .flow-step {
+            position: relative;
+            padding: 14px 12px;
+            border-radius: 16px;
+            border: 1px solid var(--line);
+            background: rgba(255,255,255,0.03);
+            text-align: center;
+            font-size: 0.78rem;
+            font-weight: 800;
+        }
+        .flow-step strong {
+            display: block;
+            font-size: 1.1rem;
+            color: var(--cyan);
+            margin-bottom: 4px;
+        }
+        .flow-step:not(:last-child)::after {
+            content: "←";
+            position: absolute;
+            left: -12px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: var(--muted);
+            font-size: 1rem;
+        }
+        .step-card {
+            margin-bottom: 28px;
+            border: 1px solid var(--line);
+            border-radius: 22px;
+            overflow: hidden;
+            background: var(--card);
+            box-shadow: 0 24px 60px rgba(0,0,0,0.25);
+        }
+        .step-head {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 16px;
+            padding: 18px 22px;
+            border-bottom: 1px solid var(--line);
+            background: rgba(255,255,255,0.02);
+        }
+        .step-head h2 {
+            margin: 0;
+            font-size: 1.15rem;
+            font-weight: 900;
+        }
+        .badge {
+            padding: 6px 12px;
+            border-radius: 999px;
+            font-size: 0.72rem;
+            font-weight: 900;
+            white-space: nowrap;
+        }
+        .badge.executor { background: rgba(34,211,238,0.12); color: var(--cyan); }
+        .badge.support { background: rgba(20,99,214,0.12); color: #93c5fd; }
+        .badge.master { background: rgba(52,211,153,0.12); color: var(--green); }
+        .step-body { display: grid; grid-template-columns: 1.1fr 0.9fr; }
+        .step-copy { padding: 22px; }
+        .step-copy ul { margin: 0; padding-right: 18px; }
+        .step-copy li { margin-bottom: 8px; color: #dbe7f5; }
+        .meta {
+            margin-top: 16px;
+            padding: 12px 14px;
+            border-radius: 12px;
+            background: rgba(255,255,255,0.03);
+            border: 1px dashed var(--line);
+            font-size: 0.82rem;
+        }
+        .meta code {
+            font-family: "JetBrains Mono", monospace;
+            color: var(--cyan);
+            direction: ltr;
+            display: inline-block;
+        }
+        .mock {
+            padding: 18px;
+            background: linear-gradient(180deg, rgba(8,17,31,0.4), rgba(8,17,31,0.85));
+            border-right: 1px solid var(--line);
+        }
+        .mock-screen {
+            border: 1px solid rgba(94,234,212,0.18);
+            border-radius: 18px;
+            overflow: hidden;
+            background: #08111f;
+            min-height: 320px;
+        }
+        .mock-top {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px 14px;
+            background: rgba(17,29,48,0.95);
+            border-bottom: 1px solid rgba(94,234,212,0.12);
+            font-size: 0.72rem;
+            font-weight: 800;
+        }
+        .mock-content { padding: 14px; }
+        .balance-pill {
+            display: inline-block;
+            padding: 8px 12px;
+            border-radius: 12px;
+            border: 1px solid rgba(52,211,153,0.28);
+            background: rgba(52,211,153,0.08);
+            color: var(--green);
+            font-family: "JetBrains Mono", monospace;
+            font-size: 0.9rem;
+            margin-bottom: 12px;
+        }
+        .form-block {
+            border: 1px solid rgba(94,234,212,0.18);
+            border-radius: 14px;
+            padding: 12px;
+            margin-bottom: 10px;
+            background: rgba(255,255,255,0.02);
+        }
+        .label { color: var(--muted); font-size: 0.68rem; font-weight: 800; margin-bottom: 4px; }
+        .value { font-weight: 800; font-size: 0.82rem; }
+        .drop {
+            border: 1px dashed rgba(34,211,238,0.45);
+            border-radius: 12px;
+            padding: 18px 10px;
+            text-align: center;
+            color: var(--muted);
+            font-size: 0.72rem;
+        }
+        .thumbs { display: flex; gap: 6px; margin-top: 8px; }
+        .thumbs span {
+            width: 42px; height: 42px; border-radius: 8px;
+            background: linear-gradient(135deg, #1e293b, #334155);
+            border: 1px solid var(--line);
+        }
+        .btn {
+            display: inline-block;
+            margin-top: 10px;
+            padding: 10px 14px;
+            border-radius: 10px;
+            font-size: 0.74rem;
+            font-weight: 900;
+        }
+        .btn-primary { background: linear-gradient(135deg, #0e9b86, #0077b6); color: #fff; }
+        .btn-success { background: #0d8f67; color: #fff; }
+        .btn-danger { background: transparent; border: 1px solid var(--red); color: var(--red); }
+        .ticket-card {
+            border: 1px solid rgba(20,99,214,0.28);
+            border-radius: 12px;
+            padding: 12px;
+            background: rgba(20,99,214,0.08);
+        }
+        .ticket-title { font-family: "JetBrains Mono", monospace; color: var(--cyan); font-size: 0.82rem; font-weight: 900; }
+        .gallery { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-top: 10px; }
+        .gallery div {
+            aspect-ratio: 1;
+            border-radius: 8px;
+            background: linear-gradient(135deg, #1e293b, #475569);
+            border: 1px solid var(--line);
+            position: relative;
+        }
+        .gallery div::after {
+            content: attr(data-n);
+            position: absolute; top: 4px; left: 4px;
+            width: 18px; height: 18px; border-radius: 999px;
+            background: rgba(15,23,42,0.85); color: #fff;
+            font-size: 0.62rem; display: grid; place-items: center;
+        }
+        .status {
+            display: inline-flex; align-items: center; gap: 5px;
+            padding: 5px 9px; border-radius: 999px; font-size: 0.68rem; font-weight: 900;
+        }
+        .status.pending { color: var(--gold); background: rgba(250,204,21,0.12); }
+        .status.ok { color: var(--green); background: rgba(52,211,153,0.12); }
+        .status.bad { color: var(--red); background: rgba(251,113,133,0.12); }
+        .note {
+            margin-top: 28px;
+            padding: 18px 20px;
+            border-radius: 16px;
+            border: 1px solid rgba(250,204,21,0.25);
+            background: rgba(250,204,21,0.08);
+            color: #fde68a;
+            font-size: 0.88rem;
+        }
+        .roles {
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 12px;
+            margin-top: 24px;
+        }
+        .role-card {
+            padding: 14px;
+            border-radius: 14px;
+            border: 1px solid var(--line);
+            background: rgba(255,255,255,0.02);
+            font-size: 0.82rem;
+        }
+        .role-card strong { display: block; margin-bottom: 6px; }
+        @media (max-width: 900px) {
+            .flow { grid-template-columns: 1fr; }
+            .flow-step:not(:last-child)::after { display: none; }
+            .step-body { grid-template-columns: 1fr; }
+            .mock { border-right: 0; border-top: 1px solid var(--line); }
+            .roles { grid-template-columns: 1fr; }
+        }
+        @media print {
+            body { background: #fff; color: #111; }
+            .step-card, .hero, .role-card, .note { break-inside: avoid; box-shadow: none; }
+        }
+    </style>
+</head>
+<body>
+    <div class="wrap">
+        <header class="hero">
+            <h1>توثيق مسار إيداع شركة التنفيذ</h1>
+            <p>
+                هذا الدليل يشرح الرحلة الكاملة: مدير المنفّذ يرسل طلب الإيداع مع الإيصالات ← فريق الدعم يراجع ← المدير الأساسي يعتمد ←
+                تتحدّث حالة الطلب ورصيد الشركة عند المنفّذ. لا يُضاف الرصيد إلا بعد القبول النهائي.
+            </p>
+        </header>
+
+        <div class="flow">
+            <div class="flow-step"><strong>1</strong>إرسال الطلب<br>مدير المنفّذ</div>
+            <div class="flow-step"><strong>2</strong>تذكرة دعم<br>تلقائية</div>
+            <div class="flow-step"><strong>3</strong>مراجعة<br>الدعم</div>
+            <div class="flow-step"><strong>4</strong>قبول/رفض<br>المدير الأساسي</div>
+            <div class="flow-step"><strong>5</strong>نتيجة<br>عند المنفّذ</div>
+        </div>
+
+        <section class="step-card" id="step-1">
+            <div class="step-head">
+                <h2>الخطوة 1 — مدير المنفّذ يرسل طلب الإيداع</h2>
+                <span class="badge executor">بوابة المنفّذ</span>
+            </div>
+            <div class="step-body">
+                <div class="step-copy">
+                    <ul>
+                        <li>يدخل <b>مدير شركة التنفيذ</b> إلى صفحة الإيداعات.</li>
+                        <li>يكتب <b>قيمة الإيداع</b> و<b>ملاحظة</b> (مرجع التحويل أو البنك).</li>
+                        <li>يرفق من <b>1 إلى 5 صور</b> للإيصالات (JPG / PNG / WEBP).</li>
+                        <li>يضغط <b>إرسال طلب الإيداع للمراجعة</b>.</li>
+                        <li>يُنشأ رقم طلب مثل <code>DEPREQ-XXXXXXXX-AB</code> بحالة <b>قيد المراجعة</b>.</li>
+                    </ul>
+                    <div class="meta">
+                        <div><b>المسار:</b> <code>/executor-portal/deposits</code></div>
+                        <div><b>API:</b> <code>POST /executor-portal/api/deposits</code></div>
+                        <div><b>الصلاحية:</b> مدير شركة التنفيذ فقط (<code>role = manager</code>)</div>
+                    </div>
+                </div>
+                <div class="mock">
+                    <div class="mock-screen">
+                        <div class="mock-top"><span>إيداعات شركة التنفيذ</span><span class="balance-pill">12,500.00 EGP</span></div>
+                        <div class="mock-content">
+                            <div class="form-block"><div class="label">قيمة الإيداع</div><div class="value">5,000.00 EGP</div></div>
+                            <div class="form-block"><div class="label">ملاحظة للدعم</div><div class="value">تحويل بنكي — مرجع 884422</div></div>
+                            <div class="drop">3 / 5 إيصالات جاهزة للإرسال<div class="thumbs"><span></span><span></span><span></span></div></div>
+                            <span class="btn btn-primary">إرسال طلب الإيداع للمراجعة</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section class="step-card" id="step-2">
+            <div class="step-head">
+                <h2>الخطوة 2 — إنشاء تذكرة دعم تلقائياً</h2>
+                <span class="badge support">الخلفية — Backend</span>
+            </div>
+            <div class="step-body">
+                <div class="step-copy">
+                    <ul>
+                        <li>النظام ينشئ عملية بحالة <code>deposit_pending</code>.</li>
+                        <li>يحفظ الإيصالات في <code>uploads/proofs/</code>.</li>
+                        <li>يفتح <b>تذكرة دعم</b> بتصنيف <b>إيداع</b> وأولوية عالية.</li>
+                        <li>يرسل <b>إشعار</b> لمديري النظام بوجود طلب جديد.</li>
+                        <li>الرصيد <b>لا يتغير</b> في هذه المرحلة.</li>
+                    </ul>
+                    <div class="meta">
+                        <div><b>الخدمة:</b> <code>executorDepositRequestService.createDepositRequest</code></div>
+                        <div><b>نوع التذكرة:</b> <code>metadata.type = executor_deposit</code></div>
+                    </div>
+                </div>
+                <div class="mock">
+                    <div class="mock-screen">
+                        <div class="mock-top"><span>تذكرة جديدة — قيد المراجعة</span><span class="status pending">قيد التنفيذ</span></div>
+                        <div class="mock-content">
+                            <div class="ticket-card">
+                                <div class="ticket-title">DEPREQ-17351234-A1</div>
+                                <div class="label">شركة التنفيذ · 5,000 EGP · 3 إيصالات</div>
+                                <div class="value" style="margin-top:8px">ملاحظة: تحويل بنكي — مرجع 884422</div>
+                            </div>
+                            <div style="margin-top:12px;color:var(--muted);font-size:0.72rem">⬇ الرصيد الحالي للشركة لم يتغير بعد</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section class="step-card" id="step-3">
+            <div class="step-head">
+                <h2>الخطوة 3 — الدعم يراجع الطلب في لوحة الإدارة</h2>
+                <span class="badge support">موقع الدعم / الإدارة</span>
+            </div>
+            <div class="step-body">
+                <div class="step-copy">
+                    <ul>
+                        <li>موظف الدعم يفتح <b>مركز الدعم</b> ويختار تذكرة الإيداع.</li>
+                        <li>يرى بطاقة مراجعة موحّدة: الرقم، القيمة، الملاحظة، الحالة.</li>
+                        <li>كل الإيصالات تظهر في <b>معرض واحد</b> قابل للتكبير.</li>
+                        <li>موظف الدعم العادي <b>يراجع فقط</b> — القبول النهائي للمدير الأساسي.</li>
+                    </ul>
+                    <div class="meta">
+                        <div><b>المسار:</b> <code>/support</code></div>
+                        <div><b>الواجهة:</b> <code>support-workspace.js</code> — بطاقة <code>deposit-review-panel</code></div>
+                    </div>
+                </div>
+                <div class="mock">
+                    <div class="mock-screen">
+                        <div class="mock-top"><span>مركز الدعم — مراجعة إيداع</span><span class="status pending">قيد المراجعة</span></div>
+                        <div class="mock-content">
+                            <div class="ticket-card">
+                                <div class="ticket-title">DEPREQ-17351234-A1</div>
+                                <div class="value">5,000.00 EGP · شركة النيل للتنفيذ</div>
+                                <div class="label" style="margin-top:8px">معرض الإيصالات</div>
+                                <div class="gallery"><div data-n="1"></div><div data-n="2"></div><div data-n="3"></div></div>
+                            </div>
+                            <div style="margin-top:10px;color:#fde68a;font-size:0.72rem">🔒 بانتظار اعتماد المدير الأساسي</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section class="step-card" id="step-4">
+            <div class="step-head">
+                <h2>الخطوة 4 — المدير الأساسي يقبل أو يرفض</h2>
+                <span class="badge master">مدير أساسي — Master</span>
+            </div>
+            <div class="step-body">
+                <div class="step-copy">
+                    <ul>
+                        <li><b>قبول:</b> تأكيد يعرض المبلغ واسم الشركة ← يُضاف الرصيد <b>مرة واحدة فقط</b>.</li>
+                        <li><b>رفض:</b> سبب إلزامي (3 أحرف على الأقل) ← لا يُضاف أي رصيد.</li>
+                        <li>إذا حاول شخصان القبول معاً: الثاني يحصل على خطأ <code>409</code> (رُاجع سابقاً).</li>
+                        <li>تُغلق التذكرة ويُرسل إشعار للشركة.</li>
+                    </ul>
+                    <div class="meta">
+                        <div><b>API:</b> <code>POST /api/support/tickets/:id/executor-deposit/approve</code></div>
+                        <div><b>أو:</b> <code>.../reject</code> مع <code>{ reason }</code></div>
+                        <div><b>الخدمة:</b> <code>resolveDepositTicket</code> + <code>syncBotBalance</code></div>
+                    </div>
+                </div>
+                <div class="mock">
+                    <div class="mock-screen">
+                        <div class="mock-top"><span>قرار المدير الأساسي</span></div>
+                        <div class="mock-content">
+                            <div class="value" style="margin-bottom:10px">هل تريد إضافة <b>5,000 EGP</b> إلى رصيد <b>شركة النيل</b>؟</div>
+                            <span class="btn btn-success">قبول وإضافة الرصيد</span>
+                            <span class="btn btn-danger">رفض مع سبب</span>
+                            <div style="margin-top:14px;padding:10px;border-radius:10px;background:rgba(52,211,153,0.1);color:var(--green);font-size:0.74rem">
+                                ✅ بعد القبول: status = deposit · الرصيد +5000 · reviewedBy مسجّل
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section class="step-card" id="step-5">
+            <div class="step-head">
+                <h2>الخطوة 5 — النتيجة عند المنفّذ</h2>
+                <span class="badge executor">بوابة المنفّذ</span>
+            </div>
+            <div class="step-body">
+                <div class="step-copy">
+                    <ul>
+                        <li>صفحة الإيداعات تتحدّث تلقائياً (كل 20 ثانية للطلبات المعلّقة).</li>
+                        <li>الحالة تصبح <b>مقبول</b> أو <b>مرفوض</b> مع السبب.</li>
+                        <li>بطاقة <b>الرصيد المتاح</b> في الأعلى تعكس القيمة الجديدة بعد القبول.</li>
+                        <li>يظهر تنبيه في بوابة المنفّذ: <code>executorWebAlert</code>.</li>
+                        <li>عند الرفض: يمكن إنشاء طلب جديد مباشرة.</li>
+                    </ul>
+                    <div class="meta">
+                        <div><b>المسار:</b> <code>/executor-portal/deposits</code></div>
+                        <div><b>API:</b> <code>GET /executor-portal/api/deposits</code></div>
+                    </div>
+                </div>
+                <div class="mock">
+                    <div class="mock-screen">
+                        <div class="mock-top"><span>متابعة طلبات الإيداع</span><span class="balance-pill">17,500.00 EGP</span></div>
+                        <div class="mock-content">
+                            <div class="form-block">
+                                <div class="ticket-title">DEPREQ-17351234-A1</div>
+                                <div class="value">5,000.00 EGP</div>
+                                <div style="margin-top:8px"><span class="status ok">مقبول</span></div>
+                                <div class="label" style="margin-top:8px">آخر مراجعة: المدير الأساسي · اليوم 02:40</div>
+                            </div>
+                            <div style="margin-top:10px;color:var(--green);font-size:0.74rem">✅ تم قبول الإيداع وإضافة 5,000 EGP إلى رصيد الشركة</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <div class="roles">
+            <div class="role-card"><strong>مدير المنفّذ</strong>يرسل الطلب ويتابع الحالة والرصيد. لا يضيف الرصيد بنفسه.</div>
+            <div class="role-card"><strong>موظف الدعم</strong>يراجع الإيصالات والملاحظة في مركز الدعم. لا يعتمد مالياً.</div>
+            <div class="role-card"><strong>المدير الأساسي</strong>يقبل أو يرفض. القبول يضيف الرصيد مرة واحدة فقط.</div>
+        </div>
+
+        <div class="note">
+            <b>ملاحظة مهمة:</b> هذا المسار خاص بـ <b>إيداع شركة التنفيذ</b> عبر صفحة الإيداعات.
+            يوجد مسار قديم مختلف (<code>/api/request-deposit</code>) لطلب إيداع من لوحة المهام — لا يستخدم نفس واجهة الإيصالات المتعددة.
+        </div>
+    </div>
+</body>
+</html>

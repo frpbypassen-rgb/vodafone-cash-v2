@@ -89,6 +89,10 @@
         .role-operator { background: rgba(14, 165, 233, 0.1); color: var(--accent-blue); border: 1px solid rgba(14, 165, 233, 0.2); }
         .role-accountant { background: rgba(212, 175, 55, 0.1); color: var(--accent-gold); border: 1px solid rgba(212, 175, 55, 0.2); }
         .role-manager { background: rgba(16, 185, 129, 0.1); color: var(--accent-green); border: 1px solid rgba(16, 185, 129, 0.2); }
+        .role-external { background: rgba(139, 92, 246, 0.1); color: #8b5cf6; border: 1px solid rgba(139, 92, 246, 0.2); }
+        .balance-positive { color: var(--accent-green); font-weight: 800; }
+        .balance-negative { color: var(--accent-red); font-weight: 800; }
+        .balance-muted { color: var(--text-muted); font-weight: 700; }
 
         .status-active { color: var(--accent-green); }
         .status-suspended { color: var(--accent-red); }
@@ -392,6 +396,7 @@
                         <th>اسم المستخدم</th>
                         <th>الهاتف</th>
                         <th>الوظيفة</th>
+                        <th>الرصيد المتاح</th>
                         <th>الحالة والتوفر</th>
                         <th>أداء اليوم</th>
                         <th>إجراءات</th>
@@ -514,6 +519,10 @@
                 ? `<span class="executor-status-pill" style="--pill-color:var(--executor-gold)"><i class="fa-solid fa-bolt"></i> ${escapeEmployeeHtml(employee.currentTask.customId || 'مهمة جارية')}</span>`
                 : '<span class="small text-muted">متاح</span>';
             const performanceHtml = `<div class="d-grid gap-1"><strong>${Number(metrics.completedCount || 0)} عملية</strong><small class="text-muted">${Number(metrics.totalEGP || 0).toLocaleString('en-US', { maximumFractionDigits: 2 })} ج.م · متوسط ${employeeDuration(metrics.averageDurationSeconds)}</small></div>`;
+            const balanceValue = Number(employee.balance || 0);
+            const balanceHtml = employee.role === 'external'
+                ? `<span class="${balanceValue < 0 ? 'balance-negative' : 'balance-positive'}" dir="ltr">${balanceValue.toLocaleString('en-US', { maximumFractionDigits: 2 })} ج.م</span>`
+                : '<span class="balance-muted">—</span>';
             const encodedName = encodeURIComponent(employee.name || '');
             const encodedPhone = encodeURIComponent(employee.phone || '');
             const externalActions = employee.role === 'external' ? `
@@ -533,6 +542,7 @@
                 <td dir="ltr" class="font-monospace small">${escapeEmployeeHtml(employee.webUsername || '---')}</td>
                 <td dir="ltr">${escapeEmployeeHtml(employee.phone || '---')}</td>
                 <td><span class="role-badge ${roleClass}">${roleLabel}</span></td>
+                <td>${balanceHtml}</td>
                 <td><div class="d-grid gap-1">${statusIcon}${presenceHtml}${currentTaskHtml}</div></td>
                 <td>${performanceHtml}</td>
                 <td><div class="d-flex gap-1 flex-wrap">${actions}</div></td>
@@ -543,6 +553,7 @@
                     <div class="mobile-emp-header"><div><span class="emp-card-name">${escapeEmployeeHtml(employee.name)}</span><div class="emp-card-username text-muted">${escapeEmployeeHtml(employee.webUsername || '---')}</div></div><span class="role-badge ${roleClass}">${roleLabel}</span></div>
                     <div class="mobile-emp-body">
                         <div class="emp-info-item"><span class="info-label"><i class="fa-solid fa-phone"></i> الهاتف</span><span class="info-value" dir="ltr">${escapeEmployeeHtml(employee.phone || '---')}</span></div>
+                        ${employee.role === 'external' ? `<div class="emp-info-item"><span class="info-label"><i class="fa-solid fa-wallet"></i> الرصيد المتاح</span><span class="info-value">${balanceHtml}</span></div>` : ''}
                         <div class="emp-info-item"><span class="info-label"><i class="fa-solid fa-circle-info"></i> الحالة</span><span class="info-value">${statusIcon}</span></div>
                         <div class="emp-info-item"><span class="info-label"><i class="fa-solid fa-signal"></i> التوفر</span><span class="info-value">${presenceHtml}</span></div>
                         <div class="emp-info-item"><span class="info-label"><i class="fa-solid fa-list-check"></i> المهمة الحالية</span><span class="info-value">${currentTaskHtml}</span></div>
