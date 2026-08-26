@@ -1835,6 +1835,11 @@ class _RoleShellState extends State<RoleShell> with WidgetsBindingObserver {
             ExecutorReportsScreen(controller: widget.controller),
           ),
           _NavItem(
+            'الإيداعات',
+            Icons.account_balance_wallet_outlined,
+            ExecutorDepositsScreen(controller: widget.controller),
+          ),
+          _NavItem(
             'الموظفون',
             Icons.manage_accounts_outlined,
             ExecutorEmployeesScreen(controller: widget.controller),
@@ -12918,6 +12923,196 @@ Color _executorSupportPriorityColor(String priority) {
       return const Color(0xFF1976D2);
     default:
       return _green;
+  }
+}
+
+class ExecutorDepositsScreen extends StatefulWidget {
+  const ExecutorDepositsScreen({super.key, required this.controller});
+
+  final SessionController controller;
+
+  @override
+  State<ExecutorDepositsScreen> createState() => _ExecutorDepositsScreenState();
+}
+
+class _ExecutorDepositsScreenState extends State<ExecutorDepositsScreen> {
+  List<Map<String, dynamic>> _requests = <Map<String, dynamic>>[];
+  Object? _error;
+  bool _loading = true;
+  String? _busyId;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+    try {
+      final rows = await widget.controller.api.executorDepositRequests();
+      if (mounted) setState(() => _requests = rows);
+    } catch (error) {
+      if (mounted) setState(() => _error = error);
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  Future<String?> _cancelReason() async {
+    final field = TextEditingController();
+    final result = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('إلغاء طلب الإيداع'),
+        content: TextField(
+          controller: field,
+          maxLength: 1000,
+          minLines: 2,
+          maxLines: 4,
+          decoration: const InputDecoration(
+            hintText: 'اكتب سبب الإلغاء بوضوح',
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('تراجع'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: _danger),
+            onPressed: () {
+              final value = field.text.trim();
+              if (value.length < 3) return;
+              Navigator.pop(dialogContext, value);
+            },
+            child: const Text('تأكيد الإلغاء'),
+          ),
+        ],
+      ),
+    );
+    field.dispose();
+    return result;
+  }
+
+  Future<void> _review(Map<String, dynamic> request, bool approve) async {
+    final id = '${request['id'] ?? ''}';
+    if (id.isEmpty || _busyId != null) return;
+    String reason = '';
+    if (approve) {
+      final accepted = await showDialog<bool>(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          title: const Text('قبول الإيداع؟'),
+          content: Text('سيُضاف ${formatEgpAmount(numberValue(request['amount']))} EGP إلى رصيد الشركة مرة واحدة فقط.'),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(dialogContext, false), child: const Text('تراجع')),
+            FilledButton(onPressed: () => Navigator.pop(dialogContext, true), child: const Text('قبول الإيداع')),
+          ],
+        ),
+      );
+      if (accepted != true) return;
+    } else {
+      final value = await _cancelReason();
+      if (value == null) return;
+      reason = value;
+    }
+    setState(() => _busyId = id);
+    try {
+      await widget.controller.api.reviewExecutorDeposit(id: id, approve: approve, reason: reason);
+      await widget.controller.refreshHome();
+      if (!mounted) return;
+      showSnack(context, approve ? 'تم قبول الإيداع وإضافة الرصيد.' : 'تم إلغاء طلب الإيداع وإبلاغ الإدارة.');
+      await _load();
+    } on ApiFailure catch (error) {
+      if (mounted) showSnack(context, error.message, error: true);
+    } finally {
+      if (mounted) setState(() => _busyId = null);
+    }
+  }
+
+  void _openReceipt(String rawUrl) {
+    final url = widget.controller.api.resolveMediaUrl(rawUrl).toString();
+    showDialog<void>(
+      context: context,
+      builder: (_) => Dialog(child: InteractiveViewer(child: Image.network(url, fit: BoxFit.contain))),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_loading && _requests.isEmpty) {
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    }
+    if (_error != null && _requests.isEmpty) return ErrorPage(error: _error!, onRetry: _load);
+    return PageFrame(
+      title: 'مراجعة الإيداعات',
+      subtitle: 'طلبات الإدارة المرفقة بإيصالات — القبول يضيف الرصيد للشركة.',
+      onRefresh: _load,
+      child: [
+        if (_requests.isEmpty)
+          const ExecutorSurface(
+            accent: ExecutorUiColors.cobalt,
+            child: Column(
+              children: [
+                Icon(Icons.account_balance_wallet_outlined, size: 42),
+                SizedBox(height: 10),
+                Text('لا توجد طلبات إيداع', style: TextStyle(fontWeight: FontWeight.w900)),
+                SizedBox(height: 5),
+                Text('ستظهر هنا طلبات الإيداع الواردة من الإدارة.', textAlign: TextAlign.center),
+              ],
+            ),
+          )
+        else
+          ..._requests.map(_requestCard),
+      ],
+    );
+  }
+
+  Widget _requestCard(Map<String, dynamic> request) {
+    final status = '${request['status'] ?? 'pending'}';
+    final pending = status == 'pending';
+    final busy = _busyId == '${request['id'] ?? ''}';
+    final receipts = (request['receiptUrls'] as List? ?? const <dynamic>[])
+        .map((item) => '$item')
+        .where((item) => item.isNotEmpty)
+        .toList();
+    final colors = Theme.of(context).colorScheme;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: ExecutorSurface(
+        accent: pending ? ExecutorUiColors.amber : (status == 'deposit' ? ExecutorUiColors.jade : _danger),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(children: [
+              Expanded(child: Text('${request['customId'] ?? 'طلب إيداع'}', style: const TextStyle(fontWeight: FontWeight.w900))),
+              StatusPill(label: status == 'deposit' ? 'مقبول' : (status == 'rejected' ? 'ملغى' : 'قيد المراجعة'), color: status == 'deposit' ? _green : (status == 'rejected' ? _danger : _gold)),
+            ]),
+            const SizedBox(height: 8),
+            Text('${formatEgpAmount(numberValue(request['amount']))} EGP', style: const TextStyle(fontSize: 23, fontWeight: FontWeight.w900)),
+            Text('${request['note'] ?? 'لا توجد ملاحظة'}', style: TextStyle(color: colors.onSurfaceVariant)),
+            const SizedBox(height: 6),
+            Text('تاريخ الطلب: ${formatDate(request['createdAt'])}', style: TextStyle(fontSize: 11, color: colors.onSurfaceVariant)),
+            if (receipts.isNotEmpty) ...[
+              const SizedBox(height: 12),
+              Wrap(spacing: 8, runSpacing: 8, children: receipts.map((url) => InkWell(onTap: () => _openReceipt(url), child: ClipRRect(borderRadius: BorderRadius.circular(10), child: Image.network(widget.controller.api.resolveMediaUrl(url).toString(), width: 62, height: 62, fit: BoxFit.cover)))).toList()),
+            ],
+            if (pending) ...[
+              const SizedBox(height: 14),
+              Row(children: [
+                Expanded(child: FilledButton.icon(onPressed: busy ? null : () => _review(request, true), icon: busy ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)) : const Icon(Icons.check_circle_outline), label: const Text('قبول الإيداع'))),
+                const SizedBox(width: 10),
+                Expanded(child: OutlinedButton.icon(style: OutlinedButton.styleFrom(foregroundColor: _danger), onPressed: busy ? null : () => _review(request, false), icon: const Icon(Icons.cancel_outlined), label: const Text('إلغاء الطلب'))),
+              ]),
+            ],
+          ],
+        ),
+      ),
+    );
   }
 }
 

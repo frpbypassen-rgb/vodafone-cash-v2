@@ -1105,6 +1105,27 @@ class MobileApi {
     return _request('GET', '/executor/overview');
   }
 
+  Future<List<Map<String, dynamic>>> executorDepositRequests() async {
+    final response = await _request('GET', '/executor/deposits');
+    return _extractList(response, 'requests');
+  }
+
+  Future<Map<String, dynamic>> reviewExecutorDeposit({
+    required String id,
+    required bool approve,
+    String reason = '',
+  }) {
+    return _request(
+      'POST',
+      '/executor/deposits/$id/review',
+      data: <String, dynamic>{
+        'decision': approve ? 'approve' : 'reject',
+        if (!approve) 'reason': reason.trim(),
+      },
+      idempotencyKey: _uuid.v4(),
+    );
+  }
+
   Future<Map<String, dynamic>> executorSupportTickets({
     String status = 'active',
     String? category,

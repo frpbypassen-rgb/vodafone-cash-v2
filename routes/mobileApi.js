@@ -68,6 +68,7 @@ const {
 } = require('../validators/mobileValidators');
 
 const mobileWebParityService = require('../services/mobileWebParityService');
+const executorDepositRequestService = require('../services/executorDepositRequestService');
 const executorSupportService = require('../services/executorSupportService');
 const mobileWebParityMapper = require('../mappers/mobileWebParityMapper');
 const { resolveClientNotificationUserIds } = require('../services/clientNotificationService');
@@ -3471,6 +3472,35 @@ router.post('/executor/tickets/messages', authenticateJWT, executorSupportMessag
 });
 
 // 📊 Executor Reports
+router.get('/executor/deposits', authenticateJWT, async (req, res) => {
+    try {
+        if (req.user.accountType !== 'executor') return sendMobileError(res, 403, 'FORBIDDEN', 'صلاحيات غير كافية', req.correlationId);
+        const employee = await Employee.findById(req.user.userId).populate('groupId');
+        const requests = await executorDepositRequestService.listDepositRequests({ employee });
+        return res.json({ success: true, requests, serverTime: new Date().toISOString() });
+    } catch (error) {
+        return sendMobileError(res, error.status || 500, error.status === 401 ? 'UNAUTHORIZED' : 'DEPOSIT_LIST_FAILED', error.message || 'تعذر تحميل طلبات الإيداع.', req.correlationId);
+    }
+});
+
+router.post('/executor/deposits/:id/review', authenticateJWT, async (req, res) => {
+    try {
+        if (req.user.accountType !== 'executor') return sendMobileError(res, 403, 'FORBIDDEN', 'صلاحيات غير كافية', req.correlationId);
+        const decision = String(req.body?.decision || '');
+        if (!['approve', 'reject'].includes(decision)) return sendMobileError(res, 422, 'INVALID_DECISION', 'قرار المراجعة غير صالح.', req.correlationId);
+        const employee = await Employee.findById(req.user.userId).populate('groupId');
+        const result = await executorDepositRequestService.reviewAdminDepositRequest({
+            employee,
+            requestId: req.params.id,
+            approved: decision === 'approve',
+            reason: req.body?.reason
+        });
+        return res.json({ success: true, status: decision === 'approve' ? 'approved' : 'rejected', requestId: String(result.transaction._id) });
+    } catch (error) {
+        return sendMobileError(res, error.status || 500, error.status === 403 ? 'FORBIDDEN' : 'DEPOSIT_REVIEW_FAILED', error.message || 'تعذر حفظ قرار الإيداع.', req.correlationId);
+    }
+});
+
 router.get('/executor/overview', authenticateJWT, async (req, res) => {
     try {
         if (req.user.accountType !== 'executor') {
