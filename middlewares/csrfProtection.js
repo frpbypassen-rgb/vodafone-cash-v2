@@ -62,11 +62,9 @@ const shouldSkip = (req) => {
 // نموذج إيداع المنفذ الإداري يدعم رفع الإيصالات مباشرة كـ multipart.
 // لا يكون req.body متاحاً قبل محلل الملفات، لذلك نسمح فقط بهذا المسار المحدد
 // عندما يثبت Origin/Referer أنه صادر من نفس نطاق لوحة الإدارة.
-const isSameOriginExecutorSettlementUpload = (req) => (
+const isDeferredExecutorSettlementCsrf = (req) => (
     req.method === 'POST'
     && /^\/executor\/[^/]+\/settle\/?$/.test(req.path || req.originalUrl || '')
-    && String(req.get('content-type') || '').toLowerCase().startsWith('multipart/form-data')
-    && hasSameOrigin(req)
 );
 
 const injectTokenIntoHtml = (html, token) => {
@@ -92,7 +90,8 @@ const csrfProtection = (req, res, next) => {
         return next();
     }
 
-    if (isSameOriginExecutorSettlementUpload(req)) {
+    // هذا المسار يعالج الرمز داخل route بعد أن يقرأ multer حقول multipart.
+    if (isDeferredExecutorSettlementCsrf(req)) {
         return next();
     }
 

@@ -1,4 +1,5 @@
 const express = require('express');
+const crypto = require('crypto');
 const router = express.Router();
 const ExecutorGroup = require('../models/ExecutorGroup');
 const Transaction = require('../models/Transaction');
@@ -45,6 +46,15 @@ const normalizeText = (value) => String(value || '').trim();
 const parseNumberOrDefault = (value, fallback) => {
     const parsed = Number(value);
     return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+};
+
+const hasValidCsrfToken = (req) => {
+    const submitted = String(req.get('x-csrf-token') || req.body?._csrf || '');
+    const expected = String(req.session?.csrfToken || '');
+    if (!submitted || !expected) return false;
+    const submittedBuffer = Buffer.from(submitted);
+    const expectedBuffer = Buffer.from(expected);
+    return submittedBuffer.length === expectedBuffer.length && crypto.timingSafeEqual(submittedBuffer, expectedBuffer);
 };
 
 router.get('/executors', requireAuth, async (req, res) => {
@@ -597,6 +607,9 @@ router.post('/executor/:id/test-transfer', requireAuth, async (req, res) => {
 
 router.post('/executor/:id/settle', requireAuth, requireMaster, adminDepositUpload.array('receipts', 5), async (req, res) => {
     try {
+        if (!hasValidCsrfToken(req)) {
+            return res.status(403).json({ success: false, error: 'Invalid CSRF token' });
+        }
         const bot = await ExecutorGroup.findById(req.params.id); const amount = parseFloat(req.body.amount); const notes = req.body.notes ? req.body.notes.trim() : ''; 
         if (!bot || bot.status === 'archived') return res.redirect('/executors?tab=archive&archiveError=READ_ONLY');
         let targetBotId = bot._id; let targetBotName = bot.name;
