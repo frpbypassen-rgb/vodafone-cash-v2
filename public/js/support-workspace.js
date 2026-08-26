@@ -483,7 +483,7 @@
             : (status === 'rejected' ? 'is-rejected' : 'is-pending');
         const companyName = ticket.metadata?.executorGroupName || ticket.name || 'شركة التنفيذ';
         const isMaster = config.admin?.role === 'master';
-        const requiresExecutorApproval = deposit.submittedByRole === 'admin';
+        const requiresExecutorApproval = deposit.submittedByRole === 'admin' || ticket.messages?.[0]?.sender === 'admin';
         const galleryHtml = receiptUrls.length
             ? `<div class="deposit-review-gallery">${receiptUrls.map((url, index) => `
                 <button type="button" class="deposit-review-thumb" data-action="deposit-lightbox" data-image-url="${escapeHtml(url)}" title="إيصال ${index + 1}">

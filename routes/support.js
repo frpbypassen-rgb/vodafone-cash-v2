@@ -635,8 +635,8 @@ router.post('/api/support/tickets/:id/executor-deposit/:decision', requireAuth, 
     try {
         const decision = String(req.params.decision || '');
         if (!['approve', 'reject'].includes(decision)) return res.status(422).json({ success: false, error: 'قرار المراجعة غير صالح.' });
-        const ticket = await SupportTicket.findById(req.params.id).select('metadata').lean();
-        if (ticket?.metadata?.depositRequest?.submittedByRole === 'admin') {
+        const ticket = await SupportTicket.findById(req.params.id).select('metadata messages.sender').lean();
+        if (ticket?.metadata?.depositRequest?.submittedByRole === 'admin' || ticket?.messages?.[0]?.sender === 'admin') {
             return res.status(403).json({ success: false, error: 'هذا طلب إيداع صادر من الإدارة ويجب أن تراجعه شركة التنفيذ من حسابها.' });
         }
         const result = await resolveDepositTicket({

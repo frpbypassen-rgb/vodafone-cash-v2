@@ -1041,7 +1041,10 @@
             if (data.depAlerts && data.depAlerts.length > 0) {
                 for (const alertTx of data.depAlerts) {
                     const alertData = alertTx.executorWebAlert;
-                    await Swal.fire({ title: alertData.type === 'success' ? 'إشعار إيداع' : 'تم الرفض', html: `<div class="fw-bold text-${alertData.type === 'success' ? 'success' : 'danger'}">${alertData.text}</div>`, icon: alertData.type, confirmButtonText: 'حسناً', confirmButtonColor: '#10b981' });
+                    const alertType = ['success', 'error', 'warning'].includes(alertData.type) ? alertData.type : 'info';
+                    const alertTitle = alertType === 'success' ? 'إشعار إيداع' : (alertType === 'warning' ? 'طلب إيداع جديد' : 'تم الرفض');
+                    const alertTone = alertType === 'success' ? 'success' : (alertType === 'warning' ? 'warning' : 'danger');
+                    await Swal.fire({ title: alertTitle, html: `<div class="fw-bold text-${alertTone}">${alertData.text}</div>`, icon: alertType, confirmButtonText: 'حسناً', confirmButtonColor: '#10b981' });
                     await executorApiFetch('/executor-portal/api/clear-dep-alert/' + alertTx._id, { method: 'POST' });
                 }
             }

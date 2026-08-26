@@ -16,6 +16,12 @@ const IMAGE_TYPES = { jpeg: 'jpg', jpg: 'jpg', png: 'png', webp: 'webp' };
 
 const failure = (message, status = 400) => Object.assign(new Error(message), { status });
 const objectId = (value) => String(value?._id || value || '');
+const isAdminInitiatedTicket = (ticket) => (
+    ticket?.metadata?.depositRequest?.submittedByRole === 'admin'
+    // Legacy tickets do not store submittedByRole. Their first message is the
+    // creation event, unlike later support replies that may also be from admin.
+    || ticket?.messages?.[0]?.sender === 'admin'
+);
 
 function parseReceipt(value) {
     const match = String(value || '').match(/^data:image\/(jpeg|jpg|png|webp);base64,([A-Za-z0-9+/=\r\n]+)$/i);
@@ -118,6 +124,12 @@ async function listDepositRequests({ employee }) {
         return `/uploads/${value.replace(/^\/+/, '')}`;
     };
 
+    const ticketIds = rows.map((row) => row.depositRequest?.supportTicketId).filter(Boolean);
+    const tickets = ticketIds.length
+        ? await SupportTicket.find({ _id: { $in: ticketIds } }).select('messages.sender metadata.depositRequest.submittedByRole').lean()
+        : [];
+    const submittedRoles = new Map(tickets.map((ticket) => [objectId(ticket._id), isAdminInitiatedTicket(ticket) ? 'admin' : 'executor']));
+
     return rows.map((row) => {
         const proofImages = Array.isArray(row.proofImages) ? row.proofImages : [];
         return {
@@ -129,7 +141,7 @@ async function listDepositRequests({ employee }) {
             rejectionReason: row.depositRequest?.rejectionReason || '',
             receiptCount: proofImages.length,
             receiptUrls: proofImages.map(toReceiptUrl).filter(Boolean),
-            submittedByRole: row.depositRequest?.submittedByRole || 'executor',
+            submittedByRole: row.depositRequest?.submittedByRole || submittedRoles.get(objectId(row.depositRequest?.supportTicketId)) || 'executor',
             reviewedByName: row.depositRequest?.reviewedByName || '',
             reviewedAt: row.depositRequest?.reviewedAt || null,
             createdAt: row.createdAt,
@@ -169,8 +181,15 @@ async function resolveDepositTicket({ ticketId, admin, approved, reason = '' }) 
 async function reviewAdminDepositRequest({ employee, requestId, approved, reason = '' }) {
     if (!employee?.groupId || employee.role !== 'manager') throw failure('الموافقة على إيداعات الإدارة متاحة لمدير شركة التنفيذ فقط.', 403);
     if (!mongoose.isValidObjectId(requestId)) throw failure('طلب الإيداع غير صالح.', 404);
-    const tx = await Transaction.findOne({ _id: requestId, executorGroupId: employee.groupId._id, status: 'deposit_pending', 'depositRequest.submittedByRole': 'admin' }).select('depositRequest');
+    const tx = await Transaction.findOne({ _id: requestId, executorGroupId: employee.groupId._id, status: 'deposit_pending' }).select('depositRequest');
     if (!tx?.depositRequest?.supportTicketId) throw failure('هذا الطلب غير متاح للمراجعة أو تمت مراجعته سابقًا.', 404);
+    const ticket = await SupportTicket.findById(tx.depositRequest.supportTicketId).select('messages.sender metadata.depositRequest.submittedByRole').lean();
+    if (tx.depositRequest.submittedByRole !== 'admin' && !isAdminInitiatedTicket(ticket)) {
+        throw failure('هذا الطلب ليس إيداعاً واردًا من الإدارة.', 403);
+    }
+    if (tx.depositRequest.submittedByRole !== 'admin') {
+        await Transaction.updateOne({ _id: tx._id }, { $set: { 'depositRequest.submittedByRole': 'admin' } });
+    }
     return resolveDepositTicket({ ticketId: String(tx.depositRequest.supportTicketId), admin: { id: objectId(employee._id), name: employee.name }, approved, reason });
 }
 
