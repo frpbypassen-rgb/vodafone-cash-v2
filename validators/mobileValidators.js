@@ -389,7 +389,7 @@ const createEmployeeValidator = [
     body('role')
         .trim()
         .notEmpty().withMessage('Ø§Ù„Ø¯ÙˆØ± Ù…Ø·Ù„ÙˆØ¨')
-        .isIn(['operator', 'accountant']).withMessage('Ø§Ù„Ø¯ÙˆØ± ØºÙŠØ± ØµØ§Ù„Ø­'),
+        .isIn(['operator', 'accountant', 'external']).withMessage('Ø§Ù„Ø¯ÙˆØ± ØºÙŠØ± ØµØ§Ù„Ø­'),
     body('webUsername')
         .trim()
         .notEmpty().withMessage('Ø§Ø³Ù… Ø§Ù„Ù…Ø³ØªØ®Ø¯Ù… Ù…Ø·Ù„ÙˆØ¨')

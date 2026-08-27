@@ -16340,7 +16340,13 @@ class ExecutorReportsScreen extends StatefulWidget {
 
 enum _ExecutorReportPeriodMode { day, month, range }
 
-enum _ExecutorReportTab { summary, operations, cancelled, reconciliation }
+enum _ExecutorReportTab {
+  summary,
+  operations,
+  deposits,
+  cancelled,
+  reconciliation,
+}
 
 class _ExecutorReportsScreenState extends State<ExecutorReportsScreen>
     with WidgetsBindingObserver {
@@ -16530,6 +16536,7 @@ class _ExecutorReportsScreenState extends State<ExecutorReportsScreen>
       <_ExecutorReportTab>[
         _ExecutorReportTab.summary,
         _ExecutorReportTab.operations,
+        _ExecutorReportTab.deposits,
         _ExecutorReportTab.cancelled,
         if (canReconcile) _ExecutorReportTab.reconciliation,
       ];
@@ -16539,18 +16546,21 @@ class _ExecutorReportsScreenState extends State<ExecutorReportsScreen>
     final color = switch (tab) {
       _ExecutorReportTab.summary => AhramColors.sky,
       _ExecutorReportTab.operations => _green,
+      _ExecutorReportTab.deposits => ExecutorUiColors.jade,
       _ExecutorReportTab.cancelled => _danger,
       _ExecutorReportTab.reconciliation => _gold,
     };
     final label = switch (tab) {
       _ExecutorReportTab.summary => 'الملخص',
       _ExecutorReportTab.operations => 'العمليات',
+      _ExecutorReportTab.deposits => 'الإيداعات',
       _ExecutorReportTab.cancelled => 'الملغاة',
       _ExecutorReportTab.reconciliation => 'التسوية',
     };
     final icon = switch (tab) {
       _ExecutorReportTab.summary => Icons.dashboard_outlined,
       _ExecutorReportTab.operations => Icons.receipt_long_outlined,
+      _ExecutorReportTab.deposits => Icons.account_balance_wallet_outlined,
       _ExecutorReportTab.cancelled => Icons.cancel_outlined,
       _ExecutorReportTab.reconciliation => Icons.balance_outlined,
     };
@@ -16826,6 +16836,7 @@ class _ExecutorReportsScreenState extends State<ExecutorReportsScreen>
               final count = switch (tab) {
                 _ExecutorReportTab.operations =>
                   operations.length + pendingOperations.length,
+                _ExecutorReportTab.deposits => deposits.length,
                 _ExecutorReportTab.cancelled => cancelledOperations.length,
                 _ => 0,
               };
@@ -16854,6 +16865,8 @@ class _ExecutorReportsScreenState extends State<ExecutorReportsScreen>
             personal: personal,
             canViewEvidence: canViewEvidence,
           )
+        else if (activeTab == _ExecutorReportTab.deposits)
+          ExecutorDepositReportPanel(deposits: deposits)
         else if (activeTab == _ExecutorReportTab.cancelled)
           _cancelledTab(cancelledOperations, canViewEvidence: canViewEvidence)
         else
@@ -17186,6 +17199,99 @@ class ExecutorTeamPerformancePanel extends StatelessWidget {
               ),
             );
           }),
+      ],
+    );
+  }
+}
+
+class ExecutorDepositReportPanel extends StatelessWidget {
+  const ExecutorDepositReportPanel({super.key, required this.deposits});
+
+  final List<Map<String, dynamic>> deposits;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    if (deposits.isEmpty) {
+      return const EmptyPanel(
+        icon: Icons.account_balance_wallet_outlined,
+        title: 'لا توجد إيداعات في هذه الفترة',
+        message: 'ستظهر الإيداعات والخصومات بعد تسجيلها أو اعتمادها.',
+      );
+    }
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const SectionTitle(
+          title: 'الإيداعات والخصومات',
+          icon: Icons.account_balance_wallet_outlined,
+          color: ExecutorUiColors.jade,
+        ),
+        const SizedBox(height: 8),
+        ...deposits.map((item) {
+          final status = '${item['status'] ?? ''}';
+          final pending = status == 'deposit_pending';
+          final deduction = status == 'deduction';
+          final color = pending
+              ? ExecutorUiColors.amber
+              : (deduction ? ExecutorUiColors.coral : ExecutorUiColors.jade);
+          final label = pending
+              ? 'إيداع قيد المراجعة'
+              : (deduction ? 'خصم إداري' : 'إيداع معتمد');
+          return Padding(
+            padding: const EdgeInsets.only(bottom: 10),
+            child: ExecutorSurface(
+              accent: color,
+              child: Row(
+                children: [
+                  ExecutorMetalIcon(
+                    icon: pending
+                        ? Icons.pending_actions_outlined
+                        : (deduction
+                              ? Icons.remove_circle_outline
+                              : Icons.add_circle_outline),
+                    color: color,
+                    size: 42,
+                    selected: true,
+                  ),
+                  const SizedBox(width: 11),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          label,
+                          style: const TextStyle(fontWeight: FontWeight.w900),
+                        ),
+                        const SizedBox(height: 3),
+                        Text(
+                          '${item['customId'] ?? '---'} · ${formatDate(item['createdAt'])}',
+                          style: TextStyle(
+                            color: colors.onSurfaceVariant,
+                            fontSize: 11,
+                          ),
+                        ),
+                        if ('${item['notes'] ?? ''}'.trim().isNotEmpty) ...[
+                          const SizedBox(height: 3),
+                          Text(
+                            '${item['notes']}',
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                  Text(
+                    '${deduction ? '-' : '+'}${formatEgpAmount(numberValue(item['amount']))} ج.م',
+                    textDirection: ui.TextDirection.ltr,
+                    style: TextStyle(color: color, fontWeight: FontWeight.w900),
+                  ),
+                ],
+              ),
+            ),
+          );
+        }),
       ],
     );
   }
@@ -18060,6 +18166,8 @@ class _ExecutorSettingsScreenState extends State<ExecutorSettingsScreen> {
         return 'مدير تنفيذي';
       case 'accountant':
         return 'محاسب';
+      case 'external':
+        return 'موظف خارجي';
       default:
         return 'موظف تنفيذ';
     }
@@ -18890,6 +18998,10 @@ class _ExecutorEmployeesScreenState extends State<ExecutorEmployeesScreen>
                               child: Text('محاسب'),
                             ),
                             DropdownMenuItem(
+                              value: 'external',
+                              child: Text('موظف خارجي'),
+                            ),
+                            DropdownMenuItem(
                               value: 'manager',
                               child: Text('مدير'),
                             ),
@@ -19581,6 +19693,7 @@ class ExecutorEmployeeDetailsScreen extends StatelessWidget {
   String get _roleLabel => switch ('${employee['role']}') {
     'manager' => 'مدير تنفيذي',
     'accountant' => 'محاسب',
+    'external' => 'موظف خارجي',
     _ => 'موظف تنفيذ',
   };
 
@@ -20026,6 +20139,10 @@ class _ExecutorEmployeeEditorDialogState
                       DropdownMenuItem(
                         value: 'accountant',
                         child: Text('محاسب'),
+                      ),
+                      DropdownMenuItem(
+                        value: 'external',
+                        child: Text('موظف خارجي'),
                       ),
                     ],
                     onChanged: (value) =>

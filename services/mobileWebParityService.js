@@ -1753,7 +1753,7 @@ async function getEmployeesWorkspace({ executorId, tenantId }) {
 
 async function createEmployee({ executorId, name, phone, role, webUsername, webPassword, tenantId }) {
     const manager = await checkManagerPermission(executorId);
-    if (!['operator', 'accountant'].includes(role)) throw new Error('INVALID_ROLE');
+    if (!['operator', 'accountant', 'external'].includes(role)) throw new Error('INVALID_ROLE');
     
     const prefix = webUsername.replace(/@ahram\.com$/i, '').trim();
     if (!/^[a-zA-Z0-9_]+$/.test(prefix)) throw new Error('INVALID_USERNAME');
