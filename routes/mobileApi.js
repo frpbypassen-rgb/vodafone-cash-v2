@@ -3475,9 +3475,11 @@ router.post('/executor/tickets/messages', authenticateJWT, executorSupportMessag
 router.get('/executor/deposits', authenticateJWT, async (req, res) => {
     try {
         if (req.user.accountType !== 'executor') return sendMobileError(res, 403, 'FORBIDDEN', 'صلاحيات غير كافية', req.correlationId);
-        const employeeQuery = { _id: req.user.userId };
-        if (req.tenant) employeeQuery.tenantId = executorTenantScope(req);
-        const employee = await Employee.findOne(employeeQuery).populate('groupId');
+        // Older executor accounts were created before tenantId was stored on
+        // Employee. The authenticated employee id is already signed in the
+        // JWT, so resolve it directly instead of returning a misleading 404
+        // for those existing production accounts.
+        const employee = await Employee.findById(req.user.userId).populate('groupId');
         if (!employee) return sendMobileError(res, 404, 'EMPLOYEE_NOT_FOUND', 'لم يتم العثور على حساب المنفذ', req.correlationId);
         const requests = await executorDepositRequestService.listDepositRequests({ employee });
         return res.json({ success: true, requests, serverTime: new Date().toISOString() });
@@ -3491,9 +3493,7 @@ router.post('/executor/deposits/:id/review', authenticateJWT, async (req, res) =
         if (req.user.accountType !== 'executor') return sendMobileError(res, 403, 'FORBIDDEN', 'صلاحيات غير كافية', req.correlationId);
         const decision = String(req.body?.decision || '');
         if (!['approve', 'reject'].includes(decision)) return sendMobileError(res, 422, 'INVALID_DECISION', 'قرار المراجعة غير صالح.', req.correlationId);
-        const employeeQuery = { _id: req.user.userId };
-        if (req.tenant) employeeQuery.tenantId = executorTenantScope(req);
-        const employee = await Employee.findOne(employeeQuery).populate('groupId');
+        const employee = await Employee.findById(req.user.userId).populate('groupId');
         if (!employee) return sendMobileError(res, 404, 'EMPLOYEE_NOT_FOUND', 'لم يتم العثور على حساب المنفذ', req.correlationId);
         const result = await executorDepositRequestService.reviewAdminDepositRequest({
             employee,
