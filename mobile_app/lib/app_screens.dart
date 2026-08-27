@@ -12973,9 +12973,7 @@ class _ExecutorDepositsScreenState extends State<ExecutorDepositsScreen> {
           maxLength: 1000,
           minLines: 2,
           maxLines: 4,
-          decoration: const InputDecoration(
-            hintText: 'اكتب سبب الإلغاء بوضوح',
-          ),
+          decoration: const InputDecoration(hintText: 'اكتب سبب الإلغاء بوضوح'),
         ),
         actions: [
           TextButton(
@@ -13000,17 +12998,25 @@ class _ExecutorDepositsScreenState extends State<ExecutorDepositsScreen> {
 
   Future<void> _review(Map<String, dynamic> request, bool approve) async {
     final id = '${request['id'] ?? ''}';
-    if (id.isEmpty || _busyId != null) return;
+    if (id.isEmpty || _busyId != null || request['reviewable'] != true) return;
     String reason = '';
     if (approve) {
       final accepted = await showDialog<bool>(
         context: context,
         builder: (dialogContext) => AlertDialog(
           title: const Text('قبول الإيداع؟'),
-          content: Text('سيُضاف ${formatEgpAmount(numberValue(request['amount']))} EGP إلى رصيد الشركة مرة واحدة فقط.'),
+          content: Text(
+            'سيُضاف ${formatEgpAmount(numberValue(request['amount']))} EGP إلى رصيد الشركة مرة واحدة فقط.',
+          ),
           actions: [
-            TextButton(onPressed: () => Navigator.pop(dialogContext, false), child: const Text('تراجع')),
-            FilledButton(onPressed: () => Navigator.pop(dialogContext, true), child: const Text('قبول الإيداع')),
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext, false),
+              child: const Text('تراجع'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(dialogContext, true),
+              child: const Text('قبول الإيداع'),
+            ),
           ],
         ),
       );
@@ -13022,13 +13028,30 @@ class _ExecutorDepositsScreenState extends State<ExecutorDepositsScreen> {
     }
     setState(() => _busyId = id);
     try {
-      await widget.controller.api.reviewExecutorDeposit(id: id, approve: approve, reason: reason);
+      await widget.controller.api.reviewExecutorDeposit(
+        id: id,
+        approve: approve,
+        reason: reason,
+      );
       await widget.controller.refreshHome();
       if (!mounted) return;
-      showSnack(context, approve ? 'تم قبول الإيداع وإضافة الرصيد.' : 'تم إلغاء طلب الإيداع وإبلاغ الإدارة.');
+      showSnack(
+        context,
+        approve
+            ? 'تم قبول الإيداع وإضافة الرصيد.'
+            : 'تم إلغاء طلب الإيداع وإبلاغ الإدارة.',
+      );
       await _load();
-    } on ApiFailure catch (error) {
-      if (mounted) showSnack(context, error.message, error: true);
+    } catch (error) {
+      if (mounted) {
+        showSnack(
+          context,
+          error is ApiFailure
+              ? error.message
+              : 'تعذر حفظ القرار. حدّث الصفحة ثم أعد المحاولة.',
+          error: true,
+        );
+      }
     } finally {
       if (mounted) setState(() => _busyId = null);
     }
@@ -13038,7 +13061,11 @@ class _ExecutorDepositsScreenState extends State<ExecutorDepositsScreen> {
     final url = widget.controller.api.resolveMediaUrl(rawUrl).toString();
     showDialog<void>(
       context: context,
-      builder: (_) => Dialog(child: InteractiveViewer(child: Image.network(url, fit: BoxFit.contain))),
+      builder: (_) => Dialog(
+        child: InteractiveViewer(
+          child: Image.network(url, fit: BoxFit.contain),
+        ),
+      ),
     );
   }
 
@@ -13047,7 +13074,8 @@ class _ExecutorDepositsScreenState extends State<ExecutorDepositsScreen> {
     if (_loading && _requests.isEmpty) {
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
-    if (_error != null && _requests.isEmpty) return ErrorPage(error: _error!, onRetry: _load);
+    if (_error != null && _requests.isEmpty)
+      return ErrorPage(error: _error!, onRetry: _load);
     return PageFrame(
       title: 'مراجعة الإيداعات',
       subtitle: 'طلبات الإدارة المرفقة بإيصالات — القبول يضيف الرصيد للشركة.',
@@ -13060,9 +13088,15 @@ class _ExecutorDepositsScreenState extends State<ExecutorDepositsScreen> {
               children: [
                 Icon(Icons.account_balance_wallet_outlined, size: 42),
                 SizedBox(height: 10),
-                Text('لا توجد طلبات إيداع', style: TextStyle(fontWeight: FontWeight.w900)),
+                Text(
+                  'لا توجد طلبات إيداع',
+                  style: TextStyle(fontWeight: FontWeight.w900),
+                ),
                 SizedBox(height: 5),
-                Text('ستظهر هنا طلبات الإيداع الواردة من الإدارة.', textAlign: TextAlign.center),
+                Text(
+                  'ستظهر هنا طلبات الإيداع الواردة من الإدارة.',
+                  textAlign: TextAlign.center,
+                ),
               ],
             ),
           )
@@ -13075,6 +13109,8 @@ class _ExecutorDepositsScreenState extends State<ExecutorDepositsScreen> {
   Widget _requestCard(Map<String, dynamic> request) {
     final status = '${request['status'] ?? 'pending'}';
     final pending = status == 'pending';
+    final fromAdmin = request['submittedByRole'] == 'admin';
+    final reviewable = request['reviewable'] == true;
     final busy = _busyId == '${request['id'] ?? ''}';
     final receipts = (request['receiptUrls'] as List? ?? const <dynamic>[])
         .map((item) => '$item')
@@ -13084,30 +13120,129 @@ class _ExecutorDepositsScreenState extends State<ExecutorDepositsScreen> {
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
       child: ExecutorSurface(
-        accent: pending ? ExecutorUiColors.amber : (status == 'deposit' ? ExecutorUiColors.jade : _danger),
+        accent: pending
+            ? ExecutorUiColors.amber
+            : (status == 'deposit' ? ExecutorUiColors.jade : _danger),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Row(children: [
-              Expanded(child: Text('${request['customId'] ?? 'طلب إيداع'}', style: const TextStyle(fontWeight: FontWeight.w900))),
-              StatusPill(label: status == 'deposit' ? 'مقبول' : (status == 'rejected' ? 'ملغى' : 'قيد المراجعة'), color: status == 'deposit' ? _green : (status == 'rejected' ? _danger : _gold)),
-            ]),
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    '${request['customId'] ?? 'طلب إيداع'}',
+                    style: const TextStyle(fontWeight: FontWeight.w900),
+                  ),
+                ),
+                StatusPill(
+                  label: status == 'deposit'
+                      ? 'مقبول'
+                      : (status == 'rejected' ? 'ملغى' : 'قيد المراجعة'),
+                  color: status == 'deposit'
+                      ? _green
+                      : (status == 'rejected' ? _danger : _gold),
+                ),
+              ],
+            ),
             const SizedBox(height: 8),
-            Text('${formatEgpAmount(numberValue(request['amount']))} EGP', style: const TextStyle(fontSize: 23, fontWeight: FontWeight.w900)),
-            Text('${request['note'] ?? 'لا توجد ملاحظة'}', style: TextStyle(color: colors.onSurfaceVariant)),
+            Text(
+              '${formatEgpAmount(numberValue(request['amount']))} EGP',
+              style: const TextStyle(fontSize: 23, fontWeight: FontWeight.w900),
+            ),
+            Text(
+              '${request['note'] ?? 'لا توجد ملاحظة'}',
+              style: TextStyle(color: colors.onSurfaceVariant),
+            ),
             const SizedBox(height: 6),
-            Text('تاريخ الطلب: ${formatDate(request['createdAt'])}', style: TextStyle(fontSize: 11, color: colors.onSurfaceVariant)),
+            Text(
+              'تاريخ الطلب: ${formatDate(request['createdAt'])}',
+              style: TextStyle(fontSize: 11, color: colors.onSurfaceVariant),
+            ),
+            const SizedBox(height: 5),
+            Text(
+              fromAdmin
+                  ? 'مرسل من الإدارة — بانتظار قرار شركة التنفيذ.'
+                  : 'طلب داخلي للشركة — للعرض فقط.',
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w700,
+                color: fromAdmin
+                    ? ExecutorUiColors.amber
+                    : colors.onSurfaceVariant,
+              ),
+            ),
             if (receipts.isNotEmpty) ...[
               const SizedBox(height: 12),
-              Wrap(spacing: 8, runSpacing: 8, children: receipts.map((url) => InkWell(onTap: () => _openReceipt(url), child: ClipRRect(borderRadius: BorderRadius.circular(10), child: Image.network(widget.controller.api.resolveMediaUrl(url).toString(), width: 62, height: 62, fit: BoxFit.cover)))).toList()),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: receipts
+                    .map(
+                      (url) => InkWell(
+                        onTap: () => _openReceipt(url),
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(10),
+                          child: Image.network(
+                            widget.controller.api
+                                .resolveMediaUrl(url)
+                                .toString(),
+                            width: 62,
+                            height: 62,
+                            fit: BoxFit.cover,
+                          ),
+                        ),
+                      ),
+                    )
+                    .toList(),
+              ),
             ],
-            if (pending) ...[
+            if (pending && reviewable) ...[
               const SizedBox(height: 14),
-              Row(children: [
-                Expanded(child: FilledButton.icon(onPressed: busy ? null : () => _review(request, true), icon: busy ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)) : const Icon(Icons.check_circle_outline), label: const Text('قبول الإيداع'))),
-                const SizedBox(width: 10),
-                Expanded(child: OutlinedButton.icon(style: OutlinedButton.styleFrom(foregroundColor: _danger), onPressed: busy ? null : () => _review(request, false), icon: const Icon(Icons.cancel_outlined), label: const Text('إلغاء الطلب'))),
-              ]),
+              Row(
+                children: [
+                  Expanded(
+                    child: FilledButton.icon(
+                      onPressed: busy ? null : () => _review(request, true),
+                      icon: busy
+                          ? const SizedBox(
+                              width: 16,
+                              height: 16,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Icon(Icons.check_circle_outline),
+                      label: const Text('قبول الإيداع'),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      style: OutlinedButton.styleFrom(foregroundColor: _danger),
+                      onPressed: busy ? null : () => _review(request, false),
+                      icon: const Icon(Icons.cancel_outlined),
+                      label: const Text('إلغاء الطلب'),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+            if (pending && !reviewable) ...[
+              const SizedBox(height: 12),
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: colors.surfaceContainerHighest.withValues(alpha: .42),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Text(
+                  fromAdmin
+                      ? 'تحتاج إلى الدخول بحساب مدير شركة التنفيذ لإتمام المراجعة.'
+                      : 'هذا الطلب ليس واصلاً من الإدارة، لذلك لا يمكن قبوله أو إلغاؤه من هنا.',
+                  style: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
             ],
           ],
         ),
@@ -17670,6 +17805,7 @@ class _ExecutorSettingsScreenState extends State<ExecutorSettingsScreen> {
   bool _pushBusy = false;
   bool _preferenceBusy = false;
   bool _previewBusy = false;
+  Map<String, dynamic>? _mfaStatus;
 
   @override
   void initState() {
@@ -17687,6 +17823,13 @@ class _ExecutorSettingsScreenState extends State<ExecutorSettingsScreen> {
     try {
       final response = await widget.controller.api.executorOverview();
       final raw = response['data'];
+      Map<String, dynamic>? mfaStatus;
+      try {
+        mfaStatus = await widget.controller.api.mfaStatus();
+      } catch (_) {
+        // Security has a dedicated retry action. Its status should not block
+        // access to operational settings during a transient network failure.
+      }
       final localPushDiagnostics = await MobilePushService.instance
           .localDiagnostics();
       final backgroundServiceRunning = await ExecutorAlertService.instance
@@ -17716,6 +17859,7 @@ class _ExecutorSettingsScreenState extends State<ExecutorSettingsScreen> {
           _pushStatusError = pushStatusError;
           _localPushDiagnostics = localPushDiagnostics;
           _backgroundServiceRunning = backgroundServiceRunning;
+          _mfaStatus = mfaStatus;
         });
       }
     } catch (error) {
@@ -17729,6 +17873,14 @@ class _ExecutorSettingsScreenState extends State<ExecutorSettingsScreen> {
     context: context,
     builder: (context) => _CustomerDevicesDialog(controller: widget.controller),
   );
+
+  Future<void> _manageAuthenticator() async {
+    await showDialog<void>(
+      context: context,
+      builder: (context) => _AuthenticatorDialog(controller: widget.controller),
+    );
+    if (mounted) await _load();
+  }
 
   Future<void> _testPushNotification() async {
     setState(() => _pushBusy = true);
@@ -18010,6 +18162,36 @@ class _ExecutorSettingsScreenState extends State<ExecutorSettingsScreen> {
                       '${formatEgpAmount(numberValue(company['balance']))} ج.م',
                 ),
             ],
+          ),
+        ),
+        const SizedBox(height: 18),
+        ExecutorSurface(
+          accent: _mfaStatus?['enabled'] == true
+              ? ExecutorUiColors.jade
+              : ExecutorUiColors.amber,
+          child: ListTile(
+            contentPadding: EdgeInsets.zero,
+            leading: ExecutorMetalIcon(
+              icon: _mfaStatus?['enabled'] == true
+                  ? Icons.verified_user_outlined
+                  : Icons.shield_outlined,
+              color: _mfaStatus?['enabled'] == true
+                  ? ExecutorUiColors.jade
+                  : ExecutorUiColors.amber,
+              size: 42,
+              selected: true,
+            ),
+            title: const Text(
+              'حماية Authenticator',
+              style: TextStyle(fontWeight: FontWeight.w900),
+            ),
+            subtitle: Text(
+              _mfaStatus?['enabled'] == true
+                  ? 'الحماية مفعّلة. إدارة الجهاز الموثوق ورموز الاسترداد من هنا.'
+                  : 'الحماية غير مفعّلة — فعّل رمزًا إضافيًا لحماية حساب التنفيذ.',
+            ),
+            trailing: const Icon(Icons.chevron_left),
+            onTap: _manageAuthenticator,
           ),
         ),
         const SizedBox(height: 18),

@@ -145,6 +145,11 @@ async function listDepositRequests({ employee }) {
             // "executor" after it was created. The source ticket is the
             // authoritative origin in that case.
             submittedByRole: submittedRoles.get(objectId(row.depositRequest?.supportTicketId)) || row.depositRequest?.submittedByRole || 'executor',
+            // The mobile UI must not infer that every pending item was sent by
+            // the administration. The server remains authoritative either way.
+            reviewable: row.status === 'deposit_pending'
+                && employee.role === 'manager'
+                && (submittedRoles.get(objectId(row.depositRequest?.supportTicketId)) || row.depositRequest?.submittedByRole) === 'admin',
             reviewedByName: row.depositRequest?.reviewedByName || '',
             reviewedAt: row.depositRequest?.reviewedAt || null,
             createdAt: row.createdAt,
