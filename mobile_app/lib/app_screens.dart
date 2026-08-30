@@ -11,6 +11,7 @@ import 'package:intl/intl.dart';
 import 'package:share_plus/share_plus.dart';
 
 import 'appearance_controller.dart';
+import 'ahram_2030.dart';
 import 'brand_theme.dart';
 import 'executor_alert_service.dart';
 import 'executor_notification_center.dart';
@@ -775,42 +776,6 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
       }
     } finally {
       if (mounted) setState(() => _checkingAgent = false);
-    }
-  }
-
-  Future<String?> _requestOperationPinIfEnabled() async {
-    final status = await widget.controller.api.operationPinStatus();
-    if (status['enabled'] != true) return '';
-    final pin = TextEditingController();
-    try {
-      return await showDialog<String>(
-        context: context,
-        barrierDismissible: false,
-        builder: (context) => AlertDialog(
-          title: const Text('تأكيد التحويل'),
-          content: TextField(
-            controller: pin,
-            autofocus: true,
-            obscureText: true,
-            keyboardType: TextInputType.number,
-            maxLength: 6,
-            textAlign: TextAlign.center,
-            decoration: const InputDecoration(labelText: 'رمز العمليات'),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('إلغاء'),
-            ),
-            FilledButton(
-              onPressed: () => Navigator.pop(context, pin.text.trim()),
-              child: const Text('تأكيد'),
-            ),
-          ],
-        ),
-      );
-    } finally {
-      pin.dispose();
     }
   }
 
@@ -2218,7 +2183,7 @@ class _RoleShellState extends State<RoleShell> with WidgetsBindingObserver {
         : (widget.controller.isExecutorAccountant
               ? '$companyName · محاسب تنفيذي'
               : '$companyName · تنفيذاتك اليوم ${formatEgpAmount(ownPerformance)} ج.م');
-    final appBar = AppBar(
+    final legacyAppBar = AppBar(
       toolbarHeight: 76,
       backgroundColor: isExecutorShell
           ? ExecutorUiColors.surface(context)
@@ -2349,13 +2314,46 @@ class _RoleShellState extends State<RoleShell> with WidgetsBindingObserver {
       ],
     );
 
+    final appBar = isExecutorShell
+        ? Ahram2030TopBar(
+            title: companyName.isEmpty ? 'بوابة التنفيذ' : companyName,
+            subtitle: executorSubtitle,
+            accountLabel: _roleLabel,
+            balance: canViewCompanyBalance ? companyBalance : null,
+            executor: true,
+            actions: [
+              ExecutorTopActionButton(
+                tooltip: 'مركز الإشعارات',
+                icon: Icons.notifications_none_rounded,
+                onPressed: _openExecutorNotificationCenter,
+                badge: _executorUnreadNotifications,
+              ),
+              ExecutorTopActionButton(
+                tooltip: widget.appearance.isDark
+                    ? 'الوضع النهاري'
+                    : 'الوضع الليلي',
+                icon: widget.appearance.isDark
+                    ? Icons.light_mode_outlined
+                    : Icons.dark_mode_outlined,
+                onPressed: widget.appearance.toggle,
+              ),
+              ExecutorTopActionButton(
+                tooltip: 'تسجيل الخروج',
+                icon: Icons.logout_outlined,
+                onPressed: _confirmLogout,
+              ),
+              const SizedBox(width: 6),
+            ],
+          )
+        : legacyAppBar;
     final pages = IndexedStack(
       index: _index,
       children: _items.map((item) => item.page).toList(),
     );
-    final pageContent = isExecutorShell
-        ? ExecutorWorkspaceBackground(child: pages)
-        : pages;
+    final pageContent = Ahram2030Workspace(
+      executor: isExecutorShell,
+      child: pages,
+    );
     return LayoutBuilder(
       builder: (context, constraints) {
         final desktop = constraints.maxWidth >= 850;
@@ -2475,38 +2473,18 @@ class _RoleShellState extends State<RoleShell> with WidgetsBindingObserver {
                           ),
                       ],
                     ),
-                    child: ClipRRect(
-                      borderRadius: isCustomerShell
-                          ? BorderRadius.circular(8)
-                          : BorderRadius.zero,
-                      child: NavigationBar(
-                        selectedIndex: _index,
-                        onDestinationSelected: (next) =>
-                            setState(() => _index = next),
-                        destinations: _items
-                            .map(
-                              (item) => NavigationDestination(
-                                icon: isExecutorShell
-                                    ? ExecutorMetalIcon(
-                                        icon: item.icon,
-                                        size: 34,
-                                      )
-                                    : GlassIconBadge(icon: item.icon),
-                                selectedIcon: isExecutorShell
-                                    ? ExecutorMetalIcon(
-                                        icon: item.icon,
-                                        size: 36,
-                                        selected: true,
-                                      )
-                                    : GlassIconBadge(
-                                        icon: item.icon,
-                                        selected: true,
-                                      ),
-                                label: item.label,
-                              ),
-                            )
-                            .toList(),
-                      ),
+                    child: Ahram2030Navigation(
+                      executor: isExecutorShell,
+                      index: _index,
+                      onSelected: (next) => setState(() => _index = next),
+                      items: _items
+                          .map(
+                            (item) => Ahram2030NavItem(
+                              label: item.label,
+                              icon: item.icon,
+                            ),
+                          )
+                          .toList(),
                     ),
                   ),
                 ),
@@ -5910,6 +5888,42 @@ class _TransferScreenState extends State<TransferScreen> {
   bool _busy = false;
   bool _syncingCashAmounts = false;
   String? _error;
+
+  Future<String?> _requestOperationPinIfEnabled() async {
+    final status = await widget.controller.api.operationPinStatus();
+    if (status['enabled'] != true) return '';
+    final pin = TextEditingController();
+    try {
+      return await showDialog<String>(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => AlertDialog(
+          title: const Text('تأكيد التحويل'),
+          content: TextField(
+            controller: pin,
+            autofocus: true,
+            obscureText: true,
+            keyboardType: TextInputType.number,
+            maxLength: 6,
+            textAlign: TextAlign.center,
+            decoration: const InputDecoration(labelText: 'رمز العمليات'),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('إلغاء'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(context, pin.text.trim()),
+              child: const Text('تأكيد'),
+            ),
+          ],
+        ),
+      );
+    } finally {
+      pin.dispose();
+    }
+  }
 
   static const _egyptGovernorates = <String>[
     'القاهرة',
