@@ -72,6 +72,12 @@ const isActiveClientSession = async (req) => {
 
 const requireClientAuth = async (req, res, next) => {
     try {
+        // The mandatory MFA page uses one shared completion flow. If an
+        // executor reaches the customer fallback URL after enrolment, return
+        // it to its own dashboard instead of ending the valid session.
+        if (req.session?.isExecutorLoggedIn && req.session?.executorId) {
+            return res.redirect('/executor-portal/dashboard');
+        }
         if (req.session?.mfaEnrollmentRequired) return res.redirect('/auth/security/mfa-enroll');
         if (await isActiveClientSession(req)) return next();
         return endUnauthorizedClientSession(req, res);
