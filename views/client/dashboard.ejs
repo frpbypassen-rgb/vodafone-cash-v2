@@ -1972,6 +1972,13 @@
                     idCardFile = fileInput.files[0];
                 }
                 
+                let operationPin;
+                try {
+                    operationPin = await requestOperationPinIfEnabled();
+                } catch (error) {
+                    return Swal.fire({ icon: 'error', title: 'عذراً', text: error.message || 'تعذر تأكيد التحويل.' });
+                }
+                if (operationPin === null) return;
                 const btn = document.getElementById('btnSubmitTransfer');
                 const originalText = btn.innerHTML; btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> إرسال...'; btn.disabled = true;
                 
@@ -1997,6 +2004,7 @@
                 transferData.set('nationalId', nationalId);
                 transferData.set('governorate', governorate);
                 transferData.set('clientPhone', clientPhone);
+                if (operationPin) transferData.set('operationPin', operationPin);
                 if (idCardFile) transferData.set('idCardImage', idCardFile);
                 
                 try {
@@ -2133,6 +2141,20 @@
             }, transferModal ? 250 : 0);
         }
 
+        async function requestOperationPinIfEnabled() {
+            const response = await fetch('/auth/security/operation-pin/status', { headers: { 'Accept': 'application/json' } });
+            const status = await response.json();
+            if (!response.ok || !status.success) throw new Error(status.error || 'تعذر التحقق من حماية التحويل.');
+            if (!status.enabled) return '';
+            const prompt = await Swal.fire({
+                title: 'تأكيد التحويل', input: 'password', inputLabel: 'رمز العمليات (4 إلى 6 أرقام)',
+                inputAttributes: { inputmode: 'numeric', maxlength: 6, autocomplete: 'one-time-code' },
+                showCancelButton: true, confirmButtonText: 'تأكيد', cancelButtonText: 'إلغاء',
+                inputValidator: (value) => /^\d{4,6}$/.test(String(value || '').trim()) ? undefined : 'أدخل رمزًا من 4 إلى 6 أرقام.'
+            });
+            return prompt.isConfirmed ? String(prompt.value || '').trim() : null;
+        }
+
         async function lookupBalanceTransferTarget() {
             const targetInput = document.getElementById('bt_target_code');
             const lookupBtn = document.getElementById('btnLookupBalanceTarget');
@@ -2238,6 +2260,8 @@
                 });
 
                 if (!confirmation.isConfirmed) return;
+                const operationPin = await requestOperationPinIfEnabled();
+                if (operationPin === null) return;
 
                 const btn = document.getElementById('btnSubmitBalanceTransfer');
                 const originalText = btn.innerHTML;
@@ -2248,7 +2272,7 @@
                     const response = await fetch('/client/balance-transfer', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
-                        body: JSON.stringify({ targetAccountCode, amount, notes })
+                        body: JSON.stringify({ targetAccountCode, amount, notes, ...(operationPin ? { operationPin } : {}) })
                     });
                     const result = await response.json();
 

@@ -542,6 +542,19 @@
         return null;
     };
 
+    const requestOperationPin = async () => {
+        const response = await fetch('/auth/security/operation-pin/status', {
+            headers: { Accept: 'application/json', 'x-csrf-token': config.csrfToken || '' }
+        });
+        const status = await parseJsonResponse(response);
+        if (!response.ok || !status.success) throw new Error(status.error || 'تعذر التحقق من حماية التحويل.');
+        if (!status.enabled) return '';
+        const pin = window.prompt('أدخل رمز العمليات (من 4 إلى 6 أرقام) لتأكيد التحويل:');
+        if (pin === null) return null;
+        if (!/^\d{4,6}$/.test(pin.trim())) throw new Error('رمز العمليات يجب أن يكون من 4 إلى 6 أرقام.');
+        return pin.trim();
+    };
+
     transferForm?.addEventListener('submit', async (event) => {
         event.preventDefault();
         const validationError = validateTransfer();
@@ -562,6 +575,15 @@
         const formData = new FormData(transferForm);
         formData.set('phone', destination);
         formData.set('number', accountNumber);
+        let operationPin;
+        try {
+            operationPin = await requestOperationPin();
+        } catch (error) {
+            showFormResult(transferResult, error.message || 'تعذر تأكيد التحويل.', false);
+            return;
+        }
+        if (operationPin === null) return;
+        if (operationPin) formData.set('operationPin', operationPin);
 
         const submitButton = document.getElementById('transferSubmitButton');
         const originalHtml = submitButton?.innerHTML;
@@ -608,6 +630,9 @@
             if (!lookupResponse.ok || !lookup.success) throw new Error(lookup.error || 'تعذر التحقق من الحساب.');
             const approved = window.confirm(`سيتم تحويل ${bodyData.amount} LYD إلى ${lookup.target.name} (${lookup.target.accountCode}). هل تريد المتابعة؟`);
             if (!approved) return;
+            const operationPin = await requestOperationPin();
+            if (operationPin === null) return;
+            if (operationPin) bodyData.operationPin = operationPin;
 
             const transferResponse = await fetch('/client/balance-transfer', {
                 method: 'POST',
