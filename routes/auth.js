@@ -676,7 +676,11 @@ const loginAsAdmin = async (req, res, adminData = null, { authenticatorVerified 
         }
     }
     const authorization = await securityControl.authorizeLogin({
-        req, res, principal, accountClass: 'admin', allowFirstDevice: false, authenticatorVerified
+        // A brand-new master administrator is the only bootstrap exception;
+        // every ordinary administrator still requires an approved device.
+        req, res, principal, accountClass: 'admin',
+        allowFirstDevice: principal.principalType === 'master_admin',
+        authenticatorVerified
     });
     if (!authorization.allowed) {
         await logLoginFailure(req, req.body.username, authorization.code, authorization.message);

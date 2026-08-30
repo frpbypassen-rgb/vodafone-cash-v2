@@ -265,11 +265,8 @@ const authorizeLogin = async ({ req, res, principal, accountClass = 'account', a
     // Device approval is a core account protection now.  Legacy state records
     // without the new fields are treated as enabled, which avoids silently
     // weakening security during a rollout.
-    const enabled = state.adminApprovalRequired !== false && (
-        accountClass === 'admin'
-            ? state.adminDeviceEnforcementEnabled !== false
-            : state.accountDeviceEnforcementEnabled !== false
-    );
+    const enabled = state.adminApprovalRequired !== false
+        && state.singleDeviceOnly !== false;
     if (!enabled) return { allowed: true, enforcementEnabled: false };
 
     const risk = assessNetworkRisk(req);
