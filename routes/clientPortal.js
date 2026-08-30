@@ -19,6 +19,7 @@ const WebPushSubscription = require('../models/WebPushSubscription');
 const Settings = require('../models/Settings');
 const { activatePendingRateUpdate } = require('../services/rateChangeService');
 const { buildPendingRateAlertForClient } = require('../services/rateAlerts/rateAlertAudienceService');
+const requireOperationPin = require('../middlewares/requireOperationPin');
 
 const otpVerifyLimiter = rateLimit({
     windowMs: 5 * 60 * 1000,
@@ -318,9 +319,9 @@ router.post('/sub-accounts/toggle/:id', requireClientAuth, clientDashboardContro
 // ===============================================
 // 💸 Transaction Routes
 // ===============================================
-router.post('/transfer', requireClientAuth, clientDocumentUpload.single('idCardImage'), clientTransactionController.postTransfer);
+router.post('/transfer', requireClientAuth, requireOperationPin, clientDocumentUpload.single('idCardImage'), clientTransactionController.postTransfer);
 router.post('/balance-transfer/lookup', requireClientAuth, clientTransactionController.lookupBalanceTransferTarget);
-router.post('/balance-transfer', requireClientAuth, clientTransactionController.postBalanceTransfer);
+router.post('/balance-transfer', requireClientAuth, requireOperationPin, clientTransactionController.postBalanceTransfer);
 router.post('/buy-card', requireClientAuth, clientTransactionController.postBuyCard);
 router.post('/complaint', requireClientAuth, clientTransactionController.postComplaint);
 router.get(['/proxy/image/:id', '/proxy/image/:id/:index'], requireClientAuth, clientTransactionController.getProxyImage);

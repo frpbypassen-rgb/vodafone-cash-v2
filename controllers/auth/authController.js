@@ -46,6 +46,16 @@ const login = async (req, res) => {
                     correlationId: req.correlationId || null
                 });
             }
+            if (result.code === 'MFA_ENROLLMENT_REQUIRED') {
+                return res.status(result.statusCode || 428).json({
+                    success: false,
+                    code: result.code,
+                    message: result.message,
+                    mfaEnrollmentRequired: true,
+                    mfaEnrollmentToken: result.mfaEnrollmentToken,
+                    correlationId: req.correlationId || null
+                });
+            }
             return sendMobileError(res, result.statusCode, result.code, result.message, req.correlationId);
         }
 

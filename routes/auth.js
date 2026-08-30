@@ -23,6 +23,7 @@ const PasswordResetRequest = require('../models/PasswordResetRequest');
 const TrustedDevice = require('../models/TrustedDevice');
 const SecurityDevice = require('../models/SecurityDevice');
 const accountMfaService = require('../services/accountMfaService');
+const operationPinService = require('../services/operationPinService');
 const { findByCredentials } = require('../repositories/userRepository');
 const securityControl = require('../services/securityControlService');
 const passkeyService = require('../services/passkeyService');
@@ -196,7 +197,7 @@ const completeExecutorMfaChallenge = async (req, res) => {
     }
 
     delete req.session.pendingExecutorMfaLogin;
-    return loginAsExecutor(req, res, executor);
+    return loginAsExecutor(req, res, executor, { authenticatorVerified: true });
 };
 
 const renderAccountMfaChallenge = (res, error = null, username = '') => renderLogin(res, error, {
@@ -254,7 +255,7 @@ const completeAccountMfaChallenge = async (req, res) => {
         return renderAccountMfaChallenge(res, 'رمز Authenticator غير صحيح.', pending.username);
     }
     delete req.session.pendingAccountMfaLogin;
-    return loginAsClient(req, res, account, pending.accountType);
+    return loginAsClient(req, res, account, pending.accountType, { authenticatorVerified: true });
 };
 
 const redirectActiveSession = (req, res) => {
@@ -350,6 +351,36 @@ router.post('/security/mfa/trusted-device/revoke', requireWebMfaContext, async (
         return res.json({ success: true });
     } catch (error) {
         return res.status(400).json({ success: false, error: error.message });
+    }
+});
+
+const webOperationPinPrincipal = (req) => securityControl.sessionPrincipal(req.session);
+router.get('/security/operation-pin/status', requireWebMfaContext, async (req, res) => {
+    try {
+        return res.json({ success: true, ...(await operationPinService.status(webOperationPinPrincipal(req))) });
+    } catch (_) {
+        return res.status(500).json({ success: false, error: 'تعذر تحميل حالة رمز العمليات.' });
+    }
+});
+
+router.post('/security/operation-pin/setup', requireWebMfaContext, async (req, res) => {
+    try {
+        const { account } = req.webMfaContext;
+        if (!accountMfaService.isEnabled(account)
+            || !(await accountMfaService.verifyAccountToken(account, String(req.body?.mfaToken || '')))) {
+            return res.status(403).json({ success: false, error: 'أدخل رمز Authenticator الصحيح لتفعيل رمز العمليات.' });
+        }
+        const profile = await operationPinService.setupInitialPin({
+            principal: webOperationPinPrincipal(req),
+            pin: req.body?.pin,
+            createdBy: webOperationPinPrincipal(req)?.principalName
+        });
+        return res.json({ success: true, profile, message: 'تم تفعيل رمز العمليات؛ تغييره لاحقاً عبر الإدارة فقط.' });
+    } catch (error) {
+        const message = error.code === 'OPERATION_PIN_ADMIN_ONLY'
+            ? 'تغيير رمز العمليات متاح للإدارة فقط.'
+            : 'يجب أن يكون الرمز من 4 إلى 6 أرقام.';
+        return res.status(422).json({ success: false, code: error.code, error: message });
     }
 });
 
@@ -611,7 +642,7 @@ const requirePasskeyLogin = async ({ req, res, principal, authorization, account
     return true;
 };
 
-const loginAsAdmin = async (req, res, adminData = null) => {
+const loginAsAdmin = async (req, res, adminData = null, { authenticatorVerified = false } = {}) => {
     const principal = {
         principalType: adminData ? 'admin' : 'master_admin',
         principalId: adminData ? String(adminData._id) : 'master_admin',
@@ -630,7 +661,7 @@ const loginAsAdmin = async (req, res, adminData = null) => {
         }
     }
     const authorization = await securityControl.authorizeLogin({
-        req, res, principal, accountClass: 'admin', allowFirstDevice: true
+        req, res, principal, accountClass: 'admin', allowFirstDevice: false, authenticatorVerified
     });
     if (!authorization.allowed) {
         await logLoginFailure(req, req.body.username, authorization.code, authorization.message);
@@ -665,9 +696,9 @@ const completeExecutorSession = async (req, executor) => {
     });
 };
 
-const loginAsExecutor = async (req, res, executor, { showMfaEnableNotice = false } = {}) => {
+const loginAsExecutor = async (req, res, executor, { showMfaEnableNotice = false, authenticatorVerified = false } = {}) => {
     const principal = { principalType: 'executor', principalId: String(executor._id), principalName: executor.name || 'منفذ' };
-    const authorization = await securityControl.authorizeLogin({ req, res, principal, accountClass: 'account', allowFirstDevice: true });
+    const authorization = await securityControl.authorizeLogin({ req, res, principal, accountClass: 'account', allowFirstDevice: false, authenticatorVerified });
     if (!authorization.allowed) {
         await logLoginFailure(req, req.body.username, authorization.code, authorization.message);
         return renderLogin(res, authorization.message, { submittedUsername: String(req.body.username || '') });
@@ -709,7 +740,7 @@ const completeClientSession = async (req, account, accountType) => {
     });
 };
 
-const loginAsClient = async (req, res, account, accountType) => {
+const loginAsClient = async (req, res, account, accountType, { authenticatorVerified = false } = {}) => {
     const principalType = ({ user: 'client_user', company: 'client_company', agent_staff: 'agent_staff', sub_client: 'sub_client' })[accountType] || 'client_user';
     const principal = { principalType, principalId: String(account._id), principalName: account.name || account.webUsername || 'حساب عميل' };
     if (!securityControl.parseLocation(req)) {
@@ -717,7 +748,7 @@ const loginAsClient = async (req, res, account, accountType) => {
             submittedUsername: String(req.body.username || '')
         });
     }
-    const authorization = await securityControl.authorizeLogin({ req, res, principal, accountClass: 'account', allowFirstDevice: true });
+    const authorization = await securityControl.authorizeLogin({ req, res, principal, accountClass: 'account', allowFirstDevice: false, authenticatorVerified });
     if (!authorization.allowed) {
         await logLoginFailure(req, req.body.username, authorization.code, authorization.message);
         return renderLogin(res, authorization.message, { submittedUsername: String(req.body.username || '') });
@@ -1187,7 +1218,7 @@ router.post('/login', loginLimiter, async (req, res) => {
                         });
                     }
                 }
-                if (await guardWebMfa(req, res, adminData, 'admin', () => loginAsAdmin(req, res, adminData))) return;
+                if (await guardWebMfa(req, res, adminData, 'admin', () => loginAsAdmin(req, res, adminData, { authenticatorVerified: true }))) return;
                 return loginAsAdmin(req, res, adminData);
             }
         }

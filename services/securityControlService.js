@@ -173,7 +173,7 @@ const sessionPrincipal = (session = {}) => {
     return null;
 };
 
-const createAccessRequest = async ({ req, principal, deviceIdHash }) => {
+const createAccessRequest = async ({ req, principal, deviceIdHash, purpose = 'first_login', authenticatorVerified = false }) => {
     const device = detectDevice(req);
     const channel = requestChannel(req);
     const risk = assessNetworkRisk(req);
@@ -181,7 +181,6 @@ const createAccessRequest = async ({ req, principal, deviceIdHash }) => {
     const existing = await SecurityAccessRequest.findOne({
         principalType: principal.principalType,
         principalId: principal.principalId,
-        channel,
         deviceIdHash,
         status: 'pending',
         expiresAt: { $gt: new Date() }
@@ -193,6 +192,8 @@ const createAccessRequest = async ({ req, principal, deviceIdHash }) => {
         channel,
         tenantId: req.tenant?._id || null,
         deviceIdHash,
+        purpose,
+        authenticatorVerifiedAt: authenticatorVerified ? new Date() : null,
         ...device,
         ipAddress: requestIp(req),
         countryCode: risk.countryCode,
@@ -225,7 +226,7 @@ const activateDevice = async ({ req, res, principal, credential = null, approved
     const ipAddress = requestIp(req);
     const channel = requestChannel(req);
     await SecurityDevice.updateMany(
-        { principalType: principal.principalType, principalId: principal.principalId, channel, status: 'active' },
+        { principalType: principal.principalType, principalId: principal.principalId, status: 'active' },
         { $set: { status: 'revoked', revokedAt: new Date(), revokedReason: 'replaced_by_new_device' } }
     );
     const record = await SecurityDevice.create({
@@ -253,20 +254,22 @@ const activateDevice = async ({ req, res, principal, credential = null, approved
     return record;
 };
 
-const authorizeLogin = async ({ req, res, principal, accountClass = 'account', allowFirstDevice = false }) => {
+const authorizeLogin = async ({ req, res, principal, accountClass = 'account', allowFirstDevice = false, authenticatorVerified = false }) => {
     // Authentication contract tests do not provision the security collections.
     // Dedicated enforcement tests can opt in; production always evaluates policy.
     if (process.env.NODE_ENV === 'test'
         && process.env.SECURITY_CONTROL_TEST_ENFORCEMENT !== 'true') {
         return { allowed: true, enforcementEnabled: false };
     }
-    if (!isSecurityVerificationRequired()) {
-        return { allowed: true, enforcementEnabled: false, verificationMode: 'optional' };
-    }
     const state = await getState();
-    const enabled = accountClass === 'admin'
-        ? state.adminDeviceEnforcementEnabled
-        : state.accountDeviceEnforcementEnabled;
+    // Device approval is a core account protection now.  Legacy state records
+    // without the new fields are treated as enabled, which avoids silently
+    // weakening security during a rollout.
+    const enabled = state.adminApprovalRequired !== false && (
+        accountClass === 'admin'
+            ? state.adminDeviceEnforcementEnabled !== false
+            : state.accountDeviceEnforcementEnabled !== false
+    );
     if (!enabled) return { allowed: true, enforcementEnabled: false };
 
     const risk = assessNetworkRisk(req);
@@ -283,14 +286,12 @@ const authorizeLogin = async ({ req, res, principal, accountClass = 'account', a
     const active = await SecurityDevice.findOne({
         principalType: principal.principalType,
         principalId: principal.principalId,
-        channel,
         status: 'active'
     }).select('+deviceIdHash');
     const hasDeviceHistory = !active && allowFirstDevice
         ? Boolean(await SecurityDevice.exists({
             principalType: principal.principalType,
             principalId: principal.principalId,
-            channel
         }))
         : false;
     if (!active && allowFirstDevice && !hasDeviceHistory) {
@@ -299,7 +300,6 @@ const authorizeLogin = async ({ req, res, principal, accountClass = 'account', a
             {
                 principalType: principal.principalType,
                 principalId: principal.principalId,
-                channel,
                 status: 'pending'
             },
             {
@@ -320,11 +320,24 @@ const authorizeLogin = async ({ req, res, principal, accountClass = 'account', a
         await active.save();
         return { allowed: true, enforcementEnabled: true, device: active };
     }
-    const request = await createAccessRequest({ req, principal, deviceIdHash });
+    if (active && !authenticatorVerified) {
+        return {
+            allowed: false,
+            code: 'AUTHENTICATOR_REQUIRED_FOR_DEVICE_TRANSFER',
+            message: 'أدخل رمز Authenticator أولاً لطلب نقل الحساب إلى الجهاز الجديد.'
+        };
+    }
+    const request = await createAccessRequest({
+        req,
+        principal,
+        deviceIdHash,
+        purpose: active ? 'device_transfer' : 'first_login',
+        authenticatorVerified
+    });
     return {
         allowed: false,
         code: 'DEVICE_APPROVAL_REQUIRED',
-        message: `هذا ${channel === 'app' ? 'تطبيق' : 'متصفح'} جديد. وافق على الطلب ${request.requestCode} من صفحة الأجهزة والجلسات في جلستك الحالية أو اطلب مساعدة الإدارة.`,
+        message: `هذا ${channel === 'app' ? 'تطبيق' : 'متصفح'} جديد. طلب الموافقة ${request.requestCode} أُرسل إلى الإدارة.`,
         requestCode: request.requestCode
     };
 };
@@ -389,7 +402,7 @@ const listPrincipalSessions = async ({ principal, req, res = null }) => {
     const currentHash = hashDeviceId(currentDeviceId);
     const currentChannel = requestChannel(req);
     return {
-        policy: { maxWebSessions: 1, maxAppSessions: 1 },
+        policy: { maxDevices: 1 },
         currentChannel,
         devices: devices.map((device) => publicDevice(device, currentHash, currentChannel)),
         requests: requests.map(publicAccessRequest)
@@ -450,7 +463,6 @@ const reviewPrincipalAccessRequest = async ({ principal, requestId, approve, rev
         {
             principalType: principal.principalType,
             principalId: principal.principalId,
-            channel: request.channel || 'web',
             status: 'active'
         },
         {
@@ -511,18 +523,33 @@ const ensureSecurityDeviceIndexes = async () => {
     ]);
 
     const indexes = await SecurityDevice.collection.indexes();
-    const legacy = indexes.find((index) => (
-        index.unique
-        && index.key?.principalType === 1
-        && index.key?.principalId === 1
-        && index.key?.status === 1
-        && !Object.prototype.hasOwnProperty.call(index.key, 'channel')
+    const previousIndexes = indexes.filter((index) => (
+        index.name === 'uniq_active_security_device_per_channel'
+        || (index.unique
+            && index.key?.principalType === 1
+            && index.key?.principalId === 1
+            && index.key?.status === 1)
     ));
-    if (legacy) await SecurityDevice.collection.dropIndex(legacy.name);
+    for (const index of previousIndexes) await SecurityDevice.collection.dropIndex(index.name);
+    // Existing accounts may have one web and one app record. Keep the most
+    // recently seen one and revoke the rest before adding the single-device
+    // unique index.
+    const duplicateGroups = await SecurityDevice.aggregate([
+        { $match: { status: 'active' } },
+        { $sort: { lastSeenAt: -1, updatedAt: -1 } },
+        { $group: { _id: { principalType: '$principalType', principalId: '$principalId' }, ids: { $push: '$_id' }, count: { $sum: 1 } } },
+        { $match: { count: { $gt: 1 } } }
+    ]);
+    for (const group of duplicateGroups) {
+        await SecurityDevice.updateMany(
+            { _id: { $in: group.ids.slice(1) } },
+            { $set: { status: 'revoked', revokedAt: new Date(), revokedReason: 'single_device_policy_migration' } }
+        );
+    }
     await SecurityDevice.collection.createIndex(
-        { principalType: 1, principalId: 1, channel: 1, status: 1 },
+        { principalType: 1, principalId: 1, status: 1 },
         {
-            name: 'uniq_active_security_device_per_channel',
+            name: 'uniq_active_security_device_per_account',
             unique: true,
             partialFilterExpression: { status: 'active' }
         }

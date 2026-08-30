@@ -45,9 +45,9 @@ const securityDeviceSchema = new mongoose.Schema({
 }, { timestamps: true, versionKey: false });
 
 securityDeviceSchema.index(
-    { principalType: 1, principalId: 1, channel: 1, status: 1 },
+    { principalType: 1, principalId: 1, status: 1 },
     {
-        name: 'uniq_active_security_device_per_channel',
+        name: 'uniq_active_security_device_per_account',
         unique: true,
         partialFilterExpression: { status: 'active' }
     }

@@ -23,7 +23,6 @@ const ClientCompany = require('../models/ClientCompany');
 const MobileDeviceSession = require('../models/MobileDeviceSession');
 const { buildContext } = require('../mappers/mobileAuthMapper');
 const accountMfaService = require('./accountMfaService');
-const { isSecurityVerificationRequired } = require('../config/securityPolicy');
 const securityControl = require('./securityControlService');
 
 const requestedAccessTokenTtl = Number(process.env.ACCESS_TOKEN_TTL_SECONDS);
@@ -340,18 +339,44 @@ const login = async (username, password, req) => {
     );
     const deviceId = accountMfaService.deviceIdFor(req);
     const mfaToken = String(req.body?.mfaToken || req.headers['x-mfa-token'] || '').trim();
+    const securityState = await securityControl.getState();
+    const mandatoryAuthenticator = securityState.mandatoryAuthenticatorEnabled !== false;
     let mfaVerifiedWithCode = false;
-    if (isSecurityVerificationRequired() && mfaAccount && accountMfaService.isEnabled(mfaAccount)) {
-        const trusted = await accountMfaService.isDeviceTrusted({
-            account: mfaAccount,
-            accountType,
-            deviceId,
-            req
+    if (mandatoryAuthenticator && (!mfaAccount || !accountMfaService.isEnabled(mfaAccount))) {
+        // The first access still needs an administrative device approval. Once
+        // approved, no session/token is issued until TOTP enrollment finishes.
+        const enrollmentAuthorization = await securityControl.authorizeLogin({
+            req,
+            res: null,
+            principal: { principalType: accountType, principalId: String(account._id), principalName: account.name || account.webUsername || 'Mobile account' },
+            accountClass: 'account',
+            allowFirstDevice: false
         });
-        if (trusted) {
-            // Keep the original 24-hour expiry. Successful password logins do
-            // not silently extend trust without a fresh Authenticator code.
-        } else if (mfaToken && await accountMfaService.verifyAccountToken(mfaAccount, mfaToken)) {
+        if (!enrollmentAuthorization.allowed) {
+            return {
+                success: false,
+                statusCode: enrollmentAuthorization.code === 'DEVICE_APPROVAL_REQUIRED' ? 409 : 403,
+                code: enrollmentAuthorization.code,
+                message: enrollmentAuthorization.message,
+                requestCode: enrollmentAuthorization.requestCode || null
+            };
+        }
+        return {
+            success: false,
+            statusCode: 428,
+            code: 'MFA_ENROLLMENT_REQUIRED',
+            message: 'تم اعتماد الجهاز. فعّل رمز Authenticator قبل الدخول إلى الحساب.',
+            mfaEnrollmentRequired: true,
+            mfaEnrollmentToken: accountMfaService.createEnrollmentChallenge({
+                account,
+                accountType,
+                tenantId: requestTenantId(req) || cleanId(account.tenantId) || null,
+                deviceId
+            })
+        };
+    }
+    if (mandatoryAuthenticator && mfaAccount && accountMfaService.isEnabled(mfaAccount)) {
+        if (mfaToken && await accountMfaService.verifyAccountToken(mfaAccount, mfaToken)) {
             mfaVerifiedWithCode = true;
         } else {
             return {
@@ -380,7 +405,8 @@ const login = async (username, password, req) => {
             principalName: account.name || account.webUsername || 'Mobile account'
         },
         accountClass: 'account',
-        allowFirstDevice: true
+        allowFirstDevice: false,
+        authenticatorVerified: mfaVerifiedWithCode
     });
     if (!deviceAuthorization.allowed) {
         return {

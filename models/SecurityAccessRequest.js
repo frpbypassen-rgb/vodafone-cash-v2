@@ -24,6 +24,10 @@ const securityAccessRequestSchema = new mongoose.Schema({
         capturedAt: { type: Date, default: null }
     },
     riskSignals: { type: [String], default: [] },
+    // A new device is never silently approved.  For a device transfer this
+    // records that the owner proved possession of the Authenticator first.
+    purpose: { type: String, enum: ['first_login', 'device_transfer'], default: 'first_login' },
+    authenticatorVerifiedAt: { type: Date, default: null },
     status: { type: String, enum: ['pending', 'approved', 'rejected', 'expired'], default: 'pending', index: true },
     reviewedBy: { type: String, default: '' },
     reviewedAt: { type: Date, default: null },

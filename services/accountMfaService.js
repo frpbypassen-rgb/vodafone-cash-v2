@@ -249,9 +249,15 @@ const isDeviceTrusted = async ({ account, accountType, deviceId, sessionId, req 
 };
 
 const createChallenge = ({ account, accountType, tenantId, deviceId }) => jwt.sign({ kind: 'mfa-login', userId: String(account._id), accountType: normalizeAccountType(accountType), tenantId: tenantId || null, deviceIdHash: hash(deviceId) }, JWT_SECRET, { expiresIn: CHALLENGE_TTL_SECONDS });
+const createEnrollmentChallenge = ({ account, accountType, tenantId, deviceId }) => jwt.sign({ kind: 'mfa-enrollment', userId: String(account._id), accountType: normalizeAccountType(accountType), tenantId: tenantId || null, deviceIdHash: hash(deviceId) }, JWT_SECRET, { expiresIn: CHALLENGE_TTL_SECONDS });
 const verifyChallenge = (token) => {
     const payload = jwt.verify(token, JWT_SECRET);
     if (payload.kind !== 'mfa-login') throw new Error('MFA_CHALLENGE_INVALID');
+    return payload;
+};
+const verifyEnrollmentChallenge = (token) => {
+    const payload = jwt.verify(token, JWT_SECRET);
+    if (payload.kind !== 'mfa-enrollment') throw new Error('MFA_ENROLLMENT_CHALLENGE_INVALID');
     return payload;
 };
 
@@ -278,7 +284,9 @@ module.exports = {
     trustDevice,
     isDeviceTrusted,
     createChallenge,
+    createEnrollmentChallenge,
     verifyChallenge,
+    verifyEnrollmentChallenge,
     decrypt,
     verifyTotp,
     TRUST_TTL_MS

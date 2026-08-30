@@ -6,6 +6,12 @@ const securityStateSchema = new mongoose.Schema({
     key: { type: String, required: true, unique: true, default: 'global' },
     adminDeviceEnforcementEnabled: { type: Boolean, default: false },
     accountDeviceEnforcementEnabled: { type: Boolean, default: false },
+    // The following controls are deliberately opt-out rather than opt-in.  A
+    // missing value on an older installation therefore receives the safer
+    // behaviour when it is read by securityControlService.
+    mandatoryAuthenticatorEnabled: { type: Boolean, default: true },
+    adminApprovalRequired: { type: Boolean, default: true },
+    singleDeviceOnly: { type: Boolean, default: true },
     adminPermissionEnforcementEnabled: { type: Boolean, default: false },
     locationRequired: { type: Boolean, default: true },
     highConfidenceVpnBlockEnabled: { type: Boolean, default: true },

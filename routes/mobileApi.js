@@ -32,6 +32,8 @@ const authController = require('../controllers/auth/authController');
 const transferService = require('../services/transferService');
 const { deviceTrustMiddleware } = require('../src/Presentation/Middlewares/deviceTrustMiddleware');
 const { mfaMiddleware } = require('../src/Presentation/Middlewares/mfaMiddleware');
+const requireOperationPin = require('../middlewares/requireOperationPin');
+const operationPinService = require('../services/operationPinService');
 const { buildMobileRateContract, buildCompanyRateContract } = require('../utils/rateHelper');
 const { applyCustomerRateMargins } = require('../utils/agencyPricing');
 const { getTransferServiceLabel } = require('../utils/mobileTransferServiceCatalog');
@@ -1228,6 +1230,7 @@ router.post(
     authenticateJWT,
     deviceTrustMiddleware,
     mfaMiddleware,
+    requireOperationPin,
     transferLimiter,
     requireIdempotencyKey,
     transferValidator,
@@ -1757,6 +1760,51 @@ router.post('/security/session-requests/:id/:decision', authenticateJWT, async (
 // ─────────────────────────────────────────────────────────────────────────
 // MFA / Authenticator — حساب واحد، جهاز موثوق واحد، مدة الثقة 24 ساعة.
 // هذه المسارات مستقلة عن منطق التحويلات حتى لا تتأثر العمليات المالية.
+const enrollmentAccountFromRequest = async (req) => {
+    const token = String(req.body?.mfaEnrollmentToken || req.headers['x-mfa-enrollment-token'] || '').trim();
+    const challenge = accountMfaService.verifyEnrollmentChallenge(token);
+    const suppliedHash = securityControl.hashDeviceId(accountMfaService.deviceIdFor(req));
+    if (challenge.deviceIdHash !== require('crypto').createHash('sha256').update(accountMfaService.deviceIdFor(req)).digest('hex')) {
+        const error = new Error('MFA_ENROLLMENT_DEVICE_MISMATCH'); error.code = 'MFA_ENROLLMENT_DEVICE_MISMATCH'; throw error;
+    }
+    const activeDevice = await require('../models/SecurityDevice').findOne({
+        principalType: challenge.accountType,
+        principalId: String(challenge.userId),
+        status: 'active',
+        deviceIdHash: suppliedHash
+    }).select('_id');
+    if (!activeDevice) {
+        const error = new Error('MFA_ENROLLMENT_NOT_APPROVED'); error.code = 'MFA_ENROLLMENT_NOT_APPROVED'; throw error;
+    }
+    return accountMfaService.loadAccount(challenge.accountType, challenge.userId, challenge.tenantId || null);
+};
+
+router.post('/auth/mfa-enrollment/setup', async (req, res) => {
+    try {
+        const account = await enrollmentAccountFromRequest(req);
+        if (!account) return sendMobileError(res, 404, 'USER_NOT_FOUND', 'الحساب غير موجود', req.correlationId);
+        if (accountMfaService.isEnabled(account)) return sendMobileError(res, 409, 'MFA_ALREADY_ENABLED', 'Authenticator مفعل بالفعل', req.correlationId);
+        const data = accountMfaService.setup(account);
+        return res.json({ success: true, type: 'totp', secret: data.secret, qrUri: data.qrUri, recoveryCodes: data.recoveryCodes });
+    } catch (error) {
+        return sendMobileError(res, 403, error.code || 'MFA_ENROLLMENT_INVALID', 'انتهت أو لم تُعتمد محاولة تفعيل الحماية.', req.correlationId);
+    }
+});
+
+router.post('/auth/mfa-enrollment/confirm', async (req, res) => {
+    try {
+        const account = await enrollmentAccountFromRequest(req);
+        const secret = String(req.body?.secret || '').trim().toUpperCase();
+        const token = String(req.body?.token || '').trim();
+        const recoveryCodes = Array.isArray(req.body?.recoveryCodes) ? req.body.recoveryCodes : [];
+        if (!account || !secret || !token || recoveryCodes.length < 6) return sendMobileError(res, 400, 'VALIDATION_ERROR', 'بيانات Authenticator غير مكتملة', req.correlationId);
+        await accountMfaService.confirmSetup(account, secret, token, recoveryCodes);
+        return res.json({ success: true, message: 'تم تفعيل Authenticator. سجّل الدخول مرة أخرى باستخدام الرمز.' });
+    } catch (error) {
+        return sendMobileError(res, error.code === 'MFA_INVALID' ? 400 : 403, error.code || 'MFA_ENROLLMENT_INVALID', error.code === 'MFA_INVALID' ? 'رمز Authenticator غير صحيح' : 'تعذر تأكيد تفعيل الحماية.', req.correlationId);
+    }
+});
+
 router.get('/security/mfa/status', authenticateJWT, async (req, res) => {
     try {
         const account = await resolveMfaAccount(req);
@@ -3059,7 +3107,7 @@ router.post('/client/balance-transfer/lookup', authenticateJWT, lookupValidator,
 });
 
 // 💸 Client Balance Transfer Execute (Idempotent)
-router.post('/client/balance-transfer', authenticateJWT, requireIdempotencyKey, balanceTransferValidator, async (req, res) => {
+router.post('/client/balance-transfer', authenticateJWT, requireOperationPin, requireIdempotencyKey, balanceTransferValidator, async (req, res) => {
     try {
         const { userId, accountType } = req.user;
         const { targetAccountCode, amount, notes } = req.body;
@@ -3485,6 +3533,32 @@ router.get('/executor/deposits', authenticateJWT, async (req, res) => {
         return res.json({ success: true, requests, serverTime: new Date().toISOString() });
     } catch (error) {
         return sendMobileError(res, error.status || 500, error.status === 401 ? 'UNAUTHORIZED' : 'DEPOSIT_LIST_FAILED', error.message || 'تعذر تحميل طلبات الإيداع.', req.correlationId);
+    }
+});
+
+// The account holder may create the PIN once from settings. Subsequent PIN
+// resets are restricted to the security administrators.
+router.get('/security/operation-pin/status', authenticateJWT, async (req, res) => {
+    try {
+        return res.json({ success: true, ...(await operationPinService.status(operationPinService.principalFromUser(req.user))) });
+    } catch (_) {
+        return sendServerError(res, req, 'تعذر تحميل حالة رمز العمليات');
+    }
+});
+
+router.post('/security/operation-pin/setup', authenticateJWT, mfaMiddleware, async (req, res) => {
+    try {
+        const profile = await operationPinService.setupInitialPin({
+            principal: operationPinService.principalFromUser(req.user),
+            pin: req.body?.pin,
+            createdBy: req.user.name || req.user.webUsername || String(req.user.userId)
+        });
+        return res.json({ success: true, ...profile, message: 'تم تفعيل رمز العمليات. لتغييره أو إلغائه تواصل مع الإدارة.' });
+    } catch (error) {
+        const message = error.code === 'OPERATION_PIN_ADMIN_ONLY'
+            ? 'تم إنشاء الرمز سابقاً؛ تغييره متاح للإدارة فقط.'
+            : 'يجب أن يتكون رمز العمليات من 4 إلى 6 أرقام.';
+        return sendMobileError(res, 422, error.code || 'OPERATION_PIN_SETUP_FAILED', message, req.correlationId);
     }
 });
 

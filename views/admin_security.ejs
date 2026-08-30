@@ -104,7 +104,10 @@
         <div class="policy-grid" id="policyGrid">
             <% [
                 ['adminDeviceEnforcementEnabled','قفل حساب الإدارة على جهاز واحد','يتطلب مفتاح مرور مسجلاً.'],
-                ['accountDeviceEnforcementEnabled','موقع واحد وتطبيق واحد لكل حساب','جلسة مستقلة لكل قناة، وأي جهاز إضافي يحتاج موافقة صاحب الحساب أو الإدارة.'],
+                ['accountDeviceEnforcementEnabled','تطبيق اعتماد الجهاز للحسابات','كل جهاز جديد يمر بالمراجعة الإدارية.'],
+                ['mandatoryAuthenticatorEnabled','Authenticator إلزامي للجميع','لا تُصدر جلسة جديدة قبل تفعيل رمز Authenticator.'],
+                ['adminApprovalRequired','موافقة الإدارة على أول دخول ونقل الجهاز','طلبات العملاء والشركات والوكلاء تظهر أدناه للمراجعة.'],
+                ['singleDeviceOnly','جهاز واحد فقط لكل حساب','تبديل الهاتف أو الكمبيوتر يلغي الجهاز القديم بعد الموافقة.'],
                 ['adminPermissionEnforcementEnabled','فرض صلاحيات حسابات الإدارة','لا يظهر أو ينفذ الحساب إلا ما تم منحه له.'],
                 ['locationRequired','طلب الموقع عند الدخول','الموقع إشارة أمان مساندة وليس بديلاً عن مفتاح المرور.'],
                 ['highConfidenceVpnBlockEnabled','حظر الشبكات عالية الخطورة','يعمل عند وصول إشارة موثوقة من مزود الحماية فقط.']
@@ -122,7 +125,7 @@
         <div class="table-wrap"><table class="table"><thead><tr><th>الحساب</th><th>رمز الطلب</th><th>الجهاز</th><th>الشبكة والموقع</th><th>المخاطر</th><th>الإجراء</th></tr></thead><tbody>
             <% if (!accessRequests.length) { %><tr><td colspan="6" class="text-center text-muted py-4">لا توجد طلبات معلقة.</td></tr><% } %>
             <% accessRequests.forEach(request => { %><tr>
-                <td><strong><%= request.principalName || request.principalId %></strong><small class="d-block text-muted"><%= request.principalType %></small></td>
+                <td><strong><%= request.principalName || request.principalId %></strong><small class="d-block text-muted"><%= request.principalType %> · <%= request.purpose === 'device_transfer' ? 'نقل جهاز' : 'أول دخول' %><%= request.authenticatorVerifiedAt ? ' · تم التحقق بـ Authenticator' : '' %></small></td>
                 <td class="mono"><%= request.requestCode %></td>
                 <td><%= request.displayName %><small class="d-block text-muted"><%= request.deviceType %> · <%= request.platform || 'غير محدد' %></small></td>
                 <td><span class="mono"><%= request.ipAddress %></span><small class="d-block text-muted"><%= request.location?.latitude ? `${request.location.latitude.toFixed(4)}, ${request.location.longitude.toFixed(4)}` : 'لم يرسل الموقع' %></small></td>

@@ -12,6 +12,7 @@ const securityControl = require('../services/securityControlService');
 const passkeyService = require('../services/passkeyService');
 const { logAction } = require('../services/auditService');
 const { isPasskeyRequired } = require('../config/securityPolicy');
+const operationPinService = require('../services/operationPinService');
 
 const PERMISSIONS = Object.freeze([
     ['dashboard.read', 'عرض لوحة القيادة'],
@@ -220,6 +221,9 @@ router.post('/policy', requireSecurityManager, requireRecentPasskey, async (req,
         }
         state.adminDeviceEnforcementEnabled = enableAdminDevices;
         state.accountDeviceEnforcementEnabled = Boolean(req.body.accountDeviceEnforcementEnabled);
+        state.mandatoryAuthenticatorEnabled = req.body.mandatoryAuthenticatorEnabled !== false;
+        state.adminApprovalRequired = req.body.adminApprovalRequired !== false;
+        state.singleDeviceOnly = req.body.singleDeviceOnly !== false;
         state.adminPermissionEnforcementEnabled = Boolean(req.body.adminPermissionEnforcementEnabled);
         state.locationRequired = req.body.locationRequired !== false;
         state.highConfidenceVpnBlockEnabled = req.body.highConfidenceVpnBlockEnabled !== false;
@@ -257,7 +261,7 @@ router.post('/access-requests/:id/:decision', requireSecurityManager, requireRec
         await request.save();
         if (decision === 'approve') {
             await SecurityDevice.updateMany(
-                { principalType: request.principalType, principalId: request.principalId, channel: request.channel || 'web', status: 'active' },
+                { principalType: request.principalType, principalId: request.principalId, status: 'active' },
                 { $set: { status: 'revoked', revokedAt: new Date(), revokedReason: 'approved_device_transfer' } }
             );
             await SecurityDevice.create({
@@ -307,6 +311,29 @@ router.post('/devices/:id/revoke', requireSecurityManager, requireRecentPasskey,
         targetId: device.principalId, targetModel: device.principalType, severity: 'critical'
     });
     return res.json({ success: true });
+});
+
+// Administrative-only reset is intentional: a person with a stolen account
+// session cannot change the code which protects outgoing transfers.
+router.post('/operation-pins/:principalType/:principalId/reset', requireSecurityManager, requireRecentPasskey, async (req, res) => {
+    try {
+        const allowedTypes = new Set(['executor', 'client_user', 'client_company', 'agent_staff', 'sub_client', 'admin']);
+        if (!allowedTypes.has(req.params.principalType)) return res.status(422).json({ success: false, error: 'نوع الحساب غير صالح.' });
+        const profile = await operationPinService.adminResetPin({
+            principal: { principalType: req.params.principalType, principalId: req.params.principalId },
+            pin: req.body?.pin,
+            adminName: req.session.adminName || 'الإدارة',
+            enabled: req.body?.enabled !== false
+        });
+        await logAction({
+            action: 'SECURITY_OPERATION_PIN_RESET', req,
+            performedById: req.session.adminId, performedByModel: 'Admin', performedByName: req.session.adminName,
+            targetId: req.params.principalId, targetModel: req.params.principalType, severity: 'critical'
+        });
+        return res.json({ success: true, profile });
+    } catch (error) {
+        return res.status(422).json({ success: false, error: 'يجب أن يكون رمز العمليات من 4 إلى 6 أرقام.' });
+    }
 });
 
 router.post('/emergency-code/rotate', requireSecurityManager, requireRecentPasskey, async (req, res) => {
