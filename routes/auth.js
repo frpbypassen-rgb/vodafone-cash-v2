@@ -323,6 +323,8 @@ router.post('/security/mfa/confirm', requireWebMfaContext, async (req, res) => {
         );
         const deviceId = webMfaDeviceId(req, res);
         await accountMfaService.trustDevice({ account, accountType, deviceId, req });
+        req.session.mfaEnrollmentRequired = false;
+        await new Promise((resolve) => req.session.save(resolve));
         return res.json({ success: true, status: confirmed });
     } catch (error) {
         const status = error.code === 'MFA_INVALID' ? 422 : 400;
@@ -352,6 +354,18 @@ router.post('/security/mfa/trusted-device/revoke', requireWebMfaContext, async (
     } catch (error) {
         return res.status(400).json({ success: false, error: error.message });
     }
+});
+
+router.get('/security/mfa-enroll', requireWebMfaContext, async (req, res) => {
+    const { account } = req.webMfaContext;
+    if (accountMfaService.isEnabled(account)) {
+        return res.redirect(req.session.isExecutorLoggedIn ? '/executor-portal/dashboard' : '/client/dashboard');
+    }
+    return res.render('mfa_enroll_required', {
+        principalName: securityControl.sessionPrincipal(req.session)?.principalName || 'الحساب',
+        csrfToken: req.csrfToken?.() || '',
+        returnUrl: req.session.isExecutorLoggedIn ? '/executor-portal/dashboard' : '/client/dashboard'
+    });
 });
 
 const webOperationPinPrincipal = (req) => securityControl.sessionPrincipal(req.session);
@@ -706,6 +720,10 @@ const loginAsExecutor = async (req, res, executor, { showMfaEnableNotice = false
     }
     if (await requirePasskeyLogin({ req, res, principal, authorization, accountClass: 'account', loginKind: 'executor' })) return;
     await completeExecutorSession(req, executor);
+    if (!accountMfaService.isEnabled(executor)) {
+        req.session.mfaEnrollmentRequired = true;
+        return saveAndRedirect(req, res, '/auth/security/mfa-enroll');
+    }
     if (showMfaEnableNotice) req.session.showMfaEnableNotice = true;
 
     return saveAndRedirect(req, res, '/executor-portal/dashboard');
@@ -756,6 +774,10 @@ const loginAsClient = async (req, res, account, accountType, { authenticatorVeri
     }
     if (await requirePasskeyLogin({ req, res, principal, authorization, accountClass: 'account', loginKind: 'client', accountType })) return;
     await completeClientSession(req, account, accountType);
+    if (!accountMfaService.isEnabled(account)) {
+        req.session.mfaEnrollmentRequired = true;
+        return saveAndRedirect(req, res, '/auth/security/mfa-enroll');
+    }
 
     return saveAndRedirect(req, res, '/client/dashboard');
 };

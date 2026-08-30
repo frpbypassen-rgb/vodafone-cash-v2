@@ -72,6 +72,7 @@ const isActiveClientSession = async (req) => {
 
 const requireClientAuth = async (req, res, next) => {
     try {
+        if (req.session?.mfaEnrollmentRequired) return res.redirect('/auth/security/mfa-enroll');
         if (await isActiveClientSession(req)) return next();
         return endUnauthorizedClientSession(req, res);
     } catch (_error) {
