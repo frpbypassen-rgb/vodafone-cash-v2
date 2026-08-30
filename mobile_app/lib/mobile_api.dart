@@ -777,10 +777,14 @@ class MobileApi {
   Future<Map<String, dynamic>> operationPinStatus() =>
       _request('GET', '/security/operation-pin/status');
 
-  Future<Map<String, dynamic>> setupOperationPin(String pin) => _request(
+  Future<Map<String, dynamic>> setupOperationPin(
+    String pin, {
+    required String mfaToken,
+  }) => _request(
     'POST',
     '/security/operation-pin/setup',
     data: <String, dynamic>{'pin': pin},
+    extraHeaders: <String, dynamic>{'X-MFA-Token': mfaToken},
   );
 
   Future<List<Map<String, dynamic>>> clientTransactions({

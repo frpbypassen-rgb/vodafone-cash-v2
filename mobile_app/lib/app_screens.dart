@@ -2627,6 +2627,13 @@ class _CustomerAccountScreenState extends State<CustomerAccountScreen> {
     );
   }
 
+  Future<void> _manageOperationPin() async {
+    await showDialog<void>(
+      context: context,
+      builder: (context) => _OperationPinDialog(controller: widget.controller),
+    );
+  }
+
   Future<void> _changePassword() async {
     final changed = await showDialog<bool>(
       context: context,
@@ -3076,6 +3083,15 @@ class _CustomerAccountScreenState extends State<CustomerAccountScreen> {
               onTap: _manageAuthenticator,
             ),
             _CustomerActionRow(
+              icon: Icons.pin_outlined,
+              title: t('رمز العمليات', 'Transfer PIN'),
+              subtitle: t(
+                'رمز من 4 إلى 6 أرقام يُطلب قبل كل تحويل، ولا يُغيّر إلا عبر الإدارة.',
+                'A 4–6 digit code required before every transfer; only admin can reset it.',
+              ),
+              onTap: _manageOperationPin,
+            ),
+            _CustomerActionRow(
               icon: Icons.devices_outlined,
               title: t('الأجهزة المسجل منها الدخول', 'Signed-in devices'),
               subtitle: t(
@@ -3213,6 +3229,130 @@ class _CustomerProfileSection extends StatelessWidget {
           ...children,
         ],
       ),
+    );
+  }
+}
+
+class _OperationPinDialog extends StatefulWidget {
+  const _OperationPinDialog({required this.controller});
+
+  final SessionController controller;
+
+  @override
+  State<_OperationPinDialog> createState() => _OperationPinDialogState();
+}
+
+class _OperationPinDialogState extends State<_OperationPinDialog> {
+  final _pin = TextEditingController();
+  final _mfa = TextEditingController();
+  Map<String, dynamic>? _status;
+  String? _error;
+  bool _busy = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    try {
+      final status = await widget.controller.api.operationPinStatus();
+      if (mounted) setState(() => _status = status);
+    } on ApiFailure catch (error) {
+      if (mounted) setState(() => _error = error.message);
+    }
+  }
+
+  Future<void> _save() async {
+    if (!RegExp(r'^\d{4,6}$').hasMatch(_pin.text.trim()) ||
+        !RegExp(r'^\d{6}$').hasMatch(_mfa.text.trim())) {
+      setState(
+        () => _error =
+            'أدخل رمز عمليات من 4 إلى 6 أرقام ورمز Authenticator من 6 أرقام.',
+      );
+      return;
+    }
+    setState(() {
+      _busy = true;
+      _error = null;
+    });
+    try {
+      await widget.controller.api.setupOperationPin(
+        _pin.text.trim(),
+        mfaToken: _mfa.text.trim(),
+      );
+      if (mounted) Navigator.pop(context);
+    } on ApiFailure catch (error) {
+      if (mounted) setState(() => _error = error.message);
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  @override
+  void dispose() {
+    _pin.dispose();
+    _mfa.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final configured = _status?['configured'] == true;
+    return AlertDialog(
+      title: const Text('رمز العمليات'),
+      content: SizedBox(
+        width: 410,
+        child: _status == null && _error == null
+            ? const SizedBox(
+                height: 90,
+                child: Center(child: CircularProgressIndicator()),
+              )
+            : configured
+            ? const Text(
+                'رمز العمليات مفعّل. لأسباب أمنية، تغييره أو إلغاؤه متاح للإدارة فقط.',
+              )
+            : Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Text(
+                    'أنشئ رمزاً من 4 إلى 6 أرقام. سيُطلب قبل كل تحويل.',
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: _pin,
+                    keyboardType: TextInputType.number,
+                    obscureText: true,
+                    maxLength: 6,
+                    decoration: const InputDecoration(
+                      labelText: 'رمز العمليات',
+                    ),
+                  ),
+                  TextField(
+                    controller: _mfa,
+                    keyboardType: TextInputType.number,
+                    maxLength: 6,
+                    decoration: const InputDecoration(
+                      labelText: 'رمز Authenticator',
+                    ),
+                  ),
+                  if (_error != null)
+                    InlineMessage(message: _error!, color: _danger),
+                ],
+              ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: _busy ? null : () => Navigator.pop(context),
+          child: const Text('إغلاق'),
+        ),
+        if (!configured)
+          FilledButton(
+            onPressed: _busy ? null : _save,
+            child: Text(_busy ? 'جارٍ الحفظ...' : 'تفعيل الرمز'),
+          ),
+      ],
     );
   }
 }
