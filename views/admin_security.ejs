@@ -121,11 +121,11 @@
     </section>
 
     <section class="security-section">
-        <div class="section-heading"><div><h2>طلبات نقل الجهاز</h2><p>لا يُنهى الجهاز السابق إلا بعد موافقة صريحة، مع حفظ IP والموقع وإشارات المخاطر.</p></div></div>
+        <div class="section-heading"><div><h2>طلبات دخول العملاء والشركات والوكلاء</h2><p>لا يُنهى الجهاز السابق إلا بعد موافقة إدارية صريحة، مع حفظ IP والموقع وإشارات المخاطر.</p></div></div>
         <div class="table-wrap"><table class="table"><thead><tr><th>الحساب</th><th>رمز الطلب</th><th>الجهاز</th><th>الشبكة والموقع</th><th>المخاطر</th><th>الإجراء</th></tr></thead><tbody>
             <% if (!accessRequests.length) { %><tr><td colspan="6" class="text-center text-muted py-4">لا توجد طلبات معلقة.</td></tr><% } %>
             <% accessRequests.forEach(request => { %><tr>
-                <td><strong><%= request.principalName || request.principalId %></strong><small class="d-block text-muted"><%= request.principalType %> · <%= request.purpose === 'device_transfer' ? 'نقل جهاز' : 'أول دخول' %><%= request.authenticatorVerifiedAt ? ' · تم التحقق بـ Authenticator' : '' %></small></td>
+                <td><strong><%= request.principalName || request.principalId %></strong><small class="d-block text-muted"><%= request.principalLabel %> · <%= request.purpose === 'device_transfer' ? 'نقل جهاز' : 'أول دخول' %><%= request.authenticatorVerifiedAt ? ' · تم التحقق بـ Authenticator' : '' %></small></td>
                 <td class="mono"><%= request.requestCode %></td>
                 <td><%= request.displayName %><small class="d-block text-muted"><%= request.deviceType %> · <%= request.platform || 'غير محدد' %></small></td>
                 <td><span class="mono"><%= request.ipAddress %></span><small class="d-block text-muted"><%= request.location?.latitude ? `${request.location.latitude.toFixed(4)}, ${request.location.longitude.toFixed(4)}` : 'لم يرسل الموقع' %></small></td>

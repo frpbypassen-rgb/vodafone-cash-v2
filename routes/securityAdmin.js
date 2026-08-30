@@ -35,6 +35,10 @@ const PERMISSIONS = Object.freeze([
 router.use(requireAuth, requirePermission('security.read'));
 
 const currentPrincipal = (req) => securityControl.sessionPrincipal(req.session);
+const principalLabel = (type) => ({
+    client_user: 'عميل', client_company: 'شركة', agent_staff: 'موظف وكيل',
+    sub_client: 'عميل فرعي', executor: 'منفذ', admin: 'إدارة', master_admin: 'مدير رئيسي'
+}[String(type || '')] || String(type || 'حساب'));
 const publicState = (state) => {
     const value = state.toObject ? state.toObject() : { ...state };
     delete value.emergencyCodeHash;
@@ -80,7 +84,7 @@ router.get('/', async (req, res) => {
         activePage: 'security',
         securityState: publicState(state),
         devices,
-        accessRequests: requests,
+        accessRequests: requests.map((request) => ({ ...request, principalLabel: principalLabel(request.principalType) })),
         admins,
         auditLogs,
         permissions: PERMISSIONS,
