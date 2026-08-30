@@ -2314,38 +2314,63 @@ class _RoleShellState extends State<RoleShell> with WidgetsBindingObserver {
       ],
     );
 
-    final appBar = isExecutorShell
-        ? Ahram2030TopBar(
-            title: companyName.isEmpty ? 'بوابة التنفيذ' : companyName,
-            subtitle: executorSubtitle,
-            accountLabel: _roleLabel,
-            balance: canViewCompanyBalance ? companyBalance : null,
-            executor: true,
-            actions: [
-              ExecutorTopActionButton(
-                tooltip: 'مركز الإشعارات',
-                icon: Icons.notifications_none_rounded,
-                onPressed: _openExecutorNotificationCenter,
-                badge: _executorUnreadNotifications,
-              ),
-              ExecutorTopActionButton(
-                tooltip: widget.appearance.isDark
-                    ? 'الوضع النهاري'
-                    : 'الوضع الليلي',
-                icon: widget.appearance.isDark
-                    ? Icons.light_mode_outlined
-                    : Icons.dark_mode_outlined,
-                onPressed: widget.appearance.toggle,
-              ),
-              ExecutorTopActionButton(
-                tooltip: 'تسجيل الخروج',
-                icon: Icons.logout_outlined,
-                onPressed: _confirmLogout,
-              ),
-              const SizedBox(width: 6),
-            ],
+    final appBar = Ahram2030TopBar(
+      title: isExecutorShell
+          ? (companyName.isEmpty ? 'بوابة التنفيذ' : companyName)
+          : selected.label,
+      subtitle: isExecutorShell
+          ? executorSubtitle
+          : '${session?.name ?? ''} · $_roleLabel',
+      accountLabel: _roleLabel,
+      balance: canViewCompanyBalance
+          ? companyBalance
+          : (isCustomerShell ? session?.balance : null),
+      executor: isExecutorShell,
+      actions: [
+        if (isCustomerShell)
+          GlassIconButton(
+            tooltip: widget.appearance.isDark
+                ? localized(context, 'الوضع النهاري', 'Light mode')
+                : localized(context, 'الوضع الليلي', 'Dark mode'),
+            onPressed: widget.appearance.toggle,
+            icon: Icon(
+              widget.appearance.isDark
+                  ? Icons.light_mode_outlined
+                  : Icons.dark_mode_outlined,
+            ),
+          ),
+        if (isExecutorShell)
+          ExecutorTopActionButton(
+            tooltip: 'مركز الإشعارات',
+            icon: Icons.notifications_none_rounded,
+            onPressed: _openExecutorNotificationCenter,
+            badge: _executorUnreadNotifications,
+          ),
+        if (isExecutorShell)
+          ExecutorTopActionButton(
+            tooltip: widget.appearance.isDark
+                ? 'الوضع النهاري'
+                : 'الوضع الليلي',
+            icon: widget.appearance.isDark
+                ? Icons.light_mode_outlined
+                : Icons.dark_mode_outlined,
+            onPressed: widget.appearance.toggle,
+          ),
+        if (isExecutorShell)
+          ExecutorTopActionButton(
+            tooltip: 'تسجيل الخروج',
+            icon: Icons.logout_outlined,
+            onPressed: _confirmLogout,
           )
-        : legacyAppBar;
+        else
+          GlassIconButton(
+            tooltip: localized(context, 'تسجيل الخروج', 'Sign out'),
+            onPressed: _confirmLogout,
+            icon: const Icon(Icons.logout_outlined),
+          ),
+        const SizedBox(width: 6),
+      ],
+    );
     final pages = IndexedStack(
       index: _index,
       children: _items.map((item) => item.page).toList(),
