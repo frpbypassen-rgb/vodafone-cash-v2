@@ -4540,28 +4540,26 @@ class _CustomerDevicesDialogState extends State<_CustomerDevicesDialog> {
                                 style: Theme.of(context).textTheme.bodySmall,
                               ),
                               const SizedBox(height: 10),
+                              Text(
+                                t(
+                                  'بانتظار موافقة الإدارة. يمكنك رفض الطلب من هنا فقط.',
+                                  'Awaiting admin approval. You can only reject this request here.',
+                                ),
+                                style: Theme.of(context).textTheme.bodySmall,
+                              ),
+                              const SizedBox(height: 8),
                               if (_busyId == '${request['id']}')
                                 const Center(child: CircularProgressIndicator())
                               else
-                                Row(
-                                  children: [
-                                    Expanded(
-                                      child: FilledButton.icon(
-                                        onPressed: () => _review(request, true),
-                                        icon: const Icon(Icons.check),
-                                        label: Text(t('موافقة', 'Approve')),
-                                      ),
+                                SizedBox(
+                                  width: double.infinity,
+                                  child: OutlinedButton.icon(
+                                    onPressed: () => _review(request, false),
+                                    icon: const Icon(Icons.close),
+                                    label: Text(
+                                      t('رفض الطلب', 'Reject request'),
                                     ),
-                                    const SizedBox(width: 8),
-                                    Expanded(
-                                      child: OutlinedButton.icon(
-                                        onPressed: () =>
-                                            _review(request, false),
-                                        icon: const Icon(Icons.close),
-                                        label: Text(t('رفض', 'Reject')),
-                                      ),
-                                    ),
-                                  ],
+                                  ),
                                 ),
                             ],
                           ),

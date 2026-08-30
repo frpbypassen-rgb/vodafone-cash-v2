@@ -393,7 +393,8 @@ const securitySessionsError = (res, error) => {
     const messages = {
         SECURITY_DEVICE_NOT_FOUND: 'الجلسة غير موجودة أو تم إنهاؤها بالفعل.',
         SECURITY_ACCESS_REQUEST_NOT_FOUND: 'طلب الجهاز غير موجود أو تمت مراجعته.',
-        SECURITY_ACCESS_REQUEST_EXPIRED: 'انتهت صلاحية طلب الجهاز. أعد محاولة تسجيل الدخول.'
+        SECURITY_ACCESS_REQUEST_EXPIRED: 'انتهت صلاحية طلب الجهاز. أعد محاولة تسجيل الدخول.',
+        SECURITY_ADMIN_APPROVAL_REQUIRED: 'هذا الطلب يحتاج موافقة الإدارة حفاظاً على أمان الحساب.'
     };
     return res.status(status).json({ success: false, code: error.code || 'SECURITY_SESSION_ACTION_FAILED', error: messages[error.code] || 'تعذر تنفيذ إجراء الجلسة.' });
 };

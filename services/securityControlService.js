@@ -431,6 +431,12 @@ const revokePrincipalDevice = async ({ principal, deviceId, req, reason = 'user_
 };
 
 const reviewPrincipalAccessRequest = async ({ principal, requestId, approve, reviewedBy, reviewNote = '' }) => {
+    const state = await getState();
+    if (approve && state.adminApprovalRequired !== false) {
+        const error = new Error('SECURITY_ADMIN_APPROVAL_REQUIRED');
+        error.code = 'SECURITY_ADMIN_APPROVAL_REQUIRED';
+        throw error;
+    }
     const request = await SecurityAccessRequest.findOne({
         _id: requestId,
         principalType: principal.principalType,
