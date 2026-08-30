@@ -20,6 +20,12 @@ const subAccountSchema = new mongoose.Schema({
     address: { type: String, trim: true, default: '' },
     profilePhotoKey: { type: String, trim: true, default: '' },
     profilePhotoUpdatedAt: { type: Date },
+    verificationDocuments: [{
+        kind: { type: String, enum: ['identity', 'tax_card', 'business_license', 'profile_photo'], required: true },
+        fileUrl: { type: String, required: true },
+        originalName: { type: String, trim: true, default: '' },
+        uploadedAt: { type: Date, default: Date.now }
+    }],
     creationIdempotencyKey: { type: String, unique: true, sparse: true },
     creationIdempotencyFingerprint: { type: String },
     refreshToken: { type: String }, // 🟢 مخصص لتطبيق الموبايل

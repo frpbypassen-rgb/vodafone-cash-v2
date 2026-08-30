@@ -2,6 +2,9 @@
 
 const express = require('express');
 const router = express.Router();
+const crypto = require('crypto');
+const path = require('path');
+const multer = require('multer');
 const { requireAuth, requireMaster } = require('../middlewares/auth');
 const { logAction } = require('../services/auditService');
 const {
@@ -11,6 +14,35 @@ const {
     getReturnUrl,
     getErrorMessage
 } = require('../services/adminAccountManagementService');
+const { notifyAccountPhoneChanged } = require('../services/accountPhoneChangeNotificationService');
+
+const verifyMultipartCsrf = (req, res, next) => {
+    const expected = String(req.session?.csrfToken || '');
+    const submitted = String(req.body?._csrf || req.get('x-csrf-token') || '');
+    if (!expected || !submitted) return res.status(403).json({ success: false, error: 'Invalid CSRF token' });
+    const expectedBuffer = Buffer.from(expected);
+    const submittedBuffer = Buffer.from(submitted);
+    if (expectedBuffer.length !== submittedBuffer.length || !crypto.timingSafeEqual(expectedBuffer, submittedBuffer)) {
+        return res.status(403).json({ success: false, error: 'Invalid CSRF token' });
+    }
+    return next();
+};
+
+const accountDocumentUpload = multer({
+    storage: multer.diskStorage({
+        destination: (_req, _file, callback) => callback(null, path.join(__dirname, '../uploads')),
+        filename: (_req, file, callback) => {
+            const extension = path.extname(file.originalname || '').toLowerCase() || '.bin';
+            callback(null, `account-document-${crypto.randomUUID()}${extension}`);
+        }
+    }),
+    limits: { fileSize: 7 * 1024 * 1024, files: 4 },
+    fileFilter: (_req, file, callback) => {
+        const allowed = new Set(['image/jpeg', 'image/png', 'image/webp', 'application/pdf']);
+        if (!allowed.has(file.mimetype)) return callback(new Error('INVALID_DOCUMENT_TYPE'));
+        return callback(null, true);
+    }
+});
 
 const BOOLEAN_FIELDS = Object.freeze([
     'canViewAllReports',
@@ -101,12 +133,25 @@ router.get('/admin/accounts/:type/:id/edit', requireAuth, requireMaster, async (
     }
 });
 
-router.post('/admin/accounts/:type/:id/edit', requireAuth, requireMaster, async (req, res) => {
+router.post('/admin/accounts/:type/:id/edit', requireAuth, requireMaster, accountDocumentUpload.fields([
+    { name: 'profilePhoto', maxCount: 1 },
+    { name: 'identityDocument', maxCount: 1 },
+    { name: 'taxCard', maxCount: 1 },
+    { name: 'businessLicense', maxCount: 1 }
+]), verifyMultipartCsrf, async (req, res) => {
     try {
         const result = await updateEditableAccount({
             type: req.params.type,
             id: req.params.id,
-            payload: req.body || {}
+            payload: req.body || {},
+            uploads: req.files || {}
+        });
+
+        const phoneChange = await notifyAccountPhoneChanged({
+            oldPhone: result.oldData.phone,
+            newPhone: result.newData.phone,
+            accountName: result.account.name,
+            accountLabel: result.definition.label
         });
 
         await logAction({
@@ -125,7 +170,9 @@ router.post('/admin/accounts/:type/:id/edit', requireAuth, requireMaster, async 
                 accountLabel: result.definition.label,
                 changedFields: result.changedFields,
                 passwordChanged: Boolean(result.passwordChanged),
-                secretChanges: result.secretChanges || []
+                secretChanges: result.secretChanges || [],
+                uploadedDocuments: result.uploadedDocumentKinds || [],
+                phoneChangeWhatsApp: phoneChange
             }
         }).catch(() => {});
 

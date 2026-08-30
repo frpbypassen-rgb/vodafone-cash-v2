@@ -24,6 +24,12 @@ const userSchema = new mongoose.Schema({
         address: { type: String, trim: true, default: '' },
         registrationNumber: { type: String, trim: true, default: '' }
     },
+    verificationDocuments: [{
+        kind: { type: String, enum: ['identity', 'tax_card', 'business_license', 'profile_photo'], required: true },
+        fileUrl: { type: String, required: true },
+        originalName: { type: String, trim: true, default: '' },
+        uploadedAt: { type: Date, default: Date.now }
+    }],
     refreshToken: { type: String }, // 🟢 مخصص لتطبيق الموبايل
     // يرفع عند تغيير كلمة المرور أو تسجيل الخروج من جميع الأجهزة.
     sessionVersion: { type: Number, default: 0 },

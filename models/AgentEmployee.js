@@ -8,6 +8,7 @@ const agentEmployeeSchema = new mongoose.Schema({
     status: { type: String, default: 'active' },
     webUsername: { type: String, unique: true, required: true },
     webPassword: { type: String, required: true },
+    sessionVersion: { type: Number, default: 0 },
     mfaEnabled: { type: Boolean, default: false },
     mfaType: { type: String, enum: ['none', 'totp'], default: 'none' },
     totpSecretEncrypted: { type: String, select: false },

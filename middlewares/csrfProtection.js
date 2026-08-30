@@ -95,6 +95,13 @@ const isDeferredExecutorSettlementCsrf = (req) => (
     && /^\/executor\/[^/]+\/settle\/?$/.test(req.path || req.originalUrl || '')
 );
 
+// محرر الحسابات الإداري يرفع مستندات multipart؛ يتم التحقق من الرمز بعد
+// تشغيل multer داخل المسار نفسه، حتى تبقى الحماية فعّالة ولا يفشل req.body.
+const isDeferredAdminAccountEditCsrf = (req) => (
+    req.method === 'POST'
+    && /^\/admin\/accounts\/[^/]+\/[^/]+\/edit\/?$/.test(req.path || req.originalUrl || '')
+);
+
 const injectTokenIntoHtml = (html, token) => {
     if (!token || typeof html !== 'string' || !html.includes('<form')) return html;
     const hiddenInput = `<input type="hidden" name="_csrf" value="${escapeHtml(token)}">`;
@@ -119,7 +126,7 @@ const csrfProtection = (req, res, next) => {
     }
 
     // هذا المسار يعالج الرمز داخل route بعد أن يقرأ multer حقول multipart.
-    if (isDeferredExecutorSettlementCsrf(req)) {
+    if (isDeferredExecutorSettlementCsrf(req) || isDeferredAdminAccountEditCsrf(req)) {
         return next();
     }
 

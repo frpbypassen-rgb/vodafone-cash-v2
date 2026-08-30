@@ -114,7 +114,7 @@
             <div class="strip-item"><span>معرف النظام</span><strong class="mono"><%= account._id %></strong></div>
         </section>
 
-        <form class="editor-form" action="/admin/accounts/<%= accountType %>/<%= account._id %>/edit" method="POST" autocomplete="off">
+        <form class="editor-form" action="/admin/accounts/<%= accountType %>/<%= account._id %>/edit" method="POST" enctype="multipart/form-data" autocomplete="off">
             <section class="form-section">
                 <h2 class="section-heading"><i class="fa-solid fa-address-card"></i> البيانات الأساسية</h2>
                 <div class="field-grid">
@@ -207,6 +207,26 @@
                         <div class="field"><label for="registrationNumber">رقم التسجيل</label><input id="registrationNumber" name="registrationNumber" class="form-control mono" value="<%= value('registrationNumber') %>" maxlength="120"></div>
                         <div class="field full"><label for="address">العنوان</label><textarea id="address" name="address" class="form-control" maxlength="240"><%= value('address') %></textarea></div>
                     </div>
+                </section>
+            <% } %>
+
+            <% if (['user', 'agent', 'company', 'subaccount'].includes(accountType)) { %>
+                <section class="form-section">
+                    <h2 class="section-heading"><i class="fa-solid fa-file-shield"></i> المستندات والصور</h2>
+                    <div class="security-note"><i class="fa-solid fa-lock"></i><span>ارفع فقط مستندات الحساب الموثوقة. يقبل النظام JPG وPNG وWEBP وPDF حتى 7MB لكل ملف، ويستبدل الملف السابق من النوع نفسه.</span></div>
+                    <div class="field-grid">
+                        <div class="field"><label for="profilePhoto">الصورة الشخصية أو شعار الشركة</label><input id="profilePhoto" name="profilePhoto" type="file" class="form-control" accept="image/jpeg,image/png,image/webp"></div>
+                        <div class="field"><label for="identityDocument">البطاقة الشخصية أو جواز السفر</label><input id="identityDocument" name="identityDocument" type="file" class="form-control" accept="image/jpeg,image/png,image/webp,application/pdf"></div>
+                        <div class="field"><label for="taxCard">البطاقة الضريبية</label><input id="taxCard" name="taxCard" type="file" class="form-control" accept="image/jpeg,image/png,image/webp,application/pdf"></div>
+                        <div class="field"><label for="businessLicense">ترخيص الشركة أو الوكيل</label><input id="businessLicense" name="businessLicense" type="file" class="form-control" accept="image/jpeg,image/png,image/webp,application/pdf"></div>
+                    </div>
+                    <% if (Array.isArray(account.verificationDocuments) && account.verificationDocuments.length) { %>
+                        <div class="account-strip mt-3">
+                            <% account.verificationDocuments.forEach((document) => { %>
+                                <div class="strip-item"><span><%= ({ profile_photo: 'الصورة', identity: 'الهوية', tax_card: 'البطاقة الضريبية', business_license: 'الترخيص' })[document.kind] || 'مستند' %></span><strong><a class="link-success" href="<%= document.fileUrl %>" target="_blank" rel="noopener">عرض المستند <i class="fa-solid fa-arrow-up-right-from-square"></i></a></strong></div>
+                            <% }) %>
+                        </div>
+                    <% } %>
                 </section>
             <% } %>
 

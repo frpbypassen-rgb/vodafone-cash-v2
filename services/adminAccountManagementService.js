@@ -51,6 +51,7 @@ const ACCOUNT_TYPES = Object.freeze({
 
 const IDENTITY_MODELS = Object.freeze([
     { modelName: 'User', Model: User, hasPhone: true },
+    { modelName: 'ClientCompany', Model: ClientCompany, hasPhone: true },
     { modelName: 'SubAccount', Model: SubAccount, hasPhone: true },
     { modelName: 'ClientEmployee', Model: ClientEmployee, hasPhone: true },
     { modelName: 'AgentEmployee', Model: AgentEmployee, hasPhone: true },
@@ -213,11 +214,50 @@ const setBusinessProfile = (account, payload) => {
     }
 };
 
+const applyUploadedDocuments = (account, uploads = {}) => {
+    const documentKinds = {
+        profilePhoto: 'profile_photo',
+        identityDocument: 'identity',
+        taxCard: 'tax_card',
+        businessLicense: 'business_license'
+    };
+    const existing = Array.isArray(account.verificationDocuments)
+        ? account.verificationDocuments.map((document) => document.toObject ? document.toObject() : document)
+        : [];
+    const replacements = [];
+
+    for (const [field, kind] of Object.entries(documentKinds)) {
+        const file = Array.isArray(uploads[field]) ? uploads[field][0] : null;
+        if (!file?.filename) continue;
+        replacements.push({
+            kind,
+            fileUrl: `/uploads/${file.filename}`,
+            originalName: cleanText(file.originalname, 180),
+            uploadedAt: new Date()
+        });
+    }
+
+    if (!replacements.length) return [];
+    const replacedKinds = new Set(replacements.map((document) => document.kind));
+    account.verificationDocuments = [
+        ...existing.filter((document) => !replacedKinds.has(document.kind)),
+        ...replacements
+    ];
+    const photo = replacements.find((document) => document.kind === 'profile_photo');
+    if (photo && account.schema?.path('profilePhotoKey')) {
+        account.profilePhotoKey = photo.fileUrl;
+        account.profilePhotoUpdatedAt = new Date();
+    }
+    return replacements.map((document) => document.kind);
+};
+
 const setLoginIdentity = async ({ definition, account, payload, requirePhone = false }) => {
     const phone = normalizePhone(payload.phone, requirePhone);
     const webUsername = normalizeUsername(payload.webUsername);
+    const phoneChanged = !sameText(account.phone, phone);
+    const usernameChanged = !sameText(account.webUsername, webUsername);
 
-    if (!sameText(account.phone, phone)) {
+    if (phoneChanged) {
         await assertIdentityAvailable({
             field: 'phone',
             value: phone,
@@ -225,7 +265,7 @@ const setLoginIdentity = async ({ definition, account, payload, requirePhone = f
             currentId: account._id
         });
     }
-    if (!sameText(account.webUsername, webUsername)) {
+    if (usernameChanged) {
         await assertIdentityAvailable({
             field: 'webUsername',
             value: webUsername,
@@ -249,6 +289,9 @@ const setLoginIdentity = async ({ definition, account, payload, requirePhone = f
         account.otpExpires = undefined;
         account.lastOtpDate = undefined;
         passwordChanged = true;
+    }
+    if ((phoneChanged || usernameChanged || passwordChanged) && account.schema?.path('sessionVersion')) {
+        account.sessionVersion = Number(account.sessionVersion || 0) + 1;
     }
     return passwordChanged;
 };
@@ -323,7 +366,16 @@ const updateUser = async ({ type, definition, account, payload }) => {
 const updateCompany = async ({ account, payload }) => {
     setName(account, payload);
     setStatus('company', account, payload);
-    account.phone = normalizePhone(payload.phone, false) || undefined;
+    const phone = normalizePhone(payload.phone, false);
+    if (!sameText(account.phone, phone)) {
+        await assertIdentityAvailable({
+            field: 'phone',
+            value: phone,
+            currentModelName: 'ClientCompany',
+            currentId: account._id
+        });
+    }
+    account.phone = phone || undefined;
     account.tier = parseNumber(payload.tier, 'tier', { min: 1, max: 3, integer: true });
     account.creditLimit = parseNumber(payload.creditLimit || 0, 'creditLimit', { min: 0, max: 1e12 });
     setBusinessProfile(account, payload);
@@ -524,7 +576,7 @@ const changedFieldsBetween = (oldData, newData) => {
     return [...fields].filter((field) => JSON.stringify(oldData[field]) !== JSON.stringify(newData[field]));
 };
 
-const updateEditableAccount = async ({ type, id, payload }) => {
+const updateEditableAccount = async ({ type, id, payload, uploads = {} }) => {
     const { definition, account } = await findEditableAccount(type, id);
     const oldData = safeSnapshot(definition.type, account);
     let accountCodeChange = null;
@@ -544,6 +596,7 @@ const updateEditableAccount = async ({ type, id, payload }) => {
         }
 
         accountCodeChange = await prepareAccountCodeChange({ type: definition.type, account, payload });
+        const uploadedDocumentKinds = applyUploadedDocuments(account, uploads);
         await account.save();
         if (accountCodeChange) await accountCodeChange.finalize();
 
@@ -562,6 +615,7 @@ const updateEditableAccount = async ({ type, id, payload }) => {
             oldData,
             newData,
             changedFields: changedFieldsBetween(oldData, newData),
+            uploadedDocumentKinds,
             ...updateMetadata
         };
     } catch (error) {
