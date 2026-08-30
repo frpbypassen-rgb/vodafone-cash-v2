@@ -65,6 +65,8 @@
         .request-actions { display:flex; gap:7px; }
         .request-actions button { min-height:38px; padding:7px 11px; border-radius:8px; cursor:pointer; font-weight:900; font-size:.72rem; }
         .approve { color:#fff; border:1px solid var(--green); background:var(--green); }
+        /* Device approval is an administrative decision; account owners can reject only. */
+        .approve { display:none !important; }
         .reject { color:var(--red); border:1px solid #efbac2; background:#fff; }
         .empty,.loading { grid-column:1/-1; padding:34px; border:1px dashed #bdc9d8; border-radius:8px; color:var(--muted); text-align:center; background:rgba(255,255,255,.56); font-size:.82rem; }
         .empty i,.loading i { display:block; margin-bottom:10px; color:#8ba0b8; font-size:1.55rem; }
@@ -77,7 +79,7 @@
     <header class="topbar"><div class="topbar-inner"><div class="brand"><span class="brand-mark"><i class="fa-solid fa-shield-halved"></i></span><span>AHRAM PAY</span></div><a class="back" href="<%= returnUrl %>"><i class="fa-solid fa-arrow-right"></i> رجوع للحساب</a></div></header>
     <main class="page">
         <section class="hero">
-            <div class="hero-copy"><span class="kicker"><i class="fa-solid fa-lock"></i> أمان <%= principalName %></span><h1>الأجهزة والجلسات المتصلة</h1><p>يسمح النظام بجلسة واحدة على الموقع وجلسة واحدة على التطبيق في الوقت نفسه. قبول جهاز جديد يستبدل الجلسة القديمة من النوع نفسه فقط.</p></div>
+            <div class="hero-copy"><span class="kicker"><i class="fa-solid fa-lock"></i> أمان <%= principalName %></span><h1>الأجهزة والجلسات المتصلة</h1><p>يسمح النظام بجهاز واحد فقط لكل حساب. أي جهاز جديد يحتاج رمز Authenticator ثم موافقة الإدارة.</p></div>
             <div class="policy"><div><span>جلسات الموقع</span><strong>جهاز واحد</strong></div><div><span>جلسات التطبيق</span><strong>هاتف واحد</strong></div></div>
         </section>
         <div class="status" data-status></div>
@@ -86,7 +88,7 @@
             <div class="device-grid" data-devices><div class="loading"><i class="fa-solid fa-circle-notch fa-spin"></i>جاري تحميل الجلسات...</div></div>
         </section>
         <section class="section">
-            <div class="section-heading"><div class="section-title"><span class="section-icon"><i class="fa-solid fa-user-clock"></i></span><div><h2>طلبات الأجهزة الجديدة</h2><p>لا توافق على طلب لا تعرفه.</p></div></div></div>
+            <div class="section-heading"><div class="section-title"><span class="section-icon"><i class="fa-solid fa-user-clock"></i></span><div><h2>طلبات الأجهزة الجديدة</h2><p>الطلبات بانتظار قرار الإدارة؛ يمكنك رفض أي طلب لا تعرفه.</p></div></div></div>
             <div data-requests><div class="loading"><i class="fa-solid fa-circle-notch fa-spin"></i>جاري تحميل الطلبات...</div></div>
         </section>
         <p class="footnote"><i class="fa-solid fa-circle-info"></i> إنهاء الجلسة الحالية يعيدك إلى شاشة الدخول. عند الاشتباه في دخول غير معروف، ارفض الطلب وغيّر كلمة المرور وراجع الدعم الفني.</p>
