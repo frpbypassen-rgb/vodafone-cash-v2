@@ -183,6 +183,109 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
+  Future<void> _completeMandatoryAuthenticatorEnrollment(
+    String enrollmentToken,
+  ) async {
+    final code = TextEditingController();
+    Map<String, dynamic>? setup;
+    String? error;
+    var busy = false;
+    try {
+      setup = await widget.controller.api.beginMandatoryMfaEnrollment(
+        enrollmentToken,
+      );
+    } on ApiFailure catch (failure) {
+      if (mounted) setState(() => _error = failure.message);
+      return;
+    }
+    if (!mounted || setup == null) return;
+    await showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: const Text('تفعيل Authenticator مطلوب'),
+          content: SizedBox(
+            width: 420,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                const Text(
+                  'تم اعتماد هذا الجهاز. انسخ المفتاح إلى تطبيق Authenticator ثم أدخل رمز الـ 6 أرقام لإكمال الدخول.',
+                ),
+                const SizedBox(height: 14),
+                SelectableText(
+                  '${setup!['secret'] ?? ''}',
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: 2,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: code,
+                  keyboardType: TextInputType.number,
+                  maxLength: 6,
+                  autofocus: true,
+                  textAlign: TextAlign.center,
+                  decoration: const InputDecoration(
+                    labelText: 'رمز Authenticator',
+                  ),
+                ),
+                if (error != null)
+                  InlineMessage(message: error!, color: _danger),
+              ],
+            ),
+          ),
+          actions: [
+            FilledButton(
+              onPressed: busy
+                  ? null
+                  : () async {
+                      if (!RegExp(r'^\d{6}$').hasMatch(code.text.trim())) {
+                        setDialogState(
+                          () => error = 'أدخل رمزًا مكوّنًا من 6 أرقام.',
+                        );
+                        return;
+                      }
+                      setDialogState(() {
+                        busy = true;
+                        error = null;
+                      });
+                      try {
+                        await widget.controller.api
+                            .confirmMandatoryMfaEnrollment(
+                              enrollmentToken: enrollmentToken,
+                              secret: '${setup!['secret'] ?? ''}',
+                              token: code.text.trim(),
+                              recoveryCodes:
+                                  (setup!['recoveryCodes'] as List? ?? const [])
+                                      .map((item) => '$item')
+                                      .toList(),
+                            );
+                        if (context.mounted) Navigator.pop(context);
+                        if (mounted)
+                          setState(
+                            () => _error =
+                                'تم التفعيل. سجّل الدخول مرة أخرى باستخدام رمز Authenticator.',
+                          );
+                      } on ApiFailure catch (failure) {
+                        setDialogState(() => error = failure.message);
+                      } finally {
+                        if (context.mounted) setDialogState(() => busy = false);
+                      }
+                    },
+              child: Text(busy ? 'جارٍ التفعيل...' : 'تأكيد التفعيل'),
+            ),
+          ],
+        ),
+      ),
+    );
+    code.dispose();
+  }
+
   @override
   void initState() {
     super.initState();
@@ -253,6 +356,14 @@ class _LoginScreenState extends State<LoginScreen> {
           } on ApiFailure catch (mfaError) {
             if (mounted) setState(() => _error = mfaError.message);
           }
+        }
+      } else if (error.code == 'MFA_ENROLLMENT_REQUIRED') {
+        final enrollmentToken = '${error.data?['mfaEnrollmentToken'] ?? ''}'
+            .trim();
+        if (enrollmentToken.isNotEmpty) {
+          await _completeMandatoryAuthenticatorEnrollment(enrollmentToken);
+        } else if (mounted) {
+          setState(() => _error = error.message);
         }
       } else if (mounted) {
         setState(() => _error = error.message);
@@ -18318,7 +18429,7 @@ class _ExecutorSettingsScreenState extends State<ExecutorSettingsScreen> {
               style: TextStyle(fontWeight: FontWeight.w900),
             ),
             subtitle: const Text(
-              'جلسة موقع واحدة وجلسة تطبيق واحدة مع مراجعة طلبات الأجهزة الجديدة.',
+              'جهاز واحد فقط للحساب؛ نقل الجهاز يتطلب Authenticator وموافقة الإدارة.',
             ),
             trailing: const Icon(Icons.chevron_left),
             onTap: _showSecuritySessions,

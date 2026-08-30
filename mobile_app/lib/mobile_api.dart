@@ -709,6 +709,32 @@ class MobileApi {
   Future<Map<String, dynamic>> mfaStatus() =>
       _request('GET', '/security/mfa/status');
 
+  Future<Map<String, dynamic>> beginMandatoryMfaEnrollment(
+    String enrollmentToken,
+  ) => _request(
+    'POST',
+    '/auth/mfa-enrollment/setup',
+    data: <String, dynamic>{'mfaEnrollmentToken': enrollmentToken},
+    authenticated: false,
+  );
+
+  Future<Map<String, dynamic>> confirmMandatoryMfaEnrollment({
+    required String enrollmentToken,
+    required String secret,
+    required String token,
+    required List<String> recoveryCodes,
+  }) => _request(
+    'POST',
+    '/auth/mfa-enrollment/confirm',
+    data: <String, dynamic>{
+      'mfaEnrollmentToken': enrollmentToken,
+      'secret': secret,
+      'token': token,
+      'recoveryCodes': recoveryCodes,
+    },
+    authenticated: false,
+  );
+
   Future<Map<String, dynamic>> beginMfaSetup() =>
       _request('POST', '/security/mfa/setup');
 
@@ -747,6 +773,15 @@ class MobileApi {
 
   Future<Map<String, dynamic>> revokeTrustedMfaDevice() =>
       _request('POST', '/security/mfa/trusted-device/revoke');
+
+  Future<Map<String, dynamic>> operationPinStatus() =>
+      _request('GET', '/security/operation-pin/status');
+
+  Future<Map<String, dynamic>> setupOperationPin(String pin) => _request(
+    'POST',
+    '/security/operation-pin/setup',
+    data: <String, dynamic>{'pin': pin},
+  );
 
   Future<List<Map<String, dynamic>>> clientTransactions({
     int limit = 100,
