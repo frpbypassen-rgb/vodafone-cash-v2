@@ -778,6 +778,42 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
     }
   }
 
+  Future<String?> _requestOperationPinIfEnabled() async {
+    final status = await widget.controller.api.operationPinStatus();
+    if (status['enabled'] != true) return '';
+    final pin = TextEditingController();
+    try {
+      return await showDialog<String>(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => AlertDialog(
+          title: const Text('تأكيد التحويل'),
+          content: TextField(
+            controller: pin,
+            autofocus: true,
+            obscureText: true,
+            keyboardType: TextInputType.number,
+            maxLength: 6,
+            textAlign: TextAlign.center,
+            decoration: const InputDecoration(labelText: 'رمز العمليات'),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('إلغاء'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(context, pin.text.trim()),
+              child: const Text('تأكيد'),
+            ),
+          ],
+        ),
+      );
+    } finally {
+      pin.dispose();
+    }
+  }
+
   Future<void> _submit() async {
     if (_type == null || !_formKey.currentState!.validate()) return;
     if (_type == RegistrationAccountType.newClient && _agentName == null) {
@@ -6454,6 +6490,19 @@ class _TransferScreenState extends State<TransferScreen> {
       );
       return;
     }
+    String? operationPin;
+    try {
+      operationPin = await _requestOperationPinIfEnabled();
+    } on ApiFailure catch (error) {
+      setState(() => _error = error.message);
+      return;
+    }
+    if (operationPin == null) return;
+    if (operationPin.isNotEmpty &&
+        !RegExp(r'^\d{4,6}$').hasMatch(operationPin)) {
+      setState(() => _error = 'رمز العمليات يجب أن يكون من 4 إلى 6 أرقام.');
+      return;
+    }
     final payload = <String, dynamic>{
       'transferType': _serviceKey,
       'amount': amount,
@@ -6470,6 +6519,7 @@ class _TransferScreenState extends State<TransferScreen> {
       if (_requiresName) 'name': _name.text.trim(),
       if (_requiresCity) 'city': _city.text.trim(),
       if (_notes.text.trim().isNotEmpty) 'notes': _notes.text.trim(),
+      if (operationPin.isNotEmpty) 'operationPin': operationPin,
       if (_idCard != null)
         'idCardImage': 'data:image/jpeg;base64,${base64Encode(_idCard!)}',
       if (_oldReceipt != null)
@@ -6561,6 +6611,19 @@ class _TransferScreenState extends State<TransferScreen> {
       setState(() => _error = 'أدخل قيمة تحويل صحيحة.');
       return;
     }
+    String? operationPin;
+    try {
+      operationPin = await _requestOperationPinIfEnabled();
+    } on ApiFailure catch (error) {
+      setState(() => _error = error.message);
+      return;
+    }
+    if (operationPin == null) return;
+    if (operationPin.isNotEmpty &&
+        !RegExp(r'^\d{4,6}$').hasMatch(operationPin)) {
+      setState(() => _error = 'رمز العمليات يجب أن يكون من 4 إلى 6 أرقام.');
+      return;
+    }
     setState(() {
       _busy = true;
       _error = null;
@@ -6570,6 +6633,7 @@ class _TransferScreenState extends State<TransferScreen> {
         targetAccountCode: _targetAccountCode.text,
         amount: amount,
         notes: _notes.text,
+        operationPin: operationPin,
       );
       await widget.controller.refreshHome();
       if (!mounted) return;

@@ -1036,6 +1036,7 @@ class MobileApi {
     required String targetAccountCode,
     required double amount,
     String? notes,
+    String? operationPin,
   }) {
     return _request(
       'POST',
@@ -1044,6 +1045,8 @@ class MobileApi {
         'targetAccountCode': targetAccountCode.trim(),
         'amount': amount,
         if (notes != null && notes.trim().isNotEmpty) 'notes': notes.trim(),
+        if (operationPin != null && operationPin.trim().isNotEmpty)
+          'operationPin': operationPin.trim(),
       },
       idempotencyKey: _uuid.v4(),
     );
