@@ -231,7 +231,7 @@ const applyUploadedDocuments = (account, uploads = {}) => {
         if (!file?.filename) continue;
         replacements.push({
             kind,
-            fileUrl: `/uploads/${file.filename}`,
+            fileUrl: `/uploads/account-documents/${file.filename}`,
             originalName: cleanText(file.originalname, 180),
             uploadedAt: new Date()
         });

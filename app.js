@@ -326,6 +326,9 @@ app.use('/uploads/proofs', (req, res, next) => {
     }
     return res.status(403).send('Forbidden');
 });
+// وثائق الهوية والتراخيص لا تُعرض كرابط عام؛ لا يمكن فتحها إلا من جلسة
+// الإدارة الرئيسية التي تملك صلاحية تعديل الحسابات.
+app.use('/uploads/account-documents', requireAuth, requireMaster, express.static(path.join(__dirname, 'uploads')));
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 // روابط الإيصالات الموقعة المخصصة لقوالب واتساب. لا تتطلب جلسة، لكنها تنتهي تلقائياً.
