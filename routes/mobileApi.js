@@ -3547,8 +3547,14 @@ router.get('/security/operation-pin/status', authenticateJWT, async (req, res) =
     }
 });
 
-router.post('/security/operation-pin/setup', authenticateJWT, mfaMiddleware, async (req, res) => {
+router.post('/security/operation-pin/setup', authenticateJWT, async (req, res) => {
     try {
+        const account = await resolveMfaAccount(req);
+        const mfaToken = String(req.headers['x-mfa-token'] || req.body?.mfaToken || '').trim();
+        if (!accountMfaService.isEnabled(account)
+            || !(await accountMfaService.verifyAccountToken(account, mfaToken))) {
+            return sendMobileError(res, 403, 'MFA_REQUIRED', 'أدخل رمز Authenticator الصحيح لتفعيل رمز العمليات', req.correlationId);
+        }
         const profile = await operationPinService.setupInitialPin({
             principal: operationPinService.principalFromUser(req.user),
             pin: req.body?.pin,
