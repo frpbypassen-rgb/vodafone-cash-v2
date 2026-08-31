@@ -55,6 +55,29 @@ describe('business portal assistant privacy', () => {
         expect(result.suggestions).toContain('ما هو رصيدي؟');
     });
 
+    test('uses the configured real AI model for casual conversation', async () => {
+        const previousKey = process.env.OPENAI_API_KEY;
+        const previousFetch = global.fetch;
+        process.env.OPENAI_API_KEY = 'test-key';
+        global.fetch = jest.fn().mockResolvedValue({
+            ok: true,
+            headers: { get: () => null },
+            json: async () => ({ output_text: 'أهلاً! سعيد بالتحدث معك، كيف أساعدك اليوم؟' })
+        });
+        try {
+            const result = await assistant.answer({ workspace: { permissions: {}, entity: {} }, question: 'كيف حالك؟' });
+            expect(result.answer).toContain('سعيد بالتحدث');
+            expect(global.fetch).toHaveBeenCalledWith(
+                'https://api.openai.com/v1/responses',
+                expect.objectContaining({ method: 'POST' })
+            );
+        } finally {
+            if (previousKey === undefined) delete process.env.OPENAI_API_KEY;
+            else process.env.OPENAI_API_KEY = previousKey;
+            global.fetch = previousFetch;
+        }
+    });
+
     test('acknowledges a thanks message naturally', async () => {
         const result = await assistant.answer({ workspace: {}, question: 'شكراً' });
         expect(result.answer).toContain('العفو');

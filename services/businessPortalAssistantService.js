@@ -80,6 +80,8 @@ const transactionLabel = (status) => ({
     rejected: 'مرفوضة', cancelled_by_admin: 'ملغاة', deposit: 'إيداع مقبول', deposit_pending: 'إيداع قيد المراجعة', deduction: 'خصم'
 })[status] || status;
 
+const isCasualConversation = (text) => /^(?:مرحبا|أهلا|اهلا|السلام\s*عليكم|صباح\s*الخير|مساء\s*الخير|كيف\s*حال(?:ك|ك؟)(?:\s*اليوم)?|عامل\s*إيه|عامل\s*ايه|هاي|hello|hi|شكر[اآ]?(?:[\u064B-\u065F]+)?|متشكر|تسلم|ممتاز|تمام|اوكي|أوكي)[!؟?،,.\s]*$/iu.test(text);
+
 const reportPeriodFor = (question, now = new Date()) => {
     const end = new Date(now);
     const start = new Date(now);
@@ -102,6 +104,15 @@ const answer = async ({ workspace, question }) => {
     const text = normalize(question);
     if (text.length < 2) return response('اكتب سؤالك بوضوح. مثال: ما هو رصيدي؟ أو كيف أنشئ عملية تحويل؟');
     if (sensitiveQuestion.test(text)) return deny();
+
+    // Prefer the real model for natural conversation whenever it is configured.
+    // The local replies below remain the resilient fallback when no key exists.
+    if (isCasualConversation(text)) {
+        const aiAnswer = await openAiBusinessAssistantService.answer({ workspace, question: text });
+        if (aiAnswer) return response(aiAnswer, {
+            suggestions: ['ما هو رصيدي؟', 'آخر العمليات', 'اعرض تقارير اليوم', 'كيف أنشئ عملية تحويل؟']
+        });
+    }
 
     if (/^(?:مرحبا|أهلا|اهلا|السلام\s*عليكم|صباح\s*الخير|مساء\s*الخير|كيف\s*حال(?:ك|ك؟)|عامل\s*إيه|عامل\s*ايه|هاي|hello|hi)[!؟?،,.\s]*$/iu.test(text)) {
         return response('أهلاً بك! أنا بخير وجاهز لمساعدتك. يمكنك أن تسألني عن رصيدك، عملياتك، التقارير، الإيداعات أو خطوات التحويل.', {
@@ -259,4 +270,4 @@ const answer = async ({ workspace, question }) => {
     });
 };
 
-module.exports = { answer, classifyQuestion, extractEgyptianPhone, reportPeriodFor };
+module.exports = { answer, classifyQuestion, extractEgyptianPhone, reportPeriodFor, isCasualConversation };
