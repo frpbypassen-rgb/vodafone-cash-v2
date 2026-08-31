@@ -258,22 +258,6 @@ const completeAccountMfaChallenge = async (req, res) => {
     return loginAsClient(req, res, account, pending.accountType, { authenticatorVerified: true });
 };
 
-const redirectActiveSession = (req, res) => {
-    if (req.session.isLoggedIn) {
-        res.redirect('/');
-        return true;
-    }
-    if (req.session.isClientLoggedIn && req.session.clientId) {
-        res.redirect('/client/dashboard');
-        return true;
-    }
-    if (req.session.isExecutorLoggedIn && req.session.executorId) {
-        res.redirect('/executor-portal/dashboard');
-        return true;
-    }
-    return false;
-};
-
 // A deployment can invalidate the server-side session while the browser still
 // carries a secure cookie from the previous process.  Give the login page a
 // deterministic recovery path that destroys both sides of that stale session
@@ -1145,7 +1129,6 @@ const createPasswordResetTicket = async (resetRequest) => {
 
 router.get('/login', async (req, res) => {
     if (req.query?.reset === '1') return resetLoginSession(req, res);
-    if (redirectActiveSession(req, res)) return;
     const pendingExecutorMfa = req.session.pendingExecutorMfaLogin;
     if (pendingExecutorMfa?.executorId) {
         if (Date.now() - Number(pendingExecutorMfa.createdAt || 0) <= EXECUTOR_MFA_CHALLENGE_TTL_MS) {

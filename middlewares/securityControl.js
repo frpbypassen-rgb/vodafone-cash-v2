@@ -28,6 +28,9 @@ const hashesEqual = (left, right) => {
 
 const enforceSecuritySession = async (req, res, next) => {
     try {
+        // Login must always remain reachable. A stale session from a deployment
+        // cannot be allowed to redirect this public entry point back to itself.
+        if (req.path === '/login') return next();
         const principal = securityControl.sessionPrincipal(req.session);
         if (!principal) return next();
         if (req.session.emergencyOnly) {
