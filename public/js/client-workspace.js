@@ -512,7 +512,7 @@
         if (smartParsedData?.ready) transferForm?.requestSubmit();
     });
 
-    const addAssistantMessage = (message, role = 'assistant', action = null) => {
+    const addAssistantMessage = (message, role = 'assistant', action = null, draft = null) => {
         if (!assistantMessages) return;
         const element = document.createElement('div');
         element.className = `bw-assistant-message ${role}`;
@@ -521,6 +521,11 @@
             const link = document.createElement('a');
             link.href = action.href;
             link.textContent = action.label;
+            if (draft) {
+                link.addEventListener('click', () => {
+                    try { sessionStorage.setItem('businessAssistantTransferDraft', JSON.stringify(draft)); } catch (_) { /* optional browser storage */ }
+                });
+            }
             element.appendChild(link);
         }
         assistantMessages.appendChild(element);
@@ -550,7 +555,7 @@
             });
             const payload = await parseJsonResponse(response);
             if (!response.ok || !payload.success) throw new Error(payload.error || 'تعذر الحصول على إجابة الآن.');
-            addAssistantMessage(payload.answer, 'assistant', payload.action);
+            addAssistantMessage(payload.answer, 'assistant', payload.action, payload.draft);
             if (assistantSuggestions && Array.isArray(payload.suggestions) && payload.suggestions.length) {
                 assistantSuggestions.replaceChildren(...payload.suggestions.map((suggestion) => {
                     const button = document.createElement('button');
@@ -588,6 +593,26 @@
         element.className = `bw-form-result ${success ? 'success' : 'danger'}`;
         element.innerHTML = `<i class="fa-solid ${success ? 'fa-circle-check' : 'fa-circle-exclamation'}"></i> ${escapeHtml(message)}`;
     };
+
+    const applyAssistantTransferDraft = () => {
+        let draft;
+        try {
+            draft = JSON.parse(sessionStorage.getItem('businessAssistantTransferDraft') || 'null');
+            sessionStorage.removeItem('businessAssistantTransferDraft');
+        } catch (_) { return; }
+        if (!draft || !draft.phone || !draft.amountEGP) return;
+        if (draft.serviceKey && (config.services || []).some((service) => service.key === draft.serviceKey)) {
+            selectService(draft.serviceKey, { resetSmart: true });
+        }
+        if (transferDestination) transferDestination.value = String(draft.phone);
+        if (transferAccountNumber) transferAccountNumber.value = String(draft.phone);
+        if (transferAmount) transferAmount.value = String(draft.amountEGP);
+        if (transferNotes) transferNotes.value = String(draft.note || '');
+        if (transferBeneficiary && draft.beneficiaryName) transferBeneficiary.value = String(draft.beneficiaryName);
+        updateCostEstimate();
+        showFormResult(transferFormResult, 'تم فتح مسودة من المساعد. راجع البيانات والتكلفة قبل إرسال العملية.', true);
+    };
+    applyAssistantTransferDraft();
 
     const validateTransfer = () => {
         const amount = Number(transferAmount?.value || 0);

@@ -66,4 +66,14 @@ describe('business portal assistant privacy', () => {
         const result = await assistant.answer({ workspace: { permissions: {} }, question: 'افتح اللوحة الرئيسية' });
         expect(result.action).toEqual({ label: 'فتح الرئيسية', href: '/client/dashboard' });
     });
+
+    test('prepares a transfer draft but never executes the transaction', async () => {
+        const result = await assistant.answer({
+            workspace: { permissions: { canTransfer: true } },
+            question: 'حول 01012345678 مبلغ 250 جنيه ملاحظة: دفعة فاتورة'
+        });
+        expect(result.action).toEqual({ label: 'فتح مسودة التحويل', href: '/client/services' });
+        expect(result.draft).toMatchObject({ phone: '01012345678', amountEGP: 250, note: 'دفعة فاتورة' });
+        expect(result.answer).toContain('لن يتم إرسال');
+    });
 });

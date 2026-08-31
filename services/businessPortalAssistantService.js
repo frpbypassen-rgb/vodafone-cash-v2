@@ -2,6 +2,7 @@
 
 const Transaction = require('../models/Transaction');
 const { ownershipFilter } = require('./businessPortalService');
+const { parseTransferMessage } = require('../utils/smartTransferParser');
 
 const sensitiveQuestion = /(?:كود|source|api|token|secret|password|كلمة\s*المرور|رمز\s*(?:Authenticator|المصادقة|الحماية)|قاعدة\s*البيانات|سيرفر|server|الإدارة|المدير|حسابات\s*الأخرى|مفتاح)/iu;
 const normalize = (value) => String(value || '').trim().replace(/\s+/g, ' ').slice(0, 800);
@@ -40,8 +41,23 @@ const response = (answer, options = {}) => ({
     answer,
     safeMode: true,
     suggestions: options.suggestions || [],
-    action: options.action || null
+    action: options.action || null,
+    draft: options.draft || null
 });
+
+const transferDraftResponse = (parsed) => response(
+    `قرأت الرسالة كمسودة فقط: رقم المستلم ${parsed.phone}، المبلغ ${money(parsed.amountEGP)} جنيه${parsed.note ? `، والملاحظة: ${parsed.note}` : ''}. لن يتم إرسال أي عملية من المساعد؛ افتح المسودة وراجع الخدمة والتكلفة ثم أكدها بنفسك.`,
+    {
+        action: { label: 'فتح مسودة التحويل', href: '/client/services' },
+        draft: {
+            phone: parsed.phone,
+            amountEGP: parsed.amountEGP,
+            note: parsed.note || '',
+            beneficiaryName: parsed.beneficiaryName || '',
+            serviceKey: parsed.serviceKey || 'vodafone'
+        }
+    }
+);
 
 const deny = () => response(
     'لا أستطيع المساعدة في الأكواد أو كلمات المرور أو رموز الحماية أو بيانات الإدارة والحسابات الأخرى. يمكنني مساعدتك فقط في عمليات وتقارير وإعدادات الحساب المفتوح.',
@@ -66,6 +82,16 @@ const answer = async ({ workspace, question }) => {
     const text = normalize(question);
     if (text.length < 2) return response('اكتب سؤالك بوضوح. مثال: ما هو رصيدي؟ أو كيف أنشئ عملية تحويل؟');
     if (sensitiveQuestion.test(text)) return deny();
+
+    // This produces a browser-only draft and never creates a Transaction.
+    const parsedDraft = parseTransferMessage(text);
+    if (parsedDraft.phone && parsedDraft.amountEGP && /(?:حول|حوّل|تحويل|ارسال|إرسال|ادفع|دفع|مبلغ|جنيه|egp|ج\.?\s*م?\.?)/iu.test(text)) {
+        if (!workspace.permissions?.canTransfer) return response('لا تملك صلاحية إنشاء التحويلات من هذا الحساب.');
+        if (!parsedDraft.ready) {
+            return response(`تعذر تجهيز المسودة لأن الرسالة تحتاج مراجعة: ${(parsedDraft.missing || []).concat(parsedDraft.warnings || []).join(' ')}`);
+        }
+        return transferDraftResponse(parsedDraft);
+    }
 
     if (/(?:رصيد|كم معي|متاح)/iu.test(text) && !/(?:تحويل\s*رصيد|رصيد\s*داخلي|بين\s*الحسابات)/iu.test(text)) {
         if (!workspace.permissions.canViewBalance) return response('لا تملك صلاحية عرض رصيد الشركة أو الوكالة من هذا الحساب.');
