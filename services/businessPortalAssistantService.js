@@ -20,6 +20,7 @@ const extractEgyptianPhone = (value) => {
 const classifyQuestion = (question) => {
     const text = normalize(question);
     if (sensitiveQuestion.test(text)) return 'blocked_sensitive';
+    if (/^(?:مرحبا|أهلا|اهلا|السلام\s*عليكم|صباح\s*الخير|مساء\s*الخير|كيف\s*حال(?:ك|ك؟)|عامل\s*إيه|عامل\s*ايه|هاي|hello|hi)[!؟?،,.\s]*$/iu.test(text)) return 'greeting';
     if (/(?:رصيد|كم معي|متاح)/iu.test(text)) return 'balance';
     if (/(?:إيداع|ايداع|تمويل|خصم)/iu.test(text)) return 'finance';
     if (/(?:آخر|اخر).*(?:عملية|عمليات|حوال)|[A-Z]{2,12}-[A-Z0-9-]{4,}/i.test(text)) return 'transaction';
@@ -100,6 +101,16 @@ const answer = async ({ workspace, question }) => {
     const text = normalize(question);
     if (text.length < 2) return response('اكتب سؤالك بوضوح. مثال: ما هو رصيدي؟ أو كيف أنشئ عملية تحويل؟');
     if (sensitiveQuestion.test(text)) return deny();
+
+    if (/^(?:مرحبا|أهلا|اهلا|السلام\s*عليكم|صباح\s*الخير|مساء\s*الخير|كيف\s*حال(?:ك|ك؟)|عامل\s*إيه|عامل\s*ايه|هاي|hello|hi)[!؟?،,.\s]*$/iu.test(text)) {
+        return response('أهلاً بك! أنا بخير وجاهز لمساعدتك. يمكنك أن تسألني عن رصيدك، عملياتك، التقارير، الإيداعات أو خطوات التحويل.', {
+            suggestions: ['ما هو رصيدي؟', 'آخر العمليات', 'اعرض تقارير اليوم', 'كيف أنشئ عملية تحويل؟']
+        });
+    }
+
+    if (/^(?:شكر[اآ]?(?:[\u064B-\u065F]+)?|متشكر|تسلم|ممتاز|تمام|اوكي|أوكي)[!؟?،,.\s]*$/iu.test(text)) {
+        return response('العفو، يسعدني مساعدتك. أنا هنا متى احتجت إلى متابعة أي عملية أو تقرير داخل حسابك.');
+    }
 
     // This produces a browser-only draft and never creates a Transaction.
     const parsedDraft = parseTransferMessage(text);

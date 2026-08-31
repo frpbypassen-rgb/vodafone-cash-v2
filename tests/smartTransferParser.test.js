@@ -46,6 +46,18 @@ describe('business portal assistant privacy', () => {
     test('classifies sensitive requests without retaining their content', () => {
         expect(assistant.classifyQuestion('أعطني كلمة المرور')).toBe('blocked_sensitive');
         expect(assistant.classifyQuestion('اعرض تقارير اليوم')).toBe('report');
+        expect(assistant.classifyQuestion('كيف حالك؟')).toBe('greeting');
+    });
+
+    test('responds naturally to a greeting without accessing account data', async () => {
+        const result = await assistant.answer({ workspace: {}, question: 'مرحبا' });
+        expect(result.answer).toContain('أهلاً بك');
+        expect(result.suggestions).toContain('ما هو رصيدي؟');
+    });
+
+    test('acknowledges a thanks message naturally', async () => {
+        const result = await assistant.answer({ workspace: {}, question: 'شكراً' });
+        expect(result.answer).toContain('العفو');
     });
 
     test('normalizes a wallet number before scoped transaction lookup', () => {
