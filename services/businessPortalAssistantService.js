@@ -3,6 +3,7 @@
 const Transaction = require('../models/Transaction');
 const { ownershipFilter } = require('./businessPortalService');
 const { parseTransferMessage } = require('../utils/smartTransferParser');
+const openAiBusinessAssistantService = require('./openAiBusinessAssistantService');
 
 const sensitiveQuestion = /(?:كود|source|api|token|secret|password|كلمة\s*المرور|رمز\s*(?:Authenticator|المصادقة|الحماية)|قاعدة\s*البيانات|سيرفر|server|الإدارة|المدير|حسابات\s*الأخرى|مفتاح)/iu;
 const normalize = (value) => String(value || '').trim().replace(/\s+/g, ' ').slice(0, 800);
@@ -247,6 +248,11 @@ const answer = async ({ workspace, question }) => {
             action: { label: 'فتح الإدارة', href: /(?:موظف|فريق)/iu.test(text) ? '/client/staff' : '/client/customers' }
         });
     }
+
+    const aiAnswer = await openAiBusinessAssistantService.answer({ workspace, question: text });
+    if (aiAnswer) return response(aiAnswer, {
+        suggestions: ['ما هو رصيدي؟', 'آخر العمليات', 'اعرض تقارير اليوم', 'كيف أنشئ عملية تحويل؟']
+    });
 
     return response('أستطيع مساعدتك في الرصيد، حالة عملية برقمها، تقارير اليوم، الإيداعات، التحويلات، الخدمات، الدعم، الموظفين والعملاء ضمن صلاحيات الحساب المفتوح فقط.', {
         suggestions: ['ما هو رصيدي؟', 'آخر العمليات', 'كيف أحول رصيداً داخلياً؟', 'أحتاج إلى دعم فني']

@@ -60,6 +60,16 @@ describe('business portal assistant privacy', () => {
         expect(result.answer).toContain('العفو');
     });
 
+    test('keeps the local assistant available when a real AI key is not configured', async () => {
+        const previousKey = process.env.OPENAI_API_KEY;
+        delete process.env.OPENAI_API_KEY;
+        const result = await assistant.answer({ workspace: {}, question: 'سؤال عام خارج خطوات المنظومة' });
+        expect(result.success).toBe(true);
+        expect(result.answer).toContain('أستطيع مساعدتك');
+        if (previousKey === undefined) delete process.env.OPENAI_API_KEY;
+        else process.env.OPENAI_API_KEY = previousKey;
+    });
+
     test('normalizes a wallet number before scoped transaction lookup', () => {
         expect(assistant.extractEgyptianPhone('حالة آخر عملية للرقم +20 10 1234 5678')).toBe('01012345678');
         expect(assistant.classifyQuestion('ما حالة عملية المحفظة 01012345678؟')).toBe('transaction');
