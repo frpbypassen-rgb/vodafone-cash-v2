@@ -86,6 +86,17 @@ router.get('/', async (req, res) => {
         devices,
         accessRequests: requests.map((request) => ({ ...request, principalLabel: principalLabel(request.principalType) })),
         admins,
+        // Serialize this once on the server. Keeping the template free from a
+        // nested map/JSON expression prevents a malformed inline script from
+        // disabling the approval and rejection controls in the browser.
+        adminRecordsJson: JSON.stringify(admins.map((admin) => ({
+            id: String(admin._id),
+            name: admin.name || '',
+            username: admin.webUsername || '',
+            role: admin.role || '',
+            status: admin.status || '',
+            permissions: Array.isArray(admin.permissions) ? admin.permissions : []
+        }))).replace(/</g, '\\u003c'),
         auditLogs,
         permissions: PERMISSIONS,
         currentPrincipal: currentPrincipal(req),
