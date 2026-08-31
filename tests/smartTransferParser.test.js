@@ -15,6 +15,11 @@ describe('smart transfer parser', () => {
         expect(parsed.serviceKey).toBe('sefa_niger');
     });
 
+    test('accepts the common abbreviated Egyptian pound symbol', () => {
+        const parsed = parseTransferMessage('01012345678 ١,٢٥٠ ج ملاحظة: توريد اليوم');
+        expect(parsed).toMatchObject({ phone: '01012345678', amountEGP: 1250, note: 'توريد اليوم', ready: true });
+    });
+
     test('does not allow automatic sending when two recipient numbers exist', () => {
         const parsed = parseTransferMessage('01011111111 و 01022222222 مبلغ 500');
         expect(parsed.ready).toBe(false);
