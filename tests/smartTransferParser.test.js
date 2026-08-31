@@ -48,6 +48,11 @@ describe('business portal assistant privacy', () => {
         expect(assistant.classifyQuestion('اعرض تقارير اليوم')).toBe('report');
     });
 
+    test('normalizes a wallet number before scoped transaction lookup', () => {
+        expect(assistant.extractEgyptianPhone('حالة آخر عملية للرقم +20 10 1234 5678')).toBe('01012345678');
+        expect(assistant.classifyQuestion('ما حالة عملية المحفظة 01012345678؟')).toBe('transaction');
+    });
+
     test('guides an allowed internal balance transfer without executing it', async () => {
         const result = await assistant.answer({
             workspace: { permissions: { canTransfer: true } },

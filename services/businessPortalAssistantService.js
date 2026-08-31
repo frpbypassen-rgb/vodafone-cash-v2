@@ -6,6 +6,15 @@ const { ownershipFilter } = require('./businessPortalService');
 const sensitiveQuestion = /(?:كود|source|api|token|secret|password|كلمة\s*المرور|رمز\s*(?:Authenticator|المصادقة|الحماية)|قاعدة\s*البيانات|سيرفر|server|الإدارة|المدير|حسابات\s*الأخرى|مفتاح)/iu;
 const normalize = (value) => String(value || '').trim().replace(/\s+/g, ' ').slice(0, 800);
 const money = (value) => Number(value || 0).toLocaleString('en-US', { maximumFractionDigits: 3 });
+const extractEgyptianPhone = (value) => {
+    const raw = normalize(value).match(/(?:\+?20|0020)?[\s().-]*0?1[0125](?:[\s().-]*\d){8}/)?.[0];
+    if (!raw) return '';
+    let digits = raw.replace(/\D/g, '');
+    if (digits.startsWith('0020')) digits = digits.slice(4);
+    else if (digits.startsWith('20')) digits = digits.slice(2);
+    if (/^1[0125]\d{8}$/.test(digits)) digits = `0${digits}`;
+    return /^01[0125]\d{8}$/.test(digits) ? digits : '';
+};
 
 const classifyQuestion = (question) => {
     const text = normalize(question);
@@ -13,6 +22,7 @@ const classifyQuestion = (question) => {
     if (/(?:رصيد|كم معي|متاح)/iu.test(text)) return 'balance';
     if (/(?:إيداع|ايداع|تمويل|خصم)/iu.test(text)) return 'finance';
     if (/(?:آخر|اخر).*(?:عملية|عمليات|حوال)|[A-Z]{2,12}-[A-Z0-9-]{4,}/i.test(text)) return 'transaction';
+    if (/(?:حالة|وضع|آخر|اخر).*(?:رقم|محفظ|عملية|حوال)/iu.test(text) && extractEgyptianPhone(text)) return 'transaction';
     if (/(?:تقرير|اليوم|العمليات|احصائ|إحصائ)/iu.test(text)) return 'report';
     if (/(?:تحويل\s*رصيد|رصيد\s*داخلي|بين\s*الحسابات)/iu.test(text)) return 'internal_transfer';
     if (/(?:كيف.*(?:تحويل|ارسال|إرسال)|انشئ.*عملية|إنشاء.*عملية)/iu.test(text)) return 'transfer_help';
@@ -68,6 +78,17 @@ const answer = async ({ workspace, question }) => {
         const tx = await scopedTransaction(workspace, transactionId);
         if (!tx) return response('لم أجد عملية بهذا الرقم داخل الحساب المفتوح. راجع رقم العملية أو افتح سجل العمليات.');
         return response(`العملية ${tx.customId} حالتها: ${transactionLabel(tx.status)}. القيمة ${money(tx.amount)}، والتكلفة ${money(tx.costLYD)} LYD.`, {
+            action: { label: 'فتح سجل العمليات', href: '/client/transactions' }
+        });
+    }
+
+    const destination = extractEgyptianPhone(text);
+    if (destination && /(?:حالة|وضع|آخر|اخر).*(?:رقم|محفظ|عملية|حوال)/iu.test(text)) {
+        const tx = await Transaction.findOne({
+            $and: [await ownershipFilter(workspace), { $or: [{ vodafoneNumber: destination }, { accountNumber: destination }] }]
+        }).sort({ createdAt: -1 }).select('customId status amount costLYD createdAt').lean();
+        if (!tx) return response('لا توجد عملية مسجلة لهذا الرقم داخل الحساب المفتوح. تأكد من الرقم أو افتح سجل العمليات.');
+        return response(`آخر عملية للرقم ${destination.slice(0, 3)}••••${destination.slice(-3)} هي ${tx.customId} وحالتها ${transactionLabel(tx.status)}. القيمة ${money(tx.amount)}.`, {
             action: { label: 'فتح سجل العمليات', href: '/client/transactions' }
         });
     }
@@ -156,4 +177,4 @@ const answer = async ({ workspace, question }) => {
     });
 };
 
-module.exports = { answer, classifyQuestion };
+module.exports = { answer, classifyQuestion, extractEgyptianPhone };
