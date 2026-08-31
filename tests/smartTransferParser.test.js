@@ -15,6 +15,13 @@ describe('smart transfer parser', () => {
         expect(parsed.confidence).toBe('review');
         expect(parsed.warnings.join(' ')).toContain('أكثر من رقم');
     });
+
+    test('requires review when a message contains two distinct amounts', () => {
+        const parsed = parseTransferMessage('01011111111 مبلغ 500 جنيه ورسوم 20 جنيه ملاحظة اختبار');
+        expect(parsed.ready).toBe(false);
+        expect(parsed.candidates.amounts).toEqual(expect.arrayContaining([500, 20]));
+        expect(parsed.warnings.join(' ')).toContain('أكثر من قيمة');
+    });
 });
 
 describe('business portal assistant privacy', () => {

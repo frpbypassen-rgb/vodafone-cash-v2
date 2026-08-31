@@ -63,11 +63,22 @@ const amountPatterns = Object.freeze([
 ]);
 
 const findAmount = (text, phones) => {
+    const labelledCandidates = [];
     for (const pattern of amountPatterns) {
         const match = text.match(pattern);
         const value = match ? normalizeAmountToken(match[1]) : null;
-        if (value) return { value, source: match[0] };
+        if (value && !labelledCandidates.some((item) => item.value === value)) {
+            labelledCandidates.push({ value, source: match[0] });
+        }
+        const globalPattern = new RegExp(pattern.source, 'giu');
+        for (const additional of text.matchAll(globalPattern)) {
+            const additionalValue = normalizeAmountToken(additional[1]);
+            if (additionalValue && !labelledCandidates.some((item) => item.value === additionalValue)) {
+                labelledCandidates.push({ value: additionalValue, source: additional[0] });
+            }
+        }
     }
+    if (labelledCandidates.length) return { ...labelledCandidates[0], candidates: labelledCandidates.map((item) => item.value) };
 
     let fallbackText = text;
     phones.forEach((phone) => { fallbackText = fallbackText.replace(phone.source, ' '); });
@@ -75,8 +86,13 @@ const findAmount = (text, phones) => {
     const numericTokens = [...fallbackText.matchAll(/\d+(?:[.,]\d+)*/g)]
         .map((match) => ({ raw: match[0], value: normalizeAmountToken(match[0]) }))
         .filter((candidate) => candidate.value);
-    const likelyAmount = numericTokens.find((candidate) => candidate.value >= 10 && candidate.raw.replace(/\D/g, '').length <= 9);
-    return likelyAmount ? { value: likelyAmount.value, source: likelyAmount.raw } : { value: null, source: '' };
+    const likelyAmounts = numericTokens
+        .filter((candidate) => candidate.value >= 10 && candidate.raw.replace(/\D/g, '').length <= 9)
+        .filter((candidate, index, all) => all.findIndex((item) => item.value === candidate.value) === index);
+    const likelyAmount = likelyAmounts[0];
+    return likelyAmount
+        ? { value: likelyAmount.value, source: likelyAmount.raw, candidates: likelyAmounts.map((item) => item.value) }
+        : { value: null, source: '', candidates: [] };
 };
 
 const detectService = (text) => SERVICE_PATTERNS.find((service) => service.pattern.test(text))?.key || null;
@@ -116,22 +132,23 @@ const parseTransferMessage = (rawMessage) => {
     if (!amount.value) missing.push('المبلغ بالجنيه');
     const warnings = [];
     if (phones.length > 1) warnings.push('توجد أكثر من رقم هاتف؛ تم اختيار الرقم الأول. راجعه قبل الإرسال.');
+    if ((amount.candidates || []).length > 1) warnings.push('توجد أكثر من قيمة مالية؛ تم اختيار أول مبلغ. راجعه قبل الإرسال.');
     if (!serviceKey) warnings.push('لم يتم تحديد خدمة التحويل؛ تم اختيار محافظ كاش ويمكنك تغييرها.');
     if (!note) warnings.push('لم يتم العثور على ملاحظة؛ يمكنك إضافة ملاحظة اختيارية قبل الإرسال.');
     const confidence = missing.length
         ? 'low'
-        : (phones.length > 1 ? 'review' : 'high');
+        : (phones.length > 1 || (amount.candidates || []).length > 1 ? 'review' : 'high');
 
     return {
         phone: phone.value,
         amountEGP: amount.value,
         note,
         serviceKey,
-        ready: missing.length === 0 && phones.length <= 1,
+        ready: missing.length === 0 && phones.length <= 1 && (amount.candidates || []).length <= 1,
         missing,
         warnings,
         confidence,
-        candidates: { phones: phones.map((item) => item.value) }
+        candidates: { phones: phones.map((item) => item.value), amounts: amount.candidates || [] }
     };
 };
 
