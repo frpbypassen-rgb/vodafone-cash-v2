@@ -78,6 +78,24 @@ const transactionLabel = (status) => ({
     rejected: 'مرفوضة', cancelled_by_admin: 'ملغاة', deposit: 'إيداع مقبول', deposit_pending: 'إيداع قيد المراجعة', deduction: 'خصم'
 })[status] || status;
 
+const reportPeriodFor = (question, now = new Date()) => {
+    const end = new Date(now);
+    const start = new Date(now);
+    start.setHours(0, 0, 0, 0);
+    end.setHours(0, 0, 0, 0);
+    if (/(?:أمس|امس)/iu.test(question)) {
+        start.setDate(start.getDate() - 1);
+        return { start, end, label: 'أمس' };
+    }
+    if (/(?:هذا\s*الأسبوع|هذا\s*الاسبوع|الأسبوع\s*الحالي|الاسبوع\s*الحالي)/iu.test(question)) {
+        const weekday = start.getDay();
+        const daysSinceSaturday = (weekday + 1) % 7;
+        start.setDate(start.getDate() - daysSinceSaturday);
+        return { start, end: new Date(now), label: 'هذا الأسبوع' };
+    }
+    return { start, end: new Date(now), label: 'اليوم' };
+};
+
 const answer = async ({ workspace, question }) => {
     const text = normalize(question);
     if (text.length < 2) return response('اكتب سؤالك بوضوح. مثال: ما هو رصيدي؟ أو كيف أنشئ عملية تحويل؟');
@@ -173,15 +191,15 @@ const answer = async ({ workspace, question }) => {
 
     if (/(?:تقرير|اليوم|العمليات|احصائ|إحصائ)/iu.test(text)) {
         const ownership = await ownershipFilter(workspace);
-        const start = new Date(); start.setHours(0, 0, 0, 0);
+        const period = reportPeriodFor(text);
         const rows = await Transaction.aggregate([
-            { $match: { $and: [ownership, { createdAt: { $gte: start } }] } },
+            { $match: { $and: [ownership, { createdAt: { $gte: period.start, $lt: period.end } }] } },
             { $group: { _id: '$status', count: { $sum: 1 } } }
         ]);
         const total = rows.reduce((sum, row) => sum + row.count, 0);
         const completed = rows.find((row) => row._id === 'completed')?.count || 0;
         const pending = rows.filter((row) => ['pending', 'processing', 'accepted'].includes(row._id)).reduce((sum, row) => sum + row.count, 0);
-        return response(`ملخص اليوم للحساب المفتوح: ${total} عملية، منها ${completed} مكتملة و${pending} قيد المتابعة.`, {
+        return response(`ملخص ${period.label} للحساب المفتوح: ${total} عملية، منها ${completed} مكتملة و${pending} قيد المتابعة.`, {
             action: { label: 'فتح التقارير', href: '/client/reports' }
         });
     }
@@ -224,4 +242,4 @@ const answer = async ({ workspace, question }) => {
     });
 };
 
-module.exports = { answer, classifyQuestion, extractEgyptianPhone };
+module.exports = { answer, classifyQuestion, extractEgyptianPhone, reportPeriodFor };

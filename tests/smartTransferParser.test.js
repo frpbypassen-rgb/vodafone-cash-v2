@@ -76,4 +76,11 @@ describe('business portal assistant privacy', () => {
         expect(result.draft).toMatchObject({ phone: '01012345678', amountEGP: 250, note: 'دفعة فاتورة' });
         expect(result.answer).toContain('لن يتم إرسال');
     });
+
+    test('selects yesterday as a closed reporting period', () => {
+        const period = assistant.reportPeriodFor('اعرض تقارير أمس', new Date(2026, 8, 1, 14));
+        expect(period.label).toBe('أمس');
+        expect([period.start.getFullYear(), period.start.getMonth(), period.start.getDate()]).toEqual([2026, 7, 31]);
+        expect([period.end.getFullYear(), period.end.getMonth(), period.end.getDate()]).toEqual([2026, 8, 1]);
+    });
 });
