@@ -274,6 +274,24 @@ const redirectActiveSession = (req, res) => {
     return false;
 };
 
+// A deployment can invalidate the server-side session while the browser still
+// carries a secure cookie from the previous process.  Give the login page a
+// deterministic recovery path that destroys both sides of that stale session
+// instead of leaving the visitor in a redirect loop.
+const resetLoginSession = (req, res) => {
+    const finish = () => {
+        res.clearCookie('ahram.sid', {
+            path: '/',
+            httpOnly: true,
+            sameSite: 'lax',
+            secure: req.secure || process.env.SECURE_COOKIE === 'true'
+        });
+        return res.redirect(303, '/login?reset=done');
+    };
+    if (!req.session) return finish();
+    return req.session.destroy(finish);
+};
+
 // Web account security is intentionally isolated from login and financial routes.
 router.get('/security/mfa/status', requireWebMfaContext, async (req, res) => {
     try {
@@ -1126,6 +1144,7 @@ const createPasswordResetTicket = async (resetRequest) => {
 };
 
 router.get('/login', async (req, res) => {
+    if (req.query?.reset === '1') return resetLoginSession(req, res);
     if (redirectActiveSession(req, res)) return;
     const pendingExecutorMfa = req.session.pendingExecutorMfaLogin;
     if (pendingExecutorMfa?.executorId) {
