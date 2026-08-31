@@ -326,7 +326,10 @@ router.post('/sub-accounts/toggle/:id', requireClientAuth, clientDashboardContro
 // ===============================================
 // 💸 Transaction Routes
 // ===============================================
-router.post('/transfer', requireClientAuth, requireOperationPin, clientDocumentUpload.single('idCardImage'), clientTransactionController.postTransfer);
+// The transfer form is submitted as multipart/form-data when an identity image
+// is attached. Parse it before checking the optional operation PIN so the PIN
+// field is available on req.body for company and agency accounts.
+router.post('/transfer', requireClientAuth, clientDocumentUpload.single('idCardImage'), requireOperationPin, clientTransactionController.postTransfer);
 router.post('/balance-transfer/lookup', requireClientAuth, clientTransactionController.lookupBalanceTransferTarget);
 router.post('/balance-transfer', requireClientAuth, requireOperationPin, clientTransactionController.postBalanceTransfer);
 router.post('/buy-card', requireClientAuth, clientTransactionController.postBuyCard);
