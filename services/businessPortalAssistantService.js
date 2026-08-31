@@ -27,6 +27,13 @@ const scopedTransaction = async (workspace, query) => {
     }).select('customId status amount costLYD transferType createdAt updatedAt vodafoneNumber accountNumber').lean();
 };
 
+const scopedFilter = async (workspace, extra = {}) => ({ $and: [await ownershipFilter(workspace), extra] });
+
+const transactionLabel = (status) => ({
+    completed: 'مكتملة', pending: 'قيد المراجعة', processing: 'قيد التنفيذ', accepted: 'مقبولة',
+    rejected: 'مرفوضة', cancelled_by_admin: 'ملغاة', deposit: 'إيداع مقبول', deposit_pending: 'إيداع قيد المراجعة', deduction: 'خصم'
+})[status] || status;
+
 const answer = async ({ workspace, question }) => {
     const text = normalize(question);
     if (text.length < 2) return response('اكتب سؤالك بوضوح. مثال: ما هو رصيدي؟ أو كيف أنشئ عملية تحويل؟');
@@ -44,9 +51,32 @@ const answer = async ({ workspace, question }) => {
     if (transactionId) {
         const tx = await scopedTransaction(workspace, transactionId);
         if (!tx) return response('لم أجد عملية بهذا الرقم داخل الحساب المفتوح. راجع رقم العملية أو افتح سجل العمليات.');
-        const labels = { completed: 'مكتملة', pending: 'قيد المراجعة', processing: 'قيد التنفيذ', accepted: 'مقبولة', rejected: 'مرفوضة', cancelled_by_admin: 'ملغاة' };
-        return response(`العملية ${tx.customId} حالتها: ${labels[tx.status] || tx.status}. القيمة ${money(tx.amount)}، والتكلفة ${money(tx.costLYD)} LYD.`, {
+        return response(`العملية ${tx.customId} حالتها: ${transactionLabel(tx.status)}. القيمة ${money(tx.amount)}، والتكلفة ${money(tx.costLYD)} LYD.`, {
             action: { label: 'فتح سجل العمليات', href: '/client/transactions' }
+        });
+    }
+
+    if (/(?:آخر|اخر).*(?:عملية|عمليات|حوال)/iu.test(text)) {
+        const rows = await Transaction.find(await scopedFilter(workspace))
+            .sort({ createdAt: -1 }).limit(3).select('customId status amount createdAt').lean();
+        if (!rows.length) return response('لا توجد عمليات مسجلة في الحساب المفتوح حتى الآن.');
+        const list = rows.map((row) => `${row.customId}: ${transactionLabel(row.status)} (${money(row.amount)})`).join('\n');
+        return response(`آخر العمليات في الحساب المفتوح:\n${list}`, {
+            action: { label: 'فتح سجل العمليات', href: '/client/transactions' }
+        });
+    }
+
+    if (/(?:إيداع|ايداع|تمويل|خصم)/iu.test(text)) {
+        if (!workspace.permissions.canViewBalance) return response('لا تملك صلاحية عرض الإيداعات أو حركة الرصيد من هذا الحساب.');
+        const rows = await Transaction.aggregate([
+            { $match: await scopedFilter(workspace, { status: { $in: ['deposit', 'deposit_pending', 'deduction'] } }) },
+            { $group: { _id: '$status', count: { $sum: 1 }, value: { $sum: '$amount' } } }
+        ]);
+        const accepted = rows.find((row) => row._id === 'deposit');
+        const pendingDeposit = rows.find((row) => row._id === 'deposit_pending');
+        const deductions = rows.find((row) => row._id === 'deduction');
+        return response(`حركة الرصيد في الحساب المفتوح: إيداعات مقبولة ${money(accepted?.value)} LYD، إيداعات قيد المراجعة ${pendingDeposit?.count || 0}، وخصومات ${money(deductions?.value)} LYD.`, {
+            action: { label: 'فتح الحركات المالية', href: '/client/finance' }
         });
     }
 
