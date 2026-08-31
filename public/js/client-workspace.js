@@ -543,7 +543,7 @@
     };
 
     const requestOperationPin = async () => {
-        const response = await fetch('/auth/security/operation-pin/status', {
+        const response = await fetch('/security/operation-pin/status', {
             headers: { Accept: 'application/json', 'x-csrf-token': config.csrfToken || '' }
         });
         const status = await parseJsonResponse(response);

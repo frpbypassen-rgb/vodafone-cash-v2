@@ -2142,7 +2142,7 @@
         }
 
         async function requestOperationPinIfEnabled() {
-            const response = await fetch('/auth/security/operation-pin/status', { headers: { 'Accept': 'application/json' } });
+            const response = await fetch('/security/operation-pin/status', { headers: { 'Accept': 'application/json' } });
             const status = await response.json();
             if (!response.ok || !status.success) throw new Error(status.error || 'تعذر التحقق من حماية التحويل.');
             if (!status.enabled) return '';

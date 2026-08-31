@@ -78,7 +78,7 @@ const requireClientAuth = async (req, res, next) => {
         if (req.session?.isExecutorLoggedIn && req.session?.executorId) {
             return res.redirect('/executor-portal/dashboard');
         }
-        if (req.session?.mfaEnrollmentRequired) return res.redirect('/auth/security/mfa-enroll');
+        if (req.session?.mfaEnrollmentRequired) return res.redirect('/security/mfa-enroll');
         if (await isActiveClientSession(req)) return next();
         return endUnauthorizedClientSession(req, res);
     } catch (_error) {

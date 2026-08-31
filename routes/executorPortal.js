@@ -24,7 +24,7 @@ const requireExecutorAuth = async (req, res, next) => {
     if (!req.session.isExecutorLoggedIn || !req.session.executorId) {
         return rejectExecutorSession(req, res);
     }
-    if (req.session.mfaEnrollmentRequired) return res.redirect('/auth/security/mfa-enroll');
+    if (req.session.mfaEnrollmentRequired) return res.redirect('/security/mfa-enroll');
     try {
         const employee = await Employee.findById(req.session.executorId).populate('groupId');
         if (!employee || employee.status !== 'active' || !employee.groupId || employee.groupId.status !== 'active') {
