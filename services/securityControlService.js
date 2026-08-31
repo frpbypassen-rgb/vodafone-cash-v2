@@ -9,7 +9,10 @@ const Notification = require('../models/Notification');
 const { isSecurityVerificationRequired } = require('../config/securityPolicy');
 
 const DEVICE_COOKIE = 'ahrampay_security_device';
-const REQUEST_TTL_MS = 15 * 60 * 1000;
+// The requesting device cannot access the account while pending, so a longer
+// window lets the administrator review it without forcing the user to repeat
+// the Authenticator flow every few minutes.
+const REQUEST_TTL_MS = 24 * 60 * 60 * 1000;
 const DEFAULT_LOCKDOWN_MINUTES = 60;
 const stateCache = { value: null, expiresAt: 0 };
 

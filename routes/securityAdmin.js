@@ -248,7 +248,7 @@ router.post('/policy', requireSecurityManager, requireRecentPasskey, async (req,
     }
 });
 
-router.post('/access-requests/:id/:decision', requireSecurityManager, requireRecentPasskey, async (req, res) => {
+router.post('/access-requests/:id/:decision', requireSecurityManager, async (req, res) => {
     try {
         const decision = req.params.decision;
         if (!['approve', 'reject'].includes(decision)) return res.status(400).json({ success: false, error: 'قرار غير صالح.' });
