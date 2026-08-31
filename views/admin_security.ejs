@@ -130,7 +130,18 @@
                 <td><%= request.displayName %><small class="d-block text-muted"><%= request.deviceType %> · <%= request.platform || 'غير محدد' %></small></td>
                 <td><span class="mono"><%= request.ipAddress %></span><small class="d-block text-muted"><%= request.location?.latitude ? `${request.location.latitude.toFixed(4)}, ${request.location.longitude.toFixed(4)}` : 'لم يرسل الموقع' %></small></td>
                 <td><%= request.riskSignals?.length ? request.riskSignals.join(', ') : 'لا توجد إشارة عالية' %></td>
-                <td><div class="d-flex gap-2"><button class="btn btn-sm btn-success" onclick="decideRequest('<%= request._id %>','approve')">موافقة</button><button class="btn btn-sm btn-outline-danger" onclick="decideRequest('<%= request._id %>','reject')">رفض</button></div></td>
+                <td>
+                    <div class="d-flex gap-2">
+                        <form method="post" action="/admin/security/access-requests/<%= request._id %>/approve" class="m-0">
+                            <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+                            <button class="btn btn-sm btn-success" type="submit">موافقة</button>
+                        </form>
+                        <form method="post" action="/admin/security/access-requests/<%= request._id %>/reject" class="m-0">
+                            <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+                            <button class="btn btn-sm btn-outline-danger" type="submit">رفض</button>
+                        </form>
+                    </div>
+                </td>
             </tr><% }) %>
         </tbody></table></div>
     </section>

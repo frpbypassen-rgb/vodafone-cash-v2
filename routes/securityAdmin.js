@@ -306,6 +306,12 @@ router.post('/access-requests/:id/:decision', requireSecurityManager, async (req
             targetId: request.principalId, targetModel: request.principalType, severity: 'critical',
             metadata: { requestCode: request.requestCode, riskSignals: request.riskSignals }
         });
+        // Decision forms intentionally work without JavaScript. This keeps the
+        // emergency approval workflow available even if a browser extension or
+        // another page script fails to load.
+        if (req.accepts(['html', 'json']) === 'html') {
+            return res.redirect(303, '/admin/security');
+        }
         return res.json({ success: true });
     } catch (error) {
         console.error('[SecurityAdmin] access request decision failed:', error.message);
