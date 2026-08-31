@@ -39,7 +39,7 @@ const answer = async ({ workspace, question }) => {
     if (text.length < 2) return response('اكتب سؤالك بوضوح. مثال: ما هو رصيدي؟ أو كيف أنشئ عملية تحويل؟');
     if (sensitiveQuestion.test(text)) return deny();
 
-    if (/(?:رصيد|كم معي|متاح)/iu.test(text)) {
+    if (/(?:رصيد|كم معي|متاح)/iu.test(text) && !/(?:تحويل\s*رصيد|رصيد\s*داخلي|بين\s*الحسابات)/iu.test(text)) {
         if (!workspace.permissions.canViewBalance) return response('لا تملك صلاحية عرض رصيد الشركة أو الوكالة من هذا الحساب.');
         return response(`الرصيد المتاح للحساب المفتوح هو ${money(workspace.entity.balance)} LYD.`, {
             suggestions: ['اعرض تقارير اليوم', 'كيف أحول رصيداً داخلياً؟'],
@@ -80,6 +80,13 @@ const answer = async ({ workspace, question }) => {
         });
     }
 
+    if (/(?:تحويل\s*رصيد|رصيد\s*داخلي|بين\s*الحسابات)/iu.test(text)) {
+        if (!workspace.permissions.canTransfer) return response('لا تملك صلاحية تحويل الرصيد من هذا الحساب.');
+        return response('لتحويل رصيد داخلي: افتح الخدمات والتحويل، اكتب رقم حساب المستلم والمبلغ والملاحظة في قسم «تحويل رصيد داخلي»، ثم راجع اسم المستلم وأدخل رمز العمليات إن كان مفعلاً. التحويل النهائي يحتاج تأكيدك دائماً.', {
+            action: { label: 'فتح تحويل الرصيد', href: '/client/services' }
+        });
+    }
+
     if (/(?:تقرير|اليوم|العمليات|احصائ|إحصائ)/iu.test(text)) {
         const ownership = await ownershipFilter(workspace);
         const start = new Date(); start.setHours(0, 0, 0, 0);
@@ -101,6 +108,25 @@ const answer = async ({ workspace, question }) => {
         });
     }
 
+    if (/(?:خدم|سعر|صرف|محفظ|بريد|سيفا|بنكك)/iu.test(text)) {
+        return response('تجد الخدمات المتاحة وسعر كل خدمة في صفحة الخدمات والتحويل. اختر الخدمة أولاً ثم راجع سعر الصرف والتكلفة التقديرية قبل إرسال العملية؛ السعر المعروض في الصفحة هو المعتمد لحسابك وقت المراجعة.', {
+            action: { label: 'فتح الخدمات والأسعار', href: '/client/services' }
+        });
+    }
+
+    if (/(?:دعم|مشكلة|شكوى|تذكر)/iu.test(text)) {
+        return response('يمكنك فتح طلب دعم وكتابة المشكلة مع رقم العملية إن وجد. لا ترسل كلمة المرور أو رموز Authenticator أو رمز العمليات داخل طلب الدعم.', {
+            action: { label: 'فتح الدعم الفني', href: '/client/support' }
+        });
+    }
+
+    if (/(?:إعداد|اعداد|تغيير.*بيانات|تعديل.*بيانات)/iu.test(text)) {
+        if (!workspace.permissions.canEditSettings) return response('لا تملك صلاحية تعديل إعدادات الحساب من هذا المستخدم.');
+        return response('يمكنك تحديث البيانات التشغيلية المسموح بها من صفحة الإعدادات. لا يمكن للمساعد تغيير كلمة المرور أو رموز الحماية أو الصلاحيات.', {
+            action: { label: 'فتح الإعدادات', href: '/client/settings' }
+        });
+    }
+
     if (/(?:موظف|فريق|عميل|زبون)/iu.test(text)) {
         const permitted = /(?:موظف|فريق)/iu.test(text) ? workspace.permissions.canManageStaff : workspace.permissions.canManageCustomers;
         if (!permitted) return response('لا تملك صلاحية إدارة هذه البيانات من الحساب المفتوح.');
@@ -109,8 +135,8 @@ const answer = async ({ workspace, question }) => {
         });
     }
 
-    return response('أستطيع مساعدتك في الرصيد، حالة عملية برقمها، تقارير اليوم، خطوات التحويل، الموظفين والعملاء ضمن صلاحيات الحساب المفتوح فقط.', {
-        suggestions: ['ما هو رصيدي؟', 'اعرض تقارير اليوم', 'كيف أنشئ عملية تحويل؟']
+    return response('أستطيع مساعدتك في الرصيد، حالة عملية برقمها، تقارير اليوم، الإيداعات، التحويلات، الخدمات، الدعم، الموظفين والعملاء ضمن صلاحيات الحساب المفتوح فقط.', {
+        suggestions: ['ما هو رصيدي؟', 'آخر العمليات', 'كيف أحول رصيداً داخلياً؟', 'أحتاج إلى دعم فني']
     });
 };
 

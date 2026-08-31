@@ -24,4 +24,13 @@ describe('business portal assistant privacy', () => {
         expect(result.safeMode).toBe(true);
         expect(result.answer).toContain('لا أستطيع');
     });
+
+    test('guides an allowed internal balance transfer without executing it', async () => {
+        const result = await assistant.answer({
+            workspace: { permissions: { canTransfer: true } },
+            question: 'كيف أحول رصيد داخلي؟'
+        });
+        expect(result.answer).toContain('تحويل رصيد داخلي');
+        expect(result.action.href).toBe('/client/services');
+    });
 });
