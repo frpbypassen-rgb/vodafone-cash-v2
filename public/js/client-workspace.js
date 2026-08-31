@@ -180,6 +180,7 @@
     const smartPreviewLyd = document.getElementById('smartPreviewLyd');
     const smartPreviewNote = document.getElementById('smartPreviewNote');
     const smartPreviewService = document.getElementById('smartPreviewService');
+    const smartPreviewConfidence = document.getElementById('smartPreviewConfidence');
     const assistantDialog = document.getElementById('businessAssistantDialog');
     const assistantOpenButton = document.getElementById('businessAssistantOpen');
     const assistantForm = document.getElementById('businessAssistantForm');
@@ -231,6 +232,12 @@
         if (smartPreviewNote) smartPreviewNote.textContent = smartParsedData.note || 'لا توجد ملاحظة';
         if (smartPreviewService) {
             smartPreviewService.innerHTML = `<i class="fa-solid ${escapeHtml(activeService?.icon || 'fa-mobile-screen-button')}"></i>${escapeHtml(activeService?.label || 'محافظ كاش')}`;
+        }
+        if (smartPreviewConfidence) {
+            const confidence = smartParsedData.confidence || (smartParsedData.ready ? 'high' : 'low');
+            const labels = { high: 'جاهز للمراجعة', review: 'يحتاج مراجعة', low: 'بيانات ناقصة' };
+            smartPreviewConfidence.className = `bw-smart-confidence ${confidence}`;
+            smartPreviewConfidence.textContent = labels[confidence] || labels.low;
         }
         if (smartTransferSendButton) smartTransferSendButton.disabled = !smartParsedData.ready;
     };

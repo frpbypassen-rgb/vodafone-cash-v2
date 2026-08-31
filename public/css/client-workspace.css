@@ -3875,6 +3875,12 @@ a {
     background: rgba(8, 145, 178, 0.16);
 }
 
+.bw-smart-preview-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.bw-smart-confidence { display: inline-flex; align-items: center; min-height: 26px; padding: 4px 8px; border-radius: 999px; font-size: .66rem; font-weight: 800; background: var(--bw-surface-soft); color: var(--bw-text-muted); }
+.bw-smart-confidence.high { background: var(--bw-green-soft); color: var(--bw-green); }
+.bw-smart-confidence.review { background: #fff5d6; color: #9a6300; }
+.bw-smart-confidence.low { background: var(--bw-red-soft); color: var(--bw-red); }
+
 /* A restrained depth system keeps the portal tactile without making it look like a game. */
 .bw-section,
 .bw-command-strip,
