@@ -27,6 +27,7 @@ const { logAction } = require('../services/auditService');
 const { customerNoteFromTransaction } = require('../utils/transactionNotes');
 const { sanitizeStatementText } = require('../utils/accountStatementPrivacy');
 const { parseTransferMessage } = require('../utils/smartTransferParser');
+const businessPortalAssistantService = require('../services/businessPortalAssistantService');
 const { buildMarginStorage } = require('../utils/agencyPricing');
 const { SERVICE_RATE_KEYS } = require('../utils/rateHelper');
 const { recordCustomerSettlement } = require('../services/agencyJournalService');
@@ -667,6 +668,21 @@ exports.parseSmartTransferMessage = async (req, res) => {
         return res.status(statusCode).json({
             success: false,
             error: statusCode === 401 ? 'انتهت الجلسة. سجل الدخول مرة أخرى.' : 'تعذر تحليل رسالة التحويل.'
+        });
+    }
+};
+
+exports.askBusinessAssistant = async (req, res) => {
+    try {
+        const workspace = await businessPortalService.resolveWorkspace(req);
+        const question = cleanText(req.body.question, 800);
+        return res.json(await businessPortalAssistantService.answer({ workspace, question }));
+    } catch (error) {
+        const statusCode = error.statusCode === 401 ? 401 : 500;
+        console.error('[Business Portal] assistant query failed:', error.message);
+        return res.status(statusCode).json({
+            success: false,
+            error: statusCode === 401 ? 'انتهت الجلسة. سجل الدخول مرة أخرى.' : 'تعذر تشغيل المساعد الآن. حاول مرة أخرى.'
         });
     }
 };

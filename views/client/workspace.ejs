@@ -80,6 +80,27 @@
         </div>
     </dialog>
 
+    <button class="bw-assistant-launcher" type="button" id="businessAssistantOpen" aria-haspopup="dialog">
+        <i class="fa-solid fa-sparkles"></i><span>مساعد أهرام</span>
+    </button>
+    <dialog class="bw-dialog bw-assistant-dialog" id="businessAssistantDialog" aria-labelledby="businessAssistantTitle">
+        <div class="bw-dialog-head">
+            <div><span class="bw-section-kicker">مساعد الحساب</span><h2 id="businessAssistantTitle">مساعد أهرام الذكي</h2></div>
+            <button type="button" class="bw-icon-button" data-assistant-close aria-label="إغلاق"><i class="fa-solid fa-xmark"></i></button>
+        </div>
+        <div class="bw-assistant-guard"><i class="fa-solid fa-shield-halved"></i>يجيب عن بيانات الحساب المفتوح فقط ولا يتعامل مع كلمات المرور أو رموز الحماية أو بيانات الإدارة.</div>
+        <div class="bw-assistant-messages" id="businessAssistantMessages" aria-live="polite">
+            <div class="bw-assistant-message assistant">مرحباً، اسألني عن الرصيد أو العمليات أو تقارير اليوم أو خطوات التحويل.</div>
+        </div>
+        <div class="bw-assistant-suggestions" id="businessAssistantSuggestions">
+            <button type="button">ما هو رصيدي؟</button><button type="button">اعرض تقارير اليوم</button><button type="button">كيف أنشئ عملية تحويل؟</button>
+        </div>
+        <form class="bw-assistant-form" id="businessAssistantForm">
+            <input id="businessAssistantQuestion" maxlength="800" autocomplete="off" placeholder="اكتب سؤالك عن حسابك..." required>
+            <button class="bw-button primary" type="submit"><i class="fa-solid fa-paper-plane"></i><span>إرسال</span></button>
+        </form>
+    </dialog>
+
     <script>
         window.businessPortal = <%- JSON.stringify({
             page,
@@ -142,6 +163,6 @@
             }
         })();
     </script>
-    <script src="/js/client-workspace.js?v=20260831-3" defer></script>
+    <script src="/js/client-workspace.js?v=20260831-4" defer></script>
 </body>
 </html>

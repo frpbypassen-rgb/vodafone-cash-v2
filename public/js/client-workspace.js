@@ -180,6 +180,12 @@
     const smartPreviewLyd = document.getElementById('smartPreviewLyd');
     const smartPreviewNote = document.getElementById('smartPreviewNote');
     const smartPreviewService = document.getElementById('smartPreviewService');
+    const assistantDialog = document.getElementById('businessAssistantDialog');
+    const assistantOpenButton = document.getElementById('businessAssistantOpen');
+    const assistantForm = document.getElementById('businessAssistantForm');
+    const assistantQuestion = document.getElementById('businessAssistantQuestion');
+    const assistantMessages = document.getElementById('businessAssistantMessages');
+    const assistantSuggestions = document.getElementById('businessAssistantSuggestions');
     let activeService = null;
     let smartParsedData = null;
     let smartParseTimer = null;
@@ -417,9 +423,14 @@
         renderSmartPreview();
 
         if (parsed.ready) {
-            setSmartStatus('تم تجهيز بيانات العملية للمراجعة.', 'success');
+            setSmartStatus((parsed.warnings || []).length
+                ? `تم تجهيز البيانات للمراجعة. ${(parsed.warnings || []).join(' ')}`
+                : 'تم تجهيز بيانات العملية للمراجعة.', 'success');
         } else {
-            setSmartStatus(`بيانات ناقصة: ${(parsed.missing || []).join('، ') || 'راجع الرسالة'}.`, 'danger');
+            const issue = (parsed.missing || []).length
+                ? `بيانات ناقصة: ${(parsed.missing || []).join('، ')}.`
+                : 'راجع بيانات الرسالة قبل الإرسال.';
+            setSmartStatus(`${issue} ${(parsed.warnings || []).join(' ')}`, 'danger');
         }
     };
 
@@ -486,6 +497,53 @@
     smartTransferSendButton?.addEventListener('click', () => {
         if (smartParsedData?.ready) transferForm?.requestSubmit();
     });
+
+    const addAssistantMessage = (message, role = 'assistant', action = null) => {
+        if (!assistantMessages) return;
+        const element = document.createElement('div');
+        element.className = `bw-assistant-message ${role}`;
+        element.textContent = message;
+        if (action?.href && action?.label) {
+            const link = document.createElement('a');
+            link.href = action.href;
+            link.textContent = action.label;
+            element.appendChild(link);
+        }
+        assistantMessages.appendChild(element);
+        assistantMessages.scrollTop = assistantMessages.scrollHeight;
+    };
+
+    const askBusinessAssistant = async (question) => {
+        const value = String(question || '').trim();
+        if (!value) return;
+        addAssistantMessage(value, 'user');
+        if (assistantQuestion) assistantQuestion.value = '';
+        try {
+            const response = await fetch('/client/api/assistant/query', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', Accept: 'application/json', 'x-csrf-token': config.csrfToken || '' },
+                body: JSON.stringify({ question: value })
+            });
+            const payload = await parseJsonResponse(response);
+            if (!response.ok || !payload.success) throw new Error(payload.error || 'تعذر الحصول على إجابة الآن.');
+            addAssistantMessage(payload.answer, 'assistant', payload.action);
+            if (assistantSuggestions && Array.isArray(payload.suggestions) && payload.suggestions.length) {
+                assistantSuggestions.replaceChildren(...payload.suggestions.map((suggestion) => {
+                    const button = document.createElement('button');
+                    button.type = 'button'; button.textContent = suggestion;
+                    button.addEventListener('click', () => askBusinessAssistant(suggestion));
+                    return button;
+                }));
+            }
+        } catch (error) {
+            addAssistantMessage(error.message || 'تعذر تشغيل المساعد الآن.', 'assistant error');
+        }
+    };
+
+    assistantOpenButton?.addEventListener('click', () => assistantDialog?.showModal());
+    document.querySelector('[data-assistant-close]')?.addEventListener('click', () => assistantDialog?.close());
+    assistantForm?.addEventListener('submit', (event) => { event.preventDefault(); askBusinessAssistant(assistantQuestion?.value); });
+    assistantSuggestions?.querySelectorAll('button').forEach((button) => button.addEventListener('click', () => askBusinessAssistant(button.textContent)));
 
     const showFormResult = (element, message, success) => {
         if (!element) return;

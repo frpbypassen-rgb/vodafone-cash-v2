@@ -41,16 +41,19 @@ const normalizeAmountToken = (rawToken) => {
     return Number(value.toFixed(2));
 };
 
-const findPhone = (text) => {
+const findPhones = (text) => {
     const candidates = text.match(/(?<!\d)(?:\+?20|0020)?[\s().-]*0?1[0125](?:[\s().-]*\d){8}(?!\d)/g) || [];
+    const found = [];
     for (const candidate of candidates) {
         let digits = candidate.replace(/\D/g, '');
         if (digits.startsWith('0020')) digits = digits.slice(4);
         else if (digits.startsWith('20')) digits = digits.slice(2);
         if (/^1[0125]\d{8}$/.test(digits)) digits = `0${digits}`;
-        if (/^01[0125]\d{8}$/.test(digits)) return { value: digits, source: candidate };
+        if (/^01[0125]\d{8}$/.test(digits) && !found.some((item) => item.value === digits)) {
+            found.push({ value: digits, source: candidate });
+        }
     }
-    return { value: '', source: '' };
+    return found;
 };
 
 const amountPatterns = Object.freeze([
@@ -59,14 +62,15 @@ const amountPatterns = Object.freeze([
     /(?:egp|جنيه(?:ات)?|جنية|ج\.?\s*م\.?)\s*(?:هو|:|=|-)?\s*([0-9]+(?:[ \t.,][0-9]+)*)/iu
 ]);
 
-const findAmount = (text, phone) => {
+const findAmount = (text, phones) => {
     for (const pattern of amountPatterns) {
         const match = text.match(pattern);
         const value = match ? normalizeAmountToken(match[1]) : null;
         if (value) return { value, source: match[0] };
     }
 
-    let fallbackText = phone.source ? text.replace(phone.source, ' ') : text;
+    let fallbackText = text;
+    phones.forEach((phone) => { fallbackText = fallbackText.replace(phone.source, ' '); });
     fallbackText = fallbackText.replace(/(?:ملاحظ(?:ة|ه|ات)|ملحوظ(?:ة|ه|ات)|note)\s*[:：=\-]?\s*[^\r\n]+/giu, ' ');
     const numericTokens = [...fallbackText.matchAll(/\d+(?:[.,]\d+)*/g)]
         .map((match) => ({ raw: match[0], value: normalizeAmountToken(match[0]) }))
@@ -88,7 +92,8 @@ const findNote = (text, phoneSource, amountSource) => {
     if (explicit) return cleanNote(explicit[1]);
 
     let remainder = text;
-    if (phoneSource) remainder = remainder.replace(phoneSource, ' ');
+    const phoneSources = Array.isArray(phoneSource) ? phoneSource : [phoneSource];
+    phoneSources.filter(Boolean).forEach((source) => { remainder = remainder.replace(source, ' '); });
     if (amountSource) remainder = remainder.replace(amountSource, ' ');
     remainder = remainder
         .replace(/(?:المبلغ|مبلغ|القيمة|قيمة|رقم\s*(?:الهاتف|الموبايل|المحفظة)|هاتف|موبايل)/giu, ' ')
@@ -101,21 +106,32 @@ const findNote = (text, phoneSource, amountSource) => {
 
 const parseTransferMessage = (rawMessage) => {
     const message = normalizeDigits(rawMessage).replace(/\r\n/g, '\n').trim().slice(0, MAX_MESSAGE_LENGTH);
-    const phone = findPhone(message);
-    const amount = findAmount(message, phone);
-    const note = findNote(message, phone.source, amount.source);
+    const phones = findPhones(message);
+    const phone = phones[0] || { value: '', source: '' };
+    const amount = findAmount(message, phones);
+    const note = findNote(message, phones.map((item) => item.source), amount.source);
     const serviceKey = detectService(message);
     const missing = [];
     if (!phone.value) missing.push('رقم الهاتف');
     if (!amount.value) missing.push('المبلغ بالجنيه');
+    const warnings = [];
+    if (phones.length > 1) warnings.push('توجد أكثر من رقم هاتف؛ تم اختيار الرقم الأول. راجعه قبل الإرسال.');
+    if (!serviceKey) warnings.push('لم يتم تحديد خدمة التحويل؛ تم اختيار محافظ كاش ويمكنك تغييرها.');
+    if (!note) warnings.push('لم يتم العثور على ملاحظة؛ يمكنك إضافة ملاحظة اختيارية قبل الإرسال.');
+    const confidence = missing.length
+        ? 'low'
+        : (phones.length > 1 ? 'review' : 'high');
 
     return {
         phone: phone.value,
         amountEGP: amount.value,
         note,
         serviceKey,
-        ready: missing.length === 0,
-        missing
+        ready: missing.length === 0 && phones.length <= 1,
+        missing,
+        warnings,
+        confidence,
+        candidates: { phones: phones.map((item) => item.value) }
     };
 };
 
