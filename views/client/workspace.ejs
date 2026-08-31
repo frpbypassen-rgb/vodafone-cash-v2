@@ -86,7 +86,7 @@
     <dialog class="bw-dialog bw-assistant-dialog" id="businessAssistantDialog" aria-labelledby="businessAssistantTitle">
         <div class="bw-dialog-head">
             <div><span class="bw-section-kicker">مساعد الحساب</span><h2 id="businessAssistantTitle">مساعد أهرام الذكي</h2></div>
-            <button type="button" class="bw-icon-button" data-assistant-close aria-label="إغلاق"><i class="fa-solid fa-xmark"></i></button>
+            <div class="bw-assistant-head-actions"><button type="button" class="bw-icon-button" data-assistant-clear aria-label="مسح المحادثة"><i class="fa-solid fa-eraser"></i></button><button type="button" class="bw-icon-button" data-assistant-close aria-label="إغلاق"><i class="fa-solid fa-xmark"></i></button></div>
         </div>
         <div class="bw-assistant-guard"><i class="fa-solid fa-shield-halved"></i>يجيب عن بيانات الحساب المفتوح فقط ولا يتعامل مع كلمات المرور أو رموز الحماية أو بيانات الإدارة.</div>
         <div class="bw-assistant-messages" id="businessAssistantMessages" aria-live="polite">
@@ -97,7 +97,7 @@
         </div>
         <form class="bw-assistant-form" id="businessAssistantForm">
             <input id="businessAssistantQuestion" maxlength="800" autocomplete="off" placeholder="اكتب سؤالك عن حسابك..." required>
-            <button class="bw-button primary" type="submit"><i class="fa-solid fa-paper-plane"></i><span>إرسال</span></button>
+            <button class="bw-button primary" type="submit" id="businessAssistantSubmit"><i class="fa-solid fa-paper-plane"></i><span>إرسال</span></button>
         </form>
     </dialog>
 
@@ -163,6 +163,6 @@
             }
         })();
     </script>
-    <script src="/js/client-workspace.js?v=20260831-7" defer></script>
+    <script src="/js/client-workspace.js?v=20260831-8" defer></script>
 </body>
 </html>

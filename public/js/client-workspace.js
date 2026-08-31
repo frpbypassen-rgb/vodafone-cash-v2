@@ -186,6 +186,7 @@
     const assistantQuestion = document.getElementById('businessAssistantQuestion');
     const assistantMessages = document.getElementById('businessAssistantMessages');
     const assistantSuggestions = document.getElementById('businessAssistantSuggestions');
+    const assistantSubmitButton = document.getElementById('businessAssistantSubmit');
     let activeService = null;
     let smartParsedData = null;
     let smartParseTimer = null;
@@ -515,9 +516,19 @@
 
     const askBusinessAssistant = async (question) => {
         const value = String(question || '').trim();
-        if (!value) return;
+        if (!value || assistantSubmitButton?.disabled) return;
         addAssistantMessage(value, 'user');
         if (assistantQuestion) assistantQuestion.value = '';
+        const typing = document.createElement('div');
+        typing.className = 'bw-assistant-message assistant bw-assistant-typing';
+        typing.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin"></i> جارٍ مراجعة بيانات حسابك...';
+        assistantMessages?.appendChild(typing);
+        if (assistantMessages) assistantMessages.scrollTop = assistantMessages.scrollHeight;
+        const originalHtml = assistantSubmitButton?.innerHTML;
+        if (assistantSubmitButton) {
+            assistantSubmitButton.disabled = true;
+            assistantSubmitButton.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin"></i><span>جارٍ الإرسال</span>';
+        }
         try {
             const response = await fetch('/client/api/assistant/query', {
                 method: 'POST',
@@ -537,11 +548,24 @@
             }
         } catch (error) {
             addAssistantMessage(error.message || 'تعذر تشغيل المساعد الآن.', 'assistant error');
+        } finally {
+            typing.remove();
+            if (assistantSubmitButton) {
+                assistantSubmitButton.disabled = false;
+                assistantSubmitButton.innerHTML = originalHtml;
+            }
         }
     };
 
     assistantOpenButton?.addEventListener('click', () => assistantDialog?.showModal());
     document.querySelector('[data-assistant-close]')?.addEventListener('click', () => assistantDialog?.close());
+    document.querySelector('[data-assistant-clear]')?.addEventListener('click', () => {
+        if (!assistantMessages) return;
+        assistantMessages.replaceChildren(Object.assign(document.createElement('div'), {
+            className: 'bw-assistant-message assistant',
+            textContent: 'تم مسح المحادثة من هذا الجهاز. كيف يمكنني مساعدتك ضمن حسابك؟'
+        }));
+    });
     assistantForm?.addEventListener('submit', (event) => { event.preventDefault(); askBusinessAssistant(assistantQuestion?.value); });
     assistantSuggestions?.querySelectorAll('button').forEach((button) => button.addEventListener('click', () => askBusinessAssistant(button.textContent)));
 
