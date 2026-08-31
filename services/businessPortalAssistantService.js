@@ -25,6 +25,8 @@ const classifyQuestion = (question) => {
     if (/(?:حالة|وضع|آخر|اخر).*(?:رقم|محفظ|عملية|حوال)/iu.test(text) && extractEgyptianPhone(text)) return 'transaction';
     if (/(?:تقرير|اليوم|العمليات|احصائ|إحصائ)/iu.test(text)) return 'report';
     if (/(?:تحويل\s*رصيد|رصيد\s*داخلي|بين\s*الحسابات)/iu.test(text)) return 'internal_transfer';
+    if (/(?:تصدير|تحميل).*(?:تقرير|csv|اكسل|excel)/iu.test(text)) return 'report_export';
+    if (/(?:لوحة|رئيسية|الرئيسية|ملخص)/iu.test(text)) return 'overview';
     if (/(?:كيف.*(?:تحويل|ارسال|إرسال)|انشئ.*عملية|إنشاء.*عملية)/iu.test(text)) return 'transfer_help';
     if (/(?:خدم|سعر|صرف|محفظ|بريد|سيفا|بنكك)/iu.test(text)) return 'services';
     if (/(?:دعم|مشكلة|شكوى|تذكر)/iu.test(text)) return 'support';
@@ -121,6 +123,25 @@ const answer = async ({ workspace, question }) => {
         if (!workspace.permissions.canTransfer) return response('لا تملك صلاحية تحويل الرصيد من هذا الحساب.');
         return response('لتحويل رصيد داخلي: افتح الخدمات والتحويل، اكتب رقم حساب المستلم والمبلغ والملاحظة في قسم «تحويل رصيد داخلي»، ثم راجع اسم المستلم وأدخل رمز العمليات إن كان مفعلاً. التحويل النهائي يحتاج تأكيدك دائماً.', {
             action: { label: 'فتح تحويل الرصيد', href: '/client/services' }
+        });
+    }
+
+    if (/(?:تصدير|تحميل).*(?:تقرير|csv|اكسل|excel)/iu.test(text)) {
+        if (!workspace.permissions.canViewReports) return response('لا تملك صلاحية تصدير التقارير من هذا الحساب.');
+        return response('يمكنك تصدير تقرير الفترة المحددة بصيغة CSV من صفحة التقارير. اختر الفترة أولاً ثم استخدم زر التصدير.', {
+            action: { label: 'فتح التقارير', href: '/client/reports' }
+        });
+    }
+
+    if (/(?:لوحة|رئيسية|الرئيسية|ملخص)/iu.test(text)) {
+        return response('توضح اللوحة الرئيسية ملخص اليوم، الرصيد حسب صلاحيتك، وآخر العمليات داخل الحساب المفتوح.', {
+            action: { label: 'فتح الرئيسية', href: '/client/dashboard' }
+        });
+    }
+
+    if (/(?:سجل|معاملات|حوالات)/iu.test(text)) {
+        return response('يمكنك البحث والتصفية حسب الحالة والخدمة والموظف من سجل العمليات، ثم فتح تفاصيل أي عملية برقمها.', {
+            action: { label: 'فتح سجل العمليات', href: '/client/transactions' }
         });
     }
 

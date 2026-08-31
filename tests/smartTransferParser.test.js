@@ -61,4 +61,9 @@ describe('business portal assistant privacy', () => {
         expect(result.answer).toContain('تحويل رصيد داخلي');
         expect(result.action.href).toBe('/client/services');
     });
+
+    test('routes the account overview request without querying other accounts', async () => {
+        const result = await assistant.answer({ workspace: { permissions: {} }, question: 'افتح اللوحة الرئيسية' });
+        expect(result.action).toEqual({ label: 'فتح الرئيسية', href: '/client/dashboard' });
+    });
 });
