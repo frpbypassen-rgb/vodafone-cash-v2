@@ -179,6 +179,7 @@
     const smartPreviewRate = document.getElementById('smartPreviewRate');
     const smartPreviewLyd = document.getElementById('smartPreviewLyd');
     const smartPreviewNote = document.getElementById('smartPreviewNote');
+    const smartPreviewBeneficiary = document.getElementById('smartPreviewBeneficiary');
     const smartPreviewService = document.getElementById('smartPreviewService');
     const smartPreviewConfidence = document.getElementById('smartPreviewConfidence');
     const assistantDialog = document.getElementById('businessAssistantDialog');
@@ -230,6 +231,10 @@
         if (smartPreviewRate) smartPreviewRate.textContent = rate > 0 ? formatExchangeRate(rate) : 'غير متوفر';
         if (smartPreviewLyd) smartPreviewLyd.textContent = amountLyd > 0 ? `${formatNumber(amountLyd, 3)} LYD` : '---';
         if (smartPreviewNote) smartPreviewNote.textContent = smartParsedData.note || 'لا توجد ملاحظة';
+        if (smartPreviewBeneficiary) {
+            smartPreviewBeneficiary.closest('div').hidden = !smartParsedData.beneficiaryName;
+            smartPreviewBeneficiary.textContent = smartParsedData.beneficiaryName || '';
+        }
         if (smartPreviewService) {
             smartPreviewService.innerHTML = `<i class="fa-solid ${escapeHtml(activeService?.icon || 'fa-mobile-screen-button')}"></i>${escapeHtml(activeService?.label || 'محافظ كاش')}`;
         }
@@ -426,6 +431,7 @@
         if (transferDestination) transferDestination.value = parsed.phone || '';
         if (transferAccountNumber) transferAccountNumber.value = parsed.phone || '';
         if (transferAmount) transferAmount.value = parsed.amountEGP || '';
+        if (transferBeneficiary && parsed.beneficiaryName) transferBeneficiary.value = parsed.beneficiaryName;
         if (transferNotes) transferNotes.value = parsed.note || '';
         updateCostEstimate();
         renderSmartPreview();

@@ -9,6 +9,12 @@ describe('smart transfer parser', () => {
         expect(parsed).toMatchObject({ phone: '01012345678', amountEGP: 1600, note: 'دفعة أحمد', ready: true, confidence: 'high' });
     });
 
+    test('extracts an explicitly labelled beneficiary name', () => {
+        const parsed = parseTransferMessage('سيفا 01012345678 مبلغ 250 اسم المستفيد: أحمد محمد علي | ملاحظة: دفعة شهرية');
+        expect(parsed.beneficiaryName).toBe('أحمد محمد علي');
+        expect(parsed.serviceKey).toBe('sefa_niger');
+    });
+
     test('does not allow automatic sending when two recipient numbers exist', () => {
         const parsed = parseTransferMessage('01011111111 و 01022222222 مبلغ 500');
         expect(parsed.ready).toBe(false);

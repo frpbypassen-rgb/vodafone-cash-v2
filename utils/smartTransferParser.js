@@ -120,12 +120,21 @@ const findNote = (text, phoneSource, amountSource) => {
     return cleanNote(remainder);
 };
 
+const findBeneficiaryName = (text) => {
+    const explicit = text.match(/(?:اسم\s*(?:المستفيد|العميل)|المستفيد|recipient|name)\s*[:：=\-]\s*([^\r\n|،]+)/iu);
+    if (!explicit) return '';
+    return cleanNote(explicit[1]
+        .replace(/(?:ملاحظ(?:ة|ه)|ملحوظ(?:ة|ه)|note)\s*[:：=\-]?.*$/iu, '')
+        .replace(/(?:المبلغ|مبلغ|القيمة|قيمة)\s*[:：=\-]?.*$/iu, ''));
+};
+
 const parseTransferMessage = (rawMessage) => {
     const message = normalizeDigits(rawMessage).replace(/\r\n/g, '\n').trim().slice(0, MAX_MESSAGE_LENGTH);
     const phones = findPhones(message);
     const phone = phones[0] || { value: '', source: '' };
     const amount = findAmount(message, phones);
     const note = findNote(message, phones.map((item) => item.source), amount.source);
+    const beneficiaryName = findBeneficiaryName(message);
     const serviceKey = detectService(message);
     const missing = [];
     if (!phone.value) missing.push('رقم الهاتف');
@@ -143,6 +152,7 @@ const parseTransferMessage = (rawMessage) => {
         phone: phone.value,
         amountEGP: amount.value,
         note,
+        beneficiaryName,
         serviceKey,
         ready: missing.length === 0 && phones.length <= 1 && (amount.candidates || []).length <= 1,
         missing,
