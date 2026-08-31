@@ -29,6 +29,14 @@ const otpVerifyLimiter = rateLimit({
     legacyHeaders: false
 });
 
+const businessAssistantLimiter = rateLimit({
+    windowMs: 60 * 1000,
+    max: 30,
+    message: { success: false, error: 'تم تجاوز عدد أسئلة المساعد مؤقتاً. حاول بعد دقيقة.' },
+    standardHeaders: true,
+    legacyHeaders: false
+});
+
 // Middleware
 const endUnauthorizedClientSession = (req, res) => {
     const sendUnauthorized = () => {
@@ -191,7 +199,7 @@ router.get('/settings', requireClientAuth, clientWorkspaceController.renderPage(
 router.get('/reports/export.csv', requireClientAuth, clientWorkspaceController.exportReportCsv);
 router.get('/transactions/:id/details', requireClientAuth, clientWorkspaceController.getTransactionDetails);
 router.post('/api/smart-transfer/parse', requireClientAuth, clientWorkspaceController.parseSmartTransferMessage);
-router.post('/api/assistant/query', requireClientAuth, clientWorkspaceController.askBusinessAssistant);
+router.post('/api/assistant/query', requireClientAuth, businessAssistantLimiter, clientWorkspaceController.askBusinessAssistant);
 router.post('/customers/add', requireClientAuth, clientWorkspaceController.postCreateCustomer);
 router.post('/customers/:id/toggle', requireClientAuth, clientWorkspaceController.postToggleCustomer);
 router.post('/customers/:id/balance', requireClientAuth, clientWorkspaceController.postAdjustCustomerBalance);

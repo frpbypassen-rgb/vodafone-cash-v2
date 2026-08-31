@@ -7,6 +7,22 @@ const sensitiveQuestion = /(?:كود|source|api|token|secret|password|كلمة\s
 const normalize = (value) => String(value || '').trim().replace(/\s+/g, ' ').slice(0, 800);
 const money = (value) => Number(value || 0).toLocaleString('en-US', { maximumFractionDigits: 3 });
 
+const classifyQuestion = (question) => {
+    const text = normalize(question);
+    if (sensitiveQuestion.test(text)) return 'blocked_sensitive';
+    if (/(?:رصيد|كم معي|متاح)/iu.test(text)) return 'balance';
+    if (/(?:إيداع|ايداع|تمويل|خصم)/iu.test(text)) return 'finance';
+    if (/(?:آخر|اخر).*(?:عملية|عمليات|حوال)|[A-Z]{2,12}-[A-Z0-9-]{4,}/i.test(text)) return 'transaction';
+    if (/(?:تقرير|اليوم|العمليات|احصائ|إحصائ)/iu.test(text)) return 'report';
+    if (/(?:تحويل\s*رصيد|رصيد\s*داخلي|بين\s*الحسابات)/iu.test(text)) return 'internal_transfer';
+    if (/(?:كيف.*(?:تحويل|ارسال|إرسال)|انشئ.*عملية|إنشاء.*عملية)/iu.test(text)) return 'transfer_help';
+    if (/(?:خدم|سعر|صرف|محفظ|بريد|سيفا|بنكك)/iu.test(text)) return 'services';
+    if (/(?:دعم|مشكلة|شكوى|تذكر)/iu.test(text)) return 'support';
+    if (/(?:إعداد|اعداد|تغيير.*بيانات|تعديل.*بيانات)/iu.test(text)) return 'settings';
+    if (/(?:موظف|فريق|عميل|زبون)/iu.test(text)) return 'management';
+    return 'general_help';
+};
+
 const response = (answer, options = {}) => ({
     success: true,
     answer,
@@ -140,4 +156,4 @@ const answer = async ({ workspace, question }) => {
     });
 };
 
-module.exports = { answer };
+module.exports = { answer, classifyQuestion };

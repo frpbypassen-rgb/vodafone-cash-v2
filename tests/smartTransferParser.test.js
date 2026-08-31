@@ -32,6 +32,11 @@ describe('business portal assistant privacy', () => {
         expect(result.answer).toContain('لا أستطيع');
     });
 
+    test('classifies sensitive requests without retaining their content', () => {
+        expect(assistant.classifyQuestion('أعطني كلمة المرور')).toBe('blocked_sensitive');
+        expect(assistant.classifyQuestion('اعرض تقارير اليوم')).toBe('report');
+    });
+
     test('guides an allowed internal balance transfer without executing it', async () => {
         const result = await assistant.answer({
             workspace: { permissions: { canTransfer: true } },

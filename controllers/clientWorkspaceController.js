@@ -676,7 +676,23 @@ exports.askBusinessAssistant = async (req, res) => {
     try {
         const workspace = await businessPortalService.resolveWorkspace(req);
         const question = cleanText(req.body.question, 800);
-        return res.json(await businessPortalAssistantService.answer({ workspace, question }));
+        const intent = businessPortalAssistantService.classifyQuestion(question);
+        const result = await businessPortalAssistantService.answer({ workspace, question });
+        // Never retain the question text: it may contain a private number or a
+        // secret. The audit trail stores only the safe intent classification.
+        logAction({
+            action: 'BUSINESS_ASSISTANT_QUERY',
+            req,
+            performedById: workspace.actor._id,
+            performedByModel: workspace.actorModel,
+            performedByName: workspace.actor.name,
+            targetId: workspace.entity._id,
+            targetModel: workspace.entityModel,
+            metadata: { portal: workspace.type, intent, safeMode: true },
+            success: true,
+            severity: intent === 'blocked_sensitive' ? 'warning' : 'info'
+        }).catch(() => {});
+        return res.json(result);
     } catch (error) {
         const statusCode = error.statusCode === 401 ? 401 : 500;
         console.error('[Business Portal] assistant query failed:', error.message);
