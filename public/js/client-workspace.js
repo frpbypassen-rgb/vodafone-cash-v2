@@ -514,6 +514,7 @@
 
     const addAssistantMessage = (message, role = 'assistant', action = null, draft = null) => {
         if (!assistantMessages) return;
+        assistantMessages.querySelector('[data-assistant-empty]')?.remove();
         const element = document.createElement('div');
         element.className = `bw-assistant-message ${role}`;
         element.textContent = message;
@@ -579,10 +580,12 @@
     document.querySelector('[data-assistant-close]')?.addEventListener('click', () => assistantDialog?.close());
     document.querySelector('[data-assistant-clear]')?.addEventListener('click', () => {
         if (!assistantMessages) return;
-        assistantMessages.replaceChildren(Object.assign(document.createElement('div'), {
-            className: 'bw-assistant-message assistant',
-            textContent: 'تم مسح المحادثة من هذا الجهاز. كيف يمكنني مساعدتك ضمن حسابك؟'
-        }));
+        const empty = document.createElement('div');
+        empty.className = 'bw-assistant-empty';
+        empty.dataset.assistantEmpty = '';
+        empty.setAttribute('aria-hidden', 'true');
+        empty.innerHTML = '<i class="fa-solid fa-sparkles"></i>';
+        assistantMessages.replaceChildren(empty);
     });
     assistantForm?.addEventListener('submit', (event) => { event.preventDefault(); askBusinessAssistant(assistantQuestion?.value); });
     assistantSuggestions?.querySelectorAll('button').forEach((button) => button.addEventListener('click', () => askBusinessAssistant(button.textContent)));

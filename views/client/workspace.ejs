@@ -15,8 +15,8 @@
                     <p><%= workspace.entity.name %> <span aria-hidden="true">/</span> <%= workspace.roleLabel %></p>
                 </div>
                 <div class="bw-page-actions">
-                    <button class="bw-assistant-launcher" type="button" id="businessAssistantOpen" aria-haspopup="dialog">
-                        <i class="fa-solid fa-sparkles"></i><span>مساعد أهرام الذكي</span>
+                    <button class="bw-assistant-launcher" type="button" id="businessAssistantOpen" aria-haspopup="dialog" aria-label="فتح المساعد الذكي" title="المساعد الذكي">
+                        <i class="fa-solid fa-sparkles"></i>
                     </button>
                     <div class="bw-page-status" aria-label="حالة النظام">
                         <span class="bw-live-dot <%= systemOpen ? '' : 'is-closed' %>"></span>
@@ -85,20 +85,17 @@
         </div>
     </dialog>
 
-    <dialog class="bw-dialog bw-assistant-dialog" id="businessAssistantDialog" aria-labelledby="businessAssistantTitle">
+    <dialog class="bw-dialog bw-assistant-dialog" id="businessAssistantDialog" aria-label="المساعد الذكي">
         <div class="bw-dialog-head">
-            <div><span class="bw-section-kicker">مساعد الحساب</span><h2 id="businessAssistantTitle">مساعد أهرام الذكي</h2></div>
+            <span class="bw-assistant-mark" aria-hidden="true"><i class="fa-solid fa-sparkles"></i></span>
             <div class="bw-assistant-head-actions"><button type="button" class="bw-icon-button" data-assistant-clear aria-label="مسح المحادثة"><i class="fa-solid fa-eraser"></i></button><button type="button" class="bw-icon-button" data-assistant-close aria-label="إغلاق"><i class="fa-solid fa-xmark"></i></button></div>
         </div>
         <div class="bw-assistant-messages" id="businessAssistantMessages" aria-live="polite">
-            <div class="bw-assistant-message assistant">أهلاً بك! أنا مساعد أهرام الذكي. كيف يمكنني مساعدتك اليوم؟</div>
-        </div>
-        <div class="bw-assistant-suggestions" id="businessAssistantSuggestions">
-            <button type="button">ما هو رصيدي؟</button><button type="button">اعرض تقارير اليوم</button><button type="button">آخر العمليات</button><button type="button">كيف أحول رصيداً داخلياً؟</button>
+            <div class="bw-assistant-empty" data-assistant-empty aria-hidden="true"><i class="fa-solid fa-sparkles"></i></div>
         </div>
         <form class="bw-assistant-form" id="businessAssistantForm">
-            <input id="businessAssistantQuestion" maxlength="800" autocomplete="off" placeholder="اكتب سؤالك عن حسابك..." required>
-            <button class="bw-button primary" type="submit" id="businessAssistantSubmit"><i class="fa-solid fa-paper-plane"></i><span>إرسال</span></button>
+            <input id="businessAssistantQuestion" maxlength="800" autocomplete="off" aria-label="اكتب رسالة" required>
+            <button class="bw-button primary" type="submit" id="businessAssistantSubmit" aria-label="إرسال"><i class="fa-solid fa-paper-plane"></i></button>
         </form>
     </dialog>
 
