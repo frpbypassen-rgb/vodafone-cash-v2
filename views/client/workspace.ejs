@@ -14,9 +14,14 @@
                     <h1><%= pageMeta.title %></h1>
                     <p><%= workspace.entity.name %> <span aria-hidden="true">/</span> <%= workspace.roleLabel %></p>
                 </div>
-                <div class="bw-page-status" aria-label="حالة النظام">
-                    <span class="bw-live-dot <%= systemOpen ? '' : 'is-closed' %>"></span>
-                    <span><%= systemOpen ? 'الخدمة متاحة' : 'الخدمة متوقفة مؤقتاً' %></span>
+                <div class="bw-page-actions">
+                    <button class="bw-assistant-launcher" type="button" id="businessAssistantOpen" aria-haspopup="dialog">
+                        <i class="fa-solid fa-sparkles"></i><span>مساعد أهرام الذكي</span>
+                    </button>
+                    <div class="bw-page-status" aria-label="حالة النظام">
+                        <span class="bw-live-dot <%= systemOpen ? '' : 'is-closed' %>"></span>
+                        <span><%= systemOpen ? 'الخدمة متاحة' : 'الخدمة متوقفة مؤقتاً' %></span>
+                    </div>
                 </div>
             </header>
 
@@ -80,9 +85,6 @@
         </div>
     </dialog>
 
-    <button class="bw-assistant-launcher" type="button" id="businessAssistantOpen" aria-haspopup="dialog">
-        <i class="fa-solid fa-sparkles"></i><span>مساعد أهرام</span>
-    </button>
     <dialog class="bw-dialog bw-assistant-dialog" id="businessAssistantDialog" aria-labelledby="businessAssistantTitle">
         <div class="bw-dialog-head">
             <div><span class="bw-section-kicker">مساعد الحساب</span><h2 id="businessAssistantTitle">مساعد أهرام الذكي</h2></div>

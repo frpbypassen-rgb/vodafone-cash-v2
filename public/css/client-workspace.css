@@ -61,13 +61,10 @@
 }
 
 .bw-assistant-launcher {
-    position: fixed;
-    inset-inline-start: 24px;
-    bottom: 24px;
-    z-index: 30;
     border: 0;
-    border-radius: 999px;
-    padding: 13px 18px;
+    min-height: 38px;
+    border-radius: 8px;
+    padding: 9px 14px;
     background: linear-gradient(135deg, #125fce, #12a995);
     color: #fff;
     font: inherit;
@@ -77,6 +74,7 @@
 }
 
 .bw-assistant-launcher i { margin-inline-end: 8px; }
+.bw-page-actions { display: flex; align-items: center; justify-content: flex-end; gap: 9px; flex-wrap: wrap; }
 .bw-assistant-head-actions { display: flex; gap: 8px; }
 .bw-assistant-dialog { width: min(560px, calc(100vw - 28px)); }
 .bw-assistant-guard { display: flex; gap: 9px; align-items: flex-start; padding: 11px 13px; border-radius: 12px; background: #eaf8f5; color: #176558; line-height: 1.7; font-size: 13px; }
@@ -91,7 +89,7 @@
 .bw-assistant-suggestions button { border: 1px solid #cbd9ef; border-radius: 999px; background: #fff; color: #245baa; padding: 7px 10px; font: inherit; font-size: 12px; cursor: pointer; }
 .bw-assistant-form { display: flex; gap: 10px; }
 .bw-assistant-form input { min-width: 0; flex: 1; border: 1px solid #cbd9ef; border-radius: 12px; padding: 11px 13px; font: inherit; }
-@media (max-width: 700px) { .bw-assistant-launcher { bottom: 82px; inset-inline-start: 14px; } .bw-assistant-launcher span { display: none; } .bw-assistant-launcher i { margin: 0; } .bw-assistant-form .bw-button span { display: none; } }
+@media (max-width: 700px) { .bw-assistant-launcher { min-width: 38px; padding: 9px 11px; } .bw-assistant-launcher span { display: none; } .bw-assistant-launcher i { margin: 0; } .bw-assistant-form .bw-button span { display: none; } }
 
 .bw-rate-countdown {
     display: flex;
