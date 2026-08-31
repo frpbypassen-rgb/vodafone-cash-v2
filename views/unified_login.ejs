@@ -236,7 +236,7 @@
                 </div>
             <% } %>
 
-            <form action="/login" method="POST" id="loginForm" onsubmit="handleFormSubmit(event)">
+            <form action="/login" method="POST" id="loginForm" onsubmit="showLoading()">
                 <input type="hidden" name="_csrf" value="<%= typeof csrfToken !== 'undefined' ? csrfToken : '' %>">
                 <input type="hidden" name="latitude" id="latitudeInput">
                 <input type="hidden" name="longitude" id="longitudeInput">
@@ -296,7 +296,7 @@
                 
                 <div class="position-relative mb-4">
                     <div class="form-floating">
-                        <input type="password" class="form-control" id="passwordInput" name="password" placeholder="كلمة المرور" required dir="ltr">
+                        <input type="password" class="form-control" id="passwordInput" name="password" placeholder="كلمة المرور" required autocomplete="current-password" dir="ltr">
                         <label for="passwordInput">كلمة المرور السريـة</label>
                     </div>
                     <i class="fa-solid fa-lock input-icon"></i>
@@ -535,16 +535,6 @@
                 document.getElementById(id).value = '';
             });
         });
-
-        async function handleFormSubmit(event) {
-            const form = document.getElementById('loginForm');
-            if (form.dataset.ready === '1') return showLoading();
-            event.preventDefault();
-            await locationReady;
-            form.dataset.ready = '1';
-            showLoading();
-            form.submit();
-        }
 
         const b64urlToBytes = (value) => Uint8Array.from(
             atob(value.replace(/-/g, '+').replace(/_/g, '/').padEnd(Math.ceil(value.length / 4) * 4, '=')),
