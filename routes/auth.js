@@ -1173,8 +1173,27 @@ router.post('/login', loginLimiter, async (req, res) => {
         if (req.session.pendingAccountMfaLogin?.accountId) {
             return completeAccountMfaChallenge(req, res);
         }
-        const username = req.body.username?.trim();
-        const password = req.body.password?.trim();
+        // Keep the unified endpoint compatible with the active web, mobile
+        // webview and legacy portal forms during the temporary rollout.  Some
+        // older clients submit webUsername/webPassword instead of the current
+        // username/password names.  They are normalized here before any
+        // credential verification; this does not relax password validation.
+        const username = String(
+            req.body?.username
+            ?? req.body?.webUsername
+            ?? req.body?.userName
+            ?? req.body?.phone
+            ?? ''
+        ).trim();
+        const password = String(
+            req.body?.password
+            ?? req.body?.webPassword
+            ?? req.body?.userPassword
+            ?? req.body?.pass
+            ?? ''
+        ).trim();
+        req.body.username = username;
+        req.body.password = password;
 
         if (!username || !password) {
             return renderLogin(res, 'يرجى إدخال اسم المستخدم وكلمة المرور.');
