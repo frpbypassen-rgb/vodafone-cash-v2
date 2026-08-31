@@ -361,7 +361,12 @@ router.post('/security/mfa/trusted-device/revoke', requireWebMfaContext, async (
 router.get('/security/mfa-enroll', requireWebMfaContext, async (req, res) => {
     const { account } = req.webMfaContext;
     if (accountMfaService.isEnabled(account)) {
-        return res.redirect(req.session.isExecutorLoggedIn ? '/executor-portal/dashboard' : '/client/dashboard');
+        // A previously completed enrollment can leave this one-time session
+        // marker behind after a process restart. Clear it before returning to
+        // the portal; otherwise the dashboard sends the user back here again.
+        delete req.session.mfaEnrollmentRequired;
+        const returnUrl = req.session.isExecutorLoggedIn ? '/executor-portal/dashboard' : '/client/dashboard';
+        return req.session.save(() => res.redirect(returnUrl));
     }
     return res.render('mfa_enroll_required', {
         principalName: securityControl.sessionPrincipal(req.session)?.principalName || 'الحساب',
