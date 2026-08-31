@@ -16,7 +16,9 @@
                 </div>
                 <div class="bw-page-actions">
                     <button class="bw-assistant-launcher" type="button" id="businessAssistantOpen" aria-haspopup="dialog" aria-label="فتح المساعد الذكي" title="المساعد الذكي">
-                        <i class="fa-solid fa-sparkles"></i>
+                        <span class="bw-assistant-launcher-core"><i class="fa-solid fa-wand-magic-sparkles"></i></span>
+                        <i class="fa-solid fa-sparkles bw-assistant-launcher-spark spark-one" aria-hidden="true"></i>
+                        <i class="fa-solid fa-star bw-assistant-launcher-spark spark-two" aria-hidden="true"></i>
                     </button>
                     <div class="bw-page-status" aria-label="حالة النظام">
                         <span class="bw-live-dot <%= systemOpen ? '' : 'is-closed' %>"></span>
@@ -87,11 +89,16 @@
 
     <dialog class="bw-dialog bw-assistant-dialog" id="businessAssistantDialog" aria-label="المساعد الذكي">
         <div class="bw-dialog-head">
-            <span class="bw-assistant-mark" aria-hidden="true"><i class="fa-solid fa-sparkles"></i></span>
+            <span class="bw-assistant-mark" aria-hidden="true"><i class="fa-solid fa-wand-magic-sparkles"></i><i class="fa-solid fa-star bw-assistant-mark-star"></i></span>
             <div class="bw-assistant-head-actions"><button type="button" class="bw-icon-button" data-assistant-clear aria-label="مسح المحادثة"><i class="fa-solid fa-eraser"></i></button><button type="button" class="bw-icon-button" data-assistant-close aria-label="إغلاق"><i class="fa-solid fa-xmark"></i></button></div>
         </div>
         <div class="bw-assistant-messages" id="businessAssistantMessages" aria-live="polite">
-            <div class="bw-assistant-empty" data-assistant-empty aria-hidden="true"><i class="fa-solid fa-sparkles"></i></div>
+            <div class="bw-assistant-empty" data-assistant-empty aria-hidden="true">
+                <span class="bw-assistant-orbit orbit-one"><i class="fa-solid fa-sparkles"></i></span>
+                <span class="bw-assistant-orbit orbit-two"><i class="fa-solid fa-star"></i></span>
+                <span class="bw-assistant-orbit orbit-three"><i class="fa-solid fa-circle"></i></span>
+                <span class="bw-assistant-empty-core"><i class="fa-solid fa-wand-magic-sparkles"></i></span>
+            </div>
         </div>
         <form class="bw-assistant-form" id="businessAssistantForm">
             <input id="businessAssistantQuestion" maxlength="800" autocomplete="off" aria-label="اكتب رسالة" required>

@@ -584,7 +584,7 @@
         empty.className = 'bw-assistant-empty';
         empty.dataset.assistantEmpty = '';
         empty.setAttribute('aria-hidden', 'true');
-        empty.innerHTML = '<i class="fa-solid fa-sparkles"></i>';
+        empty.innerHTML = '<span class="bw-assistant-orbit orbit-one"><i class="fa-solid fa-sparkles"></i></span><span class="bw-assistant-orbit orbit-two"><i class="fa-solid fa-star"></i></span><span class="bw-assistant-orbit orbit-three"><i class="fa-solid fa-circle"></i></span><span class="bw-assistant-empty-core"><i class="fa-solid fa-wand-magic-sparkles"></i></span>';
         assistantMessages.replaceChildren(empty);
     });
     assistantForm?.addEventListener('submit', (event) => { event.preventDefault(); askBusinessAssistant(assistantQuestion?.value); });
