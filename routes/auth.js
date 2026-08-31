@@ -732,8 +732,11 @@ const loginAsExecutor = async (req, res, executor, { showMfaEnableNotice = false
     if (await requirePasskeyLogin({ req, res, principal, authorization, accountClass: 'account', loginKind: 'executor' })) return;
     await completeExecutorSession(req, executor);
     if (!accountMfaService.isEnabled(executor)) {
-        req.session.mfaEnrollmentRequired = true;
-        return saveAndRedirect(req, res, '/auth/security/mfa-enroll');
+        // Temporary continuity mode: credentials were already verified, so
+        // allow the executor into the portal and show the enrollment notice
+        // there rather than trapping the session in a login redirect loop.
+        req.session.showMfaEnableNotice = true;
+        return saveAndRedirect(req, res, '/executor-portal/dashboard');
     }
     if (showMfaEnableNotice) req.session.showMfaEnableNotice = true;
 
@@ -786,8 +789,11 @@ const loginAsClient = async (req, res, account, accountType, { authenticatorVeri
     if (await requirePasskeyLogin({ req, res, principal, authorization, accountClass: 'account', loginKind: 'client', accountType })) return;
     await completeClientSession(req, account, accountType);
     if (!accountMfaService.isEnabled(account)) {
-        req.session.mfaEnrollmentRequired = true;
-        return saveAndRedirect(req, res, '/auth/security/mfa-enroll');
+        // Temporary continuity mode: keep mandatory enrollment visible as a
+        // notice after entry, while avoiding a failed enrollment redirect from
+        // taking the public login service offline.
+        req.session.showMfaEnableNotice = true;
+        return saveAndRedirect(req, res, '/client/dashboard');
     }
 
     return saveAndRedirect(req, res, '/client/dashboard');
