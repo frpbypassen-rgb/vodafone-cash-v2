@@ -2,14 +2,14 @@
 
 const Transaction = require('../models/Transaction');
 const { ownershipFilter } = require('./businessPortalService');
-const { parseTransferMessage } = require('../utils/smartTransferParser');
+const { parseTransferMessage, normalizeDigits } = require('../utils/smartTransferParser');
 const openAiBusinessAssistantService = require('./openAiBusinessAssistantService');
 
 const sensitiveQuestion = /(?:كود|source|api|token|secret|password|كلمة\s*المرور|رمز\s*(?:Authenticator|المصادقة|الحماية)|قاعدة\s*البيانات|سيرفر|server|الإدارة|المدير|حسابات\s*الأخرى|مفتاح)/iu;
 const normalize = (value) => String(value || '').trim().replace(/\s+/g, ' ').slice(0, 800);
 const money = (value) => Number(value || 0).toLocaleString('en-US', { maximumFractionDigits: 3 });
 const extractEgyptianPhone = (value) => {
-    const raw = normalize(value).match(/(?:\+?20|0020)?[\s().-]*0?1[0125](?:[\s().-]*\d){8}/)?.[0];
+    const raw = normalizeDigits(normalize(value)).match(/(?:\+?20|0020)?[\s().-]*0?1[0125](?:[\s().-]*\d){8}/)?.[0];
     if (!raw) return '';
     let digits = raw.replace(/\D/g, '');
     if (digits.startsWith('0020')) digits = digits.slice(4);
@@ -22,6 +22,7 @@ const classifyQuestion = (question) => {
     const text = normalize(question);
     if (sensitiveQuestion.test(text)) return 'blocked_sensitive';
     if (/^(?:مرحبا|أهلا|اهلا|السلام\s*عليكم|صباح\s*الخير|مساء\s*الخير|كيف\s*حال(?:ك|ك؟)|عامل\s*إيه|عامل\s*ايه|هاي|hello|hi)[!؟?،,.\s]*$/iu.test(text)) return 'greeting';
+    if (extractEgyptianPhone(text)) return 'phone_transactions';
     if (/(?:رصيد|كم معي|متاح)/iu.test(text)) return 'balance';
     if (/(?:إيداع|ايداع|تمويل|خصم)/iu.test(text)) return 'finance';
     if (/(?:آخر|اخر).*(?:عملية|عمليات|حوال)|[A-Z]{2,12}-[A-Z0-9-]{4,}/i.test(text)) return 'transaction';
@@ -74,6 +75,13 @@ const scopedTransaction = async (workspace, query) => {
 };
 
 const scopedFilter = async (workspace, extra = {}) => ({ $and: [await ownershipFilter(workspace), extra] });
+
+const scopedTransactionsForPhone = async (workspace, phone) => Transaction.find({
+    $and: [
+        await ownershipFilter(workspace),
+        { $or: [{ vodafoneNumber: phone }, { accountNumber: phone }] }
+    ]
+}).sort({ createdAt: -1 }).select('customId status amount costLYD transferType createdAt').lean();
 
 const transactionLabel = (status) => ({
     completed: 'مكتملة', pending: 'قيد المراجعة', processing: 'قيد التنفيذ', accepted: 'مقبولة',
@@ -152,13 +160,14 @@ const answer = async ({ workspace, question }) => {
     }
 
     const destination = extractEgyptianPhone(text);
-    if (destination && /(?:حالة|وضع|آخر|اخر).*(?:رقم|محفظ|عملية|حوال)/iu.test(text)) {
-        const tx = await Transaction.findOne({
-            $and: [await ownershipFilter(workspace), { $or: [{ vodafoneNumber: destination }, { accountNumber: destination }] }]
-        }).sort({ createdAt: -1 }).select('customId status amount costLYD createdAt').lean();
-        if (!tx) return response('لا توجد عملية مسجلة لهذا الرقم داخل الحساب المفتوح. تأكد من الرقم أو افتح سجل العمليات.');
-        return response(`آخر عملية للرقم ${destination.slice(0, 3)}••••${destination.slice(-3)} هي ${tx.customId} وحالتها ${transactionLabel(tx.status)}. القيمة ${money(tx.amount)}.`, {
-            action: { label: 'فتح سجل العمليات', href: '/client/transactions' }
+    if (destination) {
+        const rows = await scopedTransactionsForPhone(workspace, destination);
+        const maskedPhone = `${destination.slice(0, 3)}••••${destination.slice(-3)}`;
+        if (!rows.length) return response(`لا توجد عمليات مسجلة للرقم ${maskedPhone} داخل الحساب المفتوح. تأكد من الرقم أو افتح سجل العمليات.`);
+        const preview = rows.slice(0, 8).map((row) => `${row.customId}: ${transactionLabel(row.status)} (${money(row.amount)})`).join('\n');
+        const remaining = rows.length > 8 ? `\nتوجد ${rows.length - 8} عملية أخرى؛ افتح السجل لعرض جميع النتائج.` : '';
+        return response(`وجدت ${rows.length} عملية للرقم ${maskedPhone} داخل الحساب المفتوح:\n${preview}${remaining}`, {
+            action: { label: `عرض كل العمليات (${rows.length})`, href: `/client/transactions?search=${encodeURIComponent(destination)}&history=all` }
         });
     }
 
@@ -193,10 +202,10 @@ const answer = async ({ workspace, question }) => {
         });
     }
 
-    if (/(?:تصدير|تحميل).*(?:تقرير|csv|اكسل|excel)/iu.test(text)) {
+    if (/(?:تصدير|تحميل|تنزيل|نزّل|نزل|export|csv|اكسل|excel)/iu.test(text) && /(?:تقرير|تقارير|كشف|حرك|عمليات|csv|اكسل|excel)/iu.test(text)) {
         if (!workspace.permissions.canViewReports) return response('لا تملك صلاحية تصدير التقارير من هذا الحساب.');
-        return response('يمكنك تصدير تقرير الفترة المحددة بصيغة CSV من صفحة التقارير. اختر الفترة أولاً ثم استخدم زر التصدير.', {
-            action: { label: 'فتح التقارير', href: '/client/reports' }
+        return response('جهزت لك تنزيل تقرير الحساب المفتوح بصيغة CSV. يمكنك أيضاً فتح التقارير لاختيار نطاق أو فترة مختلفة قبل التنزيل.', {
+            action: { label: 'تحميل التقرير CSV', href: '/client/reports/export.csv' }
         });
     }
 
@@ -270,4 +279,4 @@ const answer = async ({ workspace, question }) => {
     });
 };
 
-module.exports = { answer, classifyQuestion, extractEgyptianPhone, reportPeriodFor, isCasualConversation };
+module.exports = { answer, classifyQuestion, extractEgyptianPhone, reportPeriodFor, isCasualConversation, scopedTransactionsForPhone };

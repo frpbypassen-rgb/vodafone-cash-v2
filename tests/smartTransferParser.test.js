@@ -95,7 +95,12 @@ describe('business portal assistant privacy', () => {
 
     test('normalizes a wallet number before scoped transaction lookup', () => {
         expect(assistant.extractEgyptianPhone('حالة آخر عملية للرقم +20 10 1234 5678')).toBe('01012345678');
-        expect(assistant.classifyQuestion('ما حالة عملية المحفظة 01012345678؟')).toBe('transaction');
+        expect(assistant.extractEgyptianPhone('دورلي على ٠١٠١٢٣٤٥٦٧٨')).toBe('01012345678');
+        expect(assistant.classifyQuestion('ما حالة عملية المحفظة 01012345678؟')).toBe('phone_transactions');
+    });
+
+    test('recognizes any phone entry as a scoped transaction search', () => {
+        expect(assistant.classifyQuestion('هات كل عمليات 01012345678')).toBe('phone_transactions');
     });
 
     test('guides an allowed internal balance transfer without executing it', async () => {

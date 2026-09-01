@@ -397,7 +397,9 @@ const ownershipFilter = async (workspace) => {
 
 const buildTransactionFilter = async (workspace, query = {}, options = {}) => {
     const range = resolveDateRange(query, { forceToday: options.forceToday === true });
-    const conditions = [await ownershipFilter(workspace), { createdAt: { $gte: range.start, $lte: range.end } }];
+    const includeAllHistory = String(query.history || '') === 'all' && !options.forceToday;
+    const conditions = [await ownershipFilter(workspace)];
+    if (!includeAllHistory) conditions.push({ createdAt: { $gte: range.start, $lte: range.end } });
     const search = String(query.search || '').trim();
 
     if (search) {
@@ -422,7 +424,8 @@ const buildTransactionFilter = async (workspace, query = {}, options = {}) => {
     return {
         filter: conditions.length === 1 ? conditions[0] : { $and: conditions },
         range,
-        search
+        search,
+        includeAllHistory
     };
 };
 
@@ -549,7 +552,7 @@ const loadOverview = async (workspace) => {
 const loadTransactions = async (workspace, query = {}) => {
     const page = Math.max(1, Number.parseInt(query.page, 10) || 1);
     const limit = 25;
-    const { filter, range, search } = await buildTransactionFilter(workspace, query, { forceToday: workspace.forceToday });
+    const { filter, range, search, includeAllHistory } = await buildTransactionFilter(workspace, query, { forceToday: workspace.forceToday });
     const StaffModel = staffModelForWorkspace(workspace);
     const [transactions, total, summary, staff, customers] = await Promise.all([
         Transaction.find(filter).sort({ createdAt: -1 }).skip((page - 1) * limit).limit(limit).lean(),
@@ -573,6 +576,7 @@ const loadTransactions = async (workspace, query = {}) => {
             service: query.service || '',
             staff: query.staff || '',
             customer: query.customer || '',
+            history: includeAllHistory ? 'all' : '',
             ...range
         }
     };
