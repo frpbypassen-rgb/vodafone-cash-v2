@@ -12,6 +12,16 @@
     <article class="employee"><span><i class="fa-solid fa-bolt"></i></span><div><strong>الموظف</strong><small>ينفذ مهام اليوم ويتابع عملياته فقط بحسب صلاحياته.</small></div></article>
 </section>
 
+<section class="bw-staff-filter-band">
+    <form method="GET" action="/client/staff" class="bw-filter-form">
+        <label class="bw-search-field"><i class="fa-solid fa-magnifying-glass"></i><input type="search" name="search" value="<%= staffFilters.search %>" placeholder="ابحث بالاسم أو الهاتف أو اسم المستخدم"></label>
+        <label><span>الدور</span><select name="role"><option value="">كل الأدوار</option><option value="manager" <%= staffFilters.role === 'manager' ? 'selected' : '' %>>مدير تشغيل</option><option value="accountant" <%= staffFilters.role === 'accountant' ? 'selected' : '' %>>محاسب</option><option value="employee" <%= staffFilters.role === 'employee' ? 'selected' : '' %>>موظف تنفيذ</option></select></label>
+        <label><span>الحالة</span><select name="status"><option value="">كل الحالات</option><option value="active" <%= staffFilters.status === 'active' ? 'selected' : '' %>>نشط</option><option value="inactive" <%= staffFilters.status === 'inactive' ? 'selected' : '' %>>موقوف</option></select></label>
+        <button type="submit" class="bw-button primary compact"><i class="fa-solid fa-filter"></i>تطبيق</button>
+        <% if (staffFilters.search || staffFilters.role || staffFilters.status) { %><a href="/client/staff" class="bw-icon-button" aria-label="مسح الفلاتر" title="مسح الفلاتر"><i class="fa-solid fa-rotate-left"></i></a><% } %>
+    </form>
+</section>
+
 <section class="bw-section">
     <header class="bw-section-head">
         <div><span class="bw-section-kicker">الفريق والصلاحيات</span><h2>حسابات الموظفين</h2></div>

@@ -668,9 +668,21 @@ const loadCustomers = async (workspace) => {
     };
 };
 
-const loadStaff = async (workspace) => {
+const loadStaff = async (workspace, query = {}) => {
     const StaffModel = staffModelForWorkspace(workspace);
-    const staff = await StaffModel.find(staffOwnerFilter(workspace)).sort({ role: 1, createdAt: -1 }).lean();
+    const search = String(query.search || '').trim().slice(0, 80);
+    const status = ['active', 'inactive'].includes(String(query.status || '')) ? String(query.status) : '';
+    const role = ['employee', 'accountant', 'manager'].includes(String(query.role || '')) ? String(query.role) : '';
+    const conditions = [staffOwnerFilter(workspace)];
+    if (search) {
+        const regex = new RegExp(escapeRegex(search), 'i');
+        conditions.push({ $or: [{ name: regex }, { phone: regex }, { webUsername: regex }] });
+    }
+    if (status) conditions.push({ status });
+    if (role === 'manager') conditions.push({ $or: [{ role: 'owner' }, { canManageCompany: true }, { canManageAgent: true }] });
+    else if (role) conditions.push({ role });
+    const staffFilter = conditions.length === 1 ? conditions[0] : { $and: conditions };
+    const staff = await StaffModel.find(staffFilter).sort({ role: 1, createdAt: -1 }).lean();
     const ownership = await ownershipFilter(workspace);
     const month = resolveDateRange({});
     const employeeNames = staff.map((member) => member.name).filter(Boolean);
@@ -699,7 +711,8 @@ const loadStaff = async (workspace) => {
             accountants: staff.filter((member) => member.role === 'accountant').length,
             monthOperations: stats.reduce((sum, item) => sum + safeNumber(item.transactionCount), 0)
         },
-        periodLabel: month.label
+        periodLabel: month.label,
+        staffFilters: { search, status, role }
     };
 };
 
@@ -924,7 +937,7 @@ const loadPageContext = async (req, page) => {
         context.filters = range;
     }
     if (page === 'customers') Object.assign(context, await loadCustomers(workspace));
-    if (page === 'staff') Object.assign(context, await loadStaff(workspace));
+    if (page === 'staff') Object.assign(context, await loadStaff(workspace, req.query));
     if (page === 'reports') Object.assign(context, await loadReports(workspace, req.query));
     if (page === 'settings') context.settingsData = { profile: workspace.entity.businessProfile || {} };
     return context;

@@ -123,6 +123,7 @@
 @media (max-width: 620px) { .bw-central-download-list article { grid-template-columns: auto minmax(0, 1fr); }.bw-central-download-proof { grid-column: 2; text-align: start; } }
 .bw-central-download { box-shadow: 0 10px 20px color-mix(in srgb, var(--bw-blue) 20%, transparent); }
 .bw-history-scope { display: flex; align-items: center; gap: 9px; margin: -4px 0 14px; padding: 10px 13px; border: 1px solid color-mix(in srgb, var(--bw-cyan) 30%, var(--bw-border)); border-radius: 12px; color: var(--bw-text); background: var(--bw-cyan-soft); font-size: .88rem; }.bw-history-scope i { color: var(--bw-cyan); }.bw-history-scope a { margin-inline-start: auto; color: var(--bw-blue); font-weight: 800; text-decoration: none; }
+.bw-staff-filter-band { margin: 0 0 18px; padding: 12px; border: 1px solid var(--bw-border); border-radius: 16px; background: var(--bw-surface); box-shadow: var(--bw-shadow-sm); }
 .bw-team-role-guide { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); padding: 8px; background: transparent; box-shadow: none; }
 .bw-team-role-guide article { display: flex; align-items: flex-start; gap: 10px; padding: 13px; border-radius: 13px; transition: transform .2s ease, box-shadow .2s ease; }
 .bw-team-role-guide article:hover { transform: translateY(-3px); box-shadow: var(--bw-shadow-sm); }
