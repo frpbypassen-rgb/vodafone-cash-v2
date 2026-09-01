@@ -2,66 +2,40 @@
     <div class="bw-command-copy">
         <span class="bw-command-mark"><i class="fa-solid <%= workspace.forceToday ? 'fa-user-check' : workspace.isCompany ? 'fa-building-shield' : 'fa-map-location-dot' %>"></i></span>
         <div>
-            <span class="bw-section-kicker"><%= workspace.forceToday ? 'حساب الموظف' : workspace.isCompany ? 'مساحة أعمال الشركة' : 'مركز إدارة شبكة الوكيل' %></span>
+            <span class="bw-section-kicker"><%= workspace.forceToday ? 'حساب الموظف' : workspace.isCompany ? 'لوحة قيادة الشركة' : 'مركز إدارة شبكة الوكيل' %></span>
             <h2><%= workspace.entity.name %></h2>
             <p>
                 <% if (workspace.persona === 'manager') { %>
-                    تابع التشغيل والفريق والرصيد من مساحة واحدة منظمة.
+                    عرض موحّد للتشغيل والفريق والرقابة المالية، مع إبقاء كل خدمة في قسمها المخصص.
                 <% } else if (workspace.persona === 'accountant') { %>
-                    راقب الحركات المالية والتقارير دون الوصول إلى تنفيذ التحويلات.
+                    راقب الحركات وكشوف الحساب الرسمية دون الوصول إلى تنفيذ التحويلات.
                 <% } else { %>
-                    واجهة يومية مبسطة لإرسال العمليات ومتابعة حالتها.
+                    ابدأ العملية ثم تابع حالتها من سجل عملياتك اليومي، دون تشتيت أو تكرار.
                 <% } %>
             </p>
         </div>
     </div>
     <div class="bw-command-actions">
         <% if (workspace.permissions.canTransfer) { %>
-            <a href="/client/services" class="bw-button primary"><i class="fa-solid fa-paper-plane"></i>عملية جديدة</a>
+            <a href="/client/services" class="bw-button primary"><i class="fa-solid fa-paper-plane"></i>إنشاء تحويل</a>
         <% } %>
-        <a href="/client/transactions" class="bw-button secondary"><i class="fa-solid fa-list-check"></i>متابعة العمليات</a>
     </div>
 </section>
-
-<% if (workspace.isCompany) { %>
-<section class="bw-company-action-deck" aria-label="إجراءات العمل حسب الدور">
-    <% if (workspace.persona === 'manager') { %>
-        <a href="/client/transactions?status=pending" class="bw-company-action-card warning"><span><i class="fa-solid fa-clock"></i></span><div><strong>مراجعة العمليات المعلقة</strong><small><%= monthSummary.pendingCount %> عملية تحتاج متابعة</small></div><i class="fa-solid fa-arrow-left"></i></a>
-        <a href="/client/staff" class="bw-company-action-card blue"><span><i class="fa-solid fa-user-group"></i></span><div><strong>إدارة الفريق</strong><small><%= activeStaffCount %> حساب نشط</small></div><i class="fa-solid fa-arrow-left"></i></a>
-        <a href="/client/reports?scope=staff" class="bw-company-action-card green"><span><i class="fa-solid fa-file-shield"></i></span><div><strong>تقرير الفريق المركزي</strong><small>نسخة موحّدة من الإدارة</small></div><i class="fa-solid fa-arrow-left"></i></a>
-    <% } else if (workspace.persona === 'accountant') { %>
-        <a href="/client/finance" class="bw-company-action-card amber"><span><i class="fa-solid fa-scale-balanced"></i></span><div><strong>مراجعة الحركات المالية</strong><small>إيداعات وخصومات وتسويات</small></div><i class="fa-solid fa-arrow-left"></i></a>
-        <a href="/client/reports" class="bw-company-action-card blue"><span><i class="fa-solid fa-file-csv"></i></span><div><strong>تنزيل تقرير مركزي</strong><small>CSV موثّق وبصمة تحقق</small></div><i class="fa-solid fa-arrow-left"></i></a>
-        <a href="/client/transactions" class="bw-company-action-card green"><span><i class="fa-solid fa-list-check"></i></span><div><strong>تدقيق العمليات</strong><small>بحث وتصفية من السجل</small></div><i class="fa-solid fa-arrow-left"></i></a>
-    <% } else { %>
-        <a href="/client/services" class="bw-company-action-card green"><span><i class="fa-solid fa-paper-plane"></i></span><div><strong>بدء عملية جديدة</strong><small>اختر الخدمة وأدخل البيانات</small></div><i class="fa-solid fa-arrow-left"></i></a>
-        <a href="/client/transactions" class="bw-company-action-card blue"><span><i class="fa-solid fa-list-check"></i></span><div><strong>متابعة عمليات اليوم</strong><small>عرض حالة كل عملية</small></div><i class="fa-solid fa-arrow-left"></i></a>
-        <a href="/client/support" class="bw-company-action-card muted"><span><i class="fa-solid fa-headset"></i></span><div><strong>تواصل مع الدعم</strong><small>عند وجود مشكلة في عملية</small></div><i class="fa-solid fa-arrow-left"></i></a>
-    <% } %>
-</section>
-<% } %>
-
-<section class="bw-role-workspace-card <%= workspace.persona %>">
-    <span class="bw-role-workspace-icon"><i class="fa-solid <%= workspace.persona === 'manager' ? 'fa-compass-drafting' : workspace.persona === 'accountant' ? 'fa-chart-pie' : 'fa-bolt' %>"></i></span>
-    <div>
-        <span class="bw-section-kicker">مساحة عمل <%= workspace.roleLabel %></span>
-        <strong><%= workspace.persona === 'manager' ? 'القرارات والتنبيهات المهمة في مكان واحد' : workspace.persona === 'accountant' ? 'المتابعة المالية والتقارير المركزية دون تنفيذ عمليات' : 'مهامك وعملياتك اليومية في واجهة خفيفة وسريعة' %></strong>
-    </div>
-    <a href="<%= workspace.persona === 'accountant' ? '/client/reports' : '/client/transactions' %>" class="bw-text-link">فتح مساحة العمل <i class="fa-solid fa-arrow-left"></i></a>
-</section>
-
 <% if (workspace.isCompany && teamSpotlight.length) { %>
-<section class="bw-section bw-team-spotlight">
-    <header class="bw-section-head"><div><span class="bw-section-kicker">أداء الشهر</span><h2>نبض فريق التنفيذ</h2></div><a href="/client/reports?scope=staff" class="bw-text-link">تقرير الفريق <i class="fa-solid fa-arrow-left"></i></a></header>
-    <div class="bw-team-spotlight-list">
-        <% teamSpotlight.forEach((member, index) => { %>
-            <article><span class="bw-team-rank"><%= index + 1 %></span><span class="bw-avatar small"><%= String(member._id || 'م').charAt(0) %></span><div><strong><%= member._id %></strong><small><%= member.completedCount %> ناجحة من <%= member.totalCount %> عملية</small></div><b class="bw-mono"><%= Number(member.totalEGP || 0).toLocaleString('en-US', { maximumFractionDigits: 0 }) %><small>EGP</small></b></article>
-        <% }) %>
-    </div>
-</section>
+    <% const canViewTeamPulse = workspace.permissions.manager || workspace.permissions.accountant; %>
+    <% if (canViewTeamPulse) { %>
+    <section class="bw-section bw-team-spotlight">
+        <header class="bw-section-head"><div><span class="bw-section-kicker">أداء الشهر</span><h2>نبض فريق التنفيذ</h2></div><a href="/client/reports?scope=staff" class="bw-text-link">فتح كشف الفريق <i class="fa-solid fa-arrow-left"></i></a></header>
+        <div class="bw-team-spotlight-list">
+            <% teamSpotlight.forEach((member, index) => { %>
+                <article><span class="bw-team-rank"><%= index + 1 %></span><span class="bw-avatar small"><%= String(member._id || 'م').charAt(0) %></span><div><strong><%= member._id %></strong><small><%= member.completedCount %> ناجحة من <%= member.totalCount %> عملية</small></div><b class="bw-mono"><%= Number(member.totalEGP || 0).toLocaleString('en-US', { maximumFractionDigits: 0 }) %><small>EGP</small></b></article>
+            <% }) %>
+        </div>
+    </section>
+    <% } %>
 <% } %>
 
-<section class="bw-metric-grid" aria-label="المؤشرات الرئيسية">
+<section class="bw-metric-grid bw-overview-metrics <%= workspace.permissions.canViewBalance ? 'with-balance' : 'without-balance' %>" aria-label="المؤشرات الرئيسية">
     <% if (workspace.permissions.canViewBalance) { %>
         <article class="bw-metric-card accent-dark">
             <span class="bw-metric-icon"><i class="fa-solid fa-wallet"></i></span>
@@ -177,20 +151,4 @@
             <% } %>
         </div>
     </aside>
-</section>
-
-<section class="bw-section bw-shortcuts">
-    <header class="bw-section-head">
-        <div><span class="bw-section-kicker">وصول مباشر</span><h2>اختصارات العمل</h2></div>
-    </header>
-    <div class="bw-shortcut-grid">
-        <% navigation.filter(item => !['overview', 'support'].includes(item.key)).slice(0, 6).forEach(item => { %>
-            <a href="<%= item.href %>" class="bw-shortcut">
-                <span><i class="fa-solid <%= item.icon %>"></i></span>
-                <strong><%= item.label %></strong>
-                <small><%= item.group %></small>
-                <i class="fa-solid fa-arrow-left"></i>
-            </a>
-        <% }) %>
-    </div>
 </section>

@@ -137,6 +137,17 @@ const PAGE_META = Object.freeze({
     support: { title: 'الدعم الفني', eyebrow: 'تواصل مباشر وآمن', icon: 'fa-headset' }
 });
 
+const COMPANY_PAGE_META = Object.freeze({
+    overview: { title: 'مركز قيادة الشركة', eyebrow: 'لوحة موحّدة للتشغيل' },
+    services: { title: 'مركز التنفيذ', eyebrow: 'إنشاء تحويل جديد' },
+    transactions: { title: 'سجل العمليات', eyebrow: 'بحث ومتابعة التنفيذ' },
+    staff: { title: 'فريق الشركة', eyebrow: 'الحسابات والأدوار' },
+    finance: { title: 'كشف الحركات', eyebrow: 'رقابة مالية موثقة' },
+    reports: { title: 'كشوف الحساب', eyebrow: 'بيانات موحّدة من الإدارة' },
+    settings: { title: 'إدارة الحساب', eyebrow: 'البيانات والأمان والتجربة' },
+    support: { title: 'مركز الدعم', eyebrow: 'مساعدة ومتابعة آمنة' }
+});
+
 const REPORT_SCOPES = Object.freeze({
     organization: 'تقرير المنشأة',
     customers: 'تقرير العملاء',
@@ -348,22 +359,36 @@ const buildWorkspaceResult = ({ type, actor, entity, actorModel, entityModel, pe
 };
 
 const buildNavigation = (workspace, activePage) => {
-    const items = [
-        { key: 'overview', href: '/client/dashboard?home=1', label: 'الرئيسية', icon: 'fa-grid-2', group: 'العمل اليومي', visible: true },
-        { key: 'services', href: '/client/services', label: 'الخدمات والتحويل', icon: 'fa-paper-plane', group: 'العمل اليومي', visible: workspace.permissions.canTransfer },
-        { key: 'transactions', href: '/client/transactions', label: 'المعاملات', icon: 'fa-list-check', group: 'العمل اليومي', visible: true },
-        { key: 'finance', href: '/client/finance', label: 'الحركات المالية', icon: 'fa-scale-balanced', group: 'العمل اليومي', visible: workspace.permissions.canViewBalance },
-        { key: 'agency_balances', href: '/client/finance/customer-balances', label: 'أرصدة العملاء', icon: 'fa-wallet', group: 'محاسبة الوكالة', visible: workspace.isAgent && workspace.permissions.canViewBalance },
-        { key: 'agency_debts', href: '/client/finance/customer-debts', label: 'ديون العملاء', icon: 'fa-file-invoice-dollar', group: 'محاسبة الوكالة', visible: workspace.isAgent && workspace.permissions.canViewBalance },
-        { key: 'agency_account', href: '/client/finance/agency-account', label: 'حساب الوكالة', icon: 'fa-building-columns', group: 'محاسبة الوكالة', visible: workspace.isAgent && workspace.permissions.canViewBalance },
-        { key: 'agency_position', href: '/client/finance/position', label: 'المركز المالي', icon: 'fa-scale-balanced', group: 'محاسبة الوكالة', visible: workspace.isAgent && workspace.permissions.canViewBalance },
-        { key: 'agency_profits', href: '/client/finance/profits', label: 'أرباح العملاء', icon: 'fa-chart-line', group: 'محاسبة الوكالة', visible: workspace.isAgent && workspace.permissions.canViewBalance },
-        { key: 'customers', href: '/client/customers', label: 'العملاء', icon: 'fa-users', group: 'الإدارة', visible: workspace.isAgent && workspace.permissions.canManageCustomers },
-        { key: 'staff', href: '/client/staff', label: 'الموظفون', icon: 'fa-user-group', group: 'الإدارة', visible: workspace.permissions.manager || workspace.permissions.accountant },
-        { key: 'reports', href: '/client/reports', label: 'التقارير', icon: 'fa-chart-column', group: 'التحليل', visible: workspace.permissions.canViewReports },
-        { key: 'settings', href: '/client/settings', label: 'الإعدادات', icon: 'fa-sliders', group: 'الحساب والنظام', visible: true },
-        { key: 'support', href: '/client/support', label: 'الدعم الفني', icon: 'fa-headset', group: 'الحساب والنظام', visible: true }
-    ];
+    // Company accounts do not manage customers. Keep every capability in one clear
+    // workspace so the sidebar is the single source of navigation, not a set of
+    // repeated shortcuts scattered across dashboard cards.
+    const items = workspace.isCompany
+        ? [
+            { key: 'overview', href: '/client/dashboard?home=1', label: 'مركز الشركة', icon: 'fa-grid-2', group: 'لوحة القيادة', visible: true },
+            { key: 'services', href: '/client/services', label: 'إنشاء تحويل', icon: 'fa-paper-plane', group: 'التنفيذ', visible: workspace.permissions.canTransfer },
+            { key: 'transactions', href: '/client/transactions', label: 'سجل العمليات', icon: 'fa-list-check', group: 'التنفيذ', visible: true },
+            { key: 'staff', href: '/client/staff', label: 'فريق الشركة', icon: 'fa-user-group', group: 'الفريق والصلاحيات', visible: workspace.permissions.manager || workspace.permissions.accountant },
+            { key: 'finance', href: '/client/finance', label: 'كشف الحركات', icon: 'fa-scale-balanced', group: 'الرقابة المالية', visible: workspace.permissions.canViewBalance },
+            { key: 'reports', href: '/client/reports', label: 'كشوف الحساب', icon: 'fa-chart-column', group: 'الرقابة المالية', visible: workspace.permissions.canViewReports },
+            { key: 'settings', href: '/client/settings', label: 'إدارة الحساب', icon: 'fa-sliders', group: 'الحساب والمساعدة', visible: true },
+            { key: 'support', href: '/client/support', label: 'الدعم الفني', icon: 'fa-headset', group: 'الحساب والمساعدة', visible: true }
+        ]
+        : [
+            { key: 'overview', href: '/client/dashboard?home=1', label: 'الرئيسية', icon: 'fa-grid-2', group: 'العمل اليومي', visible: true },
+            { key: 'services', href: '/client/services', label: 'الخدمات والتحويل', icon: 'fa-paper-plane', group: 'العمل اليومي', visible: workspace.permissions.canTransfer },
+            { key: 'transactions', href: '/client/transactions', label: 'المعاملات', icon: 'fa-list-check', group: 'العمل اليومي', visible: true },
+            { key: 'finance', href: '/client/finance', label: 'الحركات المالية', icon: 'fa-scale-balanced', group: 'العمل اليومي', visible: workspace.permissions.canViewBalance },
+            { key: 'agency_balances', href: '/client/finance/customer-balances', label: 'أرصدة العملاء', icon: 'fa-wallet', group: 'محاسبة الوكالة', visible: workspace.permissions.canViewBalance },
+            { key: 'agency_debts', href: '/client/finance/customer-debts', label: 'ديون العملاء', icon: 'fa-file-invoice-dollar', group: 'محاسبة الوكالة', visible: workspace.permissions.canViewBalance },
+            { key: 'agency_account', href: '/client/finance/agency-account', label: 'حساب الوكالة', icon: 'fa-building-columns', group: 'محاسبة الوكالة', visible: workspace.permissions.canViewBalance },
+            { key: 'agency_position', href: '/client/finance/position', label: 'المركز المالي', icon: 'fa-scale-balanced', group: 'محاسبة الوكالة', visible: workspace.permissions.canViewBalance },
+            { key: 'agency_profits', href: '/client/finance/profits', label: 'أرباح العملاء', icon: 'fa-chart-line', group: 'محاسبة الوكالة', visible: workspace.permissions.canViewBalance },
+            { key: 'customers', href: '/client/customers', label: 'العملاء', icon: 'fa-users', group: 'الإدارة', visible: workspace.permissions.canManageCustomers },
+            { key: 'staff', href: '/client/staff', label: 'الموظفون', icon: 'fa-user-group', group: 'الإدارة', visible: workspace.permissions.manager || workspace.permissions.accountant },
+            { key: 'reports', href: '/client/reports', label: 'التقارير', icon: 'fa-chart-column', group: 'التحليل', visible: workspace.permissions.canViewReports },
+            { key: 'settings', href: '/client/settings', label: 'الإعدادات', icon: 'fa-sliders', group: 'الحساب والنظام', visible: true },
+            { key: 'support', href: '/client/support', label: 'الدعم الفني', icon: 'fa-headset', group: 'الحساب والنظام', visible: true }
+        ];
 
     return items.filter((item) => item.visible).map((item) => ({
         ...item,
@@ -934,7 +959,10 @@ const buildBaseContext = async (req, page, workspace) => {
         clientId: workspace.actor._id,
         settings: rates.settings
     });
-    const pageMeta = { ...PAGE_META[page] };
+    const pageMeta = {
+        ...PAGE_META[page],
+        ...(workspace.isCompany ? (COMPANY_PAGE_META[page] || {}) : {})
+    };
     if (workspace.forceToday) {
         if (page === 'overview') Object.assign(pageMeta, { title: 'الرئيسية', eyebrow: 'عمل اليوم' });
         if (page === 'transactions') Object.assign(pageMeta, { title: 'عمليات اليوم', eyebrow: 'المتابعة اليومية' });

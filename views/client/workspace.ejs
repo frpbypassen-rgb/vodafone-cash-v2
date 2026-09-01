@@ -76,7 +76,17 @@
             <% mobileNavigation.forEach(item => { %>
                 <a href="<%= item.href %>" class="<%= item.active ? 'active' : '' %>">
                     <i class="fa-solid <%= item.icon %>"></i>
-                    <span><%= item.label.replace('الخدمات والتحويل', 'تحويل').replace('المعاملات', 'العمليات').replace('الموظفون والصلاحيات', 'الفريق').replace('الحركات المالية', 'المالية') %></span>
+                    <span><%= item.label
+                        .replace('الخدمات والتحويل', 'تحويل')
+                        .replace('إنشاء تحويل', 'تحويل')
+                        .replace('المعاملات', 'العمليات')
+                        .replace('سجل العمليات', 'العمليات')
+                        .replace('الموظفون والصلاحيات', 'الفريق')
+                        .replace('فريق الشركة', 'الفريق')
+                        .replace('الحركات المالية', 'المالية')
+                        .replace('كشف الحركات', 'المالية')
+                        .replace('كشوف الحساب', 'الكشوف')
+                        .replace('إدارة الحساب', 'الحساب') %></span>
                 </a>
             <% }) %>
         </nav>

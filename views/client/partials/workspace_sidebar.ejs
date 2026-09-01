@@ -28,7 +28,17 @@
         <% } %>
     </section>
 
-    <nav class="bw-navigation">
+    <% if (workspace.isCompany) { %>
+        <div class="bw-company-navigation-note" aria-label="تنظيم مساحة الشركة">
+            <span><i class="fa-solid fa-layer-group"></i></span>
+            <div>
+                <strong>مساحة شركة موحّدة</strong>
+                <small>كل خدمة في قسم مستقل</small>
+            </div>
+        </div>
+    <% } %>
+
+    <nav class="bw-navigation <%= workspace.isCompany ? 'bw-company-navigation' : '' %>" aria-label="أقسام <%= workspace.portalLabel %>">
         <% [...new Set(navigation.map(item => item.group))].forEach(group => { %>
             <section class="bw-nav-group">
                 <h2><%= group %></h2>
