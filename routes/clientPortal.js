@@ -185,6 +185,10 @@ router.post('/profile', requireClientAuth, clientDashboardController.postUpdateO
 router.get('/api/transactions', requireClientAuth, clientDashboardController.getApiTransactions);
 router.get('/api/rates', requireClientAuth, clientWorkspaceController.getCurrentRates);
 router.get('/services', requireClientAuth, clientWorkspaceController.renderPage('services'));
+router.get('/services/:serviceKey', requireClientAuth, clientWorkspaceController.renderPage('service_workbench'));
+router.get('/smart-transfer', requireClientAuth, clientWorkspaceController.renderPage('smart_transfer'));
+router.get('/internal-transfer', requireClientAuth, clientWorkspaceController.renderPage('internal_transfer'));
+router.get('/company/deposits', requireClientAuth, clientWorkspaceController.renderPage('deposits'));
 router.get('/transactions', requireClientAuth, clientWorkspaceController.renderPage('transactions'));
 router.get('/finance', requireClientAuth, clientWorkspaceController.renderPage('finance'));
 router.get('/finance/customer-balances', requireClientAuth, clientWorkspaceController.renderPage('agency_balances'));
@@ -196,6 +200,7 @@ router.get('/customers', requireClientAuth, clientWorkspaceController.renderPage
 router.get('/customers/:id', requireClientAuth, clientWorkspaceController.renderPage('customer_profile'));
 router.get('/staff', requireClientAuth, clientWorkspaceController.renderPage('staff'));
 router.get('/settings', requireClientAuth, clientWorkspaceController.renderPage('settings'));
+router.get('/security', requireClientAuth, clientWorkspaceController.renderPage('security'));
 router.get('/reports/export.csv', requireClientAuth, clientWorkspaceController.exportReportCsv);
 router.get('/reports/central.pdf', requireClientAuth, clientWorkspaceController.downloadCentralCompanyReportPdf);
 router.get('/transactions/:id/details', requireClientAuth, clientWorkspaceController.getTransactionDetails);
@@ -363,7 +368,9 @@ router.get('/support', requireClientAuth, async (req, res) => {
                 return res.redirect('/client/dashboard?supportError=1');
             }
         }
-        if (error.message === 'FORBIDDEN_PAGE') return res.status(403).redirect('/client/dashboard?portalError=forbidden');
+        if (error.message === 'FORBIDDEN_PAGE') {
+            return businessPortalService.redirectForbiddenPage(req, res);
+        }
         console.error('[Support] render failed:', error.message);
         return res.redirect('/client/logout');
     }
@@ -405,6 +412,16 @@ router.post('/api/support/messages', requireClientAuth, async (req, res) => {
 
         const { account, entityType } = await getSupportIdentity(req);
         if (!account) return res.status(401).json({ success: false, error: 'Unauthorized' });
+
+        if (businessPortalService.isCompanyDepositCreateIntent(text)) {
+            const workspace = await businessPortalService.resolveWorkspace(req);
+            if (!businessPortalService.canCreateCompanyDepositRequest(workspace)) {
+                return res.status(403).json({
+                    success: false,
+                    error: 'إنشاء طلب الإيداع متاح لمدير التشغيل فقط. يمكنك متابعة الطلبات من صفحة الإيداع.'
+                });
+            }
+        }
 
         let ticket = await SupportTicket.findOne({ entityType, entityId: account._id, status: { $ne: 'closed' } });
         if (!ticket) {

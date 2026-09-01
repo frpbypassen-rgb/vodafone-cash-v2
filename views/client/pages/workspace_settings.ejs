@@ -1,27 +1,37 @@
 <% const accountCode = workspace.entity.accountCode || workspace.entity.agentCode || '---'; const canEdit = workspace.permissions.canEditSettings; %>
 
-<section class="bw-settings-hero">
-    <div><span class="bw-section-kicker"><i class="fa-solid fa-sliders"></i> مركز التحكم</span><h2>إعدادات <%= workspace.entityLabel %></h2><p>أدر الحساب والأمان وتجربة هذا الجهاز من أقسام مرتبة وواضحة.</p></div>
-    <div class="bw-settings-health"><span><i class="fa-solid fa-circle-check"></i> الحساب نشط</span><span><i class="fa-solid fa-signal"></i> <%= systemOpen ? 'الخدمة متاحة' : 'الخدمة متوقفة' %></span></div>
+<% if (workspace.isCompany) { %>
+<section class="cos-ledger-office">
+    <div>
+        <span class="bw-section-kicker">ملف الشركة</span>
+        <h2>بيانات المنشأة</h2>
+        <p>التواصل والمدينة والسجل في هذه الصفحة. كلمة المرور والأجهزة في أمان الحساب.</p>
+    </div>
+    <div class="cos-ledger-links">
+        <a href="/client/security" class="bw-button ghost"><i class="fa-solid fa-shield-halved"></i>أمان الحساب</a>
+    </div>
 </section>
+<% } else { %>
+<section class="bw-settings-hero">
+    <div><span class="bw-section-kicker"><i class="fa-solid fa-sliders"></i> مركز التحكم</span><h2>إعدادات <%= workspace.entityLabel %></h2><p>كل قسم مستقل في هذه الصفحة. لا تبويبات ولا اختصارات مكررة.</p></div>
+    <div class="bw-settings-health">
+        <span><i class="fa-solid fa-circle-check"></i> الحساب نشط</span>
+        <span><i class="fa-solid fa-signal"></i> <%= systemOpen ? 'الخدمة متاحة' : 'الخدمة متوقفة' %></span>
+    </div>
+</section>
+<% } %>
 
 <section class="bw-settings-health-grid" aria-label="ملخص الحساب">
     <article><span class="tone-blue"><i class="fa-solid fa-id-card"></i></span><div><small>رقم الحساب</small><strong class="bw-mono"><%= accountCode %></strong></div></article>
     <article><span class="tone-green"><i class="fa-solid fa-user-shield"></i></span><div><small>دورك الحالي</small><strong><%= workspace.roleLabel %></strong></div></article>
+    <% if (workspace.permissions.canViewBalance) { %>
     <article><span class="tone-gold"><i class="fa-solid fa-wallet"></i></span><div><small>الحد الائتماني</small><strong class="bw-mono"><%= Number(workspace.entity.creditLimit || 0).toFixed(2) %> LYD</strong></div></article>
+    <% } %>
     <article><span class="tone-violet"><i class="fa-solid fa-building-shield"></i></span><div><small>اسم الدخول</small><strong dir="ltr"><%= workspace.actor.webUsername || workspace.actor.phone %></strong></div></article>
 </section>
 
-<section class="bw-settings-shell bw-settings-layout" data-settings-shell>
-    <aside class="bw-settings-nav" aria-label="أقسام الإعدادات">
-        <button type="button" class="active" data-settings-tab="identity"><i class="fa-solid fa-address-card"></i><span>الحساب</span><small>البيانات والتواصل</small></button>
-        <button type="button" data-settings-tab="preferences"><i class="fa-solid fa-palette"></i><span>المظهر</span><small>هذا الجهاز</small></button>
-        <button type="button" data-settings-tab="security"><i class="fa-solid fa-shield-halved"></i><span>الأمان</span><small>الدخول والحماية</small></button>
-        <button type="button" data-settings-tab="services"><i class="fa-solid fa-tags"></i><span>الخدمات</span><small>الأسعار المتاحة</small></button>
-        <% if (workspace.permissions.manager || workspace.permissions.accountant) { %><button type="button" data-settings-tab="management"><i class="fa-solid fa-users-gear"></i><span>الإدارة</span><small>الفريق والتقارير</small></button><% } %>
-    </aside>
-    <div class="bw-settings-panels">
-    <section class="bw-settings-panel active" id="identity" data-settings-panel>
+<div class="bw-settings-stack">
+    <section class="bw-settings-panel active" id="identity">
         <header class="bw-settings-panel-head"><span class="bw-settings-panel-icon tone-blue"><i class="fa-solid fa-address-card"></i></span><div><span>الحساب والملف الشخصي</span><h2>بيانات <%= workspace.entityLabel %></h2><p>معلومات التواصل المستخدمة داخل المنظومة.</p></div></header>
         <form method="POST" action="/client/settings/profile" class="bw-form bw-form-grid">
             <label class="bw-field span-2"><span>اسم <%= workspace.entityLabel %></span><input type="text" value="<%= workspace.entity.name %>" disabled><small>يتم تعديل الاسم القانوني عن طريق الإدارة.</small></label>
@@ -32,22 +42,28 @@
         </form>
     </section>
 
-    <section class="bw-settings-panel" id="preferences" data-settings-panel hidden>
+    <section class="bw-settings-panel" id="preferences">
         <header class="bw-settings-panel-head"><span class="bw-settings-panel-icon tone-violet"><i class="fa-solid fa-palette"></i></span><div><span>المظهر والتجربة</span><h2>واجهة هذا الجهاز</h2><p>هذه الخيارات تُحفظ في المتصفح الحالي فقط.</p></div></header>
-        <div class="bw-settings-choice-grid"><label class="bw-field"><span>المظهر</span><select id="workspaceThemeSelect" data-preference="theme"><option value="light">فاتح</option><option value="dark">داكن</option><option value="system">حسب الجهاز</option></select></label><label class="bw-field"><span>كثافة الجداول</span><select id="workspaceDensitySelect" data-preference="density"><option value="comfortable">مريحة</option><option value="compact">مضغوطة</option></select></label></div>
+        <div class="bw-settings-choice-grid">
+            <label class="bw-field"><span>المظهر</span><select id="workspaceThemeSelect" data-preference="theme"><option value="light">فاتح</option><option value="dark">داكن</option><option value="system">حسب الجهاز</option></select></label>
+            <% if (!workspace.isCompany) { %>
+            <label class="bw-field"><span>كثافة الجداول</span><select id="workspaceDensitySelect" data-preference="density"><option value="comfortable">مريحة</option><option value="compact">مضغوطة</option></select></label>
+            <% } %>
+        </div>
         <div class="bw-setting-note"><i class="fa-solid fa-display"></i><span><strong>تجربة شخصية لكل جهاز</strong><small>لن يتأثر إعداد أي موظف آخر بخياراتك.</small></span></div>
     </section>
 
-    <section class="bw-settings-panel bw-settings-security" id="security" data-settings-panel hidden>
+    <% if (!workspace.isCompany) { %>
+    <section class="bw-settings-panel bw-settings-security" id="security">
         <header class="bw-settings-panel-head"><span class="bw-settings-panel-icon tone-green"><i class="fa-solid fa-shield-halved"></i></span><div><span>الأمان والدخول</span><h2>حماية الحساب</h2><p>استخدم كلمة مرور قوية وراجع الأجهزة المسجلة بانتظام.</p></div></header>
         <div class="bw-settings-security-grid"><form method="POST" action="/client/settings/password" class="bw-form bw-form-grid"><label class="bw-field span-2"><span>كلمة المرور الحالية</span><input type="password" name="currentPassword" autocomplete="current-password" required></label><label class="bw-field"><span>كلمة المرور الجديدة</span><input type="password" name="newPassword" minlength="8" autocomplete="new-password" required></label><label class="bw-field"><span>تأكيد كلمة المرور</span><input type="password" name="passwordConfirm" minlength="8" autocomplete="new-password" required></label><div class="bw-form-actions span-2"><button type="submit" class="bw-button secondary"><i class="fa-solid fa-key"></i>تحديث كلمة المرور</button><a class="bw-button ghost" href="/security/sessions"><i class="fa-solid fa-laptop-mobile"></i>الأجهزة والجلسات</a></div></form><%- include('../../partials/mfa_security_panel') %></div>
     </section>
+    <% } %>
 
-    <section class="bw-settings-panel" id="services" data-settings-panel hidden>
+    <% if (!workspace.isCompany) { %>
+    <section class="bw-settings-panel" id="services">
         <header class="bw-settings-panel-head"><span class="bw-settings-panel-icon tone-gold"><i class="fa-solid fa-tags"></i></span><div><span>الخدمات والأسعار</span><h2>الأسعار الفعالة لحسابك</h2><p>يتم تحديدها مركزياً بحسب باقة الحساب وصلاحياته.</p></div></header>
         <div class="bw-rate-list"><% serviceCatalog.forEach(service => { %><div class="bw-rate-row"><span class="bw-service-icon tone-<%= service.tone %>"><i class="fa-solid <%= service.icon %>"></i></span><div><strong><%= service.label %></strong><small><%= service.description %></small></div><strong class="bw-mono"><%= Number(service.rate).toFixed(2) %></strong></div><% }) %></div>
     </section>
-
-    <% if (workspace.permissions.manager || workspace.permissions.accountant) { %><section class="bw-settings-panel" id="management" data-settings-panel hidden><header class="bw-settings-panel-head"><span class="bw-settings-panel-icon tone-blue"><i class="fa-solid fa-users-gear"></i></span><div><span>إدارة العمل</span><h2>اختصارات المدير والمحاسب</h2><p>انتقل إلى إدارة الفريق والسجلات المعتمدة.</p></div></header><div class="bw-settings-shortcuts"><a href="/client/staff"><i class="fa-solid fa-user-group"></i><span><strong>الموظفون والصلاحيات</strong><small>متابعة الحسابات والأدوار والحالة.</small></span><i class="fa-solid fa-arrow-left"></i></a><a href="/client/reports"><i class="fa-solid fa-file-invoice"></i><span><strong>كشوف الحساب والتقارير</strong><small>عرض وتنزيل التقارير المركزية.</small></span><i class="fa-solid fa-arrow-left"></i></a><a href="/client/support"><i class="fa-solid fa-headset"></i><span><strong>الدعم الفني</strong><small>متابعة الطلبات والمرفقات.</small></span><i class="fa-solid fa-arrow-left"></i></a></div></section><% } %>
-    </div>
-</section>
+    <% } %>
+</div>

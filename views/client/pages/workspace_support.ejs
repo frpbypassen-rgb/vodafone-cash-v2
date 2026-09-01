@@ -1,9 +1,24 @@
+<% if (workspace.isCompany) { %>
+<section class="cos-ledger-office">
+    <div>
+        <span class="bw-section-kicker">مركز الدعم</span>
+        <h2>محادثة آمنة مع الإدارة</h2>
+        <p><%= workspace.permissions.manager ? 'أرسل رقم العملية أو تفاصيل المشكلة دون الرموز السرية. طلب الإيداع من صفحة التمويل.' : 'أرسل رقم العملية أو تفاصيل المتابعة. إنشاء طلب إيداع يبقى لدى مدير التشغيل.' %></p>
+    </div>
+    <div class="cos-ledger-links">
+        <% if (workspace.permissions.canRequestDeposit) { %>
+            <a href="/client/company/deposits" class="bw-button ghost"><i class="fa-solid fa-building-columns"></i><%= workspace.permissions.manager ? 'طلب إيداع' : 'متابعة الإيداع' %></a>
+        <% } %>
+        <a href="/client/transactions" class="bw-button ghost"><i class="fa-solid fa-list-check"></i><%= workspace.forceToday ? 'عمليات اليوم' : 'غرفة العمليات' %></a>
+    </div>
+</section>
+<% } %>
 <section class="bw-support-layout">
     <aside class="bw-support-summary">
         <span class="bw-support-mark"><i class="fa-solid fa-headset"></i></span>
         <span class="bw-section-kicker">فريق خدمة العملاء</span>
         <h2>نحن هنا لمتابعة طلبك</h2>
-        <p>أرسل تفاصيل المشكلة أو رقم العملية، وستظهر ردود الإدارة داخل نفس المحادثة.</p>
+        <p><%= workspace.isCompany ? 'الرد يظهر في هذه المحادثة. لا ترسل كلمة المرور أو رمز العمليات.' : 'أرسل تفاصيل المشكلة أو رقم العملية، وستظهر ردود الإدارة داخل نفس المحادثة.' %></p>
         <dl class="bw-definition-list">
             <div><dt>صاحب الطلب</dt><dd><%= workspace.actor.name %></dd></div>
             <div><dt>المنشأة</dt><dd><%= workspace.entity.name %></dd></div>
@@ -16,7 +31,7 @@
         <header class="bw-section-head"><div><span class="bw-section-kicker">المحادثة الحالية</span><h2>الدعم الفني</h2></div><span class="bw-status success"><i class="fa-solid fa-circle"></i>متاح</span></header>
         <div class="bw-chat-messages" id="supportMessages" aria-live="polite"><div class="bw-loading"><i class="fa-solid fa-circle-notch fa-spin"></i><span>جارٍ تحميل المحادثة...</span></div></div>
         <form class="bw-chat-composer" id="supportMessageForm">
-            <label class="bw-chat-input"><span class="sr-only">نص الرسالة</span><textarea name="text" rows="2" maxlength="1000" placeholder="اكتب رسالتك أو رقم العملية..." required></textarea></label>
+            <label class="bw-chat-input"><span class="sr-only">نص الرسالة</span><textarea name="text" rows="2" maxlength="1000" placeholder="<%= workspace.isCompany && !workspace.permissions.manager ? 'اكتب رقم العملية أو تفاصيل المتابعة...' : 'اكتب رسالتك أو رقم العملية...' %>" required></textarea></label>
             <label class="bw-icon-button" title="إرفاق صورة"><i class="fa-regular fa-image"></i><input type="file" name="image" accept="image/jpeg,image/png,image/webp" hidden></label>
             <button type="submit" class="bw-button primary"><i class="fa-solid fa-paper-plane"></i><span>إرسال</span></button>
         </form>

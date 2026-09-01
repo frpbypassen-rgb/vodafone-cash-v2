@@ -1,0 +1,13 @@
+<section class="bw-section bw-internal-transfer">
+    <header class="bw-section-head">
+        <div><span class="bw-section-kicker">بين الحسابات</span><h2>تحويل رصيد داخلي</h2></div>
+        <span class="bw-meta-chip">يولد إيصالاً مستقلاً</span>
+    </header>
+    <form id="balanceTransferForm" class="bw-inline-form">
+        <label class="bw-field"><span>رقم حساب المستلم</span><input type="text" name="targetAccountCode" class="bw-input bw-mono" inputmode="numeric" minlength="4" maxlength="6" required></label>
+        <label class="bw-field"><span>المبلغ بالدينار</span><input type="number" name="amount" min="0.01" step="0.01" required></label>
+        <label class="bw-field grow"><span>ملاحظة التحويل</span><input type="text" name="notes" maxlength="300"></label>
+        <button type="submit" class="bw-button secondary"><i class="fa-solid fa-right-left"></i>تحويل الرصيد</button>
+    </form>
+    <div class="bw-form-result" id="balanceTransferResult" hidden></div>
+</section>

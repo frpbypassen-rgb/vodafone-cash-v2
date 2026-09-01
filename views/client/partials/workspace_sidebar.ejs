@@ -1,9 +1,9 @@
 <aside class="bw-sidebar" id="businessSidebar" aria-label="القائمة الرئيسية">
-    <a href="/client/dashboard?home=1" class="bw-brand" aria-label="Power Pay AL-Ahram - الرئيسية">
+    <a href="<%= typeof portalHomeHref !== 'undefined' ? portalHomeHref : '/client/dashboard?home=1' %>" class="bw-brand" aria-label="Power Pay AL-Ahram - الرئيسية">
         <img src="/images/logo.jpeg" alt="Power Pay AL-Ahram" onerror="this.onerror=null;this.src='/images/logo.jpg'">
         <span>
             <strong>AL-AHRAM</strong>
-            <small>بوابة العميل · <%= workspace.portalLabel %></small>
+            <small><%= workspace.portalLabel %></small>
         </span>
     </a>
 
@@ -32,8 +32,8 @@
         <div class="bw-company-navigation-note" aria-label="تنظيم مساحة الشركة">
             <span><i class="fa-solid fa-layer-group"></i></span>
             <div>
-                <strong>مساحة شركة موحّدة</strong>
-                <small>كل خدمة في قسم مستقل</small>
+                <strong><%= workspace.portalLabel %></strong>
+                <small>قناة واحدة لكل خدمة</small>
             </div>
         </div>
     <% } %>

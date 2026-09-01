@@ -1,8 +1,27 @@
+<% if (workspace.isCompany) { %>
+<section class="cos-ledger-office">
+    <div>
+        <span class="bw-section-kicker">غرفة العمليات</span>
+        <h2><%= workspace.forceToday ? 'عمليات اليوم' : 'سجل التنفيذ' %></h2>
+        <p><%= workspace.forceToday ? 'تابع حالة ما نفّذته اليوم والإيصال عند اكتماله. المالية والكشوف خارج هذه الشاشة.' : 'ابحث بالرقم أو المستلم أو الموظف، ثم افتح التفاصيل أو الإيصال من نفس السجل.' %></p>
+    </div>
+    <div class="cos-ledger-links">
+        <% if (workspace.permissions.canTransfer) { %>
+            <a href="/client/services" class="bw-button primary"><i class="fa-solid fa-cubes"></i>معرض الخدمات</a>
+        <% } %>
+        <a href="/client/support" class="bw-button ghost"><i class="fa-solid fa-headset"></i>الدعم</a>
+    </div>
+</section>
+<% } %>
+
 <section class="bw-filter-band">
     <form method="GET" action="/client/transactions" class="bw-filter-form">
         <label class="bw-search-field"><i class="fa-solid fa-magnifying-glass"></i><input type="search" name="search" value="<%= filters.search %>" placeholder="رقم العملية، المستلم، الموظف..."></label>
         <label><span>الحالة</span><select name="status"><option value="">كل الحالات</option><% Object.entries(statusMeta).forEach(([key, value]) => { %><option value="<%= key %>" <%= filters.status === key ? 'selected' : '' %>><%= value.label %></option><% }) %></select></label>
         <label><span>الخدمة</span><select name="service"><option value="">كل الخدمات</option><% serviceCatalog.forEach(service => { %><option value="<%= service.key %>" <%= filters.service === service.key ? 'selected' : '' %>><%= service.label %></option><% }) %></select></label>
+        <% if (workspace.isCompany && !workspace.forceToday && typeof staff !== 'undefined' && staff.length) { %>
+            <label><span>الموظف</span><select name="staff"><option value="">كل الموظفين</option><% staff.forEach(member => { %><option value="<%= member.name %>" <%= filters.staff === member.name ? 'selected' : '' %>><%= member.name %></option><% }) %></select></label>
+        <% } %>
         <% if (!workspace.forceToday) { %>
             <label><span>من</span><input type="date" name="from" value="<%= filters.from %>"></label>
             <label><span>إلى</span><input type="date" name="to" value="<%= filters.to %>"></label>
@@ -29,18 +48,42 @@
         <div><span class="bw-section-kicker"><%= filters.label %></span><h2>سجل المعاملات</h2></div>
         <span class="bw-meta-chip"><%= total %> نتيجة</span>
     </header>
+    <% const showCost = workspace.permissions.canViewBalance; %>
+    <% if (workspace.isCompany) { %>
+        <div class="cos-ops-list">
+            <% if (!transactions.length) { %><div class="bw-empty"><i class="fa-solid fa-magnifying-glass"></i><strong>لا توجد نتائج مطابقة</strong><span>غيّر خيارات البحث أو الفترة الزمنية.</span></div><% } %>
+            <% transactions.forEach(tx => { const status = statusMeta[tx.status] || { label: tx.status, tone: 'neutral' }; const service = serviceCatalog.find(item => item.key === tx.transferType); const hasReceipt = Boolean(tx.proofImage || (Array.isArray(tx.proofImages) && tx.proofImages.some(Boolean))); %>
+                <article class="cos-ops-card">
+                    <button type="button" class="cos-ops-main" data-transaction-id="<%= tx._id %>">
+                        <span class="cos-ops-icon"><i class="fa-solid <%= service?.icon || 'fa-money-bill-transfer' %>"></i></span>
+                        <div>
+                            <strong class="bw-mono"><%= tx.customId %></strong>
+                            <small><%= service?.shortLabel || tx.transferType %> · <%= tx.vodafoneNumber || tx.accountNumber || '---' %><%= workspace.forceToday ? '' : ` · ${tx.employeeName || '---'}` %> · <%= new Date(tx.createdAt).toLocaleTimeString('ar-LY', { timeZone: 'Africa/Tripoli', hour: '2-digit', minute: '2-digit' }) %></small>
+                        </div>
+                        <b class="bw-mono"><%= Number(tx.amount || 0).toLocaleString('en-US', { maximumFractionDigits: 0 }) %> <em><%= service?.amountCurrencyLabel || 'EGP' %></em></b>
+                        <% if (showCost) { %><span class="cos-ops-cost bw-mono"><%= Number(tx.costLYD || 0).toFixed(3) %> LYD</span><% } %>
+                        <span class="bw-status <%= status.tone %>"><%= status.label %></span>
+                    </button>
+                    <div class="cos-ops-actions">
+                        <% if (hasReceipt) { %><button type="button" class="bw-icon-button compact receipt" data-transaction-id="<%= tx._id %>" data-receipt-focus title="عرض صور الإيصال" aria-label="عرض صور إيصال العملية <%= tx.customId %>"><i class="fa-solid fa-receipt"></i></button><% } %>
+                        <button type="button" class="bw-icon-button compact" data-transaction-id="<%= tx._id %>" title="التفاصيل" aria-label="عرض تفاصيل العملية <%= tx.customId %>"><i class="fa-solid fa-eye"></i></button>
+                    </div>
+                </article>
+            <% }) %>
+        </div>
+    <% } else { %>
     <div class="bw-table-wrap">
         <table class="bw-table bw-transactions-table">
-            <thead><tr><th>العملية</th><th>الخدمة والمستلم</th><th><%= workspace.isCompany ? 'الموظف' : 'العميل / الموظف' %></th><th>المبلغ</th><th>التكلفة</th><th>الحالة</th><th>التاريخ</th><th></th></tr></thead>
+            <thead><tr><th>العملية</th><th>الخدمة والمستلم</th><th>العميل / الموظف</th><th>المبلغ</th><% if (showCost) { %><th>التكلفة</th><% } %><th>الحالة</th><th>التاريخ</th><th></th></tr></thead>
             <tbody>
-                <% if (!transactions.length) { %><tr><td colspan="8"><div class="bw-empty"><i class="fa-solid fa-magnifying-glass"></i><strong>لا توجد نتائج مطابقة</strong><span>غيّر خيارات البحث أو الفترة الزمنية.</span></div></td></tr><% } %>
+                <% if (!transactions.length) { %><tr><td colspan="<%= showCost ? 8 : 7 %>"><div class="bw-empty"><i class="fa-solid fa-magnifying-glass"></i><strong>لا توجد نتائج مطابقة</strong><span>غيّر خيارات البحث أو الفترة الزمنية.</span></div></td></tr><% } %>
                 <% transactions.forEach(tx => { const status = statusMeta[tx.status] || { label: tx.status, tone: 'neutral' }; const service = serviceCatalog.find(item => item.key === tx.transferType); const hasReceipt = Boolean(tx.proofImage || (Array.isArray(tx.proofImages) && tx.proofImages.some(Boolean))); %>
                     <tr>
                         <td data-label="العملية"><button type="button" class="bw-id-button bw-mono" data-transaction-id="<%= tx._id %>"><%= tx.customId %></button><small><%= tx.accountName || 'بدون اسم مستفيد' %></small></td>
                         <td data-label="الخدمة"><span class="bw-service-cell"><i class="fa-solid <%= service?.icon || 'fa-money-bill-transfer' %>"></i><span><strong><%= service?.shortLabel || tx.transferType %></strong><small class="bw-mono"><%= tx.vodafoneNumber || tx.accountNumber || '---' %></small></span></span></td>
-                        <td data-label="<%= workspace.isCompany ? 'الموظف' : 'العميل / الموظف' %>"><% if (workspace.isCompany) { %><strong><%= tx.employeeName || '---' %></strong><% } else { %><strong><%= tx.subAccountName || 'الحساب الرئيسي' %></strong><small><%= tx.employeeName || '---' %></small><% } %></td>
+                        <td data-label="العميل / الموظف"><strong><%= tx.subAccountName || 'الحساب الرئيسي' %></strong><small><%= tx.employeeName || '---' %></small></td>
                         <td data-label="المبلغ"><strong class="bw-mono"><%= Number(tx.amount || 0).toLocaleString('en-US', { maximumFractionDigits: 0 }) %></strong><small><%= service?.amountCurrencyLabel || 'EGP' %></small></td>
-                        <td data-label="التكلفة"><% if (workspace.permissions.canViewBalance) { %><strong class="bw-mono"><%= Number(tx.costLYD || 0).toFixed(3) %></strong><small>LYD</small><% } else { %><span class="bw-muted">محجوبة</span><% } %></td>
+                        <% if (showCost) { %><td data-label="التكلفة"><strong class="bw-mono"><%= Number(tx.costLYD || 0).toFixed(3) %></strong><small>LYD</small></td><% } %>
                         <td data-label="الحالة"><span class="bw-status <%= status.tone %>"><%= status.label %></span></td>
                         <td data-label="التاريخ"><strong class="bw-mono"><%= new Date(tx.createdAt).toLocaleDateString('en-GB', { timeZone: 'Africa/Tripoli' }) %></strong><small><%= new Date(tx.createdAt).toLocaleTimeString('ar-LY', { timeZone: 'Africa/Tripoli', hour: '2-digit', minute: '2-digit' }) %></small></td>
                         <td><div class="bw-row-actions">
@@ -52,6 +95,7 @@
             </tbody>
         </table>
     </div>
+    <% } %>
     <% if (pagination.pages > 1) { %>
         <nav class="bw-pagination" aria-label="صفحات النتائج">
             <% for (let pageNumber = 1; pageNumber <= pagination.pages; pageNumber += 1) { const params = new URLSearchParams({ ...query, page: String(pageNumber) }); %>

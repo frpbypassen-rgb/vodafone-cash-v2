@@ -1,13 +1,37 @@
+<% if (workspace.isCompany) { %>
+<section class="cos-ledger-office">
+    <div>
+        <span class="bw-section-kicker"><%= workspace.persona === 'accountant' ? 'مكتب المحاسبة' : 'صباح التشغيل' %></span>
+        <h2>مركز قيادة الشركة</h2>
+        <p>
+            <% if (workspace.persona === 'accountant') { %>
+                الرصيد والقيود والكشف الرسمي. لا معرض خدمات ولا نموذج إرسال من هنا.
+            <% } else { %>
+                أرقام وانتباه فقط. التحويل يتم من معرض الخدمات، والكشف من مكتب المحاسبة.
+            <% } %>
+        </p>
+    </div>
+    <div class="cos-ledger-links">
+        <% if (workspace.permissions.canTransfer) { %>
+            <a href="/client/services" class="bw-button primary"><i class="fa-solid fa-cubes"></i>معرض الخدمات</a>
+        <% } %>
+        <% if (workspace.permissions.canViewReports) { %>
+            <a href="/client/reports" class="bw-button ghost"><i class="fa-solid fa-file-invoice"></i>كشف الحساب</a>
+        <% } %>
+        <% if (workspace.permissions.canViewBalance) { %>
+            <a href="/client/finance" class="bw-button ghost"><i class="fa-solid fa-scale-balanced"></i>مكتب المحاسبة</a>
+        <% } %>
+    </div>
+</section>
+<% } else { %>
 <section class="bw-command-strip">
     <div class="bw-command-copy">
-        <span class="bw-command-mark"><i class="fa-solid <%= workspace.forceToday ? 'fa-user-check' : workspace.isCompany ? 'fa-building-shield' : 'fa-map-location-dot' %>"></i></span>
+        <span class="bw-command-mark"><i class="fa-solid <%= workspace.forceToday ? 'fa-user-check' : 'fa-map-location-dot' %>"></i></span>
         <div>
-            <span class="bw-section-kicker"><%= workspace.forceToday ? 'حساب الموظف' : workspace.isCompany ? 'لوحة قيادة الشركة' : 'مركز إدارة شبكة الوكيل' %></span>
+            <span class="bw-section-kicker"><%= workspace.forceToday ? 'حساب الموظف' : 'مركز إدارة شبكة الوكيل' %></span>
             <h2><%= workspace.entity.name %></h2>
             <p>
-                <% if (workspace.persona === 'manager') { %>
-                    عرض موحّد للتشغيل والفريق والرقابة المالية، مع إبقاء كل خدمة في قسمها المخصص.
-                <% } else if (workspace.persona === 'accountant') { %>
+                <% if (workspace.persona === 'accountant') { %>
                     راقب الحركات وكشوف الحساب الرسمية دون الوصول إلى تنفيذ التحويلات.
                 <% } else { %>
                     ابدأ العملية ثم تابع حالتها من سجل عملياتك اليومي، دون تشتيت أو تكرار.
@@ -17,25 +41,13 @@
     </div>
     <div class="bw-command-actions">
         <% if (workspace.permissions.canTransfer) { %>
-            <a href="/client/services" class="bw-button primary"><i class="fa-solid fa-paper-plane"></i>إنشاء تحويل</a>
+            <a href="/client/services" class="bw-button primary"><i class="fa-solid fa-cubes"></i>إنشاء تحويل</a>
         <% } %>
     </div>
 </section>
-<% if (workspace.isCompany && teamSpotlight.length) { %>
-    <% const canViewTeamPulse = workspace.permissions.manager || workspace.permissions.accountant; %>
-    <% if (canViewTeamPulse) { %>
-    <section class="bw-section bw-team-spotlight">
-        <header class="bw-section-head"><div><span class="bw-section-kicker">أداء الشهر</span><h2>نبض فريق التنفيذ</h2></div><a href="/client/reports?scope=staff" class="bw-text-link">فتح كشف الفريق <i class="fa-solid fa-arrow-left"></i></a></header>
-        <div class="bw-team-spotlight-list">
-            <% teamSpotlight.forEach((member, index) => { %>
-                <article><span class="bw-team-rank"><%= index + 1 %></span><span class="bw-avatar small"><%= String(member._id || 'م').charAt(0) %></span><div><strong><%= member._id %></strong><small><%= member.completedCount %> ناجحة من <%= member.totalCount %> عملية</small></div><b class="bw-mono"><%= Number(member.totalEGP || 0).toLocaleString('en-US', { maximumFractionDigits: 0 }) %><small>EGP</small></b></article>
-            <% }) %>
-        </div>
-    </section>
-    <% } %>
 <% } %>
 
-<section class="bw-metric-grid bw-overview-metrics <%= workspace.permissions.canViewBalance ? 'with-balance' : 'without-balance' %>" aria-label="المؤشرات الرئيسية">
+<section class="bw-metric-grid bw-overview-metrics <%= workspace.permissions.canViewBalance ? 'with-balance' : 'without-balance' %><%= workspace.isCompany && workspace.permissions.canViewBalance ? ' with-credit' : '' %>" aria-label="المؤشرات الرئيسية">
     <% if (workspace.permissions.canViewBalance) { %>
         <article class="bw-metric-card accent-dark">
             <span class="bw-metric-icon"><i class="fa-solid fa-wallet"></i></span>
@@ -45,6 +57,16 @@
                 <small>دينار ليبي</small>
             </div>
         </article>
+        <% if (workspace.isCompany) { %>
+        <article class="bw-metric-card accent-amber">
+            <span class="bw-metric-icon"><i class="fa-solid fa-shield-halved"></i></span>
+            <div>
+                <span>الحد الائتماني</span>
+                <strong class="bw-mono"><%= Number(workspace.entity.creditLimit || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) %></strong>
+                <small>دينار ليبي</small>
+            </div>
+        </article>
+        <% } %>
     <% } %>
     <article class="bw-metric-card accent-green">
         <span class="bw-metric-icon"><i class="fa-solid fa-circle-check"></i></span>
@@ -72,16 +94,27 @@
     </article>
 </section>
 
-<section class="bw-dashboard-grid">
+<section class="bw-dashboard-grid<%= workspace.isCompany ? ' cos-pulse' : '' %>">
+    <% if (workspace.isCompany && teamSpotlight.length && (workspace.permissions.manager || workspace.permissions.accountant)) { %>
+    <section class="bw-section bw-team-spotlight">
+        <header class="bw-section-head"><div><span class="bw-section-kicker">نبض الفريق</span><h2>الأعلى تنفيذاً هذا الشهر</h2></div><a href="/client/reports/staff" class="bw-text-link">فتح كشف الفريق <i class="fa-solid fa-arrow-left"></i></a></header>
+        <div class="bw-team-spotlight-list">
+            <% teamSpotlight.forEach((member, index) => { %>
+                <article><span class="bw-team-rank"><%= index + 1 %></span><span class="bw-avatar small"><%= String(member._id || 'م').charAt(0) %></span><div><strong><%= member._id %></strong><small><%= member.completedCount %> ناجحة من <%= member.totalCount %> عملية</small></div><b class="bw-mono"><%= Number(member.totalEGP || 0).toLocaleString('en-US', { maximumFractionDigits: 0 }) %><small>EGP</small></b></article>
+            <% }) %>
+        </div>
+    </section>
+    <% } %>
+    <% if (!workspace.isCompany) { %>
     <div class="bw-section bw-recent-section">
         <header class="bw-section-head">
             <div>
                 <span class="bw-section-kicker">آخر النشاطات</span>
                 <h2>المعاملات الأخيرة</h2>
             </div>
-            <a href="/client/transactions" class="bw-text-link">عرض السجل <i class="fa-solid fa-arrow-left"></i></a>
+            <a href="/client/transactions" class="bw-text-link">غرفة العمليات <i class="fa-solid fa-arrow-left"></i></a>
         </header>
-        <div class="bw-table-wrap">
+            <div class="bw-table-wrap">
             <table class="bw-table">
                 <thead>
                     <tr>
@@ -112,14 +145,15 @@
                     <% }) %>
                 </tbody>
             </table>
-        </div>
+            </div>
     </div>
+    <% } %>
 
     <aside class="bw-section bw-priority-section">
         <header class="bw-section-head">
             <div>
-                <span class="bw-section-kicker">مركز المتابعة</span>
-                <h2>ما يحتاج انتباهك</h2>
+                <span class="bw-section-kicker"><%= workspace.isCompany ? 'مركز الانتباه' : 'مركز المتابعة' %></span>
+                <h2><%= workspace.isCompany ? 'ما لا يتكرر في شاشة أخرى' : 'ما يحتاج انتباهك' %></h2>
             </div>
         </header>
         <div class="bw-priority-list">
@@ -128,6 +162,26 @@
                 <div><strong><%= monthSummary.pendingCount %> عملية معلقة</strong><small>بانتظار التنفيذ أو تحديث الحالة</small></div>
                 <i class="fa-solid fa-chevron-left"></i>
             </a>
+            <% if (workspace.isCompany && workspace.permissions.canViewBalance && Number(workspace.entity.creditLimit || 0) > 0) { const remainingPct = Math.max(0, Math.round((Number(workspace.entity.balance || 0) / Number(workspace.entity.creditLimit)) * 100)); %>
+                <a href="/client/finance" class="bw-priority-row <%= remainingPct <= 10 ? 'warning' : 'green' %>">
+                    <span><i class="fa-solid fa-gauge-high"></i></span>
+                    <div><strong>المتبقي من الحد <%= remainingPct %>%</strong><small>الرصيد الحالي مقابل الحد الائتماني</small></div>
+                    <i class="fa-solid fa-chevron-left"></i>
+                </a>
+            <% } %>
+            <% if (workspace.isCompany && typeof pendingRateUpdate !== 'undefined' && pendingRateUpdate) { %>
+                <div class="bw-priority-row warning">
+                    <span><i class="fa-solid fa-chart-line"></i></span>
+                    <div><strong>تحديث سعر قريب</strong><small>سيظهر التنبيه في نافذة أعلى الشاشة، وليس شريطاً مكرراً</small></div>
+                </div>
+            <% } %>
+            <% if (workspace.isCompany && workspace.permissions.canRequestDeposit) { %>
+                <a href="/client/company/deposits" class="bw-priority-row blue">
+                    <span><i class="fa-solid fa-building-columns"></i></span>
+                    <div><strong><%= pendingDepositCount || 0 %> طلب إيداع قيد المراجعة</strong><small><%= workspace.permissions.manager ? 'أرسل طلباً جديداً أو تابع الاعتماد' : 'للمتابعة المالية دون إنشاء طلب' %></small></div>
+                    <i class="fa-solid fa-chevron-left"></i>
+                </a>
+            <% } %>
             <% if (workspace.permissions.canManageCustomers) { %>
                 <a href="/client/customers" class="bw-priority-row blue">
                     <span><i class="fa-solid fa-users"></i></span>

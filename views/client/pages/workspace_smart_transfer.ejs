@@ -1,0 +1,15 @@
+<% if (workspace.isCompany) { %>
+<section class="cos-ledger-office">
+    <div>
+        <span class="bw-section-kicker">لصق الرسالة</span>
+        <h2>التحويل الذكي</h2>
+        <p>هذه الصفحة تحلل الرسالة فقط. الإرسال يتم داخل منضدة الخدمة المطابقة بعد المراجعة.</p>
+    </div>
+    <div class="cos-ledger-links">
+        <a href="/client/services" class="bw-button ghost"><i class="fa-solid fa-cubes"></i>معرض الخدمات</a>
+    </div>
+</section>
+<% } else { %>
+<p class="cos-isolated-note">هذه الصفحة تحلل الرسالة فقط. الإرسال يتم داخل منضدة الخدمة المطابقة بعد المراجعة.</p>
+<% } %>
+<%- include('../partials/smart_transfer_panel', { smartTransferActionLabel: 'فتح منضدة الخدمة' }) %>

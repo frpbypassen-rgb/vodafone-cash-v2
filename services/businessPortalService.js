@@ -9,6 +9,7 @@ const Transaction = require('../models/Transaction');
 const RegistrationRequest = require('../models/RegistrationRequest');
 const Settings = require('../models/Settings');
 const Ledger = require('../models/Ledger');
+const SupportTicket = require('../models/SupportTicket');
 const AuditLog = require('../models/AuditLog');
 const { getServiceRatesForTier, getCompanyServiceRates } = require('../utils/rateHelper');
 const { getTransferServiceRules } = require('../utils/transferServiceRules');
@@ -41,6 +42,7 @@ const STATUS_META = Object.freeze({
 const SERVICE_CATALOG = Object.freeze([
     Object.freeze({
         key: 'vodafone',
+        slug: 'cash',
         webType: 'كاش',
         label: 'محافظ كاش',
         shortLabel: 'كاش',
@@ -54,6 +56,7 @@ const SERVICE_CATALOG = Object.freeze([
     }),
     Object.freeze({
         key: 'post_account',
+        slug: 'post-account',
         webType: 'بريد حساب',
         label: 'البريد - حساب',
         shortLabel: 'بريد حساب',
@@ -67,6 +70,7 @@ const SERVICE_CATALOG = Object.freeze([
     }),
     Object.freeze({
         key: 'post_card',
+        slug: 'post-card',
         webType: 'بريد بطاقة',
         label: 'البريد - بطاقة',
         shortLabel: 'بريد بطاقة',
@@ -80,6 +84,7 @@ const SERVICE_CATALOG = Object.freeze([
     }),
     Object.freeze({
         key: 'bank_account',
+        slug: 'bank',
         webType: 'حساب بنكي',
         label: 'حساب بنكي',
         shortLabel: 'تحويل بنكي',
@@ -93,6 +98,7 @@ const SERVICE_CATALOG = Object.freeze([
     }),
     Object.freeze({
         key: 'sefa_niger',
+        slug: 'sefa',
         webType: 'سيفا النيجر',
         label: 'سيفا النيجر',
         shortLabel: 'سيفا النيجر',
@@ -106,6 +112,7 @@ const SERVICE_CATALOG = Object.freeze([
     }),
     Object.freeze({
         key: 'bankak_sudan',
+        slug: 'bankak',
         webType: 'بنكك السودان',
         label: 'بنكك السودان',
         shortLabel: 'بنكك',
@@ -118,6 +125,12 @@ const SERVICE_CATALOG = Object.freeze([
         ...getTransferPricingDefinition('bankak_sudan')
     })
 ]);
+
+const findServiceByToken = (token) => {
+    const value = String(token || '').trim().toLowerCase();
+    if (!value) return null;
+    return SERVICE_CATALOG.find((service) => service.key === value || service.slug === value) || null;
+};
 
 const PAGE_META = Object.freeze({
     overview: { title: 'مركز العمل', eyebrow: 'نظرة تشغيلية', icon: 'fa-grid-2' },
@@ -134,18 +147,28 @@ const PAGE_META = Object.freeze({
     staff: { title: 'الموظفون والصلاحيات', eyebrow: 'إدارة الفريق', icon: 'fa-user-group' },
     reports: { title: 'التقارير والتحليلات', eyebrow: 'قرارات مبنية على البيانات', icon: 'fa-chart-column' },
     settings: { title: 'الإعدادات', eyebrow: 'بيانات المنشأة والأمان', icon: 'fa-sliders' },
-    support: { title: 'الدعم الفني', eyebrow: 'تواصل مباشر وآمن', icon: 'fa-headset' }
+    security: { title: 'أمان الحساب', eyebrow: 'كلمة المرور والأجهزة', icon: 'fa-shield-halved' },
+    support: { title: 'الدعم الفني', eyebrow: 'تواصل مباشر وآمن', icon: 'fa-headset' },
+    smart_transfer: { title: 'التحويل الذكي', eyebrow: 'لصق رسالة وتحويلها', icon: 'fa-wand-magic-sparkles' },
+    internal_transfer: { title: 'تحويل داخلي', eyebrow: 'بين حسابات المنشأة', icon: 'fa-right-left' },
+    service_workbench: { title: 'منضدة التحويل', eyebrow: 'خدمة معزولة', icon: 'fa-paper-plane' },
+    deposits: { title: 'طلب إيداع', eyebrow: 'تمويل الرصيد', icon: 'fa-building-columns' }
 });
 
 const COMPANY_PAGE_META = Object.freeze({
     overview: { title: 'مركز قيادة الشركة', eyebrow: 'لوحة موحّدة للتشغيل' },
-    services: { title: 'مركز التنفيذ', eyebrow: 'إنشاء تحويل جديد' },
-    transactions: { title: 'سجل العمليات', eyebrow: 'بحث ومتابعة التنفيذ' },
+    services: { title: 'معرض الخدمات', eyebrow: 'قناة واحدة لكل بطاقة' },
+    transactions: { title: 'غرفة العمليات', eyebrow: 'بحث ومتابعة التنفيذ' },
     staff: { title: 'فريق الشركة', eyebrow: 'الحسابات والأدوار' },
-    finance: { title: 'كشف الحركات', eyebrow: 'رقابة مالية موثقة' },
-    reports: { title: 'كشوف الحساب', eyebrow: 'بيانات موحّدة من الإدارة' },
-    settings: { title: 'إدارة الحساب', eyebrow: 'البيانات والأمان والتجربة' },
-    support: { title: 'مركز الدعم', eyebrow: 'مساعدة ومتابعة آمنة' }
+    finance: { title: 'مكتب المحاسبة', eyebrow: 'رصيد وكشوف بلا تنفيذ' },
+    reports: { title: 'كشف الحساب', eyebrow: 'بيانات موحّدة من الإدارة' },
+    settings: { title: 'بيانات المنشأة', eyebrow: 'الملف والتواصل' },
+    security: { title: 'أمان الحساب', eyebrow: 'كلمة المرور وMFA والأجهزة' },
+    support: { title: 'مركز الدعم', eyebrow: 'مساعدة ومتابعة آمنة' },
+    smart_transfer: { title: 'التحويل الذكي', eyebrow: 'من رسالة إلى عملية' },
+    internal_transfer: { title: 'تحويل رصيد داخلي', eyebrow: 'بين حسابات الشركة' },
+    service_workbench: { title: 'منضدة الخدمة', eyebrow: 'حقول هذه القناة فقط' },
+    deposits: { title: 'طلب إيداع', eyebrow: 'تمويل حساب الشركة' }
 });
 
 const REPORT_SCOPES = Object.freeze({
@@ -249,7 +272,9 @@ const resolveCompanyPermissions = (actor) => {
         canManageCustomers: false,
         canManageStaff: owner,
         canViewReports: owner || manager || accountant || actor.canViewAllReports === true,
-        canEditSettings: owner || manager
+        canEditSettings: owner || manager,
+        canInternalTransfer: !accountant && manager,
+        canRequestDeposit: manager || accountant
     };
 };
 
@@ -267,8 +292,17 @@ const resolveAgentPermissions = (actor) => {
         canManageCustomers: manager,
         canManageStaff: owner || actor.canCreateAgentStaff === true,
         canViewReports: true,
-        canEditSettings: owner || manager
+        canEditSettings: owner || manager,
+        canInternalTransfer: !accountant,
+        canRequestDeposit: false
     };
+};
+
+const canPostPortalTransfer = (accountType, account) => {
+    if (!account) return false;
+    if (accountType === 'company') return resolveCompanyPermissions(account).canTransfer === true;
+    if (accountType === 'agent_staff') return resolveAgentPermissions(account).canTransfer === true;
+    return String(account.role || '').toLowerCase() !== 'accountant';
 };
 
 const resolveWorkspace = async (req) => {
@@ -350,7 +384,9 @@ const buildWorkspaceResult = ({ type, actor, entity, actorModel, entityModel, pe
         persona,
         roleLabel,
         entityLabel: type === 'company' ? 'الشركة' : 'الوكيل',
-        portalLabel: permissions.employee ? 'واجهة العميل' : (type === 'company' ? 'بوابة الشركات' : 'بوابة الوكلاء'),
+        portalLabel: type === 'company'
+            ? (permissions.employee ? 'غرفة التنفيذ' : permissions.accountant ? 'مكتب المحاسبة' : 'غرفة الشركات')
+            : (permissions.employee ? 'واجهة العميل' : 'بوابة الوكلاء'),
         permissions,
         masterType: type === 'company' ? 'company' : 'user',
         masterId: entity._id,
@@ -359,19 +395,25 @@ const buildWorkspaceResult = ({ type, actor, entity, actorModel, entityModel, pe
 };
 
 const buildNavigation = (workspace, activePage) => {
+    const navPage = activePage === 'service_workbench' ? 'services' : activePage;
     // Company accounts do not manage customers. Keep every capability in one clear
     // workspace so the sidebar is the single source of navigation, not a set of
     // repeated shortcuts scattered across dashboard cards.
     const items = workspace.isCompany
         ? [
-            { key: 'overview', href: '/client/dashboard?home=1', label: 'مركز الشركة', icon: 'fa-grid-2', group: 'لوحة القيادة', visible: true },
-            { key: 'services', href: '/client/services', label: 'إنشاء تحويل', icon: 'fa-paper-plane', group: 'التنفيذ', visible: workspace.permissions.canTransfer },
-            { key: 'transactions', href: '/client/transactions', label: 'سجل العمليات', icon: 'fa-list-check', group: 'التنفيذ', visible: true },
-            { key: 'staff', href: '/client/staff', label: 'فريق الشركة', icon: 'fa-user-group', group: 'الفريق والصلاحيات', visible: workspace.permissions.manager || workspace.permissions.accountant },
-            { key: 'finance', href: '/client/finance', label: 'كشف الحركات', icon: 'fa-scale-balanced', group: 'الرقابة المالية', visible: workspace.permissions.canViewBalance },
-            { key: 'reports', href: '/client/reports', label: 'كشوف الحساب', icon: 'fa-chart-column', group: 'الرقابة المالية', visible: workspace.permissions.canViewReports },
-            { key: 'settings', href: '/client/settings', label: 'إدارة الحساب', icon: 'fa-sliders', group: 'الحساب والمساعدة', visible: true },
-            { key: 'support', href: '/client/support', label: 'الدعم الفني', icon: 'fa-headset', group: 'الحساب والمساعدة', visible: true }
+            { key: 'overview', href: '/client/dashboard?home=1', label: 'مركز القيادة', icon: 'fa-building-shield', group: 'القيادة', visible: !workspace.permissions.employee },
+            { key: 'services', href: '/client/services', label: 'معرض الخدمات', icon: 'fa-cubes', group: 'التنفيذ', visible: workspace.permissions.canTransfer },
+            { key: 'smart_transfer', href: '/client/smart-transfer', label: 'التحويل الذكي', icon: 'fa-wand-magic-sparkles', group: 'التنفيذ', visible: workspace.permissions.canTransfer },
+            { key: 'internal_transfer', href: '/client/internal-transfer', label: 'تحويل داخلي', icon: 'fa-right-left', group: 'التنفيذ', visible: workspace.permissions.canInternalTransfer },
+            { key: 'transactions', href: '/client/transactions', label: workspace.forceToday ? 'عمليات اليوم' : 'غرفة العمليات', icon: 'fa-list-check', group: 'التنفيذ', visible: true },
+            { key: 'staff', href: '/client/staff', label: 'فريق الشركة', icon: 'fa-user-group', group: 'المؤسسة', visible: workspace.permissions.manager || workspace.permissions.accountant },
+            { key: 'deposits', href: '/client/company/deposits', label: workspace.permissions.manager ? 'طلب إيداع' : 'متابعة الإيداع', icon: 'fa-building-columns', group: 'المؤسسة', visible: workspace.permissions.canRequestDeposit },
+            { key: 'finance', href: '/client/finance', label: 'مكتب المحاسبة', icon: 'fa-scale-balanced', group: 'الرقابة المالية', visible: workspace.permissions.canViewBalance },
+            { key: 'reports', href: '/client/reports', label: 'كشف الحساب', icon: 'fa-file-invoice', group: 'الرقابة المالية', visible: workspace.permissions.canViewReports },
+            { key: 'team_reports', href: '/client/reports/staff', label: 'أداء الموظفين', icon: 'fa-chart-column', group: 'الرقابة المالية', visible: workspace.permissions.canViewReports && (workspace.permissions.manager || workspace.permissions.accountant) },
+            { key: 'settings', href: '/client/settings', label: 'بيانات المنشأة', icon: 'fa-address-card', group: 'الحساب', visible: true },
+            { key: 'security', href: '/client/security', label: 'أمان الحساب', icon: 'fa-shield-halved', group: 'الحساب', visible: true },
+            { key: 'support', href: '/client/support', label: 'الدعم الفني', icon: 'fa-headset', group: 'الحساب', visible: true }
         ]
         : [
             { key: 'overview', href: '/client/dashboard?home=1', label: 'الرئيسية', icon: 'fa-grid-2', group: 'العمل اليومي', visible: true },
@@ -392,13 +434,20 @@ const buildNavigation = (workspace, activePage) => {
 
     return items.filter((item) => item.visible).map((item) => ({
         ...item,
-        active: item.key === activePage || (activePage === 'customer_profile' && item.key === 'customers')
+        active: item.key === navPage
+            || (navPage === 'customer_profile' && item.key === 'customers')
+            || (navPage === 'reports' && item.key === 'reports')
     }));
 };
 
 const canAccessPage = (workspace, page) => {
-    if (['overview', 'transactions', 'settings', 'support'].includes(page)) return true;
-    if (page === 'services') return workspace.permissions.canTransfer;
+    if (page === 'overview') return !(workspace.isCompany && workspace.permissions.employee);
+    if (['transactions', 'settings', 'security', 'support'].includes(page)) return true;
+    if (page === 'services' || page === 'service_workbench' || page === 'smart_transfer') {
+        return workspace.permissions.canTransfer;
+    }
+    if (page === 'internal_transfer') return workspace.permissions.canInternalTransfer === true;
+    if (page === 'deposits') return workspace.isCompany && workspace.permissions.canRequestDeposit === true;
     if (page === 'finance') return workspace.permissions.canViewBalance;
     if (['agency_balances', 'agency_debts', 'agency_account', 'agency_position', 'agency_profits'].includes(page)) {
         return workspace.isAgent && workspace.permissions.canViewBalance;
@@ -598,6 +647,7 @@ const loadOverview = async (workspace) => {
         activeStaffCount,
         pendingRequests,
         teamSpotlight,
+        pendingDepositCount: workspace.isCompany ? await countPendingCompanyDeposits(workspace, ownership) : 0,
         currentMonthLabel: workspace.forceToday ? 'اليوم' : `شهر ${now.getMonth() + 1} / ${now.getFullYear()}`
     };
 };
@@ -792,8 +842,16 @@ const loadFinance = async (workspace, query = {}) => {
         summary.count += 1;
         return summary;
     }, { credits: 0, debits: 0, net: 0, count: 0 });
+    const pendingDepositCount = workspace.isCompany
+        ? await countPendingCompanyDeposits(workspace, ownership)
+        : 0;
 
-    return { movements, financeSummary, filters: { ...range, type: query.type || '' } };
+    return {
+        movements,
+        financeSummary,
+        pendingDepositCount,
+        filters: { ...range, type: query.type || '' }
+    };
 };
 
 const reportGroupKey = (scope, tx) => {
@@ -950,6 +1008,55 @@ const loadReports = async (workspace, query = {}) => {
     };
 };
 
+const resolvePortalHomeHref = (workspace) => {
+    if (!workspace?.isCompany) return '/client/dashboard?home=1';
+    if (workspace.persona === 'employee') return '/client/services';
+    if (workspace.persona === 'accountant') return '/client/finance';
+    return '/client/dashboard?home=1';
+};
+
+const forbiddenRedirectPath = (workspace) => {
+    const home = resolvePortalHomeHref(workspace);
+    return `${home}${home.includes('?') ? '&' : '?'}portalError=forbidden`;
+};
+
+const redirectForbiddenPage = async (req, res) => {
+    try {
+        const workspace = await resolveWorkspace(req);
+        return res.status(403).redirect(forbiddenRedirectPath(workspace));
+    } catch (_error) {
+        return res.status(403).redirect('/client/dashboard?portalError=forbidden');
+    }
+};
+
+const buildLowBalanceAlert = (workspace) => {
+    if (!workspace?.isCompany || workspace.permissions?.canViewBalance !== true) return null;
+    const balance = safeNumber(workspace.entity.balance);
+    const creditLimit = safeNumber(workspace.entity.creditLimit);
+    if (balance < 0) {
+        return {
+            tone: 'danger',
+            title: 'الرصيد تحت الصفر',
+            copy: `رصيد ${workspace.entity.name} حالياً ${balance.toFixed(2)} LYD. راجع الإيداع أو كشف الحساب قبل تنفيذ عمليات جديدة.`
+        };
+    }
+    if (creditLimit > 0 && balance <= creditLimit * 0.1) {
+        return {
+            tone: 'warning',
+            title: 'الرصيد يقترب من الحد',
+            copy: `المتبقي ${balance.toFixed(2)} LYD من حد ${creditLimit.toFixed(2)} LYD. يُفضّل تمويل الحساب من طلب الإيداع.`
+        };
+    }
+    if (creditLimit <= 0 && balance < 50) {
+        return {
+            tone: 'warning',
+            title: 'الرصيد منخفض',
+            copy: `الرصيد الحالي ${balance.toFixed(2)} LYD. أرسل طلب إيداع حتى لا تتوقف عمليات الفريق.`
+        };
+    }
+    return null;
+};
+
 const buildBaseContext = async (req, page, workspace) => {
     const rates = await getSettingsAndRates(workspace, req.app);
     const pendingRateUpdate = await buildPendingRateAlertForClient({
@@ -968,20 +1075,158 @@ const buildBaseContext = async (req, page, workspace) => {
         if (page === 'transactions') Object.assign(pageMeta, { title: 'عمليات اليوم', eyebrow: 'المتابعة اليومية' });
         if (page === 'reports') Object.assign(pageMeta, { title: 'تقارير اليوم', eyebrow: 'ملخص اليوم الحالي' });
     }
+    if (workspace.isCompany && page === 'finance' && workspace.persona === 'accountant') {
+        Object.assign(pageMeta, { title: 'مكتب المحاسبة', eyebrow: 'رصيد وكشوف بلا تنفيذ' });
+    }
+    if (workspace.isCompany && page === 'deposits' && !workspace.permissions.manager) {
+        Object.assign(pageMeta, { title: 'متابعة الإيداع', eyebrow: 'تمويل بانتظار الاعتماد' });
+    }
+    if (workspace.isCompany && page === 'services' && workspace.forceToday) {
+        Object.assign(pageMeta, { title: 'اختر · راجع · أرسل', eyebrow: 'يوم التنفيذ' });
+    }
     return {
         page,
         pageMeta,
         workspace,
+        portalHomeHref: resolvePortalHomeHref(workspace),
         navigation: buildNavigation(workspace, page),
         statusMeta: STATUS_META,
         serviceCatalog: rates.services,
         serviceRates: rates.serviceRates,
         pendingRateUpdate,
+        lowBalanceAlert: buildLowBalanceAlert(workspace),
         systemOpen: rates.settings.isManualClosed !== true,
         query: req.query || {},
         csrfToken: req.session.csrfToken || '',
         formatInputDate,
         now: new Date()
+    };
+};
+
+const recipientFromTransaction = (tx, service) => {
+    const phone = String(tx.vodafoneNumber || tx.accountNumber || '').trim();
+    if (!phone || phone === '---') return null;
+    return {
+        phone,
+        name: String(tx.accountName || '').trim(),
+        customId: tx.customId,
+        createdAt: tx.createdAt,
+        serviceKey: service.key
+    };
+};
+
+const loadRecentRecipients = async (workspace, service) => {
+    if (!service) return [];
+    const ownership = await ownershipFilter(workspace);
+    const rows = await Transaction.find({
+        $and: [
+            ownership,
+            {
+                $or: [
+                    { transferType: service.key },
+                    { transferType: service.webType }
+                ]
+            }
+        ]
+    }).sort({ createdAt: -1 }).select('vodafoneNumber accountNumber accountName customId createdAt').limit(40).lean();
+
+    const seen = new Set();
+    const recipients = [];
+    rows.forEach((tx) => {
+        const item = recipientFromTransaction(tx, service);
+        if (!item || seen.has(item.phone)) return;
+        seen.add(item.phone);
+        recipients.push(item);
+    });
+    return recipients.slice(0, 8);
+};
+
+const parseCompanyDepositSupportMessage = (text, meta = {}) => {
+    const value = String(text || '');
+    if (!value.includes('طلب إيداع رصيد')) return null;
+    const amountMatch = value.match(/القيمة:\s*([0-9]+(?:\.[0-9]+)?)\s*LYD/i);
+    const noteMatch = value.match(/الملاحظة:\s*([\s\S]+)$/i);
+    const closed = ['closed', 'resolved'].includes(String(meta.status || ''));
+    return {
+        customId: meta.ticketId || 'TCK',
+        amount: amountMatch ? Number(amountMatch[1]) : 0,
+        status: closed ? 'deposit' : 'deposit_pending',
+        createdAt: meta.createdAt || new Date(),
+        source: 'support',
+        note: String(noteMatch?.[1] || '').trim()
+    };
+};
+
+const COMPANY_DEPOSIT_FOLLOW_UP = /حالة|متابعة|وضع|ما\s*وصل|تم\s*اعتماد|رُفض|رفض|رقم\s*الطلب/u;
+const COMPANY_DEPOSIT_CREATE_PHRASE = /طلب\s*إيداع(?:\s+رصيد)?|أريد\s*(?:أن\s*)?إيداع|اريد\s*(?:ان\s*)?ايداع|اعمل(?:ي|وا)?\s*إيداع|أضف(?:وا)?\s*رصيد|اضف(?:وا)?\s*رصيد|شحن(?:وا)?\s*(?:الرصيد|الحساب)|مول(?:وا)?\s*الحساب|إضافة\s*رصيد|اضافة\s*رصيد/u;
+
+const isCompanyDepositCreateIntent = (text) => {
+    if (parseCompanyDepositSupportMessage(text)) return true;
+    const value = String(text || '').trim();
+    if (!value || !COMPANY_DEPOSIT_CREATE_PHRASE.test(value)) return false;
+    if (COMPANY_DEPOSIT_FOLLOW_UP.test(value) && !/(جديد|أريد|اريد|اعمل|أضف|اضف|شحن|مول)/u.test(value)) {
+        return false;
+    }
+    return true;
+};
+
+const canCreateCompanyDepositRequest = (workspace) => Boolean(workspace?.isCompany && workspace.permissions?.manager);
+
+const countPendingCompanyDeposits = async (workspace, ownershipFilterValue) => {
+    const ownership = ownershipFilterValue || await ownershipFilter(workspace);
+    const staffIds = await ClientEmployee.find({ companyId: workspace.entity._id }).distinct('_id');
+    const [txCount, tickets] = await Promise.all([
+        Transaction.countDocuments({ $and: [ownership, { status: 'deposit_pending' }] }),
+        staffIds.length
+            ? SupportTicket.find({
+                entityType: 'client_company',
+                entityId: { $in: staffIds },
+                status: { $nin: ['closed', 'resolved'] },
+                'messages.text': { $regex: 'طلب إيداع رصيد' }
+            }).select('messages status').lean()
+            : []
+    ]);
+    const supportPending = tickets.reduce((count, ticket) => (
+        count + (ticket.messages || []).filter((message) => String(message.text || '').includes('طلب إيداع رصيد')).length
+    ), 0);
+    return txCount + supportPending;
+};
+
+const loadCompanyDeposits = async (workspace) => {
+    const ownership = await ownershipFilter(workspace);
+    const staffIds = await ClientEmployee.find({ companyId: workspace.entity._id }).distinct('_id');
+    const [requests, tickets] = await Promise.all([
+        Transaction.find({
+            $and: [
+                ownership,
+                { status: { $in: ['deposit_pending', 'deposit', 'deduction'] } }
+            ]
+        }).sort({ createdAt: -1 }).limit(25).lean(),
+        staffIds.length
+            ? SupportTicket.find({
+                entityType: 'client_company',
+                entityId: { $in: staffIds },
+                'messages.text': { $regex: 'طلب إيداع رصيد' }
+            }).select('ticketId status messages updatedAt').sort({ updatedAt: -1 }).limit(20).lean()
+            : []
+    ]);
+    const supportRows = [];
+    tickets.forEach((ticket) => {
+        (ticket.messages || []).forEach((message) => {
+            const row = parseCompanyDepositSupportMessage(message.text, {
+                ticketId: ticket.ticketId,
+                status: ticket.status,
+                createdAt: message.createdAt || ticket.updatedAt
+            });
+            if (row) supportRows.push(row);
+        });
+    });
+    const depositRequests = [...supportRows, ...requests]
+        .sort((left, right) => new Date(right.createdAt) - new Date(left.createdAt))
+        .slice(0, 25);
+    return {
+        depositRequests,
+        pendingDepositCount: depositRequests.filter((item) => item.status === 'deposit_pending').length
     };
 };
 
@@ -994,8 +1239,55 @@ const loadPageContext = async (req, page) => {
     }
 
     const context = await buildBaseContext(req, page, workspace);
+    if (page === 'reports') {
+        const reportQuery = {
+            ...req.query,
+            scope: req.portalReportScope || req.query.scope
+        };
+        Object.assign(context, await loadReports(workspace, reportQuery));
+        if (workspace.isCompany) {
+            const staffScope = String(reportQuery.scope || '') === 'staff';
+            context.navigation = context.navigation.map((item) => {
+                if (item.key === 'reports') return { ...item, active: !staffScope };
+                if (item.key === 'team_reports') return { ...item, active: staffScope };
+                return item;
+            });
+        }
+    }
     if (page === 'overview') Object.assign(context, await loadOverview(workspace));
-    if (page === 'services') context.servicePage = { selectedService: req.query.service || 'vodafone' };
+    if (page === 'services') {
+        context.servicePage = {
+            mode: workspace.isCompany ? 'gallery' : 'combined',
+            selectedService: req.query.service || 'vodafone'
+        };
+        if (workspace.isCompany && workspace.forceToday) {
+            Object.assign(context, await loadOverview(workspace));
+        }
+    }
+    if (page === 'service_workbench') {
+        const service = findServiceByToken(req.params.serviceKey);
+        if (!service) {
+            const error = new Error('SERVICE_NOT_FOUND');
+            error.statusCode = 404;
+            throw error;
+        }
+        context.servicePage = { mode: 'workbench', selectedService: service.key, isolated: true, slug: service.slug };
+        context.recentRecipients = await loadRecentRecipients(workspace, service);
+        const liveService = context.serviceCatalog.find((item) => item.key === service.key) || service;
+        context.pageMeta = {
+            ...context.pageMeta,
+            title: `منضدة ${liveService.label}`,
+            eyebrow: 'خدمة معزولة',
+            icon: liveService.icon
+        };
+    }
+    if (page === 'smart_transfer') {
+        context.servicePage = { selectedService: req.query.service || 'vodafone', mode: 'smart' };
+    }
+    if (page === 'internal_transfer') {
+        context.servicePage = { mode: 'internal' };
+    }
+    if (page === 'deposits') Object.assign(context, await loadCompanyDeposits(workspace));
     if (page === 'transactions') Object.assign(context, await loadTransactions(workspace, req.query));
     if (page === 'finance') Object.assign(context, await loadFinance(workspace, req.query));
     if (['agency_balances', 'agency_debts', 'agency_account', 'agency_position', 'agency_profits'].includes(page)) {
@@ -1018,8 +1310,7 @@ const loadPageContext = async (req, page) => {
     }
     if (page === 'customers') Object.assign(context, await loadCustomers(workspace));
     if (page === 'staff') Object.assign(context, await loadStaff(workspace, req.query));
-    if (page === 'reports') Object.assign(context, await loadReports(workspace, req.query));
-    if (page === 'settings') context.settingsData = { profile: workspace.entity.businessProfile || {} };
+    if (page === 'settings' || page === 'security') context.settingsData = { profile: workspace.entity.businessProfile || {} };
     return context;
 };
 
@@ -1029,12 +1320,21 @@ module.exports = {
     PAGE_META,
     REPORT_SCOPES,
     COMPANY_REPORT_SCOPES,
+    findServiceByToken,
     resolveDateRange,
     resolveCompanyPermissions,
     resolveAgentPermissions,
+    canPostPortalTransfer,
     resolveWorkspace,
     canAccessPage,
     buildNavigation,
+    resolvePortalHomeHref,
+    forbiddenRedirectPath,
+    redirectForbiddenPage,
+    buildLowBalanceAlert,
+    parseCompanyDepositSupportMessage,
+    isCompanyDepositCreateIntent,
+    canCreateCompanyDepositRequest,
     ownershipFilter,
     buildTransactionFilter,
     getSettingsAndRates,

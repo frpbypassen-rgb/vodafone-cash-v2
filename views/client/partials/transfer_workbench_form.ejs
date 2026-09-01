@@ -1,0 +1,92 @@
+<section class="bw-transfer-workbench">
+    <header class="bw-section-head">
+        <div><span class="bw-section-kicker">بيانات العملية</span><h2 id="selectedServiceTitle"><%= typeof isolatedService !== 'undefined' ? isolatedService.label : 'إنشاء تحويل' %></h2></div>
+        <span class="bw-secure-label"><i class="fa-solid fa-shield-halved"></i>إرسال آمن</span>
+    </header>
+    <form id="businessTransferForm" class="bw-form" enctype="multipart/form-data" novalidate>
+        <input type="hidden" name="type" id="transferType" value="كاش">
+        <input type="hidden" name="number" id="transferAccountNumber" value="">
+        <div class="bw-form-grid">
+            <label class="bw-field span-2" data-destination-field>
+                <span id="destinationFieldLabel">رقم المحفظة</span>
+                <input type="text" name="phone" id="transferDestination" class="bw-input bw-mono" dir="ltr" inputmode="numeric" autocomplete="off" required>
+                <small id="destinationFieldHint">أدخل رقم المستلم بدقة.</small>
+            </label>
+            <label class="bw-field span-2" data-beneficiary-field hidden>
+                <span id="beneficiaryFieldLabel">اسم المستفيد</span>
+                <input type="text" name="name" id="transferBeneficiary" autocomplete="off" maxlength="160" placeholder="أدخل اسم المستفيد">
+            </label>
+            <label class="bw-field" data-subtype-field hidden>
+                <span>نوع خدمة سيفا</span>
+                <select name="serviceSubtype" id="transferSubtype">
+                    <option value="nita">NITA</option>
+                    <option value="nita_account">NITA Account</option>
+                </select>
+            </label>
+            <label class="bw-field" data-city-field hidden>
+                <span>مدينة المستفيد</span>
+                <input type="text" name="city" id="transferCity" autocomplete="off" maxlength="100">
+            </label>
+            <div class="bw-sefa-disclaimer span-2" data-sefa-acknowledgement-field hidden>
+                <div class="bw-sefa-disclaimer-icon"><i class="fa-solid fa-shield-halved"></i></div>
+                <div class="bw-sefa-disclaimer-copy">
+                    <strong>تأكيد صحة بيانات سيفا</strong>
+                    <p>العميل مسؤول عن صحة الاسم ورقم الحساب والمدينة المدخلة. لا تتحمل الشركة مسؤولية أي خطأ ناتج من بيانات أدخلها العميل.</p>
+                    <label class="bw-sefa-acknowledgement"><input type="checkbox" name="dataEntryAcknowledged" id="transferSefaAcknowledgement" value="true"><span>أقر بمراجعتي للبيانات وتحمل مسؤوليتي عن صحتها قبل الإرسال.</span></label>
+                </div>
+            </div>
+            <label class="bw-field" data-national-id-field hidden>
+                <span>الرقم القومي (14 رقم)</span>
+                <input type="text" name="nationalId" id="transferNationalId" class="bw-mono" dir="ltr" inputmode="numeric" autocomplete="off" minlength="14" maxlength="14" placeholder="14 رقم">
+            </label>
+            <label class="bw-field" data-governorate-field hidden>
+                <span>المحافظة</span>
+                <select name="governorate" id="transferGovernorate">
+                    <option value="">اختر المحافظة</option>
+                    <option value="القاهرة">القاهرة</option>
+                    <option value="الإسكندرية">الإسكندرية</option>
+                    <option value="الجيزة">الجيزة</option>
+                </select>
+            </label>
+            <label class="bw-field span-2" data-identity-field hidden>
+                <span>صورة البطاقة من الأمام</span>
+                <input type="file" name="idCardImage" id="transferIdentityImage" accept="image/jpeg,image/png,image/webp">
+                <small>JPG أو PNG أو WEBP، بحد أقصى 5MB.</small>
+            </label>
+            <div class="bw-currency-pair span-2">
+                <label class="bw-field">
+                    <span id="transferAmountLabel">المبلغ بالجنيه المصري</span>
+                    <div class="bw-input-affix"><input type="number" name="amount" id="transferAmount" min="1" step="0.01" inputmode="decimal" placeholder="0.00" required><b id="transferAmountCurrency">EGP</b></div>
+                </label>
+                <div class="bw-fx-bridge" aria-live="polite">
+                    <span>سعر الصرف</span>
+                    <strong class="bw-mono" id="transferRateBridge">1 LYD = 0.00 EGP</strong>
+                    <small id="transferRateFormula">EGP ÷ السعر = LYD</small>
+                </div>
+                <label class="bw-field">
+                    <span>المقابل بالدينار الليبي</span>
+                    <div class="bw-input-affix"><input type="number" id="transferAmountLyd" min="0.01" step="0.01" inputmode="decimal" placeholder="0.00"><b>LYD</b></div>
+                </label>
+            </div>
+            <label class="bw-field span-2">
+                <span>رقم واتساب العميل <em>اختياري</em></span>
+                <input type="text" name="clientPhone" id="transferClientPhone" class="bw-mono" dir="ltr" inputmode="tel" autocomplete="off" maxlength="30" placeholder="رقم هاتف العميل">
+                <small>يرسل إيصال الإثبات إلى هذا الرقم عند اكتمال العملية. عند تركه فارغاً، يرسل إلى رقم الحساب الذي أنشأ العملية.</small>
+            </label>
+            <label class="bw-field span-2">
+                <span>ملاحظة العميل <em>اختياري</em></span>
+                <textarea name="notes" id="transferNotes" rows="3" maxlength="500" placeholder="اكتب الملاحظة التي تريد ظهورها مع العملية فقط"></textarea>
+            </label>
+        </div>
+
+        <div class="bw-cost-preview">
+            <div><span>الخدمة</span><strong id="costServiceLabel">محافظ كاش</strong></div>
+            <div><span>سعر الصرف</span><strong class="bw-mono" id="costRate">1 LYD = 0.00 EGP</strong></div>
+            <div><span>التكلفة التقديرية</span><strong class="bw-mono" id="costEstimate">0.000 LYD</strong></div>
+        </div>
+        <div class="bw-form-result" id="transferFormResult" hidden></div>
+        <button type="submit" class="bw-button primary wide" id="transferSubmitButton">
+            <i class="fa-solid fa-lock"></i><span><%= typeof workspace !== 'undefined' && workspace.isCompany ? 'مراجعة العملية' : 'مراجعة وإرسال العملية' %></span>
+        </button>
+    </form>
+</section>

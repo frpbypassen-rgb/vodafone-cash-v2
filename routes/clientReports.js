@@ -44,13 +44,15 @@ const requireClientAuth = async (req, res, next) => {
     }
 };
 
-router.get('/reports', requireClientAuth, async (req, res) => {
+const renderReports = async (req, res) => {
     try {
         const context = await businessPortalService.loadPageContext(req, 'reports');
         return res.render('client/workspace', context);
     } catch (error) {
         if (error.message !== 'NOT_BUSINESS_PORTAL') {
-            if (error.message === 'FORBIDDEN_PAGE') return res.status(403).redirect('/client/dashboard?portalError=forbidden');
+            if (error.message === 'FORBIDDEN_PAGE') {
+                return businessPortalService.redirectForbiddenPage(req, res);
+            }
             console.error('[Reports] workspace render failed:', error.message);
             return res.redirect('/client/logout');
         }
@@ -90,7 +92,14 @@ router.get('/reports', requireClientAuth, async (req, res) => {
         console.error('Reports Render Error:', e);
         return res.redirect('/client/dashboard');
     }
+};
+
+router.get('/reports/staff', requireClientAuth, (req, res) => {
+    req.portalReportScope = 'staff';
+    return renderReports(req, res);
 });
+
+router.get('/reports', requireClientAuth, renderReports);
 
 router.post('/reports/filter', requireClientAuth, async (req, res) => {
     try {

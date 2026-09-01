@@ -8,6 +8,7 @@ const Employee = require('../models/Employee');
 const Admin = require('../models/Admin');
 const { getCompanyServiceRates } = require('../utils/rateHelper');
 const { logAction } = require('../services/auditService');
+const businessPortalService = require('../services/businessPortalService');
 
 const COMPANY_USERNAME_DOMAIN = '@ahram.com';
 
@@ -255,36 +256,17 @@ const buildCompanyContext = async ({ req, account, company, forceToday = false }
     };
 };
 
-exports.renderCompanyDashboard = async (req, res, preloadedAccount = null) => {
+exports.renderCompanyDashboard = async (req, res) => {
     try {
-        const { account, company } = await getCompanyActor(req, preloadedAccount);
-        const persona = dashboardPersona(account);
-        const forceToday = persona === 'employee';
-        const context = await buildCompanyContext({ req, account, company, forceToday });
-
-        if (persona === 'accountant') {
-            return res.render('client/company_accountant_dashboard', context);
-        }
-
-        if (persona === 'manager') {
-            return res.render('client/company_manager_dashboard', context);
-        }
-
-        return res.render('client/company_employee_dashboard', context);
-    } catch (error) {
-        console.error('[Company Dashboard] render failed:', error.message);
+        const workspace = await businessPortalService.resolveWorkspace(req);
+        return res.redirect(businessPortalService.resolvePortalHomeHref(workspace));
+    } catch (_error) {
         return res.redirect('/client/logout');
     }
 };
 
 exports.getStaffManagement = async (req, res) => {
-    try {
-        const { account } = await getCompanyActor(req);
-        if (!canManageCompany(account)) return res.redirect('/client/dashboard');
-        return res.redirect('/client/staff');
-    } catch (error) {
-        return res.redirect('/client/logout');
-    }
+    return res.redirect('/client/staff');
 };
 
 exports.postAddStaff = async (req, res) => {

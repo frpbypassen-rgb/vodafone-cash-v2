@@ -1,0 +1,58 @@
+<section class="cos-ledger-office">
+    <div>
+        <span class="bw-section-kicker">تمويل الحساب</span>
+        <h2><%= workspace.permissions.manager ? 'طلب إيداع رصيد' : 'متابعة الإيداع' %></h2>
+        <p><%= workspace.permissions.manager ? 'يصل الطلب للإدارة عبر الدعم الفني. لا يُضاف الرصيد إلا بعد الاعتماد.' : 'هذه الصفحة للمتابعة المالية. إنشاء طلب جديد يبقى لدى مدير التشغيل.' %></p>
+    </div>
+    <div class="cos-ledger-links">
+        <% if (workspace.permissions.canViewBalance) { %>
+            <a href="/client/finance" class="bw-button ghost"><i class="fa-solid fa-scale-balanced"></i>مكتب المحاسبة</a>
+        <% } %>
+    </div>
+</section>
+<section class="cos-deposit-layout">
+    <% if (workspace.permissions.manager) { %>
+    <article class="bw-section">
+        <header class="bw-section-head">
+            <div><span class="bw-section-kicker">تمويل الحساب</span><h2>طلب إيداع جديد</h2></div>
+            <span class="bw-meta-chip"><%= pendingDepositCount || 0 %> قيد المراجعة</span>
+        </header>
+        <form id="companyDepositForm" class="bw-form bw-form-grid">
+            <label class="bw-field"><span>القيمة بالدينار</span><input type="number" name="amount" id="companyDepositAmount" min="1" step="0.01" required></label>
+            <label class="bw-field span-2"><span>مرجع التحويل أو البيان</span><textarea name="note" id="companyDepositNote" rows="3" minlength="3" maxlength="1000" required placeholder="رقم الحوالة أو اسم البنك أو أي مرجع يوضح الإيداع"></textarea></label>
+            <div class="bw-form-actions span-2"><button type="submit" class="bw-button primary" id="companyDepositSubmit"><i class="fa-solid fa-building-columns"></i>إرسال طلب الإيداع</button></div>
+        </form>
+        <div class="bw-form-result" id="companyDepositResult" hidden></div>
+    </article>
+    <% } else { %>
+    <article class="bw-section">
+        <header class="bw-section-head">
+            <div><span class="bw-section-kicker">تمويل الحساب</span><h2>متابعة بلا إنشاء</h2></div>
+            <span class="bw-meta-chip"><%= pendingDepositCount || 0 %> قيد المراجعة</span>
+        </header>
+        <p class="bw-muted">هذه الشاشة للمتابعة المالية فقط. إنشاء طلب إيداع يبقى لدى مدير التشغيل، والسجل على اليسار يعرض الحالة بعد الاعتماد.</p>
+    </article>
+    <% } %>
+    <aside class="bw-section">
+        <header class="bw-section-head"><div><span class="bw-section-kicker">سجل التمويل</span><h2>آخر الحركات</h2></div></header>
+        <div class="cos-ops-list">
+            <% if (!(depositRequests || []).length) { %>
+                <div class="bw-empty compact"><i class="fa-solid fa-building-columns"></i><strong>لا توجد طلبات بعد</strong></div>
+            <% } %>
+            <% (depositRequests || []).forEach(item => { const status = statusMeta[item.status] || { label: item.status, tone: 'neutral' }; %>
+                <article class="cos-ops-card">
+                    <div class="cos-ops-main cos-ledger-main">
+                        <span class="cos-ops-icon"><i class="fa-solid <%= item.source === 'support' ? 'fa-headset' : 'fa-receipt' %>"></i></span>
+                        <div>
+                            <strong class="bw-mono"><%= item.customId %></strong>
+                            <small><%= status.label %><%= item.note ? ` · ${item.note}` : '' %></small>
+                        </div>
+                        <b class="bw-mono"><%= Number(item.amount || 0).toFixed(2) %> <em>LYD</em></b>
+                        <span class="bw-status <%= status.tone %>"><%= status.label %></span>
+                    </div>
+                </article>
+            <% }) %>
+        </div>
+        <a href="/client/finance" class="bw-text-link">فتح مكتب المحاسبة <i class="fa-solid fa-arrow-left"></i></a>
+    </aside>
+</section>

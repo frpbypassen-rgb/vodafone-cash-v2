@@ -1,0 +1,35 @@
+<% const isolatedService = serviceCatalog.find(item => item.key === servicePage.selectedService) || serviceCatalog[0]; %>
+<% if (workspace.isCompany) { %>
+<section class="cos-ledger-office">
+    <div>
+        <span class="bw-section-kicker">خدمة معزولة</span>
+        <h2>منضدة <%= isolatedService.label %></h2>
+        <p>هذه الشاشة لا تعرف الخدمات الأخرى. الحقول والسعر والإيصال خاصون بهذه القناة فقط.</p>
+    </div>
+    <div class="cos-ledger-links">
+        <a href="/client/services" class="bw-button ghost"><i class="fa-solid fa-cubes"></i>العودة للمعرض</a>
+    </div>
+</section>
+<% } %>
+<section class="cos-workbench">
+    <aside class="cos-recipients">
+        <span class="bw-section-kicker">المستلمون الأخيرون</span>
+        <h2><%= workspace.isCompany ? 'لا بحث داخل خدمات أخرى' : 'هذه القناة فقط' %></h2>
+        <% if (!recentRecipients || !recentRecipients.length) { %>
+            <p class="bw-muted">لا يوجد مستلمون سابقون لهذه الخدمة بعد.</p>
+        <% } %>
+        <% (recentRecipients || []).forEach(item => { %>
+            <button type="button" class="cos-recipient" data-recipient-phone="<%= item.phone %>" data-recipient-name="<%= item.name || '' %>">
+                <strong class="bw-mono"><%= item.phone %></strong>
+                <small><%= item.name || 'بدون اسم' %></small>
+            </button>
+        <% }) %>
+        <% if (workspace.isCompany) { %>
+            <p class="bw-muted">التحويل الذكي صفحة مستقلة، والتحويل الداخلي صفحة المدير فقط.</p>
+        <% } %>
+        <a href="/client/services" class="bw-text-link">العودة لمعرض الخدمات <i class="fa-solid fa-arrow-left"></i></a>
+    </aside>
+    <div>
+        <%- include('../partials/transfer_workbench_form') %>
+    </div>
+</section>

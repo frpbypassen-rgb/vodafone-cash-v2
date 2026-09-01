@@ -1,3 +1,21 @@
+<% if (workspace.isCompany) { %>
+<section class="cos-ledger-office">
+    <div>
+        <span class="bw-section-kicker">فريق الشركة</span>
+        <h2>حسابات التشغيل والصلاحيات</h2>
+        <p>المدير والمحاسب يراجعان الفريق من هنا. إنشاء التحويل يبقى في معرض الخدمات، والكشوف في مكتب المحاسبة.</p>
+    </div>
+    <div class="cos-ledger-links">
+        <% if (workspace.permissions.canViewReports) { %>
+            <a href="/client/reports/staff" class="bw-button ghost"><i class="fa-solid fa-chart-column"></i>أداء الموظفين</a>
+        <% } %>
+        <% if (workspace.permissions.canManageStaff) { %>
+            <button type="button" class="bw-button primary" data-dialog-open="createStaffDialog"><i class="fa-solid fa-user-plus"></i>موظف جديد</button>
+        <% } %>
+    </div>
+</section>
+<% } %>
+
 <section class="bw-mini-metrics">
     <article><span>إجمالي الحسابات</span><strong class="bw-mono"><%= staffSummary.total %></strong></article>
     <article class="success"><span>الحسابات النشطة</span><strong class="bw-mono"><%= staffSummary.active %></strong></article>
@@ -25,8 +43,35 @@
 <section class="bw-section">
     <header class="bw-section-head">
         <div><span class="bw-section-kicker">الفريق والصلاحيات</span><h2>حسابات الموظفين</h2></div>
-        <% if (workspace.permissions.canManageStaff) { %><button type="button" class="bw-button primary" data-dialog-open="createStaffDialog"><i class="fa-solid fa-user-plus"></i>موظف جديد</button><% } %>
+        <% if (!workspace.isCompany && workspace.permissions.canManageStaff) { %><button type="button" class="bw-button primary" data-dialog-open="createStaffDialog"><i class="fa-solid fa-user-plus"></i>موظف جديد</button><% } %>
     </header>
+    <% if (workspace.isCompany) { %>
+        <div class="cos-ops-list">
+            <% if (!staff.length) { %><div class="bw-empty"><i class="fa-solid fa-user-group"></i><strong>لا توجد حسابات موظفين</strong><span>يمكن للمدير إنشاء أول حساب للفريق.</span></div><% } %>
+            <% staff.forEach(member => { const isManager = member.role === 'owner' || member.canManageCompany || member.canManageAgent; const isSelf = String(member._id) === String(workspace.actor._id); %>
+                <article class="cos-ops-card cos-staff-card">
+                    <div class="cos-ops-main cos-ledger-main">
+                        <span class="bw-avatar"><%= String(member.name).charAt(0) %></span>
+                        <div>
+                            <strong><%= member.name %><%= isSelf ? ' (أنت)' : '' %></strong>
+                            <small class="bw-mono"><%= member.phone || 'بدون هاتف' %> · <%= member.webUsername %></small>
+                        </div>
+                        <span class="bw-role-badge"><i class="fa-solid <%= member.role === 'accountant' ? 'fa-calculator' : isManager ? 'fa-user-shield' : 'fa-user' %>"></i><%= member.role === 'accountant' ? 'محاسب' : isManager ? 'مدير تشغيل' : member.role === 'owner' ? 'مدير' : 'موظف' %></span>
+                        <b class="bw-mono"><%= member.stats.transactionCount %> <em>عملية</em></b>
+                        <span class="cos-ops-cost bw-mono"><%= Number(member.stats.totalEGP || 0).toLocaleString('en-US', { maximumFractionDigits: 0 }) %> EGP</span>
+                        <span class="bw-status <%= member.status === 'active' ? 'success' : 'danger' %>"><%= member.status === 'active' ? 'نشط' : 'موقوف' %></span>
+                    </div>
+                    <div class="cos-ops-actions">
+                        <a href="/client/transactions?staff=<%= encodeURIComponent(member.name) %>&history=all" class="bw-icon-button compact" title="سجل عمليات <%= member.name %>" aria-label="فتح سجل عمليات <%= member.name %>"><i class="fa-solid fa-chart-line"></i></a>
+                        <% if (workspace.permissions.canManageStaff && !isSelf && member.role !== 'owner') { %>
+                            <button type="button" class="bw-icon-button compact" data-staff-password data-member-id="<%= member._id %>" data-member-name="<%= member.name %>" title="تغيير كلمة المرور" aria-label="تغيير كلمة مرور <%= member.name %>"><i class="fa-solid fa-key"></i></button>
+                            <form method="POST" action="/client/<%= workspace.isCompany ? 'company' : 'agent' %>/staff/<%= member._id %>/toggle" data-confirm="<%= member.status === 'active' ? 'إيقاف حساب الموظف؟' : 'إعادة تنشيط حساب الموظف؟' %>"><button type="submit" class="bw-icon-button compact <%= member.status === 'active' ? 'danger' : 'success' %>" aria-label="تغيير حالة <%= member.name %>"><i class="fa-solid <%= member.status === 'active' ? 'fa-pause' : 'fa-play' %>"></i></button></form>
+                        <% } %>
+                    </div>
+                </article>
+            <% }) %>
+        </div>
+    <% } else { %>
     <div class="bw-table-wrap">
         <table class="bw-table">
             <thead><tr><th>الموظف</th><th>الدخول</th><th>الدور والصلاحية</th><th>أداء الشهر</th><th>آخر نشاط</th><th>الحالة</th><th></th></tr></thead>
@@ -54,6 +99,7 @@
             </tbody>
         </table>
     </div>
+    <% } %>
 </section>
 
 <% if (workspace.permissions.canManageStaff) { %>

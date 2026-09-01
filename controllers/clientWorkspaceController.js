@@ -76,6 +76,8 @@ const redirectWithMessage = (res, path, type, code) => {
     return res.redirect(`${path}${separator}${type}=${encodeURIComponent(code)}`);
 };
 
+const passwordPageHref = (workspace) => (workspace?.isCompany ? '/client/security' : '/client/settings');
+
 const customerOwnerFilter = (workspace, id = null) => ({
     ...(id ? { _id: id } : {}),
     masterType: workspace.masterType,
@@ -124,7 +126,10 @@ exports.renderPage = (page) => async (req, res, next) => {
         return res.render('client/workspace', context);
     } catch (error) {
         if (error.message === 'NOT_BUSINESS_PORTAL' && typeof next === 'function') return next();
-        if (error.message === 'FORBIDDEN_PAGE') return res.status(403).redirect('/client/dashboard?portalError=forbidden');
+        if (error.message === 'FORBIDDEN_PAGE') {
+            return businessPortalService.redirectForbiddenPage(req, res);
+        }
+        if (error.message === 'SERVICE_NOT_FOUND') return res.redirect('/client/services');
         if (error.message === 'CUSTOMER_NOT_FOUND') return res.status(404).redirect('/client/customers?customerError=notfound');
         console.error(`[Business Portal] ${page} render failed:`, error.message);
         return res.redirect('/client/logout');
@@ -561,8 +566,9 @@ exports.postUpdateSettings = async (req, res) => {
 };
 
 exports.postChangePassword = async (req, res) => {
+    let workspace;
     try {
-        const workspace = await businessPortalService.resolveWorkspace(req);
+        workspace = await businessPortalService.resolveWorkspace(req);
         const Model = workspace.actorModel === 'ClientEmployee'
             ? ClientEmployee
             : workspace.actorModel === 'AgentEmployee'
@@ -573,10 +579,10 @@ exports.postChangePassword = async (req, res) => {
         const newPassword = String(req.body.newPassword || '');
         const passwordConfirm = String(req.body.passwordConfirm || '');
         if (!actor || !await bcrypt.compare(currentPassword, actor.webPassword || '')) {
-            return redirectWithMessage(res, '/client/settings', 'settingsError', 'current_password');
+            return redirectWithMessage(res, passwordPageHref(workspace), 'settingsError', 'current_password');
         }
         if (newPassword.length < 8 || newPassword !== passwordConfirm) {
-            return redirectWithMessage(res, '/client/settings', 'settingsError', 'new_password');
+            return redirectWithMessage(res, passwordPageHref(workspace), 'settingsError', 'new_password');
         }
         actor.webPassword = newPassword;
         await actor.save();
@@ -591,10 +597,10 @@ exports.postChangePassword = async (req, res) => {
             result: 'ناجح',
             metadata: { selfService: true, portal: workspace.type }
         });
-        return redirectWithMessage(res, '/client/settings', 'settingsSuccess', 'password');
+        return redirectWithMessage(res, passwordPageHref(workspace), 'settingsSuccess', 'password');
     } catch (error) {
         console.error('[Business Portal] password update failed:', error.message);
-        return redirectWithMessage(res, '/client/settings', 'settingsError', 'server');
+        return redirectWithMessage(res, passwordPageHref(workspace), 'settingsError', 'server');
     }
 };
 

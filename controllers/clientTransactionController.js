@@ -35,6 +35,7 @@ const { calculateAgencyPricing } = require('../utils/agencyPricing');
 const { calculateTransferCostLYD, getTransferPricingDefinition } = require('../utils/transferPricing');
 const { recordTransferReservation } = require('../services/agencyJournalService');
 const { minimumBalanceForDebit } = require('../services/agencyCreditLimitService');
+const { resolveCompanyPermissions, canPostPortalTransfer, redirectForbiddenPage } = require('../services/businessPortalService');
 const {
     TransferCooldownError,
     acquireTransferCooldown,
@@ -67,6 +68,8 @@ const getBalanceTransferSource = async (req) => {
     if (req.session.accountType === 'company') {
         const company = await ClientCompany.findById(account.companyId);
         if (!company) throw createClientError('COMPANY_NOT_FOUND', 404);
+        const permissions = resolveCompanyPermissions(account);
+        if (!permissions.canInternalTransfer) throw createClientError('ACCOUNTANT_FORBIDDEN', 403);
         return { modelName: 'ClientCompany', doc: company, performedBy: account.name };
     }
 
@@ -157,9 +160,11 @@ exports.postTransfer = async (req, res) => {
         auditIsSubAccount = isSubAccount;
         if (!account) throw new Error('SESSION_EXPIRED');
         
-        if (account.role === 'accountant') {
+        if (!canPostPortalTransfer(req.session.accountType, account)) {
             if (useTransaction) { await session.abortTransaction(); session.endSession(); }
-            return isAjax ? res.status(403).json({ error: '❌ ليس لديك صلاحية.' }) : res.redirect('/client/dashboard?error=unauthorized');
+            if (isAjax) return res.status(403).json({ error: '❌ ليس لديك صلاحية.' });
+            if (req.session.accountType === 'company') return redirectForbiddenPage(req, res);
+            return res.redirect('/client/dashboard?error=unauthorized');
         }
 
         const amount = parseFloat(req.body.amount);
@@ -424,7 +429,7 @@ exports.postTransfer = async (req, res) => {
             });
         }
 
-        if (isAjax) res.json({ success: true, message: '✅ تم الإرسال بنجاح!', newBalance: balanceModel.balance.toFixed(2) });
+        if (isAjax) res.json({ success: true, message: 'تم الإرسال بنجاح.', newBalance: balanceModel.balance.toFixed(2), customId: finalCustomId });
 
         // 🔔 إرسال الإشعارات
         setImmediate(async () => {

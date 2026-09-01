@@ -62,6 +62,7 @@
     const applyTheme = (preference) => {
         localStorage.setItem('powerpay-business-theme', preference);
         root.dataset.theme = resolveTheme(preference);
+        body.dataset.theme = root.dataset.theme;
         const icon = document.querySelector('[data-theme-toggle] i');
         if (icon) icon.className = `fa-solid ${root.dataset.theme === 'dark' ? 'fa-sun' : 'fa-moon'}`;
         const select = document.querySelector('[data-preference="theme"]');
@@ -133,7 +134,42 @@
 
     document.querySelectorAll('form[data-confirm]').forEach((form) => {
         form.addEventListener('submit', (event) => {
-            if (!window.confirm(form.dataset.confirm)) event.preventDefault();
+            if (form.dataset.confirmAccepted === '1') {
+                delete form.dataset.confirmAccepted;
+                return;
+            }
+            event.preventDefault();
+            const message = form.dataset.confirm || 'هل تريد المتابعة؟';
+            const proceed = () => {
+                form.dataset.confirmAccepted = '1';
+                if (typeof form.requestSubmit === 'function') form.requestSubmit();
+                else form.submit();
+            };
+            if (config.workspaceType !== 'company') {
+                if (window.confirm(message)) proceed();
+                return;
+            }
+            const dialog = document.getElementById('companyActionDialog');
+            const copy = document.getElementById('companyActionCopy');
+            const submit = document.getElementById('companyActionSubmit');
+            if (!dialog || !copy || !submit) {
+                if (window.confirm(message)) proceed();
+                return;
+            }
+            copy.textContent = message;
+            const onSubmit = () => {
+                submit.removeEventListener('click', onSubmit);
+                dialog.removeEventListener('close', onClose);
+                dialog.close();
+                proceed();
+            };
+            const onClose = () => {
+                submit.removeEventListener('click', onSubmit);
+                dialog.removeEventListener('close', onClose);
+            };
+            submit.addEventListener('click', onSubmit);
+            dialog.addEventListener('close', onClose);
+            openDialog(dialog);
         });
     });
 
@@ -337,7 +373,11 @@
             button.setAttribute('aria-pressed', selected ? 'true' : 'false');
         });
         if (transferType) transferType.value = service.webType;
-        if (selectedServiceTitle) selectedServiceTitle.textContent = `تحويل ${service.label}`;
+        if (selectedServiceTitle) {
+            selectedServiceTitle.textContent = config.workspaceType === 'company'
+                ? service.label
+                : `تحويل ${service.label}`;
+        }
         if (destinationFieldLabel) destinationFieldLabel.textContent = service.numberLabel;
         if (destinationFieldHint) destinationFieldHint.textContent = service.numberPlaceholder || 'أدخل بيانات المستلم بدقة.';
         toggleConditionalField('[data-destination-field]', service.destinationRequired !== false, transferDestination);
@@ -392,7 +432,11 @@
         if (activeService?.key === 'post_card' && transferAccountNumber) transferAccountNumber.value = transferNationalId.value;
     });
     transferSubtype?.addEventListener('change', updateCityRequirement);
-    if (serviceButtons.length) selectService(config.selectedService || serviceButtons[0].dataset.serviceKey);
+    if (serviceButtons.length) {
+        selectService(config.selectedService || serviceButtons[0].dataset.serviceKey);
+    } else if (transferForm) {
+        selectService(config.selectedService || 'vodafone');
+    }
 
     let rateRefreshController = null;
     const applyServiceRates = (serviceRates) => {
@@ -413,7 +457,7 @@
     };
 
     const refreshServiceRates = async () => {
-        if (!serviceButtons.length) return;
+        if (!transferForm && !serviceButtons.length) return;
         if (rateRefreshController) rateRefreshController.abort();
         const controller = new AbortController();
         rateRefreshController = controller;
@@ -432,7 +476,7 @@
         }
     };
 
-    if (serviceButtons.length) {
+    if (transferForm || serviceButtons.length) {
         if (typeof window.io === 'function') {
             const rateSocket = window.io();
             rateSocket.on('exchange_rates_updated', refreshServiceRates);
@@ -529,7 +573,24 @@
         smartParseTimer = window.setTimeout(analyzeSmartTransfer, 550);
     });
     smartTransferSendButton?.addEventListener('click', () => {
-        if (smartParsedData?.ready) transferForm?.requestSubmit();
+        if (!smartParsedData?.ready) return;
+        if (transferForm) {
+            transferForm.requestSubmit();
+            return;
+        }
+        const service = (config.services || []).find((item) => item.key === smartParsedData.serviceKey)
+            || (config.services || []).find((item) => item.key === 'vodafone')
+            || config.services?.[0];
+        try {
+            sessionStorage.setItem('businessAssistantTransferDraft', JSON.stringify({
+                phone: smartParsedData.phone,
+                amountEGP: smartParsedData.amountEGP,
+                note: smartParsedData.note,
+                beneficiaryName: smartParsedData.beneficiaryName,
+                serviceKey: service?.key || 'vodafone'
+            }));
+        } catch (_) { /* optional browser storage */ }
+        window.location.href = `/client/services/${encodeURIComponent(service?.slug || 'cash')}`;
     });
 
     const addAssistantMessage = (message, role = 'assistant', action = null, draft = null) => {
@@ -618,6 +679,7 @@
     };
 
     const applyAssistantTransferDraft = () => {
+        if (!transferForm) return;
         let draft;
         try {
             draft = JSON.parse(sessionStorage.getItem('businessAssistantTransferDraft') || 'null');
@@ -633,7 +695,7 @@
         if (transferNotes) transferNotes.value = String(draft.note || '');
         if (transferBeneficiary && draft.beneficiaryName) transferBeneficiary.value = String(draft.beneficiaryName);
         updateCostEstimate();
-        showFormResult(transferFormResult, 'تم فتح مسودة من المساعد. راجع البيانات والتكلفة قبل إرسال العملية.', true);
+        showFormResult(transferResult, 'تم فتح مسودة من المساعد. راجع البيانات والتكلفة قبل إرسال العملية.', true);
     };
     applyAssistantTransferDraft();
 
@@ -685,6 +747,54 @@
         return null;
     };
 
+    const requestCompanyPin = () => new Promise((resolve, reject) => {
+        const dialog = document.getElementById('companyPinDialog');
+        const form = document.getElementById('companyPinForm');
+        const input = document.getElementById('companyPinInput');
+        const error = document.getElementById('companyPinError');
+        if (!dialog || !form || !input) {
+            const pin = window.prompt('أدخل رمز العمليات (من 4 إلى 6 أرقام) لتأكيد التحويل:');
+            if (pin === null) return resolve(null);
+            if (!/^\d{4,6}$/.test(pin.trim())) {
+                return reject(new Error('رمز العمليات يجب أن يكون من 4 إلى 6 أرقام.'));
+            }
+            return resolve(pin.trim());
+        }
+        let settled = false;
+        const finish = (value) => {
+            if (settled) return;
+            settled = true;
+            form.removeEventListener('submit', onSubmit);
+            dialog.removeEventListener('close', onClose);
+            resolve(value);
+        };
+        const onSubmit = (event) => {
+            event.preventDefault();
+            const pin = input.value.trim();
+            if (!/^\d{4,6}$/.test(pin)) {
+                if (error) {
+                    error.hidden = false;
+                    error.textContent = 'رمز العمليات يجب أن يكون من 4 إلى 6 أرقام.';
+                }
+                input.focus();
+                return;
+            }
+            if (error) error.hidden = true;
+            finish(pin);
+            dialog.close();
+        };
+        const onClose = () => finish(null);
+        input.value = '';
+        if (error) {
+            error.hidden = true;
+            error.textContent = '';
+        }
+        form.addEventListener('submit', onSubmit);
+        dialog.addEventListener('close', onClose);
+        openDialog(dialog);
+        window.setTimeout(() => input.focus(), 50);
+    });
+
     const requestOperationPin = async () => {
         const response = await fetch('/security/operation-pin/status', {
             headers: { Accept: 'application/json', 'x-csrf-token': config.csrfToken || '' }
@@ -692,22 +802,86 @@
         const status = await parseJsonResponse(response);
         if (!response.ok || !status.success) throw new Error(status.error || 'تعذر التحقق من حماية التحويل.');
         if (!status.enabled) return '';
+        if (config.workspaceType === 'company') return requestCompanyPin();
         const pin = window.prompt('أدخل رمز العمليات (من 4 إلى 6 أرقام) لتأكيد التحويل:');
         if (pin === null) return null;
         if (!/^\d{4,6}$/.test(pin.trim())) throw new Error('رمز العمليات يجب أن يكون من 4 إلى 6 أرقام.');
         return pin.trim();
     };
 
-    transferForm?.addEventListener('submit', async (event) => {
-        event.preventDefault();
-        const validationError = validateTransfer();
-        if (validationError) {
-            showFormResult(transferResult, validationError.message, false);
-            validationError.input?.focus();
-            return;
-        }
-        if (!transferForm.reportValidity()) return;
+    const transferConfirmDialog = document.getElementById('transferConfirmDialog');
+    const transferConfirmBody = document.getElementById('transferConfirmBody');
+    const transferConfirmTitle = document.getElementById('transferConfirmTitle');
+    const transferSuccessDialog = document.getElementById('transferSuccessDialog');
+    const transferSuccessCopy = document.getElementById('transferSuccessCopy');
+    const transferSuccessRef = document.getElementById('transferSuccessRef');
+    const transferSuccessWhatsapp = document.getElementById('transferSuccessWhatsapp');
+    const draftStorageKey = config.selectedService ? `cos-draft-${config.selectedService}` : '';
+    let pendingTransferConfirm = null;
 
+    const whatsappNumberFrom = (value) => {
+        const digits = String(value || '').replace(/\D/g, '');
+        if (digits.length < 8 || digits.length > 15) return '';
+        if (digits.startsWith('218') || digits.startsWith('20')) return digits;
+        if (/^01[0125]\d{8}$/.test(digits)) return `20${digits.slice(1)}`;
+        if (digits.startsWith('0')) return `218${digits.slice(1)}`;
+        return digits;
+    };
+
+    const fillTransferSuccess = (payload, phoneHint) => {
+        const customId = payload.customId || '';
+        if (transferSuccessCopy) {
+            transferSuccessCopy.textContent = payload.successCopy
+                || (customId
+                    ? 'سيظهر الإيصال في غرفة العمليات عند اكتمال التنفيذ.'
+                    : (payload.message || 'تم استلام العملية.'));
+        }
+        if (transferSuccessRef) {
+            transferSuccessRef.hidden = !customId;
+            transferSuccessRef.textContent = customId;
+        }
+        const intl = whatsappNumberFrom(phoneHint);
+        if (transferSuccessWhatsapp) {
+            if (intl) {
+                const text = encodeURIComponent(`تم تسجيل عملية التحويل${customId ? ` رقم ${customId}` : ''} لدى الأهرام.`);
+                transferSuccessWhatsapp.href = `https://wa.me/${intl}?text=${text}`;
+                transferSuccessWhatsapp.hidden = false;
+            } else {
+                transferSuccessWhatsapp.hidden = true;
+                transferSuccessWhatsapp.removeAttribute('href');
+            }
+        }
+    };
+
+    const persistTransferDraft = () => {
+        if (!draftStorageKey || !transferForm) return;
+        try {
+            sessionStorage.setItem(draftStorageKey, JSON.stringify({
+                phone: transferDestination?.value || '',
+                amount: transferAmount?.value || '',
+                notes: transferNotes?.value || '',
+                name: transferBeneficiary?.value || '',
+                clientPhone: transferClientPhone?.value || ''
+            }));
+        } catch (_) { /* optional */ }
+    };
+
+    const restoreTransferDraft = () => {
+        if (!draftStorageKey || !transferForm) return;
+        let draft;
+        try { draft = JSON.parse(sessionStorage.getItem(draftStorageKey) || 'null'); } catch (_) { return; }
+        if (!draft) return;
+        if (transferDestination?.value.trim()) return;
+        if (transferDestination && draft.phone) transferDestination.value = draft.phone;
+        if (transferAccountNumber && draft.phone) transferAccountNumber.value = draft.phone;
+        if (transferAmount && draft.amount) transferAmount.value = draft.amount;
+        if (transferNotes && draft.notes) transferNotes.value = draft.notes;
+        if (transferBeneficiary && draft.name) transferBeneficiary.value = draft.name;
+        if (transferClientPhone && draft.clientPhone) transferClientPhone.value = draft.clientPhone;
+        updateCostEstimate();
+    };
+
+    const executeTransfer = async () => {
         const destination = activeService?.key === 'post_card'
             ? transferGovernorate.value
             : transferDestination.value.trim();
@@ -742,10 +916,18 @@
             });
             const payload = await parseJsonResponse(response);
             if (!response.ok || payload.error) throw new Error(payload.error || 'تعذر إرسال العملية.');
-            showFormResult(transferResult, `${payload.message || 'تم تسجيل العملية.'} يمكنك متابعتها من سجل المعاملات.`, true);
+            const reference = payload.customId ? ` الرقم المرجعي ${payload.customId}.` : '';
+            showFormResult(transferResult, `${payload.message || 'تم تسجيل العملية.'}${reference} يمكنك متابعتها من سجل المعاملات.`, true);
+            const phoneHint = transferClientPhone?.value.trim()
+                || (activeService?.key === 'vodafone' ? destination : '');
+            fillTransferSuccess(payload, phoneHint);
+            if (config.workspaceType === 'company') openDialog(transferSuccessDialog);
             clearTransferValues();
             resetSmartTransfer(true);
             updateCostEstimate();
+            if (draftStorageKey) {
+                try { sessionStorage.removeItem(draftStorageKey); } catch (_) { /* optional */ }
+            }
         } catch (error) {
             showFormResult(transferResult, error.message || 'تعذر إرسال العملية.', false);
         } finally {
@@ -754,10 +936,103 @@
                 submitButton.innerHTML = originalHtml;
             }
         }
+    };
+
+    const openSealConfirm = ({ html, title, onConfirm }) => {
+        if (!transferConfirmDialog || !transferConfirmBody || config.workspaceType !== 'company') {
+            onConfirm();
+            return;
+        }
+        pendingTransferConfirm = onConfirm;
+        if (transferConfirmTitle) transferConfirmTitle.textContent = title || 'تأكيد العملية';
+        transferConfirmBody.innerHTML = html;
+        openDialog(transferConfirmDialog);
+    };
+
+    const openTransferConfirm = () => {
+        const amount = Number(transferAmount?.value || 0);
+        const rate = Number(activeService?.rate || 0);
+        const cost = calculateCostLyd(amount, rate, activeService);
+        const destination = activeService?.key === 'post_card'
+            ? transferNationalId?.value.trim()
+            : transferDestination?.value.trim();
+        openSealConfirm({
+            title: `تحويل ${activeService?.label || 'الخدمة'} ${formatNumber(amount, 0)} ${sourceCurrencyLabel(activeService)}`,
+            html: `
+            <div class="bw-cost-preview">
+                <div><span>الخدمة</span><strong>${escapeHtml(activeService?.label || '')}</strong></div>
+                <div><span>المستلم</span><strong class="bw-mono">${escapeHtml(destination || '---')}</strong></div>
+                <div><span>المبلغ</span><strong class="bw-mono">${escapeHtml(formatNumber(amount, 2))} ${escapeHtml(sourceCurrencyLabel(activeService))}</strong></div>
+                <div><span>التكلفة</span><strong class="bw-mono">${escapeHtml(formatNumber(cost, 3))} LYD</strong></div>
+            </div>`,
+            onConfirm: executeTransfer
+        });
+    };
+
+    transferForm?.addEventListener('submit', (event) => {
+        event.preventDefault();
+        const validationError = validateTransfer();
+        if (validationError) {
+            showFormResult(transferResult, validationError.message, false);
+            validationError.input?.focus();
+            return;
+        }
+        if (!transferForm.reportValidity()) return;
+        openTransferConfirm();
     });
+    document.getElementById('transferConfirmSubmit')?.addEventListener('click', () => {
+        const next = pendingTransferConfirm;
+        pendingTransferConfirm = null;
+        transferConfirmDialog?.close();
+        if (typeof next === 'function') next();
+    });
+    transferConfirmDialog?.addEventListener('close', () => {
+        pendingTransferConfirm = null;
+        if (transferConfirmTitle) transferConfirmTitle.textContent = 'تأكيد العملية';
+    });
+    [transferDestination, transferAmount, transferNotes, transferBeneficiary, transferClientPhone].forEach((input) => {
+        input?.addEventListener('input', persistTransferDraft);
+    });
+    document.querySelectorAll('[data-recipient-phone]').forEach((button) => {
+        button.addEventListener('click', () => {
+            if (transferDestination) transferDestination.value = button.dataset.recipientPhone || '';
+            if (transferAccountNumber) transferAccountNumber.value = button.dataset.recipientPhone || '';
+            if (transferBeneficiary && button.dataset.recipientName) transferBeneficiary.value = button.dataset.recipientName;
+            persistTransferDraft();
+            updateCostEstimate();
+        });
+    });
+    restoreTransferDraft();
 
     const balanceTransferForm = document.getElementById('balanceTransferForm');
     const balanceTransferResult = document.getElementById('balanceTransferResult');
+
+    const submitBalanceTransfer = async (bodyData) => {
+        try {
+            const operationPin = await requestOperationPin();
+            if (operationPin === null) return;
+            if (operationPin) bodyData.operationPin = operationPin;
+
+            const transferResponse = await fetch('/client/balance-transfer', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', Accept: 'application/json', 'x-csrf-token': config.csrfToken || '' },
+                body: JSON.stringify(bodyData)
+            });
+            const transfer = await parseJsonResponse(transferResponse);
+            if (!transferResponse.ok || !transfer.success) throw new Error(transfer.error || 'تعذر تحويل الرصيد.');
+            showFormResult(balanceTransferResult, `${transfer.message} رقم العملية: ${transfer.transferId}`, true);
+            fillTransferSuccess({
+                customId: transfer.transferId,
+                message: transfer.message,
+                successCopy: transfer.message || 'تم تحويل الرصيد الداخلي.'
+            }, '');
+            if (config.workspaceType === 'company') openDialog(transferSuccessDialog);
+            balanceTransferForm.reset();
+        } catch (error) {
+            showFormResult(balanceTransferResult, error.message || 'تعذر تحويل الرصيد.', false);
+        }
+    };
+
     balanceTransferForm?.addEventListener('submit', async (event) => {
         event.preventDefault();
         if (!balanceTransferForm.reportValidity()) return;
@@ -771,21 +1046,23 @@
             });
             const lookup = await parseJsonResponse(lookupResponse);
             if (!lookupResponse.ok || !lookup.success) throw new Error(lookup.error || 'تعذر التحقق من الحساب.');
-            const approved = window.confirm(`سيتم تحويل ${bodyData.amount} LYD إلى ${lookup.target.name} (${lookup.target.accountCode}). هل تريد المتابعة؟`);
-            if (!approved) return;
-            const operationPin = await requestOperationPin();
-            if (operationPin === null) return;
-            if (operationPin) bodyData.operationPin = operationPin;
-
-            const transferResponse = await fetch('/client/balance-transfer', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', Accept: 'application/json', 'x-csrf-token': config.csrfToken || '' },
-                body: JSON.stringify(bodyData)
+            const confirmCopy = `سيتم تحويل ${bodyData.amount} LYD إلى ${lookup.target.name} (${lookup.target.accountCode}).`;
+            if (config.workspaceType !== 'company') {
+                if (!window.confirm(`${confirmCopy} هل تريد المتابعة؟`)) return;
+                await submitBalanceTransfer(bodyData);
+                return;
+            }
+            openSealConfirm({
+                title: 'تأكيد التحويل الداخلي',
+                html: `
+                    <div class="bw-cost-preview">
+                        <div><span>المستلم</span><strong>${escapeHtml(lookup.target.name || '')}</strong></div>
+                        <div><span>رقم الحساب</span><strong class="bw-mono">${escapeHtml(lookup.target.accountCode || '')}</strong></div>
+                        <div><span>المبلغ</span><strong class="bw-mono">${escapeHtml(formatNumber(Number(bodyData.amount || 0), 2))} LYD</strong></div>
+                    </div>
+                    <p class="bw-dialog-note">${escapeHtml(confirmCopy)}</p>`,
+                onConfirm: () => submitBalanceTransfer(bodyData)
             });
-            const transfer = await parseJsonResponse(transferResponse);
-            if (!transferResponse.ok || !transfer.success) throw new Error(transfer.error || 'تعذر تحويل الرصيد.');
-            showFormResult(balanceTransferResult, `${transfer.message} رقم العملية: ${transfer.transferId}`, true);
-            balanceTransferForm.reset();
         } catch (error) {
             showFormResult(balanceTransferResult, error.message || 'تعذر تحويل الرصيد.', false);
         }
@@ -840,6 +1117,13 @@
             : ['pending', 'processing', 'accepted', 'deposit_pending'].includes(transaction.status)
                 ? 'warning'
                 : 'danger';
+        const whatsappHint = serviceDetails.clientPhone || transaction.destination;
+        const whatsappIntl = whatsappNumberFrom(whatsappHint);
+        const whatsappHref = whatsappIntl
+            ? `https://wa.me/${whatsappIntl}?text=${encodeURIComponent(`بخصوص عملية التحويل${transaction.customId ? ` رقم ${transaction.customId}` : ''} لدى الأهرام.`)}`
+            : '';
+        const isCompanyWorkspace = config.workspaceType === 'company';
+        const whatsappButtonClass = isCompanyWorkspace ? 'primary' : 'ghost';
         return `
             <div class="bw-detail-hero">
                 <div><small>رقم العملية</small><strong class="bw-mono">${escapeHtml(transaction.customId)}</strong></div>
@@ -855,20 +1139,21 @@
                 ${config.canViewBalance ? detailItem('سعر الصرف', formatExchangeRate(transaction.exchangeRate, transaction), true) : ''}
                 ${detailItem('رقم المستلم / الحساب', transaction.destination, true)}
                 ${detailItem('اسم المستفيد', transaction.accountName)}
-                ${detailItem('العميل', transaction.customerName || 'الحساب الرئيسي')}
+                ${isCompanyWorkspace ? '' : detailItem('العميل', transaction.customerName || 'الحساب الرئيسي')}
                 ${detailItem('أرسلها الموظف', transaction.employeeName)}
                 ${detailItem('نوع سيفا', serviceDetails.subtype)}
                 ${detailItem('المدينة', serviceDetails.city)}
                 ${detailItem('تأكيد صحة بيانات سيفا', serviceDetails.dataEntryAcknowledged ? 'تم التأكيد قبل الإرسال' : '')}
                 ${detailItem('الرقم القومي', serviceDetails.nationalId, true)}
                 ${detailItem('المحافظة', serviceDetails.governorate)}
-                ${detailItem('رقم هاتف العميل', serviceDetails.clientPhone, true)}
+                ${detailItem(isCompanyWorkspace ? 'واتساب المستلم' : 'رقم هاتف العميل', serviceDetails.clientPhone, true)}
                 ${detailItem('البنك', serviceDetails.bankName)}
                 ${detailItem('تاريخ الإنشاء', formatDateTime(transaction.createdAt), true)}
                 ${detailItem('رقم الإلغاء', transaction.cancellationNumber, true)}
                 ${detailItem('سبب الإلغاء', transaction.cancellationReason)}
             </div>
             <div class="bw-detail-notes"><span>ملاحظة العميل</span><p>${escapeHtml(transaction.notes || 'لا توجد ملاحظة')}</p></div>
+            ${whatsappHref ? `<div class="cos-detail-actions"><a class="bw-button ${whatsappButtonClass}" href="${whatsappHref}" target="_blank" rel="noopener"><i class="fa-brands fa-whatsapp"></i>واتساب المستلم</a></div>` : ''}
             ${renderReceiptGallery(transaction)}
         `;
     };
@@ -988,6 +1273,121 @@
     if (supportMessages) {
         loadSupportMessages();
         window.setInterval(loadSupportMessages, 5000);
+    }
+
+    const companyWelcomeDialog = document.getElementById('companyWelcomeDialog');
+    const companyMessageDialog = document.getElementById('companyMessageDialog');
+    const companyMessageTitle = document.getElementById('companyMessageTitle');
+    const companyMessageCopy = document.getElementById('companyMessageCopy');
+    const companyLowBalanceDialog = document.getElementById('companyLowBalanceDialog');
+    const showAdminMessage = async () => {
+        if (config.workspaceType !== 'company' || !companyMessageDialog || companyWelcomeDialog?.open || companyLowBalanceDialog?.open) return;
+        try {
+            const response = await fetch('/client/api/notifications/unread', { headers: { Accept: 'application/json' } });
+            const payload = await parseJsonResponse(response);
+            const note = (payload.notifications || [])[0];
+            if (!note) return;
+            if (companyMessageTitle) companyMessageTitle.textContent = note.title || 'رسالة من الإدارة';
+            if (companyMessageCopy) companyMessageCopy.textContent = note.message || '';
+            const ack = document.getElementById('companyMessageAck');
+            if (ack) {
+                ack.onclick = async () => {
+                    await fetch(`/client/api/notifications/${encodeURIComponent(note._id)}/read`, {
+                        method: 'POST',
+                        headers: { Accept: 'application/json', 'x-csrf-token': config.csrfToken || '' }
+                    }).catch(() => {});
+                    companyMessageDialog.close();
+                };
+            }
+            openDialog(companyMessageDialog);
+        } catch (_) { /* optional */ }
+    };
+    const showLowBalanceAlert = () => {
+        const alert = config.lowBalanceAlert;
+        if (config.workspaceType !== 'company' || !companyLowBalanceDialog || !alert) return false;
+        let alreadySeen = false;
+        try {
+            alreadySeen = Boolean(sessionStorage.getItem('company-os-low-balance'));
+            if (!alreadySeen) sessionStorage.setItem('company-os-low-balance', '1');
+        } catch (_) { /* optional */ }
+        if (alreadySeen) return false;
+        const title = document.getElementById('companyLowBalanceTitle');
+        const copy = document.getElementById('companyLowBalanceCopy');
+        if (title) title.textContent = alert.title;
+        if (copy) copy.textContent = alert.copy;
+        companyLowBalanceDialog.dataset.tone = alert.tone || 'warning';
+        openDialog(companyLowBalanceDialog);
+        return true;
+    };
+    const afterCompanyWelcome = () => {
+        if (showLowBalanceAlert()) {
+            companyLowBalanceDialog.addEventListener('close', () => {
+                window.setTimeout(showAdminMessage, 250);
+            }, { once: true });
+            return;
+        }
+        window.setTimeout(showAdminMessage, 400);
+    };
+    const showCompanyWelcome = () => {
+        if (config.workspaceType !== 'company' || !companyWelcomeDialog) {
+            afterCompanyWelcome();
+            return;
+        }
+        let alreadySeen = false;
+        try {
+            alreadySeen = Boolean(sessionStorage.getItem('company-os-welcome'));
+            if (!alreadySeen) sessionStorage.setItem('company-os-welcome', '1');
+        } catch (_) { /* optional */ }
+        if (alreadySeen) {
+            afterCompanyWelcome();
+            return;
+        }
+        companyWelcomeDialog.addEventListener('close', afterCompanyWelcome, { once: true });
+        openDialog(companyWelcomeDialog);
+    };
+    showCompanyWelcome();
+
+    const companyDepositForm = document.getElementById('companyDepositForm');
+    const companyDepositResult = document.getElementById('companyDepositResult');
+    companyDepositForm?.addEventListener('submit', async (event) => {
+        event.preventDefault();
+        const amount = Number(document.getElementById('companyDepositAmount')?.value || 0);
+        const note = String(document.getElementById('companyDepositNote')?.value || '').trim();
+        if (!(amount > 0) || note.length < 3) {
+            showFormResult(companyDepositResult, 'أدخل قيمة صحيحة وملاحظة توضح مرجع الإيداع.', false);
+            return;
+        }
+        const submit = document.getElementById('companyDepositSubmit');
+        if (submit) submit.disabled = true;
+        try {
+            const response = await fetch('/client/api/support/messages', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', Accept: 'application/json', 'x-csrf-token': config.csrfToken || '' },
+                body: JSON.stringify({
+                    text: `طلب إيداع رصيد\nالقيمة: ${amount.toFixed(2)} LYD\nالملاحظة: ${note}`
+                })
+            });
+            const payload = await parseJsonResponse(response);
+            if (!response.ok || !payload.success) throw new Error(payload.error || 'تعذر إرسال طلب الإيداع.');
+            showFormResult(companyDepositResult, 'تم إرسال طلب الإيداع إلى الإدارة عبر الدعم الفني.', true);
+            companyDepositForm.reset();
+            window.setTimeout(() => window.location.reload(), 700);
+        } catch (error) {
+            showFormResult(companyDepositResult, error.message || 'تعذر إرسال طلب الإيداع.', false);
+        } finally {
+            if (submit) submit.disabled = false;
+        }
+    });
+
+    const companyLogoutDialog = document.getElementById('companyLogoutDialog');
+    if (config.workspaceType === 'company' && companyLogoutDialog) {
+        document.querySelectorAll('a[href="/client/logout"]').forEach((link) => {
+            if (link.hasAttribute('data-logout-confirm')) return;
+            link.addEventListener('click', (event) => {
+                event.preventDefault();
+                openDialog(companyLogoutDialog);
+            });
+        });
     }
 
     document.addEventListener('keydown', (event) => {

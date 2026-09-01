@@ -142,16 +142,54 @@ describe('business portal assistant privacy', () => {
 
     test('guides an allowed internal balance transfer without executing it', async () => {
         const result = await assistant.answer({
-            workspace: { permissions: { canTransfer: true } },
+            workspace: { permissions: { canTransfer: true, canInternalTransfer: true } },
             question: 'كيف أحول رصيد داخلي؟'
         });
         expect(result.answer).toContain('تحويل رصيد داخلي');
-        expect(result.action.href).toBe('/client/services');
+        expect(result.action.href).toBe('/client/internal-transfer');
+    });
+
+    test('does not offer internal transfer when the role cannot move company balance', async () => {
+        const result = await assistant.answer({
+            workspace: { permissions: { canTransfer: true, canInternalTransfer: false } },
+            question: 'كيف أحول رصيد داخلي؟'
+        });
+        expect(result.answer).toContain('لا تملك صلاحية تحويل الرصيد الداخلي');
+        expect(result.action).toBeNull();
+    });
+
+    test('does not send accountants to the services gallery', async () => {
+        const result = await assistant.answer({
+            workspace: {
+                isCompany: true,
+                permissions: { canTransfer: false, canViewBalance: true, canViewReports: true }
+            },
+            question: 'كيف أنشئ عملية تحويل؟'
+        });
+        expect(result.action).toEqual({ label: 'فتح مكتب المحاسبة', href: '/client/finance' });
+        expect(result.answer).toContain('لا تملك صلاحية إنشاء التحويلات');
+    });
+
+    test('sends company employees from reports to the operations log', async () => {
+        const result = await assistant.answer({
+            workspace: { isCompany: true, permissions: { canViewReports: false, canTransfer: true } },
+            question: 'اعرض تقارير اليوم'
+        });
+        expect(result.action).toEqual({ label: 'فتح سجل العمليات', href: '/client/transactions' });
+    });
+
+    test('hides the balance suggestion when the role cannot see company funds', async () => {
+        const result = await assistant.answer({
+            workspace: { isCompany: true, permissions: { canViewBalance: false, canTransfer: true } },
+            question: 'مرحبا'
+        });
+        expect(result.suggestions).not.toContain('ما هو رصيدي؟');
+        expect(result.suggestions).toContain('كيف أنشئ عملية تحويل؟');
     });
 
     test('routes the account overview request without querying other accounts', async () => {
         const result = await assistant.answer({ workspace: { permissions: {} }, question: 'افتح اللوحة الرئيسية' });
-        expect(result.action).toEqual({ label: 'فتح الرئيسية', href: '/client/dashboard' });
+        expect(result.action).toEqual({ label: 'فتح الرئيسية', href: '/client/dashboard?home=1' });
     });
 
     test('prepares a transfer draft but never executes the transaction', async () => {
@@ -159,7 +197,7 @@ describe('business portal assistant privacy', () => {
             workspace: { permissions: { canTransfer: true } },
             question: 'حول 01012345678 مبلغ 250 جنيه ملاحظة: دفعة فاتورة'
         });
-        expect(result.action).toEqual({ label: 'فتح مسودة التحويل', href: '/client/services' });
+        expect(result.action).toEqual({ label: 'فتح مسودة التحويل', href: '/client/services/cash' });
         expect(result.draft).toMatchObject({ phone: '01012345678', amountEGP: 250, note: 'دفعة فاتورة' });
         expect(result.answer).toContain('لن يتم إرسال');
     });

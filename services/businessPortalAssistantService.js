@@ -1,7 +1,7 @@
 'use strict';
 
 const Transaction = require('../models/Transaction');
-const { ownershipFilter } = require('./businessPortalService');
+const { ownershipFilter, findServiceByToken, resolvePortalHomeHref } = require('./businessPortalService');
 const { parseTransferMessage, normalizeDigits } = require('../utils/smartTransferParser');
 const openAiBusinessAssistantService = require('./openAiBusinessAssistantService');
 
@@ -39,6 +39,26 @@ const classifyQuestion = (question) => {
     return 'general_help';
 };
 
+const assistantSuggestions = (workspace) => {
+    const permissions = workspace?.permissions || {};
+    const items = [];
+    if (permissions.canViewBalance !== false) items.push('ما هو رصيدي؟');
+    items.push('آخر العمليات');
+    if (permissions.canTransfer) items.push('كيف أنشئ عملية تحويل؟');
+    else if (permissions.canViewReports) items.push('اعرض كشف الحساب');
+    else items.push('أحتاج إلى دعم فني');
+    return items.slice(0, 4);
+};
+
+const servicesHref = () => '/client/services';
+const servicesLabel = (workspace) => (workspace?.isCompany ? 'فتح معرض الخدمات' : 'فتح الخدمات والتحويل');
+const financeHref = () => '/client/finance';
+const financeLabel = (workspace) => (workspace?.isCompany ? 'فتح مكتب المحاسبة' : 'فتح الحركات المالية');
+const homeAction = (workspace) => ({
+    label: workspace?.isCompany ? 'فتح غرفة العمل' : 'فتح الرئيسية',
+    href: resolvePortalHomeHref(workspace)
+});
+
 const response = (answer, options = {}) => ({
     success: true,
     answer,
@@ -51,7 +71,7 @@ const response = (answer, options = {}) => ({
 const transferDraftResponse = (parsed) => response(
     `قرأت الرسالة كمسودة فقط: رقم المستلم ${parsed.phone}، المبلغ ${money(parsed.amountEGP)} جنيه${parsed.note ? `، والملاحظة: ${parsed.note}` : ''}. لن يتم إرسال أي عملية من المساعد؛ افتح المسودة وراجع الخدمة والتكلفة ثم أكدها بنفسك.`,
     {
-        action: { label: 'فتح مسودة التحويل', href: '/client/services' },
+        action: { label: 'فتح مسودة التحويل', href: `/client/services/${findServiceByToken(parsed.serviceKey || 'vodafone')?.slug || 'cash'}` },
         draft: {
             phone: parsed.phone,
             amountEGP: parsed.amountEGP,
@@ -118,13 +138,13 @@ const answer = async ({ workspace, question }) => {
     if (isCasualConversation(text)) {
         const aiAnswer = await openAiBusinessAssistantService.answer({ workspace, question: text });
         if (aiAnswer) return response(aiAnswer, {
-            suggestions: ['ما هو رصيدي؟', 'آخر العمليات', 'اعرض تقارير اليوم', 'كيف أنشئ عملية تحويل؟']
+            suggestions: assistantSuggestions(workspace)
         });
     }
 
     if (/^(?:مرحبا|أهلا|اهلا|السلام\s*عليكم|صباح\s*الخير|مساء\s*الخير|كيف\s*حال(?:ك|ك؟)|عامل\s*إيه|عامل\s*ايه|هاي|hello|hi)[!؟?،,.\s]*$/iu.test(text)) {
-        return response('أهلاً بك! أنا بخير وجاهز لمساعدتك. يمكنك أن تسألني عن رصيدك، عملياتك، التقارير، الإيداعات أو خطوات التحويل.', {
-            suggestions: ['ما هو رصيدي؟', 'آخر العمليات', 'اعرض تقارير اليوم', 'كيف أنشئ عملية تحويل؟']
+        return response('أهلاً بك! أنا بخير وجاهز لمساعدتك. يمكنك أن تسألني عن رصيدك، عملياتك، التقارير، الإيداعات أو خطوات التحويل حسب صلاحياتك.', {
+            suggestions: assistantSuggestions(workspace)
         });
     }
 
@@ -145,8 +165,8 @@ const answer = async ({ workspace, question }) => {
     if (/(?:رصيد|كم معي|متاح)/iu.test(text) && !/(?:تحويل\s*رصيد|رصيد\s*داخلي|بين\s*الحسابات)/iu.test(text)) {
         if (!workspace.permissions.canViewBalance) return response('لا تملك صلاحية عرض رصيد الشركة أو الوكالة من هذا الحساب.');
         return response(`الرصيد المتاح للحساب المفتوح هو ${money(workspace.entity.balance)} LYD.`, {
-            suggestions: ['اعرض تقارير اليوم', 'كيف أحول رصيداً داخلياً؟'],
-            action: { label: 'فتح الحركات المالية', href: '/client/finance' }
+            suggestions: assistantSuggestions(workspace),
+            action: { label: financeLabel(workspace), href: financeHref() }
         });
     }
 
@@ -191,14 +211,19 @@ const answer = async ({ workspace, question }) => {
         const pendingDeposit = rows.find((row) => row._id === 'deposit_pending');
         const deductions = rows.find((row) => row._id === 'deduction');
         return response(`حركة الرصيد في الحساب المفتوح: إيداعات مقبولة ${money(accepted?.value)} LYD، إيداعات قيد المراجعة ${pendingDeposit?.count || 0}، وخصومات ${money(deductions?.value)} LYD.`, {
-            action: { label: 'فتح الحركات المالية', href: '/client/finance' }
+            action: workspace.isCompany && workspace.permissions.canRequestDeposit
+                ? {
+                    label: workspace.permissions.manager ? 'فتح طلب الإيداع' : 'متابعة الإيداع',
+                    href: '/client/company/deposits'
+                }
+                : { label: financeLabel(workspace), href: financeHref() }
         });
     }
 
     if (/(?:تحويل\s*رصيد|رصيد\s*داخلي|بين\s*الحسابات)/iu.test(text)) {
-        if (!workspace.permissions.canTransfer) return response('لا تملك صلاحية تحويل الرصيد من هذا الحساب.');
-        return response('لتحويل رصيد داخلي: افتح الخدمات والتحويل، اكتب رقم حساب المستلم والمبلغ والملاحظة في قسم «تحويل رصيد داخلي»، ثم راجع اسم المستلم وأدخل رمز العمليات إن كان مفعلاً. التحويل النهائي يحتاج تأكيدك دائماً.', {
-            action: { label: 'فتح تحويل الرصيد', href: '/client/services' }
+        if (!workspace.permissions.canInternalTransfer) return response('لا تملك صلاحية تحويل الرصيد الداخلي من هذا الحساب.');
+        return response('لتحويل رصيد داخلي: افتح صفحة التحويل الداخلي، اكتب رقم حساب المستلم والمبلغ والملاحظة، ثم راجع اسم المستلم وأدخل رمز العمليات إن كان مفعلاً.', {
+            action: { label: 'فتح تحويل الرصيد', href: '/client/internal-transfer' }
         });
     }
 
@@ -210,8 +235,10 @@ const answer = async ({ workspace, question }) => {
     }
 
     if (/(?:لوحة|رئيسية|الرئيسية|ملخص)/iu.test(text)) {
-        return response('توضح اللوحة الرئيسية ملخص اليوم، الرصيد حسب صلاحيتك، وآخر العمليات داخل الحساب المفتوح.', {
-            action: { label: 'فتح الرئيسية', href: '/client/dashboard' }
+        return response(workspace.isCompany
+            ? 'توضح غرفة العمل ملخص اليوم، الرصيد حسب صلاحيتك، وآخر العمليات داخل الحساب المفتوح.'
+            : 'توضح اللوحة الرئيسية ملخص اليوم، الرصيد حسب صلاحيتك، وآخر العمليات داخل الحساب المفتوح.', {
+            action: homeAction(workspace)
         });
     }
 
@@ -222,6 +249,11 @@ const answer = async ({ workspace, question }) => {
     }
 
     if (/(?:تقرير|اليوم|العمليات|احصائ|إحصائ)/iu.test(text)) {
+        if (!workspace.permissions.canViewReports) {
+            return response('لا تملك صلاحية فتح الكشوف من هذا الحساب. يمكنك متابعة عمليات اليوم من سجل التنفيذ.', {
+                action: { label: 'فتح سجل العمليات', href: '/client/transactions' }
+            });
+        }
         const ownership = await ownershipFilter(workspace);
         const period = reportPeriodFor(text);
         const rows = await Transaction.aggregate([
@@ -232,19 +264,37 @@ const answer = async ({ workspace, question }) => {
         const completed = rows.find((row) => row._id === 'completed')?.count || 0;
         const pending = rows.filter((row) => ['pending', 'processing', 'accepted'].includes(row._id)).reduce((sum, row) => sum + row.count, 0);
         return response(`ملخص ${period.label} للحساب المفتوح: ${total} عملية، منها ${completed} مكتملة و${pending} قيد المتابعة.`, {
-            action: { label: 'فتح التقارير', href: '/client/reports' }
+            action: { label: workspace.isCompany ? 'فتح كشف الحساب' : 'فتح التقارير', href: '/client/reports' }
         });
     }
 
     if (/(?:كيف.*(?:تحويل|ارسال|إرسال)|انشئ.*عملية|إنشاء.*عملية)/iu.test(text)) {
-        return response('من صفحة الخدمات والتحويل: اختر الخدمة، أدخل رقم المستلم والمبلغ والملاحظة، راجع التكلفة، ثم اضغط «مراجعة وإرسال العملية». إذا كان رمز العمليات مفعلاً فسيُطلب منك للتأكيد.', {
-            action: { label: 'فتح الخدمات والتحويل', href: '/client/services' }
+        if (!workspace.permissions?.canTransfer) {
+            return response('لا تملك صلاحية إنشاء التحويلات من هذا الحساب. يمكنك متابعة الكشوف والإيداع حسب صلاحياتك.', {
+                action: workspace.permissions?.canViewBalance
+                    ? { label: financeLabel(workspace), href: financeHref() }
+                    : { label: 'فتح سجل العمليات', href: '/client/transactions' }
+            });
+        }
+        return response(workspace.isCompany
+            ? 'من معرض الخدمات: افتح بطاقة القناة المطلوبة، أدخل بيانات المستلم والمبلغ، راجع التكلفة في نافذة التأكيد، ثم اختم العملية.'
+            : 'من صفحة الخدمات والتحويل: اختر الخدمة، أدخل رقم المستلم والمبلغ والملاحظة، راجع التكلفة، ثم اضغط «مراجعة وإرسال العملية». إذا كان رمز العمليات مفعلاً فسيُطلب منك للتأكيد.', {
+            action: { label: servicesLabel(workspace), href: servicesHref() }
         });
     }
 
     if (/(?:خدم|سعر|صرف|محفظ|بريد|سيفا|بنكك)/iu.test(text)) {
-        return response('تجد الخدمات المتاحة وسعر كل خدمة في صفحة الخدمات والتحويل. اختر الخدمة أولاً ثم راجع سعر الصرف والتكلفة التقديرية قبل إرسال العملية؛ السعر المعروض في الصفحة هو المعتمد لحسابك وقت المراجعة.', {
-            action: { label: 'فتح الخدمات والأسعار', href: '/client/services' }
+        if (!workspace.permissions?.canTransfer) {
+            return response('أسعار القنوات تظهر داخل منضدة كل خدمة. هذا الحساب لا ينشئ تحويلات، ويمكنه مراجعة الكشوف حسب الصلاحية.', {
+                action: workspace.permissions?.canViewReports
+                    ? { label: 'فتح كشف الحساب', href: '/client/reports' }
+                    : { label: 'فتح سجل العمليات', href: '/client/transactions' }
+            });
+        }
+        return response(workspace.isCompany
+            ? 'كل قناة لها بطاقة وسعر داخل معرض الخدمات. افتح المنضدة المعنية ثم راجع التكلفة قبل الإرسال.'
+            : 'تجد الخدمات المتاحة وسعر كل خدمة في صفحة الخدمات والتحويل. اختر الخدمة أولاً ثم راجع سعر الصرف والتكلفة التقديرية قبل إرسال العملية؛ السعر المعروض في الصفحة هو المعتمد لحسابك وقت المراجعة.', {
+            action: { label: servicesLabel(workspace), href: servicesHref() }
         });
     }
 
@@ -256,8 +306,10 @@ const answer = async ({ workspace, question }) => {
 
     if (/(?:إعداد|اعداد|تغيير.*بيانات|تعديل.*بيانات)/iu.test(text)) {
         if (!workspace.permissions.canEditSettings) return response('لا تملك صلاحية تعديل إعدادات الحساب من هذا المستخدم.');
-        return response('يمكنك تحديث البيانات التشغيلية المسموح بها من صفحة الإعدادات. لا يمكن للمساعد تغيير كلمة المرور أو رموز الحماية أو الصلاحيات.', {
-            action: { label: 'فتح الإعدادات', href: '/client/settings' }
+        return response(workspace.isCompany
+            ? 'يمكنك تحديث بيانات المنشأة من صفحة الملف، وكلمة المرور والأجهزة من صفحة أمان الحساب. لا يمكن للمساعد تغيير رموز الحماية أو الصلاحيات.'
+            : 'يمكنك تحديث البيانات التشغيلية المسموح بها من صفحة الإعدادات. لا يمكن للمساعد تغيير كلمة المرور أو رموز الحماية أو الصلاحيات.', {
+            action: { label: workspace.isCompany ? 'فتح بيانات المنشأة' : 'فتح الإعدادات', href: '/client/settings' }
         });
     }
 
@@ -271,11 +323,11 @@ const answer = async ({ workspace, question }) => {
 
     const aiAnswer = await openAiBusinessAssistantService.answer({ workspace, question: text });
     if (aiAnswer) return response(aiAnswer, {
-        suggestions: ['ما هو رصيدي؟', 'آخر العمليات', 'اعرض تقارير اليوم', 'كيف أنشئ عملية تحويل؟']
+        suggestions: assistantSuggestions(workspace)
     });
 
     return response('أستطيع مساعدتك في الرصيد، حالة عملية برقمها، تقارير اليوم، الإيداعات، التحويلات، الخدمات، الدعم، الموظفين والعملاء ضمن صلاحيات الحساب المفتوح فقط.', {
-        suggestions: ['ما هو رصيدي؟', 'آخر العمليات', 'كيف أحول رصيداً داخلياً؟', 'أحتاج إلى دعم فني']
+        suggestions: assistantSuggestions(workspace)
     });
 };
 

@@ -1,0 +1,33 @@
+<section class="bw-smart-transfer" aria-labelledby="smartTransferTitle">
+    <header class="bw-smart-transfer-head">
+        <div class="bw-smart-transfer-title">
+            <span class="bw-smart-transfer-icon"><i class="fa-solid fa-wand-magic-sparkles"></i></span>
+            <div><span class="bw-section-kicker">إدخال سريع</span><h2 id="smartTransferTitle">مساعد التحويل الذكي</h2></div>
+        </div>
+        <span class="bw-private-chip"><i class="fa-solid fa-shield-halved"></i>معالجة آمنة</span>
+    </header>
+    <div class="bw-smart-transfer-input">
+        <label class="bw-field">
+            <span>رسالة التحويل</span>
+            <textarea id="smartTransferMessage" rows="4" maxlength="2000" placeholder="01012345678 | 1,600 جنيه | ملاحظة: دفعة أحمد"></textarea>
+        </label>
+        <div class="bw-smart-transfer-command">
+            <button type="button" class="bw-button secondary" id="smartTransferAnalyzeButton"><i class="fa-solid fa-bolt"></i>تحليل الرسالة</button>
+            <div class="bw-smart-transfer-status" id="smartTransferStatus" aria-live="polite" hidden></div>
+        </div>
+    </div>
+    <div class="bw-smart-transfer-preview" id="smartTransferPreview" hidden>
+        <div class="bw-smart-preview-grid">
+            <div><span>رقم الهاتف</span><strong class="bw-mono" id="smartPreviewPhone">---</strong></div>
+            <div><span>القيمة بالجنيه</span><strong class="bw-mono" id="smartPreviewAmount">---</strong></div>
+            <div><span>سعر الصرف</span><strong class="bw-mono" id="smartPreviewRate">---</strong></div>
+            <div><span>المقابل بالدينار</span><strong class="bw-mono" id="smartPreviewLyd">---</strong></div>
+            <div hidden><span>اسم المستفيد</span><strong id="smartPreviewBeneficiary"></strong></div>
+            <div class="wide"><span>ملاحظة العميل</span><strong id="smartPreviewNote">لا توجد ملاحظة</strong></div>
+        </div>
+        <div class="bw-smart-preview-actions">
+            <div class="bw-smart-preview-meta"><span id="smartPreviewService"><i class="fa-solid fa-mobile-screen-button"></i>محافظ كاش</span><span class="bw-smart-confidence" id="smartPreviewConfidence">بانتظار التحليل</span></div>
+            <button type="button" class="bw-button primary" id="smartTransferSendButton" disabled><i class="fa-solid fa-paper-plane"></i><%= typeof smartTransferActionLabel !== 'undefined' ? smartTransferActionLabel : 'إرسال العملية' %></button>
+        </div>
+    </div>
+</section>

@@ -12,6 +12,9 @@ async function loadDirectClient(req) {
 
 exports.getDepositsPage = async (req, res) => {
     try {
+        if (req.session.accountType === 'company') {
+            return res.redirect('/client/company/deposits');
+        }
         const user = await loadDirectClient(req);
         if (!user) return res.redirect('/client/dashboard?portalError=forbidden');
 

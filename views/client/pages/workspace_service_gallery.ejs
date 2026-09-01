@@ -1,0 +1,55 @@
+<section class="cos-ledger-office">
+    <div>
+        <% if (workspace.forceToday) { %>
+            <span class="bw-section-kicker">ثلاث خطوات فقط</span>
+            <h2>اختر · راجع · أرسل</h2>
+            <p>لا مالية ولا فريق من هنا. اختر القناة، راجع التكلفة داخل منضدتها، ثم تابع سجل اليوم بعد الإرسال.</p>
+        <% } else { %>
+            <span class="bw-section-kicker">قناة واحدة لكل بطاقة</span>
+            <h2>معرض الخدمات</h2>
+            <p>لا قائمة منسدلة ولا تبويب. كل خدمة تفتح منضدة معزولة بحقولها وسعرها وإيصالها.</p>
+        <% } %>
+    </div>
+    <div class="cos-ledger-links">
+        <a href="/client/smart-transfer" class="bw-button primary"><i class="fa-solid fa-wand-magic-sparkles"></i>التحويل من رسالة</a>
+        <a href="/client/transactions" class="bw-button ghost"><i class="fa-solid fa-list-check"></i><%= workspace.forceToday ? 'عمليات اليوم' : 'غرفة العمليات' %></a>
+    </div>
+</section>
+<% if (workspace.forceToday) { %><section class="cos-emp-day"><% } %>
+<div class="cos-scene" role="list">
+    <% serviceCatalog.forEach(service => { %>
+        <a href="/client/services/<%= service.slug || service.key %>" class="cos-tile tone-<%= service.tone %>" role="listitem">
+            <span class="cos-tile-icon"><i class="fa-solid <%= service.icon %>"></i></span>
+            <h2><%= service.label %></h2>
+            <small><%= workspace.forceToday ? 'ابدأ من هنا — الحقول والسعر داخل المنضدة فقط' : service.description %></small>
+            <% if (!workspace.forceToday) { %>
+                <strong class="bw-mono cos-tile-rate"><%= service.rateDirection === 'source_to_lyd' ? `1 ${service.amountCurrencyLabel} = ${Number(service.rate).toFixed(2)} LYD` : `1 LYD = ${Number(service.rate).toFixed(2)} ${service.amountCurrencyLabel}` %></strong>
+            <% } %>
+        </a>
+    <% }) %>
+</div>
+<% if (workspace.forceToday) { %>
+    <aside class="cos-day-ops" aria-label="عمليات اليوم">
+        <span class="bw-section-kicker">عملياتي اليوم</span>
+        <h2><%= (typeof todaySummary !== 'undefined' ? todaySummary.totalCount : 0) %> عملية</h2>
+        <div class="cos-ops-list">
+            <% if (!(typeof recentTransactions !== 'undefined' && recentTransactions.length)) { %>
+                <div class="bw-empty compact"><i class="fa-regular fa-folder-open"></i><strong>لا عمليات بعد اليوم</strong></div>
+            <% } %>
+            <% (typeof recentTransactions !== 'undefined' ? recentTransactions : []).slice(0, 6).forEach(tx => { const status = statusMeta[tx.status] || { label: tx.status, tone: 'neutral' }; const service = serviceCatalog.find(item => item.key === tx.transferType); %>
+                <article class="cos-ops-card">
+                    <button type="button" class="cos-ops-main" data-transaction-id="<%= tx._id %>">
+                        <span class="cos-ops-icon"><i class="fa-solid <%= service?.icon || 'fa-money-bill-transfer' %>"></i></span>
+                        <div>
+                            <strong class="bw-mono"><%= tx.customId %></strong>
+                            <small><%= service?.shortLabel || tx.transferType %></small>
+                        </div>
+                        <span class="bw-status <%= status.tone %>"><%= status.label %></span>
+                    </button>
+                </article>
+            <% }) %>
+        </div>
+        <a href="/client/transactions" class="bw-text-link">سجل اليوم الكامل <i class="fa-solid fa-arrow-left"></i></a>
+    </aside>
+</section>
+<% } %>

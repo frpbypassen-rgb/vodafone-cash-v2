@@ -1,0 +1,29 @@
+<section class="cos-ledger-office">
+    <div>
+        <span class="bw-section-kicker">أمان الحساب</span>
+        <h2>حماية دخولك</h2>
+        <p>كلمة المرور وAuthenticator والأجهزة في صفحة مستقلة. بيانات المنشأة تبقى في ملف الشركة.</p>
+    </div>
+    <div class="cos-ledger-links">
+        <a href="/client/settings" class="bw-button ghost"><i class="fa-solid fa-address-card"></i>بيانات المنشأة</a>
+        <a href="/security/sessions" class="bw-button ghost"><i class="fa-solid fa-laptop-mobile"></i>الأجهزة والجلسات</a>
+    </div>
+</section>
+
+<div class="bw-settings-stack">
+    <section class="bw-settings-panel active bw-settings-security" id="security">
+        <header class="bw-settings-panel-head"><span class="bw-settings-panel-icon tone-green"><i class="fa-solid fa-shield-halved"></i></span><div><span>الأمان والدخول</span><h2>حماية الحساب</h2><p>استخدم كلمة مرور قوية وراجع الأجهزة المسجلة بانتظام.</p></div></header>
+        <div class="bw-settings-security-grid">
+            <form method="POST" action="/client/settings/password" class="bw-form bw-form-grid">
+                <label class="bw-field span-2"><span>كلمة المرور الحالية</span><input type="password" name="currentPassword" autocomplete="current-password" required></label>
+                <label class="bw-field"><span>كلمة المرور الجديدة</span><input type="password" name="newPassword" minlength="8" autocomplete="new-password" required></label>
+                <label class="bw-field"><span>تأكيد كلمة المرور</span><input type="password" name="passwordConfirm" minlength="8" autocomplete="new-password" required></label>
+                <div class="bw-form-actions span-2">
+                    <button type="submit" class="bw-button primary"><i class="fa-solid fa-key"></i>تحديث كلمة المرور</button>
+                    <a class="bw-button ghost" href="/security/sessions"><i class="fa-solid fa-laptop-mobile"></i>الأجهزة والجلسات</a>
+                </div>
+            </form>
+            <%- include('../../partials/mfa_security_panel') %>
+        </div>
+    </section>
+</div>

@@ -2,7 +2,7 @@
 <html lang="ar" dir="rtl">
 <head>
     <link rel="manifest" href="/manifest.json">
-    <meta name="theme-color" content="#0f172a">
+    <meta name="theme-color" content="#0C1B33">
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>إنشاء حساب جديد | الأهرام للتقنية</title>
@@ -96,6 +96,56 @@
         }
 
         .logo-container { text-align: center; margin-bottom: 30px; }
+        .register-seal-3d {
+            position: relative;
+            width: 96px;
+            height: 96px;
+            margin: 0 auto 12px;
+            animation: registerSealFloat 4s ease-in-out infinite;
+        }
+        .register-seal-3d img {
+            width: 100%;
+            height: 100%;
+            max-width: none;
+            object-fit: cover;
+            border-radius: 26px;
+            box-shadow: 0 18px 36px rgba(201, 162, 39, 0.35);
+            border: 1px solid rgba(201, 162, 39, 0.35);
+        }
+        .register-seal-rings,
+        .register-seal-rings::before,
+        .register-seal-rings::after {
+            position: absolute;
+            inset: -12px;
+            border: 1px solid rgba(201, 162, 39, 0.45);
+            border-radius: 50%;
+            animation: registerSealSpin 9s linear infinite;
+        }
+        .register-seal-rings::before {
+            inset: -7px;
+            content: '';
+            animation-duration: 6s;
+            animation-direction: reverse;
+        }
+        .register-seal-rings::after {
+            inset: 5px;
+            content: '';
+            border-color: rgba(14, 155, 134, 0.4);
+        }
+        .register-seal-copy {
+            color: var(--text-muted);
+            font-weight: 700;
+            font-size: 0.92rem;
+            margin: 0;
+        }
+        @keyframes registerSealFloat { 50% { transform: translateY(-8px); } }
+        @keyframes registerSealSpin { to { transform: rotate(360deg); } }
+        @media (prefers-reduced-motion: reduce) {
+            .register-seal-3d,
+            .register-seal-rings,
+            .register-seal-rings::before,
+            .register-seal-rings::after { animation: none !important; }
+        }
         .logo-container img {
             max-width: 180px;
             border-radius: 16px;
@@ -104,6 +154,7 @@
             transition: transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
         }
         .logo-container img:hover { transform: scale(1.05) rotate(-2deg); }
+        .register-seal-3d img:hover { transform: none; }
 
         .page-title {
             text-align: center; font-weight: 800; color: var(--text-main);
@@ -359,7 +410,11 @@
 
     <div class="register-card">
         <div class="logo-container">
-            <img src="/images/logo.jpeg" alt="شعار الأهرام" onerror="this.onerror=null; this.src='/images/logo.jpg';">
+            <div class="register-seal-3d">
+                <span class="register-seal-rings"></span>
+                <img src="/images/logo.jpeg" alt="شعار الأهرام" onerror="this.onerror=null; this.src='/images/logo.jpg';">
+            </div>
+            <p class="register-seal-copy">بوابة الشركات والوكلاء والعملاء</p>
         </div>
 
         <% if (typeof success !== 'undefined' && success) { %>

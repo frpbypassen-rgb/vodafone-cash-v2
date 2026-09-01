@@ -48,6 +48,52 @@
         }
 
         .logo-box { text-align: center; margin-bottom: 32px; }
+        .login-seal-3d {
+            position: relative;
+            width: 92px;
+            height: 92px;
+            margin: 0 auto 16px;
+            animation: loginSealFloat 4s ease-in-out infinite;
+        }
+        .login-seal-3d img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            border-radius: 26px;
+            box-shadow: 0 18px 36px rgba(212, 175, 55, 0.38);
+        }
+        .login-seal-rings,
+        .login-seal-rings::before,
+        .login-seal-rings::after {
+            position: absolute;
+            inset: -12px;
+            border: 1px solid rgba(212, 175, 55, 0.45);
+            border-radius: 50%;
+            animation: loginSealSpin 9s linear infinite;
+        }
+        .login-seal-rings::before {
+            inset: -7px;
+            content: '';
+            animation-duration: 6s;
+            animation-direction: reverse;
+        }
+        .login-seal-rings::after {
+            inset: 5px;
+            content: '';
+            border-color: rgba(14, 155, 134, 0.35);
+        }
+        @keyframes loginSealFloat {
+            50% { transform: translateY(-8px); }
+        }
+        @keyframes loginSealSpin {
+            to { transform: rotate(360deg); }
+        }
+        @media (prefers-reduced-motion: reduce) {
+            .login-seal-3d,
+            .login-seal-rings,
+            .login-seal-rings::before,
+            .login-seal-rings::after { animation: none !important; }
+        }
         .brand-wordmark {
             display: inline-flex; align-items: baseline; justify-content: center; gap: 9px;
             direction: ltr; unicode-bidi: isolate; color: var(--bg-navy); text-decoration: none;
@@ -222,11 +268,15 @@
     <div class="login-wrapper">
         <div class="login-card">
             <div class="logo-box">
+                <div class="login-seal-3d" aria-hidden="true">
+                    <span class="login-seal-rings"></span>
+                    <img src="/images/logo.jpeg" alt="" onerror="this.onerror=null;this.src='/images/logo.jpg'">
+                </div>
                 <a href="/login" class="brand-wordmark" dir="ltr" aria-label="Ahram Pay">
                     <span>Ahram</span><span class="brand-pay">Pay</span>
                 </a>
                 <div class="brand-accent"></div>
-                <p><i class="fa-solid fa-fingerprint text-warning me-1"></i> بوابة الدخول الذكية الموحدة</p>
+                <p><i class="fa-solid fa-building-shield text-warning me-1"></i> بوابة الشركات والوكلاء والعملاء</p>
             </div>
 
             <% if (typeof error !== 'undefined' && error) { %>

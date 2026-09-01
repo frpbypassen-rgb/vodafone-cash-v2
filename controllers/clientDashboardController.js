@@ -37,6 +37,19 @@ exports.getDashboard = async (req, res) => {
         if (account.status && account.status !== 'active') return res.redirect('/client/logout');
 
         if (req.session.accountType === 'company') {
+            try {
+                const workspace = await businessPortalService.resolveWorkspace(req);
+                if (workspace.permissions.employee) {
+                    const forbidden = req.query.portalError ? `?portalError=${encodeURIComponent(String(req.query.portalError))}` : '';
+                    return res.redirect(`/client/services${forbidden}`);
+                }
+                if (workspace.permissions.accountant && !workspace.permissions.manager && !req.query.home) {
+                    const forbidden = req.query.portalError ? `?portalError=${encodeURIComponent(String(req.query.portalError))}` : '';
+                    return res.redirect(`/client/finance${forbidden}`);
+                }
+            } catch (_error) {
+                return res.redirect('/client/logout');
+            }
             return renderBusinessOverview(req, res);
         }
         if (req.session.accountType === 'user' && account.role === 'agent') {
