@@ -711,6 +711,24 @@ exports.exportReportCsv = async (req, res) => {
         const report = await businessPortalService.loadReports(workspace, req.query);
         const artifact = report.centralReport || centralReportService.buildArtifact({ workspace, report });
         const fileName = `central-${report.reportScope}-${artifact.reportId}.csv`;
+        await logAction({
+            action: 'CENTRAL_REPORT_DOWNLOADED',
+            req,
+            performedById: workspace.actor._id,
+            performedByModel: workspace.actorModel,
+            performedByName: workspace.actor.name,
+            targetId: workspace.entity._id,
+            targetModel: workspace.entityModel,
+            metadata: {
+                reportId: artifact.reportId,
+                checksum: artifact.checksum,
+                scope: report.reportScope,
+                period: report.filters?.label || '',
+                source: artifact.source
+            },
+            success: true,
+            severity: 'info'
+        });
         res.setHeader('Content-Type', 'text/csv; charset=utf-8');
         res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
         return res.send(centralReportService.buildCsv({ workspace, report, artifact }));

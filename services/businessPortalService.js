@@ -9,6 +9,7 @@ const Transaction = require('../models/Transaction');
 const RegistrationRequest = require('../models/RegistrationRequest');
 const Settings = require('../models/Settings');
 const Ledger = require('../models/Ledger');
+const AuditLog = require('../models/AuditLog');
 const { getServiceRatesForTier, getCompanyServiceRates } = require('../utils/rateHelper');
 const { getTransferServiceRules } = require('../utils/transferServiceRules');
 const { getTransferPricingDefinition } = require('../utils/transferPricing');
@@ -813,9 +814,15 @@ const loadReports = async (workspace, query = {}) => {
     const { filter, range } = await buildTransactionFilter(workspace, query, { forceToday: workspace.forceToday });
     // Reports are always read through the shared central reporting gateway.
     // It mirrors the financial source of truth used by the administration portal.
-    const [transactions, centralSync] = await Promise.all([
+    const [transactions, centralSync, centralDownloads] = await Promise.all([
         findReportTransactions(filter, { sort: { createdAt: -1 }, limit: 5000 }),
-        getUnifiedReportStatus().catch(() => ({ status: 'offline' }))
+        getUnifiedReportStatus().catch(() => ({ status: 'offline' })),
+        AuditLog.find({ action: 'CENTRAL_REPORT_DOWNLOADED', targetId: workspace.entity._id })
+            .sort({ createdAt: -1 })
+            .limit(6)
+            .select('performedByName metadata createdAt')
+            .lean()
+            .catch(() => [])
     ]);
     const reportSummary = summarizeTransactions(transactions);
     const reportRows = buildReportGroups(transactions, scope);
@@ -848,7 +855,8 @@ const loadReports = async (workspace, query = {}) => {
             workspace,
             report: { reportScope: scope, filters: range, reportSummary, reportRows }
         }),
-        centralSync
+        centralSync,
+        centralDownloads
     };
 };
 

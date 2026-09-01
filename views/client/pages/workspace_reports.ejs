@@ -11,6 +11,19 @@
     </div>
 </section>
 
+<section class="bw-section bw-central-downloads">
+    <header class="bw-section-head"><div><span class="bw-section-kicker">سجل موثّق</span><h2>آخر الملفات الصادرة</h2></div><span class="bw-meta-chip"><i class="fa-solid fa-shield-halved"></i>من الإدارة المركزية</span></header>
+    <% if (!centralDownloads.length) { %>
+        <div class="bw-empty compact"><i class="fa-solid fa-file-arrow-down"></i><strong>لم يتم تنزيل تقارير بعد</strong><span>ستظهر هنا كل نسخة تم تنزيلها من الحساب.</span></div>
+    <% } else { %>
+        <div class="bw-central-download-list">
+            <% centralDownloads.forEach(item => { const meta = item.metadata || {}; %>
+                <article><span><i class="fa-solid fa-file-csv"></i></span><div><strong class="bw-mono"><%= meta.reportId || 'تقرير مركزي' %></strong><small><%= meta.scope === 'staff' ? 'تقرير الموظفين' : 'تقرير المنشأة' %> · <%= meta.period || 'الفترة المحددة' %></small></div><div class="bw-central-download-proof"><b class="bw-mono"><%= meta.checksum || 'SHA-256' %></b><small>بواسطة <%= item.performedByName || 'مستخدم الحساب' %> · <%= new Date(item.createdAt).toLocaleString('ar-LY', { timeZone: 'Africa/Tripoli', hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit' }) %></small></div></article>
+            <% }) %>
+        </div>
+    <% } %>
+</section>
+
 <section class="bw-central-report-banner" aria-label="مصدر التقرير">
     <span class="bw-central-report-seal"><i class="fa-solid fa-building-shield"></i></span>
     <div>
