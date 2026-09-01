@@ -315,7 +315,7 @@ export class TransferService {
             }
 
             const settings = await Settings.findOne({}).session(session);
-            const autoRouteExecutor = await resolveAutoRouteExecutor(settings, transferType, session);
+            const autoRouteExecutor = await resolveAutoRouteExecutor(settings, transferType, session, amount);
             if (settings && settings.isManualClosed) {
                 await abortSession(session);
                 return { success: false, statusCode: 403, code: 'SYSTEM_CLOSED', message: 'المنظومة مغلقة حالياً' };

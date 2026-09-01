@@ -1,7 +1,12 @@
 'use strict';
 
 jest.mock('../models/ExecutorGroup', () => ({
-    findById: jest.fn()
+    findById: jest.fn(),
+    find: jest.fn()
+}));
+
+jest.mock('../models/Transaction', () => ({
+    aggregate: jest.fn()
 }));
 
 jest.mock('../services/bullQueueService', () => ({
@@ -15,6 +20,7 @@ jest.mock('../utils/logger', () => ({
 }));
 
 const ExecutorGroup = require('../models/ExecutorGroup');
+const Transaction = require('../models/Transaction');
 const { addTransferJob } = require('../services/bullQueueService');
 const {
     getConfiguredAutoRouteExecutorId,
@@ -106,5 +112,76 @@ describe('autoRouteService', () => {
             autoRouteBotId: 'legacy-group',
             autoRouteRules: [{ serviceKey: 'vodafone', executorGroupId: 'cash-group' }]
         }, 'bank_account')).toBeNull();
+    });
+
+    test('smart routing excludes insufficient balance and selects the least loaded reliable executor', async () => {
+        const insufficient = {
+            _id: 'insufficient', name: 'رصيد غير كافٍ', status: 'active',
+            isManagerBot: false, serviceKey: 'vodafone', balance: 99
+        };
+        const overloaded = {
+            _id: 'overloaded', name: 'قائمة مشغولة', status: 'active',
+            isManagerBot: false, serviceKey: 'vodafone', balance: 2000
+        };
+        const balanced = {
+            _id: 'balanced', name: 'أفضل منفذ', status: 'active',
+            isManagerBot: false, serviceKey: 'vodafone', balance: 2000
+        };
+        ExecutorGroup.find.mockResolvedValue([insufficient, overloaded, balanced]);
+        Transaction.aggregate.mockResolvedValue([
+            { _id: 'overloaded', openTasks: 3, reservedAmount: 900, completed24h: 8, rejected24h: 0, lastRoutedAt: new Date() },
+            { _id: 'balanced', openTasks: 0, reservedAmount: 0, completed24h: 3, rejected24h: 0, lastRoutedAt: new Date(Date.now() - 60_000) }
+        ]);
+
+        const resolved = await resolveAutoRouteExecutor({
+            autoRouteEnabled: true,
+            autoRouteStrategy: 'smart'
+        }, 'vodafone', null, 100);
+
+        expect(resolved).toBe(balanced);
+        expect(ExecutorGroup.find).toHaveBeenCalledWith({
+            status: 'active',
+            isManagerBot: { $ne: true }
+        });
+    });
+
+    test('smart routing leaves the transaction pending when no executor has enough available capacity', async () => {
+        ExecutorGroup.find.mockResolvedValue([{
+            _id: 'low-credit', status: 'active', isManagerBot: false,
+            serviceKey: 'vodafone', balance: 500
+        }]);
+        Transaction.aggregate.mockResolvedValue([
+            { _id: 'low-credit', openTasks: 1, reservedAmount: 450, completed24h: 0, rejected24h: 0 }
+        ]);
+
+        const resolved = await resolveAutoRouteExecutor({
+            autoRouteEnabled: true,
+            autoRouteStrategy: 'smart'
+        }, 'vodafone', null, 100);
+
+        expect(resolved).toBeNull();
+    });
+
+    test('smart routing honours the available balance of the parent execution team', async () => {
+        const child = {
+            _id: 'child', status: 'active', isManagerBot: false,
+            serviceKey: 'vodafone', balance: 1000, parentGroupId: 'parent'
+        };
+        const parent = { _id: 'parent', status: 'active', balance: 200 };
+        ExecutorGroup.find.mockImplementation((query) =>
+            query?._id ? Promise.resolve([parent]) : Promise.resolve([child])
+        );
+        Transaction.aggregate
+            .mockResolvedValueOnce([
+                { _id: 'child', openTasks: 0, reservedAmount: 0, completed24h: 0, rejected24h: 0 }
+            ])
+            .mockResolvedValueOnce([{ _id: 'parent', reservedAmount: 150 }]);
+
+        const resolved = await resolveAutoRouteExecutor({
+            autoRouteEnabled: true,
+            autoRouteStrategy: 'smart'
+        }, 'vodafone', null, 100);
+
+        expect(resolved).toBeNull();
     });
 });

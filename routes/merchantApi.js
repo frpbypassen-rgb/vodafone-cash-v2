@@ -225,7 +225,12 @@ router.post('/transfer', merchantApiAuth, async (req, res) => {
         const result = await withOptionalTransaction(async (session) => {
             const settingsQuery = Settings.findOne({});
             const settings = session ? await settingsQuery.session(session).lean() : await settingsQuery.lean();
-            const autoRouteExecutor = await resolveAutoRouteExecutor(settings, serviceKey, session);
+            const autoRouteExecutor = await resolveAutoRouteExecutor(
+                settings,
+                serviceKey,
+                session,
+                amountValue
+            );
             const exchangeRate = getCompanyServiceRates(req.merchant, settings)[serviceKey];
             if (!Number.isFinite(exchangeRate) || exchangeRate <= 0) {
                 throw merchantRequestError(400, 'سعر الصرف غير صالح');

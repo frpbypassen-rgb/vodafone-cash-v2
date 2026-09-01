@@ -42,6 +42,9 @@ const settingsSchema = new mongoose.Schema({
     rateChangeDelaySeconds: { type: Number, min: 10, max: 3600, default: 60 },
 
     autoRouteEnabled: { type: Boolean, default: false },
+    // fixed keeps the per-service assignment below. smart selects the most
+    // suitable active executor for every new transfer.
+    autoRouteStrategy: { type: String, enum: ['fixed', 'smart'], default: 'fixed' },
     autoRouteBotId: { type: mongoose.Schema.Types.ObjectId, ref: 'ExecutorGroup', default: null },
     autoRouteRules: [{
         _id: false,

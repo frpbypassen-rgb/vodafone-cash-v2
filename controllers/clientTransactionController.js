@@ -221,7 +221,12 @@ exports.postTransfer = async (req, res) => {
         let settings = await withSess(Settings.findOne({}));
         if (!settings) settings = await Settings.create({}, sessionOpts);
         if (settings && settings.isManualClosed) throw new Error('SYSTEM_CLOSED');
-        const autoRouteExecutor = await resolveAutoRouteExecutor(settings, serviceKey, useTransaction ? session : null);
+        const autoRouteExecutor = await resolveAutoRouteExecutor(
+            settings,
+            serviceKey,
+            useTransaction ? session : null,
+            amount
+        );
 
         let masterRate, actualSubRate, subCostLYD, masterCostLYD, commission = 0;
         let agencyPricing;

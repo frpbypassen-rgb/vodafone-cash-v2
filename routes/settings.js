@@ -42,7 +42,7 @@ const ALLOWED_MAIN_SETTINGS = [
     'rateLevel1', 'rateLevel2', 'rateLevel3',
     ...SERVICE_RATE_ADMIN_FIELDS,
     'openingTime', 'closingTime', 'isManualClosed',
-    'supportContact', 'rateChangeDelay', 'autoRouteEnabled', 'autoRouteBotId',
+    'supportContact', 'rateChangeDelay', 'autoRouteEnabled', 'autoRouteStrategy', 'autoRouteBotId',
     ...AUTO_ROUTE_INPUT_FIELDS
 ];
 
@@ -156,6 +156,7 @@ router.post('/update', requireMaster, async (req, res) => {
         const data = pickAllowed(req.body, ALLOWED_MAIN_SETTINGS);
         data.isManualClosed = data.isManualClosed === 'true' || data.isManualClosed === true;
         data.autoRouteEnabled = data.autoRouteEnabled === 'true' || data.autoRouteEnabled === true;
+        data.autoRouteStrategy = data.autoRouteStrategy === 'smart' ? 'smart' : 'fixed';
         if (!data.autoRouteBotId || data.autoRouteBotId === '') data.autoRouteBotId = null;
         // تحقق من القيم الرقمية
         ['rateLevel1', 'rateLevel2', 'rateLevel3', ...SERVICE_RATE_ADMIN_FIELDS].forEach(field => {
