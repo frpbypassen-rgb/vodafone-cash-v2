@@ -985,6 +985,284 @@
     .cos-ops-actions { justify-content: flex-end; }
 }
 
+/* Phone-first company workspace: keep operational controls readable and
+   reachable from narrow handsets without changing the desktop command centre. */
+@media (max-width: 760px) {
+    .bw-company-os {
+        -webkit-text-size-adjust: 100%;
+        text-size-adjust: 100%;
+    }
+
+    .bw-company-os .bw-sidebar {
+        width: min(86vw, 320px);
+        padding-bottom: env(safe-area-inset-bottom);
+    }
+
+    .bw-company-os .bw-topbar {
+        gap: 7px;
+        padding: calc(8px + env(safe-area-inset-top)) 10px 8px;
+    }
+
+    .bw-company-os .bw-topbar-start {
+        flex: 0 0 auto;
+        gap: 7px;
+    }
+
+    .bw-company-os .bw-topbar-brand,
+    .bw-company-os .bw-breadcrumbs,
+    .bw-company-os .bw-topbar-link,
+    .bw-company-os [data-theme-toggle],
+    .bw-company-os .bw-topbar .bw-page-status {
+        display: none;
+    }
+
+    .bw-company-os .bw-topbar-actions {
+        min-width: 0;
+        flex: 1;
+        justify-content: flex-start;
+        gap: 6px;
+        flex-wrap: nowrap;
+    }
+
+    .bw-company-os .bw-balance-chip {
+        min-width: 0;
+        max-width: min(42vw, 166px);
+        margin-inline-start: auto;
+        overflow: hidden;
+        border-radius: 12px;
+    }
+
+    .bw-company-os .bw-balance-chip strong {
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .bw-company-os .bw-topbar .bw-assistant-launcher,
+    .bw-company-os .bw-user-menu,
+    .bw-company-os .bw-avatar {
+        width: 36px;
+        height: 36px;
+        min-width: 36px;
+        flex-basis: 36px;
+    }
+
+    .bw-company-os .bw-topbar .bw-assistant-launcher { border-radius: 12px; }
+
+    .bw-company-os .bw-main {
+        padding: 16px 12px calc(98px + env(safe-area-inset-bottom));
+    }
+
+    .bw-company-os .bw-mobile-dock {
+        inset: auto 9px max(8px, env(safe-area-inset-bottom)) 9px;
+        min-height: 64px;
+        padding: 5px;
+        border-radius: 18px;
+        box-shadow: 0 16px 36px rgba(8, 20, 34, .34);
+    }
+
+    .bw-company-os .bw-mobile-dock a {
+        gap: 4px;
+        padding: 3px 1px;
+        border-radius: 13px;
+        color: #b9c7d6;
+        font-size: clamp(.53rem, 2.35vw, .65rem);
+        line-height: 1.1;
+        white-space: nowrap;
+    }
+
+    .bw-company-os .bw-mobile-dock a i { font-size: 1rem; }
+
+    .bw-company-os .bw-mobile-dock a.active {
+        color: #fff8d7;
+        background: linear-gradient(145deg, rgba(232, 197, 71, .28), rgba(201, 162, 39, .1));
+        box-shadow: inset 0 0 0 1px rgba(232, 197, 71, .2);
+    }
+
+    .bw-company-os .cos-ledger-office,
+    .bw-company-os .cos-day-pulse,
+    .bw-company-os .cos-day-ops,
+    .bw-company-os .bw-support-summary,
+    .bw-company-os .bw-support-chat,
+    .bw-company-os .bw-smart-transfer,
+    .bw-company-os .bw-internal-transfer,
+    .bw-company-os .bw-transfer-workbench,
+    .bw-company-os .cos-recipients,
+    .bw-company-os .cos-deposit-layout .bw-section {
+        border-radius: 18px;
+    }
+
+    .bw-company-os .cos-ledger-office {
+        gap: 14px;
+        margin-bottom: 14px;
+        padding: 18px 16px;
+    }
+
+    .bw-company-os .cos-ledger-office h2 { font-size: 1.15rem; }
+    .bw-company-os .cos-ledger-office p { font-size: .83rem; }
+
+    .bw-company-os .cos-ledger-links {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(min(142px, 100%), 1fr));
+        width: 100%;
+    }
+
+    .bw-company-os .cos-ledger-links .bw-button,
+    .bw-company-os .cos-gallery-intro .bw-button,
+    .bw-company-os .cos-day-pulse .bw-button {
+        width: 100%;
+        min-height: 44px;
+        justify-content: center;
+    }
+
+    .bw-company-os .cos-gallery-intro,
+    .bw-company-os .cos-isolated-note {
+        align-items: stretch;
+        flex-direction: column;
+        gap: 9px;
+        margin-bottom: 14px;
+        padding: 12px 14px;
+        font-size: .82rem;
+    }
+
+    .bw-company-os .cos-day-pulse { gap: 12px; padding: 15px; }
+    .bw-company-os .cos-day-pulse strong { font-size: 1.2rem; }
+    .bw-company-os .cos-scene { gap: 12px; }
+
+    .bw-company-os .cos-tile {
+        min-height: 168px;
+        padding: 18px;
+        border-radius: 20px;
+        box-shadow: 0 16px 28px rgba(12, 27, 51, .18);
+    }
+
+    .bw-company-os .cos-tile-icon {
+        width: 44px;
+        height: 44px;
+        margin-bottom: 12px;
+        border-radius: 14px;
+        font-size: 1.05rem;
+    }
+
+    .bw-company-os .cos-tile h2 { font-size: 1rem; }
+    .bw-company-os .cos-tile small { font-size: .78rem; }
+
+    .bw-company-os .bw-overview-metrics.with-credit,
+    .bw-company-os .cos-finance-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+
+    .bw-company-os .bw-metric-card {
+        min-height: 108px;
+        padding: 12px;
+        border-radius: 17px;
+    }
+
+    .bw-company-os .bw-metric-card strong { font-size: .95rem; }
+    .bw-company-os .bw-metric-card small,
+    .bw-company-os .bw-metric-card > div > span { font-size: .68rem; }
+
+    .bw-company-os .cos-ops-card {
+        display: block;
+        padding: 12px;
+        border-radius: 16px;
+    }
+
+    .bw-company-os .cos-ops-main,
+    .bw-company-os .cos-staff-card .cos-ops-main {
+        grid-template-columns: 40px minmax(0, 1fr);
+        align-items: start;
+        gap: 9px;
+    }
+
+    .bw-company-os .cos-ops-icon { width: 40px; height: 40px; border-radius: 13px; }
+
+    .bw-company-os .cos-ops-main > b,
+    .bw-company-os .cos-ops-main > .cos-ops-cost,
+    .bw-company-os .cos-ops-main > .bw-status {
+        grid-column: 2;
+        justify-self: start;
+        max-width: 100%;
+    }
+
+    .bw-company-os .cos-ops-main small { overflow-wrap: anywhere; line-height: 1.55; }
+
+    .bw-company-os .cos-ops-actions {
+        justify-content: flex-start;
+        width: 100%;
+        margin-top: 10px;
+        padding-top: 10px;
+        border-top: 1px solid rgba(201, 162, 39, .18);
+    }
+
+    .bw-company-os .bw-filter-band,
+    .bw-company-os .bw-staff-filter-band,
+    .bw-company-os .bw-report-toolbar { padding: 11px; border-radius: 16px; }
+
+    .bw-company-os .bw-filter-form > label,
+    .bw-company-os .bw-inline-form > label,
+    .bw-company-os .bw-form-actions,
+    .bw-company-os .bw-form-actions .bw-button { width: 100%; }
+
+    .bw-company-os .bw-button { min-height: 44px; }
+
+    .bw-company-os .bw-settings-panel,
+    .bw-company-os .bw-settings-hero,
+    .bw-company-os .bw-section { border-radius: 18px; }
+
+    .bw-company-os .bw-support-chat { min-height: min(540px, 66dvh); padding: 12px; }
+    .bw-company-os .bw-chat-messages { min-height: 300px; }
+
+    .bw-company-os .cos-seal-modal {
+        width: min(100%, 460px);
+        padding: 20px 16px 16px;
+        border-radius: 22px;
+        transform: none;
+    }
+
+    .bw-company-os .cos-logo-3d { width: 76px; height: 76px; margin-bottom: 10px; }
+    .bw-company-os .cos-logo-3d img { border-radius: 20px; }
+    .bw-company-os .cos-rings,
+    .bw-company-os .cos-rings::before,
+    .bw-company-os .cos-rings::after { inset: -9px; }
+    .bw-company-os .cos-rings::before { inset: -5px; }
+    .bw-company-os .cos-rings::after { inset: 4px; }
+
+    .bw-company-os .bw-dialog-actions {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 8px;
+    }
+
+    .bw-company-os .bw-dialog-actions .bw-button,
+    .bw-company-os .bw-dialog-actions a { width: 100%; justify-content: center; }
+}
+
+@media (max-width: 420px) {
+    .bw-company-os .bw-topbar { padding-inline: 8px; }
+    .bw-company-os .bw-balance-chip { max-width: 37vw; padding-inline: 6px; }
+    .bw-company-os .bw-balance-chip small { display: none; }
+    .bw-company-os .bw-overview-metrics.with-credit,
+    .bw-company-os .cos-finance-metrics,
+    .bw-company-os .bw-mini-metrics { grid-template-columns: 1fr; }
+    .bw-company-os .bw-metric-card { min-height: 88px; flex-direction: row; }
+    .bw-company-os .cos-ledger-links,
+    .bw-company-os .bw-dialog-actions { grid-template-columns: 1fr; }
+    .bw-company-os .bw-mobile-dock { inset-inline: 6px; }
+    .bw-company-os .bw-mobile-dock a { font-size: .51rem; }
+    .bw-company-os .cos-tile { min-height: 154px; padding: 16px; }
+    .bw-company-os .bw-support-chat { min-height: min(510px, 68dvh); }
+}
+
+@media (max-width: 340px) {
+    .bw-company-os .bw-user-menu { display: none; }
+    .bw-company-os .bw-balance-chip { max-width: 46vw; }
+    .bw-company-os .bw-mobile-dock a span {
+        max-width: 54px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+}
+
 @media (prefers-reduced-motion: reduce) {
     .bw-company-os *,
     .bw-company-os *::before,
