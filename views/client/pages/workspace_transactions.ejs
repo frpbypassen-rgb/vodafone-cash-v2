@@ -14,6 +14,8 @@
     </form>
 </section>
 
+<% if (filters.history === 'all') { %><div class="bw-history-scope"><i class="fa-solid fa-clock-rotate-left"></i><span>عرض كامل السجل الزمني <%= filters.staff ? `للموظف: ${filters.staff}` : '' %></span><a href="/client/transactions">العودة للفترة الحالية</a></div><% } %>
+
 <section class="bw-mini-metrics">
     <article><span>إجمالي العمليات</span><strong class="bw-mono"><%= summary.totalCount %></strong></article>
     <article class="success"><span>الناجحة</span><strong class="bw-mono"><%= summary.completedCount %></strong></article>
@@ -29,14 +31,14 @@
     </header>
     <div class="bw-table-wrap">
         <table class="bw-table bw-transactions-table">
-            <thead><tr><th>العملية</th><th>الخدمة والمستلم</th><th>العميل / الموظف</th><th>المبلغ</th><th>التكلفة</th><th>الحالة</th><th>التاريخ</th><th></th></tr></thead>
+            <thead><tr><th>العملية</th><th>الخدمة والمستلم</th><th><%= workspace.isCompany ? 'الموظف' : 'العميل / الموظف' %></th><th>المبلغ</th><th>التكلفة</th><th>الحالة</th><th>التاريخ</th><th></th></tr></thead>
             <tbody>
                 <% if (!transactions.length) { %><tr><td colspan="8"><div class="bw-empty"><i class="fa-solid fa-magnifying-glass"></i><strong>لا توجد نتائج مطابقة</strong><span>غيّر خيارات البحث أو الفترة الزمنية.</span></div></td></tr><% } %>
                 <% transactions.forEach(tx => { const status = statusMeta[tx.status] || { label: tx.status, tone: 'neutral' }; const service = serviceCatalog.find(item => item.key === tx.transferType); const hasReceipt = Boolean(tx.proofImage || (Array.isArray(tx.proofImages) && tx.proofImages.some(Boolean))); %>
                     <tr>
                         <td data-label="العملية"><button type="button" class="bw-id-button bw-mono" data-transaction-id="<%= tx._id %>"><%= tx.customId %></button><small><%= tx.accountName || 'بدون اسم مستفيد' %></small></td>
                         <td data-label="الخدمة"><span class="bw-service-cell"><i class="fa-solid <%= service?.icon || 'fa-money-bill-transfer' %>"></i><span><strong><%= service?.shortLabel || tx.transferType %></strong><small class="bw-mono"><%= tx.vodafoneNumber || tx.accountNumber || '---' %></small></span></span></td>
-                        <td data-label="العميل / الموظف"><strong><%= tx.subAccountName || 'الحساب الرئيسي' %></strong><small><%= tx.employeeName || '---' %></small></td>
+                        <td data-label="<%= workspace.isCompany ? 'الموظف' : 'العميل / الموظف' %>"><% if (workspace.isCompany) { %><strong><%= tx.employeeName || '---' %></strong><% } else { %><strong><%= tx.subAccountName || 'الحساب الرئيسي' %></strong><small><%= tx.employeeName || '---' %></small><% } %></td>
                         <td data-label="المبلغ"><strong class="bw-mono"><%= Number(tx.amount || 0).toLocaleString('en-US', { maximumFractionDigits: 0 }) %></strong><small><%= service?.amountCurrencyLabel || 'EGP' %></small></td>
                         <td data-label="التكلفة"><% if (workspace.permissions.canViewBalance) { %><strong class="bw-mono"><%= Number(tx.costLYD || 0).toFixed(3) %></strong><small>LYD</small><% } else { %><span class="bw-muted">محجوبة</span><% } %></td>
                         <td data-label="الحالة"><span class="bw-status <%= status.tone %>"><%= status.label %></span></td>

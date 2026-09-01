@@ -31,12 +31,13 @@
                         <td data-label="آخر نشاط"><% if (member.stats.lastActivity) { %><strong class="bw-mono"><%= new Date(member.stats.lastActivity).toLocaleDateString('en-GB', { timeZone: 'Africa/Tripoli' }) %></strong><small><%= new Date(member.stats.lastActivity).toLocaleTimeString('ar-LY', { timeZone: 'Africa/Tripoli', hour: '2-digit', minute: '2-digit' }) %></small><% } else { %><span class="bw-muted">لا يوجد</span><% } %></td>
                         <td data-label="الحالة"><span class="bw-status <%= member.status === 'active' ? 'success' : 'danger' %>"><%= member.status === 'active' ? 'نشط' : 'موقوف' %></span></td>
                         <td>
-                            <% if (workspace.permissions.canManageStaff && !isSelf && member.role !== 'owner') { %>
-                                <div class="bw-row-actions">
+                            <div class="bw-row-actions">
+                                <a href="/client/transactions?staff=<%= encodeURIComponent(member.name) %>&history=all" class="bw-icon-button compact" title="سجل عمليات <%= member.name %>" aria-label="فتح سجل عمليات <%= member.name %>"><i class="fa-solid fa-chart-line"></i></a>
+                                <% if (workspace.permissions.canManageStaff && !isSelf && member.role !== 'owner') { %>
                                     <button type="button" class="bw-icon-button compact" data-staff-password data-member-id="<%= member._id %>" data-member-name="<%= member.name %>" title="تغيير كلمة المرور" aria-label="تغيير كلمة مرور <%= member.name %>"><i class="fa-solid fa-key"></i></button>
                                     <form method="POST" action="/client/<%= workspace.isCompany ? 'company' : 'agent' %>/staff/<%= member._id %>/toggle" data-confirm="<%= member.status === 'active' ? 'إيقاف حساب الموظف؟' : 'إعادة تنشيط حساب الموظف؟' %>"><button type="submit" class="bw-icon-button compact <%= member.status === 'active' ? 'danger' : 'success' %>" aria-label="تغيير حالة <%= member.name %>"><i class="fa-solid <%= member.status === 'active' ? 'fa-pause' : 'fa-play' %>"></i></button></form>
-                                </div>
-                            <% } %>
+                                <% } %>
+                            </div>
                         </td>
                     </tr>
                 <% }) %>
