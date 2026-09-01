@@ -64,11 +64,19 @@
             <% } %>
         </main>
 
+        <% const mobileKeys = workspace.isCompany
+            ? (workspace.persona === 'manager'
+                ? ['overview', 'services', 'transactions', 'staff', 'reports']
+                : workspace.persona === 'accountant'
+                    ? ['overview', 'finance', 'transactions', 'reports', 'staff']
+                    : ['overview', 'services', 'transactions', 'support', 'settings'])
+            : ['overview', 'services', 'transactions', 'reports', 'settings'];
+           const mobileNavigation = mobileKeys.map(key => navigation.find(item => item.key === key)).filter(Boolean); %>
         <nav class="bw-mobile-dock" aria-label="التنقل السريع">
-            <% navigation.filter(item => ['overview', 'services', 'transactions', 'reports', 'settings'].includes(item.key)).slice(0, 5).forEach(item => { %>
+            <% mobileNavigation.forEach(item => { %>
                 <a href="<%= item.href %>" class="<%= item.active ? 'active' : '' %>">
                     <i class="fa-solid <%= item.icon %>"></i>
-                    <span><%= item.label.replace('الخدمات والتحويل', 'تحويل').replace('المعاملات', 'العمليات') %></span>
+                    <span><%= item.label.replace('الخدمات والتحويل', 'تحويل').replace('المعاملات', 'العمليات').replace('الموظفون والصلاحيات', 'الفريق').replace('الحركات المالية', 'المالية') %></span>
                 </a>
             <% }) %>
         </nav>

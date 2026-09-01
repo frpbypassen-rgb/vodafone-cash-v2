@@ -6,7 +6,7 @@
     </div>
     <div class="bw-report-actions">
         <% const exportParams = new URLSearchParams({ ...query, scope: reportScope }); %>
-        <a href="/client/reports/export.csv?<%= exportParams.toString() %>" class="bw-button secondary"><i class="fa-solid fa-file-csv"></i>CSV</a>
+        <a href="/client/reports/export.csv?<%= exportParams.toString() %>" class="bw-button primary bw-central-download"><i class="fa-solid fa-cloud-arrow-down"></i>تنزيل التقرير المركزي</a>
         <button type="button" class="bw-button secondary" onclick="window.print()"><i class="fa-solid fa-print"></i>طباعة / PDF</button>
     </div>
 </section>
@@ -20,6 +20,7 @@
     <dl>
         <div><dt>رقم التقرير</dt><dd class="bw-mono"><%= centralReport.reportId %></dd></div>
         <div><dt>بصمة التحقق</dt><dd class="bw-mono"><%= centralReport.checksum %></dd></div>
+        <div><dt>وقت الإنشاء</dt><dd class="bw-mono"><%= new Date(centralReport.issuedAt).toLocaleString('en-GB', { timeZone: 'Africa/Tripoli', hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit', year: 'numeric' }) %></dd></div>
     </dl>
 </section>
 

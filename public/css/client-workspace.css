@@ -118,6 +118,7 @@
 .bw-central-report-banner dl { display: grid; gap: 5px; margin: 0; min-width: 220px; font-size: .76rem; }
 .bw-central-report-banner dl div { display: flex; justify-content: space-between; gap: 10px; }
 .bw-central-report-banner dt { color: var(--bw-muted); }.bw-central-report-banner dd { margin: 0; color: var(--bw-text); }
+.bw-central-download { box-shadow: 0 10px 20px color-mix(in srgb, var(--bw-blue) 20%, transparent); }
 .bw-team-role-guide { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); padding: 8px; background: transparent; box-shadow: none; }
 .bw-team-role-guide article { display: flex; align-items: flex-start; gap: 10px; padding: 13px; border-radius: 13px; transition: transform .2s ease, box-shadow .2s ease; }
 .bw-team-role-guide article:hover { transform: translateY(-3px); box-shadow: var(--bw-shadow-sm); }
