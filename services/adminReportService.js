@@ -42,8 +42,18 @@ const validDateParts = (year, month, day = 1) => {
     return date;
 };
 
-const getDateRange = (dateType, dateValue) => {
+const getDateRange = (dateType, dateValue, dateFrom = '', dateTo = '') => {
     const now = new Date();
+    if (dateType === 'range') {
+        const fromMatch = String(dateFrom || '').match(/^(\d{4})-(\d{2})-(\d{2})$/);
+        const toMatch = String(dateTo || '').match(/^(\d{4})-(\d{2})-(\d{2})$/);
+        const start = fromMatch && validDateParts(Number(fromMatch[1]), Number(fromMatch[2]), Number(fromMatch[3]));
+        const end = toMatch && validDateParts(Number(toMatch[1]), Number(toMatch[2]), Number(toMatch[3]));
+        if (!start || !end || start > end) throw new Error('INVALID_REPORT_DATE');
+        start.setHours(0, 0, 0, 0);
+        end.setHours(23, 59, 59, 999);
+        return { start, end, dateType: 'range', dateValue: `${dateFrom}:${dateTo}`, dateFrom, dateTo };
+    }
     if (dateType === 'day') {
         const match = String(dateValue || '').match(/^(\d{4})-(\d{2})-(\d{2})$/);
         const start = match && validDateParts(Number(match[1]), Number(match[2]), Number(match[3]));
@@ -335,7 +345,7 @@ const loadAuditLogs = async ({ transactions, auditScope, start, end, settlements
 };
 
 const loadAdminReport = async (input = {}) => {
-    const range = getDateRange(input.dateType, input.dateValue);
+    const range = getDateRange(input.dateType, input.dateValue, input.dateFrom, input.dateTo);
     const scope = await resolveReportScope(input);
     const previousQuery = { ...scope.baseQuery, createdAt: { $lt: range.start } };
     const currentQuery = { ...scope.baseQuery, createdAt: { $gte: range.start, $lte: range.end } };

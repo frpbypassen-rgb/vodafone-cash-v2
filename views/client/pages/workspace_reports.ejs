@@ -4,14 +4,9 @@
             <a href="/client/reports?<%= params.toString() %>" class="<%= reportScope === scopeKey ? 'active' : '' %>"><i class="fa-solid <%= scopeKey === 'organization' ? 'fa-building' : scopeKey === 'customers' ? 'fa-users' : 'fa-user-group' %>"></i><%= scopeLabel %></a>
         <% }) %>
     </div>
-    <div class="bw-report-actions">
-        <% const exportParams = new URLSearchParams({ ...query, scope: reportScope }); %>
-        <% if (workspace.isCompany) { const adminInput = centralAdminReportInput || { dateType: 'month', dateValue: filters.month || new Date().toISOString().slice(0, 7) }; const centralPdfParams = new URLSearchParams({ centralDateType: adminInput.dateType, centralDateValue: adminInput.dateValue }); %>
-            <a href="/client/reports/central.pdf?<%= centralPdfParams.toString() %>" class="bw-button primary bw-central-download"><i class="fa-solid fa-file-pdf"></i>تحميل تقرير الإدارة PDF</a>
-        <% } %>
-        <a href="/client/reports/export.csv?<%= exportParams.toString() %>" class="bw-button primary bw-central-download"><i class="fa-solid fa-cloud-arrow-down"></i>تنزيل التقرير المركزي</a>
-        <button type="button" class="bw-button secondary" onclick="window.print()"><i class="fa-solid fa-print"></i>طباعة / PDF</button>
-    </div>
+    <% if (workspace.isCompany) { const centralPdfParams = new URLSearchParams(query); %>
+        <div class="bw-report-actions"><a href="/client/reports/central.pdf?<%= centralPdfParams.toString() %>" class="bw-button primary bw-central-download"><i class="fa-solid fa-file-pdf"></i>تحميل كشف حساب</a></div>
+    <% } %>
 </section>
 
 <% if (workspace.isCompany && centralAdminReport) { const centralStats = centralAdminReport.stats || {}; const centralClosure = centralAdminReport.closure || {}; %>
@@ -59,7 +54,14 @@
 <section class="bw-filter-band">
     <form method="GET" action="/client/reports" class="bw-filter-form">
         <input type="hidden" name="scope" value="<%= reportScope %>">
-        <% if (!workspace.forceToday) { %>
+        <% if (workspace.isCompany) { const companyInput = centralAdminReportInput || {}; %>
+            <label><span>نوع الفترة</span><select name="centralDateType"><option value="day" <%= companyInput.dateType === 'day' ? 'selected' : '' %>>يوم محدد</option><option value="month" <%= companyInput.dateType === 'month' ? 'selected' : '' %>>شهر محدد</option><option value="range" <%= companyInput.dateType === 'range' ? 'selected' : '' %>>فترة محددة</option></select></label>
+            <label><span>اليوم</span><input type="date" name="centralDay" value="<%= companyInput.dateType === 'day' ? companyInput.dateValue : '' %>"></label>
+            <label><span>الشهر</span><input type="month" name="centralMonth" value="<%= companyInput.dateType === 'month' ? companyInput.dateValue : '' %>"></label>
+            <label><span>من</span><input type="date" name="centralFrom" value="<%= companyInput.dateFrom || '' %>"></label>
+            <label><span>إلى</span><input type="date" name="centralTo" value="<%= companyInput.dateTo || '' %>"></label>
+            <label><span>الموظف</span><select name="centralEmployee"><option value="all">كل الموظفين</option><% companyReportEmployees.forEach(employee => { %><option value="<%= employee.name %>" <%= companyInput.subType === employee.name ? 'selected' : '' %>><%= employee.name %><%= employee.role ? ` — ${employee.role}` : '' %></option><% }) %></select></label>
+        <% } else if (!workspace.forceToday) { %>
             <label><span>من</span><input type="date" name="from" value="<%= filters.from %>"></label>
             <label><span>إلى</span><input type="date" name="to" value="<%= filters.to %>"></label>
             <label><span>أو اختر شهراً</span><input type="month" name="month" value="<%= filters.month %>"></label>

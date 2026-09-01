@@ -830,15 +830,20 @@ const centralCompanyReportInput = (workspace, query = {}) => {
     const requestedType = String(query.centralDateType || query.dateType || '').toLowerCase();
     const dateType = requestedType === 'day' ? 'day' : 'month';
     const today = new Date().toISOString().slice(0, 10);
-    const dateValue = dateType === 'day'
-        ? String(query.centralDateValue || query.dateValue || query.from || today)
-        : String(query.centralDateValue || query.dateValue || query.month || today.slice(0, 7));
+    const dateFrom = String(query.centralFrom || query.from || '');
+    const dateTo = String(query.centralTo || query.to || '');
+    const resolvedType = requestedType === 'range' ? 'range' : dateType;
+    const dateValue = resolvedType === 'day'
+        ? String(query.centralDay || query.centralDateValue || query.dateValue || query.from || today)
+        : String(query.centralMonth || query.centralDateValue || query.dateValue || query.month || today.slice(0, 7));
     return {
         mainCategory: 'company',
         subId: String(workspace.entity._id),
-        subType: 'all',
-        dateType,
-        dateValue
+        subType: String(query.centralEmployee || 'all'),
+        dateType: resolvedType,
+        dateValue,
+        dateFrom,
+        dateTo
     };
 };
 
@@ -851,7 +856,19 @@ const loadReports = async (workspace, query = {}) => {
     const requestedScope = String(query.scope || 'organization');
     const availableScopes = workspace.isCompany ? COMPANY_REPORT_SCOPES : REPORT_SCOPES;
     const scope = availableScopes[requestedScope] ? requestedScope : 'organization';
-    const { filter, range } = await buildTransactionFilter(workspace, query, { forceToday: workspace.forceToday });
+    const companyCentralInput = workspace.isCompany ? centralCompanyReportInput(workspace, query) : null;
+    const reportQuery = workspace.isCompany && companyCentralInput
+        ? {
+            ...query,
+            staff: companyCentralInput.subType === 'all' ? '' : companyCentralInput.subType,
+            ...(companyCentralInput.dateType === 'day'
+                ? { from: companyCentralInput.dateValue, to: companyCentralInput.dateValue, month: '' }
+                : companyCentralInput.dateType === 'range'
+                    ? { from: companyCentralInput.dateFrom, to: companyCentralInput.dateTo, month: '' }
+                    : { from: '', to: '', month: companyCentralInput.dateValue })
+        }
+        : query;
+    const { filter, range } = await buildTransactionFilter(workspace, reportQuery, { forceToday: workspace.forceToday });
     // Reports are always read through the shared central reporting gateway.
     // It mirrors the financial source of truth used by the administration portal.
     const [transactions, centralSync, centralDownloads, centralAdminReport] = await Promise.all([
@@ -864,7 +881,7 @@ const loadReports = async (workspace, query = {}) => {
             .lean()
             .catch(() => []),
         workspace.isCompany
-            ? loadCentralCompanyReport(workspace, query).catch((error) => ({ error: error.message }))
+            ? loadAdminReport(companyCentralInput).then((report) => ({ input: companyCentralInput, report })).catch((error) => ({ error: error.message }))
             : Promise.resolve(null)
     ]);
     const reportSummary = summarizeTransactions(transactions);
@@ -901,7 +918,10 @@ const loadReports = async (workspace, query = {}) => {
         centralSync,
         centralDownloads,
         centralAdminReport: centralAdminReport?.report || null,
-        centralAdminReportInput: centralAdminReport?.input || null
+        centralAdminReportInput: centralAdminReport?.input || null,
+        companyReportEmployees: workspace.isCompany
+            ? await ClientEmployee.find({ companyId: workspace.entity._id, status: 'active' }).select('name role').sort({ name: 1 }).lean()
+            : []
     };
 };
 
