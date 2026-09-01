@@ -93,6 +93,12 @@ const getMessagingClient = () => {
     }
 };
 
+// Initialise once during application startup so a bad service account is
+// reported immediately.  Previously the worker only tried to initialise FCM
+// when there was already a device event in the queue, which made the startup
+// diagnostic look configured-but-not-ready and delayed the first alert.
+const initializeFirebasePush = () => getMessagingClient();
+
 const normalizeData = (data = {}) => Object.fromEntries(
     Object.entries(data).map(([key, value]) => [
         String(key),
@@ -202,6 +208,7 @@ const setMessagingClientForTests = (client) => {
 
 module.exports = {
     getFirebasePushStatus,
+    initializeFirebasePush,
     getMessagingClient,
     sendPushToTokens,
     isInvalidPushTokenError,

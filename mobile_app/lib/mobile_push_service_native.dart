@@ -81,6 +81,10 @@ Int64List _vibrationFor(String category) {
   return Int64List.fromList(<int>[0, 240]);
 }
 
+AndroidNotificationSound? _soundFor(String sound) {
+  return sound == 'default' ? null : RawResourceAndroidNotificationSound(sound);
+}
+
 List<AndroidNotificationAction> _actionsFor(String category) {
   if (category == 'executor_urgent_alert') {
     return const <AndroidNotificationAction>[
@@ -142,7 +146,7 @@ Future<void> _createChannels(
         description: definition.description,
         importance: _importanceFor(definition),
         playSound: true,
-        sound: RawResourceAndroidNotificationSound(definition.sound),
+        sound: _soundFor(definition.sound),
         enableVibration: true,
         vibrationPattern: _vibrationFor(definition.category),
         showBadge: true,
@@ -220,7 +224,7 @@ Future<void> _showRemoteNotification(
         importance: _importanceFor(definition),
         priority: _priorityFor(definition),
         playSound: true,
-        sound: RawResourceAndroidNotificationSound(definition.sound),
+        sound: _soundFor(definition.sound),
         enableVibration: true,
         vibrationPattern: _vibrationFor(category),
         category: urgent
@@ -584,9 +588,7 @@ class MobilePushService {
       final channelId = customSound
           ? 'ahram_preview_${definition.sound}_v1'
           : 'ahram_preview_default_v1';
-      final sound = customSound
-          ? RawResourceAndroidNotificationSound(definition.sound)
-          : null;
+      final sound = customSound ? _soundFor(definition.sound) : null;
       await android?.createNotificationChannel(
         AndroidNotificationChannel(
           channelId,

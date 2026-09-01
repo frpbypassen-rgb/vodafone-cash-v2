@@ -23,6 +23,16 @@ class MobileNotificationDefinition {
 }
 
 const mobileNotificationDefinitions = <String, MobileNotificationDefinition>{
+  'client_general': MobileNotificationDefinition(
+    category: 'client_general',
+    channelId: 'client_general_v1',
+    channelName: 'إشعارات الحساب',
+    description: 'تنبيهات الرصيد والعمليات والدعم الخاصة بحسابك.',
+    sound: 'default',
+    preferenceKey: 'general',
+    route: 'notifications',
+    priority: 'high',
+  ),
   'executor_task_new': MobileNotificationDefinition(
     category: 'executor_task_new',
     channelId: 'executor_tasks_v2',
@@ -140,6 +150,7 @@ const mobileNotificationDefinitions = <String, MobileNotificationDefinition>{
 };
 
 const defaultMobileNotificationPreferences = <String, bool>{
+  'general': true,
   'tasks': true,
   'reminders': true,
   'urgent': true,

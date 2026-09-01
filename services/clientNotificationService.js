@@ -8,6 +8,7 @@ const SubAccount = require('../models/SubAccount');
 const AgentEmployee = require('../models/AgentEmployee');
 const Employee = require('../models/Employee');
 const eventBus = require('./eventBus');
+const { deliverSafely } = require('./mobileAccountPushService');
 
 const unique = (values) => [...new Set(values.filter(Boolean).map(String))];
 
@@ -187,6 +188,18 @@ const createSupportReplyNotifications = async ({ ticket, channel }) => {
     return created;
 };
 
+const mobileTargetsForAccount = async (accountModel, account) => {
+    if (!account?._id) return [];
+    if (accountModel === 'ClientCompany') {
+        const employees = await ClientEmployee.find({ companyId: account._id, status: 'active' }).select('_id').lean();
+        return employees.map((employee) => ({ accountType: 'client_company', accountId: employee._id }));
+    }
+    if (accountModel === 'SubAccount') {
+        return [{ accountType: 'sub_client', accountId: account._id }];
+    }
+    return [{ accountType: 'client_user', accountId: account._id }];
+};
+
 const createClientNotifications = async ({
     accountModel,
     account,
@@ -208,6 +221,20 @@ const createClientNotifications = async ({
         txId,
         metadata
     }).catch(() => null)));
+
+    // Push is deliberately asynchronous: financial and support actions must
+    // not be delayed if FCM is temporarily unavailable. The in-app inbox is
+    // still created above and the delivery worker records any FCM error.
+    mobileTargetsForAccount(accountModel, account)
+        .then((targets) => deliverSafely({
+            targets,
+            title,
+            body: message,
+            category: 'client_general',
+            route: 'notifications',
+            referenceId: txId || account._id
+        }))
+        .catch(() => {});
 
     return docs.filter(Boolean);
 };

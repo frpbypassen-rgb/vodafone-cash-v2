@@ -9,6 +9,7 @@ const Transaction = require('../models/Transaction');
 const eventBus = require('./eventBus');
 const {
     getFirebasePushStatus,
+    initializeFirebasePush,
     isInvalidPushTokenError,
     sendPushToTokens
 } = require('./firebasePushService');
@@ -971,6 +972,7 @@ const registerExecutorPushEventHandlers = () => {
 
 const startExecutorPushNotificationWorker = async () => {
     registerExecutorPushEventHandlers();
+    initializeFirebasePush();
     await PushNotificationOutbox.updateMany(
         { status: 'processing', lockedAt: { $lt: new Date(Date.now() - STALE_LOCK_MS) } },
         { $set: { status: 'pending', lockedAt: null, availableAt: new Date() } }
