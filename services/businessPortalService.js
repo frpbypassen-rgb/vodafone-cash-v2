@@ -542,6 +542,23 @@ const loadOverview = async (workspace) => {
         summarizeWithAggregation(todayFilter),
         Transaction.find(workspace.forceToday ? todayFilter : ownership).sort({ createdAt: -1 }).limit(8).lean()
     ]);
+    const teamSpotlight = workspace.isCompany && canSeeStaffStats
+        ? await Transaction.aggregate([
+            { $match: { $and: [ownership, { employeeName: { $nin: [null, ''] } }, { createdAt: { $gte: monthRange.start, $lte: monthRange.end } }] } },
+            {
+                $group: {
+                    _id: '$employeeName',
+                    totalCount: { $sum: 1 },
+                    completedCount: { $sum: { $cond: [{ $eq: ['$status', 'completed'] }, 1, 0] } },
+                    pendingCount: { $sum: { $cond: [{ $in: ['$status', ['pending', 'processing', 'accepted']] }, 1, 0] } },
+                    totalEGP: { $sum: { $cond: [{ $eq: ['$status', 'completed'] }, '$amount', 0] } },
+                    lastActivity: { $max: '$createdAt' }
+                }
+            },
+            { $sort: { totalCount: -1, lastActivity: -1 } },
+            { $limit: 5 }
+        ])
+        : [];
 
     return {
         monthSummary,
@@ -552,6 +569,7 @@ const loadOverview = async (workspace) => {
         staffCount,
         activeStaffCount,
         pendingRequests,
+        teamSpotlight,
         currentMonthLabel: workspace.forceToday ? 'اليوم' : `شهر ${now.getMonth() + 1} / ${now.getFullYear()}`
     };
 };
