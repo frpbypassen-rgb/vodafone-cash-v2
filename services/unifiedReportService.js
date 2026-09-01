@@ -101,10 +101,13 @@ const syncReportTransaction = async (transaction, options) => (
     syncReportTransactions(transaction ? [transaction] : [], options)
 );
 
-const querySourceTransactions = async (query, { select = null, sort = null } = {}) => {
+const querySourceTransactions = async (query, { select = null, sort = null, limit = null } = {}) => {
     let databaseQuery = Transaction.find(query);
     if (select && typeof databaseQuery.select === 'function') databaseQuery = databaseQuery.select(select);
     if (sort && typeof databaseQuery.sort === 'function') databaseQuery = databaseQuery.sort(sort);
+    if (Number.isFinite(Number(limit)) && Number(limit) > 0 && typeof databaseQuery.limit === 'function') {
+        databaseQuery = databaseQuery.limit(Math.floor(Number(limit)));
+    }
     return typeof databaseQuery.lean === 'function' ? databaseQuery.lean() : databaseQuery;
 };
 

@@ -21,6 +21,7 @@
         <div><dt>رقم التقرير</dt><dd class="bw-mono"><%= centralReport.reportId %></dd></div>
         <div><dt>بصمة التحقق</dt><dd class="bw-mono"><%= centralReport.checksum %></dd></div>
         <div><dt>وقت الإنشاء</dt><dd class="bw-mono"><%= new Date(centralReport.issuedAt).toLocaleString('en-GB', { timeZone: 'Africa/Tripoli', hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit', year: 'numeric' }) %></dd></div>
+        <div><dt>حالة السجل المركزي</dt><dd class="bw-central-sync <%= centralSync.status === 'ready' ? 'ready' : '' %>"><i class="fa-solid <%= centralSync.status === 'ready' ? 'fa-circle-check' : 'fa-arrows-rotate' %>"></i><%= centralSync.status === 'ready' ? 'متزامن' : 'قيد التحديث' %></dd></div>
     </dl>
 </section>
 

@@ -18,6 +18,7 @@ const { calculateCreditState } = require('./agencyCreditLimitService');
 const { activatePendingRateUpdate } = require('./rateChangeService');
 const { buildPendingRateAlertForClient } = require('./rateAlerts/rateAlertAudienceService');
 const { buildArtifact: buildCentralReportArtifact } = require('./centralReportService');
+const { findReportTransactions, getUnifiedReportStatus } = require('./unifiedReportService');
 const {
     sanitizeStatementMovement,
     sanitizeStatementTransaction
@@ -810,7 +811,12 @@ const loadReports = async (workspace, query = {}) => {
     const availableScopes = workspace.isCompany ? COMPANY_REPORT_SCOPES : REPORT_SCOPES;
     const scope = availableScopes[requestedScope] ? requestedScope : 'organization';
     const { filter, range } = await buildTransactionFilter(workspace, query, { forceToday: workspace.forceToday });
-    const transactions = await Transaction.find(filter).sort({ createdAt: -1 }).limit(5000).lean();
+    // Reports are always read through the shared central reporting gateway.
+    // It mirrors the financial source of truth used by the administration portal.
+    const [transactions, centralSync] = await Promise.all([
+        findReportTransactions(filter, { sort: { createdAt: -1 }, limit: 5000 }),
+        getUnifiedReportStatus().catch(() => ({ status: 'offline' }))
+    ]);
     const reportSummary = summarizeTransactions(transactions);
     const reportRows = buildReportGroups(transactions, scope);
     const serviceBreakdown = SERVICE_CATALOG.map((service) => {
@@ -841,7 +847,8 @@ const loadReports = async (workspace, query = {}) => {
         centralReport: buildCentralReportArtifact({
             workspace,
             report: { reportScope: scope, filters: range, reportSummary, reportRows }
-        })
+        }),
+        centralSync
     };
 };
 
