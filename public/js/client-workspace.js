@@ -38,11 +38,23 @@
     };
 
     const setSidebar = (open) => {
-        body.classList.toggle('bw-sidebar-open', open);
+        const isDrawer = window.matchMedia('(max-width: 1050px)').matches;
+        const next = Boolean(isDrawer && open);
+        body.classList.toggle('bw-sidebar-open', next);
         document.querySelectorAll('[data-sidebar-toggle]').forEach((button) => {
-            button.setAttribute('aria-expanded', open ? 'true' : 'false');
+            button.setAttribute('aria-expanded', next ? 'true' : 'false');
         });
     };
+
+    const drawerQuery = window.matchMedia('(max-width: 1050px)');
+    const onDrawerChange = (event) => {
+        if (!event.matches) setSidebar(false);
+    };
+    if (typeof drawerQuery.addEventListener === 'function') {
+        drawerQuery.addEventListener('change', onDrawerChange);
+    } else if (typeof drawerQuery.addListener === 'function') {
+        drawerQuery.addListener(onDrawerChange);
+    }
 
     document.querySelectorAll('[data-sidebar-toggle]').forEach((button) => {
         button.addEventListener('click', () => setSidebar(!body.classList.contains('bw-sidebar-open')));

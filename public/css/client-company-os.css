@@ -934,6 +934,101 @@
     to { transform: rotate(360deg); }
 }
 
+@media (max-width: 1050px) {
+    .bw-company-os .bw-topbar-brand,
+    .bw-company-os .bw-breadcrumbs,
+    .bw-company-os .bw-topbar-link,
+    .bw-company-os [data-theme-toggle],
+    .bw-company-os .bw-topbar .bw-page-status {
+        display: none;
+    }
+
+    .bw-company-os .bw-topbar-actions {
+        min-width: 0;
+        flex: 1;
+        justify-content: flex-end;
+        gap: 6px;
+        flex-wrap: nowrap;
+    }
+
+    .bw-company-os .bw-balance-chip {
+        min-width: 0;
+        max-width: min(48vw, 180px);
+        overflow: hidden;
+    }
+
+    .bw-company-os .bw-filter-form > label,
+    .bw-company-os .bw-inline-form > label,
+    .bw-company-os .bw-form-actions,
+    .bw-company-os .bw-form-actions .bw-button {
+        width: 100%;
+    }
+
+    .bw-company-os .bw-metric-card,
+    .bw-company-os .bw-section,
+    .bw-company-os .cos-ops-card {
+        transform: none;
+    }
+
+    .bw-company-os {
+        -webkit-text-size-adjust: 100%;
+        text-size-adjust: 100%;
+    }
+
+    .bw-company-os .cos-gallery-intro,
+    .bw-company-os .cos-isolated-note,
+    .bw-company-os .cos-ledger-office,
+    .bw-company-os .cos-day-pulse {
+        align-items: stretch;
+        flex-direction: column;
+    }
+
+    .bw-company-os .cos-ledger-links {
+        display: grid;
+        grid-template-columns: 1fr;
+        width: 100%;
+    }
+
+    .bw-company-os .cos-gallery-intro .bw-button,
+    .bw-company-os .cos-day-pulse .bw-button,
+    .bw-company-os .cos-ledger-links .bw-button {
+        width: 100%;
+        min-height: 44px;
+        justify-content: center;
+    }
+
+    .bw-company-os .bw-form-grid,
+    .bw-company-os .bw-currency-pair,
+    .bw-company-os .bw-cost-preview {
+        grid-template-columns: 1fr;
+    }
+
+    .bw-company-os .bw-smart-preview-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .bw-company-os .bw-button {
+        min-height: 44px;
+    }
+
+    .bw-company-os .cos-seal-modal {
+        width: min(calc(100% - 16px), 460px);
+        transform: none;
+    }
+
+    .bw-company-os .bw-dialog-actions {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 8px;
+    }
+
+    .bw-company-os .bw-dialog-actions .bw-button,
+    .bw-company-os .bw-dialog-actions a {
+        width: 100%;
+        justify-content: center;
+    }
+}
+
 @media (max-width: 1180px) {
     .cos-scene { grid-template-columns: repeat(2, minmax(0, 1fr)); }
     .bw-company-os .bw-overview-metrics.with-credit,
@@ -1242,8 +1337,7 @@
     .bw-company-os .bw-balance-chip { max-width: 37vw; padding-inline: 6px; }
     .bw-company-os .bw-balance-chip small { display: none; }
     .bw-company-os .bw-overview-metrics.with-credit,
-    .bw-company-os .cos-finance-metrics,
-    .bw-company-os .bw-mini-metrics { grid-template-columns: 1fr; }
+    .bw-company-os .cos-finance-metrics { grid-template-columns: 1fr; }
     .bw-company-os .bw-metric-card { min-height: 88px; flex-direction: row; }
     .bw-company-os .cos-ledger-links,
     .bw-company-os .bw-dialog-actions { grid-template-columns: 1fr; }

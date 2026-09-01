@@ -80,11 +80,11 @@
 
         <% const mobileKeys = workspace.isCompany
             ? (workspace.persona === 'manager'
-                ? ['overview', 'services', 'transactions', 'staff', 'reports']
+                ? ['overview', 'services', 'transactions', 'reports']
                 : workspace.persona === 'accountant'
-                    ? ['finance', 'reports', 'transactions', 'deposits', 'staff']
-                    : ['services', 'transactions', 'smart_transfer', 'support', 'security'])
-            : ['overview', 'services', 'transactions', 'reports', 'settings'];
+                    ? ['finance', 'reports', 'transactions', 'deposits']
+                    : ['services', 'transactions', 'smart_transfer', 'support'])
+            : ['overview', 'services', 'transactions', 'reports'];
            const mobileNavigation = mobileKeys.map(key => navigation.find(item => item.key === key)).filter(Boolean); %>
         <nav class="bw-mobile-dock" aria-label="التنقل السريع">
             <% mobileNavigation.forEach(item => { %>
@@ -331,6 +331,6 @@
             }
         })();
     </script>
-    <script src="/js/client-workspace.js?v=20260901-os19" defer></script>
+    <script src="/js/client-workspace.js?v=20260902-phone2" defer></script>
 </body>
 </html>
