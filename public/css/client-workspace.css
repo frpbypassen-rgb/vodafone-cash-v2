@@ -1100,6 +1100,15 @@ a {
 .bw-settings-panel .bw-setting-note { display: flex; align-items: center; gap: 9px; padding: 11px 12px; color: var(--bw-muted); background: var(--bw-surface-soft); border: 1px solid var(--bw-border); border-radius: 9px; font-size: .74rem; }.bw-settings-panel .bw-setting-note i { color: var(--bw-blue); }.bw-settings-panel .bw-setting-note strong, .bw-settings-panel .bw-setting-note small { display: block; }.bw-settings-panel .bw-setting-note small { margin-top: 2px; }
 .bw-settings-shortcuts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }.bw-settings-shortcuts a { gap: 10px; padding: 13px; color: var(--bw-text); background: var(--bw-surface-soft); border: 1px solid var(--bw-border); border-radius: 10px; text-decoration: none; transition: transform .18s ease, border-color .18s ease; }.bw-settings-shortcuts a:hover { border-color: color-mix(in srgb, var(--bw-blue) 35%, var(--bw-border)); transform: translateY(-2px); }.bw-settings-shortcuts a > i:first-child { color: var(--bw-blue); }.bw-settings-shortcuts a > i:last-child { margin-right: auto; color: var(--bw-muted); font-size: .72rem; }.bw-settings-shortcuts span { min-width: 0; }.bw-settings-shortcuts strong, .bw-settings-shortcuts small { display: block; }.bw-settings-shortcuts strong { font-size: .76rem; }.bw-settings-shortcuts small { margin-top: 3px; color: var(--bw-muted); font-size: .66rem; line-height: 1.45; }
 
+/* Enterprise settings: one focused section at a time, without stacked cards. */
+.bw-settings-layout { grid-template-columns: 235px minmax(0, 1fr); align-items: start; gap: 18px; }
+.bw-settings-nav { position: sticky; top: calc(var(--bw-topbar-height) + 16px); display: grid; gap: 5px; padding: 8px; border: 1px solid var(--bw-border); border-radius: 12px; background: var(--bw-surface); box-shadow: var(--bw-shadow-sm); }
+.bw-settings-nav button { display: grid; grid-template-columns: 24px minmax(0, 1fr); grid-template-areas: 'icon title' 'icon subtitle'; gap: 1px 8px; width: 100%; padding: 11px 10px; color: var(--bw-muted); text-align: right; background: transparent; border: 1px solid transparent; border-radius: 8px; cursor: pointer; transition: color .16s ease, background .16s ease, border-color .16s ease; }
+.bw-settings-nav button i { grid-area: icon; align-self: center; color: var(--bw-blue); }.bw-settings-nav button span { grid-area: title; color: var(--bw-text); font-size: .77rem; font-weight: 800; }.bw-settings-nav button small { grid-area: subtitle; overflow: hidden; color: var(--bw-muted); font-size: .64rem; text-overflow: ellipsis; white-space: nowrap; }
+.bw-settings-nav button:hover { background: var(--bw-surface-soft); }.bw-settings-nav button.active { background: var(--bw-blue-soft); border-color: color-mix(in srgb, var(--bw-blue) 22%, var(--bw-border)); }.bw-settings-nav button.active span { color: var(--bw-blue); }
+.bw-settings-panels { min-width: 0; }.bw-settings-panels .bw-settings-panel { animation: bw-settings-panel-in .18s ease; }.bw-settings-panels .bw-settings-panel[hidden] { display: none; }@keyframes bw-settings-panel-in { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: none; } }
+.bw-settings-hero { padding: 18px 20px; border-radius: 10px; background: var(--bw-surface); box-shadow: none; }.bw-settings-hero h2 { font-size: 1.18rem; }.bw-settings-panel { border-radius: 10px; box-shadow: none; }.bw-settings-panel-head { padding-bottom: 16px; border-bottom: 1px solid var(--bw-border); }.bw-settings-panel-head + * { margin-top: 18px; }.bw-settings-health-grid article { border-radius: 8px; box-shadow: none; }.bw-settings-health-grid article > span { border-radius: 8px; }
+
 .bw-section {
     min-width: 0;
     margin-top: 24px;
@@ -2975,6 +2984,12 @@ a {
     .bw-settings-health { justify-content: flex-start; }
     .bw-settings-health-grid, .bw-settings-choice-grid { grid-template-columns: 1fr; }
     .bw-settings-panel { padding: 16px; }
+}
+
+@media (max-width: 900px) {
+    .bw-settings-layout { grid-template-columns: 1fr; }
+    .bw-settings-nav { position: static; grid-auto-flow: column; grid-auto-columns: minmax(128px, 1fr); grid-template-columns: none; overflow-x: auto; padding: 6px; }
+    .bw-settings-nav button { min-width: 128px; }
 }
 
 @media (max-width: 1260px) {

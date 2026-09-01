@@ -85,6 +85,26 @@
         });
     }
 
+    const settingsShell = document.querySelector('[data-settings-shell]');
+    if (settingsShell) {
+        const tabs = [...settingsShell.querySelectorAll('[data-settings-tab]')];
+        const panels = [...settingsShell.querySelectorAll('[data-settings-panel]')];
+        const activateSettingsPanel = (key) => {
+            const target = panels.find((panel) => panel.id === key) || panels[0];
+            if (!target) return;
+            panels.forEach((panel) => {
+                const active = panel === target;
+                panel.hidden = !active;
+                panel.classList.toggle('active', active);
+            });
+            tabs.forEach((tab) => tab.classList.toggle('active', tab.dataset.settingsTab === target.id));
+            window.history.replaceState(null, '', `#${target.id}`);
+        };
+        tabs.forEach((tab) => tab.addEventListener('click', () => activateSettingsPanel(tab.dataset.settingsTab)));
+        const requested = window.location.hash.replace('#', '');
+        if (requested && panels.some((panel) => panel.id === requested)) activateSettingsPanel(requested);
+    }
+
     document.querySelectorAll('[data-alert-close]').forEach((button) => {
         button.addEventListener('click', () => button.closest('.bw-alert')?.remove());
     });
