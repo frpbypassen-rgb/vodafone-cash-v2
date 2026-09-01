@@ -3,7 +3,7 @@
 const request = require('supertest');
 const express = require('express');
 
-jest.mock('../models/ClientBot', () => ({ findOne: jest.fn() }));
+jest.mock('../models/ClientBot', () => ({ findOne: jest.fn(), findOneAndUpdate: jest.fn() }));
 jest.mock('../models/User', () => ({ findOne: jest.fn(), findOneAndUpdate: jest.fn() }));
 jest.mock('../models/Settings', () => ({ findOne: jest.fn() }));
 jest.mock('../models/Counter', () => ({ findOneAndUpdate: jest.fn() }));
@@ -30,13 +30,21 @@ const Counter = require('../models/Counter');
 const Transaction = require('../models/Transaction');
 const Ledger = require('../models/Ledger');
 const mongoose = require('mongoose');
-const { resolveAutoRouteExecutor } = require('../services/autoRouteService');
+const {
+    resolveAutoRouteExecutor,
+    applyAutoRouteFields,
+    enqueueAutoRouteIfNeeded
+} = require('../services/autoRouteService');
 const { acquireTransferCooldown, releaseTransferCooldown } = require('../services/transferCooldownService');
 const merchantApi = require('../routes/merchantApi');
 
 const leanResult = (value) => ({ lean: jest.fn().mockResolvedValue(value) });
 const sessionLeanResult = (value) => ({
     session: jest.fn().mockReturnThis(),
+    lean: jest.fn().mockResolvedValue(value)
+});
+const selectLeanResult = (value) => ({
+    select: jest.fn().mockReturnThis(),
     lean: jest.fn().mockResolvedValue(value)
 });
 
@@ -57,6 +65,7 @@ describe('Merchant API agent authentication', () => {
             }
         });
         releaseTransferCooldown.mockResolvedValue(undefined);
+        enqueueAutoRouteIfNeeded.mockResolvedValue(undefined);
     });
 
     test('accepts an active agent API key for a balance request', async () => {
@@ -249,5 +258,128 @@ describe('Merchant API agent authentication', () => {
         });
         expect(User.findOneAndUpdate).not.toHaveBeenCalled();
         expect(Transaction.create).not.toHaveBeenCalled();
+    });
+
+    test('rejects transfer amounts outside the supported 100 to 50000 EGP range before cooldown', async () => {
+        const company = {
+            _id: '66a112233445566778899003',
+            name: 'شركة الربط',
+            status: 'active',
+            balance: 1000
+        };
+        ClientBot.findOne.mockReturnValue(leanResult(company));
+
+        const tooSmall = await request(app)
+            .post('/api/v1/merchant/transfer')
+            .set('x-api-key', 'company-private-api-key')
+            .send({ target_number: '01012345678', amount: 99, transfer_type: 'vodafone' });
+        const tooLarge = await request(app)
+            .post('/api/v1/merchant/transfer')
+            .set('x-api-key', 'company-private-api-key')
+            .send({ target_number: '01012345678', amount: 50001, transfer_type: 'vodafone' });
+
+        expect(tooSmall.status).toBe(400);
+        expect(tooLarge.status).toBe(400);
+        expect(tooSmall.body).toMatchObject({ status: 'failed', code: 'AMOUNT_OUT_OF_RANGE' });
+        expect(tooLarge.body).toMatchObject({ status: 'failed', code: 'AMOUNT_OUT_OF_RANGE' });
+        expect(acquireTransferCooldown).not.toHaveBeenCalled();
+        expect(Transaction.create).not.toHaveBeenCalled();
+    });
+
+    test('stores the receipt WhatsApp number and returns the auto-routed executor for a company transfer', async () => {
+        const session = {
+            startTransaction: jest.fn(),
+            commitTransaction: jest.fn(),
+            abortTransaction: jest.fn(),
+            endSession: jest.fn()
+        };
+        const company = {
+            _id: '66a112233445566778899003',
+            name: 'شركة الربط',
+            status: 'active',
+            balance: 1000,
+            tier: 3,
+            creditLimit: 0
+        };
+        const executor = { _id: '66a112233445566778899004', name: 'مجموعة تنفيذ القاهرة' };
+
+        mongoose.startSession.mockResolvedValue(session);
+        ClientBot.findOne.mockReturnValue(leanResult(company));
+        Settings.findOne.mockReturnValue(sessionLeanResult({ rateLevel3: 5.95 }));
+        ClientBot.findOneAndUpdate.mockResolvedValue({ ...company, balance: 831.933 });
+        Counter.findOneAndUpdate.mockResolvedValue({ value: 78 });
+        resolveAutoRouteExecutor.mockResolvedValue(executor);
+        applyAutoRouteFields.mockImplementation((transaction, routedExecutor) => {
+            transaction.executorGroupId = routedExecutor._id;
+            transaction.executorName = routedExecutor.name;
+            transaction.status = 'processing';
+        });
+        Transaction.create.mockImplementation(async ([transaction]) => [{ ...transaction, _id: 'tx-company-api-1' }]);
+
+        const response = await request(app)
+            .post('/api/v1/merchant/transfer')
+            .set('x-api-key', 'company-private-api-key')
+            .send({
+                target_number: '01012345678',
+                amount: 1000,
+                transfer_type: 'vodafone',
+                whatsapp_number: '01108172258'
+            });
+
+        expect(response.status).toBe(200);
+        expect(response.body.data).toEqual(expect.objectContaining({
+            status: 'processing',
+            executor_name: 'مجموعة تنفيذ القاهرة',
+            executor_number: null,
+            receipt_whatsapp_number: '201108172258'
+        }));
+        expect(Transaction.create).toHaveBeenCalledWith(
+            [expect.objectContaining({
+                companyId: company._id,
+                serviceDetails: { clientPhone: '201108172258' },
+                executorGroupId: executor._id,
+                executorName: executor.name
+            })],
+            { session }
+        );
+    });
+
+    test('returns executor number and receipt recipient from the company transaction status endpoint', async () => {
+        const company = {
+            _id: '66a112233445566778899003',
+            name: 'شركة الربط',
+            status: 'active',
+            balance: 1000
+        };
+        ClientBot.findOne.mockReturnValue(leanResult(company));
+        Transaction.findOne.mockReturnValue(selectLeanResult({
+            _id: 'tx-company-api-1',
+            customId: 'ATT-2609-0078',
+            vodafoneNumber: '01012345678',
+            amount: 1000,
+            exchangeRate: 5.95,
+            costLYD: 168.067,
+            status: 'completed',
+            notes: 'تم التنفيذ بنجاح',
+            executorName: 'أحمد المنفذ',
+            executorExecutionNumber: '01000000000',
+            serviceDetails: { clientPhone: '201108172258' }
+        }));
+
+        const response = await request(app)
+            .get('/api/v1/merchant/status/ATT-2609-0078')
+            .set('x-api-key', 'company-private-api-key');
+
+        expect(response.status).toBe(200);
+        expect(response.body.data).toEqual(expect.objectContaining({
+            reference_id: 'ATT-2609-0078',
+            executor_name: 'أحمد المنفذ',
+            executor_number: '01000000000',
+            receipt_whatsapp_number: '201108172258'
+        }));
+        expect(Transaction.findOne).toHaveBeenCalledWith({
+            companyId: company._id,
+            customId: 'ATT-2609-0078'
+        });
     });
 });

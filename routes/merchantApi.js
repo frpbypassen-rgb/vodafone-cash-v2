@@ -25,12 +25,56 @@ const {
     requiresMongoTransactions,
     financialTransactionsUnavailableError
 } = require('../services/walletService');
+const { normalizeWhatsAppPhone } = require('../services/whatsappService');
 
-const merchantRequestError = (statusCode, message) => {
+const MERCHANT_TRANSFER_MIN_AMOUNT = 100;
+const MERCHANT_TRANSFER_MAX_AMOUNT = 50000;
+
+const merchantRequestError = (statusCode, message, code = undefined) => {
     const error = new Error(message);
     error.statusCode = statusCode;
     error.clientMessage = message;
+    if (code) error.code = code;
     return error;
+};
+
+const resolveMerchantExecutorData = (transaction = {}, fallbackExecutor = null) => {
+    const executorNumber = [
+        transaction.executorExecutionNumber,
+        transaction.executorSenderPhone,
+        transaction.apiResultData?.referenceNumber,
+        transaction.apiResultData?.externalTransactionId,
+        transaction.apiResultData?.providerTransactionId
+    ].map((value) => String(value || '').trim()).find(Boolean) || null;
+
+    const executorName = String(
+        transaction.executorName
+        || transaction.executorGroupName
+        || fallbackExecutor?.name
+        || ''
+    ).trim() || null;
+
+    return {
+        executor_name: executorName,
+        // This value remains null until the executor or the API provider records
+        // the actual execution/sender number. It is never guessed by the system.
+        executor_number: executorNumber
+    };
+};
+
+const normalizeReceiptWhatsAppNumber = (value) => {
+    const rawValue = String(value || '').trim();
+    if (!rawValue) return '';
+
+    try {
+        return normalizeWhatsAppPhone(rawValue);
+    } catch (error) {
+        throw merchantRequestError(
+            400,
+            error.message || 'رقم واتساب غير صالح.',
+            error.code || 'WHATSAPP_PHONE_INVALID'
+        );
+    }
 };
 
 const customerFacingNotes = (notes) => {
@@ -146,12 +190,23 @@ router.post('/transfer', merchantApiAuth, async (req, res) => {
         const amountValue = Number(amount);
         const phoneStr = target_number ? target_number.toString().trim() : '';
         const serviceKey = resolveTransferServiceKey(transfer_type || 'vodafone');
+        const receiptWhatsAppNumber = normalizeReceiptWhatsAppNumber(
+            req.body?.whatsapp_number ?? req.body?.client_phone
+        );
 
         if (!/^\d{11}$/.test(phoneStr)) {
             return res.status(400).json({ status: 'failed', message: 'رقم الهاتف غير صالح. يجب أن يتكون من 11 رقماً.' });
         }
-        if (!Number.isFinite(amountValue) || amountValue <= 0) {
-            return res.status(400).json({ status: 'failed', message: 'المبلغ غير صالح' });
+        if (
+            !Number.isFinite(amountValue)
+            || amountValue < MERCHANT_TRANSFER_MIN_AMOUNT
+            || amountValue > MERCHANT_TRANSFER_MAX_AMOUNT
+        ) {
+            return res.status(400).json({
+                status: 'failed',
+                code: 'AMOUNT_OUT_OF_RANGE',
+                message: `قيمة العملية يجب أن تكون بين ${MERCHANT_TRANSFER_MIN_AMOUNT} و${MERCHANT_TRANSFER_MAX_AMOUNT} جنيه مصري.`
+            });
         }
 
         if (!serviceKey) {
@@ -228,7 +283,8 @@ router.post('/transfer', merchantApiAuth, async (req, res) => {
                 ...cooldown.guardFields,
                 notes: '',
                 adminNotes: '[طلب وارد عبر API التاجر الخارجي]',
-                executorGroupId: undefined
+                executorGroupId: undefined,
+                serviceDetails: receiptWhatsAppNumber ? { clientPhone: receiptWhatsAppNumber } : undefined
             };
             if (autoRouteExecutor) applyAutoRouteFields(txData, autoRouteExecutor);
             const tx = session
@@ -271,7 +327,9 @@ router.post('/transfer', merchantApiAuth, async (req, res) => {
                 amount_egp: result.tx.amount,
                 exchange_rate: result.exchangeRate,
                 cost_lyd: result.tx.costLYD,
-                balance: result.balanceAfter
+                balance: result.balanceAfter,
+                receipt_whatsapp_number: receiptWhatsAppNumber || null,
+                ...resolveMerchantExecutorData(result.tx, result.autoRouteExecutor)
             }
         });
     } catch (error) {
@@ -303,7 +361,7 @@ router.get('/status/:reference_id', merchantApiAuth, async (req, res) => {
         const tx = await Transaction.findOne({
             ...ownershipFilter,
             customId: req.params.reference_id
-        }).lean();
+        }).select('+executorExecutionNumber').lean();
         if (!tx) {
             return res.status(404).json({ status: 'failed', message: 'لا يوجد طلب بهذا الرقم المرجعي' });
         }
@@ -318,7 +376,9 @@ router.get('/status/:reference_id', merchantApiAuth, async (req, res) => {
                 exchange_rate: tx.exchangeRate || 1,
                 cost_lyd: tx.costLYD || tx.amount,
                 status: tx.status,
-                notes: customerFacingNotes(tx.notes) || 'لا يوجد ملاحظات'
+                notes: customerFacingNotes(tx.notes) || 'لا يوجد ملاحظات',
+                receipt_whatsapp_number: tx.serviceDetails?.clientPhone || null,
+                ...resolveMerchantExecutorData(tx)
             }
         });
     } catch (_error) {

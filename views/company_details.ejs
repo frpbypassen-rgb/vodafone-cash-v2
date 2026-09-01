@@ -191,6 +191,11 @@
         <% if (query && query.balanceError) { %>
             <div class="alert alert-danger fw-bold rounded-4 shadow-sm"><i class="fa-solid fa-triangle-exclamation me-1"></i> تعذر تحديث الرصيد. تحقق من المبلغ والحساب ثم أعد المحاولة.</div>
         <% } %>
+        <% if (query && query.apiTokenRotated) { %>
+            <div class="alert alert-success fw-bold rounded-4 shadow-sm"><i class="fa-solid fa-key me-1"></i> تم إصدار مفتاح API جديد وإيقاف المفتاح السابق فوراً. حمّل وثيقة الربط الجديدة وشارك المفتاح الجديد فقط مع جهة الربط.</div>
+        <% } else if (query && query.apiTokenError) { %>
+            <div class="alert alert-danger fw-bold rounded-4 shadow-sm"><i class="fa-solid fa-triangle-exclamation me-1"></i> تعذر إصدار مفتاح API جديد. لم يتغير المفتاح السابق، أعد المحاولة.</div>
+        <% } %>
 
         <div class="row g-4 mb-4">
             <div class="col-xl-4 col-lg-5">
@@ -217,8 +222,12 @@
                     </div>
 
                     <div class="info-box py-2 px-3">
-                        <span class="small text-muted fw-bold"><i class="fa-solid fa-key me-1"></i> توكن البوت</span>
-                        <span class="fw-bold text-dark mono-num small" dir="ltr" style="filter: blur(3px); transition: 0.3s; cursor: pointer;" onmouseover="this.style.filter='none'" onmouseout="this.style.filter='blur(3px)'"><%= company.token %></span>
+                        <span class="small text-muted fw-bold"><i class="fa-solid fa-key me-1"></i> مفتاح ربط API</span>
+                        <% if (typeof isMaster !== 'undefined' && isMaster) { %>
+                            <span class="fw-bold text-dark mono-num small" dir="ltr" style="filter: blur(3px); transition: 0.3s; cursor: pointer;" onmouseover="this.style.filter='none'" onmouseout="this.style.filter='blur(3px)'"><%= company.token %></span>
+                        <% } else { %>
+                            <span class="small fw-bold text-muted">محمي — متاح للإدارة فقط</span>
+                        <% } %>
                     </div>
                 </div>
             </div>
@@ -231,6 +240,32 @@
                     </div>
 
                     <div class="row g-3">
+                        <% if (typeof isMaster !== 'undefined' && isMaster) { %>
+                            <div class="col-12" id="company-api-integration">
+                                <div class="info-box border-0 m-0 shadow-sm control-card-3d d-block" style="background: rgba(14, 165, 233, 0.06); border-right: 4px solid #0ea5e9 !important;">
+                                    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+                                        <label class="form-label fw-bold text-dark mb-0"><i class="fa-solid fa-plug-circle-bolt text-info me-1"></i> إدارة ربط API للشركة</label>
+                                        <span class="badge bg-info text-dark">المفتاح الحالي نشط</span>
+                                    </div>
+                                    <div class="row g-2 align-items-center">
+                                        <div class="col-lg-5">
+                                            <div class="small text-muted fw-bold mb-1">المفتاح الحالي</div>
+                                            <code class="d-block p-2 rounded bg-dark text-light text-break" dir="ltr" style="font-size:.75rem; filter: blur(3px); cursor:pointer;" onmouseover="this.style.filter='none'" onmouseout="this.style.filter='blur(3px)'"><%= company.token || 'سيتم إنشاؤه عند تنزيل الوثيقة' %></code>
+                                        </div>
+                                        <div class="col-lg-4">
+                                            <a href="/company/<%= company._id %>/integration-guide.pdf" class="btn btn-outline-info w-100 fw-bold unified-height justify-content-center"><i class="fa-solid fa-file-pdf me-1"></i> تحميل وثيقة الربط</a>
+                                        </div>
+                                        <div class="col-lg-3">
+                                            <form action="/company/<%= company._id %>/rotate-api-token" method="POST" onsubmit="return confirm('سيتم إيقاف مفتاح API الحالي فوراً وإصدار مفتاح جديد. هل تريد المتابعة؟');">
+                                                <button type="submit" class="btn btn-danger w-100 fw-bold unified-height justify-content-center"><i class="fa-solid fa-arrows-rotate me-1"></i> تبديل المفتاح</button>
+                                            </form>
+                                        </div>
+                                    </div>
+                                    <small class="d-block text-muted mt-2"><i class="fa-solid fa-shield-halved me-1"></i> عند تبديل المفتاح يتوقف القديم فوراً. حمّل الوثيقة الجديدة وأرسل المفتاح الجديد عبر قناة آمنة فقط.</small>
+                                </div>
+                            </div>
+                        <% } %>
+
                         <div class="col-12">
                             <div class="info-box border-0 m-0 shadow-sm control-card-3d d-block" style="background: rgba(139, 92, 246, 0.05); border-right: 4px solid var(--brand-primary) !important;">
                                 <label class="form-label fw-bold text-dark small mb-2"><i class="fa-solid fa-id-badge me-1" style="color: var(--brand-primary);"></i> ID الشركة للتحويل الداخلي (<%= accountCodeLength %> أرقام)</label>

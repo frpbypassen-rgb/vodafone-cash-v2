@@ -18,6 +18,14 @@ describe('Account integration PDF download contract', () => {
         expect(routes).toContain("action: 'MERCHANT_API_DOCUMENT_EXPORTED'");
     });
 
+    test('lets only the master rotate a company API key and immediately revoke the previous one', () => {
+        expect(routes).toContain("router.post('/company/:id/rotate-api-token', requireAuth, requireMaster");
+        expect(routes).toContain("action: 'MERCHANT_API_KEY_ROTATED'");
+        expect(routes).toContain('previousKeyRevokedImmediately: true');
+        expect(companyView).toContain('/company/<%= company._id %>/rotate-api-token');
+        expect(companyView).toContain('تبديل المفتاح');
+    });
+
     test('shows the button for companies and only for agent accounts in the user profile', () => {
         expect(companyView).toContain('/company/<%= company._id %>/integration-guide.pdf');
         expect(userView).toContain('<% if (isAgentAccount) { %>');

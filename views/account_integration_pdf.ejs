@@ -75,7 +75,7 @@
             <p class="eyebrow"><%= environment.label %> - وثيقة تشغيل مخصصة للربط الخارجي</p>
             <h1><%= environment.isSandbox ? 'وثيقة اختبار واجهة API' : 'وثيقة ربط واجهة API' %></h1>
             <div class="partner-name"><%= account.name %></div>
-            <p class="lead">أُعدت هذه الوثيقة خصيصًا لجهة الربط المذكورة، وتحتوي على بيانات التعريف ومفتاح المصادقة والمسارات الفنية والخطوات المطلوبة لإرسال التحويلات ومتابعتها عبر النظام.</p>
+            <p class="lead">أُعدت هذه الوثيقة خصيصًا لجهة الربط المذكورة، وتحتوي على بيانات التعريف ومفتاح المصادقة ومسارات الإرسال والمتابعة ورقم المنفذ وإيصال واتساب عند طلبه.</p>
             <% if (environment.isSandbox) { %><p class="notice" style="font-size:10px; margin-top:5mm;"><%= environment.warning %></p><% } %>
             <span class="status"><%= account.statusLabel %></span>
         </div>
@@ -109,7 +109,7 @@
                 <tr><td>المسار الأساسي</td><td><code><%= api.basePath %></code></td></tr>
                 <tr><td>طريقة المصادقة</td><td><code>x-api-key: &lt;API_KEY&gt;</code></td></tr>
                 <tr><td>صيغة البيانات</td><td><code>Content-Type: application/json</code></td></tr>
-                <tr><td>متابعة النتيجة</td><td>استعلام دوري عبر مسار الحالة. لا يوجد Webhook في الإصدار الحالي.</td></tr>
+                <tr><td>متابعة النتيجة</td><td>استعلام دوري عبر مسار الحالة. يعيد اسم المنفذ ورقمه عند توفرهما.</td></tr>
             </tbody>
         </table>
         <div class="credential">
@@ -131,8 +131,8 @@
             <thead><tr><th>العملية</th><th>الطلب</th><th>المسار</th><th>الغرض</th></tr></thead>
             <tbody>
                 <tr><td>الاستعلام عن الرصيد</td><td><code>GET</code></td><td><code><%= api.balanceUrl %></code></td><td>إرجاع اسم الجهة والرصيد وسعر الكاش الحالي.</td></tr>
-                <tr><td>إنشاء تحويل</td><td><code>POST</code></td><td><code><%= api.transferUrl %></code></td><td>استلام التحويل وخصم تكلفته عند قبول الطلب.</td></tr>
-                <tr><td>متابعة التحويل</td><td><code>GET</code></td><td><code><%= api.statusUrl %></code></td><td>الاستعلام عن حالة فاتورة سبق إنشاؤها.</td></tr>
+                <tr><td>إنشاء تحويل</td><td><code>POST</code></td><td><code><%= api.transferUrl %></code></td><td>استلام التحويل وخصم تكلفته عند قبول الطلب، مع رقم واتساب اختياري للإيصال.</td></tr>
+                <tr><td>متابعة التحويل</td><td><code>GET</code></td><td><code><%= api.statusUrl %></code></td><td>الاستعلام عن الحالة ورقم المنفذ عند تسجيله.</td></tr>
             </tbody>
         </table>
         <div class="split" style="margin-top: 8mm;">
@@ -148,8 +148,9 @@
             <thead><tr><th>الحقل</th><th>النوع</th><th>إلزامي</th><th>الوصف والقيود</th></tr></thead>
             <tbody>
                 <tr><td><code>target_number</code></td><td><code>string</code></td><td>نعم</td><td>رقم المستفيد، ويجب أن يتكون من 11 رقمًا.</td></tr>
-                <tr><td><code>amount</code></td><td><code>number</code></td><td>نعم</td><td>قيمة التحويل بالجنيه المصري، ويجب أن تكون أكبر من صفر.</td></tr>
+                <tr><td><code>amount</code></td><td><code>number</code></td><td>نعم</td><td>قيمة التحويل بالجنيه المصري من <strong><%= transferPolicy.minAmount %></strong> إلى <strong><%= transferPolicy.maxAmount.toLocaleString('en-US') %></strong> لكل عملية.</td></tr>
                 <tr><td><code>transfer_type</code></td><td><code>string</code></td><td>لا</td><td>نوع الخدمة. القيمة الافتراضية <code>vodafone</code> عند عدم إرساله.</td></tr>
+                <tr><td><code><%= transferPolicy.acceptedWhatsAppField %></code></td><td><code>string</code></td><td>لا</td><td>رقم واتساب الذي يجب أن يستلم الإيصال بعد اكتمال العملية. يُنظَّف ويُحفظ بصيغة دولية. يدعم النظام الاسم القديم <code><%= transferPolicy.compatibilityWhatsAppField %></code> للتوافق فقط.</td></tr>
             </tbody>
         </table>
         <h3>جسم طلب نموذجي</h3>
@@ -158,7 +159,7 @@
         <pre class="code-block"><%= examples.transferResponse %></pre>
         <h3>متابعة فاتورة سابقة</h3>
         <pre class="code-block"><%= examples.statusCurl %></pre>
-        <div class="callout">احفظ <code>invoice_number</code> مباشرة عند قبول الطلب. لا تعيد إرسال طلب تحويل جديد إذا وصل الرقم المرجعي، واستخدم مسار الحالة بدلًا من ذلك.</div>
+        <div class="callout">احفظ <code>invoice_number</code> مباشرة عند قبول الطلب. سيظهر <code>executor_name</code> و<code>executor_number</code> عند تعيين أو تسجيل بيانات المنفذ؛ قد يكون الرقم <code>null</code> في بداية المعالجة، ولا ينبغي تخمينه أو اعتباره فشلاً.</div>
     </section>
 
     <section class="page">
@@ -167,7 +168,8 @@
         <ol class="steps">
             <li><strong>تحقق من الرصيد.</strong> اطلب <code>/balance</code> عند بدء الوردية أو قبل دفعات التحويل الكبيرة.</li>
             <li><strong>أرسل طلب التحويل مرة واحدة.</strong> احتفظ بالقيمة <code>invoice_number</code> التي يعيدها النظام؛ فهي الرقم المرجعي الرسمي للطلب.</li>
-            <li><strong>تابع الحالة.</strong> استعلم عن <code>/status/{invoice_number}</code> حتى تصل العملية إلى حالة نهائية.</li>
+            <li><strong>تابع الحالة.</strong> استعلم عن <code>/status/{invoice_number}</code> حتى تصل العملية إلى حالة نهائية؛ ستظهر بيانات المنفذ في الاستجابة متى تم تسجيلها.</li>
+            <li><strong>سلّم الإيصال.</strong> عند اكتمال العملية ومع إرفاق <code>whatsapp_number</code>، يرسل النظام الإيصال الرسمي تلقائيًا إلى ذلك الرقم عند توفر إثبات التنفيذ.</li>
             <li><strong>أغلق الطلب داخليًا.</strong> تعتبر الحالة <code>completed</code> فقط نجاحًا نهائيًا. الحالات الأخرى تحتاج متابعة أو معالجة داخلية.</li>
         </ol>
         <h2 style="margin-top: 9mm;">حالات العملية</h2>
@@ -184,7 +186,7 @@
         </table>
         <h2 style="margin-top: 9mm;">سياسة الإرسال الآمن والدعم</h2>
         <div class="split">
-            <div><ul class="muted" style="margin:0; padding-right: 5mm;"><li>استخدم HTTPS في بيئة الإنتاج فقط.</li><li>لا تضع مفتاح API داخل الواجهة أو مستودع الكود أو سجلات الأخطاء.</li><li>لا تعيد إرسال نفس الطلب عند انقطاع الشبكة بعد استلام <code>invoice_number</code>.</li><li>اضبط مهلة الاتصال على 30 ثانية على الأقل، واجعل إعادة المحاولة للاستعلام عن الحالة فقط.</li><li>لا يوجد <code>Idempotency-Key</code> مفعل حاليًا في هذه الواجهة.</li></ul></div>
+            <div><ul class="muted" style="margin:0; padding-right: 5mm;"><li>استخدم HTTPS في بيئة الإنتاج فقط.</li><li>لا تضع مفتاح API داخل الواجهة أو مستودع الكود أو سجلات الأخطاء.</li><li>لا تعيد إرسال نفس الطلب عند انقطاع الشبكة بعد استلام <code>invoice_number</code>.</li><li>اضبط مهلة الاتصال على 30 ثانية على الأقل، واجعل إعادة المحاولة للاستعلام عن الحالة فقط.</li><li>عند تدوير المفتاح من الإدارة، يتوقف المفتاح السابق فورًا. حمّل وثيقة جديدة واحفظ المفتاح الجديد في Secret Manager.</li><li>لا يوجد <code>Idempotency-Key</code> مفعل حاليًا في هذه الواجهة.</li></ul></div>
             <div class="callout"><strong>الدعم الفني</strong><br>واتساب فقط: <code>01108172258</code><br><span class="small">عند التواصل أرسل رقم الحساب ورقم الفاتورة <code>invoice_number</code> ووصفًا مختصرًا للمشكلة. لا ترسل مفتاح API في الرسائل.</span></div>
         </div>
         <p class="small muted" style="margin-top: 10mm;">هذه وثيقة تشغيل مخصصة لحساب <strong><%= account.name %></strong>. أي تغيير على حالة الحساب أو مفتاحه أو أسعار خدماته يتطلب إصدار نسخة محدثة من الوثيقة.</p>

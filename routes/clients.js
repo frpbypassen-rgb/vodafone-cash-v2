@@ -71,6 +71,32 @@ const ensureIntegrationApiKey = async (account, field) => {
     throw new Error('INTEGRATION_KEY_PROVISION_FAILED');
 };
 
+const apiKeyFingerprint = (value) => crypto
+    .createHash('sha256')
+    .update(String(value || ''))
+    .digest('hex')
+    .slice(0, 12);
+
+const rotateIntegrationApiKey = async (account, field) => {
+    const previousKey = String(account[field] || '');
+
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+        account[field] = createIntegrationApiKey();
+        try {
+            await account.save();
+            return {
+                previousFingerprint: previousKey ? apiKeyFingerprint(previousKey) : null,
+                currentFingerprint: apiKeyFingerprint(account[field])
+            };
+        } catch (error) {
+            if (error && error.code === 11000 && attempt < 2) continue;
+            throw error;
+        }
+    }
+
+    throw new Error('INTEGRATION_KEY_ROTATION_FAILED');
+};
+
 const safeIntegrationFileReference = (value) => String(value || 'account')
     .replace(/[^a-zA-Z0-9_-]/g, '')
     .slice(0, 40) || 'account';
@@ -357,6 +383,43 @@ router.get('/user/:id/integration-guide.pdf', requireAuth, requireMaster, async 
             return res.status(503).send('تعذر إنشاء ملف PDF لعدم وجود متصفح للطباعة على الخادم.');
         }
         return res.status(500).send('تعذر إنشاء وثيقة الربط.');
+    }
+});
+
+// تدوير المفتاح يوقف المفتاح السابق فوراً: مصادقة Merchant API تعتمد على
+// المطابقة الدقيقة للمفتاح المخزن، لذا لا يبقى للمفتاح السابق أي صلاحية.
+router.post('/company/:id/rotate-api-token', requireAuth, requireMaster, async (req, res) => {
+    try {
+        const company = await ClientCompany.findOne({ _id: req.params.id, ...visibleAccountFilter });
+        if (!company) return res.redirect('/clients?section=companies&apiTokenError=notfound');
+
+        const rotation = await rotateIntegrationApiKey(company, 'token');
+        await logAction({
+            action: 'MERCHANT_API_KEY_ROTATED',
+            req,
+            performedById: req.session.adminId,
+            performedByModel: 'Admin',
+            performedByName: req.session.adminName || req.session.adminUsername || 'الإدارة',
+            targetId: company._id,
+            targetModel: 'ClientCompany',
+            result: 'ناجح',
+            severity: 'warning',
+            metadata: {
+                accountType: 'company',
+                accountName: company.name,
+                accountCode: company.accountCode || '',
+                previousKeyFingerprint: rotation.previousFingerprint,
+                currentKeyFingerprint: rotation.currentFingerprint,
+                previousKeyRevokedImmediately: true
+            }
+        });
+
+        const io = req.app?.get('io');
+        if (io) io.emit('update_data');
+        return res.redirect(`/company/${company._id}?apiTokenRotated=1#company-api-integration`);
+    } catch (error) {
+        console.error('[clients/rotate-company-api-token] failed:', error.message);
+        return res.redirect(`/company/${req.params.id}?apiTokenError=failed#company-api-integration`);
     }
 });
 

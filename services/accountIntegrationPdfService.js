@@ -17,6 +17,8 @@ const SERVICE_LABELS = Object.freeze({
 });
 
 const API_PATH = '/api/v1/merchant';
+const MERCHANT_TRANSFER_MIN_AMOUNT = 100;
+const MERCHANT_TRANSFER_MAX_AMOUNT = 50000;
 
 const normalizeOrigin = (value) => String(value || '').trim().replace(/\/+$/, '');
 
@@ -89,6 +91,12 @@ const buildIntegrationDocumentData = ({
             transferUrl: `${basePath}/transfer`,
             statusUrl: `${basePath}/status/{invoice_number}`
         },
+        transferPolicy: {
+            minAmount: MERCHANT_TRANSFER_MIN_AMOUNT,
+            maxAmount: MERCHANT_TRANSFER_MAX_AMOUNT,
+            acceptedWhatsAppField: 'whatsapp_number',
+            compatibilityWhatsAppField: 'client_phone'
+        },
         services: Object.entries(SERVICE_LABELS).map(([key, label]) => ({
             key,
             label,
@@ -96,12 +104,13 @@ const buildIntegrationDocumentData = ({
         })),
         examples: {
             balanceCurl: `curl --request GET "${basePath}/balance" \\\n+  --header "x-api-key: <API_KEY>" \\\n+  --header "Accept: application/json"`,
-            transferCurl: `curl --request POST "${basePath}/transfer" \\\n+  --header "x-api-key: <API_KEY>" \\\n+  --header "Content-Type: application/json" \\\n+  --header "Accept: application/json" \\\n+  --data '{\n+    "target_number": "01012345678",\n+    "amount": 1000,\n+    "transfer_type": "vodafone"\n+  }'`,
+            transferCurl: `curl --request POST "${basePath}/transfer" \\\n+  --header "x-api-key: <API_KEY>" \\\n+  --header "Content-Type: application/json" \\\n+  --header "Accept: application/json" \\\n+  --data '{\n+    "target_number": "01012345678",\n+    "amount": 1000,\n+    "transfer_type": "vodafone",\n+    "whatsapp_number": "01108172258"\n+  }'`,
             statusCurl: `curl --request GET "${basePath}/status/ATT-2608-0001" \\\n+  --header "x-api-key: <API_KEY>" \\\n+  --header "Accept: application/json"`,
             transferJson: JSON.stringify({
                 target_number: '01012345678',
                 amount: 1000,
-                transfer_type: 'vodafone'
+                transfer_type: 'vodafone',
+                whatsapp_number: '01108172258'
             }, null, 2),
             transferResponse: JSON.stringify({
                 status: 'success',
@@ -111,7 +120,10 @@ const buildIntegrationDocumentData = ({
                     amount_egp: 1000,
                     exchange_rate: 5.95,
                     cost_lyd: 168.067,
-                    balance: 9831.933
+                    balance: 9831.933,
+                    receipt_whatsapp_number: '201108172258',
+                    executor_name: 'مجموعة التنفيذ',
+                    executor_number: null
                 }
             }, null, 2)
         }
@@ -156,6 +168,8 @@ const generateAccountIntegrationPdf = async (app, documentData) => {
 
 module.exports = {
     API_PATH,
+    MERCHANT_TRANSFER_MIN_AMOUNT,
+    MERCHANT_TRANSFER_MAX_AMOUNT,
     SERVICE_LABELS,
     buildIntegrationDocumentData,
     generateAccountIntegrationPdf,

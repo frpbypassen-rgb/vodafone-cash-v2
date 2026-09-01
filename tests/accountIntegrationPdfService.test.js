@@ -48,12 +48,19 @@ describe('Account integration PDF document data', () => {
         expect(documentData.api.basePath).toBe(`https://pay.example.test${API_PATH}`);
         expect(documentData.api.transferUrl).toBe(`https://pay.example.test${API_PATH}/transfer`);
         expect(documentData.api.statusUrl).toBe(`https://pay.example.test${API_PATH}/status/{invoice_number}`);
+        expect(documentData.transferPolicy).toEqual(expect.objectContaining({
+            minAmount: 100,
+            maxAmount: 50000,
+            acceptedWhatsAppField: 'whatsapp_number'
+        }));
         expect(documentData.services).toEqual(expect.arrayContaining([
             expect.objectContaining({ key: 'vodafone', rate: '5.95' }),
             expect.objectContaining({ key: 'post_account', rate: '5.90' })
         ]));
         expect(documentData.examples.transferCurl).toContain('x-api-key: <API_KEY>');
         expect(documentData.examples.transferCurl).not.toContain('company-private-key-123');
+        expect(documentData.examples.transferCurl).toContain('whatsapp_number');
+        expect(documentData.examples.transferResponse).toContain('executor_number');
     });
 
     test('renders a complete Arabic document with the assigned key and account data', () => {
@@ -72,6 +79,9 @@ describe('Account integration PDF document data', () => {
         expect(html).toContain('شركة الربط التجريبية');
         expect(html).toContain('company-private-key-123');
         expect(html).toContain('/api/v1/merchant/transfer');
+        expect(html).toContain('whatsapp_number');
+        expect(html).toContain('50,000');
+        expect(html).toContain('يتوقف المفتاح السابق فورًا');
         expect(html).toContain('واتساب فقط');
     });
 
