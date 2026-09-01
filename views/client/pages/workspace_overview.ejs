@@ -23,6 +23,15 @@
     </div>
 </section>
 
+<section class="bw-role-workspace-card <%= workspace.persona %>">
+    <span class="bw-role-workspace-icon"><i class="fa-solid <%= workspace.persona === 'manager' ? 'fa-compass-drafting' : workspace.persona === 'accountant' ? 'fa-chart-pie' : 'fa-bolt' %>"></i></span>
+    <div>
+        <span class="bw-section-kicker">مساحة عمل <%= workspace.roleLabel %></span>
+        <strong><%= workspace.persona === 'manager' ? 'القرارات والتنبيهات المهمة في مكان واحد' : workspace.persona === 'accountant' ? 'المتابعة المالية والتقارير المركزية دون تنفيذ عمليات' : 'مهامك وعملياتك اليومية في واجهة خفيفة وسريعة' %></strong>
+    </div>
+    <a href="<%= workspace.persona === 'accountant' ? '/client/reports' : '/client/transactions' %>" class="bw-text-link">فتح مساحة العمل <i class="fa-solid fa-arrow-left"></i></a>
+</section>
+
 <section class="bw-metric-grid" aria-label="المؤشرات الرئيسية">
     <% if (workspace.permissions.canViewBalance) { %>
         <article class="bw-metric-card accent-dark">

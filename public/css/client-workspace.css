@@ -106,6 +106,29 @@
 @keyframes bw-assistant-twinkle { 50% { opacity: .25; transform: scale(.55) rotate(35deg); } }
 @keyframes bw-assistant-pulse { 50% { transform: scale(.88); background: rgba(255,255,255,.28); } }
 @media (prefers-reduced-motion: reduce) { .bw-assistant-launcher-core, .bw-assistant-launcher-spark, .bw-assistant-mark-star, .bw-assistant-empty, .bw-assistant-empty::before, .bw-assistant-empty::after, .bw-assistant-orbit { animation: none; } }
+
+/* Company workspace: calm, role-led surfaces with motion that can be disabled. */
+.bw-central-report-banner, .bw-team-role-guide, .bw-role-workspace-card { display: flex; align-items: center; gap: 15px; margin: 0 0 18px; padding: 16px 18px; border: 1px solid var(--bw-border); border-radius: 18px; background: linear-gradient(135deg, color-mix(in srgb, var(--bw-surface) 94%, #eaf2ff), var(--bw-surface)); box-shadow: var(--bw-shadow-sm); }
+.bw-central-report-banner { border-color: color-mix(in srgb, var(--bw-blue) 28%, var(--bw-border)); overflow: hidden; position: relative; }
+.bw-central-report-banner::after { position: absolute; width: 150px; height: 150px; inset-inline-end: -55px; bottom: -95px; border: 1px solid color-mix(in srgb, var(--bw-blue) 24%, transparent); border-radius: 50%; content: ''; animation: bw-central-orbit 9s linear infinite; }
+.bw-central-report-seal, .bw-role-workspace-icon { display: grid; width: 48px; height: 48px; flex: 0 0 48px; place-items: center; border-radius: 16px; color: #fff; background: linear-gradient(145deg, var(--bw-blue), var(--bw-cyan)); box-shadow: 0 10px 20px color-mix(in srgb, var(--bw-blue) 28%, transparent); }
+.bw-central-report-banner > div, .bw-role-workspace-card > div { display: grid; gap: 4px; flex: 1; min-width: 0; }
+.bw-central-report-banner strong, .bw-role-workspace-card strong { color: var(--bw-strong); font-size: 1rem; }
+.bw-central-report-banner p, .bw-team-role-guide small { margin: 0; color: var(--bw-muted); line-height: 1.7; }
+.bw-central-report-banner dl { display: grid; gap: 5px; margin: 0; min-width: 220px; font-size: .76rem; }
+.bw-central-report-banner dl div { display: flex; justify-content: space-between; gap: 10px; }
+.bw-central-report-banner dt { color: var(--bw-muted); }.bw-central-report-banner dd { margin: 0; color: var(--bw-text); }
+.bw-team-role-guide { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); padding: 8px; background: transparent; box-shadow: none; }
+.bw-team-role-guide article { display: flex; align-items: flex-start; gap: 10px; padding: 13px; border-radius: 13px; transition: transform .2s ease, box-shadow .2s ease; }
+.bw-team-role-guide article:hover { transform: translateY(-3px); box-shadow: var(--bw-shadow-sm); }
+.bw-team-role-guide article > span { display: grid; width: 34px; height: 34px; flex: 0 0 34px; place-items: center; border-radius: 11px; background: var(--bw-blue-soft); color: var(--bw-blue); }
+.bw-team-role-guide .accountant > span { background: var(--bw-amber-soft); color: var(--bw-amber); }.bw-team-role-guide .employee > span { background: var(--bw-green-soft); color: var(--bw-green); }
+.bw-team-role-guide article div { display: grid; gap: 3px; }.bw-team-role-guide strong { color: var(--bw-strong); }
+.bw-role-workspace-card { border-inline-start: 4px solid var(--bw-blue); }.bw-role-workspace-card.accountant { border-inline-start-color: var(--bw-amber); }.bw-role-workspace-card.employee { border-inline-start-color: var(--bw-green); }
+.bw-role-workspace-card.accountant .bw-role-workspace-icon { background: linear-gradient(145deg, #df9d22, #f3c45a); }.bw-role-workspace-card.employee .bw-role-workspace-icon { background: linear-gradient(145deg, #129878, #28c49f); }
+@keyframes bw-central-orbit { to { transform: rotate(360deg); } }
+@media (max-width: 760px) { .bw-central-report-banner { align-items: flex-start; flex-wrap: wrap; padding: 14px; }.bw-central-report-banner dl { min-width: 100%; }.bw-team-role-guide { grid-template-columns: 1fr; }.bw-role-workspace-card { align-items: flex-start; flex-wrap: wrap; }.bw-role-workspace-card .bw-text-link { margin-inline-start: 63px; } }
+@media (prefers-reduced-motion: reduce) { .bw-central-report-banner::after { animation: none; }.bw-team-role-guide article { transition: none; } }
 .bw-assistant-message { max-width: 84%; padding: 11px 13px; border-radius: 15px; line-height: 1.72; white-space: pre-wrap; font-size: .93rem; }
 .bw-assistant-message.assistant { justify-self: start; background: color-mix(in srgb, var(--bw-surface) 92%, #eaf2ff); color: var(--bw-text); border: 1px solid color-mix(in srgb, var(--bw-blue) 13%, var(--bw-border)); border-start-start-radius: 5px; }
 .bw-assistant-message.user { justify-self: end; background: linear-gradient(135deg, #196ddd, #168caf); color: #fff; border-end-end-radius: 5px; box-shadow: 0 7px 16px rgba(25, 109, 221, .16); }

@@ -4,6 +4,7 @@ const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
 
 const businessPortalService = require('../services/businessPortalService');
+const centralReportService = require('../services/centralReportService');
 const ClientCompany = require('../models/ClientCompany');
 const ClientEmployee = require('../models/ClientEmployee');
 const AgentEmployee = require('../models/AgentEmployee');
@@ -703,37 +704,16 @@ exports.askBusinessAssistant = async (req, res) => {
     }
 };
 
-const csvValue = (value) => `"${String(value ?? '').replace(/"/g, '""')}"`;
-
 exports.exportReportCsv = async (req, res) => {
     try {
         const workspace = await businessPortalService.resolveWorkspace(req);
         if (!workspace.permissions.canViewReports) return res.status(403).send('Forbidden');
         const report = await businessPortalService.loadReports(workspace, req.query);
-        const canViewBalance = workspace.permissions.canViewBalance;
-        const canViewAgencyProfit = workspace.isAgent && canViewBalance;
-        const headers = canViewBalance
-            ? ['البند', 'إجمالي العمليات', 'الناجحة', 'قيد التنفيذ', 'الملغية', 'إجمالي EGP', 'إجمالي LYD', 'الإيداعات', 'الخصومات', ...(canViewAgencyProfit ? ['ربح الوكالة المحقق', 'ربح متوقع', 'ربح مستبعد'] : []), 'آخر حركة']
-            : ['البند', 'إجمالي العمليات', 'الناجحة', 'قيد التنفيذ', 'الملغية', 'إجمالي EGP', 'آخر حركة'];
-        const lines = [headers.map(csvValue).join(',')];
-        report.reportRows.forEach((row) => {
-            const values = [
-                row.key,
-                row.totalCount,
-                row.completedCount,
-                row.pendingCount,
-                row.cancelledCount,
-                row.totalEGP
-            ];
-            if (canViewBalance) values.push(row.totalLYD, row.deposits, row.deductions);
-            if (canViewAgencyProfit) values.push(row.realizedProfit || 0, row.expectedProfit || 0, row.reversedProfit || 0);
-            values.push(row.lastActivity ? new Date(row.lastActivity).toISOString() : '');
-            lines.push(values.map(csvValue).join(','));
-        });
-        const fileName = `portal-report-${report.reportScope}-${Date.now()}.csv`;
+        const artifact = report.centralReport || centralReportService.buildArtifact({ workspace, report });
+        const fileName = `central-${report.reportScope}-${artifact.reportId}.csv`;
         res.setHeader('Content-Type', 'text/csv; charset=utf-8');
         res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
-        return res.send(`\uFEFF${lines.join('\n')}`);
+        return res.send(centralReportService.buildCsv({ workspace, report, artifact }));
     } catch (error) {
         console.error('[Business Portal] CSV export failed:', error.message);
         return res.status(500).send('تعذر تصدير التقرير.');

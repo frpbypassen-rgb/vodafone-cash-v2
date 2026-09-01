@@ -6,6 +6,12 @@
     <article><span>عمليات الشهر</span><strong class="bw-mono"><%= staffSummary.monthOperations %></strong></article>
 </section>
 
+<section class="bw-team-role-guide" aria-label="دليل أدوار الفريق">
+    <article class="manager"><span><i class="fa-solid fa-user-shield"></i></span><div><strong>المدير</strong><small>يتابع الأداء، يدير الموظفين والصلاحيات، ويعتمد القرارات التشغيلية.</small></div></article>
+    <article class="accountant"><span><i class="fa-solid fa-calculator"></i></span><div><strong>المحاسب</strong><small>يراجع الرصيد والإيداعات والتقارير الموحدة دون تنفيذ تحويلات.</small></div></article>
+    <article class="employee"><span><i class="fa-solid fa-bolt"></i></span><div><strong>الموظف</strong><small>ينفذ مهام اليوم ويتابع عملياته فقط بحسب صلاحياته.</small></div></article>
+</section>
+
 <section class="bw-section">
     <header class="bw-section-head">
         <div><span class="bw-section-kicker">الفريق والصلاحيات</span><h2>حسابات الموظفين</h2></div>
@@ -48,8 +54,8 @@
             <label class="bw-field"><span>رقم الهاتف</span><input type="tel" name="phone" dir="ltr" required></label>
             <label class="bw-field"><span>اسم المستخدم</span><div class="bw-input-suffix"><input type="text" name="webUsername" dir="ltr" pattern="[A-Za-z0-9_]{3,40}" required><b>@ahram.com</b></div></label>
             <label class="bw-field"><span>كلمة المرور</span><input type="password" name="webPassword" minlength="8" autocomplete="new-password" required></label>
-            <label class="bw-field"><span>صفة الموظف</span><select name="role"><option value="employee">موظف</option><option value="accountant">محاسب</option></select></label>
-            <label class="bw-check-row span-2"><input type="checkbox" name="<%= workspace.isCompany ? 'canManageCompany' : 'canManageAgent' %>"><span><i class="fa-solid fa-user-shield"></i><strong>منحه صلاحية مدير تشغيل</strong><small>يتابع العملاء والعمليات دون إنشاء حسابات موظفين.</small></span></label>
+            <label class="bw-field"><span>صفة الموظف</span><select name="role"><option value="employee">موظف تنفيذ — عمليات اليوم</option><option value="accountant">محاسب — تقارير وحركات مالية</option></select></label>
+            <label class="bw-check-row span-2"><input type="checkbox" name="<%= workspace.isCompany ? 'canManageCompany' : 'canManageAgent' %>"><span><i class="fa-solid fa-user-shield"></i><strong>منحه صلاحية مدير تشغيل</strong><small><%= workspace.isCompany ? 'يتابع الفريق والعمليات والتقارير دون إنشاء حسابات موظفين.' : 'يتابع العملاء والعمليات دون إنشاء حسابات موظفين.' %></small></span></label>
         </div>
         <div class="bw-dialog-actions"><button type="button" class="bw-button secondary" data-dialog-close>إلغاء</button><button type="submit" class="bw-button primary"><i class="fa-solid fa-user-plus"></i>إنشاء الحساب</button></div>
     </form>

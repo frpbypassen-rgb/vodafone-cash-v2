@@ -17,6 +17,7 @@ const { resolveMarginPiasters, pricingFromTransaction, roundMoney } = require('.
 const { calculateCreditState } = require('./agencyCreditLimitService');
 const { activatePendingRateUpdate } = require('./rateChangeService');
 const { buildPendingRateAlertForClient } = require('./rateAlerts/rateAlertAudienceService');
+const { buildArtifact: buildCentralReportArtifact } = require('./centralReportService');
 const {
     sanitizeStatementMovement,
     sanitizeStatementTransaction
@@ -139,6 +140,11 @@ const REPORT_SCOPES = Object.freeze({
     staff: 'تقرير الموظفين'
 });
 
+const COMPANY_REPORT_SCOPES = Object.freeze({
+    organization: 'تقرير المنشأة',
+    staff: 'تقرير الموظفين'
+});
+
 const safeNumber = (value) => {
     const parsed = Number(value);
     return Number.isFinite(parsed) ? parsed : 0;
@@ -225,9 +231,10 @@ const resolveCompanyPermissions = (actor) => {
         employee: !manager && !accountant,
         canTransfer: !accountant,
         canViewBalance: owner || manager || accountant || actor.canViewAllReports === true,
-        canManageCustomers: manager,
+        // الشركة تعمل بفريق داخلي فقط؛ العملاء تابعون للوكلاء وليس للشركات.
+        canManageCustomers: false,
         canManageStaff: owner,
-        canViewReports: true,
+        canViewReports: owner || manager || accountant || actor.canViewAllReports === true,
         canEditSettings: owner || manager
     };
 };
@@ -348,7 +355,7 @@ const buildNavigation = (workspace, activePage) => {
         { key: 'agency_account', href: '/client/finance/agency-account', label: 'حساب الوكالة', icon: 'fa-building-columns', group: 'محاسبة الوكالة', visible: workspace.isAgent && workspace.permissions.canViewBalance },
         { key: 'agency_position', href: '/client/finance/position', label: 'المركز المالي', icon: 'fa-scale-balanced', group: 'محاسبة الوكالة', visible: workspace.isAgent && workspace.permissions.canViewBalance },
         { key: 'agency_profits', href: '/client/finance/profits', label: 'أرباح العملاء', icon: 'fa-chart-line', group: 'محاسبة الوكالة', visible: workspace.isAgent && workspace.permissions.canViewBalance },
-        { key: 'customers', href: '/client/customers', label: 'العملاء', icon: 'fa-users', group: 'الإدارة', visible: workspace.permissions.canManageCustomers },
+        { key: 'customers', href: '/client/customers', label: 'العملاء', icon: 'fa-users', group: 'الإدارة', visible: workspace.isAgent && workspace.permissions.canManageCustomers },
         { key: 'staff', href: '/client/staff', label: 'الموظفون', icon: 'fa-user-group', group: 'الإدارة', visible: workspace.permissions.manager || workspace.permissions.accountant },
         { key: 'reports', href: '/client/reports', label: 'التقارير', icon: 'fa-chart-column', group: 'التحليل', visible: workspace.permissions.canViewReports },
         { key: 'settings', href: '/client/settings', label: 'الإعدادات', icon: 'fa-sliders', group: 'الحساب والنظام', visible: true },
@@ -371,7 +378,7 @@ const canAccessPage = (workspace, page) => {
     if (page === 'customer_profile') {
         return workspace.isAgent && (workspace.permissions.canViewBalance || workspace.permissions.canManageCustomers);
     }
-    if (page === 'customers') return workspace.permissions.canManageCustomers;
+    if (page === 'customers') return workspace.isAgent && workspace.permissions.canManageCustomers;
     if (page === 'staff') return workspace.permissions.manager || workspace.permissions.accountant;
     if (page === 'reports') return workspace.permissions.canViewReports;
     return false;
@@ -782,7 +789,8 @@ const buildReportGroups = (transactions, scope) => {
 
 const loadReports = async (workspace, query = {}) => {
     const requestedScope = String(query.scope || 'organization');
-    const scope = REPORT_SCOPES[requestedScope] ? requestedScope : 'organization';
+    const availableScopes = workspace.isCompany ? COMPANY_REPORT_SCOPES : REPORT_SCOPES;
+    const scope = availableScopes[requestedScope] ? requestedScope : 'organization';
     const { filter, range } = await buildTransactionFilter(workspace, query, { forceToday: workspace.forceToday });
     const transactions = await Transaction.find(filter).sort({ createdAt: -1 }).limit(5000).lean();
     const reportSummary = summarizeTransactions(transactions);
@@ -802,8 +810,8 @@ const loadReports = async (workspace, query = {}) => {
 
     return {
         reportScope: scope,
-        reportScopeLabel: REPORT_SCOPES[scope],
-        reportScopes: REPORT_SCOPES,
+        reportScopeLabel: availableScopes[scope],
+        reportScopes: availableScopes,
         reportSummary,
         reportRows,
         serviceBreakdown,
@@ -811,7 +819,11 @@ const loadReports = async (workspace, query = {}) => {
             ? agencyFinanceService.buildProfitRows(transactions, new Map())
             : [],
         reportTransactions: transactions.slice(0, 100).map(sanitizeStatementTransaction),
-        filters: { ...range, scope }
+        filters: { ...range, scope },
+        centralReport: buildCentralReportArtifact({
+            workspace,
+            report: { reportScope: scope, filters: range, reportSummary, reportRows }
+        })
     };
 };
 
@@ -890,6 +902,7 @@ module.exports = {
     SERVICE_CATALOG,
     PAGE_META,
     REPORT_SCOPES,
+    COMPANY_REPORT_SCOPES,
     resolveDateRange,
     resolveCompanyPermissions,
     resolveAgentPermissions,
