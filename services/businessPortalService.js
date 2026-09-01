@@ -20,6 +20,7 @@ const { activatePendingRateUpdate } = require('./rateChangeService');
 const { buildPendingRateAlertForClient } = require('./rateAlerts/rateAlertAudienceService');
 const { buildArtifact: buildCentralReportArtifact } = require('./centralReportService');
 const { findReportTransactions, getUnifiedReportStatus } = require('./unifiedReportService');
+const { loadAdminReport } = require('./adminReportService');
 const {
     sanitizeStatementMovement,
     sanitizeStatementTransaction
@@ -820,6 +821,32 @@ const buildReportGroups = (transactions, scope) => {
     return [...groups.values()].sort((left, right) => new Date(right.lastActivity) - new Date(left.lastActivity));
 };
 
+const centralCompanyReportInput = (workspace, query = {}) => {
+    if (!workspace?.isCompany || !workspace.entity?._id) {
+        const error = new Error('CENTRAL_COMPANY_REPORT_FORBIDDEN');
+        error.statusCode = 403;
+        throw error;
+    }
+    const requestedType = String(query.centralDateType || query.dateType || '').toLowerCase();
+    const dateType = requestedType === 'day' ? 'day' : 'month';
+    const today = new Date().toISOString().slice(0, 10);
+    const dateValue = dateType === 'day'
+        ? String(query.centralDateValue || query.dateValue || query.from || today)
+        : String(query.centralDateValue || query.dateValue || query.month || today.slice(0, 7));
+    return {
+        mainCategory: 'company',
+        subId: String(workspace.entity._id),
+        subType: 'all',
+        dateType,
+        dateValue
+    };
+};
+
+const loadCentralCompanyReport = async (workspace, query = {}) => {
+    const input = centralCompanyReportInput(workspace, query);
+    return { input, report: await loadAdminReport(input) };
+};
+
 const loadReports = async (workspace, query = {}) => {
     const requestedScope = String(query.scope || 'organization');
     const availableScopes = workspace.isCompany ? COMPANY_REPORT_SCOPES : REPORT_SCOPES;
@@ -827,7 +854,7 @@ const loadReports = async (workspace, query = {}) => {
     const { filter, range } = await buildTransactionFilter(workspace, query, { forceToday: workspace.forceToday });
     // Reports are always read through the shared central reporting gateway.
     // It mirrors the financial source of truth used by the administration portal.
-    const [transactions, centralSync, centralDownloads] = await Promise.all([
+    const [transactions, centralSync, centralDownloads, centralAdminReport] = await Promise.all([
         findReportTransactions(filter, { sort: { createdAt: -1 }, limit: 5000 }),
         getUnifiedReportStatus().catch(() => ({ status: 'offline' })),
         AuditLog.find({ action: 'CENTRAL_REPORT_DOWNLOADED', targetId: workspace.entity._id })
@@ -835,7 +862,10 @@ const loadReports = async (workspace, query = {}) => {
             .limit(6)
             .select('performedByName metadata createdAt')
             .lean()
-            .catch(() => [])
+            .catch(() => []),
+        workspace.isCompany
+            ? loadCentralCompanyReport(workspace, query).catch((error) => ({ error: error.message }))
+            : Promise.resolve(null)
     ]);
     const reportSummary = summarizeTransactions(transactions);
     const reportRows = buildReportGroups(transactions, scope);
@@ -869,7 +899,9 @@ const loadReports = async (workspace, query = {}) => {
             report: { reportScope: scope, filters: range, reportSummary, reportRows }
         }),
         centralSync,
-        centralDownloads
+        centralDownloads,
+        centralAdminReport: centralAdminReport?.report || null,
+        centralAdminReportInput: centralAdminReport?.input || null
     };
 };
 
@@ -962,6 +994,7 @@ module.exports = {
     buildReportGroups,
     loadPageContext,
     loadReports,
+    loadCentralCompanyReport,
     safeNumber,
     formatInputDate
 };

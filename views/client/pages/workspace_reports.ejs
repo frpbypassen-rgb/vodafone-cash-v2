@@ -6,10 +6,28 @@
     </div>
     <div class="bw-report-actions">
         <% const exportParams = new URLSearchParams({ ...query, scope: reportScope }); %>
+        <% if (workspace.isCompany) { const adminInput = centralAdminReportInput || { dateType: 'month', dateValue: filters.month || new Date().toISOString().slice(0, 7) }; const centralPdfParams = new URLSearchParams({ centralDateType: adminInput.dateType, centralDateValue: adminInput.dateValue }); %>
+            <a href="/client/reports/central.pdf?<%= centralPdfParams.toString() %>" class="bw-button primary bw-central-download"><i class="fa-solid fa-file-pdf"></i>تحميل تقرير الإدارة PDF</a>
+        <% } %>
         <a href="/client/reports/export.csv?<%= exportParams.toString() %>" class="bw-button primary bw-central-download"><i class="fa-solid fa-cloud-arrow-down"></i>تنزيل التقرير المركزي</a>
         <button type="button" class="bw-button secondary" onclick="window.print()"><i class="fa-solid fa-print"></i>طباعة / PDF</button>
     </div>
 </section>
+
+<% if (workspace.isCompany && centralAdminReport) { const centralStats = centralAdminReport.stats || {}; const centralClosure = centralAdminReport.closure || {}; %>
+<section class="bw-section bw-central-downloads">
+    <header class="bw-section-head"><div><span class="bw-section-kicker">نفس محرك الإدارة</span><h2>الملخص المالي الرسمي</h2></div><span class="bw-meta-chip"><i class="fa-solid fa-building-columns"></i><%= centralAdminReport.range?.dateType === 'day' ? 'تقرير يومي' : 'تقرير شهري' %></span></header>
+    <div class="bw-mini-metrics report">
+        <article><span>الرصيد السابق</span><strong class="bw-mono"><%= Number(centralStats.previousBalance || 0).toFixed(3) %> <small>LYD</small></strong></article>
+        <article class="blue"><span>تكلفة التحويلات</span><strong class="bw-mono"><%= Number(centralStats.operationsCost || 0).toFixed(3) %> <small>LYD</small></strong></article>
+        <article class="success"><span>الإيداعات</span><strong class="bw-mono"><%= Number(centralStats.totalDeposits || 0).toFixed(3) %> <small>LYD</small></strong></article>
+        <article class="danger"><span>الخصومات</span><strong class="bw-mono"><%= Number(centralStats.totalDeductions || 0).toFixed(3) %> <small>LYD</small></strong></article>
+        <article class="warning"><span>صافي الفترة</span><strong class="bw-mono"><%= Number(centralStats.dailyNet || 0).toFixed(3) %> <small>LYD</small></strong></article>
+        <article><span>الرصيد الختامي</span><strong class="bw-mono"><%= Number(centralStats.endingBalance || 0).toFixed(3) %> <small>LYD</small></strong></article>
+    </div>
+    <div class="bw-central-report-banner"><span class="bw-central-report-seal"><i class="fa-solid fa-lock"></i></span><div><strong><%= centralClosure.closedDayCount ? `تم إقفال ${centralClosure.closedDayCount} يوم مالي` : 'الفترة مفتوحة مالياً' %></strong><p><%= centralClosure.hasPostCloseChanges ? `رُصد ${centralAdminReport.closedDayChanges?.length || 0} تعديل بعد الإقفال.` : 'لا توجد تعديلات مالية مرصودة بعد الإقفال.' %></p></div></div>
+</section>
+<% } %>
 
 <section class="bw-section bw-central-downloads">
     <header class="bw-section-head"><div><span class="bw-section-kicker">سجل موثّق</span><h2>آخر الملفات الصادرة</h2></div><span class="bw-meta-chip"><i class="fa-solid fa-shield-halved"></i>من الإدارة المركزية</span></header>

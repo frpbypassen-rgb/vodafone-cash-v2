@@ -197,6 +197,7 @@ router.get('/customers/:id', requireClientAuth, clientWorkspaceController.render
 router.get('/staff', requireClientAuth, clientWorkspaceController.renderPage('staff'));
 router.get('/settings', requireClientAuth, clientWorkspaceController.renderPage('settings'));
 router.get('/reports/export.csv', requireClientAuth, clientWorkspaceController.exportReportCsv);
+router.get('/reports/central.pdf', requireClientAuth, clientWorkspaceController.downloadCentralCompanyReportPdf);
 router.get('/transactions/:id/details', requireClientAuth, clientWorkspaceController.getTransactionDetails);
 router.post('/api/smart-transfer/parse', requireClientAuth, clientWorkspaceController.parseSmartTransferMessage);
 router.post('/api/assistant/query', requireClientAuth, businessAssistantLimiter, clientWorkspaceController.askBusinessAssistant);
