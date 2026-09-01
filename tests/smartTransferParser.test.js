@@ -44,6 +44,19 @@ describe('smart transfer parser', () => {
         expect(parsed.candidates.amounts).toEqual([1000]);
     });
 
+    test('recognizes a compact reference, wallet number and Egyptian amount template', () => {
+        const parsed = parseTransferMessage('a0089\n01002186880\n2٫000مصري');
+        expect(parsed).toMatchObject({ phone: '01002186880', amountEGP: 2000, note: 'a0089', template: 'reference_wallet_amount', ready: true });
+        expect(parsed.candidates.amounts).toEqual([2000]);
+    });
+
+    test('recognizes a numeric reference with Vodafone Cash and a short pound marker', () => {
+        const parsed = parseTransferMessage('044\n01005160210\nفودفون كاش\n1350 ج');
+        expect(parsed).toMatchObject({
+            phone: '01005160210', amountEGP: 1350, note: '044', serviceKey: 'vodafone', template: 'reference_wallet_amount', ready: true
+        });
+    });
+
     test('does not allow automatic sending when two recipient numbers exist', () => {
         const parsed = parseTransferMessage('01011111111 و 01022222222 مبلغ 500');
         expect(parsed.ready).toBe(false);

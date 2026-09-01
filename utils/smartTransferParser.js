@@ -58,8 +58,8 @@ const findPhones = (text) => {
 
 const amountPatterns = Object.freeze([
     /(?:المبلغ|مبلغ|القيمة|قيمة)\s*(?:هو|:|=|-)?\s*([0-9]+(?:[ \t.,][0-9]+)*)/iu,
-    /([0-9]+(?:[ \t.,][0-9]+)*)\s*(?:جنيه(?:ات)?|جنية|جنيه\s*مصري|ج\.?\s*م\.?|ج|egp)/iu,
-    /(?:egp|جنيه(?:ات)?|جنية|ج\.?\s*م\.?|ج)\s*(?:هو|:|=|-)?\s*([0-9]+(?:[ \t.,][0-9]+)*)/iu
+    /([0-9]+(?:[ \t.,][0-9]+)*)\s*(?:جنيه(?:ات)?|جنية|جنيه\s*مصري|ج\.?\s*م\.?|ج|مصري|مصرى|egp|egyptian\s*pounds?)/iu,
+    /(?:egp|جنيه(?:ات)?|جنية|جنيه\s*مصري|ج\.?\s*م\.?|ج|مصري|مصرى|egyptian\s*pounds?)\s*(?:هو|:|=|-)?\s*([0-9]+(?:[ \t.,][0-9]+)*)/iu
 ]);
 
 const findAmount = (text, phones) => {
@@ -111,11 +111,23 @@ const findSequenceNote = (text) => {
     return match ? `التسلسل: ${match[1]}` : '';
 };
 
+const findLeadingReferenceNote = (text) => {
+    const lines = String(text || '').split(/\r?\n/).map((line) => cleanNote(line)).filter(Boolean);
+    if (lines.length < 3) return '';
+    const reference = lines[0];
+    const hasPhoneAfterReference = lines.slice(1).some((line) => findPhones(line).length > 0);
+    const hasCurrencyAmountAfterReference = lines.slice(1).some((line) => amountPatterns.some((pattern) => pattern.test(line)));
+    // Examples: a0089, P1193 and 044. The reference is never treated as money.
+    if (hasPhoneAfterReference && hasCurrencyAmountAfterReference && /^[A-Z]*\d{1,20}$/iu.test(reference)) return reference;
+    return '';
+};
+
 const detectMessageTemplate = (text) => {
     const hasWallet = /رقم\s*(?:المحفظة|الهاتف|الموبايل)/iu.test(text);
     const hasValue = /(?:القيمة|مبلغ|المبلغ)\s*[:：=\-]/iu.test(text);
     const hasSequence = /(?:التسلسل|تسلسل)\s*[:：=\-]/iu.test(text);
-    return hasWallet && hasValue && hasSequence ? 'wallet_value_sequence' : 'free_form';
+    if (hasWallet && hasValue && hasSequence) return 'wallet_value_sequence';
+    return findLeadingReferenceNote(text) ? 'reference_wallet_amount' : 'free_form';
 };
 
 const findNote = (text, phoneSource, amountSource) => {
@@ -123,6 +135,8 @@ const findNote = (text, phoneSource, amountSource) => {
     if (explicit) return cleanNote(explicit[1]);
     const sequenceNote = findSequenceNote(text);
     if (sequenceNote) return sequenceNote;
+    const referenceNote = findLeadingReferenceNote(text);
+    if (referenceNote) return referenceNote;
 
     let remainder = text;
     const phoneSources = Array.isArray(phoneSource) ? phoneSource : [phoneSource];
@@ -186,5 +200,6 @@ module.exports = {
     normalizeDigits,
     normalizeAmountToken,
     findSequenceNote,
+    findLeadingReferenceNote,
     detectMessageTemplate
 };
