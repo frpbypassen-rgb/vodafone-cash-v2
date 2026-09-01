@@ -103,9 +103,26 @@ const cleanNote = (value) => String(value || '')
     .trim()
     .slice(0, MAX_NOTE_LENGTH);
 
+// رسائل التحصيل تصل غالباً بالقالب: رقم المحفظة + القيمة + التسلسل.
+// التسلسل ليس مبلغاً ولا رقم مستلم؛ نحفظه كملاحظة مرجعية حتى يبقى قابلاً
+// للمطابقة مع كشف العميل أثناء مراجعة التحويل.
+const findSequenceNote = (text) => {
+    const match = String(text || '').match(/(?:📌\s*)?(?:التسلسل|تسلسل|serial|reference|ref)\s*[:：=\-]?\s*([A-Z0-9][A-Z0-9_\-/]{0,79})/iu);
+    return match ? `التسلسل: ${match[1]}` : '';
+};
+
+const detectMessageTemplate = (text) => {
+    const hasWallet = /رقم\s*(?:المحفظة|الهاتف|الموبايل)/iu.test(text);
+    const hasValue = /(?:القيمة|مبلغ|المبلغ)\s*[:：=\-]/iu.test(text);
+    const hasSequence = /(?:التسلسل|تسلسل)\s*[:：=\-]/iu.test(text);
+    return hasWallet && hasValue && hasSequence ? 'wallet_value_sequence' : 'free_form';
+};
+
 const findNote = (text, phoneSource, amountSource) => {
     const explicit = text.match(/(?:ملاحظ(?:ة|ه|ات)|ملحوظ(?:ة|ه|ات)|note)\s*[:：=\-]?\s*([^\r\n]+)/iu);
     if (explicit) return cleanNote(explicit[1]);
+    const sequenceNote = findSequenceNote(text);
+    if (sequenceNote) return sequenceNote;
 
     let remainder = text;
     const phoneSources = Array.isArray(phoneSource) ? phoneSource : [phoneSource];
@@ -136,6 +153,7 @@ const parseTransferMessage = (rawMessage) => {
     const note = findNote(message, phones.map((item) => item.source), amount.source);
     const beneficiaryName = findBeneficiaryName(message);
     const serviceKey = detectService(message);
+    const template = detectMessageTemplate(message);
     const missing = [];
     if (!phone.value) missing.push('رقم الهاتف');
     if (!amount.value) missing.push('المبلغ بالجنيه');
@@ -158,6 +176,7 @@ const parseTransferMessage = (rawMessage) => {
         missing,
         warnings,
         confidence,
+        template,
         candidates: { phones: phones.map((item) => item.value), amounts: amount.candidates || [] }
     };
 };
@@ -165,5 +184,7 @@ const parseTransferMessage = (rawMessage) => {
 module.exports = {
     parseTransferMessage,
     normalizeDigits,
-    normalizeAmountToken
+    normalizeAmountToken,
+    findSequenceNote,
+    detectMessageTemplate
 };

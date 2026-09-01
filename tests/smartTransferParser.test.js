@@ -20,6 +20,30 @@ describe('smart transfer parser', () => {
         expect(parsed).toMatchObject({ phone: '01012345678', amountEGP: 1250, note: 'توريد اليوم', ready: true });
     });
 
+    test('recognizes the Arabic wallet, value and sequence collection template', () => {
+        const parsed = parseTransferMessage('📌 التسلسل: 1716\n📱 رقم المحفظة: 01001352034\n💰 القيمة: 1000\n🔠 القيمة بالحروف: ألف جنيه');
+        expect(parsed).toMatchObject({
+            phone: '01001352034',
+            amountEGP: 1000,
+            note: 'التسلسل: 1716',
+            serviceKey: 'vodafone',
+            template: 'wallet_value_sequence',
+            ready: true
+        });
+    });
+
+    test('recognizes an alphanumeric sequence without confusing it with the amount', () => {
+        const parsed = parseTransferMessage('📌 التسلسل : P1193\n📱 رقم المحفظة: ‎01214089875\n💰 القيمة: 1000');
+        expect(parsed).toMatchObject({
+            phone: '01214089875',
+            amountEGP: 1000,
+            note: 'التسلسل: P1193',
+            template: 'wallet_value_sequence',
+            ready: true
+        });
+        expect(parsed.candidates.amounts).toEqual([1000]);
+    });
+
     test('does not allow automatic sending when two recipient numbers exist', () => {
         const parsed = parseTransferMessage('01011111111 و 01022222222 مبلغ 500');
         expect(parsed.ready).toBe(false);
