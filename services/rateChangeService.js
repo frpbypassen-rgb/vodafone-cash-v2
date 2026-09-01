@@ -20,6 +20,7 @@ const {
 const RATE_CHANGE_MONITOR_INTERVAL_MS = 5 * 1000;
 let activationTimer = null;
 let activationMonitor = null;
+let activationInFlight = false;
 
 const emitRateRefresh = (app, event, campaignReference = '') => {
     const io = app?.get?.('io');
@@ -51,7 +52,20 @@ const notifyClients = async ({ audience, event }) => {
         };
     });
     if (!docs.length) return;
-    await Notification.insertMany(docs, { ordered: false }).catch(() => {});
+    const campaignReference = String(docs[0]?.metadata?.campaignReference || '').trim();
+    let existingUserIds = new Set();
+    if (campaignReference) {
+        const existing = await Notification.find({
+            userId: { $in: docs.map((doc) => doc.userId) },
+            type: 'rate_change',
+            'metadata.campaignReference': campaignReference,
+            'metadata.event': event
+        }).select('userId').lean();
+        existingUserIds = new Set(existing.map((row) => String(row.userId)));
+    }
+    const toInsert = docs.filter((doc) => !existingUserIds.has(String(doc.userId)));
+    if (!toInsert.length) return;
+    await Notification.insertMany(toInsert, { ordered: false }).catch(() => {});
 };
 
 // Compatibility helper for callers that already own a recipient-specific
@@ -64,35 +78,40 @@ const buildRateChangePayload = ({ payload, effectiveAt, delaySeconds, campaignRe
 });
 
 const activatePendingRateUpdate = async ({ app } = {}) => {
+    if (activationInFlight) return null;
     const settings = await Settings.findOne({});
     const pending = settings?.pendingRateUpdate;
     if (!settings || !pending?.effectiveAt || !pending?.changes) return null;
     if (new Date(pending.effectiveAt).getTime() > Date.now()) return null;
-
-    const delaySeconds = normalizeDelaySeconds(pending.delaySeconds || settings.rateChangeDelaySeconds);
-    const audience = await buildRateAlertAudience({
-        settings,
-        changes: pending.changes,
-        effectiveAt: pending.effectiveAt,
-        delaySeconds,
-        campaignReference: pending.campaignReference
-    });
-    Object.assign(settings, pending.changes);
-    const campaignReference = pending.campaignReference || '';
-    settings.pendingRateUpdate = undefined;
-    await settings.save();
-    await activateRateAlertCampaign(campaignReference).catch((error) => {
-        console.error('[RateAlert] campaign activation failed:', error.message);
-    });
-    await notifyClients({ audience, event: 'activated' });
-    emitRateRefresh(app, 'activated', campaignReference);
-    const io = app?.get?.('io');
-    if (io) io.emit('exchange_rates_updated', { source: 'general' });
-    return {
-        activatedAt: new Date().toISOString(),
-        campaignReference,
-        targetedAccounts: audience.length
-    };
+    activationInFlight = true;
+    try {
+        const delaySeconds = normalizeDelaySeconds(pending.delaySeconds || settings.rateChangeDelaySeconds);
+        const audience = await buildRateAlertAudience({
+            settings,
+            changes: pending.changes,
+            effectiveAt: pending.effectiveAt,
+            delaySeconds,
+            campaignReference: pending.campaignReference
+        });
+        Object.assign(settings, pending.changes);
+        const campaignReference = pending.campaignReference || '';
+        settings.pendingRateUpdate = undefined;
+        await settings.save();
+        await activateRateAlertCampaign(campaignReference).catch((error) => {
+            console.error('[RateAlert] campaign activation failed:', error.message);
+        });
+        await notifyClients({ audience, event: 'activated' });
+        emitRateRefresh(app, 'activated', campaignReference);
+        const io = app?.get?.('io');
+        if (io) io.emit('exchange_rates_updated', { source: 'general' });
+        return {
+            activatedAt: new Date().toISOString(),
+            campaignReference,
+            targetedAccounts: audience.length
+        };
+    } finally {
+        activationInFlight = false;
+    }
 };
 
 const armPendingRateActivation = ({ app, effectiveAt }) => {

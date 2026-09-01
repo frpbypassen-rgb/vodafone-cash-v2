@@ -156,10 +156,25 @@
         }
     };
 
+    const rememberActivated = (campaignReference) => {
+        const key = campaignReference ? `rate-alert-activated:${campaignReference}` : '';
+        if (!key) return false;
+        try {
+            if (localStorage.getItem(key) === '1') return true;
+            localStorage.setItem(key, '1');
+        } catch (_) { /* optional */ }
+        return false;
+    };
+
     const showActivated = (completedPayload) => {
         payload = null;
         minimized = false;
         if (timer) window.clearInterval(timer);
+        const alreadySeen = rememberActivated(completedPayload?.campaignReference);
+        if (alreadySeen || document.body.classList.contains('bw-company-os')) {
+            root.innerHTML = '';
+            return;
+        }
         const current = completedPayload?.currentRatesText || 'تم اعتماد السعر الجديد في حسابك.';
         root.innerHTML = `
             <section class="rate-alert-card is-activated" role="alert">

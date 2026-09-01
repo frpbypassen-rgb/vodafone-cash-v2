@@ -294,11 +294,28 @@ router.post('/api/notifications/:id/read', requireClientAuth, async (req, res) =
 
         if (!userIds.length) return res.status(404).json({ success: false });
 
-        await Notification.updateOne({
+        const found = await Notification.findOne({
             _id: req.params.id,
             userId: { $in: userIds },
             audience: { $in: ['client', 'all'] }
-        }, { $set: { isRead: true } });
+        }).select('_id type metadata').lean();
+
+        if (!found) return res.status(404).json({ success: false });
+
+        const campaignReference = String(found.metadata?.campaignReference || '').trim();
+        const filter = found.type === 'rate_change' && campaignReference
+            ? {
+                userId: { $in: userIds },
+                audience: { $in: ['client', 'all'] },
+                isRead: false,
+                $or: [
+                    { _id: found._id },
+                    { type: 'rate_change', 'metadata.campaignReference': campaignReference }
+                ]
+            }
+            : { _id: found._id, userId: { $in: userIds }, audience: { $in: ['client', 'all'] } };
+
+        await Notification.updateMany(filter, { $set: { isRead: true } });
 
         return res.json({ success: true });
     } catch (e) {

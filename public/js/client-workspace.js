@@ -1292,25 +1292,54 @@
     const companyMessageTitle = document.getElementById('companyMessageTitle');
     const companyMessageCopy = document.getElementById('companyMessageCopy');
     const companyLowBalanceDialog = document.getElementById('companyLowBalanceDialog');
+    const noteSeenKey = (note) => {
+        const campaign = note?.metadata?.campaignReference;
+        if (note?.type === 'rate_change' && campaign) return `company-os-seen-rate:${campaign}`;
+        return note?._id ? `company-os-seen-note:${note._id}` : '';
+    };
+    const wasNoteSeen = (note) => {
+        const key = noteSeenKey(note);
+        if (!key) return false;
+        try { return localStorage.getItem(key) === '1'; } catch (_) { return false; }
+    };
+    const rememberNote = (note) => {
+        const key = noteSeenKey(note);
+        if (!key) return;
+        try { localStorage.setItem(key, '1'); } catch (_) { /* optional */ }
+    };
+    const ackCompanyNote = async (note) => {
+        if (!note?._id) return;
+        rememberNote(note);
+        await fetch(`/client/api/notifications/${encodeURIComponent(note._id)}/read`, {
+            method: 'POST',
+            headers: { Accept: 'application/json', 'x-csrf-token': config.csrfToken || '' }
+        }).catch(() => {});
+    };
     const showAdminMessage = async () => {
-        if (config.workspaceType !== 'company' || !companyMessageDialog || companyWelcomeDialog?.open || companyLowBalanceDialog?.open) return;
+        if (config.workspaceType !== 'company' || !companyMessageDialog || companyMessageDialog.open || companyWelcomeDialog?.open || companyLowBalanceDialog?.open) return;
         try {
             const response = await fetch('/client/api/notifications/unread', { headers: { Accept: 'application/json' } });
             const payload = await parseJsonResponse(response);
-            const note = (payload.notifications || [])[0];
+            const note = (payload.notifications || []).find((item) => {
+                if (!item?._id || wasNoteSeen(item)) return false;
+                if (item.type === 'rate_change' && item.metadata?.event === 'scheduled') return false;
+                return true;
+            });
             if (!note) return;
+            rememberNote(note);
+            void ackCompanyNote(note);
             if (companyMessageTitle) companyMessageTitle.textContent = note.title || 'رسالة من الإدارة';
             if (companyMessageCopy) companyMessageCopy.textContent = note.message || '';
             const ack = document.getElementById('companyMessageAck');
             if (ack) {
-                ack.onclick = async () => {
-                    await fetch(`/client/api/notifications/${encodeURIComponent(note._id)}/read`, {
-                        method: 'POST',
-                        headers: { Accept: 'application/json', 'x-csrf-token': config.csrfToken || '' }
-                    }).catch(() => {});
+                ack.onclick = () => {
+                    void ackCompanyNote(note);
                     companyMessageDialog.close();
                 };
             }
+            companyMessageDialog.addEventListener('close', () => {
+                void ackCompanyNote(note);
+            }, { once: true });
             openDialog(companyMessageDialog);
         } catch (_) { /* optional */ }
     };
