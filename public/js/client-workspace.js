@@ -540,7 +540,7 @@
         if (assistantQuestion) assistantQuestion.value = '';
         const typing = document.createElement('div');
         typing.className = 'bw-assistant-message assistant bw-assistant-typing';
-        typing.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin"></i> جارٍ مراجعة بيانات حسابك...';
+        typing.innerHTML = '<span class="bw-assistant-response-loader" aria-hidden="true"><i class="fa-solid fa-wand-magic-sparkles"></i><b></b><b></b><b></b></span><span>جارٍ تجهيز الرد</span>';
         assistantMessages?.appendChild(typing);
         if (assistantMessages) assistantMessages.scrollTop = assistantMessages.scrollHeight;
         const originalHtml = assistantSubmitButton?.innerHTML;
