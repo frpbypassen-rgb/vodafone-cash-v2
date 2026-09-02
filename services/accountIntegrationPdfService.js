@@ -123,7 +123,40 @@ const buildIntegrationDocumentData = ({
                     balance: 9831.933,
                     receipt_whatsapp_number: '201108172258',
                     executor_name: 'مجموعة التنفيذ',
-                    executor_number: null
+                    executor_number: null,
+                    executed_numbers: [],
+                    is_split_execution: false,
+                    cancellation_reason: null,
+                    cancellation_number: null,
+                    cancelled_at: null
+                }
+            }, null, 2),
+            statusResponse: JSON.stringify({
+                status: 'success',
+                data: {
+                    reference_id: 'ATT-2608-0001',
+                    status: 'completed',
+                    amount_egp: 1000,
+                    executor_name: 'فريق التنفيذ',
+                    executor_number: '01011111111',
+                    is_split_execution: true,
+                    executed_numbers: [
+                        { phone_number: '01011111111', amount_egp: 600 },
+                        { phone_number: '01022222222', amount_egp: 400 }
+                    ],
+                    cancellation_reason: null,
+                    cancellation_number: null,
+                    cancelled_at: null
+                }
+            }, null, 2),
+            cancelledStatusResponse: JSON.stringify({
+                status: 'success',
+                data: {
+                    reference_id: 'ATT-2608-0001',
+                    status: 'rejected',
+                    cancellation_reason: 'رقم المستلم غير صحيح',
+                    cancellation_number: 'CAN-2608-0001',
+                    cancelled_at: '2026-09-02T10:15:00.000Z'
                 }
             }, null, 2)
         }

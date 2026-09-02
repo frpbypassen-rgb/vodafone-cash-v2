@@ -109,7 +109,7 @@
                 <tr><td>المسار الأساسي</td><td><code><%= api.basePath %></code></td></tr>
                 <tr><td>طريقة المصادقة</td><td><code>x-api-key: &lt;API_KEY&gt;</code></td></tr>
                 <tr><td>صيغة البيانات</td><td><code>Content-Type: application/json</code></td></tr>
-                <tr><td>متابعة النتيجة</td><td>استعلام دوري عبر مسار الحالة. يعيد اسم المنفذ ورقمه عند توفرهما.</td></tr>
+                <tr><td>متابعة النتيجة</td><td>استعلام دوري عبر مسار الحالة. يعيد اسم المنفذ، وأرقام التنفيذ وقيمة كل رقم عند اكتمال العملية، وسبب الإلغاء عند الرفض.</td></tr>
             </tbody>
         </table>
         <div class="credential">
@@ -132,7 +132,7 @@
             <tbody>
                 <tr><td>الاستعلام عن الرصيد</td><td><code>GET</code></td><td><code><%= api.balanceUrl %></code></td><td>إرجاع اسم الجهة والرصيد وسعر الكاش الحالي.</td></tr>
                 <tr><td>إنشاء تحويل</td><td><code>POST</code></td><td><code><%= api.transferUrl %></code></td><td>استلام التحويل وخصم تكلفته عند قبول الطلب، مع رقم واتساب اختياري للإيصال.</td></tr>
-                <tr><td>متابعة التحويل</td><td><code>GET</code></td><td><code><%= api.statusUrl %></code></td><td>الاستعلام عن الحالة ورقم المنفذ عند تسجيله.</td></tr>
+                <tr><td>متابعة التحويل</td><td><code>GET</code></td><td><code><%= api.statusUrl %></code></td><td>الاستعلام عن الحالة وأرقام التنفيذ وقيمة كل رقم وسبب الإلغاء عند توفره.</td></tr>
             </tbody>
         </table>
         <div class="split" style="margin-top: 8mm;">
@@ -159,7 +159,11 @@
         <pre class="code-block"><%= examples.transferResponse %></pre>
         <h3>متابعة فاتورة سابقة</h3>
         <pre class="code-block"><%= examples.statusCurl %></pre>
-        <div class="callout">احفظ <code>invoice_number</code> مباشرة عند قبول الطلب. سيظهر <code>executor_name</code> و<code>executor_number</code> عند تعيين أو تسجيل بيانات المنفذ؛ قد يكون الرقم <code>null</code> في بداية المعالجة، ولا ينبغي تخمينه أو اعتباره فشلاً.</div>
+        <h3>استجابة متابعة مكتملة - تنفيذ مقسم</h3>
+        <pre class="code-block"><%= examples.statusResponse %></pre>
+        <h3>استجابة متابعة ملغاة</h3>
+        <pre class="code-block"><%= examples.cancelledStatusResponse %></pre>
+        <div class="callout">احفظ <code>invoice_number</code> مباشرة عند قبول الطلب. يعرض <code>executed_numbers</code> قائمة آمنة من <code>phone_number</code> و<code>amount_egp</code> لكل رقم نُفذت عليه العملية؛ عند عدم التقسيم تكون القائمة فارغة أو تحتوي رقمًا واحدًا. وتظهر <code>cancellation_reason</code> و<code>cancellation_number</code> و<code>cancelled_at</code> فقط عندما تكون حالة العملية ملغاة أو مرفوضة.</div>
     </section>
 
     <section class="page">
@@ -168,7 +172,7 @@
         <ol class="steps">
             <li><strong>تحقق من الرصيد.</strong> اطلب <code>/balance</code> عند بدء الوردية أو قبل دفعات التحويل الكبيرة.</li>
             <li><strong>أرسل طلب التحويل مرة واحدة.</strong> احتفظ بالقيمة <code>invoice_number</code> التي يعيدها النظام؛ فهي الرقم المرجعي الرسمي للطلب.</li>
-            <li><strong>تابع الحالة.</strong> استعلم عن <code>/status/{invoice_number}</code> حتى تصل العملية إلى حالة نهائية؛ ستظهر بيانات المنفذ في الاستجابة متى تم تسجيلها.</li>
+            <li><strong>تابع الحالة.</strong> استعلم عن <code>/status/{invoice_number}</code> حتى تصل العملية إلى حالة نهائية؛ عند التنفيذ المقسم استخدم <code>executed_numbers</code> لعرض رقم وقيمة كل جزء، وعند الإلغاء اعرض <code>cancellation_reason</code> للمستخدم.</li>
             <li><strong>سلّم الإيصال.</strong> عند اكتمال العملية ومع إرفاق <code>whatsapp_number</code>، يرسل النظام الإيصال الرسمي تلقائيًا إلى ذلك الرقم عند توفر إثبات التنفيذ.</li>
             <li><strong>أغلق الطلب داخليًا.</strong> تعتبر الحالة <code>completed</code> فقط نجاحًا نهائيًا. الحالات الأخرى تحتاج متابعة أو معالجة داخلية.</li>
         </ol>
@@ -180,8 +184,8 @@
                 <tr><td><code>processing</code></td><td>الطلب تحت التنفيذ.</td><td>استمر في الاستعلام الدوري.</td></tr>
                 <tr><td><code>accepted</code></td><td>استلمه منفذ أو موظف تنفيذ.</td><td>استمر في المتابعة حتى النتيجة النهائية.</td></tr>
                 <tr><td><code>completed</code></td><td>اكتمل التحويل بنجاح.</td><td>اعتمد العملية ناجحة في نظامك.</td></tr>
-                <tr><td><code>rejected</code></td><td>رُفض الطلب أثناء التنفيذ.</td><td>اعرض النتيجة للمستخدم وراجع الملاحظات.</td></tr>
-                <tr><td><code>cancelled_by_admin</code></td><td>ألغيت العملية من الإدارة.</td><td>اعتبرها ملغاة وتابع التسوية بحسب الإشعار الإداري.</td></tr>
+                <tr><td><code>rejected</code></td><td>رُفض الطلب أثناء التنفيذ.</td><td>اعرض <code>cancellation_reason</code> للمستخدم ولا تنشئ طلبًا جديدًا قبل التحقق.</td></tr>
+                <tr><td><code>cancelled_by_admin</code></td><td>ألغيت العملية من الإدارة.</td><td>اعرض <code>cancellation_reason</code> و<code>cancellation_number</code> وتابع التسوية بحسب الإشعار الإداري.</td></tr>
             </tbody>
         </table>
         <h2 style="margin-top: 9mm;">سياسة الإرسال الآمن والدعم</h2>

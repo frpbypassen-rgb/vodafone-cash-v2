@@ -61,6 +61,8 @@ describe('Account integration PDF document data', () => {
         expect(documentData.examples.transferCurl).not.toContain('company-private-key-123');
         expect(documentData.examples.transferCurl).toContain('whatsapp_number');
         expect(documentData.examples.transferResponse).toContain('executor_number');
+        expect(documentData.examples.statusResponse).toContain('executed_numbers');
+        expect(documentData.examples.cancelledStatusResponse).toContain('cancellation_reason');
     });
 
     test('renders a complete Arabic document with the assigned key and account data', () => {
@@ -83,6 +85,8 @@ describe('Account integration PDF document data', () => {
         expect(html).toContain('50,000');
         expect(html).toContain('يتوقف المفتاح السابق فورًا');
         expect(html).toContain('واتساب فقط');
+        expect(html).toContain('executed_numbers');
+        expect(html).toContain('cancellation_reason');
     });
 
     test('uses a configured public origin before forwarded request headers', () => {

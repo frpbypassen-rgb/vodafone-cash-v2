@@ -26,9 +26,11 @@ const {
     financialTransactionsUnavailableError
 } = require('../services/walletService');
 const { normalizeWhatsAppPhone } = require('../services/whatsappService');
+const { sanitizeStatementText } = require('../utils/accountStatementPrivacy');
 
 const MERCHANT_TRANSFER_MIN_AMOUNT = 100;
 const MERCHANT_TRANSFER_MAX_AMOUNT = 50000;
+const MERCHANT_CANCELLED_STATUSES = new Set(['rejected', 'cancelled', 'canceled', 'cancelled_by_admin', 'failed']);
 
 const merchantRequestError = (statusCode, message, code = undefined) => {
     const error = new Error(message);
@@ -36,6 +38,55 @@ const merchantRequestError = (statusCode, message, code = undefined) => {
     error.clientMessage = message;
     if (code) error.code = code;
     return error;
+};
+
+const resolveMerchantExecutionEntries = (transaction = {}) => {
+    const entries = Array.isArray(transaction.executorSenderEntries)
+        ? transaction.executorSenderEntries
+            .map((entry) => {
+                const phoneNumber = String(entry?.phone || '').trim();
+                const amount = Number(entry?.amount);
+                if (!phoneNumber || !Number.isFinite(amount) || amount <= 0) return null;
+                return { phone_number: phoneNumber, amount_egp: amount };
+            })
+            .filter(Boolean)
+        : [];
+
+    // Older completed operations may have one execution number without the
+    // structured split entries. Preserve a useful response for those records.
+    if (entries.length === 0) {
+        const phoneNumber = String(transaction.executorExecutionNumber || '').trim();
+        const amount = Number(transaction.amount);
+        if (/^\d{9,15}$/.test(phoneNumber) && Number.isFinite(amount) && amount > 0) {
+            entries.push({ phone_number: phoneNumber, amount_egp: amount });
+        }
+    }
+
+    return entries;
+};
+
+const resolveMerchantCancellationData = (transaction = {}) => {
+    const isCancelled = MERCHANT_CANCELLED_STATUSES.has(String(transaction.status || '').trim());
+    if (!isCancelled) {
+        return {
+            cancellation_reason: null,
+            cancellation_number: null,
+            cancelled_at: null
+        };
+    }
+
+    const cancelledAt = transaction.cancelledAt ? new Date(transaction.cancelledAt) : null;
+
+    return {
+        cancellation_reason: sanitizeStatementText(
+            transaction.cancellationReason,
+            'تم إلغاء العملية'
+        ),
+        cancellation_number: String(transaction.cancellationNumber || '').trim() || null,
+        cancelled_at: cancelledAt && !Number.isNaN(cancelledAt.getTime())
+            ? cancelledAt.toISOString()
+            : null
+    };
 };
 
 const resolveMerchantExecutorData = (transaction = {}, fallbackExecutor = null) => {
@@ -53,12 +104,15 @@ const resolveMerchantExecutorData = (transaction = {}, fallbackExecutor = null) 
         || fallbackExecutor?.name
         || ''
     ).trim() || null;
+    const executedNumbers = resolveMerchantExecutionEntries(transaction);
 
     return {
         executor_name: executorName,
         // This value remains null until the executor or the API provider records
         // the actual execution/sender number. It is never guessed by the system.
-        executor_number: executorNumber
+        executor_number: executorNumber,
+        executed_numbers: executedNumbers,
+        is_split_execution: executedNumbers.length > 1
     };
 };
 
@@ -334,7 +388,8 @@ router.post('/transfer', merchantApiAuth, async (req, res) => {
                 cost_lyd: result.tx.costLYD,
                 balance: result.balanceAfter,
                 receipt_whatsapp_number: receiptWhatsAppNumber || null,
-                ...resolveMerchantExecutorData(result.tx, result.autoRouteExecutor)
+                ...resolveMerchantExecutorData(result.tx, result.autoRouteExecutor),
+                ...resolveMerchantCancellationData(result.tx)
             }
         });
     } catch (error) {
@@ -366,7 +421,7 @@ router.get('/status/:reference_id', merchantApiAuth, async (req, res) => {
         const tx = await Transaction.findOne({
             ...ownershipFilter,
             customId: req.params.reference_id
-        }).select('+executorExecutionNumber').lean();
+        }).select('+executorExecutionNumber +executorSenderEntries').lean();
         if (!tx) {
             return res.status(404).json({ status: 'failed', message: 'لا يوجد طلب بهذا الرقم المرجعي' });
         }
@@ -383,7 +438,8 @@ router.get('/status/:reference_id', merchantApiAuth, async (req, res) => {
                 status: tx.status,
                 notes: customerFacingNotes(tx.notes) || 'لا يوجد ملاحظات',
                 receipt_whatsapp_number: tx.serviceDetails?.clientPhone || null,
-                ...resolveMerchantExecutorData(tx)
+                ...resolveMerchantExecutorData(tx),
+                ...resolveMerchantCancellationData(tx)
             }
         });
     } catch (_error) {

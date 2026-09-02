@@ -331,6 +331,8 @@ describe('Merchant API agent authentication', () => {
             status: 'processing',
             executor_name: 'مجموعة تنفيذ القاهرة',
             executor_number: null,
+            executed_numbers: [],
+            is_split_execution: false,
             receipt_whatsapp_number: '201108172258'
         }));
         expect(Transaction.create).toHaveBeenCalledWith(
@@ -363,6 +365,10 @@ describe('Merchant API agent authentication', () => {
             notes: 'تم التنفيذ بنجاح',
             executorName: 'أحمد المنفذ',
             executorExecutionNumber: '01000000000',
+            executorSenderEntries: [
+                { phone: '01000000000', amount: 600, proofImage: 'private-proof-1.png' },
+                { phone: '01111111111', amount: 400, proofImage: 'private-proof-2.png' }
+            ],
             serviceDetails: { clientPhone: '201108172258' }
         }));
 
@@ -375,11 +381,55 @@ describe('Merchant API agent authentication', () => {
             reference_id: 'ATT-2609-0078',
             executor_name: 'أحمد المنفذ',
             executor_number: '01000000000',
+            is_split_execution: true,
+            executed_numbers: [
+                { phone_number: '01000000000', amount_egp: 600 },
+                { phone_number: '01111111111', amount_egp: 400 }
+            ],
+            cancellation_reason: null,
+            cancellation_number: null,
+            cancelled_at: null,
             receipt_whatsapp_number: '201108172258'
         }));
         expect(Transaction.findOne).toHaveBeenCalledWith({
             companyId: company._id,
             customId: 'ATT-2609-0078'
         });
+    });
+
+    test('returns the safe cancellation reason for a cancelled company operation', async () => {
+        const company = {
+            _id: '66a112233445566778899003',
+            name: 'شركة الربط',
+            status: 'active',
+            balance: 1000
+        };
+        ClientBot.findOne.mockReturnValue(leanResult(company));
+        Transaction.findOne.mockReturnValue(selectLeanResult({
+            _id: 'tx-company-api-2',
+            customId: 'ATT-2609-0079',
+            vodafoneNumber: '01012345678',
+            amount: 1000,
+            status: 'cancelled_by_admin',
+            cancellationReason: '[تم إلغاء العملية | المنفذ: أحمد | السبب: رقم المستلم غير صحيح]',
+            cancellationNumber: 'CAN-2609-0012',
+            cancelledAt: new Date('2026-09-02T10:15:00.000Z'),
+            executorExecutionNumber: '01000000000'
+        }));
+
+        const response = await request(app)
+            .get('/api/v1/merchant/status/ATT-2609-0079')
+            .set('x-api-key', 'company-private-api-key');
+
+        expect(response.status).toBe(200);
+        expect(response.body.data).toEqual(expect.objectContaining({
+            status: 'cancelled_by_admin',
+            cancellation_reason: 'رقم المستلم غير صحيح',
+            cancellation_number: 'CAN-2609-0012',
+            cancelled_at: '2026-09-02T10:15:00.000Z',
+            is_split_execution: false,
+            executed_numbers: [{ phone_number: '01000000000', amount_egp: 1000 }]
+        }));
+        expect(response.body.data.cancellation_reason).not.toContain('أحمد');
     });
 });
