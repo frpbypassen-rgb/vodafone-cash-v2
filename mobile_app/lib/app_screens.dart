@@ -18558,6 +18558,7 @@ class _ExecutorSettingsScreenState extends State<ExecutorSettingsScreen> {
         clientFirebaseConfigured &&
         firebase['configured'] == true &&
         firebase['enabled'] == true &&
+        firebase['ready'] == true &&
         pushDevice['enabled'] == true &&
         <String>{
           'authorized',
@@ -18735,8 +18736,12 @@ class _ExecutorSettingsScreenState extends State<ExecutorSettingsScreen> {
                 value: serverRouteMissing
                     ? 'إصدار الخادم قديم'
                     : firebase['configured'] == true &&
-                          firebase['enabled'] == true
+                          firebase['enabled'] == true &&
+                          firebase['ready'] == true
                     ? 'جاهز للإرسال'
+                    : firebase['configured'] == true &&
+                          firebase['enabled'] == true
+                    ? 'تجهيز خدمة الإرسال مطلوب'
                     : 'إعداد Firebase غير مكتمل',
               ),
               if (pushDevice['lastSuccessfulPushAt'] != null)
@@ -18809,7 +18814,8 @@ class _ExecutorSettingsScreenState extends State<ExecutorSettingsScreen> {
               if (serverRouteMissing ||
                   !clientFirebaseConfigured ||
                   firebase['configured'] != true ||
-                  firebase['enabled'] != true) ...[
+                  firebase['enabled'] != true ||
+                  firebase['ready'] != true) ...[
                 const SizedBox(height: 14),
                 Container(
                   padding: const EdgeInsets.all(12),
@@ -18823,6 +18829,8 @@ class _ExecutorSettingsScreenState extends State<ExecutorSettingsScreen> {
                         ? 'لم تُنشر مسارات الإشعارات الجديدة على الخادم بعد. اسحب آخر إصدار من main ثم أعد تشغيل PM2.'
                         : !clientFirebaseConfigured
                         ? 'هذه النسخة تستخدم المراقبة المحلية فقط. يلزم بناء APK بقيم مشروع Firebase لتصل التنبيهات فورًا بعد إغلاق التطبيق.'
+                        : firebase['ready'] != true
+                        ? 'خدمة Firebase على الخادم غير جاهزة حاليًا؛ ستبقى المراقبة المحلية فعالة. أعد تشغيل خدمة الخادم، ثم راجع بيانات حساب خدمة Firebase إذا استمرت الحالة.'
                         : 'ربط التطبيق جاهز، لكن حساب خدمة Firebase غير مكتمل على الخادم.',
                     style: const TextStyle(
                       fontSize: 12,

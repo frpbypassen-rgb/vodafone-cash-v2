@@ -348,6 +348,11 @@ void executorAlertBackgroundEntry(ServiceInstance service) async {
           pushReady =
               firebase['enabled'] == true &&
               firebase['configured'] == true &&
+              firebase['ready'] == true &&
+              <String>{
+                'authorized',
+                'provisional',
+              }.contains('${device['permissionStatus'] ?? ''}') &&
               device['enabled'] == true;
         } catch (_) {
           pushReady = false;

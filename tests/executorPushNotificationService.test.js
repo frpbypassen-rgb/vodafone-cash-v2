@@ -18,6 +18,7 @@ jest.mock('../models/Transaction', () => ({ distinct: jest.fn(), findById: jest.
 jest.mock('../services/eventBus', () => ({ on: jest.fn(), publish: jest.fn() }));
 jest.mock('../services/firebasePushService', () => ({
     getFirebasePushStatus: jest.fn(() => ({ enabled: true, configured: true })),
+    initializeFirebasePush: jest.fn(),
     isInvalidPushTokenError: jest.fn(() => false),
     sendPushToTokens: jest.fn()
 }));
@@ -27,9 +28,10 @@ const ExecutorGroup = require('../models/ExecutorGroup');
 const MobilePushDevice = require('../models/MobilePushDevice');
 const PushNotificationOutbox = require('../models/PushNotificationOutbox');
 const Transaction = require('../models/Transaction');
-const { sendPushToTokens } = require('../services/firebasePushService');
+const { initializeFirebasePush, sendPushToTokens } = require('../services/firebasePushService');
 const {
     acknowledgeMobilePushTask,
+    getMobilePushDeviceStatus,
     processOutboxItem,
     registerMobilePushDevice,
     resolveAudienceEmployeeIds,
@@ -153,6 +155,21 @@ describe('executor push notification audience', () => {
             }),
             { upsert: true, new: true, setDefaultsOnInsert: true }
         );
+    });
+
+    test('checks that Firebase messaging is initialised before reporting device readiness', async () => {
+        MobilePushDevice.findOne.mockReturnValue(queryResult({
+            enabled: true,
+            permissionStatus: 'authorized'
+        }));
+
+        const status = await getMobilePushDeviceStatus({
+            user: { accountType: 'executor', userId: 'operator-1' },
+            installationId: 'install-1'
+        });
+
+        expect(initializeFirebasePush).toHaveBeenCalledTimes(1);
+        expect(status.device).toEqual(expect.objectContaining({ enabled: true }));
     });
 
     test('records task acknowledgement for the current installation only', async () => {

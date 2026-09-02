@@ -425,6 +425,10 @@ const unregisterMobilePushDevice = async ({ user, installationId }) => {
 };
 
 const getMobilePushDeviceStatus = async ({ user, installationId }) => {
+    // Refresh the Firebase client before reporting readiness.  A configured
+    // service account is not enough: the mobile fallback must stay active
+    // until the Firebase Admin messaging client has actually initialised.
+    initializeFirebasePush();
     const device = await MobilePushDevice.findOne({
         installationId: String(installationId || '').trim(),
         accountId: idOf(user.userId),
