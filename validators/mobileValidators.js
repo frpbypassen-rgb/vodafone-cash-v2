@@ -486,7 +486,7 @@ const executorReportsValidator = [
     body('dateType')
         .optional()
         .trim()
-        .isIn(['day', 'month', 'range']).withMessage('نوع التاريخ غير صالح'),
+        .isIn(['all', 'day', 'month', 'range']).withMessage('نوع التاريخ غير صالح'),
     body('dateValue')
         .optional()
         .trim()
@@ -499,6 +499,10 @@ const executorReportsValidator = [
         .optional({ nullable: true, checkFalsy: true })
         .trim()
         .isISO8601({ strict: true, strictSeparator: true }).withMessage('تاريخ نهاية التقرير غير صالح'),
+    body('search')
+        .optional({ nullable: true, checkFalsy: true })
+        .trim()
+        .isLength({ min: 1, max: 64 }).withMessage('عبارة البحث غير صالحة'),
     body().custom((payload) => {
         if (payload.dateType === 'range' && (!payload.dateFrom || !payload.dateTo)) {
             throw new Error('يجب تحديد تاريخ البداية والنهاية');

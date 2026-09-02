@@ -16712,6 +16712,7 @@ class _ExecutorReportsScreenState extends State<ExecutorReportsScreen>
   _ExecutorReportTab _tab = _ExecutorReportTab.summary;
   DateTime _selectedDate = DateTime.now();
   late DateTimeRange _selectedRange;
+  final TextEditingController _searchController = TextEditingController();
 
   bool get _operatorOnly => widget.controller.isExecutorOperator;
 
@@ -16739,6 +16740,8 @@ class _ExecutorReportsScreenState extends State<ExecutorReportsScreen>
       ? DateFormat('yyyy-MM-dd').format(_selectedRange.end)
       : null;
 
+  String get _search => _searchController.text.trim();
+
   String get _periodButtonLabel => switch (_periodMode) {
     _ExecutorReportPeriodMode.day => _dateValue,
     _ExecutorReportPeriodMode.month => _dateValue,
@@ -16760,6 +16763,7 @@ class _ExecutorReportsScreenState extends State<ExecutorReportsScreen>
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    _searchController.dispose();
     super.dispose();
   }
 
@@ -16784,6 +16788,7 @@ class _ExecutorReportsScreenState extends State<ExecutorReportsScreen>
         dateFrom: _dateFrom,
         dateTo: _dateTo,
         employeeId: widget.employeeId,
+        search: _search.isEmpty ? null : _search,
       );
       final data = response['data'];
       if (data is! Map) {
@@ -16850,6 +16855,7 @@ class _ExecutorReportsScreenState extends State<ExecutorReportsScreen>
         dateFrom: _dateFrom,
         dateTo: _dateTo,
         employeeId: widget.employeeId,
+        search: _search.isEmpty ? null : _search,
       );
       final opened = await openPreparedReportDownload(downloadTarget, url);
       if (!opened) throw const ApiFailure('تعذر فتح ملف التقرير للتنزيل.');
@@ -17165,6 +17171,42 @@ class _ExecutorReportsScreenState extends State<ExecutorReportsScreen>
                     ),
                   ),
                 ],
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: _searchController,
+                textInputAction: TextInputAction.search,
+                keyboardType: TextInputType.text,
+                onChanged: (_) => setState(() {}),
+                onSubmitted: (_) => _load(),
+                decoration: InputDecoration(
+                  labelText: 'بحث في العمليات',
+                  hintText: 'رقم هاتف كامل أو قيمة مثل 1000 ج.م',
+                  prefixIcon: const Icon(Icons.manage_search_outlined),
+                  suffixIcon: _search.isEmpty
+                      ? IconButton(
+                          tooltip: 'بحث',
+                          icon: const Icon(Icons.search_rounded),
+                          onPressed: _loading ? null : _load,
+                        )
+                      : IconButton(
+                          tooltip: 'مسح البحث',
+                          icon: const Icon(Icons.close_rounded),
+                          onPressed: _loading
+                              ? null
+                              : () {
+                                  _searchController.clear();
+                                  _load();
+                                },
+                        ),
+                ),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                _search.isEmpty
+                    ? 'ابحث برقم الهاتف أو بالقيمة من كامل سجل التنفيذ.'
+                    : 'نتائج البحث من كامل سجل التنفيذ ضمن صلاحياتك.',
+                style: Theme.of(context).textTheme.bodySmall,
               ),
               if (_lastUpdated != null) ...[
                 const SizedBox(height: 9),

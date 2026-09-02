@@ -57,6 +57,19 @@ describe('executor web reports', () => {
         }));
     });
 
+    test('passes a phone or amount search through to the scoped report service', async () => {
+        const response = await request(buildApp())
+            .post('/executor-portal/reports/filter')
+            .send({ dateType: 'all', search: '01001352034' });
+
+        expect(response.status).toBe(200);
+        expect(mobileWebParityService.getExecutorReports).toHaveBeenCalledWith(expect.objectContaining({
+            executorId: 'manager-1',
+            dateType: 'all',
+            search: '01001352034'
+        }));
+    });
+
     test('downloads the same server-rendered executor PDF used by the app', async () => {
         generateExecutorReportPdf.mockResolvedValue(Buffer.from('%PDF-test'));
 

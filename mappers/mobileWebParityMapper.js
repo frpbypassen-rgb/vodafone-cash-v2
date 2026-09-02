@@ -170,6 +170,12 @@ const toClientReportDto = (data) => {
             start: data.reportPeriod.start ? new Date(data.reportPeriod.start).toISOString() : null,
             end: data.reportPeriod.end ? new Date(data.reportPeriod.end).toISOString() : null
         } : null,
+        search: data.search ? {
+            kind: data.search.kind || null,
+            value: data.search.value === undefined || data.search.value === null
+                ? null
+                : String(data.search.value)
+        } : null,
         company: !isPersonalReport && data.company ? {
             id: data.company.id ? String(data.company.id) : null,
             name: data.company.name || '---',

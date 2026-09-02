@@ -252,10 +252,14 @@
                     </div>
                 </div>
                 <div class="col-md-6">
+                    <label for="reportSearch" class="form-label text-muted fw-bold mb-1">&#x628;&#x62D;&#x62B; &#x633;&#x631;&#x64A;&#x639; &#x641;&#x64A; &#x627;&#x644;&#x639;&#x645;&#x644;&#x64A;&#x627;&#x62A;</label>
                     <div class="input-group">
                         <span class="input-group-text bg-transparent border-secondary"><i class="fa-solid fa-search text-muted"></i></span>
-                        <input type="search" id="reportSearch" class="form-control" placeholder="ابحث برقم العملية أو المبلغ أو المنفذ..." oninput="filterReportTable()">
+                        <input type="search" id="reportSearch" class="form-control" dir="auto" maxlength="64" placeholder="&#x631;&#x642;&#x645; &#x647;&#x627;&#x62A;&#x641; &#x643;&#x627;&#x645;&#x644; &#x623;&#x648; &#x642;&#x64A;&#x645;&#x629; &#x645;&#x62B;&#x644; 1000 &#x62C;.&#x645;" autocomplete="off" onkeydown="if (event.key === 'Enter') { event.preventDefault(); searchExecutorOperations(); }">
+                        <button type="button" class="btn btn-primary fw-bold" onclick="searchExecutorOperations()">&#x628;&#x62D;&#x62B;</button>
+                        <button type="button" class="btn btn-outline-secondary" onclick="clearExecutorOperationSearch()" aria-label="&#x645;&#x633;&#x62D; &#x627;&#x644;&#x628;&#x62D;&#x62B;" title="&#x645;&#x633;&#x62D; &#x627;&#x644;&#x628;&#x62D;&#x62B;"><i class="fa-solid fa-xmark"></i></button>
                     </div>
+                    <small id="reportSearchHint" class="text-muted d-block mt-1">&#x627;&#x628;&#x62D;&#x62B; &#x628;&#x631;&#x642;&#x645; &#x627;&#x644;&#x647;&#x627;&#x62A;&#x641; &#x623;&#x648; &#x628;&#x627;&#x644;&#x642;&#x64A;&#x645;&#x629;&#x61B; &#x62A;&#x638;&#x647;&#x631; &#x627;&#x644;&#x646;&#x62A;&#x627;&#x626;&#x62C; &#x645;&#x646; &#x643;&#x627;&#x645;&#x644; &#x633;&#x62C;&#x644; &#x627;&#x644;&#x62A;&#x646;&#x641;&#x64A;&#x630; &#x636;&#x645;&#x646; &#x635;&#x644;&#x627;&#x62D;&#x64A;&#x627;&#x62A;&#x643;.</small>
                 </div>
             </div>
         </div>
@@ -438,29 +442,37 @@
             const dateFrom = dateType === 'range' ? document.getElementById('dateFrom').value : '';
             const dateTo = dateType === 'range' ? document.getElementById('dateTo').value : '';
             const employeeId = document.getElementById('employeeFilter')?.value || '';
+            const search = document.getElementById('reportSearch')?.value.trim() || '';
 
-            if ((dateType !== 'all' && dateType !== 'range' && !dateValue) || (dateType === 'range' && (!dateFrom || !dateTo))) {
+            if (!search && ((dateType !== 'all' && dateType !== 'range' && !dateValue) || (dateType === 'range' && (!dateFrom || !dateTo)))) {
                 return Swal.fire({ icon: 'warning', title: 'تنبيه', text: 'يرجى اختيار التاريخ.' });
             }
-            if (dateType === 'range' && dateFrom > dateTo) return Swal.fire({ icon: 'warning', title: 'تنبيه', text: 'تاريخ البداية يجب أن يسبق تاريخ النهاية.' });
+            if (!search && dateType === 'range' && dateFrom > dateTo) return Swal.fire({ icon: 'warning', title: 'تنبيه', text: 'تاريخ البداية يجب أن يسبق تاريخ النهاية.' });
 
-            const btn = document.querySelector('button.btn-warning');
+            const btn = document.getElementById('btnLoadReport');
             const originalBtnHtml = btn.innerHTML;
             btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> جاري التحميل...';
             btn.disabled = true;
 
             try {
+                const reportRequest = { dateType, dateValue, dateFrom, dateTo, employeeId: employeeId || null, search: search || null };
                 const res = await executorApiFetch('/executor-portal/reports/filter', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ dateType, dateValue, dateFrom, dateTo, employeeId: employeeId || null })
+                    body: JSON.stringify(reportRequest)
                 });
                 const data = await res.json();
                 if (!data.success) throw new Error(data.error);
 
                 isPersonalExecutorReport = data.data.scope === 'employee';
-                lastReportRequest = { dateType, dateValue, dateFrom, dateTo, employeeId: employeeId || null };
+                lastReportRequest = reportRequest;
                 lastReportData = data.data;
+                const searchHint = document.getElementById('reportSearchHint');
+                if (searchHint) {
+                    searchHint.textContent = search
+                        ? `\u062a\u0645 \u0627\u0644\u0628\u062d\u062b \u0641\u064a \u0643\u0627\u0645\u0644 \u0633\u062c\u0644 \u0627\u0644\u062a\u0646\u0641\u064a\u0630 \u0639\u0646: ${search}`
+                        : '\u0627\u0628\u062d\u062b \u0628\u0631\u0642\u0645 \u0627\u0644\u0647\u0627\u062a\u0641 \u0623\u0648 \u0628\u0627\u0644\u0642\u064a\u0645\u0629\u061b \u062a\u0638\u0647\u0631 \u0627\u0644\u0646\u062a\u0627\u0626\u062c \u0645\u0646 \u0643\u0627\u0645\u0644 \u0633\u062c\u0644 \u0627\u0644\u062a\u0646\u0641\u064a\u0630 \u0636\u0645\u0646 \u0635\u0644\u0627\u062d\u064a\u0627\u062a\u0643.';
+                }
                 document.getElementById('executorColumnHeader')?.classList.toggle('d-none', isPersonalExecutorReport);
                 renderStats(data.data);
                 renderOperations(data.data);
@@ -911,6 +923,8 @@
         }
 
         function setQuickPeriod(kind) {
+            const searchInput = document.getElementById('reportSearch');
+            if (searchInput) searchInput.value = '';
             const today = tripoliDateValue();
             if (kind === 'today') {
                 document.getElementById('dateType').value = 'day';
@@ -930,12 +944,14 @@
             fetchReport();
         }
 
-        function filterReportTable() {
-            const query = document.getElementById('reportSearch').value.trim().toLowerCase();
-            document.querySelectorAll('#reportTableBody tr, .x-mobile-card').forEach((row) => {
-                const text = row.textContent.toLowerCase();
-                row.style.display = query && !text.includes(query) ? 'none' : '';
-            });
+        function searchExecutorOperations() {
+            fetchReport();
+        }
+
+        function clearExecutorOperationSearch() {
+            const input = document.getElementById('reportSearch');
+            if (input) input.value = '';
+            fetchReport();
         }
 
         // Load the full operational ledger immediately; no manual date filter

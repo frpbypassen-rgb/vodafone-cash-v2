@@ -384,6 +384,26 @@ describe('executor employee reports', () => {
         expect(report.operations.map((item) => item.customId)).toEqual(['ATT-YDAY']);
     });
 
+    test('searches the full scoped ledger by phone without widening an operator account', async () => {
+        await getExecutorReports({
+            executorId: 'employee-1',
+            dateType: 'day',
+            dateValue: '2026-08-14',
+            search: '01000000000'
+        });
+
+        const reportQuery = Transaction.find.mock.calls[0][0];
+        expect(reportQuery.$and).toEqual(expect.arrayContaining([
+            expect.objectContaining({ operatorId: 'employee-1' }),
+            expect.objectContaining({
+                $or: expect.arrayContaining([
+                    expect.objectContaining({ vodafoneNumber: expect.any(RegExp) })
+                ])
+            })
+        ]));
+        expect(reportQuery.$and.some((clause) => clause.$or?.some((entry) => entry.createdAt))).toBe(false);
+    });
+
     test('rejects report ranges longer than one year', async () => {
         await expect(getExecutorReports({
             executorId: 'employee-1',

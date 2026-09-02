@@ -3612,7 +3612,7 @@ router.post('/executor/reports/filter', authenticateJWT, executorReportsValidato
             return sendMobileError(res, 403, 'FORBIDDEN', 'صلاحيات غير كافية', req.correlationId);
         }
         const { userId } = req.user;
-        const { dateType, dateValue, dateFrom, dateTo, employeeId } = req.body;
+        const { dateType, dateValue, dateFrom, dateTo, employeeId, search } = req.body;
         
         const result = await mobileWebParityService.getExecutorReports({
             executorId: userId,
@@ -3621,6 +3621,7 @@ router.post('/executor/reports/filter', authenticateJWT, executorReportsValidato
             dateFrom,
             dateTo,
             employeeId,
+            search,
             tenantId: req.tenant ? executorTenantScope(req) : null
         });
         
@@ -3652,7 +3653,7 @@ router.post('/executor/reports/download-link', authenticateJWT, executorReportsV
         if (req.user.accountType !== 'executor') {
             return sendMobileError(res, 403, 'FORBIDDEN', 'صلاحيات غير كافية', req.correlationId);
         }
-        const { dateType, dateValue, dateFrom, dateTo, employeeId } = req.body;
+        const { dateType, dateValue, dateFrom, dateTo, employeeId, search } = req.body;
         await mobileWebParityService.getExecutorReports({
             executorId: req.user.userId,
             dateType,
@@ -3660,16 +3661,18 @@ router.post('/executor/reports/download-link', authenticateJWT, executorReportsV
             dateFrom,
             dateTo,
             employeeId,
+            search,
             tenantId: req.tenant ? executorTenantScope(req) : null
         });
 
         const token = createReportDownloadToken({
             executorId: String(req.user.userId),
-            dateType: ['month', 'range'].includes(dateType) ? dateType : 'day',
+            dateType: search ? 'all' : (['month', 'range', 'all'].includes(dateType) ? dateType : 'day'),
             dateValue: String(dateValue || ''),
             dateFrom: dateFrom ? String(dateFrom) : null,
             dateTo: dateTo ? String(dateTo) : null,
             employeeId: employeeId ? String(employeeId) : null,
+            search: search ? String(search) : null,
             tenantId: req.tenant ? String(req.tenant._id) : null,
             expiresAt: Date.now() + REPORT_DOWNLOAD_TTL_MS
         });
@@ -3703,6 +3706,7 @@ router.get('/executor/reports/download.pdf', async (req, res) => {
             dateFrom: payload.dateFrom,
             dateTo: payload.dateTo,
             employeeId: payload.employeeId,
+            search: payload.search,
             tenantId: payload.tenantId || null
         });
         const pdf = await generateExecutorReportPdf(req.app, {

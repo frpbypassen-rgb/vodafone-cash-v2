@@ -1261,6 +1261,7 @@ class MobileApi {
     String? dateFrom,
     String? dateTo,
     String? employeeId,
+    String? search,
   }) {
     return _request(
       'POST',
@@ -1272,6 +1273,7 @@ class MobileApi {
         if (dateTo != null && dateTo.isNotEmpty) 'dateTo': dateTo,
         if (employeeId != null && employeeId.isNotEmpty)
           'employeeId': employeeId,
+        if (search != null && search.trim().isNotEmpty) 'search': search.trim(),
       },
     );
   }
@@ -1334,6 +1336,7 @@ class MobileApi {
     String? dateFrom,
     String? dateTo,
     String? employeeId,
+    String? search,
   }) async {
     final response = await _request(
       'POST',
@@ -1345,6 +1348,7 @@ class MobileApi {
         if (dateTo != null && dateTo.isNotEmpty) 'dateTo': dateTo,
         if (employeeId != null && employeeId.isNotEmpty)
           'employeeId': employeeId,
+        if (search != null && search.trim().isNotEmpty) 'search': search.trim(),
       },
     );
     final rawUrl = '${response['downloadUrl'] ?? ''}'.trim();

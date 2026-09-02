@@ -23,7 +23,8 @@ const reportInput = (body = {}) => ({
     dateValue: body.dateValue,
     dateFrom: body.dateFrom,
     dateTo: body.dateTo,
-    employeeId: body.employeeId || null
+    employeeId: body.employeeId || null,
+    search: body.search || null
 });
 
 const requireExecutorAuth = async (req, res, next) => {

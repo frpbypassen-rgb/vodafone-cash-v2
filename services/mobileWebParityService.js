@@ -31,6 +31,7 @@ const { calculateTransferCostLYD, isSourceToLydRate } = require('../utils/transf
 const eventBus = require('./eventBus');
 const { findReportTransactions } = require('./unifiedReportService');
 const { systemDateKey, systemDayEnd, systemDayStart, systemDateRange } = require('../config/systemTime');
+const { buildExecutorOperationSearchQuery } = require('../utils/executorOperationSearch');
 
 const appendNoteText = (current, note) => {
     const cleanNote = String(note || '').trim();
@@ -1245,7 +1246,7 @@ const buildExecutorTeamPerformance = (transactions) => {
  * The mobile client never controls the report scope. This prevents a staff
  * account from requesting a wider time range or another employee's records.
  */
-async function getExecutorReports({ executorId, dateType, dateValue, dateFrom, dateTo, employeeId, tenantId }) {
+async function getExecutorReports({ executorId, dateType, dateValue, dateFrom, dateTo, employeeId, search, tenantId }) {
     const emp = await Employee.findById(executorId);
     if (!emp) throw new Error('UNAUTHORIZED');
 
@@ -1255,7 +1256,13 @@ async function getExecutorReports({ executorId, dateType, dateValue, dateFrom, d
     const isManager = emp.role === 'manager';
     const isAccountant = emp.role === 'accountant';
     const isExternal = emp.role === 'external';
-    const reportPeriod = resolveExecutorReportPeriod({ dateType, dateValue, dateFrom, dateTo });
+    const operationSearch = buildExecutorOperationSearchQuery(search);
+    // Searching a phone number or exact amount is intentionally performed over
+    // the complete ledger. The executor can therefore recover every matching
+    // operation without first knowing when it was created.
+    const reportPeriod = operationSearch.active
+        ? resolveExecutorReportPeriod({ dateType: 'all' })
+        : resolveExecutorReportPeriod({ dateType, dateValue, dateFrom, dateTo });
 
     let targetEmployee = null;
     if (employeeId) {
@@ -1272,7 +1279,11 @@ async function getExecutorReports({ executorId, dateType, dateValue, dateFrom, d
     if (scopedEmployee) scopeQuery.operatorId = String(scopedEmployee._id);
 
     const currentTransactions = await findReportTransactions(
-        buildExecutorReportQuery(scopeQuery, executorReportDateQuery(start, end)),
+        buildExecutorReportQuery(
+            scopeQuery,
+            executorReportDateQuery(start, end),
+            operationSearch.query
+        ),
         {
             select: '+executorExecutionNumber +executorSenderEntries +executorProofImages',
             sort: { createdAt: -1 }
@@ -1321,6 +1332,7 @@ async function getExecutorReports({ executorId, dateType, dateValue, dateFrom, d
         role: emp.role,
         scope: 'employee',
         reportPeriod,
+        search: operationSearch.active ? { kind: operationSearch.kind, value: operationSearch.value } : null,
         capabilities: {
             canViewCompanyBalance: false,
             canViewTeamPerformance: false,
@@ -1372,6 +1384,7 @@ async function getExecutorReports({ executorId, dateType, dateValue, dateFrom, d
         role: emp.role,
         scope: 'group',
         reportPeriod,
+        search: operationSearch.active ? { kind: operationSearch.kind, value: operationSearch.value } : null,
         capabilities: {
             canViewCompanyBalance: true,
             canViewTeamPerformance: isManager,
