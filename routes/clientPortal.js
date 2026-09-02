@@ -231,10 +231,20 @@ router.get('/api/notifications/unread', requireClientAuth, async (req, res) => {
 
         if (!userIds.length) return res.json({ success: true, count: 0, notifications: [] });
 
+        // Rate changes are a live, one-time overlay rather than inbox items.
+        // Remove legacy records so a past price update cannot re-open a modal
+        // whenever the account visits the portal or remain as a price history.
+        await Notification.deleteMany({
+            userId: { $in: userIds },
+            audience: { $in: ['client', 'all'] },
+            type: 'rate_change'
+        });
+
         const notifications = await Notification.find({
             userId: { $in: userIds },
             audience: { $in: ['client', 'all'] },
-            isRead: false
+            isRead: false,
+            type: { $ne: 'rate_change' }
         }).sort({ createdAt: -1 }).limit(10).lean();
 
         return res.json({ success: true, count: notifications.length, notifications });

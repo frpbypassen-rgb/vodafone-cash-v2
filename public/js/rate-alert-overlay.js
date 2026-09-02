@@ -14,6 +14,8 @@
     let finalWarningPlayed = false;
     let minimized = false;
     let fetching = false;
+    const ACTIVATED_EVENT_KEY = 'powerpay.rate-alert:last-activated';
+    const SCHEDULED_EVENT_KEY = 'powerpay.rate-alert:last-scheduled';
 
     const escapeHtml = (value) => String(value || '').replace(/[&<>"']/g, (char) => ({
         '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;'
@@ -156,22 +158,34 @@
         }
     };
 
-    const rememberActivated = (campaignReference) => {
-        const key = campaignReference ? `rate-alert-activated:${campaignReference}` : '';
-        if (!key) return false;
+    const eventIdentity = (eventPayload) => String(
+        eventPayload?.campaignReference || eventPayload?.effectiveAt || ''
+    ).trim();
+
+    const rememberEvent = (key, eventPayload) => {
+        const identity = eventIdentity(eventPayload);
+        if (!identity) return false;
         try {
-            if (localStorage.getItem(key) === '1') return true;
-            localStorage.setItem(key, '1');
+            if (localStorage.getItem(key) === identity) return true;
+            localStorage.setItem(key, identity);
         } catch (_) { /* optional */ }
         return false;
+    };
+
+    const clearLegacyMarkers = () => {
+        try {
+            Object.keys(localStorage)
+                .filter((key) => key.startsWith('rate-alert-activated:') || key.startsWith('company-os-seen-rate:'))
+                .forEach((key) => localStorage.removeItem(key));
+        } catch (_) { /* optional */ }
     };
 
     const showActivated = (completedPayload) => {
         payload = null;
         minimized = false;
         if (timer) window.clearInterval(timer);
-        const alreadySeen = rememberActivated(completedPayload?.campaignReference);
-        if (alreadySeen || document.body.classList.contains('bw-company-os')) {
+        const alreadySeen = rememberEvent(ACTIVATED_EVENT_KEY, completedPayload);
+        if (alreadySeen) {
             root.innerHTML = '';
             return;
         }
@@ -199,12 +213,15 @@
         if (!sameCampaign) {
             minimized = false;
             finalWarningPlayed = false;
-            playTone();
-            showBrowserNotification(
-                'تنبيه مهم: تحديث سعر الصرف',
-                `سيتم التفعيل خلال ${nextPayload.countdown || formatCountdown(nextPayload.delaySeconds || 60)}.\n${nextPayload.rateChangesText || ''}`,
-                `rate-alert-${nextPayload.campaignReference || nextPayload.effectiveAt}`
-            );
+            const alreadyNotified = rememberEvent(SCHEDULED_EVENT_KEY, nextPayload);
+            if (!alreadyNotified) {
+                playTone();
+                showBrowserNotification(
+                    'تنبيه مهم: تحديث سعر الصرف',
+                    `سيتم التفعيل خلال ${nextPayload.countdown || formatCountdown(nextPayload.delaySeconds || 60)}.\n${nextPayload.rateChangesText || ''}`,
+                    `rate-alert-${nextPayload.campaignReference || nextPayload.effectiveAt}`
+                );
+            }
         }
         hideLegacyBanners();
         if (timer) window.clearInterval(timer);
@@ -247,6 +264,7 @@
 
     const mount = () => {
         document.body.appendChild(root);
+        clearLegacyMarkers();
         ['pointerdown', 'keydown', 'touchstart'].forEach((event) => {
             window.addEventListener(event, unlockAudio, { once: true, passive: true });
         });

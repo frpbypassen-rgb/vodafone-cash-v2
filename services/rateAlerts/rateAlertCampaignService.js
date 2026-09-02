@@ -29,11 +29,18 @@ const createRateAlertCampaign = async ({
 
 const activateRateAlertCampaign = async (reference) => {
     if (!reference) return null;
-    return RateAlertCampaign.findOneAndUpdate(
+    const campaign = await RateAlertCampaign.findOneAndUpdate(
         { reference, status: 'scheduled' },
         { $set: { status: 'active', activatedAt: new Date() } },
         { new: true }
     );
+    // The campaign is only needed while a price is pending. Once active, do
+    // not retain a catalogue of prior prices in notification records.
+    await RateAlertCampaign.updateMany(
+        { status: { $in: ['active', 'cancelled'] } },
+        { $unset: { changes: 1, previousRates: 1 } }
+    );
+    return campaign;
 };
 
 const recordWhatsAppDeliverySummary = async (reference, summary) => {

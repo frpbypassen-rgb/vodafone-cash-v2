@@ -575,6 +575,7 @@ const getSettingsAndRates = async (workspace, app) => {
         : getServiceRatesForTier(workspace.entity.tier || 1, settings);
     return {
         settings,
+        ratesUpdatedAt: workspace.entity.rateUpdatedAt || settings.ratesUpdatedAt || null,
         serviceRates,
         services: SERVICE_CATALOG.map((service) => ({ ...service, rate: serviceRates[service.key] || 0 }))
     };
@@ -1093,6 +1094,7 @@ const buildBaseContext = async (req, page, workspace) => {
         statusMeta: STATUS_META,
         serviceCatalog: rates.services,
         serviceRates: rates.serviceRates,
+        ratesUpdatedAt: rates.ratesUpdatedAt,
         pendingRateUpdate,
         lowBalanceAlert: buildLowBalanceAlert(workspace),
         systemOpen: rates.settings.isManualClosed !== true,

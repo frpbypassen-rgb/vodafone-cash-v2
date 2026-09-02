@@ -40,6 +40,9 @@ const settingsSchema = new mongoose.Schema({
     supportContact: { type: String, default: '@AhramSupport' },
     // Default warning window before a newly submitted rate becomes active.
     rateChangeDelaySeconds: { type: Number, min: 10, max: 3600, default: 60 },
+    // The effective timestamp of the currently displayed global prices. This
+    // is deliberately a single value, not a history of old exchange rates.
+    ratesUpdatedAt: { type: Date, default: null },
 
     autoRouteEnabled: { type: Boolean, default: false },
     // fixed keeps the per-service assignment below. smart selects the most

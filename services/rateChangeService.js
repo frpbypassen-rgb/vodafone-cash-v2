@@ -1,7 +1,6 @@
 'use strict';
 
 const Settings = require('../models/Settings');
-const Notification = require('../models/Notification');
 const { sendRateChangeWhatsAppNotifications } = require('./whatsappRateChangeDeliveryService');
 const {
     createRateAlertCampaign,
@@ -34,40 +33,6 @@ const emitRateRefresh = (app, event, campaignReference = '') => {
     });
 };
 
-const notifyClients = async ({ audience, event }) => {
-    const scheduled = event === 'scheduled';
-    const docs = audience.map((recipient) => {
-        const payload = recipient.payload;
-        return {
-            userId: recipient.notificationUserId,
-            audience: 'client',
-            targetModel: recipient.recipientModel,
-            targetId: recipient.recipientId,
-            type: 'rate_change',
-            title: scheduled ? 'تحديث أسعار الصرف قريباً' : 'تم تحديث أسعار الصرف',
-            message: scheduled
-                ? `سيتم تطبيق السعر الجديد خلال ${payload.countdown}.\n${payload.rateChangesText}`
-                : `تم تفعيل السعر الجديد في حسابك.\n${payload.currentRatesText}`,
-            metadata: { event, ...payload }
-        };
-    });
-    if (!docs.length) return;
-    const campaignReference = String(docs[0]?.metadata?.campaignReference || '').trim();
-    let existingUserIds = new Set();
-    if (campaignReference) {
-        const existing = await Notification.find({
-            userId: { $in: docs.map((doc) => doc.userId) },
-            type: 'rate_change',
-            'metadata.campaignReference': campaignReference,
-            'metadata.event': event
-        }).select('userId').lean();
-        existingUserIds = new Set(existing.map((row) => String(row.userId)));
-    }
-    const toInsert = docs.filter((doc) => !existingUserIds.has(String(doc.userId)));
-    if (!toInsert.length) return;
-    await Notification.insertMany(toInsert, { ordered: false }).catch(() => {});
-};
-
 // Compatibility helper for callers that already own a recipient-specific
 // payload. It never renders raw administration fields or pricing tiers.
 const buildRateChangePayload = ({ payload, effectiveAt, delaySeconds, campaignReference = '' } = {}) => ({
@@ -96,11 +61,11 @@ const activatePendingRateUpdate = async ({ app } = {}) => {
         Object.assign(settings, pending.changes);
         const campaignReference = pending.campaignReference || '';
         settings.pendingRateUpdate = undefined;
+        settings.ratesUpdatedAt = new Date();
         await settings.save();
         await activateRateAlertCampaign(campaignReference).catch((error) => {
             console.error('[RateAlert] campaign activation failed:', error.message);
         });
-        await notifyClients({ audience, event: 'activated' });
         emitRateRefresh(app, 'activated', campaignReference);
         const io = app?.get?.('io');
         if (io) io.emit('exchange_rates_updated', { source: 'general' });
@@ -169,7 +134,6 @@ const scheduleRateUpdate = async ({ settings, changes, actor, app, delaySeconds 
     await recordTargetedAccounts(campaignReference, audience.length).catch(() => {});
     armPendingRateActivation({ app, effectiveAt });
     emitRateRefresh(app, 'scheduled', campaignReference);
-    await notifyClients({ audience, event: 'scheduled' });
 
     const whatsappRecipients = audience.flatMap((recipient) => recipient.phoneRecipients || []);
     void sendRateChangeWhatsAppNotifications({

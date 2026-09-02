@@ -139,9 +139,9 @@ exports.renderPage = (page) => async (req, res, next) => {
 exports.getCurrentRates = async (req, res) => {
     try {
         const workspace = await businessPortalService.resolveWorkspace(req);
-        const { serviceRates } = await businessPortalService.getSettingsAndRates(workspace, req.app);
+        const { serviceRates, ratesUpdatedAt } = await businessPortalService.getSettingsAndRates(workspace, req.app);
         res.set('Cache-Control', 'no-store');
-        return res.json({ success: true, serviceRates, updatedAt: new Date().toISOString() });
+        return res.json({ success: true, serviceRates, updatedAt: ratesUpdatedAt || null });
     } catch (error) {
         const statusCode = error.statusCode === 401 ? 401 : 500;
         console.error('[Business Portal] current rates failed:', error.message);

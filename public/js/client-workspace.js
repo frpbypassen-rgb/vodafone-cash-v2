@@ -1292,11 +1292,15 @@
     const companyMessageTitle = document.getElementById('companyMessageTitle');
     const companyMessageCopy = document.getElementById('companyMessageCopy');
     const companyLowBalanceDialog = document.getElementById('companyLowBalanceDialog');
-    const noteSeenKey = (note) => {
-        const campaign = note?.metadata?.campaignReference;
-        if (note?.type === 'rate_change' && campaign) return `company-os-seen-rate:${campaign}`;
-        return note?._id ? `company-os-seen-note:${note._id}` : '';
+    const clearLegacyRateMessageMarkers = () => {
+        try {
+            Object.keys(localStorage)
+                .filter((key) => key.startsWith('company-os-seen-rate:'))
+                .forEach((key) => localStorage.removeItem(key));
+        } catch (_) { /* optional */ }
     };
+    clearLegacyRateMessageMarkers();
+    const noteSeenKey = (note) => note?._id ? `company-os-seen-note:${note._id}` : '';
     const wasNoteSeen = (note) => {
         const key = noteSeenKey(note);
         if (!key) return false;
@@ -1322,7 +1326,7 @@
             const payload = await parseJsonResponse(response);
             const note = (payload.notifications || []).find((item) => {
                 if (!item?._id || wasNoteSeen(item)) return false;
-                if (item.type === 'rate_change' && item.metadata?.event === 'scheduled') return false;
+                if (item.type === 'rate_change') return false;
                 return true;
             });
             if (!note) return;

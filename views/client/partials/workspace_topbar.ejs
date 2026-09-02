@@ -25,6 +25,12 @@
             <i class="fa-regular fa-calendar"></i>
             <span><%= now.toLocaleDateString('ar-LY', { timeZone: 'Africa/Tripoli', weekday: 'long', day: 'numeric', month: 'long' }) %></span>
         </time>
+        <% const rateUpdated = typeof ratesUpdatedAt !== 'undefined' && ratesUpdatedAt ? new Date(ratesUpdatedAt) : null; if (rateUpdated && !Number.isNaN(rateUpdated.getTime())) { %>
+            <time class="bw-page-status bw-rate-freshness" datetime="<%= rateUpdated.toISOString() %>" title="آخر تحديث لسعر الصرف">
+                <i class="fa-solid fa-clock-rotate-left"></i>
+                <span>آخر سعر <%= rateUpdated.toLocaleTimeString('ar-LY', { timeZone: 'Africa/Tripoli', hour: '2-digit', minute: '2-digit' }) %></span>
+            </time>
+        <% } %>
         <a href="<%= workspace.isCompany ? '/client/security' : '/client/settings' %>" class="bw-icon-button bw-topbar-link" title="أمان الحساب" aria-label="أمان الحساب">
             <i class="fa-solid fa-shield-halved"></i>
         </a>
