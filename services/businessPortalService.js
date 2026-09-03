@@ -1105,44 +1105,6 @@ const buildBaseContext = async (req, page, workspace) => {
     };
 };
 
-const recipientFromTransaction = (tx, service) => {
-    const phone = String(tx.vodafoneNumber || tx.accountNumber || '').trim();
-    if (!phone || phone === '---') return null;
-    return {
-        phone,
-        name: String(tx.accountName || '').trim(),
-        customId: tx.customId,
-        createdAt: tx.createdAt,
-        serviceKey: service.key
-    };
-};
-
-const loadRecentRecipients = async (workspace, service) => {
-    if (!service) return [];
-    const ownership = await ownershipFilter(workspace);
-    const rows = await Transaction.find({
-        $and: [
-            ownership,
-            {
-                $or: [
-                    { transferType: service.key },
-                    { transferType: service.webType }
-                ]
-            }
-        ]
-    }).sort({ createdAt: -1 }).select('vodafoneNumber accountNumber accountName customId createdAt').limit(40).lean();
-
-    const seen = new Set();
-    const recipients = [];
-    rows.forEach((tx) => {
-        const item = recipientFromTransaction(tx, service);
-        if (!item || seen.has(item.phone)) return;
-        seen.add(item.phone);
-        recipients.push(item);
-    });
-    return recipients.slice(0, 8);
-};
-
 const parseCompanyDepositSupportMessage = (text, meta = {}) => {
     const value = String(text || '');
     if (!value.includes('طلب إيداع رصيد')) return null;
@@ -1274,7 +1236,6 @@ const loadPageContext = async (req, page) => {
             throw error;
         }
         context.servicePage = { mode: 'workbench', selectedService: service.key, isolated: true, slug: service.slug };
-        context.recentRecipients = await loadRecentRecipients(workspace, service);
         const liveService = context.serviceCatalog.find((item) => item.key === service.key) || service;
         context.pageMeta = {
             ...context.pageMeta,

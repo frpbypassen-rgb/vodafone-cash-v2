@@ -314,7 +314,6 @@
     color: #e8c547;
 }
 
-.bw-company-os .cos-recipients,
 .bw-company-os .bw-smart-transfer,
 .bw-company-os .bw-internal-transfer,
 .bw-company-os .bw-transfer-workbench {
@@ -459,12 +458,10 @@
 
 .cos-workbench {
     display: grid;
-    grid-template-columns: minmax(220px, .8fr) minmax(0, 1.2fr);
-    gap: 18px;
+    grid-template-columns: minmax(0, 1fr);
     align-items: start;
 }
 
-.cos-recipients,
 .cos-deposit-layout .bw-section {
     padding: 18px;
     border: 1px solid var(--bw-border);
@@ -472,21 +469,6 @@
     background: linear-gradient(180deg, var(--bw-surface), var(--bw-surface-soft));
     box-shadow: var(--bw-shadow-md);
 }
-
-.cos-recipients h2 { margin: 4px 0 12px; }
-.cos-recipient {
-    display: grid;
-    width: 100%;
-    margin: 0 0 8px;
-    padding: 10px 12px;
-    color: inherit;
-    text-align: start;
-    background: var(--bw-surface);
-    border: 1px solid var(--bw-border);
-    border-radius: 14px;
-    cursor: pointer;
-}
-.cos-recipient:hover { border-color: var(--bw-amber); }
 
 .cos-deposit-layout {
     display: grid;
@@ -833,7 +815,6 @@
 [data-theme="dark"] .bw-company-os .bw-smart-transfer,
 [data-theme="dark"] .bw-company-os .bw-internal-transfer,
 [data-theme="dark"] .bw-company-os .bw-transfer-workbench,
-[data-theme="dark"] .bw-company-os .cos-recipients,
 [data-theme="dark"] .bw-company-os .cos-deposit-layout .bw-section,
 [data-theme="dark"] .bw-company-os .bw-settings-hero,
 [data-theme="dark"] .bw-company-os .bw-settings-panel,
@@ -869,7 +850,6 @@
 .bw-company-os[data-theme="dark"] .bw-smart-transfer,
 .bw-company-os[data-theme="dark"] .bw-internal-transfer,
 .bw-company-os[data-theme="dark"] .bw-transfer-workbench,
-.bw-company-os[data-theme="dark"] .cos-recipients,
 .bw-company-os[data-theme="dark"] .cos-deposit-layout .bw-section,
 .bw-company-os[data-theme="dark"] .bw-settings-hero,
 .bw-company-os[data-theme="dark"] .bw-settings-panel,
@@ -1060,7 +1040,6 @@
     .bw-company-os .bw-metric-card,
     .bw-company-os .bw-section,
     .bw-company-os .cos-ops-card,
-    .bw-company-os .cos-recipients,
     .bw-company-os .bw-smart-transfer,
     .bw-company-os .bw-internal-transfer,
     .bw-company-os .bw-transfer-workbench { transform: none; }
@@ -1183,7 +1162,6 @@
     .bw-company-os .bw-smart-transfer,
     .bw-company-os .bw-internal-transfer,
     .bw-company-os .bw-transfer-workbench,
-    .bw-company-os .cos-recipients,
     .bw-company-os .cos-deposit-layout .bw-section {
         border-radius: 18px;
     }

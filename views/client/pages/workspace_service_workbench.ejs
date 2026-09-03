@@ -12,23 +12,6 @@
 </section>
 <% } %>
 <section class="cos-workbench">
-    <aside class="cos-recipients">
-        <span class="bw-section-kicker">المستلمون الأخيرون</span>
-        <h2><%= workspace.isCompany ? 'لا بحث داخل خدمات أخرى' : 'هذه القناة فقط' %></h2>
-        <% if (!recentRecipients || !recentRecipients.length) { %>
-            <p class="bw-muted">لا يوجد مستلمون سابقون لهذه الخدمة بعد.</p>
-        <% } %>
-        <% (recentRecipients || []).forEach(item => { %>
-            <button type="button" class="cos-recipient" data-recipient-phone="<%= item.phone %>" data-recipient-name="<%= item.name || '' %>">
-                <strong class="bw-mono"><%= item.phone %></strong>
-                <small><%= item.name || 'بدون اسم' %></small>
-            </button>
-        <% }) %>
-        <% if (workspace.isCompany) { %>
-            <p class="bw-muted">التحويل الذكي صفحة مستقلة، والتحويل الداخلي صفحة المدير فقط.</p>
-        <% } %>
-        <a href="/client/services" class="bw-text-link">العودة لمعرض الخدمات <i class="fa-solid fa-arrow-left"></i></a>
-    </aside>
     <div>
         <%- include('../partials/transfer_workbench_form') %>
     </div>

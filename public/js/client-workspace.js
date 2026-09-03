@@ -1005,15 +1005,6 @@
     [transferDestination, transferAmount, transferNotes, transferBeneficiary, transferClientPhone].forEach((input) => {
         input?.addEventListener('input', persistTransferDraft);
     });
-    document.querySelectorAll('[data-recipient-phone]').forEach((button) => {
-        button.addEventListener('click', () => {
-            if (transferDestination) transferDestination.value = button.dataset.recipientPhone || '';
-            if (transferAccountNumber) transferAccountNumber.value = button.dataset.recipientPhone || '';
-            if (transferBeneficiary && button.dataset.recipientName) transferBeneficiary.value = button.dataset.recipientName;
-            persistTransferDraft();
-            updateCostEstimate();
-        });
-    });
     restoreTransferDraft();
 
     const balanceTransferForm = document.getElementById('balanceTransferForm');
