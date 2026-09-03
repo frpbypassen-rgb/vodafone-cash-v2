@@ -288,6 +288,30 @@
             : '';
     };
 
+    const resolveSmartTransferService = () => {
+        const requestedKey = smartParsedData?.serviceKey || 'vodafone';
+        return (config.services || []).find((service) => service.key === requestedKey)
+            || (config.services || []).find((service) => service.key === 'vodafone')
+            || null;
+    };
+
+    // The message parser is intentionally optimized for wallet messages. Do not
+    // silently send a service that needs extra identity, beneficiary or location
+    // data: those operations remain protected by their own required fields.
+    const smartTransferDirectIssue = (service = resolveSmartTransferService()) => {
+        if (!service) return 'تعذر تحديد خدمة التحويل.';
+        if (service.key !== 'vodafone') return `تتطلب خدمة ${service.label} بيانات إضافية ولا يمكن إرسالها من التحويل الذكي.`;
+        const phone = String(smartParsedData?.phone || '').trim();
+        const amount = Number(smartParsedData?.amountEGP || 0);
+        if (!phone || (service.destinationPattern && !new RegExp(service.destinationPattern).test(phone))) {
+            return service.destinationError || 'رقم المستلم غير صحيح.';
+        }
+        if (!Number.isFinite(amount) || amount <= 0) return 'أدخل مبلغ تحويل صحيحًا.';
+        if (service.minAmount && amount < service.minAmount) return `الحد الأدنى للتحويل هو ${service.minAmount} جنيه.`;
+        if (service.maxAmount && amount > service.maxAmount) return `الحد الأقصى للتحويل هو ${formatNumber(service.maxAmount, 0)} جنيه للعملية الواحدة.`;
+        return '';
+    };
+
     const renderSmartPreview = () => {
         if (!smartTransferPreview || !smartParsedData) return;
         const rate = Number(activeService?.rate || 0);
@@ -312,7 +336,10 @@
             smartPreviewConfidence.className = `bw-smart-confidence ${confidence}`;
             smartPreviewConfidence.textContent = labels[confidence] || labels.low;
         }
-        if (smartTransferSendButton) smartTransferSendButton.disabled = !smartParsedData.ready;
+        if (smartTransferSendButton) {
+            const directIssue = smartTransferDirectIssue(activeService);
+            smartTransferSendButton.disabled = !smartParsedData.ready || Boolean(directIssue);
+        }
     };
 
     const resetSmartTransfer = (clearMessage = false) => {
@@ -469,7 +496,7 @@
     };
 
     const refreshServiceRates = async () => {
-        if (!transferForm && !serviceButtons.length) return;
+        if (!transferForm && !serviceButtons.length && !smartTransferMessage) return;
         if (rateRefreshController) rateRefreshController.abort();
         const controller = new AbortController();
         rateRefreshController = controller;
@@ -501,9 +528,10 @@
 
     const applySmartTransferData = (parsed) => {
         smartParsedData = parsed;
-        if (parsed.serviceKey && (config.services || []).some((service) => service.key === parsed.serviceKey)) {
-            selectService(parsed.serviceKey);
-        }
+        const parsedServiceKey = (config.services || []).some((service) => service.key === parsed.serviceKey)
+            ? parsed.serviceKey
+            : 'vodafone';
+        selectService(parsedServiceKey);
         if (transferDestination) transferDestination.value = parsed.phone || '';
         if (transferAccountNumber) transferAccountNumber.value = parsed.phone || '';
         if (transferAmount) transferAmount.value = parsed.amountEGP || '';
@@ -512,10 +540,13 @@
         updateCostEstimate();
         renderSmartPreview();
 
-        if (parsed.ready) {
+        const directIssue = smartTransferDirectIssue(activeService);
+        if (parsed.ready && !directIssue) {
             setSmartStatus((parsed.warnings || []).length
                 ? `تم تجهيز البيانات للمراجعة. ${(parsed.warnings || []).join(' ')}`
                 : 'تم تجهيز بيانات العملية للمراجعة.', 'success');
+        } else if (parsed.ready) {
+            setSmartStatus(directIssue, 'danger');
         } else {
             const issue = (parsed.missing || []).length
                 ? `بيانات ناقصة: ${(parsed.missing || []).join('، ')}.`
@@ -586,23 +617,12 @@
     });
     smartTransferSendButton?.addEventListener('click', () => {
         if (!smartParsedData?.ready) return;
-        if (transferForm) {
-            transferForm.requestSubmit();
+        const directIssue = smartTransferDirectIssue();
+        if (directIssue) {
+            setSmartStatus(directIssue, 'danger');
             return;
         }
-        const service = (config.services || []).find((item) => item.key === smartParsedData.serviceKey)
-            || (config.services || []).find((item) => item.key === 'vodafone')
-            || config.services?.[0];
-        try {
-            sessionStorage.setItem('businessAssistantTransferDraft', JSON.stringify({
-                phone: smartParsedData.phone,
-                amountEGP: smartParsedData.amountEGP,
-                note: smartParsedData.note,
-                beneficiaryName: smartParsedData.beneficiaryName,
-                serviceKey: service?.key || 'vodafone'
-            }));
-        } catch (_) { /* optional browser storage */ }
-        window.location.href = `/client/services/${encodeURIComponent(service?.slug || 'cash')}`;
+        openSmartTransferConfirm();
     });
 
     const addAssistantMessage = (message, role = 'assistant', action = null, draft = null) => {
@@ -893,6 +913,52 @@
         updateCostEstimate();
     };
 
+    const sendTransferRequest = async ({
+        formData,
+        service,
+        destination,
+        phoneHint = '',
+        submitButton,
+        loadingHtml,
+        onSuccess,
+        onError
+    }) => {
+        let operationPin;
+        try {
+            operationPin = await requestOperationPin();
+        } catch (error) {
+            onError?.(error.message || 'تعذر تأكيد التحويل.');
+            return null;
+        }
+        if (operationPin === null) return null;
+        if (operationPin) formData.set('operationPin', operationPin);
+
+        const originalHtml = submitButton?.innerHTML;
+        if (submitButton) {
+            submitButton.disabled = true;
+            submitButton.innerHTML = loadingHtml || '<i class="fa-solid fa-circle-notch fa-spin"></i><span>جارٍ تسجيل العملية...</span>';
+        }
+        try {
+            const response = await fetch('/client/transfer', {
+                method: 'POST',
+                headers: { Accept: 'application/json', 'x-csrf-token': config.csrfToken || '' },
+                body: formData
+            });
+            const payload = await parseJsonResponse(response);
+            if (!response.ok || payload.error) throw new Error(payload.error || 'تعذر إرسال العملية.');
+            onSuccess?.(payload, { service, destination, phoneHint });
+            return payload;
+        } catch (error) {
+            onError?.(error.message || 'تعذر إرسال العملية.');
+            return null;
+        } finally {
+            if (submitButton) {
+                submitButton.disabled = false;
+                submitButton.innerHTML = originalHtml;
+            }
+        }
+    };
+
     const executeTransfer = async () => {
         const destination = activeService?.key === 'post_card'
             ? transferGovernorate.value
@@ -904,61 +970,105 @@
         const formData = new FormData(transferForm);
         formData.set('phone', destination);
         formData.set('number', accountNumber);
-        let operationPin;
-        try {
-            operationPin = await requestOperationPin();
-        } catch (error) {
-            showFormResult(transferResult, error.message || 'تعذر تأكيد التحويل.', false);
-            return;
-        }
-        if (operationPin === null) return;
-        if (operationPin) formData.set('operationPin', operationPin);
-
-        const submitButton = document.getElementById('transferSubmitButton');
-        const originalHtml = submitButton?.innerHTML;
-        if (submitButton) {
-            submitButton.disabled = true;
-            submitButton.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin"></i><span>جارٍ تسجيل العملية...</span>';
-        }
-        try {
-            const response = await fetch('/client/transfer', {
-                method: 'POST',
-                headers: { Accept: 'application/json', 'x-csrf-token': config.csrfToken || '' },
-                body: formData
-            });
-            const payload = await parseJsonResponse(response);
-            if (!response.ok || payload.error) throw new Error(payload.error || 'تعذر إرسال العملية.');
-            const reference = payload.customId ? ` الرقم المرجعي ${payload.customId}.` : '';
-            showFormResult(transferResult, `${payload.message || 'تم تسجيل العملية.'}${reference} يمكنك متابعتها من سجل المعاملات.`, true);
-            const phoneHint = transferClientPhone?.value.trim()
-                || (activeService?.key === 'vodafone' ? destination : '');
-            fillTransferSuccess(payload, phoneHint);
-            if (config.workspaceType === 'company') openDialog(transferSuccessDialog);
-            clearTransferValues();
-            resetSmartTransfer(true);
-            updateCostEstimate();
-            if (draftStorageKey) {
-                try { sessionStorage.removeItem(draftStorageKey); } catch (_) { /* optional */ }
-            }
-        } catch (error) {
-            showFormResult(transferResult, error.message || 'تعذر إرسال العملية.', false);
-        } finally {
-            if (submitButton) {
-                submitButton.disabled = false;
-                submitButton.innerHTML = originalHtml;
-            }
-        }
+        return sendTransferRequest({
+            formData,
+            service: activeService,
+            destination,
+            phoneHint: transferClientPhone?.value.trim()
+                || (activeService?.key === 'vodafone' ? destination : ''),
+            submitButton: document.getElementById('transferSubmitButton'),
+            onSuccess: (payload, context) => {
+                const reference = payload.customId ? ` الرقم المرجعي ${payload.customId}.` : '';
+                showFormResult(transferResult, `${payload.message || 'تم تسجيل العملية.'}${reference} يمكنك متابعتها من سجل المعاملات.`, true);
+                fillTransferSuccess(payload, context.phoneHint);
+                if (config.workspaceType === 'company') openDialog(transferSuccessDialog);
+                clearTransferValues();
+                resetSmartTransfer(true);
+                updateCostEstimate();
+                if (draftStorageKey) {
+                    try { sessionStorage.removeItem(draftStorageKey); } catch (_) { /* optional */ }
+                }
+            },
+            onError: (message) => showFormResult(transferResult, message, false)
+        });
     };
 
-    const openSealConfirm = ({ html, title, onConfirm }) => {
-        if (!transferConfirmDialog || !transferConfirmBody || config.workspaceType !== 'company') {
+    const transferConfirmSubmit = document.getElementById('transferConfirmSubmit');
+    const defaultTransferConfirmSubmitHtml = transferConfirmSubmit?.innerHTML || '<i class="fa-solid fa-check"></i>تأكيد وختم';
+
+    const openSealConfirm = ({ html, title, onConfirm, confirmHtml, forceDialog = false }) => {
+        if (!transferConfirmDialog || !transferConfirmBody || (!forceDialog && config.workspaceType !== 'company')) {
             onConfirm();
             return;
         }
         pendingTransferConfirm = onConfirm;
         if (transferConfirmTitle) transferConfirmTitle.textContent = title || 'تأكيد العملية';
         transferConfirmBody.innerHTML = html;
+        if (transferConfirmSubmit) transferConfirmSubmit.innerHTML = confirmHtml || defaultTransferConfirmSubmitHtml;
         openDialog(transferConfirmDialog);
+    };
+
+    const executeSmartTransfer = async () => {
+        const service = resolveSmartTransferService();
+        const directIssue = smartTransferDirectIssue(service);
+        if (directIssue) {
+            setSmartStatus(directIssue, 'danger');
+            return null;
+        }
+
+        const destination = String(smartParsedData?.phone || '').trim();
+        const formData = new FormData();
+        formData.set('type', service.webType);
+        formData.set('phone', destination);
+        formData.set('number', destination);
+        formData.set('amount', String(smartParsedData.amountEGP));
+        formData.set('name', String(smartParsedData.beneficiaryName || ''));
+        formData.set('notes', String(smartParsedData.note || ''));
+        setSmartStatus('جارٍ تسجيل العملية...', 'loading');
+
+        return sendTransferRequest({
+            formData,
+            service,
+            destination,
+            phoneHint: destination,
+            submitButton: smartTransferSendButton,
+            loadingHtml: '<i class="fa-solid fa-circle-notch fa-spin"></i>جارٍ الإرسال',
+            onSuccess: (payload, context) => {
+                const reference = payload.customId ? ` الرقم المرجعي ${payload.customId}.` : '';
+                fillTransferSuccess(payload, context.phoneHint);
+                if (config.workspaceType === 'company') openDialog(transferSuccessDialog);
+                resetSmartTransfer(true);
+                setSmartStatus(`${payload.message || 'تم تسجيل العملية.'}${reference} يمكنك متابعتها من سجل المعاملات.`, 'success');
+            },
+            onError: (message) => setSmartStatus(message, 'danger')
+        });
+    };
+
+    const openSmartTransferConfirm = () => {
+        const service = resolveSmartTransferService();
+        const directIssue = smartTransferDirectIssue(service);
+        if (directIssue) {
+            setSmartStatus(directIssue, 'danger');
+            return;
+        }
+        const amount = Number(smartParsedData?.amountEGP || 0);
+        const rate = Number(service?.rate || 0);
+        const cost = calculateCostLyd(amount, rate, service);
+        const destination = String(smartParsedData?.phone || '').trim();
+        openSealConfirm({
+            title: 'مراجعة التحويل الذكي',
+            confirmHtml: '<i class="fa-solid fa-paper-plane"></i>إرسال التحويل',
+            forceDialog: true,
+            html: `
+                <div class="bw-cost-preview">
+                    <div><span>الخدمة</span><strong>${escapeHtml(service.label)}</strong></div>
+                    <div><span>رقم المستلم</span><strong class="bw-mono">${escapeHtml(destination)}</strong></div>
+                    <div><span>المبلغ</span><strong class="bw-mono">${escapeHtml(formatNumber(amount, Number.isInteger(amount) ? 0 : 2))} ${escapeHtml(sourceCurrencyLabel(service))}</strong></div>
+                    <div><span>التكلفة التقديرية</span><strong class="bw-mono">${escapeHtml(formatNumber(cost, 3))} LYD</strong></div>
+                    ${smartParsedData?.note ? `<div><span>الملاحظة</span><strong>${escapeHtml(smartParsedData.note)}</strong></div>` : ''}
+                </div>`,
+            onConfirm: executeSmartTransfer
+        });
     };
 
     const openTransferConfirm = () => {
@@ -992,7 +1102,7 @@
         if (!transferForm.reportValidity()) return;
         openTransferConfirm();
     });
-    document.getElementById('transferConfirmSubmit')?.addEventListener('click', () => {
+    transferConfirmSubmit?.addEventListener('click', () => {
         const next = pendingTransferConfirm;
         pendingTransferConfirm = null;
         transferConfirmDialog?.close();
@@ -1001,6 +1111,7 @@
     transferConfirmDialog?.addEventListener('close', () => {
         pendingTransferConfirm = null;
         if (transferConfirmTitle) transferConfirmTitle.textContent = 'تأكيد العملية';
+        if (transferConfirmSubmit) transferConfirmSubmit.innerHTML = defaultTransferConfirmSubmitHtml;
     });
     [transferDestination, transferAmount, transferNotes, transferBeneficiary, transferClientPhone].forEach((input) => {
         input?.addEventListener('input', persistTransferDraft);
