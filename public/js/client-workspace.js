@@ -1017,6 +1017,7 @@
         }
 
         const destination = String(smartParsedData?.phone || '').trim();
+        const clientPhone = document.getElementById('smartPreviewClientPhone')?.value.trim() || '';
         const formData = new FormData();
         formData.set('type', service.webType);
         formData.set('phone', destination);
@@ -1024,13 +1025,14 @@
         formData.set('amount', String(smartParsedData.amountEGP));
         formData.set('name', String(smartParsedData.beneficiaryName || ''));
         formData.set('notes', String(smartParsedData.note || ''));
+        if (clientPhone) formData.set('clientPhone', clientPhone);
         setSmartStatus('جارٍ تسجيل العملية...', 'loading');
 
         return sendTransferRequest({
             formData,
             service,
             destination,
-            phoneHint: destination,
+            phoneHint: clientPhone || destination,
             submitButton: smartTransferSendButton,
             loadingHtml: '<i class="fa-solid fa-circle-notch fa-spin"></i>جارٍ الإرسال',
             onSuccess: (payload, context) => {
@@ -1066,7 +1068,12 @@
                     <div><span>المبلغ</span><strong class="bw-mono">${escapeHtml(formatNumber(amount, Number.isInteger(amount) ? 0 : 2))} ${escapeHtml(sourceCurrencyLabel(service))}</strong></div>
                     <div><span>التكلفة التقديرية</span><strong class="bw-mono">${escapeHtml(formatNumber(cost, 3))} LYD</strong></div>
                     ${smartParsedData?.note ? `<div><span>الملاحظة</span><strong>${escapeHtml(smartParsedData.note)}</strong></div>` : ''}
-                </div>`,
+                </div>
+                <label class="bw-field">
+                    <span>رقم واتساب العميل <em>اختياري</em></span>
+                    <input type="text" id="smartPreviewClientPhone" class="bw-mono" dir="ltr" inputmode="tel" autocomplete="tel" maxlength="30" placeholder="رقم لاستلام الإيصال عبر واتساب">
+                    <small>يُرسل الإيصال إلى هذا الرقم عند اكتمال العملية.</small>
+                </label>`,
             onConfirm: executeSmartTransfer
         });
     };
