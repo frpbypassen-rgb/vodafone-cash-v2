@@ -212,6 +212,15 @@ const resolveDateRange = (query = {}, options = {}) => {
         };
     }
 
+    if (query.period === 'today') {
+        return { start: startOfDay(now), end: endOfDay(now), from: formatInputDate(now), to: formatInputDate(now), month: '', label: 'اليوم' };
+    }
+    if (query.period === 'week') {
+        const end = endOfDay(now);
+        const start = startOfDay(new Date(now.getFullYear(), now.getMonth(), now.getDate() - 6));
+        return { start, end, from: formatInputDate(start), to: formatInputDate(end), month: '', label: 'آخر 7 أيام' };
+    }
+
     const fromDate = parseLocalDate(query.from || query.date);
     const toDate = parseLocalDate(query.to || query.date);
     if (fromDate || toDate) {
@@ -488,7 +497,7 @@ const buildTransactionFilter = async (workspace, query = {}, options = {}) => {
 
     if (search) {
         const regex = new RegExp(escapeRegex(search), 'i');
-        conditions.push({
+        const matches = {
             $or: [
                 { customId: regex },
                 { vodafoneNumber: regex },
@@ -498,7 +507,10 @@ const buildTransactionFilter = async (workspace, query = {}, options = {}) => {
                 { subAccountName: regex },
                 { notes: regex }
             ]
-        });
+        };
+        const amount = Number(search.replace(/[,،\s]/g, ''));
+        if (Number.isFinite(amount) && amount >= 0) matches.$or.push({ amount });
+        conditions.push(matches);
     }
     if (query.status && STATUS_META[query.status]) conditions.push({ status: query.status });
     if (query.service && SERVICE_CATALOG.some((service) => service.key === query.service)) conditions.push({ transferType: query.service });
@@ -912,6 +924,17 @@ const centralCompanyReportInput = (workspace, query = {}) => {
         throw error;
     }
     const requestedType = String(query.centralDateType || query.dateType || '').toLowerCase();
+    const quickPeriod = String(query.period || '').toLowerCase();
+    const now = new Date();
+    if (quickPeriod === 'today') {
+        const today = formatInputDate(now);
+        return { mainCategory: 'company', subId: String(workspace.entity._id), subType: String(query.centralEmployee || 'all'), dateType: 'day', dateValue: today, dateFrom: today, dateTo: today };
+    }
+    if (quickPeriod === 'week') {
+        const start = formatInputDate(new Date(now.getFullYear(), now.getMonth(), now.getDate() - 6));
+        const end = formatInputDate(now);
+        return { mainCategory: 'company', subId: String(workspace.entity._id), subType: String(query.centralEmployee || 'all'), dateType: 'range', dateValue: '', dateFrom: start, dateTo: end };
+    }
     const dateType = requestedType === 'day' ? 'day' : 'month';
     const today = new Date().toISOString().slice(0, 10);
     const dateFrom = String(query.centralFrom || query.from || '');

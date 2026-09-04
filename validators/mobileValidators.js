@@ -289,7 +289,7 @@ const clientReportsValidator = [
     body('dateType')
         .optional()
         .trim()
-        .isIn(['day', 'month', 'range']).withMessage('Ù†ÙˆØ¹ Ø§Ù„ØªØ§Ø±ÙŠØ® ØºÙŠØ± ØµØ§Ù„Ø­'),
+        .isIn(['day', 'week', 'month', 'range']).withMessage('Ù†ÙˆØ¹ Ø§Ù„ØªØ§Ø±ÙŠØ® ØºÙŠØ± ØµØ§Ù„Ø­'),
     body('dateValue')
         .optional()
         .trim()
@@ -302,6 +302,10 @@ const clientReportsValidator = [
         .optional({ checkFalsy: true })
         .trim()
         .isISO8601().withMessage('تاريخ النهاية غير صالح'),
+    body('search')
+        .optional({ checkFalsy: true })
+        .trim()
+        .isLength({ max: 80 }).withMessage('عبارة البحث طويلة جداً'),
     body().custom((payload) => {
         if (payload.dateType !== 'range') return true;
         if (!payload.dateFrom || !payload.dateTo) {

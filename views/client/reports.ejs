@@ -445,9 +445,11 @@
                 <div class="col-md-3">
                     <label class="form-label text-muted fw-bold">الفترة الزمنية</label>
                     <select id="dateType" class="form-select" onchange="toggleDateInput()">
-                        <option value="day" <%= canUseMonthlyReports ? '' : 'selected' %>>يوم محدد</option>
+                        <option value="day" <%= canUseMonthlyReports ? '' : 'selected' %>>اليوم / يوم محدد</option>
                         <% if (canUseMonthlyReports) { %>
+                        <option value="week">آخر 7 أيام</option>
                         <option value="month" selected>شهر محدد</option>
+                        <option value="range">فترة مخصصة</option>
                         <% } %>
                     </select>
                 </div>
@@ -456,6 +458,15 @@
                     <label class="form-label text-muted fw-bold">&nbsp;</label>
                     <input type="date" id="dateValueDay" class="form-control">
                     <input type="month" id="dateValueMonth" class="form-control" style="display:none;">
+                    <div id="dateRangeInputs" class="row g-2 d-none">
+                        <div class="col-6"><input type="date" id="dateFrom" class="form-control" aria-label="من تاريخ"></div>
+                        <div class="col-6"><input type="date" id="dateTo" class="form-control" aria-label="إلى تاريخ"></div>
+                    </div>
+                </div>
+
+                <div class="col-md-3">
+                    <label class="form-label text-muted fw-bold">بحث سريع</label>
+                    <input id="reportSearch" class="form-control" maxlength="80" placeholder="هاتف، رقم عملية، أو قيمة">
                 </div>
 
                 <div class="col-md-3 text-end">
@@ -473,28 +484,40 @@
 
         <!-- الإحصائيات -->
         <div class="row g-3 mb-4 d-none" id="statsSection">
-            <div class="col-md-3">
+            <div class="col-md-2 col-6">
                 <div class="stat-card" style="background: linear-gradient(135deg, rgba(239,68,68,0.1), rgba(239,68,68,0.02)); border-color: rgba(239,68,68,0.2);">
-                    <h5 class="fw-bold mb-2 text-danger" id="statTotalOps">0.00</h5>
-                    <small class="text-danger fw-bold">إجمالي العمليات المنفذة (LYD)</small>
+                    <h5 class="fw-bold mb-2 text-danger" id="statOpeningBalance">0.00</h5>
+                    <small class="text-danger fw-bold">الرصيد السابق</small>
                 </div>
             </div>
-            <div class="col-md-3">
+            <div class="col-md-2 col-6">
                 <div class="stat-card" style="background: linear-gradient(135deg, rgba(16,185,129,0.1), rgba(16,185,129,0.02)); border-color: rgba(16,185,129,0.2);">
-                    <h5 class="fw-bold mb-2 text-success" id="statCompletedCount">0</h5>
-                    <small class="text-success fw-bold">العمليات الناجحة</small>
+                    <h5 class="fw-bold mb-2 text-success" id="statTotalOps">0.00</h5>
+                    <small class="text-success fw-bold">العمليات</small>
                 </div>
             </div>
-            <div class="col-md-3">
+            <div class="col-md-2 col-6">
                 <div class="stat-card" style="background: linear-gradient(135deg, rgba(212,175,55,0.1), rgba(212,175,55,0.02)); border-color: rgba(212,175,55,0.2);">
-                    <h5 class="fw-bold mb-2 text-warning" id="statRejectedCount">0</h5>
-                    <small class="text-warning fw-bold">العمليات المرفوضة</small>
+                    <h5 class="fw-bold mb-2 text-warning" id="statCredits">0.00</h5>
+                    <small class="text-warning fw-bold">الإيداعات</small>
                 </div>
             </div>
-            <div class="col-md-3">
+            <div class="col-md-2 col-6">
                 <div class="stat-card" style="background: linear-gradient(135deg, rgba(14,165,233,0.1), rgba(14,165,233,0.02)); border-color: rgba(14,165,233,0.2);">
-                    <h5 class="fw-bold mb-2 text-info" id="statDepositNet">0.00</h5>
-                    <small class="text-info fw-bold">صافي الإيداعات / الخصوم (LYD)</small>
+                    <h5 class="fw-bold mb-2 text-info" id="statDeductions">0.00</h5>
+                    <small class="text-info fw-bold">الخصومات</small>
+                </div>
+            </div>
+            <div class="col-md-2 col-6">
+                <div class="stat-card">
+                    <h5 class="fw-bold mb-2" id="statOperationCount">0</h5>
+                    <small class="fw-bold">عدد العمليات</small>
+                </div>
+            </div>
+            <div class="col-md-2 col-6">
+                <div class="stat-card" style="background: linear-gradient(135deg, rgba(16,185,129,0.12), rgba(16,185,129,0.03)); border-color: rgba(16,185,129,0.3);">
+                    <h5 class="fw-bold mb-2 text-success" id="statClosingBalance">0.00</h5>
+                    <small class="text-success fw-bold">الرصيد النهائي</small>
                 </div>
             </div>
         </div>
@@ -601,20 +624,19 @@
         document.getElementById('dateValueDay').valueAsDate = new Date();
         const yyyyMM = new Date().toISOString().substring(0, 7);
         if(document.getElementById('dateValueMonth')) document.getElementById('dateValueMonth').value = yyyyMM;
+        document.getElementById('dateFrom').valueAsDate = new Date();
+        document.getElementById('dateTo').valueAsDate = new Date();
 
         function toggleDateInput() {
             const type = document.getElementById('dateType').value;
-            if (type === 'day') {
-                document.getElementById('dateValueDay').style.display = 'block';
-                if(document.getElementById('dateValueMonth')) document.getElementById('dateValueMonth').style.display = 'none';
-            } else {
-                document.getElementById('dateValueDay').style.display = 'none';
-                if(document.getElementById('dateValueMonth')) document.getElementById('dateValueMonth').style.display = 'block';
-            }
+            document.getElementById('dateValueDay').style.display = type === 'day' ? 'block' : 'none';
+            if(document.getElementById('dateValueMonth')) document.getElementById('dateValueMonth').style.display = type === 'month' ? 'block' : 'none';
+            document.getElementById('dateRangeInputs').classList.toggle('d-none', type !== 'range');
         }
         toggleDateInput();
 
         let lastReportData = null;
+        let visibleReportOperations = [];
 
         function cleanTxNotes(tx = {}) {
             const explicitCustomerNotes = String(tx.customerNotes || '').trim();
@@ -633,6 +655,27 @@
             });
             return lines.filter(Boolean).join('\n').trim();
         }
+
+        const escapeReportHtml = (value) => String(value ?? '').replace(/[&<>'"]/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[char]));
+
+        window.openClientReportDetail = function(index) {
+            const tx = visibleReportOperations[index];
+            if (!tx) return;
+            const date = tx.createdAt ? new Date(tx.createdAt).toLocaleString('en-GB', { timeZone: 'Africa/Tripoli', hour12: true }) : '---';
+            const executionNumbers = Array.isArray(tx.executionNumbers) && tx.executionNumbers.length > 1
+                ? `<div class="mt-3"><strong>أرقام التنفيذ</strong><div dir="ltr" class="mt-1">${tx.executionNumbers.map(escapeReportHtml).join(' &nbsp;•&nbsp; ')}</div></div>`
+                : '';
+            const receiptButton = tx.receiptUrl
+                ? `<a class="btn btn-success w-100 mt-3" target="_blank" rel="noopener" href="${escapeReportHtml(tx.receiptUrl)}"><i class="fa-solid fa-receipt me-1"></i> عرض صورة الإيصال</a>`
+                : '';
+            Swal.fire({
+                title: `تفاصيل العملية #${escapeReportHtml(tx.customId || '')}`,
+                html: `<div class="text-end"><div class="row g-2"><div class="col-6"><small class="text-muted">المبلغ</small><div class="fw-bold">${Number(tx.amount || 0).toLocaleString('en-US')} EGP</div></div><div class="col-6"><small class="text-muted">التكلفة</small><div class="fw-bold">${Number(tx.costLYD || 0).toFixed(2)} LYD</div></div><div class="col-6"><small class="text-muted">رقم المستفيد</small><div dir="ltr" class="fw-bold">${escapeReportHtml(tx.vodafoneNumber || tx.accountNumber || tx.recipientNumber || '---')}</div></div><div class="col-6"><small class="text-muted">التاريخ</small><div class="fw-bold">${escapeReportHtml(date)}</div></div></div>${executionNumbers}${receiptButton}</div>`,
+                showCloseButton: true,
+                showConfirmButton: false,
+                customClass: { popup: 'swal2-popup' }
+            });
+        };
 
         async function sendToWhatsApp(txId) {
             const tx = lastReportData.operations.find(t => t._id === txId) || lastReportData.deposits.find(t => t._id === txId) || lastReportData.currentTransactions.find(t => t._id === txId);
@@ -733,9 +776,15 @@
         async function fetchReport() {
             const dateType = document.getElementById('dateType').value;
             const dateValue = dateType === 'day' ? document.getElementById('dateValueDay').value : document.getElementById('dateValueMonth').value;
+            const dateFrom = dateType === 'range' ? document.getElementById('dateFrom').value : '';
+            const dateTo = dateType === 'range' ? document.getElementById('dateTo').value : '';
+            const search = document.getElementById('reportSearch').value.trim();
 
-            if (!dateValue) {
+            if ((dateType === 'day' || dateType === 'month') && !dateValue) {
                 return Swal.fire({ icon: 'warning', title: 'تنبيه', text: 'يرجى اختيار التاريخ.' });
+            }
+            if (dateType === 'range' && (!dateFrom || !dateTo || dateFrom > dateTo)) {
+                return Swal.fire({ icon: 'warning', title: 'تنبيه', text: 'يرجى اختيار فترة زمنية صحيحة.' });
             }
 
             const btn = document.getElementById('btnFetch');
@@ -747,19 +796,23 @@
                 const res = await fetch('/client/reports/filter', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ dateType, dateValue })
+                    body: JSON.stringify({ dateType, dateValue, dateFrom, dateTo, search: search || null })
                 });
                 const data = await res.json();
 
                 if (!data.success) throw new Error(data.error);
 
                 // Update Stats
-                document.getElementById('statTotalOps').innerHTML = `${Number(data.data?.totalLYD || 0).toFixed(2)} <span class="fs-6">LYD</span>`;
-                document.getElementById('statCompletedCount').innerHTML = data.data.completedCount;
-                document.getElementById('statRejectedCount').innerHTML = data.data.rejectedCount;
-                document.getElementById('statDepositNet').innerHTML = `${(data.data.totalDeposits || 0).toFixed(2)} <span class="fs-6">LYD</span>`;
+                const lyd = (value) => `${Number(value || 0).toFixed(2)} <span class="fs-6">LYD</span>`;
+                document.getElementById('statOpeningBalance').innerHTML = lyd(data.data.previousBalance);
+                document.getElementById('statTotalOps').innerHTML = lyd(data.data.totalLYD);
+                document.getElementById('statCredits').innerHTML = lyd(data.data.totalCredits);
+                document.getElementById('statDeductions').innerHTML = lyd(data.data.totalDeductions);
+                document.getElementById('statOperationCount').textContent = Number(data.data.operationCount || 0).toLocaleString('en-US');
+                document.getElementById('statClosingBalance').innerHTML = lyd(data.data.closingBalance);
 
                 lastReportData = data.data;
+                visibleReportOperations = data.data.operations || [];
                 document.getElementById('statsSection').classList.remove('d-none');
                 document.getElementById('tableSection').classList.remove('d-none');
                 document.getElementById('depositSection').classList.remove('d-none');
@@ -795,11 +848,9 @@
                         const dateObj = new Date(tx.createdAt);
                         const dateStr = dateObj.toLocaleDateString('en-GB', { timeZone: 'Africa/Tripoli' });
                         const timeStr = dateObj.toLocaleTimeString('en-US', { timeZone: 'Africa/Tripoli', hour: '2-digit', minute: '2-digit', hour12: true });
-                        const hasProofImage = !!(tx.proofImage || (tx.proofImages && tx.proofImages.length > 0));
-
                         // Desktop Render
                         tbody.innerHTML += `
-                        <tr ${hasProofImage ? `onclick="showReceiptModal('${tx.proofImage || ''}', '${(tx.proofImages || []).join(',')}')" style="cursor: pointer;" title="عرض إيصال التحويل"` : ''}>
+                        <tr onclick="openClientReportDetail(${i})" style="cursor: pointer;" title="عرض تفاصيل العملية">
                             <td class="text-muted fw-bold">${i + 1}</td>
                             <td dir="ltr" class="fw-bold text-end">#${tx.customId || tx._id.toString().slice(-6)}</td>
                             <td class="fw-bold">${tx.amount} <small class="text-muted">EGP</small></td>
@@ -819,7 +870,7 @@
                         // Mobile Render
                         if (mobileList) {
                             mobileList.innerHTML += `
-                            <div class="mobile-tx-card" ${hasProofImage ? `onclick="showReceiptModal('${tx.proofImage || ''}', '${(tx.proofImages || []).join(',')}')" style="cursor: pointer;" title="عرض إيصال التحويل"` : ''}>
+                            <div class="mobile-tx-card" onclick="openClientReportDetail(${i})" style="cursor: pointer;" title="عرض تفاصيل العملية">
                                 <div class="mobile-tx-header">
                                     <span class="tx-custom-id">#${tx.customId || tx._id.toString().slice(-6)}</span>
                                     <span>${stHtml}</span>
@@ -863,10 +914,7 @@
                             const typeLabel = isDeduction ? 'خصم' : (tx.status === 'deposit_pending' ? 'إيداع معلق' : 'إيداع');
                             const amountClass = isDeduction ? 'text-danger' : 'text-success';
                             const signedAmount = isDeduction ? -Math.abs(tx.amount || 0) : Math.abs(tx.amount || 0);
-                            const hasProofImage = !!(tx.proofImage || (tx.proofImages && tx.proofImages.length > 0));
-                            const proofImage = String(tx.proofImage || '').replace(/'/g, "\\'");
-                            const proofImages = (tx.proofImages || []).join(',').replace(/'/g, "\\'");
-                            const receiptAttrs = hasProofImage ? `onclick="showReceiptModal('${proofImage}', '${proofImages}')" style="cursor: pointer;" title="عرض إيصال الإيداع"` : '';
+                            const receiptAttrs = tx.receiptUrl ? `onclick="showReceiptModal('${tx.receiptUrl}')" style="cursor: pointer;" title="عرض إيصال الإيداع"` : '';
 
                             depositTbody.innerHTML += `
                                 <tr ${receiptAttrs}>

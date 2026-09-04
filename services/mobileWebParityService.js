@@ -33,6 +33,48 @@ const { findReportTransactions } = require('./unifiedReportService');
 const { systemDateKey, systemDayEnd, systemDayStart, systemDateRange } = require('../config/systemTime');
 const { buildExecutorOperationSearchQuery } = require('../utils/executorOperationSearch');
 
+const escapeRegex = (value) => String(value || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+const buildClientReportSearchQuery = (value) => {
+    const search = String(value || '').trim();
+    if (!search) return { active: false, query: {} };
+
+    const safeSearch = escapeRegex(search);
+    const query = { $or: [
+        { customId: { $regex: safeSearch, $options: 'i' } },
+        { vodafoneNumber: { $regex: safeSearch, $options: 'i' } },
+        { accountNumber: { $regex: safeSearch, $options: 'i' } }
+    ] };
+    const amount = Number(search.replace(/[,،\s]/g, ''));
+    if (Number.isFinite(amount) && amount >= 0) query.$or.push({ amount });
+    return { active: true, query, value: search };
+};
+
+const clientExecutionNumbers = (transaction = {}) => {
+    const numbers = (transaction.executorSenderEntries || [])
+        .map((entry) => String(entry?.phone || '').trim())
+        .filter(Boolean);
+    if (transaction.executorSenderPhone) numbers.push(String(transaction.executorSenderPhone).trim());
+    const unique = [...new Set(numbers)];
+    return unique.length > 1 ? unique : [];
+};
+
+const presentClientReportTransaction = (transaction = {}) => {
+    const sanitized = sanitizeStatementTransaction(transaction);
+    const receiptUrl = sanitized.proofImage
+        ? `/client/proxy/image/${encodeURIComponent(String(sanitized._id))}/0`
+        : null;
+    delete sanitized.proofImage;
+    delete sanitized.proofImages;
+    return {
+        ...sanitized,
+        receiptUrl,
+        // تعرض أرقام التنفيذ فقط عند تعددها؛ لا تعرض أي اسم أو رصيد أو بيانات
+        // داخلية تخص شركة التنفيذ.
+        executionNumbers: clientExecutionNumbers(transaction)
+    };
+};
+
 const appendNoteText = (current, note) => {
     const cleanNote = String(note || '').trim();
     if (!cleanNote) return current || '';
@@ -181,7 +223,7 @@ const parseSupportImage = (imageBase64) => {
 /**
  * 📊 Client Reports Parity
  */
-async function getClientReports({ userId, accountType, dateType, dateValue, dateFrom, dateTo, tenantId }) {
+async function getClientReports({ userId, accountType, dateType, dateValue, dateFrom, dateTo, search, tenantId }) {
     let account = null;
     let company = null;
     const isEmployee = accountType === 'client_company';
@@ -205,15 +247,26 @@ async function getClientReports({ userId, accountType, dateType, dateValue, date
         if (!account) throw new Error('UNAUTHORIZED');
     }
 
+    const normalizedDateType = ['day', 'week', 'month', 'range'].includes(dateType) ? dateType : 'month';
     let { start, end } = getDateRange(
-        dateType === 'day' ? dateValue : null,
-        dateType === 'month' ? dateValue : null
+        normalizedDateType === 'day' ? dateValue : null,
+        normalizedDateType === 'month' ? dateValue : null
     );
-    if (dateType === 'range') {
+    if (normalizedDateType === 'week') {
+        end = new Date();
+        end.setHours(23, 59, 59, 999);
+        start = new Date(end);
+        start.setDate(start.getDate() - 6);
+        start.setHours(0, 0, 0, 0);
+    }
+    if (normalizedDateType === 'range') {
         start = new Date(dateFrom);
         end = new Date(dateTo);
         start.setHours(0, 0, 0, 0);
         end.setHours(23, 59, 59, 999);
+    }
+    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || start > end || (end - start) > 366 * 24 * 60 * 60 * 1000) {
+        throw new Error('INVALID_PERIOD');
     }
 
     const canViewAll = (!isEmployee && !isAgentStaff)
@@ -272,20 +325,27 @@ async function getClientReports({ userId, accountType, dateType, dateValue, date
         else if (tx.status === 'deduction') previousBalance -= (tx.amount || 0);
     });
 
+    const operationSearch = buildClientReportSearchQuery(search);
     const currentTransactions = await findReportTransactions(
-        { ...baseQuery, createdAt: { $gte: start, $lte: end } },
+        {
+            $and: [
+                baseQuery,
+                operationSearch.query,
+                { createdAt: { $gte: start, $lte: end } }
+            ]
+        },
         { sort: { createdAt: -1 } }
     );
 
     let totalLYD = 0; let totalEGP = 0;
-    let completedCount = 0; let rejectedCount = 0; let totalDeposits = 0;
+    let completedCount = 0; let rejectedCount = 0; let totalDeposits = 0; let totalDeductions = 0;
     const operations = []; const deposits = [];
 
     currentTransactions.forEach(tx => {
         if (['deposit', 'deduction', 'deposit_pending'].includes(tx.status)) {
             deposits.push(tx);
             if (tx.status === 'deposit') totalDeposits += (tx.amount || 0);
-            else if (tx.status === 'deduction') totalDeposits -= (tx.amount || 0);
+            else if (tx.status === 'deduction') totalDeductions += (tx.amount || 0);
         } else {
             operations.push(tx);
             if (tx.status === 'completed') {
@@ -324,25 +384,29 @@ async function getClientReports({ userId, accountType, dateType, dateValue, date
 
     return {
         previousBalance,
-        currentTransactions: currentTransactions.map(sanitizeStatementTransaction),
-        operations: operations.map(sanitizeStatementTransaction),
-        cancelledOperations: cancelledOperations.map(sanitizeStatementTransaction),
-        deposits: deposits.map(sanitizeStatementTransaction),
+        currentTransactions: currentTransactions.map(presentClientReportTransaction),
+        operations: operations.map(presentClientReportTransaction),
+        cancelledOperations: cancelledOperations.map(presentClientReportTransaction),
+        deposits: deposits.map(presentClientReportTransaction),
         totalLYD,
         totalEGP,
         completedCount,
         rejectedCount,
-        totalDeposits,
+        totalDeposits: totalDeposits - totalDeductions,
+        totalCredits: totalDeposits,
+        totalDeductions,
         operationCount: operations.length,
-        periodBalance: totalDeposits - totalLYD,
+        periodBalance: totalDeposits - totalDeductions - totalLYD,
+        closingBalance: previousBalance + totalDeposits - totalDeductions - totalLYD,
         currentBalance: Number(account.balance || 0),
         scope: 'client',
         reportPeriod: {
-            type: dateType === 'range' ? 'range' : (dateType === 'day' ? 'day' : 'month'),
-            value: dateType === 'range' ? `${dateFrom} إلى ${dateTo}` : dateValue,
+            type: normalizedDateType,
+            value: normalizedDateType === 'range' ? `${dateFrom} إلى ${dateTo}` : (normalizedDateType === 'week' ? 'آخر 7 أيام' : dateValue),
             start,
             end
         },
+        search: operationSearch.active ? operationSearch.value : null,
         entityInfo
     };
 }

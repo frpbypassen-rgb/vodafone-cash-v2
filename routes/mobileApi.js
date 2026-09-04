@@ -3054,7 +3054,7 @@ router.get('/client/transactions/:id/receipt', authenticateJWT, async (req, res)
 router.post('/client/reports/filter', authenticateJWT, clientReportsValidator, async (req, res) => {
     try {
         const { userId, accountType } = req.user;
-        const { dateType, dateValue, dateFrom, dateTo } = req.body;
+        const { dateType, dateValue, dateFrom, dateTo, search } = req.body;
         const tenantId = req.tenant ? req.tenant._id : null;
         
         const result = await mobileWebParityService.getClientReports({
@@ -3064,6 +3064,7 @@ router.post('/client/reports/filter', authenticateJWT, clientReportsValidator, a
             dateValue,
             dateFrom,
             dateTo,
+            search,
             tenantId
         });
         

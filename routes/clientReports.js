@@ -118,6 +118,9 @@ router.post('/reports/filter', requireClientAuth, async (req, res) => {
             accountType,
             dateType: defaultDateType,
             dateValue: defaultDateValue,
+            dateFrom: reportInput.dateFrom,
+            dateTo: reportInput.dateTo,
+            search: reportInput.search,
             tenantId: req.tenantId
         });
 

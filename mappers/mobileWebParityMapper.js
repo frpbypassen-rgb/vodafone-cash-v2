@@ -6,10 +6,10 @@ const { buildExecutorTaskRecipient } = require('../utils/executorTaskPrivacy');
 const { createReceiptImageUrl } = require('../services/receiptShareService');
 
 const receiptFields = (tx) => {
-    const hasProofImage = Boolean(tx.proofImage || (tx.proofImages && tx.proofImages.length > 0));
+    const hasProofImage = Boolean(tx.receiptUrl || tx.proofImage || (tx.proofImages && tx.proofImages.length > 0));
     return {
         hasProofImage,
-        receiptUrl: hasProofImage ? createReceiptImageUrl({ transactionId: tx._id, index: 0 }) : null,
+        receiptUrl: tx.receiptUrl || (hasProofImage ? createReceiptImageUrl({ transactionId: tx._id, index: 0 }) : null),
         cancellationNumber: tx.cancellationNumber || null,
         cancellationReason: tx.cancellationReason || null
     };

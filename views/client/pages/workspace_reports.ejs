@@ -78,6 +78,7 @@
 <section class="bw-filter-band">
     <form method="GET" action="<%= workspace.isCompany && reportScope === 'staff' ? '/client/reports/staff' : '/client/reports' %>" class="bw-filter-form">
         <input type="hidden" name="scope" value="<%= reportScope %>">
+        <% if (!workspace.forceToday) { %><label><span>فترة سريعة</span><select name="period"><option value="">حسب التاريخ</option><option value="today" <%= query.period === 'today' ? 'selected' : '' %>>اليوم</option><option value="week" <%= query.period === 'week' ? 'selected' : '' %>>آخر 7 أيام</option></select></label><% } %>
         <% if (workspace.isCompany) { const companyInput = centralAdminReportInput || {}; %>
             <label><span>نوع الفترة</span><select name="centralDateType"><option value="day" <%= companyInput.dateType === 'day' ? 'selected' : '' %>>يوم محدد</option><option value="month" <%= companyInput.dateType === 'month' ? 'selected' : '' %>>شهر محدد</option><option value="range" <%= companyInput.dateType === 'range' ? 'selected' : '' %>>فترة محددة</option></select></label>
             <label><span>اليوم</span><input type="date" name="centralDay" value="<%= companyInput.dateType === 'day' ? companyInput.dateValue : '' %>"></label>
@@ -85,10 +86,12 @@
             <label><span>من</span><input type="date" name="centralFrom" value="<%= companyInput.dateFrom || '' %>"></label>
             <label><span>إلى</span><input type="date" name="centralTo" value="<%= companyInput.dateTo || '' %>"></label>
             <label><span>الموظف</span><select name="centralEmployee"><option value="all">كل الموظفين</option><% companyReportEmployees.forEach(employee => { %><option value="<%= employee.name %>" <%= companyInput.subType === employee.name ? 'selected' : '' %>><%= employee.name %><%= employee.role ? ` — ${employee.role}` : '' %></option><% }) %></select></label>
+            <label><span>بحث</span><input type="search" name="search" value="<%= query.search || '' %>" placeholder="هاتف، رقم عملية، أو قيمة"></label>
         <% } else if (!workspace.forceToday) { %>
             <label><span>من</span><input type="date" name="from" value="<%= filters.from %>"></label>
             <label><span>إلى</span><input type="date" name="to" value="<%= filters.to %>"></label>
             <label><span>أو اختر شهراً</span><input type="month" name="month" value="<%= filters.month %>"></label>
+            <label><span>بحث</span><input type="search" name="search" value="<%= query.search || '' %>" placeholder="هاتف، رقم عملية، أو قيمة"></label>
         <% } else { %>
             <span class="bw-meta-chip"><i class="fa-regular fa-calendar-check"></i>اليوم فقط</span>
         <% } %>
