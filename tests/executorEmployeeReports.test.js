@@ -90,6 +90,33 @@ describe('executor employee reports', () => {
         expect(report.cancelledOperations.map((item) => item.customId)).toEqual(['ATT-2']);
     });
 
+    test('uses the raw group id when the web portal provides a populated group', async () => {
+        Employee.findById.mockResolvedValue({
+            _id: 'manager-1',
+            groupId: { _id: 'group-1', status: 'active' },
+            role: 'manager',
+            name: 'مدير التنفيذ'
+        });
+
+        await getExecutorReports({
+            executorId: 'manager-1',
+            dateType: 'day',
+            dateValue: '2026-08-14'
+        });
+
+        expect(ExecutorGroup.findById).toHaveBeenCalledWith('group-1');
+        expect(Transaction.find).toHaveBeenCalledWith(expect.objectContaining({
+            $and: expect.arrayContaining([
+                expect.objectContaining({
+                    $or: expect.arrayContaining([
+                        { executorGroupId: 'group-1' },
+                        { managerGroupId: 'group-1' }
+                    ])
+                })
+            ])
+        }));
+    });
+
     test('does not expose company fields or executor names in the mobile DTO', async () => {
         const report = await getExecutorReports({
             executorId: 'employee-1',

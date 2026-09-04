@@ -1250,7 +1250,11 @@ async function getExecutorReports({ executorId, dateType, dateValue, dateFrom, d
     const emp = await Employee.findById(executorId);
     if (!emp) throw new Error('UNAUTHORIZED');
 
-    const group = await ExecutorGroup.findById(emp.groupId).lean();
+    // Web portal authentication populates groupId while the mobile route
+    // supplies the raw ObjectId. Always query with the actual id so both
+    // channels read the same executor ledger.
+    const groupId = emp.groupId && emp.groupId._id ? emp.groupId._id : emp.groupId;
+    const group = await ExecutorGroup.findById(groupId).lean();
     if (!group) throw new Error('UNAUTHORIZED');
 
     const isManager = emp.role === 'manager';
@@ -1268,13 +1272,16 @@ async function getExecutorReports({ executorId, dateType, dateValue, dateFrom, d
     if (employeeId) {
         if (!isManager) throw new Error('FORBIDDEN');
         targetEmployee = await Employee.findById(employeeId);
-        if (!targetEmployee || String(targetEmployee.groupId) !== String(emp.groupId)) {
+        const targetGroupId = targetEmployee?.groupId && targetEmployee.groupId._id
+            ? targetEmployee.groupId._id
+            : targetEmployee?.groupId;
+        if (!targetEmployee || String(targetGroupId) !== String(groupId)) {
             throw new Error('NOT_FOUND');
         }
     }
 
     const { start, end } = reportPeriod;
-    const scopeQuery = { ...executorGroupQuery(emp.groupId, tenantId) };
+    const scopeQuery = { ...executorGroupQuery(groupId, tenantId) };
     const scopedEmployee = targetEmployee || (isSelfScopedExecutorRole(emp.role) ? emp : null);
     if (scopedEmployee) scopeQuery.operatorId = String(scopedEmployee._id);
 
