@@ -271,7 +271,7 @@ describe('Client Transaction Controller Tests', () => {
         jest.clearAllMocks();
         req = {
             session: { clientId: 'client123', accountType: 'user' },
-            body: { transactionId: 'tx123', complaintText: 'complaint info' },
+            body: { transactionId: '507f1f77bcf86cd799439011', complaintText: 'complaint info' },
             xhr: true,
             headers: {}
         };
@@ -292,13 +292,16 @@ describe('Client Transaction Controller Tests', () => {
 
     test('postComplaint - يجب تحديث نص الشكوى وحفظ العملية بنجاح', async () => {
         const mockTx = {
-            _id: 'tx123',
+            _id: '507f1f77bcf86cd799439011',
             save: jest.fn().mockResolvedValue(true)
         };
-        Transaction.findById = jest.fn().mockResolvedValue(mockTx);
+        Transaction.findOne = jest.fn().mockResolvedValue(mockTx);
+        User.findById = jest.fn().mockReturnValue({
+            select: jest.fn().mockReturnValue({ lean: jest.fn().mockResolvedValue({ _id: 'client123', phone: '01012345678', status: 'active', role: 'user' }) })
+        });
 
         await clientTransactionController.postComplaint(req, res);
-        expect(Transaction.findById).toHaveBeenCalledWith('tx123');
+        expect(Transaction.findOne).toHaveBeenCalled();
         expect(mockTx.complaintText).toBe('complaint info');
         expect(mockTx.emergencyAlert).toBe('شكوى عميل: complaint info');
         expect(res.json).toHaveBeenCalledWith({ success: true });

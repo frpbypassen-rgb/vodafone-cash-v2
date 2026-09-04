@@ -16,6 +16,7 @@ const clientCompanyController = require('./clientCompanyController');
 const clientWorkspaceController = require('./clientWorkspaceController');
 const businessPortalService = require('../services/businessPortalService');
 const { sanitizeStatementTransaction } = require('../utils/accountStatementPrivacy');
+const { sanitizeStatementText } = require('../utils/accountStatementPrivacy');
 const { normalizeCreditLimit } = require('../services/agencyCreditLimitService');
 const { logAction } = require('../services/auditService');
 const { saveProfilePhoto, streamProfilePhoto, removeProfilePhoto } = require('../services/profilePhotoStorageService');
@@ -23,6 +24,50 @@ const { activatePendingRateUpdate } = require('../services/rateChangeService');
 const { buildPendingRateAlertForClient } = require('../services/rateAlerts/rateAlertAudienceService');
 
 const renderBusinessOverview = clientWorkspaceController.renderPage('overview');
+
+// لا نعيد مستند Transaction الخام إلى المتصفح. المستند يحتوي حقول تشغيلية
+// وإدارية تخص المنفذين لا يجب أن تصل إلى أي حساب عميل.
+const toClientTransactionDto = (transaction, { canViewBalance = true } = {}) => {
+    const safe = sanitizeStatementTransaction(transaction);
+    const details = safe.serviceDetails || {};
+    const hasProof = Boolean(safe.proofImage || (safe.proofImages || []).length);
+    return {
+        _id: safe._id,
+        customId: safe.customId,
+        status: safe.status,
+        transferType: safe.transferType,
+        amount: Number(safe.amount || 0),
+        costLYD: canViewBalance ? Number(safe.costLYD || 0) : null,
+        subAccountCostLYD: canViewBalance ? Number(safe.subAccountCostLYD || 0) : null,
+        exchangeRate: canViewBalance ? Number(safe.exchangeRate || 0) : null,
+        subClientRate: canViewBalance ? Number(safe.subClientRate || 0) : null,
+        vodafoneNumber: safe.vodafoneNumber || '',
+        accountNumber: safe.accountNumber || '',
+        accountName: safe.accountName || '',
+        subAccountName: safe.subAccountName || '',
+        isSubAccountTx: Boolean(safe.isSubAccountTx),
+        notes: sanitizeStatementText(safe.customerNotes || safe.notes || ''),
+        customerNotes: sanitizeStatementText(safe.customerNotes || safe.notes || ''),
+        serviceDetails: {
+            subtype: details.subtype || '',
+            city: details.city || '',
+            bankName: details.bankName || '',
+            destinationLabel: details.destinationLabel || '',
+            amountCurrency: details.amountCurrency || '',
+            rateDirection: details.rateDirection || ''
+        },
+        cancellationNumber: safe.cancellationNumber || '',
+        cancellationReason: safe.cancellationReason || '',
+        createdAt: safe.createdAt,
+        updatedAt: safe.updatedAt,
+        hasProof: hasProof,
+        // الواجهة القديمة تعتمد على وجود هذا الحقل فقط لإظهار زر الإيصال؛
+        // لا نكشف اسم أو مسار ملف التخزين.
+        proofImage: hasProof ? 'protected' : '',
+        proofImages: hasProof ? ['protected'] : [],
+        wasAdjusted: /تعديل/i.test(String(transaction.adminNotes || ''))
+    };
+};
 
 exports.getDashboard = async (req, res) => {
     try {
@@ -460,7 +505,9 @@ exports.getApiTransactions = async (req, res) => {
 
             return res.json({
                 success: true,
-                transactions,
+                transactions: transactions.map((transaction) => toClientTransactionDto(transaction, {
+                    canViewBalance: workspace.permissions.canViewBalance
+                })),
                 currentRate: serviceRates.vodafone,
                 serviceRates,
                 availableBalance: workspace.permissions.canViewBalance ? Number(workspace.entity.balance || 0) : null
@@ -532,6 +579,12 @@ exports.getApiTransactions = async (req, res) => {
             return t;
         });
 
-        res.json({ success: true, transactions: mappedTransactions, currentRate, serviceRates, availableBalance });
+        res.json({
+            success: true,
+            transactions: mappedTransactions.map((transaction) => toClientTransactionDto(transaction, { canViewBalance: true })),
+            currentRate,
+            serviceRates,
+            availableBalance
+        });
     } catch (error) { res.status(500).json({ error: 'Internal Server Error' }); }
 };

@@ -2472,7 +2472,7 @@
                 const hasProofImage = !!(tx.proofImage || (tx.proofImages && tx.proofImages.length > 0));
                 if (tx.status === 'completed') {
                     // Check if rate was modified by executor
-                    const rateModified = tx.adminNotes && tx.adminNotes.includes('تعديل');
+                    const rateModified = tx.wasAdjusted === true;
                     if (rateModified) {
                         statusMarkup = `<span class="badge-st" style="background: rgba(245,158,11,0.1); color: #d97706; border: 1px solid rgba(245,158,11,0.3); cursor:pointer;" onclick="viewProof('${tx._id}')"><i class="fa-solid fa-check-double"></i> مكتمل (معدّل)</span>`;
                     } else {

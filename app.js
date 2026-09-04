@@ -329,7 +329,15 @@ app.use('/uploads/proofs', (req, res, next) => {
 // وثائق الهوية والتراخيص لا تُعرض كرابط عام؛ لا يمكن فتحها إلا من جلسة
 // الإدارة الرئيسية التي تملك صلاحية تعديل الحسابات.
 app.use('/uploads/account-documents', requireAuth, requireMaster, express.static(path.join(__dirname, 'uploads')));
-app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+// المرفقات قد تتضمن إثبات هوية أو محادثات دعم أو إيصالات. لا يجوز أن تكون
+// قابلة للفتح من رابط عام؛ العرض التفصيلي يمر لاحقاً عبر مسارات Proxy تتحقق
+// من ملكية السجل، أما هذه البوابة فتمنع الوصول غير المسجّل من الأصل.
+app.use('/uploads', (req, res, next) => {
+    if (req.session && (req.session.isLoggedIn || req.session.isClientLoggedIn || req.session.isExecutorLoggedIn)) {
+        return next();
+    }
+    return res.status(403).send('Forbidden');
+}, express.static(path.join(__dirname, 'uploads')));
 
 // روابط الإيصالات الموقعة المخصصة لقوالب واتساب. لا تتطلب جلسة، لكنها تنتهي تلقائياً.
 app.use('/public', require('./routes/publicReceipts'));

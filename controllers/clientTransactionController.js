@@ -47,6 +47,44 @@ const {
     financialTransactionsUnavailableError
 } = require('../services/walletService');
 
+const clientOwnershipFilter = async (req) => {
+    const accountId = req.session.clientId;
+    if (req.session.accountType === 'sub_client') return { subAccountId: accountId };
+
+    if (req.session.accountType === 'company') {
+        const employee = await ClientEmployee.findById(accountId).select('companyId status').lean();
+        if (!employee || employee.status !== 'active' || !employee.companyId) return null;
+        return { companyId: employee.companyId };
+    }
+
+    if (req.session.accountType === 'agent_staff') {
+        const employee = await AgentEmployee.findById(accountId).select('agentId status').lean();
+        if (!employee || employee.status !== 'active' || !employee.agentId) return null;
+        const agent = await User.findById(employee.agentId).select('phone webUsername status role').lean();
+        if (!agent || agent.status !== 'active' || agent.role !== 'agent') return null;
+        const subAccountIds = await SubAccount.find({ masterType: 'user', masterId: agent._id, status: { $ne: 'deleted' } }).distinct('_id');
+        return {
+            $or: [
+                { userId: agent.phone, companyId: null, subAccountId: null },
+                { userId: agent.webUsername, companyId: null, subAccountId: null },
+                { subAccountId: { $in: subAccountIds } }
+            ].filter((condition) => condition.userId || condition.subAccountId)
+        };
+    }
+
+    const user = await User.findById(accountId).select('phone webUsername status role').lean();
+    if (!user || user.status !== 'active') return null;
+    const conditions = [
+        { userId: user.phone, companyId: null, subAccountId: null },
+        { userId: user.webUsername, companyId: null, subAccountId: null }
+    ].filter((condition) => condition.userId);
+    if (user.role === 'agent') {
+        const subAccountIds = await SubAccount.find({ masterType: 'user', masterId: user._id, status: { $ne: 'deleted' } }).distinct('_id');
+        conditions.push({ subAccountId: { $in: subAccountIds } });
+    }
+    return conditions.length ? { $or: conditions } : null;
+};
+
 const createClientError = (message, statusCode = 400) => {
     const error = new Error(message);
     error.statusCode = statusCode;
@@ -623,14 +661,17 @@ exports.postBuyCard = async (req, res) => {
 exports.postComplaint = async (req, res) => {
     try {
         const { transactionId, complaintText } = req.body;
-        if (!transactionId || !complaintText) {
-            return res.json({ success: false, error: 'يرجى ملء جميع الحقول.' });
+        const cleanComplaint = String(complaintText || '').trim().slice(0, 1000);
+        if (!mongoose.isValidObjectId(transactionId) || cleanComplaint.length < 3) {
+            return res.status(400).json({ success: false, error: 'يرجى كتابة شكوى صحيحة عن عملية من حسابك.' });
         }
-        const tx = await Transaction.findById(transactionId);
-        if (!tx) return res.json({ success: false, error: 'العملية غير موجودة.' });
+        const ownership = await clientOwnershipFilter(req);
+        if (!ownership) return res.status(403).json({ success: false, error: 'غير مصرح.' });
+        const tx = await Transaction.findOne({ $and: [{ _id: transactionId }, ownership] });
+        if (!tx) return res.status(404).json({ success: false, error: 'العملية غير موجودة ضمن حسابك.' });
         
-        tx.complaintText = complaintText;
-        tx.emergencyAlert = `شكوى عميل: ${complaintText}`;
+        tx.complaintText = cleanComplaint;
+        tx.emergencyAlert = `شكوى عميل: ${cleanComplaint}`;
         await tx.save();
         
         res.json({ success: true });
