@@ -93,15 +93,16 @@
 </head>
 <body class="executor-os">
     <%- include('partials/navigation', { emp, activePage: 'deposits', showMfaNotice }) %>
+    <% const isExternalDepositView = depositScope === 'external'; %>
     <main class="deposit-main">
         <header class="deposit-hero">
             <div>
-                <h1><i class="fa-solid fa-building-columns text-info ms-2"></i>إيداعات شركة التنفيذ</h1>
-                <p>تصل إليك طلبات الإيداع الصادرة من الإدارة مع الإيصالات. راجع الطلب ثم اقبله أو ألغِه من هذه الصفحة.</p>
+                <h1><i class="fa-solid <%= isExternalDepositView ? 'fa-wallet' : 'fa-building-columns' %> text-info ms-2"></i><%= isExternalDepositView ? 'حركات رصيدك' : 'إيداعات شركة التنفيذ' %></h1>
+                <p><%= isExternalDepositView ? 'هنا تظهر فقط الإيداعات والخصومات التي أضافها لك مدير شركة التنفيذ. لا تظهر لك أي بيانات أو إيداعات تخص الشركة.' : 'تصل إليك طلبات الإيداع الصادرة من الإدارة مع الإيصالات. راجع الطلب ثم اقبله أو ألغِه من هذه الصفحة.' %></p>
             </div>
             <div class="deposit-balance-card">
-                <span><i class="fa-solid fa-wallet ms-1"></i> الرصيد المتاح حالياً</span>
-                <strong dir="ltr"><%= Number(emp.groupId?.balance || 0).toLocaleString('en-US', { maximumFractionDigits: 2 }) %> EGP</strong>
+                <span><i class="fa-solid fa-wallet ms-1"></i> <%= isExternalDepositView ? 'رصيدك المتاح حالياً' : 'الرصيد المتاح حالياً' %></span>
+                <strong dir="ltr"><%= Number(isExternalDepositView ? (emp.balance || 0) : (emp.groupId?.balance || 0)).toLocaleString('en-US', { maximumFractionDigits: 2 }) %> EGP</strong>
             </div>
         </header>
 
@@ -137,7 +138,7 @@
 
             <section class="deposit-card">
                 <div class="deposit-list-head">
-                    <h2 class="m-0"><i class="fa-solid fa-clock-rotate-left"></i>متابعة طلبات الإيداع</h2>
+                    <h2 class="m-0"><i class="fa-solid fa-clock-rotate-left"></i><%= isExternalDepositView ? 'سجل حركات رصيدك' : 'متابعة طلبات الإيداع' %></h2>
                     <span class="deposit-live" id="depositLiveBadge"><i class="fa-solid fa-signal"></i> تحديث تلقائي</span>
                 </div>
                 <div class="deposit-list" id="depositList">
@@ -159,6 +160,7 @@
         let refreshTimer = null;
         let requestsCache = [];
         const canReviewAdminDeposits = <%= emp.role === 'manager' ? 'true' : 'false' %>;
+        const isExternalDepositView = <%= isExternalDepositView ? 'true' : 'false' %>;
 
         if (window.matchMedia('(pointer: coarse)').matches) {
             input.setAttribute('capture', 'environment');
@@ -266,7 +268,8 @@
         }
 
         function statusMeta(request) {
-            if (request.status === 'deposit') return ['deposit', 'مقبول', 'fa-circle-check'];
+            if (request.status === 'deposit') return ['deposit', isExternalDepositView ? 'إيداع من المدير' : 'مقبول', 'fa-circle-check'];
+            if (request.status === 'deduction') return ['rejected', 'خصم من المدير', 'fa-arrow-up-from-bracket'];
             if (request.status === 'rejected') return ['rejected', 'مرفوض', 'fa-circle-xmark'];
             return ['pending', 'قيد المراجعة', 'fa-clock'];
         }
@@ -274,7 +277,9 @@
         function renderRequests(requests) {
             const list = document.getElementById('depositList');
             if (!requests.length) {
-                list.innerHTML = '<div class="empty"><i class="fa-regular fa-folder-open"></i>لا توجد طلبات إيداع حتى الآن.<br><small class="mt-2 d-block">استخدم النموذج على اليسار لإرسال أول طلب.</small></div>';
+                list.innerHTML = isExternalDepositView
+                    ? '<div class="empty"><i class="fa-regular fa-folder-open"></i>لا توجد حركات على رصيدك حتى الآن.<br><small class="mt-2 d-block">ستظهر هنا الإيداعات والخصومات التي ينفذها مدير الشركة لك.</small></div>'
+                    : '<div class="empty"><i class="fa-regular fa-folder-open"></i>لا توجد طلبات إيداع حتى الآن.</div>';
                 return;
             }
 
@@ -283,13 +288,14 @@
                 const thumbs = (request.receiptUrls || []).slice(0, 4).map((url, index) =>
                     `<img src="${esc(url)}" alt="إيصال ${index + 1}" data-image-url="${esc(url)}">`
                 ).join('');
-                const reviewedLine = request.reviewedByName
+                const reviewedLine = !isExternalDepositView && request.reviewedByName
                     ? `<div class="deposit-meta">آخر مراجعة: ${esc(request.reviewedByName)} · ${date(request.reviewedAt || request.updatedAt)}</div>`
-                    : `<div class="deposit-meta">آخر تحديث: ${date(request.updatedAt || request.createdAt)}</div>`;
+                    : (!isExternalDepositView ? `<div class="deposit-meta">آخر تحديث: ${date(request.updatedAt || request.createdAt)}</div>` : '');
                 const rejectBlock = request.rejectionReason
                     ? `<div class="deposit-meta text-danger">سبب الرفض: ${esc(request.rejectionReason)}</div><button type="button" class="deposit-new-btn" data-scroll-form="1"><i class="fa-solid fa-rotate-right ms-1"></i>إنشاء طلب جديد</button>`
                     : '';
-                const fromAdmin = request.submittedByRole === 'admin';
+                const fromAdmin = request.submittedByRole === 'admin' || request.submittedByRole === 'manager';
+                const receiptSummary = isExternalDepositView ? '' : ` · ${request.receiptCount || 0} إيصال`;
                 const reviewActions = request.status === 'pending' && canReviewAdminDeposits
                     ? `<div class="deposit-review-box">
                         <div class="deposit-review-box-label"><i class="fa-solid fa-scale-balanced"></i> قرار المراجعة</div>
@@ -307,7 +313,7 @@
                         <header class="deposit-review-card-head">
                             <div>
                                 <div class="deposit-ref">${esc(request.customId)}</div>
-                                <div class="deposit-meta">${fromAdmin ? 'طلب وارد من الإدارة' : 'طلب مقدم من الشركة'} · ${esc(request.note || 'لا توجد ملاحظة')} · ${date(request.createdAt)} · ${request.receiptCount || 0} إيصال</div>
+                                <div class="deposit-meta">${isExternalDepositView ? 'حركة صادرة من مدير شركة التنفيذ' : (fromAdmin ? 'طلب وارد من الإدارة' : 'طلب مقدم من الشركة')} · ${esc(request.note || 'لا توجد ملاحظة')} · ${date(request.createdAt)}${receiptSummary}</div>
                                 ${reviewedLine}
                                 ${rejectBlock}
                             </div>

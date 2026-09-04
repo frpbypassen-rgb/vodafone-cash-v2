@@ -68,6 +68,14 @@ const requireExecutorTaskAccess = (req, res, next) => {
     return next();
 };
 
+const requireExecutorDepositAccess = (req, res, next) => {
+    const employee = req.executorEmployee;
+    if (!employee || !['manager', 'accountant', 'external'].includes(employee.role)) {
+        return res.status(403).json({ success: false, error: 'هذه الصفحة غير متاحة لهذا الحساب.' });
+    }
+    return next();
+};
+
 router.get('/', (req, res) => {
     if (req.session.isExecutorLoggedIn && req.session.executorId) {
         return res.redirect('/executor-portal/dashboard');
@@ -87,7 +95,7 @@ router.get('/logout', authController.logout);
 // --- Dashboard Routes ---
 router.get('/dashboard', requireExecutorAuth, dashboardController.getDashboard);
 router.get('/settings', requireExecutorAuth, dashboardController.getSettings);
-router.get('/deposits', requireExecutorAuth, dashboardController.getDeposits);
+router.get('/deposits', requireExecutorAuth, requireExecutorDepositAccess, dashboardController.getDeposits);
 router.get('/proxy/image/:id', requireExecutorAuth, dashboardController.getProxyImage);
 router.get('/proxy/image/:id/:index', requireExecutorAuth, dashboardController.getProxyImage);
 router.get('/proxy/executor-image/:id/:index', requireExecutorAuth, dashboardController.getProxyExecutorImage);
@@ -95,8 +103,8 @@ router.get('/api/overview', requireExecutorAuth, dashboardController.getOverview
 router.get('/api/live-tasks', requireExecutorAuth, requireExecutorTaskAccess, dashboardController.getLiveTasks);
 router.post('/api/clear-alert/:id', requireExecutorAuth, requireExecutorTaskAccess, dashboardController.postClearAlert);
 router.post('/api/clear-dep-alert/:id', requireExecutorAuth, requireExecutorTaskAccess, dashboardController.postClearDepAlert);
-router.get('/api/deposits', requireExecutorAuth, dashboardController.getDepositRequests);
-router.post('/api/deposits', requireExecutorAuth, dashboardController.postDepositRequest);
+router.get('/api/deposits', requireExecutorAuth, requireExecutorDepositAccess, dashboardController.getDepositRequests);
+router.post('/api/deposits', requireExecutorManager, dashboardController.postDepositRequest);
 router.post('/api/deposits/:id/review', requireExecutorManager, dashboardController.postReviewAdminDeposit);
 
 // --- Employee Management Routes (Manager only) ---
@@ -116,7 +124,7 @@ router.post('/api/route-task/:id', requireExecutorManager, dashboardController.p
 // --- Transaction Routes ---
 // المسار القديم كان ينشئ إيداعاً مباشراً بلا إيصالات. نُبقيه للتوافق،
 // لكن نمرره إلى تدفق المراجعة نفسه الذي يفرض إرفاق الإيصالات.
-router.post('/api/request-deposit', requireExecutorAuth, requireExecutorTaskAccess, dashboardController.postDepositRequest);
+router.post('/api/request-deposit', requireExecutorManager, dashboardController.postDepositRequest);
 router.post('/api/accept-task/:id', requireExecutorAuth, requireExecutorTaskAccess, transactionController.postAcceptTask);
 router.post('/api/edit-amount/:id', requireExecutorAuth, requireExecutorTaskAccess, transactionController.postEditAmount);
 router.post('/api/cancel-task/:id', requireExecutorAuth, requireExecutorTaskAccess, transactionController.postCancelTask);

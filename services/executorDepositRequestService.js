@@ -114,6 +114,41 @@ async function createDepositRequest({ employee, group: requestedGroup, submitted
 
 async function listDepositRequests({ employee }) {
     if (!employee?.groupId) throw failure('جلسة شركة التنفيذ غير صالحة.', 401);
+
+    // الموظف الخارجي لا يطّلع مطلقاً على إيداعات الشركة. ما يراه هنا هو فقط
+    // الرصيد الذي أضافه/خصمه منه مدير شركته عبر صفحة إدارة الموظفين الخارجيين.
+    if (employee.role === 'external') {
+        const rows = await Transaction.find({
+            executorGroupId: employee.groupId._id,
+            operatorId: String(employee._id),
+            transferType: 'external_balance',
+            status: { $in: ['deposit', 'deduction'] }
+        })
+            .select('customId amount status createdAt updatedAt notes')
+            .sort({ createdAt: -1 }).limit(100).lean();
+
+        return rows.map((row) => ({
+            id: objectId(row._id),
+            customId: row.customId,
+            amount: Number(row.amount || 0),
+            status: row.status,
+            note: row.notes || '',
+            rejectionReason: '',
+            receiptCount: 0,
+            receiptUrls: [],
+            submittedByRole: 'manager',
+            reviewable: false,
+            reviewedByName: 'مدير شركة التنفيذ',
+            reviewedAt: row.updatedAt || row.createdAt,
+            createdAt: row.createdAt,
+            updatedAt: row.updatedAt
+        }));
+    }
+
+    if (!['manager', 'accountant'].includes(employee.role)) {
+        throw failure('لا تملك صلاحية عرض إيداعات الشركة.', 403);
+    }
+
     const rows = await Transaction.find({ executorGroupId: employee.groupId._id, status: { $in: ['deposit_pending', 'deposit', 'rejected'] }, 'depositRequest.submittedById': { $exists: true } })
         .select('customId amount status createdAt updatedAt proofImages depositRequest executorWebAlert')
         .sort({ createdAt: -1 }).limit(100).lean();
