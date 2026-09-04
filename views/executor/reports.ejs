@@ -416,6 +416,7 @@
 
         let lastReportData = null;
         let lastReportRequest = null;
+        let reportLoadInFlight = false;
         let isPersonalExecutorReport = <%= ['operator', 'external'].includes(emp.role) ? 'true' : 'false' %>;
         const formatEgp = (value) => `${Number(value || 0).toLocaleString('en-US', { maximumFractionDigits: 2 })} ج.م`;
 
@@ -437,6 +438,9 @@
         }
 
         async function fetchReport() {
+            // يمنع تداخل طلب التحميل التلقائي مع ضغطة المستخدم، والذي قد يترك
+            // الزر في حالة "جاري التحميل" رغم وصول البيانات.
+            if (reportLoadInFlight) return;
             const dateType = document.getElementById('dateType').value;
             const dateValue = dateType === 'day' ? document.getElementById('dateValueDay').value : document.getElementById('dateValueMonth').value;
             const dateFrom = dateType === 'range' ? document.getElementById('dateFrom').value : '';
@@ -451,6 +455,7 @@
 
             const btn = document.getElementById('btnLoadReport');
             const originalBtnHtml = btn.innerHTML;
+            reportLoadInFlight = true;
             btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> جاري التحميل...';
             btn.disabled = true;
 
@@ -486,6 +491,7 @@
             } finally {
                 btn.innerHTML = originalBtnHtml;
                 btn.disabled = false;
+                reportLoadInFlight = false;
             }
         }
 
