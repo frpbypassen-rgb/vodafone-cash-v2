@@ -1,0 +1,217 @@
+name: Build, Release & Deploy APK V3
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - 'mobile_app/**'
+  pull_request:
+    branches: [main, master]
+    paths:
+      - 'mobile_app/**'
+  # تشغيل يدوي
+  workflow_dispatch:
+
+env:
+  FLUTTER_VERSION: '3.24.0'
+
+jobs:
+  # ═══════════════════════════════════════════════════════════════════════════
+  # 1. بناء APK
+  # ═══════════════════════════════════════════════════════════════════════════
+  build:
+    name: 🏗️ Build APK
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: mobile_app
+
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      build_number: ${{ steps.version.outputs.build_number }}
+
+    steps:
+      - name: 📥 Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: ☕ Setup Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: 🦋 Setup Flutter ${{ env.FLUTTER_VERSION }}
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: 'stable'
+
+      - name: 📦 Cache Dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.pub-cache
+            mobile_app/.dart_tool
+          key: ${{ runner.os }}-flutter-${{ hashFiles('mobile_app/pubspec.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-flutter-
+
+      - name: 📋 Read Version
+        id: version
+        run: |
+          VERSION=$(grep 'version:' pubspec.yaml | sed 's/.*version: //' | tr -d ' ')
+          BUILD_NAME=$(echo $VERSION | cut -d'+' -f1)
+          BUILD_NUMBER=$(echo $VERSION | cut -d'+' -f2)
+          echo "version=$BUILD_NAME" >> $GITHUB_OUTPUT
+          echo "build_number=$BUILD_NUMBER" >> $GITHUB_OUTPUT
+          echo "📱 Building AhramPay v$BUILD_NAME+$BUILD_NUMBER"
+
+      - name: 🔧 Install Dependencies
+        run: flutter pub get
+
+      - name: 🔍 Analyze Code
+        run: flutter analyze --no-fatal-infos
+
+      - name: 🧪 Run Tests
+        run: flutter test
+
+      - name: 🔨 Build Release APK
+        run: flutter build apk --release
+
+      - name: 📤 Upload APK Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: AhramPay-V3-APK
+          path: mobile_app/build/app/outputs/flutter-apk/app-release.apk
+          retention-days: 30
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # 2. إنشاء GitHub Release
+  # ═══════════════════════════════════════════════════════════════════════════
+  release:
+    name: 🚀 Create Release
+    needs: build
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+
+    permissions:
+      contents: write
+
+    outputs:
+      upload_url: ${{ steps.create_release.outputs.upload_url }}
+      tag_name: ${{ steps.create_release.outputs.tag_name }}
+
+    steps:
+      - name: 📥 Download APK
+        uses: actions/download-artifact@v4
+        with:
+          name: AhramPay-V3-APK
+          path: release/
+
+      - name: 🏷️ Create Tag & Release
+        id: create_release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: v${{ needs.build.outputs.version }}
+          name: "🚀 AhramPay V${{ needs.build.outputs.version }}"
+          body: |
+            ## Al-Ahram Pay V${{ needs.build.outputs.version }} — إصدار جديد 🎉
+
+            ### 📱 ملف APK
+            - **الإصدار**: `${{ needs.build.outputs.version }}`
+            - **رقم البناء**: `${{ needs.build.outputs.build_number }}`
+            - **السيرفر**: `https://ahrampay.com`
+
+            ### ✨ التحديثات
+            - 🎨 تصميم ثلاثي الأبعاد فاخر
+            - 📐 تخطيط متكيف (جوال + تابلت + ديسكتوب)
+            - 🔔 نظام إشعارات متكامل مع 7 قنوات
+            - ⚡ حركات وتأثيرات متحركة
+            - 🌙 الوضع الليلي المحسّن
+
+            ### 📥 التحميل
+            1. حمّل APK من المرفقات أدناه
+            2. فعّل "تثبيت من مصادر غير معروفة" في إعدادات Android
+            3. ثبّت APK واستمتع!
+
+            ---
+            **تاريخ البناء**: ${{ github.event.head_commit.timestamp }}
+            **الـ Commit**: `${{ github.sha }}`
+          files: release/app-release.apk
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # 3. رفع APK للسيرفر ahrampay.com (اختياري)
+  # ═══════════════════════════════════════════════════════════════════════════
+  deploy:
+    name: 📡 Deploy to Server
+    needs: [build, release]
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    # يتطلب إعداد Secrets في GitHub
+    # يمكن تعطيل هذه الخطوة إذا لم تكن المفاتيح متوفرة
+
+    steps:
+      - name: 📥 Download APK
+        uses: actions/download-artifact@v4
+        with:
+          name: AhramPay-V3-APK
+          path: deploy/
+
+      - name: 🔑 Setup SSH
+        if: env.SSH_PRIVATE_KEY != ''
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+        run: |
+          mkdir -p ~/.ssh
+          echo "$SSH_PRIVATE_KEY" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          ssh-keyscan -H ahrampay.com >> ~/.ssh/known_hosts 2>/dev/null || true
+
+      - name: 📤 Upload APK to Server
+        if: env.SSH_PRIVATE_KEY != ''
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          SSH_USER: ${{ secrets.SSH_USER }}
+          SSH_HOST: ahrampay.com
+          DEPLOY_PATH: ${{ secrets.DEPLOY_PATH || '/var/www/ahrampay/downloads' }}
+        run: |
+          if [ -z "$SSH_PRIVATE_KEY" ]; then
+            echo "⚠️ SSH_PRIVATE_KEY not set. Skipping deployment."
+            exit 0
+          fi
+          mkdir -p ~/.ssh
+          echo "$SSH_PRIVATE_KEY" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          ssh-keyscan -H $SSH_HOST >> ~/.ssh/known_hosts 2>/dev/null || true
+          
+          # إنشاء المجلد على السيرفر
+          ssh -o StrictHostKeyChecking=no $SSH_USER@$SSH_HOST "mkdir -p $DEPLOY_PATH"
+          
+          # رفع APK
+          scp -o StrictHostKeyChecking=no deploy/app-release.apk \
+            $SSH_USER@$SSH_HOST:$DEPLOY_PATH/AhramPay-v${{ needs.build.outputs.version }}.apk
+          
+          # رفع ملف latest symlink
+          ssh -o StrictHostKeyChecking=no $SSH_USER@$SSH_HOST \
+            "cd $DEPLOY_PATH && ln -sf AhramPay-v${{ needs.build.outputs.version }}.apk AhramPay-latest.apk"
+          
+          echo "✅ APK deployed to https://$SSH_HOST/downloads/AhramPay-latest.apk"
+
+      - name: 📋 Deployment Summary
+        if: always()
+        run: |
+          echo "═══════════════════════════════════════════════════════"
+          echo "  📥 روابط التحميل"
+          echo "═══════════════════════════════════════════════════════"
+          echo ""
+          echo "  🔗 GitHub Release:"
+          echo "     https://github.com/${{ github.repository }}/releases/tag/v${{ needs.build.outputs.version }}"
+          echo ""
+          echo "  📱 APK مباشر (إذا رُفع للسيرفر):"
+          echo "     https://ahrampay.com/downloads/AhramPay-latest.apk"
+          echo ""
+          echo "═══════════════════════════════════════════════════════"
