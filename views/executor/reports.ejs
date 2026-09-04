@@ -476,10 +476,11 @@
                 document.getElementById('executorColumnHeader')?.classList.toggle('d-none', isPersonalExecutorReport);
                 renderStats(data.data);
                 renderOperations(data.data);
-                renderReportChart(data.data);
+                // لا تجعل فشل الرسم البياني الخارجي يحجب نتائج التقرير وعملياته.
                 document.getElementById('statsSection').classList.remove('d-none');
                 document.getElementById('tableSection').classList.remove('d-none');
                 document.getElementById('btnDownloadPdf').classList.remove('d-none');
+                renderReportChart(data.data);
             } catch (e) {
                 Swal.fire({ icon: 'error', title: 'خطأ', text: e.message || 'فشل جلب التقرير' });
             } finally {
@@ -567,6 +568,10 @@
         function renderReportChart(data) {
             const ctx = document.getElementById('reportChart');
             if (!ctx) return;
+            if (typeof Chart === 'undefined') {
+                ctx.parentElement.innerHTML = '<div class="text-center text-muted small py-4">تعذر تحميل الرسم البياني، لكن تفاصيل التقرير والعمليات ظاهرة بالأسفل.</div>';
+                return;
+            }
             if (reportChartInstance) { reportChartInstance.destroy(); }
             const days = {};
             allReportOperations(data).forEach((tx) => {
