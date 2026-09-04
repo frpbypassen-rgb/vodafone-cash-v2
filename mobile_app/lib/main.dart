@@ -2,8 +2,11 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
-import 'package:intl/date_symbol_data_local.dart';
+import 'package:intl/date_symbol_data_initialize.dart';
 
+// ═════════════════════════════════════════════════════════════════════════════
+// Imports الأصلية
+// ═════════════════════════════════════════════════════════════════════════════
 import 'appearance_controller.dart';
 import 'app_screens.dart';
 import 'brand_theme.dart';
@@ -12,9 +15,34 @@ import 'language_controller.dart';
 import 'mobile_api.dart';
 import 'mobile_push_service.dart';
 
+// ═════════════════════════════════════════════════════════════════════════════
+// Imports الجديدة V3
+// ═════════════════════════════════════════════════════════════════════════════
+import 'brand_theme_v3.dart';
+import 'components/ahram_3d_components.dart';
+import 'components/ahram_adaptive_layout.dart';
+import 'components/ahram_animations.dart';
+import 'services/ahram_notification_hub.dart';
+
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   registerMobilePushBackgroundHandler();
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // تهيئة نظام الإشعارات V3
+  // ═══════════════════════════════════════════════════════════════════════════
+  await AhramNotificationHub().initialize(
+    onTokenRefresh: (token) async {
+      debugPrint('🔔 FCM Token: ${token?.substring(0, 20)}...');
+      // TODO: أرسل التوكن للخادم
+      // await MobileApi().registerDeviceToken(token);
+    },
+    onNotificationTap: (notification) async {
+      debugPrint('🔔 Notification tapped: ${notification.title}');
+      // TODO: انتقل للشاشة المناسبة حسب نوع الإشعار
+    },
+  );
+
   final controller = SessionController(SessionStore());
   final language = LanguageController();
   runApp(
@@ -78,9 +106,14 @@ class PowerPayApp extends StatelessWidget {
             GlobalWidgetsLocalizations.delegate,
             GlobalCupertinoLocalizations.delegate,
           ],
-          theme: AhramTheme.light(),
-          darkTheme: AhramTheme.dark(),
+
+          // ═══════════════════════════════════════════════════════════════════
+          // ✅ الثيمات الجديدة V3
+          // ═══════════════════════════════════════════════════════════════════
+          theme: AhramThemeV3.light(),
+          darkTheme: AhramThemeV3.dark(),
           themeMode: appearance.themeMode,
+
           home: Builder(
             builder: (context) {
               final isArabic =
@@ -140,7 +173,10 @@ class _AppBootstrapState extends State<AppBootstrap> {
   @override
   Widget build(BuildContext context) {
     final screen = !_ready
-        ? const AhramSplashScreen()
+        // ═══════════════════════════════════════════════════════════════════
+        // ✅ شاشة الترحيب الجديدة V3
+        // ═══════════════════════════════════════════════════════════════════
+        ? const AhramSplashScreenV3()
         : (widget.controller.session == null
               ? LoginScreen(controller: widget.controller)
               : RoleShell(
@@ -167,14 +203,18 @@ class _AppBootstrapState extends State<AppBootstrap> {
   }
 }
 
-class AhramSplashScreen extends StatefulWidget {
-  const AhramSplashScreen({super.key});
+// ═════════════════════════════════════════════════════════════════════════════
+// شاشة الترحيب V3 — تصميم فاخر محدث
+// ═════════════════════════════════════════════════════════════════════════════
+
+class AhramSplashScreenV3 extends StatefulWidget {
+  const AhramSplashScreenV3({super.key});
 
   @override
-  State<AhramSplashScreen> createState() => _AhramSplashScreenState();
+  State<AhramSplashScreenV3> createState() => _AhramSplashScreenV3State();
 }
 
-class _AhramSplashScreenState extends State<AhramSplashScreen>
+class _AhramSplashScreenV3State extends State<AhramSplashScreenV3>
     with SingleTickerProviderStateMixin {
   late final AnimationController _animation;
 
@@ -183,7 +223,7 @@ class _AhramSplashScreenState extends State<AhramSplashScreen>
     super.initState();
     _animation = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 1800),
+      duration: const Duration(milliseconds: 2000),
     )..repeat(reverse: true);
   }
 
@@ -199,44 +239,80 @@ class _AhramSplashScreenState extends State<AhramSplashScreen>
       parent: _animation,
       curve: Curves.easeOutCubic,
     );
+
     return Scaffold(
-      body: ColoredBox(
-        color: Colors.black,
-        child: SafeArea(
-          child: Center(
-            child: AnimatedBuilder(
-              animation: curved,
-              builder: (context, child) => Opacity(
-                opacity: 0.72 + (0.28 * curved.value),
-                child: Transform.scale(
-                  scale: 0.96 + (0.04 * curved.value),
-                  child: child,
+      // ✅ خلفية أزرق عميق بدل الأسود
+      backgroundColor: AhramColorsV3.primaryDeep,
+      body: SafeArea(
+        child: Center(
+          child: AnimatedBuilder(
+            animation: curved,
+            builder: (context, child) => Opacity(
+              opacity: 0.6 + (0.4 * curved.value),
+              child: Transform.scale(
+                scale: 0.94 + (0.06 * curved.value),
+                child: child,
+              ),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // ✅ شعار دائري مضيء
+                Container(
+                  padding: const EdgeInsets.all(24),
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: AhramColorsV3.primarySky.withOpacity(0.1),
+                    boxShadow: [
+                      BoxShadow(
+                        color: AhramColorsV3.primarySky.withOpacity(0.2),
+                        blurRadius: 40,
+                        spreadRadius: 10,
+                      ),
+                    ],
+                  ),
+                  child: const Icon(
+                    Icons.account_balance_wallet,
+                    size: 64,
+                    color: AhramColorsV3.gold,
+                  ),
                 ),
-              ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const _AhramPaySplashTitle(),
-                  const SizedBox(height: 18),
-                  const Text(
-                    'يتم تجهيز التطبيق',
-                    style: TextStyle(
-                      color: Color(0xFFB9B9B9),
-                      fontWeight: FontWeight.w800,
-                    ),
+                const SizedBox(height: 32),
+                // ✅ عنوان بظل ذهبي
+                const _AhramSplashTitleV3(),
+                const SizedBox(height: 24),
+                Text(
+                  'يتم تجهيز تطبيقك',
+                  style: TextStyle(
+                    color: AhramColorsV3.textMuted.withOpacity(0.8),
+                    fontWeight: FontWeight.w800,
+                    fontSize: 15,
                   ),
-                  const SizedBox(height: 20),
-                  SizedBox(
-                    width: 122,
+                ),
+                const SizedBox(height: 28),
+                SizedBox(
+                  width: 140,
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(99),
                     child: LinearProgressIndicator(
-                      minHeight: 3,
-                      borderRadius: BorderRadius.circular(99),
-                      color: const Color(0xFFD7A92E),
-                      backgroundColor: const Color(0xFF2A2A2A),
+                      minHeight: 4,
+                      backgroundColor: Colors.white.withOpacity(0.1),
+                      valueColor: const AlwaysStoppedAnimation(
+                        AhramColorsV3.gold,
+                      ),
                     ),
                   ),
-                ],
-              ),
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  'الإصدار 3.0',
+                  style: TextStyle(
+                    color: AhramColorsV3.textMuted.withOpacity(0.5),
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
             ),
           ),
         ),
@@ -245,29 +321,32 @@ class _AhramSplashScreenState extends State<AhramSplashScreen>
   }
 }
 
-class _AhramPaySplashTitle extends StatelessWidget {
-  const _AhramPaySplashTitle();
+class _AhramSplashTitleV3 extends StatelessWidget {
+  const _AhramSplashTitleV3();
 
   @override
   Widget build(BuildContext context) {
     const fontSize = 42.0;
     const weight = FontWeight.w900;
+
     return Stack(
       alignment: Alignment.center,
       children: [
+        // Shadow layer
         Transform.translate(
           offset: const Offset(2.5, 4),
           child: const Text(
             'Ahram Pay',
             textDirection: TextDirection.ltr,
             style: TextStyle(
-              color: Color(0xFF242424),
+              color: Color(0xFF0A0A1A),
               fontSize: fontSize,
               fontWeight: weight,
               letterSpacing: 0,
             ),
           ),
         ),
+        // Main text with gold glow
         const Text.rich(
           TextSpan(
             children: [
@@ -277,7 +356,16 @@ class _AhramPaySplashTitle extends StatelessWidget {
               ),
               TextSpan(
                 text: 'Pay',
-                style: TextStyle(color: Color(0xFFD7A92E)),
+                style: TextStyle(
+                  color: AhramColorsV3.gold,
+                  shadows: [
+                    Shadow(
+                      color: AhramColorsV3.gold,
+                      blurRadius: 20,
+                      offset: Offset(0, 0),
+                    ),
+                  ],
+                ),
               ),
             ],
           ),
@@ -288,9 +376,9 @@ class _AhramPaySplashTitle extends StatelessWidget {
             letterSpacing: 0,
             shadows: [
               Shadow(
-                color: Color(0x99000000),
-                blurRadius: 10,
-                offset: Offset(0, 5),
+                color: Colors.black.withOpacity(0.5),
+                blurRadius: 15,
+                offset: const Offset(0, 6),
               ),
             ],
           ),
