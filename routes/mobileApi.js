@@ -39,6 +39,8 @@ const { applyCustomerRateMargins } = require('../utils/agencyPricing');
 const { getTransferServiceLabel } = require('../utils/mobileTransferServiceCatalog');
 const { calculateCreditState } = require('../services/agencyCreditLimitService');
 const agentService = require('../services/mobileAgentSubAccountService');
+const companyWorkspaceService = require('../services/mobileCompanyWorkspaceService');
+const agentRequestsService = require('../services/mobileAgentRequestsService');
 const {
     createSubAccountValidator,
     updateCreditLimitValidator,
@@ -1191,6 +1193,94 @@ router.patch('/agent/sub-accounts/:id/credit-limit', authenticateJWT, requireIde
 router.post('/agent/sub-accounts/:id/settlements', authenticateJWT, requireIdempotencyKey, settlementValidator, agentService.executeSettlement);
 router.patch('/agent/sub-accounts/:id/status', authenticateJWT, requireIdempotencyKey, updateStatusValidator, agentService.updateStatus);
 router.get('/agent/sub-accounts/:id/transactions', authenticateJWT, paginationValidator, agentService.getTransactions);
+
+// ── Company workspace (mobile) ─────────────────────────────────────
+// The company id is never accepted from the device.  Each handler resolves
+// it from the authenticated company employee on the server.
+const sendMobileWorkspaceError = (res, req, error, fallbackMessage) => {
+    const code = error && (error.code || error.message);
+    const known = {
+        FORBIDDEN: [403, 'FORBIDDEN', 'غير مصرح لك بتنفيذ هذا الإجراء.'],
+        NOT_FOUND: [404, 'NOT_FOUND', 'المورد غير موجود أو لا تملك صلاحية الوصول إليه.'],
+        INVALID_INPUT: [422, 'INVALID_INPUT', 'بيانات الطلب غير مكتملة أو غير صالحة.'],
+        INVALID_USERNAME: [422, 'INVALID_USERNAME', 'اسم المستخدم يجب أن يتكون من أحرف إنجليزية وأرقام وشرطة سفلية فقط.'],
+        USERNAME_TAKEN: [409, 'USERNAME_TAKEN', 'اسم المستخدم مستخدم بالفعل.'],
+        WEAK_PASSWORD: [422, 'WEAK_PASSWORD', 'كلمة المرور يجب أن تتكون من 6 أحرف على الأقل.']
+    };
+    if (known[code]) {
+        const [status, stableCode, message] = known[code];
+        return sendMobileError(res, status, stableCode, message, req.correlationId);
+    }
+    return sendServerError(res, req, fallbackMessage);
+};
+
+router.get('/company/employees', authenticateJWT, async (req, res) => {
+    try {
+        const employees = await companyWorkspaceService.listEmployees(req);
+        return res.json({ success: true, employees, serverTime: new Date().toISOString() });
+    } catch (error) {
+        return sendMobileWorkspaceError(res, req, error, 'تعذر تحميل موظفي الشركة.');
+    }
+});
+
+router.post('/company/employees', authenticateJWT, requireIdempotencyKey, async (req, res) => {
+    try {
+        const employee = await companyWorkspaceService.createEmployee(req);
+        return res.status(201).json({ success: true, employee, serverTime: new Date().toISOString() });
+    } catch (error) {
+        return sendMobileWorkspaceError(res, req, error, 'تعذر إنشاء موظف الشركة.');
+    }
+});
+
+router.patch('/company/employees/:id/status', authenticateJWT, requireIdempotencyKey, async (req, res) => {
+    try {
+        const employee = await companyWorkspaceService.updateEmployeeStatus(req);
+        return res.json({ success: true, employee, serverTime: new Date().toISOString() });
+    } catch (error) {
+        return sendMobileWorkspaceError(res, req, error, 'تعذر تحديث حالة الموظف.');
+    }
+});
+
+router.patch('/company/employees/:id/permissions', authenticateJWT, requireIdempotencyKey, async (req, res) => {
+    try {
+        const employee = await companyWorkspaceService.updateEmployeePermissions(req);
+        return res.json({ success: true, employee, serverTime: new Date().toISOString() });
+    } catch (error) {
+        return sendMobileWorkspaceError(res, req, error, 'تعذر تحديث صلاحيات الموظف.');
+    }
+});
+
+// ── Agent registration requests (mobile) ───────────────────────────
+router.get('/agent/registration-requests', authenticateJWT, async (req, res) => {
+    try {
+        const requests = await agentRequestsService.list(req);
+        return res.json({ success: true, requests, serverTime: new Date().toISOString() });
+    } catch (error) {
+        return sendMobileWorkspaceError(res, req, error, 'تعذر تحميل طلبات الانضمام.');
+    }
+});
+
+router.post('/agent/registration-requests/:id/approve', authenticateJWT, requireIdempotencyKey, async (req, res) => {
+    try {
+        const request = await agentRequestsService.approve(req);
+        return res.json({ success: true, request, serverTime: new Date().toISOString() });
+    } catch (error) {
+        const code = error && (error.code || error.message);
+        if (['USERNAME_TAKEN', 'PHONE_TAKEN', 'IDENTITY_PENDING', 'IDENTITY_TAKEN'].includes(code)) {
+            return sendMobileError(res, 409, code, 'بيانات هذا الطلب مستخدمة بالفعل أو قيد المراجعة.', req.correlationId);
+        }
+        return sendMobileWorkspaceError(res, req, error, 'تعذر قبول طلب الانضمام.');
+    }
+});
+
+router.post('/agent/registration-requests/:id/reject', authenticateJWT, requireIdempotencyKey, async (req, res) => {
+    try {
+        const request = await agentRequestsService.reject(req);
+        return res.json({ success: true, request, serverTime: new Date().toISOString() });
+    } catch (error) {
+        return sendMobileWorkspaceError(res, req, error, 'تعذر رفض طلب الانضمام.');
+    }
+});
 
 /**
  * @swagger

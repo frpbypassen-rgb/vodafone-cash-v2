@@ -11,10 +11,10 @@ import 'executor_ui.dart';
 /// responsible for their API calls while this layer gives every account type a
 /// consistent, responsive application shell.
 abstract final class Ahram2030 {
-  static const navy = Color(0xFF071A33);
+  static const navy = Color(0xFF0C1B33);
   static const blue = Color(0xFF1769E0);
-  static const jade = Color(0xFF0E9B83);
-  static const gold = Color(0xFFF0BE45);
+  static const jade = Color(0xFF0E9B86);
+  static const gold = Color(0xFFC9A227);
   static const cloud = Color(0xFFF4F7FC);
 
   static Color canvas(BuildContext context) =>
@@ -134,12 +134,20 @@ class Ahram2030Navigation extends StatelessWidget {
     required this.index,
     required this.onSelected,
     this.executor = false,
+    this.company = false,
   });
 
   final List<Ahram2030NavItem> items;
   final int index;
   final ValueChanged<int> onSelected;
   final bool executor;
+  final bool company;
+
+  Color get _accent {
+    if (executor) return Ahram2030.blue;
+    if (company) return Ahram2030.gold;
+    return Ahram2030.jade;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -185,14 +193,12 @@ class Ahram2030Navigation extends StatelessWidget {
                   padding: const EdgeInsets.symmetric(horizontal: 4),
                   decoration: BoxDecoration(
                     color: selected
-                        ? (executor ? Ahram2030.blue : Ahram2030.jade)
-                              .withValues(alpha: dark ? .25 : .12)
+                        ? _accent.withValues(alpha: dark ? .25 : .12)
                         : Colors.transparent,
                     borderRadius: BorderRadius.circular(14),
                     border: Border.all(
                       color: selected
-                          ? (executor ? Ahram2030.blue : Ahram2030.jade)
-                                .withValues(alpha: .38)
+                          ? _accent.withValues(alpha: .38)
                           : Colors.transparent,
                     ),
                   ),
@@ -203,7 +209,7 @@ class Ahram2030Navigation extends StatelessWidget {
                         item.icon,
                         size: 23,
                         color: selected
-                            ? (executor ? Ahram2030.blue : Ahram2030.jade)
+                            ? _accent
                             : Theme.of(context).colorScheme.onSurfaceVariant,
                       ),
                       const SizedBox(height: 3),

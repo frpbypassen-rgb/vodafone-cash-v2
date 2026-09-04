@@ -1293,11 +1293,10 @@ async function getExecutorReports({ executorId, dateType, dateValue, dateFrom, d
         ['deposit', 'deduction', 'deposit_pending'].includes(tx.status)
     );
     const reportTransactions = currentTransactions.filter((tx) => !deposits.includes(tx));
-    // Keep cancelled work isolated from the financial operations list. It is
-    // still returned for auditing, but is never included in employee totals.
-    // The live report is an operational ledger: completed and in-progress work
-    // both remain visible. Cancelled work is rendered in its own audit section.
-    const operations = reportTransactions.filter((tx) => !isCancelledExecutorTransaction(tx));
+    // Keep each report section mutually exclusive. The mobile UI presents
+    // pending work above the successful-operations list, so including it in
+    // both arrays duplicated the same operation and labelled it as successful.
+    const operations = reportTransactions.filter((tx) => tx.status === 'completed');
     const pendingOperations = reportTransactions.filter((tx) => EXECUTOR_PENDING_STATUSES.has(tx.status));
     const cancelledOperations = reportTransactions.filter(isCancelledExecutorTransaction);
     const totals = executorReportTotals(reportTransactions);

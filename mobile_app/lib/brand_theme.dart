@@ -1,13 +1,14 @@
 import 'package:flutter/material.dart';
 
 abstract final class AhramColors {
-  static const ink = Color(0xFF081A33);
+  static const ink = Color(0xFF0C1B33);
   static const inkSoft = Color(0xFF667085);
-  static const emerald = Color(0xFF0F9F8F);
-  static const emeraldDeep = Color(0xFF081A33);
+  static const emerald = Color(0xFF0E9B86);
+  static const emeraldDeep = Color(0xFF0C1B33);
   static const emeraldSoft = Color(0xFFE5F7F4);
-  static const gold = Color(0xFFD7A92E);
-  static const goldSoft = Color(0xFFFFF5D9);
+  static const gold = Color(0xFFC9A227);
+  static const onGold = Color(0xFF1A1406);
+  static const goldSoft = Color(0xFFF7EFC8);
   static const sky = Color(0xFF1457D9);
   static const cloud = Color(0xFFF3F6FB);
   static const line = Color(0xFFDCE5F1);
@@ -21,13 +22,13 @@ abstract final class AhramTheme {
   static ThemeData light() {
     final scheme =
         ColorScheme.fromSeed(
-          seedColor: AhramColors.sky,
+          seedColor: AhramColors.ink,
           brightness: Brightness.light,
         ).copyWith(
-          primary: AhramColors.sky,
+          primary: AhramColors.ink,
           onPrimary: Colors.white,
           secondary: AhramColors.gold,
-          onSecondary: AhramColors.ink,
+          onSecondary: AhramColors.onGold,
           surface: Colors.white,
           onSurface: AhramColors.ink,
           onSurfaceVariant: AhramColors.inkSoft,
@@ -41,13 +42,13 @@ abstract final class AhramTheme {
   static ThemeData dark() {
     final scheme =
         ColorScheme.fromSeed(
-          seedColor: AhramColors.sky,
+          seedColor: AhramColors.ink,
           brightness: Brightness.dark,
         ).copyWith(
           primary: const Color(0xFF74A8FF),
           onPrimary: AhramColors.ink,
-          secondary: const Color(0xFFF1C767),
-          onSecondary: AhramColors.night,
+          secondary: const Color(0xFFE1C15A),
+          onSecondary: AhramColors.onGold,
           surface: AhramColors.nightSurface,
           onSurface: const Color(0xFFF2F7F9),
           onSurfaceVariant: const Color(0xFFB7C6D2),
@@ -129,7 +130,7 @@ abstract final class AhramTheme {
       ),
       filledButtonTheme: FilledButtonThemeData(
         style: FilledButton.styleFrom(
-          minimumSize: const Size(0, 52),
+          minimumSize: const Size(0, 48),
           backgroundColor: scheme.primary,
           foregroundColor: scheme.onPrimary,
           elevation: 3,
@@ -140,7 +141,7 @@ abstract final class AhramTheme {
       ),
       outlinedButtonTheme: OutlinedButtonThemeData(
         style: OutlinedButton.styleFrom(
-          minimumSize: const Size(0, 50),
+          minimumSize: const Size(0, 48),
           foregroundColor: scheme.primary,
           side: BorderSide(color: scheme.primary.withValues(alpha: 0.42)),
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
@@ -185,6 +186,58 @@ abstract final class AhramTheme {
         backgroundColor: dark ? const Color(0xFF1D3647) : AhramColors.ink,
         contentTextStyle: const TextStyle(color: Colors.white),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+      ),
+    );
+  }
+
+  static ThemeData company(Brightness brightness) {
+    final base = brightness == Brightness.dark ? dark() : light();
+    final primary = brightness == Brightness.dark
+        ? const Color(0xFFE1C15A)
+        : AhramColors.gold;
+    final scheme = base.colorScheme.copyWith(
+      primary: primary,
+      onPrimary: AhramColors.onGold,
+      secondary: AhramColors.ink,
+      onSecondary: Colors.white,
+    );
+    return base.copyWith(
+      colorScheme: scheme,
+      filledButtonTheme: FilledButtonThemeData(
+        style: FilledButton.styleFrom(
+          minimumSize: const Size(0, 48),
+          backgroundColor: primary,
+          foregroundColor: AhramColors.onGold,
+          elevation: 3,
+          shadowColor: AhramColors.ink.withValues(alpha: 0.22),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+          textStyle: const TextStyle(fontWeight: FontWeight.w800),
+        ),
+      ),
+    );
+  }
+
+  static ThemeData agent(Brightness brightness) {
+    final base = brightness == Brightness.dark ? dark() : light();
+    final primary = brightness == Brightness.dark
+        ? const Color(0xFF3EC8B3)
+        : AhramColors.emerald;
+    final scheme = base.colorScheme.copyWith(
+      primary: primary,
+      onPrimary: Colors.white,
+    );
+    return base.copyWith(
+      colorScheme: scheme,
+      filledButtonTheme: FilledButtonThemeData(
+        style: FilledButton.styleFrom(
+          minimumSize: const Size(0, 48),
+          backgroundColor: primary,
+          foregroundColor: Colors.white,
+          elevation: 3,
+          shadowColor: AhramColors.ink.withValues(alpha: 0.22),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+          textStyle: const TextStyle(fontWeight: FontWeight.w800),
+        ),
       ),
     );
   }

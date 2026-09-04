@@ -6,6 +6,8 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:uuid/uuid.dart';
 
+import 'workspace/workspace_kind.dart';
+
 class ApiFailure implements Exception {
   const ApiFailure(this.message, {this.statusCode, this.code, this.data});
 
@@ -1676,6 +1678,55 @@ class SessionController extends ChangeNotifier {
         persona.startsWith('company');
   }
 
+  WorkspaceKind get workspaceKind {
+    final current = session;
+    if (current == null) return WorkspaceKind.customerWallet;
+    return resolveWorkspaceKind(
+      accountType: current.accountType,
+      persona: current.persona,
+      executorRole: executorRole,
+    );
+  }
+
+  bool get isCompanyEmployee => workspaceKind == WorkspaceKind.companyExecution;
+
+  bool get isCompanyAccountant =>
+      workspaceKind == WorkspaceKind.companyAccountant;
+
+  bool get isCompanyManager => workspaceKind == WorkspaceKind.companyManager;
+
+  bool get isAgentStaff => workspaceKind == WorkspaceKind.agentStaff;
+
+  bool get canInternalTransfer =>
+      isCompany ? isCompanyManager : !isCompanyEmployee;
+
+  bool get canCreateTransfer =>
+      workspaceKind != WorkspaceKind.companyAccountant &&
+      workspaceKind != WorkspaceKind.executorControl;
+
+  bool get canAcceptExecutorTasks => isExecutor && !isExecutorAccountant;
+
+  bool get canCompleteExecutorProof => canAcceptExecutorTasks;
+
+  bool get canRouteExecutorTasks => isExecutorManager;
+
+  bool get canRequestCompanyDeposit => isCompanyManager;
+
+  bool _hasPermission(String key) {
+    return session?.permissions.contains(key) ?? false;
+  }
+
+  bool get canViewAgentCustomers =>
+      isAgent || _hasPermission('agent.sub_accounts.read');
+
+  bool get canCreateAgentCustomers =>
+      isAgent || _hasPermission('agent.sub_accounts.create');
+
+  bool get canManageAgentCustomers =>
+      isAgent ||
+      _hasPermission('agent.sub_accounts.update_credit_limit') ||
+      _hasPermission('agent.sub_accounts.settle');
+
   bool get isCustomerAccount {
     if (isExecutor || isAgent || isCompany) return false;
     final accountType = session?.accountType ?? '';
@@ -1693,8 +1744,9 @@ class SessionController extends ChangeNotifier {
   }.contains(session?.accountType);
 
   bool get hidesBalance {
+    if (isCompanyAccountant) return false;
     final persona = session?.persona.toLowerCase() ?? '';
-    return persona.contains('employee') || persona.contains('accountant');
+    return persona.contains('employee');
   }
 
   Future<void> restore() async {

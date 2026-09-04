@@ -243,6 +243,30 @@ describe('executor employee reports', () => {
         ]);
     });
 
+    test('keeps pending work out of the successful operations list', async () => {
+        Transaction.find.mockImplementation(() => ({
+            sort: jest.fn().mockReturnValue(leanResult([
+                {
+                    _id: 'completed-1', customId: 'ATT-COMPLETE', status: 'completed', amount: 100,
+                    operatorId: 'employee-1', createdAt: new Date('2026-08-14T10:00:00.000Z')
+                },
+                {
+                    _id: 'pending-1', customId: 'ATT-PENDING', status: 'accepted', amount: 75,
+                    operatorId: 'employee-1', createdAt: new Date('2026-08-14T11:00:00.000Z')
+                }
+            ]))
+        }));
+
+        const report = await getExecutorReports({
+            executorId: 'employee-1',
+            dateType: 'day',
+            dateValue: '2026-08-14'
+        });
+
+        expect(report.operations.map((item) => item.customId)).toEqual(['ATT-COMPLETE']);
+        expect(report.pendingOperations.map((item) => item.customId)).toEqual(['ATT-PENDING']);
+    });
+
     test('allows accountants to reconcile the group without exposing team ranking', async () => {
         Employee.findById.mockResolvedValue({
             _id: 'accountant-1',

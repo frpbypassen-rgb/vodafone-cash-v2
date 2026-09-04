@@ -3,6 +3,7 @@
 const mongoose = require('mongoose');
 const User = require('../models/User');
 const ClientEmployee = require('../models/ClientEmployee');
+const AgentEmployee = require('../models/AgentEmployee');
 const Employee = require('../models/Employee');
 const SubAccount = require('../models/SubAccount');
 const Transaction = require('../models/Transaction');
@@ -35,12 +36,23 @@ const withSession = (query, session) =>
 const checkAgentAuth = async (req, res) => {
     const { userId, accountType } = req.user;
 
-    if (accountType !== 'client_user') {
+    let agent;
+    if (accountType === 'client_user') {
+        agent = await User.findById(userId);
+    } else if (accountType === 'agent_staff') {
+        const staff = await AgentEmployee.findById(userId);
+        // Only delegated managers may use agency-wide mobile endpoints. The
+        // token claims are a UI convenience; the database remains authoritative.
+        if (!staff || staff.status !== 'active' || staff.canManageAgent !== true) {
+            sendMobileError(res, 403, 'FORBIDDEN', 'صلاحيات غير كافية', req.correlationId);
+            return null;
+        }
+        agent = await User.findById(staff.agentId);
+    } else {
         sendMobileError(res, 403, 'FORBIDDEN', 'صلاحيات غير كافية', req.correlationId);
         return null;
     }
 
-    const agent = await User.findById(userId);
     if (!agent || agent.role !== 'agent') {
         sendMobileError(res, 403, 'FORBIDDEN', 'غير مصرح لغير الوكلاء', req.correlationId);
         return null;

@@ -87,3 +87,8 @@ docker-compose.override.yml
 # Internal security assessments (never publish)
 docs/security/PRODUCTION-READINESS-GAP-ANALYSIS-*.md
 docs/security/SECURITY-FINDINGS-*.md
+
+# Android upload key (never publish)
+*.jks
+*.keystore
+key.properties

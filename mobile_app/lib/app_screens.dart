@@ -11,8 +11,18 @@ import 'package:intl/intl.dart';
 import 'package:share_plus/share_plus.dart';
 
 import 'appearance_controller.dart';
+import 'agent/agent_hq_metrics.dart';
 import 'ahram_2030.dart';
 import 'brand_theme.dart';
+import 'company/company_access_denied.dart';
+import 'company/company_deposit_sheet.dart';
+import 'company/company_gallery_screen.dart';
+import 'company/company_service_catalog.dart';
+import 'company/company_smart_transfer_screen.dart';
+import 'company/smart_transfer_parser.dart';
+import 'customer/customer_report_dashboard.dart';
+import 'customer/customer_wallet_hero.dart';
+import 'customer/transfer_step_bar.dart';
 import 'executor_alert_service.dart';
 import 'executor_notification_center.dart';
 import 'executor_ui.dart';
@@ -23,6 +33,7 @@ import 'mobile_notification_catalog.dart';
 import 'mobile_push_service.dart';
 import 'rate_alerts/rate_alert_overlay.dart';
 import 'report_download.dart';
+import 'workspace/workspace_nav.dart';
 
 const _navy = AhramColors.ink;
 const _green = AhramColors.emerald;
@@ -435,6 +446,16 @@ class _LoginScreenState extends State<LoginScreen> {
                                 fontSize: 14,
                               ),
                             ),
+                            const SizedBox(height: 6),
+                            Text(
+                              '2.1.0 · ثماني مساحات بعد الدخول',
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                color: AhramColors.emerald.withValues(alpha: 0.92),
+                                fontWeight: FontWeight.w800,
+                                fontSize: 12,
+                              ),
+                            ),
                             const SizedBox(height: 28),
                             TextFormField(
                               controller: _username,
@@ -516,7 +537,7 @@ class _LoginScreenState extends State<LoginScreen> {
                                         height: 18,
                                         child: CircularProgressIndicator(
                                           strokeWidth: 2,
-                                          color: Colors.white,
+                                          color: AhramColors.onGold,
                                         ),
                                       )
                                     : const Icon(Icons.arrow_back_rounded),
@@ -525,7 +546,7 @@ class _LoginScreenState extends State<LoginScreen> {
                                 ),
                                 style: FilledButton.styleFrom(
                                   backgroundColor: _gold,
-                                  foregroundColor: Colors.white,
+                                  foregroundColor: AhramColors.onGold,
                                   elevation: 6,
                                   shadowColor: _gold.withValues(alpha: 0.34),
                                   shape: RoundedRectangleBorder(
@@ -1210,7 +1231,7 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
                       height: 18,
                       child: CircularProgressIndicator(
                         strokeWidth: 2,
-                        color: Colors.white,
+                        color: AhramColors.onGold,
                       ),
                     )
                   : const Icon(Icons.arrow_back_rounded),
@@ -1219,7 +1240,7 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
               ),
               style: FilledButton.styleFrom(
                 backgroundColor: _gold,
-                foregroundColor: Colors.white,
+                foregroundColor: AhramColors.onGold,
                 elevation: 2,
               ),
             ),
@@ -1934,188 +1955,137 @@ class _RoleShellState extends State<RoleShell> with WidgetsBindingObserver {
 
   List<_NavItem> _createItems({bool english = false}) {
     if (widget.controller.isExecutor) {
-      if (widget.controller.isExecutorManager) {
-        return [
-          _NavItem(
-            'مهام التنفيذ',
-            Icons.assignment_turned_in_outlined,
-            ExecutorTasksScreen(controller: widget.controller),
-          ),
-          _NavItem(
-            'التقارير',
-            Icons.assessment_outlined,
-            ExecutorReportsScreen(controller: widget.controller),
-          ),
-          _NavItem(
-            'الإيداعات',
-            Icons.account_balance_wallet_outlined,
-            ExecutorDepositsScreen(controller: widget.controller),
-          ),
-          _NavItem(
-            'الموظفون',
-            Icons.manage_accounts_outlined,
-            ExecutorEmployeesScreen(controller: widget.controller),
-          ),
-          _NavItem(
-            'الدعم',
-            Icons.support_agent_outlined,
-            ExecutorSupportScreen(controller: widget.controller),
-          ),
-          _NavItem(
-            'الإعدادات',
-            Icons.settings_outlined,
-            ExecutorSettingsScreen(controller: widget.controller),
-          ),
-        ];
-      }
-      if (widget.controller.isExecutorAccountant) {
-        return [
-          _NavItem(
-            'التقارير',
-            Icons.assessment_outlined,
-            ExecutorReportsScreen(controller: widget.controller),
-          ),
-          _NavItem(
-            'الدعم',
-            Icons.support_agent_outlined,
-            ExecutorSupportScreen(controller: widget.controller),
-          ),
-          _NavItem(
-            'الإعدادات',
-            Icons.settings_outlined,
-            ExecutorSettingsScreen(controller: widget.controller),
-          ),
-        ];
-      }
-      if (widget.controller.isExecutorOperator) {
-        return [
-          _NavItem(
-            'مهام التنفيذ',
-            Icons.assignment_turned_in_outlined,
-            ExecutorTasksScreen(controller: widget.controller),
-          ),
-          _NavItem(
-            'التقارير',
-            Icons.assessment_outlined,
-            ExecutorReportsScreen(controller: widget.controller),
-          ),
-          _NavItem(
-            'الدعم',
-            Icons.support_agent_outlined,
-            ExecutorSupportScreen(controller: widget.controller),
-          ),
-          _NavItem(
-            'الإعدادات',
-            Icons.settings_outlined,
-            ExecutorSettingsScreen(controller: widget.controller),
-          ),
-        ];
-      }
-      return [
-        _NavItem(
-          'مهام التنفيذ',
-          Icons.assignment_turned_in_outlined,
-          ExecutorTasksScreen(controller: widget.controller),
-        ),
-        _NavItem(
-          'الحساب',
-          Icons.manage_accounts_outlined,
-          AccountScreen(controller: widget.controller),
-        ),
-        _NavItem(
-          'الدعم',
-          Icons.support_agent_outlined,
-          ExecutorSupportScreen(controller: widget.controller),
-        ),
-      ];
+      return workspaceNavFor(
+        widget.controller.workspaceKind,
+        english: english,
+        executorRole: widget.controller.executorRole,
+      )
+          .map(
+            (spec) => _NavItem(spec.label, spec.icon, _executorPageFor(spec.id)),
+          )
+          .toList();
     }
-    if (widget.controller.isAgent) {
-      return [
-        _NavItem(
-          'الرئيسية',
-          Icons.space_dashboard_outlined,
-          AgentOverviewScreen(controller: widget.controller),
-        ),
-        _NavItem(
-          'العملاء',
-          Icons.groups_2_outlined,
-          SubAccountsScreen(controller: widget.controller),
-        ),
-        _NavItem(
-          'تحويل',
-          Icons.send_to_mobile_outlined,
-          TransferScreen(controller: widget.controller),
-        ),
-        _NavItem(
-          'الدعم',
-          Icons.support_agent_outlined,
-          SupportScreen(controller: widget.controller),
-        ),
-      ];
+    return workspaceNavFor(
+      widget.controller.workspaceKind,
+      english: english,
+      canViewAgentCustomers: widget.controller.canViewAgentCustomers,
+    )
+        .map((spec) => _NavItem(spec.label, spec.icon, _pageFor(spec.id)))
+        .toList();
+  }
+
+  Widget _pageFor(WorkspaceNavId id) {
+    switch (id) {
+      case WorkspaceNavId.home:
+      case WorkspaceNavId.finance:
+        return widget.controller.isAgent
+            ? AgentOverviewScreen(controller: widget.controller)
+            : ClientHomeScreen(controller: widget.controller);
+      case WorkspaceNavId.services:
+        return widget.controller.isCompany
+            ? CompanyGalleryScreen(
+                controller: widget.controller,
+                onOpenBench: _openIsolatedCompanyBench,
+              )
+            : TransferScreen(controller: widget.controller);
+      case WorkspaceNavId.transfer:
+        return TransferScreen(controller: widget.controller);
+      case WorkspaceNavId.smartTransfer:
+        return CompanySmartTransferScreen(
+          controller: widget.controller,
+          onOpenBench: _openCompanyTransferBench,
+        );
+      case WorkspaceNavId.transactions:
+        return TransactionsScreen(controller: widget.controller);
+      case WorkspaceNavId.reports:
+        return CustomerReportsScreen(controller: widget.controller);
+      case WorkspaceNavId.support:
+        return SupportScreen(controller: widget.controller);
+      case WorkspaceNavId.account:
+        return CustomerAccountScreen(
+          controller: widget.controller,
+          appearance: widget.appearance,
+          language: widget.language,
+        );
+      case WorkspaceNavId.rates:
+        return ExchangeRatesScreen(controller: widget.controller);
+      case WorkspaceNavId.customers:
+        return SubAccountsScreen(controller: widget.controller);
+      case WorkspaceNavId.tasks:
+      case WorkspaceNavId.deposits:
+      case WorkspaceNavId.employees:
+      case WorkspaceNavId.settings:
+        return _executorPageFor(id);
     }
-    if (widget.controller.isCustomerAccount) {
-      return [
-        _NavItem(
-          english ? 'Account' : 'الحساب',
-          Icons.account_balance_wallet_outlined,
-          CustomerAccountScreen(
-            controller: widget.controller,
-            appearance: widget.appearance,
-            language: widget.language,
+  }
+
+  Widget _executorPageFor(WorkspaceNavId id) {
+    switch (id) {
+      case WorkspaceNavId.tasks:
+        return ExecutorTasksScreen(controller: widget.controller);
+      case WorkspaceNavId.deposits:
+        return ExecutorDepositsScreen(controller: widget.controller);
+      case WorkspaceNavId.employees:
+        return ExecutorEmployeesScreen(controller: widget.controller);
+      case WorkspaceNavId.settings:
+        return ExecutorSettingsScreen(controller: widget.controller);
+      case WorkspaceNavId.support:
+        return ExecutorSupportScreen(controller: widget.controller);
+      case WorkspaceNavId.reports:
+        return ExecutorReportsScreen(controller: widget.controller);
+      default:
+        return ExecutorReportsScreen(controller: widget.controller);
+    }
+  }
+
+  void _openCompanyTransferBench(SmartTransferDraft draft) {
+    _openIsolatedCompanyBench(
+      CompanyServiceChoice(serviceKey: draft.serviceKey ?? 'vodafone'),
+      amount: draft.amountEGP?.toString(),
+      number: draft.phone.isEmpty ? null : draft.phone,
+      notes: draft.note.isEmpty ? null : draft.note,
+      name: draft.beneficiaryName.isEmpty ? null : draft.beneficiaryName,
+    );
+  }
+
+  void _openIsolatedCompanyBench(
+    CompanyServiceChoice choice, {
+    String? amount,
+    String? number,
+    String? notes,
+    String? name,
+  }) {
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (routeContext) => Theme(
+          data: AhramTheme.company(Theme.of(routeContext).brightness),
+          child: Scaffold(
+            appBar: AppBar(title: const Text('منضدة الخدمة')),
+            body: TransferScreen(
+              controller: widget.controller,
+              isolated: true,
+              initialServiceKey: choice.serviceKey,
+              initialSubtype: choice.subtype,
+              initialNumber: number,
+              initialAmount: amount,
+              initialNotes: notes,
+              initialName: name,
+            ),
           ),
         ),
-        _NavItem(
-          english ? 'Transfers' : 'التحويلات',
-          Icons.send_to_mobile_outlined,
-          TransferScreen(controller: widget.controller),
-        ),
-        _NavItem(
-          english ? 'Exchange rates' : 'أسعار الصرف',
-          Icons.currency_exchange_outlined,
-          ExchangeRatesScreen(controller: widget.controller),
-        ),
-        _NavItem(
-          english ? 'Reports' : 'التقارير',
-          Icons.assessment_outlined,
-          CustomerReportsScreen(controller: widget.controller),
-        ),
-        _NavItem(
-          english ? 'Support' : 'الدعم الفني',
-          Icons.support_agent_outlined,
-          SupportScreen(controller: widget.controller),
-        ),
-      ];
-    }
-    return [
-      _NavItem(
-        'الرئيسية',
-        Icons.space_dashboard_outlined,
-        ClientHomeScreen(controller: widget.controller),
       ),
-      _NavItem(
-        'تحويل',
-        Icons.send_to_mobile_outlined,
-        TransferScreen(controller: widget.controller),
-      ),
-      _NavItem(
-        'العمليات',
-        Icons.receipt_long_outlined,
-        TransactionsScreen(controller: widget.controller),
-      ),
-      _NavItem(
-        'الدعم',
-        Icons.support_agent_outlined,
-        SupportScreen(controller: widget.controller),
-      ),
-    ];
+    );
   }
 
   String get _roleLabel {
     if (widget.controller.isExecutorManager) return 'مدير تنفيذي';
     if (widget.controller.isExecutorAccountant) return 'محاسب تنفيذي';
     if (widget.controller.isExecutor) return 'موظف تنفيذ';
+    if (widget.controller.isCompanyAccountant) return 'محاسب شركة';
+    if (widget.controller.isCompanyEmployee) return 'موظف شركة';
+    if (widget.controller.isCompany) return 'مدير شركة';
     if (widget.controller.isAgent) return 'وكالة';
-    if (widget.controller.isCompany) return 'شركة';
+    if (widget.controller.isAgentStaff) return 'موظف وكالة';
     return 'عميل';
   }
 
@@ -2153,6 +2123,8 @@ class _RoleShellState extends State<RoleShell> with WidgetsBindingObserver {
     }
     final selected = _items[_index];
     final isCustomerShell = widget.controller.isCustomerAccount;
+    final isCompanyShell = widget.controller.isCompany;
+    final isBrandedShell = isCustomerShell || isCompanyShell;
     final isExecutorShell = widget.controller.isExecutor;
     final compactExecutorHeader =
         isExecutorShell && MediaQuery.sizeOf(context).width < 430;
@@ -2167,6 +2139,10 @@ class _RoleShellState extends State<RoleShell> with WidgetsBindingObserver {
     final canViewCompanyBalance =
         widget.controller.isExecutorManager ||
         widget.controller.isExecutorAccountant;
+    final showWorkspaceBalance =
+        isCustomerShell ||
+        widget.controller.isCompanyManager ||
+        widget.controller.isCompanyAccountant;
     final companyBalance = canViewCompanyBalance
         ? (company is Map
               ? numberValue(
@@ -2324,7 +2300,7 @@ class _RoleShellState extends State<RoleShell> with WidgetsBindingObserver {
       accountLabel: _roleLabel,
       balance: canViewCompanyBalance
           ? companyBalance
-          : (isCustomerShell ? session?.balance : null),
+          : (showWorkspaceBalance ? session?.balance : null),
       executor: isExecutorShell,
       actions: [
         if (isCustomerShell)
@@ -2437,7 +2413,7 @@ class _RoleShellState extends State<RoleShell> with WidgetsBindingObserver {
                 ],
               )
             : pageContent;
-        return Scaffold(
+        final scaffold = Scaffold(
           appBar: appBar,
           body: Stack(
             children: [
@@ -2464,33 +2440,33 @@ class _RoleShellState extends State<RoleShell> with WidgetsBindingObserver {
               ? null
               : Padding(
                   padding: EdgeInsets.fromLTRB(
-                    isCustomerShell ? 10 : 0,
-                    isCustomerShell ? 6 : 0,
-                    isCustomerShell ? 10 : 0,
-                    isCustomerShell ? 10 : 0,
+                    isBrandedShell ? 10 : 0,
+                    isBrandedShell ? 6 : 0,
+                    isBrandedShell ? 10 : 0,
+                    isBrandedShell ? 10 : 0,
                   ),
                   child: DecoratedBox(
                     decoration: BoxDecoration(
                       color: isExecutorShell
                           ? ExecutorUiColors.surface(context)
                           : Theme.of(context).colorScheme.surface,
-                      borderRadius: isCustomerShell
+                      borderRadius: isBrandedShell
                           ? BorderRadius.circular(8)
                           : BorderRadius.zero,
                       border: Border.all(
-                        color: isCustomerShell
+                        color: isBrandedShell
                             ? AhramColors.gold.withValues(alpha: 0.28)
                             : Theme.of(context).colorScheme.outlineVariant,
                       ),
                       boxShadow: [
                         BoxShadow(
                           color: _navy.withValues(
-                            alpha: isCustomerShell ? 0.18 : 0.08,
+                            alpha: isBrandedShell ? 0.18 : 0.08,
                           ),
-                          blurRadius: isCustomerShell ? 18 : 16,
+                          blurRadius: isBrandedShell ? 18 : 16,
                           offset: const Offset(0, -4),
                         ),
-                        if (isCustomerShell)
+                        if (isBrandedShell)
                           BoxShadow(
                             color: AhramColors.gold.withValues(alpha: 0.11),
                             blurRadius: 0,
@@ -2500,6 +2476,7 @@ class _RoleShellState extends State<RoleShell> with WidgetsBindingObserver {
                     ),
                     child: Ahram2030Navigation(
                       executor: isExecutorShell,
+                      company: isCompanyShell,
                       index: _index,
                       onSelected: (next) => setState(() => _index = next),
                       items: _items
@@ -2514,8 +2491,20 @@ class _RoleShellState extends State<RoleShell> with WidgetsBindingObserver {
                   ),
                 ),
         );
+        return _workspaceTheme(scaffold);
       },
     );
+  }
+
+  Widget _workspaceTheme(Widget child) {
+    final brightness = Theme.of(context).brightness;
+    if (widget.controller.isCompany) {
+      return Theme(data: AhramTheme.company(brightness), child: child);
+    }
+    if (widget.controller.isAgent || widget.controller.isAgentStaff) {
+      return Theme(data: AhramTheme.agent(brightness), child: child);
+    }
+    return child;
   }
 }
 
@@ -2864,6 +2853,11 @@ class _CustomerAccountScreenState extends State<CustomerAccountScreen> {
         label: Text(t('الحماية', 'Security')),
       ),
       child: [
+        CustomerWalletHero(
+          balance: session.balance,
+          available: session.availableToSpend ?? session.balance,
+        ),
+        const SizedBox(height: 14),
         ExecutorSurface(
           accent: ExecutorUiColors.cobalt,
           elevated: false,
@@ -4729,6 +4723,19 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
     );
   }
 
+  Future<void> _openCompanyDeposit() async {
+    if (!widget.controller.canRequestCompanyDeposit) return;
+    final created = await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (context) => CompanyDepositSheet(api: widget.controller.api),
+    );
+    if (created == true && mounted) {
+      showSnack(context, 'تم إرسال طلب الإيداع إلى الإدارة عبر الدعم الفني.');
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     if (_loading && _home == null) return const PageLoading();
@@ -4740,9 +4747,15 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
     final balance = numberValue(home['balance'], session.balance);
     final english = usesEnglish(context);
     return PageFrame(
-      title: widget.controller.isCompany ? 'ملخص الشركة' : 'مساحة العميل',
-      subtitle: widget.controller.isCompany
-          ? 'متابعة الرصيد وأسعار الخدمات والعمليات الجارية.'
+      title: widget.controller.isCompanyAccountant
+          ? 'مكتب المحاسبة'
+          : widget.controller.isCompany
+          ? 'غرفة الإدارة'
+          : 'مساحة العميل',
+      subtitle: widget.controller.isCompanyAccountant
+          ? 'الرصيد والقيود دون إنشاء تحويل.'
+          : widget.controller.isCompany
+          ? 'مؤشرات وانتباه دون جدول عمليات في الرئيسية.'
           : 'كل ما تحتاجه لإدارة تحويلاتك في واجهة واحدة.',
       onRefresh: _load,
       action: OutlinedButton.icon(
@@ -4753,7 +4766,13 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
       child: [
         CustomerWelcomePanel(
           name: session.name,
-          role: widget.controller.isCompany ? 'حساب شركة' : 'حساب عميل',
+          role: widget.controller.isCompanyAccountant
+              ? 'محاسب الشركة'
+              : widget.controller.isCompanyEmployee
+              ? 'موظف الشركة'
+              : widget.controller.isCompany
+              ? 'مدير الشركة'
+              : 'حساب عميل',
           balance: balance,
           showBalance: !widget.controller.hidesBalance,
           systemOpen: home['isOpen'] != false,
@@ -4771,41 +4790,113 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
           ),
         ],
         const SizedBox(height: 18),
-        CustomerHomeSection(
-          title: english ? 'Your workspace' : 'مساحتك اليومية',
-          subtitle: english
-              ? 'Quick access to the actions you use most.'
-              : 'وصول سريع إلى الأدوات التي تستخدمها أكثر.',
-          children: [
-            CustomerQuickTile(
-              icon: Icons.send_to_mobile_outlined,
-              title: english ? 'New transfer' : 'تحويل جديد',
-              caption: english ? 'Send money securely' : 'ابدأ طلب تحويل آمن',
-              color: AhramColors.sky,
+        if (widget.controller.isCompany)
+          _CompanyAttentionPanel(
+            controller: widget.controller,
+            onDeposit: widget.controller.canRequestCompanyDeposit
+                ? () => _openCompanyDeposit()
+                : null,
+            onSecurity: _openAuthenticator,
+          )
+        else
+          CustomerHomeSection(
+            title: english ? 'Your workspace' : 'مساحتك اليومية',
+            subtitle: english
+                ? 'Quick access to the actions you use most.'
+                : 'وصول سريع إلى الأدوات التي تستخدمها أكثر.',
+            children: [
+              CustomerQuickTile(
+                icon: Icons.send_to_mobile_outlined,
+                title: english ? 'New transfer' : 'تحويل جديد',
+                caption: english ? 'Send money securely' : 'ابدأ طلب تحويل آمن',
+                color: AhramColors.sky,
+              ),
+              CustomerQuickTile(
+                icon: Icons.currency_exchange_outlined,
+                title: english ? 'Exchange rates' : 'أسعار الصرف',
+                caption: english
+                    ? 'Live rates and calculator'
+                    : 'الأسعار الحالية والحاسبة',
+                color: AhramColors.emerald,
+              ),
+              CustomerQuickTile(
+                icon: Icons.receipt_long_outlined,
+                title: english ? 'Activity' : 'سجل العمليات',
+                caption: english
+                    ? 'Track your recent requests'
+                    : 'تابع طلباتك الأخيرة',
+                color: AhramColors.gold,
+              ),
+              CustomerQuickTile(
+                icon: Icons.support_agent_outlined,
+                title: english ? 'Support' : 'الدعم الفني',
+                caption: english
+                    ? 'We are ready to help'
+                    : 'نحن جاهزون لمساعدتك',
+                color: const Color(0xFF7C5CFC),
+              ),
+            ],
+          ),
+      ],
+    );
+  }
+}
+
+class _CompanyAttentionPanel extends StatelessWidget {
+  const _CompanyAttentionPanel({
+    required this.controller,
+    required this.onSecurity,
+    this.onDeposit,
+  });
+
+  final SessionController controller;
+  final VoidCallback onSecurity;
+  final VoidCallback? onDeposit;
+
+  @override
+  Widget build(BuildContext context) {
+    final accountant = controller.isCompanyAccountant;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Text(
+          accountant ? 'مكتب المتابعة' : 'انتباه الغرفة',
+          style: Theme.of(
+            context,
+          ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900),
+        ),
+        const SizedBox(height: 6),
+        Text(
+          accountant
+              ? 'الرصيد والكشوف ومتابعة الإيداع فقط. لا يوجد زر إرسال.'
+              : 'المعرض والعمليات والكشوف من التبويبات. الرئيسية ليست نموذج تحويل.',
+          style: TextStyle(
+            height: 1.5,
+            color: Theme.of(context).colorScheme.onSurfaceVariant,
+          ),
+        ),
+        const SizedBox(height: 12),
+        if (onDeposit != null) ...[
+          FilledButton.icon(
+            onPressed: onDeposit,
+            icon: const Icon(Icons.account_balance_wallet_outlined),
+            label: const Text('طلب إيداع رصيد'),
+          ),
+          const SizedBox(height: 10),
+        ] else if (accountant) ...[
+          Text(
+            'تابع طلبات الإيداع من تبويب الدعم. لا يُنشأ طلب إيداع جديد من المحاسب.',
+            style: TextStyle(
+              height: 1.5,
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
             ),
-            CustomerQuickTile(
-              icon: Icons.currency_exchange_outlined,
-              title: english ? 'Exchange rates' : 'أسعار الصرف',
-              caption: english
-                  ? 'Live rates and calculator'
-                  : 'الأسعار الحالية والحاسبة',
-              color: AhramColors.emerald,
-            ),
-            CustomerQuickTile(
-              icon: Icons.receipt_long_outlined,
-              title: english ? 'Activity' : 'سجل العمليات',
-              caption: english
-                  ? 'Track your recent requests'
-                  : 'تابع طلباتك الأخيرة',
-              color: AhramColors.gold,
-            ),
-            CustomerQuickTile(
-              icon: Icons.support_agent_outlined,
-              title: english ? 'Support' : 'الدعم الفني',
-              caption: english ? 'We are ready to help' : 'نحن جاهزون لمساعدتك',
-              color: const Color(0xFF7C5CFC),
-            ),
-          ],
+          ),
+          const SizedBox(height: 10),
+        ],
+        OutlinedButton.icon(
+          onPressed: onSecurity,
+          icon: const Icon(Icons.shield_outlined),
+          label: const Text('الحماية'),
         ),
       ],
     );
@@ -5876,9 +5967,26 @@ class _ExchangeRateServiceCard extends StatelessWidget {
 }
 
 class TransferScreen extends StatefulWidget {
-  const TransferScreen({super.key, required this.controller});
+  const TransferScreen({
+    super.key,
+    required this.controller,
+    this.initialServiceKey,
+    this.initialSubtype,
+    this.initialAmount,
+    this.initialNumber,
+    this.initialNotes,
+    this.initialName,
+    this.isolated = false,
+  });
 
   final SessionController controller;
+  final String? initialServiceKey;
+  final String? initialSubtype;
+  final String? initialAmount;
+  final String? initialNumber;
+  final String? initialNotes;
+  final String? initialName;
+  final bool isolated;
 
   @override
   State<TransferScreen> createState() => _TransferScreenState();
@@ -6073,6 +6181,25 @@ class _TransferScreenState extends State<TransferScreen> {
   @override
   void initState() {
     super.initState();
+    final initialService = widget.initialServiceKey?.trim();
+    if (initialService != null && initialService.isNotEmpty) {
+      _serviceKey = initialService;
+      _serviceSubtype = widget.initialSubtype;
+      _showServiceCatalog = false;
+    }
+    if ((widget.initialAmount ?? '').trim().isNotEmpty) {
+      _amount.text = widget.initialAmount!.trim();
+    }
+    if ((widget.initialNumber ?? '').trim().isNotEmpty) {
+      _number.text = widget.initialNumber!.trim();
+      _recipientPhone.text = widget.initialNumber!.trim();
+    }
+    if ((widget.initialNotes ?? '').trim().isNotEmpty) {
+      _notes.text = widget.initialNotes!.trim();
+    }
+    if ((widget.initialName ?? '').trim().isNotEmpty) {
+      _name.text = widget.initialName!.trim();
+    }
     _loadRates();
   }
 
@@ -6805,9 +6932,7 @@ class _TransferScreenState extends State<TransferScreen> {
   Widget _serviceGrid(List<Widget> children) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        final columns = constraints.maxWidth >= 820
-            ? 3
-            : (constraints.maxWidth >= 540 ? 2 : 2);
+        final columns = transferCatalogColumns(constraints.maxWidth);
         final width = (constraints.maxWidth - (12 * (columns - 1))) / columns;
         return Wrap(
           spacing: 12,
@@ -6962,15 +7087,16 @@ class _TransferScreenState extends State<TransferScreen> {
                   ? () => _openService('bankak_sudan')
                   : null,
             ),
-            _TransferServiceCard(
-              title: 'تحويل بين الحسابات',
-              subtitle: 'تحويل الرصيد داخل منظومة الأهرام',
-              icon: Icons.swap_horiz_outlined,
-              color: AhramColors.sky,
-              rate: null,
-              available: true,
-              onTap: _openBalanceTransfer,
-            ),
+            if (widget.controller.canInternalTransfer)
+              _TransferServiceCard(
+                title: 'تحويل بين الحسابات',
+                subtitle: 'تحويل الرصيد داخل منظومة الأهرام',
+                icon: Icons.swap_horiz_outlined,
+                color: AhramColors.sky,
+                rate: null,
+                available: true,
+                onTap: _openBalanceTransfer,
+              ),
           ]),
         ],
       ),
@@ -6995,11 +7121,13 @@ class _TransferScreenState extends State<TransferScreen> {
           style: const TextStyle(fontWeight: FontWeight.w900),
         ),
         subtitle: Text('سعر الصرف ${formatAmount(_rate)} د.ل'),
-        trailing: TextButton.icon(
-          onPressed: _backToServices,
-          icon: const Icon(Icons.apps_outlined),
-          label: const Text('تغيير'),
-        ),
+        trailing: widget.isolated
+            ? null
+            : TextButton.icon(
+                onPressed: _backToServices,
+                icon: const Icon(Icons.apps_outlined),
+                label: const Text('تغيير'),
+              ),
       ),
     );
   }
@@ -9136,25 +9264,48 @@ class _TransferScreenState extends State<TransferScreen> {
 
   @override
   Widget build(BuildContext context) {
+    if (!widget.controller.canCreateTransfer) {
+      return const CompanyAccessDenied(
+        title: 'غير مسموح بإنشاء تحويل',
+        message:
+            'حساب المحاسب يتابع الرصيد والكشوف والإيداع فقط، ولا يفتح منضدة الإرسال.',
+      );
+    }
     final services = _servicesFrom(_home);
-    if (_showServiceCatalog) return _catalogPage(services);
-    if (_isBalanceTransfer) return _balanceTransferPage();
-    if (_serviceKey == 'vodafone') return _cashTransferPage();
-    if (_serviceKey == 'post_account') return _postAccountPage();
-    if (_serviceKey == 'post_card') return _postCardPage();
-    if (_serviceKey == 'bank_account' && _serviceSubtype == 'instapay') {
-      return _instapayPage();
+    late final Widget page;
+    if (_showServiceCatalog) {
+      page = _catalogPage(services);
+    } else if (_isBalanceTransfer) {
+      page = _balanceTransferPage();
+    } else if (_serviceKey == 'vodafone') {
+      page = _cashTransferPage();
+    } else if (_serviceKey == 'post_account') {
+      page = _postAccountPage();
+    } else if (_serviceKey == 'post_card') {
+      page = _postCardPage();
+    } else if (_serviceKey == 'bank_account' && _serviceSubtype == 'instapay') {
+      page = _instapayPage();
+    } else if (_serviceKey == 'bank_account' && _serviceSubtype != 'instapay') {
+      page = _bankTransferPage();
+    } else if (_serviceKey == 'bankak_sudan') {
+      page = _bankakPage();
+    } else if (_serviceKey == 'sefa_niger' && _serviceSubtype == 'nita') {
+      page = _nitaPage();
+    } else if (_serviceKey == 'sefa_niger' &&
+        _serviceSubtype == 'nita_account') {
+      page = _nitaPage(nitaAccount: true);
+    } else {
+      page = _fallbackTransferPage();
     }
-    if (_serviceKey == 'bank_account' && _serviceSubtype != 'instapay') {
-      return _bankTransferPage();
-    }
-    if (_serviceKey == 'bankak_sudan') return _bankakPage();
-    if (_serviceKey == 'sefa_niger' && _serviceSubtype == 'nita') {
-      return _nitaPage();
-    }
-    if (_serviceKey == 'sefa_niger' && _serviceSubtype == 'nita_account') {
-      return _nitaPage(nitaAccount: true);
-    }
+    return Column(
+      children: [
+        TransferStepBar(currentStep: _showServiceCatalog ? 1 : 2),
+        Expanded(child: page),
+      ],
+    );
+  }
+
+  Widget _fallbackTransferPage() {
     final rate = _rate;
     final inputAmount = numberValue(_amount.text.replaceAll(',', ''));
     final sefa = _isSefa;
@@ -11648,11 +11799,39 @@ class _CustomerReportsScreenState extends State<CustomerReportsScreen> {
         : <Map<String, dynamic>>[];
   }
 
+  List<CustomerServiceShare> _serviceShares(
+    List<Map<String, dynamic>> transactions,
+  ) {
+    final counts = <String, int>{};
+    for (final item in transactions.where((item) => !_isCancelled(item))) {
+      final label = serviceLabel(item['transferType']?.toString());
+      counts[label] = (counts[label] ?? 0) + 1;
+    }
+    const palette = <Color>[
+      AhramColors.emerald,
+      AhramColors.gold,
+      AhramColors.ink,
+      AhramColors.sky,
+      AhramColors.danger,
+    ];
+    var index = 0;
+    return counts.entries.map((entry) {
+      final color = palette[index % palette.length];
+      index += 1;
+      return CustomerServiceShare(
+        label: entry.key,
+        count: entry.value,
+        color: color,
+      );
+    }).toList();
+  }
+
   Widget _operationList(
     BuildContext context,
     List<Map<String, dynamic>> transactions, {
     String emptyTitle = 'لا توجد عمليات للعرض',
     String emptyMessage = 'ستظهر هنا العمليات المسجلة في هذه الفترة.',
+    bool compact = false,
   }) {
     final filtered = transactions.where(_matchesStatus).toList();
     final active = filtered.where((item) => !_isCancelled(item)).toList();
@@ -11669,10 +11848,22 @@ class _CustomerReportsScreenState extends State<CustomerReportsScreen> {
           ...active.map(
             (transaction) => Padding(
               padding: const EdgeInsets.only(bottom: 9),
-              child: TransactionTile(
-                transaction: transaction,
-                onTap: () => _openDetails(transaction),
-              ),
+              child: compact
+                  ? CustomerOperationCard(
+                      reference:
+                          '${transaction['customId'] ?? transaction['txId'] ?? '-'}',
+                      amount:
+                          '${formatEgpAmount(numberValue(transaction['amount']))} ج.م',
+                      status: statusLabel(transaction['status']?.toString()),
+                      statusColor: statusColor(
+                        transaction['status']?.toString(),
+                      ),
+                      onTap: () => _openDetails(transaction),
+                    )
+                  : TransactionTile(
+                      transaction: transaction,
+                      onTap: () => _openDetails(transaction),
+                    ),
             ),
           ),
         if (cancelled.isNotEmpty) ...[
@@ -11758,33 +11949,54 @@ class _CustomerReportsScreenState extends State<CustomerReportsScreen> {
       onRefresh: _refresh,
       child: [
         if (_section == null) ...[
-          _CustomerReportEntryCard(
-            icon: Icons.today_outlined,
-            title: 'السجل اليومي',
-            description: 'عمليات اليوم فقط مع حالة كل عملية ووقتها.',
-            color: AhramColors.sky,
-            onTap: () {
-              setState(() => _section = 0);
-              if (_dailyTransactions.isEmpty) {
-                _loadDaily();
-              }
-            },
+          CustomerReportMetrics(
+            transactionCount: _dailyTransactions.length,
+            completedCount: _dailyTransactions
+                .where(
+                  (item) =>
+                      '${item['status'] ?? ''}'.toLowerCase() == 'completed',
+                )
+                .length,
+            totalEgp:
+                '${formatEgpAmount(_dailyTransactions.where((item) => !_isCancelled(item)).fold<double>(0, (total, item) => total + numberValue(item['amount'])))} ج.م',
+            totalLyd:
+                '${formatAmount(_dailyTransactions.where((item) => !_isCancelled(item)).fold<double>(0, (total, item) => total + numberValue(item['costLYD'])))} د.ل',
+            showCost: !widget.controller.hidesBalance,
           ),
-          const SizedBox(height: 10),
-          _CustomerReportEntryCard(
-            icon: Icons.assessment_outlined,
-            title: 'تقارير العمليات',
-            description: 'اختر فترة زمنية واعرض أو حمّل تقرير PDF.',
-            color: _green,
-            onTap: () => setState(() => _section = 1),
+          const SizedBox(height: 16),
+          if (_serviceShares(_dailyTransactions).isNotEmpty) ...[
+            Text(
+              'توزيع خدمات اليوم',
+              style: Theme.of(
+                context,
+              ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w900),
+            ),
+            const SizedBox(height: 10),
+            CustomerServiceShareBars(
+              shares: _serviceShares(_dailyTransactions),
+            ),
+            const SizedBox(height: 8),
+          ],
+          _statusFilters(),
+          const SizedBox(height: 14),
+          _operationList(
+            context,
+            _dailyTransactions,
+            emptyTitle: 'لا توجد عمليات اليوم',
+            emptyMessage: 'ستظهر عمليات اليوم فور تسجيلها في المنظومة.',
+            compact: true,
           ),
-          const SizedBox(height: 10),
-          _CustomerReportEntryCard(
-            icon: Icons.manage_search_outlined,
-            title: 'بحث عن عملية',
-            description: 'ابحث برقم الهاتف أو آخر 4 أرقام من رقم العملية.',
-            color: const Color(0xFF6B4A9A),
-            onTap: () => setState(() => _section = 2),
+          const SizedBox(height: 16),
+          OutlinedButton.icon(
+            onPressed: () => setState(() => _section = 1),
+            icon: const Icon(Icons.picture_as_pdf_outlined),
+            label: const Text('كشف فترة PDF'),
+          ),
+          const SizedBox(height: 8),
+          OutlinedButton.icon(
+            onPressed: () => setState(() => _section = 2),
+            icon: const Icon(Icons.manage_search_outlined),
+            label: const Text('بحث عن عملية'),
           ),
         ] else ...[
           OutlinedButton.icon(
@@ -11820,6 +12032,7 @@ class _CustomerReportsScreenState extends State<CustomerReportsScreen> {
             _dailyTransactions,
             emptyTitle: 'لا توجد عمليات اليوم',
             emptyMessage: 'ستظهر عمليات اليوم فور تسجيلها في المنظومة.',
+            compact: true,
           ),
         ],
         if (_section == 1) ...[
@@ -11892,16 +12105,16 @@ class _CustomerReportsScreenState extends State<CustomerReportsScreen> {
                     ),
                   ),
                 ),
-                IconButton(
-                  tooltip: 'تحميل PDF',
+                FilledButton.icon(
                   onPressed: _downloading ? null : _downloadPdf,
                   icon: _downloading
                       ? const SizedBox(
-                          width: 18,
-                          height: 18,
+                          width: 16,
+                          height: 16,
                           child: CircularProgressIndicator(strokeWidth: 2),
                         )
-                      : const Icon(Icons.download_outlined),
+                      : const Icon(Icons.picture_as_pdf_outlined, size: 18),
+                  label: Text(_downloading ? 'جارٍ التحميل' : 'PDF'),
                 ),
               ],
             ),
@@ -11987,85 +12200,6 @@ class _CustomerReportsScreenState extends State<CustomerReportsScreen> {
             ),
           ),
       ],
-    );
-  }
-}
-
-class _CustomerReportEntryCard extends StatelessWidget {
-  const _CustomerReportEntryCard({
-    required this.icon,
-    required this.title,
-    required this.description,
-    required this.color,
-    required this.onTap,
-  });
-
-  final IconData icon;
-  final String title;
-  final String description;
-  final Color color;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = Theme.of(context).colorScheme;
-    return Semantics(
-      button: true,
-      label: title,
-      child: Material(
-        color: colors.surface,
-        borderRadius: BorderRadius.circular(8),
-        child: InkWell(
-          onTap: onTap,
-          borderRadius: BorderRadius.circular(8),
-          child: Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(15),
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: color.withValues(alpha: 0.28)),
-              boxShadow: [
-                BoxShadow(
-                  color: color.withValues(alpha: 0.08),
-                  blurRadius: 14,
-                  offset: const Offset(0, 6),
-                ),
-              ],
-            ),
-            child: Row(
-              children: [
-                GlassIconBadge(icon: icon, color: color, size: 46),
-                const SizedBox(width: 13),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        title,
-                        style: TextStyle(
-                          color: colors.onSurface,
-                          fontSize: 16,
-                          fontWeight: FontWeight.w900,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        description,
-                        style: TextStyle(
-                          color: colors.onSurfaceVariant,
-                          fontSize: 12,
-                          height: 1.45,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                Icon(Icons.chevron_left_rounded, color: color),
-              ],
-            ),
-          ),
-        ),
-      ),
     );
   }
 }
@@ -12463,7 +12597,7 @@ class _ClientReportMetric extends StatelessWidget {
                   style: TextStyle(
                     color: colors.onSurface,
                     fontWeight: FontWeight.w900,
-                    fontSize: 13,
+                    fontSize: 22,
                   ),
                 ),
               ],
@@ -12516,6 +12650,17 @@ class _SupportScreenState extends State<SupportScreen> {
     final created = await showDialog<bool>(
       context: context,
       builder: (context) => TicketDialog(api: widget.controller.api),
+    );
+    if (created == true) await _load();
+  }
+
+  Future<void> _openCompanyDepositTicket() async {
+    if (!widget.controller.canRequestCompanyDeposit) return;
+    final created = await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (context) => CompanyDepositSheet(api: widget.controller.api),
     );
     if (created == true) await _load();
   }
@@ -12601,6 +12746,18 @@ class _SupportScreenState extends State<SupportScreen> {
           ),
         ),
         const SizedBox(height: 14),
+        if (widget.controller.isCompanyAccountant) ...[
+          SurfacePanel(
+            child: Text(
+              'المحاسب يتابع تذاكر الإيداع من القائمة ولا ينشئ طلب إيداع رصيد جديداً.',
+              style: TextStyle(
+                height: 1.5,
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
+            ),
+          ),
+          const SizedBox(height: 14),
+        ],
         Wrap(
           spacing: 8,
           runSpacing: 8,
@@ -12610,6 +12767,12 @@ class _SupportScreenState extends State<SupportScreen> {
               label: 'طلب جديد',
               onTap: _createTicket,
             ),
+            if (widget.controller.canRequestCompanyDeposit)
+              _SupportQuickAction(
+                icon: Icons.account_balance_wallet_outlined,
+                label: 'طلب إيداع رصيد',
+                onTap: _openCompanyDepositTicket,
+              ),
             _SupportQuickAction(
               icon: Icons.chat_outlined,
               label: 'واتساب الدعم',
@@ -12994,8 +13157,8 @@ class _AgentOverviewScreenState extends State<AgentOverviewScreen> {
         ? Map<String, dynamic>.from(data['summary'] as Map)
         : <String, dynamic>{};
     return PageFrame(
-      title: 'لوحة الوكالة',
-      subtitle: 'الرصيد وإدارة حسابات العملاء التابعة للوكالة.',
+      title: 'ملخص الوكالة',
+      subtitle: 'أرقام وانتباه. التحويل المجمّع من تبويبه، لا من الرئيسية.',
       onRefresh: _load,
       child: [
         AccountHero(
@@ -13008,50 +13171,41 @@ class _AgentOverviewScreenState extends State<AgentOverviewScreen> {
           showBalance: !widget.controller.hidesBalance,
           systemOpen: true,
         ),
-        const SizedBox(height: 22),
-        SectionTitle(title: 'ملخص العملاء', icon: Icons.groups_2_outlined),
-        const SizedBox(height: 12),
-        Wrap(
-          spacing: 12,
-          runSpacing: 12,
-          children: [
-            StatTile(
-              label: 'إجمالي الحسابات',
+        const SizedBox(height: 18),
+        const AgentAttentionBanner(
+          message:
+              'إدارة العملاء والتسويات من تبويب العملاء فقط. موظف الوكالة لا يضيف عميلاً ما لم تُمنح له الصلاحية.',
+        ),
+        const SizedBox(height: 16),
+        AgentHqMetrics(
+          metrics: [
+            AgentHqMetric(
+              label: 'العملاء',
               value: '${summary['subAccountsCount'] ?? 0}',
-              suffix: 'عميل',
-              icon: Icons.people_outline,
-              color: const Color(0xFF3366CC),
+              suffix: '',
+              color: AhramColors.emerald,
             ),
-            StatTile(
-              label: 'الحسابات النشطة',
+            AgentHqMetric(
+              label: 'النشطون',
               value: '${summary['activeSubAccountsCount'] ?? 0}',
-              suffix: 'نشط',
-              icon: Icons.verified_user_outlined,
-              color: _green,
+              suffix: '',
+              color: AhramColors.ink,
             ),
-            StatTile(
-              label: 'إجمالي الديون',
+            AgentHqMetric(
+              label: 'الديون',
               value: formatAmount(numberValue(summary['totalDebt'])),
               suffix: 'د.ل',
-              icon: Icons.account_balance_outlined,
-              color: _danger,
+              color: AhramColors.danger,
             ),
-            StatTile(
+            AgentHqMetric(
               label: 'المتاح للعملاء',
               value: formatAmount(
                 numberValue(summary['totalAvailableToSpend']),
               ),
               suffix: 'د.ل',
-              icon: Icons.savings_outlined,
-              color: _gold,
+              color: AhramColors.gold,
             ),
           ],
-        ),
-        const SizedBox(height: 26),
-        const InlineMessage(
-          message:
-              'تسويات العملاء وتعديل حدهم الائتماني تسجل مباشرة في دفتر الحركات المالية للوكالة.',
-          color: Color(0xFF3366CC),
         ),
       ],
     );
@@ -13075,7 +13229,11 @@ class _SubAccountsScreenState extends State<SubAccountsScreen> {
   @override
   void initState() {
     super.initState();
-    _load();
+    if (widget.controller.canViewAgentCustomers) {
+      _load();
+    } else {
+      _loading = false;
+    }
   }
 
   Future<void> _load() async {
@@ -13096,6 +13254,7 @@ class _SubAccountsScreenState extends State<SubAccountsScreen> {
   }
 
   Future<void> _create() async {
+    if (!widget.controller.canCreateAgentCustomers) return;
     final saved = await showDialog<bool>(
       context: context,
       builder: (context) => SubAccountDialog(api: widget.controller.api),
@@ -13104,6 +13263,7 @@ class _SubAccountsScreenState extends State<SubAccountsScreen> {
   }
 
   Future<void> _setLimit(Map<String, dynamic> account) async {
+    if (!widget.controller.canManageAgentCustomers) return;
     final result = await showDialog<double>(
       context: context,
       builder: (context) => AmountDialog(
@@ -13127,6 +13287,7 @@ class _SubAccountsScreenState extends State<SubAccountsScreen> {
   }
 
   Future<void> _settle(Map<String, dynamic> account) async {
+    if (!widget.controller.canManageAgentCustomers) return;
     final result = await showDialog<SettlementInput>(
       context: context,
       builder: (context) => const SettlementDialog(),
@@ -13150,25 +13311,41 @@ class _SubAccountsScreenState extends State<SubAccountsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    if (!widget.controller.canViewAgentCustomers) {
+      return const CompanyAccessDenied(
+        title: 'قائمة العملاء غير متاحة',
+        message:
+            'موظف الوكالة لا يرى عملاء الوكالة ما لم تُمنح له صلاحية القراءة.',
+        accent: AhramColors.emerald,
+      );
+    }
     if (_loading && _accounts.isEmpty) return const PageLoading();
     if (_error != null && _accounts.isEmpty) {
       return ErrorPage(error: _error!, onRetry: _load);
     }
+    final canCreate = widget.controller.canCreateAgentCustomers;
+    final canManage = widget.controller.canManageAgentCustomers;
     return PageFrame(
       title: 'عملاء الوكالة',
-      subtitle: 'إدارة عملاء الوكالة والحدود الائتمانية وتسويات الرصيد.',
+      subtitle: canManage
+          ? 'إدارة عملاء الوكالة والحدود الائتمانية وتسويات الرصيد.'
+          : 'عرض عملاء الوكالة دون تعديل الحدود أو التسويات.',
       onRefresh: _load,
-      action: FilledButton.icon(
-        onPressed: _create,
-        icon: const Icon(Icons.person_add_alt_1_outlined),
-        label: const Text('إضافة عميل'),
-      ),
+      action: canCreate
+          ? FilledButton.icon(
+              onPressed: _create,
+              icon: const Icon(Icons.person_add_alt_1_outlined),
+              label: const Text('إضافة عميل'),
+            )
+          : null,
       child: [
         if (_accounts.isEmpty)
-          const EmptyPanel(
+          EmptyPanel(
             icon: Icons.groups_2_outlined,
             title: 'لا توجد حسابات تابعة',
-            message: 'أضف أول عميل تابع للوكالة من زر إضافة عميل.',
+            message: canCreate
+                ? 'أضف أول عميل تابع للوكالة من زر إضافة عميل.'
+                : 'لا يمكن إضافة عميل من هذا الحساب.',
           )
         else
           ..._accounts.map(
@@ -13176,6 +13353,7 @@ class _SubAccountsScreenState extends State<SubAccountsScreen> {
               padding: const EdgeInsets.only(bottom: 10),
               child: SubAccountTile(
                 account: account,
+                canManage: canManage,
                 onSetLimit: () => _setLimit(account),
                 onSettlement: () => _settle(account),
               ),
@@ -15445,6 +15623,10 @@ class _ExecutorTasksScreenState extends State<ExecutorTasksScreen>
   @override
   void initState() {
     super.initState();
+    if (!widget.controller.canAcceptExecutorTasks) {
+      _loading = false;
+      return;
+    }
     WidgetsBinding.instance.addObserver(this);
     _load();
     _timer = Timer.periodic(
@@ -15455,7 +15637,9 @@ class _ExecutorTasksScreenState extends State<ExecutorTasksScreen>
 
   @override
   void dispose() {
-    WidgetsBinding.instance.removeObserver(this);
+    if (widget.controller.canAcceptExecutorTasks) {
+      WidgetsBinding.instance.removeObserver(this);
+    }
     _timer?.cancel();
     _urgentToneTimer?.cancel();
     super.dispose();
@@ -15640,6 +15824,7 @@ class _ExecutorTasksScreenState extends State<ExecutorTasksScreen>
   }
 
   Future<void> _accept(Map<String, dynamic> task) async {
+    if (!widget.controller.canAcceptExecutorTasks) return;
     final taskId = '${task['id'] ?? ''}'.trim();
     if (taskId.isEmpty) {
       if (mounted) {
@@ -15717,6 +15902,7 @@ class _ExecutorTasksScreenState extends State<ExecutorTasksScreen>
   }
 
   Future<void> _routeTask(Map<String, dynamic> task) async {
+    if (!widget.controller.canRouteExecutorTasks) return;
     setState(() => _actionBusy = true);
     try {
       final candidates = await widget.controller.api.executorRouteCandidates();
@@ -15795,6 +15981,7 @@ class _ExecutorTasksScreenState extends State<ExecutorTasksScreen>
   }
 
   Future<void> _complete(Map<String, dynamic> task) async {
+    if (!widget.controller.canCompleteExecutorProof) return;
     final success = await showDialog<bool>(
       context: context,
       builder: (context) =>
@@ -15832,6 +16019,14 @@ class _ExecutorTasksScreenState extends State<ExecutorTasksScreen>
 
   @override
   Widget build(BuildContext context) {
+    if (!widget.controller.canAcceptExecutorTasks) {
+      return const CompanyAccessDenied(
+        title: 'غرفة المهام غير متاحة',
+        message:
+            'محاسب التنفيذ يقرأ التقارير والإيداعات ولا يقبل مهاماً أو يرفع إثباتاً.',
+        accent: ExecutorUiColors.cobalt,
+      );
+    }
     if (_loading && _tasks.isEmpty) return const PageLoading();
     if (_error != null && _tasks.isEmpty) {
       return ErrorPage(error: _error!, onRetry: _load);
@@ -15908,8 +16103,10 @@ class _ExecutorTasksScreenState extends State<ExecutorTasksScreen>
                 busy: _actionBusy,
                 currentExecutorId: currentExecutorId,
                 acceptBlocked: hasAcceptedTask,
-                canRoute: canViewCompanyBalance && _manualTaskRoutingEnabled,
-                isManager: canViewCompanyBalance,
+                canRoute:
+                    widget.controller.canRouteExecutorTasks &&
+                    _manualTaskRoutingEnabled,
+                isManager: widget.controller.isExecutorManager,
                 onAccept: () => _accept(task),
                 onRoute: () => _routeTask(task),
                 onCancel: () => _cancel(task),
@@ -17902,7 +18099,7 @@ class ExecutorMetricCard extends StatelessWidget {
     final colors = Theme.of(context).colorScheme;
     return SizedBox(
       width: 156,
-      height: 112,
+      height: 124,
       child: ExecutorSurface(
         padding: const EdgeInsets.all(12),
         accent: color,
@@ -17938,7 +18135,7 @@ class ExecutorMetricCard extends StatelessWidget {
                   value,
                   textDirection: ui.TextDirection.ltr,
                   style: TextStyle(
-                    fontSize: 14,
+                    fontSize: 22,
                     fontWeight: FontWeight.w900,
                     color: valueColor ?? colors.onSurface,
                   ),
@@ -23463,11 +23660,13 @@ class SubAccountTile extends StatelessWidget {
     required this.account,
     required this.onSetLimit,
     required this.onSettlement,
+    this.canManage = true,
   });
 
   final Map<String, dynamic> account;
   final VoidCallback onSetLimit;
   final VoidCallback onSettlement;
+  final bool canManage;
 
   @override
   Widget build(BuildContext context) {
@@ -23540,26 +23739,28 @@ class SubAccountTile extends StatelessWidget {
               ),
             ],
           ),
-          const Divider(height: 24),
-          Row(
-            children: [
-              Expanded(
-                child: OutlinedButton.icon(
-                  onPressed: onSetLimit,
-                  icon: const Icon(Icons.tune_outlined),
-                  label: const Text('الحد الائتماني'),
+          if (canManage) ...[
+            const Divider(height: 24),
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: onSetLimit,
+                    icon: const Icon(Icons.tune_outlined),
+                    label: const Text('الحد الائتماني'),
+                  ),
                 ),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: FilledButton.icon(
-                  onPressed: onSettlement,
-                  icon: const Icon(Icons.account_balance_wallet_outlined),
-                  label: const Text('تسوية'),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: FilledButton.icon(
+                    onPressed: onSettlement,
+                    icon: const Icon(Icons.account_balance_wallet_outlined),
+                    label: const Text('تسوية'),
+                  ),
                 ),
-              ),
-            ],
-          ),
+              ],
+            ),
+          ],
         ],
       ),
     );

@@ -1,5 +1,29 @@
 # Ahram Pay Mobile
 
+Current release track: `2.1.0+37`.
+
+## Release APK (signed)
+
+Release builds use `android/key.properties` and `android/app/upload-keystore.jks`.
+Both files stay outside Git. Back them up before any machine change.
+
+```powershell
+cd mobile_app
+.\scripts\build-release-apk.ps1
+```
+
+The script runs the role tests, builds a signed release APK against production
+mobile API, and copies the artifact to `../releases/ahrampay-<version>.apk`.
+
+Manual build:
+
+```powershell
+flutter build apk --release --dart-define=API_BASE_URL=https://ahrampay.com/api/mobile
+```
+
+Keep at least 10 GB free on the system drive before the first Gradle release
+build on this machine.
+
 ## Firebase push configuration
 
 The APK initializes Firebase from compile-time values. It does not store the
