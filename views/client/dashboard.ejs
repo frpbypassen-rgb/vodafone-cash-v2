@@ -2777,7 +2777,8 @@
         };
 
         refreshClientDashboard();
-        setInterval(refreshClientDashboard, 5000);
+        // Socket.IO يرسل التغييرات فوراً؛ الفحص الاحتياطي الأخف يكفي.
+        setInterval(refreshClientDashboard, 15000);
         document.addEventListener('visibilitychange', () => {
             if (!document.hidden) refreshClientDashboard();
         });

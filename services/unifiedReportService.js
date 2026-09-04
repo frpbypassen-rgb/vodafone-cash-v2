@@ -117,15 +117,9 @@ const querySourceTransactions = async (query, { select = null, sort = null, limi
  * report consumers therefore keep identical behavior during backfill.
  */
 const findReportTransactions = async (query, options = {}) => {
-    const transactions = await querySourceTransactions(query, options);
-    const selectedFields = String(options.select || '').trim().split(/\s+/).filter(Boolean);
-    const hasPartialProjection = selectedFields.some((field) => !field.startsWith('+'));
-    if (isDatabaseReady() && transactions.length && !hasPartialProjection) {
-        await syncReportTransactions(transactions).catch((error) => {
-            logger.error('Unified report read-through sync failed', { error: error.message });
-        });
-    }
-    return transactions;
+    // التقارير تقرأ من السجل المالي الأصلي. لا تحوّل طلب القراءة إلى عمليات
+    // كتابة كبيرة؛ فالمرآة اختيارية ولا توجد أي واجهة تعتمد عليها كمصدر للبيانات.
+    return querySourceTransactions(query, options);
 };
 
 const backfillUnifiedReports = async ({ batchSize = DEFAULT_BATCH_SIZE } = {}) => {
@@ -237,6 +231,13 @@ const startUnifiedReportSyncMonitor = async () => {
 
 const ensureUnifiedReportInfrastructure = async () => {
     if (!isDatabaseReady()) return false;
+    // مزامنة المرآة تكرر كل مستند مع لقطة كبيرة منه. تفعيلها افتراضياً يجعل كل
+    // إنشاء/تعديل للمعاملة كتابة إضافية، كما كان يعيد فحص السجل كاملاً عند تشغيل
+    // الخدمة. تبقى متاحة فقط عند طلبها صراحةً لأعمال الترحيل أو التحليل.
+    if (process.env.UNIFIED_REPORT_MIRROR_ENABLED !== 'true') {
+        logger.info('Unified report mirror is disabled; reports use financial source directly');
+        return false;
+    }
     await Promise.all([
         UnifiedReportEntry.createIndexes(),
         UnifiedReportState.createIndexes()

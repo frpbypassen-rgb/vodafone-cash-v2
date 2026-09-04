@@ -1409,7 +1409,8 @@
     const refreshVisibleExecutorTasks = () => {
         if (!document.hidden) refreshTasks();
     };
-    setInterval(refreshVisibleExecutorTasks, 4000);
+    // التحديث الفوري يصل عبر الإشعارات؛ نستخدم فحصاً احتياطياً أخف.
+    setInterval(refreshVisibleExecutorTasks, 8000);
     document.addEventListener('visibilitychange', refreshVisibleExecutorTasks);
     refreshVisibleExecutorTasks();
 </script>
