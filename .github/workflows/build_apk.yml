@@ -1,0 +1,100 @@
+name: Build & Release APK V3
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - 'mobile_app/**'
+  pull_request:
+    branches: [main, master]
+    paths:
+      - 'mobile_app/**'
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Build APK
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: mobile_app
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.24.0'
+          channel: 'stable'
+
+      - name: Cache Flutter Dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.pub-cache
+            mobile_app/.dart_tool
+          key: ${{ runner.os }}-flutter-${{ hashFiles('mobile_app/pubspec.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-flutter-
+
+      - name: Install Dependencies
+        run: flutter pub get
+
+      - name: Analyze Code
+        run: flutter analyze --no-fatal-infos
+
+      - name: Run Tests
+        run: flutter test
+
+      - name: Build APK
+        run: flutter build apk --release
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: AhramPay-V3-APK
+          path: mobile_app/build/app/outputs/flutter-apk/app-release.apk
+          retention-days: 30
+
+      - name: Rename APK with Version
+        run: |
+          VERSION=$(grep 'version:' pubspec.yaml | sed 's/.*version: //')
+          mkdir -p release
+          cp build/app/outputs/flutter-apk/app-release.apk "release/AhramPay-v${VERSION}.apk"
+
+      - name: Upload Versioned APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: AhramPay-V3-Release
+          path: mobile_app/release/*.apk
+          retention-days: 90
+
+  release:
+    name: Create GitHub Release
+    needs: build
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+
+    steps:
+      - name: Download APK
+        uses: actions/download-artifact@v4
+        with:
+          name: AhramPay-V3-Release
+          path: release/
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        if: startsWith(github.ref, 'refs/tags/')
+        with:
+          files: release/*.apk
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
