@@ -475,8 +475,8 @@
                     </button>
                 </div>
                 <div class="col-md-3 text-end">
-                    <button id="btnDownloadPdf" class="btn btn-danger w-100 fw-bold py-2 d-none" onclick="generatePDF()">
-                        <i class="fa-solid fa-file-pdf"></i> تحميل التقرير
+                    <button id="btnDownloadPdf" class="btn btn-danger w-100 fw-bold py-2 d-none" onclick="downloadAdminReportCopy()">
+                        <i class="fa-solid fa-file-pdf"></i> تنزيل نسخة الإدارة
                     </button>
                 </div>
             </div>
@@ -963,6 +963,21 @@
                 btn.innerHTML = originalBtnHtml;
                 btn.disabled = false;
             }
+        }
+
+        function downloadAdminReportCopy() {
+            const dateType = document.getElementById('dateType').value;
+            const dateValue = dateType === 'day' ? document.getElementById('dateValueDay').value : document.getElementById('dateValueMonth').value;
+            const dateFrom = dateType === 'range' ? document.getElementById('dateFrom').value : '';
+            const dateTo = dateType === 'range' ? document.getElementById('dateTo').value : '';
+            if ((dateType === 'day' || dateType === 'month') && !dateValue) {
+                return Swal.fire({ icon: 'warning', title: 'تنبيه', text: 'يرجى اختيار الفترة أولاً.' });
+            }
+            if (dateType === 'range' && (!dateFrom || !dateTo || dateFrom > dateTo)) {
+                return Swal.fire({ icon: 'warning', title: 'تنبيه', text: 'يرجى اختيار فترة زمنية صحيحة.' });
+            }
+            const query = new URLSearchParams({ dateType, dateValue, dateFrom, dateTo });
+            window.location.assign(`/client/reports/admin-copy.pdf?${query.toString()}`);
         }
 
         function generatePDF() {

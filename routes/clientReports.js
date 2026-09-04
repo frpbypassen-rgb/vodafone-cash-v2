@@ -7,6 +7,9 @@ const SubAccount = require('../models/SubAccount');
 const AgentEmployee = require('../models/AgentEmployee');
 const businessPortalService = require('../services/businessPortalService');
 const { getClientReports } = require('../services/mobileWebParityService');
+const { loadAdminReport } = require('../services/adminReportService');
+const { generateAdminReportPdf } = require('../services/reportPdfService');
+const { logAction } = require('../services/auditService');
 
 const requireClientAuth = async (req, res, next) => {
     try {
@@ -128,6 +131,89 @@ router.post('/reports/filter', requireClientAuth, async (req, res) => {
     } catch (e) {
         console.error('Reports Filter Error:', e);
         return res.status(500).json({ success: false, error: e.message || 'Internal Server Error' });
+    }
+});
+
+const adminCopyPeriod = (source = {}) => {
+    const dateType = String(source.dateType || 'month');
+    const now = new Date();
+    if (dateType === 'week') {
+        const end = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        const start = new Date(end);
+        start.setDate(start.getDate() - 6);
+        const format = (date) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+        return { dateType: 'range', dateValue: '', dateFrom: format(start), dateTo: format(end) };
+    }
+    if (dateType === 'range') {
+        return { dateType: 'range', dateValue: '', dateFrom: String(source.dateFrom || ''), dateTo: String(source.dateTo || '') };
+    }
+    const fallback = dateType === 'day'
+        ? `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
+        : `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+    return { dateType: dateType === 'day' ? 'day' : 'month', dateValue: String(source.dateValue || fallback), dateFrom: '', dateTo: '' };
+};
+
+const adminCopyScope = async (req) => {
+    const accountId = req.session.clientId;
+    if (req.session.accountType === 'company') {
+        const employee = await ClientEmployee.findById(accountId).select('companyId name canViewAllReports canManageCompany role').lean();
+        if (!employee?.companyId) throw new Error('UNAUTHORIZED');
+        const canViewAll = employee.canViewAllReports || employee.canManageCompany || employee.role === 'manager' || employee.role === 'owner' || employee.role === 'accountant';
+        return {
+            mainCategory: 'company',
+            subId: String(employee.companyId),
+            subType: canViewAll ? 'all' : String(employee.name || ''),
+            forceToday: !canViewAll
+        };
+    }
+    if (req.session.accountType === 'agent_staff') {
+        const employee = await AgentEmployee.findById(accountId).select('agentId canViewAllReports canManageAgent role').lean();
+        const canViewAll = employee?.canViewAllReports || employee?.canManageAgent || employee?.role === 'accountant';
+        if (!employee?.agentId || !canViewAll) throw new Error('FORBIDDEN');
+        return { mainCategory: 'agent', subId: String(employee.agentId), subType: 'all' };
+    }
+    if (req.session.accountType === 'sub_client') {
+        const account = await SubAccount.findById(accountId).select('masterId').lean();
+        if (!account?.masterId) throw new Error('UNAUTHORIZED');
+        return { mainCategory: 'agent', subId: String(account.masterId), subType: String(accountId) };
+    }
+    return { mainCategory: 'direct_client', subId: String(accountId), subType: 'all' };
+};
+
+router.get('/reports/admin-copy.pdf', requireClientAuth, async (req, res) => {
+    try {
+        const scope = await adminCopyScope(req);
+        const period = adminCopyPeriod(scope.forceToday ? { dateType: 'day' } : req.query);
+        const { forceToday, ...reportScope } = scope;
+        const input = { ...reportScope, ...period };
+        const report = await loadAdminReport(input);
+        const pdf = await generateAdminReportPdf(req.app, {
+            report,
+            generatedAt: new Date(),
+            adminName: 'الإدارة المركزية'
+        });
+        const datePart = String(period.dateValue || `${period.dateFrom}-${period.dateTo}` || Date.now()).replace(/[^0-9-]/g, '');
+        res.setHeader('Content-Type', 'application/pdf');
+        res.setHeader('Content-Length', pdf.length);
+        res.setHeader('Content-Disposition', `attachment; filename="admin-report-copy-${datePart || Date.now()}.pdf"`);
+        res.setHeader('Cache-Control', 'private, no-store, max-age=0');
+        logAction({
+            action: 'CLIENT_ADMIN_REPORT_COPY_DOWNLOADED',
+            req,
+            performedById: req.session.clientId,
+            performedByModel: req.session.accountType || 'User',
+            targetId: scope.subId,
+            targetModel: 'FinancialReport',
+            metadata: { ...input, source: 'admin_report_service' },
+            success: true,
+            severity: 'info'
+        }).catch(() => {});
+        return res.end(pdf);
+    } catch (error) {
+        const status = error.message === 'FORBIDDEN' ? 403 : (error.code === 'PDF_BROWSER_NOT_FOUND' ? 503 : 500);
+        return res.status(status).send(status === 403
+            ? 'لا تملك صلاحية تنزيل التقرير المركزي لهذا الحساب.'
+            : (status === 503 ? 'مولد تقرير الإدارة غير متاح حاليًا.' : 'تعذر إعداد نسخة تقرير الإدارة.'));
     }
 });
 
