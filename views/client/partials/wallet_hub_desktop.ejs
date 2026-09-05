@@ -66,6 +66,33 @@
             </a>
         </section>
 
+        <section class="client-os-journey" aria-label="خدمات الحساب">
+            <header class="client-os-section-heading">
+                <div><p>كل ما تحتاجه في مكان واحد</p><h2>خدمات الحساب</h2></div>
+                <span class="client-os-section-note"><i class="fa-solid fa-lock"></i> إجراءات محمية</span>
+            </header>
+            <div class="client-os-journey-grid">
+                <a href="/client/account?tab=operations" class="client-os-journey-card">
+                    <span class="client-os-journey-icon is-blue"><i class="fa-solid fa-receipt"></i></span>
+                    <div><strong>العمليات والإيصالات</strong><small>ابحث، راجع الحالة، وحمّل كشفك</small></div><i class="fa-solid fa-arrow-left"></i>
+                </a>
+                <% if (user.role !== 'agent') { %>
+                <a href="/client/account?tab=deposits-new" class="client-os-journey-card">
+                    <span class="client-os-journey-icon is-mint"><i class="fa-solid fa-circle-plus"></i></span>
+                    <div><strong>إضافة رصيد</strong><small>أرسل طلباً وتابع مراجعته</small></div><i class="fa-solid fa-arrow-left"></i>
+                </a>
+                <% } %>
+                <a href="/client/support" class="client-os-journey-card">
+                    <span class="client-os-journey-icon is-gold"><i class="fa-solid fa-headset"></i></span>
+                    <div><strong>الدعم والشكاوى</strong><small>اربط رسالتك بعملية عند الحاجة</small></div><i class="fa-solid fa-arrow-left"></i>
+                </a>
+                <a href="/client/settings?section=security" class="client-os-journey-card">
+                    <span class="client-os-journey-icon is-violet"><i class="fa-solid fa-shield-halved"></i></span>
+                    <div><strong>الأمان والإعدادات</strong><small>أدِر كلمة المرور والتنبيهات</small></div><i class="fa-solid fa-arrow-left"></i>
+                </a>
+            </div>
+        </section>
+
         <section class="client-os-activity-grid">
             <article class="client-os-activity-card">
                 <div class="client-os-section-heading"><div><p>متابعة سريعة</p><h2>حالة الحساب</h2></div><i class="fa-solid fa-shield-halved"></i></div>

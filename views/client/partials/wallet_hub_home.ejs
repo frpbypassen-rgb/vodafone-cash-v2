@@ -18,6 +18,16 @@
     </div>
     <% } %>
 
+    <section class="client-os-mobile-journey" aria-label="خدمات الحساب">
+        <header><div><p>خدمات الحساب</p><h2>تابع حسابك بسهولة</h2></div><i class="fa-solid fa-shield-halved"></i></header>
+        <div>
+            <a href="/client/account?tab=operations"><i class="fa-solid fa-receipt"></i><span>العمليات والإيصالات</span></a>
+            <% if (user.role !== 'agent') { %><a href="/client/account?tab=deposits-new"><i class="fa-solid fa-circle-plus"></i><span>إضافة رصيد</span></a><% } %>
+            <a href="/client/support"><i class="fa-solid fa-headset"></i><span>الدعم والشكاوى</span></a>
+            <a href="/client/settings?section=security"><i class="fa-solid fa-shield-halved"></i><span>الأمان</span></a>
+        </div>
+    </section>
+
     <section class="client-os-mobile-rates" aria-label="أسعار مباشرة">
         <div><span>كاش</span><strong class="mono-num" id="liveRateCashMobile"><%= (serviceRates && serviceRates.vodafone ? serviceRates.vodafone : currentRate).toFixed(2) %></strong></div>
         <div><span>بريد بطاقة</span><strong class="mono-num" id="liveRatePostCardMobile"><%= (serviceRates && serviceRates.post_card ? serviceRates.post_card : (currentRate - 0.15)).toFixed(2) %></strong></div>

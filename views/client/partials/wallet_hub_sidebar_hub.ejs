@@ -17,12 +17,17 @@
     </div>
 
     <nav class="client-os-navigation">
-        <span class="client-os-nav-title">البوابة</span>
+        <span class="client-os-nav-title">ابدأ من هنا</span>
         <a href="/client/dashboard" class="client-os-nav-link <%= active === 'home' ? 'is-active' : '' %>"><i class="fa-solid fa-house"></i><span>الرئيسية</span></a>
-        <a href="/client/transfers" class="client-os-nav-link <%= active === 'transfers' ? 'is-active' : '' %>"><i class="fa-solid fa-paper-plane"></i><span>التحويلات</span></a>
-        <a href="/client/account" class="client-os-nav-link <%= active === 'account' ? 'is-active' : '' %>"><i class="fa-solid fa-wallet"></i><span>الحساب والكشوف</span></a>
-        <a href="/client/support" class="client-os-nav-link <%= active === 'support' ? 'is-active' : '' %>"><i class="fa-solid fa-headset"></i><span>المساعدة</span></a>
-        <a href="/client/settings" class="client-os-nav-link <%= active === 'settings' ? 'is-active' : '' %>"><i class="fa-solid fa-gear"></i><span>الإعدادات</span></a>
+        <a href="/client/transfers" class="client-os-nav-link <%= active === 'transfers' ? 'is-active' : '' %>"><i class="fa-solid fa-paper-plane"></i><span>إرسال وتحويل</span></a>
+
+        <span class="client-os-nav-title">إدارة أموالك</span>
+        <a href="/client/account?tab=operations" class="client-os-nav-link <%= active === 'account' ? 'is-active' : '' %>"><i class="fa-solid fa-wallet"></i><span>الحساب والعمليات</span></a>
+        <a href="/client/account?tab=deposits-new" class="client-os-nav-link <%= active === 'deposits' ? 'is-active' : '' %>"><i class="fa-solid fa-circle-plus"></i><span>إضافة رصيد</span></a>
+
+        <span class="client-os-nav-title">الحساب والمساعدة</span>
+        <a href="/client/support" class="client-os-nav-link <%= active === 'support' ? 'is-active' : '' %>"><i class="fa-solid fa-headset"></i><span>الدعم والشكاوى</span></a>
+        <a href="/client/settings?section=security" class="client-os-nav-link <%= active === 'settings' ? 'is-active' : '' %>"><i class="fa-solid fa-shield-halved"></i><span>الأمان والإعدادات</span></a>
     </nav>
 
     <div class="client-os-sidebar-footer">

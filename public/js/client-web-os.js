@@ -22,9 +22,9 @@
         const items = [
             { label: 'مركز القيادة', hint: 'الصفحة الرئيسية', icon: 'fa-grid-2', action: () => { global.location.href = '/client/dashboard'; } },
             { label: 'تحويل مالي', hint: 'بدء عملية جديدة', icon: 'fa-paper-plane', shortcut: '+', action: openTransferModal },
-            { label: 'تحويل رصيد', hint: 'إدارة الرصيد المتاح', icon: 'fa-wallet', action: () => global.openBalanceTransferModal?.() },
-            { label: 'التقارير', hint: 'كشف حساب وتقارير', icon: 'fa-chart-line', action: () => { global.location.href = '/client/reports'; } },
-            { label: 'مركز الدعم', hint: 'تواصل مع الفريق', icon: 'fa-headset', action: () => { global.location.href = '/client/support'; } },
+            { label: 'إضافة رصيد', hint: 'إرسال طلب إيداع للمراجعة', icon: 'fa-circle-plus', action: () => { global.location.href = '/client/account?tab=deposits-new'; } },
+            { label: 'العمليات وكشف الحساب', hint: 'بحث وتصدير ومتابعة الإيصالات', icon: 'fa-receipt', action: () => { global.location.href = '/client/account?tab=operations'; } },
+            { label: 'الدعم والشكاوى', hint: 'تواصل مع الفريق بأمان', icon: 'fa-headset', action: () => { global.location.href = '/client/support'; } },
             { label: 'الأمان', hint: 'إعدادات الحماية', icon: 'fa-shield-halved', action: () => global.openClientSecurityPanel?.() },
             { label: 'الوضع الليلي', hint: 'تبديل المظهر', icon: 'fa-moon', action: () => global.toggleTheme?.() },
             { label: 'تسجيل الخروج', hint: 'إنهاء الجلسة', icon: 'fa-power-off', action: () => { global.location.href = '/client/logout'; } }

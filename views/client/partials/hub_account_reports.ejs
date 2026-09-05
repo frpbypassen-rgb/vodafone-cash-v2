@@ -1,5 +1,9 @@
 <% const mode = typeof tab !== 'undefined' ? tab : 'operations'; %>
 <div class="client-hub-panel" id="hubAccountReportsPanel" data-mode="<%= mode %>">
+    <div class="client-hub-section-context">
+        <span class="client-hub-section-context-icon"><i class="fa-solid <%= mode === 'export' ? 'fa-file-arrow-down' : (mode === 'summary' ? 'fa-chart-line' : 'fa-receipt') %>"></i></span>
+        <p><strong><%= mode === 'export' ? 'جهّز كشفك للمشاركة' : (mode === 'summary' ? 'راقب حركة حسابك' : 'ابحث في كل عملياتك') %></strong><small><%= mode === 'export' ? 'حدّد الفترة ثم حدّث البيانات قبل التصدير.' : 'استخدم التاريخ أو رقم العملية للوصول السريع.' %></small></p>
+    </div>
     <% if (mode === 'export') { %>
         <h2 class="h6 fw-bold mb-3"><i class="fa-solid fa-file-export me-1"></i> تصدير الكشوف</h2>
         <p class="text-muted small fw-bold">حمّل نسخة PDF للإدارة أو كشفاً للفترة المعروضة.</p>
@@ -31,7 +35,7 @@
             </div>
         </div>
         <div class="col-md-3 col-6">
-            <label class="form-label small fw-bold text-muted">بحث</label>
+            <label class="form-label small fw-bold text-muted">بحث سريع</label>
             <input id="reportSearch" class="form-control form-control-sm" maxlength="80" placeholder="هاتف، رقم عملية…">
         </div>
         <div class="col-md-3 col-6 d-flex align-items-end">

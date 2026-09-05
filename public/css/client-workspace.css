@@ -79,6 +79,30 @@
     transition: transform .18s ease, box-shadow .18s ease;
 }
 
+.bw-workspace-shortcut {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    min-height: 38px;
+    padding: 0 11px;
+    border: 1px solid var(--bw-border);
+    border-radius: 11px;
+    color: var(--bw-text);
+    background: var(--bw-surface);
+    font-size: .76rem;
+    font-weight: 800;
+    text-decoration: none;
+    transition: border-color .16s ease, color .16s ease, transform .16s ease;
+}
+
+.bw-workspace-shortcut:hover,
+.bw-workspace-shortcut:focus-visible {
+    border-color: color-mix(in srgb, var(--bw-blue) 48%, var(--bw-border));
+    color: var(--bw-blue);
+    outline: none;
+    transform: translateY(-1px);
+}
+
 .bw-assistant-launcher:hover { transform: translateY(-2px) rotate(5deg); box-shadow: 0 17px 32px rgba(18, 95, 206, .34), inset 0 1px rgba(255,255,255,.28); }
 .bw-assistant-launcher-core { display: grid; width: 28px; height: 28px; place-items: center; border-radius: 10px; background: rgba(255,255,255,.17); animation: bw-assistant-pulse 2.5s ease-in-out infinite; }
 .bw-assistant-launcher i { margin: 0; }
@@ -154,6 +178,11 @@
 .bw-assistant-form input { min-width: 0; flex: 1; border: 0; outline: 0; background: transparent; padding: 10px 12px; color: var(--bw-text); font: inherit; }
 .bw-assistant-form .bw-button { display: grid; width: 42px; min-width: 42px; height: 42px; place-items: center; padding: 0; border-radius: 13px; }
 @media (max-width: 700px) { .bw-assistant-launcher { width: 38px; height: 38px; border-radius: 12px; } .bw-assistant-dialog { width: calc(100vw - 20px); border-radius: 22px; } .bw-assistant-messages { min-height: 52vh; max-height: 58vh; } }
+
+@media (max-width: 900px) {
+    .bw-workspace-shortcut { width: 38px; padding: 0; justify-content: center; }
+    .bw-workspace-shortcut span { display: none; }
+}
 
 .bw-rate-countdown {
     display: flex;

@@ -30,6 +30,7 @@
 
         <% } else if (section === 'security') { %>
             <h2 class="h5 fw-bold mb-3"><i class="fa-solid fa-shield-halved text-success me-1"></i> الأمان والخصوصية</h2>
+            <div class="client-hub-security-tip"><i class="fa-solid fa-circle-check"></i><span>استخدم كلمة مرور مختلفة عن حساباتك الأخرى، وفَعّل التحقق الإضافي لحماية التحويلات.</span></div>
             <form method="POST" action="/client/hub/password" class="client-hub-field-grid mb-4">
                 <input type="hidden" name="_csrf" value="<%= typeof csrfToken !== 'undefined' ? csrfToken : '' %>">
                 <label class="span-2">كلمة المرور الحالية<input class="form-control mt-1" type="password" name="currentPassword" autocomplete="current-password" required></label>
@@ -44,7 +45,7 @@
 
         <% } else if (section === 'notifications') { %>
             <h2 class="h5 fw-bold mb-3"><i class="fa-solid fa-bell text-warning me-1"></i> الإشعارات</h2>
-            <p class="text-muted small fw-bold mb-3">تنبيهات تغيير أسعار الصرف مرتبطة بلوحة الإدارة — عند تفعيل السعر الجديد يصلك إشعار فوري.</p>
+            <p class="text-muted small fw-bold mb-3">فعّل التنبيهات لتعرف بتغيّر الأسعار والحالات المهمة من دون الحاجة لمراجعة الصفحة باستمرار.</p>
             <div class="client-hub-readonly-row"><span>تنبيهات الأسعار</span><strong id="hubRatePushStatus">جارٍ التحقق…</strong></div>
             <button type="button" class="btn btn-outline-primary fw-bold mt-2" id="hubRatePushBtn"><i class="fa-solid fa-bell me-1"></i> تفعيل تنبيهات الأسعار</button>
             <p class="small text-muted mt-3 mb-0">إشعارات العمليات والإيداع تظهر في مركز الإشعارات ومرتبطة بسجل الإدارة.</p>

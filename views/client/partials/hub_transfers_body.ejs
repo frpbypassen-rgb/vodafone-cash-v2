@@ -1,12 +1,17 @@
 <% const rates = typeof serviceRates !== 'undefined' ? serviceRates : {}; %>
 <div class="client-hub-transfer-categories">
+    <section class="client-hub-transfer-intro" aria-label="إرشادات التحويل">
+        <span class="client-hub-transfer-intro-icon"><i class="fa-solid fa-paper-plane"></i></span>
+        <div><strong>إلى أين تريد التحويل؟</strong><small>اختر الخدمة أولاً، ثم راجع القيمة والسعر قبل تأكيد الطلب.</small></div>
+        <span class="client-hub-secure-note"><i class="fa-solid fa-shield-halved"></i> تأكيد آمن</span>
+    </section>
     <section class="client-hub-transfer-category">
         <h3><i class="fa-solid fa-mobile-screen text-primary me-1"></i> محافظ مصر</h3>
         <div class="client-hub-transfer-grid">
             <a href="/client/dashboard?tab=transfers&pick=cash" class="client-hub-transfer-card">
                 <img src="/images/vodafone_cash_official.png" alt="كاش">
                 <span>محافظ كاش</span>
-                <small class="text-muted mono-num"><%= (rates.vodafone || 0).toFixed(2) %></small>
+                <small class="text-muted mono-num">سعر تقريبي <%= (rates.vodafone || 0).toFixed(2) %></small>
             </a>
         </div>
     </section>
@@ -27,7 +32,7 @@
             <a href="/client/dashboard?tab=transfers&pick=bank" class="client-hub-transfer-card">
                 <img src="/images/instapay_official.png" alt="بنك">
                 <span>حساب بنكي</span>
-                <small class="text-muted mono-num"><%= (rates.bank_account || 0).toFixed(2) %></small>
+                <small class="text-muted mono-num">سعر تقريبي <%= (rates.bank_account || 0).toFixed(2) %></small>
             </a>
         </div>
     </section>
@@ -57,4 +62,4 @@
     </section>
 </div>
 
-<p class="small text-muted fw-bold mt-3 mb-0"><i class="fa-solid fa-circle-info me-1"></i> كل طلب تحويل يُسجّل في الإدارة ويظهر في كشف حسابك فور المعالجة.</p>
+<p class="client-hub-transfer-footnote"><i class="fa-solid fa-circle-info"></i> كل طلب يظهر في كشف حسابك فور تسجيله. راجع بيانات المستفيد والقيمة قبل التأكيد النهائي.</p>
