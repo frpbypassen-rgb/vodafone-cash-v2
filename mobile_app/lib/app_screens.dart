@@ -22,6 +22,11 @@ import 'company/company_smart_transfer_screen.dart';
 import 'company/smart_transfer_parser.dart';
 import 'customer/customer_report_dashboard.dart';
 import 'customer/customer_wallet_hero.dart';
+import 'customer/portal/components/identity_vault.dart';
+import 'customer/portal/components/review_seal.dart';
+import 'customer/portal/customer_breakpoints.dart';
+import 'customer/portal/customer_portal_scope.dart';
+import 'customer/portal/customer_shell.dart';
 import 'customer/transfer_step_bar.dart';
 import 'executor_alert_service.dart';
 import 'executor_notification_center.dart';
@@ -2116,6 +2121,18 @@ class _RoleShellState extends State<RoleShell> with WidgetsBindingObserver {
 
   @override
   Widget build(BuildContext context) {
+    if (widget.controller.isCustomerAccount) {
+      return CustomerPortalShell(
+        controller: widget.controller,
+        appearance: widget.appearance,
+        language: widget.language,
+        pendingRateAlert: _pendingRateAlert,
+        activatedRateAlert: _activatedRateAlert,
+        onRateAlertExpired: _refreshRateAlert,
+        onLogout: _confirmLogout,
+      );
+    }
+
     final locale = Localizations.localeOf(context).languageCode;
     if (_itemsLocale != locale) {
       _itemsLocale = locale;
@@ -2593,11 +2610,15 @@ class CustomerAccountScreen extends StatefulWidget {
     required this.controller,
     required this.appearance,
     required this.language,
+    this.embeddedInPortal = false,
+    this.showWalletHero = true,
   });
 
   final SessionController controller;
   final AppearanceController appearance;
   final LanguageController language;
+  final bool embeddedInPortal;
+  final bool showWalletHero;
 
   @override
   State<CustomerAccountScreen> createState() => _CustomerAccountScreenState();
@@ -2847,157 +2868,34 @@ class _CustomerAccountScreenState extends State<CustomerAccountScreen> {
         'Your personal profile and Ahram account details.',
       ),
       onRefresh: _refresh,
-      action: OutlinedButton.icon(
-        onPressed: _manageAuthenticator,
-        icon: const Icon(Icons.shield_outlined, size: 18),
-        label: Text(t('الحماية', 'Security')),
-      ),
+      showHeading: !widget.embeddedInPortal,
+      action: widget.embeddedInPortal
+          ? null
+          : OutlinedButton.icon(
+              onPressed: _manageAuthenticator,
+              icon: const Icon(Icons.shield_outlined, size: 18),
+              label: Text(t('الحماية', 'Security')),
+            ),
       child: [
-        CustomerWalletHero(
-          balance: session.balance,
-          available: session.availableToSpend ?? session.balance,
-        ),
-        const SizedBox(height: 14),
-        ExecutorSurface(
-          accent: ExecutorUiColors.cobalt,
-          elevated: false,
-          child: Column(
-            children: [
-              Stack(
-                clipBehavior: Clip.none,
-                children: [
-                  Container(
-                    width: 112,
-                    height: 112,
-                    padding: const EdgeInsets.all(3),
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      border: Border.all(
-                        color: _green.withValues(alpha: 0.42),
-                        width: 2,
-                      ),
-                      boxShadow: [
-                        BoxShadow(
-                          color: _navy.withValues(alpha: 0.14),
-                          blurRadius: 18,
-                          offset: const Offset(0, 9),
-                        ),
-                      ],
-                    ),
-                    child: ClipOval(
-                      child: photoUrl == null
-                          ? Container(
-                              color: _green.withValues(alpha: 0.10),
-                              child: const Icon(
-                                Icons.person_outline,
-                                color: _green,
-                                size: 55,
-                              ),
-                            )
-                          : Image.network(
-                              photoUrl,
-                              fit: BoxFit.cover,
-                              headers: <String, String>{
-                                'Authorization': 'Bearer ${session.token}',
-                              },
-                              errorBuilder: (_, _, _) => Container(
-                                color: _green.withValues(alpha: 0.10),
-                                child: const Icon(
-                                  Icons.person_outline,
-                                  color: _green,
-                                  size: 55,
-                                ),
-                              ),
-                            ),
-                    ),
-                  ),
-                  PositionedDirectional(
-                    bottom: -5,
-                    end: -5,
-                    child: Material(
-                      color: Colors.transparent,
-                      child: InkWell(
-                        onTap: _uploadingPhoto ? null : _changePhoto,
-                        customBorder: const CircleBorder(),
-                        child: Ink(
-                          width: 42,
-                          height: 42,
-                          decoration: BoxDecoration(
-                            color: _green,
-                            shape: BoxShape.circle,
-                            border: Border.all(
-                              color: Theme.of(context).colorScheme.surface,
-                              width: 3,
-                            ),
-                          ),
-                          child: _uploadingPhoto
-                              ? const Padding(
-                                  padding: EdgeInsets.all(11),
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                    color: Colors.white,
-                                  ),
-                                )
-                              : const Icon(
-                                  Icons.camera_alt_outlined,
-                                  color: Colors.white,
-                                  size: 20,
-                                ),
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 18),
-              Text(
-                session.name,
-                textAlign: TextAlign.center,
-                style: Theme.of(
-                  context,
-                ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900),
-              ),
-              const SizedBox(height: 8),
-              Container(
-                padding: const EdgeInsetsDirectional.fromSTEB(10, 6, 10, 6),
-                decoration: BoxDecoration(
-                  color: statusColor.withValues(alpha: 0.10),
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(
-                    color: statusColor.withValues(alpha: 0.25),
-                  ),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(
-                      isActive
-                          ? Icons.check_circle_outline
-                          : Icons.pause_circle_outline,
-                      color: statusColor,
-                      size: 18,
-                    ),
-                    const SizedBox(width: 6),
-                    Text(
-                      isActive
-                          ? t('حساب نشط', 'Active account')
-                          : t('حساب معلق', 'Suspended account'),
-                      style: TextStyle(
-                        color: statusColor,
-                        fontWeight: FontWeight.w800,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 14),
-              OutlinedButton.icon(
-                onPressed: () => _editProfile(profile),
-                icon: const Icon(Icons.edit_outlined),
-                label: Text(t('تعديل البيانات', 'Edit details')),
-              ),
-            ],
+        if (widget.showWalletHero) ...[
+          CustomerWalletHero(
+            balance: session.balance,
+            available: session.availableToSpend ?? session.balance,
           ),
+          const SizedBox(height: 14),
+        ],
+        CustomerIdentityHeader(
+          name: session.name,
+          statusLabel: isActive
+              ? t('حساب نشط', 'Active account')
+              : t('حساب معلق', 'Suspended account'),
+          statusColor: statusColor,
+          isActive: isActive,
+          photoUrl: photoUrl,
+          authToken: session.token,
+          uploading: _uploadingPhoto,
+          onEditPhoto: _changePhoto,
+          onEditProfile: () => _editProfile(profile),
         ),
         const SizedBox(height: 14),
         _CustomerProfileSection(
@@ -5219,9 +5117,14 @@ class CustomerQuickTile extends StatelessWidget {
 }
 
 class ExchangeRatesScreen extends StatefulWidget {
-  const ExchangeRatesScreen({super.key, required this.controller});
+  const ExchangeRatesScreen({
+    super.key,
+    required this.controller,
+    this.embeddedInPortal = false,
+  });
 
   final SessionController controller;
+  final bool embeddedInPortal;
 
   @override
   State<ExchangeRatesScreen> createState() => _ExchangeRatesScreenState();
@@ -5415,6 +5318,7 @@ class _ExchangeRatesScreenState extends State<ExchangeRatesScreen> {
       title: 'أسعار الصرف',
       subtitle: 'الأسعار الخاصة بحسابك والمطبقة قبل تأكيد التحويل.',
       onRefresh: _load,
+      showHeading: !widget.embeddedInPortal,
       child: [
         if (pendingSeconds > 0) ...[
           _RateChangeCountdownBanner(
@@ -5977,6 +5881,8 @@ class TransferScreen extends StatefulWidget {
     this.initialNotes,
     this.initialName,
     this.isolated = false,
+    this.customerPortal = false,
+    this.embeddedInPortal = false,
   });
 
   final SessionController controller;
@@ -5987,6 +5893,8 @@ class TransferScreen extends StatefulWidget {
   final String? initialNotes;
   final String? initialName;
   final bool isolated;
+  final bool customerPortal;
+  final bool embeddedInPortal;
 
   @override
   State<TransferScreen> createState() => _TransferScreenState();
@@ -6021,6 +5929,10 @@ class _TransferScreenState extends State<TransferScreen> {
   bool _busy = false;
   bool _syncingCashAmounts = false;
   String? _error;
+  bool _portalReviewOpen = false;
+  bool _portalSuccess = false;
+  String _portalSuccessTxId = '';
+  String _portalSuccessMessage = '';
 
   Future<String?> _requestOperationPinIfEnabled() async {
     final status = await widget.controller.api.operationPinStatus();
@@ -6700,44 +6612,56 @@ class _TransferScreenState extends State<TransferScreen> {
         await widget.controller.refreshHome();
       } catch (_) {}
       if (!mounted) return;
-      await showDialog<void>(
-        context: context,
-        builder: (context) => AlertDialog(
-          icon: const Icon(Icons.check_circle_outline, color: _green, size: 42),
-          title: const Text('تم إرسال العملية'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                response['message']?.toString() ??
-                    'تم تسجيل طلب التحويل بنجاح.',
-              ),
-              const SizedBox(height: 12),
-              DetailLine(
-                label: 'رقم الطلب',
-                value: '${response['txId'] ?? '-'}',
-              ),
-              DetailLine(
-                label: 'الحالة',
-                value: statusLabel(response['status']?.toString()),
-              ),
-              if (response['newBalance'] != null)
-                DetailLine(
-                  label: 'الرصيد بعد العملية',
-                  value:
-                      '${formatAmount(numberValue(response['newBalance']))} د.ل',
+      if (widget.customerPortal) {
+        setState(() {
+          _portalReviewOpen = false;
+          _portalSuccess = true;
+          _portalSuccessTxId = '${response['txId'] ?? '-'}';
+          _portalSuccessMessage =
+              response['message']?.toString() ??
+              'تم تسجيل طلب التحويل بنجاح.';
+        });
+        CustomerPortalScope.maybeOf(context)?.setInspector(null);
+      } else {
+        await showDialog<void>(
+          context: context,
+          builder: (context) => AlertDialog(
+            icon: const Icon(Icons.check_circle_outline, color: _green, size: 42),
+            title: const Text('تم إرسال العملية'),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  response['message']?.toString() ??
+                      'تم تسجيل طلب التحويل بنجاح.',
                 ),
+                const SizedBox(height: 12),
+                DetailLine(
+                  label: 'رقم الطلب',
+                  value: '${response['txId'] ?? '-'}',
+                ),
+                DetailLine(
+                  label: 'الحالة',
+                  value: statusLabel(response['status']?.toString()),
+                ),
+                if (response['newBalance'] != null)
+                  DetailLine(
+                    label: 'الرصيد بعد العملية',
+                    value:
+                        '${formatAmount(numberValue(response['newBalance']))} د.ل',
+                  ),
+              ],
+            ),
+            actions: [
+              FilledButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('تم'),
+              ),
             ],
           ),
-          actions: [
-            FilledButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('تم'),
-            ),
-          ],
-        ),
-      );
+        );
+      }
       if (!mounted) return;
       _formKey.currentState?.reset();
       setState(() {
@@ -7309,22 +7233,112 @@ class _TransferScreenState extends State<TransferScreen> {
     }
     setState(() => _error = null);
     if (!mounted) return;
-    await showDialog<void>(
-      context: context,
-      builder: (context) => _CashTransferPreviewDialog(
-        destination: destination,
-        provider: _cashWalletProvider!,
-        amountEgp: amount,
-        rate: _rate,
-        amountLyd: _cashAmountLyd,
-        clientPhone: _clientPhone.text.trim(),
-        notes: _notes.text.trim(),
-        onConfirm: () async {
-          Navigator.pop(context);
-          await _submit();
-        },
+    await _previewOrDialog(
+      title: 'مراجعة تحويل كاش',
+      lines: [
+        CustomerReviewLine('الخدمة', _selectedServiceLabel),
+        CustomerReviewLine('المستلم', destination),
+        CustomerReviewLine('المبلغ', '${formatEgpAmount(amount)} ج.م'),
+        CustomerReviewLine('بالدينار', '${formatAmount(_cashAmountLyd)} د.ل'),
+        ..._commonReviewTail(),
+      ],
+      showDialogPreview: () => showDialog<void>(
+        context: context,
+        builder: (context) => _CashTransferPreviewDialog(
+          destination: destination,
+          provider: _cashWalletProvider!,
+          amountEgp: amount,
+          rate: _rate,
+          amountLyd: _cashAmountLyd,
+          clientPhone: _clientPhone.text.trim(),
+          notes: _notes.text.trim(),
+          onConfirm: () async {
+            Navigator.pop(context);
+            await _submit();
+          },
+        ),
       ),
     );
+  }
+
+  Future<void> _showPortalReview({
+    required String title,
+    required List<CustomerReviewLine> lines,
+    required Future<void> Function() onConfirm,
+  }) async {
+    final desktop = customerShowInspector(MediaQuery.sizeOf(context).width);
+    if (desktop) {
+      setState(() => _portalReviewOpen = true);
+      CustomerPortalScope.maybeOf(context)?.setInspector(
+        CustomerReviewSeal(
+          title: title,
+          lines: lines,
+          busy: _busy,
+          onConfirm: () async {
+            await onConfirm();
+            if (mounted) setState(() => _portalReviewOpen = false);
+          },
+          onBack: () {
+            setState(() => _portalReviewOpen = false);
+            CustomerPortalScope.maybeOf(context)?.setInspector(null);
+          },
+        ),
+        title: 'معاينة التحويل',
+      );
+      return;
+    }
+    final approved = await showCustomerTransferReview(
+      context,
+      title: title,
+      lines: lines,
+      onConfirm: onConfirm,
+    );
+    if (approved && mounted) {
+      setState(() => _portalReviewOpen = false);
+    }
+  }
+
+  List<CustomerReviewLine> _commonReviewTail() {
+    return [
+      if (_clientPhone.text.trim().isNotEmpty)
+        CustomerReviewLine('واتساب', _clientPhone.text.trim()),
+      if (_notes.text.trim().isNotEmpty)
+        CustomerReviewLine('ملاحظة', _notes.text.trim()),
+    ];
+  }
+
+  Future<void> _previewOrDialog({
+    required String title,
+    required List<CustomerReviewLine> lines,
+    required Future<void> Function() showDialogPreview,
+  }) async {
+    if (widget.customerPortal) {
+      await _showPortalReview(
+        title: title,
+        lines: lines,
+        onConfirm: _submit,
+      );
+      return;
+    }
+    await showDialogPreview();
+  }
+
+  void _resetPortalTransfer() {
+    setState(() {
+      _portalSuccess = false;
+      _portalReviewOpen = false;
+      _portalSuccessTxId = '';
+      _portalSuccessMessage = '';
+      _showServiceCatalog = true;
+    });
+    CustomerPortalScope.maybeOf(context)?.setInspector(null);
+  }
+
+  int get _transferStep {
+    if (_portalSuccess) return 4;
+    if (_portalReviewOpen) return 3;
+    if (_showServiceCatalog) return 1;
+    return 2;
   }
 
   Future<void> _previewPostAccountTransfer() async {
@@ -7345,21 +7359,32 @@ class _TransferScreenState extends State<TransferScreen> {
       return;
     }
     setState(() => _error = null);
-    await showDialog<void>(
-      context: context,
-      builder: (context) => _PostAccountPreviewDialog(
-        beneficiaryName: _name.text.trim(),
-        accountNumber: account,
-        amountEgp: amount,
-        rate: _rate,
-        amountLyd: _cashAmountLyd,
-        clientPhone: _clientPhone.text.trim(),
-        hasOldReceipt: _oldReceipt != null,
-        notes: _notes.text.trim(),
-        onConfirm: () async {
-          Navigator.pop(context);
-          await _submit();
-        },
+    await _previewOrDialog(
+      title: 'مراجعة بريد حساب',
+      lines: [
+        CustomerReviewLine('الخدمة', _selectedServiceLabel),
+        CustomerReviewLine('المستفيد', _name.text.trim()),
+        CustomerReviewLine('الحساب', account),
+        CustomerReviewLine('المبلغ', '${formatEgpAmount(amount)} ج.م'),
+        CustomerReviewLine('بالدينار', '${formatAmount(_cashAmountLyd)} د.ل'),
+        ..._commonReviewTail(),
+      ],
+      showDialogPreview: () => showDialog<void>(
+        context: context,
+        builder: (context) => _PostAccountPreviewDialog(
+          beneficiaryName: _name.text.trim(),
+          accountNumber: account,
+          amountEgp: amount,
+          rate: _rate,
+          amountLyd: _cashAmountLyd,
+          clientPhone: _clientPhone.text.trim(),
+          hasOldReceipt: _oldReceipt != null,
+          notes: _notes.text.trim(),
+          onConfirm: () async {
+            Navigator.pop(context);
+            await _submit();
+          },
+        ),
       ),
     );
   }
@@ -7391,22 +7416,35 @@ class _TransferScreenState extends State<TransferScreen> {
       return;
     }
     setState(() => _error = null);
-    await showDialog<void>(
-      context: context,
-      builder: (context) => _PostCardPreviewDialog(
-        beneficiaryName: _name.text.trim(),
-        nationalId: nationalId,
-        recipientPhone: recipientPhone,
-        governorate: _governorate!,
-        amountEgp: amount,
-        rate: _rate,
-        amountLyd: _cashAmountLyd,
-        clientPhone: _clientPhone.text.trim(),
-        notes: _notes.text.trim(),
-        onConfirm: () async {
-          Navigator.pop(context);
-          await _submit();
-        },
+    await _previewOrDialog(
+      title: 'مراجعة بريد بطاقة',
+      lines: [
+        CustomerReviewLine('الخدمة', _selectedServiceLabel),
+        CustomerReviewLine('المستفيد', _name.text.trim()),
+        CustomerReviewLine('الرقم القومي', nationalId),
+        CustomerReviewLine('هاتف المستلم', recipientPhone),
+        CustomerReviewLine('المحافظة', _governorate!),
+        CustomerReviewLine('المبلغ', '${formatEgpAmount(amount)} ج.م'),
+        CustomerReviewLine('بالدينار', '${formatAmount(_cashAmountLyd)} د.ل'),
+        ..._commonReviewTail(),
+      ],
+      showDialogPreview: () => showDialog<void>(
+        context: context,
+        builder: (context) => _PostCardPreviewDialog(
+          beneficiaryName: _name.text.trim(),
+          nationalId: nationalId,
+          recipientPhone: recipientPhone,
+          governorate: _governorate!,
+          amountEgp: amount,
+          rate: _rate,
+          amountLyd: _cashAmountLyd,
+          clientPhone: _clientPhone.text.trim(),
+          notes: _notes.text.trim(),
+          onConfirm: () async {
+            Navigator.pop(context);
+            await _submit();
+          },
+        ),
       ),
     );
   }
@@ -7429,22 +7467,34 @@ class _TransferScreenState extends State<TransferScreen> {
       return;
     }
     setState(() => _error = null);
-    await showDialog<void>(
-      context: context,
-      builder: (context) => _NitaPreviewDialog(
-        beneficiaryName: _name.text.trim(),
-        accountNumber: account,
-        city: nitaAccount ? null : _city.text.trim(),
-        nitaAccount: nitaAccount,
-        amountSefa: amount,
-        rate: _rate,
-        amountLyd: _sefaAmountLyd,
-        clientPhone: _clientPhone.text.trim(),
-        notes: _notes.text.trim(),
-        onConfirm: () async {
-          Navigator.pop(context);
-          await _submit();
-        },
+    await _previewOrDialog(
+      title: nitaAccount ? 'مراجعة NITA ACCOUNT' : 'مراجعة NITA',
+      lines: [
+        CustomerReviewLine('الخدمة', _selectedServiceLabel),
+        CustomerReviewLine('المستفيد', _name.text.trim()),
+        CustomerReviewLine('الحساب', account),
+        if (!nitaAccount) CustomerReviewLine('المدينة', _city.text.trim()),
+        CustomerReviewLine('القيمة', '${formatAmount(amount)} سيفا'),
+        CustomerReviewLine('بالدينار', '${formatAmount(_sefaAmountLyd)} د.ل'),
+        ..._commonReviewTail(),
+      ],
+      showDialogPreview: () => showDialog<void>(
+        context: context,
+        builder: (context) => _NitaPreviewDialog(
+          beneficiaryName: _name.text.trim(),
+          accountNumber: account,
+          city: nitaAccount ? null : _city.text.trim(),
+          nitaAccount: nitaAccount,
+          amountSefa: amount,
+          rate: _rate,
+          amountLyd: _sefaAmountLyd,
+          clientPhone: _clientPhone.text.trim(),
+          notes: _notes.text.trim(),
+          onConfirm: () async {
+            Navigator.pop(context);
+            await _submit();
+          },
+        ),
       ),
     );
   }
@@ -7683,21 +7733,33 @@ class _TransferScreenState extends State<TransferScreen> {
       return;
     }
     setState(() => _error = null);
-    await showDialog<void>(
-      context: context,
-      builder: (context) => _BankakPreviewDialog(
-        beneficiaryName: _name.text.trim(),
-        accountNumber: account,
-        recipientPhone: recipientPhone,
-        amountSudanese: amount,
-        rate: _rate,
-        amountLyd: _cashAmountLyd,
-        clientPhone: _clientPhone.text.trim(),
-        notes: _notes.text.trim(),
-        onConfirm: () async {
-          Navigator.pop(context);
-          await _submit();
-        },
+    await _previewOrDialog(
+      title: 'مراجعة بنكك',
+      lines: [
+        CustomerReviewLine('الخدمة', _selectedServiceLabel),
+        CustomerReviewLine('المستفيد', _name.text.trim()),
+        CustomerReviewLine('الحساب', account),
+        CustomerReviewLine('هاتف المستلم', recipientPhone),
+        CustomerReviewLine('المبلغ', '${formatAmount(amount)} ج.س'),
+        CustomerReviewLine('بالدينار', '${formatAmount(_cashAmountLyd)} د.ل'),
+        ..._commonReviewTail(),
+      ],
+      showDialogPreview: () => showDialog<void>(
+        context: context,
+        builder: (context) => _BankakPreviewDialog(
+          beneficiaryName: _name.text.trim(),
+          accountNumber: account,
+          recipientPhone: recipientPhone,
+          amountSudanese: amount,
+          rate: _rate,
+          amountLyd: _cashAmountLyd,
+          clientPhone: _clientPhone.text.trim(),
+          notes: _notes.text.trim(),
+          onConfirm: () async {
+            Navigator.pop(context);
+            await _submit();
+          },
+        ),
       ),
     );
   }
@@ -7919,20 +7981,31 @@ class _TransferScreenState extends State<TransferScreen> {
       return;
     }
     setState(() => _error = null);
-    await showDialog<void>(
-      context: context,
-      builder: (context) => _InstapayPreviewDialog(
-        beneficiaryName: _name.text.trim(),
-        recipient: recipient,
-        amountEgp: amount,
-        rate: _rate,
-        amountLyd: _cashAmountLyd,
-        clientPhone: _clientPhone.text.trim(),
-        notes: _notes.text.trim(),
-        onConfirm: () async {
-          Navigator.pop(context);
-          await _submit();
-        },
+    await _previewOrDialog(
+      title: 'مراجعة إنستا باي',
+      lines: [
+        CustomerReviewLine('الخدمة', _selectedServiceLabel),
+        CustomerReviewLine('المستفيد', _name.text.trim()),
+        CustomerReviewLine('المستلم', recipient),
+        CustomerReviewLine('المبلغ', '${formatEgpAmount(amount)} ج.م'),
+        CustomerReviewLine('بالدينار', '${formatAmount(_cashAmountLyd)} د.ل'),
+        ..._commonReviewTail(),
+      ],
+      showDialogPreview: () => showDialog<void>(
+        context: context,
+        builder: (context) => _InstapayPreviewDialog(
+          beneficiaryName: _name.text.trim(),
+          recipient: recipient,
+          amountEgp: amount,
+          rate: _rate,
+          amountLyd: _cashAmountLyd,
+          clientPhone: _clientPhone.text.trim(),
+          notes: _notes.text.trim(),
+          onConfirm: () async {
+            Navigator.pop(context);
+            await _submit();
+          },
+        ),
       ),
     );
   }
@@ -8332,22 +8405,34 @@ class _TransferScreenState extends State<TransferScreen> {
       return;
     }
     setState(() => _error = null);
-    await showDialog<void>(
-      context: context,
-      builder: (context) => _BankTransferPreviewDialog(
-        beneficiaryName: _name.text.trim(),
-        accountNumber: account,
-        bankName: _bankName!,
-        amountEgp: amount,
-        rate: _rate,
-        amountLyd: _cashAmountLyd,
-        clientPhone: _clientPhone.text.trim(),
-        hasAccountProof: _oldReceipt != null,
-        notes: _notes.text.trim(),
-        onConfirm: () async {
-          Navigator.pop(context);
-          await _submit();
-        },
+    await _previewOrDialog(
+      title: 'مراجعة تحويل بنكي',
+      lines: [
+        CustomerReviewLine('الخدمة', _selectedServiceLabel),
+        CustomerReviewLine('المستفيد', _name.text.trim()),
+        CustomerReviewLine('البنك', _bankName!),
+        CustomerReviewLine('الحساب', account),
+        CustomerReviewLine('المبلغ', '${formatEgpAmount(amount)} ج.م'),
+        CustomerReviewLine('بالدينار', '${formatAmount(_cashAmountLyd)} د.ل'),
+        ..._commonReviewTail(),
+      ],
+      showDialogPreview: () => showDialog<void>(
+        context: context,
+        builder: (context) => _BankTransferPreviewDialog(
+          beneficiaryName: _name.text.trim(),
+          accountNumber: account,
+          bankName: _bankName!,
+          amountEgp: amount,
+          rate: _rate,
+          amountLyd: _cashAmountLyd,
+          clientPhone: _clientPhone.text.trim(),
+          hasAccountProof: _oldReceipt != null,
+          notes: _notes.text.trim(),
+          onConfirm: () async {
+            Navigator.pop(context);
+            await _submit();
+          },
+        ),
       ),
     );
   }
@@ -9271,6 +9356,19 @@ class _TransferScreenState extends State<TransferScreen> {
             'حساب المحاسب يتابع الرصيد والكشوف والإيداع فقط، ولا يفتح منضدة الإرسال.',
       );
     }
+    if (_portalSuccess && widget.customerPortal) {
+      return Padding(
+        padding: const EdgeInsets.all(16),
+        child: CustomerSuccessSeal(
+          txId: _portalSuccessTxId,
+          message: _portalSuccessMessage,
+          onNewTransfer: _resetPortalTransfer,
+          onShare: () => Share.share(
+            'تم إرسال عملية تحويل عبر الأهرام.\nرقم العملية: $_portalSuccessTxId',
+          ),
+        ),
+      );
+    }
     final services = _servicesFrom(_home);
     late final Widget page;
     if (_showServiceCatalog) {
@@ -9297,9 +9395,36 @@ class _TransferScreenState extends State<TransferScreen> {
     } else {
       page = _fallbackTransferPage();
     }
+    final stepBar = TransferStepBar(currentStep: _transferStep);
+    if (widget.embeddedInPortal &&
+        customerUseSidebar(MediaQuery.sizeOf(context).width) &&
+        !_showServiceCatalog &&
+        !_isBalanceTransfer) {
+      return Column(
+        children: [
+          stepBar,
+          Expanded(
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Expanded(
+                  flex: 4,
+                  child: _catalogPage(services),
+                ),
+                VerticalDivider(
+                  width: 1,
+                  color: Theme.of(context).colorScheme.outlineVariant,
+                ),
+                Expanded(flex: 6, child: page),
+              ],
+            ),
+          ),
+        ],
+      );
+    }
     return Column(
       children: [
-        TransferStepBar(currentStep: _showServiceCatalog ? 1 : 2),
+        stepBar,
         Expanded(child: page),
       ],
     );
@@ -11593,9 +11718,16 @@ class _TransferServiceOptionSheet extends StatelessWidget {
 }
 
 class CustomerReportsScreen extends StatefulWidget {
-  const CustomerReportsScreen({super.key, required this.controller});
+  const CustomerReportsScreen({
+    super.key,
+    required this.controller,
+    this.embeddedInPortal = false,
+    this.initialSection,
+  });
 
   final SessionController controller;
+  final bool embeddedInPortal;
+  final int? initialSection;
 
   @override
   State<CustomerReportsScreen> createState() => _CustomerReportsScreenState();
@@ -11619,7 +11751,32 @@ class _CustomerReportsScreenState extends State<CustomerReportsScreen> {
   @override
   void initState() {
     super.initState();
+    _section = widget.initialSection;
     _loadDaily();
+  }
+
+  Future<void> _openPeriodSheet() async {
+    await Navigator.of(context).push<void>(
+      MaterialPageRoute<void>(
+        builder: (_) => CustomerReportsScreen(
+          controller: widget.controller,
+          embeddedInPortal: true,
+          initialSection: 1,
+        ),
+      ),
+    );
+  }
+
+  Future<void> _openSearchSheet() async {
+    await Navigator.of(context).push<void>(
+      MaterialPageRoute<void>(
+        builder: (_) => CustomerReportsScreen(
+          controller: widget.controller,
+          embeddedInPortal: true,
+          initialSection: 2,
+        ),
+      ),
+    );
   }
 
   @override
@@ -11947,6 +12104,7 @@ class _CustomerReportsScreenState extends State<CustomerReportsScreen> {
       title: 'التقارير',
       subtitle: 'راجع السجل اليومي، واستخرج تقريرًا للفترة التي تختارها.',
       onRefresh: _refresh,
+      showHeading: !widget.embeddedInPortal,
       child: [
         if (_section == null) ...[
           CustomerReportMetrics(
@@ -11987,17 +12145,31 @@ class _CustomerReportsScreenState extends State<CustomerReportsScreen> {
             compact: true,
           ),
           const SizedBox(height: 16),
-          OutlinedButton.icon(
-            onPressed: () => setState(() => _section = 1),
-            icon: const Icon(Icons.picture_as_pdf_outlined),
-            label: const Text('كشف فترة PDF'),
-          ),
-          const SizedBox(height: 8),
-          OutlinedButton.icon(
-            onPressed: () => setState(() => _section = 2),
-            icon: const Icon(Icons.manage_search_outlined),
-            label: const Text('بحث عن عملية'),
-          ),
+          if (widget.embeddedInPortal) ...[
+            OutlinedButton.icon(
+              onPressed: _openPeriodSheet,
+              icon: const Icon(Icons.picture_as_pdf_outlined),
+              label: const Text('كشف فترة PDF'),
+            ),
+            const SizedBox(height: 8),
+            OutlinedButton.icon(
+              onPressed: _openSearchSheet,
+              icon: const Icon(Icons.manage_search_outlined),
+              label: const Text('بحث عن عملية'),
+            ),
+          ] else ...[
+            OutlinedButton.icon(
+              onPressed: () => setState(() => _section = 1),
+              icon: const Icon(Icons.picture_as_pdf_outlined),
+              label: const Text('كشف فترة PDF'),
+            ),
+            const SizedBox(height: 8),
+            OutlinedButton.icon(
+              onPressed: () => setState(() => _section = 2),
+              icon: const Icon(Icons.manage_search_outlined),
+              label: const Text('بحث عن عملية'),
+            ),
+          ],
         ] else ...[
           OutlinedButton.icon(
             onPressed: () => setState(() => _section = null),
@@ -12610,9 +12782,14 @@ class _ClientReportMetric extends StatelessWidget {
 }
 
 class SupportScreen extends StatefulWidget {
-  const SupportScreen({super.key, required this.controller});
+  const SupportScreen({
+    super.key,
+    required this.controller,
+    this.embeddedInPortal = false,
+  });
 
   final SessionController controller;
+  final bool embeddedInPortal;
 
   @override
   State<SupportScreen> createState() => _SupportScreenState();
@@ -12705,6 +12882,7 @@ class _SupportScreenState extends State<SupportScreen> {
       title: 'الدعم الفني',
       subtitle: 'تواصل آمن ومباشر مع فريق الأهرام.',
       onRefresh: _load,
+      showHeading: !widget.embeddedInPortal,
       action: FilledButton.icon(
         onPressed: _createTicket,
         icon: const Icon(Icons.add_comment_outlined),

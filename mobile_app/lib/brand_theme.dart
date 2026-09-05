@@ -217,6 +217,35 @@ abstract final class AhramTheme {
     );
   }
 
+  static ThemeData customer(Brightness brightness) {
+    final base = brightness == Brightness.dark ? dark() : light();
+    final primary = brightness == Brightness.dark
+        ? const Color(0xFFE1C15A)
+        : AhramColors.gold;
+    final scheme = base.colorScheme.copyWith(
+      primary: primary,
+      onPrimary: AhramColors.onGold,
+      secondary: AhramColors.emerald,
+      onSecondary: Colors.white,
+    );
+    return base.copyWith(
+      colorScheme: scheme,
+      scaffoldBackgroundColor:
+          brightness == Brightness.dark ? AhramColors.night : AhramColors.cloud,
+      filledButtonTheme: FilledButtonThemeData(
+        style: FilledButton.styleFrom(
+          minimumSize: const Size(0, 48),
+          backgroundColor: primary,
+          foregroundColor: AhramColors.onGold,
+          elevation: 3,
+          shadowColor: AhramColors.ink.withValues(alpha: 0.22),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+          textStyle: const TextStyle(fontWeight: FontWeight.w800),
+        ),
+      ),
+    );
+  }
+
   static ThemeData agent(Brightness brightness) {
     final base = brightness == Brightness.dark ? dark() : light();
     final primary = brightness == Brightness.dark
