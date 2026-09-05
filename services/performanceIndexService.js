@@ -56,9 +56,35 @@ const transferCooldownIndexes = [
     }
 ];
 
+// Portal reports and the live dashboard filter by owner, employee actor and
+// recency. These are created explicitly because production commonly disables
+// Mongoose autoIndex for faster boot.
+const clientPortalIndexes = [
+    {
+        key: { companyId: 1, clientActorId: 1, createdAt: -1 },
+        name: 'clientPortal_company_actor_createdAt'
+    },
+    {
+        key: { userId: 1, clientActorId: 1, createdAt: -1 },
+        name: 'clientPortal_user_actor_createdAt'
+    },
+    {
+        key: { tenantId: 1, companyId: 1, clientActorId: 1, createdAt: -1 },
+        name: 'clientPortal_tenant_company_actor_createdAt'
+    },
+    {
+        key: { tenantId: 1, userId: 1, clientActorId: 1, createdAt: -1 },
+        name: 'clientPortal_tenant_user_actor_createdAt'
+    }
+];
+
 const ensurePerformanceIndexes = async () => {
     try {
-        await Transaction.collection.createIndexes([...executorTaskIndexes, ...transferCooldownIndexes]);
+        await Transaction.collection.createIndexes([
+            ...executorTaskIndexes,
+            ...transferCooldownIndexes,
+            ...clientPortalIndexes
+        ]);
         logger.info('Transaction performance indexes are ready');
         return true;
     } catch (error) {
@@ -67,4 +93,4 @@ const ensurePerformanceIndexes = async () => {
     }
 };
 
-module.exports = { ensurePerformanceIndexes };
+module.exports = { ensurePerformanceIndexes, clientPortalIndexes };
