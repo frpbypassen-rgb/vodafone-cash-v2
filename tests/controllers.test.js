@@ -343,7 +343,7 @@ describe('Client Transaction Controller Tests', () => {
         expect(User.findOneAndUpdate).toHaveBeenCalled();
         expect(res.json).toHaveBeenCalledWith(expect.objectContaining({
             success: true,
-            message: '✅ تم الإرسال بنجاح!'
+            message: 'تم الإرسال بنجاح.'
         }));
     });
 
