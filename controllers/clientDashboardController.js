@@ -1,5 +1,6 @@
 const mongoose = require('mongoose');
 
+const { isWalletHubSession } = require('../utils/walletHubHelper');
 const User = require('../models/User');
 const ClientEmployee = require('../models/ClientEmployee');
 const ClientCompany = require('../models/ClientCompany');
@@ -103,8 +104,7 @@ exports.getDashboard = async (req, res) => {
             return renderBusinessOverview(req, res);
         }
 
-        const isWalletHubUser = req.session.accountType === 'sub_client'
-            || (req.session.accountType === 'user' && account.role !== 'agent');
+        const isWalletHubUser = isWalletHubSession(req.session.accountType, account.role);
 
         const search = normalizeDashboardSearch(req.query.search);
         let targetDate = req.query.date;

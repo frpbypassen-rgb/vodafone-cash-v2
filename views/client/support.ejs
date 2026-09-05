@@ -17,7 +17,11 @@
     <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800;900&family=JetBrains+Mono:wght@700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="/css/brand-ui.css?v=20260804-brand1">
     <link rel="stylesheet" href="/css/client-nile-theme.css?v=20260826-nile3">
-    <link rel="stylesheet" href="/css/client-support-2027.css?v=20260905-1">
+    <link rel="stylesheet" href="/css/client-support-2027.css?v=20260905-2">
+    <% if (typeof walletHub !== 'undefined' && walletHub) { %>
+    <link rel="stylesheet" href="/css/client-dashboard-2027.css?v=20260905-3">
+    <link rel="stylesheet" href="/css/client-web-os.css?v=20260905-2">
+    <% } %>
     <script src="/js/client-theme.js?v=20260826-nile2" defer></script>
 
     <!-- PWA Setup -->
@@ -28,9 +32,19 @@
     <meta name="apple-mobile-web-app-title" content="Al-Ahram">
     <!-- End PWA Setup -->
 </head>
-<body class="client-nile-theme client-satellite-page nile-support-page">
-    <%- include('partials/wallet_shell_topbar') %>
+<body class="client-direct-modern client-nile-theme client-satellite-page nile-support-page<%= (typeof walletHub !== 'undefined' && walletHub) ? ' wallet-hub-active wallet-hub-satellite' : '' %>">
+    <%- include('partials/wallet_shell_topbar', { account: account }) %>
 
+    <% if (typeof walletHub !== 'undefined' && walletHub) { %>
+    <%- include('partials/wallet_hub_satellite_shell_start', {
+        user: account,
+        activePage: 'support',
+        pageKicker: 'مركز الدعم',
+        pageTitle: 'الدعم الفني',
+        pageSubtitle: 'تواصل بأمان مع فريق المساعدة.',
+        pageIcon: 'fa-headset'
+    }) %>
+    <% } else { %>
     <nav class="glass-nav no-print d-none d-md-block">
         <div class="container d-flex justify-content-between align-items-center">
             <h4 class="m-0 fw-bold nile-page-title"><i class="fa-solid fa-headset me-2"></i> الدعم الفني</h4>
@@ -40,8 +54,9 @@
             </div>
         </div>
     </nav>
+    <% } %>
 
-    <div class="container d-flex flex-column px-2 nile-support-body" style="flex: 1;">
+    <div class="container d-flex flex-column px-2 nile-support-body wallet-hub-page-content" style="flex: 1;">
         <div id="imagePreviewContainer" class="p-3 border-bottom d-none nile-image-preview" style="border-radius: 20px 20px 0 0; display: flex; align-items: center; gap: 15px; margin: 20px auto 0; width: 100%; max-width: 800px;">
             <img id="imagePreview" src="" style="height: 60px; border-radius: 8px; border: 1px solid var(--nile-border);">
             <span class="text-primary fw-bold small">الصورة جاهزة للإرسال...</span>
@@ -73,6 +88,12 @@
             </form>
         </div>
     </div>
+
+    <% if (typeof walletHub !== 'undefined' && walletHub) { %>
+    <%- include('partials/wallet_hub_satellite_shell_end') %>
+    <%- include('partials/wallet_hub_command_palette') %>
+    <script src="/js/client-web-os.js?v=20260905-2" defer></script>
+    <% } %>
 
     <%- include('partials/wallet_shell_bottom_nav', { activeNav: 'support' }) %>
 

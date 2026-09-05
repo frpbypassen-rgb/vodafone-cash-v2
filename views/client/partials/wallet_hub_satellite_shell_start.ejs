@@ -1,0 +1,22 @@
+<%# Desktop Client OS shell — opening tag + sidebar + page header %>
+<div class="client-os-shell client-os-satellite d-none d-md-grid">
+    <%- include('wallet_hub_sidebar', {
+        user: typeof user !== 'undefined' ? user : account,
+        activePage: typeof activePage !== 'undefined' ? activePage : '',
+        isSystemOpen: typeof isSystemOpen !== 'undefined' ? isSystemOpen : true,
+        isSatellite: true
+    }) %>
+    <main class="client-os-main client-os-satellite-main">
+        <header class="client-os-topbar client-os-satellite-topbar">
+            <div>
+                <% if (typeof pageKicker !== 'undefined' && pageKicker) { %><p class="client-os-eyebrow"><%= pageKicker %></p><% } %>
+                <h1><% if (typeof pageIcon !== 'undefined' && pageIcon) { %><i class="fa-solid <%= pageIcon %> me-2"></i><% } %><%= typeof pageTitle !== 'undefined' ? pageTitle : 'البوابة' %></h1>
+                <% if (typeof pageSubtitle !== 'undefined' && pageSubtitle) { %><p class="client-os-subtitle"><%= pageSubtitle %></p><% } %>
+            </div>
+            <div class="client-os-topbar-actions">
+                <button type="button" class="client-os-cmd-trigger" id="clientOsCmdTrigger" aria-label="بحث سريع"><i class="fa-solid fa-magnifying-glass"></i><span>بحث سريع</span><kbd>Ctrl+K</kbd></button>
+                <button class="nav-btn btn-theme client-os-theme-btn" type="button" onclick="toggleTheme()" title="تبديل المظهر"><i class="fa-solid fa-moon" id="themeIcon"></i></button>
+                <a href="/client/logout" class="nav-btn nav-logout client-os-logout-btn" title="خروج"><i class="fa-solid fa-power-off"></i></a>
+            </div>
+        </header>
+        <div class="client-os-satellite-body">

@@ -21,7 +21,8 @@ exports.getDepositsPage = async (req, res) => {
         return res.render('client/deposits', {
             user,
             account: user,
-            accountType: req.session.accountType
+            accountType: req.session.accountType,
+            walletHub: true
         });
     } catch (error) {
         return res.redirect('/client/dashboard');

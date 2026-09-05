@@ -611,7 +611,10 @@
     <link rel="stylesheet" href="/css/brand-ui.css?v=20260804-brand1">
     <link rel="stylesheet" href="/css/client-direct-modern.css?v=20260823-1">
     <link rel="stylesheet" href="/css/client-nile-theme.css?v=20260826-nile5">
-    <link rel="stylesheet" href="/css/client-dashboard-2027.css?v=20260905-2">
+    <link rel="stylesheet" href="/css/client-dashboard-2027.css?v=20260905-3">
+    <% if (typeof walletHub !== 'undefined' && walletHub) { %>
+    <link rel="stylesheet" href="/css/client-web-os.css?v=20260905-2">
+    <% } %>
 
     <!-- PWA Setup -->
     <link rel="manifest" href="/manifest.json">
@@ -621,7 +624,7 @@
     <meta name="apple-mobile-web-app-title" content="Al-Ahram">
     <!-- End PWA Setup -->
 </head>
-<body class="client-direct-modern client-nile-theme">
+<body class="client-direct-modern client-nile-theme<%= (typeof walletHub !== 'undefined' && walletHub) ? ' wallet-hub-active' : '' %>">
 <% if (typeof showMfaNotice !== 'undefined' && showMfaNotice) { %>
     <div id="mfaEnableNotice" class="alert alert-warning alert-dismissible shadow-sm position-fixed top-0 start-50 translate-middle-x mt-3 mx-3" role="alert" style="z-index: 3000; max-width: 760px; width: calc(100% - 32px);">
         <i class="fa-solid fa-shield-halved ms-1"></i>
@@ -1518,6 +1521,8 @@
 
     <% if (typeof walletHub !== 'undefined' && walletHub) { %>
     <%- include('partials/wallet_hub_more') %>
+    <%- include('partials/wallet_hub_command_palette') %>
+    <script src="/js/client-web-os.js?v=20260905-2" defer></script>
     <% } %>
 
     <section id="client-security-panel" class="client-security-drawer no-print" hidden aria-labelledby="client-security-title">
@@ -2390,17 +2395,20 @@
                             const rateNiger = document.getElementById('liveRateNiger');
                             const rateSudan = document.getElementById('liveRateSudan');
                             
-                            const updateRateEl = (el, key) => {
-                                if (!el) return;
+                            const updateRateEl = (el, key, mobileId) => {
                                 const value = parseFloat(serviceRates[key] || currentRate);
-                                el.innerText = (Number.isFinite(value) ? value : currentRate).toFixed(2);
-                                el.classList.add('rate-updated');
-                                setTimeout(() => el.classList.remove('rate-updated'), 1000);
+                                const text = (Number.isFinite(value) ? value : currentRate).toFixed(2);
+                                [el, mobileId ? document.getElementById(mobileId) : null].forEach((node) => {
+                                    if (!node) return;
+                                    node.innerText = text;
+                                    node.classList.add('rate-updated');
+                                    setTimeout(() => node.classList.remove('rate-updated'), 1000);
+                                });
                             };
-                            updateRateEl(rateCash, 'vodafone');
-                            updateRateEl(ratePostAcc, 'post_account');
-                            updateRateEl(ratePostCard, 'post_card');
-                            updateRateEl(rateBank, 'bank_account');
+                            updateRateEl(rateCash, 'vodafone', 'liveRateCashMobile');
+                            updateRateEl(ratePostAcc, 'post_account', 'liveRatePostAccMobile');
+                            updateRateEl(ratePostCard, 'post_card', 'liveRatePostCardMobile');
+                            updateRateEl(rateBank, 'bank_account', 'liveRateBankMobile');
                             updateRateEl(rateNiger, 'sefa_niger');
                             updateRateEl(rateSudan, 'bankak_sudan');
                             
@@ -2466,6 +2474,8 @@
             updateTodaySummary(transactions);
             
             let html = '';
+            let mobileHtml = '';
+            let briefHtml = '';
             let seqNum = transferTxs.length;
             let briefCount = 0;
             
@@ -2534,7 +2544,7 @@
                     actionsHtml = `<div class="d-flex gap-1 justify-content-center">${whatsappBtn} ${complaintBtn}</div>`;
                 }
  
-                html += `<tr>
+                html += `<tr class="client-os-tx-row" data-tx-id="${safeTxId}" tabindex="0">
                     <td class="fw-bold text-center" style="font-size: 0.85rem;">${seq}</td>
                     <td>${idContent}</td>
                     <td class="tx-amount">${tx.amount ? tx.amount.toFixed(2) : '0.00'}</td>
@@ -2564,7 +2574,7 @@
                         ? `<a class="tx-custom-id text-decoration-none" onclick="viewProof('${safeTxId}')" style="cursor:pointer;">#${displayTxId}</a>`
                         : `<span class="tx-custom-id text-muted">#${displayTxId}</span>`;
 
-                    mobileList.innerHTML += `
+                    mobileHtml += `
                     <div class="mobile-tx-card">
                         <div class="mobile-tx-header">
                             ${mobileIdContent}
@@ -2601,7 +2611,7 @@
                         ? `<a class="tx-custom-id text-decoration-none" onclick="viewProof('${safeTxId}')" style="cursor:pointer;">#${displayTxId}</a>`
                         : `<span class="tx-custom-id text-muted">#${displayTxId}</span>`;
 
-                    mobileListBrief.innerHTML += `
+                    briefHtml += `
                     <div class="mobile-tx-card" style="padding: 12px 14px; border-radius: 14px; gap: 8px;">
                         <div class="mobile-tx-header">
                             ${mobileIdContent}
@@ -2626,7 +2636,10 @@
                 }
             });
             if (tbody) tbody.innerHTML = html;
+            if (mobileList) mobileList.innerHTML = mobileHtml;
+            if (mobileListBrief) mobileListBrief.innerHTML = briefHtml;
             renderWalletHubRecent(transactions);
+            window.ClientWebOs?.onTransactionsRendered?.();
         }
 
         function renderWalletHubRecent(transactions) {

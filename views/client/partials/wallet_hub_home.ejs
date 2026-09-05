@@ -18,6 +18,13 @@
     </div>
     <% } %>
 
+    <section class="client-os-mobile-rates" aria-label="أسعار مباشرة">
+        <div><span>كاش</span><strong class="mono-num" id="liveRateCashMobile"><%= (serviceRates && serviceRates.vodafone ? serviceRates.vodafone : currentRate).toFixed(2) %></strong></div>
+        <div><span>بريد بطاقة</span><strong class="mono-num" id="liveRatePostCardMobile"><%= (serviceRates && serviceRates.post_card ? serviceRates.post_card : (currentRate - 0.15)).toFixed(2) %></strong></div>
+        <div><span>بريد حساب</span><strong class="mono-num" id="liveRatePostAccMobile"><%= (serviceRates && serviceRates.post_account ? serviceRates.post_account : (currentRate - 0.05)).toFixed(2) %></strong></div>
+        <div><span>حساب بنكي</span><strong class="mono-num" id="liveRateBankMobile"><%= (serviceRates && serviceRates.bank_account ? serviceRates.bank_account : (currentRate - 0.10)).toFixed(2) %></strong></div>
+    </section>
+
     <section class="client-os-mobile-summary" aria-label="ملخص اليوم">
         <article><i class="fa-solid fa-list-check"></i><span>عمليات اليوم</span><strong class="mono-num" id="todayTxCount"><%= (todayStats && todayStats.count) || 0 %></strong></article>
         <article><i class="fa-solid fa-coins"></i><span>إجمالي EGP</span><strong class="mono-num" id="todayTotalEGP"><%= ((todayStats && todayStats.totalEGP) || 0).toLocaleString('en-US', { maximumFractionDigits: 2 }) %></strong></article>
@@ -27,7 +34,7 @@
     <section class="client-os-mobile-activity">
         <header><div><p>نشاطك</p><h2>آخر العمليات</h2></div><button type="button" onclick="openAllOperations()">عرض الكل <i class="fa-solid fa-arrow-left"></i></button></header>
         <div class="client-os-mobile-transactions" id="walletHubRecentList">
-            <div class="wh-empty"><i class="fa-solid fa-folder-open"></i><span>جارٍ تحميل العمليات…</span></div>
+            <div class="wh-empty is-skeleton"><i class="fa-solid fa-spinner fa-spin"></i><span>جارٍ تحميل العمليات…</span></div>
         </div>
         <div class="mobile-ops-list d-none" id="mobileTransactionsListBrief" aria-hidden="true"></div>
     </section>

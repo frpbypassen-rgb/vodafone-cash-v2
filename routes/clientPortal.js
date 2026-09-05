@@ -1,6 +1,7 @@
 // routes/clientPortal.js
 const express = require('express');
 const router = express.Router();
+const { isWalletHubSession } = require('../utils/walletHubHelper');
 const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
@@ -390,7 +391,8 @@ router.get('/support', requireClientAuth, async (req, res) => {
         if (error.message === 'NOT_BUSINESS_PORTAL') {
             try {
                 const { account } = await getSupportIdentity(req);
-                return res.render('client/support', { account, accountType: req.session.accountType });
+                const walletHub = isWalletHubSession(req.session.accountType, account.role);
+                return res.render('client/support', { account, accountType: req.session.accountType, walletHub, user: account });
             } catch (e) {
                 console.error('[Support] identity/render failed:', e);
                 return res.redirect('/client/dashboard?supportError=1');

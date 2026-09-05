@@ -1,0 +1,51 @@
+<%#
+  Shared Client OS sidebar.
+  Locals: user (required), activePage, isSystemOpen, isSatellite
+%>
+<% const shellUser = user || {}; %>
+<% const active = typeof activePage !== 'undefined' ? activePage : 'dashboard'; %>
+<% const satellite = typeof isSatellite !== 'undefined' && isSatellite; %>
+<% const systemOpen = typeof isSystemOpen === 'undefined' ? true : !!isSystemOpen; %>
+<aside class="client-os-sidebar" aria-label="التنقل الرئيسي">
+    <a class="client-os-mark" href="/client/dashboard" aria-label="مركز القيادة">
+        <span class="client-os-mark-icon"><i class="fa-solid fa-gem"></i></span>
+        <span><b>AHRAM</b><small>CLIENT OS</small></span>
+    </a>
+
+    <div class="client-os-account-mini">
+        <span class="client-os-avatar"><i class="fa-solid fa-user"></i></span>
+        <span><strong><%= shellUser.name %></strong><small><%= shellUser.role === 'accountant' ? 'حسابات' : 'حساب عميل' %></small></span>
+    </div>
+
+    <nav class="client-os-navigation">
+        <span class="client-os-nav-title">مساحة العمل</span>
+        <a href="/client/dashboard" class="client-os-nav-link <%= active === 'dashboard' ? 'is-active' : '' %>"><i class="fa-solid fa-grid-2"></i><span>مركز القيادة</span></a>
+        <% if (shellUser.role !== 'accountant') { %>
+            <% if (satellite) { %>
+                <a href="/client/dashboard" class="client-os-nav-link"><i class="fa-solid fa-arrow-right-arrow-left"></i><span>تحويل مالي</span></a>
+                <a href="/client/dashboard" class="client-os-nav-link"><i class="fa-solid fa-wallet"></i><span>تحويل رصيد</span></a>
+            <% } else { %>
+                <button type="button" class="client-os-nav-link" data-bs-toggle="modal" data-bs-target="#transferModal"><i class="fa-solid fa-arrow-right-arrow-left"></i><span>تحويل مالي</span><kbd>+</kbd></button>
+                <button type="button" class="client-os-nav-link" onclick="openBalanceTransferModal()"><i class="fa-solid fa-wallet"></i><span>تحويل رصيد</span></button>
+            <% } %>
+        <% } %>
+
+        <span class="client-os-nav-title">المتابعة</span>
+        <a href="/client/reports" class="client-os-nav-link <%= active === 'reports' ? 'is-active' : '' %>"><i class="fa-solid fa-chart-line"></i><span>التقارير وكشف الحساب</span></a>
+        <% if (shellUser.role === 'agent') { %>
+            <a href="/client/sub-accounts" class="client-os-nav-link <%= active === 'sub-accounts' ? 'is-active' : '' %>"><i class="fa-solid fa-shop"></i><span>نقاط البيع</span></a>
+        <% } %>
+        <% if (shellUser.role !== 'agent') { %>
+            <a href="/client/deposits" class="client-os-nav-link <%= active === 'deposits' ? 'is-active' : '' %>"><i class="fa-solid fa-arrow-down"></i><span>طلب إيداع</span></a>
+        <% } %>
+
+        <span class="client-os-nav-title">المساعدة والحماية</span>
+        <a href="/client/support" class="client-os-nav-link <%= active === 'support' ? 'is-active' : '' %>"><i class="fa-solid fa-headset"></i><span>مركز الدعم</span></a>
+        <button type="button" class="client-os-nav-link" onclick="openClientSecurityPanel?.(event) || (window.location.href='/client/dashboard#security')"><i class="fa-solid fa-shield-halved"></i><span>الأمان</span></button>
+    </nav>
+
+    <div class="client-os-sidebar-footer">
+        <span class="client-os-live-dot <%= systemOpen ? '' : 'is-off' %>"></span>
+        <span><b><%= systemOpen ? 'الخدمات متاحة' : 'الخدمات متوقفة' %></b><small>حالة النظام الآن</small></span>
+    </div>
+</aside>

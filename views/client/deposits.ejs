@@ -14,6 +14,8 @@
     <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800;900&family=JetBrains+Mono:wght@700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="/css/brand-ui.css?v=20260827-deposits">
     <link rel="stylesheet" href="/css/client-nile-theme.css?v=20260827-deposits">
+    <link rel="stylesheet" href="/css/client-dashboard-2027.css?v=20260905-3">
+    <link rel="stylesheet" href="/css/client-web-os.css?v=20260905-2">
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     <script src="/js/client-theme.js?v=20260827-deposits" defer></script>
     <style>
@@ -53,20 +55,19 @@
         }
     </style>
 </head>
-<body class="client-nile-theme client-satellite-page">
+<body class="client-direct-modern client-nile-theme client-satellite-page wallet-hub-active wallet-hub-satellite">
     <%- include('partials/wallet_shell_topbar', { account: user }) %>
 
-    <nav class="glass-nav no-print d-none d-md-block">
-        <div class="container d-flex justify-content-between align-items-center">
-            <h4 class="m-0 fw-bold nile-page-title"><i class="fa-solid fa-arrow-down me-2"></i> طلب إيداع</h4>
-            <div class="d-flex align-items-center gap-2">
-                <button class="nav-btn btn-theme" type="button" onclick="toggleTheme()" title="تبديل الوضع"><i class="fa-solid fa-moon" id="themeIcon"></i></button>
-                <a href="/client/dashboard" class="nav-btn"><i class="fa-solid fa-arrow-left me-1"></i> رجوع للوحة</a>
-            </div>
-        </div>
-    </nav>
+    <%- include('partials/wallet_hub_satellite_shell_start', {
+        user: user,
+        activePage: 'deposits',
+        pageKicker: 'إدارة الرصيد',
+        pageTitle: 'طلب إيداع',
+        pageSubtitle: 'أرسل طلب إيداع للمراجعة — يُضاف الرصيد بعد الموافقة.',
+        pageIcon: 'fa-arrow-down'
+    }) %>
 
-    <main class="deposit-page">
+    <div class="deposit-page wallet-hub-page-content">
         <header class="deposit-hero">
             <div>
                 <h1>طلب إيداع رصيد</h1>
@@ -110,7 +111,11 @@
                 </div>
             </section>
         </section>
-    </main>
+    </div>
+
+    <%- include('partials/wallet_hub_satellite_shell_end') %>
+    <%- include('partials/wallet_hub_command_palette') %>
+    <script src="/js/client-web-os.js?v=20260905-2" defer></script>
 
     <%- include('partials/wallet_shell_bottom_nav', { activeNav: 'more' }) %>
 

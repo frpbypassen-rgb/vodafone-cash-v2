@@ -1,0 +1,21 @@
+'use strict';
+
+/**
+ * Direct / sub-client users get the Wallet Hub (Client OS) experience on web.
+ */
+function isWalletHubSession(accountType, role) {
+    if (accountType === 'sub_client') return true;
+    if (accountType === 'user' && role !== 'agent') return true;
+    return false;
+}
+
+function walletHubViewFlags(req, account = {}) {
+    const walletHub = isWalletHubSession(req.session?.accountType, account.role);
+    return {
+        walletHub,
+        user: account,
+        isSystemOpen: typeof account.isSystemOpen === 'boolean' ? account.isSystemOpen : true
+    };
+}
+
+module.exports = { isWalletHubSession, walletHubViewFlags };

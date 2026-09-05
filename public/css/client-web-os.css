@@ -1,0 +1,467 @@
+/* Client Web OS — performance + inspector + command palette */
+
+.wallet-hub-active {
+    padding-bottom: 0;
+}
+
+.wallet-hub-active .navbar-custom {
+    display: none !important;
+}
+
+.wallet-hub-active .mobile-header {
+    display: none !important;
+}
+
+.wallet-hub-active .main-container {
+    max-width: min(100%, 1680px);
+    padding-inline: clamp(8px, 2vw, 20px);
+    margin-top: 0;
+}
+
+.wallet-hub-active .desktop-only-layout {
+    margin-top: 0 !important;
+}
+
+/* Faster paint for large ledger */
+.client-os-table-wrap {
+    content-visibility: auto;
+    contain-intrinsic-size: 420px;
+}
+
+.client-os-table tbody tr {
+    content-visibility: auto;
+    contain-intrinsic-size: 44px;
+}
+
+.client-os-tx-row {
+    cursor: pointer;
+    transition: background-color 0.15s ease;
+}
+
+.client-os-tx-row:hover,
+.client-os-tx-row.is-selected {
+    background: rgba(14, 159, 139, 0.07) !important;
+}
+
+.client-os-tx-row:focus-visible {
+    outline: 2px solid #0e9f8b;
+    outline-offset: -2px;
+}
+
+/* Command bar search */
+.client-os-cmd-trigger {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    min-height: 40px;
+    padding: 0 14px;
+    border: 1px solid #dce7f0;
+    border-radius: 12px;
+    color: #5c738a;
+    background: #fff;
+    font: inherit;
+    font-size: 0.78rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.client-os-cmd-trigger:hover {
+    border-color: #0e9f8b;
+    box-shadow: 0 6px 16px rgba(14, 159, 139, 0.12);
+}
+
+.client-os-cmd-trigger kbd {
+    padding: 2px 7px;
+    border-radius: 6px;
+    color: #087b68;
+    background: #e7f7f3;
+    font-size: 0.68rem;
+    font-family: 'JetBrains Mono', monospace;
+}
+
+/* Command palette */
+.client-os-palette {
+    width: min(560px, calc(100vw - 24px));
+    max-height: min(72vh, 520px);
+    margin: 8vh auto 0;
+    padding: 0;
+    border: 1px solid #dce7f0;
+    border-radius: 18px;
+    background: #fff;
+    box-shadow: 0 28px 80px rgba(16, 43, 74, 0.22);
+    overflow: hidden;
+}
+
+.client-os-palette::backdrop {
+    background: rgba(7, 21, 37, 0.45);
+    backdrop-filter: blur(4px);
+}
+
+.client-os-palette-head {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 14px 16px;
+    border-bottom: 1px solid #e8eef4;
+    background: #f8fafc;
+}
+
+.client-os-palette-head i {
+    color: #0e9f8b;
+}
+
+.client-os-palette-head input {
+    flex: 1;
+    min-height: 38px;
+    border: 0;
+    outline: 0;
+    background: transparent;
+    color: #1c334e;
+    font: inherit;
+    font-size: 0.92rem;
+    font-weight: 700;
+}
+
+.client-os-palette-list {
+    max-height: calc(72vh - 120px);
+    overflow: auto;
+    padding: 8px;
+}
+
+.client-os-palette-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    width: 100%;
+    padding: 11px 12px;
+    border: 0;
+    border-radius: 12px;
+    color: #1c334e;
+    background: transparent;
+    font: inherit;
+    font-size: 0.84rem;
+    font-weight: 700;
+    text-align: right;
+    cursor: pointer;
+    transition: background 0.12s;
+}
+
+.client-os-palette-item:hover,
+.client-os-palette-item.is-active {
+    background: #e8f8f4;
+}
+
+.client-os-palette-item > span {
+    display: grid;
+    width: 34px;
+    height: 34px;
+    place-items: center;
+    border-radius: 10px;
+    color: #0d917d;
+    background: #e5f9f3;
+}
+
+.client-os-palette-item small {
+    display: block;
+    margin-top: 2px;
+    color: #8090a5;
+    font-size: 0.68rem;
+    font-weight: 600;
+}
+
+.client-os-palette-item kbd {
+    margin-right: auto;
+    color: #7a8ea3;
+    font-size: 0.68rem;
+}
+
+.client-os-palette-empty {
+    padding: 28px 16px;
+    color: #8090a5;
+    font-size: 0.82rem;
+    font-weight: 700;
+    text-align: center;
+}
+
+/* Inspector panel */
+.client-os-shell {
+    position: relative;
+}
+
+.client-os-inspector {
+    position: fixed;
+    inset: 0 0 0 auto;
+    z-index: 1050;
+    width: min(360px, 100vw);
+    padding: 22px 18px;
+    border-left: 1px solid #dce7f0;
+    background: #fff;
+    box-shadow: -16px 0 40px rgba(16, 43, 74, 0.12);
+    transform: translateX(100%);
+    transition: transform 0.22s ease;
+    overflow-y: auto;
+}
+
+.client-os-inspector.is-open {
+    transform: translateX(0);
+}
+
+.client-os-inspector-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 1040;
+    background: rgba(7, 21, 37, 0.35);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.2s;
+}
+
+.client-os-inspector-backdrop.is-open {
+    opacity: 1;
+    pointer-events: auto;
+}
+
+.client-os-inspector-head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 18px;
+}
+
+.client-os-inspector-head p {
+    margin: 0 0 4px;
+    color: #0e9f8b;
+    font-size: 0.68rem;
+    font-weight: 900;
+}
+
+.client-os-inspector-head h2 {
+    margin: 0;
+    color: #1c334e;
+    font-size: 1.05rem;
+    font-weight: 900;
+}
+
+.client-os-inspector-close {
+    display: grid;
+    width: 36px;
+    height: 36px;
+    place-items: center;
+    border: 1px solid #dce7f0;
+    border-radius: 10px;
+    color: #5c738a;
+    background: #f8fafc;
+    cursor: pointer;
+}
+
+.client-os-inspector-grid {
+    display: grid;
+    gap: 10px;
+}
+
+.client-os-inspector-row {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 10px 12px;
+    border: 1px solid #e8eef4;
+    border-radius: 12px;
+    background: #f8fafc;
+    font-size: 0.78rem;
+}
+
+.client-os-inspector-row span {
+    color: #8090a5;
+    font-weight: 700;
+}
+
+.client-os-inspector-row strong {
+    color: #1c334e;
+    font-family: 'JetBrains Mono', monospace;
+    text-align: left;
+}
+
+.client-os-inspector-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 16px;
+}
+
+.client-os-inspector-actions .btn {
+    font-size: 0.78rem;
+    font-weight: 800;
+}
+
+@media (min-width: 1200px) {
+    .client-os-shell.with-inspector-dock .client-os-inspector {
+        position: sticky;
+        top: 0;
+        align-self: start;
+        height: calc(100vh - 48px);
+        transform: none;
+        box-shadow: none;
+        display: none;
+    }
+
+    .client-os-shell.with-inspector-dock.is-inspector-open {
+        grid-template-columns: 250px minmax(0, 1fr) 320px;
+    }
+
+    .client-os-shell.with-inspector-dock.is-inspector-open .client-os-inspector {
+        display: block;
+    }
+
+    .client-os-shell.with-inspector-dock.is-inspector-open .client-os-inspector-backdrop {
+        display: none;
+    }
+}
+
+/* Mobile enhancements */
+.client-os-mobile-rates {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+    margin: 14px 0 4px;
+}
+
+.client-os-mobile-rates div {
+    padding: 10px 12px;
+    border: 1px solid #dce7f0;
+    border-radius: 14px;
+    background: #fff;
+}
+
+.client-os-mobile-rates span {
+    display: block;
+    color: #8090a5;
+    font-size: 0.62rem;
+    font-weight: 800;
+}
+
+.client-os-mobile-rates strong {
+    display: block;
+    margin-top: 4px;
+    color: #1c334e;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.92rem;
+}
+
+.client-os-mobile .wh-empty.is-skeleton {
+    animation: client-os-pulse 1.2s ease-in-out infinite;
+}
+
+@keyframes client-os-pulse {
+    0%, 100% { opacity: 0.55; }
+    50% { opacity: 1; }
+}
+
+/* Satellite pages (reports, support, deposits) */
+.client-os-satellite {
+    min-height: calc(100vh - 24px);
+}
+
+.client-os-satellite-main {
+    min-width: 0;
+}
+
+.client-os-satellite-body {
+    min-width: 0;
+}
+
+.client-os-satellite-topbar .client-os-theme-btn,
+.client-os-satellite-topbar .client-os-logout-btn {
+    min-height: 40px;
+    padding: 0 12px;
+    border-radius: 12px;
+}
+
+.wallet-hub-satellite .client-report-2027,
+.wallet-hub-satellite.nile-support-page {
+    background: transparent;
+}
+
+.wallet-hub-satellite .wallet-hub-page-content {
+    max-width: none;
+}
+
+@media (min-width: 768px) {
+    .wallet-hub-satellite .wallet-hub-page-content {
+        padding-inline: 0;
+        margin-bottom: 0;
+    }
+}
+
+.wallet-hub-satellite .nile-support-body {
+    max-width: none;
+    padding-bottom: 88px;
+}
+
+.wallet-hub-satellite .nile-support-body .chat-container {
+    max-width: none;
+    min-height: min(72vh, 760px);
+}
+
+.wallet-hub-satellite .deposit-page {
+    max-width: none;
+    padding: 0 0 24px;
+}
+
+@media (min-width: 768px) {
+    .wallet-hub-satellite .deposit-hero h1 {
+        display: none;
+    }
+}
+
+@media (max-width: 767.98px) {
+    .wallet-hub-satellite .client-os-satellite {
+        display: none !important;
+    }
+
+    .wallet-hub-satellite .wallet-hub-page-content {
+        padding-bottom: 88px;
+    }
+
+    .wallet-hub-satellite .deposit-page {
+        padding-bottom: 88px;
+    }
+}
+
+.wallet-hub-active .bottom-nav-mobile {
+    box-shadow: 0 -8px 24px rgba(16, 43, 74, 0.08);
+}
+
+
+/* Dark mode */
+[data-theme="dark"] .client-os-cmd-trigger,
+[data-theme="dark"] .client-os-palette,
+[data-theme="dark"] .client-os-inspector {
+    background: #172a3e;
+    border-color: #294159;
+    color: #e7edf6;
+}
+
+[data-theme="dark"] .client-os-palette-head,
+[data-theme="dark"] .client-os-inspector-row {
+    background: #1a3148;
+    border-color: #294159;
+}
+
+[data-theme="dark"] .client-os-palette-head input,
+[data-theme="dark"] .client-os-inspector-head h2,
+[data-theme="dark"] .client-os-inspector-row strong,
+[data-theme="dark"] .client-os-mobile-rates strong {
+    color: #e7edf6;
+}
+
+[data-theme="dark"] .client-os-palette-item:hover,
+[data-theme="dark"] .client-os-palette-item.is-active {
+    background: #1f3d4a;
+}
+
+[data-theme="dark"] .client-os-mobile-rates div {
+    background: #172a3e;
+    border-color: #294159;
+}

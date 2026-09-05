@@ -1,40 +1,11 @@
 <%# Ahram Client OS — desktop command centre.  Keep dynamic IDs used by dashboard.js. %>
-<div class="client-os-shell">
-    <aside class="client-os-sidebar" aria-label="التنقل الرئيسي">
-        <a class="client-os-mark" href="/client/dashboard" aria-label="مركز القيادة">
-            <span class="client-os-mark-icon"><i class="fa-solid fa-gem"></i></span>
-            <span><b>AHRAM</b><small>CLIENT OS</small></span>
-        </a>
-
-        <div class="client-os-account-mini">
-            <span class="client-os-avatar"><i class="fa-solid fa-user"></i></span>
-            <span><strong><%= user.name %></strong><small><%= user.role === 'accountant' ? 'حسابات' : 'حساب عميل' %></small></span>
-        </div>
-
-        <nav class="client-os-navigation">
-            <span class="client-os-nav-title">مساحة العمل</span>
-            <a href="/client/dashboard" class="client-os-nav-link is-active"><i class="fa-solid fa-grid-2"></i><span>مركز القيادة</span></a>
-            <% if (user.role !== 'accountant') { %>
-                <button type="button" class="client-os-nav-link" data-bs-toggle="modal" data-bs-target="#transferModal"><i class="fa-solid fa-arrow-right-arrow-left"></i><span>تحويل مالي</span><kbd>+</kbd></button>
-                <button type="button" class="client-os-nav-link" onclick="openBalanceTransferModal()"><i class="fa-solid fa-wallet"></i><span>تحويل رصيد</span></button>
-            <% } %>
-
-            <span class="client-os-nav-title">المتابعة</span>
-            <a href="/client/reports" class="client-os-nav-link"><i class="fa-solid fa-chart-line"></i><span>التقارير وكشف الحساب</span></a>
-            <% if (user.role === 'agent') { %>
-                <a href="/client/sub-accounts" class="client-os-nav-link"><i class="fa-solid fa-shop"></i><span>نقاط البيع</span></a>
-            <% } %>
-
-            <span class="client-os-nav-title">المساعدة والحماية</span>
-            <a href="/client/support" class="client-os-nav-link"><i class="fa-solid fa-headset"></i><span>مركز الدعم</span></a>
-            <button type="button" class="client-os-nav-link" onclick="openClientSecurityPanel()"><i class="fa-solid fa-shield-halved"></i><span>الأمان</span></button>
-        </nav>
-
-        <div class="client-os-sidebar-footer">
-            <span class="client-os-live-dot <%= isSystemOpen ? '' : 'is-off' %>"></span>
-            <span><b><%= isSystemOpen ? 'الخدمات متاحة' : 'الخدمات متوقفة' %></b><small>حالة النظام الآن</small></span>
-        </div>
-    </aside>
+<div class="client-os-shell with-inspector-dock">
+    <%- include('wallet_hub_sidebar', {
+        user: user,
+        activePage: 'dashboard',
+        isSystemOpen: isSystemOpen,
+        isSatellite: false
+    }) %>
 
     <main class="client-os-main">
         <header class="client-os-topbar">
@@ -44,6 +15,7 @@
                 <p class="client-os-subtitle">هذه نظرة سريعة وآمنة على حسابك وحركة اليوم.</p>
             </div>
             <div class="client-os-topbar-actions">
+                <button type="button" class="client-os-cmd-trigger" id="clientOsCmdTrigger" aria-label="بحث سريع"><i class="fa-solid fa-magnifying-glass"></i><span>بحث سريع</span><kbd>Ctrl+K</kbd></button>
                 <span class="client-os-status <%= isSystemOpen ? 'is-open' : 'is-closed' %>"><i class="fa-solid <%= isSystemOpen ? 'fa-circle-check' : 'fa-circle-exclamation' %>"></i><%= isSystemOpen ? 'النظام يعمل' : 'النظام مغلق' %></span>
                 <% if (user.role !== 'accountant') { %>
                     <button type="button" class="client-os-create" data-bs-toggle="modal" data-bs-target="#transferModal"><i class="fa-solid fa-plus"></i><span>عملية جديدة</span></button>
@@ -136,4 +108,5 @@
             </div>
         </section>
     </main>
+    <%- include('partials/wallet_hub_inspector') %>
 </div>
