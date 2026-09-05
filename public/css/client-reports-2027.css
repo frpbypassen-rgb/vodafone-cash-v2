@@ -1,0 +1,78 @@
+/* Client reports 2027: a focused financial workspace for desktop and mobile. */
+.client-report-2027 {
+    --report-ink: #13233d;
+    --report-teal: #0e9f8b;
+    --report-gold: #d89f29;
+    --report-line: rgba(20, 47, 78, .12);
+    background: radial-gradient(circle at 88% -8%, rgba(24, 164, 157, .14), transparent 34rem), #f4f8fc;
+}
+
+.client-report-2027 .navbar-custom {
+    backdrop-filter: blur(18px);
+    background: rgba(255, 255, 255, .9);
+    border-bottom: 1px solid var(--report-line);
+    margin-bottom: 22px;
+}
+
+.client-report-2027 .container-fluid { max-width: 1540px; }
+.client-report-2027 #pageTitle { color: var(--report-ink) !important; font-size: clamp(1.35rem, 2vw, 1.8rem); }
+.client-report-2027 #pageTitle::after { content: 'كشف مالي آمن'; display: block; color: #718096; font-size: .78rem; font-weight: 700; margin-top: 4px; }
+
+.client-report-2027 .card-glass {
+    background: rgba(255,255,255,.92);
+    border: 1px solid var(--report-line);
+    border-radius: 22px;
+    box-shadow: 0 18px 42px rgba(19, 35, 61, .08);
+}
+
+.client-report-2027 .card-glass:first-of-type { border-top: 3px solid var(--report-teal); }
+.client-report-2027 .form-label { font-size: .78rem; letter-spacing: .01em; }
+.client-report-2027 .form-control,
+.client-report-2027 .form-select {
+    min-height: 46px;
+    border-radius: 12px;
+    border-color: var(--report-line);
+    background: #f9fbfd;
+    font-weight: 700;
+}
+.client-report-2027 .form-control:focus,
+.client-report-2027 .form-select:focus { border-color: var(--report-teal); box-shadow: 0 0 0 4px rgba(14,159,139,.12); }
+.client-report-2027 #btnFetch,
+.client-report-2027 #btnDownloadPdf { min-height: 46px; border-radius: 12px; border: 0; box-shadow: 0 9px 18px rgba(11, 107, 156, .18); }
+.client-report-2027 #btnFetch { background: linear-gradient(135deg, #1265d8, #0e9f8b); }
+.client-report-2027 #btnDownloadPdf { background: linear-gradient(135deg, #cf4e5e, #a82f45); }
+
+.client-report-2027 .stat-card { min-height: 108px; border-radius: 18px; box-shadow: 0 10px 22px rgba(19,35,61,.05); }
+.client-report-2027 .stat-card h5 { font-family: 'JetBrains Mono', monospace; letter-spacing: -.04em; }
+.client-report-2027 .stat-card small { color: #526379; }
+.client-report-2027 #reportResultsNotice { border-radius: 12px; border: 0; background: #e7f7f5; color: #087568; font-weight: 700; }
+
+.client-report-2027 .table-custom { border-collapse: separate; border-spacing: 0 7px; }
+.client-report-2027 .table-custom thead th { background: #edf4fa; color: #466078; border: 0; font-size: .76rem; text-transform: none; }
+.client-report-2027 .table-custom tbody tr { box-shadow: 0 4px 12px rgba(19,35,61,.035); }
+.client-report-2027 .table-custom tbody td { background: #fff; border-top: 1px solid #edf1f5; border-bottom: 1px solid #edf1f5; }
+.client-report-2027 .table-custom tbody td:first-child { border-right: 1px solid #edf1f5; border-radius: 0 12px 12px 0; }
+.client-report-2027 .table-custom tbody td:last-child { border-left: 1px solid #edf1f5; border-radius: 12px 0 0 12px; }
+.client-report-2027 .table-custom tbody tr:hover td { background: #f0fbfa; }
+
+[data-theme="dark"] .client-report-2027 { --report-ink: #e7edf6; --report-line: rgba(219, 233, 248, .13); background: radial-gradient(circle at 88% -8%, rgba(24,164,157,.16), transparent 34rem), #101a2a; }
+[data-theme="dark"] .client-report-2027 .navbar-custom,
+[data-theme="dark"] .client-report-2027 .card-glass { background: rgba(23, 37, 58, .92); }
+[data-theme="dark"] .client-report-2027 .form-control,
+[data-theme="dark"] .client-report-2027 .form-select,
+[data-theme="dark"] .client-report-2027 .table-custom tbody td { background: #17253a; color: #e7edf6; }
+[data-theme="dark"] .client-report-2027 .table-custom thead th { background: #1e314a; color: #bfcedf; }
+[data-theme="dark"] .client-report-2027 .table-custom tbody tr:hover td { background: #1b3945; }
+
+@media (max-width: 768px) {
+    .client-report-2027 { padding-bottom: 86px; }
+    .client-report-2027 .container-fluid { padding: 0 13px !important; }
+    .client-report-2027 #pageTitle { margin: 12px 2px 17px !important; }
+    .client-report-2027 .card-glass { border-radius: 18px; padding: 15px !important; }
+    .client-report-2027 .card-glass:first-of-type .row > div { margin-bottom: 2px; }
+    .client-report-2027 #statsSection { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; gap: 10px !important; }
+    .client-report-2027 .stat-card { min-height: 89px; padding: 12px 9px !important; }
+    .client-report-2027 .stat-card h5 { font-size: 1rem !important; }
+    .client-report-2027 .mobile-tx-card { border-radius: 15px; border-right: 4px solid var(--report-teal); box-shadow: 0 8px 18px rgba(19,35,61,.07); }
+    .client-report-2027 .mobile-tx-actions .btn { min-width: 38px; }
+}
