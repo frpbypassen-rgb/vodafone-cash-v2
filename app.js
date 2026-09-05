@@ -153,7 +153,10 @@ io.on('connection', (socket) => {
 // ==========================================
 const Transaction = require('./models/Transaction');
 const triggerUpdate = (doc) => {
-    if (app.get('io')) app.get('io').emit('update_data');
+    // Do not broadcast a global event for every persistence hook. No client
+    // currently consumes this event and high-volume writes otherwise fan out
+    // to every connected socket. Targeted events (rates, support, etc.) stay
+    // emitted by their owning services.
     systemMonitor.recordTransactionChange(doc, 'تحديث');
 };
 Transaction.schema.post('save', triggerUpdate);
