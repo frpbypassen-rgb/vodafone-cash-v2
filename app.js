@@ -321,7 +321,10 @@ app.use(session({
 app.use(systemMonitor.trackRequest);
 
 app.use('/uploads/proofs', (req, res, next) => {
-    if (req.session && (req.session.isLoggedIn || req.session.isClientLoggedIn || req.session.isExecutorLoggedIn)) {
+    // Customer receipts are delivered only through /client/proxy/image, which
+    // verifies transaction ownership.  A logged-in customer must not be able
+    // to guess a storage filename and bypass that check.
+    if (req.session && (req.session.isLoggedIn || req.session.isExecutorLoggedIn)) {
         return next();
     }
     return res.status(403).send('Forbidden');

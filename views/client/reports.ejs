@@ -15,9 +15,9 @@
         function normalizeProofUrl(img) {
             const value = String(img || '').trim();
             if (!value) return '';
-            if (value.startsWith('http') || value.startsWith('data:') || value.startsWith('/')) return value;
-            const cleaned = value.replace(/^uploads\//, '').replace(/^proofs\//, '');
-            return `/uploads/proofs/${cleaned}`;
+            // The server emits an ownership-checked client proxy URL.  Never
+            // fall back to a raw storage path from a legacy transaction value.
+            return value.startsWith('/client/proxy/image/') ? value : '';
         }
     
         window.showReceiptModal = function(proofImage, proofImagesStr) {
@@ -30,6 +30,7 @@
             let html = '<div class="receipt-container" style="text-align: center;">';
             images.forEach(img => {
                 let src = normalizeProofUrl(img);
+                if (!src) return;
                 html += `<img src="${src}" class="img-fluid rounded mb-3 shadow-sm border" style="max-height: 50vh; max-width: 100%; object-fit: contain;" />`;
             });
             html += '</div>';
