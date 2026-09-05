@@ -422,7 +422,10 @@ exports.postTransfer = async (req, res) => {
         const newTx = new Transaction({
             customId: finalCustomId, userId: telegramId, companyId: companyId, subAccountId: isSubAccount ? account._id : null,
             subAccountName: isSubAccount ? account.name : '', companyName: isSubAccount ? masterObj.name : companyName, 
-            employeeName: isSubAccount ? account.name : account.name, vodafoneNumber: phone, transferType: serviceKey,
+            employeeName: isSubAccount ? account.name : account.name,
+            clientActorId: String(account._id),
+            clientActorModel: isSubAccount ? 'SubAccount' : (req.session.accountType === 'company' ? 'ClientEmployee' : (isAgentStaff ? 'AgentEmployee' : 'User')),
+            vodafoneNumber: phone, transferType: serviceKey,
             accountName, accountNumber, serviceDetails, amount: amount, costLYD: masterCostLYD,
             ...(cooldownGuardFields || {}),
             subAccountCostLYD: isSubAccount ? subCostLYD : 0, commission: commission, exchangeRate: masterRate, subClientRate: isSubAccount ? actualSubRate : 0,

@@ -53,6 +53,7 @@
 
 <section class="bw-section">
     <header class="bw-section-head"><div><span class="bw-section-kicker">كشف الحساب</span><h2>الحركات المالية الموثقة</h2></div><button type="button" class="bw-button secondary compact" onclick="window.print()"><i class="fa-solid fa-print"></i>طباعة</button></header>
+    <% if (listTruncated) { %><div class="bw-alert warning"><i class="fa-solid fa-circle-info"></i><span>تظهر أحدث <%= shownMovementCount %> حركة فقط لتحسين السرعة، بينما إجماليات الفترة أعلاه محسوبة من كامل السجل المالي.</span></div><% } %>
     <% if (workspace.isCompany) { %>
         <div class="cos-ops-list">
             <% if (!movements.length) { %><div class="bw-empty"><i class="fa-solid fa-scale-balanced"></i><strong>لا توجد حركات مالية</strong><span>لا توجد قيود ضمن الفترة المحددة.</span></div><% } %>

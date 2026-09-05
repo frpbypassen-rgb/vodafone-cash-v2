@@ -22,6 +22,10 @@ const transactionSchema = new mongoose.Schema({
     subAccountId: { type: mongoose.Schema.Types.ObjectId, ref: 'SubAccount' }, 
     companyName: { type: String },
     employeeName: { type: String },
+    // هوية الحساب الذي أنشأ الطلب من بوابة العملاء. لا تُعرض للعملاء، لكنها
+    // تمنع موظف الشركة من قراءة عمليات زميله حتى ضمن نفس الشركة.
+    clientActorId: { type: String, select: false },
+    clientActorModel: { type: String, select: false },
     subAccountName: { type: String },
     isSubAccountTx: { type: Boolean, default: false },
 
@@ -191,6 +195,8 @@ const transactionSchema = new mongoose.Schema({
 transactionSchema.index({ status: 1, createdAt: -1 });          // فلتر الحالة + الترتيب
 transactionSchema.index({ userId: 1, createdAt: -1 });           // معاملات المستخدم الفردي
 transactionSchema.index({ companyId: 1, createdAt: -1 });      // معاملات الشركة
+transactionSchema.index({ companyId: 1, clientActorId: 1, createdAt: -1 });
+transactionSchema.index({ userId: 1, clientActorId: 1, createdAt: -1 });
 transactionSchema.index({ executorGroupId: 1, status: 1 });        // مهام المنفذ
 transactionSchema.index({ status: 1, updatedAt: -1 });           // التقارير والإحصاءات
 transactionSchema.index({ executorGroupId: 1, createdAt: -1 });    // رصيد المنفذ
