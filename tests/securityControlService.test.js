@@ -23,11 +23,11 @@ describe('securityControlService', () => {
         expect(securityControl.requestChannel({ headers: { 'x-client-channel': 'app' }, originalUrl: '/login' })).toBe('web');
     });
 
-    test('defines one active device per principal and channel', () => {
+    test('defines one active device per principal across all channels', () => {
         const SecurityDevice = require('../models/SecurityDevice');
-        const uniqueIndex = SecurityDevice.schema.indexes().find(([, options]) => options.name === 'uniq_active_security_device_per_channel');
+        const uniqueIndex = SecurityDevice.schema.indexes().find(([, options]) => options.name === 'uniq_active_security_device_per_account');
         expect(uniqueIndex).toBeDefined();
-        expect(uniqueIndex[0]).toMatchObject({ principalType: 1, principalId: 1, channel: 1, status: 1 });
+        expect(uniqueIndex[0]).toMatchObject({ principalType: 1, principalId: 1, status: 1 });
         expect(uniqueIndex[1].unique).toBe(true);
     });
 

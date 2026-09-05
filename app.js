@@ -21,6 +21,7 @@ if (process.env.SENTRY_DSN) {
 }
 
 const express = require('express');
+const compression = require('compression');
 const session = require('express-session');
 const mongoose = require('mongoose');
 const path = require('path');
@@ -196,8 +197,25 @@ app.use('/api/mobile', cors({ origin: mobileAllowedOrigins, credentials: true })
 app.use('/api/v1/mobile', cors({ origin: mobileAllowedOrigins, credentials: true }));
 app.use(cors({ origin: allowedOrigins, credentials: true }));
 
+// Compress text responses before static-file delivery. Images, receipts and
+// other already-compressed binary payloads are intentionally excluded.
+app.use(compression({
+    threshold: 1024,
+    filter: (req, res) => {
+        if (req.path.startsWith('/uploads/') || req.path.startsWith('/public/')) return false;
+        return compression.filter(req, res);
+    }
+}));
+
 // Serve public files before request processing, session checks, and metrics.
-app.use(express.static(path.join(__dirname, 'public')));
+app.use(express.static(path.join(__dirname, 'public'), {
+    // Versioned asset URLs already exist throughout the views. Let browsers reuse
+    // them briefly in production while dynamic and financial responses remain
+    // protected by the no-store policy registered below.
+    maxAge: isProduction ? '1h' : 0,
+    etag: true,
+    immutable: false
+}));
 
 const limiter = rateLimit({
     windowMs: 5 * 60 * 1000, 

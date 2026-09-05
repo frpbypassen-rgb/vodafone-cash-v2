@@ -1,7 +1,14 @@
 (function () {
     'use strict';
 
-    const csrf = typeof csrfToken !== 'undefined' ? csrfToken : '';
+    const csrf = window.csrfToken || '';
+
+    const escapeHtml = (value) => String(value ?? '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
 
     async function apiFetch(url, options = {}) {
         const opts = { ...options, headers: { ...(options.headers || {}), Accept: 'application/json' } };
@@ -31,10 +38,10 @@
             tbody.innerHTML = '<tr><td colspan="6" class="text-center text-muted py-3">لا توجد عمليات</td></tr>';
         }
         txs.forEach((tx, i) => {
-            const row = `<tr><td>${i + 1}</td><td>${tx.customId || ''}</td><td>${Number(tx.amount || 0).toFixed(2)}</td><td>${Number(tx.costLYD || 0).toFixed(2)}</td><td>${tx.status || ''}</td><td>${tx.createdAt ? new Date(tx.createdAt).toLocaleString('ar-LY') : ''}</td></tr>`;
+            const row = `<tr><td>${i + 1}</td><td>${escapeHtml(tx.customId)}</td><td>${Number(tx.amount || 0).toFixed(2)}</td><td>${Number(tx.costLYD || 0).toFixed(2)}</td><td>${escapeHtml(tx.status)}</td><td>${escapeHtml(tx.createdAt ? new Date(tx.createdAt).toLocaleString('ar-LY') : '')}</td></tr>`;
             if (tbody) tbody.insertAdjacentHTML('beforeend', row);
             if (mobile) {
-                mobile.insertAdjacentHTML('beforeend', `<div class="mobile-tx-card p-3 border rounded-3"><strong>${tx.customId || ''}</strong><div>${Number(tx.amount || 0).toFixed(2)} EGP · ${Number(tx.costLYD || 0).toFixed(2)} LYD</div></div>`);
+                mobile.insertAdjacentHTML('beforeend', `<div class="mobile-tx-card p-3 border rounded-3"><strong>${escapeHtml(tx.customId)}</strong><div>${Number(tx.amount || 0).toFixed(2)} EGP · ${Number(tx.costLYD || 0).toFixed(2)} LYD</div></div>`);
             }
         });
         document.getElementById('tableSection')?.classList.remove('d-none');
@@ -44,14 +51,16 @@
         const depList = document.getElementById('mobileDepositList');
         if (depList && deposits.length) {
             document.getElementById('depositSection')?.classList.remove('d-none');
-            depList.innerHTML = deposits.map((d) => `<div class="p-2 border rounded-3 mb-2"><strong>${d.customId || ''}</strong> · ${Number(d.amount || 0).toFixed(2)} LYD</div>`).join('');
+            depList.innerHTML = deposits.map((d) => `<div class="p-2 border rounded-3 mb-2"><strong>${escapeHtml(d.customId)}</strong> · ${Number(d.amount || 0).toFixed(2)} LYD</div>`).join('');
         }
     }
 
     window.toggleDateInput = function toggleDateInput() {
         const type = document.getElementById('dateType')?.value || 'month';
-        document.getElementById('dateValueDay').style.display = type === 'day' ? '' : 'none';
-        document.getElementById('dateValueMonth').style.display = type === 'month' ? '' : 'none';
+        const dayInput = document.getElementById('dateValueDay');
+        const monthInput = document.getElementById('dateValueMonth');
+        if (dayInput) dayInput.style.display = type === 'day' ? '' : 'none';
+        if (monthInput) monthInput.style.display = type === 'month' ? '' : 'none';
         document.getElementById('dateRangeInputs')?.classList.toggle('d-none', type !== 'range');
     };
 
@@ -115,7 +124,7 @@
             const status = map[filter];
             const rows = (data.requests || []).filter((r) => r.status === status);
             listEl.innerHTML = rows.length
-                ? rows.map((r) => `<div class="p-3 border rounded-3 mb-2"><strong class="mono-num">${r.customId}</strong><div>${Number(r.amount || 0).toFixed(2)} LYD · ${r.status}</div><small class="text-muted">${r.note || ''}</small></div>`).join('')
+                ? rows.map((r) => `<div class="p-3 border rounded-3 mb-2"><strong class="mono-num">${escapeHtml(r.customId)}</strong><div>${Number(r.amount || 0).toFixed(2)} LYD · ${escapeHtml(r.status)}</div><small class="text-muted">${escapeHtml(r.note)}</small></div>`).join('')
                 : '<p class="text-muted text-center py-3">لا توجد طلبات في هذا القسم.</p>';
         } catch (_) {
             listEl.innerHTML = '<p class="text-danger text-center py-3">تعذر تحميل الطلبات.</p>';
@@ -148,7 +157,7 @@
     });
 
     document.addEventListener('DOMContentLoaded', () => {
-        toggleDateInput();
+        window.toggleDateInput();
         const now = new Date();
         const monthEl = document.getElementById('dateValueMonth');
         const dayEl = document.getElementById('dateValueDay');
@@ -156,7 +165,7 @@
         if (dayEl) dayEl.value = now.toISOString().slice(0, 10);
         const panel = document.getElementById('hubAccountReportsPanel');
         const mode = panel?.dataset?.mode || '';
-        if (panel && !mode.startsWith('deposit') && mode !== 'export') fetchReport();
+        if (panel && !mode.startsWith('deposit') && mode !== 'export') window.fetchReport();
         loadDeposits();
         apiFetch('/client/api/deposits').then((r) => r.json()).then((d) => {
             if (d.success && document.getElementById('currentBalance')) {

@@ -75,6 +75,17 @@ const clientPortalIndexes = [
     {
         key: { tenantId: 1, userId: 1, clientActorId: 1, createdAt: -1 },
         name: 'clientPortal_tenant_user_actor_createdAt'
+    },
+    // Sub-account statements and mobile reports use this as their primary
+    // access path. These indexes must be created explicitly because autoIndex
+    // is disabled in production.
+    {
+        key: { subAccountId: 1, createdAt: -1 },
+        name: 'clientPortal_subAccount_createdAt'
+    },
+    {
+        key: { tenantId: 1, subAccountId: 1, createdAt: -1 },
+        name: 'clientPortal_tenant_subAccount_createdAt'
     }
 ];
 

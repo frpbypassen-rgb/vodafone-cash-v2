@@ -13,7 +13,7 @@ const { requireAuth } = require('../middlewares/auth');
 const { syncBotBalance } = require('../utils/helpers');
 const { proofSourceUrl, streamProofImage } = require('../services/proofStorageService');
 const { reversalService } = require('../src/Application/Services/ReversalService');
-const { calculateTransferCostLYD, isSourceToLydRate } = require('../utils/transferPricing');
+const { repriceTransaction, editTransactionAmount } = require('../services/adminFinancialMutationService');
 
 const appendAdminNoteText = (current, note) => {
     const cleanNote = String(note || '').trim();
@@ -187,114 +187,39 @@ router.post('/api/complaints/:id/edit-amount', requireAuth, async (req, res) => 
         const reason = req.body.reason || '';
         if (isNaN(newAmount) || newAmount <= 0) return res.status(400).json({ error: 'المبلغ غير صالح' });
         
-        const tx = await Transaction.findById(txId);
-        if (!tx) return res.status(404).json({ error: 'العملية غير موجودة' });
-        if (['rejected', 'cancelled_by_admin'].includes(tx.status)) {
-            return res.status(400).json({ error: 'لا يمكن تعديل عملية ملغاة' });
-        }
-
-        const oldAmountEGP = tx.amount;
-        const adminName = req.session.adminName || 'الإدارة';
-
-        if (tx.status === 'deposit' || tx.status === 'deduction') {
-            const diffAmount = newAmount - oldAmountEGP;
-            const diffDeposit = (tx.status === 'deposit') ? diffAmount : -diffAmount;
-            if (tx.userId === 'admin' && tx.executorGroupId) {
-                const newAdminNotes = appendAdminNoteText(tx.adminNotes, `[تم تعديل المبلغ من ${oldAmountEGP} إلى ${newAmount} بواسطة: ${adminName}${reason ? ' | السبب: ' + reason : ''}]`);
-                await Transaction.updateOne({ _id: tx._id }, { $set: { amount: newAmount, adminNotes: newAdminNotes } }, { timestamps: false });
-                await syncBotBalance(tx.executorGroupId);
-                if (tx.managerGroupId) await syncBotBalance(tx.managerGroupId);
-            } else {
-                if (tx.companyId) {
-                    const comp = await ClientCompany.findById(tx.companyId);
-                    if (comp) { comp.balance += diffDeposit; await comp.save(); }
-                } else if (tx.userId) {
-                    const user = await User.findOne({ phone: tx.userId });
-                    if (user) { user.balance += diffDeposit; await user.save(); }
-                }
-                const newAdminNotes = appendAdminNoteText(tx.adminNotes, `[تم تعديل المبلغ من ${oldAmountEGP} إلى ${newAmount} بواسطة: ${adminName}${reason ? ' | السبب: ' + reason : ''}]`);
-                await Transaction.updateOne({ _id: tx._id }, { $set: { amount: newAmount, adminNotes: newAdminNotes } }, { timestamps: false });
-            }
-        } else {
-            const oldCostLYD = tx.costLYD || 0;
-            const currentRate = tx.exchangeRate || (oldCostLYD > 0 && oldAmountEGP > 0
-                ? (isSourceToLydRate(tx.transferType) ? oldCostLYD / oldAmountEGP : oldAmountEGP / oldCostLYD)
-                : 1);
-            const newCostLYD = calculateTransferCostLYD({
-                serviceKey: tx.transferType,
-                amount: newAmount,
-                exchangeRate: currentRate
-            });
-            const diffEGP = newAmount - oldAmountEGP;
-            const diffLYD = newCostLYD - oldCostLYD;
-
-            if (tx.companyId) {
-                const comp = await ClientCompany.findById(tx.companyId);
-                if (comp) { comp.balance -= diffLYD; await comp.save(); }
-            } else if (tx.userId) {
-                const user = await User.findOne({ phone: tx.userId });
-                if (user) { user.balance -= diffLYD; await user.save(); }
-            }
-
-            if (tx.status === 'completed' && tx.executorGroupId) {
-                const execGroup = await ExecutorGroup.findById(tx.executorGroupId);
-                if (execGroup) { execGroup.balance -= diffEGP; await execGroup.save(); }
-                if (tx.managerGroupId) {
-                    const mgrGroup = await ExecutorGroup.findById(tx.managerGroupId);
-                    if (mgrGroup) { mgrGroup.balance -= diffEGP; await mgrGroup.save(); }
-                }
-            }
-
-            const newAdminNotes = appendAdminNoteText(tx.adminNotes, `[تم تعديل المبلغ من ${oldAmountEGP} EGP إلى ${newAmount} EGP بواسطة: ${adminName}${reason ? ' | السبب: ' + reason : ''}]`);
-            await Transaction.updateOne({ _id: tx._id }, { $set: { amount: newAmount, costLYD: newCostLYD, adminNotes: newAdminNotes } }, { timestamps: false });
-        }
+        const result = await editTransactionAmount({
+            transactionId: txId,
+            newAmount,
+            adminName: req.session.adminName || 'الإدارة',
+            noteDetail: reason
+        });
+        for (const groupId of result.syncGroupIds) await syncBotBalance(groupId);
 
         res.json({ success: true });
     } catch (e) {
+        if (e.message === 'TRANSACTION_NOT_FOUND') return res.status(404).json({ error: 'العملية غير موجودة' });
+        if (e.message === 'TRANSACTION_NOT_EDITABLE') return res.status(400).json({ error: 'لا يمكن تعديل عملية ملغاة' });
+        if (e.code === 'FINANCIAL_TRANSACTIONS_UNAVAILABLE') return res.status(503).json({ error: 'تعذر تأكيد التعديل المالي حالياً. حاول لاحقاً.' });
         res.status(500).json({ error: 'خطأ داخلي: ' + e.message });
     }
 });
 
 router.post('/api/complaints/:id/edit-rate', requireAuth, async (req, res) => {
     try {
-        const txId = req.params.id;
         const newRate = parseFloat(req.body.newRate);
         const reason = req.body.reason || '';
         if (isNaN(newRate) || newRate <= 0) return res.status(400).json({ error: 'سعر الصرف غير صالح' });
-
-        const tx = await Transaction.findById(txId);
-        if (!tx) return res.status(404).json({ error: 'العملية غير موجودة' });
-        if (['rejected', 'cancelled_by_admin'].includes(tx.status)) {
-            return res.status(400).json({ error: 'لا يمكن تعديل عملية ملغاة' });
-        }
-
-        const oldCost = tx.costLYD || 0;
-        const newCost = calculateTransferCostLYD({
-            serviceKey: tx.transferType,
-            amount: tx.amount,
-            exchangeRate: newRate
+        await repriceTransaction({
+            transactionId: req.params.id,
+            newRate,
+            adminName: req.session.adminName || 'الإدارة',
+            noteDetail: reason
         });
-        const diff = newCost - oldCost;
-
-        if (tx.companyId) {
-            const company = await ClientCompany.findById(tx.companyId);
-            if (company) { company.balance -= diff; await company.save(); }
-        } else if (tx.userId) {
-            const user = await User.findOne({ phone: tx.userId });
-            if (user) { user.balance -= diff; await user.save(); }
-        }
-
-        const adminName = req.session.adminName || 'الإدارة';
-        const oldRate = oldCost > 0 && tx.amount > 0
-            ? (isSourceToLydRate(tx.transferType) ? oldCost / tx.amount : tx.amount / oldCost).toFixed(3)
-            : (tx.exchangeRate || 0).toString();
-        tx.costLYD = newCost;
-        tx.exchangeRate = newRate;
-        tx.adminNotes = appendAdminNoteText(tx.adminNotes, `[تم تعديل السعر من ${oldRate} إلى ${newRate} بواسطة: ${adminName}${reason ? ' | السبب: ' + reason : ''}]`);
-        await tx.save();
-
         res.json({ success: true });
     } catch (error) {
+        if (error.message === 'TRANSACTION_NOT_FOUND') return res.status(404).json({ error: 'العملية غير موجودة' });
+        if (error.message === 'TRANSACTION_NOT_EDITABLE') return res.status(400).json({ error: 'لا يمكن تعديل عملية ملغاة' });
+        if (error.code === 'FINANCIAL_TRANSACTIONS_UNAVAILABLE') return res.status(503).json({ error: 'تعذر تأكيد التعديل المالي حالياً. حاول لاحقاً.' });
         res.status(500).json({ error: 'خطأ داخلي: ' + error.message });
     }
 });

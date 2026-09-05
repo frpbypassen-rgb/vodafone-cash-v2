@@ -34,7 +34,9 @@ const { systemDateKey, systemDayEnd, systemDayStart, systemDateRange } = require
 const { buildExecutorOperationSearchQuery } = require('../utils/executorOperationSearch');
 
 const escapeRegex = (value) => String(value || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-const CLIENT_REPORT_LIST_LIMIT = 300;
+// Report totals are computed in MongoDB, while this cap protects the API and
+// mobile client from materialising an unbounded operation history in one call.
+const CLIENT_REPORT_LIST_LIMIT = 100;
 
 const buildClientReportSearchQuery = (value) => {
     const search = String(value || '').trim().slice(0, 80);

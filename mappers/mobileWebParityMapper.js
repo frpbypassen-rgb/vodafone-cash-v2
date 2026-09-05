@@ -47,6 +47,8 @@ const toClientReportDto = (data) => {
         previousBalance: Number(data.previousBalance || 0),
         periodBalance: Number(data.periodBalance || 0),
         currentBalance: Number(data.currentBalance || data.companyBalance || 0),
+        resultsTruncated: Boolean(data.resultsTruncated),
+        displayedTransactionCount: Number(data.displayedTransactionCount || 0),
         operationCount: Number(data.operationCount || (data.operations || []).length),
         totalLYD: Number(data.totalLYD || 0),
         operations: (data.operations || []).map((tx, index) => ({

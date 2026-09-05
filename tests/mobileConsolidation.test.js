@@ -23,6 +23,7 @@ jest.mock('../models/User', () => {
 
 jest.mock('../models/Employee', () => {
     const M = jest.fn();
+    M.find = jest.fn();
     M.findOne = jest.fn();
     M.findById = jest.fn();
     M.updateOne = jest.fn().mockResolvedValue({ modifiedCount: 1 });
@@ -236,6 +237,7 @@ describe('📱 Automated Tests: Mobile API Consolidation & Safety', () => {
             populate: jest.fn().mockReturnThis(),
             then: (resolve) => resolve(null)
         };
+        Employee.find.mockReturnValue({ populate: jest.fn().mockResolvedValue([]) });
         Employee.findOne.mockReturnValue(employeeQueryMock);
         Employee.findById.mockReturnValue(employeeQueryMock);
     });
@@ -265,7 +267,7 @@ describe('📱 Automated Tests: Mobile API Consolidation & Safety', () => {
             const queryObj = {
                 populate: jest.fn().mockResolvedValue(mockExecutor)
             };
-            Employee.findOne.mockReturnValue(queryObj);
+            Employee.find.mockReturnValue({ populate: jest.fn().mockResolvedValue([mockExecutor]) });
 
             const res = await request(app)
                 .post('/login')

@@ -1,0 +1,6 @@
+# Keep reviews stable across Windows and CI environments.
+* text=auto eol=lf
+
+*.bat text eol=crlf
+*.cmd text eol=crlf
+*.ps1 text eol=crlf

@@ -19,6 +19,7 @@ jest.mock('../models/User', () => {
 
 jest.mock('../models/Employee', () => {
     const M = jest.fn();
+    M.find = jest.fn();
     M.findOne = jest.fn();
     M.findById = jest.fn();
     M.updateOne = jest.fn().mockResolvedValue({ modifiedCount: 1 });
@@ -140,7 +141,7 @@ app.use(require('../routes/mobileApi'));
 describe('🔐 Contract Tests: Auth (Mobile API)', () => {
     beforeEach(() => {
         jest.clearAllMocks();
-        Employee.findOne.mockReturnValue({ populate: jest.fn().mockResolvedValue(null) });
+        Employee.find.mockReturnValue({ populate: jest.fn().mockResolvedValue([]) });
         ClientEmployee.findOne.mockResolvedValue(null);
         AgentEmployee.findOne.mockResolvedValue(null);
         User.findOne.mockResolvedValue(null);
@@ -340,7 +341,7 @@ describe('🔐 Contract Tests: Auth (Mobile API)', () => {
             }
         };
 
-        Employee.findOne.mockReturnValue({ populate: jest.fn().mockResolvedValue(mockExecutor) });
+        Employee.find.mockReturnValue({ populate: jest.fn().mockResolvedValue([mockExecutor]) });
 
         const res = await request(app)
             .post('/login')

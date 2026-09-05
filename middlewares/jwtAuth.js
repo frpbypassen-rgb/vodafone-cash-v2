@@ -19,7 +19,7 @@ const { isSecurityVerificationRequired } = require('../config/securityPolicy');
 const cleanId = (value) => value === undefined || value === null ? '' : String(value).trim();
 const allowsLegacyTenantTokens = () => (
     process.env.NODE_ENV !== 'production'
-    && String(process.env.ALLOW_LEGACY_TENANT_TOKENS || 'true').toLowerCase() === 'true'
+    && String(process.env.ALLOW_LEGACY_TENANT_TOKENS || 'false').toLowerCase() === 'true'
 );
 const tokenMatchesRequestTenant = (decodedUser, req) => {
     const requestTenantId = cleanId(req && req.tenant && req.tenant._id);

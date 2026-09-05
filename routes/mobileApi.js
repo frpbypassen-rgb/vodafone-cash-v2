@@ -1320,9 +1320,9 @@ router.post(
     authenticateJWT,
     deviceTrustMiddleware,
     mfaMiddleware,
-    requireOperationPin,
     transferLimiter,
     requireIdempotencyKey,
+    requireOperationPin,
     transferValidator,
     async (req, res) => {
         try {
@@ -3199,7 +3199,7 @@ router.post('/client/balance-transfer/lookup', authenticateJWT, lookupValidator,
 });
 
 // 💸 Client Balance Transfer Execute (Idempotent)
-router.post('/client/balance-transfer', authenticateJWT, requireOperationPin, requireIdempotencyKey, balanceTransferValidator, async (req, res) => {
+router.post('/client/balance-transfer', authenticateJWT, requireIdempotencyKey, requireOperationPin, balanceTransferValidator, async (req, res) => {
     try {
         const { userId, accountType } = req.user;
         const { targetAccountCode, amount, notes } = req.body;

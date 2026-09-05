@@ -236,6 +236,9 @@ jest.mock('../models/AgentEmployee', () => {
 });
 jest.mock('../models/Employee', () => {
     const M = jest.fn();
+    M.find = jest.fn().mockImplementation(() => ({
+        populate: jest.fn().mockResolvedValue([]),
+    }));
     M.findOne = jest.fn().mockImplementation(() => ({
         populate: jest.fn().mockResolvedValue(null),
     }));

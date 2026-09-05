@@ -16,6 +16,9 @@ jest.mock('../models/User', () => {
 
 jest.mock('../models/Employee', () => {
     const M = jest.fn();
+    M.find = jest.fn().mockReturnValue({
+        populate: jest.fn().mockResolvedValue([])
+    });
     M.findOne = jest.fn().mockReturnValue({
         populate: jest.fn().mockResolvedValue(null)
     });

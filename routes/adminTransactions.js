@@ -25,7 +25,11 @@ const {
     getExecutorSupportedTransferTypes,
     normalizeExecutorServiceKey
 } = require('../utils/executorServiceCatalog');
-const { calculateTransferCostLYD, isSourceToLydRate } = require('../utils/transferPricing');
+const {
+    repriceTransaction,
+    editTransactionAmount,
+    reassignTransactionExecutor
+} = require('../services/adminFinancialMutationService');
 const eventBus = require('../services/eventBus');
 
 // 🚀 استدعاء محرك الـ API 
@@ -655,98 +659,63 @@ router.post('/transaction/:id/edit-rate', async (req, res) => {
     try {
         const txId = req.params.id; const newRate = parseFloat(req.body.newRate);
         if (isNaN(newRate) || newRate <= 0) return res.redirect('/transactions');
-        const tx = await Transaction.findById(txId);
-        if (!tx || ['rejected', 'cancelled_by_admin'].includes(tx.status)) return res.redirect('/transactions');
-
-        const oldCost = tx.costLYD || 0;
-        const oldRate = tx.exchangeRate || (oldCost > 0 && tx.amount > 0
-            ? (isSourceToLydRate(tx.transferType) ? oldCost / tx.amount : tx.amount / oldCost)
-            : 0);
-        const newCost = calculateTransferCostLYD({
-            serviceKey: tx.transferType,
-            amount: tx.amount,
-            exchangeRate: newRate
+        const result = await repriceTransaction({
+            transactionId: txId,
+            newRate,
+            adminName: req.session.adminName || 'الإدارة'
         });
-        const diff = newCost - oldCost;
-        if (tx.companyId) { const company = await ClientCompany.findById(tx.companyId); if (company) { company.balance -= diff; await company.save(); } } 
-        else if (tx.userId) { const user = await User.findOne({ phone: tx.userId }); if (user) { user.balance -= diff; await user.save(); } }
-
-        const adminName = req.session.adminName || 'الإدارة';
-        tx.costLYD = newCost;
-        tx.exchangeRate = newRate;
-        appendAdminNote(tx, `[تم تعديل السعر من ${Number(oldRate).toFixed(3)} إلى ${newRate} بواسطة: ${adminName}]`);
-        await tx.save();
+        const tx = result.transaction;
         await logAdminFinancialChange(
             req,
             'TRANSACTION_RATE_EDITED',
             tx,
-            { amount: tx.amount, costLYD: oldCost, exchangeRate: oldRate, createdAt: tx.createdAt },
-            { amount: tx.amount, costLYD: newCost, exchangeRate: newRate, createdAt: tx.createdAt }
+            { amount: tx.amount, costLYD: result.oldCostLYD, exchangeRate: result.oldRate, createdAt: tx.createdAt },
+            { amount: tx.amount, costLYD: result.newCostLYD, exchangeRate: newRate, createdAt: tx.createdAt }
         );
         res.redirect('/transactions');
-    } catch (error) { res.redirect('/transactions'); }
+    } catch (error) {
+        if (error.code === 'FINANCIAL_TRANSACTIONS_UNAVAILABLE') {
+            return res.redirect('/transactions?routeError=financial_unavailable');
+        }
+        if (['TRANSACTION_NOT_FOUND', 'TRANSACTION_NOT_EDITABLE'].includes(error.message)) {
+            return res.redirect('/transactions?routeError=transaction_unavailable');
+        }
+        res.redirect('/transactions?routeError=update_failed');
+    }
 });
 
 router.post('/transaction/:id/edit-data', async (req, res) => {
     try {
         const txId = req.params.id; const newAmount = parseFloat(req.body.newAmount); const newDateStr = req.body.newDate;
         if (isNaN(newAmount) || newAmount <= 0 || !newDateStr) return res.redirect('/transactions');
-        const tx = await Transaction.findById(req.params.id);
-        if (!tx || ['rejected', 'cancelled_by_admin'].includes(tx.status)) return res.redirect('/transactions');
-
-        const oldAmountEGP = tx.amount;
-        const oldCostLYD = tx.costLYD || 0;
-        const oldCreatedAt = tx.createdAt;
         const newDate = new Date(newDateStr);
         if (Number.isNaN(newDate.getTime())) return res.redirect('/transactions');
-        const changedAt = new Date();
         const adminName = req.session.adminName || 'الإدارة';
-        let newCostLYD = oldCostLYD;
-
-        if (tx.status === 'deposit' || tx.status === 'deduction') {
-            const diffAmount = newAmount - oldAmountEGP; const diffDeposit = (tx.status === 'deposit') ? diffAmount : -diffAmount;
-            if (tx.userId === 'admin' && tx.executorGroupId) {
-                const newAdminNotes = appendNoteText(tx.adminNotes, `[تم تعديل (المبلغ: ${newAmount}، التاريخ: ${newDate.toLocaleString('en-GB')}) بواسطة: ${adminName}]`);
-                await Transaction.updateOne({ _id: tx._id }, { $set: { amount: newAmount, createdAt: newDate, updatedAt: changedAt, adminNotes: newAdminNotes } }, { timestamps: false });
-                await syncBotBalance(tx.executorGroupId); if (tx.managerGroupId) await syncBotBalance(tx.managerGroupId);
-            } else {
-                if (tx.companyId) { const comp = await ClientCompany.findById(tx.companyId); if (comp) { comp.balance += diffDeposit; await comp.save(); } } 
-                else if (tx.userId) { const user = await User.findOne({ phone: tx.userId }); if (user) { user.balance += diffDeposit; await user.save(); } }
-                const newAdminNotes = appendNoteText(tx.adminNotes, `[تم تعديل (المبلغ: ${newAmount}، التاريخ: ${newDate.toLocaleString('en-GB')}) بواسطة: ${adminName}]`);
-                await Transaction.updateOne({ _id: tx._id }, { $set: { amount: newAmount, createdAt: newDate, updatedAt: changedAt, adminNotes: newAdminNotes } }, { timestamps: false });
-            }
-        } else {
-            if (!Number.isFinite(Number(tx.exchangeRate)) || Number(tx.exchangeRate) <= 0) return res.redirect('/transactions');
-            newCostLYD = calculateTransferCostLYD({
-                serviceKey: tx.transferType,
-                amount: newAmount,
-                exchangeRate: tx.exchangeRate
-            });
-            const diffEGP = newAmount - oldAmountEGP; const diffLYD = newCostLYD - oldCostLYD;
-
-            if (tx.companyId) { const comp = await ClientCompany.findById(tx.companyId); if (comp) { comp.balance -= diffLYD; await comp.save(); } } 
-            else if (tx.userId) { const user = await User.findOne({ phone: tx.userId }); if (user) { user.balance -= diffLYD; await user.save(); } }
-
-            if (tx.status === 'completed' && tx.executorGroupId) {
-                const execGroup = await ExecutorGroup.findById(tx.executorGroupId); if (execGroup) { execGroup.balance -= diffEGP; await execGroup.save(); }
-                if (tx.managerGroupId) { const mgrGroup = await ExecutorGroup.findById(tx.managerGroupId); if (mgrGroup) { mgrGroup.balance -= diffEGP; await mgrGroup.save(); } }
-            }
-
-            const newAdminNotes = appendNoteText(tx.adminNotes, `[تم تعديل (المبلغ: ${newAmount}EGP، التاريخ: ${newDate.toLocaleString('en-GB')}) بواسطة: ${adminName}]`);
-            await Transaction.updateOne({ _id: tx._id }, { $set: { amount: newAmount, costLYD: newCostLYD, createdAt: newDate, updatedAt: changedAt, adminNotes: newAdminNotes } }, { timestamps: false });
-
-            // 🟢 تم إزالة إشعارات التيليجرام للتعديلات
-        }
+        const result = await editTransactionAmount({
+            transactionId: txId,
+            newAmount,
+            createdAt: newDate,
+            adminName
+        });
+        for (const groupId of result.syncGroupIds) await syncBotBalance(groupId);
         await logAdminFinancialChange(
             req,
             'TRANSACTION_DATA_EDITED',
-            tx,
-            { amount: oldAmountEGP, costLYD: oldCostLYD, createdAt: oldCreatedAt, status: tx.status },
-            { amount: newAmount, costLYD: newCostLYD, createdAt: newDate, status: tx.status },
-            { originalCreatedAt: oldCreatedAt, newCreatedAt: newDate }
+            result.transaction,
+            { amount: result.oldAmountEGP, costLYD: result.oldCostLYD, createdAt: result.oldCreatedAt, status: result.transaction.status },
+            { amount: result.newAmount, costLYD: result.newCostLYD, createdAt: newDate, status: result.transaction.status },
+            { originalCreatedAt: result.oldCreatedAt, newCreatedAt: newDate }
         );
         res.redirect('/transactions');
-    } catch (error) { res.redirect('/transactions'); }
+    } catch (error) {
+        if (error.code === 'FINANCIAL_TRANSACTIONS_UNAVAILABLE') {
+            return res.redirect('/transactions?routeError=financial_unavailable');
+        }
+        if (['TRANSACTION_NOT_FOUND', 'TRANSACTION_NOT_EDITABLE', 'INVALID_EXCHANGE_RATE'].includes(error.message)) {
+            return res.redirect('/transactions?routeError=transaction_unavailable');
+        }
+        res.redirect('/transactions?routeError=update_failed');
+    }
 });
 
 router.post('/transaction/:id/global-cancel', async (req, res) => {
@@ -792,43 +761,25 @@ router.post('/transaction/:id/change-bot', async (req, res) => {
     try {
         const txId = req.params.id; const newGroupId = req.body.newGroupId;
         if (!newGroupId) return res.redirect('/transactions');
-        const tx = await Transaction.findById(req.params.id);
-        if (!tx || tx.status !== 'completed') return res.redirect('/transactions');
-        if (tx.executorGroupId && tx.executorGroupId.toString() === newGroupId.toString()) return res.redirect('/transactions');
-        const oldExecutorGroupId = tx.executorGroupId;
-        const oldExecutorName = tx.executorName;
-
-        const newGroup = await ExecutorGroup.findById(newGroupId); let newManagerId = null;
-        if (
-            !newGroup
-            || newGroup.status !== 'active'
-            || newGroup.isManagerBot
-            || !executorSupportsTransferType(newGroup, tx.transferType)
-        ) {
-            return res.redirect('/transactions?routeError=service_mismatch');
-        }
-
-        if (tx.executorGroupId) { const oldGroup = await ExecutorGroup.findById(tx.executorGroupId); if (oldGroup) { oldGroup.balance += tx.amount; await oldGroup.save(); } }
-        if (tx.managerGroupId) { const oldManager = await ExecutorGroup.findById(tx.managerGroupId); if (oldManager) { oldManager.balance += tx.amount; await oldManager.save(); } }
-
-        if (newGroup) {
-            newGroup.balance -= tx.amount; await newGroup.save();
-            const parentGroupId = getParentGroupId(newGroup);
-            if (parentGroupId) { const newManager = await ExecutorGroup.findById(parentGroupId); if (newManager) { newManager.balance -= tx.amount; await newManager.save(); newManagerId = newManager._id; } }
-        }
-
-        tx.executorGroupId = newGroupId; tx.managerGroupId = newManagerId; tx.executorName = newGroup ? newGroup.name : 'غير محدد';
-        appendAdminNote(tx, `[تم النقل محاسبياً إلى بوت: ${newGroup ? newGroup.name : 'غير معروف'}]`);
-        await tx.save();
+        const result = await reassignTransactionExecutor({ transactionId: txId, newGroupId });
         await logAdminFinancialChange(
             req,
             'TRANSACTION_EXECUTOR_CHANGED',
-            tx,
-            { executorGroupId: oldExecutorGroupId, executorName: oldExecutorName, createdAt: tx.createdAt },
-            { executorGroupId: tx.executorGroupId, executorName: tx.executorName, createdAt: tx.createdAt }
+            result.transaction,
+            { executorGroupId: result.oldExecutorGroupId, executorName: result.oldExecutorName, createdAt: result.transaction.createdAt },
+            { executorGroupId: result.transaction.executorGroupId, executorName: result.transaction.executorName, createdAt: result.transaction.createdAt }
         );
         res.redirect('/transactions');
-    } catch (error) { res.redirect('/transactions'); }
+    } catch (error) {
+        if (error.message === 'EXECUTOR_SERVICE_MISMATCH') return res.redirect('/transactions?routeError=service_mismatch');
+        if (error.code === 'FINANCIAL_TRANSACTIONS_UNAVAILABLE') {
+            return res.redirect('/transactions?routeError=financial_unavailable');
+        }
+        if (['TRANSACTION_NOT_FOUND', 'TRANSACTION_NOT_COMPLETED', 'EXECUTOR_ALREADY_ASSIGNED'].includes(error.message)) {
+            return res.redirect('/transactions?routeError=transaction_unavailable');
+        }
+        res.redirect('/transactions?routeError=update_failed');
+    }
 });
 
 // 🟢 تحديث حالة التحقق (KYC) للعميل من قبل الإدارة

@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
 <head>
-    <script>const csrfToken = <%- JSON.stringify(typeof csrfToken !== 'undefined' ? csrfToken : '') %>;</script>
+    <script>window.csrfToken = <%- JSON.stringify(typeof csrfToken !== 'undefined' ? csrfToken : '') %>;</script>
     <%- include('../partials/wallet_hub_layout_head', {
         pageTitle: 'الحساب والكشوف',
         walletHub: true,
@@ -50,6 +50,6 @@
     <%- include('../partials/wallet_hub_hub_shell_end') %>
     <%- include('../partials/wallet_hub_layout_end', { walletHub: true, user: user, profile: profile }) %>
     <%- include('../partials/wallet_hub_bottom_nav', { activeNav: 'account' }) %>
-    <script src="/js/client-hub-account.js?v=20260905-hub2" defer></script>
+    <script src="/js/client-hub-account.js?v=20260905-hub3" defer></script>
 </body>
 </html>

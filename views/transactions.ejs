@@ -318,7 +318,13 @@
             <div class="alert alert-danger fw-bold rounded-3"><i class="fa-solid fa-triangle-exclamation me-1"></i> تعذر حذف التسوية أو سبق إلغاؤها. راجع القيد المالي ثم أعد المحاولة.</div>
         <% } %>
         <% if (query && query.routeError) { %>
-            <div class="alert alert-danger fw-bold rounded-3"><i class="fa-solid fa-route me-1"></i> لا يمكن توجيه العملية إلى هذا المنفذ لأن خدمته لا تطابق نوع العملية.</div>
+            <% const transactionErrorMessages = {
+                service_mismatch: 'لا يمكن توجيه العملية إلى هذا المنفذ لأن خدمته لا تطابق نوع العملية.',
+                financial_unavailable: 'تعذر تأكيد التعديل المالي حالياً. لم يتم حفظ أي تغيير؛ حاول لاحقاً.',
+                transaction_unavailable: 'العملية لم تعد متاحة لهذا التعديل أو أن بياناتها غير صالحة.',
+                update_failed: 'تعذر تنفيذ التعديل. راجع البيانات ثم أعد المحاولة أو تواصل مع الدعم.'
+            }; %>
+            <div class="alert alert-danger fw-bold rounded-3"><i class="fa-solid fa-triangle-exclamation me-1"></i> <%= transactionErrorMessages[query.routeError] || transactionErrorMessages.update_failed %></div>
         <% } %>
 
         <div class="mobile-summary-strip d-lg-none mb-3">

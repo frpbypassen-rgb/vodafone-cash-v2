@@ -20,6 +20,7 @@
     "seed:zayn-executor": "node scripts/seedZaynApiExecutor.js",
     "lint": "eslint . --quiet",
     "test:security": "jest tests/securityPolicy.test.js tests/otpSecurity.test.js tests/sessionSecurity.test.js tests/operationalAccess.test.js tests/tenantResolver.test.js tests/jwtExecutorStatus.test.js tests/walletService.test.js tests/reversalService.test.js tests/merchantAgentApi.test.js tests/controllers.test.js tests/financialRecordImmutability.test.js tests/logSanitizer.test.js --runInBand",
+    "check:release": "npm run lint && npm run test:security && jest tests/adminFinancialMutationService.test.js tests/mobileAuthContract.test.js tests/mobileSubAccountTransferFlow.test.js tests/mobileWebParity.test.js tests/securityControlService.test.js tests/transferFlow.test.js --runInBand",
     "test": "jest",
     "test:watch": "jest --watch"
   },
@@ -39,6 +40,7 @@
     "bcryptjs": "^3.0.3",
     "bullmq": "^5.78.0",
     "canvas": "^3.2.3",
+    "compression": "^1.8.1",
     "connect-mongo": "^6.0.0",
     "cors": "^2.8.6",
     "dotenv": "^17.4.2",

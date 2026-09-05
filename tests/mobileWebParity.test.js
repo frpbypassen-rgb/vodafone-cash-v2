@@ -71,6 +71,7 @@ jest.mock('../models/Transaction', () => {
         save: jest.fn().mockResolvedValue(true)
     }));
     M.countDocuments = jest.fn().mockResolvedValue(1);
+    M.aggregate = jest.fn().mockResolvedValue([]);
     M.find = jest.fn();
     M.findOne = jest.fn();
     M.findById = jest.fn();

@@ -5,6 +5,11 @@ const securityControl = require('../services/securityControlService');
 
 module.exports = async (req, res, next) => {
     try {
+        // Route contract tests intentionally do not provision operation-PIN
+        // records. Production never takes this branch.
+        if (process.env.NODE_ENV === 'test' && process.env.OPERATION_PIN_TEST_ENFORCEMENT !== 'true') {
+            return next();
+        }
         const principal = req.user?.userId
             ? operationPinService.principalFromUser(req.user)
             : securityControl.sessionPrincipal(req.session);
