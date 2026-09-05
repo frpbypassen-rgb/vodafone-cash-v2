@@ -2436,6 +2436,9 @@
             }
         }
 
+        const escapeDashboardHtml = (value) => String(value ?? '').replace(/[&<>"']/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[char]));
+        const safeTransactionDomId = (value) => /^[a-f\d]{24}$/i.test(String(value || '')) ? String(value) : '';
+
         function renderClientTransactionsTable(transactions) {
             window.allTransactions = transactions;
             const tbody = document.getElementById('tableBody');
@@ -2469,6 +2472,9 @@
                 // Skip deposit/deduction from sequential numbering
                 const isFinancial = tx.status !== 'deposit' && tx.status !== 'deduction';
                 const seq = isFinancial ? seqNum-- : '-';
+                const safeTxId = safeTransactionDomId(tx._id);
+                const displayTxId = escapeDashboardHtml(tx.customId || (safeTxId ? safeTxId.slice(-6) : '---'));
+                const displayNumber = escapeDashboardHtml(tx.vodafoneNumber || tx.accountNumber || '---');
                 
                 // Status pipeline
                 let statusMarkup = '';
@@ -2477,9 +2483,9 @@
                     // Check if rate was modified by executor
                     const rateModified = tx.wasAdjusted === true;
                     if (rateModified) {
-                        statusMarkup = `<span class="badge-st" style="background: rgba(245,158,11,0.1); color: #d97706; border: 1px solid rgba(245,158,11,0.3); cursor:pointer;" onclick="viewProof('${tx._id}')"><i class="fa-solid fa-check-double"></i> مكتمل (معدّل)</span>`;
+                        statusMarkup = `<span class="badge-st" style="background: rgba(245,158,11,0.1); color: #d97706; border: 1px solid rgba(245,158,11,0.3); cursor:pointer;" onclick="viewProof('${safeTxId}')"><i class="fa-solid fa-check-double"></i> مكتمل (معدّل)</span>`;
                     } else {
-                        statusMarkup = `<span class="badge-st st-done" onclick="viewProof('${tx._id}')" style="cursor:pointer;"><i class="fa-solid fa-check-circle"></i> مكتمل</span>`;
+                        statusMarkup = `<span class="badge-st st-done" onclick="viewProof('${safeTxId}')" style="cursor:pointer;"><i class="fa-solid fa-check-circle"></i> مكتمل</span>`;
                     }
                 } else if (tx.status === 'pending') {
                     statusMarkup = `<span class="badge-st st-wait"><i class="fa-solid fa-clock fa-spin"></i> قيد المعالجة</span>`;
@@ -2489,7 +2495,7 @@
                     statusMarkup = `<span class="badge-st st-accepted"><i class="fa-solid fa-gear fa-spin"></i> قيد العمل</span>`;
                 } else if (tx.status === 'deposit') {
                     statusMarkup = hasProofImage
-                        ? `<span class="badge-st st-dep" onclick="viewProof('${tx._id}')" style="cursor:pointer;"><i class="fa-solid fa-arrow-down"></i> إيداع</span>`
+                        ? `<span class="badge-st st-dep" onclick="viewProof('${safeTxId}')" style="cursor:pointer;"><i class="fa-solid fa-arrow-down"></i> إيداع</span>`
                         : `<span class="badge-st st-dep"><i class="fa-solid fa-arrow-down"></i> إيداع</span>`;
                 } else if (tx.status === 'deduction') {
                     statusMarkup = `<span class="badge-st" style="background: rgba(100,116,139,0.1); color: #64748b; border: 1px solid rgba(100,116,139,0.2);"><i class="fa-solid fa-arrow-up"></i> خصم</span>`;
@@ -2501,8 +2507,8 @@
  
                 // Transaction ID
                 let idContent = hasProofImage
-                    ? `<a class="tx-id no-print" onclick="viewProof('${tx._id}')">#${tx.customId || tx._id.toString().slice(-6)}</a>` 
-                    : `<span class="tx-id text-muted" style="border:none; cursor:default;">#${tx.customId || tx._id.toString().slice(-6)}</span>`;
+                    ? `<a class="tx-id no-print" onclick="viewProof('${safeTxId}')">#${displayTxId}</a>`
+                    : `<span class="tx-id text-muted" style="border:none; cursor:default;">#${displayTxId}</span>`;
                 
                 // Time in 12h format
                 let dateObj = new Date(tx.createdAt);
@@ -2513,7 +2519,7 @@
                 let exRateDisplay = isSubAccount ? (tx.subClientRate || tx.exchangeRate || 0).toFixed(2) : (tx.exchangeRate ? tx.exchangeRate.toFixed(2) : '-');
                 
                 // Account number
-                let numStr = tx.vodafoneNumber || tx.accountNumber || '---';
+                let numStr = displayNumber;
                 
                 // Actions
                 let actionsHtml = '';
@@ -2521,9 +2527,9 @@
                     let whatsappBtn = '';
                     // If proof images exist and completed, show WhatsApp button
                     if (tx.status === 'completed' && tx.proofImages && tx.proofImages.length > 0) {
-                        whatsappBtn = `<button class="btn btn-sm btn-success d-flex align-items-center gap-1" onclick="sendToWhatsApp('${tx._id}')" title="إرسال للعميل عبر واتساب"><i class="fa-brands fa-whatsapp"></i></button>`;
+                        whatsappBtn = `<button class="btn btn-sm btn-success d-flex align-items-center gap-1" onclick="sendToWhatsApp('${safeTxId}')" title="إرسال للعميل عبر واتساب"><i class="fa-brands fa-whatsapp"></i></button>`;
                     }
-                    let complaintBtn = `<button class="btn btn-sm btn-outline-danger d-flex align-items-center gap-1" onclick="submitComplaint('${tx._id}', '${tx.customId}')" title="تقديم شكوى"><i class="fa-solid fa-flag"></i></button>`;
+                    let complaintBtn = `<button class="btn btn-sm btn-outline-danger d-flex align-items-center gap-1" onclick="submitComplaint('${safeTxId}', '${displayTxId}')" title="تقديم شكوى"><i class="fa-solid fa-flag"></i></button>`;
                     actionsHtml = `<div class="d-flex gap-1 justify-content-center">${whatsappBtn} ${complaintBtn}</div>`;
                 }
  
