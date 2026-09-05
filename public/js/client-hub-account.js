@@ -73,17 +73,31 @@
                 body: JSON.stringify(body)
             });
             const data = await res.json();
-            if (!data.success) throw new Error(data.error || 'failed');
+            if (!res.ok || !data.success) {
+                throw new Error(data.error || `HTTP ${res.status}`);
+            }
             renderReport(data.data || {});
-        } catch (_) {
-            Swal.fire('تنبيه', 'تعذر تحميل التقرير.', 'warning');
+        } catch (err) {
+            const msg = String(err.message || '').includes('CSRF') || String(err.message || '').includes('403')
+                ? 'انتهت الجلسة أو رمز الحماية غير صالح. حدّث الصفحة ثم أعد المحاولة.'
+                : 'تعذر تحميل التقرير. تحقق من الفترة المختارة ثم أعد المحاولة.';
+            Swal.fire('تنبيه', msg, 'warning');
         } finally {
             if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fa-solid fa-search me-1"></i> عرض'; }
         }
     };
 
     window.downloadAdminReportCopy = function downloadAdminReportCopy() {
-        window.open('/client/reports/admin-copy.pdf', '_blank');
+        const params = new URLSearchParams();
+        const dateType = document.getElementById('dateType')?.value || 'month';
+        params.set('dateType', dateType);
+        if (dateType === 'day') params.set('dateValue', document.getElementById('dateValueDay')?.value || '');
+        if (dateType === 'month') params.set('dateValue', document.getElementById('dateValueMonth')?.value || '');
+        if (dateType === 'range') {
+            params.set('dateFrom', document.getElementById('dateFrom')?.value || '');
+            params.set('dateTo', document.getElementById('dateTo')?.value || '');
+        }
+        window.open(`/client/reports/admin-copy.pdf?${params.toString()}`, '_blank');
     };
 
     async function loadDeposits() {

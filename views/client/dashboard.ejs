@@ -2864,6 +2864,11 @@
         function setupMobileLayout() {
             if (window.innerWidth <= 768 && !isMobileLayoutDone) {
                 isMobileLayoutDone = true;
+
+                // Wallet Hub keeps the transfer form inside the modal on mobile.
+                if (document.body.classList.contains('wallet-hub-active')) {
+                    return;
+                }
                 
                 // Move wallet card
                 const walletCard = document.querySelector('.desktop-only-layout .wallet-card');
@@ -2929,8 +2934,12 @@
         }
 
         function openQuickTransfer() {
+            const modalEl = document.getElementById('transferModal');
+            if (document.body.classList.contains('wallet-hub-active') && modalEl) {
+                bootstrap.Modal.getOrCreateInstance(modalEl).show();
+                return;
+            }
             if (window.innerWidth >= 768) {
-                const modalEl = document.getElementById('transferModal');
                 if (modalEl) bootstrap.Modal.getOrCreateInstance(modalEl).show();
                 return;
             }
@@ -3113,15 +3122,28 @@
             if (pick === 'balance') {
                 setTimeout(() => openBalanceTransferModal(), 300);
             } else if (pick) {
-                switchMobileTab('transfers');
-                setTimeout(() => {
-                    const desktop = window.innerWidth >= 768;
-                    if (pick === 'cash') desktop ? selectTransferServiceDesktop('كاش') : selectTransferService('كاش');
-                    else if (pick === 'post') desktop ? selectEgyptPostServiceDesktop() : selectEgyptPostService();
-                    else if (pick === 'bank') desktop ? selectTransferServiceDesktop('حساب بنكي') : selectTransferService('حساب بنكي');
-                    else if (pick === 'sefa') desktop ? selectTransferServiceDesktop('سيفا النيجر') : selectTransferService('سيفا النيجر');
-                    else if (pick === 'sudan') desktop ? selectTransferServiceDesktop('بنكك السودان') : selectTransferService('بنكك السودان');
-                }, 400);
+                const openHubTransfer = () => {
+                    if (isWalletHubPage) {
+                        const modalEl = document.getElementById('transferModal');
+                        if (modalEl) bootstrap.Modal.getOrCreateInstance(modalEl).show();
+                        if (pick === 'cash') selectTransferServiceDesktop('كاش');
+                        else if (pick === 'post') selectEgyptPostServiceDesktop();
+                        else if (pick === 'bank') selectTransferServiceDesktop('حساب بنكي');
+                        else if (pick === 'sefa') selectTransferServiceDesktop('سيفا النيجر');
+                        else if (pick === 'sudan') selectTransferServiceDesktop('بنكك السودان');
+                        return;
+                    }
+                    switchMobileTab('transfers');
+                    setTimeout(() => {
+                        const desktop = window.innerWidth >= 768;
+                        if (pick === 'cash') desktop ? selectTransferServiceDesktop('كاش') : selectTransferService('كاش');
+                        else if (pick === 'post') desktop ? selectEgyptPostServiceDesktop() : selectEgyptPostService();
+                        else if (pick === 'bank') desktop ? selectTransferServiceDesktop('حساب بنكي') : selectTransferService('حساب بنكي');
+                        else if (pick === 'sefa') desktop ? selectTransferServiceDesktop('سيفا النيجر') : selectTransferService('سيفا النيجر');
+                        else if (pick === 'sudan') desktop ? selectTransferServiceDesktop('بنكك السودان') : selectTransferService('بنكك السودان');
+                    }, 400);
+                };
+                setTimeout(openHubTransfer, isWalletHubPage ? 200 : 0);
             }
 
             // Reset desktop transfer modal when closed

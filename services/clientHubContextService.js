@@ -116,7 +116,7 @@ async function buildHubRenderContext(req) {
         currentRate,
         pendingRateUpdate,
         canRequestDeposit,
-        csrfToken: req.csrfToken?.() || ''
+        csrfToken: req.session?.csrfToken || ''
     };
 }
 
