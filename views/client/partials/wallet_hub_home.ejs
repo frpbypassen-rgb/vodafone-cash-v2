@@ -34,7 +34,27 @@
     <section class="client-os-mobile-activity">
         <header><div><p>نشاطك</p><h2>آخر العمليات</h2></div><button type="button" onclick="openAllOperations()">عرض الكل <i class="fa-solid fa-arrow-left"></i></button></header>
         <div class="client-os-mobile-transactions" id="walletHubRecentList">
-            <div class="wh-empty is-skeleton"><i class="fa-solid fa-spinner fa-spin"></i><span>جارٍ تحميل العمليات…</span></div>
+            <% const hubRecent = (typeof recentTransactions !== 'undefined' && recentTransactions.length) ? recentTransactions : []; %>
+            <% if (!hubRecent.length) { %>
+            <div class="wh-empty"><i class="fa-solid fa-folder-open"></i><span>لا توجد عمليات اليوم</span></div>
+            <% } else { hubRecent.forEach((tx) => { %>
+            <article class="wh-tx-card mobile-tx-card">
+                <div class="mobile-tx-header">
+                    <span class="tx-custom-id text-muted">#<%= tx.customId || (tx._id ? String(tx._id).slice(-6) : '—') %></span>
+                    <span class="badge-st <%= tx.status === 'completed' ? 'st-done' : (tx.status === 'deposit' ? 'st-dep' : 'st-wait') %>">
+                        <i class="fa-solid <%= tx.status === 'completed' ? 'fa-check-circle' : (tx.status === 'deposit' ? 'fa-arrow-down' : 'fa-clock') %>"></i>
+                        <%= tx.status === 'completed' ? 'مكتمل' : (tx.status === 'deposit' ? 'إيداع' : 'قيد المعالجة') %>
+                    </span>
+                </div>
+                <div class="mobile-tx-body">
+                    <div class="tx-amount-section">
+                        <div class="tx-amount-wrapper"><span class="tx-amount"><%= Number(tx.amount || 0).toFixed(2) %></span><span class="tx-currency">EGP</span></div>
+                        <div class="tx-cost-wrapper text-danger" style="font-size:0.82rem;"><span class="fw-bold"><%= Number(tx.costLYD || tx.subAccountCostLYD || 0).toFixed(2) %></span><span class="tx-currency">LYD</span></div>
+                    </div>
+                    <div class="text-start" style="font-size:0.85rem;"><span class="tx-phone"><%= tx.vodafoneNumber || tx.accountNumber || '---' %></span></div>
+                </div>
+            </article>
+            <% }); } %>
         </div>
         <div class="mobile-ops-list d-none" id="mobileTransactionsListBrief" aria-hidden="true"></div>
     </section>

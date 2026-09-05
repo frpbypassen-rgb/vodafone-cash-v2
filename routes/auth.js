@@ -429,7 +429,7 @@ router.get('/security/sessions', requireWebMfaContext, async (req, res) => {
     const principal = webSecurityPrincipal(req);
     const returnUrl = req.session.isExecutorLoggedIn
         ? '/executor-portal/settings'
-        : '/client/dashboard?tab=account';
+        : '/client/settings?section=security';
     return res.render('account_security_sessions', {
         principalName: principal?.principalName || 'الحساب',
         returnUrl

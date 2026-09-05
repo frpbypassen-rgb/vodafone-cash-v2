@@ -135,7 +135,7 @@ exports.getDashboard = async (req, res) => {
 
         // The dashboard is a live workspace, not an archive export.  Keeping a bounded
         // window prevents a long date-range or an old account from blocking page render.
-        const dashboardTransactionLimit = 200;
+        const dashboardTransactionLimit = isWalletHubUser ? 40 : 200;
         const transactions = await Transaction.find(filter).sort({ createdAt: -1 }).limit(dashboardTransactionLimit + 1).lean();
 
         let totals = { transfersEGP: 0, transfersLYD: 0, depositsEGP: 0 };
@@ -193,28 +193,31 @@ exports.getDashboard = async (req, res) => {
             currentRate = serviceRates.vodafone;
         }
 
-        const categoriesMeta = await StoreCategory.find({});
-        const productsMeta = await StoreProduct.find({});
+        let storeCatalog = [];
+        if (!isWalletHubUser) {
+            const categoriesMeta = await StoreCategory.find({});
+            const productsMeta = await StoreProduct.find({});
 
-        const availableCards = await Card.aggregate([
-            { $match: { sold: false } },
-            { $group: { _id: { category: "$category", name: "$name" }, price_1: { $first: "$price_1" }, price_2: { $first: "$price_2" }, price_3: { $first: "$price_3" }, count: { $sum: 1 } }},
-            { $group: { _id: "$_id.category", products: { $push: { name: "$_id.name", price_1: "$price_1", price_2: "$price_2", price_3: "$price_3", count: "$count" } } }}
-        ]);
+            const availableCards = await Card.aggregate([
+                { $match: { sold: false } },
+                { $group: { _id: { category: "$category", name: "$name" }, price_1: { $first: "$price_1" }, price_2: { $first: "$price_2" }, price_3: { $first: "$price_3" }, count: { $sum: 1 } }},
+                { $group: { _id: "$_id.category", products: { $push: { name: "$_id.name", price_1: "$price_1", price_2: "$price_2", price_3: "$price_3", count: "$count" } } }}
+            ]);
 
-        const storeCatalog = availableCards.map((cat, index) => {
-            const catMeta = categoriesMeta.find(c => c.name === cat._id) || {};
-            return {
-                id: 'cat_' + index, categoryName: cat._id, icon: catMeta.icon || 'fa-store', color: catMeta.color || '#198754', image: catMeta.image || '',
-                products: cat.products.map(p => {
-                    let finalPrice = p.price_1;
-                    if (clientTier === 2) finalPrice = p.price_2;
-                    if (clientTier === 3) finalPrice = p.price_3;
-                    const pMeta = productsMeta.find(pm => pm.name === p.name && pm.category === cat._id) || {};
-                    return { name: p.name, price: finalPrice, count: p.count, image: pMeta.image || '' };
-                })
-            };
-        });
+            storeCatalog = availableCards.map((cat, index) => {
+                const catMeta = categoriesMeta.find(c => c.name === cat._id) || {};
+                return {
+                    id: 'cat_' + index, categoryName: cat._id, icon: catMeta.icon || 'fa-store', color: catMeta.color || '#198754', image: catMeta.image || '',
+                    products: cat.products.map(p => {
+                        let finalPrice = p.price_1;
+                        if (clientTier === 2) finalPrice = p.price_2;
+                        if (clientTier === 3) finalPrice = p.price_3;
+                        const pMeta = productsMeta.find(pm => pm.name === p.name && pm.category === cat._id) || {};
+                        return { name: p.name, price: finalPrice, count: p.count, image: pMeta.image || '' };
+                    })
+                };
+            });
+        }
 
         const currentHour = new Date().getHours();
         const isSystemOpen = currentHour >= 8 && currentHour < 23; // From 8 AM to 11 PM

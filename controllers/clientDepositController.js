@@ -1,6 +1,7 @@
 'use strict';
 
 const User = require('../models/User');
+const { loadWalletHubAccount } = require('../services/clientHubContextService');
 const clientDepositRequestService = require('../services/clientDepositRequestService');
 
 async function loadDirectClient(req) {
@@ -14,6 +15,11 @@ exports.getDepositsPage = async (req, res) => {
     try {
         if (req.session.accountType === 'company') {
             return res.redirect('/client/company/deposits');
+        }
+        const hub = await loadWalletHubAccount(req);
+        if (hub) {
+            const tab = hub.isSubAccount ? 'operations' : 'deposits-new';
+            return res.redirect(`/client/account?tab=${tab}`);
         }
         const user = await loadDirectClient(req);
         if (!user) return res.redirect('/client/dashboard?portalError=forbidden');

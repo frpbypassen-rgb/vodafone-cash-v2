@@ -732,6 +732,13 @@
             <i class="fa-solid fa-circle-check fs-4"></i>
             <div><strong>تم تفعيل السعر الجديد</strong><small id="rateChangeActivatedDetails" class="d-block mt-1" style="white-space: pre-line;"></small></div>
         </div>
+        <% if (typeof walletHub !== 'undefined' && walletHub && query && query.portalError) { %>
+        <div class="alert alert-warning shadow-sm mx-3 mt-3 client-hub-portal-alert" role="alert">
+            <i class="fa-solid fa-circle-exclamation ms-1"></i>
+            <% if (query.portalError === 'forbidden') { %>لا تملك صلاحية الوصول لتلك الصفحة. استخدم القائمة الجانبية للتنقل بين أقسام البوابة.<% } else { %>تعذر فتح الصفحة المطلوبة.<% } %>
+            <button type="button" class="btn-close" aria-label="إغلاق" onclick="window.history.replaceState(null,'',window.location.pathname)"></button>
+        </div>
+        <% } %>
         <% if (typeof walletHub !== 'undefined' && walletHub) { %>
         <!-- Wallet Hub — desktop workspace (full layout) -->
         <div class="desktop-only-layout d-none d-md-block">
@@ -2800,10 +2807,14 @@
         }
 
         const txDataElement = document.getElementById('transactionsData');
+        let clientDashboardHasInitialTx = false;
         if (txDataElement && txDataElement.textContent) {
             try {
                 const initialData = JSON.parse(txDataElement.textContent);
-                renderClientTransactionsTable(initialData);
+                if (Array.isArray(initialData) && initialData.length) {
+                    renderClientTransactionsTable(initialData);
+                    clientDashboardHasInitialTx = true;
+                }
             } catch(e){}
         }
 
@@ -2813,7 +2824,11 @@
             fetchClientNotifications();
         };
 
-        refreshClientDashboard();
+        if (clientDashboardHasInitialTx) {
+            fetchClientNotifications();
+        } else {
+            refreshClientDashboard();
+        }
         // The dashboard already refreshes on first view and when the tab gains
         // focus. Keep the network fallback deliberately light for large teams.
         setInterval(refreshClientDashboard, 45000);
@@ -2935,6 +2950,10 @@
         }
 
         function openAllOperations() {
+            if (document.body.classList.contains('wallet-hub-active')) {
+                window.location.assign('/client/account?tab=operations');
+                return;
+            }
             openMobileOperations();
         }
 
@@ -3082,10 +3101,11 @@
             
             // Check URL search params for tab
             const urlParams = new URLSearchParams(window.location.search);
-            const initialTab = urlParams.get('tab') || 'account';
+            const isWalletHubPage = document.body.classList.contains('wallet-hub-active');
+            const initialTab = urlParams.get('tab') || (isWalletHubPage ? 'home' : 'account');
             if (initialTab === 'more') {
                 openWalletHubMore();
-            } else if (['account', 'transfers', 'operations', 'profile', 'rates'].includes(initialTab)) {
+            } else if (!isWalletHubPage && ['account', 'transfers', 'operations', 'profile', 'rates'].includes(initialTab)) {
                 switchMobileTab(initialTab);
             }
 
