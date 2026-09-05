@@ -922,7 +922,7 @@
                                     <td dir="ltr" class="fw-bold text-end">#${tx.customId || tx._id.toString().slice(-6)}</td>
                                     <td><span class="badge-st ${isDeduction ? 'st-fail' : 'st-done'}">${typeLabel}</span></td>
                                     <td class="fw-bold ${amountClass}" dir="ltr">${signedAmount.toFixed(2)} <small class="text-muted">LYD</small></td>
-                            <td class="text-muted small">${cleanTxNotes(tx) || '---'}</td>
+                            <td class="text-muted small">${escapeReportHtml(cleanTxNotes(tx) || '---')}</td>
                                     <td>
                                         <div dir="ltr" style="font-size:0.85em;" class="text-end">${dateStr}</div>
                                         <div dir="ltr" style="font-size:0.75rem; color: var(--text-muted);" class="text-end">${timeStr}</div>
