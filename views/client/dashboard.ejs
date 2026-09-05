@@ -2553,15 +2553,15 @@
                     if (isFinancial) {
                         let whatsappBtn = '';
                         if (tx.status === 'completed' && tx.proofImages && tx.proofImages.length > 0) {
-                            whatsappBtn = `<button class="btn btn-sm btn-success d-flex align-items-center gap-1 py-1 px-2 fw-bold" onclick="sendToWhatsApp('${tx._id}')"><i class="fa-brands fa-whatsapp"></i></button>`;
+                            whatsappBtn = `<button class="btn btn-sm btn-success d-flex align-items-center gap-1 py-1 px-2 fw-bold" onclick="sendToWhatsApp('${safeTxId}')"><i class="fa-brands fa-whatsapp"></i></button>`;
                         }
-                        let complaintBtn = `<button class="btn btn-sm btn-outline-danger d-flex align-items-center gap-1 py-1 px-2 fw-bold" onclick="submitComplaint('${tx._id}', '${tx.customId}')"><i class="fa-solid fa-flag"></i></button>`;
+                        let complaintBtn = `<button class="btn btn-sm btn-outline-danger d-flex align-items-center gap-1 py-1 px-2 fw-bold" onclick="submitComplaint('${safeTxId}', '${displayTxId}')"><i class="fa-solid fa-flag"></i></button>`;
                         mobileActionsHtml = `<div class="mobile-tx-actions">${whatsappBtn} ${complaintBtn}</div>`;
                     }
 
                     let mobileIdContent = hasProofImage
-                        ? `<a class="tx-custom-id text-decoration-none" onclick="viewProof('${tx._id}')" style="cursor:pointer;">#${tx.customId || tx._id.toString().slice(-6)}</a>` 
-                        : `<span class="tx-custom-id text-muted">#${tx.customId || tx._id.toString().slice(-6)}</span>`;
+                        ? `<a class="tx-custom-id text-decoration-none" onclick="viewProof('${safeTxId}')" style="cursor:pointer;">#${displayTxId}</a>`
+                        : `<span class="tx-custom-id text-muted">#${displayTxId}</span>`;
 
                     mobileList.innerHTML += `
                     <div class="mobile-tx-card">
@@ -2597,8 +2597,8 @@
                 if (mobileListBrief && briefCount < 3) {
                     briefCount++;
                     let mobileIdContent = hasProofImage
-                        ? `<a class="tx-custom-id text-decoration-none" onclick="viewProof('${tx._id}')" style="cursor:pointer;">#${tx.customId || tx._id.toString().slice(-6)}</a>` 
-                        : `<span class="tx-custom-id text-muted">#${tx.customId || tx._id.toString().slice(-6)}</span>`;
+                        ? `<a class="tx-custom-id text-decoration-none" onclick="viewProof('${safeTxId}')" style="cursor:pointer;">#${displayTxId}</a>`
+                        : `<span class="tx-custom-id text-muted">#${displayTxId}</span>`;
 
                     mobileListBrief.innerHTML += `
                     <div class="mobile-tx-card" style="padding: 12px 14px; border-radius: 14px; gap: 8px;">
@@ -2639,16 +2639,17 @@
             let briefHtml = '';
             recent.forEach((tx) => {
                 const hasProof = !!(tx.proofImage || (tx.proofImages && tx.proofImages.length));
-                const txId = tx.customId || (tx._id ? String(tx._id).slice(-6) : '—');
+                const safeTxId = safeTransactionDomId(tx._id);
+                const txId = escapeDashboardHtml(tx.customId || (safeTxId ? safeTxId.slice(-6) : '—'));
                 const costVal = isSubAccount ? (tx.subAccountCostLYD || tx.costLYD || 0) : (tx.costLYD || 0);
-                const numStr = tx.vodafoneNumber || tx.accountNumber || '---';
+                const numStr = escapeDashboardHtml(tx.vodafoneNumber || tx.accountNumber || '---');
                 let statusClass = 'st-wait', statusLabel = 'قيد المعالجة', statusIcon = 'fa-clock';
                 if (tx.status === 'completed') { statusClass = 'st-done'; statusLabel = 'مكتمل'; statusIcon = 'fa-check-circle'; }
                 else if (tx.status === 'accepted') { statusClass = 'st-accepted'; statusLabel = 'قيد العمل'; statusIcon = 'fa-gear fa-spin'; }
                 else if (tx.status === 'deposit') { statusClass = 'st-dep'; statusLabel = 'إيداع'; statusIcon = 'fa-arrow-down'; }
                 else if (tx.status === 'rejected' || tx.status === 'cancelled_by_admin') { statusClass = 'st-fail'; statusLabel = 'ملغي'; statusIcon = 'fa-ban'; }
                 const idHtml = hasProof
-                    ? `<a class="tx-custom-id text-decoration-none" onclick="viewProof('${tx._id}')" style="cursor:pointer;">#${txId}</a>`
+                    ? `<a class="tx-custom-id text-decoration-none" onclick="viewProof('${safeTxId}')" style="cursor:pointer;">#${txId}</a>`
                     : `<span class="tx-custom-id text-muted">#${txId}</span>`;
                 briefHtml += `<article class="wh-tx-card mobile-tx-card"><div class="mobile-tx-header">${idHtml}<span class="badge-st ${statusClass}"><i class="fa-solid ${statusIcon}"></i> ${statusLabel}</span></div><div class="mobile-tx-body"><div class="tx-amount-section"><div class="tx-amount-wrapper"><span class="tx-amount">${(tx.amount || 0).toFixed(2)}</span><span class="tx-currency">EGP</span></div><div class="tx-cost-wrapper text-danger" style="font-size:0.82rem;"><span class="fw-bold">${Number(costVal).toFixed(2)}</span><span class="tx-currency">LYD</span></div></div><div class="text-start" style="font-size:0.85rem;"><span class="tx-phone">${numStr}</span></div></div></article>`;
             });
