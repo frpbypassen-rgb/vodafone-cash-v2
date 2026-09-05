@@ -1,152 +1,139 @@
-<%#
-  Desktop workspace for individual clients — distinct from mobile Wallet Hub
-  Expects: user, profile, todayStats, isSystemOpen, serviceRates, currentRate, search, targetDate, isSubAccount
-%>
-<div class="nile-desktop-workspace">
-    <aside class="nile-desktop-rail" aria-label="القائمة الجانبية">
-        <div class="nile-rail-user">
-            <div class="nile-rail-avatar"><i class="fa-solid fa-user"></i></div>
-            <div>
-                <strong><%= user.name %></strong>
-                <small dir="ltr" class="mono-num"><%= user.canViewBalance ? Number(user.balance || 0).toFixed(2) : '***' %> LYD</small>
-            </div>
+<%# Ahram Client OS — desktop command centre.  Keep dynamic IDs used by dashboard.js. %>
+<div class="client-os-shell">
+    <aside class="client-os-sidebar" aria-label="التنقل الرئيسي">
+        <a class="client-os-mark" href="/client/dashboard" aria-label="مركز القيادة">
+            <span class="client-os-mark-icon"><i class="fa-solid fa-gem"></i></span>
+            <span><b>AHRAM</b><small>CLIENT OS</small></span>
+        </a>
+
+        <div class="client-os-account-mini">
+            <span class="client-os-avatar"><i class="fa-solid fa-user"></i></span>
+            <span><strong><%= user.name %></strong><small><%= user.role === 'accountant' ? 'حسابات' : 'حساب عميل' %></small></span>
         </div>
-        <nav class="nile-rail-nav">
-            <span class="client-os-nav-label">مركز القيادة</span>
-            <a href="/client/dashboard" class="nile-rail-link active"><i class="fa-solid fa-house"></i><span>الرئيسية</span></a>
+
+        <nav class="client-os-navigation">
+            <span class="client-os-nav-title">مساحة العمل</span>
+            <a href="/client/dashboard" class="client-os-nav-link is-active"><i class="fa-solid fa-grid-2"></i><span>مركز القيادة</span></a>
             <% if (user.role !== 'accountant') { %>
-            <span class="client-os-nav-label">التشغيل</span>
-            <button type="button" class="nile-rail-link border-0 bg-transparent w-100 text-start" data-bs-toggle="modal" data-bs-target="#transferModal"><i class="fa-solid fa-money-bill-transfer"></i><span>تحويل مالي</span></button>
-            <button type="button" class="nile-rail-link border-0 bg-transparent w-100 text-start" onclick="openBalanceTransferModal()"><i class="fa-solid fa-wallet"></i><span>تحويل رصيد</span></button>
+                <button type="button" class="client-os-nav-link" data-bs-toggle="modal" data-bs-target="#transferModal"><i class="fa-solid fa-arrow-right-arrow-left"></i><span>تحويل مالي</span><kbd>+</kbd></button>
+                <button type="button" class="client-os-nav-link" onclick="openBalanceTransferModal()"><i class="fa-solid fa-wallet"></i><span>تحويل رصيد</span></button>
             <% } %>
-            <span class="client-os-nav-label">الرقابة المالية</span>
-            <a href="/client/reports" class="nile-rail-link"><i class="fa-solid fa-chart-pie"></i><span>التقارير</span></a>
-            <span class="client-os-nav-label">الحساب</span>
-            <a href="/client/support" class="nile-rail-link"><i class="fa-solid fa-headset"></i><span>الدعم</span></a>
+
+            <span class="client-os-nav-title">المتابعة</span>
+            <a href="/client/reports" class="client-os-nav-link"><i class="fa-solid fa-chart-line"></i><span>التقارير وكشف الحساب</span></a>
             <% if (user.role === 'agent') { %>
-            <a href="/client/sub-accounts" class="nile-rail-link"><i class="fa-solid fa-users-viewfinder"></i><span>نقاط البيع</span></a>
+                <a href="/client/sub-accounts" class="client-os-nav-link"><i class="fa-solid fa-shop"></i><span>نقاط البيع</span></a>
             <% } %>
-            <button type="button" class="nile-rail-link border-0 bg-transparent w-100 text-start" onclick="openClientSecurityPanel()"><i class="fa-solid fa-shield-halved"></i><span>الأمان</span></button>
+
+            <span class="client-os-nav-title">المساعدة والحماية</span>
+            <a href="/client/support" class="client-os-nav-link"><i class="fa-solid fa-headset"></i><span>مركز الدعم</span></a>
+            <button type="button" class="client-os-nav-link" onclick="openClientSecurityPanel()"><i class="fa-solid fa-shield-halved"></i><span>الأمان</span></button>
         </nav>
+
+        <div class="client-os-sidebar-footer">
+            <span class="client-os-live-dot <%= isSystemOpen ? '' : 'is-off' %>"></span>
+            <span><b><%= isSystemOpen ? 'الخدمات متاحة' : 'الخدمات متوقفة' %></b><small>حالة النظام الآن</small></span>
+        </div>
     </aside>
 
-    <main class="nile-desktop-main">
-        <header class="client-os-command-bar">
+    <main class="client-os-main">
+        <header class="client-os-topbar">
             <div>
-                <span class="client-os-kicker">مركز القيادة</span>
-                <h1>مرحباً، <%= user.name %></h1>
-                <p>تابع رصيدك وعملياتك اليوم من مكان واحد.</p>
+                <p class="client-os-eyebrow"><i class="fa-solid fa-sparkles"></i> مركز القيادة</p>
+                <h1>صباح الخير، <%= user.name %></h1>
+                <p class="client-os-subtitle">هذه نظرة سريعة وآمنة على حسابك وحركة اليوم.</p>
             </div>
-            <div class="client-os-command-actions">
-                <span class="client-os-system-state <%= isSystemOpen ? 'is-open' : 'is-closed' %>"><i class="fa-solid <%= isSystemOpen ? 'fa-circle-check' : 'fa-lock' %>"></i><%= isSystemOpen ? 'النظام متاح' : 'النظام مغلق' %></span>
-                <% if (user.role !== 'accountant') { %><button type="button" class="client-os-primary-action" data-bs-toggle="modal" data-bs-target="#transferModal"><i class="fa-solid fa-plus"></i> عملية جديدة</button><% } %>
+            <div class="client-os-topbar-actions">
+                <span class="client-os-status <%= isSystemOpen ? 'is-open' : 'is-closed' %>"><i class="fa-solid <%= isSystemOpen ? 'fa-circle-check' : 'fa-circle-exclamation' %>"></i><%= isSystemOpen ? 'النظام يعمل' : 'النظام مغلق' %></span>
+                <% if (user.role !== 'accountant') { %>
+                    <button type="button" class="client-os-create" data-bs-toggle="modal" data-bs-target="#transferModal"><i class="fa-solid fa-plus"></i><span>عملية جديدة</span></button>
+                <% } %>
             </div>
         </header>
-        <div class="nile-desktop-hero">
-            <div class="wallet-wrapper nile-desktop-wallet">
-                <div class="wallet-card nile-wallet-card">
-                    <div>
-                        <div class="wallet-label">الرصيد المتاح</div>
-                        <h2 class="wallet-balance" dir="ltr"><%= user.canViewBalance ? Number(user.balance || 0).toFixed(2) : '***' %> <span>LYD</span></h2>
-                    </div>
-                    <div class="wallet-footer">
-                        <div class="wallet-name"><%= user.name %></div>
-                        <div class="wallet-logo"><i class="fa-solid fa-gem"></i></div>
-                    </div>
+
+        <section class="client-os-overview" aria-label="ملخص الحساب">
+            <article class="client-os-balance-panel">
+                <div class="client-os-panel-top"><span>الرصيد المتاح</span><i class="fa-solid fa-eye"></i></div>
+                <div class="client-os-balance-value" dir="ltr"><%= user.canViewBalance ? Number(user.balance || 0).toFixed(2) : '••••••' %> <small>LYD</small></div>
+                <div class="client-os-balance-footer">
+                    <span><i class="fa-solid fa-shield-heart"></i> رصيد محمي</span>
+                    <button type="button" onclick="openClientSecurityPanel()">إعدادات الحماية <i class="fa-solid fa-arrow-left"></i></button>
                 </div>
-            </div>
-            <div class="nile-desktop-stats">
-                <article class="wh-stat">
-                    <span class="wh-stat-label"><i class="fa-solid fa-list-ol"></i> عمليات اليوم</span>
-                    <strong class="wh-stat-value mono-num" id="todayTxCount"><%= (todayStats && todayStats.count) || 0 %></strong>
-                </article>
-                <article class="wh-stat wh-stat--accent">
-                    <span class="wh-stat-label"><i class="fa-solid fa-coins"></i> إجمالي EGP</span>
-                    <strong class="wh-stat-value mono-num" id="todayTotalEGP"><%= ((todayStats && todayStats.totalEGP) || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) %> <small>EGP</small></strong>
-                </article>
-                <article class="wh-stat">
-                    <span class="wh-stat-label"><i class="fa-solid fa-sack-dollar"></i> إجمالي LYD</span>
-                    <strong class="wh-stat-value mono-num" id="todayTotalLYD"><%= ((todayStats && todayStats.totalLYD) || 0).toFixed(2) %> <small>LYD</small></strong>
-                </article>
-            </div>
-        </div>
+            </article>
 
-        <div class="client-os-workflow-hint">
-            <span><i class="fa-solid fa-shield-halved"></i> بياناتك المالية محمية وتُعرض حسب صلاحيات الحساب.</span>
-            <a href="/client/reports">فتح كشف الحساب <i class="fa-solid fa-arrow-left"></i></a>
-        </div>
+            <div class="client-os-kpis">
+                <article class="client-os-kpi">
+                    <span class="client-os-kpi-icon blue"><i class="fa-solid fa-list-check"></i></span>
+                    <div><small>عمليات اليوم</small><strong class="mono-num" id="todayTxCount"><%= (todayStats && todayStats.count) || 0 %></strong><em>حتى الآن</em></div>
+                </article>
+                <article class="client-os-kpi">
+                    <span class="client-os-kpi-icon gold"><i class="fa-solid fa-coins"></i></span>
+                    <div><small>إجمالي التحويلات</small><strong class="mono-num" id="todayTotalEGP"><%= ((todayStats && todayStats.totalEGP) || 0).toLocaleString('en-US', { maximumFractionDigits: 2 }) %> <b>EGP</b></strong><em>قيمة اليوم</em></div>
+                </article>
+                <article class="client-os-kpi">
+                    <span class="client-os-kpi-icon mint"><i class="fa-solid fa-scale-balanced"></i></span>
+                    <div><small>التكلفة بالعملة المحلية</small><strong class="mono-num" id="todayTotalLYD"><%= ((todayStats && todayStats.totalLYD) || 0).toFixed(2) %> <b>LYD</b></strong><em>قيمة اليوم</em></div>
+                </article>
+            </div>
+        </section>
 
-        <% if (user.role !== 'accountant') { %>
-        <div class="nile-desktop-actions">
-            <button type="button" class="nile-quick-btn nile-quick-btn--transfer border-0" data-bs-toggle="modal" data-bs-target="#transferModal">
-                <span class="nile-quick-icon"><i class="fa-solid fa-money-bill-transfer"></i></span><span>تحويل مالي</span>
+        <section class="client-os-workbench" aria-label="أدوات العمل">
+            <% if (user.role !== 'accountant') { %>
+            <button type="button" class="client-os-workbench-action is-primary" data-bs-toggle="modal" data-bs-target="#transferModal">
+                <span><i class="fa-solid fa-paper-plane"></i></span><div><strong>ابدأ تحويلاً</strong><small>أنشئ عملية مالية جديدة</small></div><i class="fa-solid fa-arrow-left"></i>
             </button>
-            <button type="button" class="nile-quick-btn nile-quick-btn--recharge border-0" onclick="openBalanceTransferModal()">
-                <span class="nile-quick-icon"><i class="fa-solid fa-wallet"></i></span><span>تحويل رصيد</span>
+            <button type="button" class="client-os-workbench-action" onclick="openBalanceTransferModal()">
+                <span><i class="fa-solid fa-wallet"></i></span><div><strong>إدارة الرصيد</strong><small>تحويل الرصيد المتاح</small></div><i class="fa-solid fa-arrow-left"></i>
             </button>
-            <a href="/client/reports" class="nile-quick-btn nile-quick-btn--reports"><span class="nile-quick-icon"><i class="fa-solid fa-chart-pie"></i></span><span>التقارير</span></a>
-            <a href="/client/support" class="nile-quick-btn nile-quick-btn--support"><span class="nile-quick-icon"><i class="fa-solid fa-headset"></i></span><span>الدعم</span></a>
-        </div>
-        <% } %>
-
-        <div class="ledger-section nile-desktop-ledger">
-            <div class="ledger-header">
-                <h3 class="ledger-title"><i class="fa-solid fa-list-check me-2 text-primary"></i> سجل عمليات اليوم <span class="spinner-grow spinner-grow-sm text-success ms-2" style="vertical-align: middle;"></span></h3>
-                <form method="GET" action="/client/dashboard" class="filter-box">
-                    <input type="text" name="search" class="filter-input" placeholder="بحث برقم أو ملاحظة..." value="<%= typeof search !== 'undefined' ? search : '' %>">
-                    <input type="date" name="date" class="filter-input" value="<%= typeof targetDate !== 'undefined' ? targetDate : '' %>">
-                    <button type="submit" class="filter-btn"><i class="fa-solid fa-filter"></i> عرض</button>
-                    <button type="button" onclick="window.print()" class="filter-btn" style="background: var(--nile-muted);"><i class="fa-solid fa-print"></i></button>
-                </form>
-            </div>
-            <% if (typeof transactionsTruncated !== 'undefined' && transactionsTruncated) { %>
-                <div class="alert alert-info py-2 px-3 mb-3 small"><i class="fa-solid fa-circle-info ms-1"></i> تعرض الصفحة أحدث 200 عملية للحفاظ على سرعة البوابة. استخدم البحث أو التاريخ لتضييق النتائج.</div>
             <% } %>
-            <div class="table-responsive">
-                <table class="table-custom" id="transactionsTable">
-                    <thead>
-                        <tr>
-                            <th>#</th>
-                            <th>رقم العملية</th>
-                            <th>المبلغ (EGP)</th>
-                            <th>التكلفة / السعر</th>
-                            <th>رقم الحساب</th>
-                            <th>الوقت</th>
-                            <th>الحالة</th>
-                            <th>الإجراءات</th>
-                        </tr>
-                    </thead>
+            <a href="/client/reports" class="client-os-workbench-action">
+                <span><i class="fa-solid fa-file-invoice"></i></span><div><strong>كشف الحساب</strong><small>ابحث وحمّل تقريرك</small></div><i class="fa-solid fa-arrow-left"></i>
+            </a>
+            <a href="/client/support" class="client-os-workbench-action">
+                <span><i class="fa-solid fa-headset"></i></span><div><strong>تحتاج مساعدة؟</strong><small>تواصل بأمان مع الدعم</small></div><i class="fa-solid fa-arrow-left"></i>
+            </a>
+        </section>
+
+        <section class="client-os-activity-grid">
+            <article class="client-os-activity-card">
+                <div class="client-os-section-heading"><div><p>متابعة سريعة</p><h2>حالة الحساب</h2></div><i class="fa-solid fa-shield-halved"></i></div>
+                <div class="client-os-account-state">
+                    <span class="client-os-state-orb <%= isSystemOpen ? 'open' : 'closed' %>"><i class="fa-solid <%= isSystemOpen ? 'fa-check' : 'fa-lock' %>"></i></span>
+                    <div><strong><%= isSystemOpen ? 'جاهز لتنفيذ العمليات' : 'بانتظار عودة النظام' %></strong><small><%= isSystemOpen ? 'يمكنك بدء عملية جديدة في أي وقت.' : 'ستتوفر الخدمات فور فتح النظام.' %></small></div>
+                </div>
+                <a href="/client/reports" class="client-os-text-link">عرض التقرير المالي <i class="fa-solid fa-arrow-left"></i></a>
+            </article>
+
+            <article class="client-os-rates-card" id="ratesCardContainer">
+                <div class="client-os-section-heading"><div><p>أسعار مباشرة</p><h2>سوق التحويل</h2></div><i class="fa-solid fa-arrow-trend-up"></i></div>
+                <div class="client-os-rate-strip">
+                    <div><span>كاش</span><strong class="mono-num" id="liveRateCash"><%= (serviceRates && serviceRates.vodafone ? serviceRates.vodafone : currentRate).toFixed(2) %></strong></div>
+                    <div><span>بريد بطاقة</span><strong class="mono-num" id="liveRatePostCard"><%= (serviceRates && serviceRates.post_card ? serviceRates.post_card : (currentRate - 0.15)).toFixed(2) %></strong></div>
+                    <div><span>بريد حساب</span><strong class="mono-num" id="liveRatePostAcc"><%= (serviceRates && serviceRates.post_account ? serviceRates.post_account : (currentRate - 0.05)).toFixed(2) %></strong></div>
+                    <div><span>حساب بنكي</span><strong class="mono-num" id="liveRateBank"><%= (serviceRates && serviceRates.bank_account ? serviceRates.bank_account : (currentRate - 0.10)).toFixed(2) %></strong></div>
+                    <div class="d-none"><strong id="liveRateNiger"><%= (serviceRates && serviceRates.sefa_niger ? serviceRates.sefa_niger : (currentRate + 0.1)).toFixed(2) %></strong><strong id="liveRateSudan"><%= (serviceRates && serviceRates.bankak_sudan ? serviceRates.bankak_sudan : (currentRate + 0.2)).toFixed(2) %></strong></div>
+                </div>
+            </article>
+        </section>
+
+        <section class="client-os-ledger">
+            <header class="client-os-ledger-header">
+                <div><p>آخر النشاط</p><h2>سجل العمليات</h2><span>راجع التفاصيل أو الإيصال من العملية نفسها.</span></div>
+                <form method="GET" action="/client/dashboard" class="client-os-search">
+                    <label class="visually-hidden" for="client-os-search-input">البحث في العمليات</label>
+                    <i class="fa-solid fa-magnifying-glass"></i>
+                    <input id="client-os-search-input" type="text" name="search" placeholder="رقم العملية أو الهاتف أو ملاحظة" value="<%= typeof search !== 'undefined' ? search : '' %>">
+                    <input type="date" name="date" value="<%= typeof targetDate !== 'undefined' ? targetDate : '' %>" aria-label="تاريخ العمليات">
+                    <button type="submit">بحث</button>
+                </form>
+            </header>
+            <% if (typeof transactionsTruncated !== 'undefined' && transactionsTruncated) { %><div class="client-os-info"><i class="fa-solid fa-circle-info"></i> نعرض أحدث 200 عملية للحفاظ على سرعة البوابة. استخدم البحث أو التاريخ لتضييق النتائج.</div><% } %>
+            <div class="client-os-table-wrap">
+                <table class="table-custom client-os-table" id="transactionsTable">
+                    <thead><tr><th>#</th><th>رقم العملية</th><th>القيمة</th><th>التكلفة / السعر</th><th>الحساب</th><th>الوقت</th><th>الحالة</th><th>إجراء</th></tr></thead>
                     <tbody id="tableBody"></tbody>
                 </table>
             </div>
-        </div>
+        </section>
     </main>
-
-    <aside class="nile-desktop-aside">
-        <div class="card p-3 shadow-sm nile-aside-card">
-            <h5 class="fw-bold mb-3"><i class="fa-solid fa-address-card text-primary me-2"></i> بطاقة العميل</h5>
-            <div class="nile-profile-line"><span>الاسم</span><strong><%= user.name %></strong></div>
-            <div class="nile-profile-line"><span>الهاتف</span><strong dir="ltr"><%= user.phone %></strong></div>
-            <div class="nile-profile-line"><span>ID</span><strong dir="ltr" class="mono-num"><%= user.accountCode || '—' %></strong></div>
-            <div class="mt-3 text-center">
-                <% if (isSystemOpen) { %>
-                    <span class="badge bg-success p-2 px-3 rounded-pill"><i class="fa-solid fa-lock-open me-1"></i> مفتوح</span>
-                <% } else { %>
-                    <span class="badge bg-danger p-2 px-3 rounded-pill"><i class="fa-solid fa-lock me-1"></i> مغلق</span>
-                <% } %>
-            </div>
-        </div>
-
-        <div class="card p-4 shadow-sm nile-aside-card" id="ratesCardContainer">
-            <h5 class="fw-bold mb-3"><i class="fa-solid fa-money-bill-trend-up text-success me-2"></i> أسعار الصرف</h5>
-            <div class="d-flex flex-column gap-2 nile-rates-list">
-                <div class="nile-rate-row"><span>كاش</span><strong class="mono-num" id="liveRateCash"><%= (serviceRates && serviceRates.vodafone ? serviceRates.vodafone : currentRate).toFixed(2) %></strong></div>
-                <div class="nile-rate-row"><span>بريد بطاقة</span><strong class="mono-num" id="liveRatePostCard"><%= (serviceRates && serviceRates.post_card ? serviceRates.post_card : (currentRate - 0.15)).toFixed(2) %></strong></div>
-                <div class="nile-rate-row"><span>بريد حساب</span><strong class="mono-num" id="liveRatePostAcc"><%= (serviceRates && serviceRates.post_account ? serviceRates.post_account : (currentRate - 0.05)).toFixed(2) %></strong></div>
-                <div class="nile-rate-row"><span>حساب بنكي</span><strong class="mono-num" id="liveRateBank"><%= (serviceRates && serviceRates.bank_account ? serviceRates.bank_account : (currentRate - 0.10)).toFixed(2) %></strong></div>
-                <div class="nile-rate-row"><span>سيفا النيجر</span><strong class="mono-num" id="liveRateNiger"><%= (serviceRates && serviceRates.sefa_niger ? serviceRates.sefa_niger : (currentRate + 0.1)).toFixed(2) %></strong></div>
-                <div class="nile-rate-row"><span>بنكك السودان</span><strong class="mono-num" id="liveRateSudan"><%= (serviceRates && serviceRates.bankak_sudan ? serviceRates.bankak_sudan : (currentRate + 0.2)).toFixed(2) %></strong></div>
-            </div>
-        </div>
-    </aside>
 </div>
