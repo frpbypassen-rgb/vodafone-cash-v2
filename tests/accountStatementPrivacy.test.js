@@ -26,6 +26,11 @@ const transactionFixture = (overrides = {}) => ({
     managerGroupId: '507f1f77bcf86cd799439013',
     operatorId: '507f1f77bcf86cd799439014',
     executorName: 'منفذ القاهرة',
+    assignedExecutorId: '507f1f77bcf86cd799439015',
+    assignedExecutorName: 'مكلف التنفيذ',
+    assignedExecutorAt: new Date('2026-08-07T09:59:00.000Z'),
+    executorReceivedAt: new Date('2026-08-07T10:00:00.000Z'),
+    completedAt: new Date('2026-08-07T10:01:00.000Z'),
     executorSenderPhone: '01108172258',
     executorSenderEntries: [{ phone: '01108172258', amount: 1600, proofImage: 'private-proof.jpg' }],
     executorExecutionNumberMasked: '011****2258',
@@ -103,6 +108,11 @@ describe('Account statement executor privacy', () => {
         expect(transaction).not.toHaveProperty('managerGroupId');
         expect(transaction).not.toHaveProperty('operatorId');
         expect(transaction).not.toHaveProperty('executorName');
+        expect(transaction).not.toHaveProperty('assignedExecutorId');
+        expect(transaction).not.toHaveProperty('assignedExecutorName');
+        expect(transaction).not.toHaveProperty('assignedExecutorAt');
+        expect(transaction).not.toHaveProperty('executorReceivedAt');
+        expect(transaction).not.toHaveProperty('completedAt');
         expect(transaction).not.toHaveProperty('executorSenderPhone');
         expect(transaction).not.toHaveProperty('executorSenderEntries');
         expect(transaction).not.toHaveProperty('executorExecutionNumberMasked');

@@ -36,7 +36,7 @@ const { buildExecutorOperationSearchQuery } = require('../utils/executorOperatio
 const escapeRegex = (value) => String(value || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
 const buildClientReportSearchQuery = (value) => {
-    const search = String(value || '').trim();
+    const search = String(value || '').trim().slice(0, 80);
     if (!search) return { active: false, query: {} };
 
     const safeSearch = escapeRegex(search);
@@ -271,8 +271,9 @@ async function getClientReports({ userId, accountType, dateType, dateValue, date
 
     const canViewAll = (!isEmployee && !isAgentStaff)
         || account.canViewAllReports
+        || account.canManageCompany
         || account.canManageAgent
-        || account.role === 'accountant';
+        || ['owner', 'manager', 'accountant'].includes(String(account.role || '').toLowerCase());
 
     if ((isEmployee || isAgentStaff) && !canViewAll) {
         const today = new Date();
@@ -284,19 +285,41 @@ async function getClientReports({ userId, accountType, dateType, dateValue, date
     if (tenantId) baseQuery.tenantId = tenantId;
 
     if (isEmployee) {
-        baseQuery.companyId = account.companyId;
+        const companyScope = { companyId: account.companyId };
+        baseQuery = canViewAll ? companyScope : {
+            $and: [
+                companyScope,
+                {
+                    $or: [
+                        { clientActorId: String(account._id) },
+                        { clientActorId: { $exists: false }, employeeName: account.name }
+                    ]
+                }
+            ]
+        };
     } else if (isAgentStaff) {
         const subAccountIds = await SubAccount
             .find({ masterType: 'user', masterId: company._id, status: { $ne: 'deleted' } })
             .distinct('_id');
-        baseQuery.$or = [
+        const agentScope = { $or: [
             { userId: company.phone, companyId: null },
             { userId: company.webUsername, companyId: null },
             { subAccountId: { $in: subAccountIds } }
         ].filter((cond) => {
             const value = cond.userId || cond.subAccountId;
             return value !== undefined && value !== null;
-        });
+        }) };
+        baseQuery = canViewAll ? agentScope : {
+            $and: [
+                agentScope,
+                {
+                    $or: [
+                        { clientActorId: String(account._id) },
+                        { clientActorId: { $exists: false }, employeeName: account.name }
+                    ]
+                }
+            ]
+        };
     } else if (isSubAccount) {
         baseQuery.subAccountId = account._id;
         baseQuery.isSubAccountTx = true;
