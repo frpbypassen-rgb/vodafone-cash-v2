@@ -1,0 +1,59 @@
+/* Client dashboard 2027: aligns the account workspace with reports and support. */
+.client-direct-modern {
+    background: radial-gradient(circle at 90% -10%, rgba(12, 161, 146, .16), transparent 35rem), #f4f8fc;
+}
+.client-direct-modern .navbar-custom {
+    background: rgba(255,255,255,.9);
+    backdrop-filter: blur(18px);
+    border-bottom-color: rgba(19,35,61,.1);
+    box-shadow: 0 8px 24px rgba(19,35,61,.06);
+}
+.client-direct-modern .main-container { max-width: 1540px; }
+.client-direct-modern .nile-desktop-workspace {
+    gap: 18px;
+    grid-template-columns: 220px minmax(0,1fr) 286px;
+}
+.client-direct-modern .nile-desktop-rail,
+.client-direct-modern .nile-desktop-aside .card,
+.client-direct-modern .ledger-section {
+    border: 1px solid rgba(19,35,61,.11) !important;
+    box-shadow: 0 16px 35px rgba(19,35,61,.07) !important;
+}
+.client-direct-modern .nile-desktop-rail { border-radius: 21px; overflow: hidden; }
+.client-direct-modern .nile-desktop-hero { border-radius: 22px; }
+.client-direct-modern .wallet-card { box-shadow: 0 18px 36px rgba(11,62,100,.19); }
+.client-direct-modern .wh-stat,
+.client-direct-modern .nile-aside-card { border-radius: 17px !important; }
+.client-direct-modern .nile-quick-btn { border-radius: 15px; min-height: 76px; }
+.client-direct-modern .ledger-section { border-radius: 21px; padding: 20px; background: rgba(255,255,255,.93); }
+.client-direct-modern .filter-box { background: #f6f9fc; padding: 6px; border-radius: 14px; }
+.client-direct-modern .filter-input { min-height: 40px; border-radius: 10px; }
+.client-direct-modern .filter-btn { border-radius: 10px; }
+.client-direct-modern .table-custom { border-collapse: separate; border-spacing: 0 7px; }
+.client-direct-modern .table-custom thead th { background: #edf4fa; color: #48617a; border: 0; }
+.client-direct-modern .table-custom tbody td { background: #fff; border-top: 1px solid #e9eff5; border-bottom: 1px solid #e9eff5; }
+.client-direct-modern .table-custom tbody td:first-child { border-right: 1px solid #e9eff5; border-radius: 0 12px 12px 0; }
+.client-direct-modern .table-custom tbody td:last-child { border-left: 1px solid #e9eff5; border-radius: 12px 0 0 12px; }
+.client-direct-modern .table-custom tbody tr:hover td { background: #effbf9; }
+
+[data-theme="dark"] .client-direct-modern { background: radial-gradient(circle at 90% -10%, rgba(12,161,146,.16), transparent 35rem), #101a2a; }
+[data-theme="dark"] .client-direct-modern .navbar-custom,
+[data-theme="dark"] .client-direct-modern .ledger-section,
+[data-theme="dark"] .client-direct-modern .table-custom tbody td { background: #17253a; border-color: rgba(225,235,248,.12); }
+[data-theme="dark"] .client-direct-modern .table-custom thead th { background: #1e314a; color: #bfcedf; }
+[data-theme="dark"] .client-direct-modern .filter-box { background: #122033; }
+[data-theme="dark"] .client-direct-modern .table-custom tbody tr:hover td { background: #1b3945; }
+
+@media (max-width: 1000px) {
+    .client-direct-modern .nile-desktop-workspace { grid-template-columns: 188px minmax(0,1fr); }
+    .client-direct-modern .nile-desktop-aside { display: none; }
+}
+@media (max-width: 768px) {
+    .client-direct-modern { padding-bottom: 82px; }
+    .client-direct-modern .main-container { padding: 0 12px; }
+    .client-direct-modern .mobile-profile-card,
+    .client-direct-modern .mobile-tx-card,
+    .client-direct-modern .ledger-section { border-radius: 17px !important; box-shadow: 0 10px 24px rgba(19,35,61,.08) !important; }
+    .client-direct-modern .mobile-tx-card { border-right: 4px solid #0e9f8b; }
+    .client-direct-modern .mobile-only-layout { margin-top: 8px !important; }
+}
