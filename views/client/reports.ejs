@@ -525,6 +525,7 @@
         <!-- جدول العمليات -->
         <div class="card-glass d-none" id="tableSection">
             <h5 class="fw-bold mb-3"><i class="fa-solid fa-list text-muted me-1"></i> تفاصيل العمليات</h5>
+            <div id="reportResultsNotice" class="alert alert-info py-2 px-3 small d-none"><i class="fa-solid fa-circle-info ms-1"></i> تظهر أحدث 300 حركة فقط للحفاظ على سرعة الصفحة. نزّل نسخة الإدارة للحصول على التقرير الكامل.</div>
             <div class="table-responsive d-none d-md-block">
                 <table class="table-custom">
                     <thead>
@@ -817,6 +818,7 @@
                 document.getElementById('tableSection').classList.remove('d-none');
                 document.getElementById('depositSection').classList.remove('d-none');
                 document.getElementById('btnDownloadPdf').classList.remove('d-none');
+                document.getElementById('reportResultsNotice').classList.toggle('d-none', !data.data.resultsTruncated);
 
                 // Render Operations Table
                 const tbody = document.getElementById('reportTableBody');

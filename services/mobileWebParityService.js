@@ -34,6 +34,7 @@ const { systemDateKey, systemDayEnd, systemDayStart, systemDateRange } = require
 const { buildExecutorOperationSearchQuery } = require('../utils/executorOperationSearch');
 
 const escapeRegex = (value) => String(value || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+const CLIENT_REPORT_LIST_LIMIT = 300;
 
 const buildClientReportSearchQuery = (value) => {
     const search = String(value || '').trim().slice(0, 80);
@@ -282,7 +283,6 @@ async function getClientReports({ userId, accountType, dateType, dateValue, date
     }
 
     let baseQuery = {};
-    if (tenantId) baseQuery.tenantId = tenantId;
 
     if (isEmployee) {
         const companyScope = { companyId: account.companyId };
@@ -337,49 +337,56 @@ async function getClientReports({ userId, accountType, dateType, dateValue, date
         baseQuery.isSubAccountTx = { $ne: true };
     }
 
-    const prevTransactions = await findReportTransactions(
-        { ...baseQuery, createdAt: { $lt: start } },
-        { select: 'status amount costLYD' }
-    );
-    let previousBalance = 0;
-    prevTransactions.forEach(tx => {
-        if (tx.status === 'completed') previousBalance -= (tx.costLYD || 0);
-        else if (tx.status === 'deposit') previousBalance += (tx.amount || 0);
-        else if (tx.status === 'deduction') previousBalance -= (tx.amount || 0);
-    });
+    // Preserve tenant isolation even when a role-specific scope rebuilds baseQuery.
+    if (tenantId) baseQuery = { $and: [baseQuery, { tenantId }] };
 
     const operationSearch = buildClientReportSearchQuery(search);
-    const currentTransactions = await findReportTransactions(
-        {
-            $and: [
-                baseQuery,
-                operationSearch.query,
-                { createdAt: { $gte: start, $lte: end } }
-            ]
-        },
-        { sort: { createdAt: -1 } }
-    );
-
-    let totalLYD = 0; let totalEGP = 0;
-    let completedCount = 0; let rejectedCount = 0; let totalDeposits = 0; let totalDeductions = 0;
-    const operations = []; const deposits = [];
-
-    currentTransactions.forEach(tx => {
-        if (['deposit', 'deduction', 'deposit_pending'].includes(tx.status)) {
-            deposits.push(tx);
-            if (tx.status === 'deposit') totalDeposits += (tx.amount || 0);
-            else if (tx.status === 'deduction') totalDeductions += (tx.amount || 0);
-        } else {
-            operations.push(tx);
-            if (tx.status === 'completed') {
-                completedCount++;
-                totalLYD += (tx.costLYD || 0);
-                totalEGP += (tx.amount || 0);
-            } else if (tx.status === 'rejected' || tx.status === 'cancelled_by_admin') {
-                rejectedCount++;
-            }
-        }
-    });
+    const previousQuery = { $and: [baseQuery, { createdAt: { $lt: start } }] };
+    const reportQuery = {
+        $and: [
+            baseQuery,
+            operationSearch.query,
+            { createdAt: { $gte: start, $lte: end } }
+        ]
+    };
+    const summaryGroup = {
+        _id: null,
+        totalLYD: { $sum: { $cond: [{ $eq: ['$status', 'completed'] }, '$costLYD', 0] } },
+        totalEGP: { $sum: { $cond: [{ $eq: ['$status', 'completed'] }, '$amount', 0] } },
+        completedCount: { $sum: { $cond: [{ $eq: ['$status', 'completed'] }, 1, 0] } },
+        rejectedCount: { $sum: { $cond: [{ $in: ['$status', ['rejected', 'cancelled_by_admin']] }, 1, 0] } },
+        totalCredits: { $sum: { $cond: [{ $eq: ['$status', 'deposit'] }, '$amount', 0] } },
+        totalDeductions: { $sum: { $cond: [{ $eq: ['$status', 'deduction'] }, '$amount', 0] } },
+        operationCount: { $sum: { $cond: [{ $in: ['$status', ['deposit', 'deduction', 'deposit_pending']] }, 0, 1] } }
+    };
+    const [previousSummaryRows, currentRows, currentSummaryRows] = await Promise.all([
+        Transaction.aggregate([
+            { $match: previousQuery },
+            { $group: {
+                _id: null,
+                credits: { $sum: { $cond: [{ $eq: ['$status', 'deposit'] }, '$amount', 0] } },
+                debits: { $sum: { $cond: [{ $eq: ['$status', 'deduction'] }, '$amount', 0] } },
+                operationCosts: { $sum: { $cond: [{ $eq: ['$status', 'completed'] }, '$costLYD', 0] } }
+            } }
+        ]),
+        findReportTransactions(reportQuery, { sort: { createdAt: -1 }, limit: CLIENT_REPORT_LIST_LIMIT + 1 }),
+        Transaction.aggregate([{ $match: reportQuery }, { $group: summaryGroup }])
+    ]);
+    const previousSummary = previousSummaryRows[0] || {};
+    const previousBalance = Number(previousSummary.credits || 0)
+        - Number(previousSummary.debits || 0)
+        - Number(previousSummary.operationCosts || 0);
+    const currentSummary = currentSummaryRows[0] || {};
+    const resultsTruncated = currentRows.length > CLIENT_REPORT_LIST_LIMIT;
+    const currentTransactions = currentRows.slice(0, CLIENT_REPORT_LIST_LIMIT);
+    const operations = currentTransactions.filter((tx) => !['deposit', 'deduction', 'deposit_pending'].includes(tx.status));
+    const deposits = currentTransactions.filter((tx) => ['deposit', 'deduction', 'deposit_pending'].includes(tx.status));
+    const totalLYD = Number(currentSummary.totalLYD || 0);
+    const totalEGP = Number(currentSummary.totalEGP || 0);
+    const completedCount = Number(currentSummary.completedCount || 0);
+    const rejectedCount = Number(currentSummary.rejectedCount || 0);
+    const totalCredits = Number(currentSummary.totalCredits || 0);
+    const totalDeductions = Number(currentSummary.totalDeductions || 0);
 
     let statusLabel = 'عميل مباشر';
     if (isEmployee) statusLabel = canViewAll ? 'مدير/مسؤول شركة' : 'موظف شركة';
@@ -411,16 +418,18 @@ async function getClientReports({ userId, accountType, dateType, dateValue, date
         operations: operations.map(presentClientReportTransaction),
         cancelledOperations: cancelledOperations.map(presentClientReportTransaction),
         deposits: deposits.map(presentClientReportTransaction),
+        resultsTruncated,
+        displayedTransactionCount: currentTransactions.length,
         totalLYD,
         totalEGP,
         completedCount,
         rejectedCount,
-        totalDeposits: totalDeposits - totalDeductions,
-        totalCredits: totalDeposits,
+        totalDeposits: totalCredits - totalDeductions,
+        totalCredits,
         totalDeductions,
-        operationCount: operations.length,
-        periodBalance: totalDeposits - totalDeductions - totalLYD,
-        closingBalance: previousBalance + totalDeposits - totalDeductions - totalLYD,
+        operationCount: Number(currentSummary.operationCount || 0),
+        periodBalance: totalCredits - totalDeductions - totalLYD,
+        closingBalance: previousBalance + totalCredits - totalDeductions - totalLYD,
         currentBalance: Number(account.balance || 0),
         scope: 'client',
         reportPeriod: {
