@@ -135,6 +135,7 @@ const clientTransactionController = require('../controllers/clientTransactionCon
 const clientCompanyController = require('../controllers/clientCompanyController');
 const clientAgentController = require('../controllers/clientAgentController');
 const clientWorkspaceController = require('../controllers/clientWorkspaceController');
+const clientHubController = require('../controllers/clientHubController');
 const clientDepositController = require('../controllers/clientDepositController');
 const businessPortalService = require('../services/businessPortalService');
 
@@ -186,6 +187,8 @@ router.get('/logout', clientAuthController.logout);
 // 📊 Dashboard Routes
 // ===============================================
 router.get('/dashboard', requireClientAuth, clientDashboardController.getDashboard);
+router.get('/account', requireClientAuth, clientHubController.getAccount);
+router.get('/transfers', requireClientAuth, clientHubController.getTransfers);
 router.get('/deposits', requireClientAuth, clientDepositController.getDepositsPage);
 router.get('/api/deposits', requireClientAuth, clientDepositController.getDepositRequests);
 router.post('/api/deposits', requireClientAuth, clientDepositController.postDepositRequest);
@@ -208,7 +211,9 @@ router.get('/finance/profits', requireClientAuth, clientWorkspaceController.rend
 router.get('/customers', requireClientAuth, clientWorkspaceController.renderPage('customers'));
 router.get('/customers/:id', requireClientAuth, clientWorkspaceController.renderPage('customer_profile'));
 router.get('/staff', requireClientAuth, clientWorkspaceController.renderPage('staff'));
-router.get('/settings', requireClientAuth, clientWorkspaceController.renderPage('settings'));
+router.get('/settings', requireClientAuth, clientHubController.getSettings);
+router.post('/hub/password', requireClientAuth, clientHubController.postChangePassword);
+router.get('/settings/workspace', requireClientAuth, clientWorkspaceController.renderPage('settings'));
 router.get('/security', requireClientAuth, clientWorkspaceController.renderPage('security'));
 router.get('/reports/export.csv', requireClientAuth, clientWorkspaceController.exportReportCsv);
 router.get('/reports/central.pdf', requireClientAuth, clientWorkspaceController.downloadCentralCompanyReportPdf);

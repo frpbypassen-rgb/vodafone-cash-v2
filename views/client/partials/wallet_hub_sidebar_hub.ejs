@@ -1,0 +1,32 @@
+<%#
+  Client Hub — 5-zone sidebar (customers only)
+  Locals: user, activePage, isSystemOpen
+%>
+<% const shellUser = user || {}; %>
+<% const active = typeof activePage !== 'undefined' ? activePage : 'home'; %>
+<% const systemOpen = typeof isSystemOpen === 'undefined' ? true : !!isSystemOpen; %>
+<aside class="client-os-sidebar client-hub-sidebar" aria-label="التنقل الرئيسي">
+    <a class="client-os-mark" href="/client/dashboard" aria-label="الرئيسية">
+        <span class="client-os-mark-icon"><i class="fa-solid fa-gem"></i></span>
+        <span><b>AHRAM</b><small>CLIENT HUB</small></span>
+    </a>
+
+    <div class="client-os-account-mini">
+        <span class="client-os-avatar"><i class="fa-solid fa-user"></i></span>
+        <span><strong><%= shellUser.name %></strong><small><%= shellUser.role === 'accountant' ? 'حسابات' : 'عميل' %></small></span>
+    </div>
+
+    <nav class="client-os-navigation">
+        <span class="client-os-nav-title">البوابة</span>
+        <a href="/client/dashboard" class="client-os-nav-link <%= active === 'home' ? 'is-active' : '' %>"><i class="fa-solid fa-house"></i><span>الرئيسية</span></a>
+        <a href="/client/transfers" class="client-os-nav-link <%= active === 'transfers' ? 'is-active' : '' %>"><i class="fa-solid fa-paper-plane"></i><span>التحويلات</span></a>
+        <a href="/client/account" class="client-os-nav-link <%= active === 'account' ? 'is-active' : '' %>"><i class="fa-solid fa-wallet"></i><span>الحساب والكشوف</span></a>
+        <a href="/client/support" class="client-os-nav-link <%= active === 'support' ? 'is-active' : '' %>"><i class="fa-solid fa-headset"></i><span>المساعدة</span></a>
+        <a href="/client/settings" class="client-os-nav-link <%= active === 'settings' ? 'is-active' : '' %>"><i class="fa-solid fa-gear"></i><span>الإعدادات</span></a>
+    </nav>
+
+    <div class="client-os-sidebar-footer">
+        <span class="client-os-live-dot <%= systemOpen ? '' : 'is-off' %>"></span>
+        <span><b><%= systemOpen ? 'الخدمات متاحة' : 'الخدمات متوقفة' %></b><small>حالة النظام · 8ص–11م</small></span>
+    </div>
+</aside>

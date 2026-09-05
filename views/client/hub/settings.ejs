@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <%- include('../partials/wallet_hub_layout_head', {
+        pageTitle: 'الإعدادات',
+        walletHub: true,
+        extraCss: ['/css/client-hub-pages.css?v=20260905-hub1']
+    }) %>
+</head>
+<body class="client-direct-modern client-nile-theme wallet-hub-active wallet-hub-satellite client-hub-page">
+    <%- include('../partials/wallet_hub_mobile_header', {
+        user: user,
+        mobileKicker: 'حسابك',
+        mobileTitle: 'الإعدادات',
+        mobileSubtitle: 'الملف الشخصي · الأمان · الإشعارات'
+    }) %>
+
+    <%- include('../partials/wallet_hub_hub_shell_start', {
+        user: user,
+        activePage: 'settings',
+        isSystemOpen: isSystemOpen,
+        pageKicker: 'حسابك',
+        pageTitle: 'الإعدادات',
+        pageSubtitle: 'إدارة بياناتك وأمان حسابك و تفضيلاتك.',
+        pageIcon: 'fa-gear'
+    }) %>
+
+    <div class="client-hub-mobile-content d-md-none">
+        <% if (settingsSuccess) { %><div class="client-hub-alert is-success">تم حفظ التغييرات بنجاح.</div><% } %>
+        <% if (settingsError === 'current_password') { %><div class="client-hub-alert is-error">كلمة المرور الحالية غير صحيحة.</div><% } %>
+        <% if (settingsError === 'new_password') { %><div class="client-hub-alert is-error">كلمة المرور الجديدة غير صالحة أو غير متطابقة.</div><% } %>
+        <% if (settingsError === 'save') { %><div class="client-hub-alert is-error">تعذر حفظ البيانات.</div><% } %>
+        <%- include('../partials/hub_settings_body') %>
+    </div>
+
+    <div class="d-none d-md-block">
+        <% if (settingsSuccess) { %><div class="client-hub-alert is-success">تم حفظ التغييرات بنجاح.</div><% } %>
+        <% if (settingsError === 'current_password') { %><div class="client-hub-alert is-error">كلمة المرور الحالية غير صحيحة.</div><% } %>
+        <% if (settingsError === 'new_password') { %><div class="client-hub-alert is-error">كلمة المرور الجديدة غير صالحة أو غير متطابقة.</div><% } %>
+        <% if (settingsError === 'save') { %><div class="client-hub-alert is-error">تعذر حفظ البيانات.</div><% } %>
+        <%- include('../partials/hub_settings_body') %>
+    </div>
+
+    <%- include('../partials/wallet_hub_hub_shell_end') %>
+    <%- include('../partials/wallet_hub_layout_end', { walletHub: true, user: user, profile: profile }) %>
+    <%- include('../partials/wallet_hub_bottom_nav', { activeNav: 'settings' }) %>
+</body>
+</html>

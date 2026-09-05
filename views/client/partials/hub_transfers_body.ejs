@@ -1,0 +1,60 @@
+<% const rates = typeof serviceRates !== 'undefined' ? serviceRates : {}; %>
+<div class="client-hub-transfer-categories">
+    <section class="client-hub-transfer-category">
+        <h3><i class="fa-solid fa-mobile-screen text-primary me-1"></i> محافظ مصر</h3>
+        <div class="client-hub-transfer-grid">
+            <a href="/client/dashboard?tab=transfers&pick=cash" class="client-hub-transfer-card">
+                <img src="/images/vodafone_cash_official.png" alt="كاش">
+                <span>محافظ كاش</span>
+                <small class="text-muted mono-num"><%= (rates.vodafone || 0).toFixed(2) %></small>
+            </a>
+        </div>
+    </section>
+
+    <section class="client-hub-transfer-category">
+        <h3><i class="fa-solid fa-envelope text-warning me-1"></i> البريد المصري</h3>
+        <div class="client-hub-transfer-grid">
+            <a href="/client/dashboard?tab=transfers&pick=post" class="client-hub-transfer-card">
+                <img src="/images/egypt_post_official.png" alt="بريد">
+                <span>بريد حساب / بطاقة</span>
+            </a>
+        </div>
+    </section>
+
+    <section class="client-hub-transfer-category">
+        <h3><i class="fa-solid fa-building-columns text-info me-1"></i> بنك / InstaPay</h3>
+        <div class="client-hub-transfer-grid">
+            <a href="/client/dashboard?tab=transfers&pick=bank" class="client-hub-transfer-card">
+                <img src="/images/instapay_official.png" alt="بنك">
+                <span>حساب بنكي</span>
+                <small class="text-muted mono-num"><%= (rates.bank_account || 0).toFixed(2) %></small>
+            </a>
+        </div>
+    </section>
+
+    <section class="client-hub-transfer-category">
+        <h3><i class="fa-solid fa-globe text-success me-1"></i> تحويل دولي</h3>
+        <div class="client-hub-transfer-grid">
+            <a href="/client/dashboard?tab=transfers&pick=sefa" class="client-hub-transfer-card">
+                <img src="/images/nita_official.png" alt="سيفا">
+                <span>سيفا النيجر</span>
+            </a>
+            <a href="/client/dashboard?tab=transfers&pick=sudan" class="client-hub-transfer-card">
+                <img src="/images/bok_sudan_official.png" alt="سودان">
+                <span>بنكك السودان</span>
+            </a>
+        </div>
+    </section>
+
+    <section class="client-hub-transfer-category">
+        <h3><i class="fa-solid fa-wallet text-success me-1"></i> رصيد LYD</h3>
+        <div class="client-hub-transfer-grid">
+            <a href="/client/dashboard?tab=transfers&pick=balance" class="client-hub-transfer-card">
+                <span class="hub-tc-icon"><i class="fa-solid fa-wallet"></i></span>
+                <span>تحويل رصيد بين العملاء</span>
+            </a>
+        </div>
+    </section>
+</div>
+
+<p class="small text-muted fw-bold mt-3 mb-0"><i class="fa-solid fa-circle-info me-1"></i> كل طلب تحويل يُسجّل في الإدارة ويظهر في كشف حسابك فور المعالجة.</p>

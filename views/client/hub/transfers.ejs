@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <%- include('../partials/wallet_hub_layout_head', {
+        pageTitle: 'التحويلات',
+        walletHub: true,
+        extraCss: ['/css/client-hub-pages.css?v=20260905-hub1']
+    }) %>
+</head>
+<body class="client-direct-modern client-nile-theme wallet-hub-active wallet-hub-satellite client-hub-page">
+    <%- include('../partials/wallet_hub_mobile_header', {
+        user: user,
+        mobileKicker: 'مركز التحويل',
+        mobileTitle: 'التحويلات',
+        mobileSubtitle: 'اختر الفئة والخدمة'
+    }) %>
+
+    <%- include('../partials/wallet_hub_hub_shell_start', {
+        user: user,
+        activePage: 'transfers',
+        isSystemOpen: isSystemOpen,
+        pageKicker: 'مركز التحويل',
+        pageTitle: 'التحويلات',
+        pageSubtitle: 'خدمات مصنّفة — اختر الخدمة ثم أكمل الطلب.',
+        pageIcon: 'fa-paper-plane'
+    }) %>
+
+    <div class="client-hub-mobile-content">
+        <%- include('../partials/hub_transfers_body', { serviceRates: serviceRates, user: user }) %>
+    </div>
+
+    <%- include('../partials/wallet_hub_hub_shell_end') %>
+    <%- include('../partials/wallet_hub_layout_end', { walletHub: true, user: user, profile: profile }) %>
+    <%- include('../partials/wallet_hub_bottom_nav', { activeNav: 'transfers' }) %>
+</body>
+</html>

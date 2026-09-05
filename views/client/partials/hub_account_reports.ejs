@@ -1,0 +1,62 @@
+<% const mode = typeof tab !== 'undefined' ? tab : 'operations'; %>
+<div class="client-hub-panel" id="hubAccountReportsPanel" data-mode="<%= mode %>">
+    <% if (mode === 'export') { %>
+        <h2 class="h6 fw-bold mb-3"><i class="fa-solid fa-file-export me-1"></i> تصدير الكشوف</h2>
+        <p class="text-muted small fw-bold">حمّل نسخة PDF للإدارة أو كشفاً للفترة المعروضة.</p>
+        <button type="button" class="btn btn-danger fw-bold mt-2 d-none" id="btnDownloadPdf" onclick="downloadAdminReportCopy()"><i class="fa-solid fa-file-pdf me-1"></i> تنزيل نسخة الإدارة</button>
+        <button type="button" class="btn btn-outline-primary fw-bold mt-2 ms-2" onclick="fetchReport()"><i class="fa-solid fa-sync me-1"></i> تحديث ثم تصدير</button>
+    <% } else if (mode === 'summary') { %>
+        <h2 class="h6 fw-bold mb-3"><i class="fa-solid fa-chart-pie me-1"></i> ملخص مالي</h2>
+    <% } else { %>
+        <h2 class="h6 fw-bold mb-3"><i class="fa-solid fa-list me-1"></i> سجل العمليات</h2>
+    <% } %>
+
+    <div class="row g-2 mb-3">
+        <div class="col-md-3 col-6">
+            <label class="form-label small fw-bold text-muted">الفترة</label>
+            <select id="dateType" class="form-select form-select-sm" onchange="toggleDateInput()">
+                <option value="day">يوم محدد</option>
+                <option value="week">آخر 7 أيام</option>
+                <option value="month" selected>شهر</option>
+                <option value="range">فترة مخصصة</option>
+            </select>
+        </div>
+        <div class="col-md-3 col-6">
+            <label class="form-label small fw-bold text-muted">&nbsp;</label>
+            <input type="date" id="dateValueDay" class="form-control form-control-sm">
+            <input type="month" id="dateValueMonth" class="form-control form-control-sm" style="display:none;">
+            <div id="dateRangeInputs" class="row g-1 d-none">
+                <div class="col-6"><input type="date" id="dateFrom" class="form-control form-control-sm"></div>
+                <div class="col-6"><input type="date" id="dateTo" class="form-control form-control-sm"></div>
+            </div>
+        </div>
+        <div class="col-md-3 col-6">
+            <label class="form-label small fw-bold text-muted">بحث</label>
+            <input id="reportSearch" class="form-control form-control-sm" maxlength="80" placeholder="هاتف، رقم عملية…">
+        </div>
+        <div class="col-md-3 col-6 d-flex align-items-end">
+            <button class="btn btn-primary btn-sm fw-bold w-100" onclick="fetchReport()" id="btnFetch"><i class="fa-solid fa-search me-1"></i> عرض</button>
+        </div>
+    </div>
+
+    <div class="row g-2 mb-3 d-none" id="statsSection">
+        <div class="col-6 col-md-2"><div class="stat-card p-2"><h6 class="fw-bold text-danger mb-0" id="statOpeningBalance">0</h6><small>رصيد سابق</small></div></div>
+        <div class="col-6 col-md-2"><div class="stat-card p-2"><h6 class="fw-bold text-success mb-0" id="statTotalOps">0</h6><small>عمليات</small></div></div>
+        <div class="col-6 col-md-2"><div class="stat-card p-2"><h6 class="fw-bold text-warning mb-0" id="statCredits">0</h6><small>إيداعات</small></div></div>
+        <div class="col-6 col-md-2"><div class="stat-card p-2"><h6 class="fw-bold text-info mb-0" id="statDeductions">0</h6><small>خصومات</small></div></div>
+        <div class="col-6 col-md-2"><div class="stat-card p-2"><h6 class="fw-bold mb-0" id="statOperationCount">0</h6><small>عدد</small></div></div>
+        <div class="col-6 col-md-2"><div class="stat-card p-2"><h6 class="fw-bold text-success mb-0" id="statClosingBalance">0</h6><small>رصيد نهائي</small></div></div>
+    </div>
+
+    <div class="d-none" id="tableSection">
+        <div class="table-responsive d-none d-md-block mb-3">
+            <table class="table-custom"><thead><tr><th>#</th><th>رقم العملية</th><th>EGP</th><th>LYD</th><th>الحالة</th><th>التاريخ</th></tr></thead><tbody id="reportTableBody"></tbody></table>
+        </div>
+        <div class="mobile-ops-list d-flex flex-column gap-2 d-md-none" id="mobileReportList"></div>
+    </div>
+
+    <div class="d-none mt-3" id="depositSection">
+        <h3 class="h6 fw-bold"><i class="fa-solid fa-coins me-1"></i> إيداعات وتسويات</h3>
+        <div class="mobile-ops-list d-flex flex-column gap-2" id="mobileDepositList"></div>
+    </div>
+</div>

@@ -1,21 +1,21 @@
-<%# Unified mobile bottom nav — same structure on every Wallet Hub page %>
+<%# Unified mobile bottom nav — Client Hub 5 zones %>
 <% const navActive = typeof activeNav !== 'undefined' ? activeNav : 'home'; %>
-<nav class="bottom-nav-mobile no-print d-md-none" aria-label="التنقل السفلي">
+<nav class="bottom-nav-mobile client-hub-bottom-nav no-print d-md-none" aria-label="التنقل السفلي">
     <a href="/client/dashboard" class="bottom-nav-item <%= navActive === 'home' ? 'active' : '' %>" data-nav="home">
         <i class="fa-solid fa-house"></i><span>الرئيسية</span>
     </a>
-    <a href="/client/reports" class="bottom-nav-item <%= navActive === 'reports' ? 'active' : '' %>" data-nav="reports">
-        <i class="fa-solid fa-chart-column"></i><span>التقارير</span>
+    <a href="/client/transfers" class="bottom-nav-item <%= navActive === 'transfers' ? 'active' : '' %>" data-nav="transfers">
+        <i class="fa-solid fa-paper-plane"></i><span>تحويل</span>
     </a>
     <div class="nile-fab-slot">
-        <a href="/client/dashboard?tab=transfers" class="nile-fab" data-nav="transfer" aria-label="تحويل سريع">
-            <i class="fa-solid fa-paper-plane"></i>
+        <a href="/client/account?tab=operations" class="nile-fab" aria-label="كشف الحساب">
+            <i class="fa-solid fa-chart-column"></i>
         </a>
     </div>
-    <a href="/client/dashboard?tab=operations" class="bottom-nav-item <%= navActive === 'operations' ? 'active' : '' %>" data-nav="operations">
-        <i class="fa-solid fa-list-check"></i><span>العمليات</span>
+    <a href="/client/support" class="bottom-nav-item <%= navActive === 'support' ? 'active' : '' %>" data-nav="support">
+        <i class="fa-solid fa-headset"></i><span>مساعدة</span>
     </a>
-    <button type="button" class="bottom-nav-item <%= (navActive === 'more' || navActive === 'support' || navActive === 'deposits') ? 'active' : '' %>" data-nav="more" onclick="openWalletHubMore()">
-        <i class="fa-solid fa-ellipsis"></i><span>المزيد</span>
-    </button>
+    <a href="/client/settings" class="bottom-nav-item <%= navActive === 'settings' ? 'active' : '' %>" data-nav="settings">
+        <i class="fa-solid fa-gear"></i><span>إعدادات</span>
+    </a>
 </nav>

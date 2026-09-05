@@ -1,0 +1,23 @@
+<% const depTab = typeof tab !== 'undefined' ? tab : 'deposits-new'; %>
+<div class="client-hub-panel">
+    <nav class="client-hub-tabs mb-3" style="border:0;">
+        <a href="/client/account?tab=deposits-new" class="<%= depTab === 'deposits-new' ? 'is-active' : '' %>">طلب جديد</a>
+        <a href="/client/account?tab=deposits-pending" class="<%= depTab === 'deposits-pending' ? 'is-active' : '' %>">قيد المراجعة</a>
+        <a href="/client/account?tab=deposits-accepted" class="<%= depTab === 'deposits-accepted' ? 'is-active' : '' %>">مقبولة</a>
+        <a href="/client/account?tab=deposits-rejected" class="<%= depTab === 'deposits-rejected' ? 'is-active' : '' %>">مرفوضة</a>
+    </nav>
+
+    <% if (!canRequestDeposit) { %>
+        <p class="text-muted fw-bold">حسابك لا يمكنه طلب إيداع من هذه الشاشة.</p>
+    <% } else if (depTab === 'deposits-new') { %>
+        <div class="client-hub-readonly-row mb-3"><span>الرصيد الحالي</span><strong dir="ltr" class="mono-num" id="currentBalance">— LYD</strong></div>
+        <form id="depositForm" class="client-hub-field-grid">
+            <label class="span-2">قيمة الإيداع (LYD)<input id="depositAmount" class="form-control mt-1" type="number" min="1" max="1000000" step="0.01" required placeholder="500"></label>
+            <label class="span-2">ملاحظة للإدارة<textarea id="depositNote" class="form-control mt-1" rows="3" maxlength="1000" required placeholder="مرجع التحويل، البنك…"></textarea></label>
+            <div class="span-2"><button type="submit" class="btn btn-primary fw-bold w-100" id="submitDepositBtn"><i class="fa-solid fa-paper-plane me-1"></i> إرسال للإدارة</button></div>
+        </form>
+        <p class="small text-muted mt-2 mb-0">يصل الطلب لفريق الإدارة عبر نظام الدعم — يُضاف الرصيد بعد الموافقة فقط.</p>
+    <% } else { %>
+        <div id="depositList" data-filter="<%= depTab.replace('deposits-','') %>"><div class="text-center text-muted py-4"><i class="fa-solid fa-spinner fa-spin"></i> جارٍ التحميل…</div></div>
+    <% } %>
+</div>

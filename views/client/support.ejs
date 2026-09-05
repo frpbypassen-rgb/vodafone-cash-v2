@@ -24,12 +24,13 @@
     <% } %>
 
     <% if (typeof walletHub !== 'undefined' && walletHub) { %>
-    <%- include('partials/wallet_hub_satellite_shell_start', {
+    <%- include('partials/wallet_hub_hub_shell_start', {
         user: account,
         activePage: 'support',
+        isSystemOpen: true,
         pageKicker: 'مركز الدعم',
         pageTitle: 'الدعم الفني',
-        pageSubtitle: 'تواصل بأمان مع فريق المساعدة.',
+        pageSubtitle: 'تواصل بأمان مع فريق المساعدة — مرتبط بلوحة الإدارة.',
         pageIcon: 'fa-headset'
     }) %>
     <% } else { %>
@@ -78,7 +79,7 @@
     </div>
 
     <% if (typeof walletHub !== 'undefined' && walletHub) { %>
-    <%- include('partials/wallet_hub_satellite_shell_end') %>
+    <%- include('partials/wallet_hub_hub_shell_end') %>
     <%- include('partials/wallet_hub_layout_end', { walletHub: true, user: account }) %>
     <% } %>
 

@@ -3089,6 +3089,21 @@
                 switchMobileTab(initialTab);
             }
 
+            const pick = urlParams.get('pick');
+            if (pick === 'balance') {
+                setTimeout(() => openBalanceTransferModal(), 300);
+            } else if (pick) {
+                switchMobileTab('transfers');
+                setTimeout(() => {
+                    const desktop = window.innerWidth >= 768;
+                    if (pick === 'cash') desktop ? selectTransferServiceDesktop('كاش') : selectTransferService('كاش');
+                    else if (pick === 'post') desktop ? selectEgyptPostServiceDesktop() : selectEgyptPostService();
+                    else if (pick === 'bank') desktop ? selectTransferServiceDesktop('حساب بنكي') : selectTransferService('حساب بنكي');
+                    else if (pick === 'sefa') desktop ? selectTransferServiceDesktop('سيفا النيجر') : selectTransferService('سيفا النيجر');
+                    else if (pick === 'sudan') desktop ? selectTransferServiceDesktop('بنكك السودان') : selectTransferService('بنكك السودان');
+                }, 400);
+            }
+
             // Reset desktop transfer modal when closed
             const modalEl = document.getElementById('transferModal');
             if (modalEl) {

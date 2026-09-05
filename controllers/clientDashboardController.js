@@ -329,7 +329,10 @@ exports.postUpdateOwnProfile = async (req, res) => {
 
         const name = String(req.body.name || '').trim().slice(0, 100);
         const address = String(req.body.address || '').trim().slice(0, 200);
-        if (name.length < 3) return res.redirect('/client/dashboard?profileError=name');
+        if (name.length < 3) {
+            if (req.query.return === 'settings') return res.redirect('/client/settings?section=profile&settingsError=name');
+            return res.redirect('/client/dashboard?profileError=name');
+        }
         account.name = name;
         if (isSubAccount) {
             account.address = address;
@@ -369,6 +372,9 @@ exports.postUpdateOwnProfile = async (req, res) => {
                 }
             });
         }
+        if (req.query.return === 'settings') {
+            return res.redirect('/client/settings?section=profile&settingsSuccess=profile');
+        }
         return res.redirect('/client/dashboard?tab=account&profileSuccess=1');
     } catch (error) {
         if (photoKey) {
@@ -376,6 +382,9 @@ exports.postUpdateOwnProfile = async (req, res) => {
         }
         if (req.accepts('json')) {
             return res.status(400).json({ success: false, error: 'تعذر حفظ بيانات الملف الشخصي.' });
+        }
+        if (req.query.return === 'settings') {
+            return res.redirect('/client/settings?section=profile&settingsError=save');
         }
         return res.redirect('/client/dashboard?tab=account&profileError=save');
     }

@@ -92,6 +92,11 @@ const renderReports = async (req, res) => {
         if (!account) return res.redirect('/client/logout');
         account.canViewBalance = canViewBalance;
         const walletHub = isWalletHubSession(req.session.accountType, account.role);
+        if (walletHub) {
+            const qs = new URLSearchParams(req.query);
+            if (!qs.get('tab')) qs.set('tab', 'operations');
+            return res.redirect(`/client/account?${qs.toString()}`);
+        }
         return res.render('client/reports', { account, accountType: req.session.accountType, walletHub, user: account });
     } catch (e) {
         console.error('Reports Render Error:', e);

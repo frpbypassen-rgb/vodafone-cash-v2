@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <script>const csrfToken = <%- JSON.stringify(typeof csrfToken !== 'undefined' ? csrfToken : '') %>;</script>
+    <%- include('../partials/wallet_hub_layout_head', {
+        pageTitle: 'الحساب والكشوف',
+        walletHub: true,
+        extraCss: ['/css/client-hub-pages.css?v=20260905-hub1', '/css/client-reports-2027.css?v=20260905-hub1']
+    }) %>
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+</head>
+<body class="client-direct-modern client-nile-theme wallet-hub-active wallet-hub-satellite client-hub-page client-report-2027">
+    <%- include('../partials/wallet_hub_mobile_header', {
+        user: user,
+        mobileKicker: 'المالية',
+        mobileTitle: 'الحساب والكشوف',
+        mobileSubtitle: 'عمليات · إيداعات · ملخص · تصدير'
+    }) %>
+
+    <%- include('../partials/wallet_hub_hub_shell_start', {
+        user: user,
+        activePage: 'account',
+        isSystemOpen: isSystemOpen,
+        pageKicker: 'المالية',
+        pageTitle: 'الحساب والكشوف',
+        pageSubtitle: 'سجل العمليات والإيداعات والتصدير — مرتبط بسجل الإدارة.',
+        pageIcon: 'fa-wallet'
+    }) %>
+
+    <div class="client-hub-mobile-content">
+        <% const tab = typeof activeTab !== 'undefined' ? activeTab : 'operations'; %>
+        <nav class="client-hub-tabs" aria-label="أقسام الحساب">
+            <a href="/client/account?tab=operations" class="<%= tab === 'operations' ? 'is-active' : '' %>"><i class="fa-solid fa-list"></i> سجل العمليات</a>
+            <% if (canRequestDeposit) { %>
+            <a href="/client/account?tab=deposits-new" class="<%= tab.startsWith('deposit') ? 'is-active' : '' %>"><i class="fa-solid fa-arrow-down"></i> الإيداعات</a>
+            <% } %>
+            <a href="/client/account?tab=summary" class="<%= tab === 'summary' ? 'is-active' : '' %>"><i class="fa-solid fa-chart-pie"></i> ملخص مالي</a>
+            <a href="/client/account?tab=export" class="<%= tab === 'export' ? 'is-active' : '' %>"><i class="fa-solid fa-file-export"></i> تصدير</a>
+        </nav>
+
+        <% if (tab.startsWith('deposit')) { %>
+            <%- include('../partials/hub_account_deposits', { tab: tab, user: user, canRequestDeposit: canRequestDeposit }) %>
+        <% } else if (tab === 'summary' || tab === 'export') { %>
+            <%- include('../partials/hub_account_reports', { tab: tab, account: account, accountType: accountType }) %>
+        <% } else { %>
+            <%- include('../partials/hub_account_reports', { tab: 'operations', account: account, accountType: accountType }) %>
+        <% } %>
+    </div>
+
+    <%- include('../partials/wallet_hub_hub_shell_end') %>
+    <%- include('../partials/wallet_hub_layout_end', { walletHub: true, user: user, profile: profile }) %>
+    <%- include('../partials/wallet_hub_bottom_nav', { activeNav: 'account' }) %>
+    <script src="/js/client-hub-account.js?v=20260905-hub1" defer></script>
+</body>
+</html>

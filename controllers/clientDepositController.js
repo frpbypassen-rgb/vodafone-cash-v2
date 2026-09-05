@@ -18,12 +18,7 @@ exports.getDepositsPage = async (req, res) => {
         const user = await loadDirectClient(req);
         if (!user) return res.redirect('/client/dashboard?portalError=forbidden');
 
-        return res.render('client/deposits', {
-            user,
-            account: user,
-            accountType: req.session.accountType,
-            walletHub: true
-        });
+        return res.redirect('/client/account?tab=deposits-new');
     } catch (error) {
         return res.redirect('/client/dashboard');
     }

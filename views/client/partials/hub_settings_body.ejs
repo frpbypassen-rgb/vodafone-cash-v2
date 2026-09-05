@@ -1,0 +1,69 @@
+<% const section = typeof activeSection !== 'undefined' ? activeSection : 'profile'; %>
+<div class="client-hub-settings-layout">
+    <nav class="client-hub-settings-nav" aria-label="أقسام الإعدادات">
+        <a href="/client/settings?section=profile" class="<%= section === 'profile' ? 'is-active' : '' %>"><i class="fa-solid fa-user"></i> الملف الشخصي</a>
+        <a href="/client/settings?section=security" class="<%= section === 'security' ? 'is-active' : '' %>"><i class="fa-solid fa-shield-halved"></i> الأمان</a>
+        <a href="/client/settings?section=notifications" class="<%= section === 'notifications' ? 'is-active' : '' %>"><i class="fa-solid fa-bell"></i> الإشعارات</a>
+        <a href="/client/settings?section=appearance" class="<%= section === 'appearance' ? 'is-active' : '' %>"><i class="fa-solid fa-palette"></i> المظهر</a>
+        <a href="/client/settings?section=documents" class="<%= section === 'documents' ? 'is-active' : '' %>"><i class="fa-solid fa-file-shield"></i> الحساب والوثائق</a>
+    </nav>
+
+    <div class="client-hub-panel">
+        <% if (section === 'profile') { %>
+            <h2 class="h5 fw-bold mb-3"><i class="fa-solid fa-user text-primary me-1"></i> الملف الشخصي</h2>
+            <% if (profile.canEditProfile) { %>
+            <form method="POST" action="/client/profile?return=settings" enctype="multipart/form-data" class="client-hub-field-grid mb-4">
+                <input type="hidden" name="_csrf" value="<%= typeof csrfToken !== 'undefined' ? csrfToken : '' %>">
+                <label class="span-2">الاسم<input class="form-control mt-1" type="text" name="name" value="<%= profile.name %>" minlength="3" maxlength="100" required></label>
+                <label class="span-2">العنوان<input class="form-control mt-1" type="text" name="address" value="<%= profile.address === 'غير مسجل' ? '' : profile.address %>" maxlength="200"></label>
+                <div class="span-2"><button type="submit" class="btn btn-success fw-bold"><i class="fa-solid fa-floppy-disk me-1"></i> حفظ البيانات</button></div>
+            </form>
+            <% } %>
+            <div class="client-hub-readonly-row"><span>الهاتف</span><strong dir="ltr"><%= profile.phone %></strong></div>
+            <div class="client-hub-readonly-row"><span>اسم المستخدم</span><strong dir="ltr"><%= profile.username || '—' %></strong></div>
+            <div class="client-hub-readonly-row"><span>ID الحساب</span><strong dir="ltr" class="mono-num"><%= profile.accountCode || '—' %></strong></div>
+            <div class="client-hub-readonly-row"><span>نوع الحساب</span><strong><%= profile.accountTypeName %> — <%= profile.userRoleLabel %></strong></div>
+            <% if (profile.agentAccountCode) { %>
+            <div class="client-hub-readonly-row"><span>رقم الوكالة</span><strong dir="ltr" class="mono-num"><%= profile.agentAccountCode %></strong></div>
+            <% } %>
+            <div class="client-hub-readonly-row"><span>تاريخ الانضمام</span><strong><%= profile.joinedAt ? new Date(profile.joinedAt).toLocaleDateString('ar-LY') : '—' %></strong></div>
+
+        <% } else if (section === 'security') { %>
+            <h2 class="h5 fw-bold mb-3"><i class="fa-solid fa-shield-halved text-success me-1"></i> الأمان والخصوصية</h2>
+            <form method="POST" action="/client/hub/password" class="client-hub-field-grid mb-4">
+                <input type="hidden" name="_csrf" value="<%= typeof csrfToken !== 'undefined' ? csrfToken : '' %>">
+                <label class="span-2">كلمة المرور الحالية<input class="form-control mt-1" type="password" name="currentPassword" autocomplete="current-password" required></label>
+                <label>كلمة المرور الجديدة<input class="form-control mt-1" type="password" name="newPassword" minlength="8" autocomplete="new-password" required></label>
+                <label>تأكيد كلمة المرور<input class="form-control mt-1" type="password" name="passwordConfirm" minlength="8" autocomplete="new-password" required></label>
+                <div class="span-2"><button type="submit" class="btn btn-primary fw-bold"><i class="fa-solid fa-key me-1"></i> تحديث كلمة المرور</button></div>
+            </form>
+            <hr>
+            <h3 class="h6 fw-bold mb-2">Authenticator (MFA)</h3>
+            <%- include('../../partials/mfa_security_panel') %>
+            <div class="mt-3"><a href="/security/sessions" class="btn btn-outline-secondary fw-bold"><i class="fa-solid fa-laptop-mobile me-1"></i> الأجهزة والجلسات النشطة</a></div>
+
+        <% } else if (section === 'notifications') { %>
+            <h2 class="h5 fw-bold mb-3"><i class="fa-solid fa-bell text-warning me-1"></i> الإشعارات</h2>
+            <p class="text-muted small fw-bold mb-3">تنبيهات تغيير أسعار الصرف مرتبطة بلوحة الإدارة — عند تفعيل السعر الجديد يصلك إشعار فوري.</p>
+            <div class="client-hub-readonly-row"><span>تنبيهات الأسعار</span><strong id="hubRatePushStatus">جارٍ التحقق…</strong></div>
+            <button type="button" class="btn btn-outline-primary fw-bold mt-2" id="hubRatePushBtn"><i class="fa-solid fa-bell me-1"></i> تفعيل تنبيهات الأسعار</button>
+            <p class="small text-muted mt-3 mb-0">إشعارات العمليات والإيداع تظهر في مركز الإشعارات ومرتبطة بسجل الإدارة.</p>
+
+        <% } else if (section === 'appearance') { %>
+            <h2 class="h5 fw-bold mb-3"><i class="fa-solid fa-palette text-info me-1"></i> المظهر</h2>
+            <p class="text-muted small fw-bold">اختر الوضع المناسب للشاشة.</p>
+            <div class="d-flex gap-2 flex-wrap mt-3">
+                <button type="button" class="btn btn-light fw-bold border" onclick="document.documentElement.setAttribute('data-theme','light');localStorage.setItem('ahram_theme','light');"><i class="fa-solid fa-sun me-1"></i> فاتح</button>
+                <button type="button" class="btn btn-dark fw-bold" onclick="document.documentElement.setAttribute('data-theme','dark');localStorage.setItem('ahram_theme','dark');"><i class="fa-solid fa-moon me-1"></i> داكن</button>
+            </div>
+
+        <% } else if (section === 'documents') { %>
+            <h2 class="h5 fw-bold mb-3"><i class="fa-solid fa-file-shield text-secondary me-1"></i> الحساب والوثائق</h2>
+            <div class="client-hub-readonly-row"><span>حالة الحساب</span><strong><%= profile.accountStatus === 'active' ? 'نشط' : profile.accountStatus %></strong></div>
+            <div class="client-hub-readonly-row"><span>حالة النظام</span><strong><%= profile.systemStatus %></strong></div>
+            <div class="client-hub-readonly-row"><span>MFA</span><strong><%= profile.mfaEnabled ? 'مفعّل' : 'غير مفعّل' %></strong></div>
+            <p class="small text-muted mt-3">مستندات التحقق (إن وُجدت) تُراجع من الإدارة ولا يمكن تعديلها من هنا.</p>
+            <a href="/client/logout" class="btn btn-outline-danger fw-bold mt-2"><i class="fa-solid fa-power-off me-1"></i> تسجيل الخروج</a>
+        <% } %>
+    </div>
+</div>
