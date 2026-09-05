@@ -148,18 +148,33 @@
             const text = msgInput.value.trim();
             if(!text && !selectedBase64) return;
             
-            const b64 = selectedBase64; msgInput.value = ''; clearImage();
+            const b64 = selectedBase64;
+            const previousText = msgInput.value;
             sendBtn.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin"></i>';
+            sendBtn.disabled = true;
             
             try {
-                await fetch('/client/api/support/messages', {
+                const response = await fetch('/client/api/support/messages', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json', ...(csrfToken ? { 'x-csrf-token': csrfToken } : {}) },
                     body: JSON.stringify({ text, imageBase64: b64 })
                 });
+                const payload = await response.json().catch(() => ({}));
+                if (!response.ok || !payload.success) throw new Error(payload.error || 'تعذر إرسال الرسالة.');
+                msgInput.value = '';
+                clearImage();
                 await loadMessages();
-            } catch(e) {}
-            sendBtn.innerHTML = '<i class="fa-solid fa-paper-plane"></i>';
+            } catch(e) {
+                msgInput.value = previousText;
+                const error = document.createElement('div');
+                error.className = 'alert alert-danger py-2 px-3 small mt-2 mb-0';
+                error.textContent = e.message || 'تعذر إرسال الرسالة. حاول مجدداً.';
+                chatForm.after(error);
+                window.setTimeout(() => error.remove(), 5000);
+            } finally {
+                sendBtn.disabled = false;
+                sendBtn.innerHTML = '<i class="fa-solid fa-paper-plane"></i>';
+            }
         };
 
         setInterval(() => { if (!document.hidden) loadMessages(); }, 10000); loadMessages();
