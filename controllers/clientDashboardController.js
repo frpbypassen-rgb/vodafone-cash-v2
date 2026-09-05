@@ -24,6 +24,8 @@ const { activatePendingRateUpdate } = require('../services/rateChangeService');
 const { buildPendingRateAlertForClient } = require('../services/rateAlerts/rateAlertAudienceService');
 
 const renderBusinessOverview = clientWorkspaceController.renderPage('overview');
+const escapeRegExp = (value) => String(value || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+const normalizeDashboardSearch = (value) => String(value || '').trim().slice(0, 80);
 
 // لا نعيد مستند Transaction الخام إلى المتصفح. المستند يحتوي حقول تشغيلية
 // وإدارية تخص المنفذين لا يجب أن تصل إلى أي حساب عميل.
@@ -104,7 +106,7 @@ exports.getDashboard = async (req, res) => {
         const isWalletHubUser = req.session.accountType === 'sub_client'
             || (req.session.accountType === 'user' && account.role !== 'agent');
 
-        const search = req.query.search ? req.query.search.trim() : '';
+        const search = normalizeDashboardSearch(req.query.search);
         let targetDate = req.query.date;
         const hasExplicitDateFilter = req.query.date !== undefined || req.query.month !== undefined;
         let showMonth = req.query.month === 'true' || (!hasExplicitDateFilter && !isWalletHubUser);
@@ -126,7 +128,10 @@ exports.getDashboard = async (req, res) => {
         }
 
         filter.createdAt = { $gte: start, $lte: end };
-        if (search) { filter.$or = [{ notes: { $regex: search, $options: 'i' } }, { vodafoneNumber: { $regex: search, $options: 'i' } }, { customId: { $regex: search, $options: 'i' } }]; }
+        if (search) {
+            const safeSearch = escapeRegExp(search);
+            filter.$or = [{ notes: { $regex: safeSearch, $options: 'i' } }, { vodafoneNumber: { $regex: safeSearch, $options: 'i' } }, { customId: { $regex: safeSearch, $options: 'i' } }];
+        }
 
         // The dashboard is a live workspace, not an archive export.  Keeping a bounded
         // window prevents a long date-range or an old account from blocking page render.
@@ -529,7 +534,7 @@ exports.getApiTransactions = async (req, res) => {
         else if (req.session.accountType === 'company') { filter.companyId = account.companyId; filter.subAccountId = null; }
         else { filter.userId = account.phone || account.webUsername; filter.companyId = null; filter.subAccountId = null; }
 
-        const search = req.query.search ? req.query.search.trim() : '';
+        const search = normalizeDashboardSearch(req.query.search);
         let targetDate = req.query.date; let showMonth = req.query.month === 'true'; let start, end;
         if (showMonth) {
             const now = new Date(); start = new Date(now.getFullYear(), now.getMonth(), 1); start.setHours(0, 0, 0, 0);
@@ -539,7 +544,10 @@ exports.getApiTransactions = async (req, res) => {
             start = new Date(`${targetDate}T00:00:00.000Z`); end = new Date(`${targetDate}T23:59:59.999Z`);
         }
         filter.createdAt = { $gte: start, $lte: end };
-        if (search) { filter.$or = [{ notes: { $regex: search, $options: 'i' } }, { vodafoneNumber: { $regex: search, $options: 'i' } }, { customId: { $regex: search, $options: 'i' } }]; }
+        if (search) {
+            const safeSearch = escapeRegExp(search);
+            filter.$or = [{ notes: { $regex: safeSearch, $options: 'i' } }, { vodafoneNumber: { $regex: safeSearch, $options: 'i' } }, { customId: { $regex: safeSearch, $options: 'i' } }];
+        }
 
         let transactions = await Transaction.find(filter).sort({ createdAt: -1 }).limit(25).lean();
 
