@@ -18,9 +18,10 @@
     <link rel="stylesheet" href="/css/brand-ui.css?v=20260804-brand1">
     <link rel="stylesheet" href="/css/client-nile-theme.css?v=20260826-nile3">
     <link rel="stylesheet" href="/css/client-support-2027.css?v=20260905-2">
+    <link rel="stylesheet" href="/css/client-os-site.css?v=20260905-site">
     <% if (typeof walletHub !== 'undefined' && walletHub) { %>
-    <link rel="stylesheet" href="/css/client-dashboard-2027.css?v=20260905-3">
-    <link rel="stylesheet" href="/css/client-web-os.css?v=20260905-2">
+    <link rel="stylesheet" href="/css/client-dashboard-2027.css?v=20260905-site">
+    <link rel="stylesheet" href="/css/client-web-os.css?v=20260905-site">
     <% } %>
     <script src="/js/client-theme.js?v=20260826-nile2" defer></script>
 
@@ -91,8 +92,7 @@
 
     <% if (typeof walletHub !== 'undefined' && walletHub) { %>
     <%- include('partials/wallet_hub_satellite_shell_end') %>
-    <%- include('partials/wallet_hub_command_palette') %>
-    <script src="/js/client-web-os.js?v=20260905-2" defer></script>
+    <%- include('partials/wallet_hub_layout_end') %>
     <% } %>
 
     <%- include('partials/wallet_shell_bottom_nav', { activeNav: 'support' }) %>

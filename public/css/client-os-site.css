@@ -1,0 +1,371 @@
+/* Client OS Site — unified design system for the entire client portal */
+
+:root {
+    --cos-ink: #13233d;
+    --cos-ink-soft: #5c738a;
+    --cos-teal: #0e9f8b;
+    --cos-teal-deep: #087b68;
+    --cos-blue: #1265d8;
+    --cos-gold: #d89f29;
+    --cos-surface: #f7fafd;
+    --cos-panel: #ffffff;
+    --cos-line: #dce7f0;
+    --cos-sidebar: linear-gradient(170deg, #102b4a 0%, #0a1d34 58%, #071525 100%);
+    --cos-shadow: 0 24px 70px rgba(22, 49, 85, 0.12);
+    --cos-radius-lg: 22px;
+    --cos-radius-md: 14px;
+    --cos-radius-sm: 10px;
+}
+
+[data-theme="dark"] {
+    --cos-ink: #e7edf6;
+    --cos-ink-soft: #94a3b8;
+    --cos-surface: #101d2d;
+    --cos-panel: #172a3e;
+    --cos-line: #294159;
+}
+
+.client-os-auth-page.unified-login-page {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: linear-gradient(135deg, #001a4d 0%, #000c24 100%) !important;
+}
+
+.client-os-auth-page .login-card {
+    border-radius: var(--cos-radius-lg);
+}
+.client-os-auth-page {
+    min-height: 100vh;
+    margin: 0;
+    display: grid;
+    place-items: center;
+    padding: 24px 16px;
+    color: var(--cos-ink);
+    background:
+        radial-gradient(circle at 88% -8%, rgba(14, 159, 139, 0.18), transparent 34rem),
+        radial-gradient(circle at 8% 100%, rgba(18, 101, 216, 0.12), transparent 28rem),
+        #eef4f9;
+}
+
+[data-theme="dark"] .client-os-auth-page {
+    background:
+        radial-gradient(circle at 88% -8%, rgba(14, 159, 139, 0.12), transparent 34rem),
+        #0b1524;
+}
+
+.client-os-auth-shell {
+    width: min(440px, 100%);
+}
+
+.client-os-auth-mark {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    margin-bottom: 18px;
+    color: var(--cos-ink);
+    text-decoration: none;
+}
+
+.client-os-auth-mark-icon {
+    display: grid;
+    width: 46px;
+    height: 46px;
+    place-items: center;
+    border-radius: 14px;
+    color: #102b4a;
+    background: linear-gradient(135deg, #e7bf58, #f7e1a0);
+    box-shadow: 0 10px 22px rgba(0, 0, 0, 0.14);
+}
+
+.client-os-auth-mark b {
+    display: block;
+    font-size: 1.15rem;
+    letter-spacing: 0.12em;
+}
+
+.client-os-auth-mark small {
+    display: block;
+    margin-top: 3px;
+    color: var(--cos-teal);
+    font-size: 0.62rem;
+    font-weight: 900;
+    letter-spacing: 0.22em;
+}
+
+.client-os-auth-card {
+    padding: 28px 24px;
+    border: 1px solid var(--cos-line);
+    border-radius: var(--cos-radius-lg);
+    background: rgba(255, 255, 255, 0.94);
+    box-shadow: var(--cos-shadow);
+    backdrop-filter: blur(14px);
+}
+
+[data-theme="dark"] .client-os-auth-card {
+    background: rgba(23, 42, 62, 0.94);
+}
+
+.client-os-auth-card h1,
+.client-os-auth-card h4 {
+    margin: 0 0 6px;
+    font-size: 1.35rem;
+    font-weight: 900;
+    text-align: center;
+}
+
+.client-os-auth-card p.lead {
+    margin: 0 0 20px;
+    color: var(--cos-ink-soft);
+    font-size: 0.82rem;
+    font-weight: 700;
+    text-align: center;
+}
+
+.client-os-auth-card .form-control,
+.client-os-auth-card .form-select {
+    min-height: 48px;
+    border-radius: var(--cos-radius-sm);
+    border-color: var(--cos-line);
+    font-weight: 700;
+}
+
+.client-os-auth-card .form-control:focus {
+    border-color: var(--cos-teal);
+    box-shadow: 0 0 0 4px rgba(14, 159, 139, 0.12);
+}
+
+.client-os-auth-submit {
+    width: 100%;
+    min-height: 48px;
+    border: 0;
+    border-radius: var(--cos-radius-sm);
+    color: #fff;
+    font-weight: 900;
+    background: linear-gradient(135deg, var(--cos-blue), var(--cos-teal));
+    box-shadow: 0 12px 24px rgba(14, 159, 139, 0.22);
+}
+
+.client-os-auth-links {
+    display: flex;
+    justify-content: center;
+    gap: 14px;
+    margin-top: 16px;
+    font-size: 0.8rem;
+    font-weight: 800;
+}
+
+.client-os-auth-links a {
+    color: var(--cos-blue);
+    text-decoration: none;
+}
+
+/* ── Transfer modal (Client OS sheet) ── */
+.wallet-hub-active #transferModal .modal-dialog {
+    max-width: min(760px, calc(100vw - 24px));
+}
+
+.wallet-hub-active #transferModal .modal-content {
+    overflow: hidden;
+    border: 1px solid var(--cos-line);
+    border-radius: 24px;
+    background: var(--cos-surface);
+    box-shadow: 0 32px 90px rgba(16, 43, 74, 0.22);
+}
+
+.wallet-hub-active #transferModal .modal-header {
+    padding: 20px 22px 8px;
+    background: linear-gradient(180deg, rgba(14, 159, 139, 0.08), transparent);
+}
+
+.wallet-hub-active #transferModal .modal-title {
+    color: var(--cos-ink) !important;
+    font-size: 1.05rem;
+    font-weight: 900;
+}
+
+.wallet-hub-active #transferModal .modal-body {
+    padding: 16px 22px 22px;
+}
+
+.wallet-hub-active #transferModal .services-desktop-grid,
+.wallet-hub-active #mobile-transfer-services-grid .services-mobile-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 10px;
+}
+
+.wallet-hub-active .service-card-item-desktop,
+.wallet-hub-active .service-card-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+    min-height: 118px;
+    padding: 14px 10px;
+    border: 1px solid var(--cos-line);
+    border-radius: 16px;
+    background: var(--cos-panel);
+    cursor: pointer;
+    transition: transform 0.16s ease, box-shadow 0.16s ease, border-color 0.16s ease;
+}
+
+.wallet-hub-active .service-card-item-desktop:hover,
+.wallet-hub-active .service-card-item:hover {
+    transform: translateY(-2px);
+    border-color: rgba(14, 159, 139, 0.45);
+    box-shadow: 0 14px 24px rgba(35, 68, 101, 0.1);
+}
+
+.wallet-hub-active .service-card-icon,
+.wallet-hub-active .service-card-item-desktop .service-card-icon {
+    display: grid;
+    width: 52px;
+    height: 52px;
+    place-items: center;
+    border-radius: 14px;
+    overflow: hidden;
+    background: #e7f4fb;
+}
+
+.wallet-hub-active .service-card-title,
+.wallet-hub-active .service-card-item-desktop .service-card-title {
+    font-size: 0.78rem;
+    font-weight: 900;
+    text-align: center;
+    color: var(--cos-ink);
+}
+
+.wallet-hub-active #transferModal #desktop-transfer-services-grid > h5,
+.wallet-hub-active #mobile-transfer-services-grid > h5 {
+    margin-bottom: 14px !important;
+    color: var(--cos-ink-soft) !important;
+    font-size: 0.82rem !important;
+    font-weight: 800 !important;
+}
+
+.wallet-hub-active #transferForm .form-control,
+.wallet-hub-active #transferForm .form-select {
+    min-height: 46px;
+    border-radius: 12px;
+    border-color: var(--cos-line);
+    font-weight: 700;
+}
+
+.wallet-hub-active #transferForm .btn-primary,
+.wallet-hub-active #transferForm .btn-success {
+    min-height: 46px;
+    border: 0;
+    border-radius: 12px;
+    font-weight: 900;
+    background: linear-gradient(135deg, var(--cos-blue), var(--cos-teal));
+}
+
+/* ── Satellite page content cards ── */
+.wallet-hub-satellite .card-glass,
+.wallet-hub-satellite .nile-page-card,
+.wallet-hub-satellite .deposit-card,
+.wallet-hub-satellite .chat-container {
+    border: 1px solid var(--cos-line) !important;
+    border-radius: var(--cos-radius-lg) !important;
+    background: var(--cos-panel) !important;
+    box-shadow: 0 12px 30px rgba(19, 35, 61, 0.07) !important;
+}
+
+.wallet-hub-satellite .stat-card {
+    border-radius: var(--cos-radius-md);
+    border: 1px solid var(--cos-line);
+    background: var(--cos-panel);
+}
+
+.wallet-hub-satellite #btnFetch,
+.wallet-hub-satellite .submit-deposit {
+    border: 0;
+    border-radius: 12px;
+    font-weight: 900;
+    background: linear-gradient(135deg, var(--cos-blue), var(--cos-teal));
+}
+
+/* ── Mobile bottom nav unified ── */
+.wallet-hub-active .bottom-nav-mobile {
+    height: 68px;
+    padding: 0 8px calc(6px + env(safe-area-inset-bottom));
+    border-top: 1px solid var(--cos-line);
+    background: rgba(255, 255, 255, 0.94);
+    backdrop-filter: blur(16px);
+}
+
+[data-theme="dark"] .wallet-hub-active .bottom-nav-mobile {
+    background: rgba(16, 29, 45, 0.94);
+    border-top-color: #294159;
+}
+
+.wallet-hub-active .bottom-nav-mobile .bottom-nav-item {
+    color: var(--cos-ink-soft);
+    font-size: 0.62rem;
+    font-weight: 800;
+}
+
+.wallet-hub-active .bottom-nav-mobile .bottom-nav-item.active {
+    color: var(--cos-teal);
+}
+
+.wallet-hub-active .nile-fab,
+.wallet-hub-active .bottom-nav-mobile .nile-fab {
+    width: 52px;
+    height: 52px;
+    border: 0;
+    border-radius: 16px;
+    color: #fff;
+    background: linear-gradient(135deg, var(--cos-blue), var(--cos-teal));
+    box-shadow: 0 12px 24px rgba(14, 159, 139, 0.28);
+}
+
+/* ── Balance transfer + security panels ── */
+.wallet-hub-active .modal-content {
+    border-radius: 20px;
+    border-color: var(--cos-line);
+}
+
+.wallet-hub-active .client-security-drawer {
+    border-left: 1px solid var(--cos-line);
+    background: var(--cos-panel);
+}
+
+/* ── Print / legacy hide on hub ── */
+.wallet-hub-active .navbar-custom,
+.wallet-hub-active .mobile-header,
+.wallet-hub-active .glass-nav {
+    display: none !important;
+}
+
+@media (max-width: 767.98px) {
+    .wallet-hub-active #transferModal .services-desktop-grid,
+    .wallet-hub-active #transferModal .services-mobile-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .client-os-auth-card {
+        padding: 22px 18px;
+    }
+}
+
+@media (min-width: 768px) {
+    .wallet-hub-active #transferModal .modal-dialog.modal-dialog-centered {
+        margin-top: 4vh;
+    }
+}
+
+/* Dark mode transfer + cards */
+[data-theme="dark"] .wallet-hub-active #transferModal .modal-content,
+[data-theme="dark"] .wallet-hub-active .service-card-item-desktop,
+[data-theme="dark"] .wallet-hub-active .service-card-item {
+    background: #172a3e;
+    border-color: #294159;
+}
+
+[data-theme="dark"] .wallet-hub-active .service-card-title,
+[data-theme="dark"] .wallet-hub-active #transferModal .modal-title {
+    color: #e7edf6 !important;
+}

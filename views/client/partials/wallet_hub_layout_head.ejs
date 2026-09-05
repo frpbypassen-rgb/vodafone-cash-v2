@@ -1,0 +1,33 @@
+<%#
+  Unified Client OS head — use on all wallet-hub pages.
+  Locals: pageTitle, extraCss (array of optional css paths), walletHub (default true)
+%>
+<% const hubActive = typeof walletHub === 'undefined' ? true : !!walletHub; %>
+<% const docTitle = typeof pageTitle !== 'undefined' && pageTitle ? pageTitle + ' | Al-Ahram Pay' : 'بوابة العملاء | Al-Ahram Pay'; %>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title><%= docTitle %></title>
+<script>
+    const savedTheme = localStorage.getItem('ahram_theme') || 'light';
+    document.documentElement.setAttribute('data-theme', savedTheme);
+    document.documentElement.setAttribute('data-bs-theme', savedTheme);
+</script>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.rtl.min.css">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
+<link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800;900&family=JetBrains+Mono:wght@700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/css/brand-ui.css?v=20260905-site">
+<link rel="stylesheet" href="/css/client-direct-modern.css?v=20260905-site">
+<link rel="stylesheet" href="/css/client-nile-theme.css?v=20260905-site">
+<link rel="stylesheet" href="/css/client-dashboard-2027.css?v=20260905-site">
+<% if (hubActive) { %>
+<link rel="stylesheet" href="/css/client-web-os.css?v=20260905-site">
+<link rel="stylesheet" href="/css/client-os-site.css?v=20260905-site">
+<% } %>
+<% if (typeof extraCss !== 'undefined' && Array.isArray(extraCss)) { extraCss.forEach((href) => { %>
+<link rel="stylesheet" href="<%= href %>">
+<% }); } %>
+<link rel="manifest" href="/manifest.json">
+<meta name="theme-color" content="#0a1d34">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Al-Ahram">
