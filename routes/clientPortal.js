@@ -37,6 +37,14 @@ const businessAssistantLimiter = rateLimit({
     legacyHeaders: false
 });
 
+const supportMessageDto = (ticket, message, index) => {
+    const plain = message?.toObject ? message.toObject() : { ...message };
+    if (plain.imageUrl) {
+        plain.imageUrl = `/client/api/support/tickets/${encodeURIComponent(String(ticket._id))}/images/${index}`;
+    }
+    return plain;
+};
+
 // Middleware
 const endUnauthorizedClientSession = (req, res) => {
     const sendUnauthorized = () => {
@@ -417,8 +425,39 @@ router.get('/api/support/messages', requireClientAuth, async (req, res) => {
             ticket.unreadUser = 0;
             await ticket.save();
         }
-        res.json({ success: true, messages: ticket.messages });
+        res.json({
+            success: true,
+            messages: ticket.messages.map((message, index) => supportMessageDto(ticket, message, index))
+        });
     } catch (e) { res.json({ success: false, error: e.message }); }
+});
+
+router.get('/api/support/tickets/:ticketId/images/:index', requireClientAuth, async (req, res) => {
+    try {
+        const index = Number.parseInt(req.params.index, 10);
+        if (!Number.isInteger(index) || index < 0 || !/^[a-f\d]{24}$/i.test(req.params.ticketId)) {
+            return res.status(404).send('المرفق غير موجود.');
+        }
+        const { account, entityType } = await getSupportIdentity(req);
+        const ticket = await SupportTicket.findOne({
+            _id: req.params.ticketId,
+            entityType,
+            entityId: account?._id
+        }).select('messages.imageUrl').lean();
+        const sourceUrl = String(ticket?.messages?.[index]?.imageUrl || '');
+        const fileName = path.basename(sourceUrl);
+        if (!/^support_[a-f\d-]+\.(?:jpg|jpeg|png|webp)$/i.test(fileName)) {
+            return res.status(404).send('المرفق غير موجود.');
+        }
+        const uploadRoot = path.resolve(__dirname, '../uploads');
+        const filePath = path.resolve(uploadRoot, fileName);
+        if (!filePath.startsWith(`${uploadRoot}${path.sep}`) || !fs.existsSync(filePath)) {
+            return res.status(404).send('المرفق غير موجود.');
+        }
+        return res.sendFile(filePath, { headers: { 'Cache-Control': 'private, no-store, max-age=0' } });
+    } catch (_error) {
+        return res.status(404).send('المرفق غير موجود.');
+    }
 });
 
 router.post('/api/support/messages', requireClientAuth, async (req, res) => {
@@ -485,7 +524,10 @@ router.post('/api/support/messages', requireClientAuth, async (req, res) => {
             status: ticket.status
         });
 
-        return res.json({ success: true, message: newMessage });
+        return res.json({
+            success: true,
+            message: supportMessageDto(ticket, newMessage, ticket.messages.length - 1)
+        });
     } catch (error) {
         if (storedImagePath) fs.promises.unlink(storedImagePath).catch(() => {});
         const invalidImage = error.message === 'INVALID_SUPPORT_IMAGE';

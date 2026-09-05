@@ -336,6 +336,11 @@ app.use('/uploads/account-documents', requireAuth, requireMaster, express.static
 // قابلة للفتح من رابط عام؛ العرض التفصيلي يمر لاحقاً عبر مسارات Proxy تتحقق
 // من ملكية السجل، أما هذه البوابة فتمنع الوصول غير المسجّل من الأصل.
 app.use('/uploads', (req, res, next) => {
+    // Support attachments are private to their ticket. Clients receive an
+    // ownership-checked proxy URL from the client portal instead of raw files.
+    if (req.session?.isClientLoggedIn && /^\/?support_/i.test(String(req.path || ''))) {
+        return res.status(403).send('Forbidden');
+    }
     if (req.session && (req.session.isLoggedIn || req.session.isClientLoggedIn || req.session.isExecutorLoggedIn)) {
         return next();
     }
