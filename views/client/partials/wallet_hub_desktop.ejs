@@ -12,12 +12,16 @@
             </div>
         </div>
         <nav class="nile-rail-nav">
+            <span class="client-os-nav-label">مركز القيادة</span>
             <a href="/client/dashboard" class="nile-rail-link active"><i class="fa-solid fa-house"></i><span>الرئيسية</span></a>
             <% if (user.role !== 'accountant') { %>
+            <span class="client-os-nav-label">التشغيل</span>
             <button type="button" class="nile-rail-link border-0 bg-transparent w-100 text-start" data-bs-toggle="modal" data-bs-target="#transferModal"><i class="fa-solid fa-money-bill-transfer"></i><span>تحويل مالي</span></button>
             <button type="button" class="nile-rail-link border-0 bg-transparent w-100 text-start" onclick="openBalanceTransferModal()"><i class="fa-solid fa-wallet"></i><span>تحويل رصيد</span></button>
             <% } %>
+            <span class="client-os-nav-label">الرقابة المالية</span>
             <a href="/client/reports" class="nile-rail-link"><i class="fa-solid fa-chart-pie"></i><span>التقارير</span></a>
+            <span class="client-os-nav-label">الحساب</span>
             <a href="/client/support" class="nile-rail-link"><i class="fa-solid fa-headset"></i><span>الدعم</span></a>
             <% if (user.role === 'agent') { %>
             <a href="/client/sub-accounts" class="nile-rail-link"><i class="fa-solid fa-users-viewfinder"></i><span>نقاط البيع</span></a>
@@ -27,6 +31,17 @@
     </aside>
 
     <main class="nile-desktop-main">
+        <header class="client-os-command-bar">
+            <div>
+                <span class="client-os-kicker">مركز القيادة</span>
+                <h1>مرحباً، <%= user.name %></h1>
+                <p>تابع رصيدك وعملياتك اليوم من مكان واحد.</p>
+            </div>
+            <div class="client-os-command-actions">
+                <span class="client-os-system-state <%= isSystemOpen ? 'is-open' : 'is-closed' %>"><i class="fa-solid <%= isSystemOpen ? 'fa-circle-check' : 'fa-lock' %>"></i><%= isSystemOpen ? 'النظام متاح' : 'النظام مغلق' %></span>
+                <% if (user.role !== 'accountant') { %><button type="button" class="client-os-primary-action" data-bs-toggle="modal" data-bs-target="#transferModal"><i class="fa-solid fa-plus"></i> عملية جديدة</button><% } %>
+            </div>
+        </header>
         <div class="nile-desktop-hero">
             <div class="wallet-wrapper nile-desktop-wallet">
                 <div class="wallet-card nile-wallet-card">
@@ -54,6 +69,11 @@
                     <strong class="wh-stat-value mono-num" id="todayTotalLYD"><%= ((todayStats && todayStats.totalLYD) || 0).toFixed(2) %> <small>LYD</small></strong>
                 </article>
             </div>
+        </div>
+
+        <div class="client-os-workflow-hint">
+            <span><i class="fa-solid fa-shield-halved"></i> بياناتك المالية محمية وتُعرض حسب صلاحيات الحساب.</span>
+            <a href="/client/reports">فتح كشف الحساب <i class="fa-solid fa-arrow-left"></i></a>
         </div>
 
         <% if (user.role !== 'accountant') { %>
