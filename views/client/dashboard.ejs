@@ -614,7 +614,7 @@
     <link rel="stylesheet" href="/css/client-dashboard-2027.css?v=20260905-3">
     <% if (typeof walletHub !== 'undefined' && walletHub) { %>
     <link rel="stylesheet" href="/css/client-web-os.css?v=20260905-site">
-    <link rel="stylesheet" href="/css/client-os-site.css?v=20260905-site">
+    <link rel="stylesheet" href="/css/client-os-site.css?v=20260905-site2">
     <% } %>
 
     <!-- PWA Setup -->
@@ -1305,6 +1305,7 @@
                     <h5 class="modal-title fw-bold" style="color: var(--accent-blue);"><i class="fa-solid fa-paper-plane-top me-2"></i> طلب تحويل مالي</h5>
                 </div>
                 <div class="modal-body p-4">
+                    <%- include('partials/wallet_hub_transfer_wizard') %>
                     <!-- Screen 1: Services Grid -->
                     <div id="desktop-transfer-services-grid" class="mb-4">
                         <h5 class="fw-bold mb-4 text-center" style="color: var(--text-main); font-size: 1.25rem;">
@@ -1448,7 +1449,7 @@
                                         <label class="form-label fw-bold small text-muted">ملاحظات إضافية (اختياري)</label>
                                         <input type="text" class="form-control" id="tf_notes" placeholder="اكتب أي ملاحظة هنا...">
                                     </div>
-                                    <button type="submit" class="btn-submit-cyber" id="btnSubmitTransfer"><i class="fa-solid fa-rocket me-2"></i> تأكيد وإرسال الطلب</button>
+                                    <button type="submit" class="btn-submit-cyber" id="btnSubmitTransfer"><i class="fa-solid fa-arrow-left me-2"></i> التالي: مراجعة الطلب</button>
                                 </div> 
                             </form>
                         </div>
@@ -1524,6 +1525,7 @@
     <%- include('partials/wallet_hub_more') %>
     <%- include('partials/wallet_hub_command_palette') %>
     <script src="/js/client-web-os.js?v=20260905-site" defer></script>
+    <script src="/js/client-os-transfer.js?v=20260905-site" defer></script>
     <% } %>
 
     <section id="client-security-panel" class="client-security-drawer no-print" hidden aria-labelledby="client-security-title">
@@ -1981,6 +1983,11 @@
                     if (!fileInput.files || fileInput.files.length === 0) return Swal.fire({ icon: 'warning', title: 'تنبيه', text: 'أرفق صورة البطاقة.', customClass: { popup: 'swal2-popup' } });
                     idCardFile = fileInput.files[0];
                 }
+
+                if (!window.transferReviewConfirmed) {
+                    if (window.ClientOsTransfer?.showReviewFromForm?.()) return;
+                }
+                window.transferReviewConfirmed = false;
                 
                 let operationPin;
                 try {
@@ -3143,29 +3150,6 @@
         })();
     </script>
 
-    <!-- Mobile Bottom Navigation -->
-    <nav class="bottom-nav-mobile no-print d-md-none" aria-label="التنقل السفلي">
-        <a href="javascript:void(0)" class="bottom-nav-item active" data-tab="account" onclick="switchMobileTab('account')">
-            <i class="fa-solid fa-house"></i>
-            <span>الرئيسية</span>
-        </a>
-        <a href="/client/reports" class="bottom-nav-item" aria-label="التقارير">
-            <i class="fa-solid fa-chart-column"></i>
-            <span>التقارير</span>
-        </a>
-        <div class="nile-fab-slot">
-            <button type="button" class="nile-fab" onclick="openQuickTransfer()" aria-label="تحويل سريع">
-                <i class="fa-solid fa-paper-plane"></i>
-            </button>
-        </div>
-        <a href="javascript:void(0)" class="bottom-nav-item" data-tab="operations" onclick="openMobileOperations()">
-            <i class="fa-solid fa-list-check"></i>
-            <span>العمليات</span>
-        </a>
-        <a href="javascript:void(0)" class="bottom-nav-item" data-tab="more" onclick="openWalletHubMore()">
-            <i class="fa-solid fa-ellipsis"></i>
-            <span>المزيد</span>
-        </a>
-    </nav>
+    <%- include('partials/wallet_hub_bottom_nav', { activeNav: 'home', useDashboardNav: true }) %>
 </body>
 </html>

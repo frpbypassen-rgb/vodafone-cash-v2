@@ -69,6 +69,10 @@
     }) %>
 
     <div class="deposit-page wallet-hub-page-content">
+        <header class="client-os-mobile-page-head d-md-none">
+            <h1>طلب إيداع</h1>
+            <p>أرسل طلب إيداع للمراجعة.</p>
+        </header>
         <header class="deposit-hero">
             <div>
                 <h1>طلب إيداع رصيد</h1>
@@ -117,7 +121,8 @@
     <%- include('partials/wallet_hub_satellite_shell_end') %>
     <%- include('partials/wallet_hub_layout_end') %>
 
-    <%- include('partials/wallet_shell_bottom_nav', { activeNav: 'more' }) %>
+    <%- include('partials/wallet_hub_more') %>
+    <%- include('partials/wallet_hub_bottom_nav', { activeNav: 'more' }) %>
 
     <script>
         const csrfToken = <%- JSON.stringify(typeof csrfToken !== 'undefined' ? csrfToken : '') %>;

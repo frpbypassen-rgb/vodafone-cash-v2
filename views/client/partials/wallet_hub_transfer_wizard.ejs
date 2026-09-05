@@ -1,0 +1,20 @@
+<%# Transfer wizard chrome — steps 1-4 %>
+<div class="client-os-transfer-wizard" id="clientOsTransferWizard" aria-hidden="false">
+    <ol class="client-os-wizard-steps" id="clientOsWizardSteps">
+        <li class="is-active" data-step="1"><span>1</span><small>الخدمة</small></li>
+        <li data-step="2"><span>2</span><small>البيانات</small></li>
+        <li data-step="3"><span>3</span><small>المراجعة</small></li>
+        <li data-step="4"><span>4</span><small>الإرسال</small></li>
+    </ol>
+</div>
+<div class="client-os-transfer-review" id="clientOsTransferReview" hidden>
+    <div class="client-os-transfer-review-head">
+        <p><i class="fa-solid fa-shield-check"></i> مراجعة قبل الإرسال</p>
+        <h3>تأكيد العملية</h3>
+    </div>
+    <div class="client-os-transfer-review-grid" id="clientOsReviewGrid"></div>
+    <div class="client-os-transfer-review-actions">
+        <button type="button" class="btn btn-outline-secondary" id="clientOsReviewBack"><i class="fa-solid fa-arrow-right me-1"></i>تعديل</button>
+        <button type="button" class="btn client-os-auth-submit" id="clientOsReviewConfirm"><i class="fa-solid fa-paper-plane me-1"></i>تأكيد وإرسال</button>
+    </div>
+</div>

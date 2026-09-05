@@ -161,7 +161,141 @@
     text-decoration: none;
 }
 
-/* ── Transfer modal (Client OS sheet) ── */
+/* ── Transfer wizard ── */
+.client-os-transfer-wizard {
+    margin: 0 22px 12px;
+}
+
+.client-os-wizard-steps {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 6px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.client-os-wizard-steps li {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    color: var(--cos-ink-soft);
+    font-size: 0.62rem;
+    font-weight: 800;
+}
+
+.client-os-wizard-steps li span {
+    display: grid;
+    width: 28px;
+    height: 28px;
+    place-items: center;
+    border: 2px solid var(--cos-line);
+    border-radius: 50%;
+    background: var(--cos-panel);
+    font-size: 0.72rem;
+    font-weight: 900;
+}
+
+.client-os-wizard-steps li.is-active {
+    color: var(--cos-teal);
+}
+
+.client-os-wizard-steps li.is-active span,
+.client-os-wizard-steps li.is-done span {
+    border-color: var(--cos-teal);
+    color: #fff;
+    background: linear-gradient(135deg, var(--cos-blue), var(--cos-teal));
+}
+
+.client-os-transfer-review {
+    padding: 8px 22px 20px;
+}
+
+.client-os-transfer-review-head p {
+    margin: 0 0 4px;
+    color: var(--cos-teal);
+    font-size: 0.72rem;
+    font-weight: 900;
+}
+
+.client-os-transfer-review-head h3 {
+    margin: 0 0 14px;
+    font-size: 1.05rem;
+    font-weight: 900;
+}
+
+.client-os-transfer-review-grid {
+    display: grid;
+    gap: 8px;
+    margin-bottom: 16px;
+}
+
+.client-os-review-row {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 10px 12px;
+    border: 1px solid var(--cos-line);
+    border-radius: 12px;
+    background: var(--cos-panel);
+    font-size: 0.78rem;
+}
+
+.client-os-review-row span {
+    color: var(--cos-ink-soft);
+    font-weight: 700;
+}
+
+.client-os-review-row strong {
+    color: var(--cos-ink);
+    font-family: 'JetBrains Mono', monospace;
+    text-align: left;
+}
+
+.client-os-transfer-review-actions {
+    display: grid;
+    grid-template-columns: 1fr 1.2fr;
+    gap: 10px;
+}
+
+.wallet-hub-active #btnSubmitTransfer {
+    background: linear-gradient(135deg, var(--cos-blue), var(--cos-teal));
+    border: 0;
+    font-weight: 900;
+}
+
+.wallet-hub-active #balanceTransferModal .modal-content {
+    border-radius: 22px;
+    border-color: var(--cos-line);
+    background: var(--cos-surface);
+}
+
+/* ── Mobile page header for satellite pages ── */
+.client-os-mobile-page-head {
+    display: none;
+    padding: 12px 4px 8px;
+}
+
+.client-os-mobile-page-head h1 {
+    margin: 0;
+    font-size: 1.2rem;
+    font-weight: 900;
+}
+
+.client-os-mobile-page-head p {
+    margin: 4px 0 0;
+    color: var(--cos-ink-soft);
+    font-size: 0.72rem;
+    font-weight: 700;
+}
+
+@media (max-width: 767.98px) {
+    .wallet-hub-satellite .client-os-mobile-page-head {
+        display: block;
+    }
+}
+
 .wallet-hub-active #transferModal .modal-dialog {
     max-width: min(760px, calc(100vw - 24px));
 }

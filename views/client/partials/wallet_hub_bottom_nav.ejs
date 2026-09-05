@@ -1,0 +1,42 @@
+<%# Unified mobile bottom nav for all Wallet Hub pages %>
+<% const navActive = typeof activeNav !== 'undefined' ? activeNav : 'home'; %>
+<% const isDashboardNav = typeof useDashboardNav !== 'undefined' && useDashboardNav; %>
+<nav class="bottom-nav-mobile no-print d-md-none" aria-label="التنقل السفلي">
+    <% if (isDashboardNav) { %>
+    <a href="javascript:void(0)" class="bottom-nav-item <%= navActive === 'home' ? 'active' : '' %>" data-tab="account" onclick="switchMobileTab('account')">
+        <i class="fa-solid fa-house"></i><span>الرئيسية</span>
+    </a>
+    <a href="/client/reports" class="bottom-nav-item <%= navActive === 'reports' ? 'active' : '' %>">
+        <i class="fa-solid fa-chart-column"></i><span>التقارير</span>
+    </a>
+    <div class="nile-fab-slot">
+        <button type="button" class="nile-fab" onclick="openQuickTransfer()" aria-label="تحويل سريع">
+            <i class="fa-solid fa-paper-plane"></i>
+        </button>
+    </div>
+    <a href="javascript:void(0)" class="bottom-nav-item <%= navActive === 'operations' ? 'active' : '' %>" data-tab="operations" onclick="openMobileOperations()">
+        <i class="fa-solid fa-list-check"></i><span>العمليات</span>
+    </a>
+    <a href="javascript:void(0)" class="bottom-nav-item <%= navActive === 'more' ? 'active' : '' %>" data-tab="more" onclick="openWalletHubMore()">
+        <i class="fa-solid fa-ellipsis"></i><span>المزيد</span>
+    </a>
+    <% } else { %>
+    <a href="/client/dashboard" class="bottom-nav-item <%= navActive === 'home' ? 'active' : '' %>">
+        <i class="fa-solid fa-house"></i><span>الرئيسية</span>
+    </a>
+    <a href="/client/reports" class="bottom-nav-item <%= navActive === 'reports' ? 'active' : '' %>">
+        <i class="fa-solid fa-chart-column"></i><span>التقارير</span>
+    </a>
+    <div class="nile-fab-slot">
+        <a href="/client/dashboard" class="nile-fab" aria-label="تحويل سريع">
+            <i class="fa-solid fa-paper-plane"></i>
+        </a>
+    </div>
+    <a href="/client/dashboard?tab=operations" class="bottom-nav-item <%= navActive === 'operations' ? 'active' : '' %>">
+        <i class="fa-solid fa-list-check"></i><span>العمليات</span>
+    </a>
+    <a href="/client/support" class="bottom-nav-item <%= navActive === 'support' || navActive === 'more' ? 'active' : '' %>">
+        <i class="fa-solid fa-headset"></i><span>الدعم</span>
+    </a>
+    <% } %>
+</nav>

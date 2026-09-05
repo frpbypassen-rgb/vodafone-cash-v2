@@ -58,6 +58,12 @@
     <% } %>
 
     <div class="container d-flex flex-column px-2 nile-support-body wallet-hub-page-content" style="flex: 1;">
+        <% if (typeof walletHub !== 'undefined' && walletHub) { %>
+        <header class="client-os-mobile-page-head d-md-none">
+            <h1>مركز الدعم</h1>
+            <p>تواصل بأمان مع فريق المساعدة.</p>
+        </header>
+        <% } %>
         <div id="imagePreviewContainer" class="p-3 border-bottom d-none nile-image-preview" style="border-radius: 20px 20px 0 0; display: flex; align-items: center; gap: 15px; margin: 20px auto 0; width: 100%; max-width: 800px;">
             <img id="imagePreview" src="" style="height: 60px; border-radius: 8px; border: 1px solid var(--nile-border);">
             <span class="text-primary fw-bold small">الصورة جاهزة للإرسال...</span>
@@ -95,7 +101,7 @@
     <%- include('partials/wallet_hub_layout_end') %>
     <% } %>
 
-    <%- include('partials/wallet_shell_bottom_nav', { activeNav: 'support' }) %>
+    <%- include('partials/wallet_hub_bottom_nav', { activeNav: 'support' }) %>
 
     <script>
         const chatBox = document.getElementById('chatBox');
