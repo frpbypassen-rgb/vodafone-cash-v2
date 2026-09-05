@@ -59,6 +59,7 @@ const upload = multer({
 const connectDB = require('./config/database');
 const { initRedis } = require('./config/redis');
 const { requireAuth, requireMaster } = require('./middlewares/auth');
+const restrictClientRawUploads = require('./middlewares/restrictClientRawUploads');
 const { errorHandler, notFoundHandler } = require('./middlewares/errorHandler');
 const requestLogger = require('./middlewares/requestLogger');
 const { metricsMiddleware, metricsEndpoint } = require('./middlewares/metrics');
@@ -342,9 +343,8 @@ app.use('/uploads', (req, res, next) => {
     // Customer screens use ownership-checked proxy endpoints for receipts,
     // support images, and profile photos. Do not allow a client session to
     // bypass them by guessing any raw storage filename.
-    if (req.session?.isClientLoggedIn) {
-        return res.status(403).send('Forbidden');
-    }
+    return restrictClientRawUploads(req, res, next);
+}, (req, res, next) => {
     if (req.session && (req.session.isLoggedIn || req.session.isClientLoggedIn || req.session.isExecutorLoggedIn)) {
         return next();
     }
