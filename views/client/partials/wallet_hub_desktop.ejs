@@ -79,6 +79,9 @@
                     <button type="button" onclick="window.print()" class="filter-btn" style="background: var(--nile-muted);"><i class="fa-solid fa-print"></i></button>
                 </form>
             </div>
+            <% if (typeof transactionsTruncated !== 'undefined' && transactionsTruncated) { %>
+                <div class="alert alert-info py-2 px-3 mb-3 small"><i class="fa-solid fa-circle-info ms-1"></i> تعرض الصفحة أحدث 200 عملية للحفاظ على سرعة البوابة. استخدم البحث أو التاريخ لتضييق النتائج.</div>
+            <% } %>
             <div class="table-responsive">
                 <table class="table-custom" id="transactionsTable">
                     <thead>

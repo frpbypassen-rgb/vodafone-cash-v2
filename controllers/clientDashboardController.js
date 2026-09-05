@@ -128,7 +128,10 @@ exports.getDashboard = async (req, res) => {
         filter.createdAt = { $gte: start, $lte: end };
         if (search) { filter.$or = [{ notes: { $regex: search, $options: 'i' } }, { vodafoneNumber: { $regex: search, $options: 'i' } }, { customId: { $regex: search, $options: 'i' } }]; }
 
-        const transactions = await Transaction.find(filter).sort({ createdAt: -1 });
+        // The dashboard is a live workspace, not an archive export.  Keeping a bounded
+        // window prevents a long date-range or an old account from blocking page render.
+        const dashboardTransactionLimit = 200;
+        const transactions = await Transaction.find(filter).sort({ createdAt: -1 }).limit(dashboardTransactionLimit + 1).lean();
 
         let totals = { transfersEGP: 0, transfersLYD: 0, depositsEGP: 0 };
         let masterTotalProfit = 0;
@@ -138,11 +141,14 @@ exports.getDashboard = async (req, res) => {
             const subTxsFilter = req.session.accountType === 'company' ? { companyId: account.companyId } : { userId: account.phone || account.webUsername, companyId: null };
             subTxsFilter.subAccountId = { $ne: null };
             subTxsFilter.createdAt = { $gte: start, $lte: end };
-            subTransactionsList = await Transaction.find(subTxsFilter).sort({ createdAt: -1 });
+            subTransactionsList = await Transaction.find(subTxsFilter).sort({ createdAt: -1 }).limit(dashboardTransactionLimit + 1).lean();
             subTransactionsList.forEach(t => { if (t.status === 'completed') masterTotalProfit += (t.masterProfit || 0); });
         }
 
-        let combinedTransactions = isSubAccount ? transactions : [...transactions, ...subTransactionsList].sort((a,b) => b.createdAt - a.createdAt);
+        const transactionsTruncated = transactions.length > dashboardTransactionLimit || subTransactionsList.length > dashboardTransactionLimit;
+        let combinedTransactions = (isSubAccount ? transactions : [...transactions, ...subTransactionsList])
+            .sort((a,b) => b.createdAt - a.createdAt)
+            .slice(0, dashboardTransactionLimit);
 
         combinedTransactions.forEach(tx => {
             if (tx.status === 'completed') {
@@ -282,7 +288,7 @@ exports.getDashboard = async (req, res) => {
         delete req.session.showMfaEnableNotice;
         res.render('client/dashboard', {
             user: { name: account.name, phone: account.phone || account.webUsername, balance, role: account.role || 'user', accountType: req.session.accountType, accountCode, canViewBalance },
-            isSubAccount, isMaster: !isSubAccount, masterTotalProfit, transactions: sanitizedTransactions, recentTransactions, todayStats, walletHub: isWalletHubUser, currentRate, serviceRates, totals, targetDate, dateLabel, showMonth, search, query: req.query, storeCatalog,
+            isSubAccount, isMaster: !isSubAccount, masterTotalProfit, transactions: sanitizedTransactions, transactionsTruncated, recentTransactions, todayStats, walletHub: isWalletHubUser, currentRate, serviceRates, totals, targetDate, dateLabel, showMonth, search, query: req.query, storeCatalog,
             isSystemOpen,
             profile,
             pendingRateUpdate,

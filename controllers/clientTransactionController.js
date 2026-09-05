@@ -35,7 +35,7 @@ const { calculateAgencyPricing } = require('../utils/agencyPricing');
 const { calculateTransferCostLYD, getTransferPricingDefinition } = require('../utils/transferPricing');
 const { recordTransferReservation } = require('../services/agencyJournalService');
 const { minimumBalanceForDebit } = require('../services/agencyCreditLimitService');
-const { resolveCompanyPermissions, canPostPortalTransfer, redirectForbiddenPage } = require('../services/businessPortalService');
+const { resolveCompanyPermissions, resolveAgentPermissions, canPostPortalTransfer, redirectForbiddenPage } = require('../services/businessPortalService');
 const {
     TransferCooldownError,
     acquireTransferCooldown,
@@ -52,23 +52,47 @@ const clientOwnershipFilter = async (req) => {
     if (req.session.accountType === 'sub_client') return { subAccountId: accountId };
 
     if (req.session.accountType === 'company') {
-        const employee = await ClientEmployee.findById(accountId).select('companyId status').lean();
+        const employee = await ClientEmployee.findById(accountId).select('companyId status name role canManageCompany canViewAllReports').lean();
         if (!employee || employee.status !== 'active' || !employee.companyId) return null;
-        return { companyId: employee.companyId };
+        const companyScope = { companyId: employee.companyId };
+        if (!resolveCompanyPermissions(employee).employee) return companyScope;
+        return {
+            $and: [
+                companyScope,
+                {
+                    $or: [
+                        { clientActorId: String(employee._id) },
+                        { clientActorId: { $exists: false }, employeeName: employee.name }
+                    ]
+                }
+            ]
+        };
     }
 
     if (req.session.accountType === 'agent_staff') {
-        const employee = await AgentEmployee.findById(accountId).select('agentId status').lean();
+        const employee = await AgentEmployee.findById(accountId).select('agentId status name role canManageAgent canViewAllReports').lean();
         if (!employee || employee.status !== 'active' || !employee.agentId) return null;
         const agent = await User.findById(employee.agentId).select('phone webUsername status role').lean();
         if (!agent || agent.status !== 'active' || agent.role !== 'agent') return null;
         const subAccountIds = await SubAccount.find({ masterType: 'user', masterId: agent._id, status: { $ne: 'deleted' } }).distinct('_id');
-        return {
+        const agentScope = {
             $or: [
                 { userId: agent.phone, companyId: null, subAccountId: null },
                 { userId: agent.webUsername, companyId: null, subAccountId: null },
                 { subAccountId: { $in: subAccountIds } }
             ].filter((condition) => condition.userId || condition.subAccountId)
+        };
+        if (!resolveAgentPermissions(employee).employee) return agentScope;
+        return {
+            $and: [
+                agentScope,
+                {
+                    $or: [
+                        { clientActorId: String(employee._id) },
+                        { clientActorId: { $exists: false }, employeeName: employee.name }
+                    ]
+                }
+            ]
         };
     }
 
@@ -685,55 +709,11 @@ exports.postComplaint = async (req, res) => {
 
 exports.getProxyImage = async (req, res) => {
     try {
-        const tx = await Transaction.findById(req.params.id);
-        if (!tx) return res.status(404).send('لا توجد صورة إثبات');
-
-        const isSubAccount = req.session.accountType === 'sub_client';
-        const accountId = req.session.clientId;
-        let hasAccess = false;
-        
-        if (isSubAccount && tx.subAccountId && tx.subAccountId.toString() === accountId.toString()) hasAccess = true;
-        else if (req.session.accountType === 'company') {
-            const emp = await ClientEmployee.findById(accountId);
-            if (emp && tx.companyId && tx.companyId.toString() === emp.companyId.toString()) hasAccess = true;
-            if (!hasAccess && emp && tx.subAccountId) {
-                hasAccess = Boolean(await SubAccount.exists({
-                    _id: tx.subAccountId,
-                    masterType: 'company',
-                    masterId: emp.companyId,
-                    status: { $ne: 'deleted' }
-                }));
-            }
-        } else if (req.session.accountType === 'agent_staff') {
-            const emp = await AgentEmployee.findById(accountId);
-            if (emp) {
-                const agent = await User.findById(emp.agentId);
-                const agentUserIds = agent ? [agent.phone, agent.webUsername].filter(Boolean).map(String) : [];
-                if (agent && agentUserIds.includes(String(tx.userId || ''))) hasAccess = true;
-                if (!hasAccess && tx.subAccountId) {
-                    hasAccess = Boolean(await SubAccount.exists({
-                        _id: tx.subAccountId,
-                        masterType: 'user',
-                        masterId: emp.agentId,
-                        status: { $ne: 'deleted' }
-                    }));
-                }
-            }
-        } else if (req.session.accountType === 'user') {
-            const user = await User.findById(accountId);
-            const userIds = user ? [user.phone, user.webUsername].filter(Boolean).map(String) : [];
-            if (user && userIds.includes(String(tx.userId || ''))) hasAccess = true;
-            if (!hasAccess && user?.role === 'agent' && tx.subAccountId) {
-                hasAccess = Boolean(await SubAccount.exists({
-                    _id: tx.subAccountId,
-                    masterType: 'user',
-                    masterId: user._id,
-                    status: { $ne: 'deleted' }
-                }));
-            }
-        }
-
-        if (!hasAccess) return res.status(403).send('غير مصرح لك بعرض هذه الصورة أو الإيصال');
+        if (!mongoose.isValidObjectId(req.params.id)) return res.status(404).send('لا توجد صورة إثبات');
+        const ownership = await clientOwnershipFilter(req);
+        if (!ownership) return res.status(403).send('غير مصرح لك بعرض هذه الصورة أو الإيصال');
+        const tx = await Transaction.findOne({ $and: [{ _id: req.params.id }, ownership] });
+        if (!tx) return res.status(403).send('غير مصرح لك بعرض هذه الصورة أو الإيصال');
 
         const index = req.params.index === undefined ? 0 : Number.parseInt(req.params.index, 10);
         if (!Number.isInteger(index) || index < 0) return res.status(400).send('رقم صورة الإيصال غير صالح');
