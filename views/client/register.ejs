@@ -404,7 +404,7 @@
     </style>
     <link rel="stylesheet" href="/css/brand-ui.css?v=20260804-brand1">
 </head>
-<body>
+<body class="client-os-auth-page">
 
     <div class="orb orb-1"></div>
     <div class="orb orb-2"></div>
@@ -415,7 +415,7 @@
                 <span class="register-seal-rings"></span>
                 <img src="/images/logo.jpeg" alt="شعار الأهرام" onerror="this.onerror=null; this.src='/images/logo.jpg';">
             </div>
-            <p class="register-seal-copy">بوابة الشركات والوكلاء والعملاء</p>
+            <p class="register-seal-copy">بوابة العملاء — إنشاء حساب جديد</p>
         </div>
 
         <% if (typeof success !== 'undefined' && success) { %>
@@ -449,7 +449,7 @@
                     <div class="success-ref"><%= refCode %></div>
                     <div class="text-muted small fw-bold">احتفظ برقم الطلب للمراجعة</div>
                 <% } %>
-                <a href="/client/login" class="btn-submit mt-4 text-decoration-none">
+                <a href="/login?portal=client" class="btn-submit mt-4 text-decoration-none">
                     <i class="fa-solid fa-right-to-bracket"></i> العودة لتسجيل الدخول
                 </a>
             </div>
@@ -713,7 +713,7 @@
             </form>
 
             <div class="text-center mt-4">
-                <a href="/client/login" class="login-link">
+                <a href="/login?portal=client" class="login-link">
                     لديك حساب بالفعل؟ سجل دخولك <i class="fa-solid fa-arrow-left-long"></i>
                 </a>
             </div>

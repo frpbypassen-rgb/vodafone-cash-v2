@@ -1,22 +1,10 @@
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>طلب إيداع | Al-Ahram Pay</title>
-    <script>
-        const savedTheme = localStorage.getItem('ahram_theme') || 'dark';
-        document.documentElement.setAttribute('data-theme', savedTheme);
-        document.documentElement.setAttribute('data-bs-theme', savedTheme);
-    </script>
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.rtl.min.css">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
-    <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800;900&family=JetBrains+Mono:wght@700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="/css/brand-ui.css?v=20260827-deposits">
-    <link rel="stylesheet" href="/css/client-nile-theme.css?v=20260827-deposits">
-    <link rel="stylesheet" href="/css/client-os-site.css?v=20260905-site">
-    <link rel="stylesheet" href="/css/client-dashboard-2027.css?v=20260905-site">
-    <link rel="stylesheet" href="/css/client-web-os.css?v=20260905-site">
+    <%- include('partials/wallet_hub_layout_head', {
+        pageTitle: 'طلب إيداع',
+        walletHub: true
+    }) %>
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     <script src="/js/client-theme.js?v=20260827-deposits" defer></script>
     <style>
@@ -57,7 +45,12 @@
     </style>
 </head>
 <body class="client-direct-modern client-nile-theme client-satellite-page wallet-hub-active wallet-hub-satellite">
-    <%- include('partials/wallet_shell_topbar', { account: user }) %>
+    <%- include('partials/wallet_hub_mobile_header', {
+        user: user,
+        mobileKicker: 'إدارة الرصيد',
+        mobileTitle: 'طلب إيداع',
+        mobileSubtitle: 'يُضاف الرصيد بعد موافقة الإدارة'
+    }) %>
 
     <%- include('partials/wallet_hub_satellite_shell_start', {
         user: user,
@@ -69,12 +62,8 @@
     }) %>
 
     <div class="deposit-page wallet-hub-page-content">
-        <header class="client-os-mobile-page-head d-md-none">
-            <h1>طلب إيداع</h1>
-            <p>أرسل طلب إيداع للمراجعة.</p>
-        </header>
         <header class="deposit-hero">
-            <div>
+            <div class="deposit-hero-copy">
                 <h1>طلب إيداع رصيد</h1>
                 <p>أرسل قيمة الإيداع مع ملاحظة توضح مرجع التحويل. يصل الطلب للإدارة للمراجعة، ولا يُضاف الرصيد إلا بعد الموافقة.</p>
             </div>
@@ -119,10 +108,9 @@
     </div>
 
     <%- include('partials/wallet_hub_satellite_shell_end') %>
-    <%- include('partials/wallet_hub_layout_end') %>
+    <%- include('partials/wallet_hub_layout_end', { walletHub: true, user: user }) %>
 
-    <%- include('partials/wallet_hub_more') %>
-    <%- include('partials/wallet_hub_bottom_nav', { activeNav: 'more' }) %>
+    <%- include('partials/wallet_hub_bottom_nav', { activeNav: 'deposits' }) %>
 
     <script>
         const csrfToken = <%- JSON.stringify(typeof csrfToken !== 'undefined' ? csrfToken : '') %>;

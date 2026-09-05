@@ -277,6 +277,131 @@
     padding: 12px 4px 8px;
 }
 
+/* ── Unified mobile top chrome (satellite pages) ── */
+.client-os-mobile-chrome {
+    position: sticky;
+    top: 0;
+    z-index: 1040;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 10px 12px calc(8px + env(safe-area-inset-top));
+    border-bottom: 1px solid var(--cos-line);
+    background: rgba(255, 255, 255, 0.94);
+    backdrop-filter: blur(16px);
+}
+
+[data-theme="dark"] .client-os-mobile-chrome {
+    background: rgba(16, 29, 45, 0.94);
+    border-bottom-color: #294159;
+}
+
+.client-os-mobile-chrome-main {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-width: 0;
+    flex: 1;
+}
+
+.client-os-mobile-chrome-back {
+    display: grid;
+    width: 36px;
+    height: 36px;
+    flex-shrink: 0;
+    place-items: center;
+    border: 1px solid var(--cos-line);
+    border-radius: 11px;
+    color: var(--cos-teal);
+    background: var(--cos-panel);
+    text-decoration: none;
+}
+
+.client-os-mobile-chrome-copy {
+    min-width: 0;
+}
+
+.client-os-mobile-chrome-kicker {
+    margin: 0 0 2px;
+    color: var(--cos-teal);
+    font-size: 0.62rem;
+    font-weight: 900;
+}
+
+.client-os-mobile-chrome-copy h1 {
+    margin: 0;
+    color: var(--cos-ink);
+    font-size: 0.98rem;
+    font-weight: 900;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.client-os-mobile-chrome-sub {
+    margin: 2px 0 0;
+    color: var(--cos-ink-soft);
+    font-size: 0.66rem;
+    font-weight: 700;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.client-os-mobile-chrome-actions {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-shrink: 0;
+}
+
+.client-os-mobile-chrome-balance {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 6px 9px;
+    border-radius: 10px;
+    color: #fff;
+    font-size: 0.72rem;
+    font-weight: 900;
+    background: linear-gradient(135deg, #10b981, #059669);
+}
+
+.client-os-mobile-chrome-balance small {
+    font-size: 0.58rem;
+    opacity: 0.9;
+}
+
+.client-os-mobile-chrome-theme {
+    width: 36px;
+    height: 36px;
+    padding: 0;
+    border-radius: 10px;
+}
+
+@media (max-width: 767.98px) {
+    .wallet-hub-satellite .wallet-hub-page-content,
+    .wallet-hub-satellite .deposit-page,
+    .wallet-hub-satellite .nile-support-body {
+        padding-top: 6px;
+        padding-bottom: calc(88px + env(safe-area-inset-bottom));
+    }
+
+    .wallet-hub-satellite .deposit-hero-copy h1 {
+        display: none;
+    }
+
+    .wallet-hub-dashboard .mobile-only-layout {
+        margin-top: 0 !important;
+        padding-bottom: calc(82px + env(safe-area-inset-bottom));
+    }
+
+    .wallet-hub-dashboard .client-os-mobile {
+        padding-top: 8px;
+    }
+}
+
 .client-os-mobile-page-head h1 {
     margin: 0;
     font-size: 1.2rem;
@@ -439,6 +564,10 @@
     color: var(--cos-ink-soft);
     font-size: 0.62rem;
     font-weight: 800;
+    border: 0;
+    background: transparent;
+    text-decoration: none;
+    cursor: pointer;
 }
 
 .wallet-hub-active .bottom-nav-mobile .bottom-nav-item.active {

@@ -52,7 +52,7 @@ const endUnauthorizedClientSession = (req, res) => {
         if (req.xhr || (req.headers.accept && req.headers.accept.includes('application/json'))) {
             return res.status(401).json({ error: 'Unauthorized' });
         }
-        return res.redirect('/login');
+        return res.redirect('/login?portal=client');
     };
 
     if (!req.session) return sendUnauthorized();
@@ -162,7 +162,7 @@ router.get('/', (req, res) => {
     if (req.session.isClientLoggedIn && req.session.clientId) {
         return res.redirect('/client/dashboard');
     }
-    return res.redirect('/login');
+    return res.redirect('/login?portal=client');
 });
 
 // ===============================================
@@ -172,9 +172,9 @@ router.get('/login', (req, res) => {
     if (req.session.isClientLoggedIn && req.session.clientId) {
         return res.redirect('/client/dashboard');
     }
-    return res.redirect('/login');
+    return res.redirect('/login?portal=client');
 });
-router.post('/login', (req, res) => res.redirect(307, '/login'));
+router.post('/login', (req, res) => res.redirect(307, '/login?portal=client'));
 router.get('/register', clientAuthController.getRegister);
 router.get('/register/agent-lookup', clientAuthController.lookupAgent);
 router.post('/register', clientAuthController.postRegister);

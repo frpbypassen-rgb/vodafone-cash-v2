@@ -1,15 +1,7 @@
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>تقارير العميل | Al-Ahram Pay</title>
-    
     <script>
-        const savedTheme = localStorage.getItem('ahram_theme') || 'dark';
-        document.documentElement.setAttribute('data-theme', savedTheme);
-        document.documentElement.setAttribute('data-bs-theme', savedTheme);
-
         const csrfToken = <%- JSON.stringify(typeof csrfToken !== 'undefined' ? csrfToken : '') %>;
 
         function normalizeProofUrl(img) {
@@ -399,27 +391,25 @@
         .swal2-popup { background: var(--card-bg) !important; color: var(--text-main) !important; border: 1px solid var(--border-glass); border-radius: 20px !important; }
         .swal2-title, .swal2-html-container { color: var(--text-main) !important; }
     </style>
-    <link rel="stylesheet" href="/css/brand-ui.css?v=20260804-brand1">
-    <link rel="stylesheet" href="/css/client-nile-theme.css?v=20260826-nile3">
-    <link rel="stylesheet" href="/css/client-reports-2027.css?v=20260905-2">
-    <link rel="stylesheet" href="/css/client-os-site.css?v=20260905-site">
-    <% if (typeof walletHub !== 'undefined' && walletHub) { %>
-    <link rel="stylesheet" href="/css/client-dashboard-2027.css?v=20260905-site">
-    <link rel="stylesheet" href="/css/client-web-os.css?v=20260905-site">
-    <% } %>
+    <%- include('partials/wallet_hub_layout_head', {
+        pageTitle: 'تقارير العميل',
+        walletHub: typeof walletHub !== 'undefined' ? walletHub : false,
+        extraCss: ['/css/client-reports-2027.css?v=20260905-2']
+    }) %>
     <script src="/js/client-theme.js?v=20260826-nile2" defer></script>
-
-    <!-- PWA Setup -->
-    <link rel="manifest" href="/manifest.json">
-    <meta name="theme-color" content="#001a4d">
-    <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <meta name="apple-mobile-web-app-title" content="Al-Ahram">
-    <!-- End PWA Setup -->
 </head>
 <body class="client-direct-modern client-nile-theme client-satellite-page client-report-2027<%= (typeof walletHub !== 'undefined' && walletHub) ? ' wallet-hub-active wallet-hub-satellite' : '' %>">
 
+    <% if (typeof walletHub !== 'undefined' && walletHub) { %>
+    <%- include('partials/wallet_hub_mobile_header', {
+        user: account,
+        mobileKicker: 'التقارير المالية',
+        mobileTitle: 'كشف الحساب',
+        mobileSubtitle: 'ابحث حسب الفترة أو حمّل تقريرك'
+    }) %>
+    <% } else { %>
     <%- include('partials/wallet_shell_topbar', { account: account }) %>
+    <% } %>
 
     <% if (typeof walletHub !== 'undefined' && walletHub) { %>
     <%- include('partials/wallet_hub_satellite_shell_start', {
@@ -452,12 +442,6 @@
     <% } %>
 
     <div class="container-fluid px-4 mb-5 <%= (typeof walletHub !== 'undefined' && walletHub) ? 'wallet-hub-page-content' : '' %>">
-        <% if (typeof walletHub !== 'undefined' && walletHub) { %>
-        <header class="client-os-mobile-page-head d-md-none">
-            <h1>كشف الحساب والعمليات</h1>
-            <p>ابحث حسب الفترة أو حمّل تقريرك.</p>
-        </header>
-        <% } %>
         <% if (!(typeof walletHub !== 'undefined' && walletHub)) { %>
         <div class="d-flex justify-content-between align-items-center mb-4">
             <h4 class="fw-bold m-0" style="color: var(--brand-primary);" id="pageTitle"><i class="fa-solid fa-chart-line me-2"></i> التقارير والعمليات</h4>
@@ -598,7 +582,7 @@
 
     <% if (typeof walletHub !== 'undefined' && walletHub) { %>
     <%- include('partials/wallet_hub_satellite_shell_end') %>
-    <%- include('partials/wallet_hub_layout_end') %>
+    <%- include('partials/wallet_hub_layout_end', { walletHub: true, user: account }) %>
     <% } %>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
@@ -1178,6 +1162,8 @@
         }
     </script>
     
+    <% if (typeof walletHub !== 'undefined' && walletHub) { %>
     <%- include('partials/wallet_hub_bottom_nav', { activeNav: 'reports' }) %>
+    <% } %>
 </body>
 </html>

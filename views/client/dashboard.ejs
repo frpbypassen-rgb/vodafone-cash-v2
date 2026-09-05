@@ -614,7 +614,7 @@
     <link rel="stylesheet" href="/css/client-dashboard-2027.css?v=20260905-3">
     <% if (typeof walletHub !== 'undefined' && walletHub) { %>
     <link rel="stylesheet" href="/css/client-web-os.css?v=20260905-site">
-    <link rel="stylesheet" href="/css/client-os-site.css?v=20260905-site2">
+    <link rel="stylesheet" href="/css/client-os-site.css?v=20260905-mobile1">
     <% } %>
 
     <!-- PWA Setup -->
@@ -625,7 +625,7 @@
     <meta name="apple-mobile-web-app-title" content="Al-Ahram">
     <!-- End PWA Setup -->
 </head>
-<body class="client-direct-modern client-nile-theme<%= (typeof walletHub !== 'undefined' && walletHub) ? ' wallet-hub-active' : '' %>">
+<body class="client-direct-modern client-nile-theme<%= (typeof walletHub !== 'undefined' && walletHub) ? ' wallet-hub-active wallet-hub-dashboard' : '' %>">
 <% if (typeof showMfaNotice !== 'undefined' && showMfaNotice) { %>
     <div id="mfaEnableNotice" class="alert alert-warning alert-dismissible shadow-sm position-fixed top-0 start-50 translate-middle-x mt-3 mx-3" role="alert" style="z-index: 3000; max-width: 760px; width: calc(100% - 32px);">
         <i class="fa-solid fa-shield-halved ms-1"></i>
@@ -1522,8 +1522,9 @@
     </div>
 
     <% if (typeof walletHub !== 'undefined' && walletHub) { %>
-    <%- include('partials/wallet_hub_more') %>
+    <%- include('partials/wallet_hub_more', { user: user, profile: profile }) %>
     <%- include('partials/wallet_hub_command_palette') %>
+    <script src="/js/client-os-mobile.js?v=20260905-mobile1" defer></script>
     <script src="/js/client-web-os.js?v=20260905-site" defer></script>
     <script src="/js/client-os-transfer.js?v=20260905-site" defer></script>
     <% } %>
@@ -3150,6 +3151,8 @@
         })();
     </script>
 
-    <%- include('partials/wallet_hub_bottom_nav', { activeNav: 'home', useDashboardNav: true }) %>
+    <% if (typeof walletHub !== 'undefined' && walletHub) { %>
+    <%- include('partials/wallet_hub_bottom_nav', { activeNav: 'home' }) %>
+    <% } %>
 </body>
 </html>

@@ -14,7 +14,7 @@ const { logAction } = require('../services/auditService');
 
 const requireClientAuth = async (req, res, next) => {
     try {
-        if (!req.session.isClientLoggedIn || !req.session.clientId) return res.redirect('/client/login');
+        if (!req.session.isClientLoggedIn || !req.session.clientId) return res.redirect('/login?portal=client');
 
         if (req.session.accountType === 'company') {
             const employee = await ClientEmployee.findById(req.session.clientId).select('status companyId').lean();

@@ -1,6 +1,11 @@
-<%# Unified Client OS footer scripts %>
+<%# Unified Client OS footer scripts + mobile chrome %>
 <% if (typeof walletHub === 'undefined' || walletHub) { %>
+<%- include('wallet_hub_more', {
+    user: (typeof user !== 'undefined' && user) ? user : account,
+    profile: typeof profile !== 'undefined' ? profile : null
+}) %>
 <%- include('wallet_hub_command_palette') %>
+<script src="/js/client-os-mobile.js?v=20260905-mobile1" defer></script>
 <script src="/js/client-web-os.js?v=20260905-site" defer></script>
 <% } %>
 <script src="/js/client-theme.js?v=20260905-site" defer></script>

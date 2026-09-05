@@ -1,0 +1,21 @@
+<%#
+  Unified mobile top bar for Wallet Hub satellite pages (customers).
+  Locals: user/account, mobileTitle, mobileSubtitle, mobileKicker (optional)
+%>
+<% const headerUser = (typeof user !== 'undefined' && user) ? user : account; %>
+<% const canViewBal = headerUser && headerUser.canViewBalance !== false; %>
+<% const bal = Number(headerUser?.balance || 0); %>
+<header class="client-os-mobile-chrome d-md-none no-print">
+    <div class="client-os-mobile-chrome-main">
+        <a href="/client/dashboard" class="client-os-mobile-chrome-back" aria-label="الرئيسية"><i class="fa-solid fa-arrow-right"></i></a>
+        <div class="client-os-mobile-chrome-copy">
+            <% if (typeof mobileKicker !== 'undefined' && mobileKicker) { %><p class="client-os-mobile-chrome-kicker"><%= mobileKicker %></p><% } %>
+            <h1><%= typeof mobileTitle !== 'undefined' ? mobileTitle : 'البوابة' %></h1>
+            <% if (typeof mobileSubtitle !== 'undefined' && mobileSubtitle) { %><p class="client-os-mobile-chrome-sub"><%= mobileSubtitle %></p><% } %>
+        </div>
+    </div>
+    <div class="client-os-mobile-chrome-actions">
+        <span class="client-os-mobile-chrome-balance mono-num" dir="ltr"><%= canViewBal ? bal.toFixed(2) : '***' %> <small>LYD</small></span>
+        <button type="button" class="nav-btn btn-theme client-os-mobile-chrome-theme" onclick="toggleTheme()" aria-label="تبديل المظهر"><i class="fa-solid fa-moon" id="mobileThemeIcon"></i></button>
+    </div>
+</header>

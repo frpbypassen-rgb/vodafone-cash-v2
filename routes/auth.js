@@ -85,14 +85,19 @@ const passwordResetLimiter = rateLimit({
     legacyHeaders: false,
 });
 
-const renderLogin = (res, error = null, data = {}) => res.render('unified_login', {
-    error,
-    mfaRequired: false,
-    recoveryCodeRequired: false,
-    passkeyLoginRequired: false,
-    submittedUsername: '',
-    ...data
-});
+const renderLogin = (res, error = null, data = {}) => {
+    const req = res.req;
+    const clientPortal = data.clientPortal ?? !!(req && (req.query?.portal === 'client' || req.body?.portal === 'client'));
+    return res.render('unified_login', {
+        error,
+        mfaRequired: false,
+        recoveryCodeRequired: false,
+        passkeyLoginRequired: false,
+        submittedUsername: '',
+        ...data,
+        clientPortal
+    });
+};
 
 const EXECUTOR_MFA_CHALLENGE_TTL_MS = 5 * 60 * 1000;
 const ACCOUNT_MFA_CHALLENGE_TTL_MS = 5 * 60 * 1000;

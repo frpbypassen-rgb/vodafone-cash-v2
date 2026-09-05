@@ -1,7 +1,8 @@
 'use strict';
 
 /**
- * Direct / sub-client users get the Wallet Hub (Client OS) experience on web.
+ * Customer web portal only (direct clients + sub_clients).
+ * Agents, company workspace, and executor flows use separate UIs — do not route them here.
  */
 function isWalletHubSession(accountType, role) {
     if (accountType === 'sub_client') return true;
