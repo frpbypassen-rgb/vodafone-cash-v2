@@ -34,7 +34,9 @@ const productionEnv = (overrides = {}) => ({
     DEFAULT_TENANT_SLUG: 'ahram',
     ALLOW_LEGACY_TENANTLESS_RECORDS: 'false',
     ALLOW_LEGACY_TENANT_TOKENS: 'false',
-    REDIS_REQUIRED: 'false',
+    REDIS_ENABLED: 'true',
+    REDIS_REQUIRED: 'true',
+    REDIS_URL: 'redis://127.0.0.1:6379',
     ...overrides
 });
 
@@ -49,7 +51,8 @@ describe('Production security policy', () => {
         expect(getSecurityVerificationMode(env)).toBe('optional');
         expect(isSecurityVerificationRequired(env)).toBe(false);
         expect(shouldBypassClientOtp(env)).toBe(true);
-        expect(validateProductionSecurityEnv(env).valid).toBe(true);
+        expect(validateProductionSecurityEnv(env).valid).toBe(false);
+        expect(validateProductionSecurityEnv(env).errors.join(' ')).toContain('enhanced login verification');
     });
 
     test('the central kill switch keeps verification optional despite stale required settings', () => {

@@ -58,7 +58,7 @@ const upload = multer({
 });
 
 const connectDB = require('./config/database');
-const { initRedis } = require('./config/redis');
+const { initRedis, isRedis } = require('./config/redis');
 const { requireAuth, requireMaster } = require('./middlewares/auth');
 const restrictClientRawUploads = require('./middlewares/restrictClientRawUploads');
 const { errorHandler, notFoundHandler } = require('./middlewares/errorHandler');
@@ -266,11 +266,14 @@ app.get('/health/ready', async (req, res) => {
     try {
         const dbState = require('mongoose').connection.readyState;
         const dbStatus = dbState === 1 ? 'connected' : dbState === 2 ? 'connecting' : 'disconnected';
-        const ready = dbState === 1 && app.locals.sessionStoreHealthy && !app.locals.isShuttingDown;
+        const redisRequired = ['1', 'true', 'yes', 'on'].includes(String(process.env.REDIS_REQUIRED || '').trim().toLowerCase());
+        const redisReady = !redisRequired || isRedis();
+        const ready = dbState === 1 && app.locals.sessionStoreHealthy && redisReady && !app.locals.isShuttingDown;
         res.status(ready ? 200 : 503).json({
             status: ready ? 'ok' : 'degraded',
             db: dbStatus,
             sessionStore: app.locals.sessionStoreHealthy ? 'connected' : 'degraded',
+            redis: redisReady ? 'connected' : 'degraded',
             shuttingDown: Boolean(app.locals.isShuttingDown),
             uptime: process.uptime()
         });

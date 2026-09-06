@@ -4,6 +4,7 @@ const TRUE_VALUES = new Set(['1', 'true', 'yes', 'on']);
 
 const clean = (value) => String(value || '').trim();
 const isEnabled = (value) => TRUE_VALUES.has(clean(value).toLowerCase());
+const isDisabled = (value) => ['0', 'false', 'no', 'off'].includes(clean(value).toLowerCase());
 const isProductionEnvironment = (env = process.env) => clean(env.NODE_ENV).toLowerCase() === 'production';
 const isClientOtpDisabled = (env = process.env) => clean(env.CLIENT_OTP_ENABLED).toLowerCase() === 'false';
 const getSecurityVerificationMode = (env = process.env) => (
@@ -120,7 +121,7 @@ const validateProductionSecurityEnv = (env = process.env) => {
         }
     }
     if (!verificationRequired) {
-        warnings.push('Additional login verification is optional; OTP, Authenticator, location, device approval and passkey checks do not block login.');
+        errors.push('Production requires enhanced login verification. Set PASSWORD_ONLY_LOGIN_MODE=false, SECURITY_VERIFICATION_ENFORCEMENT_ENABLED=true, SECURITY_VERIFICATION_MODE=required, and FORCE_CLIENT_OTP=true.');
     }
     const emergencyBypass = getEmergencyClientOtpBypassState(env);
     if (emergencyBypass.enabled) {
@@ -191,7 +192,13 @@ const validateProductionSecurityEnv = (env = process.env) => {
     }
 
     if (!isEnabled(env.REDIS_REQUIRED)) {
-        warnings.push('REDIS_REQUIRED is not enabled; distributed locks and rate limits are not guaranteed across multiple instances.');
+        errors.push('REDIS_REQUIRED=true is required in production.');
+    }
+    if (isDisabled(env.REDIS_ENABLED)) {
+        errors.push('REDIS_ENABLED cannot be disabled in production.');
+    }
+    if (!clean(env.REDIS_URL) && !clean(env.REDIS_URI)) {
+        errors.push('REDIS_URL or REDIS_URI is required in production.');
     }
     if (clean(env.SECURITY_DEVICE_HASH_SECRET).length < 32) {
         warnings.push('SECURITY_DEVICE_HASH_SECRET should use a dedicated random value of at least 32 characters before device enforcement is enabled.');

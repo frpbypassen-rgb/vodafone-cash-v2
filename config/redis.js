@@ -94,6 +94,7 @@ const initRedis = async () => {
     const redisRequired = isTruthy(process.env.REDIS_REQUIRED);
 
     if (isExplicitlyDisabled(process.env.REDIS_ENABLED)) {
+        if (redisRequired) throw new Error('REDIS_ENABLED cannot be disabled while REDIS_REQUIRED=true.');
         redisClient = new MemoryCache();
         isRedisAvailable = false;
         logger.info('Redis disabled by configuration - using in-memory cache');
