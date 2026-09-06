@@ -7,14 +7,16 @@
 
     <article class="client-os-mobile-balance">
         <div class="client-os-mobile-balance-top"><span>الرصيد المتاح</span><i class="fa-solid fa-shield-halved"></i></div>
-        <strong dir="ltr"><%= user.canViewBalance ? Number(user.balance || 0).toFixed(2) : '••••••' %> <small>LYD</small></strong>
-        <footer><span><i class="fa-solid fa-lock"></i> حساب محمي</span><button type="button" onclick="openClientSecurityPanel()">الحماية</button></footer>
+        <strong dir="ltr" data-balance-value data-balance-amount="<%= user.canViewBalance ? Number(user.balance || 0).toFixed(2) : '' %>"><%= user.canViewBalance ? Number(user.balance || 0).toFixed(2) : '••••••' %> <small>LYD</small></strong>
+        <footer><span><i class="fa-solid fa-lock"></i> حساب محمي</span><span class="client-os-balance-controls"><button type="button" data-balance-toggle aria-pressed="false"><i class="fa-solid fa-eye-slash"></i> إخفاء</button><button type="button" onclick="openClientSecurityPanel()">الحماية</button></span></footer>
     </article>
 
     <% if (user.role !== 'accountant') { %>
     <div class="client-os-mobile-primary-actions">
         <button type="button" data-bs-toggle="modal" data-bs-target="#transferModal"><i class="fa-solid fa-paper-plane"></i><span>تحويل مالي</span></button>
-        <button type="button" onclick="openBalanceTransferModal()"><i class="fa-solid fa-wallet"></i><span>تحويل رصيد</span></button>
+        <% if (user.role !== 'agent') { %><a href="/client/account?tab=deposits-new"><i class="fa-solid fa-circle-plus"></i><span>إيداع</span></a><% } %>
+        <a href="/client/account?tab=operations"><i class="fa-solid fa-file-invoice"></i><span>كشف حساب</span></a>
+        <a href="/client/support"><i class="fa-solid fa-headset"></i><span>دعم</span></a>
     </div>
     <% } %>
 

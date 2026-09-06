@@ -44,6 +44,12 @@ exports.getTransfers = async (req, res) => {
     });
 };
 
+exports.getServices = async (req, res) => {
+    const loaded = await loadWalletHubAccount(req);
+    if (!loaded) return clientWorkspaceController.renderPage('services')(req, res);
+    return renderHubPage(req, res, 'client/hub/services');
+};
+
 exports.redirectLegacyReports = async (req, res) => {
     const ctx = await loadWalletHubAccount(req);
     if (!ctx) return res.redirect('/client/reports');

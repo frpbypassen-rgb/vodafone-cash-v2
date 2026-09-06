@@ -153,7 +153,7 @@ describe('executor push notification audience', () => {
                     enabled: true
                 })
             }),
-            { upsert: true, new: true, setDefaultsOnInsert: true }
+            { upsert: true, returnDocument: 'after', setDefaultsOnInsert: true }
         );
     });
 
@@ -235,7 +235,7 @@ describe('executor push notification audience', () => {
                     'notificationPreferences.reminders': false
                 })
             }),
-            { new: true }
+            { returnDocument: 'after' }
         );
     });
 

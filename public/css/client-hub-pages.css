@@ -216,6 +216,19 @@
     line-height: 1.55;
 }
 
+/* Services page: only backed services are actionable. */
+.client-hub-services-intro { display:flex; align-items:center; gap:12px; margin-bottom:16px; padding:16px; border:1px solid #dce9ef; border-radius:17px; color:#29465d; background:linear-gradient(135deg,#edf9f6,#f8fcff); }
+.client-hub-services-intro > span { display:grid; flex:0 0 40px; width:40px; height:40px; place-items:center; border-radius:13px; color:#087d6b; background:#dff5ed; }
+.client-hub-services-intro strong,.client-hub-services-intro small { display:block; }.client-hub-services-intro strong { font-size:.83rem; font-weight:900; }.client-hub-services-intro small { margin-top:4px; color:#6e8494; font-size:.72rem; font-weight:700; }
+.client-hub-services-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:11px; }
+.client-hub-service-card { display:grid; grid-template-columns:auto minmax(0,1fr) auto; align-items:center; gap:11px; min-height:84px; padding:13px; border:1px solid #dfe9f0; border-radius:16px; color:#29465d; background:#fff; text-decoration:none; box-shadow:0 8px 20px rgba(28,65,91,.05); transition:transform .16s ease,box-shadow .16s ease,border-color .16s ease; }
+.client-hub-service-card:hover,.client-hub-service-card:focus-visible { border-color:#50bda9; color:#1d5f64; box-shadow:0 13px 28px rgba(23,105,103,.12); transform:translateY(-2px); }
+.client-hub-service-card > span { display:grid; width:40px; height:40px; place-items:center; border-radius:13px; color:#147bb0; background:#e7f4fb; }.client-hub-service-card:nth-child(2) > span { color:#a57608; background:#fff4da; }.client-hub-service-card:nth-child(3) > span { color:#087c69; background:#e4f8f1; }.client-hub-service-card:nth-child(4) > span { color:#7a57ba; background:#f0eafd; }.client-hub-service-card:nth-child(5) > span { color:#ad4d40; background:#fff0eb; }
+.client-hub-service-card strong,.client-hub-service-card small { display:block; }.client-hub-service-card strong { font-size:.8rem; font-weight:900; }.client-hub-service-card small { margin-top:4px; color:#748899; font-size:.67rem; font-weight:700; line-height:1.45; }.client-hub-service-card > .fa-arrow-left { margin-right:auto; color:#98a9b7; font-size:.72rem; }.client-hub-service-card.is-primary { border-color:transparent; color:#fff; background:linear-gradient(135deg,#087fb7,#13a991); }.client-hub-service-card.is-primary > span { color:#098b83; background:#fff; }.client-hub-service-card.is-primary small,.client-hub-service-card.is-primary > .fa-arrow-left { color:#d5f7ef; }
+.client-hub-services-note { margin:15px 0 0; color:#637f91; font-size:.7rem; font-weight:700; }.client-hub-services-note i { color:#1a98a1; }
+@media (max-width:575.98px) { .client-hub-services-grid { grid-template-columns:1fr; } }
+[data-theme="dark"] .client-hub-services-intro,[data-theme="dark"] .client-hub-service-card { border-color:#294159; color:#e7edf6; background:#172a3e; }[data-theme="dark"] .client-hub-services-intro small,[data-theme="dark"] .client-hub-service-card small,[data-theme="dark"] .client-hub-services-note { color:#b6c7d8; }
+
 .client-hub-transfer-footnote i { color: #2563eb; margin-top: 2px; }
 
 .client-hub-section-context { margin-bottom: 16px; }

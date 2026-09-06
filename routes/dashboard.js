@@ -8,6 +8,7 @@ const ClientCompany = require('../models/ClientCompany');
 const User = require('../models/User');
 const Employee = require('../models/Employee');
 const SupportTicket = require('../models/SupportTicket');
+const ClientServiceRequest = require('../models/ClientServiceRequest');
 const RegistrationRequest = require('../models/RegistrationRequest');
 const { requireAuth } = require('../middlewares/auth');
 const { syncBotBalance } = require('../utils/helpers');
@@ -222,6 +223,23 @@ router.post('/api/complaints/:id/edit-rate', requireAuth, async (req, res) => {
         if (error.code === 'FINANCIAL_TRANSACTIONS_UNAVAILABLE') return res.status(503).json({ error: 'تعذر تأكيد التعديل المالي حالياً. حاول لاحقاً.' });
         res.status(500).json({ error: 'خطأ داخلي: ' + error.message });
     }
+});
+
+router.get('/api/client-service-requests', requireAuth, async (_req, res) => {
+    const requests = await ClientServiceRequest.find({}).sort({ createdAt: -1 }).limit(200).lean();
+    return res.json({ success: true, requests });
+});
+
+router.post('/api/client-service-requests/:id/review', requireAuth, async (req, res) => {
+    const decision = String(req.body?.decision || '');
+    if (!['approved', 'rejected'].includes(decision)) return res.status(422).json({ success: false, error: 'INVALID_DECISION' });
+    const request = await ClientServiceRequest.findOneAndUpdate(
+        { _id: req.params.id, status: 'pending_admin' },
+        { $set: { status: decision, adminNote: String(req.body?.note || '').slice(0, 1000), reviewedById: String(req.session.adminId || ''), reviewedByName: String(req.session.adminName || 'الإدارة'), reviewedAt: new Date() }, $push: { audit: { action: decision, actorId: String(req.session.adminId || ''), actorName: String(req.session.adminName || 'الإدارة'), note: String(req.body?.note || '').slice(0, 1000) } } },
+        { returnDocument: 'after' }
+    );
+    if (!request) return res.status(404).json({ success: false, error: 'REQUEST_NOT_FOUND_OR_REVIEWED' });
+    return res.json({ success: true, request });
 });
 
 router.post('/api/complaints/:id/upload-proof', requireAuth, async (req, res) => {

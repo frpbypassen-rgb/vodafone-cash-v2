@@ -102,7 +102,7 @@ const queueOutboxEvent = async (payload) => {
         return await PushNotificationOutbox.findOneAndUpdate(
             { eventKey: normalized.eventKey },
             { $setOnInsert: normalized },
-            { upsert: true, new: true }
+            { upsert: true, returnDocument: 'after' }
         );
     } catch (error) {
         if (error?.code === 11000) return null;
@@ -412,7 +412,7 @@ const registerMobilePushDevice = async ({ user, payload = {} }) => {
                 lastErrorMessage: ''
             }
         },
-        { upsert: true, new: true, setDefaultsOnInsert: true }
+        { upsert: true, returnDocument: 'after', setDefaultsOnInsert: true }
     );
 };
 
@@ -556,7 +556,7 @@ const updateMobilePushPreferences = async ({ user, installationId, preferences =
             accountType: user.accountType
         },
         { $set: { ...set, lastSeenAt: new Date() } },
-        { new: true }
+        { returnDocument: 'after' }
     ).select('notificationPreferences').lean();
     return { ...DEFAULT_PREFERENCES, ...(device?.notificationPreferences || {}) };
 };
@@ -583,7 +583,7 @@ const markMobileNotificationRead = async ({ user, notificationId }) => {
     return MobileNotificationInbox.findOneAndUpdate(
         { _id: notificationId, accountType: 'executor', accountId: idOf(user.userId) },
         { $set: { readAt: new Date(), openedAt: new Date() } },
-        { new: true }
+        { returnDocument: 'after' }
     ).lean();
 };
 
@@ -704,7 +704,7 @@ const recordInboxEntries = async (outbox, employeeIds, deliveryStatus = 'recorde
             },
             $set: { deliveryStatus, ...(deliveredAt ? { deliveredAt } : {}) }
         },
-        { upsert: true, new: true }
+        { upsert: true, returnDocument: 'after' }
     ).catch((error) => logger.error('Failed to record executor notification inbox item', {
         eventKey: outbox.eventKey,
         accountId,
@@ -890,7 +890,7 @@ const processNextPushNotification = async () => {
     const outbox = await PushNotificationOutbox.findOneAndUpdate(
         { status: 'pending', availableAt: { $lte: now } },
         { $set: { status: 'processing', lockedAt: now }, $inc: { attempts: 1 } },
-        { sort: { availableAt: 1, createdAt: 1 }, new: true }
+        { sort: { availableAt: 1, createdAt: 1 }, returnDocument: 'after' }
     );
     if (!outbox) return null;
 

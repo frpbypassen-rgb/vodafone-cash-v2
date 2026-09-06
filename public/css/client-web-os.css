@@ -470,8 +470,98 @@
 
 .client-os-mobile-journey a i { color: #0d917d; }
 
+/* Personal-finance shortcuts: recent recipients stay informational until a
+   persistent beneficiary approval flow is available. */
+.client-os-recipients {
+    margin: 16px 0;
+    padding: 18px;
+    border: 1px solid #e0e9f1;
+    border-radius: 19px;
+    background: #fff;
+    box-shadow: 0 9px 22px rgba(37, 67, 99, 0.055);
+}
+
+.client-os-recipient-list {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 10px;
+    margin-top: 14px;
+}
+
+.client-os-recipient-chip {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 9px;
+    min-height: 62px;
+    padding: 10px;
+    border: 1px solid #e0eaf1;
+    border-radius: 14px;
+    color: #20364f;
+    background: #fbfdff;
+    text-decoration: none;
+    transition: border-color .16s ease, box-shadow .16s ease, transform .16s ease;
+}
+
+.client-os-recipient-chip:hover,
+.client-os-recipient-chip:focus-visible {
+    border-color: rgba(14, 159, 139, .5);
+    color: #0a7566;
+    box-shadow: 0 10px 22px rgba(16, 68, 90, .1);
+    transform: translateY(-2px);
+}
+
+.client-os-recipient-chip > span {
+    display: grid;
+    width: 34px;
+    height: 34px;
+    place-items: center;
+    border-radius: 50%;
+    color: #087b68;
+    background: #e5f8f2;
+}
+
+.client-os-recipient-chip strong,
+.client-os-recipient-chip small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.client-os-recipient-chip strong { font-size: .72rem; font-weight: 900; }
+.client-os-recipient-chip small { margin-top: 3px; color: #8090a5; font-family: 'JetBrains Mono', monospace; font-size: .61rem; font-weight: 700; }
+.client-os-recipient-chip > .fa-arrow-left { margin-right: auto; color: #91a2b2; font-size: .68rem; }
+
+.client-os-icon-button {
+    display: inline-grid;
+    width: 30px;
+    height: 30px;
+    place-items: center;
+    padding: 0;
+    border: 1px solid rgba(255,255,255,.28) !important;
+    border-radius: 9px;
+    color: #fff !important;
+    background: rgba(255,255,255,.08) !important;
+}
+
+.client-os-balance-controls { display: inline-flex; align-items: center; gap: 9px; }
+
+@media (max-width: 767.98px) {
+    .client-os-mobile-primary-actions { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .client-os-mobile-primary-actions a {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        min-height: 49px;
+        border: 1px solid #dbe8ef;
+        border-radius: 13px;
+        color: #1f4e70;
+        background: #fff;
+        font-size: .72rem;
+        font-weight: 900;
+        text-decoration: none;
+    }
+}
+
 @media (max-width: 1199.98px) {
     .client-os-journey-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .client-os-recipient-list { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 
 .client-os-mobile .wh-empty.is-skeleton {
@@ -602,6 +692,14 @@
     border-color: #294159;
     color: #e7edf6;
     background: #1a3148;
+}
+
+[data-theme="dark"] .client-os-recipients,
+[data-theme="dark"] .client-os-recipient-chip,
+[data-theme="dark"] .client-os-mobile-primary-actions a {
+    border-color: #294159;
+    color: #e7edf6;
+    background: #172a3e;
 }
 
 [data-theme="dark"] .client-os-journey-card small,

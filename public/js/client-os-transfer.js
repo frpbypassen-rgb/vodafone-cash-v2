@@ -88,7 +88,7 @@
         e.reviewBack?.addEventListener('click', hideReview);
         e.reviewConfirm?.addEventListener('click', () => {
             global.transferReviewConfirmed = true;
-            setStep(4);
+            setStep(3);
             e.form?.requestSubmit?.();
         });
         e.modal?.addEventListener('hidden.bs.modal', () => {
@@ -103,7 +103,7 @@
         showReviewFromForm() {
             return showReview(buildSummary());
         },
-        onSent() { setStep(4); }
+        onSent() { setStep(3); }
     };
 
     function init() {

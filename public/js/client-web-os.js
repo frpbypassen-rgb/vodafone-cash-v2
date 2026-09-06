@@ -24,6 +24,7 @@
             { label: 'تحويل مالي', hint: 'بدء عملية جديدة', icon: 'fa-paper-plane', shortcut: '+', action: openTransferModal },
             { label: 'إضافة رصيد', hint: 'إرسال طلب إيداع للمراجعة', icon: 'fa-circle-plus', action: () => { global.location.href = '/client/account?tab=deposits-new'; } },
             { label: 'العمليات وكشف الحساب', hint: 'بحث وتصدير ومتابعة الإيصالات', icon: 'fa-receipt', action: () => { global.location.href = '/client/account?tab=operations'; } },
+            { label: 'الخدمات', hint: 'كل الخدمات المتاحة لحسابك', icon: 'fa-grid-2', action: () => { global.location.href = '/client/services'; } },
             { label: 'الدعم والشكاوى', hint: 'تواصل مع الفريق بأمان', icon: 'fa-headset', action: () => { global.location.href = '/client/support'; } },
             { label: 'الأمان', hint: 'إعدادات الحماية', icon: 'fa-shield-halved', action: () => global.openClientSecurityPanel?.() },
             { label: 'الوضع الليلي', hint: 'تبديل المظهر', icon: 'fa-moon', action: () => global.toggleTheme?.() },
@@ -120,7 +121,8 @@
             deposit: 'إيداع',
             deduction: 'خصم',
             rejected: 'ملغي',
-            cancelled_by_admin: 'ملغي'
+            cancelled_by_admin: 'ملغي',
+            requires_action: 'تحتاج إجراء'
         };
         return map[tx.status] || tx.status || '—';
     }
@@ -240,6 +242,23 @@
         paletteEl()?.addEventListener('close', () => paletteInput()?.blur());
         inspectorBackdrop()?.addEventListener('click', closeInspector);
         document.getElementById('clientOsInspectorClose')?.addEventListener('click', closeInspector);
+        document.querySelectorAll('[data-balance-toggle]').forEach((button) => {
+            button.addEventListener('click', () => {
+                const isHidden = button.getAttribute('aria-pressed') === 'true';
+                document.querySelectorAll('[data-balance-value]').forEach((value) => {
+                    const amount = value.getAttribute('data-balance-amount');
+                    if (!amount) return;
+                    value.innerHTML = isHidden ? `${escapeHtml(amount)} <small>LYD</small>` : '•••••• <small>LYD</small>';
+                });
+                document.querySelectorAll('[data-balance-toggle]').forEach((control) => {
+                    control.setAttribute('aria-pressed', String(!isHidden));
+                    control.setAttribute('aria-label', isHidden ? 'إخفاء الرصيد' : 'إظهار الرصيد');
+                    control.innerHTML = control.classList.contains('client-os-icon-button')
+                        ? `<i class="fa-solid ${isHidden ? 'fa-eye-slash' : 'fa-eye'}"></i>`
+                        : `<i class="fa-solid ${isHidden ? 'fa-eye-slash' : 'fa-eye'}"></i> ${isHidden ? 'إخفاء' : 'إظهار'}`;
+                });
+            });
+        });
     }
 
     global.ClientWebOs = {

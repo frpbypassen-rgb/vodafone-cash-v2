@@ -25,8 +25,8 @@
 
         <section class="client-os-overview" aria-label="ملخص الحساب">
             <article class="client-os-balance-panel">
-                <div class="client-os-panel-top"><span>الرصيد المتاح</span><i class="fa-solid fa-eye"></i></div>
-                <div class="client-os-balance-value" dir="ltr"><%= user.canViewBalance ? Number(user.balance || 0).toFixed(2) : '••••••' %> <small>LYD</small></div>
+                <div class="client-os-panel-top"><span>الرصيد المتاح</span><button type="button" class="client-os-icon-button" data-balance-toggle aria-label="إخفاء الرصيد" aria-pressed="false"><i class="fa-solid fa-eye-slash"></i></button></div>
+                <div class="client-os-balance-value" dir="ltr" data-balance-value data-balance-amount="<%= user.canViewBalance ? Number(user.balance || 0).toFixed(2) : '' %>"><%= user.canViewBalance ? Number(user.balance || 0).toFixed(2) : '••••••' %> <small>LYD</small></div>
                 <div class="client-os-balance-footer">
                     <span><i class="fa-solid fa-shield-heart"></i> رصيد محمي</span>
                     <button type="button" onclick="openClientSecurityPanel()">إعدادات الحماية <i class="fa-solid fa-arrow-left"></i></button>
@@ -48,6 +48,18 @@
                 </article>
             </div>
         </section>
+
+        <% const recentRecipients = []; (recentTransactions || []).forEach((tx) => { const target = tx.vodafoneNumber || tx.accountNumber; if (target && !recentRecipients.some((item) => item.target === target)) recentRecipients.push({ target, name: tx.accountName || tx.beneficiaryName || 'مستفيد سابق' }); }); %>
+        <% if (recentRecipients.length) { %>
+        <section class="client-os-recipients" aria-label="آخر وجهات التحويل">
+            <header class="client-os-section-heading"><div><p>اختصار مفيد</p><h2>آخر وجهات التحويل</h2></div><a href="/client/transfers" class="client-os-text-link">تحويل جديد <i class="fa-solid fa-arrow-left"></i></a></header>
+            <div class="client-os-recipient-list">
+                <% recentRecipients.slice(0, 3).forEach((recipient) => { %>
+                <a href="/client/transfers" class="client-os-recipient-chip" aria-label="بدء تحويل جديد إلى <%= recipient.name %>"><span><i class="fa-solid fa-user"></i></span><div><strong><%= recipient.name %></strong><small dir="ltr"><%= recipient.target %></small></div><i class="fa-solid fa-arrow-left"></i></a>
+                <% }) %>
+            </div>
+        </section>
+        <% } %>
 
         <section class="client-os-workbench" aria-label="أدوات العمل">
             <% if (user.role !== 'accountant') { %>

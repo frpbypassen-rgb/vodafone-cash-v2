@@ -18,6 +18,7 @@ const { resolveClientNotificationUserIds } = require('../services/clientNotifica
 const { setPortalSupportReplyChannel } = require('../services/whatChimpSupportService');
 const WebPushSubscription = require('../models/WebPushSubscription');
 const Settings = require('../models/Settings');
+const ClientServiceRequest = require('../models/ClientServiceRequest');
 const { activatePendingRateUpdate } = require('../services/rateChangeService');
 const { buildPendingRateAlertForClient } = require('../services/rateAlerts/rateAlertAudienceService');
 const requireOperationPin = require('../middlewares/requireOperationPin');
@@ -196,7 +197,7 @@ router.get('/profile-photo', requireClientAuth, clientDashboardController.getPro
 router.post('/profile', requireClientAuth, clientDashboardController.postUpdateOwnProfile);
 router.get('/api/transactions', requireClientAuth, clientDashboardController.getApiTransactions);
 router.get('/api/rates', requireClientAuth, clientWorkspaceController.getCurrentRates);
-router.get('/services', requireClientAuth, clientWorkspaceController.renderPage('services'));
+router.get('/services', requireClientAuth, clientHubController.getServices);
 router.get('/services/:serviceKey', requireClientAuth, clientWorkspaceController.renderPage('service_workbench'));
 router.get('/smart-transfer', requireClientAuth, clientWorkspaceController.renderPage('smart_transfer'));
 router.get('/internal-transfer', requireClientAuth, clientWorkspaceController.renderPage('internal_transfer'));
@@ -257,6 +258,37 @@ router.get('/api/notifications/unread', requireClientAuth, async (req, res) => {
         return res.json({ success: true, count: notifications.length, notifications });
     } catch (e) {
         return res.status(500).json({ success: false, error: 'Internal Server Error' });
+    }
+});
+
+router.get('/api/service-requests', requireClientAuth, async (req, res) => {
+    const rows = await ClientServiceRequest.find({ ownerId: String(req.session.clientId) })
+        .sort({ createdAt: -1 }).limit(50).lean();
+    return res.json({ success: true, requests: rows });
+});
+
+router.post('/api/service-requests', requireClientAuth, async (req, res) => {
+    try {
+        const type = String(req.body?.requestType || '');
+        if (!['payment_request', 'scheduled_transfer', 'bill_payment'].includes(type)) {
+            return res.status(422).json({ success: false, error: 'INVALID_REQUEST_TYPE' });
+        }
+        const identity = await getSupportIdentity(req);
+        if (!identity.account) return res.status(401).json({ success: false, error: 'UNAUTHORIZED' });
+        const payload = req.body?.payload && typeof req.body.payload === 'object' ? req.body.payload : {};
+        const status = type === 'bill_payment' ? 'awaiting_integration' : 'pending_admin';
+        const request = await ClientServiceRequest.create({
+            requestType: type,
+            ownerId: String(req.session.clientId),
+            ownerType: req.session.accountType === 'sub_client' ? 'sub_client' : 'user',
+            ownerName: String(identity.account.name || '').slice(0, 160),
+            status,
+            payload,
+            audit: [{ action: 'created', actorId: String(req.session.clientId), actorName: String(identity.account.name || '') }]
+        });
+        return res.status(201).json({ success: true, request });
+    } catch (error) {
+        return res.status(500).json({ success: false, error: 'SERVICE_REQUEST_CREATE_FAILED' });
     }
 });
 

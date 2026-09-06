@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <%- include('../partials/wallet_hub_layout_head', {
+        pageTitle: 'الخدمات',
+        walletHub: true,
+        extraCss: ['/css/client-hub-pages.css?v=20260906-finance-hub']
+    }) %>
+</head>
+<body class="client-direct-modern client-nile-theme wallet-hub-active wallet-hub-satellite client-hub-page">
+    <%- include('../partials/wallet_hub_mobile_header', {
+        user: user,
+        mobileKicker: 'خدمات الحساب',
+        mobileTitle: 'الخدمات',
+        mobileSubtitle: 'اختر خدمة متاحة وأكملها بأمان'
+    }) %>
+
+    <%- include('../partials/wallet_hub_hub_shell_start', {
+        user: user,
+        activePage: 'services',
+        isSystemOpen: isSystemOpen,
+        pageKicker: 'خدمات الحساب',
+        pageTitle: 'الخدمات والمدفوعات',
+        pageSubtitle: 'خدمات مرتبطة بحسابك فقط — لا تظهر خدمة قبل جاهزية تشغيلها.',
+        pageIcon: 'fa-grid-2'
+    }) %>
+
+    <div class="client-hub-mobile-content">
+        <section class="client-hub-services-intro">
+            <span><i class="fa-solid fa-shield-halved"></i></span>
+            <div><strong>اختر ما تحتاجه الآن</strong><small>كل إجراء مالي يعرض بياناته وتأكيده قبل الإرسال.</small></div>
+        </section>
+        <section class="client-hub-services-grid" aria-label="الخدمات المتاحة">
+            <a href="/client/transfers" class="client-hub-service-card is-primary"><span><i class="fa-solid fa-paper-plane"></i></span><div><strong>تحويل الأموال</strong><small>إلى محفظة أو حساب أو خدمة متاحة</small></div><i class="fa-solid fa-arrow-left"></i></a>
+            <% if (canRequestDeposit) { %><a href="/client/account?tab=deposits-new" class="client-hub-service-card"><span><i class="fa-solid fa-circle-plus"></i></span><div><strong>إضافة رصيد</strong><small>أرسل طلب الإيداع وتابع حالته</small></div><i class="fa-solid fa-arrow-left"></i></a><% } %>
+            <a href="/client/account?tab=operations" class="client-hub-service-card"><span><i class="fa-solid fa-receipt"></i></span><div><strong>العمليات والإيصالات</strong><small>بحث، تصفية، تفاصيل وتصدير</small></div><i class="fa-solid fa-arrow-left"></i></a>
+            <a href="/client/support" class="client-hub-service-card"><span><i class="fa-solid fa-headset"></i></span><div><strong>الدعم والشكاوى</strong><small>اربط المشكلة بالعملية عند الحاجة</small></div><i class="fa-solid fa-arrow-left"></i></a>
+            <a href="/client/settings?section=security" class="client-hub-service-card"><span><i class="fa-solid fa-lock"></i></span><div><strong>مركز الأمان</strong><small>كلمة المرور والتحقق والأجهزة</small></div><i class="fa-solid fa-arrow-left"></i></a>
+        </section>
+        <p class="client-hub-services-note"><i class="fa-solid fa-circle-info"></i> خدمات الفواتير والتحويلات المجدولة لا تُعرض حتى اكتمال التراخيص والتكاملات اللازمة.</p>
+    </div>
+
+    <%- include('../partials/wallet_hub_hub_shell_end') %>
+    <%- include('../partials/wallet_hub_layout_end', { walletHub: true, user: user, profile: profile }) %>
+    <%- include('../partials/wallet_hub_bottom_nav', { activeNav: 'services' }) %>
+</body>
+</html>
