@@ -62,9 +62,19 @@
 
     function buildSummary() {
         const esc = (v) => String(v ?? '—').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+        // `currentTransferType` is a page-local binding on the dashboard and
+        // may not be exposed on window. The selected heading is the reliable
+        // fallback for the user-visible review step.
+        const selectedService = global.currentTransferType
+            || document.getElementById('selectedServiceTitleDesktop')?.textContent?.trim()
+            || document.getElementById('selectedServiceTitle')?.textContent?.trim()
+            || '—';
+        const beneficiaryInput = document.getElementById('tf_beneficiary');
+        const beneficiary = beneficiaryInput?.value?.trim()
+            || (selectedService === 'تحويل محافظ كاش' || selectedService === 'كاش' ? 'محفظة كاش' : '—');
         return [
-            ['الخدمة', esc(global.currentTransferType)],
-            ['المستفيد', esc(document.getElementById('tf_beneficiary')?.value || '—')],
+            ['الخدمة', esc(selectedService)],
+            ['المستفيد', esc(beneficiary)],
             ['الحساب / الهاتف', esc(document.getElementById('tf_phone')?.value || document.getElementById('tf_governorate')?.value || '—')],
             ['القيمة', `${esc(document.getElementById('tf_amount')?.value || '0')} EGP`],
             ['التكلفة', `${esc(document.getElementById('tf_amount_lyd')?.value || '0')} LYD`],

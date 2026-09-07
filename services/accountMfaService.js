@@ -287,6 +287,7 @@ module.exports = {
     createEnrollmentChallenge,
     verifyChallenge,
     verifyEnrollmentChallenge,
+    encrypt,
     decrypt,
     verifyTotp,
     TRUST_TTL_MS

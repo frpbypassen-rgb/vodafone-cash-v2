@@ -425,7 +425,15 @@ router.post('/company/:id/webhooks', requireAuth, requireMaster, async (req, res
         return res.status(201).json({ success: true, subscription: { id: result.subscription._id, url: result.subscription.url, events: result.subscription.events, secret_fingerprint: result.subscription.secretFingerprint }, signing_secret: result.signingSecret, warning: 'انسخ مفتاح التوقيع الآن. لن يظهر مرة أخرى.' });
     } catch (error) {
         const known = ['WEBHOOK_URL_INVALID', 'WEBHOOK_URL_HTTPS_REQUIRED', 'WEBHOOK_URL_PRIVATE_HOST'];
-        return res.status(400).json({ success: false, error: known.includes(error.message) ? error.message : 'تعذر إنشاء Webhook. تأكد من أن العنوان HTTPS عام.' });
+        if (!known.includes(error.message)) {
+            console.error('[clients/company-webhook-create] failed:', error.message);
+        }
+        return res.status(400).json({
+            success: false,
+            error: known.includes(error.message)
+                ? error.message
+                : 'تعذر حفظ مفتاح توقيع الـWebhook بصورة آمنة. تحقق من إعدادات الخادم ثم أعد المحاولة.'
+        });
     }
 });
 
@@ -447,7 +455,15 @@ router.post('/user/:id/webhooks', requireAuth, requireMaster, async (req, res) =
         return res.status(201).json({ success: true, subscription: { id: result.subscription._id, url: result.subscription.url, events: result.subscription.events, secret_fingerprint: result.subscription.secretFingerprint }, signing_secret: result.signingSecret, warning: 'انسخ مفتاح التوقيع الآن. لن يظهر مرة أخرى.' });
     } catch (error) {
         const known = ['WEBHOOK_URL_INVALID', 'WEBHOOK_URL_HTTPS_REQUIRED', 'WEBHOOK_URL_PRIVATE_HOST'];
-        return res.status(400).json({ success: false, error: known.includes(error.message) ? error.message : 'تعذر إنشاء Webhook. تأكد من أن العنوان HTTPS عام.' });
+        if (!known.includes(error.message)) {
+            console.error('[clients/agent-webhook-create] failed:', error.message);
+        }
+        return res.status(400).json({
+            success: false,
+            error: known.includes(error.message)
+                ? error.message
+                : 'تعذر حفظ مفتاح توقيع الـWebhook بصورة آمنة. تحقق من إعدادات الخادم ثم أعد المحاولة.'
+        });
     }
 });
 

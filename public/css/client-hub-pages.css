@@ -273,6 +273,32 @@
 }
 
 @media (max-width: 767.98px) {
+    /* Satellite content is nested in the shared desktop shell. Keep that
+       content in the mobile flow while hiding only desktop navigation. */
+    .wallet-hub-satellite .client-hub-shell {
+        display: block !important;
+        min-height: 0;
+        overflow: visible;
+        border: 0;
+        border-radius: 0;
+        background: transparent;
+        box-shadow: none;
+    }
+
+    .wallet-hub-satellite .client-hub-shell > .client-os-sidebar,
+    .wallet-hub-satellite .client-hub-shell .client-os-satellite-topbar {
+        display: none !important;
+    }
+
+    .wallet-hub-satellite .client-hub-shell .client-os-main {
+        padding: 0;
+        background: transparent;
+    }
+
+    .wallet-hub-satellite .client-hub-shell .client-os-satellite-body {
+        display: block;
+    }
+
     .client-hub-settings-layout { grid-template-columns: 1fr; }
     .client-hub-settings-nav { flex-direction: row; overflow-x: auto; }
     .client-hub-settings-nav a { flex-shrink: 0; white-space: nowrap; }
