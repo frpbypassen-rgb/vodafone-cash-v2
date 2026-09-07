@@ -49,6 +49,7 @@ const buildIntegrationDocumentData = ({
     apiKey,
     apiOrigin,
     serviceRates = {},
+    webhookSubscription = null,
     environment = 'production',
     generatedAt = new Date()
 }) => {
@@ -95,6 +96,9 @@ const buildIntegrationDocumentData = ({
         webhook: {
             eventNames: ['transaction.pending', 'transaction.processing', 'transaction.completed', 'transaction.failed'],
             callbackPathExample: 'https://partner.example.com/webhooks/ahrampay',
+            configuredUrl: String(webhookSubscription?.url || '').trim() || null,
+            configuredStatus: String(webhookSubscription?.status || '').trim() || 'not_configured',
+            configuredEvents: Array.isArray(webhookSubscription?.events) ? webhookSubscription.events : [],
             signatureExample: 'sha256=<hex_hmac_sha256(timestamp + "." + raw_body)>',
             retryPolicy: 'حتى 6 محاولات: فور الإنشاء ثم بعد 1 و5 و15 و60 و240 دقيقة.'
         },

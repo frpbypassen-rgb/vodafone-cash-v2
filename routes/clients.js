@@ -111,13 +111,19 @@ const safeIntegrationFileReference = (value) => String(value || 'account')
 
 const sendIntegrationDocument = async (req, res, { account, accountType }) => {
     const apiKey = await ensureIntegrationApiKey(account, accountType === 'agent' ? 'apiToken' : 'token');
-    const settings = await Settings.findOne({}).lean() || {};
+    const [settings, webhookSubscription] = await Promise.all([
+        Settings.findOne({}).lean(),
+        accountType === 'company'
+            ? MerchantWebhookSubscription.findOne({ companyId: account._id, status: 'active' }).sort({ updatedAt: -1 }).lean()
+            : Promise.resolve(null)
+    ]);
     const documentData = buildIntegrationDocumentData({
         account,
         accountType,
         apiKey,
         apiOrigin: resolvePublicApiOrigin(req),
-        serviceRates: getCompanyRateConfig(account, settings).effectiveRates,
+        serviceRates: getCompanyRateConfig(account, settings || {}).effectiveRates,
+        webhookSubscription,
         generatedAt: new Date()
     });
     const pdf = await generateAccountIntegrationPdf(req.app, documentData);
@@ -156,7 +162,7 @@ const sendSandboxIntegrationDocument = async (req, res, { account, accountType }
         accountType,
         apiKey: sandboxMerchant.apiKey,
         apiOrigin: sandboxMerchant.apiOrigin,
-        serviceRates: getCompanyRateConfig(account, settings).effectiveRates,
+        serviceRates: getCompanyRateConfig(account, settings || {}).effectiveRates,
         environment: 'sandbox',
         generatedAt: new Date()
     });

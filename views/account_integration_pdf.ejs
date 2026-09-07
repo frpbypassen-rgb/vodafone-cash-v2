@@ -147,9 +147,9 @@
         <h2>Webhook تحديث الحالة المباشر</h2>
         <p class="section-intro">هذه القناة جاهزة لجميع الشركات: عند تغير حالة أي عملية تخص هذا الحساب، يرسل Power Pay AL-Ahram طلب <code>POST</code> مباشرة إلى رابط الاستقبال المسجل للشركة. العقد الفني الموحد متاح أيضاً عبر <code><%= api.webhookContractUrl %></code>.</p>
         <div class="data-grid">
-            <div class="data-cell"><span class="data-label">رابط الاستقبال المطلوب من الشركة</span><span class="data-value ltr"><%= webhook.callbackPathExample %></span></div>
+            <div class="data-cell"><span class="data-label">رابط Webhook المسجل لهذه الشركة</span><span class="data-value ltr"><%= webhook.configuredUrl || 'غير مُعدّ بعد — يسجل من لوحة الإدارة' %></span></div>
             <div class="data-cell"><span class="data-label">طريقة الإرسال</span><span class="data-value ltr">POST application/json</span></div>
-            <div class="data-cell"><span class="data-label">الأحداث</span><span class="data-value ltr"><%= webhook.eventNames.join(', ') %></span></div>
+            <div class="data-cell"><span class="data-label">الأحداث لهذه الشركة</span><span class="data-value ltr"><%= webhook.configuredEvents.length ? webhook.configuredEvents.join(', ') : webhook.eventNames.join(', ') %></span></div>
             <div class="data-cell"><span class="data-label">سياسة الإعادة</span><span class="data-value"><%= webhook.retryPolicy %></span></div>
         </div>
         <h3>خطوات التفعيل</h3>
@@ -169,7 +169,7 @@
         </tbody></table>
         <h3>جسم إشعار نموذجي</h3>
         <pre class="code-block"><%= examples.webhookPayload %></pre>
-        <div class="callout"><strong>ملاحظة تشغيلية مهمة:</strong> لا يوجد رابط استقبال واحد يصلح لكل الشركات؛ كل شركة تستقبل في نطاقها هي لحماية بياناتها. الرابط الموحد أعلاه هو <strong>عقد Webhook</strong> الخاص بمنظومتنا، بينما عنوان الاستقبال تُسجله الإدارة لكل شركة على حدة.</div>
+        <div class="callout"><strong>عزل الشركات:</strong> هذا الـWebhook مقيّد بحساب هذه الشركة فقط. لا يمكن لحدث يخص شركة أخرى أن يُرسل إلى هذا الرابط؛ لكل شركة عنوان مستقل ومفتاح توقيع مستقل وسجل تسليم مستقل. الرابط الموحد أعلاه هو <strong>عقد Webhook</strong> فقط، أما عنوان الاستقبال المعروض في هذه الوثيقة فهو عنوان هذه الشركة وحدها.</div>
     </section>
 
     <section class="page">
