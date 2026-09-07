@@ -683,7 +683,7 @@ router.post('/executor/:id/settle', requireAuth, requireMaster, adminDepositUplo
 });
 
 // The inquiry contract is configured per API executor.  This avoids changing
-// a second provider when one provider uses custom field names (key1/key2).
+// a second provider when one provider uses custom field names (Key1/Key2).
 router.post('/executor/:id/inquiry-payload-mode', requireAuth, requireMaster, async (req, res) => {
     try {
         if (!hasValidCsrfToken(req)) {

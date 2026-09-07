@@ -199,12 +199,12 @@ const buildInquiryPayload = (config, targetNumber, amount) => {
     const usesProviderKeys = config.inquiryPayloadMode === INQUIRY_PAYLOAD_MODES.FIELD_KEY_PAIR;
     return {
         Fields: [usesProviderKeys
-            ? { Id: config.fieldId, key1: targetNumber }
+            ? { Id: config.fieldId, Key1: targetNumber }
             : { Id: config.fieldId, Value: targetNumber }],
         CurrentServiceProviderId: config.providerId,
         ServiceId: config.serviceId,
         MachineSerial: config.machineSerial,
-        ...(usesProviderKeys ? { key2: amount } : { InqueryAmount: amount })
+        ...(usesProviderKeys ? { Key2: amount } : { InqueryAmount: amount })
     };
 };
 
