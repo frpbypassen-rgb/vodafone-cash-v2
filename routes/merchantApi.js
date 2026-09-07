@@ -237,6 +237,28 @@ router.get('/balance', merchantApiAuth, async (req, res) => {
     });
 });
 
+// A machine-readable contract lets every authenticated partner implement the
+// same receiver without being given an untrusted or account-specific document.
+router.get('/webhook-contract', merchantApiAuth, async (_req, res) => {
+    res.json({
+        status: 'success',
+        data: {
+            delivery_method: 'POST',
+            content_type: 'application/json',
+            events: ['transaction.pending', 'transaction.processing', 'transaction.completed', 'transaction.failed'],
+            headers: {
+                'x-ahram-event': 'اسم الحدث',
+                'x-ahram-event-id': 'معرف ثابت لإزالة التكرار',
+                'x-ahram-timestamp': 'Unix timestamp بالثواني',
+                'x-ahram-signature': 'sha256=HMAC_SHA256(timestamp + "." + raw_request_body)'
+            },
+            delivery_guarantee: 'at_least_once',
+            retry_policy: 'حتى 6 محاولات عند الخطأ أو الاستجابة غير 2xx.',
+            registration: 'تسجل الإدارة رابط HTTPS العام الخاص بجهتك من لوحة الشركة، ثم تسلمك مفتاح التوقيع مرة واحدة عبر قناة آمنة.'
+        }
+    });
+});
+
 router.post('/transfer', merchantApiAuth, async (req, res) => {
     let cooldownLock = null;
     try {

@@ -89,7 +89,14 @@ const buildIntegrationDocumentData = ({
             basePath,
             balanceUrl: `${basePath}/balance`,
             transferUrl: `${basePath}/transfer`,
-            statusUrl: `${basePath}/status/{invoice_number}`
+            statusUrl: `${basePath}/status/{invoice_number}`,
+            webhookContractUrl: `${basePath}/webhook-contract`
+        },
+        webhook: {
+            eventNames: ['transaction.pending', 'transaction.processing', 'transaction.completed', 'transaction.failed'],
+            callbackPathExample: 'https://partner.example.com/webhooks/ahrampay',
+            signatureExample: 'sha256=<hex_hmac_sha256(timestamp + "." + raw_body)>',
+            retryPolicy: 'حتى 6 محاولات: فور الإنشاء ثم بعد 1 و5 و15 و60 و240 دقيقة.'
         },
         transferPolicy: {
             minAmount: MERCHANT_TRANSFER_MIN_AMOUNT,
@@ -157,6 +164,24 @@ const buildIntegrationDocumentData = ({
                     cancellation_reason: 'رقم المستلم غير صحيح',
                     cancellation_number: 'CAN-2608-0001',
                     cancelled_at: '2026-09-02T10:15:00.000Z'
+                }
+            }, null, 2),
+            webhookPayload: JSON.stringify({
+                id: '9fa5d0c7...',
+                event: 'transaction.completed',
+                occurred_at: '2026-09-07T12:30:00.000Z',
+                data: {
+                    transaction_id: '68bd...',
+                    reference_id: 'ATT-2609-0001',
+                    status: 'completed',
+                    target_number: '01012345678',
+                    amount_egp: 1000,
+                    cost_lyd: 168.067,
+                    transfer_type: 'vodafone',
+                    completed_at: '2026-09-07T12:30:00.000Z',
+                    cancelled_at: null,
+                    cancellation_number: null,
+                    cancellation_reason: null
                 }
             }, null, 2)
         }

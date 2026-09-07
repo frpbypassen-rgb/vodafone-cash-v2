@@ -109,6 +109,7 @@
                 <tr><td>المسار الأساسي</td><td><code><%= api.basePath %></code></td></tr>
                 <tr><td>طريقة المصادقة</td><td><code>x-api-key: &lt;API_KEY&gt;</code></td></tr>
                 <tr><td>صيغة البيانات</td><td><code>Content-Type: application/json</code></td></tr>
+                <tr><td>عقد Webhook الجاهز</td><td><code><%= api.webhookContractUrl %></code></td></tr>
                 <tr><td>متابعة النتيجة</td><td>استعلام دوري عبر مسار الحالة. يعيد اسم المنفذ، وأرقام التنفيذ وقيمة كل رقم عند اكتمال العملية، وسبب الإلغاء عند الرفض.</td></tr>
             </tbody>
         </table>
@@ -139,6 +140,36 @@
             <div><h3>1. اختبار الاتصال والرصيد</h3><pre class="code-block"><%= examples.balanceCurl %></pre><div class="callout">يجب أن تكون الاستجابة <code>status: success</code> قبل بدء الإرسال الفعلي. استخدم الرصيد المعاد لتحديد قدرة الحساب على استقبال الطلبات.</div></div>
             <div><h3>2. إرسال تحويل جديد</h3><pre class="code-block"><%= examples.transferCurl %></pre></div>
         </div>
+    </section>
+
+    <section class="page">
+        <div class="brand-line"></div>
+        <h2>Webhook تحديث الحالة المباشر</h2>
+        <p class="section-intro">هذه القناة جاهزة لجميع الشركات: عند تغير حالة أي عملية تخص هذا الحساب، يرسل Power Pay AL-Ahram طلب <code>POST</code> مباشرة إلى رابط الاستقبال المسجل للشركة. العقد الفني الموحد متاح أيضاً عبر <code><%= api.webhookContractUrl %></code>.</p>
+        <div class="data-grid">
+            <div class="data-cell"><span class="data-label">رابط الاستقبال المطلوب من الشركة</span><span class="data-value ltr"><%= webhook.callbackPathExample %></span></div>
+            <div class="data-cell"><span class="data-label">طريقة الإرسال</span><span class="data-value ltr">POST application/json</span></div>
+            <div class="data-cell"><span class="data-label">الأحداث</span><span class="data-value ltr"><%= webhook.eventNames.join(', ') %></span></div>
+            <div class="data-cell"><span class="data-label">سياسة الإعادة</span><span class="data-value"><%= webhook.retryPolicy %></span></div>
+        </div>
+        <h3>خطوات التفعيل</h3>
+        <ol class="steps">
+            <li><strong>تنشئ الشركة نقطة استقبال HTTPS عامة.</strong> مثال المسار: <code><%= webhook.callbackPathExample %></code>. لا يصلح <code>localhost</code> أو رابط داخلي.</li>
+            <li><strong>تسلم الشركة الرابط للإدارة.</strong> تضيفه الإدارة من صفحة الشركة ← قسم <strong>Webhooks الشركة</strong> وتختار الأحداث المطلوبة.</li>
+            <li><strong>تستلم الشركة مفتاح التوقيع مرة واحدة.</strong> لا يظهر المفتاح مجدداً، ويجب تخزينه في Secret Manager وليس في واجهة المستخدم أو السجل.</li>
+            <li><strong>تتحقق الشركة من التوقيع قبل معالجة البيانات.</strong> تُنشئ <code>HMAC-SHA256</code> للنص <code>timestamp + '.' + raw_body</code> ثم تقارنه بوقت ثابت مع الترويسة <code>x-ahram-signature</code>.</li>
+            <li><strong>ترد بنجاح سريعاً.</strong> أي استجابة من <code>200</code> إلى <code>299</code> تعني الاستلام؛ عدا ذلك يعيد النظام المحاولة. يجب حفظ <code>x-ahram-event-id</code> لمنع تكرار المعالجة.</li>
+        </ol>
+        <h3>ترويسات الإشعار</h3>
+        <table class="field-table"><thead><tr><th>الترويسة</th><th>الغرض</th></tr></thead><tbody>
+            <tr><td><code>x-ahram-event</code></td><td>اسم الحدث، مثل <code>transaction.completed</code>.</td></tr>
+            <tr><td><code>x-ahram-event-id</code></td><td>معرف ثابت للحدث؛ استخدمه كمفتاح إزالة تكرار.</td></tr>
+            <tr><td><code>x-ahram-timestamp</code></td><td>وقت الإرسال بصيغة Unix seconds؛ ارفض الطلبات القديمة وفق سياسة شركتك.</td></tr>
+            <tr><td><code>x-ahram-signature</code></td><td><code><%= webhook.signatureExample %></code></td></tr>
+        </tbody></table>
+        <h3>جسم إشعار نموذجي</h3>
+        <pre class="code-block"><%= examples.webhookPayload %></pre>
+        <div class="callout"><strong>ملاحظة تشغيلية مهمة:</strong> لا يوجد رابط استقبال واحد يصلح لكل الشركات؛ كل شركة تستقبل في نطاقها هي لحماية بياناتها. الرابط الموحد أعلاه هو <strong>عقد Webhook</strong> الخاص بمنظومتنا، بينما عنوان الاستقبال تُسجله الإدارة لكل شركة على حدة.</div>
     </section>
 
     <section class="page">
