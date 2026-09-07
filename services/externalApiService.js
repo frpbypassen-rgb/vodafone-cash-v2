@@ -317,6 +317,13 @@ const runApiTransferPreflight = async (apiBot, input = {}) => {
 
 const executeTransferViaApi = async (tx, apiBot) => {
     let processLog = [];
+    const communication = [];
+    const safePayload = (value) => JSON.parse(JSON.stringify(value || {}, (key, item) => (
+        /password|token|authorization|secret/i.test(key) ? '[REDACTED]' : item
+    )));
+    const recordCommunication = (direction, stage, method, endpoint, payload) => communication.push({
+        direction, stage, method, endpoint: String(endpoint || '').replace(/\?.*$/, ''), payload: safePayload(payload), recordedAt: new Date()
+    });
     const addLog = (step, detail) => {
         const timeStr = new Date().toLocaleTimeString('en-GB', { timeZone: SYSTEM_TIME_ZONE, hour12: false });
         processLog.push(`[${timeStr}] ${step}: ${detail}`);
@@ -348,13 +355,15 @@ const executeTransferViaApi = async (tx, apiBot) => {
         addLog("PROVIDER", `${preset.name} | ServiceId=${serviceId} | CurrentServiceProviderId=${providerId} | FieldId=${fieldId}`);
         addLog("INQUIRY", `جاري الاستعلام وفحص الرقم [${targetNumber}]...`);
         const inquiryPayload = buildInquiryPayload(config, targetNumber, amount);
+        recordCommunication('outbound', 'inquiry_request', 'POST', `${baseUrl}/api/V1/Transactions/Inquiry`, inquiryPayload);
         const inquiryRes = await axios.post(`${baseUrl}/api/V1/Transactions/Inquiry`, inquiryPayload, { headers, timeout: 20000 });
         const inquiryData = inquiryRes.data || {};
+        recordCommunication('inbound', 'inquiry_response', 'POST', `${baseUrl}/api/V1/Transactions/Inquiry`, inquiryData);
 
         if (!hasSuccessCode(inquiryData) || !inquiryData.Data || !inquiryData.Data.PaymentBillInfo) {
             const message = providerMessage(inquiryData, 'تم رفض الاستعلام عن التحويل من المزود');
             addLog("INQUIRY_FAIL", message || "Unexpected provider response");
-            return { success: false, message, processLog: processLog.join('\n') };
+            return { success: false, message, processLog: processLog.join('\n'), communication };
         }
         
         addLog("INQUIRY_SUCCESS", "الرقم سليم ومتاح للتحويل.");
@@ -368,9 +377,11 @@ const executeTransferViaApi = async (tx, apiBot) => {
             Amount: amount,
             MachineSerial: machineSerial
         };
+        recordCommunication('outbound', 'payment_request', 'POST', `${baseUrl}/api/V1/Transactions/Payment`, paymentPayload);
         const paymentRes = await axios.post(`${baseUrl}/api/V1/Transactions/Payment`, paymentPayload, { headers, timeout: 180000 });
 
         const paymentData = paymentRes.data || {};
+        recordCommunication('inbound', 'payment_response', 'POST', `${baseUrl}/api/V1/Transactions/Payment`, paymentData);
         const pd = paymentData.Data || {};
         const print = pd.PrintBill || {};
         const extRef = firstNonEmpty(pd.TransactionNumber, pd.TransactionId, print.TransactionId);
@@ -405,7 +416,7 @@ const executeTransferViaApi = async (tx, apiBot) => {
             if (!refTxNum || refTxNum.trim() === '') {
                 addLog("PAYMENT_PENDING", `تم إرسال الدفعة ولكن لم يتم استلام المرجع من الشبكة.`);
                 addLog("API_FULL_RESPONSE", prettyLog);
-                return { success: 'pending', external_transaction_id: extRef, message: 'قيد الانتظار', processLog: processLog.join('\n') };
+                return { success: 'pending', external_transaction_id: extRef, message: 'قيد الانتظار', processLog: processLog.join('\n'), communication };
             }
             addLog("PAYMENT_SUCCESS", `اكتملت العملية بنجاح! رقم المرجع: ${extRef}`);
             addLog("API_FULL_RESPONSE", prettyLog);
@@ -420,19 +431,19 @@ const executeTransferViaApi = async (tx, apiBot) => {
                 balance_after: pd.BalanceAfter,
                 transaction_time: pd.TransactionTime || new Date().toLocaleString('ar-LY', { timeZone: SYSTEM_TIME_ZONE }),
                 status: pd.Status || providerMessage(paymentData, 'عمليه ناجحه'),
-                processLog: processLog.join('\n')
+                processLog: processLog.join('\n'), communication
             };
         } else {
             const message = providerMessage(paymentData, 'تم رفض تنفيذ الدفعة من المزود');
             addLog("PAYMENT_FAIL", message);
             addLog("API_FULL_RESPONSE", prettyLog);
-            return { success: false, message, processLog: processLog.join('\n') };
+            return { success: false, message, processLog: processLog.join('\n'), communication };
         }
 
     } catch (error) {
         const message = errorMessage(error, 'خطأ في الاتصال بسيرفر الشركة');
         addLog("SYSTEM_ERROR", message);
-        return { success: false, message, processLog: processLog.join('\n') };
+        return { success: false, message, processLog: processLog.join('\n'), communication };
     }
 };
 

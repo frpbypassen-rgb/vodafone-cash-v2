@@ -16,6 +16,23 @@ const {
 const eventBus = require('./eventBus');
 const logger = require('../utils/logger');
 const { executorSupportsTransferType } = require('../utils/executorServiceCatalog');
+const ApiCommunicationLog = require('../models/ApiCommunicationLog');
+
+const recordApiCommunication = async ({ tx, executorGroup, apiResult }) => {
+    const entries = Array.isArray(apiResult?.communication) ? apiResult.communication : [];
+    if (!entries.length && !apiResult?.processLog) return;
+    await ApiCommunicationLog.create({
+        transactionId: tx._id,
+        companyId: tx.companyId || undefined,
+        accountId: tx.merchantAccountId || tx.companyId || undefined,
+        accountType: tx.merchantAccountType || (tx.companyId ? 'company' : 'user'),
+        executorId: executorGroup?._id,
+        referenceId: tx.customId || String(tx._id),
+        status: apiResult?.success === true ? 'success' : (apiResult?.success === 'pending' ? 'pending' : 'failed'),
+        entries,
+        processLog: String(apiResult?.processLog || '').slice(0, 50000)
+    });
+};
 
 const appendNoteText = (current, note) => {
     const cleanNote = String(note || '').trim();
@@ -86,6 +103,7 @@ class ApiTransferQueue {
             }
 
             const apiResult = await executeTransferViaApi(tx, executorGroup);
+            await recordApiCommunication({ tx, executorGroup, apiResult }).catch((error) => logger.error('API communication log failed', { txId: tx.customId, error: error.message }));
             try {
                 balanceAudit = await finishApiBalanceAudit({
                     audit: balanceAudit,

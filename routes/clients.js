@@ -45,6 +45,7 @@ const {
 const { provisionSandboxMerchant } = require('../services/sandboxMerchantProvisioningService');
 const MerchantWebhookSubscription = require('../models/MerchantWebhookSubscription');
 const MerchantWebhookDelivery = require('../models/MerchantWebhookDelivery');
+const ApiCommunicationLog = require('../models/ApiCommunicationLog');
 const {
     SUPPORTED_EVENTS,
     validateWebhookUrl,
@@ -477,6 +478,13 @@ router.get('/company/:id/webhooks/:subscriptionId/deliveries', requireAuth, requ
     if (!subscription) return res.status(404).json({ success: false, error: 'Webhook غير موجود.' });
     const deliveries = await MerchantWebhookDelivery.find({ subscriptionId: subscription._id }).sort({ createdAt: -1 }).limit(100).lean();
     return res.json({ success: true, subscription: { id: subscription._id, url: subscription.url, status: subscription.status, events: subscription.events }, deliveries });
+});
+
+router.get('/company/:id/api-communication/:transactionId', requireAuth, requireMaster, async (req, res) => {
+    const transaction = await Transaction.findOne({ _id: req.params.transactionId, companyId: req.params.id }).select('_id customId').lean();
+    if (!transaction) return res.status(404).json({ success: false, error: 'العملية غير موجودة ضمن هذه الشركة.' });
+    const logs = await ApiCommunicationLog.find({ transactionId: transaction._id }).sort({ createdAt: -1 }).lean();
+    return res.json({ success: true, reference_id: transaction.customId, logs });
 });
 
 router.post('/company/:id/webhooks/:subscriptionId/rotate-secret', requireAuth, requireMaster, async (req, res) => {

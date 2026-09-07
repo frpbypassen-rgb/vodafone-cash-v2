@@ -458,6 +458,8 @@
                                             <input type="hidden" name="reason" value="حذف التسوية من صفحة حساب الشركة أو الوكيل">
                                             <button type="submit" class="btn btn-outline-danger void-adjustment-btn" title="حذف التسوية وعكس أثرها" aria-label="حذف التسوية وعكس أثرها"><i class="fa-solid fa-trash-can"></i></button>
                                         </form>
+                                    <% } else if (tx.isApiReview || tx.apiResultData || String(tx.adminNotes || '').includes('سجل الـ API')) { %>
+                                        <a class="btn btn-sm btn-outline-primary" target="_blank" href="/company/<%= company._id %>/api-communication/<%= tx._id %>" title="سجل تخاطب API"><i class="fa-solid fa-terminal"></i></a>
                                     <% } else { %><span class="text-muted">-</span><% } %>
                                 </td>
                             </tr>
