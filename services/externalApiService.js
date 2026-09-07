@@ -226,6 +226,21 @@ const getApiProviderBalanceWithAuth = async (config, headers, addLog) => {
 // Validates the exact inquiry request used for a real transfer without calling Payment.
 const runApiTransferPreflight = async (apiBot, input = {}) => {
     const processLog = [];
+    const communication = [];
+    const sanitizeCommunicationPayload = (value) => JSON.parse(JSON.stringify(value || {}, (key, item) => (
+        /password|token|authorization|secret/i.test(key) ? '[REDACTED]' : item
+    )));
+    const recordCommunication = (direction, stageName, method, endpoint, payload, httpStatus = null) => {
+        communication.push({
+            direction,
+            stage: stageName,
+            method,
+            endpoint: String(endpoint || '').replace(/\?.*$/, ''),
+            httpStatus,
+            payload: sanitizeCommunicationPayload(payload),
+            recordedAt: new Date().toISOString()
+        });
+    };
     const addLog = (step, detail) => {
         const timeStr = new Date().toLocaleTimeString('en-GB', { timeZone: SYSTEM_TIME_ZONE, hour12: false });
         processLog.push(`[${timeStr}] ${step}: ${detail}`);
@@ -250,7 +265,7 @@ const runApiTransferPreflight = async (apiBot, input = {}) => {
             const message = configurationIssues.join(', ');
             addLog('CONFIG_FAIL', message);
             checks.push({ key: 'configuration', label: 'إعدادات التحويل', status: 'failed', message });
-            return { success: false, stage, message, checks, processLog: processLog.join('\n') };
+            return { success: false, stage, message, checks, processLog: processLog.join('\n'), communication };
         }
 
         addLog('CONFIG_SUCCESS', `${config.preset.name} | ServiceId=${config.serviceId} | CurrentServiceProviderId=${config.providerId} | FieldId=${config.fieldId}`);
@@ -260,7 +275,7 @@ const runApiTransferPreflight = async (apiBot, input = {}) => {
         const auth = await authorizeApiProvider(config, addLog);
         if (!auth.success) {
             checks.push({ key: 'authentication', label: 'تسجيل الدخول للمزود', status: 'failed', message: auth.message });
-            return { success: false, stage, message: auth.message, checks, processLog: processLog.join('\n') };
+            return { success: false, stage, message: auth.message, checks, processLog: processLog.join('\n'), communication };
         }
         checks.push({ key: 'authentication', label: 'تسجيل الدخول للمزود', status: 'success', message: 'تمت المصادقة بنجاح' });
 
@@ -268,7 +283,7 @@ const runApiTransferPreflight = async (apiBot, input = {}) => {
         const balance = await getApiProviderBalanceWithAuth(config, auth.headers, addLog);
         if (!balance.success) {
             checks.push({ key: 'balance', label: 'رصيد المزود', status: 'failed', message: balance.message });
-            return { success: false, stage, message: balance.message, checks, processLog: processLog.join('\n') };
+            return { success: false, stage, message: balance.message, checks, processLog: processLog.join('\n'), communication };
         }
         checks.push({
             key: 'balance',
@@ -279,18 +294,22 @@ const runApiTransferPreflight = async (apiBot, input = {}) => {
 
         stage = 'inquiry';
         addLog('INQUIRY_TEST', `Safe test for [${targetNumber}] amount [${amount}] without payment.`);
+        const inquiryEndpoint = `${config.baseUrl}/api/V1/Transactions/Inquiry`;
+        const inquiryPayload = buildInquiryPayload(config, targetNumber, amount);
+        recordCommunication('outbound', 'inquiry_request', 'POST', inquiryEndpoint, inquiryPayload);
         const inquiryRes = await axios.post(
-            `${config.baseUrl}/api/V1/Transactions/Inquiry`,
-            buildInquiryPayload(config, targetNumber, amount),
+            inquiryEndpoint,
+            inquiryPayload,
             { headers: auth.headers, timeout: 20000 }
         );
         const inquiryData = inquiryRes.data || {};
+        recordCommunication('inbound', 'inquiry_response', 'POST', inquiryEndpoint, inquiryData, inquiryRes.status);
         const paymentBillInfo = inquiryData.Data?.PaymentBillInfo;
         if (!hasSuccessCode(inquiryData) || !paymentBillInfo) {
             const message = providerMessage(inquiryData, 'تم رفض الاستعلام عن التحويل من المزود');
             addLog('INQUIRY_FAIL', message);
             checks.push({ key: 'inquiry', label: 'فحص بيانات التحويل', status: 'failed', message });
-            return { success: false, stage, message, checks, processLog: processLog.join('\n') };
+            return { success: false, stage, message, checks, processLog: processLog.join('\n'), communication };
         }
 
         addLog('INQUIRY_SUCCESS', 'Provider accepted transfer data; no payment was submitted.');
@@ -305,13 +324,17 @@ const runApiTransferPreflight = async (apiBot, input = {}) => {
             serviceCredit: balance.serviceCredit,
             cashCredit: balance.cashCredit,
             availableBalance: balance.availableBalance,
-            processLog: processLog.join('\n')
+            processLog: processLog.join('\n'),
+            communication
         };
     } catch (error) {
         const message = errorMessage(error, 'تعذر الاتصال بالمزود أثناء اختبار التحويل');
+        if (error?.response) {
+            recordCommunication('inbound', `${stage}_error_response`, 'POST', error.config?.url || '', error.response.data || {}, error.response.status);
+        }
         addLog(`${String(stage || 'system').toUpperCase()}_ERROR`, message);
         checks.push({ key: stage, label: 'اتصال مزود الخدمة', status: 'failed', message });
-        return { success: false, stage, message, checks, processLog: processLog.join('\n') };
+        return { success: false, stage, message, checks, processLog: processLog.join('\n'), communication };
     }
 };
 

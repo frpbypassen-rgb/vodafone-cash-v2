@@ -575,6 +575,11 @@
         }).join('');
     }
 
+    function renderApiPreflightCommunication(entries) {
+        if (!Array.isArray(entries) || !entries.length) return '<div class="small text-muted mt-3">لا توجد استجابة HTTP مسجلة لهذه المرحلة.</div>';
+        return `<details class="mt-3 text-start" dir="ltr"><summary class="fw-bold text-info" dir="rtl">سجل التخاطب الفني — البيانات المرسلة والمستقبلة</summary>${entries.map((entry) => `<div class="mt-2 p-2 rounded" style="background:#020617"><div class="small fw-bold ${entry.direction === 'outbound' ? 'text-warning' : 'text-success'}">${escapeHtml(entry.direction === 'outbound' ? 'REQUEST →' : 'RESPONSE ←')} ${escapeHtml(entry.stage || '')} · ${escapeHtml(entry.method || '')} · ${Number(entry.httpStatus || 0) || '—'}</div><div class="small text-info text-break">${escapeHtml(entry.endpoint || '')}</div><pre class="mb-0 mt-2 small text-light" style="white-space:pre-wrap;max-height:260px;overflow:auto">${escapeHtml(JSON.stringify(entry.payload || {}, null, 2))}</pre></div>`).join('')}</details>`;
+    }
+
     async function testApiTransferPreflight(button) {
         const botId = button?.dataset?.apiBotId;
         if (!botId) return;
@@ -625,6 +630,7 @@
                 html: `<div style="direction:rtl;text-align:right;line-height:1.8">
                     <div class="mb-2">${escapeHtml(data.message || 'تعذر إكمال الاختبار')}</div>
                     <div class="rounded-3 px-3" style="background:#0f172a">${renderApiPreflightChecks(data.checks)}</div>
+                    ${renderApiPreflightCommunication(data.communication)}
                     <div class="small text-muted mt-3">لم يتم إرسال أي دفعة في هذا الاختبار.</div>
                 </div>`,
                 background: '#1e293b',
