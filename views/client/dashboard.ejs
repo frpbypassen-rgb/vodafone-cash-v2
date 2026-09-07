@@ -2335,6 +2335,41 @@
                     <button class="carousel-control-prev" type="button" data-bs-target="#carouselExample" data-bs-slide="prev"><span class="carousel-control-prev-icon"></span></button>
                     <button class="carousel-control-next" type="button" data-bs-target="#carouselExample" data-bs-slide="next"><span class="carousel-control-next-icon"></span></button>
                 </div>`;
+            const modalBody = document.querySelector('#proofModal .modal-body');
+            if (modalBody) {
+                modalBody.querySelector('[data-proof-actions]')?.remove();
+                modalBody.insertAdjacentHTML('beforeend', `<div data-proof-actions class="position-absolute bottom-0 start-50 translate-middle-x mb-3 d-flex gap-2"><button type="button" class="btn btn-light fw-bold" onclick="downloadProof('${txId}')"><i class="fa-solid fa-download me-1"></i>تحميل</button><button type="button" class="btn btn-primary fw-bold" onclick="shareProof('${txId}')"><i class="fa-solid fa-share-nodes me-1"></i>مشاركة</button></div>`);
+            }
+        }
+
+        async function fetchProofFile(txId) {
+            const response = await fetch(`/client/proxy/image/${encodeURIComponent(txId)}/0`, { credentials: 'same-origin' });
+            if (!response.ok) throw new Error('تعذر الوصول إلى الإيصال.');
+            return response.blob();
+        }
+
+        async function downloadProof(txId) {
+            try {
+                const blob = await fetchProofFile(txId);
+                const url = URL.createObjectURL(blob);
+                const link = document.createElement('a');
+                link.href = url; link.download = `ahrampay-receipt-${txId}.jpg`; link.click();
+                URL.revokeObjectURL(url);
+            } catch (error) { Swal.fire({ icon: 'error', title: 'تعذر التحميل', text: error.message, customClass: { popup: 'swal2-popup' } }); }
+        }
+
+        async function shareProof(txId) {
+            try {
+                const blob = await fetchProofFile(txId);
+                const file = new File([blob], `ahrampay-receipt-${txId}.jpg`, { type: blob.type || 'image/jpeg' });
+                if (navigator.canShare?.({ files: [file] })) {
+                    await navigator.share({ title: 'إيصال Al-Ahram Pay', text: `إيصال العملية ${txId}`, files: [file] });
+                    return;
+                }
+                await downloadProof(txId);
+            } catch (error) {
+                if (error.name !== 'AbortError') Swal.fire({ icon: 'error', title: 'تعذرت المشاركة', text: error.message, customClass: { popup: 'swal2-popup' } });
+            }
         }
 
         // 📡 نظام التحديث اللحظي للعميل (Smart Diffing & Live Notifications)
