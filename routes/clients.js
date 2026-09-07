@@ -47,6 +47,7 @@ const MerchantWebhookSubscription = require('../models/MerchantWebhookSubscripti
 const MerchantWebhookDelivery = require('../models/MerchantWebhookDelivery');
 const {
     SUPPORTED_EVENTS,
+    validateWebhookUrl,
     createSubscription,
     rotateSubscriptionSecret,
     processPendingDeliveries
@@ -445,6 +446,28 @@ router.post('/user/:id/webhooks', requireAuth, requireMaster, async (req, res) =
     }
 });
 
+const updateWebhookSubscription = ({ accountType, AccountModel, accountQuery }) => async (req, res) => {
+    try {
+        const account = await AccountModel.findOne({ _id: req.params.id, ...accountQuery }).lean();
+        if (!account) return res.status(404).json({ success: false, error: 'الحساب غير موجود.' });
+        const subscription = await MerchantWebhookSubscription.findOne({ _id: req.params.subscriptionId, accountId: account._id, accountType });
+        if (!subscription) return res.status(404).json({ success: false, error: 'Webhook غير موجود.' });
+        if (req.body.url) subscription.url = await validateWebhookUrl(req.body.url);
+        if (req.body.events) {
+            const events = Array.isArray(req.body.events) ? req.body.events : [req.body.events];
+            subscription.events = [...new Set(events.filter((event) => SUPPORTED_EVENTS.includes(event)))];
+        }
+        await subscription.save();
+        return res.json({ success: true, subscription: { id: subscription._id, url: subscription.url, events: subscription.events, status: subscription.status } });
+    } catch (error) {
+        const known = ['WEBHOOK_URL_INVALID', 'WEBHOOK_URL_HTTPS_REQUIRED', 'WEBHOOK_URL_PRIVATE_HOST'];
+        return res.status(400).json({ success: false, error: known.includes(error.message) ? error.message : 'تعذر تعديل Webhook.' });
+    }
+};
+
+router.post('/company/:id/webhooks/:subscriptionId/update', requireAuth, requireMaster, updateWebhookSubscription({ accountType: 'company', AccountModel: ClientCompany, accountQuery: visibleAccountFilter }));
+router.post('/user/:id/webhooks/:subscriptionId/update', requireAuth, requireMaster, updateWebhookSubscription({ accountType: 'agent', AccountModel: User, accountQuery: { role: 'agent', ...visibleAccountFilter } }));
+
 router.get('/company/:id/webhooks/:subscriptionId/deliveries', requireAuth, requireMaster, async (req, res) => {
     const subscription = await MerchantWebhookSubscription.findOne({ _id: req.params.subscriptionId, companyId: req.params.id }).lean();
     if (!subscription) return res.status(404).json({ success: false, error: 'Webhook غير موجود.' });
@@ -458,6 +481,13 @@ router.post('/company/:id/webhooks/:subscriptionId/rotate-secret', requireAuth, 
     const signingSecret = await rotateSubscriptionSecret(subscription);
     await logAction({ action: 'MERCHANT_WEBHOOK_SECRET_ROTATED', req, performedById: req.session.adminId, performedByModel: 'Admin', performedByName: req.session.adminName || 'الإدارة', targetId: subscription._id, targetModel: 'MerchantWebhookSubscription', result: 'ناجح', severity: 'warning', metadata: { companyId: req.params.id, secretFingerprint: subscription.secretFingerprint } });
     return res.json({ success: true, signing_secret: signingSecret, warning: 'انسخ المفتاح الآن وحدث نظام الشركة؛ لن يظهر مرة أخرى.' });
+});
+
+router.post('/user/:id/webhooks/:subscriptionId/rotate-secret', requireAuth, requireMaster, async (req, res) => {
+    const subscription = await MerchantWebhookSubscription.findOne({ _id: req.params.subscriptionId, accountId: req.params.id, accountType: 'agent' }).select('+signingSecretEncrypted');
+    if (!subscription) return res.status(404).json({ success: false, error: 'Webhook غير موجود.' });
+    const signingSecret = await rotateSubscriptionSecret(subscription);
+    return res.json({ success: true, signing_secret: signingSecret, warning: 'انسخ المفتاح الآن وحدث نظام الوكالة؛ لن يظهر مرة أخرى.' });
 });
 
 const setCompanyWebhookStatus = (status) => async (req, res) => {
