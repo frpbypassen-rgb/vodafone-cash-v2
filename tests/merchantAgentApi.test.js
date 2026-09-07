@@ -14,6 +14,7 @@ jest.mock('../models/Ledger', () => jest.fn().mockImplementation(function Ledger
 }));
 jest.mock('../services/autoRouteService', () => ({
     resolveAutoRouteExecutor: jest.fn(),
+    resolveCompanyAutoRoute: jest.fn(),
     applyAutoRouteFields: jest.fn(),
     enqueueAutoRouteIfNeeded: jest.fn()
 }));
@@ -32,6 +33,7 @@ const Ledger = require('../models/Ledger');
 const mongoose = require('mongoose');
 const {
     resolveAutoRouteExecutor,
+    resolveCompanyAutoRoute,
     applyAutoRouteFields,
     enqueueAutoRouteIfNeeded
 } = require('../services/autoRouteService');
@@ -66,6 +68,7 @@ describe('Merchant API agent authentication', () => {
         });
         releaseTransferCooldown.mockResolvedValue(undefined);
         enqueueAutoRouteIfNeeded.mockResolvedValue(undefined);
+        resolveCompanyAutoRoute.mockResolvedValue({ managed: false, executor: null, reason: 'policy_disabled' });
     });
 
     test('accepts an active agent API key for a balance request', async () => {
@@ -308,7 +311,11 @@ describe('Merchant API agent authentication', () => {
         Settings.findOne.mockReturnValue(sessionLeanResult({ rateLevel3: 5.95 }));
         ClientBot.findOneAndUpdate.mockResolvedValue({ ...company, balance: 831.933 });
         Counter.findOneAndUpdate.mockResolvedValue({ value: 78 });
-        resolveAutoRouteExecutor.mockResolvedValue(executor);
+        resolveCompanyAutoRoute.mockResolvedValue({
+            managed: true,
+            executor,
+            reason: 'company_executor_selected'
+        });
         applyAutoRouteFields.mockImplementation((transaction, routedExecutor) => {
             transaction.executorGroupId = routedExecutor._id;
             transaction.executorName = routedExecutor.name;
@@ -342,6 +349,41 @@ describe('Merchant API agent authentication', () => {
                 executorGroupId: executor._id,
                 executorName: executor.name
             })],
+            { session }
+        );
+        expect(resolveAutoRouteExecutor).not.toHaveBeenCalled();
+    });
+
+    test('keeps a company API transfer pending above its company automatic-routing limit', async () => {
+        const session = {
+            startTransaction: jest.fn(), commitTransaction: jest.fn(), abortTransaction: jest.fn(), endSession: jest.fn()
+        };
+        const company = {
+            _id: '66a112233445566778899003', name: 'شركة الربط', status: 'active', balance: 1000, tier: 3, creditLimit: 0,
+            autoRoutePolicy: { enabled: true, executorGroupId: '66a112233445566778899004', maxAutoAmount: 500 }
+        };
+        mongoose.startSession.mockResolvedValue(session);
+        ClientBot.findOne.mockReturnValue(leanResult(company));
+        Settings.findOne.mockReturnValue(sessionLeanResult({ rateLevel3: 5.95, autoRouteEnabled: true }));
+        ClientBot.findOneAndUpdate.mockResolvedValue({ ...company, balance: 831.933 });
+        Counter.findOneAndUpdate.mockResolvedValue({ value: 79 });
+        resolveCompanyAutoRoute.mockResolvedValue({
+            managed: true,
+            executor: null,
+            reason: 'amount_requires_manual_review'
+        });
+        Transaction.create.mockImplementation(async ([transaction]) => [{ ...transaction, _id: 'tx-company-manual-1' }]);
+
+        const response = await request(app)
+            .post('/api/v1/merchant/transfer')
+            .set('x-api-key', 'company-private-api-key')
+            .send({ target_number: '01012345678', amount: 1000, transfer_type: 'vodafone' });
+
+        expect(response.status).toBe(200);
+        expect(response.body.data.status).toBe('pending');
+        expect(resolveAutoRouteExecutor).not.toHaveBeenCalled();
+        expect(Transaction.create).toHaveBeenCalledWith(
+            [expect.objectContaining({ adminNotes: expect.stringContaining('amount_requires_manual_review') })],
             { session }
         );
     });

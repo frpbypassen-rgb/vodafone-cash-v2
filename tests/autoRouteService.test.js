@@ -25,6 +25,7 @@ const { addTransferJob } = require('../services/bullQueueService');
 const {
     getConfiguredAutoRouteExecutorId,
     resolveAutoRouteExecutor,
+    resolveCompanyAutoRoute,
     applyAutoRouteFields,
     enqueueAutoRouteIfNeeded
 } = require('../services/autoRouteService');
@@ -105,6 +106,36 @@ describe('autoRouteService', () => {
         }, 'vodafone');
 
         expect(result).toBeNull();
+    });
+
+    test('keeps a company operation manual above its contracted automatic limit without global fallback', async () => {
+        const result = await resolveCompanyAutoRoute({
+            autoRoutePolicy: { enabled: true, executorGroupId: 'api-group-1', maxAutoAmount: 500 }
+        }, 'vodafone', null, 501);
+
+        expect(result).toEqual({
+            managed: true,
+            executor: null,
+            reason: 'amount_requires_manual_review'
+        });
+        expect(ExecutorGroup.findById).not.toHaveBeenCalled();
+    });
+
+    test('uses only the selected active compatible executor for an eligible company operation', async () => {
+        const executorGroup = {
+            _id: 'company-api-group', status: 'active', isManagerBot: false, serviceKey: 'vodafone'
+        };
+        ExecutorGroup.findById.mockResolvedValue(executorGroup);
+
+        const result = await resolveCompanyAutoRoute({
+            autoRoutePolicy: { enabled: true, executorGroupId: 'company-api-group', maxAutoAmount: 500 }
+        }, 'vodafone', null, 500);
+
+        expect(result).toEqual({
+            managed: true,
+            executor: executorGroup,
+            reason: 'company_executor_selected'
+        });
     });
 
     test('does not fall back to the legacy executor when service rules exist', () => {

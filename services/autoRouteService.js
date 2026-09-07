@@ -220,6 +220,43 @@ const resolveAutoRouteExecutor = async (settings, transferType = 'vodafone', ses
     return executorGroup;
 };
 
+/**
+ * Resolve the route explicitly contracted for one company.
+ *
+ * `managed` is intentionally true as soon as the company policy is enabled,
+ * even when an executor cannot be selected. Callers must then leave the
+ * operation pending rather than silently falling back to the global router.
+ */
+const resolveCompanyAutoRoute = async (company, transferType = 'vodafone', session = null, amount = 0) => {
+    const policy = company?.autoRoutePolicy;
+    if (!policy?.enabled) {
+        return { managed: false, executor: null, reason: 'policy_disabled' };
+    }
+
+    const maxAutoAmount = positiveNumber(policy.maxAutoAmount);
+    const requestedAmount = positiveNumber(amount);
+    if (!maxAutoAmount || requestedAmount > maxAutoAmount) {
+        return { managed: true, executor: null, reason: 'amount_requires_manual_review' };
+    }
+
+    if (!policy.executorGroupId) {
+        return { managed: true, executor: null, reason: 'executor_not_configured' };
+    }
+
+    const executorGroup = await runQuery(ExecutorGroup.findById(policy.executorGroupId), session);
+    if (!executorGroup) {
+        return { managed: true, executor: null, reason: 'executor_not_found' };
+    }
+    if (executorGroup.status !== 'active' || executorGroup.isManagerBot) {
+        return { managed: true, executor: null, reason: 'executor_unavailable' };
+    }
+    if (!executorSupportsTransferType(executorGroup, transferType)) {
+        return { managed: true, executor: null, reason: 'executor_service_mismatch' };
+    }
+
+    return { managed: true, executor: executorGroup, reason: 'company_executor_selected' };
+};
+
 const applyAutoRouteFields = (tx, executorGroup) => {
     if (!tx || !executorGroup) return tx;
 
@@ -261,6 +298,7 @@ module.exports = {
     getConfiguredAutoRouteExecutorId,
     resolveSmartAutoRouteExecutor,
     resolveAutoRouteExecutor,
+    resolveCompanyAutoRoute,
     applyAutoRouteFields,
     enqueueAutoRouteIfNeeded
 };

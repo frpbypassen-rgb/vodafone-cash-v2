@@ -13,6 +13,7 @@ const {
 } = require('../utils/rateHelper');
 const {
     resolveAutoRouteExecutor,
+    resolveCompanyAutoRoute,
     applyAutoRouteFields,
     enqueueAutoRouteIfNeeded
 } = require('../services/autoRouteService');
@@ -301,12 +302,24 @@ router.post('/transfer', merchantApiAuth, async (req, res) => {
         const result = await withOptionalTransaction(async (session) => {
             const settingsQuery = Settings.findOne({});
             const settings = session ? await settingsQuery.session(session).lean() : await settingsQuery.lean();
-            const autoRouteExecutor = await resolveAutoRouteExecutor(
-                settings,
-                serviceKey,
-                session,
-                amountValue
-            );
+            let companyRouteDecision = { managed: false, executor: null, reason: 'not_company' };
+            let autoRouteExecutor = null;
+            if (req.merchant.merchantType === 'company') {
+                companyRouteDecision = await resolveCompanyAutoRoute(
+                    req.merchant,
+                    serviceKey,
+                    session,
+                    amountValue
+                ) || companyRouteDecision;
+                autoRouteExecutor = companyRouteDecision.executor;
+            } else {
+                autoRouteExecutor = await resolveAutoRouteExecutor(
+                    settings,
+                    serviceKey,
+                    session,
+                    amountValue
+                );
+            }
             const exchangeRate = getCompanyServiceRates(req.merchant, settings)[serviceKey];
             if (!Number.isFinite(exchangeRate) || exchangeRate <= 0) {
                 throw merchantRequestError(400, 'سعر الصرف غير صالح');
@@ -365,7 +378,12 @@ router.post('/transfer', merchantApiAuth, async (req, res) => {
                 transferType: serviceKey,
                 ...cooldown.guardFields,
                 notes: '',
-                adminNotes: '[طلب وارد عبر API التاجر الخارجي]',
+                adminNotes: [
+                    '[طلب وارد عبر API التاجر الخارجي]',
+                    companyRouteDecision.managed && !autoRouteExecutor
+                        ? `[توجيه شركة يدوي: ${companyRouteDecision.reason}]`
+                        : ''
+                ].filter(Boolean).join('\n'),
                 executorGroupId: undefined,
                 serviceDetails: receiptWhatsAppNumber ? { clientPhone: receiptWhatsAppNumber } : undefined
             };

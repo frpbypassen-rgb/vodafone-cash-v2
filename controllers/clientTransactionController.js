@@ -15,6 +15,7 @@ const Admin = require('../models/Admin');
 const { executeBalanceTransfer } = require('../services/balanceTransferService');
 const {
     resolveAutoRouteExecutor,
+    resolveCompanyAutoRoute,
     applyAutoRouteFields,
     enqueueAutoRouteIfNeeded
 } = require('../services/autoRouteService');
@@ -283,18 +284,14 @@ exports.postTransfer = async (req, res) => {
         let settings = await withSess(Settings.findOne({}));
         if (!settings) settings = await Settings.create({}, sessionOpts);
         if (settings && settings.isManualClosed) throw new Error('SYSTEM_CLOSED');
-        const autoRouteExecutor = await resolveAutoRouteExecutor(
-            settings,
-            serviceKey,
-            useTransaction ? session : null,
-            amount
-        );
-
         let masterRate, actualSubRate, subCostLYD, masterCostLYD, commission = 0;
         let agencyPricing;
         let balanceModel, companyId = null, companyName = 'عميل فردي (ويب)';
         let masterObj, telegramId = null;
         let finalCustomId = '';
+        let autoRouteExecutor = null;
+        let companyRoutingAccount = null;
+        let companyRouteDecision = null;
 
         // 🟢 إعداد الـ ID الخاص بالفاتورة مبكراً لتوثيقه في الدفتر
         const counter = await Counter.findOneAndUpdate(
@@ -327,7 +324,12 @@ exports.postTransfer = async (req, res) => {
             masterCostLYD = agencyPricing.agentCostLYD;
             commission = agencyPricing.profitLYD;
 
-            if (account.masterType === 'company') { companyId = masterObj._id; companyName = masterObj.name; telegramId = null; }
+            if (account.masterType === 'company') {
+                companyId = masterObj._id;
+                companyName = masterObj.name;
+                telegramId = null;
+                companyRoutingAccount = masterObj;
+            }
             else { companyName = masterObj.name; telegramId = masterObj.telegramId; }
 
             const minSubBalance = minimumBalanceForDebit(subCostLYD, account.creditLimit);
@@ -393,6 +395,7 @@ exports.postTransfer = async (req, res) => {
                 masterRate = getCompanyServiceRates(company, settings)[serviceKey];
                 masterCostLYD = calculateTransferCostLYD({ serviceKey, amount, exchangeRate: masterRate });
                 balanceModel = company; companyId = company._id; companyName = company.name; telegramId = account.phone || account.webUsername;
+                companyRoutingAccount = company;
             } else if (isAgentStaff) {
                 const agent = await withSess(User.findById(account.agentId));
                 if (!agent || agent.status !== 'active' || agent.role !== 'agent') throw new Error('AGENT_NOT_FOUND');
@@ -442,6 +445,30 @@ exports.postTransfer = async (req, res) => {
             }).save(sessionOpts);
         }
 
+        // Company policy is deliberately exclusive: once the company enables
+        // a policy, an amount above its limit (or an unavailable executor)
+        // remains pending for manual review and never falls back to global routing.
+        if (companyRoutingAccount) {
+            companyRouteDecision = await resolveCompanyAutoRoute(
+                companyRoutingAccount,
+                serviceKey,
+                useTransaction ? session : null,
+                amount
+            );
+            autoRouteExecutor = companyRouteDecision.executor;
+        } else {
+            autoRouteExecutor = await resolveAutoRouteExecutor(
+                settings,
+                serviceKey,
+                useTransaction ? session : null,
+                amount
+            );
+        }
+
+        const companyManualRouteNote = companyRouteDecision?.managed && !autoRouteExecutor
+            ? `[توجيه شركة يدوي: ${companyRouteDecision.reason}]`
+            : '';
+
         // 🟢 تسجيل المعاملة النهائية
         const newTx = new Transaction({
             customId: finalCustomId, userId: telegramId, companyId: companyId, subAccountId: isSubAccount ? account._id : null,
@@ -454,7 +481,7 @@ exports.postTransfer = async (req, res) => {
             ...(cooldownGuardFields || {}),
             subAccountCostLYD: isSubAccount ? subCostLYD : 0, commission: commission, exchangeRate: masterRate, subClientRate: isSubAccount ? actualSubRate : 0,
             agencyPricing: isSubAccount ? agencyPricing : undefined,
-            notes, customerNotes: notes, status: 'pending', isSubAccountTx: isSubAccount, masterProfit: isSubAccount ? commission : 0,
+            notes, customerNotes: notes, adminNotes: companyManualRouteNote, status: 'pending', isSubAccountTx: isSubAccount, masterProfit: isSubAccount ? commission : 0,
             idCardImage: req.file ? `/uploads/${req.file.filename}` : undefined
         });
         if (autoRouteExecutor) applyAutoRouteFields(newTx, autoRouteExecutor);

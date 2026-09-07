@@ -30,7 +30,12 @@ const {
 } = require('../../../services/transferCooldownService');
 const { minimumBalanceForDebit } = require('../../../services/agencyCreditLimitService');
 const { requiresMongoTransactions } = require('../../../services/walletService');
-const { resolveAutoRouteExecutor, applyAutoRouteFields, enqueueAutoRouteIfNeeded } = require('../../../services/autoRouteService');
+const {
+    resolveAutoRouteExecutor,
+    resolveCompanyAutoRoute,
+    applyAutoRouteFields,
+    enqueueAutoRouteIfNeeded
+} = require('../../../services/autoRouteService');
 const eventBus = require('../../../services/eventBus');
 import logger from '../../../utils/logger';
 
@@ -315,7 +320,6 @@ export class TransferService {
             }
 
             const settings = await Settings.findOne({}).session(session);
-            const autoRouteExecutor = await resolveAutoRouteExecutor(settings, transferType, session, amount);
             if (settings && settings.isManualClosed) {
                 await abortSession(session);
                 return { success: false, statusCode: 403, code: 'SYSTEM_CLOSED', message: 'المنظومة مغلقة حالياً' };
@@ -329,6 +333,19 @@ export class TransferService {
             }
 
             const { clientDoc, currentRate, companyName, employeeName, TargetModel, targetId, creditLimit, userIdForTx, companyIdForTx } = clientInfo;
+            let companyRouteDecision: any = { managed: false, executor: null, reason: 'not_company' };
+            let autoRouteExecutor: any = null;
+            if (clientInfo.companyForRates) {
+                companyRouteDecision = await resolveCompanyAutoRoute(
+                    clientInfo.companyForRates,
+                    transferType,
+                    session,
+                    amount
+                ) || companyRouteDecision;
+                autoRouteExecutor = companyRouteDecision.executor;
+            } else {
+                autoRouteExecutor = await resolveAutoRouteExecutor(settings, transferType, session, amount);
+            }
 
             // 3. محرك الاحتيال وفحص موثوقية الجهاز (Fraud & Device Trust)
             const isTrustedDevice = req.isDeviceTrusted !== undefined ? req.isDeviceTrusted : true;
@@ -560,6 +577,9 @@ export class TransferService {
                 agencyPricing: isSubAccountTx ? agencyPricing : undefined,
                 notes: storedNotes,
                 customerNotes: notes || '',
+                adminNotes: companyRouteDecision.managed && !autoRouteExecutor
+                    ? `[توجيه شركة يدوي: ${companyRouteDecision.reason}]`
+                    : '',
                 status: 'pending',
                 isSubAccountTx,
                 masterProfit: isSubAccountTx ? commission : 0,

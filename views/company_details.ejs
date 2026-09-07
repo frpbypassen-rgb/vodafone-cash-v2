@@ -191,6 +191,11 @@
         <% if (query && query.balanceError) { %>
             <div class="alert alert-danger fw-bold rounded-4 shadow-sm"><i class="fa-solid fa-triangle-exclamation me-1"></i> تعذر تحديث الرصيد. تحقق من المبلغ والحساب ثم أعد المحاولة.</div>
         <% } %>
+        <% if (query && query.routePolicySaved) { %>
+            <div class="alert alert-success fw-bold rounded-4 shadow-sm"><i class="fa-solid fa-circle-check me-1"></i> تم حفظ سياسة توجيه الشركة. العمليات التي تتجاوز الحد ستبقى للمراجعة اليدوية.</div>
+        <% } else if (query && query.routePolicyError) { %>
+            <div class="alert alert-danger fw-bold rounded-4 shadow-sm"><i class="fa-solid fa-triangle-exclamation me-1"></i> تعذر حفظ سياسة التوجيه. <%= query.routePolicyError === 'limit' ? 'أدخل حدًا ماليًا أكبر من صفر.' : (query.routePolicyError === 'executor' ? 'اختر منفذ تنفيذ نشطًا صالحًا.' : 'أعد المحاولة.') %></div>
+        <% } %>
         <% if (query && query.apiTokenRotated) { %>
             <div class="alert alert-success fw-bold rounded-4 shadow-sm"><i class="fa-solid fa-key me-1"></i> تم إصدار مفتاح API جديد وإيقاف المفتاح السابق فوراً. حمّل وثيقة الربط الجديدة وشارك المفتاح الجديد فقط مع جهة الربط.</div>
         <% } else if (query && query.apiTokenError) { %>
@@ -262,6 +267,41 @@
                                         </div>
                                     </div>
                                     <small class="d-block text-muted mt-2"><i class="fa-solid fa-shield-halved me-1"></i> عند تبديل المفتاح يتوقف القديم فوراً. حمّل الوثيقة الجديدة وأرسل المفتاح الجديد عبر قناة آمنة فقط.</small>
+                                </div>
+                            </div>
+                            <% const routePolicy = company.autoRoutePolicy || {}; %>
+                            <div class="col-12" id="company-auto-routing">
+                                <div class="info-box border-0 m-0 shadow-sm control-card-3d d-block" style="background: rgba(245, 158, 11, 0.08); border-right: 4px solid #f59e0b !important;">
+                                    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
+                                        <label class="form-label fw-bold text-dark mb-0"><i class="fa-solid fa-route text-warning me-1"></i> توجيه عمليات الشركة إلى منفذ واحد</label>
+                                        <span class="badge <%= routePolicy.enabled ? 'bg-success' : 'bg-secondary' %>"><%= routePolicy.enabled ? 'مفعّل' : 'متوقف' %></span>
+                                    </div>
+                                    <p class="small text-muted mb-3">عند التفعيل، يُرسل النظام فقط العمليات التي لا تتجاوز الحد إلى المنفذ المحدد. أي عملية أكبر من الحد، أو غير متوافقة مع خدمة المنفذ، تبقى <strong>معلّقة للمراجعة اليدوية</strong> ولا تستخدم التوجيه العام.</p>
+                                    <form action="/company/<%= company._id %>/auto-route-policy" method="POST" class="row g-2 align-items-end">
+                                        <div class="col-lg-2">
+                                            <div class="form-check form-switch pt-2">
+                                                <input class="form-check-input" type="checkbox" role="switch" id="company-auto-route-enabled" name="enabled" <%= routePolicy.enabled ? 'checked' : '' %>>
+                                                <label class="form-check-label fw-bold" for="company-auto-route-enabled">تفعيل</label>
+                                            </div>
+                                        </div>
+                                        <div class="col-lg-5">
+                                            <label class="form-label small fw-bold mb-1" for="company-auto-route-executor">منفذ التنفيذ</label>
+                                            <select class="form-select unified-height" id="company-auto-route-executor" name="executorGroupId" <%= routePolicy.enabled ? 'required' : '' %>>
+                                                <option value="">اختر منفذًا نشطًا</option>
+                                                <% (executorGroups || []).forEach((executor) => { %>
+                                                    <option value="<%= executor._id %>" <%= String(routePolicy.executorGroupId || '') === String(executor._id) ? 'selected' : '' %>><%= executor.name %> — <%= executor.serviceKey %><%= executor.isApiBot || executor.isApiGroup ? ' (API)' : ' (يدوي)' %></option>
+                                                <% }) %>
+                                            </select>
+                                        </div>
+                                        <div class="col-lg-3">
+                                            <label class="form-label small fw-bold mb-1" for="company-auto-route-limit">الحد الأقصى للتوجيه الآلي (ج.م)</label>
+                                            <input class="form-control unified-height mono-num" id="company-auto-route-limit" name="maxAutoAmount" type="number" min="1" step="1" inputmode="decimal" value="<%= Number(routePolicy.maxAutoAmount) > 0 ? Number(routePolicy.maxAutoAmount) : '' %>" placeholder="مثال: 5000" <%= routePolicy.enabled ? 'required' : '' %> dir="ltr">
+                                        </div>
+                                        <div class="col-lg-2">
+                                            <button class="btn btn-warning w-100 fw-bold unified-height justify-content-center" type="submit"><i class="fa-solid fa-floppy-disk me-1"></i> حفظ</button>
+                                        </div>
+                                    </form>
+                                    <% if (routePolicy.updatedAt) { %><small class="d-block text-muted mt-2">آخر تعديل: <%= new Date(routePolicy.updatedAt).toLocaleString('ar-EG') %> بواسطة <%= routePolicy.updatedBy || 'الإدارة' %>.</small><% } %>
                                 </div>
                             </div>
                             <div class="col-12" id="company-webhook-integration">

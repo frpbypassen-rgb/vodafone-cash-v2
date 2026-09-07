@@ -36,6 +36,16 @@ const clientCompanySchema = new mongoose.Schema({
     rateUpdatedAt: { type: Date },
     rateUpdatedBy: { type: String, trim: true, default: '' },
 
+    // سياسة تنفيذ مستقلة للشركة. عند تفعيلها لا يسمح للنظام بالرجوع
+    // لمسار التوزيع العام؛ فالعمليات الأكبر من الحد تبقى للمراجعة اليدوية.
+    autoRoutePolicy: {
+        enabled: { type: Boolean, default: false },
+        executorGroupId: { type: mongoose.Schema.Types.ObjectId, ref: 'ExecutorGroup', default: null },
+        maxAutoAmount: { type: Number, min: 0, default: 0 },
+        updatedAt: { type: Date, default: null },
+        updatedBy: { type: String, trim: true, default: '' }
+    },
+
     businessProfile: {
         contactName: { type: String, trim: true, default: '' },
         email: { type: String, trim: true, lowercase: true, default: '' },
@@ -61,5 +71,6 @@ const clientCompanySchema = new mongoose.Schema({
 
 clientCompanySchema.index({ tenantId: 1 });
 clientCompanySchema.index({ 'sandboxSource.reference': 1, tenantId: 1 }, { sparse: true, unique: true });
+clientCompanySchema.index({ 'autoRoutePolicy.executorGroupId': 1, status: 1 });
 
 module.exports = mongoose.model('ClientCompany', clientCompanySchema);

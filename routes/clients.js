@@ -4,6 +4,7 @@ const crypto = require('crypto');
 const mongoose = require('mongoose');
 const User = require('../models/User');
 const ClientCompany = require('../models/ClientCompany');
+const ExecutorGroup = require('../models/ExecutorGroup');
 const Settings = require('../models/Settings');
 const Transaction = require('../models/Transaction');
 const Ledger = require('../models/Ledger');
@@ -357,10 +358,16 @@ router.get('/user/:id', requireAuth, async (req, res) => {
 router.get('/company/:id', requireAuth, async (req, res) => {
     const company = await ClientCompany.findOne({ _id: req.params.id, ...visibleAccountFilter });
     if (!company) return res.redirect('/clients?section=companies&deleteError=notfound');
-    const [transactions, settings, webhookSubscriptions] = await Promise.all([
+    const [transactions, settings, webhookSubscriptions, executorGroups] = await Promise.all([
         Transaction.find({ companyId: company._id }).sort({ createdAt: -1 }).limit(50),
         Settings.findOne({}).lean(),
-        MerchantWebhookSubscription.find({ companyId: company._id }).sort({ createdAt: -1 }).lean()
+        MerchantWebhookSubscription.find({ companyId: company._id }).sort({ createdAt: -1 }).lean(),
+        req.session.adminRole === 'master'
+            ? ExecutorGroup.find({ status: 'active', isManagerBot: { $ne: true } })
+                .select('_id name serviceKey isApiBot isApiGroup')
+                .sort({ serviceKey: 1, name: 1 })
+                .lean()
+            : Promise.resolve([])
     ]);
     const reversibleSettlements = await reversibleSettlementIds({ transactions, entityModel: 'ClientCompany', entityId: company._id });
     res.render('company_details', {
@@ -372,6 +379,7 @@ router.get('/company/:id', requireAuth, async (req, res) => {
         companyRateConfig: getCompanyRateConfig(company, settings || {}),
         webhookSubscriptions,
         webhookEvents: SUPPORTED_EVENTS,
+        executorGroups,
         query: req.query,
         isMaster: req.session.adminRole === 'master'
     });
@@ -406,6 +414,66 @@ router.get('/user/:id/integration-guide.pdf', requireAuth, requireMaster, async 
             return res.status(503).send('تعذر إنشاء ملف PDF لعدم وجود متصفح للطباعة على الخادم.');
         }
         return res.status(500).send('تعذر إنشاء وثيقة الربط.');
+    }
+});
+
+router.post('/company/:id/auto-route-policy', requireAuth, requireMaster, async (req, res) => {
+    try {
+        const company = await ClientCompany.findOne({ _id: req.params.id, ...visibleAccountFilter });
+        if (!company) return res.redirect('/clients?section=companies&routePolicyError=notfound');
+
+        const enabled = ['true', '1', 'on', 'yes'].includes(String(req.body.enabled || '').trim().toLowerCase());
+        const executorGroupId = String(req.body.executorGroupId || '').trim();
+        const maxAutoAmount = Number(req.body.maxAutoAmount);
+
+        if (enabled) {
+            if (!mongoose.isValidObjectId(executorGroupId)) {
+                return res.redirect(`/company/${company._id}?routePolicyError=executor#company-auto-routing`);
+            }
+            if (!Number.isFinite(maxAutoAmount) || maxAutoAmount <= 0) {
+                return res.redirect(`/company/${company._id}?routePolicyError=limit#company-auto-routing`);
+            }
+            const executorGroup = await ExecutorGroup.findOne({
+                _id: executorGroupId,
+                status: 'active',
+                isManagerBot: { $ne: true }
+            }).lean();
+            if (!executorGroup) {
+                return res.redirect(`/company/${company._id}?routePolicyError=executor#company-auto-routing`);
+            }
+        }
+
+        const oldPolicy = company.autoRoutePolicy?.toObject
+            ? company.autoRoutePolicy.toObject()
+            : (company.autoRoutePolicy || {});
+        company.autoRoutePolicy = {
+            enabled,
+            executorGroupId: mongoose.isValidObjectId(executorGroupId) ? executorGroupId : null,
+            maxAutoAmount: Number.isFinite(maxAutoAmount) && maxAutoAmount > 0 ? maxAutoAmount : 0,
+            updatedAt: new Date(),
+            updatedBy: req.session.adminName || req.session.adminUsername || 'الإدارة'
+        };
+        company.markModified('autoRoutePolicy');
+        await company.save();
+
+        await logAction({
+            action: 'COMPANY_AUTO_ROUTE_POLICY_UPDATED',
+            req,
+            performedById: req.session.adminId,
+            performedByModel: 'Admin',
+            performedByName: req.session.adminName || req.session.adminUsername || 'الإدارة',
+            targetId: company._id,
+            targetModel: 'ClientCompany',
+            oldData: oldPolicy,
+            newData: company.autoRoutePolicy.toObject ? company.autoRoutePolicy.toObject() : company.autoRoutePolicy,
+            result: 'ناجح',
+            severity: enabled ? 'warning' : 'info'
+        });
+
+        return res.redirect(`/company/${company._id}?routePolicySaved=1#company-auto-routing`);
+    } catch (error) {
+        console.error('[clients/company-auto-route-policy] failed:', error.message);
+        return res.redirect(`/company/${req.params.id}?routePolicyError=save#company-auto-routing`);
     }
 });
 
