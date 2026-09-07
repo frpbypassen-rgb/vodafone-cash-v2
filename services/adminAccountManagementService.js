@@ -23,6 +23,7 @@ const {
     getExecutorServiceOptions,
     normalizeExecutorServiceKey
 } = require('../utils/executorServiceCatalog');
+const { getApiProviderPreset, normalizeInquiryPayloadMode } = require('../utils/apiProviderPresets');
 const { buildMarginStorage } = require('../utils/agencyPricing');
 const {
     normalizeCreditLimit,
@@ -494,6 +495,11 @@ const updateExecutor = async ({ account, payload }) => {
         account.apiServiceId = parseNumber(payload.apiServiceId, 'apiServiceId', { min: 0, max: 1e9, integer: true });
         account.apiProviderId = parseNumber(payload.apiProviderId, 'apiProviderId', { min: 0, max: 1e9, integer: true });
         account.apiFieldId = parseNumber(payload.apiFieldId, 'apiFieldId', { min: 0, max: 1e9, integer: true });
+        const preset = getApiProviderPreset(account.apiProviderKey);
+        account.apiInquiryPayloadMode = normalizeInquiryPayloadMode(
+            payload.apiInquiryPayloadMode,
+            account.apiInquiryPayloadMode || preset.inquiryPayloadMode
+        );
 
         const apiPassword = String(payload.apiPassword || '').trim();
         const apiToken = String(payload.apiToken || '').trim();
@@ -566,6 +572,7 @@ const safeSnapshot = (type, account) => {
             snapshot.apiProviderId = Number(account.apiProviderId || 0);
             snapshot.apiFieldId = Number(account.apiFieldId || 0);
             snapshot.apiMachineSerial = account.apiMachineSerial || '';
+            snapshot.apiInquiryPayloadMode = account.apiInquiryPayloadMode || '';
         }
     }
     return snapshot;

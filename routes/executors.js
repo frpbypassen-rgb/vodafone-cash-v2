@@ -11,7 +11,12 @@ const Settings = require('../models/Settings');
 const { requireAuth, requireMaster } = require('../middlewares/auth');
 const { systemDateRange } = require('../config/systemTime');
 const { syncBotBalance, escapeRegex } = require('../utils/helpers');
-const { DEFAULT_API_PROVIDER_KEY, getApiProviderPreset, getApiProviderPresets } = require('../utils/apiProviderPresets');
+const {
+    DEFAULT_API_PROVIDER_KEY,
+    getApiProviderPreset,
+    getApiProviderPresets,
+    normalizeInquiryPayloadMode
+} = require('../utils/apiProviderPresets');
 const { getApiProviderBalance, runApiTransferPreflight } = require('../services/externalApiService');
 const { syncProviderReturnedOperations } = require('../services/apiProviderReconciliationService');
 const { createExecutorAccount, ExecutorAccountError } = require('../services/executorAccountService');
@@ -140,7 +145,10 @@ router.post('/executors/add', requireAuth, requireMaster, async (req, res) => {
                 apiServiceId: isApiBot ? parseNumberOrDefault(body.apiServiceId, apiPreset.serviceId) : apiPreset.serviceId,
                 apiProviderId: isApiBot ? parseNumberOrDefault(body.apiProviderId, apiPreset.providerId) : apiPreset.providerId,
                 apiFieldId: isApiBot ? parseNumberOrDefault(body.apiFieldId, apiPreset.fieldId) : apiPreset.fieldId,
-                apiMachineSerial: isApiBot ? (normalizeText(body.apiMachineSerial) || apiPreset.machineSerial) : apiPreset.machineSerial
+                apiMachineSerial: isApiBot ? (normalizeText(body.apiMachineSerial) || apiPreset.machineSerial) : apiPreset.machineSerial,
+                apiInquiryPayloadMode: isApiBot
+                    ? normalizeInquiryPayloadMode(body.apiInquiryPayloadMode, apiPreset.inquiryPayloadMode)
+                    : undefined
             },
             managerData: isApiBot ? null : {
                 name: body.managerName,
@@ -671,6 +679,47 @@ router.post('/executor/:id/settle', requireAuth, requireMaster, adminDepositUplo
             return res.status(e.status || 500).json({ success: false, error: e.message || 'تعذر إرسال طلب الإيداع.' });
         }
         return res.redirect('/executors');
+    }
+});
+
+// The inquiry contract is configured per API executor.  This avoids changing
+// a second provider when one provider uses custom field names (key1/key2).
+router.post('/executor/:id/inquiry-payload-mode', requireAuth, requireMaster, async (req, res) => {
+    try {
+        if (!hasValidCsrfToken(req)) {
+            return res.status(403).json({ success: false, message: 'رمز الحماية غير صالح. أعد تحميل الصفحة وحاول مرة أخرى.' });
+        }
+        const requestedMode = normalizeInquiryPayloadMode(req.body?.mode, null);
+        if (!requestedMode) {
+            return res.status(422).json({ success: false, message: 'نمط حقول الاستعلام غير صالح.' });
+        }
+        const bot = await ExecutorGroup.findById(req.params.id);
+        if (!bot || !bot.isApiBot) {
+            return res.status(404).json({ success: false, message: 'لم يتم العثور على منفذ API صالح.' });
+        }
+        if (bot.status === 'archived') {
+            return res.status(409).json({ success: false, message: 'الحساب مؤرشف ومتاح للقراءة فقط.' });
+        }
+
+        const previousMode = bot.apiInquiryPayloadMode || getApiProviderPreset(bot.apiProviderKey).inquiryPayloadMode;
+        bot.apiInquiryPayloadMode = requestedMode;
+        await bot.save();
+        await logAction({
+            action: 'API_INQUIRY_PAYLOAD_MODE_UPDATED',
+            req,
+            performedById: req.session.adminId,
+            performedByModel: 'Admin',
+            performedByName: req.session.adminName || req.session.adminUsername || 'الإدارة',
+            targetId: bot._id,
+            targetModel: 'ExecutorGroup',
+            oldData: { apiInquiryPayloadMode: previousMode },
+            newData: { apiInquiryPayloadMode: requestedMode },
+            result: 'ناجح'
+        }).catch(() => {});
+        return res.json({ success: true, mode: requestedMode, message: 'تم حفظ نمط طلب الاستعلام لهذا المزود.' });
+    } catch (error) {
+        console.error('[executor/inquiry-payload-mode] failed:', error.stack || error.message);
+        return res.status(500).json({ success: false, message: 'تعذر تحديث نمط طلب الاستعلام.' });
     }
 });
 

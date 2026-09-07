@@ -163,6 +163,24 @@
                             </div>
                         </div>
 
+                        <%
+                            const inquiryPayloadMode = bot.apiInquiryPayloadMode || apiProviderPreset.inquiryPayloadMode || 'fields_value';
+                            const usesProviderKeys = inquiryPayloadMode === 'field_key_pair';
+                            const nextInquiryPayloadMode = usesProviderKeys ? 'fields_value' : 'field_key_pair';
+                        %>
+                        <div class="p-3 rounded-3 mb-3" style="background:#101f35; border:1px solid <%= usesProviderKeys ? '#0f766e' : '#334155' %>;">
+                            <div class="d-flex justify-content-between align-items-center flex-wrap gap-3">
+                                <div>
+                                    <div class="fw-bold text-light"><i class="fa-solid fa-code-branch text-info me-1"></i> نمط حقول استعلام التحويل</div>
+                                    <small class="<%= usesProviderKeys ? 'text-success' : 'text-muted' %>"><%= usesProviderKeys ? 'مخصص للمزود: Fields[].key1 و key2' : 'قياسي: Fields[].Value و InqueryAmount' %></small>
+                                    <div class="small text-muted mt-1">التبديل يخص طلب الاستعلام فقط، ولا يغير طلب الدفع.</div>
+                                </div>
+                                <% if (typeof isMaster !== 'undefined' && isMaster) { %>
+                                    <button type="button" class="btn btn-outline-info fw-bold" data-api-bot-id="<%= bot._id %>" data-inquiry-mode="<%= nextInquiryPayloadMode %>" onclick="changeInquiryPayloadMode(this)"><i class="fa-solid fa-right-left me-1"></i> <%= usesProviderKeys ? 'استخدام النمط القياسي' : 'استخدام key1 / key2' %></button>
+                                <% } %>
+                            </div>
+                        </div>
+
                         <div class="p-3 rounded-3 mb-3" style="background:#0f172a; border:1px solid #334155;">
                             <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
                                 <div>
@@ -669,6 +687,39 @@
             throw new Error(data.message || data.error || 'تعذر تنفيذ الطلب');
         }
         return data;
+    }
+
+    async function changeInquiryPayloadMode(button) {
+        const botId = button?.dataset?.apiBotId;
+        const mode = button?.dataset?.inquiryMode;
+        if (!botId || !mode) return;
+        const isKeyPair = mode === 'field_key_pair';
+        const confirmation = await Swal.fire({
+            icon: 'warning',
+            title: 'تغيير نمط الاستعلام؟',
+            text: isKeyPair
+                ? 'سيُرسل الاستعلام القادم باستخدام Fields[].key1 و key2 لهذا المنفذ فقط.'
+                : 'سيُرسل الاستعلام القادم باستخدام Fields[].Value و InqueryAmount لهذا المنفذ فقط.',
+            showCancelButton: true,
+            confirmButtonText: 'حفظ التغيير',
+            cancelButtonText: 'إلغاء',
+            confirmButtonColor: '#0284c7',
+            background: '#1e293b',
+            color: '#fff'
+        });
+        if (!confirmation.isConfirmed) return;
+        const originalHtml = button.innerHTML;
+        button.disabled = true;
+        button.innerHTML = '<i class="fa-solid fa-spinner fa-spin me-1"></i> جارٍ الحفظ...';
+        try {
+            const data = await postApiAction(`/executor/${encodeURIComponent(botId)}/inquiry-payload-mode`, { mode });
+            await Swal.fire({ icon: 'success', title: 'تم الحفظ', text: data.message, background: '#1e293b', color: '#fff', confirmButtonColor: '#059669' });
+            window.location.reload();
+        } catch (error) {
+            await Swal.fire({ icon: 'error', title: 'تعذر الحفظ', text: error.message, background: '#1e293b', color: '#fff', confirmButtonColor: '#ef4444' });
+            button.disabled = false;
+            button.innerHTML = originalHtml;
+        }
     }
 
     async function syncProviderReturns(button) {

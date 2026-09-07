@@ -5,7 +5,11 @@ const https = require('https');
 const path = require('path');
 const { loadPuppeteer } = require('../utils/puppeteerLoader');
 const { SYSTEM_TIME_ZONE } = require('../config/systemTime');
-const { getApiProviderPreset } = require('../utils/apiProviderPresets');
+const {
+    getApiProviderPreset,
+    INQUIRY_PAYLOAD_MODES,
+    normalizeInquiryPayloadMode
+} = require('../utils/apiProviderPresets');
 
 const SUPPORT_PHONE = '01108172258';
 
@@ -103,6 +107,10 @@ const resolveApiProviderConfig = (apiBot = {}) => {
         providerId: parseNumberOrDefault(apiBot.apiProviderId || process.env.ZAYN_AGGREGATOR_PROVIDER_ID || process.env.ZAYNPAY_PROVIDER_ID, preset.providerId),
         fieldId: parseNumberOrDefault(apiBot.apiFieldId || process.env.ZAYN_AGGREGATOR_FIELD_ID || process.env.ZAYNPAY_FIELD_ID, preset.fieldId),
         machineSerial: apiBot.apiMachineSerial || process.env.ZAYN_AGGREGATOR_MACHINE_SERIAL || process.env.ZAYNPAY_MACHINE_SERIAL || preset.machineSerial,
+        inquiryPayloadMode: normalizeInquiryPayloadMode(
+            apiBot.apiInquiryPayloadMode,
+            normalizeInquiryPayloadMode(preset.inquiryPayloadMode)
+        ),
         defaultHeaders: {
             'Content-Type': 'application/json',
             'User-Agent': 'Mozilla/5.0 Ahram-Server/1.0',
@@ -187,13 +195,18 @@ const getApiConfigurationIssues = (config) => {
     return issues;
 };
 
-const buildInquiryPayload = (config, targetNumber, amount) => ({
-    Fields: [{ Id: config.fieldId, Value: targetNumber }],
-    CurrentServiceProviderId: config.providerId,
-    ServiceId: config.serviceId,
-    MachineSerial: config.machineSerial,
-    InqueryAmount: amount
-});
+const buildInquiryPayload = (config, targetNumber, amount) => {
+    const usesProviderKeys = config.inquiryPayloadMode === INQUIRY_PAYLOAD_MODES.FIELD_KEY_PAIR;
+    return {
+        Fields: [usesProviderKeys
+            ? { Id: config.fieldId, key1: targetNumber }
+            : { Id: config.fieldId, Value: targetNumber }],
+        CurrentServiceProviderId: config.providerId,
+        ServiceId: config.serviceId,
+        MachineSerial: config.machineSerial,
+        ...(usesProviderKeys ? { key2: amount } : { InqueryAmount: amount })
+    };
+};
 
 const getApiProviderBalanceWithAuth = async (config, headers, addLog) => {
     addLog('BALANCE', 'Checking available provider balance');
@@ -268,7 +281,7 @@ const runApiTransferPreflight = async (apiBot, input = {}) => {
             return { success: false, stage, message, checks, processLog: processLog.join('\n'), communication };
         }
 
-        addLog('CONFIG_SUCCESS', `${config.preset.name} | ServiceId=${config.serviceId} | CurrentServiceProviderId=${config.providerId} | FieldId=${config.fieldId}`);
+        addLog('CONFIG_SUCCESS', `${config.preset.name} | ServiceId=${config.serviceId} | CurrentServiceProviderId=${config.providerId} | FieldId=${config.fieldId} | InquiryMode=${config.inquiryPayloadMode}`);
         checks.push({ key: 'configuration', label: 'إعدادات الخدمة', status: 'success', message: 'البيانات الأساسية مكتملة' });
 
         stage = 'authentication';
@@ -375,7 +388,7 @@ const executeTransferViaApi = async (tx, apiBot) => {
         }
         const headers = auth.headers;
         
-        addLog("PROVIDER", `${preset.name} | ServiceId=${serviceId} | CurrentServiceProviderId=${providerId} | FieldId=${fieldId}`);
+        addLog("PROVIDER", `${preset.name} | ServiceId=${serviceId} | CurrentServiceProviderId=${providerId} | FieldId=${fieldId} | InquiryMode=${config.inquiryPayloadMode}`);
         addLog("INQUIRY", `جاري الاستعلام وفحص الرقم [${targetNumber}]...`);
         const inquiryPayload = buildInquiryPayload(config, targetNumber, amount);
         recordCommunication('outbound', 'inquiry_request', 'POST', `${baseUrl}/api/V1/Transactions/Inquiry`, inquiryPayload);
@@ -696,6 +709,7 @@ module.exports = {
     executeTransferViaApi,
     getApiProviderBalance,
     runApiTransferPreflight,
+    buildInquiryPayload,
     getApiProviderTransaction,
     getApiProviderTransactions,
     isReturnedProviderStatus,

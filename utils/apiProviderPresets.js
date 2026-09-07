@@ -1,5 +1,15 @@
 'use strict';
 
+const INQUIRY_PAYLOAD_MODES = Object.freeze({
+    FIELDS_VALUE: 'fields_value',
+    FIELD_KEY_PAIR: 'field_key_pair'
+});
+
+const normalizeInquiryPayloadMode = (value, fallback = INQUIRY_PAYLOAD_MODES.FIELDS_VALUE) => {
+    const mode = String(value || '').trim();
+    return Object.values(INQUIRY_PAYLOAD_MODES).includes(mode) ? mode : fallback;
+};
+
 const API_PROVIDER_PRESETS = {
     zayn_external_aggregator: {
         key: 'zayn_external_aggregator',
@@ -10,6 +20,7 @@ const API_PROVIDER_PRESETS = {
         providerId: 16,
         fieldId: 5488,
         machineSerial: 'XP1',
+        inquiryPayloadMode: INQUIRY_PAYLOAD_MODES.FIELDS_VALUE,
         appType: '1',
         appId: 'app12',
         versionId: 'Samsuang-502'
@@ -23,6 +34,9 @@ const API_PROVIDER_PRESETS = {
         providerId: 29,
         fieldId: 3488,
         machineSerial: 'XP1',
+        // ZaynPay Legacy requires the provider-defined names inside the
+        // inquiry payload: Fields[].key1 and root key2.
+        inquiryPayloadMode: INQUIRY_PAYLOAD_MODES.FIELD_KEY_PAIR,
         appType: '1',
         appId: 'app12',
         versionId: 'Samsuang-502'
@@ -41,6 +55,8 @@ const getApiProviderPresets = () => Object.values(API_PROVIDER_PRESETS);
 module.exports = {
     DEFAULT_API_PROVIDER_KEY,
     API_PROVIDER_PRESETS,
+    INQUIRY_PAYLOAD_MODES,
+    normalizeInquiryPayloadMode,
     getApiProviderPreset,
     getApiProviderPresets
 };

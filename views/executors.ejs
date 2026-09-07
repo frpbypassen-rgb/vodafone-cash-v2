@@ -619,7 +619,8 @@
                                                         data-service-id="<%= provider.serviceId %>"
                                                         data-provider-id="<%= provider.providerId %>"
                                                         data-field-id="<%= provider.fieldId %>"
-                                                        data-machine-serial="<%= provider.machineSerial %>">
+                                                        data-machine-serial="<%= provider.machineSerial %>"
+                                                        data-inquiry-payload-mode="<%= provider.inquiryPayloadMode || 'fields_value' %>">
                                                     <%= provider.nameAr || provider.name %>
                                                 </option>
                                             <% }) %>
@@ -656,6 +657,10 @@
                                     <div class="col-md-3">
                                         <label class="form-label fw-bold small text-muted">Machine Serial</label>
                                         <input type="text" name="apiMachineSerial" class="form-control text-center" value="XP1" dir="ltr">
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label class="form-label fw-bold small text-muted">نمط استعلام التحويل</label>
+                                        <select name="apiInquiryPayloadMode" class="form-select text-center"><option value="fields_value">قياسي: Value / InqueryAmount</option><option value="field_key_pair">مخصص: key1 / key2</option></select>
                                     </div>
                                     <div class="col-md-9 d-flex align-items-end">
                                         <div class="text-muted small">يمكن إضافة أكثر من منفذ API، وكل منفذ سيستخدم بياناته عند توجيه الطلب إليه.</div>
@@ -728,6 +733,7 @@
         setValue('apiProviderId', selected.dataset.providerId);
         setValue('apiFieldId', selected.dataset.fieldId);
         setValue('apiMachineSerial', selected.dataset.machineSerial);
+        setValue('apiInquiryPayloadMode', selected.dataset.inquiryPayloadMode);
     }
 
     function escapeHtml(value) {

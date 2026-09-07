@@ -149,6 +149,42 @@ describe('externalApiService', () => {
         );
     });
 
+    test('uses key1 and key2 for the ZaynPay Legacy inquiry contract only', async () => {
+        mockSuccessFlow();
+
+        await executeTransferViaApi(
+            { customId: 'ATT-2609-LEGACY', vodafoneNumber: '01108172258', amount: 5000 },
+            {
+                apiProviderKey: 'zaynpay_legacy',
+                apiUrl: 'https://zayn.example',
+                apiUsername: 'api-user',
+                apiPassword: 'api-pass'
+            }
+        );
+
+        expect(axios.post).toHaveBeenNthCalledWith(
+            2,
+            'https://zayn.example/api/V1/Transactions/Inquiry',
+            {
+                Fields: [{ Id: 3488, key1: '01108172258' }],
+                CurrentServiceProviderId: 29,
+                ServiceId: 307,
+                MachineSerial: 'XP1',
+                key2: 5000
+            },
+            expect.any(Object)
+        );
+        expect(axios.post).toHaveBeenNthCalledWith(
+            3,
+            'https://zayn.example/api/V1/Transactions/Payment',
+            expect.objectContaining({
+                Fields: [{ Id: 3488, Value: '01108172258' }],
+                Amount: 5000
+            }),
+            expect.any(Object)
+        );
+    });
+
     test('runs a safe transfer preflight through authentication, balance, and inquiry without payment', async () => {
         axios.post
             .mockResolvedValueOnce({

@@ -81,6 +81,7 @@ const accountToFormData = (account, submitted = null) => {
         apiProviderId: account.apiProviderId ?? 16,
         apiFieldId: account.apiFieldId ?? 5488,
         apiMachineSerial: account.apiMachineSerial || 'XP1',
+        apiInquiryPayloadMode: account.apiInquiryPayloadMode || '',
         contactName: businessProfile.contactName || '',
         email: businessProfile.email || '',
         city: businessProfile.city || '',

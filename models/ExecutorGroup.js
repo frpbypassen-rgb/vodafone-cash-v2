@@ -38,6 +38,9 @@ const executorGroupSchema = new mongoose.Schema({
     apiProviderId: { type: Number, default: 16 },
     apiFieldId: { type: Number, default: 5488 },
     apiMachineSerial: { type: String, default: 'XP1' },
+    // Kept per executor so two providers can use different inquiry contracts.
+    // Undefined means "use this provider preset's safe default" for legacy bots.
+    apiInquiryPayloadMode: { type: String, enum: ['fields_value', 'field_key_pair'], default: undefined },
     lastApiTestAt: { type: Date },
     lastApiTestStatus: { type: String, enum: ['success', 'failed', 'pending'], default: undefined },
     lastApiTestMessage: { type: String, default: '' },
