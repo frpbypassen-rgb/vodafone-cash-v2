@@ -33,6 +33,15 @@
         return ids.map((id) => document.getElementById(id)).filter(Boolean);
     }
 
+    function scrollTransferSheetToTop() {
+        const body = els().modal?.querySelector('.modal-body');
+        if (!body) return;
+        // The modal body is the scrolling surface on phones.  Reset it after
+        // every wizard transition so a customer never lands halfway through a
+        // different step or below its primary action.
+        requestAnimationFrame(() => { body.scrollTop = 0; });
+    }
+
     function hideReview() {
         const e = els();
         if (e.review) e.review.hidden = true;
@@ -57,6 +66,7 @@
         visibleTransferBlocks().forEach((node) => { node.hidden = true; });
         e.review.hidden = false;
         setStep(3);
+        scrollTransferSheetToTop();
         return true;
     }
 
@@ -89,6 +99,7 @@
             const out = original.apply(this, args);
             setStep(step);
             if (step === 1 || step === 2) hideReview();
+            scrollTransferSheetToTop();
             return out;
         };
     }
@@ -106,6 +117,7 @@
             hideReview();
             setStep(1);
         });
+        e.modal?.addEventListener('shown.bs.modal', scrollTransferSheetToTop);
     }
 
     global.ClientOsTransfer = {

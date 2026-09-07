@@ -890,6 +890,39 @@ body.client-nile-theme::before {
     .client-nile-theme.client-satellite-page .glass-nav {
         display: none !important;
     }
+
+    /* Applies to the classic client/agent dashboard too.  The transfer form
+       must scroll inside the sheet instead of extending below the viewport. */
+    .client-nile-theme #transferModal .modal-dialog {
+        display: flex;
+        align-items: flex-end;
+        min-height: calc(100dvh - 12px);
+        margin: 6px;
+    }
+
+    .client-nile-theme #transferModal .modal-content {
+        display: flex;
+        flex-direction: column;
+        max-height: calc(100dvh - 12px);
+        overflow: hidden;
+    }
+
+    .client-nile-theme #transferModal .modal-header {
+        flex: 0 0 auto;
+    }
+
+    .client-nile-theme #transferModal .modal-body {
+        min-height: 0;
+        overflow-y: auto;
+        overscroll-behavior: contain;
+        -webkit-overflow-scrolling: touch;
+        padding-bottom: calc(28px + env(safe-area-inset-bottom));
+    }
+
+    .client-nile-theme #transferModal #btnSubmitTransfer {
+        min-height: 52px;
+        margin-bottom: max(4px, env(safe-area-inset-bottom));
+    }
 }
 
 /* Mobile navigation: a full-width, thumb-friendly control rail. */

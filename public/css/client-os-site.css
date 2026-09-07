@@ -604,6 +604,47 @@
 }
 
 @media (max-width: 767.98px) {
+    /*
+     * The transfer flow can contain several required fields.  A modal content
+     * element with `overflow: hidden` turns those fields (and the review
+     * action) into unreachable content on short phone viewports, especially
+     * while the mobile browser chrome is visible.  Keep the modal shell
+     * clipped, but make its body the dedicated touch scrolling region.
+     */
+    .wallet-hub-active #transferModal .modal-dialog {
+        display: flex;
+        align-items: flex-end;
+        min-height: calc(100dvh - 12px);
+        margin: 6px;
+        max-width: none;
+    }
+
+    .wallet-hub-active #transferModal .modal-content {
+        display: flex;
+        flex-direction: column;
+        width: 100%;
+        max-height: calc(100dvh - 12px);
+        overflow: hidden;
+        border-radius: 22px 22px 14px 14px;
+    }
+
+    .wallet-hub-active #transferModal .modal-header {
+        flex: 0 0 auto;
+    }
+
+    .wallet-hub-active #transferModal .modal-body {
+        min-height: 0;
+        overflow-y: auto;
+        overscroll-behavior: contain;
+        -webkit-overflow-scrolling: touch;
+        padding: 14px 16px calc(28px + env(safe-area-inset-bottom));
+    }
+
+    .wallet-hub-active #transferModal #btnSubmitTransfer {
+        min-height: 52px;
+        margin-bottom: max(4px, env(safe-area-inset-bottom));
+    }
+
     .wallet-hub-active #transferModal .services-desktop-grid,
     .wallet-hub-active #transferModal .services-mobile-grid {
         grid-template-columns: repeat(2, minmax(0, 1fr));
