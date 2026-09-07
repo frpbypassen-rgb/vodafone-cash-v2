@@ -182,7 +182,7 @@
             <div class="card border-0 shadow-sm mb-4" id="agent-webhook-integration"><div class="card-body">
                 <h5 class="fw-bold mb-2"><i class="fa-solid fa-tower-broadcast text-success me-1"></i> Webhook الوكالة المعزول</h5>
                 <p class="small text-muted">لكل وكالة رابط استقبال ومفتاح توقيع مستقلان. يظهر الرابط النشط في وثيقة الـAPI الخاصة بهذه الوكالة فقط.</p>
-                <form class="row g-2" data-agent-webhook-form data-agent-id="<%= user._id %>">
+                <form method="post" class="row g-2" data-agent-webhook-form data-agent-id="<%= user._id %>">
                     <div class="col-md-8"><input type="url" name="url" class="form-control" dir="ltr" placeholder="https://agency.example.com/webhooks/ahrampay" required></div>
                     <div class="col-md-4"><button class="btn btn-success w-100" type="submit">إضافة رابط الوكالة</button></div>
                     <% ['transaction.pending', 'transaction.processing', 'transaction.completed', 'transaction.failed'].forEach((eventName) => { %><label class="col-auto form-check-label small"><input class="form-check-input" type="checkbox" name="events" value="<%= eventName %>" checked> <span dir="ltr"><%= eventName %></span></label><% }) %>
