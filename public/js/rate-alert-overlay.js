@@ -66,14 +66,16 @@
             const registration = await navigator.serviceWorker.ready;
             let subscription = await registration.pushManager.getSubscription();
             if (!subscription) {
-                const permission = await Notification.requestPermission();
-                if (permission !== 'granted') return;
+                const permission = Notification.permission === 'granted'
+                    ? 'granted'
+                    : await Notification.requestPermission();
+                if (permission !== 'granted') return { success: false, reason: 'permission_denied' };
                 subscription = await registration.pushManager.subscribe({
                     userVisibleOnly: true,
                     applicationServerKey: base64UrlToUint8Array(key)
                 });
             }
-            await fetch('/client/api/rate-alerts/subscribe', {
+            const response = await fetch('/client/api/rate-alerts/subscribe', {
                 method: 'POST',
                 credentials: 'same-origin',
                 headers: {
@@ -82,7 +84,20 @@
                 },
                 body: JSON.stringify({ subscription })
             });
-        } catch (_) {}
+            return { success: response.ok };
+        } catch (_) { return { success: false, reason: 'unavailable' }; }
+    };
+
+    // Called only from an explicit customer action. Browsers increasingly block
+    // permission prompts that are not initiated by a click.
+    window.enableClientPushNotifications = async () => {
+        const result = await registerWebPush();
+        const status = document.querySelector('[data-client-push-status]');
+        if (status) {
+            status.textContent = result?.success ? 'الإشعارات مفعلة على هذا الجهاز' : 'لم يتم السماح بالإشعارات من المتصفح';
+            status.classList.toggle('is-enabled', Boolean(result?.success));
+        }
+        return result;
     };
 
     const playTone = (urgent = false) => {
@@ -281,7 +296,10 @@
         });
         if ('serviceWorker' in navigator) {
             navigator.serviceWorker.register('/rate-alert-sw.js')
-                .then(() => registerWebPush())
+                .then(() => {
+                    if (Notification.permission === 'granted') return registerWebPush();
+                    return null;
+                })
                 .catch(() => {});
         }
         if (window.rateAlertInitial?.effectiveAt) schedule(window.rateAlertInitial);

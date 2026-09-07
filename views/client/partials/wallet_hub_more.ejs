@@ -23,6 +23,9 @@
         <a href="/client/settings?section=security" class="wh-more-link" onclick="closeWalletHubMore()">
             <span class="wh-more-icon security"><i class="fa-solid fa-shield-halved"></i></span><span>الأمان والإعدادات</span><i class="fa-solid fa-chevron-left"></i>
         </a>
+        <button type="button" class="wh-more-link" style="width:100%;border:0;text-align:right;font:inherit" onclick="window.enableClientPushNotifications?.()">
+            <span class="wh-more-icon" style="color:#0e9f8b;background:#e6f8f3"><i class="fa-solid fa-bell"></i></span><span>تفعيل إشعارات العمليات<br><small data-client-push-status>استقبل تحديثات الحالة على هذا الجهاز</small></span><i class="fa-solid fa-chevron-left"></i>
+        </button>
         <% if (moreProfile.canEditProfile) { %>
         <a href="/client/settings?section=profile" class="wh-more-link" onclick="closeWalletHubMore()">
             <span class="wh-more-icon profile"><i class="fa-solid fa-user-pen"></i></span><span>الملف الشخصي</span><i class="fa-solid fa-chevron-left"></i>
