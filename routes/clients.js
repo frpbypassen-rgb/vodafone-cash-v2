@@ -339,10 +339,14 @@ router.get('/user/:id', requireAuth, async (req, res) => {
     const transactions = await Transaction.find({ userId: user.phone || user.webUsername, companyId: null }).sort({ createdAt: -1 }).limit(50);
     const reversibleSettlements = await reversibleSettlementIds({ transactions, entityModel: 'User', entityId: user._id });
     const hasSubAccounts = await SubAccount.exists({ masterType: 'user', masterId: user._id, ...visibleAccountFilter });
+    const webhookSubscriptions = user.role === 'agent'
+        ? await MerchantWebhookSubscription.find({ accountId: user._id, accountType: 'agent' }).sort({ createdAt: -1 }).lean()
+        : [];
     res.render('user_details', {
         user,
         transactions,
         reversibleSettlements,
+        webhookSubscriptions,
         accountCodeLength: expectedUserCodeLength(user, Boolean(hasSubAccounts)),
         query: req.query,
         isMaster: req.session.adminRole === 'master'

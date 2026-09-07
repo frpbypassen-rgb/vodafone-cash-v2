@@ -178,6 +178,19 @@
                 <a href="/clients?section=<%= isAgentAccount ? 'agents' : 'users' %>" class="btn btn-secondary fw-bold rounded-3 shadow-sm px-3 btn-3d-hover"><i class="fa-solid fa-arrow-right me-1"></i> عودة للقائمة</a>
             </div>
         </div>
+        <% if (isAgentAccount && typeof isMaster !== 'undefined' && isMaster) { %>
+            <div class="card border-0 shadow-sm mb-4" id="agent-webhook-integration"><div class="card-body">
+                <h5 class="fw-bold mb-2"><i class="fa-solid fa-tower-broadcast text-success me-1"></i> Webhook الوكالة المعزول</h5>
+                <p class="small text-muted">لكل وكالة رابط استقبال ومفتاح توقيع مستقلان. يظهر الرابط النشط في وثيقة الـAPI الخاصة بهذه الوكالة فقط.</p>
+                <form class="row g-2" data-agent-webhook-form data-agent-id="<%= user._id %>">
+                    <div class="col-md-8"><input type="url" name="url" class="form-control" dir="ltr" placeholder="https://agency.example.com/webhooks/ahrampay" required></div>
+                    <div class="col-md-4"><button class="btn btn-success w-100" type="submit">إضافة رابط الوكالة</button></div>
+                    <% ['transaction.pending', 'transaction.processing', 'transaction.completed', 'transaction.failed'].forEach((eventName) => { %><label class="col-auto form-check-label small"><input class="form-check-input" type="checkbox" name="events" value="<%= eventName %>" checked> <span dir="ltr"><%= eventName %></span></label><% }) %>
+                </form>
+                <div data-agent-webhook-result class="small mt-2"></div>
+                <% if (webhookSubscriptions.length) { %><div class="small mt-3"><strong>القنوات المسجلة:</strong> <% webhookSubscriptions.forEach((item) => { %><div dir="ltr" class="text-break"><%= item.url %> — <%= item.status %></div><% }) %></div><% } %>
+            </div></div>
+        <% } %>
         <% if (query && query.codeSaved) { %>
             <div class="alert alert-success fw-bold rounded-4 shadow-sm"><i class="fa-solid fa-check-circle me-1"></i> تم حفظ ID الحساب بنجاح.</div>
         <% } else if (query && query.profileUpdated) { %>
@@ -442,4 +455,10 @@
 </script>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
 </body>
+<script>
+document.querySelectorAll('[data-agent-webhook-form]').forEach((form) => form.addEventListener('submit', async (event) => {
+    event.preventDefault(); const data = new FormData(form); const result = form.parentElement.querySelector('[data-agent-webhook-result]');
+    try { const response = await fetch(`/user/${form.dataset.agentId}/webhooks`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-csrf-token': data.get('_csrf') || '' }, body: JSON.stringify({ url: data.get('url'), events: data.getAll('events') }) }); const payload = await response.json(); if (!response.ok) throw new Error(payload.error || 'تعذر الحفظ'); result.className = 'small mt-2 text-success fw-bold'; result.textContent = `تم الحفظ. مفتاح التوقيع: ${payload.signing_secret}`; setTimeout(() => location.reload(), 8000); } catch (error) { result.className = 'small mt-2 text-danger fw-bold'; result.textContent = error.message; }
+}));
+</script>
 </html>
