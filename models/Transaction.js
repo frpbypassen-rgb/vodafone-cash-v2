@@ -243,4 +243,14 @@ transactionSchema.index({
     'apiResultData.autoCompleteAt': 1
 });
 
+// Merchant webhooks use an outbox collection. Saving a transaction never waits
+// for a customer's endpoint, and the unique outbox event makes retries safe.
+transactionSchema.post('save', function queueMerchantWebhook(document) {
+    if (!document.companyId) return;
+    setImmediate(() => {
+        require('../services/merchantWebhookService').queueForTransaction(document)
+            .catch((error) => console.error('[MerchantWebhook] queue failed:', error.message));
+    });
+});
+
 module.exports = mongoose.model('Transaction', transactionSchema);

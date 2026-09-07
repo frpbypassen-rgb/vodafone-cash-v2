@@ -43,6 +43,14 @@ const {
     resolvePublicApiOrigin
 } = require('../services/accountIntegrationPdfService');
 const { provisionSandboxMerchant } = require('../services/sandboxMerchantProvisioningService');
+const MerchantWebhookSubscription = require('../models/MerchantWebhookSubscription');
+const MerchantWebhookDelivery = require('../models/MerchantWebhookDelivery');
+const {
+    SUPPORTED_EVENTS,
+    createSubscription,
+    rotateSubscriptionSecret,
+    processPendingDeliveries
+} = require('../services/merchantWebhookService');
 
 const accountCodeErrorQuery = (error) => {
     if (error.message === 'ACCOUNT_CODE_DUPLICATE') return 'duplicate';
@@ -337,9 +345,10 @@ router.get('/user/:id', requireAuth, async (req, res) => {
 router.get('/company/:id', requireAuth, async (req, res) => {
     const company = await ClientCompany.findOne({ _id: req.params.id, ...visibleAccountFilter });
     if (!company) return res.redirect('/clients?section=companies&deleteError=notfound');
-    const [transactions, settings] = await Promise.all([
+    const [transactions, settings, webhookSubscriptions] = await Promise.all([
         Transaction.find({ companyId: company._id }).sort({ createdAt: -1 }).limit(50),
-        Settings.findOne({}).lean()
+        Settings.findOne({}).lean(),
+        MerchantWebhookSubscription.find({ companyId: company._id }).sort({ createdAt: -1 }).lean()
     ]);
     const reversibleSettlements = await reversibleSettlementIds({ transactions, entityModel: 'ClientCompany', entityId: company._id });
     res.render('company_details', {
@@ -349,6 +358,8 @@ router.get('/company/:id', requireAuth, async (req, res) => {
         accountCodeLength: CODE_LENGTHS.company,
         rateServices: getAdminRateServices(),
         companyRateConfig: getCompanyRateConfig(company, settings || {}),
+        webhookSubscriptions,
+        webhookEvents: SUPPORTED_EVENTS,
         query: req.query,
         isMaster: req.session.adminRole === 'master'
     });
@@ -384,6 +395,54 @@ router.get('/user/:id/integration-guide.pdf', requireAuth, requireMaster, async 
         }
         return res.status(500).send('تعذر إنشاء وثيقة الربط.');
     }
+});
+
+router.post('/company/:id/webhooks', requireAuth, requireMaster, async (req, res) => {
+    try {
+        const company = await ClientCompany.findOne({ _id: req.params.id, ...visibleAccountFilter }).lean();
+        if (!company) return res.status(404).json({ success: false, error: 'الشركة غير موجودة.' });
+        const events = Array.isArray(req.body.events) ? req.body.events : [req.body.events].filter(Boolean);
+        const result = await createSubscription({
+            companyId: company._id,
+            url: req.body.url,
+            events: events.length ? events : SUPPORTED_EVENTS,
+            createdBy: req.session.adminName || req.session.adminUsername || 'الإدارة'
+        });
+        await logAction({ action: 'MERCHANT_WEBHOOK_CREATED', req, performedById: req.session.adminId, performedByModel: 'Admin', performedByName: req.session.adminName || 'الإدارة', targetId: company._id, targetModel: 'ClientCompany', result: 'ناجح', severity: 'warning', metadata: { url: result.subscription.url, events: result.subscription.events } });
+        return res.status(201).json({ success: true, subscription: { id: result.subscription._id, url: result.subscription.url, events: result.subscription.events, secret_fingerprint: result.subscription.secretFingerprint }, signing_secret: result.signingSecret, warning: 'انسخ مفتاح التوقيع الآن. لن يظهر مرة أخرى.' });
+    } catch (error) {
+        const known = ['WEBHOOK_URL_INVALID', 'WEBHOOK_URL_HTTPS_REQUIRED', 'WEBHOOK_URL_PRIVATE_HOST'];
+        return res.status(400).json({ success: false, error: known.includes(error.message) ? error.message : 'تعذر إنشاء Webhook. تأكد من أن العنوان HTTPS عام.' });
+    }
+});
+
+router.get('/company/:id/webhooks/:subscriptionId/deliveries', requireAuth, requireMaster, async (req, res) => {
+    const subscription = await MerchantWebhookSubscription.findOne({ _id: req.params.subscriptionId, companyId: req.params.id }).lean();
+    if (!subscription) return res.status(404).json({ success: false, error: 'Webhook غير موجود.' });
+    const deliveries = await MerchantWebhookDelivery.find({ subscriptionId: subscription._id }).sort({ createdAt: -1 }).limit(100).lean();
+    return res.json({ success: true, subscription: { id: subscription._id, url: subscription.url, status: subscription.status, events: subscription.events }, deliveries });
+});
+
+router.post('/company/:id/webhooks/:subscriptionId/rotate-secret', requireAuth, requireMaster, async (req, res) => {
+    const subscription = await MerchantWebhookSubscription.findOne({ _id: req.params.subscriptionId, companyId: req.params.id }).select('+signingSecretEncrypted');
+    if (!subscription) return res.status(404).json({ success: false, error: 'Webhook غير موجود.' });
+    const signingSecret = await rotateSubscriptionSecret(subscription);
+    await logAction({ action: 'MERCHANT_WEBHOOK_SECRET_ROTATED', req, performedById: req.session.adminId, performedByModel: 'Admin', performedByName: req.session.adminName || 'الإدارة', targetId: subscription._id, targetModel: 'MerchantWebhookSubscription', result: 'ناجح', severity: 'warning', metadata: { companyId: req.params.id, secretFingerprint: subscription.secretFingerprint } });
+    return res.json({ success: true, signing_secret: signingSecret, warning: 'انسخ المفتاح الآن وحدث نظام الشركة؛ لن يظهر مرة أخرى.' });
+});
+
+router.post('/company/:id/webhooks/:subscriptionId/:action(pause|resume)', requireAuth, requireMaster, async (req, res) => {
+    const status = req.params.action === 'pause' ? 'paused' : 'active';
+    const subscription = await MerchantWebhookSubscription.findOneAndUpdate({ _id: req.params.subscriptionId, companyId: req.params.id }, { $set: { status } }, { new: true }).lean();
+    if (!subscription) return res.status(404).json({ success: false, error: 'Webhook غير موجود.' });
+    return res.json({ success: true, status: subscription.status });
+});
+
+router.post('/company/:id/webhooks/deliveries/:deliveryId/retry', requireAuth, requireMaster, async (req, res) => {
+    const delivery = await MerchantWebhookDelivery.findOneAndUpdate({ _id: req.params.deliveryId, companyId: req.params.id }, { $set: { status: 'pending', nextAttemptAt: new Date(), lastError: '' } }, { new: true }).lean();
+    if (!delivery) return res.status(404).json({ success: false, error: 'سجل التسليم غير موجود.' });
+    processPendingDeliveries().catch(() => {});
+    return res.json({ success: true, delivery_id: delivery._id });
 });
 
 // تدوير المفتاح يوقف المفتاح السابق فوراً: مصادقة Merchant API تعتمد على

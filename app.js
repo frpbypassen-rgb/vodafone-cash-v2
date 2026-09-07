@@ -81,6 +81,7 @@ const { closeEligibleDailySettlement } = require('./services/settlementService')
 const systemMonitor = require('./services/systemMonitorService');
 const { restorePendingRateActivation, startRateChangeActivationMonitor } = require('./services/rateChangeService');
 const { startExecutorPushNotificationWorker } = require('./services/executorPushNotificationService');
+const { startMerchantWebhookWorker } = require('./services/merchantWebhookService');
 const { ensureUnifiedReportInfrastructure } = require('./services/unifiedReportService');
 
 // 🟢 استدعاء طابور المهام الجديد (Queue System)
@@ -461,6 +462,7 @@ Promise.all([connectDB(), initRedis()]).then(async () => {
     startRateChangeActivationMonitor({ app });
     startApiCompletionMonitor();
     startApiProviderReturnMonitor();
+    startMerchantWebhookWorker();
     await startExecutorPushNotificationWorker().catch((error) => {
         logger.error('Executor push notification worker failed to start', { error: error.message });
     });
