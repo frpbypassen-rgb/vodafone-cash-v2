@@ -102,6 +102,7 @@ const resolveApiProviderConfig = (apiBot = {}) => {
         serviceId: parseNumberOrDefault(apiBot.apiServiceId || process.env.ZAYN_AGGREGATOR_SERVICE_ID || process.env.ZAYNPAY_SERVICE_ID, preset.serviceId),
         providerId: parseNumberOrDefault(apiBot.apiProviderId || process.env.ZAYN_AGGREGATOR_PROVIDER_ID || process.env.ZAYNPAY_PROVIDER_ID, preset.providerId),
         fieldId: parseNumberOrDefault(apiBot.apiFieldId || process.env.ZAYN_AGGREGATOR_FIELD_ID || process.env.ZAYNPAY_FIELD_ID, preset.fieldId),
+        fieldValueKey: String(apiBot.apiFieldValueKey || preset.fieldValueKey || 'Value').trim(),
         machineSerial: apiBot.apiMachineSerial || process.env.ZAYN_AGGREGATOR_MACHINE_SERIAL || process.env.ZAYNPAY_MACHINE_SERIAL || preset.machineSerial,
         defaultHeaders: {
             'Content-Type': 'application/json',
@@ -187,8 +188,13 @@ const getApiConfigurationIssues = (config) => {
     return issues;
 };
 
+const buildProviderFields = (config, targetNumber) => ([{
+    Id: config.fieldId,
+    [config.fieldValueKey || 'Value']: targetNumber
+}]);
+
 const buildInquiryPayload = (config, targetNumber, amount) => ({
-    Fields: [{ Id: config.fieldId, Value: targetNumber }],
+    Fields: buildProviderFields(config, targetNumber),
     CurrentServiceProviderId: config.providerId,
     ServiceId: config.serviceId,
     MachineSerial: config.machineSerial,
@@ -268,7 +274,7 @@ const runApiTransferPreflight = async (apiBot, input = {}) => {
             return { success: false, stage, message, checks, processLog: processLog.join('\n'), communication };
         }
 
-        addLog('CONFIG_SUCCESS', `${config.preset.name} | ServiceId=${config.serviceId} | CurrentServiceProviderId=${config.providerId} | FieldId=${config.fieldId}`);
+        addLog('CONFIG_SUCCESS', `${config.preset.name} | ServiceId=${config.serviceId} | CurrentServiceProviderId=${config.providerId} | FieldId=${config.fieldId} | FieldValueKey=${config.fieldValueKey}`);
         checks.push({ key: 'configuration', label: 'إعدادات الخدمة', status: 'success', message: 'البيانات الأساسية مكتملة' });
 
         stage = 'authentication';
@@ -375,7 +381,7 @@ const executeTransferViaApi = async (tx, apiBot) => {
         }
         const headers = auth.headers;
         
-        addLog("PROVIDER", `${preset.name} | ServiceId=${serviceId} | CurrentServiceProviderId=${providerId} | FieldId=${fieldId}`);
+        addLog("PROVIDER", `${preset.name} | ServiceId=${serviceId} | CurrentServiceProviderId=${providerId} | FieldId=${fieldId} | FieldValueKey=${config.fieldValueKey}`);
         addLog("INQUIRY", `جاري الاستعلام وفحص الرقم [${targetNumber}]...`);
         const inquiryPayload = buildInquiryPayload(config, targetNumber, amount);
         recordCommunication('outbound', 'inquiry_request', 'POST', `${baseUrl}/api/V1/Transactions/Inquiry`, inquiryPayload);
@@ -393,7 +399,7 @@ const executeTransferViaApi = async (tx, apiBot) => {
         addLog("PAYMENT", `جاري إرسال الدفعة النهائية بقيمة [${amount} EGP]...`);
         
         const paymentPayload = {
-            Fields: [{ Id: fieldId, Value: targetNumber }],
+            Fields: buildProviderFields(config, targetNumber),
             CurrentServiceProviderId: providerId,
             ServiceId: serviceId,
             PaymentBillInfo: inquiryData.Data.PaymentBillInfo,
@@ -700,5 +706,6 @@ module.exports = {
     getApiProviderTransactions,
     isReturnedProviderStatus,
     generateCustomReceipt,
-    saveApiReceiptProof
+    saveApiReceiptProof,
+    buildInquiryPayload
 };

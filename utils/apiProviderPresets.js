@@ -9,6 +9,7 @@ const API_PROVIDER_PRESETS = {
         serviceId: 85,
         providerId: 16,
         fieldId: 5488,
+        fieldValueKey: 'Value',
         machineSerial: 'XP1',
         appType: '1',
         appId: 'app12',
@@ -22,6 +23,8 @@ const API_PROVIDER_PRESETS = {
         serviceId: 307,
         providerId: 29,
         fieldId: 3488,
+        // ZaynPay Legacy expects the recipient in key1, not in Value.
+        fieldValueKey: 'key1',
         machineSerial: 'XP1',
         appType: '1',
         appId: 'app12',

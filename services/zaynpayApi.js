@@ -11,6 +11,7 @@ class ZaynPayAPI {
         this.serviceId = parseInt(process.env.ZAYN_AGGREGATOR_SERVICE_ID || process.env.ZAYNPAY_SERVICE_ID || preset.serviceId);
         this.providerId = parseInt(process.env.ZAYN_AGGREGATOR_PROVIDER_ID || process.env.ZAYNPAY_PROVIDER_ID || preset.providerId);
         this.fieldId = parseInt(process.env.ZAYN_AGGREGATOR_FIELD_ID || process.env.ZAYNPAY_FIELD_ID || preset.fieldId);
+        this.fieldValueKey = String(preset.fieldValueKey || 'Value').trim();
         this.machineSerial = process.env.ZAYN_AGGREGATOR_MACHINE_SERIAL || process.env.ZAYNPAY_MACHINE_SERIAL || preset.machineSerial;
         this.token = null;
     }
@@ -56,7 +57,7 @@ class ZaynPayAPI {
             const headers = await this.getHeaders();
             const payload = {
                 Fields: [
-                    { Id: this.fieldId, Value: walletNumber }
+                    { Id: this.fieldId, [this.fieldValueKey]: walletNumber }
                 ],
                 CurrentServiceProviderId: this.providerId,
                 ServiceId: this.serviceId,
@@ -87,7 +88,7 @@ class ZaynPayAPI {
             const headers = await this.getHeaders();
             const payload = {
                 Fields: [
-                    { Id: this.fieldId, Value: walletNumber }
+                    { Id: this.fieldId, [this.fieldValueKey]: walletNumber }
                 ],
                 CurrentServiceProviderId: this.providerId,
                 ServiceId: this.serviceId,
