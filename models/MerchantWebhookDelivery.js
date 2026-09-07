@@ -4,7 +4,9 @@ const mongoose = require('mongoose');
 
 const merchantWebhookDeliverySchema = new mongoose.Schema({
     subscriptionId: { type: mongoose.Schema.Types.ObjectId, ref: 'MerchantWebhookSubscription', required: true, index: true },
-    companyId: { type: mongoose.Schema.Types.ObjectId, ref: 'ClientCompany', required: true, index: true },
+    companyId: { type: mongoose.Schema.Types.ObjectId, ref: 'ClientCompany', index: true },
+    accountId: { type: mongoose.Schema.Types.ObjectId, required: true, index: true },
+    accountType: { type: String, enum: ['company', 'agent'], required: true, index: true },
     transactionId: { type: mongoose.Schema.Types.ObjectId, ref: 'Transaction', required: true, index: true },
     eventType: { type: String, required: true },
     eventId: { type: String, required: true, unique: true },

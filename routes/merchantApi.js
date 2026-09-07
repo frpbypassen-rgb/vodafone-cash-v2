@@ -352,6 +352,8 @@ router.post('/transfer', merchantApiAuth, async (req, res) => {
             const txData = {
                 userId: req.merchant.transactionUserId,
                 companyId: isAgentMerchant ? undefined : req.merchant._id,
+                merchantAccountId: req.merchant._id,
+                merchantAccountType: isAgentMerchant ? 'agent' : 'company',
                 amount: amountValue,
                 costLYD,
                 exchangeRate,

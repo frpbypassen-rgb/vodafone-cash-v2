@@ -65,10 +65,12 @@ const buildPayload = (tx, eventType) => ({
 });
 
 const queueForTransaction = async (tx) => {
-    if (!tx?.companyId) return;
+    const accountType = tx.merchantAccountType || (tx.companyId ? 'company' : null);
+    const accountId = tx.merchantAccountId || tx.companyId;
+    if (!accountId || !accountType) return;
     const eventType = eventForStatus(tx.status);
     if (!eventType) return;
-    const subscriptions = await MerchantWebhookSubscription.find({ companyId: tx.companyId, status: 'active', events: eventType }).lean();
+    const subscriptions = await MerchantWebhookSubscription.find({ accountId, accountType, status: 'active', events: eventType }).lean();
     await Promise.all(subscriptions.map(async (subscription) => {
         const payload = buildPayload(tx, eventType);
         // An event is at-least-once. This stable id makes duplicate deliveries safe for receivers.
@@ -76,7 +78,9 @@ const queueForTransaction = async (tx) => {
         try {
             await MerchantWebhookDelivery.create({
                 subscriptionId: subscription._id,
-                companyId: tx.companyId,
+                companyId: tx.companyId || null,
+                accountId,
+                accountType,
                 transactionId: tx._id,
                 eventType,
                 eventId: payload.id,
@@ -156,11 +160,11 @@ const startMerchantWebhookWorker = () => {
     processPendingDeliveries().catch((error) => console.error('[MerchantWebhook] initial worker failed:', error.message));
 };
 
-const createSubscription = async ({ companyId, url, events, createdBy }) => {
+const createSubscription = async ({ accountId, accountType, url, events, createdBy }) => {
     const verifiedUrl = await validateWebhookUrl(url);
     const signingSecret = generateSigningSecret();
     const subscription = await MerchantWebhookSubscription.create({
-        companyId, url: verifiedUrl,
+        accountId, accountType, companyId: accountType === 'company' ? accountId : undefined, url: verifiedUrl,
         events: [...new Set((Array.isArray(events) ? events : []).filter((event) => SUPPORTED_EVENTS.includes(event)))],
         signingSecretEncrypted: encrypt(signingSecret), secretFingerprint: secretFingerprint(signingSecret), createdBy
     });

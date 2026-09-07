@@ -19,6 +19,9 @@ const transactionSchema = new mongoose.Schema({
     // 👤 بيانات الجهة الطالبة 
     userId: { type: String }, // معرف العميل الفردي أو الموظف
     companyId: { type: mongoose.Schema.Types.ObjectId, ref: 'ClientCompany' }, 
+    // External API account that owns the webhook stream (company or agency).
+    merchantAccountId: { type: mongoose.Schema.Types.ObjectId },
+    merchantAccountType: { type: String, enum: ['company', 'agent'] },
     subAccountId: { type: mongoose.Schema.Types.ObjectId, ref: 'SubAccount' }, 
     companyName: { type: String },
     employeeName: { type: String },
@@ -246,7 +249,7 @@ transactionSchema.index({
 // Merchant webhooks use an outbox collection. Saving a transaction never waits
 // for a customer's endpoint, and the unique outbox event makes retries safe.
 transactionSchema.post('save', function queueMerchantWebhook(document) {
-    if (!document.companyId) return;
+    if (!document.companyId && !document.merchantAccountId) return;
     setImmediate(() => {
         require('../services/merchantWebhookService').queueForTransaction(document)
             .catch((error) => console.error('[MerchantWebhook] queue failed:', error.message));

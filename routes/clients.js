@@ -113,8 +113,8 @@ const sendIntegrationDocument = async (req, res, { account, accountType }) => {
     const apiKey = await ensureIntegrationApiKey(account, accountType === 'agent' ? 'apiToken' : 'token');
     const [settings, webhookSubscription] = await Promise.all([
         Settings.findOne({}).lean(),
-        accountType === 'company'
-            ? MerchantWebhookSubscription.findOne({ companyId: account._id, status: 'active' }).sort({ updatedAt: -1 }).lean()
+        ['company', 'agent'].includes(accountType)
+            ? MerchantWebhookSubscription.findOne({ accountId: account._id, accountType, status: 'active' }).sort({ updatedAt: -1 }).lean()
             : Promise.resolve(null)
     ]);
     const documentData = buildIntegrationDocumentData({
@@ -409,12 +409,35 @@ router.post('/company/:id/webhooks', requireAuth, requireMaster, async (req, res
         if (!company) return res.status(404).json({ success: false, error: 'الشركة غير موجودة.' });
         const events = Array.isArray(req.body.events) ? req.body.events : [req.body.events].filter(Boolean);
         const result = await createSubscription({
-            companyId: company._id,
+            accountId: company._id,
+            accountType: 'company',
             url: req.body.url,
             events: events.length ? events : SUPPORTED_EVENTS,
             createdBy: req.session.adminName || req.session.adminUsername || 'الإدارة'
         });
         await logAction({ action: 'MERCHANT_WEBHOOK_CREATED', req, performedById: req.session.adminId, performedByModel: 'Admin', performedByName: req.session.adminName || 'الإدارة', targetId: company._id, targetModel: 'ClientCompany', result: 'ناجح', severity: 'warning', metadata: { url: result.subscription.url, events: result.subscription.events } });
+        return res.status(201).json({ success: true, subscription: { id: result.subscription._id, url: result.subscription.url, events: result.subscription.events, secret_fingerprint: result.subscription.secretFingerprint }, signing_secret: result.signingSecret, warning: 'انسخ مفتاح التوقيع الآن. لن يظهر مرة أخرى.' });
+    } catch (error) {
+        const known = ['WEBHOOK_URL_INVALID', 'WEBHOOK_URL_HTTPS_REQUIRED', 'WEBHOOK_URL_PRIVATE_HOST'];
+        return res.status(400).json({ success: false, error: known.includes(error.message) ? error.message : 'تعذر إنشاء Webhook. تأكد من أن العنوان HTTPS عام.' });
+    }
+});
+
+// Agencies use the same isolated webhook service, but are scoped to their
+// User account rather than to a ClientCompany.
+router.post('/user/:id/webhooks', requireAuth, requireMaster, async (req, res) => {
+    try {
+        const agent = await User.findOne({ _id: req.params.id, role: 'agent', ...visibleAccountFilter }).lean();
+        if (!agent) return res.status(404).json({ success: false, error: 'الوكالة غير موجودة.' });
+        const events = Array.isArray(req.body.events) ? req.body.events : [req.body.events].filter(Boolean);
+        const result = await createSubscription({
+            accountId: agent._id,
+            accountType: 'agent',
+            url: req.body.url,
+            events: events.length ? events : SUPPORTED_EVENTS,
+            createdBy: req.session.adminName || req.session.adminUsername || 'الإدارة'
+        });
+        await logAction({ action: 'AGENT_WEBHOOK_CREATED', req, performedById: req.session.adminId, performedByModel: 'Admin', performedByName: req.session.adminName || 'الإدارة', targetId: agent._id, targetModel: 'User', result: 'ناجح', severity: 'warning', metadata: { url: result.subscription.url, events: result.subscription.events } });
         return res.status(201).json({ success: true, subscription: { id: result.subscription._id, url: result.subscription.url, events: result.subscription.events, secret_fingerprint: result.subscription.secretFingerprint }, signing_secret: result.signingSecret, warning: 'انسخ مفتاح التوقيع الآن. لن يظهر مرة أخرى.' });
     } catch (error) {
         const known = ['WEBHOOK_URL_INVALID', 'WEBHOOK_URL_HTTPS_REQUIRED', 'WEBHOOK_URL_PRIVATE_HOST'];
