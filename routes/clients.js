@@ -431,12 +431,14 @@ router.post('/company/:id/webhooks/:subscriptionId/rotate-secret', requireAuth, 
     return res.json({ success: true, signing_secret: signingSecret, warning: 'انسخ المفتاح الآن وحدث نظام الشركة؛ لن يظهر مرة أخرى.' });
 });
 
-router.post('/company/:id/webhooks/:subscriptionId/:action(pause|resume)', requireAuth, requireMaster, async (req, res) => {
-    const status = req.params.action === 'pause' ? 'paused' : 'active';
+const setCompanyWebhookStatus = (status) => async (req, res) => {
     const subscription = await MerchantWebhookSubscription.findOneAndUpdate({ _id: req.params.subscriptionId, companyId: req.params.id }, { $set: { status } }, { new: true }).lean();
     if (!subscription) return res.status(404).json({ success: false, error: 'Webhook غير موجود.' });
     return res.json({ success: true, status: subscription.status });
-});
+};
+
+router.post('/company/:id/webhooks/:subscriptionId/pause', requireAuth, requireMaster, setCompanyWebhookStatus('paused'));
+router.post('/company/:id/webhooks/:subscriptionId/resume', requireAuth, requireMaster, setCompanyWebhookStatus('active'));
 
 router.post('/company/:id/webhooks/deliveries/:deliveryId/retry', requireAuth, requireMaster, async (req, res) => {
     const delivery = await MerchantWebhookDelivery.findOneAndUpdate({ _id: req.params.deliveryId, companyId: req.params.id }, { $set: { status: 'pending', nextAttemptAt: new Date(), lastError: '' } }, { new: true }).lean();
