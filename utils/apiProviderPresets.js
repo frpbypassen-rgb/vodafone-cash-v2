@@ -35,7 +35,7 @@ const API_PROVIDER_PRESETS = {
         fieldId: 3488,
         machineSerial: 'XP1',
         // ZaynPay Legacy requires the provider-defined names inside the
-        // inquiry payload: Fields[].Key1 and root Key2.
+        // inquiry payload: Fields[{ Key: 'Key1', Value }, { Key: 'Key2', Value }].
         inquiryPayloadMode: INQUIRY_PAYLOAD_MODES.FIELD_KEY_PAIR,
         appType: '1',
         appId: 'app12',

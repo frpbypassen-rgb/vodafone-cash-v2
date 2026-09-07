@@ -172,11 +172,11 @@
                             <div class="d-flex justify-content-between align-items-center flex-wrap gap-3">
                                 <div>
                                     <div class="fw-bold text-light"><i class="fa-solid fa-code-branch text-info me-1"></i> نمط حقول استعلام التحويل</div>
-                                    <small class="<%= usesProviderKeys ? 'text-success' : 'text-muted' %>"><%= usesProviderKeys ? 'مخصص للمزود: Fields[].Key1 و Key2' : 'قياسي: Fields[].Value و InqueryAmount' %></small>
+                                    <small class="<%= usesProviderKeys ? 'text-success' : 'text-muted' %>"><%= usesProviderKeys ? 'مخصص للمزود: عناصر Fields من Key/Value لـ Key1 و Key2' : 'قياسي: Fields[].Value و InqueryAmount' %></small>
                                     <div class="small text-muted mt-1">التبديل يخص طلب الاستعلام فقط، ولا يغير طلب الدفع.</div>
                                 </div>
                                 <% if (typeof isMaster !== 'undefined' && isMaster) { %>
-                                    <button type="button" class="btn btn-outline-info fw-bold" data-api-bot-id="<%= bot._id %>" data-inquiry-mode="<%= nextInquiryPayloadMode %>" onclick="changeInquiryPayloadMode(this)"><i class="fa-solid fa-right-left me-1"></i> <%= usesProviderKeys ? 'استخدام النمط القياسي' : 'استخدام Key1 / Key2' %></button>
+                                    <button type="button" class="btn btn-outline-info fw-bold" data-api-bot-id="<%= bot._id %>" data-inquiry-mode="<%= nextInquiryPayloadMode %>" onclick="changeInquiryPayloadMode(this)"><i class="fa-solid fa-right-left me-1"></i> <%= usesProviderKeys ? 'استخدام النمط القياسي' : 'استخدام Fields Key/Value' %></button>
                                 <% } %>
                             </div>
                         </div>
@@ -698,7 +698,7 @@
             icon: 'warning',
             title: 'تغيير نمط الاستعلام؟',
             text: isKeyPair
-                ? 'سيُرسل الاستعلام القادم باستخدام Fields[].Key1 و Key2 لهذا المنفذ فقط.'
+                ? 'سيُرسل الاستعلام القادم باستخدام عنصرين داخل Fields: Key=Key1 و Key=Key2 لهذا المنفذ فقط.'
                 : 'سيُرسل الاستعلام القادم باستخدام Fields[].Value و InqueryAmount لهذا المنفذ فقط.',
             showCancelButton: true,
             confirmButtonText: 'حفظ التغيير',

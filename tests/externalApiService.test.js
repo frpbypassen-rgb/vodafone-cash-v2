@@ -149,7 +149,7 @@ describe('externalApiService', () => {
         );
     });
 
-    test('uses Key1 and Key2 for the ZaynPay Legacy inquiry contract only', async () => {
+    test('uses documented Key/Value entries for the ZaynPay Legacy inquiry contract only', async () => {
         mockSuccessFlow();
 
         await executeTransferViaApi(
@@ -166,11 +166,13 @@ describe('externalApiService', () => {
             2,
             'https://zayn.example/api/V1/Transactions/Inquiry',
             {
-                Fields: [{ Id: 3488, Key1: '01108172258' }],
+                Fields: [
+                    { Key: 'Key1', Value: '01108172258' },
+                    { Key: 'Key2', Value: '5000' }
+                ],
                 CurrentServiceProviderId: 29,
-                ServiceId: 307,
                 MachineSerial: 'XP1',
-                Key2: 5000
+                ServiceId: '307'
             },
             expect.any(Object)
         );

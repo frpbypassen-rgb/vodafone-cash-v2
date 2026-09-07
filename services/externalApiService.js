@@ -197,14 +197,26 @@ const getApiConfigurationIssues = (config) => {
 
 const buildInquiryPayload = (config, targetNumber, amount) => {
     const usesProviderKeys = config.inquiryPayloadMode === INQUIRY_PAYLOAD_MODES.FIELD_KEY_PAIR;
+    if (usesProviderKeys) {
+        // ZaynPay Legacy's documented contract is deliberately different from
+        // the usual Id/Value field structure.  Both inputs live in Fields and
+        // all values, including ServiceId, are sent as strings.
+        return {
+            Fields: [
+                { Key: 'Key1', Value: String(targetNumber) },
+                { Key: 'Key2', Value: String(amount) }
+            ],
+            CurrentServiceProviderId: config.providerId,
+            MachineSerial: config.machineSerial,
+            ServiceId: String(config.serviceId)
+        };
+    }
     return {
-        Fields: [usesProviderKeys
-            ? { Id: config.fieldId, Key1: targetNumber }
-            : { Id: config.fieldId, Value: targetNumber }],
+        Fields: [{ Id: config.fieldId, Value: targetNumber }],
         CurrentServiceProviderId: config.providerId,
         ServiceId: config.serviceId,
         MachineSerial: config.machineSerial,
-        ...(usesProviderKeys ? { Key2: amount } : { InqueryAmount: amount })
+        InqueryAmount: amount
     };
 };
 
