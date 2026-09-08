@@ -1,9 +1,14 @@
 const express = require('express');
 const router = express.Router();
 const crypto = require('crypto');
+const path = require('path');
+const multer = require('multer');
 const mongoose = require('mongoose');
 const User = require('../models/User');
 const ClientCompany = require('../models/ClientCompany');
+const AgentEmployee = require('../models/AgentEmployee');
+const Employee = require('../models/Employee');
+const Admin = require('../models/Admin');
 const ExecutorGroup = require('../models/ExecutorGroup');
 const Settings = require('../models/Settings');
 const Transaction = require('../models/Transaction');
@@ -55,6 +60,7 @@ const {
     rotateSubscriptionSecret,
     processPendingDeliveries
 } = require('../services/merchantWebhookService');
+const { LIBYA_REGIONS, isLibyaRegionCode } = require('../config/libyaRegions');
 
 const accountCodeErrorQuery = (error) => {
     if (error.message === 'ACCOUNT_CODE_DUPLICATE') return 'duplicate';
@@ -63,6 +69,72 @@ const accountCodeErrorQuery = (error) => {
 };
 
 const visibleAccountFilter = { status: { $ne: 'deleted' } };
+
+const COMPANY_LOGO_MIME_EXTENSIONS = Object.freeze({
+    'image/jpeg': '.jpg',
+    'image/png': '.png',
+    'image/webp': '.webp'
+});
+
+const companyLogoUpload = multer({
+    storage: multer.diskStorage({
+        destination: (_req, _file, callback) => callback(null, path.join(__dirname, '../uploads')),
+        filename: (_req, file, callback) => callback(
+            null,
+            `company-logo-${crypto.randomUUID()}${COMPANY_LOGO_MIME_EXTENSIONS[file.mimetype] || '.bin'}`
+        )
+    }),
+    limits: { fileSize: 3 * 1024 * 1024, files: 1 },
+    fileFilter: (_req, file, callback) => {
+        if (!COMPANY_LOGO_MIME_EXTENSIONS[file.mimetype]) return callback(new Error('INVALID_COMPANY_LOGO_TYPE'));
+        return callback(null, true);
+    }
+});
+
+const uploadCompanyLogo = (req, res, next) => companyLogoUpload.single('companyLogo')(req, res, (error) => {
+    if (!error) return next();
+    return res.redirect(`/company/${req.params.id}/profile?profileError=logo`);
+});
+
+const verifyCompanyProfileMultipartCsrf = (req, res, next) => {
+    const expected = String(req.session?.csrfToken || '');
+    const submitted = String(req.body?._csrf || req.get('x-csrf-token') || '');
+    if (!expected || !submitted) return res.status(403).send('انتهت جلسة الحماية. حدّث الصفحة ثم أعد المحاولة.');
+    const expectedBuffer = Buffer.from(expected);
+    const submittedBuffer = Buffer.from(submitted);
+    if (expectedBuffer.length !== submittedBuffer.length || !crypto.timingSafeEqual(expectedBuffer, submittedBuffer)) {
+        return res.status(403).send('انتهت جلسة الحماية. حدّث الصفحة ثم أعد المحاولة.');
+    }
+    return next();
+};
+
+const cleanProfileText = (value, maxLength = 160) => String(value || '').trim().slice(0, maxLength);
+const normalizeProfilePhone = (value) => {
+    const phone = cleanProfileText(value, 24).replace(/[\s-]+/g, '');
+    if (phone && !/^\+?\d{6,20}$/.test(phone)) throw new Error('INVALID_PHONE');
+    return phone;
+};
+const normalizeManagerUsername = (value) => {
+    const username = cleanProfileText(value, 100).toLowerCase();
+    if (!username || username.length < 3 || /\s/.test(username)) throw new Error('INVALID_MANAGER_USERNAME');
+    return username;
+};
+const usernameRegex = (value) => new RegExp(`^${String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i');
+
+const assertManagerUsernameAvailable = async ({ username, managerId = null }) => {
+    const regex = usernameRegex(username);
+    const companyEmployeeFilter = { webUsername: regex };
+    if (managerId) companyEmployeeFilter._id = { $ne: managerId };
+    const [companyEmployee, agentEmployee, executorEmployee, user, subAccount, admin] = await Promise.all([
+        ClientEmployee.findOne(companyEmployeeFilter).select('_id').lean(),
+        AgentEmployee.findOne({ webUsername: regex }).select('_id').lean(),
+        Employee.findOne({ webUsername: regex }).select('_id').lean(),
+        User.findOne({ webUsername: regex }).select('_id').lean(),
+        SubAccount.findOne({ webUsername: regex }).select('_id').lean(),
+        Admin.findOne({ webUsername: regex }).select('_id').lean()
+    ]);
+    if (companyEmployee || agentEmployee || executorEmployee || user || subAccount || admin) throw new Error('MANAGER_USERNAME_TAKEN');
+};
 
 const createIntegrationApiKey = () => crypto.randomBytes(24).toString('hex');
 
@@ -438,6 +510,9 @@ router.get('/company/:id/:section', requireAuth, async (req, res, next) => {
         ])
     ]);
     const reversibleSettlements = await reversibleSettlementIds({ transactions, entityModel: 'ClientCompany', entityId: company._id });
+    const primaryManager = employees.find((employee) => (
+        employee.role === 'owner' || employee.canCreateCompanyStaff === true
+    )) || null;
     res.render('company_workspace', {
         company,
         section,
@@ -450,6 +525,8 @@ router.get('/company/:id/:section', requireAuth, async (req, res, next) => {
         webhookEvents: SUPPORTED_EVENTS,
         executorGroups,
         employees,
+        primaryManager,
+        libyaRegions: LIBYA_REGIONS,
         ledgerEntries,
         auditEntries,
         transactionMetrics: metricRows[0] || {},
@@ -457,6 +534,127 @@ router.get('/company/:id/:section', requireAuth, async (req, res, next) => {
         query: req.query,
         isMaster: req.session.adminRole === 'master'
     });
+});
+
+router.post('/company/:id/profile', requireAuth, requireMaster, uploadCompanyLogo, verifyCompanyProfileMultipartCsrf, async (req, res) => {
+    try {
+        const company = await ClientCompany.findOne({ _id: req.params.id, ...visibleAccountFilter });
+        if (!company) return res.redirect('/clients?section=companies&profileError=notfound');
+
+        const name = cleanProfileText(req.body.name, 120);
+        if (name.length < 2) throw new Error('INVALID_COMPANY_NAME');
+        const companyPhone = normalizeProfilePhone(req.body.companyPhone);
+        const managerName = cleanProfileText(req.body.managerName, 120);
+        const managerPhone = normalizeProfilePhone(req.body.managerPhone);
+        const notificationPhone = normalizeProfilePhone(req.body.notificationPhone);
+        const receiptPhone = normalizeProfilePhone(req.body.receiptPhone);
+        const regionCode = cleanProfileText(req.body.regionCode, 80);
+        if (regionCode && !isLibyaRegionCode(regionCode)) throw new Error('INVALID_REGION');
+
+        const oldData = {
+            name: company.name,
+            phone: company.phone,
+            logoUrl: company.logoUrl || '',
+            businessProfile: company.businessProfile?.toObject ? company.businessProfile.toObject() : company.businessProfile
+        };
+        const profile = company.businessProfile?.toObject
+            ? company.businessProfile.toObject()
+            : { ...(company.businessProfile || {}) };
+
+        company.name = name;
+        company.phone = companyPhone || undefined;
+        company.businessProfile = {
+            ...profile,
+            contactName: managerName,
+            managerName,
+            managerPhone,
+            headquarters: cleanProfileText(req.body.headquarters, 240),
+            regionCode,
+            notificationPhone,
+            receiptPhone
+        };
+        if (req.file?.filename) {
+            company.logoUrl = `/uploads/${req.file.filename}`;
+            company.logoUpdatedAt = new Date();
+        }
+
+        const manager = await ClientEmployee.findOne({
+            companyId: company._id,
+            status: { $ne: 'deleted' },
+            $or: [{ role: 'owner' }, { canCreateCompanyStaff: true }]
+        }).sort({ createdAt: 1 });
+        const submittedUsername = cleanProfileText(req.body.managerUsername, 100);
+        const submittedPassword = String(req.body.managerPassword || '').trim();
+
+        if (manager) {
+            if (submittedUsername) {
+                const username = normalizeManagerUsername(submittedUsername);
+                if (String(manager.webUsername || '').toLowerCase() !== username) {
+                    await assertManagerUsernameAvailable({ username, managerId: manager._id });
+                    manager.webUsername = username;
+                    manager.sessionVersion = Number(manager.sessionVersion || 0) + 1;
+                }
+            }
+            if (submittedPassword) {
+                if (submittedPassword.length < 10) throw new Error('MANAGER_PASSWORD_WEAK');
+                manager.webPassword = submittedPassword;
+                manager.sessionVersion = Number(manager.sessionVersion || 0) + 1;
+            }
+            if (managerName) manager.name = managerName;
+            if (managerPhone) manager.phone = managerPhone;
+            await manager.save();
+        } else if (submittedUsername || submittedPassword) {
+            const username = normalizeManagerUsername(submittedUsername);
+            if (submittedPassword.length < 10) throw new Error('MANAGER_PASSWORD_WEAK');
+            await assertManagerUsernameAvailable({ username });
+            await ClientEmployee.create({
+                companyId: company._id,
+                tenantId: company.tenantId || undefined,
+                name: managerName || company.name,
+                phone: managerPhone || companyPhone || undefined,
+                webUsername: username,
+                webPassword: submittedPassword,
+                role: 'owner',
+                canViewAllReports: true,
+                canManageCompany: true,
+                canCreateCompanyStaff: true,
+                status: 'active'
+            });
+        }
+
+        await company.save();
+        await logAction({
+            action: 'COMPANY_PROFILE_UPDATED',
+            req,
+            performedById: req.session.adminId,
+            performedByModel: 'Admin',
+            performedByName: req.session.adminName || req.session.adminUsername || 'الإدارة',
+            targetId: company._id,
+            targetModel: 'ClientCompany',
+            oldData,
+            newData: {
+                name: company.name,
+                phone: company.phone,
+                logoUrl: company.logoUrl || '',
+                businessProfile: company.businessProfile
+            },
+            result: 'ناجح',
+            severity: submittedPassword ? 'warning' : 'info',
+            metadata: {
+                managerCredentialsChanged: Boolean(submittedUsername || submittedPassword),
+                logoUpdated: Boolean(req.file?.filename)
+            }
+        });
+        req.app?.get('io')?.emit('update_data');
+        return res.redirect(`/company/${company._id}/profile?profileSaved=1`);
+    } catch (error) {
+        console.error('[clients/company-profile-update] failed:', error.message);
+        const known = new Set([
+            'INVALID_COMPANY_NAME', 'INVALID_PHONE', 'INVALID_REGION', 'INVALID_MANAGER_USERNAME',
+            'MANAGER_USERNAME_TAKEN', 'MANAGER_PASSWORD_WEAK'
+        ]);
+        return res.redirect(`/company/${req.params.id}/profile?profileError=${known.has(error.message) ? error.message : 'save'}`);
+    }
 });
 
 router.get('/company/:id/integration-guide.pdf', requireAuth, requireMaster, async (req, res) => {

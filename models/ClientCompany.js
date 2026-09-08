@@ -48,11 +48,19 @@ const clientCompanySchema = new mongoose.Schema({
 
     businessProfile: {
         contactName: { type: String, trim: true, default: '' },
+        managerName: { type: String, trim: true, default: '' },
+        managerPhone: { type: String, trim: true, default: '' },
         email: { type: String, trim: true, lowercase: true, default: '' },
         city: { type: String, trim: true, default: '' },
+        regionCode: { type: String, trim: true, default: '' },
+        headquarters: { type: String, trim: true, default: '' },
         address: { type: String, trim: true, default: '' },
-        registrationNumber: { type: String, trim: true, default: '' }
+        registrationNumber: { type: String, trim: true, default: '' },
+        notificationPhone: { type: String, trim: true, default: '' },
+        receiptPhone: { type: String, trim: true, default: '' }
     },
+    logoUrl: { type: String, trim: true, default: '' },
+    logoUpdatedAt: { type: Date, default: null },
     verificationDocuments: [{
         kind: { type: String, enum: ['identity', 'tax_card', 'business_license', 'profile_photo'], required: true },
         fileUrl: { type: String, required: true },

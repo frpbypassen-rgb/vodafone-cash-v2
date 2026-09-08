@@ -48,7 +48,7 @@ const uniqueRecipients = (rows) => {
 const getRateChangeRecipients = async () => {
     const [users, companies, subAccounts, clientEmployees, agentEmployees] = await Promise.all([
         User.find(ACTIVE_STATUSES).select('_id name phone webUsername role').lean(),
-        ClientCompany.find(ACTIVE_STATUSES).select('_id name phone webUsername').lean(),
+        ClientCompany.find(ACTIVE_STATUSES).select('_id name phone webUsername businessProfile.notificationPhone').lean(),
         SubAccount.find(ACTIVE_STATUSES).select('_id name phone username').lean(),
         ClientEmployee.find(ACTIVE_STATUSES).select('_id name phone webUsername').lean(),
         AgentEmployee.find(ACTIVE_STATUSES).select('_id name phone webUsername').lean()
@@ -57,7 +57,9 @@ const getRateChangeRecipients = async () => {
     const mapRows = (rows, model) => rows.map((account) => ({
         id: account._id,
         name: account.name || account.webUsername || account.username || account.phone || 'عميل الأهرام',
-        phone: account.phone || '',
+        phone: model === 'ClientCompany'
+            ? (account.businessProfile?.notificationPhone || account.phone || '')
+            : (account.phone || ''),
         model
     }));
 

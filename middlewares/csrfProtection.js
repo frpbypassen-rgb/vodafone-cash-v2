@@ -102,6 +102,13 @@ const isDeferredAdminAccountEditCsrf = (req) => (
     && /^\/admin\/accounts\/[^/]+\/[^/]+\/edit\/?$/.test(req.path || req.originalUrl || '')
 );
 
+// ملف الشركة يرفع الشعار بصيغة multipart، لذلك يتحقق المسار من الرمز بعد
+// أن يقرأ multer الحقول بدلاً من تجاوز الحماية.
+const isDeferredCompanyProfileCsrf = (req) => (
+    req.method === 'POST'
+    && /^\/company\/[^/]+\/profile\/?$/.test(req.path || req.originalUrl || '')
+);
+
 const injectTokenIntoHtml = (html, token) => {
     if (!token || typeof html !== 'string' || !html.includes('<form')) return html;
     const hiddenInput = `<input type="hidden" name="_csrf" value="${escapeHtml(token)}">`;
@@ -126,7 +133,7 @@ const csrfProtection = (req, res, next) => {
     }
 
     // هذا المسار يعالج الرمز داخل route بعد أن يقرأ multer حقول multipart.
-    if (isDeferredExecutorSettlementCsrf(req) || isDeferredAdminAccountEditCsrf(req)) {
+    if (isDeferredExecutorSettlementCsrf(req) || isDeferredAdminAccountEditCsrf(req) || isDeferredCompanyProfileCsrf(req)) {
         return next();
     }
 

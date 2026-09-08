@@ -146,6 +146,25 @@ const resolveReceiptRecipient = async (transaction) => {
     }
 
     if (transaction.companyId) {
+        // الشركة قد تختار رقماً مستقلاً للإيصالات؛ هذا الرقم يتقدم على رقم
+        // الموظف منفذ العملية حتى لا تتوزع الإيصالات بين حسابات الموظفين.
+        const company = await safelyFind(() => ClientCompany.findById(transaction.companyId)
+            .select('name businessProfile.receiptPhone businessProfile.notificationPhone phone'));
+        const receiptPhone = String(
+            company?.businessProfile?.receiptPhone
+            || company?.businessProfile?.notificationPhone
+            || ''
+        ).trim();
+        if (receiptPhone) {
+            return {
+                phone: receiptPhone,
+                name: company.name || transaction.companyName || '',
+                model: 'ClientCompany',
+                id: company._id,
+                source: 'company_receipt_phone'
+            };
+        }
+
         // The staff account that created the transfer is the company fallback recipient.
         const sender = await findCompanyTransferSender(transaction);
         if (sender?.phone) {
@@ -169,7 +188,6 @@ const resolveReceiptRecipient = async (transaction) => {
             };
         }
 
-        const company = await safelyFind(() => ClientCompany.findById(transaction.companyId));
         if (company?.phone) {
             return { phone: company.phone, name: company.name || transaction.companyName || '', model: 'ClientCompany', id: company._id, source: 'company_account' };
         }

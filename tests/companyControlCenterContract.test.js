@@ -47,4 +47,19 @@ describe('Company control center contract', () => {
         expect(workspace).toContain("section === 'api' && !isMaster");
         expect(workspace).toContain("section === 'webhooks' && !isMaster");
     });
+
+    test('keeps the company profile and its manager credentials on a protected route', () => {
+        expect(routes).toContain("router.post('/company/:id/profile', requireAuth, requireMaster");
+        expect(routes).toContain('verifyCompanyProfileMultipartCsrf');
+        expect(routes).toContain('companyLogoUpload.single');
+        expect(routes).toContain("action: 'COMPANY_PROFILE_UPDATED'");
+
+        const workspace = fs.readFileSync(path.join(__dirname, '../views/company_workspace.ejs'), 'utf8');
+        expect(workspace).toContain('name="companyLogo"');
+        expect(workspace).toContain('name="managerUsername"');
+        expect(workspace).toContain('name="managerPassword"');
+        expect(workspace).toContain('name="notificationPhone"');
+        expect(workspace).toContain('name="receiptPhone"');
+        expect(workspace).toContain('libyaRegions');
+    });
 });
