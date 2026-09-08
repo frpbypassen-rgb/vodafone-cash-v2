@@ -379,6 +379,15 @@ const executeTransferViaApi = async (tx, apiBot) => {
         const timeStr = new Date().toLocaleTimeString('en-GB', { timeZone: SYSTEM_TIME_ZONE, hour12: false });
         processLog.push(`[${timeStr}] ${step}: ${detail}`);
     };
+    // Keep the operation audit useful for support without exposing credentials.
+    // The authorization header is deliberately never written to the transaction log.
+    const addJsonLog = (step, value) => {
+        try {
+            addLog(step, `\n${JSON.stringify(safePayload(value), null, 2)}`);
+        } catch (_) {
+            addLog(step, '[تعذر تسجيل جسم الاستجابة بصيغة JSON]');
+        }
+    };
 
     let activeRequest = null;
     try {
@@ -424,9 +433,18 @@ const executeTransferViaApi = async (tx, apiBot) => {
             const inquiryEndpoint = `${baseUrl}/api/V1/Transactions/Inquiry`;
             activeRequest = { stage: 'inquiry', endpoint: inquiryEndpoint };
             recordCommunication('outbound', 'inquiry_request', 'POST', inquiryEndpoint, inquiryPayload);
+            addJsonLog('INQUIRY_REQUEST_JSON', {
+                method: 'POST',
+                endpoint: inquiryEndpoint,
+                body: inquiryPayload
+            });
             const inquiryRes = await axios.post(inquiryEndpoint, inquiryPayload, { headers, timeout: 20000 });
             const inquiryData = inquiryRes.data || {};
             recordCommunication('inbound', 'inquiry_response', 'POST', inquiryEndpoint, inquiryData, inquiryRes.status);
+            addJsonLog('INQUIRY_RESPONSE_JSON', {
+                httpStatus: inquiryRes.status || 200,
+                body: inquiryData
+            });
 
             if (!hasSuccessCode(inquiryData) || !inquiryData.Data || !inquiryData.Data.PaymentBillInfo) {
                 const message = providerMessage(inquiryData, 'تم رفض الاستعلام عن التحويل من المزود');
@@ -447,10 +465,19 @@ const executeTransferViaApi = async (tx, apiBot) => {
         const paymentEndpoint = `${baseUrl}/api/V1/Transactions/Payment`;
         activeRequest = { stage: 'payment', endpoint: paymentEndpoint };
         recordCommunication('outbound', 'payment_request', 'POST', paymentEndpoint, paymentPayload);
+        addJsonLog('PAYMENT_REQUEST_JSON', {
+            method: 'POST',
+            endpoint: paymentEndpoint,
+            body: paymentPayload
+        });
         const paymentRes = await axios.post(paymentEndpoint, paymentPayload, { headers, timeout: 180000 });
 
         const paymentData = paymentRes.data || {};
         recordCommunication('inbound', 'payment_response', 'POST', paymentEndpoint, paymentData, paymentRes.status);
+        addJsonLog('PAYMENT_RESPONSE_JSON', {
+            httpStatus: paymentRes.status || 200,
+            body: paymentData
+        });
         const pd = paymentData.Data || {};
         const print = pd.PrintBill || {};
         const extRef = firstNonEmpty(pd.TransactionNumber, pd.TransactionId, print.TransactionId);
@@ -520,6 +547,10 @@ const executeTransferViaApi = async (tx, apiBot) => {
                 error.response.data || {},
                 error.response.status
             );
+            addJsonLog(`${String(activeRequest.stage).toUpperCase()}_ERROR_RESPONSE_JSON`, {
+                httpStatus: error.response.status || null,
+                body: error.response.data || {}
+            });
         }
         addLog("SYSTEM_ERROR", message);
         return { success: false, message, processLog: processLog.join('\n'), communication };

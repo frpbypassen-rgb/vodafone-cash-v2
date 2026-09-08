@@ -224,6 +224,9 @@ describe('externalApiService', () => {
             expect.objectContaining({ direction: 'outbound', stage: 'payment_request' }),
             expect.objectContaining({ direction: 'inbound', stage: 'payment_response' })
         ]));
+        expect(result.processLog).toContain('PAYMENT_REQUEST_JSON');
+        expect(result.processLog).toContain('PAYMENT_RESPONSE_JSON');
+        expect(result.processLog).toContain('"Amount": 500');
     });
 
     test('records the direct-payment provider error response for the operation log', async () => {
@@ -245,6 +248,9 @@ describe('externalApiService', () => {
             expect.objectContaining({ direction: 'outbound', stage: 'payment_request' }),
             expect.objectContaining({ direction: 'inbound', stage: 'payment_error_response', httpStatus: 503, payload: { Code: 503, Message: 'Provider unavailable' } })
         ]));
+        expect(result.processLog).toContain('PAYMENT_REQUEST_JSON');
+        expect(result.processLog).toContain('PAYMENT_ERROR_RESPONSE_JSON');
+        expect(result.processLog).toContain('"Message": "Provider unavailable"');
     });
 
     test('runs a safe transfer preflight through authentication, balance, and inquiry without payment', async () => {
