@@ -14,6 +14,7 @@ const {
 } = require('../utils/apiProviderPresets');
 
 const SUPPORT_PHONE = '01108172258';
+const KEYED_PAYMENT_BILL_CONTRACT = 'keyed_payment_bill_v1';
 
 const normalizeBaseUrl = (value) => {
     let baseUrl = String(value || '').trim().replace(/\/+$/, '');
@@ -143,7 +144,7 @@ const authorizeApiProvider = async (config, addLog) => {
         AppId: config.preset.appId,
         VersionID: config.preset.versionId
     };
-    const authPayload = config.preset.transactionContract === 'mogapay_v1'
+    const authPayload = config.preset.authContract === 'mogapay_v1'
         ? {
             UserName: config.apiUsername,
             Password: config.apiPassword,
@@ -216,13 +217,13 @@ const getApiConfigurationIssues = (config) => {
     if (!Number.isFinite(Number(config.serviceId)) || Number(config.serviceId) <= 0) issues.push('رقم الخدمة غير صالح');
     if (config.preset.requiresProviderId !== false && (!Number.isFinite(Number(config.providerId)) || Number(config.providerId) <= 0)) issues.push('رقم مزود الخدمة غير صالح');
     if (config.preset.requiresFieldId !== false && (!Number.isFinite(Number(config.fieldId)) || Number(config.fieldId) <= 0)) issues.push('رقم حقل الخدمة غير صالح');
-    if (config.preset.transactionContract === 'mogapay_v1' && !config.fieldKey) issues.push('مفتاح حقل MogaPay غير موجود');
+    if (config.preset.transactionContract === KEYED_PAYMENT_BILL_CONTRACT && !config.fieldKey) issues.push('مفتاح حقل المزود غير موجود');
     if (!String(config.machineSerial || '').trim()) issues.push('الرقم التسلسلي للجهاز غير موجود');
     return issues;
 };
 
 const buildInquiryPayload = (config, targetNumber, amount) => {
-    if (config.preset.transactionContract === 'mogapay_v1') {
+    if (config.preset.transactionContract === KEYED_PAYMENT_BILL_CONTRACT) {
         return {
             Fields: [{ Key: config.fieldKey, Value: String(targetNumber) }],
             ServiceId: config.serviceId,
@@ -485,10 +486,10 @@ const executeTransferViaApi = async (tx, apiBot) => {
                 return { success: false, message, processLog: processLog.join('\n'), communication };
             }
             addLog("INQUIRY_SUCCESS", "الرقم سليم ومتاح للتحويل.");
-            paymentPayload = preset.transactionContract === 'mogapay_v1'
+            paymentPayload = preset.transactionContract === KEYED_PAYMENT_BILL_CONTRACT
                 ? {
-                    // MogaPay requires the same parameter Keys used during
-                    // Inquiry, plus the PaymentBillInfo that it issued.
+                    // This provider contract requires the same parameter Keys
+                    // used during Inquiry, plus the issued PaymentBillInfo.
                     Fields: inquiryPayload.Fields,
                     ServiceId: serviceId,
                     MachineSerial: machineSerial,
@@ -650,7 +651,7 @@ const getApiProviderTransactions = async (apiBot, transactionNumbers = []) => {
         const operations = [];
         for (const transactionNumber of uniqueNumbers) {
             try {
-                const isMogaPay = config.preset.transactionContract === 'mogapay_v1';
+                const usesBillsReview = Boolean(config.preset.reconciliationEndpoint);
                 const reviewEndpoint = config.preset.reconciliationEndpoint || '/api/V1/Transactions/Print';
                 const reviewPayload = { TransactionNumber: transactionNumber };
                 const printRes = await axios.post(
@@ -659,7 +660,7 @@ const getApiProviderTransactions = async (apiBot, transactionNumbers = []) => {
                     { headers: auth.headers, timeout: 20000 }
                 );
                 const responseData = printRes.data || {};
-                const providerData = isMogaPay && Array.isArray(responseData.Data)
+                const providerData = usesBillsReview && Array.isArray(responseData.Data)
                     ? responseData.Data[0]
                     : responseData.Data;
                 if (responseData.Code !== 200 || !providerData) {

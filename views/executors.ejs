@@ -623,7 +623,8 @@
                                                         data-service-version="<%= provider.serviceVersion ?? 0 %>"
                                                         data-machine-serial="<%= provider.machineSerial %>"
                                                         data-inquiry-payload-mode="<%= provider.inquiryPayloadMode || 'fields_value' %>"
-                                                        data-requires-inquiry="<%= provider.requiresInquiry ? 'true' : 'false' %>">
+                                                        data-requires-inquiry="<%= provider.requiresInquiry ? 'true' : 'false' %>"
+                                                        data-fixed-inquiry-contract="<%= provider.transactionContract === 'keyed_payment_bill_v1' ? 'true' : 'false' %>">
                                                     <%= provider.nameAr || provider.name %>
                                                 </option>
                                             <% }) %>
@@ -752,6 +753,8 @@
         setValue('apiServiceVersion', selected.dataset.serviceVersion);
         setValue('apiMachineSerial', selected.dataset.machineSerial);
         setValue('apiInquiryPayloadMode', selected.dataset.inquiryPayloadMode);
+        const inquiryPayloadMode = document.querySelector('[name="apiInquiryPayloadMode"]');
+        if (inquiryPayloadMode) inquiryPayloadMode.disabled = selected.dataset.fixedInquiryContract === 'true';
         const paymentFlow = document.querySelector('[name="apiPaymentFlow"]');
         if (paymentFlow) {
             const directOption = paymentFlow.querySelector('option[value="direct_payment"]');
