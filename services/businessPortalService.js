@@ -270,12 +270,13 @@ const resolveCompanyPermissions = (actor) => {
     const owner = role === 'owner' || actor.canCreateCompanyStaff === true || isLegacyCompanyOwner(actor);
     const manager = owner || actor.canManageCompany === true;
     const accountant = role === 'accountant';
+    const canTransferByRole = !accountant;
     return {
         owner,
         manager,
         accountant,
         employee: !manager && !accountant,
-        canTransfer: !accountant,
+        canTransfer: typeof actor.canTransfer === 'boolean' ? actor.canTransfer : canTransferByRole,
         canViewBalance: owner || manager || accountant || actor.canViewAllReports === true,
         // الشركة تعمل بفريق داخلي فقط؛ العملاء تابعون للوكلاء وليس للشركات.
         canManageCustomers: false,

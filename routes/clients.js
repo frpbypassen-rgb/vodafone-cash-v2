@@ -109,6 +109,7 @@ const verifyCompanyProfileMultipartCsrf = (req, res, next) => {
 };
 
 const cleanProfileText = (value, maxLength = 160) => String(value || '').trim().slice(0, maxLength);
+const isChecked = (value) => ['1', 'true', 'on', 'yes'].includes(String(value || '').trim().toLowerCase());
 const normalizeProfilePhone = (value) => {
     const phone = cleanProfileText(value, 24).replace(/[\s-]+/g, '');
     if (phone && !/^\+?\d{6,20}$/.test(phone)) throw new Error('INVALID_PHONE');
@@ -445,7 +446,7 @@ router.get('/company/:id/:section', requireAuth, async (req, res, next) => {
     if (!COMPANY_WORKSPACE_SECTIONS.has(section)) return next();
     const company = await ClientCompany.findOne({ _id: req.params.id, ...visibleAccountFilter });
     if (!company) return res.redirect('/clients?section=companies&deleteError=notfound');
-    const [transactions, settings, webhookSubscriptions, executorGroups, employees, ledgerEntries, auditEntries, metricRows, apiMetricRows] = await Promise.all([
+    const [transactions, settings, webhookSubscriptions, executorGroups, employees, ledgerEntries, auditEntries, metricRows, apiMetricRows, apiServers] = await Promise.all([
         Transaction.find({ companyId: company._id }).sort({ createdAt: -1 }).limit(50),
         Settings.findOne({}).lean(),
         MerchantWebhookSubscription.find({ companyId: company._id }).sort({ createdAt: -1 }).lean(),
@@ -456,7 +457,7 @@ router.get('/company/:id/:section', requireAuth, async (req, res, next) => {
                 .lean()
             : Promise.resolve([]),
         ClientEmployee.find({ companyId: company._id, status: { $ne: 'deleted' } })
-            .select('name phone webUsername status role mfaEnabled mfaType canViewAllReports canManageCompany canCreateCompanyStaff mfaConfiguredAt createdAt updatedAt')
+            .select('name phone webUsername status role mfaEnabled mfaType mfaRequired mfaRequiredAt canTransfer canViewAllReports canManageCompany canCreateCompanyStaff mfaConfiguredAt createdAt updatedAt')
             .sort({ role: 1, name: 1 })
             .lean(),
         Ledger.find({ entityId: company._id, entityModel: 'ClientCompany' })
@@ -507,7 +508,13 @@ router.get('/company/:id/:section', requireAuth, async (req, res, next) => {
                     failed: { $sum: { $cond: [{ $eq: ['$status', 'failed'] }, 1, 0] } }
                 }
             }
-        ])
+        ]),
+        req.session.adminRole === 'master'
+            ? ExecutorGroup.find({ isApiBot: true, status: { $ne: 'archived' } })
+                .select('_id name status serviceKey balance apiProviderKey apiUrl apiMachineSerial apiServiceId apiProviderId apiFieldId lastApiTestAt lastApiTestStatus lastApiTestMessage lastApiAvailableBalance lastApiBalanceCheckAt lastApiBalanceCheckStatus lastApiTransferTestAt lastApiTransferTestStatus')
+                .sort({ status: 1, serviceKey: 1, name: 1 })
+                .lean()
+            : Promise.resolve([])
     ]);
     const reversibleSettlements = await reversibleSettlementIds({ transactions, entityModel: 'ClientCompany', entityId: company._id });
     const primaryManager = employees.find((employee) => (
@@ -524,6 +531,7 @@ router.get('/company/:id/:section', requireAuth, async (req, res, next) => {
         webhookSubscriptions,
         webhookEvents: SUPPORTED_EVENTS,
         executorGroups,
+        apiServers,
         employees,
         primaryManager,
         libyaRegions: LIBYA_REGIONS,
@@ -657,6 +665,163 @@ router.post('/company/:id/profile', requireAuth, requireMaster, uploadCompanyLog
     }
 });
 
+router.post('/company/:id/security/accounts/:employeeId', requireAuth, requireMaster, async (req, res) => {
+    try {
+        const company = await ClientCompany.findOne({ _id: req.params.id, ...visibleAccountFilter }).select('_id name');
+        if (!company) return res.redirect('/clients?section=companies&securityError=notfound');
+        const employee = await ClientEmployee.findOne({
+            _id: req.params.employeeId,
+            companyId: company._id,
+            status: { $ne: 'deleted' }
+        });
+        if (!employee) return res.redirect(`/company/${company._id}/security?securityError=account`);
+
+        const role = String(req.body.role || '').trim().toLowerCase();
+        const status = String(req.body.status || '').trim().toLowerCase();
+        if (!['owner', 'employee', 'accountant'].includes(role) || !['active', 'banned'].includes(status)) {
+            throw new Error('INVALID_SECURITY_ACCOUNT_UPDATE');
+        }
+        let canCreateCompanyStaff = isChecked(req.body.canCreateCompanyStaff);
+        let canManageCompany = isChecked(req.body.canManageCompany);
+        let canViewAllReports = isChecked(req.body.canViewAllReports);
+        let canTransfer = isChecked(req.body.canTransfer);
+        if (role === 'accountant') {
+            canTransfer = false;
+            canManageCompany = false;
+            canCreateCompanyStaff = false;
+        }
+        const remainsOwner = role === 'owner' || canCreateCompanyStaff;
+        const wasOwner = employee.role === 'owner' || employee.canCreateCompanyStaff === true;
+        if (wasOwner && (!remainsOwner || status !== 'active')) {
+            const otherOwner = await ClientEmployee.exists({
+                companyId: company._id,
+                _id: { $ne: employee._id },
+                status: 'active',
+                $or: [{ role: 'owner' }, { canCreateCompanyStaff: true }]
+            });
+            if (!otherOwner) throw new Error('LAST_COMPANY_OWNER');
+        }
+
+        const forceMfa = isChecked(req.body.mfaRequired);
+        const oldData = {
+            role: employee.role,
+            status: employee.status,
+            mfaRequired: Boolean(employee.mfaRequired),
+            canTransfer: typeof employee.canTransfer === 'boolean' ? employee.canTransfer : null,
+            canViewAllReports: Boolean(employee.canViewAllReports),
+            canManageCompany: Boolean(employee.canManageCompany),
+            canCreateCompanyStaff: Boolean(employee.canCreateCompanyStaff)
+        };
+        employee.role = role;
+        employee.status = status;
+        employee.canTransfer = canTransfer;
+        employee.canViewAllReports = canViewAllReports;
+        employee.canManageCompany = canManageCompany;
+        employee.canCreateCompanyStaff = canCreateCompanyStaff;
+        employee.mfaRequired = forceMfa;
+        if (forceMfa && !oldData.mfaRequired) {
+            employee.mfaRequiredAt = new Date();
+            employee.mfaRequiredBy = req.session.adminName || req.session.adminUsername || 'الإدارة';
+            employee.sessionVersion = Number(employee.sessionVersion || 0) + 1;
+        }
+        if (!forceMfa) {
+            employee.mfaRequiredAt = null;
+            employee.mfaRequiredBy = '';
+        }
+        await employee.save();
+        await logAction({
+            action: 'COMPANY_ACCOUNT_SECURITY_UPDATED',
+            req,
+            performedById: req.session.adminId,
+            performedByModel: 'Admin',
+            performedByName: req.session.adminName || req.session.adminUsername || 'الإدارة',
+            targetId: employee._id,
+            targetModel: 'ClientEmployee',
+            oldData,
+            newData: {
+                role: employee.role,
+                status: employee.status,
+                mfaRequired: employee.mfaRequired,
+                canTransfer: employee.canTransfer,
+                canViewAllReports: employee.canViewAllReports,
+                canManageCompany: employee.canManageCompany,
+                canCreateCompanyStaff: employee.canCreateCompanyStaff
+            },
+            result: 'ناجح',
+            severity: forceMfa || status !== 'active' ? 'warning' : 'info',
+            metadata: { companyId: String(company._id), username: employee.webUsername }
+        });
+        req.app?.get('io')?.emit('update_data');
+        return res.redirect(`/company/${company._id}/security?securitySaved=1`);
+    } catch (error) {
+        console.error('[clients/company-security-account] failed:', error.message);
+        const known = new Set(['INVALID_SECURITY_ACCOUNT_UPDATE', 'LAST_COMPANY_OWNER']);
+        return res.redirect(`/company/${req.params.id}/security?securityError=${known.has(error.message) ? error.message : 'save'}`);
+    }
+});
+
+router.post('/company/:id/security/execution-lock', requireAuth, requireMaster, async (req, res) => {
+    try {
+        const company = await ClientCompany.findOne({ _id: req.params.id, ...visibleAccountFilter });
+        if (!company) return res.redirect('/clients?section=companies&securityError=notfound');
+        const executionMode = String(req.body.executionMode || '').trim().toLowerCase();
+        if (!['exclusive', 'manual_hold', 'off'].includes(executionMode)) throw new Error('INVALID_EXECUTION_MODE');
+
+        const oldPolicy = company.autoRoutePolicy?.toObject
+            ? company.autoRoutePolicy.toObject()
+            : { ...(company.autoRoutePolicy || {}) };
+        let executorGroupId = null;
+        let maxAutoAmount = 0;
+        if (executionMode === 'exclusive') {
+            const requestedGroupId = String(req.body.executorGroupId || '').trim();
+            maxAutoAmount = Number(req.body.maxAutoAmount);
+            if (!mongoose.isValidObjectId(requestedGroupId) || !Number.isFinite(maxAutoAmount) || maxAutoAmount <= 0) {
+                throw new Error('INVALID_EXECUTION_LOCK');
+            }
+            const server = await ExecutorGroup.findOne({
+                _id: requestedGroupId,
+                status: 'active',
+                isApiBot: true,
+                isManagerBot: { $ne: true }
+            }).select('_id').lean();
+            if (!server) throw new Error('INVALID_EXECUTION_LOCK');
+            executorGroupId = server._id;
+        }
+        const actorName = req.session.adminName || req.session.adminUsername || 'الإدارة';
+        company.autoRoutePolicy = {
+            enabled: executionMode !== 'off',
+            executionMode,
+            executorGroupId,
+            maxAutoAmount,
+            updatedAt: new Date(),
+            updatedBy: actorName,
+            lockedAt: executionMode === 'off' ? null : new Date(),
+            lockedBy: executionMode === 'off' ? '' : actorName
+        };
+        company.markModified('autoRoutePolicy');
+        await company.save();
+        await logAction({
+            action: 'COMPANY_EXECUTION_LOCK_UPDATED',
+            req,
+            performedById: req.session.adminId,
+            performedByModel: 'Admin',
+            performedByName: actorName,
+            targetId: company._id,
+            targetModel: 'ClientCompany',
+            oldData: oldPolicy,
+            newData: company.autoRoutePolicy.toObject ? company.autoRoutePolicy.toObject() : company.autoRoutePolicy,
+            result: 'ناجح',
+            severity: executionMode === 'off' ? 'info' : 'warning'
+        });
+        req.app?.get('io')?.emit('update_data');
+        return res.redirect(`/company/${company._id}/security?executionLockSaved=1`);
+    } catch (error) {
+        console.error('[clients/company-execution-lock] failed:', error.message);
+        const known = new Set(['INVALID_EXECUTION_MODE', 'INVALID_EXECUTION_LOCK']);
+        return res.redirect(`/company/${req.params.id}/security?securityError=${known.has(error.message) ? error.message : 'save'}`);
+    }
+});
+
 router.get('/company/:id/integration-guide.pdf', requireAuth, requireMaster, async (req, res) => {
     try {
         const company = await ClientCompany.findOne({ _id: req.params.id, ...visibleAccountFilter });
@@ -720,10 +885,13 @@ router.post('/company/:id/auto-route-policy', requireAuth, requireMaster, async 
             : (company.autoRoutePolicy || {});
         company.autoRoutePolicy = {
             enabled,
+            executionMode: enabled ? 'exclusive' : 'off',
             executorGroupId: mongoose.isValidObjectId(executorGroupId) ? executorGroupId : null,
             maxAutoAmount: Number.isFinite(maxAutoAmount) && maxAutoAmount > 0 ? maxAutoAmount : 0,
             updatedAt: new Date(),
-            updatedBy: req.session.adminName || req.session.adminUsername || 'الإدارة'
+            updatedBy: req.session.adminName || req.session.adminUsername || 'الإدارة',
+            lockedAt: enabled ? new Date() : null,
+            lockedBy: enabled ? (req.session.adminName || req.session.adminUsername || 'الإدارة') : ''
         };
         company.markModified('autoRoutePolicy');
         await company.save();

@@ -14,6 +14,11 @@ const clientEmployeeSchema = new mongoose.Schema({
     sessionVersion: { type: Number, default: 0 },
     mfaEnabled: { type: Boolean, default: false },
     mfaType: { type: String, enum: ['none', 'totp'], default: 'none' },
+    // لا يكتفي هذا الحقل بإظهار تنبيه؛ بوابة العميل تمنع متابعة الجلسة حتى
+    // يستكمل الموظف تفعيل Authenticator عندما يكون الإلزام مطلوباً.
+    mfaRequired: { type: Boolean, default: false },
+    mfaRequiredAt: { type: Date, default: null },
+    mfaRequiredBy: { type: String, trim: true, default: '' },
     totpSecretEncrypted: { type: String, select: false },
     mfaRecoveryCodeHashes: { type: [String], select: false, default: [] },
     mfaConfiguredAt: { type: Date, default: null },
@@ -27,6 +32,9 @@ const clientEmployeeSchema = new mongoose.Schema({
     canViewAllReports: { type: Boolean, default: false }, // السماح برؤية جميع تقارير الشركة
     canManageCompany: { type: Boolean, default: false }, // صلاحيات مدير تشغيل بدون إنشاء حسابات
     canCreateCompanyStaff: { type: Boolean, default: false }, // مالك الشركة فقط ينشئ حسابات الموظفين
+    // undefined في السجلات القديمة يعني اتباع صلاحية الدور الافتراضية.
+    // أما false فيمنع التحويل حتى لو كان الحساب موظفاً عادياً.
+    canTransfer: { type: Boolean, default: undefined },
     tenantId: { type: mongoose.Schema.Types.ObjectId, ref: 'Tenant' },
     lastOtpDate: { type: String },
     deletedCredentials: {

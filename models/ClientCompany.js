@@ -40,10 +40,13 @@ const clientCompanySchema = new mongoose.Schema({
     // لمسار التوزيع العام؛ فالعمليات الأكبر من الحد تبقى للمراجعة اليدوية.
     autoRoutePolicy: {
         enabled: { type: Boolean, default: false },
+        executionMode: { type: String, enum: ['off', 'exclusive', 'manual_hold'], default: 'off' },
         executorGroupId: { type: mongoose.Schema.Types.ObjectId, ref: 'ExecutorGroup', default: null },
         maxAutoAmount: { type: Number, min: 0, default: 0 },
         updatedAt: { type: Date, default: null },
-        updatedBy: { type: String, trim: true, default: '' }
+        updatedBy: { type: String, trim: true, default: '' },
+        lockedAt: { type: Date, default: null },
+        lockedBy: { type: String, trim: true, default: '' }
     },
 
     businessProfile: {

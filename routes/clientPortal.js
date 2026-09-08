@@ -97,6 +97,15 @@ const requireClientAuth = async (req, res, next) => {
             return res.redirect('/executor-portal/dashboard');
         }
         if (req.session?.mfaEnrollmentRequired) return res.redirect('/security/mfa-enroll');
+        if (req.session?.accountType === 'company' && req.session?.clientId) {
+            const employee = await ClientEmployee.findById(req.session.clientId)
+                .select('mfaRequired mfaEnabled mfaType +totpSecretEncrypted')
+                .lean();
+            if (employee?.mfaRequired && !(employee.mfaEnabled && employee.mfaType === 'totp' && employee.totpSecretEncrypted)) {
+                req.session.mfaEnrollmentRequired = true;
+                return req.session.save(() => res.redirect('/security/mfa-enroll'));
+            }
+        }
         if (await isActiveClientSession(req)) return next();
         return endUnauthorizedClientSession(req, res);
     } catch (_error) {

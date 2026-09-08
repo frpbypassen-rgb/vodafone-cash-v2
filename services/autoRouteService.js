@@ -233,6 +233,12 @@ const resolveCompanyAutoRoute = async (company, transferType = 'vodafone', sessi
         return { managed: false, executor: null, reason: 'policy_disabled' };
     }
 
+    // A manual hold is an explicit safety lock: no global or smart router may
+    // take over while the company is paused for review.
+    if (policy.executionMode === 'manual_hold') {
+        return { managed: true, executor: null, reason: 'company_execution_locked' };
+    }
+
     const maxAutoAmount = positiveNumber(policy.maxAutoAmount);
     const requestedAmount = positiveNumber(amount);
     if (!maxAutoAmount || requestedAmount > maxAutoAmount) {

@@ -793,6 +793,12 @@ const loginAsClient = async (req, res, account, accountType, { authenticatorVeri
     }
     if (await requirePasskeyLogin({ req, res, principal, authorization, accountClass: 'account', loginKind: 'client', accountType })) return;
     await completeClientSession(req, account, accountType);
+    if (accountType === 'company' && account.mfaRequired && !accountMfaService.isEnabled(account)) {
+        // الإدارة فرضت Authenticator لهذا الحساب. لا نكتفي بتنبيه قابل
+        // للتجاهل؛ تبقى الجلسة محصورة في صفحة الإعداد حتى تأكيد الرمز.
+        req.session.mfaEnrollmentRequired = true;
+        return saveAndRedirect(req, res, '/security/mfa-enroll');
+    }
     if (!accountMfaService.isEnabled(account)) {
         // Temporary continuity mode: keep mandatory enrollment visible as a
         // notice after entry, while avoiding a failed enrollment redirect from

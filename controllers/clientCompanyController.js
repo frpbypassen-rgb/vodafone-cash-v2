@@ -240,7 +240,9 @@ const buildCompanyContext = async ({ req, account, company, forceToday = false }
         canManageCompany: canManageCompany(account),
         canCreateStaff: canCreateStaff(account),
         canViewBalance: canViewCompanyBalance(account),
-        canTransfer: String(account.role || '').toLowerCase() !== 'accountant',
+        canTransfer: typeof account.canTransfer === 'boolean'
+            ? account.canTransfer
+            : String(account.role || '').toLowerCase() !== 'accountant',
         staff,
         staffCount,
         transactions,
