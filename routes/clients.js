@@ -356,7 +356,21 @@ router.get('/user/:id', requireAuth, async (req, res) => {
     });
 });
 
-router.get('/company/:id', requireAuth, async (req, res) => {
+const COMPANY_WORKSPACE_SECTIONS = new Set([
+    'overview', 'profile', 'security', 'finance', 'operations', 'api', 'webhooks', 'reports', 'audit'
+]);
+
+router.get('/company/:id', requireAuth, (req, res) => {
+    const queryIndex = String(req.originalUrl || '').indexOf('?');
+    const query = queryIndex >= 0 ? String(req.originalUrl).slice(queryIndex) : '';
+    return res.redirect(`/company/${req.params.id}/overview${query}`);
+});
+
+router.get('/company/:id/:section', requireAuth, async (req, res, next) => {
+    const section = String(req.params.section || '').trim().toLowerCase();
+    // Let the explicitly registered API, document, and webhook endpoints below
+    // continue through Express instead of treating them as workspace pages.
+    if (!COMPANY_WORKSPACE_SECTIONS.has(section)) return next();
     const company = await ClientCompany.findOne({ _id: req.params.id, ...visibleAccountFilter });
     if (!company) return res.redirect('/clients?section=companies&deleteError=notfound');
     const [transactions, settings, webhookSubscriptions, executorGroups, employees, ledgerEntries, auditEntries, metricRows, apiMetricRows] = await Promise.all([
@@ -424,8 +438,9 @@ router.get('/company/:id', requireAuth, async (req, res) => {
         ])
     ]);
     const reversibleSettlements = await reversibleSettlementIds({ transactions, entityModel: 'ClientCompany', entityId: company._id });
-    res.render('company_details', {
+    res.render('company_workspace', {
         company,
+        section,
         transactions,
         reversibleSettlements,
         accountCodeLength: CODE_LENGTHS.company,
@@ -487,10 +502,10 @@ router.post('/company/:id/auto-route-policy', requireAuth, requireMaster, async 
 
         if (enabled) {
             if (!mongoose.isValidObjectId(executorGroupId)) {
-                return res.redirect(`/company/${company._id}?routePolicyError=executor#company-auto-routing`);
+                return res.redirect(`/company/${company._id}/api?routePolicyError=executor`);
             }
             if (!Number.isFinite(maxAutoAmount) || maxAutoAmount <= 0) {
-                return res.redirect(`/company/${company._id}?routePolicyError=limit#company-auto-routing`);
+                return res.redirect(`/company/${company._id}/api?routePolicyError=limit`);
             }
             const executorGroup = await ExecutorGroup.findOne({
                 _id: executorGroupId,
@@ -498,7 +513,7 @@ router.post('/company/:id/auto-route-policy', requireAuth, requireMaster, async 
                 isManagerBot: { $ne: true }
             }).lean();
             if (!executorGroup) {
-                return res.redirect(`/company/${company._id}?routePolicyError=executor#company-auto-routing`);
+                return res.redirect(`/company/${company._id}/api?routePolicyError=executor`);
             }
         }
 
@@ -529,10 +544,10 @@ router.post('/company/:id/auto-route-policy', requireAuth, requireMaster, async 
             severity: enabled ? 'warning' : 'info'
         });
 
-        return res.redirect(`/company/${company._id}?routePolicySaved=1#company-auto-routing`);
+        return res.redirect(`/company/${company._id}/api?routePolicySaved=1`);
     } catch (error) {
         console.error('[clients/company-auto-route-policy] failed:', error.message);
-        return res.redirect(`/company/${req.params.id}?routePolicyError=save#company-auto-routing`);
+        return res.redirect(`/company/${req.params.id}/api?routePolicyError=save`);
     }
 });
 
@@ -626,7 +641,7 @@ router.post('/company/:id/webhooks/:subscriptionId/delete', requireAuth, require
             accountId: company._id,
             accountType: 'company'
         }).lean();
-        if (!subscription) return res.redirect(`/company/${company._id}?webhookDeleteError=notfound#company-webhook-integration`);
+        if (!subscription) return res.redirect(`/company/${company._id}/webhooks?webhookDeleteError=notfound`);
 
         await MerchantWebhookSubscription.deleteOne({ _id: subscription._id });
         await logAction({
@@ -647,10 +662,10 @@ router.post('/company/:id/webhooks/:subscriptionId/delete', requireAuth, require
                 secretFingerprint: subscription.secretFingerprint
             }
         });
-        return res.redirect(`/company/${company._id}?webhookDeleted=1#company-webhook-integration`);
+        return res.redirect(`/company/${company._id}/webhooks?webhookDeleted=1`);
     } catch (error) {
         console.error('[clients/company-webhook-delete] failed:', error.message);
-        return res.redirect(`/company/${req.params.id}?webhookDeleteError=save#company-webhook-integration`);
+        return res.redirect(`/company/${req.params.id}/webhooks?webhookDeleteError=save`);
     }
 });
 
@@ -729,10 +744,10 @@ router.post('/company/:id/rotate-api-token', requireAuth, requireMaster, async (
 
         const io = req.app?.get('io');
         if (io) io.emit('update_data');
-        return res.redirect(`/company/${company._id}?apiTokenRotated=1#company-api-integration`);
+        return res.redirect(`/company/${company._id}/api?apiTokenRotated=1`);
     } catch (error) {
         console.error('[clients/rotate-company-api-token] failed:', error.message);
-        return res.redirect(`/company/${req.params.id}?apiTokenError=failed#company-api-integration`);
+        return res.redirect(`/company/${req.params.id}/api?apiTokenError=failed`);
     }
 });
 
@@ -915,7 +930,7 @@ router.post('/company/:id/add-balance', requireAuth, async (req, res) => {
     try {
         const amount = parseFloat(req.body.amount);
         const notes = req.body.notes ? req.body.notes.trim() : '';
-        if (!Number.isFinite(amount) || amount === 0) return res.redirect(`/company/${req.params.id}?balanceError=invalid`);
+        if (!Number.isFinite(amount) || amount === 0) return res.redirect(`/company/${req.params.id}/finance?balanceError=invalid`);
 
         const { company, tx, balanceAfter } = await runDbTransaction(async (session) => {
             const accountQuery = ClientCompany.findById(req.params.id);
@@ -973,10 +988,10 @@ router.post('/company/:id/add-balance', requireAuth, async (req, res) => {
         const io = req.app && req.app.get('io');
         if (io) io.emit('update_data');
 
-        return res.redirect(`/company/${company._id}?balanceSaved=${amount > 0 ? 'deposit' : 'deduction'}`);
+        return res.redirect(`/company/${company._id}/finance?balanceSaved=${amount > 0 ? 'deposit' : 'deduction'}`);
     } catch (e) {
         console.error('[clients/add-balance:company] failed:', e.stack || e.message);
-        return res.redirect(`/company/${req.params.id}?balanceError=${balanceErrorQuery(e)}`);
+        return res.redirect(`/company/${req.params.id}/finance?balanceError=${balanceErrorQuery(e)}`);
     }
 });
 
@@ -1032,7 +1047,7 @@ router.post('/transaction/:id/void-balance-adjustment', requireAuth, async (req,
         if (io) io.emit('update_data');
 
         if (result.entityModel === 'User') return res.redirect(`/user/${result.entityId}?settlementVoided=1`);
-        if (result.entityModel === 'ClientCompany') return res.redirect(`/company/${result.entityId}?settlementVoided=1`);
+        if (result.entityModel === 'ClientCompany') return res.redirect(`/company/${result.entityId}/operations?settlementVoided=1`);
         return res.redirect('/transactions?filterType=deposit_deduction&settlementVoided=1');
     } catch (error) {
         console.error('[clients/void-balance-adjustment] failed:', error.stack || error.message);
@@ -1084,7 +1099,7 @@ router.post('/company/:id/update-rate', requireAuth, requireMaster, async (req, 
             const invalidRate = SERVICE_RATE_KEYS.some((serviceKey) => (
                 !Number.isFinite(desiredRates[serviceKey]) || desiredRates[serviceKey] <= 0
             ));
-            if (invalidRate) return res.redirect(`/company/${req.params.id}?rateError=invalid#company-pricing`);
+            if (invalidRate) return res.redirect(`/company/${req.params.id}/finance?rateError=invalid`);
 
             rateOffsets = buildCompanyRateOffsets(company, settings, desiredRates);
             effectiveRates = SERVICE_RATE_KEYS.reduce((rates, serviceKey) => {
@@ -1121,15 +1136,15 @@ router.post('/company/:id/update-rate', requireAuth, requireMaster, async (req, 
             io.emit('exchange_rates_updated', { source: 'company', companyId: String(company._id) });
             io.emit('update_data');
         }
-        res.redirect(`/company/${req.params.id}?rateUpdated=1#company-pricing`);
+        res.redirect(`/company/${req.params.id}/finance?rateUpdated=1`);
     } catch (e) {
         console.error('[clients/update-company-rate] failed:', e.message);
-        res.redirect(`/company/${req.params.id}?rateError=failed#company-pricing`);
+        res.redirect(`/company/${req.params.id}/finance?rateError=failed`);
     }
 });
 
 router.post('/company/:id/toggle-status', requireAuth, requireMaster, async (req, res) => {
-    const comp = await ClientCompany.findById(req.params.id); comp.status = comp.status === 'active' ? 'inactive' : 'active'; await comp.save(); res.redirect(`/company/${comp._id}`);
+    const comp = await ClientCompany.findById(req.params.id); comp.status = comp.status === 'active' ? 'inactive' : 'active'; await comp.save(); res.redirect(`/company/${comp._id}/profile`);
 });
 
 router.post('/company/:id/delete', requireAuth, requireMaster, async (req, res) => {
@@ -1166,11 +1181,11 @@ router.post('/company/:id/delete', requireAuth, requireMaster, async (req, res) 
 });
 
 router.post('/company/:id/change-level', requireAuth, requireMaster, async (req, res) => {
-    await ClientCompany.findByIdAndUpdate(req.params.id, { tier: parseInt(req.body.tier) }); res.redirect(`/company/${req.params.id}`);
+    await ClientCompany.findByIdAndUpdate(req.params.id, { tier: parseInt(req.body.tier) }); res.redirect(`/company/${req.params.id}/finance`);
 });
 
 router.post('/company/:id/update-limit', requireAuth, requireMaster, async (req, res) => {
-    try { const limit = Math.abs(parseFloat(req.body.creditLimit) || 0); await ClientCompany.findByIdAndUpdate(req.params.id, { creditLimit: limit }); res.redirect(`/company/${req.params.id}`); } catch (e) { res.redirect('/clients?section=companies'); }
+    try { const limit = Math.abs(parseFloat(req.body.creditLimit) || 0); await ClientCompany.findByIdAndUpdate(req.params.id, { creditLimit: limit }); res.redirect(`/company/${req.params.id}/finance`); } catch (e) { res.redirect('/clients?section=companies'); }
 });
 
 router.post('/company/:id/update-account-code', requireAuth, requireMaster, async (req, res) => {
@@ -1182,9 +1197,9 @@ router.post('/company/:id/update-account-code', requireAuth, requireMaster, asyn
             code: req.body.accountCode,
             expectedLength: CODE_LENGTHS.company
         });
-        res.redirect(`/company/${req.params.id}?codeSaved=1`);
+        res.redirect(`/company/${req.params.id}/finance?codeSaved=1`);
     } catch (error) {
-        res.redirect(`/company/${req.params.id}?codeError=${accountCodeErrorQuery(error)}`);
+        res.redirect(`/company/${req.params.id}/finance?codeError=${accountCodeErrorQuery(error)}`);
     }
 });
 

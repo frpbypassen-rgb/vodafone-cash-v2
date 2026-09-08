@@ -32,4 +32,17 @@ describe('Company control center contract', () => {
         expect(view).toContain('التقارير والتحليلات');
         expect(view).toContain('سجل التدقيق');
     });
+
+    test('moves each company administration area to a direct workspace URL', () => {
+        expect(routes).toContain("router.get('/company/:id', requireAuth, (req, res)");
+        expect(routes).toContain("router.get('/company/:id/:section', requireAuth");
+        expect(routes).toContain("res.render('company_workspace'");
+        expect(routes).toContain("'overview', 'profile', 'security', 'finance', 'operations', 'api', 'webhooks', 'reports', 'audit'");
+
+        const workspace = fs.readFileSync(path.join(__dirname, '../views/company_workspace.ejs'), 'utf8');
+        expect(workspace).toContain('sectionNames');
+        expect(workspace).toContain('route = (name)');
+        expect(workspace).toContain("section === 'webhooks'");
+        expect(workspace).toContain("section === 'audit'");
+    });
 });
