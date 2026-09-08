@@ -421,6 +421,7 @@ const executeTransferViaApi = async (tx, apiBot) => {
             // recipient fields and amount but omits PaymentBillInfo, which is
             // only valid when the provider documents this direct endpoint.
             addLog("DIRECT_PAYMENT", `إرسال دفعة مباشرة بقيمة [${amount} EGP] دون استعلام مسبق.`);
+            addLog("INQUIRY_SKIPPED", 'لم يُرسل طلب استعلام لأن وضع الدفع المباشر مفعّل. اختر "استعلام ثم دفع" لعرض وإرسال طلب الاستعلام قبل الدفع.');
             paymentPayload = {
                 ...buildInquiryPayload(config, targetNumber, amount),
                 Amount: amount,

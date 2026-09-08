@@ -227,6 +227,7 @@ describe('externalApiService', () => {
         expect(result.processLog).toContain('PAYMENT_REQUEST_JSON');
         expect(result.processLog).toContain('PAYMENT_RESPONSE_JSON');
         expect(result.processLog).toContain('"Amount": 500');
+        expect(result.processLog).toContain('INQUIRY_SKIPPED');
     });
 
     test('records the direct-payment provider error response for the operation log', async () => {
