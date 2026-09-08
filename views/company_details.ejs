@@ -196,6 +196,11 @@
         <% } else if (query && query.routePolicyError) { %>
             <div class="alert alert-danger fw-bold rounded-4 shadow-sm"><i class="fa-solid fa-triangle-exclamation me-1"></i> تعذر حفظ سياسة التوجيه. <%= query.routePolicyError === 'limit' ? 'أدخل حدًا ماليًا أكبر من صفر.' : (query.routePolicyError === 'executor' ? 'اختر منفذ تنفيذ نشطًا صالحًا.' : 'أعد المحاولة.') %></div>
         <% } %>
+        <% if (query && query.webhookDeleted) { %>
+            <div class="alert alert-success fw-bold rounded-4 shadow-sm"><i class="fa-solid fa-circle-check me-1"></i> تم حذف رابط الـWebhook المختار وإيقاف أي إرسال جديد إليه.</div>
+        <% } else if (query && query.webhookDeleteError) { %>
+            <div class="alert alert-danger fw-bold rounded-4 shadow-sm"><i class="fa-solid fa-triangle-exclamation me-1"></i> تعذر حذف رابط الـWebhook. أعد تحميل الصفحة ثم حاول مرة أخرى.</div>
+        <% } %>
         <% if (query && query.apiTokenRotated) { %>
             <div class="alert alert-success fw-bold rounded-4 shadow-sm"><i class="fa-solid fa-key me-1"></i> تم إصدار مفتاح API جديد وإيقاف المفتاح السابق فوراً. حمّل وثيقة الربط الجديدة وشارك المفتاح الجديد فقط مع جهة الربط.</div>
         <% } else if (query && query.apiTokenError) { %>
@@ -322,8 +327,8 @@
                                     </form>
                                     <div class="mt-3 small" data-webhook-result></div>
                                     <% if (webhookSubscriptions.length) { %>
-                                        <div class="table-responsive mt-3"><table class="table table-sm align-middle mb-0"><thead><tr><th>العنوان</th><th>الأحداث</th><th>الحالة</th><th>آخر تسليم</th><th></th></tr></thead><tbody>
-                                            <% webhookSubscriptions.forEach((item) => { %><tr><td class="text-break" dir="ltr"><%= item.url %></td><td dir="ltr"><%= item.events.join(', ') %></td><td><span class="badge <%= item.status === 'active' ? 'bg-success' : 'bg-secondary' %>"><%= item.status %></span></td><td><%= item.lastDeliveredAt ? new Date(item.lastDeliveredAt).toLocaleString('ar-EG') : '—' %></td><td><a class="btn btn-sm btn-outline-dark" href="/company/<%= company._id %>/webhooks/<%= item._id %>/deliveries" target="_blank">السجل</a></td></tr><% }) %>
+                                        <div class="table-responsive mt-3"><table class="table table-sm align-middle mb-0"><thead><tr><th>العنوان</th><th>الأحداث</th><th>الحالة</th><th>آخر تسليم</th><th>الإجراءات</th></tr></thead><tbody>
+                                            <% webhookSubscriptions.forEach((item) => { %><tr><td class="text-break" dir="ltr"><%= item.url %></td><td dir="ltr"><%= item.events.join(', ') %></td><td><span class="badge <%= item.status === 'active' ? 'bg-success' : 'bg-secondary' %>"><%= item.status %></span></td><td><%= item.lastDeliveredAt ? new Date(item.lastDeliveredAt).toLocaleString('ar-EG') : '—' %></td><td class="d-flex gap-1"><a class="btn btn-sm btn-outline-dark" href="/company/<%= company._id %>/webhooks/<%= item._id %>/deliveries" target="_blank">السجل</a><form action="/company/<%= company._id %>/webhooks/<%= item._id %>/delete" method="POST" class="d-inline" onsubmit="return confirm('سيتم حذف هذا الرابط وإيقاف الإرسال إليه نهائياً. هل تريد المتابعة؟');"><button class="btn btn-sm btn-outline-danger" type="submit" title="حذف الرابط"><i class="fa-solid fa-trash"></i> حذف</button></form></td></tr><% }) %>
                                         </tbody></table></div>
                                     <% } else { %><div class="small text-muted mt-3">لا توجد قنوات Webhook مفعلة لهذه الشركة حتى الآن.</div><% } %>
                                 </div>

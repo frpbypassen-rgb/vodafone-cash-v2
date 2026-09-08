@@ -37,4 +37,11 @@ describe('Account integration PDF download contract', () => {
         expect(clientsView).toContain('/user/<%= agent._id %>/sandbox-api-guide.pdf');
         expect(clientsView).toContain('تحميل ملف اختبار API');
     });
+
+    test('lets the master remove only the selected company webhook from its profile', () => {
+        expect(routes).toContain("router.post('/company/:id/webhooks/:subscriptionId/delete', requireAuth, requireMaster");
+        expect(routes).toContain("action: 'MERCHANT_WEBHOOK_DELETED'");
+        expect(companyView).toContain('/company/<%= company._id %>/webhooks/<%= item._id %>/delete');
+        expect(companyView).toContain('حذف الرابط');
+    });
 });

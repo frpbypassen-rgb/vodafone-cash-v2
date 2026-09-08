@@ -557,6 +557,44 @@ const updateWebhookSubscription = ({ accountType, AccountModel, accountQuery }) 
 router.post('/company/:id/webhooks/:subscriptionId/update', requireAuth, requireMaster, updateWebhookSubscription({ accountType: 'company', AccountModel: ClientCompany, accountQuery: visibleAccountFilter }));
 router.post('/user/:id/webhooks/:subscriptionId/update', requireAuth, requireMaster, updateWebhookSubscription({ accountType: 'agent', AccountModel: User, accountQuery: { role: 'agent', ...visibleAccountFilter } }));
 
+router.post('/company/:id/webhooks/:subscriptionId/delete', requireAuth, requireMaster, async (req, res) => {
+    try {
+        const company = await ClientCompany.findOne({ _id: req.params.id, ...visibleAccountFilter }).lean();
+        if (!company) return res.redirect('/clients?section=companies&deleteError=notfound');
+
+        const subscription = await MerchantWebhookSubscription.findOne({
+            _id: req.params.subscriptionId,
+            accountId: company._id,
+            accountType: 'company'
+        }).lean();
+        if (!subscription) return res.redirect(`/company/${company._id}?webhookDeleteError=notfound#company-webhook-integration`);
+
+        await MerchantWebhookSubscription.deleteOne({ _id: subscription._id });
+        await logAction({
+            action: 'MERCHANT_WEBHOOK_DELETED',
+            req,
+            performedById: req.session.adminId,
+            performedByModel: 'Admin',
+            performedByName: req.session.adminName || req.session.adminUsername || 'الإدارة',
+            targetId: subscription._id,
+            targetModel: 'MerchantWebhookSubscription',
+            result: 'ناجح',
+            severity: 'warning',
+            metadata: {
+                companyId: company._id,
+                accountType: 'company',
+                url: subscription.url,
+                events: subscription.events,
+                secretFingerprint: subscription.secretFingerprint
+            }
+        });
+        return res.redirect(`/company/${company._id}?webhookDeleted=1#company-webhook-integration`);
+    } catch (error) {
+        console.error('[clients/company-webhook-delete] failed:', error.message);
+        return res.redirect(`/company/${req.params.id}?webhookDeleteError=save#company-webhook-integration`);
+    }
+});
+
 router.get('/company/:id/webhooks/:subscriptionId/deliveries', requireAuth, requireMaster, async (req, res) => {
     const subscription = await MerchantWebhookSubscription.findOne({ _id: req.params.subscriptionId, companyId: req.params.id }).lean();
     if (!subscription) return res.status(404).json({ success: false, error: 'Webhook غير موجود.' });
