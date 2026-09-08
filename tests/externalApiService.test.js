@@ -187,6 +187,95 @@ describe('externalApiService', () => {
         );
     });
 
+    test('uses the MogaPay authentication, inquiry, and payment contract', async () => {
+        axios.post
+            .mockResolvedValueOnce({ data: { Code: 200, Data: { Access_Token: 'moga-token' } } })
+            .mockResolvedValueOnce({ data: { Code: 200, Data: { PaymentBillInfo: 'moga-bill-info' } } })
+            .mockResolvedValueOnce({
+                data: {
+                    Code: 200,
+                    Message: 'عمليه ناجحه',
+                    Data: {
+                        TransactionNumber: 'MOGA-5001',
+                        ApprovalNumber: 'MOGA-APPROVAL-1',
+                        IsPaid: 1,
+                        IsFailure: 0,
+                        Amount: 29
+                    }
+                }
+            });
+
+        const result = await executeTransferViaApi(
+            { customId: 'ATT-MOGA-1', vodafoneNumber: '01271870153', amount: 29 },
+            {
+                apiProviderKey: 'mogapay',
+                apiUrl: 'https://moga.example',
+                apiUsername: 'moga-user',
+                apiPassword: 'moga-password',
+                apiServiceId: 64,
+                apiServiceVersion: 0,
+                apiFieldKey: 'Key1'
+            }
+        );
+
+        expect(result.success).toBe(true);
+        expect(result.reference_number).toBe('MOGA-APPROVAL-1');
+        expect(axios.post).toHaveBeenNthCalledWith(
+            1,
+            'https://moga.example/api/Account/Authenticate',
+            {
+                UserName: 'moga-user',
+                Password: 'moga-password',
+                RememberMe: true,
+                AppType: '1',
+                AppId: 'app12'
+            },
+            expect.objectContaining({ headers: expect.objectContaining({ 'app-version': '45', AppId: 'app12' }) })
+        );
+        expect(axios.post).toHaveBeenNthCalledWith(
+            2,
+            'https://moga.example/api/V1/Transactions/Inquiry',
+            {
+                Fields: [{ Key: 'Key1', Value: '01271870153' }],
+                ServiceId: 64,
+                MachineSerial: 'XP1',
+                InqueryAmount: 29,
+                ServiceVersion: 0
+            },
+            expect.any(Object)
+        );
+        expect(axios.post).toHaveBeenNthCalledWith(
+            3,
+            'https://moga.example/api/V1/Transactions/Payment',
+            {
+                Fields: [{ Key: 'Key1', Value: '01271870153' }],
+                ServiceId: 64,
+                MachineSerial: 'XP1',
+                ServiceVersion: 0,
+                PaymentBillInfo: 'moga-bill-info',
+                Amount: 29
+            },
+            expect.any(Object)
+        );
+    });
+
+    test('rejects direct payment for MogaPay before any provider request', async () => {
+        const result = await executeTransferViaApi(
+            { vodafoneNumber: '01271870153', amount: 29 },
+            {
+                apiProviderKey: 'mogapay',
+                apiUrl: 'https://moga.example',
+                apiUsername: 'moga-user',
+                apiPassword: 'moga-password',
+                apiPaymentFlow: 'direct_payment'
+            }
+        );
+
+        expect(result.success).toBe(false);
+        expect(result.message).toContain('يتطلب الاستعلام');
+        expect(axios.post).not.toHaveBeenCalled();
+    });
+
     test('sends payment directly without an inquiry when direct mode is explicitly selected', async () => {
         axios.post
             .mockResolvedValueOnce({ data: { Code: 200, Data: { Access_Token: 'direct-token' } } })

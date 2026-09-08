@@ -50,6 +50,30 @@ const API_PROVIDER_PRESETS = {
         appType: '1',
         appId: 'app12',
         versionId: 'Samsuang-502'
+    },
+    mogapay: {
+        key: 'mogapay',
+        name: 'MogaPay',
+        nameAr: 'MogaPay — بيئة الاختبار',
+        // The collection supplied by MogaPay documents this as its test host.
+        // Production operators must replace it with the provider-issued live URL.
+        apiUrl: 'https://test2.mogapayment.com',
+        serviceId: 64,
+        providerId: 0,
+        fieldId: 0,
+        fieldKey: 'Key1',
+        serviceVersion: 0,
+        machineSerial: 'XP1',
+        inquiryPayloadMode: INQUIRY_PAYLOAD_MODES.FIELD_KEY_PAIR,
+        appType: '1',
+        appId: 'app12',
+        appVersion: '45',
+        authEndpoint: '/api/Account/Authenticate',
+        transactionContract: 'mogapay_v1',
+        requiresProviderId: false,
+        requiresFieldId: false,
+        requiresInquiry: true,
+        reconciliationEndpoint: '/api/V1/Reports/GetBillsByTransactionNumber'
     }
 };
 

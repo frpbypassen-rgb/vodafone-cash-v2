@@ -26,6 +26,11 @@ const parseNumberOrDefault = (value, fallback) => {
     return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
 };
 
+const parseIntegerOrDefault = (value, fallback) => {
+    const parsed = Number(value);
+    return Number.isInteger(parsed) && parsed >= 0 ? parsed : fallback;
+};
+
 const numberOrZero = (value) => {
     const parsed = Number(value);
     return Number.isFinite(parsed) ? parsed : 0;
@@ -108,6 +113,8 @@ const resolveApiProviderConfig = (apiBot = {}) => {
         serviceId: parseNumberOrDefault(apiBot.apiServiceId || process.env.ZAYN_AGGREGATOR_SERVICE_ID || process.env.ZAYNPAY_SERVICE_ID, preset.serviceId),
         providerId: parseNumberOrDefault(apiBot.apiProviderId || process.env.ZAYN_AGGREGATOR_PROVIDER_ID || process.env.ZAYNPAY_PROVIDER_ID, preset.providerId),
         fieldId: parseNumberOrDefault(apiBot.apiFieldId || process.env.ZAYN_AGGREGATOR_FIELD_ID || process.env.ZAYNPAY_FIELD_ID, preset.fieldId),
+        fieldKey: String(apiBot.apiFieldKey || preset.fieldKey || '').trim(),
+        serviceVersion: parseIntegerOrDefault(apiBot.apiServiceVersion, preset.serviceVersion ?? 0),
         machineSerial: apiBot.apiMachineSerial || process.env.ZAYN_AGGREGATOR_MACHINE_SERIAL || process.env.ZAYNPAY_MACHINE_SERIAL || preset.machineSerial,
         inquiryPayloadMode: normalizeInquiryPayloadMode(
             apiBot.apiInquiryPayloadMode,
@@ -118,19 +125,29 @@ const resolveApiProviderConfig = (apiBot = {}) => {
             'Content-Type': 'application/json',
             'User-Agent': 'Mozilla/5.0 Ahram-Server/1.0',
             'Accept': 'application/json',
-            'app-version': 'xyz67'
+            'app-version': preset.appVersion || 'xyz67',
+            ...(preset.appId ? { AppId: preset.appId } : {})
         }
     };
 };
 
 const authorizeApiProvider = async (config, addLog) => {
-    const authPayload = {
+    const legacyAuthPayload = {
         UserName: config.apiUsername,
         Password: config.apiPassword,
         AppType: config.preset.appType,
         AppId: config.preset.appId,
         VersionID: config.preset.versionId
     };
+    const authPayload = config.preset.transactionContract === 'mogapay_v1'
+        ? {
+            UserName: config.apiUsername,
+            Password: config.apiPassword,
+            RememberMe: true,
+            AppType: config.preset.appType,
+            AppId: config.preset.appId
+        }
+        : legacyAuthPayload;
 
     let freshToken = config.staticToken;
     if (!freshToken && (!authPayload.UserName || !authPayload.Password)) {
@@ -140,7 +157,8 @@ const authorizeApiProvider = async (config, addLog) => {
 
     if (!freshToken) {
         addLog("AUTH", "جاري إرسال طلب تسجيل الدخول...");
-        const authRes = await axios.post(`${config.baseUrl}/api/Account/GetToken`, authPayload, { headers: config.defaultHeaders, timeout: 15000 });
+        const authEndpoint = config.preset.authEndpoint || '/api/Account/GetToken';
+        const authRes = await axios.post(`${config.baseUrl}${authEndpoint}`, authPayload, { headers: config.defaultHeaders, timeout: 15000 });
 
         if (authRes.data.Code !== 200 || !authRes.data.Data || !authRes.data.Data.Access_Token) {
             addLog("AUTH_FAIL", authRes.data.Message || "تم رفض تسجيل الدخول من الشركة");
@@ -192,13 +210,23 @@ const getApiConfigurationIssues = (config) => {
         issues.push('بيانات دخول API غير مكتملة');
     }
     if (!Number.isFinite(Number(config.serviceId)) || Number(config.serviceId) <= 0) issues.push('رقم الخدمة غير صالح');
-    if (!Number.isFinite(Number(config.providerId)) || Number(config.providerId) <= 0) issues.push('رقم مزود الخدمة غير صالح');
-    if (!Number.isFinite(Number(config.fieldId)) || Number(config.fieldId) <= 0) issues.push('رقم حقل الخدمة غير صالح');
+    if (config.preset.requiresProviderId !== false && (!Number.isFinite(Number(config.providerId)) || Number(config.providerId) <= 0)) issues.push('رقم مزود الخدمة غير صالح');
+    if (config.preset.requiresFieldId !== false && (!Number.isFinite(Number(config.fieldId)) || Number(config.fieldId) <= 0)) issues.push('رقم حقل الخدمة غير صالح');
+    if (config.preset.transactionContract === 'mogapay_v1' && !config.fieldKey) issues.push('مفتاح حقل MogaPay غير موجود');
     if (!String(config.machineSerial || '').trim()) issues.push('الرقم التسلسلي للجهاز غير موجود');
     return issues;
 };
 
 const buildInquiryPayload = (config, targetNumber, amount) => {
+    if (config.preset.transactionContract === 'mogapay_v1') {
+        return {
+            Fields: [{ Key: config.fieldKey, Value: String(targetNumber) }],
+            ServiceId: config.serviceId,
+            MachineSerial: config.machineSerial,
+            InqueryAmount: amount,
+            ServiceVersion: config.serviceVersion
+        };
+    }
     const usesProviderKeys = config.inquiryPayloadMode === INQUIRY_PAYLOAD_MODES.FIELD_KEY_PAIR;
     if (usesProviderKeys) {
         // ZaynPay Legacy's documented contract is deliberately different from
@@ -396,6 +424,9 @@ const executeTransferViaApi = async (tx, apiBot) => {
         const config = resolveApiProviderConfig(apiBot || {});
         const { preset, baseUrl, serviceId, providerId, fieldId, machineSerial } = config;
         const configurationIssues = getApiConfigurationIssues(config);
+        if (preset.requiresInquiry && config.paymentFlow === API_PAYMENT_FLOW_MODES.DIRECT_PAYMENT) {
+            configurationIssues.push(`${preset.nameAr || preset.name} يتطلب الاستعلام واستلام PaymentBillInfo قبل الدفع`);
+        }
         if (!targetNumber || targetNumber.length < 5 || targetNumber.length > 20) {
             configurationIssues.push('رقم العميل غير صالح للتحويل عبر API');
         }
@@ -453,14 +484,25 @@ const executeTransferViaApi = async (tx, apiBot) => {
                 return { success: false, message, processLog: processLog.join('\n'), communication };
             }
             addLog("INQUIRY_SUCCESS", "الرقم سليم ومتاح للتحويل.");
-            paymentPayload = {
-                Fields: [{ Id: fieldId, Value: targetNumber }],
-                CurrentServiceProviderId: providerId,
-                ServiceId: serviceId,
-                PaymentBillInfo: inquiryData.Data.PaymentBillInfo,
-                Amount: amount,
-                MachineSerial: machineSerial
-            };
+            paymentPayload = preset.transactionContract === 'mogapay_v1'
+                ? {
+                    // MogaPay requires the same parameter Keys used during
+                    // Inquiry, plus the PaymentBillInfo that it issued.
+                    Fields: inquiryPayload.Fields,
+                    ServiceId: serviceId,
+                    MachineSerial: machineSerial,
+                    ServiceVersion: config.serviceVersion,
+                    PaymentBillInfo: inquiryData.Data.PaymentBillInfo,
+                    Amount: amount
+                }
+                : {
+                    Fields: [{ Id: fieldId, Value: targetNumber }],
+                    CurrentServiceProviderId: providerId,
+                    ServiceId: serviceId,
+                    PaymentBillInfo: inquiryData.Data.PaymentBillInfo,
+                    Amount: amount,
+                    MachineSerial: machineSerial
+                };
         }
         addLog("PAYMENT", `جاري إرسال الدفعة النهائية بقيمة [${amount} EGP]...`);
         const paymentEndpoint = `${baseUrl}/api/V1/Transactions/Payment`;
@@ -607,13 +649,19 @@ const getApiProviderTransactions = async (apiBot, transactionNumbers = []) => {
         const operations = [];
         for (const transactionNumber of uniqueNumbers) {
             try {
+                const isMogaPay = config.preset.transactionContract === 'mogapay_v1';
+                const reviewEndpoint = config.preset.reconciliationEndpoint || '/api/V1/Transactions/Print';
+                const reviewPayload = { TransactionNumber: transactionNumber };
                 const printRes = await axios.post(
-                    `${config.baseUrl}/api/V1/Transactions/Print`,
-                    { TransactionNumber: transactionNumber },
+                    `${config.baseUrl}${reviewEndpoint}`,
+                    reviewPayload,
                     { headers: auth.headers, timeout: 20000 }
                 );
                 const responseData = printRes.data || {};
-                if (responseData.Code !== 200 || !responseData.Data) {
+                const providerData = isMogaPay && Array.isArray(responseData.Data)
+                    ? responseData.Data[0]
+                    : responseData.Data;
+                if (responseData.Code !== 200 || !providerData) {
                     operations.push({
                         success: false,
                         providerTransactionId: transactionNumber,
@@ -625,7 +673,7 @@ const getApiProviderTransactions = async (apiBot, transactionNumbers = []) => {
 
                 operations.push({
                     success: true,
-                    ...normalizeProviderTransaction(responseData.Data, transactionNumber),
+                    ...normalizeProviderTransaction(providerData, transactionNumber),
                     requestedTransactionId: transactionNumber,
                     message: responseData.Message || 'تمت مراجعة العملية'
                 });

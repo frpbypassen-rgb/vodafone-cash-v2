@@ -619,8 +619,11 @@
                                                         data-service-id="<%= provider.serviceId %>"
                                                         data-provider-id="<%= provider.providerId %>"
                                                         data-field-id="<%= provider.fieldId %>"
+                                                        data-field-key="<%= provider.fieldKey || '' %>"
+                                                        data-service-version="<%= provider.serviceVersion ?? 0 %>"
                                                         data-machine-serial="<%= provider.machineSerial %>"
-                                                        data-inquiry-payload-mode="<%= provider.inquiryPayloadMode || 'fields_value' %>">
+                                                        data-inquiry-payload-mode="<%= provider.inquiryPayloadMode || 'fields_value' %>"
+                                                        data-requires-inquiry="<%= provider.requiresInquiry ? 'true' : 'false' %>">
                                                     <%= provider.nameAr || provider.name %>
                                                 </option>
                                             <% }) %>
@@ -653,6 +656,14 @@
                                     <div class="col-md-2">
                                         <label class="form-label fw-bold small text-muted">Field ID</label>
                                         <input type="number" name="apiFieldId" class="form-control text-center" value="5488" dir="ltr">
+                                    </div>
+                                    <div class="col-md-2">
+                                        <label class="form-label fw-bold small text-muted">Field Key</label>
+                                        <input type="text" name="apiFieldKey" class="form-control text-center" placeholder="Key1" dir="ltr">
+                                    </div>
+                                    <div class="col-md-2">
+                                        <label class="form-label fw-bold small text-muted">Service Version</label>
+                                        <input type="number" min="0" name="apiServiceVersion" class="form-control text-center" value="0" dir="ltr">
                                     </div>
                                     <div class="col-md-3">
                                         <label class="form-label fw-bold small text-muted">Machine Serial</label>
@@ -731,14 +742,23 @@
         if (!selected) return;
         const setValue = (name, value) => {
             const input = document.querySelector(`[name="${name}"]`);
-            if (input && value) input.value = value;
+            if (input && value !== undefined && value !== '') input.value = value;
         };
         setValue('apiUrl', selected.dataset.apiUrl);
         setValue('apiServiceId', selected.dataset.serviceId);
         setValue('apiProviderId', selected.dataset.providerId);
         setValue('apiFieldId', selected.dataset.fieldId);
+        setValue('apiFieldKey', selected.dataset.fieldKey);
+        setValue('apiServiceVersion', selected.dataset.serviceVersion);
         setValue('apiMachineSerial', selected.dataset.machineSerial);
         setValue('apiInquiryPayloadMode', selected.dataset.inquiryPayloadMode);
+        const paymentFlow = document.querySelector('[name="apiPaymentFlow"]');
+        if (paymentFlow) {
+            const directOption = paymentFlow.querySelector('option[value="direct_payment"]');
+            const inquiryRequired = selected.dataset.requiresInquiry === 'true';
+            if (directOption) directOption.disabled = inquiryRequired;
+            if (inquiryRequired) paymentFlow.value = 'inquiry_then_payment';
+        }
     }
 
     function escapeHtml(value) {

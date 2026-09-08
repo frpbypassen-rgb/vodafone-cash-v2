@@ -37,6 +37,9 @@ const executorGroupSchema = new mongoose.Schema({
     apiServiceId: { type: Number, default: 85 },
     apiProviderId: { type: Number, default: 16 },
     apiFieldId: { type: Number, default: 5488 },
+    // Providers such as MogaPay identify recipient inputs by Key instead of Id.
+    apiFieldKey: { type: String, default: '' },
+    apiServiceVersion: { type: Number, default: 0 },
     apiMachineSerial: { type: String, default: 'XP1' },
     // Kept per executor so two providers can use different inquiry contracts.
     // Undefined means "use this provider preset's safe default" for legacy bots.

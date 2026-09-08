@@ -495,6 +495,8 @@ const updateExecutor = async ({ account, payload }) => {
         account.apiServiceId = parseNumber(payload.apiServiceId, 'apiServiceId', { min: 0, max: 1e9, integer: true });
         account.apiProviderId = parseNumber(payload.apiProviderId, 'apiProviderId', { min: 0, max: 1e9, integer: true });
         account.apiFieldId = parseNumber(payload.apiFieldId, 'apiFieldId', { min: 0, max: 1e9, integer: true });
+        account.apiFieldKey = cleanText(payload.apiFieldKey, 80);
+        account.apiServiceVersion = parseNumber(payload.apiServiceVersion, 'apiServiceVersion', { min: 0, max: 1e6, integer: true });
         const preset = getApiProviderPreset(account.apiProviderKey);
         account.apiInquiryPayloadMode = normalizeInquiryPayloadMode(
             payload.apiInquiryPayloadMode,
@@ -571,6 +573,8 @@ const safeSnapshot = (type, account) => {
             snapshot.apiServiceId = Number(account.apiServiceId || 0);
             snapshot.apiProviderId = Number(account.apiProviderId || 0);
             snapshot.apiFieldId = Number(account.apiFieldId || 0);
+            snapshot.apiFieldKey = account.apiFieldKey || '';
+            snapshot.apiServiceVersion = Number(account.apiServiceVersion || 0);
             snapshot.apiMachineSerial = account.apiMachineSerial || '';
             snapshot.apiInquiryPayloadMode = account.apiInquiryPayloadMode || '';
         }

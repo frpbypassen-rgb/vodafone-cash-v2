@@ -55,6 +55,10 @@ const parseNumberOrDefault = (value, fallback) => {
     const parsed = Number(value);
     return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
 };
+const parseIntegerOrDefault = (value, fallback) => {
+    const parsed = Number(value);
+    return Number.isInteger(parsed) && parsed >= 0 ? parsed : fallback;
+};
 
 const hasValidCsrfToken = (req) => {
     const submitted = String(req.get('x-csrf-token') || req.body?._csrf || '');
@@ -148,12 +152,16 @@ router.post('/executors/add', requireAuth, requireMaster, async (req, res) => {
                 apiServiceId: isApiBot ? parseNumberOrDefault(body.apiServiceId, apiPreset.serviceId) : apiPreset.serviceId,
                 apiProviderId: isApiBot ? parseNumberOrDefault(body.apiProviderId, apiPreset.providerId) : apiPreset.providerId,
                 apiFieldId: isApiBot ? parseNumberOrDefault(body.apiFieldId, apiPreset.fieldId) : apiPreset.fieldId,
+                apiFieldKey: isApiBot ? (normalizeText(body.apiFieldKey) || apiPreset.fieldKey || '') : '',
+                apiServiceVersion: isApiBot ? parseIntegerOrDefault(body.apiServiceVersion, apiPreset.serviceVersion ?? 0) : (apiPreset.serviceVersion ?? 0),
                 apiMachineSerial: isApiBot ? (normalizeText(body.apiMachineSerial) || apiPreset.machineSerial) : apiPreset.machineSerial,
                 apiInquiryPayloadMode: isApiBot
                     ? normalizeInquiryPayloadMode(body.apiInquiryPayloadMode, apiPreset.inquiryPayloadMode)
                     : undefined,
                 apiPaymentFlow: isApiBot
-                    ? normalizeApiPaymentFlow(body.apiPaymentFlow, API_PAYMENT_FLOW_MODES.INQUIRY_THEN_PAYMENT)
+                    ? (apiPreset.requiresInquiry
+                        ? API_PAYMENT_FLOW_MODES.INQUIRY_THEN_PAYMENT
+                        : normalizeApiPaymentFlow(body.apiPaymentFlow, API_PAYMENT_FLOW_MODES.INQUIRY_THEN_PAYMENT))
                     : undefined
             },
             managerData: isApiBot ? null : {
@@ -764,6 +772,10 @@ router.post('/executor/:id/payment-flow', requireAuth, requireMaster, async (req
         }
         if (bot.status === 'archived') {
             return res.status(409).json({ success: false, message: 'الحساب مؤرشف ومتاح للقراءة فقط.' });
+        }
+        const providerPreset = getApiProviderPreset(bot.apiProviderKey);
+        if (providerPreset.requiresInquiry && requestedFlow === API_PAYMENT_FLOW_MODES.DIRECT_PAYMENT) {
+            return res.status(422).json({ success: false, message: `${providerPreset.nameAr || providerPreset.name} يتطلب الاستعلام قبل الدفع.` });
         }
 
         const previousFlow = normalizeApiPaymentFlow(bot.apiPaymentFlow, API_PAYMENT_FLOW_MODES.INQUIRY_THEN_PAYMENT);
