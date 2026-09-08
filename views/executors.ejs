@@ -662,6 +662,11 @@
                                         <label class="form-label fw-bold small text-muted">نمط استعلام التحويل</label>
                                         <select name="apiInquiryPayloadMode" class="form-select text-center"><option value="fields_value">قياسي: Value / InqueryAmount</option><option value="field_key_pair">مخصص: Fields[Key1 / Key2]</option></select>
                                     </div>
+                                    <div class="col-md-6">
+                                        <label class="form-label fw-bold small text-muted">أسلوب إرسال الدفعة</label>
+                                        <select name="apiPaymentFlow" class="form-select text-center"><option value="inquiry_then_payment">استعلام ثم دفع (موصى به)</option><option value="direct_payment">دفع مباشر دون استعلام</option></select>
+                                        <div class="form-text text-warning">الدفع المباشر يتطلب تأكيد المزود أن Payment لا يحتاج PaymentBillInfo.</div>
+                                    </div>
                                     <div class="col-md-9 d-flex align-items-end">
                                         <div class="text-muted small">يمكن إضافة أكثر من منفذ API، وكل منفذ سيستخدم بياناته عند توجيه الطلب إليه.</div>
                                     </div>

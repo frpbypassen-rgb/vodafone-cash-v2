@@ -15,7 +15,9 @@ const {
     DEFAULT_API_PROVIDER_KEY,
     getApiProviderPreset,
     getApiProviderPresets,
-    normalizeInquiryPayloadMode
+    normalizeInquiryPayloadMode,
+    API_PAYMENT_FLOW_MODES,
+    normalizeApiPaymentFlow
 } = require('../utils/apiProviderPresets');
 const { getApiProviderBalance, runApiTransferPreflight } = require('../services/externalApiService');
 const { syncProviderReturnedOperations } = require('../services/apiProviderReconciliationService');
@@ -148,6 +150,9 @@ router.post('/executors/add', requireAuth, requireMaster, async (req, res) => {
                 apiMachineSerial: isApiBot ? (normalizeText(body.apiMachineSerial) || apiPreset.machineSerial) : apiPreset.machineSerial,
                 apiInquiryPayloadMode: isApiBot
                     ? normalizeInquiryPayloadMode(body.apiInquiryPayloadMode, apiPreset.inquiryPayloadMode)
+                    : undefined,
+                apiPaymentFlow: isApiBot
+                    ? normalizeApiPaymentFlow(body.apiPaymentFlow, API_PAYMENT_FLOW_MODES.INQUIRY_THEN_PAYMENT)
                     : undefined
             },
             managerData: isApiBot ? null : {
@@ -720,6 +725,54 @@ router.post('/executor/:id/inquiry-payload-mode', requireAuth, requireMaster, as
     } catch (error) {
         console.error('[executor/inquiry-payload-mode] failed:', error.stack || error.message);
         return res.status(500).json({ success: false, message: 'تعذر تحديث نمط طلب الاستعلام.' });
+    }
+});
+
+// Select the execution flow independently from the inquiry payload shape.
+// Direct payment is an explicit provider-contract choice, not a UI-only hint.
+router.post('/executor/:id/payment-flow', requireAuth, requireMaster, async (req, res) => {
+    try {
+        if (!hasValidCsrfToken(req)) {
+            return res.status(403).json({ success: false, message: 'رمز الحماية غير صالح. أعد تحميل الصفحة وحاول مرة أخرى.' });
+        }
+        const requestedFlow = normalizeApiPaymentFlow(req.body?.flow, null);
+        if (!requestedFlow) {
+            return res.status(422).json({ success: false, message: 'نمط تنفيذ الدفع غير صالح.' });
+        }
+        const bot = await ExecutorGroup.findById(req.params.id);
+        if (!bot || !bot.isApiBot) {
+            return res.status(404).json({ success: false, message: 'لم يتم العثور على منفذ API صالح.' });
+        }
+        if (bot.status === 'archived') {
+            return res.status(409).json({ success: false, message: 'الحساب مؤرشف ومتاح للقراءة فقط.' });
+        }
+
+        const previousFlow = normalizeApiPaymentFlow(bot.apiPaymentFlow, API_PAYMENT_FLOW_MODES.INQUIRY_THEN_PAYMENT);
+        bot.apiPaymentFlow = requestedFlow;
+        await bot.save();
+        await logAction({
+            action: 'API_PAYMENT_FLOW_UPDATED',
+            req,
+            performedById: req.session.adminId,
+            performedByModel: 'Admin',
+            performedByName: req.session.adminName || req.session.adminUsername || 'الإدارة',
+            targetId: bot._id,
+            targetModel: 'ExecutorGroup',
+            oldData: { apiPaymentFlow: previousFlow },
+            newData: { apiPaymentFlow: requestedFlow },
+            result: 'ناجح',
+            severity: requestedFlow === API_PAYMENT_FLOW_MODES.DIRECT_PAYMENT ? 'warning' : 'info'
+        }).catch(() => {});
+        return res.json({
+            success: true,
+            flow: requestedFlow,
+            message: requestedFlow === API_PAYMENT_FLOW_MODES.DIRECT_PAYMENT
+                ? 'تم تفعيل الدفع المباشر لهذا المنفذ فقط.'
+                : 'تم تفعيل الاستعلام قبل الدفع لهذا المنفذ فقط.'
+        });
+    } catch (error) {
+        console.error('[executor/payment-flow] failed:', error.stack || error.message);
+        return res.status(500).json({ success: false, message: 'تعذر تحديث نمط تنفيذ الدفع.' });
     }
 });
 

@@ -5,9 +5,19 @@ const INQUIRY_PAYLOAD_MODES = Object.freeze({
     FIELD_KEY_PAIR: 'field_key_pair'
 });
 
+const API_PAYMENT_FLOW_MODES = Object.freeze({
+    INQUIRY_THEN_PAYMENT: 'inquiry_then_payment',
+    DIRECT_PAYMENT: 'direct_payment'
+});
+
 const normalizeInquiryPayloadMode = (value, fallback = INQUIRY_PAYLOAD_MODES.FIELDS_VALUE) => {
     const mode = String(value || '').trim();
     return Object.values(INQUIRY_PAYLOAD_MODES).includes(mode) ? mode : fallback;
+};
+
+const normalizeApiPaymentFlow = (value, fallback = API_PAYMENT_FLOW_MODES.INQUIRY_THEN_PAYMENT) => {
+    const flow = String(value || '').trim();
+    return Object.values(API_PAYMENT_FLOW_MODES).includes(flow) ? flow : fallback;
 };
 
 const API_PROVIDER_PRESETS = {
@@ -56,7 +66,9 @@ module.exports = {
     DEFAULT_API_PROVIDER_KEY,
     API_PROVIDER_PRESETS,
     INQUIRY_PAYLOAD_MODES,
+    API_PAYMENT_FLOW_MODES,
     normalizeInquiryPayloadMode,
+    normalizeApiPaymentFlow,
     getApiProviderPreset,
     getApiProviderPresets
 };

@@ -187,6 +187,41 @@ describe('externalApiService', () => {
         );
     });
 
+    test('sends payment directly without an inquiry when direct mode is explicitly selected', async () => {
+        axios.post
+            .mockResolvedValueOnce({ data: { Code: 200, Data: { Access_Token: 'direct-token' } } })
+            .mockResolvedValueOnce({
+                data: {
+                    Code: 200,
+                    Data: { TransactionNumber: 'DIRECT-5001', RefTransactionNumber: 'REF-DIRECT', IsPaid: 1, Amount: 500 }
+                }
+            });
+
+        const result = await executeTransferViaApi(
+            { customId: 'ATT-DIRECT-1', vodafoneNumber: '01108172258', amount: 500 },
+            {
+                apiUrl: 'https://zayn.example', apiUsername: 'api-user', apiPassword: 'api-pass',
+                apiPaymentFlow: 'direct_payment'
+            }
+        );
+
+        expect(result.success).toBe(true);
+        expect(axios.post).toHaveBeenCalledTimes(2);
+        expect(axios.post).toHaveBeenNthCalledWith(
+            2,
+            'https://zayn.example/api/V1/Transactions/Payment',
+            {
+                Fields: [{ Id: 5488, Value: '01108172258' }],
+                CurrentServiceProviderId: 16,
+                ServiceId: 85,
+                MachineSerial: 'XP1',
+                Amount: 500
+            },
+            expect.any(Object)
+        );
+        expect(axios.post.mock.calls.some(([url]) => String(url).includes('/Transactions/Inquiry'))).toBe(false);
+    });
+
     test('runs a safe transfer preflight through authentication, balance, and inquiry without payment', async () => {
         axios.post
             .mockResolvedValueOnce({

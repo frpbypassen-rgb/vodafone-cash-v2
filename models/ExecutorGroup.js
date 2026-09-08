@@ -41,6 +41,9 @@ const executorGroupSchema = new mongoose.Schema({
     // Kept per executor so two providers can use different inquiry contracts.
     // Undefined means "use this provider preset's safe default" for legacy bots.
     apiInquiryPayloadMode: { type: String, enum: ['fields_value', 'field_key_pair'], default: undefined },
+    // The safe default asks the provider to validate the recipient and issue a
+    // payment bill before charging. Direct mode is opt-in per API executor.
+    apiPaymentFlow: { type: String, enum: ['inquiry_then_payment', 'direct_payment'], default: undefined },
     lastApiTestAt: { type: Date },
     lastApiTestStatus: { type: String, enum: ['success', 'failed', 'pending'], default: undefined },
     lastApiTestMessage: { type: String, default: '' },

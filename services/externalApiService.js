@@ -8,7 +8,9 @@ const { SYSTEM_TIME_ZONE } = require('../config/systemTime');
 const {
     getApiProviderPreset,
     INQUIRY_PAYLOAD_MODES,
-    normalizeInquiryPayloadMode
+    API_PAYMENT_FLOW_MODES,
+    normalizeInquiryPayloadMode,
+    normalizeApiPaymentFlow
 } = require('../utils/apiProviderPresets');
 
 const SUPPORT_PHONE = '01108172258';
@@ -111,6 +113,7 @@ const resolveApiProviderConfig = (apiBot = {}) => {
             apiBot.apiInquiryPayloadMode,
             normalizeInquiryPayloadMode(preset.inquiryPayloadMode)
         ),
+        paymentFlow: normalizeApiPaymentFlow(apiBot.apiPaymentFlow, API_PAYMENT_FLOW_MODES.INQUIRY_THEN_PAYMENT),
         defaultHeaders: {
             'Content-Type': 'application/json',
             'User-Agent': 'Mozilla/5.0 Ahram-Server/1.0',
@@ -400,31 +403,44 @@ const executeTransferViaApi = async (tx, apiBot) => {
         }
         const headers = auth.headers;
         
-        addLog("PROVIDER", `${preset.name} | ServiceId=${serviceId} | CurrentServiceProviderId=${providerId} | FieldId=${fieldId} | InquiryMode=${config.inquiryPayloadMode}`);
-        addLog("INQUIRY", `جاري الاستعلام وفحص الرقم [${targetNumber}]...`);
-        const inquiryPayload = buildInquiryPayload(config, targetNumber, amount);
-        recordCommunication('outbound', 'inquiry_request', 'POST', `${baseUrl}/api/V1/Transactions/Inquiry`, inquiryPayload);
-        const inquiryRes = await axios.post(`${baseUrl}/api/V1/Transactions/Inquiry`, inquiryPayload, { headers, timeout: 20000 });
-        const inquiryData = inquiryRes.data || {};
-        recordCommunication('inbound', 'inquiry_response', 'POST', `${baseUrl}/api/V1/Transactions/Inquiry`, inquiryData);
+        const directPayment = config.paymentFlow === API_PAYMENT_FLOW_MODES.DIRECT_PAYMENT;
+        addLog("PROVIDER", `${preset.name} | ServiceId=${serviceId} | CurrentServiceProviderId=${providerId} | FieldId=${fieldId} | InquiryMode=${config.inquiryPayloadMode} | PaymentFlow=${config.paymentFlow}`);
+        let paymentPayload;
+        if (directPayment) {
+            // Direct mode is deliberately opt-in. Its contract uses the same
+            // recipient fields and amount but omits PaymentBillInfo, which is
+            // only valid when the provider documents this direct endpoint.
+            addLog("DIRECT_PAYMENT", `إرسال دفعة مباشرة بقيمة [${amount} EGP] دون استعلام مسبق.`);
+            paymentPayload = {
+                ...buildInquiryPayload(config, targetNumber, amount),
+                Amount: amount,
+                MachineSerial: machineSerial
+            };
+            delete paymentPayload.InqueryAmount;
+        } else {
+            addLog("INQUIRY", `جاري الاستعلام وفحص الرقم [${targetNumber}]...`);
+            const inquiryPayload = buildInquiryPayload(config, targetNumber, amount);
+            recordCommunication('outbound', 'inquiry_request', 'POST', `${baseUrl}/api/V1/Transactions/Inquiry`, inquiryPayload);
+            const inquiryRes = await axios.post(`${baseUrl}/api/V1/Transactions/Inquiry`, inquiryPayload, { headers, timeout: 20000 });
+            const inquiryData = inquiryRes.data || {};
+            recordCommunication('inbound', 'inquiry_response', 'POST', `${baseUrl}/api/V1/Transactions/Inquiry`, inquiryData);
 
-        if (!hasSuccessCode(inquiryData) || !inquiryData.Data || !inquiryData.Data.PaymentBillInfo) {
-            const message = providerMessage(inquiryData, 'تم رفض الاستعلام عن التحويل من المزود');
-            addLog("INQUIRY_FAIL", message || "Unexpected provider response");
-            return { success: false, message, processLog: processLog.join('\n'), communication };
+            if (!hasSuccessCode(inquiryData) || !inquiryData.Data || !inquiryData.Data.PaymentBillInfo) {
+                const message = providerMessage(inquiryData, 'تم رفض الاستعلام عن التحويل من المزود');
+                addLog("INQUIRY_FAIL", message || "Unexpected provider response");
+                return { success: false, message, processLog: processLog.join('\n'), communication };
+            }
+            addLog("INQUIRY_SUCCESS", "الرقم سليم ومتاح للتحويل.");
+            paymentPayload = {
+                Fields: [{ Id: fieldId, Value: targetNumber }],
+                CurrentServiceProviderId: providerId,
+                ServiceId: serviceId,
+                PaymentBillInfo: inquiryData.Data.PaymentBillInfo,
+                Amount: amount,
+                MachineSerial: machineSerial
+            };
         }
-        
-        addLog("INQUIRY_SUCCESS", "الرقم سليم ومتاح للتحويل.");
         addLog("PAYMENT", `جاري إرسال الدفعة النهائية بقيمة [${amount} EGP]...`);
-        
-        const paymentPayload = {
-            Fields: [{ Id: fieldId, Value: targetNumber }],
-            CurrentServiceProviderId: providerId,
-            ServiceId: serviceId,
-            PaymentBillInfo: inquiryData.Data.PaymentBillInfo,
-            Amount: amount,
-            MachineSerial: machineSerial
-        };
         recordCommunication('outbound', 'payment_request', 'POST', `${baseUrl}/api/V1/Transactions/Payment`, paymentPayload);
         const paymentRes = await axios.post(`${baseUrl}/api/V1/Transactions/Payment`, paymentPayload, { headers, timeout: 180000 });
 
