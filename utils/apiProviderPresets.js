@@ -33,7 +33,8 @@ const API_PROVIDER_PRESETS = {
         inquiryPayloadMode: INQUIRY_PAYLOAD_MODES.FIELDS_VALUE,
         appType: '1',
         appId: 'app12',
-        versionId: 'Samsuang-502'
+        versionId: 'Samsuang-502',
+        requiresInquiry: true
     },
     zaynpay_legacy: {
         key: 'zaynpay_legacy',
@@ -49,7 +50,8 @@ const API_PROVIDER_PRESETS = {
         inquiryPayloadMode: INQUIRY_PAYLOAD_MODES.FIELD_KEY_PAIR,
         appType: '1',
         appId: 'app12',
-        versionId: 'Samsuang-502'
+        versionId: 'Samsuang-502',
+        requiresInquiry: true
     },
     mogapay: {
         key: 'mogapay',

@@ -120,7 +120,11 @@ const resolveApiProviderConfig = (apiBot = {}) => {
             apiBot.apiInquiryPayloadMode,
             normalizeInquiryPayloadMode(preset.inquiryPayloadMode)
         ),
-        paymentFlow: normalizeApiPaymentFlow(apiBot.apiPaymentFlow, API_PAYMENT_FLOW_MODES.INQUIRY_THEN_PAYMENT),
+        // Provider policy takes precedence over a saved legacy UI selection.
+        // This safely migrates old direct-payment ZaynPay executors at runtime.
+        paymentFlow: preset.requiresInquiry
+            ? API_PAYMENT_FLOW_MODES.INQUIRY_THEN_PAYMENT
+            : normalizeApiPaymentFlow(apiBot.apiPaymentFlow, API_PAYMENT_FLOW_MODES.INQUIRY_THEN_PAYMENT),
         defaultHeaders: {
             'Content-Type': 'application/json',
             'User-Agent': 'Mozilla/5.0 Ahram-Server/1.0',
@@ -424,9 +428,6 @@ const executeTransferViaApi = async (tx, apiBot) => {
         const config = resolveApiProviderConfig(apiBot || {});
         const { preset, baseUrl, serviceId, providerId, fieldId, machineSerial } = config;
         const configurationIssues = getApiConfigurationIssues(config);
-        if (preset.requiresInquiry && config.paymentFlow === API_PAYMENT_FLOW_MODES.DIRECT_PAYMENT) {
-            configurationIssues.push(`${preset.nameAr || preset.name} يتطلب الاستعلام واستلام PaymentBillInfo قبل الدفع`);
-        }
         if (!targetNumber || targetNumber.length < 5 || targetNumber.length > 20) {
             configurationIssues.push('رقم العميل غير صالح للتحويل عبر API');
         }

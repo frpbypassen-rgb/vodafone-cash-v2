@@ -259,7 +259,11 @@ describe('externalApiService', () => {
         );
     });
 
-    test('rejects direct payment for MogaPay before any provider request', async () => {
+    test('forces an old direct-payment MogaPay setting through inquiry first', async () => {
+        axios.post
+            .mockResolvedValueOnce({ data: { Code: 200, Data: { Access_Token: 'moga-token' } } })
+            .mockResolvedValueOnce({ data: { Code: 200, Data: { PaymentBillInfo: 'moga-bill-info' } } })
+            .mockResolvedValueOnce({ data: { Code: 200, Data: { TransactionNumber: 'MOGA-5002', ApprovalNumber: 'MOGA-APPROVAL-2', IsPaid: 1 } } });
         const result = await executeTransferViaApi(
             { vodafoneNumber: '01271870153', amount: 29 },
             {
@@ -271,14 +275,15 @@ describe('externalApiService', () => {
             }
         );
 
-        expect(result.success).toBe(false);
-        expect(result.message).toContain('يتطلب الاستعلام');
-        expect(axios.post).not.toHaveBeenCalled();
+        expect(result.success).toBe(true);
+        expect(axios.post).toHaveBeenCalledTimes(3);
+        expect(axios.post.mock.calls.some(([url]) => String(url).includes('/Transactions/Inquiry'))).toBe(true);
     });
 
-    test('sends payment directly without an inquiry when direct mode is explicitly selected', async () => {
+    test('forces an old direct-payment ZaynPay setting through inquiry first', async () => {
         axios.post
             .mockResolvedValueOnce({ data: { Code: 200, Data: { Access_Token: 'direct-token' } } })
+            .mockResolvedValueOnce({ data: { Code: 200, Data: { PaymentBillInfo: 'zayn-bill-info' } } })
             .mockResolvedValueOnce({
                 data: {
                     Code: 200,
@@ -295,20 +300,21 @@ describe('externalApiService', () => {
         );
 
         expect(result.success).toBe(true);
-        expect(axios.post).toHaveBeenCalledTimes(2);
+        expect(axios.post).toHaveBeenCalledTimes(3);
         expect(axios.post).toHaveBeenNthCalledWith(
-            2,
+            3,
             'https://zayn.example/api/V1/Transactions/Payment',
             {
                 Fields: [{ Id: 5488, Value: '01108172258' }],
                 CurrentServiceProviderId: 16,
                 ServiceId: 85,
+                PaymentBillInfo: 'zayn-bill-info',
                 MachineSerial: 'XP1',
                 Amount: 500
             },
             expect.any(Object)
         );
-        expect(axios.post.mock.calls.some(([url]) => String(url).includes('/Transactions/Inquiry'))).toBe(false);
+        expect(axios.post.mock.calls.some(([url]) => String(url).includes('/Transactions/Inquiry'))).toBe(true);
         expect(result.communication).toEqual(expect.arrayContaining([
             expect.objectContaining({ direction: 'outbound', stage: 'payment_request' }),
             expect.objectContaining({ direction: 'inbound', stage: 'payment_response' })
@@ -316,12 +322,13 @@ describe('externalApiService', () => {
         expect(result.processLog).toContain('PAYMENT_REQUEST_JSON');
         expect(result.processLog).toContain('PAYMENT_RESPONSE_JSON');
         expect(result.processLog).toContain('"Amount": 500');
-        expect(result.processLog).toContain('INQUIRY_SKIPPED');
+        expect(result.processLog).toContain('INQUIRY_REQUEST_JSON');
     });
 
     test('records the direct-payment provider error response for the operation log', async () => {
         axios.post
             .mockResolvedValueOnce({ data: { Code: 200, Data: { Access_Token: 'direct-token' } } })
+            .mockResolvedValueOnce({ data: { Code: 200, Data: { PaymentBillInfo: 'zayn-bill-info' } } })
             .mockRejectedValueOnce({
                 config: { url: 'https://zayn.example/api/V1/Transactions/Payment' },
                 response: { status: 503, data: { Code: 503, Message: 'Provider unavailable' } },
