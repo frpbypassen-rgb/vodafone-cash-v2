@@ -372,14 +372,15 @@ const executeTransferViaApi = async (tx, apiBot) => {
     const safePayload = (value) => JSON.parse(JSON.stringify(value || {}, (key, item) => (
         /password|token|authorization|secret/i.test(key) ? '[REDACTED]' : item
     )));
-    const recordCommunication = (direction, stage, method, endpoint, payload) => communication.push({
-        direction, stage, method, endpoint: String(endpoint || '').replace(/\?.*$/, ''), payload: safePayload(payload), recordedAt: new Date()
+    const recordCommunication = (direction, stage, method, endpoint, payload, httpStatus = null) => communication.push({
+        direction, stage, method, endpoint: String(endpoint || '').replace(/\?.*$/, ''), httpStatus, payload: safePayload(payload), recordedAt: new Date()
     });
     const addLog = (step, detail) => {
         const timeStr = new Date().toLocaleTimeString('en-GB', { timeZone: SYSTEM_TIME_ZONE, hour12: false });
         processLog.push(`[${timeStr}] ${step}: ${detail}`);
     };
 
+    let activeRequest = null;
     try {
         const targetNumber = normalizeApiTargetNumber(tx.vodafoneNumber || tx.accountNumber || tx.serviceDetails?.clientPhone);
         const amount = Number(tx.amount);
@@ -420,10 +421,12 @@ const executeTransferViaApi = async (tx, apiBot) => {
         } else {
             addLog("INQUIRY", `جاري الاستعلام وفحص الرقم [${targetNumber}]...`);
             const inquiryPayload = buildInquiryPayload(config, targetNumber, amount);
-            recordCommunication('outbound', 'inquiry_request', 'POST', `${baseUrl}/api/V1/Transactions/Inquiry`, inquiryPayload);
-            const inquiryRes = await axios.post(`${baseUrl}/api/V1/Transactions/Inquiry`, inquiryPayload, { headers, timeout: 20000 });
+            const inquiryEndpoint = `${baseUrl}/api/V1/Transactions/Inquiry`;
+            activeRequest = { stage: 'inquiry', endpoint: inquiryEndpoint };
+            recordCommunication('outbound', 'inquiry_request', 'POST', inquiryEndpoint, inquiryPayload);
+            const inquiryRes = await axios.post(inquiryEndpoint, inquiryPayload, { headers, timeout: 20000 });
             const inquiryData = inquiryRes.data || {};
-            recordCommunication('inbound', 'inquiry_response', 'POST', `${baseUrl}/api/V1/Transactions/Inquiry`, inquiryData);
+            recordCommunication('inbound', 'inquiry_response', 'POST', inquiryEndpoint, inquiryData, inquiryRes.status);
 
             if (!hasSuccessCode(inquiryData) || !inquiryData.Data || !inquiryData.Data.PaymentBillInfo) {
                 const message = providerMessage(inquiryData, 'تم رفض الاستعلام عن التحويل من المزود');
@@ -441,11 +444,13 @@ const executeTransferViaApi = async (tx, apiBot) => {
             };
         }
         addLog("PAYMENT", `جاري إرسال الدفعة النهائية بقيمة [${amount} EGP]...`);
-        recordCommunication('outbound', 'payment_request', 'POST', `${baseUrl}/api/V1/Transactions/Payment`, paymentPayload);
-        const paymentRes = await axios.post(`${baseUrl}/api/V1/Transactions/Payment`, paymentPayload, { headers, timeout: 180000 });
+        const paymentEndpoint = `${baseUrl}/api/V1/Transactions/Payment`;
+        activeRequest = { stage: 'payment', endpoint: paymentEndpoint };
+        recordCommunication('outbound', 'payment_request', 'POST', paymentEndpoint, paymentPayload);
+        const paymentRes = await axios.post(paymentEndpoint, paymentPayload, { headers, timeout: 180000 });
 
         const paymentData = paymentRes.data || {};
-        recordCommunication('inbound', 'payment_response', 'POST', `${baseUrl}/api/V1/Transactions/Payment`, paymentData);
+        recordCommunication('inbound', 'payment_response', 'POST', paymentEndpoint, paymentData, paymentRes.status);
         const pd = paymentData.Data || {};
         const print = pd.PrintBill || {};
         const extRef = firstNonEmpty(pd.TransactionNumber, pd.TransactionId, print.TransactionId);
@@ -506,6 +511,16 @@ const executeTransferViaApi = async (tx, apiBot) => {
 
     } catch (error) {
         const message = errorMessage(error, 'خطأ في الاتصال بسيرفر الشركة');
+        if (error?.response && activeRequest) {
+            recordCommunication(
+                'inbound',
+                `${activeRequest.stage}_error_response`,
+                'POST',
+                error.config?.url || activeRequest.endpoint,
+                error.response.data || {},
+                error.response.status
+            );
+        }
         addLog("SYSTEM_ERROR", message);
         return { success: false, message, processLog: processLog.join('\n'), communication };
     }

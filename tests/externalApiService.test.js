@@ -220,6 +220,31 @@ describe('externalApiService', () => {
             expect.any(Object)
         );
         expect(axios.post.mock.calls.some(([url]) => String(url).includes('/Transactions/Inquiry'))).toBe(false);
+        expect(result.communication).toEqual(expect.arrayContaining([
+            expect.objectContaining({ direction: 'outbound', stage: 'payment_request' }),
+            expect.objectContaining({ direction: 'inbound', stage: 'payment_response' })
+        ]));
+    });
+
+    test('records the direct-payment provider error response for the operation log', async () => {
+        axios.post
+            .mockResolvedValueOnce({ data: { Code: 200, Data: { Access_Token: 'direct-token' } } })
+            .mockRejectedValueOnce({
+                config: { url: 'https://zayn.example/api/V1/Transactions/Payment' },
+                response: { status: 503, data: { Code: 503, Message: 'Provider unavailable' } },
+                message: 'Request failed with status code 503'
+            });
+
+        const result = await executeTransferViaApi(
+            { vodafoneNumber: '01108172258', amount: 500 },
+            { apiUrl: 'https://zayn.example', apiUsername: 'api-user', apiPassword: 'api-pass', apiPaymentFlow: 'direct_payment' }
+        );
+
+        expect(result.success).toBe(false);
+        expect(result.communication).toEqual(expect.arrayContaining([
+            expect.objectContaining({ direction: 'outbound', stage: 'payment_request' }),
+            expect.objectContaining({ direction: 'inbound', stage: 'payment_error_response', httpStatus: 503, payload: { Code: 503, Message: 'Provider unavailable' } })
+        ]));
     });
 
     test('runs a safe transfer preflight through authentication, balance, and inquiry without payment', async () => {

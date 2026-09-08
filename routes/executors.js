@@ -7,6 +7,7 @@ const Employee = require('../models/Employee');
 const Notification = require('../models/Notification');
 const ApiBalanceAudit = require('../models/ApiBalanceAudit');
 const ApiProviderReturn = require('../models/ApiProviderReturn');
+const ApiCommunicationLog = require('../models/ApiCommunicationLog');
 const Settings = require('../models/Settings');
 const { requireAuth, requireMaster } = require('../middlewares/auth');
 const { systemDateRange } = require('../config/systemTime');
@@ -294,6 +295,24 @@ router.post('/executor/:id/archive', requireAuth, requireMaster, async (req, res
         }
         console.error('[executor/archive] failed:', error.stack || error.message);
         return res.status(500).json({ success: false, message: 'تعذر نقل حساب المنفذ إلى الأرشيف.' });
+    }
+});
+
+router.get('/executor/:id/api-communication/:transactionId', requireAuth, async (req, res) => {
+    try {
+        const bot = await ExecutorGroup.findOne({ _id: req.params.id, isApiBot: true }).select('_id').lean();
+        if (!bot) return res.status(404).json({ success: false, message: 'منفذ API غير موجود.' });
+        const transaction = await Transaction.findOne({ _id: req.params.transactionId, executorGroupId: bot._id })
+            .select('_id customId')
+            .lean();
+        if (!transaction) return res.status(404).json({ success: false, message: 'العملية غير موجودة ضمن هذا المنفذ.' });
+        const logs = await ApiCommunicationLog.find({ transactionId: transaction._id, executorId: bot._id })
+            .sort({ createdAt: -1 })
+            .lean();
+        return res.json({ success: true, referenceId: transaction.customId, logs });
+    } catch (error) {
+        console.error('[executor/api-communication] failed:', error.message);
+        return res.status(500).json({ success: false, message: 'تعذر تحميل سجل تخاطب العملية.' });
     }
 });
 
