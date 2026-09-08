@@ -61,6 +61,7 @@ const {
     processPendingDeliveries
 } = require('../services/merchantWebhookService');
 const { LIBYA_REGIONS, isLibyaRegionCode } = require('../config/libyaRegions');
+const { normalizeSourceIp } = require('../services/companyApiServerAccessService');
 
 const accountCodeErrorQuery = (error) => {
     if (error.message === 'ACCOUNT_CODE_DUPLICATE') return 'duplicate';
@@ -114,6 +115,20 @@ const normalizeProfilePhone = (value) => {
     const phone = cleanProfileText(value, 24).replace(/[\s-]+/g, '');
     if (phone && !/^\+?\d{6,20}$/.test(phone)) throw new Error('INVALID_PHONE');
     return phone;
+};
+const normalizeApiServerUrl = (value) => {
+    const raw = cleanProfileText(value, 240);
+    if (!raw) return '';
+    let parsed;
+    try {
+        parsed = new URL(raw);
+    } catch (_error) {
+        throw new Error('INVALID_API_SERVER_URL');
+    }
+    if (!['http:', 'https:'].includes(parsed.protocol) || parsed.username || parsed.password || parsed.search || parsed.hash) {
+        throw new Error('INVALID_API_SERVER_URL');
+    }
+    return `${parsed.origin}${parsed.pathname}`.replace(/\/$/, '');
 };
 const normalizeManagerUsername = (value) => {
     const username = cleanProfileText(value, 100).toLowerCase();
@@ -446,7 +461,7 @@ router.get('/company/:id/:section', requireAuth, async (req, res, next) => {
     if (!COMPANY_WORKSPACE_SECTIONS.has(section)) return next();
     const company = await ClientCompany.findOne({ _id: req.params.id, ...visibleAccountFilter });
     if (!company) return res.redirect('/clients?section=companies&deleteError=notfound');
-    const [transactions, settings, webhookSubscriptions, executorGroups, employees, ledgerEntries, auditEntries, metricRows, apiMetricRows, apiServers] = await Promise.all([
+    const [transactions, settings, webhookSubscriptions, executorGroups, employees, ledgerEntries, auditEntries, metricRows, apiMetricRows] = await Promise.all([
         Transaction.find({ companyId: company._id }).sort({ createdAt: -1 }).limit(50),
         Settings.findOne({}).lean(),
         MerchantWebhookSubscription.find({ companyId: company._id }).sort({ createdAt: -1 }).lean(),
@@ -508,13 +523,7 @@ router.get('/company/:id/:section', requireAuth, async (req, res, next) => {
                     failed: { $sum: { $cond: [{ $eq: ['$status', 'failed'] }, 1, 0] } }
                 }
             }
-        ]),
-        req.session.adminRole === 'master'
-            ? ExecutorGroup.find({ isApiBot: true, status: { $ne: 'archived' } })
-                .select('_id name status serviceKey balance apiProviderKey apiUrl apiMachineSerial apiServiceId apiProviderId apiFieldId lastApiTestAt lastApiTestStatus lastApiTestMessage lastApiAvailableBalance lastApiBalanceCheckAt lastApiBalanceCheckStatus lastApiTransferTestAt lastApiTransferTestStatus')
-                .sort({ status: 1, serviceKey: 1, name: 1 })
-                .lean()
-            : Promise.resolve([])
+        ])
     ]);
     const reversibleSettlements = await reversibleSettlementIds({ transactions, entityModel: 'ClientCompany', entityId: company._id });
     const primaryManager = employees.find((employee) => (
@@ -531,7 +540,6 @@ router.get('/company/:id/:section', requireAuth, async (req, res, next) => {
         webhookSubscriptions,
         webhookEvents: SUPPORTED_EVENTS,
         executorGroups,
-        apiServers,
         employees,
         primaryManager,
         libyaRegions: LIBYA_REGIONS,
@@ -760,48 +768,69 @@ router.post('/company/:id/security/accounts/:employeeId', requireAuth, requireMa
     }
 });
 
-router.post('/company/:id/security/execution-lock', requireAuth, requireMaster, async (req, res) => {
+router.post('/company/:id/security/api-servers', requireAuth, requireMaster, async (req, res) => {
     try {
         const company = await ClientCompany.findOne({ _id: req.params.id, ...visibleAccountFilter });
         if (!company) return res.redirect('/clients?section=companies&securityError=notfound');
-        const executionMode = String(req.body.executionMode || '').trim().toLowerCase();
-        if (!['exclusive', 'manual_hold', 'off'].includes(executionMode)) throw new Error('INVALID_EXECUTION_MODE');
 
-        const oldPolicy = company.autoRoutePolicy?.toObject
-            ? company.autoRoutePolicy.toObject()
-            : { ...(company.autoRoutePolicy || {}) };
-        let executorGroupId = null;
-        let maxAutoAmount = 0;
-        if (executionMode === 'exclusive') {
-            const requestedGroupId = String(req.body.executorGroupId || '').trim();
-            maxAutoAmount = Number(req.body.maxAutoAmount);
-            if (!mongoose.isValidObjectId(requestedGroupId) || !Number.isFinite(maxAutoAmount) || maxAutoAmount <= 0) {
-                throw new Error('INVALID_EXECUTION_LOCK');
-            }
-            const server = await ExecutorGroup.findOne({
-                _id: requestedGroupId,
-                status: 'active',
-                isApiBot: true,
-                isManagerBot: { $ne: true }
-            }).select('_id').lean();
-            if (!server) throw new Error('INVALID_EXECUTION_LOCK');
-            executorGroupId = server._id;
-        }
-        const actorName = req.session.adminName || req.session.adminUsername || 'الإدارة';
-        company.autoRoutePolicy = {
-            enabled: executionMode !== 'off',
-            executionMode,
-            executorGroupId,
-            maxAutoAmount,
-            updatedAt: new Date(),
-            updatedBy: actorName,
-            lockedAt: executionMode === 'off' ? null : new Date(),
-            lockedBy: executionMode === 'off' ? '' : actorName
-        };
-        company.markModified('autoRoutePolicy');
+        const name = cleanProfileText(req.body.name, 100);
+        const sourceIp = normalizeSourceIp(req.body.sourceIp);
+        const baseUrl = normalizeApiServerUrl(req.body.baseUrl);
+        if (name.length < 2 || !sourceIp) throw new Error('INVALID_API_SERVER');
+
+        const oldPolicy = company.apiAccessPolicy?.toObject
+            ? company.apiAccessPolicy.toObject()
+            : { ...(company.apiAccessPolicy || {}) };
+        const policy = company.apiAccessPolicy || {};
+        const servers = Array.isArray(policy.servers) ? policy.servers : [];
+        servers.push({ name, sourceIp, baseUrl, enabled: true, createdAt: new Date(), updatedAt: new Date() });
+        policy.mode = policy.mode || 'open';
+        policy.servers = servers;
+        policy.updatedAt = new Date();
+        policy.updatedBy = req.session.adminName || req.session.adminUsername || 'الإدارة';
+        company.apiAccessPolicy = policy;
+        company.markModified('apiAccessPolicy');
         await company.save();
         await logAction({
-            action: 'COMPANY_EXECUTION_LOCK_UPDATED',
+            action: 'COMPANY_API_SERVER_ADDED',
+            req,
+            performedById: req.session.adminId,
+            performedByModel: 'Admin',
+            performedByName: policy.updatedBy,
+            targetId: company._id,
+            targetModel: 'ClientCompany',
+            oldData: oldPolicy,
+            newData: { name, sourceIp, baseUrl },
+            result: 'ناجح',
+            severity: 'info'
+        });
+        return res.redirect(`/company/${company._id}/security?apiServerSaved=1`);
+    } catch (error) {
+        console.error('[clients/company-api-server-add] failed:', error.message);
+        const known = new Set(['INVALID_API_SERVER', 'INVALID_API_SERVER_URL']);
+        return res.redirect(`/company/${req.params.id}/security?securityError=${known.has(error.message) ? error.message : 'save'}`);
+    }
+});
+
+router.post('/company/:id/security/api-servers/:serverId/lock', requireAuth, requireMaster, async (req, res) => {
+    try {
+        const company = await ClientCompany.findOne({ _id: req.params.id, ...visibleAccountFilter });
+        if (!company) return res.redirect('/clients?section=companies&securityError=notfound');
+        const policy = company.apiAccessPolicy || {};
+        const server = (policy.servers || []).find((item) => String(item._id) === String(req.params.serverId) && item.enabled !== false);
+        if (!server) throw new Error('API_SERVER_NOT_FOUND');
+
+        const oldPolicy = policy.toObject ? policy.toObject() : { ...policy };
+        const actorName = req.session.adminName || req.session.adminUsername || 'الإدارة';
+        policy.mode = 'locked';
+        policy.lockedServerId = String(server._id);
+        policy.updatedAt = new Date();
+        policy.updatedBy = actorName;
+        company.apiAccessPolicy = policy;
+        company.markModified('apiAccessPolicy');
+        await company.save();
+        await logAction({
+            action: 'COMPANY_API_SERVER_LOCKED',
             req,
             performedById: req.session.adminId,
             performedByModel: 'Admin',
@@ -809,15 +838,76 @@ router.post('/company/:id/security/execution-lock', requireAuth, requireMaster, 
             targetId: company._id,
             targetModel: 'ClientCompany',
             oldData: oldPolicy,
-            newData: company.autoRoutePolicy.toObject ? company.autoRoutePolicy.toObject() : company.autoRoutePolicy,
+            newData: { mode: 'locked', lockedServerId: String(server._id), name: server.name, sourceIp: server.sourceIp },
             result: 'ناجح',
-            severity: executionMode === 'off' ? 'info' : 'warning'
+            severity: 'warning'
         });
-        req.app?.get('io')?.emit('update_data');
-        return res.redirect(`/company/${company._id}/security?executionLockSaved=1`);
+        return res.redirect(`/company/${company._id}/security?apiServerLocked=1`);
     } catch (error) {
-        console.error('[clients/company-execution-lock] failed:', error.message);
-        const known = new Set(['INVALID_EXECUTION_MODE', 'INVALID_EXECUTION_LOCK']);
+        console.error('[clients/company-api-server-lock] failed:', error.message);
+        return res.redirect(`/company/${req.params.id}/security?securityError=${error.message === 'API_SERVER_NOT_FOUND' ? 'API_SERVER_NOT_FOUND' : 'save'}`);
+    }
+});
+
+router.post('/company/:id/security/api-server-lock/unlock', requireAuth, requireMaster, async (req, res) => {
+    try {
+        const company = await ClientCompany.findOne({ _id: req.params.id, ...visibleAccountFilter });
+        if (!company) return res.redirect('/clients?section=companies&securityError=notfound');
+        const policy = company.apiAccessPolicy || {};
+        const oldPolicy = policy.toObject ? policy.toObject() : { ...policy };
+        const actorName = req.session.adminName || req.session.adminUsername || 'الإدارة';
+        policy.mode = 'open';
+        policy.lockedServerId = '';
+        policy.updatedAt = new Date();
+        policy.updatedBy = actorName;
+        company.apiAccessPolicy = policy;
+        company.markModified('apiAccessPolicy');
+        await company.save();
+        await logAction({
+            action: 'COMPANY_API_SERVER_UNLOCKED',
+            req,
+            performedById: req.session.adminId,
+            performedByModel: 'Admin',
+            performedByName: actorName,
+            targetId: company._id,
+            targetModel: 'ClientCompany',
+            oldData: oldPolicy,
+            newData: { mode: 'open' },
+            result: 'ناجح',
+            severity: 'warning'
+        });
+        return res.redirect(`/company/${company._id}/security?apiServerUnlocked=1`);
+    } catch (error) {
+        console.error('[clients/company-api-server-unlock] failed:', error.message);
+        return res.redirect(`/company/${req.params.id}/security?securityError=save`);
+    }
+});
+
+router.post('/company/:id/security/api-servers/:serverId/delete', requireAuth, requireMaster, async (req, res) => {
+    try {
+        const company = await ClientCompany.findOne({ _id: req.params.id, ...visibleAccountFilter });
+        if (!company) return res.redirect('/clients?section=companies&securityError=notfound');
+        const policy = company.apiAccessPolicy || {};
+        const serverId = String(req.params.serverId);
+        if (policy.mode === 'locked' && String(policy.lockedServerId) === serverId) throw new Error('LOCKED_API_SERVER_DELETE_FORBIDDEN');
+        const server = (policy.servers || []).find((item) => String(item._id) === serverId);
+        if (!server) throw new Error('API_SERVER_NOT_FOUND');
+        policy.servers = policy.servers.filter((item) => String(item._id) !== serverId);
+        policy.updatedAt = new Date();
+        policy.updatedBy = req.session.adminName || req.session.adminUsername || 'الإدارة';
+        company.apiAccessPolicy = policy;
+        company.markModified('apiAccessPolicy');
+        await company.save();
+        await logAction({
+            action: 'COMPANY_API_SERVER_DELETED', req,
+            performedById: req.session.adminId, performedByModel: 'Admin', performedByName: policy.updatedBy,
+            targetId: company._id, targetModel: 'ClientCompany',
+            oldData: { name: server.name, sourceIp: server.sourceIp }, newData: {}, result: 'ناجح', severity: 'warning'
+        });
+        return res.redirect(`/company/${company._id}/security?apiServerDeleted=1`);
+    } catch (error) {
+        console.error('[clients/company-api-server-delete] failed:', error.message);
+        const known = new Set(['API_SERVER_NOT_FOUND', 'LOCKED_API_SERVER_DELETE_FORBIDDEN']);
         return res.redirect(`/company/${req.params.id}/security?securityError=${known.has(error.message) ? error.message : 'save'}`);
     }
 });
@@ -885,13 +975,10 @@ router.post('/company/:id/auto-route-policy', requireAuth, requireMaster, async 
             : (company.autoRoutePolicy || {});
         company.autoRoutePolicy = {
             enabled,
-            executionMode: enabled ? 'exclusive' : 'off',
             executorGroupId: mongoose.isValidObjectId(executorGroupId) ? executorGroupId : null,
             maxAutoAmount: Number.isFinite(maxAutoAmount) && maxAutoAmount > 0 ? maxAutoAmount : 0,
             updatedAt: new Date(),
-            updatedBy: req.session.adminName || req.session.adminUsername || 'الإدارة',
-            lockedAt: enabled ? new Date() : null,
-            lockedBy: enabled ? (req.session.adminName || req.session.adminUsername || 'الإدارة') : ''
+            updatedBy: req.session.adminName || req.session.adminUsername || 'الإدارة'
         };
         company.markModified('autoRoutePolicy');
         await company.save();

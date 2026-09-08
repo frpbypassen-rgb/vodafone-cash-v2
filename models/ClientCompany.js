@@ -40,13 +40,29 @@ const clientCompanySchema = new mongoose.Schema({
     // لمسار التوزيع العام؛ فالعمليات الأكبر من الحد تبقى للمراجعة اليدوية.
     autoRoutePolicy: {
         enabled: { type: Boolean, default: false },
-        executionMode: { type: String, enum: ['off', 'exclusive', 'manual_hold'], default: 'off' },
         executorGroupId: { type: mongoose.Schema.Types.ObjectId, ref: 'ExecutorGroup', default: null },
         maxAutoAmount: { type: Number, min: 0, default: 0 },
         updatedAt: { type: Date, default: null },
+        updatedBy: { type: String, trim: true, default: '' }
+    },
+
+    // خوادم الشركة التي تتصل بـ Merchant API. القفل هنا يخص مصدر طلب الـAPI
+    // (IP الخادم) ولا يخص المنفذ الداخلي الذي ينفذ العملية المالية.
+    apiAccessPolicy: {
+        mode: { type: String, enum: ['open', 'locked'], default: 'open' },
+        lockedServerId: { type: String, trim: true, default: '' },
+        updatedAt: { type: Date, default: null },
         updatedBy: { type: String, trim: true, default: '' },
-        lockedAt: { type: Date, default: null },
-        lockedBy: { type: String, trim: true, default: '' }
+        servers: [{
+            name: { type: String, trim: true, required: true },
+            sourceIp: { type: String, trim: true, required: true },
+            baseUrl: { type: String, trim: true, default: '' },
+            enabled: { type: Boolean, default: true },
+            createdAt: { type: Date, default: Date.now },
+            updatedAt: { type: Date, default: Date.now },
+            lastSeenAt: { type: Date, default: null },
+            lastSeenEndpoint: { type: String, trim: true, default: '' }
+        }]
     },
 
     businessProfile: {

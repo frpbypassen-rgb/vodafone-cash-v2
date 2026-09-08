@@ -28,6 +28,7 @@ const {
 } = require('../services/walletService');
 const { normalizeWhatsAppPhone } = require('../services/whatsappService');
 const { sanitizeStatementText } = require('../utils/accountStatementPrivacy');
+const { authorizeCompanyApiServer } = require('../services/companyApiServerAccessService');
 
 const MERCHANT_TRANSFER_MIN_AMOUNT = 100;
 const MERCHANT_TRANSFER_MAX_AMOUNT = 50000;
@@ -194,12 +195,35 @@ const merchantApiAuth = async (req, res, next) => {
 
         const company = await ClientBot.findOne({ token: apiKey, status: 'active' }).lean();
         if (company) {
+            const serverAuthorization = authorizeCompanyApiServer({ company, req });
+            if (!serverAuthorization.allowed) {
+                return res.status(403).json({
+                    status: 'failed',
+                    code: serverAuthorization.code,
+                    message: serverAuthorization.message
+                });
+            }
             req.merchant = {
                 ...company,
                 merchantType: 'company',
                 entityModel: 'ClientCompany',
-                transactionUserId: 'api_merchant'
+                transactionUserId: 'api_merchant',
+                apiSourceServerId: serverAuthorization.server?._id || null,
+                apiSourceIp: serverAuthorization.sourceIp || ''
             };
+            // Activity is observability only; it never delays or authorises a
+            // financial request. The allow-list decision above is fail-closed.
+            if (serverAuthorization.server?._id && typeof ClientBot.updateOne === 'function') {
+                ClientBot.updateOne(
+                    { _id: company._id, 'apiAccessPolicy.servers._id': serverAuthorization.server._id },
+                    {
+                        $set: {
+                            'apiAccessPolicy.servers.$.lastSeenAt': new Date(),
+                            'apiAccessPolicy.servers.$.lastSeenEndpoint': String(req.path || '').slice(0, 120)
+                        }
+                    }
+                ).catch(() => undefined);
+            }
             return next();
         }
 

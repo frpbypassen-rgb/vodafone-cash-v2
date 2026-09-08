@@ -3,7 +3,7 @@
 const request = require('supertest');
 const express = require('express');
 
-jest.mock('../models/ClientBot', () => ({ findOne: jest.fn(), findOneAndUpdate: jest.fn() }));
+jest.mock('../models/ClientBot', () => ({ findOne: jest.fn(), findOneAndUpdate: jest.fn(), updateOne: jest.fn() }));
 jest.mock('../models/User', () => ({ findOne: jest.fn(), findOneAndUpdate: jest.fn() }));
 jest.mock('../models/Settings', () => ({ findOne: jest.fn() }));
 jest.mock('../models/Counter', () => ({ findOneAndUpdate: jest.fn() }));
@@ -110,6 +110,24 @@ describe('Merchant API agent authentication', () => {
         expect(response.status).toBe(401);
         expect(response.body.status).toBe('failed');
         expect(ClientBot.findOne).not.toHaveBeenCalled();
+        expect(User.findOne).not.toHaveBeenCalled();
+    });
+
+    test('rejects a company API request that does not come from its locked server', async () => {
+        ClientBot.findOne.mockReturnValue(leanResult({
+            _id: '66a112233445566778899003', name: 'شركة الربط', status: 'active', balance: 1000,
+            apiAccessPolicy: {
+                mode: 'locked', lockedServerId: 'server-production',
+                servers: [{ _id: 'server-production', name: 'Production', sourceIp: '203.0.113.25', enabled: true }]
+            }
+        }));
+
+        const response = await request(app)
+            .get('/api/v1/merchant/balance')
+            .set('x-api-key', 'company-private-api-key');
+
+        expect(response.status).toBe(403);
+        expect(response.body).toMatchObject({ status: 'failed', code: 'API_SERVER_NOT_ALLOWED' });
         expect(User.findOne).not.toHaveBeenCalled();
     });
 

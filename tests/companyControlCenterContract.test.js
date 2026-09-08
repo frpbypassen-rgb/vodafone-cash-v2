@@ -63,20 +63,20 @@ describe('Company control center contract', () => {
         expect(workspace).toContain('libyaRegions');
     });
 
-    test('keeps company account security and execution locks under master-only control', () => {
+    test('keeps company account security and API source-server locks under master-only control', () => {
         expect(routes).toContain("router.post('/company/:id/security/accounts/:employeeId', requireAuth, requireMaster");
         expect(routes).toContain("action: 'COMPANY_ACCOUNT_SECURITY_UPDATED'");
-        expect(routes).toContain("router.post('/company/:id/security/execution-lock', requireAuth, requireMaster");
-        expect(routes).toContain("action: 'COMPANY_EXECUTION_LOCK_UPDATED'");
-        expect(routes).toContain('apiServers');
+        expect(routes).toContain("router.post('/company/:id/security/api-servers', requireAuth, requireMaster");
+        expect(routes).toContain("action: 'COMPANY_API_SERVER_LOCKED'");
+        expect(routes).toContain("router.post('/company/:id/security/api-server-lock/unlock', requireAuth, requireMaster");
 
         const workspace = fs.readFileSync(path.join(__dirname, '../views/company_workspace.ejs'), 'utf8');
         expect(workspace).toContain('name="mfaRequired"');
         expect(workspace).toContain('name="canTransfer"');
-        expect(workspace).toContain('data-execution-lock-form');
-        expect(workspace).toContain('منفذ واحد حصري');
+        expect(workspace).toContain('name="sourceIp"');
+        expect(workspace).toContain('قفل مصدر Merchant API');
 
-        const autoRouteService = fs.readFileSync(path.join(__dirname, '../services/autoRouteService.js'), 'utf8');
-        expect(autoRouteService).toContain("reason: 'company_execution_locked'");
+        const serverAccess = fs.readFileSync(path.join(__dirname, '../services/companyApiServerAccessService.js'), 'utf8');
+        expect(serverAccess).toContain("code: 'API_SERVER_NOT_ALLOWED'");
     });
 });
