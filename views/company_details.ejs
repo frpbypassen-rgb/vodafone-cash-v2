@@ -80,6 +80,36 @@
         .form-control, .form-select { background: var(--input-bg); color: var(--text-main); border: 1px solid var(--glass-border); font-weight: bold; border-radius: 10px; }
         .form-control:focus, .form-select:focus { background: transparent; border-color: var(--brand-primary); box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.2); color: var(--text-main); }
 
+        .company-command-center { margin-bottom: 24px; }
+        .company-hero {
+            background: linear-gradient(135deg, rgba(99, 102, 241, .18), rgba(16, 185, 129, .10));
+            border: 1px solid var(--glass-border); border-radius: 22px; padding: 22px; box-shadow: var(--shadow-3d);
+        }
+        .company-hero h4 { color: var(--text-main); }
+        .company-metric {
+            min-height: 110px; border: 1px solid var(--glass-border); background: var(--glass-bg);
+            border-radius: 16px; padding: 14px; box-shadow: var(--shadow-3d);
+        }
+        .company-metric .metric-label { color: var(--text-muted); font-size: .76rem; font-weight: 800; }
+        .company-metric .metric-value { color: var(--text-main); font-size: 1.35rem; font-weight: 900; margin-top: 6px; }
+        .company-section-nav {
+            position: sticky; top: 10px; z-index: 15; display: flex; gap: 8px; overflow-x: auto;
+            padding: 10px; margin-top: 14px; border-radius: 16px; background: color-mix(in srgb, var(--glass-bg) 94%, transparent);
+            border: 1px solid var(--glass-border); backdrop-filter: blur(18px); -webkit-backdrop-filter: blur(18px);
+        }
+        .company-section-nav a {
+            color: var(--text-main); text-decoration: none; white-space: nowrap; font-size: .82rem; font-weight: 800;
+            border: 1px solid var(--glass-border); border-radius: 10px; padding: 8px 11px; transition: .2s;
+        }
+        .company-section-nav a:hover, .company-section-nav a.is-active { background: var(--brand-primary); color: #fff; border-color: var(--brand-primary); }
+        .company-section-title { scroll-margin-top: 90px; color: var(--text-main); font-weight: 900; margin: 30px 0 14px; }
+        .company-section-title small { color: var(--text-muted); display: block; font-size: .78rem; font-weight: 700; margin-top: 3px; }
+        .security-employee { border-bottom: 1px dashed var(--glass-border); padding: 10px 0; }
+        .security-employee:last-child { border-bottom: 0; padding-bottom: 0; }
+        .audit-row { border-bottom: 1px dashed var(--glass-border); padding: 12px 0; }
+        .audit-row:last-child { border-bottom: 0; }
+        .company-empty { color: var(--text-muted); text-align: center; padding: 24px; font-weight: 800; }
+
         /* توحيد الارتفاعات */
         .unified-height { min-height: 42px; display: flex; align-items: center; }
 
@@ -146,6 +176,9 @@
                 font-size: 0.82rem;
                 line-height: 1.6;
             }
+            .company-hero { padding: 16px; border-radius: 16px; }
+            .company-section-nav { top: 4px; margin-inline: -2px; border-radius: 12px; }
+            .company-metric { min-height: 92px; }
         }
     </style>
 
@@ -207,6 +240,42 @@
             <div class="alert alert-danger fw-bold rounded-4 shadow-sm"><i class="fa-solid fa-triangle-exclamation me-1"></i> تعذر إصدار مفتاح API جديد. لم يتغير المفتاح السابق، أعد المحاولة.</div>
         <% } %>
 
+        <% const txMetrics = transactionMetrics || {}; const apiSummary = apiMetrics || {}; const completedCount = Number(txMetrics.completedCount || 0); const totalCount = Number(txMetrics.totalCount || 0); const successRate = totalCount ? Math.round((completedCount / totalCount) * 100) : 0; const activeEmployees = (employees || []).filter((employee) => employee.status === 'active'); const protectedEmployees = activeEmployees.filter((employee) => employee.mfaEnabled); %>
+        <section class="company-command-center" id="company-overview">
+            <div class="company-hero">
+                <div class="d-flex flex-wrap align-items-center justify-content-between gap-3 mb-3">
+                    <div>
+                        <div class="small fw-bold text-muted mb-1">مركز التحكم الموحد</div>
+                        <h4 class="m-0 fw-bold"><i class="fa-solid fa-building-shield text-primary me-2"></i><%= company.name %></h4>
+                        <div class="small text-muted mt-2">ملف تشغيلي ومالي وأمني واحد لإدارة الشركة دون تداخل بين الأقسام.</div>
+                    </div>
+                    <div class="d-flex align-items-center gap-2">
+                        <span class="badge <%= company.status === 'active' ? 'bg-success' : 'bg-danger' %> px-3 py-2"><%= company.status === 'active' ? 'حساب نشط' : 'حساب موقوف' %></span>
+                        <span class="badge bg-dark px-3 py-2 mono-num">#<%= company.accountCode || String(company._id).slice(-8) %></span>
+                    </div>
+                </div>
+                <div class="row g-2">
+                    <div class="col-6 col-lg-3"><div class="company-metric"><div class="metric-label">الرصيد المتاح</div><div class="metric-value mono-num <%= company.balance < 0 ? 'text-danger' : 'text-success' %>" dir="ltr"><%= Number(company.balance || 0).toFixed(2) %> <small>LYD</small></div></div></div>
+                    <div class="col-6 col-lg-3"><div class="company-metric"><div class="metric-label">العمليات المعلقة</div><div class="metric-value text-warning mono-num"><%= Number(txMetrics.pendingCount || 0) %></div></div></div>
+                    <div class="col-6 col-lg-3"><div class="company-metric"><div class="metric-label">نسبة نجاح العمليات</div><div class="metric-value text-success mono-num"><%= successRate %>%</div></div></div>
+                    <div class="col-6 col-lg-3"><div class="company-metric"><div class="metric-label">حماية الموظفين</div><div class="metric-value mono-num"><%= protectedEmployees.length %>/<%= activeEmployees.length %> <small>2FA</small></div></div></div>
+                </div>
+            </div>
+            <nav class="company-section-nav" aria-label="أقسام ملف الشركة">
+                <a href="#company-overview" class="is-active"><i class="fa-solid fa-gauge-high me-1"></i> نظرة عامة</a>
+                <a href="#company-profile"><i class="fa-solid fa-id-card me-1"></i> البيانات</a>
+                <a href="#company-security"><i class="fa-solid fa-shield-halved me-1"></i> الأمان</a>
+                <a href="#company-finance"><i class="fa-solid fa-wallet me-1"></i> المالية</a>
+                <a href="#company-operations"><i class="fa-solid fa-list-check me-1"></i> العمليات</a>
+                <a href="#company-api-integration"><i class="fa-solid fa-code me-1"></i> API</a>
+                <a href="#company-webhook-integration"><i class="fa-solid fa-tower-broadcast me-1"></i> Webhooks</a>
+                <a href="#company-reports"><i class="fa-solid fa-chart-line me-1"></i> التقارير</a>
+                <a href="#company-audit"><i class="fa-solid fa-clock-rotate-left me-1"></i> التدقيق</a>
+            </nav>
+        </section>
+
+        <h5 class="company-section-title" id="company-profile"><i class="fa-solid fa-id-card text-primary me-2"></i> البيانات الشخصية والتجارية<small>هوية الشركة وبيانات مسؤول التواصل</small></h5>
+
         <div class="row g-4 mb-4">
             <div class="col-xl-4 col-lg-5">
                 <div class="glass-card h-100" style="border-top: 5px solid #8b5cf6;">
@@ -224,6 +293,21 @@
                     <div class="info-box py-2 px-3">
                         <span class="small text-muted fw-bold"><i class="fa-solid fa-phone me-1"></i> الهاتف</span>
                         <span class="fw-bold text-dark mono-num" dir="ltr"><%= company.phone %></span>
+                    </div>
+
+                    <div class="info-box py-2 px-3">
+                        <span class="small text-muted fw-bold"><i class="fa-solid fa-user-tie me-1"></i> مسؤول التواصل</span>
+                        <span class="fw-bold text-dark"><%= company.businessProfile?.contactName || 'غير محدد' %></span>
+                    </div>
+
+                    <div class="info-box py-2 px-3">
+                        <span class="small text-muted fw-bold"><i class="fa-solid fa-envelope me-1"></i> البريد الإلكتروني</span>
+                        <span class="fw-bold text-dark small text-break" dir="ltr"><%= company.businessProfile?.email || 'غير محدد' %></span>
+                    </div>
+
+                    <div class="info-box py-2 px-3">
+                        <span class="small text-muted fw-bold"><i class="fa-solid fa-location-dot me-1"></i> المدينة والسجل</span>
+                        <span class="fw-bold text-dark small"><%= company.businessProfile?.city || 'غير محدد' %> · <span dir="ltr"><%= company.businessProfile?.registrationNumber || '—' %></span></span>
                     </div>
 
                     <div class="info-box py-2 px-3">
@@ -335,7 +419,7 @@
                             </div>
                         <% } %>
 
-                        <div class="col-12">
+                        <div class="col-12" id="company-finance">
                             <div class="info-box border-0 m-0 shadow-sm control-card-3d d-block" style="background: rgba(139, 92, 246, 0.05); border-right: 4px solid var(--brand-primary) !important;">
                                 <label class="form-label fw-bold text-dark small mb-2"><i class="fa-solid fa-id-badge me-1" style="color: var(--brand-primary);"></i> ID الشركة للتحويل الداخلي (<%= accountCodeLength %> أرقام)</label>
                                 <form action="/company/<%= company._id %>/update-account-code" method="POST" class="row g-2 align-items-center">
@@ -465,7 +549,48 @@
             </div>
         </div>
 
-        <h5 class="fw-bold mb-3" style="color: var(--text-main);"><i class="fa-solid fa-clock-rotate-left text-primary me-2"></i> آخر 50 عملية للشركة</h5>
+        <section id="company-security">
+            <h5 class="company-section-title"><i class="fa-solid fa-shield-halved text-success me-2"></i> الأمان والصلاحيات<small>حماية حسابات الشركة ومراجعة صلاحيات الموظفين</small></h5>
+            <div class="row g-3">
+                <div class="col-lg-4">
+                    <div class="glass-card h-100">
+                        <div class="d-flex justify-content-between align-items-center mb-3"><span class="fw-bold" style="color:var(--text-main)">حالة الحماية</span><i class="fa-solid fa-user-shield text-success fs-4"></i></div>
+                        <div class="d-flex justify-content-between py-2 border-bottom"><span class="text-muted small fw-bold">الموظفون النشطون</span><span class="mono-num fw-bold"><%= activeEmployees.length %></span></div>
+                        <div class="d-flex justify-content-between py-2 border-bottom"><span class="text-muted small fw-bold">المفعّل لديهم 2FA</span><span class="mono-num fw-bold text-success"><%= protectedEmployees.length %></span></div>
+                        <div class="d-flex justify-content-between py-2"><span class="text-muted small fw-bold">دون حماية إضافية</span><span class="mono-num fw-bold <%= activeEmployees.length > protectedEmployees.length ? 'text-warning' : 'text-success' %>"><%= Math.max(0, activeEmployees.length - protectedEmployees.length) %></span></div>
+                        <div class="small text-muted mt-3">لا تظهر كلمات المرور أو أسرار المصادقة في هذه الصفحة. راجع صلاحيات الموظفين قبل تعطيل أي حساب.</div>
+                    </div>
+                </div>
+                <div class="col-lg-8">
+                    <div class="glass-card h-100">
+                        <div class="d-flex justify-content-between align-items-center gap-2 mb-3"><div><div class="fw-bold" style="color:var(--text-main)">موظفو الشركة وصلاحياتهم</div><div class="small text-muted">عرض تشغيلي للحسابات المرتبطة بالشركة</div></div><a href="/employees?section=clients" class="btn btn-sm btn-outline-primary fw-bold">إدارة الموظفين</a></div>
+                        <% if ((employees || []).length) { %>
+                            <% employees.slice(0, 6).forEach((employee) => { %>
+                                <div class="security-employee d-flex flex-wrap align-items-center justify-content-between gap-2">
+                                    <div><div class="fw-bold" style="color:var(--text-main)"><%= employee.name %> <span class="badge bg-light text-dark ms-1"><%= employee.role === 'owner' ? 'مالك' : (employee.role === 'accountant' ? 'محاسب' : 'موظف') %></span></div><div class="small text-muted" dir="ltr"><%= employee.webUsername || employee.phone || '—' %></div></div>
+                                    <div class="d-flex gap-1"><span class="badge <%= employee.status === 'active' ? 'bg-success' : 'bg-secondary' %>"><%= employee.status === 'active' ? 'نشط' : 'موقوف' %></span><span class="badge <%= employee.mfaEnabled ? 'bg-success' : 'bg-warning text-dark' %>"><%= employee.mfaEnabled ? '2FA مفعّل' : '2FA غير مفعّل' %></span></div>
+                                </div>
+                            <% }) %>
+                            <% if (employees.length > 6) { %><div class="small text-muted mt-2">+ <%= employees.length - 6 %> حسابات أخرى ضمن صفحة إدارة الموظفين.</div><% } %>
+                        <% } else { %><div class="company-empty">لا توجد حسابات موظفين مرتبطة بهذه الشركة.</div><% } %>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section id="company-reports">
+            <h5 class="company-section-title"><i class="fa-solid fa-chart-line text-info me-2"></i> التقارير والتحليلات<small>ملخص تشغيلي مباشر من بيانات الشركة الفعلية</small></h5>
+            <div class="row g-3">
+                <div class="col-6 col-lg-3"><div class="company-metric"><div class="metric-label">إجمالي العمليات</div><div class="metric-value mono-num"><%= totalCount %></div><div class="small text-muted">جميع السجلات</div></div></div>
+                <div class="col-6 col-lg-3"><div class="company-metric"><div class="metric-label">حجم التحويلات</div><div class="metric-value mono-num"><%= Number(txMetrics.transferVolumeEGP || 0).toFixed(0) %> <small>EGP</small></div><div class="small text-muted">دون حركات الإيداع والخصم</div></div></div>
+                <div class="col-6 col-lg-3"><div class="company-metric"><div class="metric-label">تكلفة العمليات</div><div class="metric-value mono-num"><%= Number(txMetrics.costVolumeLYD || 0).toFixed(2) %> <small>LYD</small></div><div class="small text-muted">إجمالي تكلفة التنفيذ</div></div></div>
+                <div class="col-6 col-lg-3"><div class="company-metric"><div class="metric-label">سجل API</div><div class="metric-value mono-num"><%= Number(apiSummary.success || 0) %>/<%= Number(apiSummary.total || 0) %></div><div class="small text-muted">سجلات اتصال ناجحة</div></div></div>
+                <div class="col-lg-7"><div class="glass-card h-100"><div class="fw-bold mb-3" style="color:var(--text-main)"><i class="fa-solid fa-book-open text-warning me-1"></i> آخر الحركات المالية</div><% if ((ledgerEntries || []).length) { %><div class="table-responsive"><table class="table table-sm align-middle mb-0"><thead><tr><th>المرجع</th><th>النوع</th><th>الأثر</th><th>الرصيد بعده</th><th>التاريخ</th></tr></thead><tbody><% ledgerEntries.slice(0, 5).forEach((entry) => { %><tr><td class="mono-num small"><%= entry.transactionId %></td><td><span class="badge bg-light text-dark"><%= entry.type %></span></td><td class="mono-num <%= Number(entry.amount) >= 0 ? 'text-success' : 'text-danger' %>" dir="ltr"><%= Number(entry.amount || 0).toFixed(2) %></td><td class="mono-num" dir="ltr"><%= Number(entry.balanceAfter || 0).toFixed(2) %></td><td class="small"><%= new Date(entry.createdAt).toLocaleDateString('ar-EG') %></td></tr><% }) %></tbody></table></div><% } else { %><div class="company-empty">لا توجد حركات دفتر أستاذ ظاهرة لهذه الشركة.</div><% } %></div></div>
+                <div class="col-lg-5"><div class="glass-card h-100"><div class="fw-bold mb-3" style="color:var(--text-main)"><i class="fa-solid fa-plug-circle-bolt text-primary me-1"></i> صحة التكامل</div><div class="d-flex justify-content-between py-2 border-bottom"><span class="text-muted fw-bold small">قنوات Webhook النشطة</span><span class="badge bg-success mono-num"><%= (webhookSubscriptions || []).filter((item) => item.status === 'active').length %></span></div><div class="d-flex justify-content-between py-2 border-bottom"><span class="text-muted fw-bold small">اتصالات API المعلقة</span><span class="badge bg-warning text-dark mono-num"><%= Number(apiSummary.pending || 0) %></span></div><div class="d-flex justify-content-between py-2"><span class="text-muted fw-bold small">اتصالات API الفاشلة</span><span class="badge <%= Number(apiSummary.failed || 0) ? 'bg-danger' : 'bg-success' %> mono-num"><%= Number(apiSummary.failed || 0) %></span></div><a href="#company-api-integration" class="btn btn-outline-primary w-100 mt-3 fw-bold">فتح إعدادات API</a></div></div>
+            </div>
+        </section>
+
+        <h5 class="company-section-title" id="company-operations"><i class="fa-solid fa-list-check text-primary me-2"></i> العمليات والتنفيذ<small>آخر 50 عملية مع سجل الاتصال عند توفره</small></h5>
         <div class="glass-card p-0 overflow-hidden">
             <div class="table-responsive m-0 border-0 d-none d-lg-block">
                 <table class="table text-center align-middle m-0 table-hover">
@@ -578,6 +703,25 @@
             </div>
         </div>
 
+        <section id="company-audit">
+            <h5 class="company-section-title"><i class="fa-solid fa-clock-rotate-left text-secondary me-2"></i> سجل التدقيق<small>آخر تغييرات الإدارة والعمليات الحساسة المرتبطة بالشركة</small></h5>
+            <div class="glass-card">
+                <% if ((auditEntries || []).length) { %>
+                    <% auditEntries.forEach((entry) => { %>
+                        <div class="audit-row d-flex flex-wrap align-items-start justify-content-between gap-2">
+                            <div>
+                                <div class="fw-bold" style="color:var(--text-main)"><i class="fa-solid <%= entry.severity === 'critical' ? 'fa-triangle-exclamation text-danger' : (entry.severity === 'warning' ? 'fa-shield-halved text-warning' : 'fa-circle-info text-info') %> me-1"></i><%= entry.action || 'حدث تشغيلي' %></div>
+                                <div class="small text-muted mt-1">بواسطة: <%= entry.performedByName || 'النظام' %><% if (entry.endpoint) { %> · <span dir="ltr"><%= entry.endpoint %></span><% } %></div>
+                            </div>
+                            <div class="text-end"><span class="badge <%= entry.result === 'فاشل' || entry.result === 'محظور' ? 'bg-danger' : (entry.result === 'معلق' ? 'bg-warning text-dark' : 'bg-success') %>"><%= entry.result || 'ناجح' %></span><div class="small text-muted mt-1 mono-num" dir="ltr"><%= new Date(entry.createdAt).toLocaleString('en-GB', { timeZone: 'Africa/Tripoli' }) %></div></div>
+                        </div>
+                    <% }) %>
+                <% } else { %>
+                    <div class="company-empty"><i class="fa-solid fa-shield-heart fs-3 d-block mb-2 opacity-50"></i>لا توجد أحداث تدقيق ظاهرة لهذه الشركة حتى الآن.</div>
+                <% } %>
+            </div>
+        </section>
+
     </div>
 </div>
 
@@ -608,5 +752,22 @@ document.querySelectorAll('[data-webhook-form]').forEach((form) => {
         } catch (error) { result.className = 'mt-3 small text-danger fw-bold'; result.textContent = error.message; }
     });
 });
+
+(() => {
+    const navigation = [...document.querySelectorAll('.company-section-nav a')];
+    const targets = navigation.map((link) => document.querySelector(link.getAttribute('href'))).filter(Boolean);
+    const updateActiveSection = () => {
+        const current = targets.reduce((selected, section) => (
+            section.getBoundingClientRect().top <= 130 ? section : selected
+        ), targets[0]);
+        if (!current) return;
+        navigation.forEach((link) => link.classList.toggle('is-active', link.getAttribute('href') === `#${current.id}`));
+    };
+    navigation.forEach((link) => link.addEventListener('click', () => {
+        navigation.forEach((item) => item.classList.toggle('is-active', item === link));
+    }));
+    window.addEventListener('scroll', updateActiveSection, { passive: true });
+    updateActiveSection();
+})();
 </script>
 </html>

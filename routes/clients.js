@@ -8,6 +8,7 @@ const ExecutorGroup = require('../models/ExecutorGroup');
 const Settings = require('../models/Settings');
 const Transaction = require('../models/Transaction');
 const Ledger = require('../models/Ledger');
+const AuditLog = require('../models/AuditLog');
 const ClientEmployee = require('../models/ClientEmployee');
 const SubAccount = require('../models/SubAccount');
 const { requireAuth, requireMaster } = require('../middlewares/auth');
@@ -358,7 +359,7 @@ router.get('/user/:id', requireAuth, async (req, res) => {
 router.get('/company/:id', requireAuth, async (req, res) => {
     const company = await ClientCompany.findOne({ _id: req.params.id, ...visibleAccountFilter });
     if (!company) return res.redirect('/clients?section=companies&deleteError=notfound');
-    const [transactions, settings, webhookSubscriptions, executorGroups] = await Promise.all([
+    const [transactions, settings, webhookSubscriptions, executorGroups, employees, ledgerEntries, auditEntries, metricRows, apiMetricRows] = await Promise.all([
         Transaction.find({ companyId: company._id }).sort({ createdAt: -1 }).limit(50),
         Settings.findOne({}).lean(),
         MerchantWebhookSubscription.find({ companyId: company._id }).sort({ createdAt: -1 }).lean(),
@@ -367,7 +368,60 @@ router.get('/company/:id', requireAuth, async (req, res) => {
                 .select('_id name serviceKey isApiBot isApiGroup')
                 .sort({ serviceKey: 1, name: 1 })
                 .lean()
-            : Promise.resolve([])
+            : Promise.resolve([]),
+        ClientEmployee.find({ companyId: company._id, status: { $ne: 'deleted' } })
+            .select('name phone webUsername status role mfaEnabled mfaType canViewAllReports canManageCompany canCreateCompanyStaff mfaConfiguredAt createdAt updatedAt')
+            .sort({ role: 1, name: 1 })
+            .lean(),
+        Ledger.find({ entityId: company._id, entityModel: 'ClientCompany' })
+            .select('transactionId type amount balanceBefore balanceAfter description createdAt')
+            .sort({ createdAt: -1 })
+            .limit(20)
+            .lean(),
+        AuditLog.find({
+            $or: [
+                { targetId: company._id },
+                { 'metadata.companyId': String(company._id) },
+                { 'metadata.accountId': String(company._id) }
+            ]
+        }).select('action severity performedByName result metadata createdAt endpoint')
+            .sort({ createdAt: -1 })
+            .limit(30)
+            .lean(),
+        Transaction.aggregate([
+            { $match: { companyId: company._id } },
+            {
+                $group: {
+                    _id: null,
+                    totalCount: { $sum: 1 },
+                    completedCount: { $sum: { $cond: [{ $eq: ['$status', 'completed'] }, 1, 0] } },
+                    pendingCount: { $sum: { $cond: [{ $in: ['$status', ['pending', 'processing', 'accepted']] }, 1, 0] } },
+                    failedCount: { $sum: { $cond: [{ $in: ['$status', ['rejected', 'cancelled_by_admin', 'failed']] }, 1, 0] } },
+                    transferVolumeEGP: {
+                        $sum: {
+                            $cond: [
+                                { $in: ['$status', ['deposit', 'deduction']] },
+                                0,
+                                { $ifNull: ['$amount', 0] }
+                            ]
+                        }
+                    },
+                    costVolumeLYD: { $sum: { $ifNull: ['$costLYD', 0] } }
+                }
+            }
+        ]),
+        ApiCommunicationLog.aggregate([
+            { $match: { companyId: company._id } },
+            {
+                $group: {
+                    _id: null,
+                    total: { $sum: 1 },
+                    success: { $sum: { $cond: [{ $eq: ['$status', 'success'] }, 1, 0] } },
+                    pending: { $sum: { $cond: [{ $eq: ['$status', 'pending'] }, 1, 0] } },
+                    failed: { $sum: { $cond: [{ $eq: ['$status', 'failed'] }, 1, 0] } }
+                }
+            }
+        ])
     ]);
     const reversibleSettlements = await reversibleSettlementIds({ transactions, entityModel: 'ClientCompany', entityId: company._id });
     res.render('company_details', {
@@ -380,6 +434,11 @@ router.get('/company/:id', requireAuth, async (req, res) => {
         webhookSubscriptions,
         webhookEvents: SUPPORTED_EVENTS,
         executorGroups,
+        employees,
+        ledgerEntries,
+        auditEntries,
+        transactionMetrics: metricRows[0] || {},
+        apiMetrics: apiMetricRows[0] || {},
         query: req.query,
         isMaster: req.session.adminRole === 'master'
     });
