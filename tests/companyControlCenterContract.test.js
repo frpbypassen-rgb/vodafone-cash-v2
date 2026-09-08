@@ -44,5 +44,7 @@ describe('Company control center contract', () => {
         expect(workspace).toContain('route = (name)');
         expect(workspace).toContain("section === 'webhooks'");
         expect(workspace).toContain("section === 'audit'");
+        expect(workspace).toContain("section === 'api' && !isMaster");
+        expect(workspace).toContain("section === 'webhooks' && !isMaster");
     });
 });
