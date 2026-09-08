@@ -44,8 +44,6 @@ const API_PROVIDER_PRESETS = {
         serviceId: 307,
         providerId: 29,
         fieldId: 3488,
-        fieldKey: 'Key1',
-        serviceVersion: 0,
         machineSerial: 'XP1',
         // ZaynPay Legacy requires the provider-defined names inside the
         // inquiry payload: Fields[{ Key: 'Key1', Value }, { Key: 'Key2', Value }].
@@ -54,9 +52,9 @@ const API_PROVIDER_PRESETS = {
         appId: 'app12',
         versionId: 'Samsuang-502',
         requiresInquiry: true,
-        // The active ZaynPay legacy account uses the same two-step payload
-        // contract as MogaPay: Key/Value inquiry, then PaymentBillInfo.
-        transactionContract: 'keyed_payment_bill_v1'
+        // ZaynPay's supplied payment example uses Key1/Key2 with an issued
+        // PaymentBillInfo. It intentionally omits MachineSerial and provider ID.
+        transactionContract: 'zaynpay_legacy_payment_v1'
     },
     mogapay: {
         key: 'mogapay',

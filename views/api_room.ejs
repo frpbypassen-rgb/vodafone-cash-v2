@@ -165,7 +165,8 @@
 
                         <%
                             const inquiryPayloadMode = bot.apiInquiryPayloadMode || apiProviderPreset.inquiryPayloadMode || 'fields_value';
-                            const usesFixedKeyedPaymentContract = apiProviderPreset.transactionContract === 'keyed_payment_bill_v1';
+                            const usesZaynLegacyPaymentContract = apiProviderPreset.transactionContract === 'zaynpay_legacy_payment_v1';
+                            const usesFixedKeyedPaymentContract = apiProviderPreset.transactionContract === 'keyed_payment_bill_v1' || usesZaynLegacyPaymentContract;
                             const usesProviderKeys = usesFixedKeyedPaymentContract || inquiryPayloadMode === 'field_key_pair';
                             const nextInquiryPayloadMode = usesProviderKeys ? 'fields_value' : 'field_key_pair';
                         %>
@@ -173,8 +174,8 @@
                             <div class="d-flex justify-content-between align-items-center flex-wrap gap-3">
                                 <div>
                                     <div class="fw-bold text-light"><i class="fa-solid fa-code-branch text-info me-1"></i> نمط حقول استعلام التحويل</div>
-                                    <small class="<%= usesProviderKeys ? 'text-success' : 'text-muted' %>"><%= usesFixedKeyedPaymentContract ? 'عقد موحد: Fields[Key1] مع InqueryAmount و ServiceVersion، ويُعاد استخدامه في الدفع.' : (usesProviderKeys ? 'مخصص للمزود: عناصر Fields من Key/Value لـ Key1 و Key2' : 'قياسي: Fields[].Value و InqueryAmount') %></small>
-                                    <div class="small text-muted mt-1"><%= usesFixedKeyedPaymentContract ? 'هذه البنية ثابتة لهذا المزود لضمان تطابق الاستعلام والدفع.' : 'التبديل يخص طلب الاستعلام فقط، ولا يغير طلب الدفع.' %></div>
+                                    <small class="<%= usesProviderKeys ? 'text-success' : 'text-muted' %>"><%= usesZaynLegacyPaymentContract ? 'عقد ZaynPay Legacy: Key1 و Key2 في الاستعلام والدفع، مع PaymentBillInfo في الدفع.' : (usesFixedKeyedPaymentContract ? 'عقد موحد: Fields[Key1] مع InqueryAmount و ServiceVersion، ويُعاد استخدامه في الدفع.' : (usesProviderKeys ? 'مخصص للمزود: عناصر Fields من Key/Value لـ Key1 و Key2' : 'قياسي: Fields[].Value و InqueryAmount')) %></small>
+                                    <div class="small text-muted mt-1"><%= usesZaynLegacyPaymentContract ? 'هذه البنية ثابتة وفق عقد الدفع المعتمد من ZaynPay.' : (usesFixedKeyedPaymentContract ? 'هذه البنية ثابتة لهذا المزود لضمان تطابق الاستعلام والدفع.' : 'التبديل يخص طلب الاستعلام فقط، ولا يغير طلب الدفع.') %></div>
                                 </div>
                                 <% if (typeof isMaster !== 'undefined' && isMaster && !usesFixedKeyedPaymentContract) { %>
                                     <button type="button" class="btn btn-outline-info fw-bold" data-api-bot-id="<%= bot._id %>" data-inquiry-mode="<%= nextInquiryPayloadMode %>" onclick="changeInquiryPayloadMode(this)"><i class="fa-solid fa-right-left me-1"></i> <%= usesProviderKeys ? 'استخدام النمط القياسي' : 'استخدام Fields Key/Value' %></button>

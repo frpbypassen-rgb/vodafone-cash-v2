@@ -624,7 +624,7 @@
                                                         data-machine-serial="<%= provider.machineSerial %>"
                                                         data-inquiry-payload-mode="<%= provider.inquiryPayloadMode || 'fields_value' %>"
                                                         data-requires-inquiry="<%= provider.requiresInquiry ? 'true' : 'false' %>"
-                                                        data-fixed-inquiry-contract="<%= provider.transactionContract === 'keyed_payment_bill_v1' ? 'true' : 'false' %>">
+                                                        data-fixed-inquiry-contract="<%= ['keyed_payment_bill_v1', 'zaynpay_legacy_payment_v1'].includes(provider.transactionContract) ? 'true' : 'false' %>">
                                                     <%= provider.nameAr || provider.name %>
                                                 </option>
                                             <% }) %>

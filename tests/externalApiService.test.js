@@ -149,7 +149,7 @@ describe('externalApiService', () => {
         );
     });
 
-    test('uses the MogaPay-compatible inquiry and payment contract for ZaynPay Legacy', async () => {
+    test('uses the provider-supplied Key1/Key2 payment contract for ZaynPay Legacy', async () => {
         mockSuccessFlow();
 
         await executeTransferViaApi(
@@ -167,12 +167,12 @@ describe('externalApiService', () => {
             'https://zayn.example/api/V1/Transactions/Inquiry',
             {
                 Fields: [
-                    { Key: 'Key1', Value: '01108172258' }
+                    { Key: 'Key1', Value: '01108172258' },
+                    { Key: 'Key2', Value: '5000' }
                 ],
+                CurrentServiceProviderId: 29,
                 MachineSerial: 'XP1',
-                ServiceId: 307,
-                InqueryAmount: 5000,
-                ServiceVersion: 0
+                ServiceId: '307'
             },
             expect.any(Object)
         );
@@ -180,12 +180,13 @@ describe('externalApiService', () => {
             3,
             'https://zayn.example/api/V1/Transactions/Payment',
             {
-                Fields: [{ Key: 'Key1', Value: '01108172258' }],
-                ServiceId: 307,
-                MachineSerial: 'XP1',
-                ServiceVersion: 0,
+                Fields: [
+                    { Key: 'Key1', Value: '01108172258' },
+                    { Key: 'Key2', Value: '5000' }
+                ],
+                Amount: 5000,
                 PaymentBillInfo: 'payment-bill-info',
-                Amount: 5000
+                ServiceId: '307'
             },
             expect.any(Object)
         );

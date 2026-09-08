@@ -15,6 +15,7 @@ const {
 
 const SUPPORT_PHONE = '01108172258';
 const KEYED_PAYMENT_BILL_CONTRACT = 'keyed_payment_bill_v1';
+const ZAYNPAY_LEGACY_PAYMENT_CONTRACT = 'zaynpay_legacy_payment_v1';
 
 const normalizeBaseUrl = (value) => {
     let baseUrl = String(value || '').trim().replace(/\/+$/, '');
@@ -497,14 +498,27 @@ const executeTransferViaApi = async (tx, apiBot) => {
                     PaymentBillInfo: inquiryData.Data.PaymentBillInfo,
                     Amount: amount
                 }
-                : {
+                : preset.transactionContract === ZAYNPAY_LEGACY_PAYMENT_CONTRACT
+                    ? {
+                        // Exact ZaynPay Legacy payment contract supplied by
+                        // the provider: Key1 recipient, Key2 amount, plus the
+                        // PaymentBillInfo returned from its Inquiry request.
+                        Fields: [
+                            { Key: 'Key1', Value: String(targetNumber) },
+                            { Key: 'Key2', Value: String(amount) }
+                        ],
+                        Amount: amount,
+                        PaymentBillInfo: inquiryData.Data.PaymentBillInfo,
+                        ServiceId: String(serviceId)
+                    }
+                    : {
                     Fields: [{ Id: fieldId, Value: targetNumber }],
                     CurrentServiceProviderId: providerId,
                     ServiceId: serviceId,
                     PaymentBillInfo: inquiryData.Data.PaymentBillInfo,
                     Amount: amount,
                     MachineSerial: machineSerial
-                };
+                    };
         }
         addLog("PAYMENT", `جاري إرسال الدفعة النهائية بقيمة [${amount} EGP]...`);
         const paymentEndpoint = `${baseUrl}/api/V1/Transactions/Payment`;
