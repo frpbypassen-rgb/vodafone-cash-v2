@@ -29,6 +29,10 @@ const {
 const { normalizeWhatsAppPhone } = require('../services/whatsappService');
 const { sanitizeStatementText } = require('../utils/accountStatementPrivacy');
 const { authorizeCompanyApiServer } = require('../services/companyApiServerAccessService');
+const {
+    observeMerchantApiSource,
+    trackMerchantApiRequest
+} = require('../services/merchantApiSourceActivityService');
 
 const MERCHANT_TRANSFER_MIN_AMOUNT = 100;
 const MERCHANT_TRANSFER_MAX_AMOUNT = 50000;
@@ -196,6 +200,13 @@ const merchantApiAuth = async (req, res, next) => {
         const company = await ClientBot.findOne({ token: apiKey, status: 'active' }).lean();
         if (company) {
             const serverAuthorization = authorizeCompanyApiServer({ company, req });
+            const sourceActivity = observeMerchantApiSource({
+                CompanyModel: ClientBot,
+                company,
+                req,
+                sourceIp: serverAuthorization.sourceIp
+            }) || { sourceIp: serverAuthorization.sourceIp || '' };
+            trackMerchantApiRequest({ req, res, companyId: company._id, source: sourceActivity });
             if (!serverAuthorization.allowed) {
                 return res.status(403).json({
                     status: 'failed',
@@ -208,22 +219,9 @@ const merchantApiAuth = async (req, res, next) => {
                 merchantType: 'company',
                 entityModel: 'ClientCompany',
                 transactionUserId: 'api_merchant',
-                apiSourceServerId: serverAuthorization.server?._id || null,
-                apiSourceIp: serverAuthorization.sourceIp || ''
+                apiSourceServerId: sourceActivity.serverId || serverAuthorization.server?._id || null,
+                apiSourceIp: sourceActivity.sourceIp || serverAuthorization.sourceIp || ''
             };
-            // Activity is observability only; it never delays or authorises a
-            // financial request. The allow-list decision above is fail-closed.
-            if (serverAuthorization.server?._id && typeof ClientBot.updateOne === 'function') {
-                ClientBot.updateOne(
-                    { _id: company._id, 'apiAccessPolicy.servers._id': serverAuthorization.server._id },
-                    {
-                        $set: {
-                            'apiAccessPolicy.servers.$.lastSeenAt': new Date(),
-                            'apiAccessPolicy.servers.$.lastSeenEndpoint': String(req.path || '').slice(0, 120)
-                        }
-                    }
-                ).catch(() => undefined);
-            }
             return next();
         }
 
@@ -391,6 +389,8 @@ router.post('/transfer', merchantApiAuth, async (req, res) => {
                 companyId: isAgentMerchant ? undefined : req.merchant._id,
                 merchantAccountId: req.merchant._id,
                 merchantAccountType: isAgentMerchant ? 'agent' : 'company',
+                apiSourceIp: isAgentMerchant ? '' : (req.merchant.apiSourceIp || ''),
+                apiSourceServerId: isAgentMerchant ? null : (req.merchant.apiSourceServerId || null),
                 amount: amountValue,
                 costLYD,
                 exchangeRate,
@@ -441,6 +441,11 @@ router.post('/transfer', merchantApiAuth, async (req, res) => {
                 console.error('[Merchant API] Auto-route enqueue failed:', err.message);
             });
         }
+
+        req.merchantApiActivity = {
+            transactionId: result.tx._id,
+            transactionReference: result.tx.customId
+        };
 
         return res.json({
             status: 'success',

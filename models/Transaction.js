@@ -22,6 +22,9 @@ const transactionSchema = new mongoose.Schema({
     // External API account that owns the webhook stream (company or agency).
     merchantAccountId: { type: mongoose.Schema.Types.ObjectId },
     merchantAccountType: { type: String, enum: ['company', 'agent'] },
+    // Network source for requests created via a company's Merchant API.
+    apiSourceIp: { type: String, trim: true, maxlength: 100, default: '' },
+    apiSourceServerId: { type: mongoose.Schema.Types.ObjectId, default: null },
     subAccountId: { type: mongoose.Schema.Types.ObjectId, ref: 'SubAccount' }, 
     companyName: { type: String },
     employeeName: { type: String },

@@ -53,6 +53,7 @@ const { provisionSandboxMerchant } = require('../services/sandboxMerchantProvisi
 const MerchantWebhookSubscription = require('../models/MerchantWebhookSubscription');
 const MerchantWebhookDelivery = require('../models/MerchantWebhookDelivery');
 const ApiCommunicationLog = require('../models/ApiCommunicationLog');
+const MerchantApiSourceLog = require('../models/MerchantApiSourceLog');
 const {
     SUPPORTED_EVENTS,
     validateWebhookUrl,
@@ -461,7 +462,7 @@ router.get('/company/:id/:section', requireAuth, async (req, res, next) => {
     if (!COMPANY_WORKSPACE_SECTIONS.has(section)) return next();
     const company = await ClientCompany.findOne({ _id: req.params.id, ...visibleAccountFilter });
     if (!company) return res.redirect('/clients?section=companies&deleteError=notfound');
-    const [transactions, settings, webhookSubscriptions, executorGroups, employees, ledgerEntries, auditEntries, metricRows, apiMetricRows] = await Promise.all([
+    const [transactions, settings, webhookSubscriptions, executorGroups, employees, ledgerEntries, auditEntries, metricRows, apiMetricRows, merchantApiSourceLogs] = await Promise.all([
         Transaction.find({ companyId: company._id }).sort({ createdAt: -1 }).limit(50),
         Settings.findOne({}).lean(),
         MerchantWebhookSubscription.find({ companyId: company._id }).sort({ createdAt: -1 }).lean(),
@@ -523,7 +524,14 @@ router.get('/company/:id/:section', requireAuth, async (req, res, next) => {
                     failed: { $sum: { $cond: [{ $eq: ['$status', 'failed'] }, 1, 0] } }
                 }
             }
-        ])
+        ]),
+        section === 'security'
+            ? MerchantApiSourceLog.find({ companyId: company._id })
+                .select('serverId sourceIp deviceLabel userAgent method endpoint statusCode transactionId transactionReference createdAt')
+                .sort({ createdAt: -1 })
+                .limit(300)
+                .lean()
+            : Promise.resolve([])
     ]);
     const reversibleSettlements = await reversibleSettlementIds({ transactions, entityModel: 'ClientCompany', entityId: company._id });
     const primaryManager = employees.find((employee) => (
@@ -547,6 +555,7 @@ router.get('/company/:id/:section', requireAuth, async (req, res, next) => {
         auditEntries,
         transactionMetrics: metricRows[0] || {},
         apiMetrics: apiMetricRows[0] || {},
+        merchantApiSourceLogs,
         query: req.query,
         isMaster: req.session.adminRole === 'master'
     });
@@ -909,6 +918,26 @@ router.post('/company/:id/security/api-servers/:serverId/delete', requireAuth, r
         console.error('[clients/company-api-server-delete] failed:', error.message);
         const known = new Set(['API_SERVER_NOT_FOUND', 'LOCKED_API_SERVER_DELETE_FORBIDDEN']);
         return res.redirect(`/company/${req.params.id}/security?securityError=${known.has(error.message) ? error.message : 'save'}`);
+    }
+});
+
+router.get('/company/:id/security/api-servers/:serverId/activity', requireAuth, requireMaster, async (req, res) => {
+    try {
+        const company = await ClientCompany.findOne({ _id: req.params.id, ...visibleAccountFilter }).lean();
+        if (!company) return res.status(404).send('الحساب غير موجود.');
+        const server = (company.apiAccessPolicy?.servers || []).find((item) => String(item._id) === String(req.params.serverId));
+        if (!server) return res.status(404).send('مصدر API غير موجود.');
+
+        const sourceIp = normalizeSourceIp(server.sourceIp);
+        const logs = await MerchantApiSourceLog.find({ companyId: company._id, sourceIp })
+            .select('sourceIp deviceLabel userAgent method endpoint statusCode transactionId transactionReference createdAt')
+            .sort({ createdAt: -1 })
+            .limit(500)
+            .lean();
+        return res.render('company_api_source_activity', { company, server, logs });
+    } catch (error) {
+        console.error('[clients/company-api-source-activity] failed:', error.message);
+        return res.status(500).send('تعذر تحميل سجل مصدر API.');
     }
 });
 

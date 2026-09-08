@@ -61,7 +61,13 @@ const clientCompanySchema = new mongoose.Schema({
             createdAt: { type: Date, default: Date.now },
             updatedAt: { type: Date, default: Date.now },
             lastSeenAt: { type: Date, default: null },
-            lastSeenEndpoint: { type: String, trim: true, default: '' }
+            lastSeenEndpoint: { type: String, trim: true, default: '' },
+            firstSeenAt: { type: Date, default: null },
+            lastUserAgent: { type: String, trim: true, default: '' },
+            lastDeviceLabel: { type: String, trim: true, default: '' },
+            lastStatusCode: { type: Number, default: 0 },
+            requestCount: { type: Number, default: 0 },
+            discovered: { type: Boolean, default: false }
         }]
     },
 

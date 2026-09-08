@@ -69,14 +69,22 @@ describe('Company control center contract', () => {
         expect(routes).toContain("router.post('/company/:id/security/api-servers', requireAuth, requireMaster");
         expect(routes).toContain("action: 'COMPANY_API_SERVER_LOCKED'");
         expect(routes).toContain("router.post('/company/:id/security/api-server-lock/unlock', requireAuth, requireMaster");
+        expect(routes).toContain("router.get('/company/:id/security/api-servers/:serverId/activity', requireAuth, requireMaster");
+        expect(routes).toContain("const MerchantApiSourceLog = require('../models/MerchantApiSourceLog')");
 
         const workspace = fs.readFileSync(path.join(__dirname, '../views/company_workspace.ejs'), 'utf8');
         expect(workspace).toContain('name="mfaRequired"');
         expect(workspace).toContain('name="canTransfer"');
         expect(workspace).toContain('name="sourceIp"');
         expect(workspace).toContain('قفل مصدر Merchant API');
+        expect(workspace).toContain('سجل العمليات');
+        expect(workspace).toContain('lastDeviceLabel');
 
         const serverAccess = fs.readFileSync(path.join(__dirname, '../services/companyApiServerAccessService.js'), 'utf8');
         expect(serverAccess).toContain("code: 'API_SERVER_NOT_ALLOWED'");
+
+        const sourceActivity = fs.readFileSync(path.join(__dirname, '../services/merchantApiSourceActivityService.js'), 'utf8');
+        expect(sourceActivity).toContain('observeMerchantApiSource');
+        expect(sourceActivity).toContain('trackMerchantApiRequest');
     });
 });

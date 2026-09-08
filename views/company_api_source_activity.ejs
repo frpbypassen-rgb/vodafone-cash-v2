@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>سجل مصدر Merchant API</title>
+    <style>
+        body { margin: 0; background: #071421; color: #e7eef7; font-family: Tahoma, Arial, sans-serif; }
+        main { max-width: 1280px; margin: 0 auto; padding: 28px 18px 48px; }
+        .card { background: #102234; border: 1px solid #28445d; border-radius: 14px; padding: 18px; margin-bottom: 18px; }
+        h1 { font-size: 1.35rem; margin: 0 0 8px; } .muted { color: #9db1c6; } .mono { font-family: Consolas, monospace; direction: ltr; unicode-bidi: plaintext; }
+        table { width: 100%; border-collapse: collapse; } th, td { padding: 12px 10px; border-bottom: 1px solid #28445d; text-align: right; vertical-align: top; }
+        th { color: #9db1c6; font-size: .85rem; } .ok { color: #67e8a6; } .bad { color: #fda4af; } .empty { padding: 28px; text-align: center; color: #9db1c6; }
+        .back { color: #7dd3fc; text-decoration: none; display: inline-block; margin-bottom: 18px; }
+        @media (max-width: 760px) { main { padding: 18px 10px; } .scroll { overflow-x: auto; } table { min-width: 780px; } }
+    </style>
+</head>
+<body>
+<main>
+    <a class="back" href="/company/<%= company._id %>/security">← العودة إلى الأمان والصلاحيات</a>
+    <section class="card">
+        <h1>سجل مصدر Merchant API</h1>
+        <div><strong><%= server.name %></strong> · <span class="mono"><%= server.sourceIp %></span></div>
+        <div class="muted">يعرض هذا السجل بيانات الاتصال الفنية فقط؛ لا يحفظ مفتاح API أو جسم الطلب.</div>
+    </section>
+    <section class="card scroll">
+        <% if (!(logs || []).length) { %>
+            <div class="empty">لا توجد طلبات مسجلة لهذا المصدر حتى الآن.</div>
+        <% } else { %>
+            <table>
+                <thead><tr><th>الوقت</th><th>العملية</th><th>المسار</th><th>النتيجة</th><th>الجهاز / العميل</th><th>مرجع العملية</th></tr></thead>
+                <tbody>
+                <% logs.forEach((log) => { const ok = Number(log.statusCode) >= 200 && Number(log.statusCode) < 400; %>
+                    <tr>
+                        <td><%= new Date(log.createdAt).toLocaleString('ar-LY', { timeZone: 'Africa/Tripoli' }) %></td>
+                        <td class="mono"><%= log.method %></td>
+                        <td class="mono"><%= log.endpoint %></td>
+                        <td class="<%= ok ? 'ok' : 'bad' %>"><%= log.statusCode || '—' %></td>
+                        <td><strong><%= log.deviceLabel || 'غير معروف' %></strong><div class="muted mono"><%= log.userAgent || '—' %></div></td>
+                        <td class="mono"><%= log.transactionReference || '—' %></td>
+                    </tr>
+                <% }) %>
+                </tbody>
+            </table>
+        <% } %>
+    </section>
+</main>
+</body>
+</html>
