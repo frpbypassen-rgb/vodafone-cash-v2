@@ -33,7 +33,7 @@ const sourceServerForIp = (company = {}, sourceIp = '') => {
     )) || null;
 };
 
-const observeMerchantApiSource = ({ CompanyModel, company, req, sourceIp }) => {
+const observeMerchantApiSource = async ({ CompanyModel, company, req, sourceIp }) => {
     const normalizedIp = normalizeSourceIp(sourceIp);
     if (!CompanyModel || !company?._id || !normalizedIp) return null;
 
@@ -44,50 +44,60 @@ const observeMerchantApiSource = ({ CompanyModel, company, req, sourceIp }) => {
     const knownServer = sourceServerForIp(company, normalizedIp);
 
     if (knownServer?._id) {
-        recordAsync(() => CompanyModel.updateOne(
-            { _id: company._id, 'apiAccessPolicy.servers._id': knownServer._id },
-            {
-                $set: {
-                    'apiAccessPolicy.servers.$.lastSeenAt': now,
-                    'apiAccessPolicy.servers.$.lastSeenEndpoint': endpoint,
-                    'apiAccessPolicy.servers.$.lastUserAgent': userAgent,
-                    'apiAccessPolicy.servers.$.lastDeviceLabel': deviceLabel
-                },
-                $inc: { 'apiAccessPolicy.servers.$.requestCount': 1 }
-            }
-        ));
+        try {
+            await CompanyModel.updateOne(
+                { _id: company._id, 'apiAccessPolicy.servers._id': knownServer._id },
+                {
+                    $set: {
+                        'apiAccessPolicy.servers.$.lastSeenAt': now,
+                        'apiAccessPolicy.servers.$.lastSeenEndpoint': endpoint,
+                        'apiAccessPolicy.servers.$.lastUserAgent': userAgent,
+                        'apiAccessPolicy.servers.$.lastDeviceLabel': deviceLabel
+                    },
+                    $inc: { 'apiAccessPolicy.servers.$.requestCount': 1 }
+                }
+            );
+        } catch (error) {
+            console.error('[Merchant API source] unable to update known source:', error.message);
+        }
         return { serverId: knownServer._id, sourceIp: normalizedIp, userAgent, deviceLabel };
     }
 
     // Discovery is active only while the policy is open. A source seen while
     // locked is logged but never added to the allow-list automatically.
     if (company.apiAccessPolicy?.mode !== 'locked') {
-        recordAsync(() => CompanyModel.updateOne(
-            {
-                _id: company._id,
-                'apiAccessPolicy.servers': {
-                    $not: { $elemMatch: { sourceIp: normalizedIp } }
-                }
-            },
-            {
-                $push: {
+        try {
+            // Await the persistence so a successful API response always has a
+            // corresponding source visible in the security dashboard.
+            await CompanyModel.updateOne(
+                {
+                    _id: company._id,
                     'apiAccessPolicy.servers': {
-                        name: `مصدر API مكتشف — ${normalizedIp}`,
-                        sourceIp: normalizedIp,
-                        enabled: true,
-                        discovered: true,
-                        firstSeenAt: now,
-                        lastSeenAt: now,
-                        lastSeenEndpoint: endpoint,
-                        lastUserAgent: userAgent,
-                        lastDeviceLabel: deviceLabel,
-                        requestCount: 1,
-                        createdAt: now,
-                        updatedAt: now
+                        $not: { $elemMatch: { sourceIp: normalizedIp } }
+                    }
+                },
+                {
+                    $push: {
+                        'apiAccessPolicy.servers': {
+                            name: `مصدر API مكتشف — ${normalizedIp}`,
+                            sourceIp: normalizedIp,
+                            enabled: true,
+                            discovered: true,
+                            firstSeenAt: now,
+                            lastSeenAt: now,
+                            lastSeenEndpoint: endpoint,
+                            lastUserAgent: userAgent,
+                            lastDeviceLabel: deviceLabel,
+                            requestCount: 1,
+                            createdAt: now,
+                            updatedAt: now
+                        }
                     }
                 }
-            }
-        ));
+            );
+        } catch (error) {
+            console.error('[Merchant API source] unable to record discovered source:', error.message);
+        }
     }
     return { serverId: null, sourceIp: normalizedIp, userAgent, deviceLabel };
 };

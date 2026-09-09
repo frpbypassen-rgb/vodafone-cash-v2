@@ -67,7 +67,10 @@ describe('Company control center contract', () => {
         expect(routes).toContain("router.post('/company/:id/security/accounts/:employeeId', requireAuth, requireMaster");
         expect(routes).toContain("action: 'COMPANY_ACCOUNT_SECURITY_UPDATED'");
         expect(routes).toContain("router.post('/company/:id/security/api-servers', requireAuth, requireMaster");
+        expect(routes).toContain("router.post('/company/:id/security/api-servers/:serverId', requireAuth, requireMaster");
+        expect(routes).toContain("router.post('/company/:id/security/api-servers/:serverId/toggle', requireAuth, requireMaster");
         expect(routes).toContain("action: 'COMPANY_API_SERVER_LOCKED'");
+        expect(routes).toContain("action: server.enabled ? 'COMPANY_API_SERVER_ENABLED' : 'COMPANY_API_SERVER_SUSPENDED'");
         expect(routes).toContain("router.post('/company/:id/security/api-server-lock/unlock', requireAuth, requireMaster");
         expect(routes).toContain("router.get('/company/:id/security/api-servers/:serverId/activity', requireAuth, requireMaster");
         expect(routes).toContain("const MerchantApiSourceLog = require('../models/MerchantApiSourceLog')");
@@ -79,9 +82,12 @@ describe('Company control center contract', () => {
         expect(workspace).toContain('قفل مصدر Merchant API');
         expect(workspace).toContain('سجل العمليات');
         expect(workspace).toContain('lastDeviceLabel');
+        expect(workspace).toContain('تعليق المصدر');
+        expect(workspace).toContain('تعديل الاسم والرابط');
 
         const serverAccess = fs.readFileSync(path.join(__dirname, '../services/companyApiServerAccessService.js'), 'utf8');
         expect(serverAccess).toContain("code: 'API_SERVER_NOT_ALLOWED'");
+        expect(serverAccess).toContain("code: 'API_SERVER_SUSPENDED'");
 
         const sourceActivity = fs.readFileSync(path.join(__dirname, '../services/merchantApiSourceActivityService.js'), 'utf8');
         expect(sourceActivity).toContain('observeMerchantApiSource');

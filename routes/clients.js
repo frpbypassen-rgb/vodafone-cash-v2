@@ -821,6 +821,75 @@ router.post('/company/:id/security/api-servers', requireAuth, requireMaster, asy
     }
 });
 
+router.post('/company/:id/security/api-servers/:serverId', requireAuth, requireMaster, async (req, res) => {
+    try {
+        const company = await ClientCompany.findOne({ _id: req.params.id, ...visibleAccountFilter });
+        if (!company) return res.redirect('/clients?section=companies&securityError=notfound');
+        const policy = company.apiAccessPolicy || {};
+        const server = (policy.servers || []).find((item) => String(item._id) === String(req.params.serverId));
+        if (!server) throw new Error('API_SERVER_NOT_FOUND');
+
+        const name = cleanProfileText(req.body.name, 100);
+        const baseUrl = normalizeApiServerUrl(req.body.baseUrl);
+        if (name.length < 2) throw new Error('INVALID_API_SERVER');
+
+        const oldData = { name: server.name, baseUrl: server.baseUrl || '', sourceIp: server.sourceIp };
+        server.name = name;
+        server.baseUrl = baseUrl;
+        server.updatedAt = new Date();
+        policy.updatedAt = new Date();
+        policy.updatedBy = req.session.adminName || req.session.adminUsername || 'الإدارة';
+        company.apiAccessPolicy = policy;
+        company.markModified('apiAccessPolicy');
+        await company.save();
+        await logAction({
+            action: 'COMPANY_API_SERVER_UPDATED', req,
+            performedById: req.session.adminId, performedByModel: 'Admin', performedByName: policy.updatedBy,
+            targetId: company._id, targetModel: 'ClientCompany', oldData,
+            newData: { name, baseUrl, sourceIp: server.sourceIp }, result: 'ناجح', severity: 'info'
+        });
+        return res.redirect(`/company/${company._id}/security?apiServerUpdated=1`);
+    } catch (error) {
+        console.error('[clients/company-api-server-update] failed:', error.message);
+        const known = new Set(['API_SERVER_NOT_FOUND', 'INVALID_API_SERVER', 'INVALID_API_SERVER_URL']);
+        return res.redirect(`/company/${req.params.id}/security?securityError=${known.has(error.message) ? error.message : 'save'}`);
+    }
+});
+
+router.post('/company/:id/security/api-servers/:serverId/toggle', requireAuth, requireMaster, async (req, res) => {
+    try {
+        const company = await ClientCompany.findOne({ _id: req.params.id, ...visibleAccountFilter });
+        if (!company) return res.redirect('/clients?section=companies&securityError=notfound');
+        const policy = company.apiAccessPolicy || {};
+        const server = (policy.servers || []).find((item) => String(item._id) === String(req.params.serverId));
+        if (!server) throw new Error('API_SERVER_NOT_FOUND');
+        if (policy.mode === 'locked' && String(policy.lockedServerId) === String(server._id) && server.enabled !== false) {
+            throw new Error('LOCKED_API_SERVER_SUSPEND_FORBIDDEN');
+        }
+
+        const oldData = { name: server.name, sourceIp: server.sourceIp, enabled: server.enabled !== false };
+        server.enabled = server.enabled === false;
+        server.updatedAt = new Date();
+        policy.updatedAt = new Date();
+        policy.updatedBy = req.session.adminName || req.session.adminUsername || 'الإدارة';
+        company.apiAccessPolicy = policy;
+        company.markModified('apiAccessPolicy');
+        await company.save();
+        await logAction({
+            action: server.enabled ? 'COMPANY_API_SERVER_ENABLED' : 'COMPANY_API_SERVER_SUSPENDED', req,
+            performedById: req.session.adminId, performedByModel: 'Admin', performedByName: policy.updatedBy,
+            targetId: company._id, targetModel: 'ClientCompany', oldData,
+            newData: { name: server.name, sourceIp: server.sourceIp, enabled: server.enabled },
+            result: 'ناجح', severity: 'warning'
+        });
+        return res.redirect(`/company/${company._id}/security?apiServerToggled=1`);
+    } catch (error) {
+        console.error('[clients/company-api-server-toggle] failed:', error.message);
+        const known = new Set(['API_SERVER_NOT_FOUND', 'LOCKED_API_SERVER_SUSPEND_FORBIDDEN']);
+        return res.redirect(`/company/${req.params.id}/security?securityError=${known.has(error.message) ? error.message : 'save'}`);
+    }
+});
+
 router.post('/company/:id/security/api-servers/:serverId/lock', requireAuth, requireMaster, async (req, res) => {
     try {
         const company = await ClientCompany.findOne({ _id: req.params.id, ...visibleAccountFilter });

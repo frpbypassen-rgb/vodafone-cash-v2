@@ -2,6 +2,7 @@
 
 const {
     normalizeSourceIp,
+    requestSourceIp,
     authorizeCompanyApiServer
 } = require('../services/companyApiServerAccessService');
 
@@ -24,6 +25,24 @@ describe('company API source-server access', () => {
             .toEqual(expect.objectContaining({ allowed: true, sourceIp: '203.0.113.25' }));
         expect(authorizeCompanyApiServer({ company, req: { ip: '203.0.113.26' } }))
             .toEqual(expect.objectContaining({ allowed: false, code: 'API_SERVER_NOT_ALLOWED' }));
+    });
+
+    test('uses the original client address supplied by a trusted proxy', () => {
+        expect(requestSourceIp({
+            headers: { 'cf-connecting-ip': '203.0.113.25' },
+            ip: '172.64.1.10'
+        })).toBe('203.0.113.25');
+    });
+
+    test('blocks a suspended source even while the company policy is open', () => {
+        const openCompany = {
+            apiAccessPolicy: {
+                mode: 'open',
+                servers: [{ _id: 'server-suspended', name: 'Legacy source', sourceIp: '203.0.113.25', enabled: false }]
+            }
+        };
+        expect(authorizeCompanyApiServer({ company: openCompany, req: { ip: '203.0.113.25' } }))
+            .toEqual(expect.objectContaining({ allowed: false, code: 'API_SERVER_SUSPENDED' }));
     });
 
     test('fails closed when a lock points to a missing or disabled server', () => {

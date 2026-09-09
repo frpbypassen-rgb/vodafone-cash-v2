@@ -12,9 +12,32 @@ const normalizeSourceIp = (value) => {
     return net.isIP(ip) ? ip : '';
 };
 
-const requestSourceIp = (req) => normalizeSourceIp(
-    req?.ip || req?.socket?.remoteAddress || req?.connection?.remoteAddress
-);
+const firstForwardedIp = (value) => String(value || '').split(',')[0].trim();
+
+// Merchant requests may pass through Cloudflare or a reverse proxy. In that
+// case Express can otherwise see the proxy address instead of the partner's
+// public server IP. These headers must only be forwarded by the deployment
+// proxy; the production proxy is responsible for stripping client-supplied
+// copies before it forwards traffic to Node.
+const requestSourceIp = (req) => {
+    const headers = req?.headers || {};
+    const candidates = [
+        headers['cf-connecting-ip'],
+        headers['x-real-ip'],
+        firstForwardedIp(headers['x-forwarded-for']),
+        req?.ip,
+        req?.socket?.remoteAddress,
+        req?.connection?.remoteAddress
+    ];
+    return candidates.map(normalizeSourceIp).find(Boolean) || '';
+};
+
+const serverForSourceIp = (company, sourceIp) => {
+    const normalizedIp = normalizeSourceIp(sourceIp);
+    return (company?.apiAccessPolicy?.servers || []).find((server) => (
+        normalizeSourceIp(server?.sourceIp) === normalizedIp
+    )) || null;
+};
 
 const activeLockedServer = (company) => {
     const policy = company?.apiAccessPolicy || {};
@@ -28,8 +51,18 @@ const activeLockedServer = (company) => {
 const authorizeCompanyApiServer = ({ company, req }) => {
     const policy = company?.apiAccessPolicy || {};
     const sourceIp = requestSourceIp(req);
+    const sourceServer = serverForSourceIp(company, sourceIp);
+    if (sourceServer?.enabled === false) {
+        return {
+            allowed: false,
+            sourceIp,
+            server: sourceServer,
+            code: 'API_SERVER_SUSPENDED',
+            message: 'تم تعليق مصدر API هذا لهذا الحساب.'
+        };
+    }
     if (policy.mode !== 'locked') {
-        return { allowed: true, sourceIp, server: null };
+        return { allowed: true, sourceIp, server: sourceServer };
     }
 
     const server = activeLockedServer(company);
@@ -56,6 +89,7 @@ const authorizeCompanyApiServer = ({ company, req }) => {
 module.exports = {
     normalizeSourceIp,
     requestSourceIp,
+    serverForSourceIp,
     activeLockedServer,
     authorizeCompanyApiServer
 };

@@ -200,7 +200,7 @@ const merchantApiAuth = async (req, res, next) => {
         const company = await ClientBot.findOne({ token: apiKey, status: 'active' }).lean();
         if (company) {
             const serverAuthorization = authorizeCompanyApiServer({ company, req });
-            const sourceActivity = observeMerchantApiSource({
+            const sourceActivity = await observeMerchantApiSource({
                 CompanyModel: ClientBot,
                 company,
                 req,
