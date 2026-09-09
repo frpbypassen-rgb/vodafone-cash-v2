@@ -7,6 +7,7 @@ const EXEMPT_PREFIXES = [
     '/api/mobile',
     '/api/v1/mobile',
     '/api/v1/merchant',
+    '/api/v1/pos',
     '/metrics',
     '/health'
 ];

@@ -412,6 +412,7 @@ app.use('/executor-portal', require('./routes/executorReports')); // Reports for
 app.use('/api/mobile', require('./routes/mobileApi'));
 app.use('/api/v1/mobile', require('./routes/mobileApi'));
 app.use('/api/v1/merchant', require('./routes/merchantApi'));
+app.use('/api/v1/pos', require('./routes/pointOfSaleApi'));
 
 app.use('/', require('./routes/auth'));
 app.use('/admin/security', require('./routes/securityAdmin'));
