@@ -13,7 +13,7 @@ const Admin = require('../models/Admin');
 const Notification = require('../models/Notification');
 const SupportTicket = require('../models/SupportTicket');
 const { requireAuth } = require('../middlewares/auth');
-const { systemDateRange } = require('../config/systemTime');
+const { systemDateKey, systemDateRange } = require('../config/systemTime');
 const { syncBotBalance } = require('../utils/helpers');
 const { escapeRegex } = require('../middlewares/sanitize');
 const { customerNoteFromTransaction } = require('../utils/transactionNotes');
@@ -202,23 +202,48 @@ router.get('/transactions', async (req, res) => {
         const totalPages = Math.ceil(totalTxs / limit);
         const transactions = await Transaction.find(query).sort({ createdAt: -1 }).skip((page - 1) * limit).limit(limit);
 
-        // ✅ إصلاح الأداء: استخدام Aggregation Pipeline بدل جلب كل السجلات
-        const totalsAgg = await Transaction.aggregate([
-            { $match: query },
+        // هذا الملخص مستقل عن فلاتر السجل: يعرض حركة اليوم دائماً.
+        // نستبعد الطرف المقابل لتحويل الرصيد حتى لا تُحسب العملية الداخلية مرتين.
+        const todayKey = systemDateKey(new Date());
+        const todayRange = systemDateRange(todayKey, todayKey);
+        const dailySummaryQuery = {
+            $and: [
+                {
+                    $or: [
+                        { transferType: { $ne: 'balance_transfer' } },
+                        { customId: { $not: /-C$/ } }
+                    ]
+                }
+            ],
+            ...(todayRange ? { createdAt: todayRange } : {})
+        };
+        const dailyTotalsAgg = await Transaction.aggregate([
+            { $match: dailySummaryQuery },
             { $group: {
                 _id: '$status',
                 totalAmount: { $sum: '$amount' },
                 totalCostLYD: { $sum: '$costLYD' }
             }}
         ]);
-        let totals = { transfersEGP: 0, transfersLYD: 0, depositsEGP: 0, deductionsEGP: 0 };
-        totalsAgg.forEach(row => {
-            if (row._id === 'completed') { totals.transfersEGP = row.totalAmount; totals.transfersLYD = row.totalCostLYD; }
-            else if (row._id === 'deposit') { totals.depositsEGP = row.totalAmount; }
-            else if (row._id === 'deduction') { totals.deductionsEGP = row.totalAmount; }
+        const dailyTotals = { transfersEGP: 0, transfersLYD: 0, depositsEGP: 0, deductionsEGP: 0 };
+        dailyTotalsAgg.forEach(row => {
+            if (row._id === 'completed') { dailyTotals.transfersEGP = row.totalAmount; dailyTotals.transfersLYD = row.totalCostLYD; }
+            else if (row._id === 'deposit') { dailyTotals.depositsEGP = row.totalAmount; }
+            else if (row._id === 'deduction') { dailyTotals.deductionsEGP = row.totalAmount; }
         });
 
-        const executorGroups = await ExecutorGroup.find({ status: 'active', isManagerBot: { $ne: true } });
+        const [executorGroups, executorBalanceGroups] = await Promise.all([
+            ExecutorGroup.find({ status: 'active', isManagerBot: { $ne: true } }),
+            // الشركة الإدارية أو الحساب المستقل فقط، مع استبعاد أي رصيد صفري أو سالب.
+            ExecutorGroup.find({
+                status: 'active',
+                balance: { $gt: 0 },
+                $or: [
+                    { isManagerBot: true },
+                    { parentGroupId: null, parentBotId: null }
+                ]
+            }).select('name balance').sort({ balance: -1, name: 1 }).lean()
+        ]);
         const executorGroupsForView = executorGroups.map((group) => ({
             ...(typeof group.toObject === 'function' ? group.toObject() : group),
             serviceKey: normalizeExecutorServiceKey(group.serviceKey),
@@ -264,7 +289,8 @@ router.get('/transactions', async (req, res) => {
             fromDate, 
             toDate, 
             filterType,
-            totals,
+            dailyTotals,
+            executorBalanceGroups,
             query: req.query
         });
     } catch (e) {

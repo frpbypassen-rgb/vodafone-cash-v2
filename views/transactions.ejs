@@ -21,6 +21,13 @@
         .box-success::after { background: #10b981; } .box-primary::after { background: #3b82f6; } .box-danger::after { background: #ef4444; }
         .summary-val { font-family: 'JetBrains Mono', monospace; font-size: 1.8rem; font-weight: 900; line-height: 1;}
         .summary-icon { font-size: 2.5rem; opacity: 0.15; }
+        .executor-balance-panel { position: sticky; top: 18px; border: 1px solid var(--border-glass); border-radius: 18px; background: var(--card-bg); box-shadow: var(--shadow-soft); overflow: hidden; }
+        .executor-balance-header { padding: 16px; border-bottom: 1px solid var(--border-glass); }
+        .executor-balance-list { max-height: 560px; overflow-y: auto; }
+        .executor-balance-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 13px 16px; border-bottom: 1px dashed var(--border-glass); }
+        .executor-balance-row:last-child { border-bottom: 0; }
+        .executor-balance-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 800; color: var(--text-main); }
+        .executor-balance-value { flex: 0 0 auto; font-family: 'JetBrains Mono', monospace; font-size: 0.8rem; font-weight: 900; color: #10b981; }
 
         .btn-action-sm { width: 35px; height: 35px; display: inline-flex; align-items: center; justify-content: center; border-radius: 10px; font-size: 0.9rem; transition: 0.2s; border: 1px solid transparent; background: rgba(0,0,0,0.05); color: var(--text-main); text-decoration: none;}
         [data-theme="dark"] .btn-action-sm { background: rgba(255,255,255,0.05); }
@@ -116,6 +123,13 @@
                 white-space: nowrap;
                 overflow: hidden;
                 text-overflow: ellipsis;
+            }
+            .mobile-summary-secondary {
+                display: block;
+                margin-top: 2px;
+                font-family: 'JetBrains Mono', monospace;
+                font-size: 0.7rem;
+                font-weight: 800;
             }
             .mobile-filter-card {
                 border-radius: 16px;
@@ -329,16 +343,17 @@
 
         <div class="mobile-summary-strip d-lg-none mb-3">
             <div class="mobile-summary-item">
-                <span class="mobile-summary-label">التحويلات</span>
-                <span class="mobile-summary-value text-success"><%= totals.transfersEGP.toFixed(2) %></span>
+                <span class="mobile-summary-label">تحويلات اليوم</span>
+                <span class="mobile-summary-value text-success"><%= dailyTotals.transfersEGP.toFixed(2) %> EGP</span>
+                <span class="mobile-summary-secondary text-danger"><%= dailyTotals.transfersLYD.toFixed(2) %> LYD</span>
             </div>
             <div class="mobile-summary-item">
-                <span class="mobile-summary-label">الإيداعات</span>
-                <span class="mobile-summary-value text-primary"><%= totals.depositsEGP.toFixed(2) %></span>
+                <span class="mobile-summary-label">إيداعات اليوم</span>
+                <span class="mobile-summary-value text-primary"><%= dailyTotals.depositsEGP.toFixed(2) %> EGP</span>
             </div>
             <div class="mobile-summary-item">
-                <span class="mobile-summary-label">الخصومات</span>
-                <span class="mobile-summary-value text-danger"><%= totals.deductionsEGP.toFixed(2) %></span>
+                <span class="mobile-summary-label">خصومات اليوم</span>
+                <span class="mobile-summary-value text-danger"><%= dailyTotals.deductionsEGP.toFixed(2) %> EGP</span>
             </div>
         </div>
 
@@ -396,9 +411,9 @@
             <div class="col-md-4">
                 <div class="data-card summary-box box-success m-0">
                     <div>
-                        <h6 class="fw-bold text-muted mb-2">إجمالي التحويلات (مكتملة)</h6>
-                        <div class="summary-val text-success mb-1"><%= totals.transfersEGP.toFixed(2) %> <small class="fs-6">EGP</small></div>
-                        <div class="text-danger fw-bold small mono-num"><%= totals.transfersLYD.toFixed(2) %> LYD</div>
+                        <h6 class="fw-bold text-muted mb-2">إجمالي تحويلات اليوم (مكتملة)</h6>
+                        <div class="summary-val text-success mb-1"><%= dailyTotals.transfersEGP.toFixed(2) %> <small class="fs-6">EGP</small></div>
+                        <div class="text-danger fw-bold small mono-num"><%= dailyTotals.transfersLYD.toFixed(2) %> LYD</div>
                     </div>
                     <div class="summary-icon text-success"><i class="fa-solid fa-money-bill-transfer"></i></div>
                 </div>
@@ -406,8 +421,8 @@
             <div class="col-md-4">
                 <div class="data-card summary-box box-primary m-0">
                     <div>
-                        <h6 class="fw-bold text-muted mb-2">إجمالي الإيداعات (المسدد)</h6>
-                        <div class="summary-val" style="color: #3b82f6;"><%= totals.depositsEGP.toFixed(2) %> <small class="fs-6">EGP</small></div>
+                        <h6 class="fw-bold text-muted mb-2">إجمالي إيداعات اليوم</h6>
+                        <div class="summary-val" style="color: #3b82f6;"><%= dailyTotals.depositsEGP.toFixed(2) %> <small class="fs-6">EGP</small></div>
                     </div>
                     <div class="summary-icon text-primary"><i class="fa-solid fa-hand-holding-dollar"></i></div>
                 </div>
@@ -415,8 +430,8 @@
             <div class="col-md-4">
                 <div class="data-card summary-box box-danger m-0">
                     <div>
-                        <h6 class="fw-bold text-muted mb-2">مسحوب (خصومات)</h6>
-                        <div class="summary-val text-danger"><%= totals.deductionsEGP.toFixed(2) %> <small class="fs-6">EGP</small></div>
+                        <h6 class="fw-bold text-muted mb-2">إجمالي خصومات اليوم</h6>
+                        <div class="summary-val text-danger"><%= dailyTotals.deductionsEGP.toFixed(2) %> <small class="fs-6">EGP</small></div>
                     </div>
                     <div class="summary-icon text-danger"><i class="fa-solid fa-arrow-trend-down"></i></div>
                 </div>
@@ -500,6 +515,8 @@
             </div>
         </div>
 
+        <div class="row g-3 align-items-start">
+            <div class="col-xl-9 order-xl-1">
         <div class="data-card border-0 p-0 overflow-hidden">
             <div class="table-responsive border-0 m-0 d-none d-lg-block">
                 <table class="table text-center align-middle m-0" id="transactionsTable">
@@ -851,6 +868,29 @@
                 </nav>
             <% } %>
 
+        </div>
+            </div>
+
+            <aside class="col-xl-3 order-xl-2 d-none d-xl-block">
+                <div class="executor-balance-panel">
+                    <div class="executor-balance-header">
+                        <div class="fw-bold" style="color: var(--text-main);"><i class="fa-solid fa-building-circle-check text-success ms-1"></i> أرصدة شركات التنفيذ</div>
+                        <div class="small text-muted fw-bold mt-1">الحسابات ذات الرصيد المتاح فقط</div>
+                    </div>
+                    <div class="executor-balance-list">
+                        <% if (executorBalanceGroups && executorBalanceGroups.length) { %>
+                            <% executorBalanceGroups.forEach(group => { %>
+                                <div class="executor-balance-row" title="الرصيد المتاح">
+                                    <span class="executor-balance-name"><%= group.name %></span>
+                                    <span class="executor-balance-value" dir="ltr"><%= Number(group.balance || 0).toFixed(2) %> EGP</span>
+                                </div>
+                            <% }); %>
+                        <% } else { %>
+                            <div class="text-center text-muted small fw-bold py-4 px-3"><i class="fa-solid fa-wallet d-block fs-4 mb-2 opacity-50"></i>لا توجد شركات برصيد متاح حالياً.</div>
+                        <% } %>
+                    </div>
+                </div>
+            </aside>
         </div>
     </div>
 </div>
