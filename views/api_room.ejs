@@ -99,8 +99,8 @@
             </div>
             <div class="col-12 col-md-4 col-xl">
                 <div class="stat-box">
-                    <p class="text-muted mb-2">رصيد المزود المباشر</p>
-                    <h2 class="text-emerald fw-bold mb-0"><%= bot.lastApiAvailableBalance !== null && bot.lastApiAvailableBalance !== undefined ? Number(bot.lastApiAvailableBalance).toFixed(2) : '---' %> <span class="fs-6">EGP</span></h2>
+                    <p class="text-muted mb-2">رصيد الخدمة المباشر</p>
+                    <h2 class="text-emerald fw-bold mb-0"><%= bot.lastApiServiceCredit !== null && bot.lastApiServiceCredit !== undefined ? Number(bot.lastApiServiceCredit).toFixed(2) : '---' %> <span class="fs-6">EGP</span></h2>
                 </div>
             </div>
             <div class="col-6 col-md-4 col-xl">
@@ -170,8 +170,8 @@
                                     <small class="<%= bot.lastApiTestStatus === 'success' ? 'text-success' : (bot.lastApiTestStatus === 'failed' ? 'text-danger' : 'text-muted') %>">
                                         <% if (bot.lastApiTestAt) { %>
                                             آخر اختبار: <%= new Date(bot.lastApiTestAt).toLocaleString('ar-LY', { timeZone: 'Africa/Tripoli' }) %>
-                                            <% if (bot.lastApiAvailableBalance !== null && bot.lastApiAvailableBalance !== undefined) { %>
-                                                | المتاح: <span dir="ltr"><%= Number(bot.lastApiAvailableBalance).toFixed(2) %></span>
+                                            <% if (bot.lastApiServiceCredit !== null && bot.lastApiServiceCredit !== undefined) { %>
+                                                | رصيد الخدمة: <span dir="ltr"><%= Number(bot.lastApiServiceCredit).toFixed(2) %></span>
                                             <% } %>
                                         <% } else { %>
                                             لم يتم اختبار هذا المنفذ بعد

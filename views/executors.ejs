@@ -459,8 +459,17 @@
                                         </div>
 
                                         <div class="balance-box text-center">
-                                            <div class="text-muted small fw-bold mb-2"><i class="fa-solid fa-wallet me-1 opacity-50"></i> الرصيد / المديونية الحالية</div>
-                                            <div class="mono-num <%= bot.balance < 0 ? 'text-danger' : 'text-success' %>" dir="ltr"><%= bot.balance.toFixed(2) %> <span class="fs-6 text-muted">EGP</span></div>
+                                            <% const hasLiveApiServiceCredit = bot.isApiBot && bot.liveApiServiceCredit !== null && bot.liveApiServiceCredit !== undefined; %>
+                                            <div class="text-muted small fw-bold mb-2"><i class="fa-solid <%= bot.isApiBot ? 'fa-satellite-dish' : 'fa-wallet' %> me-1 opacity-50"></i> <%= bot.isApiBot ? 'رصيد الخدمة المباشر' : 'الرصيد / المديونية الحالية' %></div>
+                                            <% if (bot.isApiBot && !hasLiveApiServiceCredit) { %>
+                                                <div class="small text-danger fw-bold">تعذر الاستعلام عن رصيد المزود</div>
+                                            <% } else { %>
+                                                <% const displayedBalance = hasLiveApiServiceCredit ? Number(bot.liveApiServiceCredit) : Number(bot.balance || 0); %>
+                                                <div class="mono-num <%= displayedBalance < 0 ? 'text-danger' : 'text-success' %>" dir="ltr"><%= displayedBalance.toFixed(2) %> <span class="fs-6 text-muted">EGP</span></div>
+                                            <% } %>
+                                            <% if (hasLiveApiServiceCredit && bot.liveApiBalanceCheckedAt) { %>
+                                                <div class="small text-success fw-bold mt-2"><i class="fa-solid fa-rotate me-1"></i>تم الاستعلام الآن</div>
+                                            <% } %>
                                         </div>
                                     </div>
 

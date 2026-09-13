@@ -57,6 +57,33 @@ const hasValidCsrfToken = (req) => {
     return submittedBuffer.length === expectedBuffer.length && crypto.timingSafeEqual(submittedBuffer, expectedBuffer);
 };
 
+// API executors must be displayed with the provider's actual service credit,
+// not the local accounting balance that is derived from completed operations.
+const refreshLiveApiBalance = async (bot) => {
+    const checkedAt = new Date();
+    const result = await getApiProviderBalance(bot);
+    const snapshot = {
+        serviceCredit: null,
+        checkedAt,
+        error: result.message || ''
+    };
+
+    bot.lastApiBalanceCheckAt = checkedAt;
+    bot.lastApiBalanceCheckStatus = result.success ? 'matched' : 'check_failed';
+    if (result.success) {
+        bot.lastApiTestStatus = 'success';
+        bot.lastApiTestAt = checkedAt;
+        bot.lastApiTestMessage = result.message || '';
+        bot.lastApiServiceCredit = result.serviceCredit;
+        bot.lastApiCashCredit = result.cashCredit;
+        bot.lastApiAvailableBalance = result.availableBalance;
+        snapshot.serviceCredit = result.serviceCredit;
+        snapshot.error = '';
+    }
+    await bot.save();
+    return snapshot;
+};
+
 router.get('/executors', requireAuth, async (req, res) => {
     try {
         const [groups, archivedGroups] = await Promise.all([
@@ -65,10 +92,22 @@ router.get('/executors', requireAuth, async (req, res) => {
         ]);
         const groupsWithStats = await Promise.all(groups.map(async (group) => {
             const syncedBalance = await syncBotBalance(group._id); 
+            group.balance = syncedBalance;
+            let liveApiBalance = null;
+            if (group.isApiBot && group.status === 'active') {
+                try {
+                    liveApiBalance = await refreshLiveApiBalance(group);
+                } catch (error) {
+                    liveApiBalance = { serviceCredit: null, checkedAt: new Date(), error: error.message || 'تعذر الاستعلام عن رصيد المزود' };
+                }
+            }
             let txCount = 0; if (group.isManagerBot) txCount = await Transaction.countDocuments({ managerGroupId: group._id, status: 'completed' }); else txCount = await Transaction.countDocuments({ executorGroupId: group._id, status: 'completed' });
             return {
                 ...group._doc,
                 balance: syncedBalance,
+                liveApiServiceCredit: liveApiBalance ? liveApiBalance.serviceCredit : null,
+                liveApiBalanceCheckedAt: liveApiBalance ? liveApiBalance.checkedAt : null,
+                liveApiBalanceError: liveApiBalance ? liveApiBalance.error : '',
                 txCount,
                 serviceKey: normalizeExecutorServiceKey(group.serviceKey),
                 serviceLabel: getExecutorServiceLabel(group)
@@ -337,6 +376,13 @@ router.get('/executor/:id', requireAuth, async (req, res) => {
         }
 
         bot.balance = await syncBotBalance(req.params.id);
+        if (bot.isApiBot && bot.status === 'active') {
+            try {
+                await refreshLiveApiBalance(bot);
+            } catch (error) {
+                console.error('[executor/live-api-balance] failed:', error.message);
+            }
+        }
         let queryFilter = bot.isManagerBot ? { managerGroupId: bot._id } : { executorGroupId: bot._id };
         const transactions = await Transaction.find(queryFilter).sort({ updatedAt: -1 }).limit(100);
         
