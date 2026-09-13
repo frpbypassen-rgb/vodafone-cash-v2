@@ -21,11 +21,11 @@
         .box-success::after { background: #10b981; } .box-primary::after { background: #3b82f6; } .box-danger::after { background: #ef4444; }
         .summary-val { font-family: 'JetBrains Mono', monospace; font-size: 1.8rem; font-weight: 900; line-height: 1;}
         .summary-icon { font-size: 2.5rem; opacity: 0.15; }
-        .executor-balance-panel { position: sticky; top: 18px; border: 1px solid var(--border-glass); border-radius: 18px; background: var(--card-bg); box-shadow: var(--shadow-soft); overflow: hidden; }
-        .executor-balance-header { padding: 16px; border-bottom: 1px solid var(--border-glass); }
-        .executor-balance-list { max-height: 560px; overflow-y: auto; }
-        .executor-balance-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 13px 16px; border-bottom: 1px dashed var(--border-glass); }
-        .executor-balance-row:last-child { border-bottom: 0; }
+        .executor-balance-panel { border: 1px solid var(--border-glass); border-radius: 18px; background: var(--card-bg); box-shadow: var(--shadow-soft); overflow: hidden; }
+        .executor-balance-header { flex: 0 0 215px; padding: 12px 16px; border-left: 1px solid var(--border-glass); }
+        .executor-balance-list { display: flex; flex: 1 1 auto; max-height: 94px; overflow: auto; }
+        .executor-balance-row { display: flex; flex: 1 0 220px; align-items: center; justify-content: space-between; gap: 10px; padding: 12px 16px; border-left: 1px dashed var(--border-glass); }
+        .executor-balance-row:last-child { border-left: 0; }
         .executor-balance-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 800; color: var(--text-main); }
         .executor-balance-value { flex: 0 0 auto; font-family: 'JetBrains Mono', monospace; font-size: 0.8rem; font-weight: 900; color: #10b981; }
 
@@ -515,8 +515,25 @@
             </div>
         </div>
 
-        <div class="row g-3 align-items-start">
-            <div class="col-xl-9 order-xl-1">
+        <section class="executor-balance-panel d-none d-xl-flex mb-3">
+            <div class="executor-balance-header">
+                <div class="fw-bold" style="color: var(--text-main);"><i class="fa-solid fa-user-gear text-success ms-1"></i> المنفذون الجاهزون</div>
+                <div class="small text-muted fw-bold mt-1">نشطون وبرصيد متاح للتوجيه</div>
+            </div>
+            <div class="executor-balance-list">
+                <% if (executorBalanceGroups && executorBalanceGroups.length) { %>
+                    <% executorBalanceGroups.forEach(group => { %>
+                        <div class="executor-balance-row" title="الرصيد المتاح">
+                            <span class="executor-balance-name"><%= group.name %></span>
+                            <span class="executor-balance-value" dir="ltr"><%= Number(group.balance || 0).toFixed(2) %> EGP</span>
+                        </div>
+                    <% }); %>
+                <% } else { %>
+                    <div class="text-center text-muted small fw-bold py-3 px-3 flex-grow-1"><i class="fa-solid fa-wallet ms-1 opacity-50"></i>لا يوجد منفذ نشط برصيد متاح حالياً.</div>
+                <% } %>
+            </div>
+        </section>
+
         <div class="data-card border-0 p-0 overflow-hidden">
             <div class="table-responsive border-0 m-0 d-none d-lg-block">
                 <table class="table text-center align-middle m-0" id="transactionsTable">
@@ -868,29 +885,6 @@
                 </nav>
             <% } %>
 
-        </div>
-            </div>
-
-            <aside class="col-xl-3 order-xl-2 d-none d-xl-block">
-                <div class="executor-balance-panel">
-                    <div class="executor-balance-header">
-                        <div class="fw-bold" style="color: var(--text-main);"><i class="fa-solid fa-user-gear text-success ms-1"></i> المنفذون الجاهزون</div>
-                        <div class="small text-muted fw-bold mt-1">نشطون وبرصيد متاح للتوجيه</div>
-                    </div>
-                    <div class="executor-balance-list">
-                        <% if (executorBalanceGroups && executorBalanceGroups.length) { %>
-                            <% executorBalanceGroups.forEach(group => { %>
-                                <div class="executor-balance-row" title="الرصيد المتاح">
-                                    <span class="executor-balance-name"><%= group.name %></span>
-                                    <span class="executor-balance-value" dir="ltr"><%= Number(group.balance || 0).toFixed(2) %> EGP</span>
-                                </div>
-                            <% }); %>
-                        <% } else { %>
-                            <div class="text-center text-muted small fw-bold py-4 px-3"><i class="fa-solid fa-wallet d-block fs-4 mb-2 opacity-50"></i>لا يوجد منفذ نشط برصيد متاح حالياً.</div>
-                        <% } %>
-                    </div>
-                </div>
-            </aside>
         </div>
     </div>
 </div>
