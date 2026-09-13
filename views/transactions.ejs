@@ -874,8 +874,8 @@
             <aside class="col-xl-3 order-xl-2 d-none d-xl-block">
                 <div class="executor-balance-panel">
                     <div class="executor-balance-header">
-                        <div class="fw-bold" style="color: var(--text-main);"><i class="fa-solid fa-building-circle-check text-success ms-1"></i> أرصدة شركات التنفيذ</div>
-                        <div class="small text-muted fw-bold mt-1">الحسابات ذات الرصيد المتاح فقط</div>
+                        <div class="fw-bold" style="color: var(--text-main);"><i class="fa-solid fa-user-gear text-success ms-1"></i> المنفذون الجاهزون</div>
+                        <div class="small text-muted fw-bold mt-1">نشطون وبرصيد متاح للتوجيه</div>
                     </div>
                     <div class="executor-balance-list">
                         <% if (executorBalanceGroups && executorBalanceGroups.length) { %>
@@ -886,7 +886,7 @@
                                 </div>
                             <% }); %>
                         <% } else { %>
-                            <div class="text-center text-muted small fw-bold py-4 px-3"><i class="fa-solid fa-wallet d-block fs-4 mb-2 opacity-50"></i>لا توجد شركات برصيد متاح حالياً.</div>
+                            <div class="text-center text-muted small fw-bold py-4 px-3"><i class="fa-solid fa-wallet d-block fs-4 mb-2 opacity-50"></i>لا يوجد منفذ نشط برصيد متاح حالياً.</div>
                         <% } %>
                     </div>
                 </div>

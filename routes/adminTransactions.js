@@ -234,14 +234,11 @@ router.get('/transactions', async (req, res) => {
 
         const [executorGroups, executorBalanceGroups] = await Promise.all([
             ExecutorGroup.find({ status: 'active', isManagerBot: { $ne: true } }),
-            // الشركة الإدارية أو الحساب المستقل فقط، مع استبعاد أي رصيد صفري أو سالب.
+            // المنفذون القابلون للتوجيه فقط، مع استبعاد أي رصيد صفري أو سالب.
             ExecutorGroup.find({
                 status: 'active',
-                balance: { $gt: 0 },
-                $or: [
-                    { isManagerBot: true },
-                    { parentGroupId: null, parentBotId: null }
-                ]
+                isManagerBot: { $ne: true },
+                balance: { $gt: 0 }
             }).select('name balance').sort({ balance: -1, name: 1 }).lean()
         ]);
         const executorGroupsForView = executorGroups.map((group) => ({
