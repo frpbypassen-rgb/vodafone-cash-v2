@@ -523,9 +523,9 @@
             <div class="executor-balance-list">
                 <% if (executorBalanceGroups && executorBalanceGroups.length) { %>
                     <% executorBalanceGroups.forEach(group => { %>
-                        <div class="executor-balance-row" title="الرصيد المتاح">
+                        <div class="executor-balance-row" title="<%= group.balanceSource === 'api_service' ? 'رصيد خدمة مباشر من API' : 'الرصيد المتاح' %>">
                             <span class="executor-balance-name"><%= group.name %></span>
-                            <span class="executor-balance-value" dir="ltr"><%= Number(group.balance || 0).toFixed(2) %> EGP</span>
+                            <span class="executor-balance-value" dir="ltr"><%= Number(group.balance || 0).toFixed(2) %> EGP<% if (group.balanceSource === 'api_service') { %> <small class="opacity-75">API</small><% } %></span>
                         </div>
                     <% }); %>
                 <% } else { %>

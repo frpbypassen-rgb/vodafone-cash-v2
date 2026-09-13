@@ -33,7 +33,7 @@ const {
 const eventBus = require('../services/eventBus');
 
 // 🚀 استدعاء محرك الـ API 
-const { executeTransferViaApi, saveApiReceiptProof } = require('../services/externalApiService');
+const { executeTransferViaApi, getApiProviderBalance, saveApiReceiptProof } = require('../services/externalApiService');
 const { reversalService } = require('../src/Application/Services/ReversalService');
 
 router.use(requireAuth);
@@ -232,15 +232,47 @@ router.get('/transactions', async (req, res) => {
             else if (row._id === 'deduction') { dailyTotals.deductionsEGP = row.totalAmount; }
         });
 
-        const [executorGroups, executorBalanceGroups] = await Promise.all([
+        const [executorGroups, executorBalanceCandidates] = await Promise.all([
             ExecutorGroup.find({ status: 'active', isManagerBot: { $ne: true } }),
-            // المنفذون القابلون للتوجيه فقط، مع استبعاد أي رصيد صفري أو سالب.
+            // منفذ API قد يكون رصيده الداخلي سالباً رغم وجود رصيد خدمة فعلي عند المزود.
             ExecutorGroup.find({
                 status: 'active',
                 isManagerBot: { $ne: true },
-                balance: { $gt: 0 }
-            }).select('name balance').sort({ balance: -1, name: 1 }).lean()
+                $or: [
+                    { balance: { $gt: 0 } },
+                    { isApiBot: true }
+                ]
+            }).select('name balance isApiBot apiProviderKey apiUrl apiToken apiUsername apiPassword apiServiceId apiProviderId apiFieldId apiMachineSerial').lean()
         ]);
+        const executorBalanceGroups = (await Promise.all(executorBalanceCandidates.map(async (group) => {
+            if (!group.isApiBot) {
+                return { name: group.name, balance: Number(group.balance), balanceSource: 'internal' };
+            }
+
+            try {
+                const providerBalance = await getApiProviderBalance(group);
+                if (!providerBalance.success || Number(providerBalance.serviceCredit) <= 0) return null;
+
+                const checkedAt = new Date();
+                await ExecutorGroup.updateOne({ _id: group._id }, {
+                    $set: {
+                        lastApiBalanceCheckAt: checkedAt,
+                        lastApiBalanceCheckStatus: 'matched',
+                        lastApiServiceCredit: providerBalance.serviceCredit,
+                        lastApiCashCredit: providerBalance.cashCredit,
+                        lastApiAvailableBalance: providerBalance.availableBalance
+                    }
+                });
+                return {
+                    name: group.name,
+                    balance: Number(providerBalance.serviceCredit),
+                    balanceSource: 'api_service'
+                };
+            } catch (error) {
+                console.error('[adminTransactions/API balance] failed:', error.message);
+                return null;
+            }
+        }))).filter(Boolean).sort((left, right) => right.balance - left.balance || left.name.localeCompare(right.name, 'ar'));
         const executorGroupsForView = executorGroups.map((group) => ({
             ...(typeof group.toObject === 'function' ? group.toObject() : group),
             serviceKey: normalizeExecutorServiceKey(group.serviceKey),
