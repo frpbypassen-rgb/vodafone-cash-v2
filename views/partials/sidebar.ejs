@@ -692,7 +692,7 @@
         </a>
         <div class="operations-menu <%= typeof activePage !== 'undefined' && String(activePage).startsWith('transactions') ? 'is-open' : '' %>">
             <div class="operations-menu-header">
-                <a href="/transactions/operations" class="transaction-workspace-link <%= typeof activePage !== 'undefined' && String(activePage).startsWith('transactions') ? 'active' : '' %>">
+                <a href="#" class="transaction-workspace-link <%= typeof activePage !== 'undefined' && String(activePage).startsWith('transactions') ? 'active' : '' %>" onclick="toggleOperationsMenu(this.closest('.operations-menu').querySelector('.operations-menu-toggle')); return false;">
                     <span class="menu-link-content"><i class="fa-solid fa-list-check"></i> سجل العمليات المباشر</span>
                 </a>
                 <button type="button" class="operations-menu-toggle" aria-label="فتح قائمة سجل العمليات المباشر" aria-expanded="<%= typeof activePage !== 'undefined' && String(activePage).startsWith('transactions') ? 'true' : 'false' %>" onclick="toggleOperationsMenu(this)"><i class="fa-solid fa-angle-left operations-chevron"></i></button>
