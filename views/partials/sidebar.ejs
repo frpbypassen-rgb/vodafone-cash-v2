@@ -199,6 +199,16 @@
         opacity: 1;
         color: #fff;
     }
+    .operations-menu { margin: 3px 0; border-radius: 12px; overflow: hidden; }
+    .operations-menu summary { list-style: none; color: #a8b2c1; padding: 12px 18px; display: flex; align-items: center; justify-content: space-between; cursor: pointer; font-size: .95rem; font-weight: 700; border-radius: 12px; }
+    .operations-menu summary::-webkit-details-marker { display: none; }
+    .operations-menu summary:hover, .operations-menu[open] summary { background: rgba(255,255,255,.05); color: #fff; }
+    .operations-menu summary .menu-link-content i { width: 25px; font-size: 1.1rem; margin-left: 8px; text-align: center; }
+    .operations-menu summary .operations-chevron { font-size: .78rem; opacity: .65; transition: transform .2s ease; }
+    .operations-menu[open] summary .operations-chevron { transform: rotate(-90deg); }
+    .operations-menu .operations-submenu { padding: 4px 10px 8px 0; border-right: 1px solid rgba(255,255,255,.14); margin-right: 28px; }
+    .sidebar-menu .operations-submenu a { padding: 9px 12px; margin: 2px 0; font-size: .82rem; border-radius: 9px; }
+    .sidebar-menu .operations-submenu a i { width: 18px; font-size: .85rem; margin-left: 7px; }
     .sidebar-mobile-close {
         transition: background 0.2s, transform 0.2s;
         cursor: pointer;
@@ -679,12 +689,18 @@
             </span>
             <i class="fa-solid fa-angle-left menu-chevron"></i>
         </a>
-        <a href="/transactions" class="<%= typeof activePage !== 'undefined' && activePage === 'transactions' ? 'active' : '' %>">
-            <span class="menu-link-content">
-                <i class="fa-solid fa-list-check"></i> سجل العمليات المباشر
-            </span>
-            <i class="fa-solid fa-angle-left menu-chevron"></i>
-        </a>
+        <details class="operations-menu" <%= typeof activePage !== 'undefined' && String(activePage).startsWith('transactions') ? 'open' : '' %>>
+            <summary>
+                <span class="menu-link-content"><i class="fa-solid fa-list-check"></i> سجل العمليات المباشر</span>
+                <i class="fa-solid fa-angle-left operations-chevron"></i>
+            </summary>
+            <div class="operations-submenu">
+                <a href="/transactions/pulse" class="<%= typeof activePage !== 'undefined' && activePage === 'transactions_pulse' ? 'active' : '' %>"><i class="fa-solid fa-heart-pulse"></i> شاشة نبض</a>
+                <a href="/transactions/operations" class="<%= typeof activePage !== 'undefined' && activePage === 'transactions' ? 'active' : '' %>"><i class="fa-solid fa-list-check"></i> العمليات</a>
+                <a href="/transactions/movements" class="<%= typeof activePage !== 'undefined' && activePage === 'transactions_movements' ? 'active' : '' %>"><i class="fa-solid fa-arrow-right-arrow-left"></i> سجل الحركة</a>
+                <a href="/transactions/search" class="<%= typeof activePage !== 'undefined' && activePage === 'transactions_search' ? 'active' : '' %>"><i class="fa-solid fa-magnifying-glass"></i> البحث الشامل</a>
+            </div>
+        </details>
         <a href="/audit-log" class="<%= typeof activePage !== 'undefined' && activePage === 'audit_log' ? 'active' : '' %>">
             <span class="menu-link-content">
                 <i class="fa-solid fa-shield-halved"></i> سجل التدقيق

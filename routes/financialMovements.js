@@ -138,7 +138,7 @@ router.get('/financial-movements', requireAuth, async (req, res) => {
         const pages = Math.max(1, Math.ceil(total / limit));
 
         res.render('financial_movements', {
-            activePage: 'financial_movements',
+            activePage: req.query.source === 'transactions' ? 'transactions_movements' : 'financial_movements',
             adminName: req.session.adminName,
             movements,
             stats,

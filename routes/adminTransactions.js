@@ -130,9 +130,174 @@ const customerFacingNotes = (notes) => {
     }).join('\n').trim();
 };
 
+const OPERATION_STATUSES = ['pending', 'processing', 'accepted', 'completed', 'rejected', 'cancelled_by_admin'];
+
+const transactionLedgerBaseQuery = () => ({
+    $and: [
+        {
+            $or: [
+                { transferType: { $ne: 'balance_transfer' } },
+                { customId: { $not: /-C$/ } }
+            ]
+        }
+    ]
+});
+
+const monthDateRange = (dateKey) => {
+    const [year, month] = String(dateKey || '').split('-').map(Number);
+    if (!year || !month) return null;
+    const lastDay = String(new Date(year, month, 0).getDate()).padStart(2, '0');
+    return systemDateRange(`${year}-${String(month).padStart(2, '0')}-01`, `${year}-${String(month).padStart(2, '0')}-${lastDay}`);
+};
+
+const summarizeTransactionPeriod = async (createdAt) => {
+    const baseQuery = transactionLedgerBaseQuery();
+    if (createdAt) baseQuery.createdAt = createdAt;
+
+    const rows = await Transaction.aggregate([
+        { $match: baseQuery },
+        {
+            $group: {
+                _id: '$status',
+                count: { $sum: 1 },
+                amount: { $sum: '$amount' },
+                costLYD: { $sum: '$costLYD' }
+            }
+        }
+    ]);
+    const byStatus = Object.fromEntries(rows.map((row) => [row._id, row]));
+    const metric = (status) => byStatus[status] || { count: 0, amount: 0, costLYD: 0 };
+    const cancelled = [metric('rejected'), metric('cancelled_by_admin')].reduce((total, row) => ({
+        count: total.count + row.count,
+        amount: total.amount + row.amount,
+        costLYD: total.costLYD + row.costLYD
+    }), { count: 0, amount: 0, costLYD: 0 });
+
+    return {
+        deposits: metric('deposit'),
+        deductions: metric('deduction'),
+        successful: metric('completed'),
+        cancelled,
+        operationsCount: OPERATION_STATUSES.reduce((total, status) => total + metric(status).count, 0)
+    };
+};
+
+const dateKeysBefore = (todayKey, count) => {
+    const keys = [];
+    const cursor = new Date(`${todayKey}T12:00:00`);
+    for (let index = count - 1; index >= 0; index -= 1) {
+        const date = new Date(cursor);
+        date.setDate(date.getDate() - index);
+        keys.push(systemDateKey(date));
+    }
+    return keys;
+};
+
+const renderTransactionPulse = async (req, res) => {
+    try {
+        const todayKey = systemDateKey(new Date());
+        const todayRange = systemDateRange(todayKey, todayKey);
+        const monthRange = monthDateRange(todayKey);
+        const sevenDayKeys = dateKeysBefore(todayKey, 7);
+        const sevenDayRange = systemDateRange(sevenDayKeys[0], sevenDayKeys[sevenDayKeys.length - 1]);
+        const trendBase = transactionLedgerBaseQuery();
+        if (sevenDayRange) trendBase.createdAt = sevenDayRange;
+
+        const [today, month, trendRows] = await Promise.all([
+            summarizeTransactionPeriod(todayRange),
+            summarizeTransactionPeriod(monthRange),
+            Transaction.aggregate([
+                { $match: { ...trendBase, status: 'completed' } },
+                {
+                    $group: {
+                        _id: { $dateToString: { date: '$createdAt', format: '%Y-%m-%d', timezone: 'Africa/Tripoli' } },
+                        successfulCount: { $sum: 1 },
+                        successfulAmount: { $sum: '$amount' }
+                    }
+                },
+                { $sort: { _id: 1 } }
+            ])
+        ]);
+        const trendMap = new Map(trendRows.map((row) => [row._id, row]));
+        const trend = sevenDayKeys.map((key) => ({
+            label: key.slice(5),
+            successfulCount: trendMap.get(key)?.successfulCount || 0,
+            successfulAmount: trendMap.get(key)?.successfulAmount || 0
+        }));
+
+        res.render('transaction_pulse', {
+            activePage: 'transactions_pulse',
+            adminName: req.session.adminName,
+            today,
+            month,
+            trend,
+            todayKey
+        });
+    } catch (error) {
+        console.error('[adminTransactions/pulse] error:', error.message);
+        res.status(500).send('تعذر تحميل شاشة نبض العمليات');
+    }
+};
+
+const renderTransactionSearch = async (req, res) => {
+    try {
+        const search = String(req.query.q || '').trim();
+        const mode = ['day', 'month', 'range'].includes(req.query.mode) ? req.query.mode : 'day';
+        const todayKey = systemDateKey(new Date());
+        const selectedDate = /^\d{4}-\d{2}-\d{2}$/.test(req.query.date || '') ? req.query.date : todayKey;
+        const selectedMonth = /^\d{4}-\d{2}$/.test(req.query.month || '') ? req.query.month : todayKey.slice(0, 7);
+        const fromDate = /^\d{4}-\d{2}-\d{2}$/.test(req.query.fromDate || '') ? req.query.fromDate : '';
+        const toDate = /^\d{4}-\d{2}-\d{2}$/.test(req.query.toDate || '') ? req.query.toDate : '';
+        const query = transactionLedgerBaseQuery();
+        const range = mode === 'day'
+            ? systemDateRange(selectedDate, selectedDate)
+            : mode === 'month'
+                ? monthDateRange(`${selectedMonth}-01`)
+                : systemDateRange(fromDate, toDate);
+        if (range) query.createdAt = range;
+
+        if (search) {
+            const safeSearch = escapeRegex(search);
+            const criteria = [
+                { customId: { $regex: safeSearch, $options: 'i' } },
+                { cancellationNumber: { $regex: safeSearch, $options: 'i' } },
+                { 'settlementDetails.externalReference': { $regex: safeSearch, $options: 'i' } },
+                { vodafoneNumber: { $regex: safeSearch, $options: 'i' } },
+                { accountNumber: { $regex: safeSearch, $options: 'i' } },
+                { 'serviceDetails.clientPhone': { $regex: safeSearch, $options: 'i' } },
+                { companyName: { $regex: safeSearch, $options: 'i' } },
+                { employeeName: { $regex: safeSearch, $options: 'i' } }
+            ];
+            const amount = Number(search);
+            if (Number.isFinite(amount) && search !== '') criteria.push({ amount });
+            query.$and.push({ $or: criteria });
+        }
+
+        const results = search
+            ? await Transaction.find(query).sort({ createdAt: -1 }).limit(200).lean()
+            : [];
+        res.render('transaction_search', {
+            activePage: 'transactions_search',
+            adminName: req.session.adminName,
+            filters: { search, mode, selectedDate, selectedMonth, fromDate, toDate },
+            results
+        });
+    } catch (error) {
+        console.error('[adminTransactions/search] error:', error.message);
+        res.status(500).send('تعذر تنفيذ البحث الشامل');
+    }
+};
+
+router.get('/transactions/pulse', renderTransactionPulse);
+router.get('/transactions/search', renderTransactionSearch);
+router.get('/transactions/movements', (req, res) => {
+    const params = new URLSearchParams(req.query);
+    params.set('source', 'transactions');
+    return res.redirect(`/financial-movements?${params.toString()}`);
+});
 
 
-router.get('/transactions', async (req, res) => {
+const renderTransactions = async (req, res, operationsWorkspace = false) => {
     try {
         const page = parseInt(req.query.page) || 1;
         const limit = 100;
@@ -156,16 +321,7 @@ router.get('/transactions', async (req, res) => {
             toDate = toDate || '';
         }
 
-        let query = {
-            $and: [
-                {
-                    $or: [
-                        { transferType: { $ne: 'balance_transfer' } },
-                        { customId: { $not: /-C$/ } }
-                    ]
-                }
-            ]
-        };
+        let query = transactionLedgerBaseQuery();
 
         // ✅ NoSQL Regex Injection — تعقيم مصطلح البحث
         if (search) {
@@ -179,22 +335,23 @@ router.get('/transactions', async (req, res) => {
                 ]
             });
         }
-        if (statusFilter) query.status = statusFilter;
+        if (statusFilter && (!operationsWorkspace || OPERATION_STATUSES.includes(statusFilter))) query.status = statusFilter;
+        else if (operationsWorkspace) query.status = { $in: OPERATION_STATUSES };
         if (fromDate || toDate) {
             const createdAt = systemDateRange(fromDate, toDate);
             if (createdAt) query.createdAt = createdAt;
         }
 
         // Apply quick category filters
-        if (filterType === 'deposit_deduction') {
+        if (!operationsWorkspace && filterType === 'deposit_deduction') {
             query.transferType = { $ne: 'balance_transfer' };
             query.status = { $in: ['deposit', 'deduction', 'deposit_pending'] };
-        } else if (filterType === 'balance_transfer') {
+        } else if (!operationsWorkspace && filterType === 'balance_transfer') {
             query.transferType = 'balance_transfer';
-        } else if (filterType === 'cash_transfer') {
+        } else if (!operationsWorkspace && filterType === 'cash_transfer') {
             query.transferType = { $in: ['vodafone', 'post_account', 'post_card'] };
             query.status = { $nin: ['deposit', 'deduction', 'deposit_pending'] };
-        } else if (filterType === 'cancelled') {
+        } else if ((!operationsWorkspace || filterType === 'cancelled') && filterType === 'cancelled') {
             query.status = { $in: ['cancelled_by_admin', 'rejected'] };
         }
 
@@ -320,13 +477,17 @@ router.get('/transactions', async (req, res) => {
             filterType,
             dailyTotals,
             executorBalanceGroups,
+            operationWorkspace: operationsWorkspace,
             query: req.query
         });
     } catch (e) {
         console.error('[adminTransactions/GET transactions] خطأ:', e.message);
         res.status(500).send('خطأ داخلي');
     }
-});
+};
+
+router.get('/transactions', (req, res) => renderTransactions(req, res, false));
+router.get('/transactions/operations', (req, res) => renderTransactions(req, res, true));
 
 router.get('/transactions/print', async (req, res) => {
     try {
