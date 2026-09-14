@@ -179,6 +179,13 @@ const summarizeTransactionPeriod = async (createdAt) => {
         deductions: metric('deduction'),
         successful: metric('completed'),
         cancelled,
+        statusCounts: {
+            pending: metric('pending').count,
+            processing: metric('processing').count,
+            accepted: metric('accepted').count,
+            completed: metric('completed').count,
+            cancelled: cancelled.count
+        },
         operationsCount: OPERATION_STATUSES.reduce((total, status) => total + metric(status).count, 0)
     };
 };
@@ -194,45 +201,60 @@ const dateKeysBefore = (todayKey, count) => {
     return keys;
 };
 
-const renderTransactionPulse = async (req, res) => {
-    try {
-        const todayKey = systemDateKey(new Date());
-        const todayRange = systemDateRange(todayKey, todayKey);
-        const monthRange = monthDateRange(todayKey);
-        const sevenDayKeys = dateKeysBefore(todayKey, 7);
-        const sevenDayRange = systemDateRange(sevenDayKeys[0], sevenDayKeys[sevenDayKeys.length - 1]);
-        const trendBase = transactionLedgerBaseQuery();
-        if (sevenDayRange) trendBase.createdAt = sevenDayRange;
+const getTransactionPulseData = async () => {
+    const todayKey = systemDateKey(new Date());
+    const todayRange = systemDateRange(todayKey, todayKey);
+    const monthRange = monthDateRange(todayKey);
+    const sevenDayKeys = dateKeysBefore(todayKey, 7);
+    const sevenDayRange = systemDateRange(sevenDayKeys[0], sevenDayKeys[sevenDayKeys.length - 1]);
+    const trendBase = transactionLedgerBaseQuery();
+    if (sevenDayRange) trendBase.createdAt = sevenDayRange;
 
-        const [today, month, trendRows] = await Promise.all([
-            summarizeTransactionPeriod(todayRange),
-            summarizeTransactionPeriod(monthRange),
-            Transaction.aggregate([
-                { $match: { ...trendBase, status: 'completed' } },
-                {
-                    $group: {
-                        _id: { $dateToString: { date: '$createdAt', format: '%Y-%m-%d', timezone: 'Africa/Tripoli' } },
-                        successfulCount: { $sum: 1 },
-                        successfulAmount: { $sum: '$amount' }
-                    }
-                },
-                { $sort: { _id: 1 } }
-            ])
-        ]);
+    const [today, month, trendRows] = await Promise.all([
+        summarizeTransactionPeriod(todayRange),
+        summarizeTransactionPeriod(monthRange),
+        Transaction.aggregate([
+            { $match: { ...trendBase, status: 'completed' } },
+            {
+                $group: {
+                    _id: { $dateToString: { date: '$createdAt', format: '%Y-%m-%d', timezone: 'Africa/Tripoli' } },
+                    successfulCount: { $sum: 1 },
+                    successfulAmount: { $sum: '$amount' }
+                }
+            },
+            { $sort: { _id: 1 } }
+        ])
+    ]);
         const trendMap = new Map(trendRows.map((row) => [row._id, row]));
         const trend = sevenDayKeys.map((key) => ({
             label: key.slice(5),
             successfulCount: trendMap.get(key)?.successfulCount || 0,
             successfulAmount: trendMap.get(key)?.successfulAmount || 0
         }));
+    return { today, month, trend, todayKey };
+};
 
+const transactionSearchMatchReason = (transaction, rawSearch, exactAmount) => {
+    const needle = String(rawSearch || '').trim().toLocaleLowerCase();
+    const contains = (value) => String(value || '').toLocaleLowerCase().includes(needle);
+    if (contains(transaction.customId)) return 'تطابق رقم العملية';
+    if (contains(transaction.cancellationNumber)) return 'تطابق رقم الإلغاء';
+    if (contains(transaction.settlementDetails?.externalReference)) return 'تطابق رقم الإيداع أو المرجع';
+    if (contains(transaction.vodafoneNumber) || contains(transaction.serviceDetails?.clientPhone)) return 'تطابق هاتف المستلم';
+    if (contains(transaction.accountNumber)) return 'تطابق رقم الحساب';
+    if (contains(transaction.companyName) || contains(transaction.employeeName) || contains(transaction.accountName)) return 'تطابق اسم العميل';
+    if (contains(transaction.executorName) || contains(transaction.executorGroupName)) return 'تطابق المنفذ';
+    if (Number.isFinite(exactAmount) && Number(transaction.amount) === exactAmount) return 'تطابق مبلغ دقيق';
+    return 'تطابق ضمن بيانات العملية';
+};
+
+const renderTransactionPulse = async (req, res) => {
+    try {
+        const pulse = await getTransactionPulseData();
         res.render('transaction_pulse', {
             activePage: 'transactions_pulse',
             adminName: req.session.adminName,
-            today,
-            month,
-            trend,
-            todayKey
+            ...pulse
         });
     } catch (error) {
         console.error('[adminTransactions/pulse] error:', error.message);
@@ -249,6 +271,8 @@ const renderTransactionSearch = async (req, res) => {
         const selectedMonth = /^\d{4}-\d{2}$/.test(req.query.month || '') ? req.query.month : todayKey.slice(0, 7);
         const fromDate = /^\d{4}-\d{2}-\d{2}$/.test(req.query.fromDate || '') ? req.query.fromDate : '';
         const toDate = /^\d{4}-\d{2}-\d{2}$/.test(req.query.toDate || '') ? req.query.toDate : '';
+        const page = Math.max(1, Number.parseInt(req.query.page, 10) || 1);
+        const limit = 50;
         const query = transactionLedgerBaseQuery();
         const range = mode === 'day'
             ? systemDateRange(selectedDate, selectedDate)
@@ -267,21 +291,33 @@ const renderTransactionSearch = async (req, res) => {
                 { accountNumber: { $regex: safeSearch, $options: 'i' } },
                 { 'serviceDetails.clientPhone': { $regex: safeSearch, $options: 'i' } },
                 { companyName: { $regex: safeSearch, $options: 'i' } },
-                { employeeName: { $regex: safeSearch, $options: 'i' } }
+                { employeeName: { $regex: safeSearch, $options: 'i' } },
+                { accountName: { $regex: safeSearch, $options: 'i' } },
+                { executorName: { $regex: safeSearch, $options: 'i' } },
+                { executorGroupName: { $regex: safeSearch, $options: 'i' } }
             ];
-            const amount = Number(search);
+            const amount = Number(search.replace(/,/g, ''));
             if (Number.isFinite(amount) && search !== '') criteria.push({ amount });
             query.$and.push({ $or: criteria });
         }
 
-        const results = search
-            ? await Transaction.find(query).sort({ createdAt: -1 }).limit(200).lean()
-            : [];
+        const [total, rawResults] = search
+            ? await Promise.all([
+                Transaction.countDocuments(query),
+                Transaction.find(query).sort({ createdAt: -1 }).skip((page - 1) * limit).limit(limit).lean()
+            ])
+            : [0, []];
+        const exactAmount = Number(search.replace(/,/g, ''));
+        const results = rawResults.map((transaction) => ({
+            ...transaction,
+            matchReason: transactionSearchMatchReason(transaction, search, exactAmount)
+        }));
         res.render('transaction_search', {
             activePage: 'transactions_search',
             adminName: req.session.adminName,
             filters: { search, mode, selectedDate, selectedMonth, fromDate, toDate },
-            results
+            results,
+            pagination: { page, limit, total, pages: Math.max(1, Math.ceil(total / limit)) }
         });
     } catch (error) {
         console.error('[adminTransactions/search] error:', error.message);
@@ -290,6 +326,14 @@ const renderTransactionSearch = async (req, res) => {
 };
 
 router.get('/transactions/pulse', renderTransactionPulse);
+router.get('/transactions/pulse/data', async (req, res) => {
+    try {
+        return res.json({ success: true, ...(await getTransactionPulseData()) });
+    } catch (error) {
+        console.error('[adminTransactions/pulse-data] error:', error.message);
+        return res.status(500).json({ success: false });
+    }
+});
 router.get('/transactions/search', renderTransactionSearch);
 router.get('/transactions/movements', (req, res) => {
     const params = new URLSearchParams(req.query);
@@ -300,6 +344,12 @@ router.get('/transactions/movements', (req, res) => {
 
 const renderTransactions = async (req, res, operationsWorkspace = false) => {
     try {
+        const backgroundRefresh = req.get('X-Requested-With') === 'XMLHttpRequest';
+        // أرصدة الـ API لا تُستعلم إلا عند فتح شاشة العمليات أو بطلب يدوي صريح.
+        // التحديث الخلفي للجدول يعيد استخدام آخر رصيد محفوظ ولا يضغط على مزود الخدمة.
+        const shouldRefreshApiBalances = operationsWorkspace
+            && !backgroundRefresh
+            && req.query.refreshBalances !== '0';
         const page = parseInt(req.query.page) || 1;
         const limit = 100;
         const search = req.query.search || '';
@@ -419,17 +469,17 @@ const renderTransactions = async (req, res, operationsWorkspace = false) => {
             else if (row._id === 'deduction') { dailyTotals.deductionsEGP = row.totalAmount; }
         });
 
+        const executorBalanceQuery = {
+            status: 'active',
+            isManagerBot: { $ne: true },
+            ...(operationsWorkspace
+                ? { $or: [{ balance: { $gt: 0 } }, { isApiBot: true }] }
+                : { balance: { $gt: 0 } })
+        };
         const [executorGroups, executorBalanceCandidates] = await Promise.all([
             ExecutorGroup.find({ status: 'active', isManagerBot: { $ne: true } }),
             // منفذ API قد يكون رصيده الداخلي سالباً رغم وجود رصيد خدمة فعلي عند المزود.
-            ExecutorGroup.find({
-                status: 'active',
-                isManagerBot: { $ne: true },
-                $or: [
-                    { balance: { $gt: 0 } },
-                    { isApiBot: true }
-                ]
-            }).select('name balance isApiBot updatedAt lastApiBalanceCheckAt apiProviderKey apiUrl apiToken apiUsername apiPassword apiServiceId apiProviderId apiFieldId apiMachineSerial').lean()
+            ExecutorGroup.find(executorBalanceQuery).select('name balance isApiBot updatedAt lastApiBalanceCheckAt lastApiServiceCredit apiProviderKey apiUrl apiToken apiUsername apiPassword apiServiceId apiProviderId apiFieldId apiMachineSerial').lean()
         ]);
         const executorBalanceGroups = (await Promise.all(executorBalanceCandidates.map(async (group) => {
             if (!group.isApiBot) {
@@ -442,6 +492,16 @@ const renderTransactions = async (req, res, operationsWorkspace = false) => {
                 };
             }
 
+            if (!shouldRefreshApiBalances) {
+                if (Number(group.lastApiServiceCredit) <= 0) return null;
+                return {
+                    id: String(group._id),
+                    name: group.name,
+                    balance: Number(group.lastApiServiceCredit),
+                    balanceSource: 'api_service',
+                    checkedAt: group.lastApiBalanceCheckAt || group.updatedAt || null
+                };
+            }
             try {
                 const providerBalance = await getApiProviderBalance(group);
                 if (!providerBalance.success || Number(providerBalance.serviceCredit) <= 0) return null;

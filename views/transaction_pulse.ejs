@@ -19,6 +19,7 @@
         .period-chip { background: var(--input-bg); border: 1px solid var(--border-glass); border-radius: 12px; padding: 11px 13px; font-size: .8rem; font-weight: 800; }
         .period-chip strong { display: block; font-family: 'JetBrains Mono', monospace; font-size: 1.05rem; margin-top: 5px; color: #10b981; }
         .donut-legend { display: grid; grid-template-columns: 1fr 1fr; gap: 9px; margin-top: 12px; } .donut-legend div { font-size: .78rem; font-weight: 800; color: var(--text-muted); } .dot { width: 9px; height: 9px; border-radius: 50%; display: inline-block; margin-left: 5px; }
+        .state-card { padding: 12px; min-height: 84px; } .state-card span { display: block; color: var(--text-muted); font-size: .74rem; font-weight: 800; } .state-card strong { display: block; margin-top: 6px; font-family: 'JetBrains Mono', monospace; font-size: 1.35rem; } .state-pending strong { color: #d97706; } .state-processing strong { color: #3b82f6; } .state-accepted strong { color: #8b5cf6; } .state-completed strong { color: #10b981; } .state-cancelled strong { color: #ef4444; }
         @media (max-width: 991px) { .main-content { margin-right: 0; padding: 86px 14px 86px; } .chart-box { min-height: 310px; } .chart-holder { height: 220px; } }
     </style>
 </head>
@@ -31,25 +32,70 @@
     </header>
 
     <section class="mb-4"><div class="d-flex align-items-center justify-content-between mb-2"><h2 class="section-title">اليوم</h2><span class="section-note"><%= todayKey %></span></div><div class="row g-3">
-        <div class="col-12 col-md-4"><article class="pulse-card metric"><span class="label">إجمالي الإيداعات اليوم</span><div class="value text-primary"><%= Number(today.deposits.amount || 0).toLocaleString('en-US', { maximumFractionDigits: 2 }) %> <small>EGP</small></div><div class="count"><%= today.deposits.count %> حركة إيداع</div><i class="fa-solid fa-hand-holding-dollar text-primary"></i></article></div>
-        <div class="col-12 col-md-4"><article class="pulse-card metric"><span class="label">العمليات الناجحة اليوم</span><div class="value text-success"><%= Number(today.successful.amount || 0).toLocaleString('en-US', { maximumFractionDigits: 2 }) %> <small>EGP</small></div><div class="count"><%= today.successful.count %> عملية ناجحة · <%= Number(today.successful.costLYD || 0).toLocaleString('en-US', { maximumFractionDigits: 2 }) %> LYD</div><i class="fa-solid fa-circle-check text-success"></i></article></div>
-        <div class="col-12 col-md-4"><article class="pulse-card metric"><span class="label">إجمالي الخصومات اليوم</span><div class="value text-danger"><%= Number(today.deductions.amount || 0).toLocaleString('en-US', { maximumFractionDigits: 2 }) %> <small>EGP</small></div><div class="count"><%= today.deductions.count %> حركة خصم</div><i class="fa-solid fa-arrow-trend-down text-danger"></i></article></div>
+        <div class="col-12 col-md-4"><article class="pulse-card metric"><span class="label">إجمالي الإيداعات اليوم</span><div class="value text-primary" id="todayDepositValue"><%= Number(today.deposits.amount || 0).toLocaleString('en-US', { maximumFractionDigits: 2 }) %> <small>EGP</small></div><div class="count" id="todayDepositCount"><%= today.deposits.count %> حركة إيداع</div><i class="fa-solid fa-hand-holding-dollar text-primary"></i></article></div>
+        <div class="col-12 col-md-4"><article class="pulse-card metric"><span class="label">العمليات الناجحة اليوم</span><div class="value text-success" id="todaySuccessValue"><%= Number(today.successful.amount || 0).toLocaleString('en-US', { maximumFractionDigits: 2 }) %> <small>EGP</small></div><div class="count" id="todaySuccessCount"><%= today.successful.count %> عملية ناجحة · <%= Number(today.successful.costLYD || 0).toLocaleString('en-US', { maximumFractionDigits: 2 }) %> LYD</div><i class="fa-solid fa-circle-check text-success"></i></article></div>
+        <div class="col-12 col-md-4"><article class="pulse-card metric"><span class="label">إجمالي الخصومات اليوم</span><div class="value text-danger" id="todayDeductionValue"><%= Number(today.deductions.amount || 0).toLocaleString('en-US', { maximumFractionDigits: 2 }) %> <small>EGP</small></div><div class="count" id="todayDeductionCount"><%= today.deductions.count %> حركة خصم</div><i class="fa-solid fa-arrow-trend-down text-danger"></i></article></div>
     </div></section>
 
     <section class="mb-4"><div class="d-flex align-items-center justify-content-between mb-2"><h2 class="section-title">الشهر الحالي</h2><span class="section-note">حتى الآن</span></div><div class="row g-3">
-        <div class="col-12 col-md-4"><article class="pulse-card metric"><span class="label">إجمالي الإيداعات الشهرية</span><div class="value text-primary"><%= Number(month.deposits.amount || 0).toLocaleString('en-US', { maximumFractionDigits: 2 }) %> <small>EGP</small></div><div class="count"><%= month.deposits.count %> حركة إيداع</div><i class="fa-solid fa-building-columns text-primary"></i></article></div>
-        <div class="col-12 col-md-4"><article class="pulse-card metric"><span class="label">العمليات الناجحة الشهرية</span><div class="value text-success"><%= Number(month.successful.amount || 0).toLocaleString('en-US', { maximumFractionDigits: 2 }) %> <small>EGP</small></div><div class="count"><%= month.successful.count %> عملية ناجحة · <%= Number(month.successful.costLYD || 0).toLocaleString('en-US', { maximumFractionDigits: 2 }) %> LYD</div><i class="fa-solid fa-chart-line text-success"></i></article></div>
-        <div class="col-12 col-md-4"><article class="pulse-card metric"><span class="label">إجمالي الخصومات الشهرية</span><div class="value text-danger"><%= Number(month.deductions.amount || 0).toLocaleString('en-US', { maximumFractionDigits: 2 }) %> <small>EGP</small></div><div class="count"><%= month.deductions.count %> حركة خصم</div><i class="fa-solid fa-wallet text-danger"></i></article></div>
+        <div class="col-12 col-md-4"><article class="pulse-card metric"><span class="label">إجمالي الإيداعات الشهرية</span><div class="value text-primary" id="monthDepositValue"><%= Number(month.deposits.amount || 0).toLocaleString('en-US', { maximumFractionDigits: 2 }) %> <small>EGP</small></div><div class="count" id="monthDepositCount"><%= month.deposits.count %> حركة إيداع</div><i class="fa-solid fa-building-columns text-primary"></i></article></div>
+        <div class="col-12 col-md-4"><article class="pulse-card metric"><span class="label">العمليات الناجحة الشهرية</span><div class="value text-success" id="monthSuccessValue"><%= Number(month.successful.amount || 0).toLocaleString('en-US', { maximumFractionDigits: 2 }) %> <small>EGP</small></div><div class="count" id="monthSuccessCount"><%= month.successful.count %> عملية ناجحة · <%= Number(month.successful.costLYD || 0).toLocaleString('en-US', { maximumFractionDigits: 2 }) %> LYD</div><i class="fa-solid fa-chart-line text-success"></i></article></div>
+        <div class="col-12 col-md-4"><article class="pulse-card metric"><span class="label">إجمالي الخصومات الشهرية</span><div class="value text-danger" id="monthDeductionValue"><%= Number(month.deductions.amount || 0).toLocaleString('en-US', { maximumFractionDigits: 2 }) %> <small>EGP</small></div><div class="count" id="monthDeductionCount"><%= month.deductions.count %> حركة خصم</div><i class="fa-solid fa-wallet text-danger"></i></article></div>
+    </div></section>
+
+    <section class="mb-4"><div class="d-flex align-items-center justify-content-between mb-2"><h2 class="section-title">حالة العمليات اليوم</h2><span class="section-note">يتم التحديث بهدوء كل دقيقة</span></div><div class="row g-2">
+        <div class="col-6 col-md"><article class="pulse-card state-card state-pending"><span>معلقة</span><strong id="statePending"><%= today.statusCounts.pending %></strong></article></div>
+        <div class="col-6 col-md"><article class="pulse-card state-card state-processing"><span>موجهة</span><strong id="stateProcessing"><%= today.statusCounts.processing %></strong></article></div>
+        <div class="col-6 col-md"><article class="pulse-card state-card state-accepted"><span>قيد العمل</span><strong id="stateAccepted"><%= today.statusCounts.accepted %></strong></article></div>
+        <div class="col-6 col-md"><article class="pulse-card state-card state-completed"><span>مكتملة</span><strong id="stateCompleted"><%= today.statusCounts.completed %></strong></article></div>
+        <div class="col-12 col-md"><article class="pulse-card state-card state-cancelled"><span>ملغية</span><strong id="stateCancelled"><%= today.statusCounts.cancelled %></strong></article></div>
     </div></section>
 
     <section class="row g-3"><div class="col-12 col-xl-8"><article class="pulse-card chart-box"><div class="d-flex justify-content-between gap-2 align-items-start"><div><h2 class="section-title">مسار النجاح — آخر 7 أيام</h2><p class="section-note mb-0">عدد وقيمة العمليات المكتملة لكل يوم.</p></div><span class="badge text-bg-success">مباشر</span></div><div class="chart-holder"><canvas id="trendChart"></canvas></div></article></div>
-    <div class="col-12 col-xl-4"><article class="pulse-card chart-box"><h2 class="section-title">نسبة حجم العمليات</h2><p class="section-note mb-0">مقارنة عدد عمليات اليوم مع بقية الشهر.</p><div class="chart-holder"><canvas id="ratioChart"></canvas></div><div class="donut-legend"><div><span class="dot" style="background:#3b82f6"></span> اليوم: <%= today.operationsCount %></div><div><span class="dot" style="background:#94a3b8"></span> باقي الشهر: <%= Math.max(0, month.operationsCount - today.operationsCount) %></div></div></article></div></section>
+    <div class="col-12 col-xl-4"><article class="pulse-card chart-box"><h2 class="section-title">نسبة حجم العمليات</h2><p class="section-note mb-0">مقارنة عدد عمليات اليوم مع بقية الشهر.</p><div class="chart-holder"><canvas id="ratioChart"></canvas></div><div class="donut-legend"><div id="todayRatioLegend"><span class="dot" style="background:#3b82f6"></span> اليوم: <%= today.operationsCount %></div><div id="monthRatioLegend"><span class="dot" style="background:#94a3b8"></span> باقي الشهر: <%= Math.max(0, month.operationsCount - today.operationsCount) %></div></div></article></div></section>
 </div></main>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
 <script>
 const trend = <%- JSON.stringify(trend) %>;
 const textColor = getComputedStyle(document.documentElement).getPropertyValue('--text-muted').trim() || '#64748b';
-new Chart(document.getElementById('trendChart'), { type: 'bar', data: { labels: trend.map(item => item.label), datasets: [{ label: 'عدد الناجحة', data: trend.map(item => item.successfulCount), backgroundColor: '#10b981', borderRadius: 7, yAxisID: 'count' }, { type: 'line', label: 'القيمة EGP', data: trend.map(item => item.successfulAmount), borderColor: '#3b82f6', backgroundColor: '#3b82f6', tension: .35, yAxisID: 'amount' }] }, options: { maintainAspectRatio: false, plugins: { legend: { labels: { color: textColor, font: { family: 'Tajawal', weight: '700' } } } }, scales: { x: { ticks: { color: textColor }, grid: { display: false } }, count: { beginAtZero: true, position: 'right', ticks: { color: textColor, precision: 0 }, grid: { color: 'rgba(148,163,184,.12)' } }, amount: { beginAtZero: true, position: 'left', ticks: { color: textColor }, grid: { drawOnChartArea: false } } } } });
-new Chart(document.getElementById('ratioChart'), { type: 'doughnut', data: { labels: ['عمليات اليوم', 'باقي الشهر'], datasets: [{ data: [<%= today.operationsCount %>, <%= Math.max(0, month.operationsCount - today.operationsCount) %>], backgroundColor: ['#3b82f6', '#94a3b8'], borderWidth: 0 }] }, options: { maintainAspectRatio: false, cutout: '70%', plugins: { legend: { display: false } } } });
+const trendChart = new Chart(document.getElementById('trendChart'), { type: 'bar', data: { labels: trend.map(item => item.label), datasets: [{ label: 'عدد الناجحة', data: trend.map(item => item.successfulCount), backgroundColor: '#10b981', borderRadius: 7, yAxisID: 'count' }, { type: 'line', label: 'القيمة EGP', data: trend.map(item => item.successfulAmount), borderColor: '#3b82f6', backgroundColor: '#3b82f6', tension: .35, yAxisID: 'amount' }] }, options: { maintainAspectRatio: false, plugins: { legend: { labels: { color: textColor, font: { family: 'Tajawal', weight: '700' } } } }, scales: { x: { ticks: { color: textColor }, grid: { display: false } }, count: { beginAtZero: true, position: 'right', ticks: { color: textColor, precision: 0 }, grid: { color: 'rgba(148,163,184,.12)' } }, amount: { beginAtZero: true, position: 'left', ticks: { color: textColor }, grid: { drawOnChartArea: false } } } } });
+const ratioChart = new Chart(document.getElementById('ratioChart'), { type: 'doughnut', data: { labels: ['عمليات اليوم', 'باقي الشهر'], datasets: [{ data: [<%= today.operationsCount %>, <%= Math.max(0, month.operationsCount - today.operationsCount) %>], backgroundColor: ['#3b82f6', '#94a3b8'], borderWidth: 0 }] }, options: { maintainAspectRatio: false, cutout: '70%', plugins: { legend: { display: false } } } });
+const money = (value) => Number(value || 0).toLocaleString('en-US', { maximumFractionDigits: 2 });
+const setText = (id, value) => { const node = document.getElementById(id); if (node) node.innerHTML = value; };
+const setMetric = (prefix, metric, label, showLyd = false) => {
+    setText(`${prefix}Value`, `${money(metric.amount)} <small>EGP</small>`);
+    setText(`${prefix}Count`, `${metric.count || 0} ${label}${showLyd ? ` · ${money(metric.costLYD)} LYD` : ''}`);
+};
+async function refreshPulse() {
+    if (document.hidden) return;
+    try {
+        const response = await fetch('/transactions/pulse/data', { headers: { Accept: 'application/json' } });
+        if (!response.ok) return;
+        const payload = await response.json();
+        if (!payload.success) return;
+        setMetric('todayDeposit', payload.today.deposits, 'حركة إيداع');
+        setMetric('todaySuccess', payload.today.successful, 'عملية ناجحة', true);
+        setMetric('todayDeduction', payload.today.deductions, 'حركة خصم');
+        setMetric('monthDeposit', payload.month.deposits, 'حركة إيداع');
+        setMetric('monthSuccess', payload.month.successful, 'عملية ناجحة', true);
+        setMetric('monthDeduction', payload.month.deductions, 'حركة خصم');
+        setText('statePending', payload.today.statusCounts.pending || 0);
+        setText('stateProcessing', payload.today.statusCounts.processing || 0);
+        setText('stateAccepted', payload.today.statusCounts.accepted || 0);
+        setText('stateCompleted', payload.today.statusCounts.completed || 0);
+        setText('stateCancelled', payload.today.statusCounts.cancelled || 0);
+        trendChart.data.labels = payload.trend.map((item) => item.label);
+        trendChart.data.datasets[0].data = payload.trend.map((item) => item.successfulCount);
+        trendChart.data.datasets[1].data = payload.trend.map((item) => item.successfulAmount);
+        trendChart.update('none');
+        const remaining = Math.max(0, (payload.month.operationsCount || 0) - (payload.today.operationsCount || 0));
+        ratioChart.data.datasets[0].data = [payload.today.operationsCount || 0, remaining];
+        ratioChart.update('none');
+        setText('todayRatioLegend', '<span class="dot" style="background:#3b82f6"></span> اليوم: ' + (payload.today.operationsCount || 0));
+        setText('monthRatioLegend', '<span class="dot" style="background:#94a3b8"></span> باقي الشهر: ' + remaining);
+    } catch (_) { /* keep the last successful values visible */ }
+}
+window.setInterval(refreshPulse, 60000);
+document.addEventListener('visibilitychange', () => { if (!document.hidden) refreshPulse(); });
 </script>
 </body></html>

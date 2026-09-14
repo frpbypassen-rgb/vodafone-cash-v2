@@ -33,6 +33,7 @@
         .type-DEPOSIT { background: rgba(16,185,129,.12); color: #10b981; }
         .type-DEDUCTION { background: rgba(239,68,68,.12); color: #ef4444; }
         .type-TRANSFER { background: rgba(59,130,246,.12); color: #3b82f6; }
+        .type-INTERNAL_TRANSFER { background: rgba(139,92,246,.12); color: #7c3aed; }
         .type-COMMISSION { background: rgba(212,175,55,.14); color: var(--brand-gold); }
         .type-REFUND { background: rgba(148,163,184,.16); color: #94a3b8; }
         .type-REVERSAL { background: rgba(6,182,212,.13); color: #06b6d4; }
@@ -71,7 +72,7 @@
         });
         return params.toString();
     };
-    const typeLabels = { DEPOSIT: 'إيداع', DEDUCTION: 'خصم', TRANSFER: 'تحويل', COMMISSION: 'عمولة', REFUND: 'استرجاع', REVERSAL: 'عكس قيد' };
+    const typeLabels = { DEPOSIT: 'إيداع', DEDUCTION: 'خصم', TRANSFER: 'تحويل', INTERNAL_TRANSFER: 'تحويل داخلي', COMMISSION: 'عمولة', REFUND: 'استرجاع', REVERSAL: 'عكس قيد' };
     const entityLabels = { User: 'عميل فردي', ClientCompany: 'شركة', ClientBot: 'تاجر API', SubAccount: 'نقطة بيع', ExecutorBot: 'منفذ', ExecutorGroup: 'منفذ' };
     const statusLabels = { pending: 'معلقة', processing: 'قيد التنفيذ', accepted: 'مقبولة', completed: 'ناجحة', rejected: 'ملغية', cancelled_by_admin: 'ملغية من الإدارة', deposit: 'إيداع', deduction: 'خصم', deposit_pending: 'طلب إيداع' };
 %>
@@ -94,6 +95,12 @@
 
     <section class="toolbar no-print mb-3">
         <form method="GET" action="/financial-movements" class="row g-3 align-items-end">
+            <% if (filters.source === 'transactions') { %><input type="hidden" name="source" value="transactions"><% } %>
+            <div class="col-12 d-flex gap-2 flex-wrap">
+                <a class="btn btn-sm btn-outline-primary fw-bold" href="/financial-movements?<%= queryParams({ fromDate: todayKey, toDate: todayKey, page: '' }) %>"><i class="fa-solid fa-calendar-day ms-1"></i>اليوم</a>
+                <a class="btn btn-sm btn-outline-primary fw-bold" href="/financial-movements?<%= queryParams({ fromDate: `${todayKey.slice(0, 7)}-01`, toDate: todayKey, page: '' }) %>"><i class="fa-solid fa-calendar-days ms-1"></i>هذا الشهر</a>
+                <span class="muted-line align-self-center">أو حدّد فترة مخصصة من الحقول التالية</span>
+            </div>
             <div class="col-12 col-lg-3">
                 <label class="form-label">بحث</label>
                 <input class="form-control" name="search" value="<%= filters.search || '' %>" placeholder="رقم العملية، العميل، الهاتف، رقم الإلغاء">
@@ -214,7 +221,7 @@
                     <% } %>
                     <% movements.forEach((item, index) => {
                         const tx = item.transaction || {};
-                        const amountClass = item.amount >= 0 ? 'amount-in' : 'amount-out';
+                        const amountClass = item.type === 'INTERNAL_TRANSFER' ? 'text-primary' : (item.amount >= 0 ? 'amount-in' : 'amount-out');
                     %>
                         <tr>
                             <td>
@@ -227,19 +234,29 @@
                             </td>
                             <td>
                                 <div class="mono <%= amountClass %>"><%= item.amount >= 0 ? '+' : '' %><%= money(item.amount) %></div>
-                                <div class="muted-line"><%= item.amount >= 0 ? 'دائن' : 'مدين' %></div>
+                                <div class="muted-line"><%= item.type === 'INTERNAL_TRANSFER' ? 'بين حسابين' : (item.amount >= 0 ? 'دائن' : 'مدين') %></div>
                             </td>
                             <td>
-                                <div class="cell-main"><%= entityLabels[item.entityModel] || item.entityModel %></div>
-                                <div class="muted-line mono"><%= item.entityId %></div>
+                                <% if (item.internalTransfer) { %>
+                                    <div class="cell-main">من: <%= entityLabels[item.internalTransfer.debit.entityModel] || item.internalTransfer.debit.entityModel %></div>
+                                    <div class="muted-line mono">إلى: <%= item.internalTransfer.credit.entityId %></div>
+                                <% } else { %>
+                                    <div class="cell-main"><%= entityLabels[item.entityModel] || item.entityModel %></div>
+                                    <div class="muted-line mono"><%= item.entityId %></div>
+                                <% } %>
                             </td>
                             <td>
                                 <div class="cell-main"><%= item.debitAccount || '-' %></div>
                                 <div class="muted-line"><%= item.creditAccount || '-' %></div>
                             </td>
                             <td>
-                                <div class="mono">قبل: <%= money(item.balanceBefore) %></div>
-                                <div class="mono">بعد: <%= money(item.balanceAfter) %></div>
+                                <% if (item.internalTransfer) { %>
+                                    <div class="mono">المصدر: <%= money(item.internalTransfer.debit.balanceAfter) %></div>
+                                    <div class="mono">الهدف: <%= money(item.internalTransfer.credit.balanceAfter) %></div>
+                                <% } else { %>
+                                    <div class="mono">قبل: <%= money(item.balanceBefore) %></div>
+                                    <div class="mono">بعد: <%= money(item.balanceAfter) %></div>
+                                <% } %>
                             </td>
                             <td>
                                 <div class="cell-main mono"><%= item.transactionId %></div>
@@ -334,6 +351,17 @@
         document.getElementById('movementDescription').innerHTML = `<strong>${esc(item.description || '-')}</strong>`;
         new bootstrap.Modal(document.getElementById('movementDetailsModal')).show();
     };
+    document.addEventListener('keydown', (event) => {
+        const editable = ['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement?.tagName);
+        if (event.key === '/' && !editable) {
+            event.preventDefault();
+            document.querySelector('[name="search"]')?.focus();
+        }
+        if (event.key.toLowerCase() === 'r' && !editable) {
+            event.preventDefault();
+            window.location.reload();
+        }
+    });
 </script>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
 </body>

@@ -455,7 +455,7 @@
         </div>
 
         <div class="data-card border-0 mb-4 p-4 d-none d-lg-block">
-            <form method="GET" action="<%= transactionWorkspacePath %>" class="row g-3 align-items-end">
+            <form method="GET" action="<%= transactionWorkspacePath %>" class="row g-3 align-items-end" id="transactionsFilterForm">
                 <input type="hidden" name="filterType" value="<%= typeof filterType !== 'undefined' ? filterType : '' %>">
                 <div class="col-md-3">
                     <label class="form-label fw-bold small text-muted">البحث الشامل</label>
@@ -500,7 +500,7 @@
                 <span class="fw-bold me-3 text-muted small ms-2"><i class="fa-solid fa-filter text-primary"></i> حالات العمليات:</span>
                 <% const operationStatusChips = [{ value: '', label: 'الكل', icon: 'fa-list-check' }, { value: 'pending', label: 'معلقة', icon: 'fa-clock' }, { value: 'processing', label: 'موجهة', icon: 'fa-share' }, { value: 'accepted', label: 'قيد العمل', icon: 'fa-person-digging' }, { value: 'completed', label: 'مكتملة', icon: 'fa-circle-check' }, { value: 'rejected', label: 'ملغية', icon: 'fa-ban' }, { value: 'cancelled_by_admin', label: 'ملغية إداريًا', icon: 'fa-user-slash' }]; %>
                 <% operationStatusChips.forEach(chip => { %>
-                    <a href="?fromDate=<%= fromDate %>&toDate=<%= toDate %>&search=<%= encodeURIComponent(search) %>&status=<%= chip.value %>" class="btn fw-bold px-3 py-2 border-0 rounded-3 filter-btn <%= statusFilter === chip.value ? 'active' : '' %>" style="font-size:.85rem;"><i class="fa-solid <%= chip.icon %> me-1"></i><%= chip.label %></a>
+                    <a href="?fromDate=<%= fromDate %>&toDate=<%= toDate %>&search=<%= encodeURIComponent(search) %>&status=<%= chip.value %><%= executorId ? `&executorId=${executorId}` : '' %>" class="btn fw-bold px-3 py-2 border-0 rounded-3 filter-btn <%= statusFilter === chip.value ? 'active' : '' %>" style="font-size:.85rem;"><i class="fa-solid <%= chip.icon %> me-1"></i><%= chip.label %></a>
                 <% }); %>
             </div>
         </div>
@@ -543,9 +543,10 @@
         </div>
         <% } %>
 
+        <% if (operationWorkspace) { %>
         <section class="executor-balance-panel d-none d-xl-flex mb-3">
             <div class="executor-balance-header">
-                <div class="fw-bold" style="color: var(--text-main);"><i class="fa-solid fa-user-gear text-success ms-1"></i> المنفذون الجاهزون</div>
+                <div class="d-flex justify-content-between gap-2 align-items-start"><div class="fw-bold" style="color: var(--text-main);"><i class="fa-solid fa-user-gear text-success ms-1"></i> المنفذون الجاهزون</div><a class="btn btn-sm btn-outline-success" title="استعلام رصيد API الآن" href="?refreshBalances=1&fromDate=<%= fromDate %>&toDate=<%= toDate %>&search=<%= encodeURIComponent(search) %>&status=<%= statusFilter %><%= executorId ? `&executorId=${executorId}` : '' %>"><i class="fa-solid fa-rotate"></i></a></div>
                 <div class="small text-muted fw-bold mt-1"><% if (executorId) { %><a class="text-decoration-none" href="?fromDate=<%= fromDate %>&toDate=<%= toDate %>&search=<%= encodeURIComponent(search) %>&status=<%= statusFilter %>"><i class="fa-solid fa-xmark ms-1"></i>إلغاء فلتر المنفذ</a><% } else { %>نشطون وبرصيد متاح للتوجيه<% } %></div>
             </div>
             <div class="executor-balance-list">
@@ -561,6 +562,7 @@
                 <% } %>
             </div>
         </section>
+        <% } %>
 
         <div class="data-card border-0 p-0 overflow-hidden">
             <div class="table-responsive border-0 m-0 d-none d-lg-block">
@@ -2097,6 +2099,36 @@
         if (btn) btn.classList.add('active');
     }
 
+    const isOperationsWorkspace = <%= operationWorkspace ? 'true' : 'false' %>;
+    const operationFilterStorageKey = 'ahram_operations_last_filters';
+    const operationFilterNames = ['search', 'status', 'fromDate', 'toDate', 'executorId'];
+    if (isOperationsWorkspace) {
+        const currentParams = new URLSearchParams(window.location.search);
+        const hasExplicitFilter = operationFilterNames.some((name) => currentParams.has(name));
+        if (hasExplicitFilter) {
+            const remembered = new URLSearchParams();
+            operationFilterNames.forEach((name) => { if (currentParams.has(name)) remembered.set(name, currentParams.get(name)); });
+            localStorage.setItem(operationFilterStorageKey, remembered.toString());
+        } else {
+            const remembered = localStorage.getItem(operationFilterStorageKey);
+            if (remembered) window.location.replace(`/transactions/operations?${remembered}`);
+        }
+        document.querySelectorAll('a[href="/transactions/operations"]').forEach((link) => {
+            link.addEventListener('click', () => localStorage.removeItem(operationFilterStorageKey));
+        });
+    }
+    document.addEventListener('keydown', (event) => {
+        const editable = ['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement?.tagName);
+        if (event.key === '/' && !editable) {
+            event.preventDefault();
+            (document.getElementById('searchInput') || document.getElementById('mobileSearchInput'))?.focus();
+        }
+        if (event.key.toLowerCase() === 'r' && !editable) {
+            event.preventDefault();
+            refreshTransactionsList();
+        }
+    });
+
     let transactionsAutoRefreshInFlight = false;
     document.addEventListener('submit', async (event) => {
         const form = event.target.closest('form.js-transaction-action');
@@ -2159,10 +2191,12 @@
         if (isModalOpen || isDropdownOpen) return;
         transactionsAutoRefreshInFlight = true;
         try {
-            const response = await fetch(window.location.href);
+            const response = await fetch(window.location.href, { headers: { 'X-Requested-With': 'XMLHttpRequest' } });
             const htmlText = await response.text();
             const doc = new DOMParser().parseFromString(htmlText, 'text/html');
-            const newTbody = doc.querySelector('tbody'); if (newTbody) document.querySelector('tbody').innerHTML = newTbody.innerHTML;
+            const newTbody = doc.querySelector('tbody');
+            const currentTbody = document.querySelector('tbody');
+            if (newTbody && currentTbody && newTbody.innerHTML !== currentTbody.innerHTML) currentTbody.innerHTML = newTbody.innerHTML;
             
             const newMobile = doc.querySelector('#mobileCardsContainer');
             const currentContainer = document.querySelector('#mobileCardsContainer');
@@ -2185,7 +2219,7 @@
             transactionsAutoRefreshInFlight = false;
         }
     }
-    setInterval(refreshTransactionsList, 5000);
+    setInterval(refreshTransactionsList, isOperationsWorkspace ? 30000 : 5000);
     document.addEventListener('visibilitychange', () => {
         if (!document.hidden) refreshTransactionsList();
     });

@@ -6,9 +6,9 @@ const Ledger = require('../models/Ledger');
 const Transaction = require('../models/Transaction');
 const { requireAuth } = require('../middlewares/auth');
 const { escapeRegex } = require('../middlewares/sanitize');
-const { systemDayEnd, systemDayStart } = require('../config/systemTime');
+const { systemDateKey, systemDayEnd, systemDayStart } = require('../config/systemTime');
 
-const MOVEMENT_TYPES = ['DEPOSIT', 'DEDUCTION', 'TRANSFER', 'COMMISSION', 'REFUND', 'REVERSAL'];
+const MOVEMENT_TYPES = ['DEPOSIT', 'DEDUCTION', 'TRANSFER', 'INTERNAL_TRANSFER', 'COMMISSION', 'REFUND', 'REVERSAL'];
 const ENTITY_MODELS = ['User', 'ClientCompany', 'ClientBot', 'SubAccount', 'ExecutorBot', 'ExecutorGroup'];
 const SORT_FIELDS = new Set(['createdAt', 'amount', 'balanceBefore', 'balanceAfter', 'type', 'entityModel']);
 
@@ -30,7 +30,8 @@ const buildLedgerFilter = async (query) => {
     const dateRange = parseDateRange(query);
     if (dateRange) filter.createdAt = dateRange;
 
-    if (MOVEMENT_TYPES.includes(query.type)) filter.type = query.type;
+    if (query.type === 'INTERNAL_TRANSFER') filter.type = 'TRANSFER';
+    else if (MOVEMENT_TYPES.includes(query.type)) filter.type = query.type;
     if (ENTITY_MODELS.includes(query.entityModel)) filter.entityModel = query.entityModel;
 
     const minAmount = Number(query.minAmount);
@@ -80,6 +81,47 @@ const enrichMovements = async (ledgers) => {
         ...ledger,
         transaction: txMap.get(ledger.transactionId) || null
     }));
+};
+
+// التحويل الداخلي ينشئ قيدين متعاكسين لنفس المرجع: خصم من المصدر وإضافة للهدف.
+// لا نغيّر القيود المحاسبية الأصلية، بل نعرضهما كسطر تشغيلي واحد فقط عندما يكون
+// الطرفان موجودين في نفس مجموعة النتائج وبالقيمة نفسها.
+const groupInternalTransfers = (movements) => {
+    const groupedByReference = new Map();
+    for (const movement of movements) {
+        if (movement.type !== 'TRANSFER' || !movement.transactionId) continue;
+        const key = String(movement.transactionId);
+        const current = groupedByReference.get(key) || [];
+        current.push(movement);
+        groupedByReference.set(key, current);
+    }
+
+    const handledIds = new Set();
+    const grouped = [];
+    for (const movement of movements) {
+        const movementId = String(movement._id);
+        if (handledIds.has(movementId)) continue;
+        const related = groupedByReference.get(String(movement.transactionId)) || [];
+        const debit = related.find((item) => Number(item.amount) < 0);
+        const credit = related.find((item) => Number(item.amount) > 0 && Math.abs(Number(item.amount)) === Math.abs(Number(debit?.amount)));
+        if (movement.type === 'TRANSFER' && debit && credit) {
+            handledIds.add(String(debit._id));
+            handledIds.add(String(credit._id));
+            grouped.push({
+                ...debit,
+                _id: `internal-${debit._id}-${credit._id}`,
+                type: 'INTERNAL_TRANSFER',
+                amount: Math.abs(Number(debit.amount)),
+                balanceAfter: credit.balanceAfter,
+                description: `تحويل داخلي: ${debit.description || 'خصم من الحساب المصدر'} ← ${credit.description || 'إضافة إلى الحساب الهدف'}`,
+                internalTransfer: { debit, credit }
+            });
+            continue;
+        }
+        handledIds.add(movementId);
+        grouped.push(movement);
+    }
+    return grouped;
 };
 
 const summarize = async (filter) => {
@@ -134,7 +176,19 @@ router.get('/financial-movements', requireAuth, async (req, res) => {
             summarize(filter)
         ]);
 
-        const movements = await enrichMovements(ledgers);
+        // إذا انقسم طرفا التحويل الداخلي على صفحتين، نحمّل الطرف المقابل لنفس
+        // المرجع كي يظل العرض سطراً واحداً ولا يبدو كأنه حركتان منفصلتان.
+        const transferIds = [...new Set(ledgers.filter((item) => item.type === 'TRANSFER').map((item) => item.transactionId).filter(Boolean))];
+        const transferPairFilter = { ...filter, type: 'TRANSFER', transactionId: { $in: transferIds } };
+        delete transferPairFilter.$or;
+        const transferPairs = transferIds.length
+            ? await Ledger.find(transferPairFilter).lean()
+            : [];
+        const displayLedgers = [...new Map([...ledgers, ...transferPairs].map((item) => [String(item._id), item])).values()];
+        const groupedMovements = groupInternalTransfers(await enrichMovements(displayLedgers));
+        const movements = req.query.type === 'INTERNAL_TRANSFER'
+            ? groupedMovements.filter((movement) => movement.type === 'INTERNAL_TRANSFER')
+            : groupedMovements;
         const pages = Math.max(1, Math.ceil(total / limit));
 
         res.render('financial_movements', {
@@ -145,6 +199,7 @@ router.get('/financial-movements', requireAuth, async (req, res) => {
             filters: req.query,
             movementTypes: MOVEMENT_TYPES,
             entityModels: ENTITY_MODELS,
+            todayKey: systemDateKey(new Date()),
             pagination: { page, pages, total, limit, sortField, sortDir }
         });
     } catch (error) {
@@ -157,7 +212,10 @@ router.get('/financial-movements/export.csv', requireAuth, async (req, res) => {
     try {
         const filter = await buildLedgerFilter(req.query);
         const ledgers = await Ledger.find(filter).sort({ createdAt: -1 }).limit(5000).lean();
-        const movements = await enrichMovements(ledgers);
+        const groupedMovements = groupInternalTransfers(await enrichMovements(ledgers));
+        const movements = req.query.type === 'INTERNAL_TRANSFER'
+            ? groupedMovements.filter((movement) => movement.type === 'INTERNAL_TRANSFER')
+            : groupedMovements;
 
         const headers = [
             'date',
