@@ -207,6 +207,7 @@
     .operations-menu.is-open .operations-chevron { transform: rotate(-90deg); }
     .operations-menu .operations-submenu { display: none; padding: 4px 10px 8px 0; border-right: 1px solid rgba(255,255,255,.14); margin-right: 28px; }
     .operations-menu.is-open .operations-submenu { display: block; }
+    .sidebar-menu > .operations-submenu { display: block; padding: 4px 10px 8px 0; border-right: 1px solid rgba(255,255,255,.14); margin: 0 28px 4px 0; }
     .sidebar-menu .operations-submenu a { padding: 9px 12px; margin: 2px 0; font-size: .82rem; border-radius: 9px; }
     .sidebar-menu .operations-submenu a i { width: 18px; font-size: .85rem; margin-left: 7px; }
     .sidebar-mobile-close {
@@ -689,17 +690,15 @@
             </span>
             <i class="fa-solid fa-angle-left menu-chevron"></i>
         </a>
-        <div class="operations-menu <%= typeof activePage !== 'undefined' && String(activePage).startsWith('transactions') ? 'is-open' : '' %>">
-            <button type="button" class="operations-menu-toggle" aria-expanded="<%= typeof activePage !== 'undefined' && String(activePage).startsWith('transactions') ? 'true' : 'false' %>" onclick="toggleOperationsMenu(this)">
-                <span class="menu-link-content"><i class="fa-solid fa-list-check"></i> سجل العمليات المباشر</span>
-                <i class="fa-solid fa-angle-left operations-chevron"></i>
-            </button>
-            <div class="operations-submenu">
-                <a href="/transactions/pulse" class="<%= typeof activePage !== 'undefined' && activePage === 'transactions_pulse' ? 'active' : '' %>"><i class="fa-solid fa-heart-pulse"></i> شاشة نبض</a>
-                <a href="/transactions/operations" class="<%= typeof activePage !== 'undefined' && activePage === 'transactions' ? 'active' : '' %>"><i class="fa-solid fa-list-check"></i> العمليات</a>
-                <a href="/transactions/movements" class="<%= typeof activePage !== 'undefined' && activePage === 'transactions_movements' ? 'active' : '' %>"><i class="fa-solid fa-arrow-right-arrow-left"></i> سجل الحركة</a>
-                <a href="/transactions/search" class="<%= typeof activePage !== 'undefined' && activePage === 'transactions_search' ? 'active' : '' %>"><i class="fa-solid fa-magnifying-glass"></i> البحث الشامل</a>
-            </div>
+        <a href="/transactions/operations" class="<%= typeof activePage !== 'undefined' && String(activePage).startsWith('transactions') ? 'active' : '' %>">
+            <span class="menu-link-content"><i class="fa-solid fa-list-check"></i> سجل العمليات المباشر</span>
+            <i class="fa-solid fa-angle-left menu-chevron"></i>
+        </a>
+        <div class="operations-submenu">
+            <a href="/transactions/pulse" class="<%= typeof activePage !== 'undefined' && activePage === 'transactions_pulse' ? 'active' : '' %>"><i class="fa-solid fa-heart-pulse"></i> شاشة نبض</a>
+            <a href="/transactions/operations" class="<%= typeof activePage !== 'undefined' && activePage === 'transactions' ? 'active' : '' %>"><i class="fa-solid fa-list-check"></i> العمليات</a>
+            <a href="/transactions/movements" class="<%= typeof activePage !== 'undefined' && activePage === 'transactions_movements' ? 'active' : '' %>"><i class="fa-solid fa-arrow-right-arrow-left"></i> سجل الحركة</a>
+            <a href="/transactions/search" class="<%= typeof activePage !== 'undefined' && activePage === 'transactions_search' ? 'active' : '' %>"><i class="fa-solid fa-magnifying-glass"></i> البحث الشامل</a>
         </div>
         <a href="/audit-log" class="<%= typeof activePage !== 'undefined' && activePage === 'audit_log' ? 'active' : '' %>">
             <span class="menu-link-content">
