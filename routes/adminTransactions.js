@@ -1,4 +1,5 @@
 const express = require('express');
+const mongoose = require('mongoose');
 const router = express.Router();
 const https = require('https');
 const Transaction = require('../models/Transaction');
@@ -303,6 +304,9 @@ const renderTransactions = async (req, res, operationsWorkspace = false) => {
         const limit = 100;
         const search = req.query.search || '';
         const statusFilter = req.query.status || '';
+        const executorId = /^[a-f\d]{24}$/i.test(String(req.query.executorId || ''))
+            ? String(req.query.executorId)
+            : '';
         let fromDate = req.query.fromDate;
         let toDate = req.query.toDate;
         const filterType = req.query.filterType || '';
@@ -330,6 +334,7 @@ const renderTransactions = async (req, res, operationsWorkspace = false) => {
                 $or: [
                     { customId: { $regex: safeSearch, $options: 'i' } },
                     { vodafoneNumber: { $regex: safeSearch, $options: 'i' } },
+                    { accountNumber: { $regex: safeSearch, $options: 'i' } },
                     { companyName: { $regex: safeSearch, $options: 'i' } },
                     { employeeName: { $regex: safeSearch, $options: 'i' } }
                 ]
@@ -337,6 +342,7 @@ const renderTransactions = async (req, res, operationsWorkspace = false) => {
         }
         if (statusFilter && (!operationsWorkspace || OPERATION_STATUSES.includes(statusFilter))) query.status = statusFilter;
         else if (operationsWorkspace) query.status = { $in: OPERATION_STATUSES };
+        if (operationsWorkspace && executorId) query.executorGroupId = new mongoose.Types.ObjectId(executorId);
         if (fromDate || toDate) {
             const createdAt = systemDateRange(fromDate, toDate);
             if (createdAt) query.createdAt = createdAt;
@@ -357,7 +363,31 @@ const renderTransactions = async (req, res, operationsWorkspace = false) => {
 
         const totalTxs = await Transaction.countDocuments(query);
         const totalPages = Math.ceil(totalTxs / limit);
-        const transactions = await Transaction.find(query).sort({ createdAt: -1 }).skip((page - 1) * limit).limit(limit);
+        const transactions = operationsWorkspace
+            ? await Transaction.aggregate([
+                { $match: query },
+                {
+                    $addFields: {
+                        operationQueueOrder: {
+                            $switch: {
+                                branches: [
+                                    { case: { $eq: ['$status', 'pending'] }, then: 0 },
+                                    { case: { $eq: ['$status', 'processing'] }, then: 1 },
+                                    { case: { $eq: ['$status', 'accepted'] }, then: 2 },
+                                    { case: { $eq: ['$status', 'completed'] }, then: 3 },
+                                    { case: { $in: ['$status', ['rejected', 'cancelled_by_admin']] }, then: 4 }
+                                ],
+                                default: 5
+                            }
+                        }
+                    }
+                },
+                { $sort: { operationQueueOrder: 1, createdAt: -1 } },
+                { $skip: (page - 1) * limit },
+                { $limit: limit },
+                { $project: { operationQueueOrder: 0 } }
+            ])
+            : await Transaction.find(query).sort({ createdAt: -1 }).skip((page - 1) * limit).limit(limit);
 
         // هذا الملخص مستقل عن فلاتر السجل: يعرض حركة اليوم دائماً.
         // نستبعد الطرف المقابل لتحويل الرصيد حتى لا تُحسب العملية الداخلية مرتين.
@@ -399,11 +429,17 @@ const renderTransactions = async (req, res, operationsWorkspace = false) => {
                     { balance: { $gt: 0 } },
                     { isApiBot: true }
                 ]
-            }).select('name balance isApiBot apiProviderKey apiUrl apiToken apiUsername apiPassword apiServiceId apiProviderId apiFieldId apiMachineSerial').lean()
+            }).select('name balance isApiBot updatedAt lastApiBalanceCheckAt apiProviderKey apiUrl apiToken apiUsername apiPassword apiServiceId apiProviderId apiFieldId apiMachineSerial').lean()
         ]);
         const executorBalanceGroups = (await Promise.all(executorBalanceCandidates.map(async (group) => {
             if (!group.isApiBot) {
-                return { name: group.name, balance: Number(group.balance), balanceSource: 'internal' };
+                return {
+                    id: String(group._id),
+                    name: group.name,
+                    balance: Number(group.balance),
+                    balanceSource: 'internal',
+                    checkedAt: group.updatedAt || null
+                };
             }
 
             try {
@@ -421,9 +457,11 @@ const renderTransactions = async (req, res, operationsWorkspace = false) => {
                     }
                 });
                 return {
+                    id: String(group._id),
                     name: group.name,
                     balance: Number(providerBalance.serviceCredit),
-                    balanceSource: 'api_service'
+                    balanceSource: 'api_service',
+                    checkedAt
                 };
             } catch (error) {
                 console.error('[adminTransactions/API balance] failed:', error.message);
@@ -477,6 +515,7 @@ const renderTransactions = async (req, res, operationsWorkspace = false) => {
             filterType,
             dailyTotals,
             executorBalanceGroups,
+            executorId,
             operationWorkspace: operationsWorkspace,
             query: req.query
         });

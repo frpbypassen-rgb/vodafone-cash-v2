@@ -24,10 +24,15 @@
         .executor-balance-panel { border: 1px solid var(--border-glass); border-radius: 18px; background: var(--card-bg); box-shadow: var(--shadow-soft); overflow: hidden; }
         .executor-balance-header { flex: 0 0 215px; padding: 12px 16px; border-left: 1px solid var(--border-glass); }
         .executor-balance-list { display: flex; flex: 1 1 auto; max-height: 94px; overflow: auto; }
-        .executor-balance-row { display: flex; flex: 1 0 220px; align-items: center; justify-content: space-between; gap: 10px; padding: 12px 16px; border-left: 1px dashed var(--border-glass); }
+        .executor-balance-row { display: flex; flex: 1 0 220px; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 14px; border-left: 1px dashed var(--border-glass); text-decoration: none; transition: background .18s ease, transform .18s ease; }
+        .executor-balance-row:hover { background: rgba(16, 185, 129, .07); transform: translateY(-1px); }
+        .executor-balance-row.is-selected { background: rgba(59, 130, 246, .10); box-shadow: inset 0 -2px 0 #3b82f6; }
         .executor-balance-row:last-child { border-left: 0; }
         .executor-balance-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 800; color: var(--text-main); }
         .executor-balance-value { flex: 0 0 auto; font-family: 'JetBrains Mono', monospace; font-size: 0.8rem; font-weight: 900; color: #10b981; }
+        .executor-balance-meta { display: block; margin-top: 3px; color: var(--text-muted); font-size: .66rem; font-family: 'Tajawal', sans-serif; font-weight: 700; }
+        .operation-age { display: block; margin-top: 7px; color: var(--text-muted); font-size: .7rem; font-weight: 800; white-space: nowrap; }
+        .operation-age.is-late { color: #d97706; }
 
         .btn-action-sm { width: 35px; height: 35px; display: inline-flex; align-items: center; justify-content: center; border-radius: 10px; font-size: 0.9rem; transition: 0.2s; border: 1px solid transparent; background: rgba(0,0,0,0.05); color: var(--text-main); text-decoration: none;}
         [data-theme="dark"] .btn-action-sm { background: rgba(255,255,255,0.05); }
@@ -309,6 +314,16 @@
         return merged.includes('--- سجل الـ API') ? merged : '';
     };
     const transactionWorkspacePath = operationWorkspace ? '/transactions/operations' : '/transactions';
+    const operationAgeFor = (tx = {}) => {
+        const createdAt = new Date(tx.createdAt || Date.now());
+        const minutes = Math.max(0, Math.floor((Date.now() - createdAt.getTime()) / 60000));
+        const label = minutes < 1 ? 'وصلت الآن'
+            : minutes < 60 ? `منذ ${minutes} د`
+            : minutes < 1440 ? `منذ ${Math.floor(minutes / 60)} س`
+            : `منذ ${Math.floor(minutes / 1440)} ي`;
+        const active = ['pending', 'processing', 'accepted'].includes(tx.status);
+        return { label: active ? label : `أُنشئت ${label}`, isLate: active && minutes >= 15 };
+    };
 %>
 
 <button class="mobile-nav-toggle" onclick="toggleSidebar()"><i class="fa-solid fa-bars"></i></button>
@@ -531,15 +546,15 @@
         <section class="executor-balance-panel d-none d-xl-flex mb-3">
             <div class="executor-balance-header">
                 <div class="fw-bold" style="color: var(--text-main);"><i class="fa-solid fa-user-gear text-success ms-1"></i> المنفذون الجاهزون</div>
-                <div class="small text-muted fw-bold mt-1">نشطون وبرصيد متاح للتوجيه</div>
+                <div class="small text-muted fw-bold mt-1"><% if (executorId) { %><a class="text-decoration-none" href="?fromDate=<%= fromDate %>&toDate=<%= toDate %>&search=<%= encodeURIComponent(search) %>&status=<%= statusFilter %>"><i class="fa-solid fa-xmark ms-1"></i>إلغاء فلتر المنفذ</a><% } else { %>نشطون وبرصيد متاح للتوجيه<% } %></div>
             </div>
             <div class="executor-balance-list">
                 <% if (executorBalanceGroups && executorBalanceGroups.length) { %>
                     <% executorBalanceGroups.forEach(group => { %>
-                        <div class="executor-balance-row" title="<%= group.balanceSource === 'api_service' ? 'رصيد خدمة مباشر من API' : 'الرصيد المتاح' %>">
-                            <span class="executor-balance-name"><%= group.name %></span>
-                            <span class="executor-balance-value" dir="ltr"><%= Number(group.balance || 0).toFixed(2) %> EGP<% if (group.balanceSource === 'api_service') { %> <small class="opacity-75">API</small><% } %></span>
-                        </div>
+                        <a class="executor-balance-row <%= executorId === group.id ? 'is-selected' : '' %>" href="?executorId=<%= group.id %>&fromDate=<%= fromDate %>&toDate=<%= toDate %>&search=<%= encodeURIComponent(search) %>&status=<%= statusFilter %>" title="عرض عمليات <%= group.name %>">
+                            <span class="executor-balance-name"><%= group.name %><small class="executor-balance-meta"><%= group.balanceSource === 'api_service' ? 'API · رصيد خدمة مباشر' : 'يدوي · رصيد داخلي' %></small></span>
+                            <span class="executor-balance-value" dir="ltr"><%= Number(group.balance || 0).toFixed(2) %> EGP<small class="executor-balance-meta">تحديث <%= group.checkedAt ? new Date(group.checkedAt).toLocaleTimeString('en-GB', { timeZone: 'Africa/Tripoli', hour: '2-digit', minute: '2-digit' }) : '—' %></small></span>
+                        </a>
                     <% }); %>
                 <% } else { %>
                     <div class="text-center text-muted small fw-bold py-3 px-3 flex-grow-1"><i class="fa-solid fa-wallet ms-1 opacity-50"></i>لا يوجد منفذ نشط برصيد متاح حالياً.</div>
@@ -574,6 +589,7 @@
                             const eligibleExecutorBots = (executorBots || []).filter((bot) => (bot.supportedTransferTypes || ['vodafone']).includes(tx.transferType || 'vodafone'));
                             const executorDisplay = (executorDisplayByTransaction || {})[String(tx._id)] || {};
                             const directClientName = tx.employeeName || tx.accountName || 'غير معروف';
+                            const operationAge = operationAgeFor(tx);
                         %>
                             <tr style="<%= tx.status === 'deposit_pending' ? 'background: rgba(245, 158, 11, 0.05);' : (tx.status === 'deposit' ? 'background: rgba(16, 185, 129, 0.05);' : (tx.status === 'deduction' ? 'background: rgba(239, 68, 68, 0.05);' : '')) %>">
                             
@@ -655,6 +671,7 @@
                                 <% } else if(tx.status === 'deposit') { %> <span class="badge-st st-done"><i class="fa-solid fa-arrow-down"></i> إيداع</span>
                                 <% } else if(tx.status === 'deduction') { %> <span class="badge-st" style="background: rgba(108,117,125,0.1); color:#6c757d;"><i class="fa-solid fa-arrow-up"></i> خصم</span>
                                 <% } else { %> <span class="badge-st st-fail"><i class="fa-solid fa-ban"></i> ملغي</span> <% } %>
+                                <% if (operationWorkspace) { %><span class="operation-age <%= operationAge.isLate ? 'is-late' : '' %>"><i class="fa-regular fa-clock ms-1"></i><%= operationAge.label %></span><% } %>
                             </td>
 
                             <td>
