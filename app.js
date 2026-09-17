@@ -6,6 +6,17 @@ require('ts-node').register({
 });
 const Sentry = require('@sentry/node');
 
+// 🚀 التحقق من جاهزية البيئة للإنتاج عند البدء
+const { validateProductionEnv } = require('./utils/productionEnhancements');
+const envCheck = validateProductionEnv();
+if (!envCheck.ready && process.env.NODE_ENV === 'production') {
+    console.error('🚨 [FATAL] Production environment validation failed:');
+    envCheck.issues.forEach(issue => console.error(`   - ${issue}`));
+    process.exit(1);
+} else if (!envCheck.ready) {
+    console.warn('⚠️ Development mode: Some environment variables may be missing');
+}
+
 if (process.env.SENTRY_DSN) {
     Sentry.init({
         dsn: process.env.SENTRY_DSN,
@@ -27,6 +38,8 @@ const rateLimit = require('express-rate-limit'); // 🟢 جدار الحماية
 const helmet = require('helmet'); // 🟢 حماية الهيدرز
 const cors = require('cors');
 const multer = require('multer');
+const moment = require('moment-timezone'); // 🚀 تحسين التعامل مع التواريخ
+const { body, param, query, validationResult } = require('express-validator'); // 🚀 التحقق من صحة المدخلات
 
 // 🟢 إعداد رفع الملفات في مجلد التخزين مع فحص نوع الملف
 const storage = multer.diskStorage({
@@ -85,7 +98,7 @@ process.on('uncaughtException', (err) => {
     console.error('🚨 [تخطي خطأ حرج - Uncaught Exception]:', err.stack || err.message);
 });
 
-app.set('trust proxy', 1); 
+app.set('trust proxy', ['loopback', 'linklocal', 'uniquelocal', '10.0.0.0/8', '172.16.0.0/12', '192.168.0.0/16']); 
 
 const server = http.createServer(app);
 
@@ -167,6 +180,21 @@ const limiter = rateLimit({
     message: { success: false, error: 'معدل الطلبات مرتفع جداً، يرجى المحاولة بعد قليل.' },
     standardHeaders: true, 
     legacyHeaders: false,
+    // ✅ إصلاح: استخراج IP بشكل صحيح خلف البروكسي مع تجاهل البورت
+    keyGenerator: (req) => {
+        const forwarded = req.headers['x-forwarded-for']?.split(',')[0]?.trim();
+        const realIp = req.headers['x-real-ip'];
+        const ip = forwarded || realIp || req.ip || req.connection?.remoteAddress || '127.0.0.1';
+        // إزالة رقم البورت إذا وجد (لأن Rate Limter يتوقع IP فقط)
+        return ip.split(':')[0];
+    },
+    skip: (req) => {
+        // تخطي تحديد المعدل للطلبات الداخلية والصحة
+        if (req.path.startsWith('/health') || req.path.startsWith('/metrics') || req.path.startsWith('/system-monitor')) {
+            return true;
+        }
+        return false;
+    }
 });
 app.use(limiter);
 
@@ -248,9 +276,9 @@ app.use(session({
     saveUninitialized: false, 
     store: sessionStore, 
     cookie: {
-        secure: process.env.SECURE_COOKIE === 'true',
+        secure: process.env.NODE_ENV === 'production' && process.env.SECURE_COOKIE === 'true',
         httpOnly: true,
-        sameSite: process.env.COOKIE_SAMESITE || 'lax',
+        sameSite: process.env.NODE_ENV === 'production' ? 'none' : (process.env.COOKIE_SAMESITE || 'lax'),
         maxAge: 24 * 60 * 60 * 1000
     }
 }));
@@ -295,6 +323,7 @@ app.use('/executor-portal', require('./routes/executorReports')); // Reports for
 app.use('/api/mobile', require('./routes/mobileApi'));
 app.use('/api/v1/mobile', require('./routes/mobileApi'));
 app.use('/api/v1/merchant', require('./routes/merchantApi'));
+app.use('/api/webhooks', require('./routes/api/webhooks')); // Webhook management for merchants
 
 app.use('/', require('./routes/auth'));
 app.use('/', require('./routes/dashboard'));

@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>الرئيسية | الأهرام باي</title>
+    
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&display=swap" rel="stylesheet">
+    
+    <!-- Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <!-- Modern CSS -->
+    <link rel="stylesheet" href="/css/client-modern.css">
+</head>
+<body>
+
+    <div class="container-app">
+        
+        <!-- Desktop Sidebar -->
+        <aside class="sidebar">
+            <div class="logo-area">
+                <div class="logo-icon">أ</div>
+                <div class="logo-text">الأهرام باي</div>
+            </div>
+            
+            <nav class="nav-menu">
+                <a href="/client/dashboard" class="nav-item active" data-target="#dashboard">
+                    <i class="fas fa-home"></i>
+                    <span>الرئيسية</span>
+                </a>
+                <a href="/client/transfer" class="nav-item" data-target="#transfer">
+                    <i class="fas fa-exchange-alt"></i>
+                    <span>تحويل أموال</span>
+                </a>
+                <a href="/client/statements" class="nav-item" data-target="#statements">
+                    <i class="fas fa-file-invoice-dollar"></i>
+                    <span>الكشف الحسابي</span>
+                </a>
+                <a href="/client/profile" class="nav-item" data-target="#profile">
+                    <i class="fas fa-user-cog"></i>
+                    <span>الإعدادات</span>
+                </a>
+                <div style="margin-top: auto; border-top: 1px solid rgba(0,0,0,0.05); padding-top: 16px;">
+                    <a href="/client/logout" class="nav-item" style="color: var(--danger-color);">
+                        <i class="fas fa-sign-out-alt"></i>
+                        <span>تسجيل خروج</span>
+                    </a>
+                </div>
+            </nav>
+        </aside>
+
+        <!-- Main Content -->
+        <main id="dashboard" style="padding-top: 20px;">
+            
+            <!-- Header (Mobile Only) -->
+            <header style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; padding: 0 4px;">
+                <div>
+                    <h1 style="font-size: 1.5rem; font-weight: 800; color: var(--secondary-color); margin: 0;">مرحباً، <span class="text-gold"><%= user.name %></span></h1>
+                    <p style="color: var(--text-muted); font-size: 0.9rem; margin: 4px 0 0 0;"><%= new Date().getHours() < 12 ? 'صباح الخير' : 'مساء الخير' %> 👋</p>
+                </div>
+                <div style="width: 40px; height: 40px; background: #e2e8f0; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: var(--secondary-color); font-weight: bold;">
+                    <%= user.name.charAt(0) %>
+                </div>
+            </header>
+
+            <!-- Balance Card -->
+            <section class="balance-card">
+                <div class="balance-label">الرصيد الحالي</div>
+                <div class="balance-amount">
+                    <span class="currency-symbol">ج.م</span>
+                    <span id="balance-amount"><%= user.balance.toFixed(2) %></span>
+                </div>
+                <div class="balance-actions">
+                    <button class="btn-action btn-primary" onclick="window.location.href='/client/transfer'">
+                        <i class="fas fa-paper-plane"></i>
+                        <span>تحويل</span>
+                    </button>
+                    <button class="btn-action btn-secondary" onclick="window.clientUI.showModal('deposit')">
+                        <i class="fas fa-wallet"></i>
+                        <span>إيداع</span>
+                    </button>
+                </div>
+            </section>
+
+            <!-- Quick Actions Grid -->
+            <section class="quick-actions">
+                <div class="action-item" data-action="transfer">
+                    <div class="action-icon"><i class="fas fa-exchange-alt"></i></div>
+                    <span class="action-label">تحويل</span>
+                </div>
+                <div class="action-item" data-action="deposit">
+                    <div class="action-icon"><i class="fas fa-wallet"></i></div>
+                    <span class="action-label">إيداع رصيد</span>
+                </div>
+                <div class="action-item" data-action="statements">
+                    <div class="action-icon"><i class="fas fa-file-alt"></i></div>
+                    <span class="action-label">كشف حساب</span>
+                </div>
+                <div class="action-item" data-action="support">
+                    <div class="action-icon"><i class="fas fa-headset"></i></div>
+                    <span class="action-label">الدعم</span>
+                </div>
+            </section>
+
+            <!-- Recent Transactions -->
+            <section class="card">
+                <div class="card-header">
+                    <h2 class="card-title">آخر العمليات</h2>
+                    <a href="/client/reports" style="color: var(--primary-color); font-size: 0.9rem; font-weight: 600;">عرض الكل</a>
+                </div>
+                
+                <!-- Search Bar -->
+                <div style="margin-bottom: 16px; position: relative;">
+                    <input type="text" id="search-transactions" placeholder="بحث في العمليات..." 
+                           style="width: 100%; padding: 12px 40px 12px 16px; border: 1px solid #e2e8f0; border-radius: var(--radius-md); font-family: inherit; font-size: 0.9rem;">
+                    <i class="fas fa-search" style="position: absolute; right: 14px; top: 50%; transform: translateY(-50%); color: var(--text-muted);"></i>
+                </div>
+
+                <div id="transactions-list" class="transactions-list">
+                    <% if (transactions && transactions.length > 0) { %>
+                        <% transactions.slice(0, 10).forEach((tx, index) => { 
+                            const isCredit = tx.type === 'credit' || tx.amount > 0 || tx.status === 'deposit';
+                        %>
+                        <div class="transaction-item animate-in" style="animation-delay: <%= index * 50 %>ms">
+                            <div class="t-icon <%= isCredit ? 'in' : 'out' %>">
+                                <%= isCredit ? '↓' : '↑' %>
+                            </div>
+                            <div class="t-details">
+                                <div class="t-title"><%= tx.notes || tx.vodafoneNumber || 'تحويل نقدي' %></div>
+                                <div class="t-date"><%= new Date(tx.createdAt).toLocaleDateString('ar-EG', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) %></div>
+                            </div>
+                            <div class="t-amount <%= isCredit ? 'in' : 'out' %>">
+                                <%= isCredit ? '+' : '-' %><%= Math.abs(tx.amount).toLocaleString() %> ج.م
+                            </div>
+                        </div>
+                        <% }) %>
+                    <% } else { %>
+                        <div style="text-align: center; padding: 40px; color: var(--text-muted);">
+                            <div style="font-size: 3rem; margin-bottom: 10px;">📭</div>
+                            <p>لا توجد عمليات حديثة</p>
+                        </div>
+                    <% } %>
+                </div>
+            </section>
+
+            <!-- Promo / Info Banner (Optional) -->
+            <section class="card mt-4" style="background: linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%); color: white; border: none;">
+                <div style="display: flex; align-items: center; gap: 16px;">
+                    <div style="font-size: 2rem;">🎁</div>
+                    <div style="flex: 1;">
+                        <h3 style="font-size: 1.1rem; margin-bottom: 4px;">دع صديق واحصل على رصيد!</h3>
+                        <p style="font-size: 0.85rem; opacity: 0.9;">شارك رابط الإحالة واحصل على 10 ج.م عند كل تسجيل.</p>
+                    </div>
+                    <button style="background: white; color: #b45309; border: none; padding: 8px 16px; border-radius: var(--radius-md); font-weight: bold; cursor: pointer;">شارك الآن</button>
+                </div>
+            </section>
+
+        </main>
+    </div>
+
+    <!-- Mobile Bottom Navigation -->
+    <nav class="mobile-nav">
+        <a href="/client/dashboard" class="nav-btn active">
+            <i class="fas fa-home"></i>
+            <span>الرئيسية</span>
+        </a>
+        <a href="/client/transfer" class="nav-btn">
+            <i class="fas fa-exchange-alt"></i>
+            <span>تحويل</span>
+        </a>
+        <a href="/client/statements" class="nav-btn">
+            <i class="fas fa-file-invoice-dollar"></i>
+            <span>الكشف</span>
+        </a>
+        <a href="/client/profile" class="nav-btn">
+            <i class="fas fa-user"></i>
+            <span>حسابي</span>
+        </a>
+    </nav>
+
+    <!-- Scripts -->
+    <script src="/js/client-modern.js"></script>
+</body>
+</html>

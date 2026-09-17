@@ -1,0 +1,247 @@
+/* 
+ * Pharaonic Theme for Al-Ahram Pay Admin Panel
+ * Inspired by Ancient Egyptian Civilization
+ * Colors: Royal Gold, Lapis Lazuli, Sand Beige, Turquoise
+ */
+
+:root {
+    /* Primary Colors */
+    --pharaoh-gold: #D4AF37;       /* Gold of the Pharaohs */
+    --pharaoh-gold-light: #F4C430; /* Lighter Gold for hovers */
+    --pharaoh-gold-dark: #AA8C2C;  /* Dark Gold for borders */
+    
+    --nile-blue: #1A2B49;          /* Deep Lapis Lazuli / Night Nile */
+    --nile-blue-light: #2C3E66;    /* Lighter Blue for cards */
+    --nile-blue-dark: #0F1A2E;     /* Darkest Blue for sidebars */
+    
+    --sand-beige: #F5F1E8;         /* Papyrus/Sand Background */
+    --sand-beige-dark: #E6DFCF;    /* Darker Sand for sections */
+    
+    --turquoise: #40E0D0;          /* Ancient Turquoise for success */
+    --carnelian: #C44536;          /* Red Carnelian for errors/alerts */
+    
+    /* Text Colors */
+    --text-primary: #1A2B49;
+    --text-secondary: #5A6B8C;
+    --text-light: #F5F1E8;
+    
+    /* Shadows & Borders */
+    --shadow-soft: 0 4px 20px rgba(26, 43, 73, 0.08);
+    --shadow-gold: 0 4px 15px rgba(212, 175, 55, 0.3);
+    --border-radius: 12px;
+    --border-gold: 1px solid rgba(212, 175, 55, 0.3);
+}
+
+/* Global Body Background */
+body.pharaonic-theme {
+    background-color: var(--sand-beige);
+    color: var(--text-primary);
+    font-family: 'Cairo', sans-serif; /* Ensure Cairo font is loaded */
+    transition: background-color 0.3s ease;
+}
+
+/* Sidebar Styling */
+body.pharaonic-theme .sidebar,
+body.pharaonic-theme aside,
+body.pharaonic-theme .admin-sidebar {
+    background: linear-gradient(180deg, var(--nile-blue-dark) 0%, var(--nile-blue) 100%);
+    border-right: 2px solid var(--pharaoh-gold);
+    box-shadow: 4px 0 15px rgba(0,0,0,0.1);
+}
+
+body.pharaonic-theme .sidebar .brand-logo,
+body.pharaonic-theme .sidebar-header {
+    color: var(--pharaoh-gold) !important;
+    text-shadow: 0 2px 4px rgba(0,0,0,0.3);
+    border-bottom: 1px solid rgba(212, 175, 55, 0.2);
+}
+
+body.pharaonic-theme .sidebar-menu a {
+    color: rgba(245, 241, 232, 0.8) !important;
+    transition: all 0.3s ease;
+    border-radius: 8px;
+    margin: 4px 10px;
+}
+
+body.pharaonic-theme .sidebar-menu a:hover,
+body.pharaonic-theme .sidebar-menu a.active {
+    background: rgba(212, 175, 55, 0.15);
+    color: var(--pharaoh-gold) !important;
+    border-left: 3px solid var(--pharaoh-gold);
+    transform: translateX(5px);
+}
+
+/* Cards & Containers */
+body.pharaonic-theme .card,
+body.pharaonic-theme .stat-card,
+body.pharaonic-theme .data-table-container {
+    background-color: #FFFFFF;
+    border: var(--border-gold);
+    border-radius: var(--border-radius);
+    box-shadow: var(--shadow-soft);
+    overflow: hidden;
+}
+
+body.pharaonic-theme .card-header {
+    background-color: var(--nile-blue-light);
+    color: var(--pharaoh-gold);
+    font-weight: 700;
+    border-bottom: 2px solid var(--pharaoh-gold);
+    padding: 15px 20px;
+}
+
+/* Buttons */
+body.pharaonic-theme .btn-primary,
+body.pharaonic-theme .btn-gold {
+    background: linear-gradient(135deg, var(--pharaoh-gold) 0%, var(--pharaoh-gold-dark) 100%);
+    border: none;
+    color: #fff;
+    font-weight: bold;
+    box-shadow: 0 4px 10px rgba(212, 175, 55, 0.3);
+    transition: transform 0.2s, box-shadow 0.2s;
+}
+
+body.pharaonic-theme .btn-primary:hover,
+body.pharaonic-theme .btn-gold:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 15px rgba(212, 175, 55, 0.4);
+    background: linear-gradient(135deg, var(--pharaoh-gold-light) 0%, var(--pharaoh-gold) 100%);
+    color: var(--nile-blue);
+}
+
+body.pharaonic-theme .btn-outline-primary {
+    border: 2px solid var(--pharaoh-gold);
+    color: var(--pharaoh-gold);
+    background: transparent;
+}
+
+body.pharaonic-theme .btn-outline-primary:hover {
+    background-color: var(--pharaoh-gold);
+    color: #fff;
+}
+
+/* Tables */
+body.pharaonic-theme table {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+}
+
+body.pharaonic-theme thead th {
+    background-color: var(--nile-blue);
+    color: var(--pharaoh-gold);
+    padding: 15px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    border: none;
+}
+
+body.pharaonic-theme tbody tr {
+    background-color: #fff;
+    transition: background-color 0.2s;
+}
+
+body.pharaonic-theme tbody tr:nth-child(even) {
+    background-color: #FAF9F6; /* Very light sand */
+}
+
+body.pharaonic-theme tbody tr:hover {
+    background-color: rgba(212, 175, 55, 0.05);
+}
+
+body.pharaonic-theme td {
+    padding: 12px 15px;
+    border-bottom: 1px solid var(--sand-beige-dark);
+    color: var(--text-primary);
+}
+
+/* Status Badges */
+body.pharaonic-theme .badge-success,
+body.pharaonic-theme .status-completed {
+    background-color: rgba(64, 224, 208, 0.15);
+    color: #008B8B;
+    border: 1px solid var(--turquoise);
+}
+
+body.pharaonic-theme .badge-warning,
+body.pharaonic-theme .status-pending {
+    background-color: rgba(212, 175, 55, 0.15);
+    color: #B8860B;
+    border: 1px solid var(--pharaoh-gold);
+}
+
+body.pharaonic-theme .badge-danger,
+body.pharaonic-theme .status-failed {
+    background-color: rgba(196, 69, 54, 0.15);
+    color: var(--carnelian);
+    border: 1px solid var(--carnelian);
+}
+
+/* Inputs & Forms */
+body.pharaonic-theme .form-control,
+body.pharaonic-theme .form-select {
+    border: 1px solid var(--sand-beige-dark);
+    background-color: #FAF9F6;
+    color: var(--text-primary);
+    border-radius: 8px;
+    padding: 10px 15px;
+}
+
+body.pharaonic-theme .form-control:focus,
+body.pharaonic-theme .form-select:focus {
+    border-color: var(--pharaoh-gold);
+    box-shadow: 0 0 0 3px rgba(212, 175, 55, 0.1);
+    background-color: #fff;
+}
+
+body.pharaonic-theme label {
+    color: var(--nile-blue);
+    font-weight: 600;
+    margin-bottom: 5px;
+}
+
+/* Stats Numbers */
+body.pharaonic-theme .stat-value {
+    color: var(--nile-blue);
+    font-weight: 800;
+    font-size: 1.8rem;
+}
+
+body.pharaonic-theme .stat-label {
+    color: var(--text-secondary);
+    font-size: 0.9rem;
+}
+
+/* Decorative Elements (Optional Hieroglyphic touches) */
+body.pharaonic-theme .pharaonic-border-top {
+    border-top: 3px solid var(--pharaoh-gold);
+}
+
+body.pharaonic-theme .pharaonic-icon {
+    color: var(--pharaoh-gold);
+    margin-right: 8px;
+}
+
+/* Scrollbar Styling */
+body.pharaonic-theme ::-webkit-scrollbar {
+    width: 8px;
+}
+body.pharaonic-theme ::-webkit-scrollbar-track {
+    background: var(--sand-beige);
+}
+body.pharaonic-theme ::-webkit-scrollbar-thumb {
+    background: var(--pharaoh-gold-dark);
+    border-radius: 4px;
+}
+body.pharaonic-theme ::-webkit-scrollbar-thumb:hover {
+    background: var(--pharaoh-gold);
+}
+
+/* Responsive Adjustments */
+@media (max-width: 768px) {
+    body.pharaonic-theme .sidebar {
+        border-right: none;
+        border-bottom: 2px solid var(--pharaoh-gold);
+    }
+}
