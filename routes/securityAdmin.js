@@ -5,7 +5,6 @@ const bcrypt = require('bcryptjs');
 const router = express.Router();
 const { requireAuth, requirePermission } = require('../middlewares/auth');
 const Admin = require('../models/Admin');
-const AuditLog = require('../models/AuditLog');
 const SecurityDevice = require('../models/SecurityDevice');
 const SecurityAccessRequest = require('../models/SecurityAccessRequest');
 const securityControl = require('../services/securityControlService');
@@ -13,6 +12,7 @@ const passkeyService = require('../services/passkeyService');
 const { logAction } = require('../services/auditService');
 const { isPasskeyRequired } = require('../config/securityPolicy');
 const operationPinService = require('../services/operationPinService');
+const { buildCommandCenter } = require('../services/securityCommandCenterService');
 
 const PERMISSIONS = Object.freeze([
     ['dashboard.read', 'عرض لوحة القيادة'],
@@ -73,12 +73,12 @@ const requireRecentPasskey = async (req, res, next) => {
 };
 
 router.get('/', async (req, res) => {
-    const [state, devices, requests, admins, auditLogs] = await Promise.all([
+    const [state, devices, requests, admins, commandCenter] = await Promise.all([
         securityControl.getState({ fresh: true }),
         SecurityDevice.find().sort({ status: 1, lastSeenAt: -1 }).limit(100).lean(),
         SecurityAccessRequest.find({ status: 'pending', expiresAt: { $gt: new Date() } }).sort({ createdAt: -1 }).limit(50).lean(),
         Admin.find().select('name role webUsername status permissions mustEnrollSecurity createdAt updatedAt').sort({ createdAt: 1 }).lean(),
-        AuditLog.find({ action: /^SECURITY_/ }).sort({ createdAt: -1 }).limit(40).lean()
+        buildCommandCenter()
     ]);
     return res.render('admin_security', {
         activePage: 'security',
@@ -97,7 +97,8 @@ router.get('/', async (req, res) => {
             status: admin.status || '',
             permissions: Array.isArray(admin.permissions) ? admin.permissions : []
         }))).replace(/</g, '\\u003c'),
-        auditLogs,
+        commandCenter,
+        activityDetailsJson: JSON.stringify(Object.fromEntries(commandCenter.activities.map((activity) => [activity.id, activity.details]))).replace(/</g, '\\u003c'),
         permissions: PERMISSIONS,
         currentPrincipal: currentPrincipal(req),
         currentAdminRole: req.session.adminRole,

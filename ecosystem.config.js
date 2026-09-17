@@ -45,8 +45,9 @@ module.exports = {
         TENANT_MODE: "single",
         ALLOW_LEGACY_TENANTLESS_RECORDS: "false",
         ALLOW_LEGACY_TENANT_TOKENS: "false",
-        REDIS_ENABLED: "false",
-        REDIS_REQUIRED: "false",
+        REDIS_ENABLED: "true",
+        REDIS_REQUIRED: "true",
+        APP_INSTANCE_COUNT: "1",
       }
     },
     {

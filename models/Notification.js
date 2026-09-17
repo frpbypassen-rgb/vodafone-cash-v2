@@ -2,6 +2,7 @@
 const mongoose = require('mongoose');
 
 const notificationSchema = new mongoose.Schema({
+    tenantId: { type: mongoose.Schema.Types.ObjectId, ref: 'Tenant', index: true },
     userId: { type: String, index: true },
     audience: { type: String, enum: ['admin', 'client', 'executor', 'all'], default: 'admin', index: true },
     targetModel: { type: String },

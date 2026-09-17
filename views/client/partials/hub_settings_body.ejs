@@ -6,6 +6,7 @@
         <a href="/client/settings?section=notifications" class="<%= section === 'notifications' ? 'is-active' : '' %>"><i class="fa-solid fa-bell"></i> الإشعارات</a>
         <a href="/client/settings?section=appearance" class="<%= section === 'appearance' ? 'is-active' : '' %>"><i class="fa-solid fa-palette"></i> المظهر</a>
         <a href="/client/settings?section=documents" class="<%= section === 'documents' ? 'is-active' : '' %>"><i class="fa-solid fa-file-shield"></i> الحساب والوثائق</a>
+        <% if (['شركة', 'وكيل'].includes(profile.accountTypeName)) { %><a href="/client/integrations/webhooks"><i class="fa-solid fa-code-branch"></i> تكاملات Webhook</a><% } %>
     </nav>
 
     <div class="client-hub-panel">

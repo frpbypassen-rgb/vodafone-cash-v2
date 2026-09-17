@@ -4,6 +4,7 @@ const express = require('express');
 const router = express.Router();
 const crypto = require('crypto');
 const path = require('path');
+const fs = require('fs');
 const multer = require('multer');
 const { requireAuth, requireMaster } = require('../middlewares/auth');
 const { logAction } = require('../services/auditService');
@@ -32,7 +33,12 @@ const accountDocumentUpload = multer({
     storage: multer.diskStorage({
         destination: (_req, _file, callback) => callback(null, path.join(__dirname, '../uploads')),
         filename: (_req, file, callback) => {
-            const extension = path.extname(file.originalname || '').toLowerCase() || '.bin';
+            const extension = ({
+                'image/jpeg': '.jpg',
+                'image/png': '.png',
+                'image/webp': '.webp',
+                'application/pdf': '.pdf'
+            })[file.mimetype] || '.bin';
             callback(null, `account-document-${crypto.randomUUID()}${extension}`);
         }
     }),
@@ -43,6 +49,25 @@ const accountDocumentUpload = multer({
         return callback(null, true);
     }
 });
+
+const hasExpectedSignature = (file) => {
+    const header = Buffer.alloc(12);
+    const descriptor = fs.openSync(file.path, 'r');
+    try { fs.readSync(descriptor, header, 0, header.length, 0); } finally { fs.closeSync(descriptor); }
+    if (file.mimetype === 'image/jpeg') return header[0] === 0xff && header[1] === 0xd8 && header[2] === 0xff;
+    if (file.mimetype === 'image/png') return header.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]));
+    if (file.mimetype === 'image/webp') return header.subarray(0, 4).toString() === 'RIFF' && header.subarray(8, 12).toString() === 'WEBP';
+    if (file.mimetype === 'application/pdf') return header.subarray(0, 5).toString() === '%PDF-';
+    return false;
+};
+
+const verifyUploadedDocuments = (req, res, next) => {
+    const files = Object.values(req.files || {}).flat();
+    const invalid = files.find((file) => !hasExpectedSignature(file));
+    if (!invalid) return next();
+    files.forEach((file) => { try { fs.unlinkSync(file.path); } catch (_) {} });
+    return res.status(422).send('محتوى أحد الملفات لا يطابق نوعه المعلن.');
+};
 
 const BOOLEAN_FIELDS = Object.freeze([
     'canViewAllReports',
@@ -138,7 +163,7 @@ router.post('/admin/accounts/:type/:id/edit', requireAuth, requireMaster, accoun
     { name: 'identityDocument', maxCount: 1 },
     { name: 'taxCard', maxCount: 1 },
     { name: 'businessLicense', maxCount: 1 }
-]), verifyMultipartCsrf, async (req, res) => {
+]), verifyUploadedDocuments, verifyMultipartCsrf, async (req, res) => {
     try {
         const result = await updateEditableAccount({
             type: req.params.type,

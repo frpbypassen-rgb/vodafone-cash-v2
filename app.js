@@ -411,6 +411,7 @@ app.use('/executor-portal', require('./routes/executorReports')); // Reports for
 app.use('/api/mobile', require('./routes/mobileApi'));
 app.use('/api/v1/mobile', require('./routes/mobileApi'));
 app.use('/api/v1/merchant', require('./routes/merchantApi'));
+app.use('/', require('./routes/merchantWebhooks'));
 
 app.use('/', require('./routes/auth'));
 app.use('/admin/security', require('./routes/securityAdmin'));
@@ -451,16 +452,19 @@ app.use(errorHandler);
 
 const PORT = process.env.PORT || 3000;
 Promise.all([connectDB(), initRedis()]).then(async () => {
+    const merchantWebhookService = require('./services/merchantWebhookService');
     await Promise.all([
         ensureApiReconciliationIndexes(),
         ensurePerformanceIndexes(),
         ensureSecurityDeviceIndexes(),
-        ensureUnifiedReportInfrastructure()
+        ensureUnifiedReportInfrastructure(),
+        merchantWebhookService.ensureMerchantWebhookIndexes()
     ]);
     await restorePendingRateActivation({ app });
     startRateChangeActivationMonitor({ app });
     startApiCompletionMonitor();
     startApiProviderReturnMonitor();
+    merchantWebhookService.startMerchantWebhookWorker();
     await startExecutorPushNotificationWorker().catch((error) => {
         logger.error('Executor push notification worker failed to start', { error: error.message });
     });

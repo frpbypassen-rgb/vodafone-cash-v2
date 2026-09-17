@@ -15,6 +15,12 @@ const { syncBotBalance } = require('../utils/helpers');
 const { proofSourceUrl, streamProofImage } = require('../services/proofStorageService');
 const { reversalService } = require('../src/Application/Services/ReversalService');
 const { repriceTransaction, editTransactionAmount } = require('../services/adminFinancialMutationService');
+const {
+    listDashboardEntities,
+    loadDashboardIntelligence,
+    loadEntityMovementReport
+} = require('../services/dashboardIntelligenceService');
+const { tenantScope } = require('../utils/tenantScope');
 
 const appendAdminNoteText = (current, note) => {
     const cleanNote = String(note || '').trim();
@@ -24,7 +30,7 @@ const appendAdminNoteText = (current, note) => {
 
 router.get(['/proxy/image/:id', '/proxy/image/:id/:index'], requireAuth, async (req, res) => {
     try {
-        const tx = await Transaction.findById(req.params.id);
+        const tx = await Transaction.findOne({ _id: req.params.id, ...tenantScope(req) });
         if (!tx) return res.status(404).send('لا توجد صورة إثبات');
 
         const index = req.params.index ? parseInt(req.params.index) : 0;
@@ -48,14 +54,7 @@ router.get(['/proxy/image/:id', '/proxy/image/:id/:index'], requireAuth, async (
 
 router.get('/', requireAuth, async (req, res) => {
     try {
-        // --- إحصائيات اليوم المخصصة للهاتف المحمول ---
-        const startOfDay = new Date();
-        startOfDay.setHours(0, 0, 0, 0);
-        const endOfDay = new Date();
-        endOfDay.setHours(23, 59, 59, 999);
-
-        const todayQuery = { createdAt: { $gte: startOfDay, $lte: endOfDay } };
-
+        const scopedTenant = tenantScope(req);
         const [
             usersCount,
             companiesCount,
@@ -63,44 +62,67 @@ router.get('/', requireAuth, async (req, res) => {
             pendingTxs,
             processingTxs,
             completedTxs,
-            todayCompleted,
-            todayPending,
-            todayProcessing,
-            todayCancelled,
-            todayTotal,
-            sums
+            intelligence
         ] = await Promise.all([
-            User.countDocuments(),
-            ClientCompany.countDocuments(),
-            Employee.countDocuments(),
-            Transaction.countDocuments({ status: 'pending' }),
-            Transaction.countDocuments({ status: { $in: ['processing', 'accepted'] } }),
-            Transaction.countDocuments({ status: 'completed' }),
-            Transaction.countDocuments({ ...todayQuery, status: 'completed' }),
-            Transaction.countDocuments({ ...todayQuery, status: 'pending' }),
-            Transaction.countDocuments({ ...todayQuery, status: { $in: ['processing', 'accepted'] } }),
-            Transaction.countDocuments({ ...todayQuery, status: { $in: ['rejected', 'cancelled_by_admin'] } }),
-            Transaction.countDocuments(todayQuery),
-            Transaction.aggregate([
-                { $match: { ...todayQuery, status: 'completed' } },
-                { $group: { _id: null, totalEGP: { $sum: '$amount' }, totalLYD: { $sum: '$costLYD' } } }
-            ])
+            User.countDocuments(scopedTenant),
+            ClientCompany.countDocuments(scopedTenant),
+            Employee.countDocuments(scopedTenant),
+            Transaction.countDocuments({ ...scopedTenant, status: 'pending' }),
+            Transaction.countDocuments({ ...scopedTenant, status: { $in: ['processing', 'accepted'] } }),
+            Transaction.countDocuments({ ...scopedTenant, status: 'completed' }),
+            loadDashboardIntelligence(new Date(), { tenantId: req.tenantId })
         ]);
-
-        const todayEGP = sums.length > 0 ? sums[0].totalEGP : 0;
-        const todayLYD = sums.length > 0 ? sums[0].totalLYD : 0;
 
         res.render('index', { 
             usersCount, companiesCount, executorsCount, pendingTxs, processingTxs, completedTxs, adminName: req.session.adminName,
-            todayCompleted, todayPending, todayProcessing, todayCancelled, todayTotal, todayEGP, todayLYD
+            todayCompleted: intelligence.todayStatus.completed,
+            todayPending: intelligence.todayStatus.pending,
+            todayProcessing: intelligence.todayStatus.processing,
+            todayCancelled: intelligence.todayStatus.cancelled,
+            todayTotal: Object.values(intelligence.todayStatus).reduce((sum, value) => sum + value, 0),
+            todayEGP: intelligence.metrics.today.amountEGP,
+            todayLYD: intelligence.metrics.today.costLYD,
+            intelligence,
+            intelligenceJson: JSON.stringify(intelligence).replace(/</g, '\\u003c')
         });
     } catch (e) { console.error('Dashboard Error:', e); res.status(500).send('خطأ داخلي'); }
 });
 
+router.get('/api/dashboard/intelligence', requireAuth, async (req, res) => {
+    try {
+        return res.json({ success: true, data: await loadDashboardIntelligence(new Date(), { tenantId: req.tenantId }) });
+    } catch (error) {
+        console.error('[Dashboard] intelligence refresh failed:', error.message);
+        return res.status(500).json({ success: false, error: 'تعذر تحديث تحليلات لوحة القيادة.' });
+    }
+});
+
+router.get('/api/dashboard/entities', requireAuth, async (req, res) => {
+    try {
+        const entities = await listDashboardEntities({ type: req.query.type, search: req.query.search, limit: req.query.limit, tenantId: req.tenantId });
+        return res.json({ success: true, entities });
+    } catch (error) {
+        const status = error.message === 'INVALID_ENTITY_TYPE' ? 422 : 500;
+        return res.status(status).json({ success: false, error: status === 422 ? 'نوع الحساب غير صالح.' : 'تعذر تحميل الحسابات.' });
+    }
+});
+
+router.get('/api/dashboard/entity-report', requireAuth, async (req, res) => {
+    try {
+        const report = await loadEntityMovementReport({ type: req.query.type, id: req.query.id, days: req.query.days, tenantId: req.tenantId });
+        return res.json({ success: true, report });
+    } catch (error) {
+        const inputErrors = ['INVALID_ENTITY_SCOPE', 'REPORT_ENTITY_NOT_FOUND', 'INVALID_REPORT_SCOPE'];
+        const status = inputErrors.includes(error.message) ? 422 : 500;
+        return res.status(status).json({ success: false, error: status === 422 ? 'تعذر العثور على الحساب المطلوب.' : 'تعذر إعداد تقرير الحركة.' });
+    }
+});
+
 router.get('/api/sidebar-stats', requireAuth, async (req, res) => {
     try {
+        const scopedTenant = tenantScope(req);
         const [complaintsCount, regRequestsCount, supportCount, pendingCount] = await Promise.all([
-            Transaction.countDocuments({
+            Transaction.countDocuments({ ...scopedTenant,
                 $or: [
                     { complaintText: { $exists: true, $ne: '' } },
                     { emergencyAlert: { $exists: true, $ne: '' } }
@@ -108,7 +130,7 @@ router.get('/api/sidebar-stats', requireAuth, async (req, res) => {
             }),
             RegistrationRequest.countDocuments({ status: 'pending' }),
             SupportTicket.countDocuments({ unreadAdmin: { $gt: 0 } }),
-            Transaction.countDocuments({ status: 'pending' })
+            Transaction.countDocuments({ ...scopedTenant, status: 'pending' })
         ]);
         res.json({
             success: true,
@@ -160,7 +182,7 @@ router.post('/api/notifications/read-all', requireAuth, async (req, res) => {
 
 router.get('/complaints', requireAuth, async (req, res) => {
     try {
-        const complaints = await Transaction.find({ 
+        const complaints = await Transaction.find({ ...tenantScope(req),
             $or: [
                 { complaintText: { $exists: true, $ne: '' } },
                 { emergencyAlert: { $exists: true, $ne: '' } }
@@ -174,7 +196,7 @@ router.post('/api/resolve-complaint', requireAuth, async (req, res) => {
     try {
         const { transactionId } = req.body;
         if (!transactionId) return res.status(400).json({ error: 'معرف العملية مطلوب' });
-        await Transaction.findByIdAndUpdate(transactionId, { 
+        await Transaction.findOneAndUpdate({ _id: transactionId, ...tenantScope(req) }, {
             $unset: { complaintText: "", emergencyAlert: "" }
         });
         res.json({ success: true });
@@ -187,6 +209,7 @@ router.post('/api/complaints/:id/edit-amount', requireAuth, async (req, res) => 
         const newAmount = parseFloat(req.body.newAmount);
         const reason = req.body.reason || '';
         if (isNaN(newAmount) || newAmount <= 0) return res.status(400).json({ error: 'المبلغ غير صالح' });
+        if (!await Transaction.exists({ _id: txId, ...tenantScope(req) })) return res.status(404).json({ error: 'العملية غير موجودة' });
         
         const result = await editTransactionAmount({
             transactionId: txId,
@@ -210,6 +233,7 @@ router.post('/api/complaints/:id/edit-rate', requireAuth, async (req, res) => {
         const newRate = parseFloat(req.body.newRate);
         const reason = req.body.reason || '';
         if (isNaN(newRate) || newRate <= 0) return res.status(400).json({ error: 'سعر الصرف غير صالح' });
+        if (!await Transaction.exists({ _id: req.params.id, ...tenantScope(req) })) return res.status(404).json({ error: 'العملية غير موجودة' });
         await repriceTransaction({
             transactionId: req.params.id,
             newRate,
@@ -247,7 +271,7 @@ router.post('/api/complaints/:id/upload-proof', requireAuth, async (req, res) =>
         const { imageBase64 } = req.body;
         if (!imageBase64) return res.status(400).json({ error: 'الصورة مطلوبة' });
 
-        const tx = await Transaction.findById(req.params.id);
+        const tx = await Transaction.findOne({ _id: req.params.id, ...tenantScope(req) });
         if (!tx) return res.status(404).json({ error: 'العملية غير موجودة' });
 
         const base64Data = imageBase64.replace(/^data:image\/\w+;base64,/, "");
@@ -278,7 +302,7 @@ router.post('/api/complaints/:id/resolve', requireAuth, async (req, res) => {
         const { reason } = req.body;
         if (!reason) return res.status(400).json({ error: 'السبب مطلوب' });
 
-        const tx = await Transaction.findById(txId);
+        const tx = await Transaction.findOne({ _id: txId, ...tenantScope(req) });
         if (!tx) return res.status(404).json({ error: 'العملية غير موجودة' });
 
         const adminName = req.session.adminName || 'الإدارة';
@@ -301,7 +325,7 @@ router.post('/api/complaints/:id/cancel', requireAuth, async (req, res) => {
         const { reason } = req.body;
         if (!reason) return res.status(400).json({ error: 'السبب مطلوب' });
 
-        const tx = await Transaction.findById(txId);
+        const tx = await Transaction.findOne({ _id: txId, ...tenantScope(req) });
         if (tx) {
             const groupId = tx.executorGroupId;
             const managerGroupId = tx.managerGroupId;
@@ -313,7 +337,7 @@ router.post('/api/complaints/:id/cancel', requireAuth, async (req, res) => {
             }
 
             await Transaction.updateOne(
-                { _id: tx._id },
+                { _id: tx._id, ...tenantScope(req) },
                 { $unset: { complaintText: '', emergencyAlert: '' }, $set: { updatedAt: new Date() } },
                 { timestamps: false }
             );

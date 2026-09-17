@@ -63,7 +63,7 @@ describe('Lock Service Tests (In-Memory Fallback)', () => {
         await expect(releaseLock(badLock)).resolves.not.toThrow();
     });
 
-    test('uses in-memory locks in production when Redis is explicitly optional', async () => {
+    test('fails closed in production even when Redis is marked optional', async () => {
         const originalNodeEnv = process.env.NODE_ENV;
         const originalRedisRequired = process.env.REDIS_REQUIRED;
         process.env.NODE_ENV = 'production';
@@ -75,16 +75,16 @@ describe('Lock Service Tests (In-Memory Fallback)', () => {
             getRedisClient: () => ({})
         }));
 
-        const { acquireLock, releaseLock } = require('../services/lockService');
-        const lock = await acquireLock('optional-redis-production', 5000);
-
-        expect(lock.__inMemory).toBe(true);
-        await releaseLock(lock);
-
-        if (originalNodeEnv === undefined) delete process.env.NODE_ENV;
-        else process.env.NODE_ENV = originalNodeEnv;
-        if (originalRedisRequired === undefined) delete process.env.REDIS_REQUIRED;
-        else process.env.REDIS_REQUIRED = originalRedisRequired;
+        try {
+            const { acquireLock } = require('../services/lockService');
+            await expect(acquireLock('optional-redis-production', 5000))
+                .rejects.toThrow('REDIS_NOT_CONFIGURED');
+        } finally {
+            if (originalNodeEnv === undefined) delete process.env.NODE_ENV;
+            else process.env.NODE_ENV = originalNodeEnv;
+            if (originalRedisRequired === undefined) delete process.env.REDIS_REQUIRED;
+            else process.env.REDIS_REQUIRED = originalRedisRequired;
+        }
     });
 });
 

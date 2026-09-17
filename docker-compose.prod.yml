@@ -10,6 +10,9 @@ services:
       - TZ=Africa/Tripoli
       - MONGO_URI=mongodb://mongo_db:27017/vodafone_cash_system?replicaSet=rs0
       - REDIS_URL=redis://:${REDIS_PASSWORD:?REDIS_PASSWORD is required}@redis_cache:6379
+      - REDIS_ENABLED=true
+      - REDIS_REQUIRED=true
+      - APP_INSTANCE_COUNT=1
     env_file:
       - .env
     depends_on:

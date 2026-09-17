@@ -2,321 +2,53 @@
 <html lang="ar" dir="rtl">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>لوحة التحكم | شركة الأهرام</title>
-    
-    <script>
-        const savedTheme = localStorage.getItem('ahram_theme') || 'dark';
-        document.documentElement.setAttribute('data-theme', savedTheme);
-    </script>
-
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>مركز القيادة الذكي | الأهرام Pay</title>
+    <script>const savedTheme=localStorage.getItem('ahram_theme')||'dark';document.documentElement.setAttribute('data-theme',savedTheme);</script>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.rtl.min.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
-    <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800;900&family=JetBrains+Mono:wght@700;800&display=swap" rel="stylesheet">
-
+    <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@600;700;800&display=swap" rel="stylesheet">
     <style>
-        .top-header { border-radius: 20px; padding: 20px !important; margin-bottom: 30px; display: flex; justify-content: space-between; align-items: center; }
-        .company-logo-box { background: rgba(212, 175, 55, 0.1); color: var(--brand-gold); width: 55px; height: 55px; border-radius: 16px; display: flex; align-items: center; justify-content: center; font-size: 1.5rem; border: 1px solid rgba(212, 175, 55, 0.3); }
-        
-        .stat-card { border-radius: 24px; padding: 25px; height: 100%; display: flex; align-items: center; gap: 20px; position: relative; overflow: hidden; border-start: 4px solid transparent;}
-        .stat-card:hover { transform: translateY(-5px); }
-        .card-icon { width: 65px; height: 65px; display: flex; align-items: center; justify-content: center; border-radius: 18px; font-size: 2rem; background: rgba(0,0,0,0.03); border: 1px solid var(--border-glass); transition: 0.3s;}
-        [data-theme="dark"] .card-icon { background: rgba(255,255,255,0.03); }
-        
-        .stat-users { border-right: 4px solid #3b82f6; } .stat-users .card-icon { color: #3b82f6; }
-        .stat-companies { border-right: 4px solid #8b5cf6; } .stat-companies .card-icon { color: #8b5cf6; }
-        .stat-execs { border-right: 4px solid #64748b; } .stat-execs .card-icon { color: #64748b; }
-        .stat-pending { border-right: 4px solid #f59e0b; } .stat-pending .card-icon { color: #f59e0b; }
-        .stat-processing { border-right: 4px solid #0ea5e9; } .stat-processing .card-icon { color: #0ea5e9; }
-        .stat-completed { border-right: 4px solid #10b981; } .stat-completed .card-icon { color: #10b981; }
-
-        .stat-val { font-family: 'JetBrains Mono', monospace; font-size: 2.2rem; font-weight: 900; line-height: 1; margin: 0; color: var(--text-main);}
-        .stat-title { font-size: 0.9rem; font-weight: 700; margin-bottom: 5px; color: var(--text-muted); }
-
-        .user-time-widget { position: fixed; bottom: 25px; left: 25px; border-radius: 20px; padding: 15px 25px; z-index: 1040; min-width: 260px; display: flex; flex-direction: column; align-items: center; gap: 10px; border-bottom: 4px solid var(--brand-gold);}
-        .clock-display { font-family: 'JetBrains Mono', monospace; font-size: 1.5rem; font-weight: 900; letter-spacing: 1px; color: var(--brand-primary);}
-        [data-theme="dark"] .clock-display { color: var(--brand-gold); }
-
-        @media (max-width: 991px) {
-            .top-header { flex-direction: column; gap: 15px; text-align: center; }
-            .user-time-widget { position: static; margin-top: 30px; width: 100%; border-bottom: none; border-top: 4px solid var(--brand-gold);}
-        }
+        :root{--dash-blue:#2563eb;--dash-green:#10b981;--dash-amber:#f59e0b;--dash-red:#ef4444}
+        body{background:var(--body-bg)}.command-shell{max-width:1800px;margin:auto}
+        .hero{position:relative;overflow:hidden;border-radius:28px;padding:28px;margin:18px 0 24px;background:linear-gradient(125deg,#071a35,#123a71 65%,#155e75);color:#fff;box-shadow:0 22px 55px rgba(7,26,53,.2)}
+        .hero:before,.hero:after{content:"";position:absolute;border-radius:50%;opacity:.22}.hero:before{width:280px;height:280px;background:#38bdf8;left:-70px;top:-120px}.hero:after{width:180px;height:180px;background:#fbbf24;right:35%;bottom:-145px}.hero>*{position:relative;z-index:1}
+        .hero-kicker{display:inline-flex;align-items:center;gap:8px;padding:7px 13px;border:1px solid rgba(255,255,255,.2);border-radius:99px;background:rgba(255,255,255,.08);font-size:.78rem;font-weight:800}.hero h1{font-size:clamp(1.55rem,3vw,2.35rem);font-weight:900;margin:14px 0 8px}.hero p{color:#cbd5e1;margin:0;max-width:700px}.live-chip{padding:10px 15px;border-radius:14px;background:rgba(16,185,129,.14);border:1px solid rgba(52,211,153,.35);font-weight:800;font-size:.82rem}.pulse{display:inline-block;width:8px;height:8px;border-radius:50%;background:#34d399;margin-left:6px;box-shadow:0 0 0 6px rgba(52,211,153,.12)}
+        .metric-card{height:100%;padding:22px;border-radius:22px;background:var(--card-bg);border:1px solid var(--border-glass);box-shadow:var(--shadow-soft);position:relative;overflow:hidden}.metric-card:after{content:"";position:absolute;right:-35px;bottom:-50px;width:130px;height:130px;border-radius:50%;background:var(--accent);opacity:.08}.metric-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:20px}.metric-label{color:var(--text-muted);font-weight:800;font-size:.9rem}.metric-icon{width:43px;height:43px;border-radius:13px;display:grid;place-items:center;background:color-mix(in srgb,var(--accent) 13%,transparent);color:var(--accent)}.metric-amount{font:800 clamp(1.45rem,2.5vw,2rem) 'JetBrains Mono';color:var(--text-main);direction:ltr;text-align:right}.metric-amount small{font:700 .72rem 'Tajawal';color:var(--text-muted)}.metric-foot{display:flex;align-items:center;justify-content:space-between;margin-top:13px;font-size:.8rem;color:var(--text-muted);font-weight:700}.trend{padding:4px 8px;border-radius:8px;font:700 .72rem 'JetBrains Mono'}.trend.up{color:#059669;background:rgba(16,185,129,.12)}.trend.down{color:#dc2626;background:rgba(239,68,68,.12)}
+        .panel{background:var(--card-bg);border:1px solid var(--border-glass);box-shadow:var(--shadow-soft);border-radius:24px;padding:24px;height:100%}.panel-title{display:flex;align-items:flex-start;justify-content:space-between;gap:15px;margin-bottom:22px}.panel-title h2{font-size:1.05rem;font-weight:900;color:var(--text-main);margin:0 0 4px}.panel-title p{color:var(--text-muted);font-size:.8rem;margin:0}.chart-tabs{display:flex;gap:5px;padding:4px;border-radius:11px;background:var(--input-bg)}.chart-tab{border:0;background:transparent;color:var(--text-muted);padding:7px 10px;border-radius:8px;font-size:.72rem;font-weight:800}.chart-tab.active{background:var(--card-bg);color:var(--dash-blue);box-shadow:0 3px 10px rgba(0,0,0,.08)}.chart-wrap{height:320px;position:relative}
+        .insight{display:flex;gap:13px;padding:15px;border-radius:16px;background:var(--input-bg);border:1px solid transparent;margin-bottom:10px}.insight:last-child{margin-bottom:0}.insight.positive{border-color:rgba(16,185,129,.18)}.insight.warning{border-color:rgba(245,158,11,.22)}.insight.gold{border-color:rgba(212,175,55,.25)}.insight-icon{flex:0 0 38px;height:38px;border-radius:12px;display:grid;place-items:center;background:rgba(37,99,235,.12);color:var(--dash-blue)}.insight.positive .insight-icon{color:var(--dash-green);background:rgba(16,185,129,.12)}.insight.warning .insight-icon{color:var(--dash-amber);background:rgba(245,158,11,.13)}.insight h3{font-size:.85rem;font-weight:900;color:var(--text-main);margin:0 0 4px}.insight p{font-size:.77rem;color:var(--text-muted);line-height:1.65;margin:0}
+        .ask-box{margin-top:16px;padding:13px;border-radius:17px;background:linear-gradient(135deg,rgba(37,99,235,.09),rgba(139,92,246,.08));border:1px solid rgba(99,102,241,.18)}.ask-input{display:flex;gap:8px}.ask-input input{flex:1;border:0;border-radius:11px;background:var(--card-bg);color:var(--text-main);padding:11px 13px;outline:none;font-size:.83rem}.ask-input button{border:0;border-radius:11px;padding:0 14px;background:var(--dash-blue);color:white}.ai-answer{font-size:.8rem;color:var(--text-main);line-height:1.7;padding:10px 4px 0;display:none}
+        .peak-list{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}.peak-day{padding:17px;border-radius:17px;background:var(--input-bg);text-align:center}.peak-day:first-child{background:linear-gradient(145deg,rgba(245,158,11,.18),rgba(245,158,11,.05));border:1px solid rgba(245,158,11,.25)}.peak-rank{font:700 .7rem 'JetBrains Mono';color:var(--text-muted)}.peak-day strong{display:block;color:var(--text-main);font-size:.95rem;margin:6px 0}.peak-value{font:700 .8rem 'JetBrains Mono';color:var(--dash-blue)}
+        .status-strip{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}.status-item{padding:14px;border-radius:15px;background:var(--input-bg);display:flex;align-items:center;gap:10px}.status-dot{width:10px;height:10px;border-radius:50%;background:var(--status-color)}.status-item strong{font-family:'JetBrains Mono';display:block;color:var(--text-main)}.status-item span{font-size:.72rem;color:var(--text-muted);font-weight:700}
+        .smart-table{width:100%;border-collapse:separate;border-spacing:0 7px}.smart-table th{padding:0 12px 8px;color:var(--text-muted);font-size:.72rem;font-weight:800;white-space:nowrap}.smart-table td{padding:13px 12px;background:var(--input-bg);font-size:.8rem;color:var(--text-main);white-space:nowrap}.smart-table td:first-child{border-radius:0 13px 13px 0}.smart-table td:last-child{border-radius:13px 0 0 13px}.score{width:42px;height:42px;border-radius:50%;display:grid;place-items:center;background:conic-gradient(var(--dash-green) calc(var(--score)*1%),rgba(148,163,184,.18) 0);position:relative;font:700 .68rem 'JetBrains Mono'}.score:before{content:"";position:absolute;inset:4px;border-radius:50%;background:var(--input-bg)}.score span{position:relative}.mono{font-family:'JetBrains Mono'}
+        .report-controls{display:grid;grid-template-columns:1fr 2fr 1fr auto;gap:10px}.form-control,.form-select{background-color:var(--input-bg)!important;color:var(--text-main)!important;border-color:var(--border-glass)!important;border-radius:12px!important}.report-empty{min-height:260px;display:grid;place-items:center;text-align:center;color:var(--text-muted)}.report-empty i{font-size:2.2rem;opacity:.35;margin-bottom:10px}.report-summary{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin:18px 0}.report-kpi{padding:14px;border-radius:14px;background:var(--input-bg)}.report-kpi span{font-size:.7rem;color:var(--text-muted);display:block}.report-kpi strong{font:800 1rem 'JetBrains Mono';color:var(--text-main)}.entity-chart-wrap{height:235px}.recent-list{max-height:270px;overflow:auto}.recent-row{display:grid;grid-template-columns:1fr .8fr .8fr .8fr;gap:10px;align-items:center;padding:11px 4px;border-bottom:1px solid var(--border-glass);font-size:.76rem;color:var(--text-main)}.badge-status{display:inline-flex;padding:4px 8px;border-radius:99px;background:rgba(37,99,235,.1);color:var(--dash-blue);font-weight:800}.updated-at{color:#cbd5e1;font-size:.72rem;margin-top:9px}
+        @media(max-width:1200px){.peak-list{grid-template-columns:repeat(2,1fr)}.report-controls{grid-template-columns:1fr 2fr}.report-summary{grid-template-columns:repeat(2,1fr)}}
+        @media(max-width:767px){.main-content{padding:12px!important}.hero{padding:22px 18px;border-radius:20px}.panel{padding:17px;border-radius:19px}.panel-title{display:block}.chart-tabs{margin-top:12px;width:max-content}.peak-list,.status-strip{grid-template-columns:repeat(2,1fr)}.chart-wrap{height:270px}.smart-table{min-width:800px}.report-controls{grid-template-columns:1fr}.recent-row{grid-template-columns:1fr 1fr}.hide-mobile{display:none}.report-summary{grid-template-columns:1fr 1fr}}
     </style>
-
-    <!-- PWA Setup -->
-    <link rel="manifest" href="/manifest.json">
-    <meta name="theme-color" content="#001a4d">
-    <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <meta name="apple-mobile-web-app-title" content="Al-Ahram">
-    <!-- End PWA -->
+    <link rel="manifest" href="/manifest.json"><meta name="theme-color" content="#071a35">
 </head>
 <body>
-
-<button class="mobile-nav-toggle no-print" onclick="toggleSidebar()"><i class="fa-solid fa-bars"></i></button>
-<div class="sidebar-overlay no-print" onclick="toggleSidebar()"></div>
-
+<button class="mobile-nav-toggle no-print" onclick="toggleSidebar()"><i class="fa-solid fa-bars"></i></button><div class="sidebar-overlay no-print" onclick="toggleSidebar()"></div>
 <%- include('partials/sidebar', { activePage: 'dashboard' }) %>
-
-<div class="main-content">
-    <div class="container-fluid">
-
-        <div class="top-header data-card d-none d-lg-flex">
-            <div class="d-flex align-items-center">
-                <div class="company-logo-box me-3"><i class="fa-solid fa-shield-halved"></i></div>
-                <div class="text-start">
-                    <h4 class="fw-bold m-0" style="color: var(--text-main);">القيادة المركزية</h4>
-                    <span class="small fw-bold" style="color: var(--text-muted);">نظام الأهرام للخدمات الرقمية</span>
-                </div>
-            </div>
-            
-            <div class="d-flex align-items-center gap-3 mt-3 mt-md-0">
-                <div class="dropdown">
-                    <button class="btn btn-light position-relative border-0 d-flex align-items-center justify-content-center" type="button" id="notifDropdown" data-bs-toggle="dropdown" style="width: 50px; height: 50px; border-radius: 14px; background: rgba(0,0,0,0.03);">
-                        <i class="fa-solid fa-bell text-primary fs-5"></i>
-                        <span id="notifBadge" class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger d-none shadow-sm" style="font-size: 0.7rem; border: 2px solid white;">0</span>
-                    </button>
-                    <ul class="dropdown-menu shadow-lg p-0" aria-labelledby="notifDropdown" style="width: 350px; max-width: 90vw; right: auto; left: 0;">
-                        <li class="p-3 fw-bold d-flex justify-content-between align-items-center border-bottom" style="background: var(--input-bg);">
-                            <span style="color: var(--brand-primary);"><i class="fa-solid fa-bell me-2"></i> الإشعارات</span>
-                            <button class="btn btn-sm btn-light py-1 px-3 fw-bold rounded-pill" onclick="markAllRead()" style="font-size: 0.75rem;">تحديد كمقروء</button>
-                        </li>
-                        <div id="notifList" style="max-height: 350px; overflow-y: auto; background: var(--card-bg);">
-                            <li class="p-4 text-center text-muted fw-bold">لا توجد إشعارات</li>
-                        </div>
-                    </ul>
-                </div>
-                <div class="px-3 py-2 rounded-pill fw-bold small" style="background: rgba(16, 185, 129, 0.1); color: #10b981; border: 1px solid rgba(16, 185, 129, 0.2);">
-                    <i class="fa-solid fa-database me-2"></i> النظام متصل
-                </div>
-            </div>
-        </div>
-
-        <!-- إحصائيات اليوم (للهواتف فقط) -->
-        <div class="d-block d-lg-none mb-5 mt-4">
-            <h5 class="fw-bold mb-3" style="color: var(--text-main);"><i class="fa-solid fa-calendar-day me-2 text-primary"></i> إحصائيات اليوم</h5>
-            <div class="row g-3">
-                <div class="col-6">
-                    <div class="d-flex flex-column align-items-center justify-content-center rounded-4 data-card m-0 p-3 text-center" style="background: rgba(16, 185, 129, 0.1); border: 1px solid rgba(16, 185, 129, 0.2); min-height: 120px;">
-                        <i class="fa-solid fa-check-circle fs-3 mb-2" style="color: #10b981;"></i>
-                        <div class="small fw-bold text-muted mb-1">مكتملة</div>
-                        <h4 class="fw-bold m-0" style="color: #10b981;"><%= typeof todayCompleted !== 'undefined' ? todayCompleted : 0 %></h4>
-                    </div>
-                </div>
-                <div class="col-6">
-                    <div class="d-flex flex-column align-items-center justify-content-center rounded-4 data-card m-0 p-3 text-center" style="background: rgba(245, 158, 11, 0.1); border: 1px solid rgba(245, 158, 11, 0.2); min-height: 120px;">
-                        <i class="fa-solid fa-hourglass-half fs-3 mb-2" style="color: #f59e0b;"></i>
-                        <div class="small fw-bold text-muted mb-1">معلقة</div>
-                        <h4 class="fw-bold m-0" style="color: #f59e0b;"><%= typeof todayPending !== 'undefined' ? todayPending : 0 %></h4>
-                    </div>
-                </div>
-                <div class="col-6">
-                    <div class="d-flex flex-column align-items-center justify-content-center rounded-4 data-card m-0 p-3 text-center" style="background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.2); min-height: 120px;">
-                        <i class="fa-solid fa-ban fs-3 mb-2" style="color: #ef4444;"></i>
-                        <div class="small fw-bold text-muted mb-1">ملغية</div>
-                        <h4 class="fw-bold m-0" style="color: #ef4444;"><%= typeof todayCancelled !== 'undefined' ? todayCancelled : 0 %></h4>
-                    </div>
-                </div>
-                <div class="col-6">
-                    <div class="d-flex flex-column align-items-center justify-content-center rounded-4 data-card m-0 p-3 text-center" style="background: rgba(59, 130, 246, 0.1); border: 1px solid rgba(59, 130, 246, 0.2); min-height: 120px;">
-                        <i class="fa-solid fa-list-ol fs-3 mb-2" style="color: #3b82f6;"></i>
-                        <div class="small fw-bold text-muted mb-1">إجمالي الحركات</div>
-                        <h4 class="fw-bold m-0" style="color: #3b82f6;"><%= typeof todayTotal !== 'undefined' ? todayTotal : 0 %></h4>
-                    </div>
-                </div>
-                <div class="col-12 mt-4">
-                    <div class="d-flex flex-column justify-content-center rounded-4 data-card m-0 p-4 text-center" style="background: linear-gradient(135deg, var(--card-bg) 0%, rgba(212, 175, 55, 0.05) 100%); border: 1px solid rgba(212, 175, 55, 0.3);">
-                        <h6 class="fw-bold text-muted mb-4"><i class="fa-solid fa-money-bill-wave me-2" style="color: var(--brand-gold);"></i> المبالغ المكتملة اليوم</h6>
-                        <div class="d-flex justify-content-around w-100 align-items-center">
-                            <div class="text-center" style="flex: 1;">
-                                <div class="small fw-bold mb-2" style="color: var(--text-muted);">جنيه مصري</div>
-                                <h3 class="fw-bold m-0" style="color: var(--text-main);"><%= typeof todayEGP !== 'undefined' ? todayEGP.toLocaleString() : 0 %> <span style="font-size: 0.8rem; color: var(--text-muted); font-family: 'JetBrains Mono', monospace;">EGP</span></h3>
-                            </div>
-                            <div style="height: 40px; border-left: 2px solid rgba(212, 175, 55, 0.2);"></div>
-                            <div class="text-center" style="flex: 1;">
-                                <div class="small fw-bold mb-2" style="color: var(--text-muted);">دينار ليبي</div>
-                                <h3 class="fw-bold m-0" style="color: var(--text-main);"><%= typeof todayLYD !== 'undefined' ? todayLYD.toLocaleString() : 0 %> <span style="font-size: 0.8rem; color: var(--text-muted); font-family: 'JetBrains Mono', monospace;">LYD</span></h3>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                <!-- الرسم البياني للهاتف -->
-                <div class="col-12 mt-4">
-                    <div class="data-card p-3 rounded-4 border-0 text-center" style="box-shadow: var(--shadow-soft);">
-                        <h6 class="fw-bold mb-3" style="color: var(--text-main);"><i class="fa-solid fa-chart-pie text-primary me-2"></i> توزيع حالات اليوم</h6>
-                        <div style="height: 250px; width: 100%; position: relative;">
-                            <canvas id="mobileTodayChart"></canvas>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <h4 class="fw-bold mb-4 mt-5 d-none d-lg-block" style="color: var(--text-main);"><i class="fa-solid fa-chart-pie me-2 text-primary"></i> الإحصائيات الحية للمنصة</h4>
-
-        <div class="row g-4 mb-5 d-none d-lg-flex">
-            <div class="col-xl-4 col-md-6">
-                <a href="/clients" class="text-decoration-none hover-card">
-                    <div class="stat-card stat-users data-card m-0">
-                        <div class="card-icon"><i class="fa-solid fa-user"></i></div>
-                        <div>
-                            <div class="stat-title text-muted">العملاء الأفراد</div>
-                            <div class="stat-val text-dark"><%= typeof usersCount !== 'undefined' ? usersCount : 0 %></div>
-                        </div>
-                    </div>
-                </a>
-            </div>
-            <div class="col-xl-4 col-md-6">
-                <a href="/clients" class="text-decoration-none hover-card">
-                    <div class="stat-card stat-companies data-card m-0">
-                        <div class="card-icon"><i class="fa-solid fa-building"></i></div>
-                        <div>
-                            <div class="stat-title text-muted">الشركات والوكلاء</div>
-                            <div class="stat-val text-dark"><%= typeof companiesCount !== 'undefined' ? companiesCount : 0 %></div>
-                        </div>
-                    </div>
-                </a>
-            </div>
-            <div class="col-xl-4 col-md-6">
-                <a href="/employees" class="text-decoration-none hover-card">
-                    <div class="stat-card stat-execs data-card m-0">
-                        <div class="card-icon"><i class="fa-solid fa-user-gear"></i></div>
-                        <div>
-                            <div class="stat-title text-muted">طاقم المنفذين</div>
-                            <div class="stat-val text-dark"><%= typeof executorsCount !== 'undefined' ? executorsCount : 0 %></div>
-                        </div>
-                    </div>
-                </a>
-            </div>
-            <div class="col-xl-4 col-md-6">
-                <a href="/transactions?status=pending" class="text-decoration-none hover-card">
-                    <div class="stat-card stat-pending data-card m-0">
-                        <div class="card-icon"><i class="fa-solid fa-hourglass-half"></i></div>
-                        <div>
-                            <div class="stat-title text-muted">عمليات معلقة</div>
-                            <div class="stat-val text-dark"><%= typeof pendingTxs !== 'undefined' ? pendingTxs : 0 %></div>
-                        </div>
-                    </div>
-                </a>
-            </div>
-            <div class="col-xl-4 col-md-6">
-                <a href="/transactions?status=processing" class="text-decoration-none hover-card">
-                    <div class="stat-card stat-processing data-card m-0">
-                        <div class="card-icon"><i class="fa-solid fa-spinner fa-spin-pulse"></i></div>
-                        <div>
-                            <div class="stat-title text-muted">توجيه للمنفذين</div>
-                            <div class="stat-val text-dark"><%= typeof processingTxs !== 'undefined' ? processingTxs : 0 %></div>
-                        </div>
-                    </div>
-                </a>
-            </div>
-            <div class="col-xl-4 col-md-6">
-                <a href="/transactions?status=completed" class="text-decoration-none hover-card">
-                    <div class="stat-card stat-completed data-card m-0">
-                        <div class="card-icon"><i class="fa-solid fa-check-double"></i></div>
-                        <div>
-                            <div class="stat-title text-muted">عمليات مكتملة</div>
-                            <div class="stat-val text-dark"><%= typeof completedTxs !== 'undefined' ? completedTxs : 0 %></div>
-                        </div>
-                    </div>
-                </a>
-            </div>
-        </div>
-
-        <div class="row d-none d-lg-flex">
-            <div class="col-12">
-                <div class="data-card p-4 rounded-4 border-0">
-                    <h5 class="fw-bold mb-4" style="color: var(--text-main);"><i class="fa-solid fa-chart-line text-primary me-2"></i> مسار عمليات اليوم</h5>
-                    <div style="height: 350px; width: 100%;">
-                        <canvas id="transactionsChart"></canvas>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <div class="user-time-widget data-card d-none d-lg-flex">
-            <div class="d-flex align-items-center gap-3 w-100 border-bottom pb-3 mb-2" style="border-color: var(--border-glass) !important;">
-                <div class="rounded-circle d-flex align-items-center justify-content-center" style="width: 45px; height: 45px; color: var(--brand-primary); background: rgba(0,26,77,0.1);">
-                    <i class="fa-solid fa-user-shield fs-5"></i>
-                </div>
-                <div>
-                    <small class="text-muted d-block fw-bold" style="font-size: 0.75rem;">متصل كـ</small>
-                    <strong class="text-dark"><%= locals.adminName || 'مدير' %></strong>
-                </div>
-            </div>
-            <div class="text-center w-100">
-                <div id="realtime-clock" class="clock-display">--:--:--</div>
-                <div id="realtime-date" class="text-muted small fw-bold mt-1">--/--/----</div>
-            </div>
-        </div>
-
-    </div>
-</div>
-
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-
+<div class="main-content"><div class="container-fluid command-shell">
+    <section class="hero"><div class="d-flex flex-wrap justify-content-between align-items-center gap-3"><div><span class="hero-kicker"><i class="fa-solid fa-wand-magic-sparkles"></i> مركز التحليل والقرار</span><h1>مرحبًا، <%= locals.adminName || 'مدير النظام' %></h1><p>قراءة حية لحركة المنصة، كفاءة التنفيذ، مواسم الذروة والتغيرات التي تستحق انتباهك.</p><div class="updated-at">آخر تحليل: <span id="generatedAt">الآن</span></div></div><div class="d-flex gap-2 align-items-center"><button class="btn btn-sm btn-outline-light rounded-3 px-3" id="refreshDashboard"><i class="fa-solid fa-rotate me-1"></i> تحديث</button><span class="live-chip"><span class="pulse"></span> بيانات مباشرة</span></div></div></section>
+    <% const money=(value)=>Number(value||0).toLocaleString('en-US',{maximumFractionDigits:0}); const periods=[{key:'today',label:'عمليات اليوم الناجحة',icon:'sun',color:'#10b981',compare:'مقارنة بنفس الوقت أمس'},{key:'week',label:'عمليات آخر 7 أيام',icon:'calendar-week',color:'#2563eb',compare:'مقارنة بالـ7 أيام السابقة'},{key:'month',label:'عمليات الشهر الحالي',icon:'calendar-days',color:'#8b5cf6',compare:'مقارنة بالشهر السابق'}]; %>
+    <div class="row g-3 mb-4"><% periods.forEach((period)=>{const item=intelligence.metrics[period.key];%><div class="col-xl-4 col-md-6"><article class="metric-card" style="--accent:<%= period.color %>"><div class="metric-head"><span class="metric-label"><%= period.label %></span><span class="metric-icon"><i class="fa-solid fa-<%= period.icon %>"></i></span></div><div class="metric-amount"><%= money(item.amountEGP) %> <small>ج.م</small></div><div class="metric-foot"><span><b class="mono"><%= item.count %></b> عملية · <b class="mono"><%= money(item.costLYD) %></b> د.ل</span><span class="trend <%= item.change>=0?'up':'down' %>"><i class="fa-solid fa-arrow-<%= item.change>=0?'up':'down' %>"></i> <%= Math.abs(item.change) %>%</span></div><div class="small text-muted mt-2"><%= period.compare %></div></article></div><% }); %></div>
+    <div class="row g-3 mb-4"><div class="col-xl-8"><section class="panel"><div class="panel-title"><div><h2><i class="fa-solid fa-chart-column text-primary ms-2"></i> حركة العمل خلال الأسبوع</h2><p>إجماليات العمليات الناجحة يومًا بيوم</p></div><div class="chart-tabs"><button class="chart-tab active" data-mode="amountEGP">المبلغ</button><button class="chart-tab" data-mode="count">العدد</button><button class="chart-tab" data-mode="costLYD">التكلفة</button></div></div><div class="chart-wrap"><canvas id="weeklyChart"></canvas></div><div class="status-strip mt-3"><div class="status-item" style="--status-color:#10b981"><span class="status-dot"></span><div><strong><%= intelligence.todayStatus.completed %></strong><span>مكتملة اليوم</span></div></div><div class="status-item" style="--status-color:#f59e0b"><span class="status-dot"></span><div><strong><%= intelligence.todayStatus.pending %></strong><span>معلقة</span></div></div><div class="status-item" style="--status-color:#06b6d4"><span class="status-dot"></span><div><strong><%= intelligence.todayStatus.processing %></strong><span>قيد التنفيذ</span></div></div><div class="status-item" style="--status-color:#ef4444"><span class="status-dot"></span><div><strong><%= intelligence.todayStatus.cancelled %></strong><span>ملغية/مرفوضة</span></div></div></div></section></div>
+    <div class="col-xl-4"><section class="panel"><div class="panel-title"><div><h2><i class="fa-solid fa-brain text-primary ms-2"></i> المحلل الذكي</h2><p>استنتاجات آلية مبنية على بيانات التشغيل</p></div></div><div><% intelligence.insights.forEach((insight)=>{ %><article class="insight <%= insight.level %>"><span class="insight-icon"><i class="fa-solid fa-<%= insight.icon %>"></i></span><div><h3><%= insight.title %></h3><p><%= insight.text %></p></div></article><% }); %></div><div class="ask-box"><div class="small fw-bold mb-2" style="color:var(--text-main)"><i class="fa-solid fa-comments text-primary ms-1"></i> اسأل بياناتك</div><div class="ask-input"><input id="aiQuestion" placeholder="مثال: من أفضل منفذ؟"><button id="askAi" title="اسأل"><i class="fa-solid fa-paper-plane"></i></button></div><div class="ai-answer" id="aiAnswer"></div></div></section></div></div>
+    <section class="panel mb-4"><div class="panel-title"><div><h2><i class="fa-solid fa-fire-flame-curved text-warning ms-2"></i> أقوى أيام الاستهلاك</h2><p>متوسط إجمالي التحويلات لكل يوم خلال آخر 8 أسابيع</p></div><span class="small text-muted">لتخطيط السيولة والطاقم</span></div><div class="peak-list"><% if(!intelligence.peakDays.length){%><div class="text-muted p-4">لا توجد بيانات كافية.</div><%} intelligence.peakDays.forEach((day,index)=>{%><div class="peak-day"><span class="peak-rank">#<%= index+1 %></span><strong><%= day.weekdayLabel %></strong><div class="peak-value"><%= money(day.averageAmountEGP) %> ج.م</div><small class="text-muted"><%= day.totalOperations %> عملية في العينة</small></div><%});%></div></section>
+    <section class="panel mb-4"><div class="panel-title"><div><h2><i class="fa-solid fa-ranking-star text-warning ms-2"></i> كفاءة المنفذين</h2><p>الدرجة تجمع نسبة النجاح 60%، سرعة التنفيذ 25%، والتقييم 15%</p></div><a href="/employees" class="btn btn-sm btn-outline-primary rounded-3">إدارة المنفذين</a></div><div class="table-responsive"><table class="smart-table"><thead><tr><th>المنفذ</th><th>الكفاءة</th><th>النجاح</th><th>استهلاك اليوم</th><th>استهلاك الشهر</th><th>متوسط التنفيذ</th><th>التقييم</th><th>العمليات</th></tr></thead><tbody><% if(!intelligence.executors.length){%><tr><td colspan="8" class="text-center text-muted">لا توجد حركة منفذين هذا الشهر.</td></tr><%} intelligence.executors.forEach((x)=>{%><tr><td><strong><%= x.name %></strong></td><td><div class="score" style="--score:<%= x.efficiencyScore %>"><span><%= x.efficiencyScore %></span></div></td><td class="mono"><%= x.successRate %>%</td><td class="mono"><%= money(x.todayAmountEGP) %> ج.م</td><td class="mono"><%= money(x.monthAmountEGP) %> ج.م</td><td><%= x.averageMinutes==null?'غير متاح':x.averageMinutes+' د' %></td><td><%= x.rating==null?'—':x.rating+' / 5' %></td><td class="mono"><%= x.completed %> / <%= x.total %></td></tr><%});%></tbody></table></div></section>
+    <section class="panel mb-4"><div class="panel-title"><div><h2><i class="fa-solid fa-magnifying-glass-chart text-primary ms-2"></i> تقرير حركة أي حساب</h2><p>اختر عميلًا أو شركة أو وكيلًا أو منفذًا لعرض تقريره الفوري</p></div></div><div class="report-controls"><select class="form-select" id="entityType"><option value="client">عميل</option><option value="company">شركة</option><option value="agent">وكيل</option><option value="executor">منفذ</option></select><select class="form-select" id="entitySelect"><option value="">جاري التحميل...</option></select><select class="form-select" id="reportDays"><option value="7">آخر 7 أيام</option><option value="30" selected>آخر 30 يومًا</option><option value="90">آخر 90 يومًا</option></select><button class="btn btn-primary rounded-3 px-4" id="loadEntityReport"><i class="fa-solid fa-chart-simple ms-1"></i> عرض التقرير</button></div><div id="entityReportBody" class="report-empty"><div><i class="fa-solid fa-chart-pie d-block"></i><strong>اختر الحساب لقراءة حركته</strong><div class="small mt-1">سيظهر ملخص الحركة والاتجاه وآخر العمليات.</div></div></div></section>
+</div></div>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script><script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script>
-    function toggleSidebar() { document.querySelector('.sidebar').classList.toggle('active'); document.querySelector('.sidebar-overlay').classList.toggle('active'); }
-
-    function updateRealTimeClock() {
-        const now = new Date();
-        const timeStr = now.toLocaleTimeString('en-US', { timeZone: 'Africa/Tripoli', hour12: true, hour: '2-digit', minute: '2-digit', second: '2-digit' });
-        const dateStr = now.toLocaleDateString('en-GB', { timeZone: 'Africa/Tripoli', year: 'numeric', month: '2-digit', day: '2-digit' });
-        if(document.getElementById('realtime-clock')) document.getElementById('realtime-clock').innerText = timeStr;
-        if(document.getElementById('realtime-date')) document.getElementById('realtime-date').innerText = dateStr;
-    }
-    setInterval(updateRealTimeClock, 1000); updateRealTimeClock();
-
-    // Notification logic moved to sidebar.ejs
-    document.addEventListener("DOMContentLoaded", function() {
-        const ctx = document.getElementById('transactionsChart').getContext('2d');
-        const theme = localStorage.getItem('ahram_theme') || 'light';
-        const chartColor = theme === 'dark' ? '#94a3b8' : '#64748b';
-        Chart.defaults.color = chartColor;
-        Chart.defaults.font.family = 'Tajawal';
-
-        window.myChart = new Chart(ctx, {
-            type: 'bar',
-            data: {
-                labels: ['العمليات المعلقة', 'قيد التوجيه', 'العمليات المكتملة'],
-                datasets: [{
-                    label: 'العدد',
-                    data: [Number('<%= typeof pendingTxs !== "undefined" ? pendingTxs : 0 %>'), Number('<%= typeof processingTxs !== "undefined" ? processingTxs : 0 %>'), Number('<%= typeof completedTxs !== "undefined" ? completedTxs : 0 %>')],
-                    backgroundColor: ['#f59e0b', '#0ea5e9', '#10b981'],
-                    borderWidth: 0, borderRadius: 12, barPercentage: 0.5
-                }]
-            },
-            options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, ticks: { stepSize: 1, font: { family: 'JetBrains Mono' } }, grid: { color: 'rgba(100,116,139,0.1)' } }, x: { grid: { display: false } } } }
-        });
-
-        // 📱 رسم بياني مخصص للهواتف (حالات اليوم)
-        const mobileCtx = document.getElementById('mobileTodayChart').getContext('2d');
-        window.mobileTodayChart = new Chart(mobileCtx, {
-            type: 'doughnut',
-            data: {
-                labels: ['مكتملة', 'معلقة/قيد التنفيذ', 'ملغية'],
-                datasets: [{
-                    data: [
-                        Number('<%= typeof todayCompleted !== "undefined" ? todayCompleted : 0 %>'),
-                        Number('<%= typeof todayPending !== "undefined" ? todayPending : 0 %>') + Number('<%= typeof todayProcessing !== "undefined" ? todayProcessing : 0 %>'),
-                        Number('<%= typeof todayCancelled !== "undefined" ? todayCancelled : 0 %>')
-                    ],
-                    backgroundColor: ['#10b981', '#f59e0b', '#ef4444'],
-                    borderWidth: 0,
-                    hoverOffset: 4
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                cutout: '75%',
-                plugins: {
-                    legend: { position: 'bottom', labels: { font: { family: 'Tajawal', size: 12 }, color: chartColor, padding: 20 } }
-                }
-            }
-        });
-    });
-</script>
-</body>
-</html>
+let dashboardData=<%- intelligenceJson %>,weeklyChart,entityChart;const nf=new Intl.NumberFormat('en-US',{maximumFractionDigits:0});const escapeHtml=v=>String(v??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));const statusLabels={completed:'مكتملة',pending:'معلقة',processing:'قيد التنفيذ',accepted:'مقبولة',rejected:'مرفوضة',cancelled_by_admin:'ملغية'};
+function toggleSidebar(){document.querySelector('.sidebar')?.classList.toggle('active');document.querySelector('.sidebar-overlay')?.classList.toggle('active')}
+function chartColors(){const dark=(localStorage.getItem('ahram_theme')||'dark')==='dark';return{text:dark?'#94a3b8':'#64748b',grid:dark?'rgba(148,163,184,.1)':'rgba(100,116,139,.12)'}}
+function renderWeeklyChart(mode='amountEGP'){const colors=chartColors(),labels={amountEGP:'إجمالي المبالغ بالجنيه',count:'عدد العمليات',costLYD:'إجمالي التكلفة بالدينار'};weeklyChart?.destroy();weeklyChart=new Chart(document.getElementById('weeklyChart'),{type:'bar',data:{labels:dashboardData.weekly.map(x=>x.label),datasets:[{label:labels[mode],data:dashboardData.weekly.map(x=>x[mode]),backgroundColor:dashboardData.weekly.map((_,i)=>i===dashboardData.weekly.length-1?'#2563eb':'rgba(37,99,235,.36)'),borderRadius:10,borderSkipped:false,barPercentage:.6}]},options:{responsive:true,maintainAspectRatio:false,interaction:{intersect:false,mode:'index'},plugins:{legend:{display:false},tooltip:{rtl:true,callbacks:{label:ctx=>mode==='count'?`${ctx.raw} عملية`:`${nf.format(ctx.raw)} ${mode==='costLYD'?'د.ل':'ج.م'}`}}},scales:{x:{grid:{display:false},ticks:{color:colors.text,font:{family:'Tajawal',weight:'700'}}},y:{beginAtZero:true,grid:{color:colors.grid},ticks:{color:colors.text,callback:v=>nf.format(v)}}}}})}
+function answerQuestion(){const q=document.getElementById('aiQuestion').value.trim(),box=document.getElementById('aiAnswer'),best=dashboardData.executors[0],peak=dashboardData.peakDays[0],today=dashboardData.metrics.today;if(!q)return;let answer;if(/منفذ|كفاءة|افضل|أفضل/.test(q))answer=best?`المنفذ الأعلى كفاءة هو ${best.name} بدرجة ${best.efficiencyScore}%، ونفذ اليوم ${nf.format(best.todayAmountEGP)} ج.م.`:'لا توجد بيانات منفذين كافية.';else if(/ذروة|يوم|ايام|أيام|سيولة/.test(q))answer=peak?`${peak.weekdayLabel} هو يوم الذروة المتكرر، بمتوسط ${nf.format(peak.averageAmountEGP)} ج.م. أنصح بتجهيز السيولة والطاقم قبله.`:'لا توجد بيانات تاريخية كافية.';else if(/شهر/.test(q))answer=`إجمالي الشهر ${nf.format(dashboardData.metrics.month.amountEGP)} ج.م عبر ${dashboardData.metrics.month.count} عملية، والتغير ${dashboardData.metrics.month.change}% عن الشهر السابق.`;else if(/اسبوع|أسبوع/.test(q))answer=`إجمالي آخر 7 أيام ${nf.format(dashboardData.metrics.week.amountEGP)} ج.م عبر ${dashboardData.metrics.week.count} عملية، والتغير ${dashboardData.metrics.week.change}% عن الفترة السابقة.`;else if(/معلق|تأخير|متأخر/.test(q))answer=`هناك ${dashboardData.todayStatus.pending+dashboardData.todayStatus.processing} عملية معلقة أو قيد التنفيذ اليوم.`;else answer=`اليوم: ${today.count} عملية ناجحة بإجمالي ${nf.format(today.amountEGP)} ج.م و${nf.format(today.costLYD)} د.ل. اسأل عن أفضل منفذ، الذروة، الأسبوع، الشهر أو العمليات المعلقة.`;box.textContent=answer;box.style.display='block'}
+async function loadEntities(){const type=document.getElementById('entityType').value,select=document.getElementById('entitySelect');select.innerHTML='<option value="">جاري التحميل...</option>';try{const response=await fetch(`/api/dashboard/entities?type=${encodeURIComponent(type)}`),data=await response.json();if(!response.ok)throw new Error(data.error);select.innerHTML='<option value="">اختر الحساب...</option>'+data.entities.map(x=>`<option value="${escapeHtml(x.id)}">${escapeHtml(x.name)}${x.detail?' · '+escapeHtml(x.detail):''}</option>`).join('')}catch(error){select.innerHTML=`<option value="">${escapeHtml(error.message||'تعذر التحميل')}</option>`}}
+function renderEntityReport(report){const s=report.summary,body=document.getElementById('entityReportBody');body.className='';body.innerHTML=`<div class="report-summary"><div class="report-kpi"><span>العمليات الناجحة</span><strong>${nf.format(s.completed)}</strong></div><div class="report-kpi"><span>إجمالي المبلغ</span><strong>${nf.format(s.amountEGP)} ج.م</strong></div><div class="report-kpi"><span>التكلفة</span><strong>${nf.format(s.costLYD)} د.ل</strong></div><div class="report-kpi"><span>نسبة النجاح</span><strong>${s.total?Math.round((s.completed/s.total)*100):0}%</strong></div></div><div class="row g-3"><div class="col-lg-7"><div class="entity-chart-wrap"><canvas id="entityTrendChart"></canvas></div></div><div class="col-lg-5"><h3 class="h6 fw-bold mb-2" style="color:var(--text-main)">آخر العمليات</h3><div class="recent-list">${report.recent.length?report.recent.map(tx=>`<div class="recent-row"><strong>${escapeHtml(tx.customId)}</strong><span class="badge-status">${escapeHtml(statusLabels[tx.status]||tx.status)}</span><span class="mono">${nf.format(tx.amountEGP)} ج.م</span><span class="hide-mobile">${escapeHtml(tx.counterparty)}</span></div>`).join(''):'<div class="text-muted p-3">لا توجد عمليات خلال الفترة.</div>'}</div></div></div>`;const colors=chartColors();entityChart?.destroy();entityChart=new Chart(document.getElementById('entityTrendChart'),{type:'line',data:{labels:report.trend.map(x=>x.date.slice(5)),datasets:[{data:report.trend.map(x=>x.amountEGP),borderColor:'#2563eb',backgroundColor:'rgba(37,99,235,.1)',fill:true,tension:.35,pointRadius:1.5}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{grid:{display:false},ticks:{color:colors.text,maxTicksLimit:8}},y:{beginAtZero:true,grid:{color:colors.grid},ticks:{color:colors.text,callback:v=>nf.format(v)}}}}})}
+async function loadEntityReport(){const type=document.getElementById('entityType').value,id=document.getElementById('entitySelect').value,days=document.getElementById('reportDays').value,body=document.getElementById('entityReportBody');if(!id){body.className='report-empty';body.innerHTML='<div><i class="fa-solid fa-circle-exclamation d-block"></i><strong>اختر حسابًا أولًا</strong></div>';return}body.className='report-empty';body.innerHTML='<div><i class="fa-solid fa-spinner fa-spin d-block"></i><strong>جاري تحليل الحركة...</strong></div>';try{const response=await fetch(`/api/dashboard/entity-report?type=${encodeURIComponent(type)}&id=${encodeURIComponent(id)}&days=${days}`),data=await response.json();if(!response.ok)throw new Error(data.error);renderEntityReport(data.report)}catch(error){body.innerHTML=`<div><i class="fa-solid fa-triangle-exclamation d-block"></i><strong>${escapeHtml(error.message||'تعذر إعداد التقرير')}</strong></div>`}}
+document.addEventListener('DOMContentLoaded',()=>{renderWeeklyChart();loadEntities();document.getElementById('generatedAt').textContent=new Date(dashboardData.generatedAt).toLocaleString('ar',{dateStyle:'medium',timeStyle:'short'});document.querySelectorAll('.chart-tab').forEach(button=>button.addEventListener('click',()=>{document.querySelectorAll('.chart-tab').forEach(x=>x.classList.remove('active'));button.classList.add('active');renderWeeklyChart(button.dataset.mode)}));document.getElementById('askAi').addEventListener('click',answerQuestion);document.getElementById('aiQuestion').addEventListener('keydown',e=>{if(e.key==='Enter')answerQuestion()});document.getElementById('entityType').addEventListener('change',loadEntities);document.getElementById('loadEntityReport').addEventListener('click',loadEntityReport);document.getElementById('refreshDashboard').addEventListener('click',()=>location.reload())});
+</script></body></html>

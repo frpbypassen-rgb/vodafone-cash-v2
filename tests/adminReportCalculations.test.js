@@ -6,6 +6,7 @@ const {
     splitReportTransactions
 } = require('../utils/adminReportCalculations');
 const { buildPostCloseChanges, getDateRange } = require('../services/adminReportService');
+const { systemDateParts } = require('../config/systemTime');
 
 describe('Admin financial report calculations', () => {
     test('separates deposits and deductions and excludes every cancelled movement from totals', () => {
@@ -73,8 +74,8 @@ describe('Admin financial report calculations', () => {
 
     test('validates day and month report ranges', () => {
         const day = getDateRange('day', '2026-08-05');
-        expect(day.start.getHours()).toBe(0);
-        expect(day.end.getHours()).toBe(23);
+        expect(systemDateParts(day.start).hour).toBe('00');
+        expect(systemDateParts(day.end).hour).toBe('23');
         expect(day.start.toISOString()).toBe('2026-08-04T22:00:00.000Z');
         expect(day.end.toISOString()).toBe('2026-08-05T21:59:59.999Z');
         expect(() => getDateRange('day', '2026-02-30')).toThrow('INVALID_REPORT_DATE');
@@ -87,18 +88,18 @@ describe('Admin financial report calculations', () => {
             customId: 'TX-001',
             companyId: 'company-1',
             status: 'completed',
-            createdAt: new Date('2026-08-01T12:00:00'),
-            updatedAt: new Date('2026-08-02T09:00:00')
+            createdAt: new Date('2026-08-01T12:00:00+02:00'),
+            updatedAt: new Date('2026-08-02T09:00:00+02:00')
         };
         const settlement = {
-            period: { start: new Date('2026-08-01T00:00:00') },
-            closedAt: new Date('2026-08-01T23:00:00')
+            period: { start: new Date('2026-08-01T00:00:00+02:00') },
+            closedAt: new Date('2026-08-01T23:00:00+02:00')
         };
         const auditLogs = [{
             action: 'TRANSACTION_DATA_EDITED',
             targetId: 'tx-1',
             performedByName: 'مدير الاختبار',
-            createdAt: new Date('2026-08-02T09:00:00'),
+            createdAt: new Date('2026-08-02T09:00:00+02:00'),
             oldData: { amount: 1000, createdAt: transaction.createdAt },
             newData: { amount: 1200, createdAt: transaction.createdAt },
             metadata: { transactionId: 'TX-001', companyId: 'company-1' }
@@ -109,8 +110,8 @@ describe('Admin financial report calculations', () => {
             settlements: [settlement],
             auditLogs,
             auditScope: { mainCategory: 'company', subId: 'company-1', subType: 'all' },
-            start: new Date('2026-08-01T00:00:00'),
-            end: new Date('2026-08-01T23:59:59.999')
+            start: new Date('2026-08-01T00:00:00+02:00'),
+            end: new Date('2026-08-01T23:59:59.999+02:00')
         });
 
         expect(changes).toHaveLength(1);

@@ -12,7 +12,7 @@ const securityStateSchema = new mongoose.Schema({
     mandatoryAuthenticatorEnabled: { type: Boolean, default: true },
     adminApprovalRequired: { type: Boolean, default: true },
     singleDeviceOnly: { type: Boolean, default: true },
-    adminPermissionEnforcementEnabled: { type: Boolean, default: false },
+    adminPermissionEnforcementEnabled: { type: Boolean, default: true },
     locationRequired: { type: Boolean, default: true },
     highConfidenceVpnBlockEnabled: { type: Boolean, default: true },
     adminSessionHours: { type: Number, min: 1, max: 24, default: 12 },

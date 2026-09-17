@@ -6,13 +6,12 @@
 
 const { getRedisClient, isRedis } = require('../config/redis');
 const logger = require('../utils/logger');
+const { distributedStateRequired } = require('../config/runtimeScale');
 
 let redlock = null;
 let hasWarnedAboutMemoryFallback = false;
 
-const isRedisRequired = () => ['1', 'true', 'yes', 'on'].includes(
-    String(process.env.REDIS_REQUIRED || '').trim().toLowerCase()
-);
+const isRedisRequired = () => distributedStateRequired();
 
 const warnAboutMemoryFallback = (message, metadata = {}) => {
     if (hasWarnedAboutMemoryFallback) return;

@@ -36,19 +36,48 @@ const systemDateKey = (value) => {
     return parts ? `${parts.year}-${parts.month}-${parts.day}` : '';
 };
 
+const validCalendarDate = (year, month, day) => {
+    const date = new Date(Date.UTC(year, month - 1, day));
+    return date.getUTCFullYear() === year
+        && date.getUTCMonth() === month - 1
+        && date.getUTCDate() === day;
+};
+
+// Convert a wall-clock value in SYSTEM_TIME_ZONE to an absolute instant. This
+// deliberately avoids the process-local timezone because changing TZ at
+// runtime is not consistently honoured on Windows.
+const zonedDateTime = ({ year, month, day, hour = 0, minute = 0, second = 0, millisecond = 0 }) => {
+    const targetAsUtc = Date.UTC(year, month - 1, day, hour, minute, second, millisecond);
+    let instant = targetAsUtc;
+    for (let attempt = 0; attempt < 4; attempt += 1) {
+        const parts = systemDateParts(new Date(instant));
+        if (!parts) return null;
+        const representedAsUtc = Date.UTC(
+            Number(parts.year), Number(parts.month) - 1, Number(parts.day),
+            Number(parts.hour), Number(parts.minute), Number(parts.second), millisecond
+        );
+        const correction = targetAsUtc - representedAsUtc;
+        if (!correction) break;
+        instant += correction;
+    }
+    return new Date(instant);
+};
+
 const systemDayBoundary = (dateValue, endOfDay = false) => {
     const normalized = String(dateValue || '');
     const match = normalized.match(/^(\d{4})-(\d{2})-(\d{2})$/);
     if (!match) return null;
-    const date = new Date(
-        Number(match[1]),
-        Number(match[2]) - 1,
-        Number(match[3]),
-        endOfDay ? 23 : 0,
-        endOfDay ? 59 : 0,
-        endOfDay ? 59 : 0,
-        endOfDay ? 999 : 0
-    );
+    const year = Number(match[1]);
+    const month = Number(match[2]);
+    const day = Number(match[3]);
+    if (!validCalendarDate(year, month, day)) return null;
+    const date = zonedDateTime({
+        year, month, day,
+        hour: endOfDay ? 23 : 0,
+        minute: endOfDay ? 59 : 0,
+        second: endOfDay ? 59 : 0,
+        millisecond: endOfDay ? 999 : 0
+    });
     return systemDateKey(date) === normalized ? date : null;
 };
 
@@ -82,6 +111,7 @@ applySystemTimeZone();
 
 module.exports = {
     SYSTEM_TIME_ZONE,
+    zonedDateTime,
     applySystemTimeZone,
     formatSystemDateTime,
     systemDateRange,

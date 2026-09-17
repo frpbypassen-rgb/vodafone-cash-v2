@@ -67,6 +67,7 @@
 | تطبيق الهاتف | [`mobile_app/`](mobile_app/) | واجهات العميل والوكيل والشركة والمنفذ حسب نوع الحساب |
 | Mobile API | `/api/mobile` و`/api/v1/mobile` | المصادقة، التحويلات، التقارير، الدعم، الأجهزة والإشعارات |
 | Merchant API | `/api/v1/merchant` | رصيد الشريك، إنشاء تحويل، والاستعلام عن الحالة |
+| Merchant Webhooks | `/client/integrations/webhooks` | إدارة روابط الأحداث، مفاتيح HMAC، سجل التسليم وإعادة الإرسال |
 | Swagger | `/api-docs` | استعراض العقود المتاحة على الخادم |
 | مراقبة التشغيل | `/health`, `/health/ready`, `/metrics`, `/system-monitor` | الجاهزية والمقاييس وحالة مكونات النظام |
 

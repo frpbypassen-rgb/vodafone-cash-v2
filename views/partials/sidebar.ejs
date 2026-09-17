@@ -690,26 +690,25 @@
             </span>
             <i class="fa-solid fa-angle-left menu-chevron"></i>
         </a>
+        <a href="/transactions/pulse" class="<%= typeof activePage !== 'undefined' && activePage === 'transactions_pulse' ? 'active' : '' %>">
+            <span class="menu-link-content">
+                <i class="fa-solid fa-bolt"></i> سجل العمليات المباشرة
+            </span>
+            <i class="fa-solid fa-angle-left menu-chevron"></i>
+        </a>
         <div class="operations-menu <%= typeof activePage !== 'undefined' && String(activePage).startsWith('transactions') ? 'is-open' : '' %>">
             <div class="operations-menu-header">
-                <a href="#" class="transaction-workspace-link <%= typeof activePage !== 'undefined' && String(activePage).startsWith('transactions') ? 'active' : '' %>" onclick="toggleOperationsMenu(this.closest('.operations-menu').querySelector('.operations-menu-toggle')); return false;">
-                    <span class="menu-link-content"><i class="fa-solid fa-list-check"></i> سجل العمليات المباشر</span>
+                <a href="/transactions/operations" class="transaction-workspace-link <%= typeof activePage !== 'undefined' && activePage !== 'transactions_pulse' && String(activePage).startsWith('transactions') ? 'active' : '' %>">
+                    <span class="menu-link-content"><i class="fa-solid fa-toolbox"></i> أدوات العمليات</span>
                 </a>
                 <button type="button" class="operations-menu-toggle" aria-label="فتح قائمة سجل العمليات المباشر" aria-expanded="<%= typeof activePage !== 'undefined' && String(activePage).startsWith('transactions') ? 'true' : 'false' %>" onclick="toggleOperationsMenu(this)"><i class="fa-solid fa-angle-left operations-chevron"></i></button>
             </div>
             <div class="operations-submenu">
-                <a href="/transactions/pulse" class="<%= typeof activePage !== 'undefined' && activePage === 'transactions_pulse' ? 'active' : '' %>"><i class="fa-solid fa-heart-pulse"></i> شاشة نبض</a>
                 <a href="/transactions/operations" class="<%= typeof activePage !== 'undefined' && activePage === 'transactions' ? 'active' : '' %>"><i class="fa-solid fa-list-check"></i> العمليات</a>
                 <a href="/transactions/movements" class="<%= typeof activePage !== 'undefined' && activePage === 'transactions_movements' ? 'active' : '' %>"><i class="fa-solid fa-arrow-right-arrow-left"></i> سجل الحركة</a>
                 <a href="/transactions/search" class="<%= typeof activePage !== 'undefined' && activePage === 'transactions_search' ? 'active' : '' %>"><i class="fa-solid fa-magnifying-glass"></i> البحث الشامل</a>
             </div>
         </div>
-        <a href="/audit-log" class="<%= typeof activePage !== 'undefined' && activePage === 'audit_log' ? 'active' : '' %>">
-            <span class="menu-link-content">
-                <i class="fa-solid fa-shield-halved"></i> سجل التدقيق
-            </span>
-            <i class="fa-solid fa-angle-left menu-chevron"></i>
-        </a>
         <a href="/financial-movements" class="<%= typeof activePage !== 'undefined' && activePage === 'financial_movements' ? 'active' : '' %>">
             <span class="menu-link-content">
                 <i class="fa-solid fa-scale-balanced"></i> الحركات المالية
@@ -803,6 +802,13 @@
         <a href="/admin/security" class="<%= typeof activePage !== 'undefined' && activePage === 'security' ? 'active' : '' %> sidebar-menu-hide-mobile">
             <span class="menu-link-content">
                 <i class="fa-solid fa-shield-halved"></i> الأمان والتحكم في الوصول
+            </span>
+            <i class="fa-solid fa-angle-left menu-chevron"></i>
+        </a>
+        <a href="/admin/webhooks" class="<%= typeof activePage !== 'undefined' && activePage === 'webhooks' ? 'active' : '' %> sidebar-menu-hide-mobile"><i class="fa-solid fa-code-branch"></i><span>مراقبة Webhooks</span></a>
+        <a href="/audit-log" class="<%= typeof activePage !== 'undefined' && activePage === 'audit_log' ? 'active' : '' %> sidebar-menu-hide-mobile">
+            <span class="menu-link-content">
+                <i class="fa-solid fa-clock-rotate-left"></i> سجل التدفق والتدقيق
             </span>
             <i class="fa-solid fa-angle-left menu-chevron"></i>
         </a>

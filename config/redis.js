@@ -5,6 +5,7 @@
 'use strict';
 
 const logger = require('../utils/logger');
+const { distributedStateRequired } = require('./runtimeScale');
 
 // ── In-Memory Fallback Cache ──────────────────────────
 class MemoryCache {
@@ -91,7 +92,7 @@ const useMemoryFallback = (reason) => {
 
 const initRedis = async () => {
     const REDIS_URL = process.env.REDIS_URL || process.env.REDIS_URI;
-    const redisRequired = isTruthy(process.env.REDIS_REQUIRED);
+    const redisRequired = distributedStateRequired();
 
     if (isExplicitlyDisabled(process.env.REDIS_ENABLED)) {
         if (redisRequired) throw new Error('REDIS_ENABLED cannot be disabled while REDIS_REQUIRED=true.');

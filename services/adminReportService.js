@@ -8,7 +8,8 @@ const Ledger = require('../models/Ledger');
 const SubAccount = require('../models/SubAccount');
 const { findReportTransactions } = require('./unifiedReportService');
 const User = require('../models/User');
-const { systemDateKey } = require('../config/systemTime');
+const { systemDateKey, systemDayStart, systemDayEnd } = require('../config/systemTime');
+const { tenantScope } = require('../utils/tenantScope');
 const { buildReportSummary } = require('../utils/adminReportCalculations');
 const {
     EXECUTOR_LEDGER_MODELS,
@@ -32,45 +33,34 @@ const ACTION_LABELS = {
     BALANCE_ADJUSTMENT_VOIDED: 'إلغاء إيداع أو خصم'
 };
 
-const validDateParts = (year, month, day = 1) => {
-    const date = new Date(year, month - 1, day);
-    if (
-        date.getFullYear() !== year
-        || date.getMonth() !== month - 1
-        || date.getDate() !== day
-    ) return null;
-    return date;
-};
-
 const getDateRange = (dateType, dateValue, dateFrom = '', dateTo = '') => {
-    const now = new Date();
+    const nowKey = systemDateKey(new Date());
     if (dateType === 'range') {
         const fromMatch = String(dateFrom || '').match(/^(\d{4})-(\d{2})-(\d{2})$/);
         const toMatch = String(dateTo || '').match(/^(\d{4})-(\d{2})-(\d{2})$/);
-        const start = fromMatch && validDateParts(Number(fromMatch[1]), Number(fromMatch[2]), Number(fromMatch[3]));
-        const end = toMatch && validDateParts(Number(toMatch[1]), Number(toMatch[2]), Number(toMatch[3]));
+        const start = fromMatch && systemDayStart(dateFrom);
+        const end = toMatch && systemDayEnd(dateTo);
         if (!start || !end || start > end) throw new Error('INVALID_REPORT_DATE');
-        start.setHours(0, 0, 0, 0);
-        end.setHours(23, 59, 59, 999);
         return { start, end, dateType: 'range', dateValue: `${dateFrom}:${dateTo}`, dateFrom, dateTo };
     }
     if (dateType === 'day') {
         const match = String(dateValue || '').match(/^(\d{4})-(\d{2})-(\d{2})$/);
-        const start = match && validDateParts(Number(match[1]), Number(match[2]), Number(match[3]));
+        const start = match && systemDayStart(dateValue);
         if (!start) throw new Error('INVALID_REPORT_DATE');
-        start.setHours(0, 0, 0, 0);
-        const end = new Date(start);
-        end.setHours(23, 59, 59, 999);
+        const end = systemDayEnd(dateValue);
         return { start, end, dateType: 'day', dateValue };
     }
 
-    const fallback = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+    const fallback = nowKey.slice(0, 7);
     const normalizedValue = dateType === 'month' ? String(dateValue || fallback) : fallback;
     const match = normalizedValue.match(/^(\d{4})-(\d{2})$/);
-    const start = match && validDateParts(Number(match[1]), Number(match[2]), 1);
+    const year = match ? Number(match[1]) : 0;
+    const month = match ? Number(match[2]) : 0;
+    const firstKey = match ? `${match[1]}-${match[2]}-01` : '';
+    const lastDay = match && month >= 1 && month <= 12 ? new Date(Date.UTC(year, month, 0)).getUTCDate() : 0;
+    const start = firstKey && systemDayStart(firstKey);
     if (!start) throw new Error('INVALID_REPORT_DATE');
-    start.setHours(0, 0, 0, 0);
-    const end = new Date(start.getFullYear(), start.getMonth() + 1, 0, 23, 59, 59, 999);
+    const end = systemDayEnd(`${match[1]}-${match[2]}-${String(lastDay).padStart(2, '0')}`);
     return { start, end, dateType: 'month', dateValue: normalizedValue };
 };
 
@@ -102,10 +92,11 @@ const buildScopeMetadata = (transaction = {}) => ({
     executorName: transaction.executorName || ''
 });
 
-const resolveReportScope = async ({ mainCategory, subId, subType = 'all' }) => {
+const resolveReportScope = async ({ mainCategory, subId, subType = 'all', tenantId = null }) => {
     if (!mainCategory || !subId) throw new Error('REPORT_SCOPE_REQUIRED');
 
-    const baseQuery = {};
+    const scopedTenant = tenantScope(tenantId);
+    const baseQuery = { ...scopedTenant };
     const entityInfo = {
         name: '---',
         phone: '---',
@@ -117,7 +108,7 @@ const resolveReportScope = async ({ mainCategory, subId, subType = 'all' }) => {
     let isExecutor = false;
 
     if (mainCategory === 'direct_client') {
-        const user = await User.findById(subId).lean();
+        const user = await User.findOne({ _id: subId, ...scopedTenant }).lean();
         if (!user) throw new Error('REPORT_ENTITY_NOT_FOUND');
         Object.assign(entityInfo, {
             name: user.name || '---',
@@ -135,7 +126,7 @@ const resolveReportScope = async ({ mainCategory, subId, subType = 'all' }) => {
         baseQuery.isSubAccountTx = { $ne: true };
         auditScope.identifiers = identifiers;
     } else if (mainCategory === 'company') {
-        const company = await ClientCompany.findById(subId).lean();
+        const company = await ClientCompany.findOne({ _id: subId, ...scopedTenant }).lean();
         if (!company) throw new Error('REPORT_ENTITY_NOT_FOUND');
         baseQuery.companyId = subId;
         Object.assign(entityInfo, {
@@ -151,10 +142,11 @@ const resolveReportScope = async ({ mainCategory, subId, subType = 'all' }) => {
             entityInfo.status = `موظف شركة (${company.name || '---'})`;
         }
     } else if (mainCategory === 'agent') {
-        const master = await User.findById(subId).lean() || await ClientCompany.findById(subId).lean();
+        const master = await User.findOne({ _id: subId, ...scopedTenant }).lean()
+            || await ClientCompany.findOne({ _id: subId, ...scopedTenant }).lean();
         if (!master) throw new Error('REPORT_ENTITY_NOT_FOUND');
         if (!subType || subType === 'all') {
-            const agentSubs = await SubAccount.find({ masterId: subId }).select('_id').lean();
+            const agentSubs = await SubAccount.find({ masterId: subId, ...scopedTenant }).select('_id').lean();
             const subIds = agentSubs.map((sub) => sub._id);
             const identifiers = [String(master._id), master.phone, master.webUsername].filter(Boolean);
             baseQuery.$or = [
@@ -172,7 +164,7 @@ const resolveReportScope = async ({ mainCategory, subId, subType = 'all' }) => {
             auditScope.identifiers = identifiers;
             auditScope.subAccountIds = subIds.map(String);
         } else {
-            const subAccount = await SubAccount.findById(subType).lean();
+            const subAccount = await SubAccount.findOne({ _id: subType, ...scopedTenant }).lean();
             if (!subAccount || String(subAccount.masterId) !== String(subId)) throw new Error('REPORT_ENTITY_NOT_FOUND');
             baseQuery.subAccountId = subType;
             Object.assign(entityInfo, {
@@ -184,7 +176,7 @@ const resolveReportScope = async ({ mainCategory, subId, subType = 'all' }) => {
             });
         }
     } else if (mainCategory === 'executor' || mainCategory === 'api_executor') {
-        const group = await ExecutorGroup.findById(subId).lean();
+        const group = await ExecutorGroup.findOne({ _id: subId, ...scopedTenant }).lean();
         if (!group) throw new Error('REPORT_ENTITY_NOT_FOUND');
         isExecutor = true;
         baseQuery.executorGroupId = subId;
@@ -196,7 +188,7 @@ const resolveReportScope = async ({ mainCategory, subId, subType = 'all' }) => {
             status: mainCategory === 'api_executor' ? 'منفذ API' : 'شركة تنفيذ'
         });
         if (mainCategory === 'executor') {
-            const manager = await Employee.findOne({ groupId: subId, role: 'manager' }).lean();
+            const manager = await Employee.findOne({ groupId: subId, role: 'manager', ...scopedTenant }).lean();
             if (manager) {
                 entityInfo.phone = manager.phone || entityInfo.phone;
                 entityInfo.username = manager.webUsername || entityInfo.username;

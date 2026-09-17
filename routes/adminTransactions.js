@@ -7,6 +7,7 @@ const Ledger = require('../models/Ledger');
 const { createBalanceTransferReceiptProof } = require('../services/balanceTransferReceiptService');
 const ExecutorGroup = require('../models/ExecutorGroup');
 const ClientCompany = require('../models/ClientCompany');
+const SubAccount = require('../models/SubAccount');
 const User = require('../models/User');
 const Employee = require('../models/Employee');
 const ClientEmployee = require('../models/ClientEmployee');
@@ -32,6 +33,7 @@ const {
     reassignTransactionExecutor
 } = require('../services/adminFinancialMutationService');
 const eventBus = require('../services/eventBus');
+const { tenantScope } = require('../utils/tenantScope');
 
 // 🚀 استدعاء محرك الـ API 
 const { executeTransferViaApi, getApiProviderBalance, saveApiReceiptProof } = require('../services/externalApiService');
@@ -82,7 +84,9 @@ const logAdminFinancialChange = (req, action, tx, oldData, newData, metadata = {
     targetModel: 'Transaction',
     oldData,
     newData,
-    metadata: reportAuditMetadata(tx, metadata)
+    metadata: reportAuditMetadata(tx, metadata),
+    required: true,
+    severity: 'critical'
 });
 
 const isAsyncTransactionRequest = (req) => (
@@ -133,7 +137,8 @@ const customerFacingNotes = (notes) => {
 
 const OPERATION_STATUSES = ['pending', 'processing', 'accepted', 'completed', 'rejected', 'cancelled_by_admin'];
 
-const transactionLedgerBaseQuery = () => ({
+const transactionLedgerBaseQuery = (source = null) => ({
+    ...tenantScope(source),
     $and: [
         {
             $or: [
@@ -151,8 +156,8 @@ const monthDateRange = (dateKey) => {
     return systemDateRange(`${year}-${String(month).padStart(2, '0')}-01`, `${year}-${String(month).padStart(2, '0')}-${lastDay}`);
 };
 
-const summarizeTransactionPeriod = async (createdAt) => {
-    const baseQuery = transactionLedgerBaseQuery();
+const summarizeTransactionPeriod = async (createdAt, source = null) => {
+    const baseQuery = transactionLedgerBaseQuery(source);
     if (createdAt) baseQuery.createdAt = createdAt;
 
     const rows = await Transaction.aggregate([
@@ -201,18 +206,20 @@ const dateKeysBefore = (todayKey, count) => {
     return keys;
 };
 
-const getTransactionPulseData = async () => {
+const getTransactionPulseData = async (req) => {
+    const now = new Date();
     const todayKey = systemDateKey(new Date());
     const todayRange = systemDateRange(todayKey, todayKey);
     const monthRange = monthDateRange(todayKey);
     const sevenDayKeys = dateKeysBefore(todayKey, 7);
     const sevenDayRange = systemDateRange(sevenDayKeys[0], sevenDayKeys[sevenDayKeys.length - 1]);
-    const trendBase = transactionLedgerBaseQuery();
+    const scopedTenant = tenantScope(req);
+    const trendBase = transactionLedgerBaseQuery(req);
     if (sevenDayRange) trendBase.createdAt = sevenDayRange;
 
-    const [today, month, trendRows] = await Promise.all([
-        summarizeTransactionPeriod(todayRange),
-        summarizeTransactionPeriod(monthRange),
+    const [today, month, trendRows, companies, executorGroups, liveTransactions, companyTotals, executorTotals] = await Promise.all([
+        summarizeTransactionPeriod(todayRange, req),
+        summarizeTransactionPeriod(monthRange, req),
         Transaction.aggregate([
             { $match: { ...trendBase, status: 'completed' } },
             {
@@ -223,15 +230,128 @@ const getTransactionPulseData = async () => {
                 }
             },
             { $sort: { _id: 1 } }
+        ]),
+        ClientCompany.find({ ...scopedTenant, status: 'active', deletedAt: { $exists: false } })
+            .select('name balance creditLimit accountCode')
+            .sort({ balance: 1, name: 1 }).limit(40).lean(),
+        ExecutorGroup.find({ ...scopedTenant, status: 'active', archivedAt: null, isManagerGroup: { $ne: true }, isManagerBot: { $ne: true } })
+            .select('name balance serviceKey isApiGroup isApiBot lastApiAvailableBalance lastApiTestStatus lastApiTestAt lastApiBalanceCheckStatus')
+            .sort({ isApiBot: -1, balance: -1, name: 1 }).limit(60).lean(),
+        Transaction.find({
+            ...transactionLedgerBaseQuery(req),
+            status: { $in: OPERATION_STATUSES },
+            ...(todayRange ? { createdAt: todayRange } : {})
+        }).select('+clientActorModel customId status amount costLYD exchangeRate transferType userId companyId subAccountId subAccountName isSubAccountTx companyName employeeName accountName vodafoneNumber accountNumber serviceDetails notes createdAt executorGroupId executorName isApiReview')
+            .sort({ createdAt: -1 }).limit(80).lean(),
+        ClientCompany.aggregate([
+            { $match: { ...scopedTenant, status: 'active', deletedAt: { $exists: false } } },
+            { $group: { _id: null, total: { $sum: { $ifNull: ['$balance', 0] } } } }
+        ]),
+        ExecutorGroup.aggregate([
+            { $match: { ...scopedTenant, status: 'active', archivedAt: null, isManagerGroup: { $ne: true }, isManagerBot: { $ne: true } } },
+            { $group: { _id: null, total: { $sum: { $cond: [
+                { $and: ['$isApiBot', { $ne: ['$lastApiAvailableBalance', null] }] },
+                '$lastApiAvailableBalance',
+                { $ifNull: ['$balance', 0] }
+            ] } } } }
         ])
     ]);
-        const trendMap = new Map(trendRows.map((row) => [row._id, row]));
-        const trend = sevenDayKeys.map((key) => ({
+    const trendMap = new Map(trendRows.map((row) => [row._id, row]));
+    const trend = sevenDayKeys.map((key) => ({
             label: key.slice(5),
             successfulCount: trendMap.get(key)?.successfulCount || 0,
             successfulAmount: trendMap.get(key)?.successfulAmount || 0
-        }));
-    return { today, month, trend, todayKey };
+    }));
+    const executors = executorGroups.map((group) => ({
+        ...group,
+        serviceLabel: getExecutorServiceLabel(group),
+        supportedTypes: getExecutorSupportedTransferTypes(group),
+        availableBalance: group.isApiBot && group.lastApiAvailableBalance != null && Number.isFinite(Number(group.lastApiAvailableBalance))
+            ? Number(group.lastApiAvailableBalance)
+            : Number(group.balance || 0),
+        apiHealth: group.isApiBot
+            ? (group.lastApiTestStatus === 'success' ? 'online' : group.lastApiTestStatus === 'failed' ? 'offline' : 'unknown')
+            : 'manual'
+    }));
+    const subAccountIds = liveTransactions.filter((item) => item.subAccountId).map((item) => item.subAccountId);
+    const userKeys = liveTransactions.filter((item) => item.userId).map((item) => String(item.userId));
+    const [subAccounts, operationUsers] = await Promise.all([
+        subAccountIds.length
+            ? SubAccount.find({ ...scopedTenant, _id: { $in: subAccountIds } }).select('masterType').lean()
+            : [],
+        userKeys.length
+            ? User.find({ ...scopedTenant, $or: [{ _id: { $in: userKeys.filter((value) => mongoose.isValidObjectId(value)) } }, { phone: { $in: userKeys } }, { webUsername: { $in: userKeys } }] }).select('name phone webUsername role').lean()
+            : []
+    ]);
+    const subAccountTypeById = new Map(subAccounts.map((item) => [String(item._id), item.masterType]));
+    const userByKey = new Map();
+    operationUsers.forEach((item) => {
+        [item._id, item.phone, item.webUsername].filter(Boolean).forEach((key) => userByKey.set(String(key), item));
+    });
+    const operations = liveTransactions.map((transaction) => {
+        const ageMinutes = Math.max(0, Math.floor((now.getTime() - new Date(transaction.createdAt).getTime()) / 60000));
+        const candidates = executors.filter((group) => (
+            group.status !== 'inactive'
+            && executorSupportsTransferType(group, transaction.transferType)
+            && group.availableBalance >= Number(transaction.amount || 0)
+            && group.apiHealth !== 'offline'
+        ));
+        const recommended = candidates.sort((a, b) => {
+            if (a.isApiBot !== b.isApiBot) return a.isApiBot ? -1 : 1;
+            return b.availableBalance - a.availableBalance;
+        })[0];
+        const linkedUser = userByKey.get(String(transaction.userId || ''));
+        const subMasterType = transaction.subAccountId ? subAccountTypeById.get(String(transaction.subAccountId)) : '';
+        const isAgencyCustomer = Boolean(transaction.isSubAccountTx && subMasterType === 'user');
+        const isAgency = isAgencyCustomer || transaction.clientActorModel === 'AgentEmployee' || linkedUser?.role === 'agent';
+        const isCompany = !isAgency && Boolean(transaction.companyId || (transaction.companyName && transaction.companyName !== 'عميل فردي'));
+        const entityType = isAgency ? 'agent' : isCompany ? 'company' : 'client';
+        const entityName = entityType === 'client'
+            ? (transaction.employeeName || linkedUser?.name || transaction.accountName || 'عميل غير محدد')
+            : (transaction.companyName || linkedUser?.name || 'حساب غير محدد');
+        const actorName = isAgencyCustomer
+            ? (transaction.subAccountName || transaction.employeeName || 'عميل تابع')
+            : entityType === 'client'
+                ? 'المدير'
+                : (transaction.employeeName || (linkedUser?.role === 'agent' ? 'المدير' : 'موظف/مدير غير محدد'));
+        return {
+            ...transaction,
+            ageMinutes,
+            priority: ageMinutes >= 30 ? 'critical' : ageMinutes >= 15 ? 'warning' : 'normal',
+            customerName: entityName,
+            entityType,
+            entityLabel: entityType === 'agent' ? 'وكالة' : entityType === 'company' ? 'شركة' : 'عميل',
+            actorName,
+            actorLabel: isAgencyCustomer ? 'عميل تابع للوكالة' : entityType === 'client' ? 'المدير' : 'الموظف/المدير',
+            actorIsCustomer: isAgencyCustomer,
+            recipient: transaction.vodafoneNumber || transaction.accountNumber || transaction.serviceDetails?.clientPhone || '-',
+            displayNote: customerFacingNotes(transaction.notes).split(/\r?\n/)[0] || '---',
+            serviceLabel: getExecutorServiceLabel(normalizeExecutorServiceKey(transaction.transferType)),
+            recommendedExecutorId: recommended ? String(recommended._id) : '',
+            recommendedExecutorName: recommended?.name || ''
+        };
+    });
+    const statusPriority = { pending: 0, processing: 1, accepted: 2, completed: 3, rejected: 4, cancelled_by_admin: 5 };
+    operations.sort((a, b) => (
+        (statusPriority[a.status] ?? 9) - (statusPriority[b.status] ?? 9)
+        || (['pending', 'processing', 'accepted'].includes(a.status)
+            ? b.ageMinutes - a.ageMinutes
+            : new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+    ));
+    const pendingOperations = operations.filter((item) => item.status === 'pending');
+    const oldestPendingMinutes = pendingOperations.reduce((max, item) => Math.max(max, item.ageMinutes), 0);
+    return {
+        today, month, trend, todayKey, companies, executors, operations,
+        command: {
+            companyBalanceTotal: Number(companyTotals[0]?.total) || 0,
+            executorBalanceTotal: Number(executorTotals[0]?.total) || 0,
+            pendingCount: pendingOperations.length,
+            urgentCount: pendingOperations.filter((item) => item.priority !== 'normal').length,
+            oldestPendingMinutes,
+            apiOnline: executors.filter((item) => item.isApiBot && item.apiHealth === 'online').length,
+            apiTotal: executors.filter((item) => item.isApiBot).length
+        }
+    };
 };
 
 const transactionSearchMatchReason = (transaction, rawSearch, exactAmount) => {
@@ -250,7 +370,7 @@ const transactionSearchMatchReason = (transaction, rawSearch, exactAmount) => {
 
 const renderTransactionPulse = async (req, res) => {
     try {
-        const pulse = await getTransactionPulseData();
+        const pulse = await getTransactionPulseData(req);
         res.render('transaction_pulse', {
             activePage: 'transactions_pulse',
             adminName: req.session.adminName,
@@ -273,7 +393,7 @@ const renderTransactionSearch = async (req, res) => {
         const toDate = /^\d{4}-\d{2}-\d{2}$/.test(req.query.toDate || '') ? req.query.toDate : '';
         const page = Math.max(1, Number.parseInt(req.query.page, 10) || 1);
         const limit = 50;
-        const query = transactionLedgerBaseQuery();
+        const query = transactionLedgerBaseQuery(req);
         const range = mode === 'day'
             ? systemDateRange(selectedDate, selectedDate)
             : mode === 'month'
@@ -328,7 +448,7 @@ const renderTransactionSearch = async (req, res) => {
 router.get('/transactions/pulse', renderTransactionPulse);
 router.get('/transactions/pulse/data', async (req, res) => {
     try {
-        return res.json({ success: true, ...(await getTransactionPulseData()) });
+        return res.json({ success: true, ...(await getTransactionPulseData(req)) });
     } catch (error) {
         console.error('[adminTransactions/pulse-data] error:', error.message);
         return res.status(500).json({ success: false });
@@ -375,7 +495,7 @@ const renderTransactions = async (req, res, operationsWorkspace = false) => {
             toDate = toDate || '';
         }
 
-        let query = transactionLedgerBaseQuery();
+        let query = transactionLedgerBaseQuery(req);
 
         // ✅ NoSQL Regex Injection — تعقيم مصطلح البحث
         if (search) {
@@ -444,6 +564,7 @@ const renderTransactions = async (req, res, operationsWorkspace = false) => {
         const todayKey = systemDateKey(new Date());
         const todayRange = systemDateRange(todayKey, todayKey);
         const dailySummaryQuery = {
+            ...tenantScope(req),
             $and: [
                 {
                     $or: [
@@ -470,6 +591,7 @@ const renderTransactions = async (req, res, operationsWorkspace = false) => {
         });
 
         const executorBalanceQuery = {
+            ...tenantScope(req),
             status: 'active',
             isManagerBot: { $ne: true },
             ...(operationsWorkspace
@@ -477,7 +599,7 @@ const renderTransactions = async (req, res, operationsWorkspace = false) => {
                 : { balance: { $gt: 0 } })
         };
         const [executorGroups, executorBalanceCandidates] = await Promise.all([
-            ExecutorGroup.find({ status: 'active', isManagerBot: { $ne: true } }),
+            ExecutorGroup.find({ ...tenantScope(req), status: 'active', isManagerBot: { $ne: true } }),
             // منفذ API قد يكون رصيده الداخلي سالباً رغم وجود رصيد خدمة فعلي عند المزود.
             ExecutorGroup.find(executorBalanceQuery).select('name balance isApiBot updatedAt lastApiBalanceCheckAt lastApiServiceCredit apiProviderKey apiUrl apiToken apiUsername apiPassword apiServiceId apiProviderId apiFieldId apiMachineSerial').lean()
         ]);
@@ -534,7 +656,7 @@ const renderTransactions = async (req, res, operationsWorkspace = false) => {
             serviceLabel: getExecutorServiceLabel(group),
             supportedTransferTypes: getExecutorSupportedTransferTypes(group)
         }));
-        const allGroups = await ExecutorGroup.find({}).lean();
+        const allGroups = await ExecutorGroup.find(tenantScope(req)).lean();
         const allGroupsMap = {};
         allGroups.forEach((group) => {
             allGroupsMap[group._id.toString()] = group.name;
@@ -675,7 +797,7 @@ router.get('/transactions/print', async (req, res) => {
 
 router.post('/transaction/:id/assign-executor', async (req, res) => {
     try {
-        const txId = req.params.id; const executorGroupId = req.body.executorGroupId || req.body.executorBotId; const tx = await Transaction.findById(txId);
+        const txId = req.params.id; const executorGroupId = req.body.executorGroupId || req.body.executorBotId; const tx = await Transaction.findOne({ _id: txId, ...tenantScope(req) });
         if (!tx || tx.status !== 'pending') {
             return respondTransactionAction(req, res, 409, {
                 success: false,
@@ -683,7 +805,7 @@ router.post('/transaction/:id/assign-executor', async (req, res) => {
             });
         }
 
-        const executorGroup = await ExecutorGroup.findById(executorGroupId);
+        const executorGroup = await ExecutorGroup.findOne({ _id: executorGroupId, ...tenantScope(req) });
 
         if (
             executorGroup
@@ -779,7 +901,7 @@ router.post('/transaction/:id/assign-executor', async (req, res) => {
                         const parentGroupId = getParentGroupId(executorGroup);
                         if (parentGroupId) {
                             try {
-                                const monitorGroup = await ExecutorGroup.findById(parentGroupId);
+                                const monitorGroup = await ExecutorGroup.findOne({ _id: parentGroupId, ...tenantScope(req) });
                                 if (monitorGroup) {
                                     // 🟢 تم استبدال التيليجرام بـ Socket.IO لاحقاً
                                 }
@@ -809,7 +931,7 @@ router.post('/transaction/:id/assign-executor', async (req, res) => {
                     // 🔴 فشل الـ API -> تحويل الطلب فوراً للبشر (Human Fallback)
                     const parentGroupId = getParentGroupId(executorGroup);
                     if (parentGroupId) {
-                        const monitorGroup = await ExecutorGroup.findById(parentGroupId);
+                        const monitorGroup = await ExecutorGroup.findOne({ _id: parentGroupId, ...tenantScope(req) });
                         if (monitorGroup) {
                             // تغيير مسؤولية الطلب ليكون من نصيب الفريق البشري
                             tx.executorGroupId = monitorGroup._id;
@@ -880,7 +1002,7 @@ router.post('/transaction/:id/assign-executor', async (req, res) => {
 
 router.post('/transaction/:id/pull-task', async (req, res) => {
     try {
-        const tx = await Transaction.findById(req.params.id);
+        const tx = await Transaction.findOne({ _id: req.params.id, ...tenantScope(req) });
         if (!tx || !['processing', 'accepted'].includes(tx.status)) {
             return respondTransactionAction(req, res, 409, {
                 success: false,
@@ -911,7 +1033,7 @@ router.post('/transaction/:id/pull-task', async (req, res) => {
 
 router.post('/transaction/:id/emergency-alert', async (req, res) => {
     try {
-        const tx = await Transaction.findById(req.params.id);
+        const tx = await Transaction.findOne({ _id: req.params.id, ...tenantScope(req) });
         if (!tx || !['processing', 'accepted'].includes(tx.status)) { return res.redirect('/transactions'); }
         const alertMsg = req.body.alertMessage || `تنبيه عاجل من الإدارة للطلب رقم ${tx.customId || tx._id}! يرجى سرعة التنفيذ!`;
         await Transaction.updateOne({ _id: tx._id }, { $set: { emergencyAlert: alertMsg } }, { strict: false });
@@ -927,7 +1049,7 @@ router.post('/transaction/:id/emergency-alert', async (req, res) => {
 
 router.post('/transaction/:id/accept-deposit-web', async (req, res) => {
     try {
-        const tx = await Transaction.findById(req.params.id);
+        const tx = await Transaction.findOne({ _id: req.params.id, ...tenantScope(req) });
         if (!tx || tx.status !== 'deposit_pending') return res.json({ success: false, error: 'الطلب غير متاح' });
 
         if (tx.depositRequest?.submittedByRole === 'client' && tx.depositRequest?.supportTicketId) {
@@ -950,7 +1072,7 @@ router.post('/transaction/:id/accept-deposit-web', async (req, res) => {
 
 router.post('/transaction/:id/reject-deposit-web', async (req, res) => {
     try {
-        const { reason } = req.body; const tx = await Transaction.findById(req.params.id);
+        const { reason } = req.body; const tx = await Transaction.findOne({ _id: req.params.id, ...tenantScope(req) });
         if (!tx || tx.status !== 'deposit_pending') return res.redirect('/transactions');
 
         if (tx.depositRequest?.submittedByRole === 'client' && tx.depositRequest?.supportTicketId) {
@@ -1037,12 +1159,12 @@ router.post('/transaction/:id/global-cancel', async (req, res) => {
     try {
         const reason = req.body.reason || 'إلغاء من الإدارة';
         const adminName = req.session.adminName || 'الإدارة';
-        const originalTx = await Transaction.findById(req.params.id).lean();
+        const originalTx = await Transaction.findOne({ _id: req.params.id, ...tenantScope(req) }).lean();
         
         // 🟢 استخدام خدمة الاسترجاع الموحدة لضمان الدبل إنتري والأحداث المتسلسلة
         const result = await reversalService.reverseTransaction(req.params.id, reason, adminName, { status: 'cancelled_by_admin' });
         if (result.success) {
-            const tx = await Transaction.findById(req.params.id);
+            const tx = await Transaction.findOne({ _id: req.params.id, ...tenantScope(req) });
             if (tx) {
                 const groupId = tx.executorGroupId; 
                 const managerGroupId = tx.managerGroupId;
@@ -1117,7 +1239,7 @@ router.post('/admin/kyc/review', async (req, res) => {
 // 🔍 الحصول على تفاصيل العملية الشاملة + قيود الدفتر المالي (Ledger)
 router.get('/transactions/:id/details', async (req, res) => {
     try {
-        const tx = await Transaction.findById(req.params.id).select('+executorExecutionNumber');
+        const tx = await Transaction.findOne({ _id: req.params.id, ...tenantScope(req) }).select('+executorExecutionNumber');
         if (!tx) return res.status(404).json({ success: false, error: 'العملية غير موجودة' });
         
         let ledgerInfo = null;
@@ -1125,7 +1247,7 @@ router.get('/transactions/:id/details', async (req, res) => {
         if (tx.transferType === 'balance_transfer') {
             const transferId = tx.customId.replace(/-[CD]$/, '');
             ledgerInfo = await Ledger.find({ transactionId: transferId }).lean();
-            const pairTransactions = await Transaction.find({
+            const pairTransactions = await Transaction.find({ ...tenantScope(req),
                 customId: { $in: [`${transferId}-D`, `${transferId}-C`] }
             }).lean();
 

@@ -40,6 +40,23 @@ class FinancialEventBus extends EventEmitter {
 // تصدير نسخة فريدة (Singleton) لضمان اشتراك موحد في كافة أرجاء النظام
 const eventBus = new FinancialEventBus();
 
+const dispatchMerchantWebhook = (eventType, data) => {
+    const transaction = data?.tx || data?.transaction;
+    if (!transaction) return;
+    Promise.resolve().then(() => {
+        const { enqueueTransactionWebhook } = require('./merchantWebhookService');
+        return enqueueTransactionWebhook(eventType, transaction);
+    }).catch((error) => {
+        logger.error('Failed to enqueue merchant webhook', {
+            eventType, customId: transaction.customId, error: error.message
+        });
+    });
+};
+
+eventBus.on('transfer:created', (data) => dispatchMerchantWebhook('transfer.created', data));
+eventBus.on('transfer:completed', (data) => dispatchMerchantWebhook('transfer.completed', data));
+eventBus.on('transfer:cancelled', (data) => dispatchMerchantWebhook('transfer.cancelled', data));
+
 // ── تسحيل المستمعين الافتراضيين لفك الارتباط (Decoupling) ──
 
 // 1. عند إنشاء تحويل مالي

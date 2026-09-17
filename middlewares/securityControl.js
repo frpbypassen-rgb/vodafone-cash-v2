@@ -168,6 +168,7 @@ const permissionRules = [
     { pattern: /^\/(clients|user\/|company\/|sub-account\/|admin\/accounts\/)/, read: 'accounts.read', write: 'accounts.manage' },
     { pattern: /^\/(executors|executor\/|employees)/, read: 'executors.read', write: 'executors.manage' },
     { pattern: /^\/(support|complaints|whatsapp-monitor)/, read: 'support.read', write: 'support.manage' },
+    { pattern: /^\/broadcast/, read: 'accounts.read', write: 'accounts.manage' },
     { pattern: /^\/(reports|audit-log|financial-movements)/, read: 'reports.read', write: 'reports.manage' },
     { pattern: /^\/$/, read: 'dashboard.read', write: 'dashboard.manage' }
 ];
@@ -175,8 +176,9 @@ const permissionRules = [
 const enforceAdminPermissions = async (req, res, next) => {
     try {
         if (!req.session?.isLoggedIn || req.session.adminRole === 'master') return next();
-        const state = await securityControl.getState();
-        if (!state.adminPermissionEnforcementEnabled) return next();
+        // Permissions are a security boundary, not an optional presentation
+        // preference. Historical state rows may contain `false`; they must not
+        // silently grant every authenticated administrator full access.
         const rule = permissionRules.find((item) => item.pattern.test(req.path));
         if (!rule) return next();
         const required = ['GET', 'HEAD', 'OPTIONS'].includes(req.method) ? rule.read : rule.write;

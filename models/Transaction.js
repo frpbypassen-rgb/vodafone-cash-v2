@@ -193,6 +193,7 @@ const transactionSchema = new mongoose.Schema({
 // 📈 فهارس مركبة لتحسين الأداء — حرجة للاستعلامات المتكررة
 // ====================================================
 transactionSchema.index({ status: 1, createdAt: -1 });          // فلتر الحالة + الترتيب
+transactionSchema.index({ status: 1, completedAt: -1 });        // تحليلات لوحة القيادة حسب وقت الإكمال
 transactionSchema.index({ userId: 1, createdAt: -1 });           // معاملات المستخدم الفردي
 transactionSchema.index({ companyId: 1, createdAt: -1 });      // معاملات الشركة
 transactionSchema.index({ companyId: 1, clientActorId: 1, createdAt: -1 });

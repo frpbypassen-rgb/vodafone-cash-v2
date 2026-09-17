@@ -1,5 +1,6 @@
 const express = require('express');
 const router = express.Router();
+const eventBus = require('../services/eventBus');
 const mongoose = require('mongoose');
 const ClientBot = require('../models/ClientBot');
 const User = require('../models/User');
@@ -27,6 +28,7 @@ const {
 } = require('../services/walletService');
 const { normalizeWhatsAppPhone } = require('../services/whatsappService');
 const { sanitizeStatementText } = require('../utils/accountStatementPrivacy');
+const logger = require('../utils/logger');
 
 const MERCHANT_TRANSFER_MIN_AMOUNT = 100;
 const MERCHANT_TRANSFER_MAX_AMOUNT = 50000;
@@ -328,7 +330,10 @@ router.post('/transfer', merchantApiAuth, async (req, res) => {
             const customId = `ATT-${yy}${mm}-${counter.value.toString().padStart(4, '0')}`;
 
             const txData = {
+                tenantId: req.merchant.tenantId || req.tenant?._id || undefined,
                 userId: req.merchant.transactionUserId,
+                clientActorId: String(req.merchant._id),
+                clientActorModel: req.merchant.entityModel,
                 companyId: isAgentMerchant ? undefined : req.merchant._id,
                 amount: amountValue,
                 costLYD,
@@ -375,6 +380,11 @@ router.post('/transfer', merchantApiAuth, async (req, res) => {
                 console.error('[Merchant API] Auto-route enqueue failed:', err.message);
             });
         }
+        eventBus.publish('transfer:created', {
+            tx: result.tx,
+            companyName: req.merchant.name,
+            employeeName: 'Merchant API'
+        });
 
         return res.json({
             status: 'success',
@@ -393,6 +403,7 @@ router.post('/transfer', merchantApiAuth, async (req, res) => {
             }
         });
     } catch (error) {
+        logger.error('Merchant API transfer failed', { error: error.message, code: error.code });
         if (error && error.statusCode) {
             return res.status(error.statusCode).json({
                 status: 'failed',

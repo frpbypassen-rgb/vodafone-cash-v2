@@ -66,7 +66,9 @@ const logAction = async (params) => {
             initiator,
             deviceType,
             location,
-            severity
+            severity,
+            required = false,
+            session = null
         } = params;
 
         const ipAddress = req
@@ -131,7 +133,9 @@ const logAction = async (params) => {
         auditLock = await acquireLock('audit-log-chain', 10000, { retryCount: 20, retryDelay: 100 });
 
         // حساب تشفير السلسلة المترابطة (Hash Chained Audit Trail)
-        const lastEntry = await AuditLog.findOne().sort({ _id: -1 }).select('hash').lean();
+        let lastEntryQuery = AuditLog.findOne().sort({ _id: -1 }).select('hash');
+        if (session) lastEntryQuery = lastEntryQuery.session(session);
+        const lastEntry = await lastEntryQuery.lean();
         const previousHash = lastEntry ? lastEntry.hash : 'GENESIS';
 
         const entryData = {
@@ -146,7 +150,7 @@ const logAction = async (params) => {
             endpoint,
             oldData: oldData ? sanitizeData(oldData) : undefined,
             newData: newData ? sanitizeData(newData) : undefined,
-            metadata,
+            metadata: metadata ? sanitizeData(metadata) : undefined,
             success,
             errorCode,
             result: finalResult,
@@ -159,10 +163,10 @@ const logAction = async (params) => {
         entryData.hash = calculateHash(entryData, previousHash);
 
         const entry = new AuditLog(entryData);
-        await entry.save();
+        await entry.save(session ? { session } : {});
     } catch (err) {
-        // لا نرمي الخطأ — فشل التسجيل لا يجب أن يوقف العملية الأصلية
         console.error('⚠️ [AuditService] فشل في تسجيل التدقيق:', err.message);
+        if (params?.required) throw err;
     } finally {
         await releaseLock(auditLock);
     }
@@ -172,15 +176,15 @@ const logAction = async (params) => {
  * إزالة الحقول الحساسة من البيانات قبل تسجيلها
  */
 const sanitizeData = (data) => {
-    if (!data || typeof data !== 'object') return data;
-    const sensitiveFields = ['password', 'webPassword', 'refreshToken', 'token', 'secret'];
-    const cleaned = { ...data };
-    for (const field of sensitiveFields) {
-        if (cleaned[field] !== undefined) {
-            cleaned[field] = '[REDACTED]';
-        }
-    }
-    return cleaned;
+    if (data === null || data === undefined || typeof data !== 'object') return data;
+    if (data instanceof Date) return data;
+    if (Buffer.isBuffer(data)) return `[BUFFER:${data.length}]`;
+    if (Array.isArray(data)) return data.map(sanitizeData);
+    const sensitive = /(?:password|passphrase|token|authorization|cookie|secret|otp|pin)$/i;
+    return Object.fromEntries(Object.entries(data).map(([key, value]) => [
+        key,
+        sensitive.test(key) ? '[REDACTED]' : sanitizeData(value)
+    ]));
 };
 
 /**
