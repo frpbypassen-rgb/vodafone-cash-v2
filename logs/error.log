@@ -1,0 +1,20 @@
+{"error":"Operation `admins.find()` buffering timed out after 10000ms","level":"error","message":"Failed to handle transfer:created event","service":"ahram-pay","timestamp":"2026-09-06 00:28:38"}
+{"error":"Operation `admins.find()` buffering timed out after 10000ms","level":"error","message":"Failed to handle transfer:created event","service":"ahram-pay","timestamp":"2026-09-06 00:28:38"}
+{"error":"Release error","level":"error","message":"Failed to release lock","service":"ahram-pay","timestamp":"2026-09-06 00:28:59"}
+{"error":"Redis connection drop","level":"error","message":"Redlock client error","service":"ahram-pay","timestamp":"2026-09-06 00:28:59"}
+{"error":"Operation `admins.find()` buffering timed out after 10000ms","level":"error","message":"Failed to handle transfer:created event","service":"ahram-pay","timestamp":"2026-09-06 00:42:05"}
+{"error":"Operation `admins.find()` buffering timed out after 10000ms","level":"error","message":"Failed to handle transfer:created event","service":"ahram-pay","timestamp":"2026-09-06 00:42:05"}
+{"error":"Release error","level":"error","message":"Failed to release lock","service":"ahram-pay","timestamp":"2026-09-06 00:42:21"}
+{"error":"Redis connection drop","level":"error","message":"Redlock client error","service":"ahram-pay","timestamp":"2026-09-06 00:42:22"}
+{"error":"Operation `admins.find()` buffering timed out after 10000ms","level":"error","message":"Failed to handle transfer:created event","service":"ahram-pay","timestamp":"2026-09-06 00:43:13"}
+{"error":"Operation `admins.find()` buffering timed out after 10000ms","level":"error","message":"Failed to handle transfer:created event","service":"ahram-pay","timestamp":"2026-09-06 00:43:13"}
+{"error":"Release error","level":"error","message":"Failed to release lock","service":"ahram-pay","timestamp":"2026-09-06 00:43:33"}
+{"error":"Redis connection drop","level":"error","message":"Redlock client error","service":"ahram-pay","timestamp":"2026-09-06 00:43:34"}
+{"error":"Operation `admins.find()` buffering timed out after 10000ms","level":"error","message":"Failed to handle transfer:created event","service":"ahram-pay","timestamp":"2026-09-06 00:45:10"}
+{"error":"Operation `admins.find()` buffering timed out after 10000ms","level":"error","message":"Failed to handle transfer:created event","service":"ahram-pay","timestamp":"2026-09-06 00:45:10"}
+{"error":"Release error","level":"error","message":"Failed to release lock","service":"ahram-pay","timestamp":"2026-09-06 00:45:20"}
+{"error":"Redis connection drop","level":"error","message":"Redlock client error","service":"ahram-pay","timestamp":"2026-09-06 00:45:21"}
+{"error":"Operation `admins.find()` buffering timed out after 10000ms","level":"error","message":"Failed to handle transfer:created event","service":"ahram-pay","timestamp":"2026-09-06 00:46:52"}
+{"error":"Operation `admins.find()` buffering timed out after 10000ms","level":"error","message":"Failed to handle transfer:created event","service":"ahram-pay","timestamp":"2026-09-06 00:46:52"}
+{"error":"Release error","level":"error","message":"Failed to release lock","service":"ahram-pay","timestamp":"2026-09-06 00:46:59"}
+{"error":"Redis connection drop","level":"error","message":"Redlock client error","service":"ahram-pay","timestamp":"2026-09-06 00:46:59"}

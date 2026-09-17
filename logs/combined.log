@@ -1,0 +1,371 @@
+{"fingerprint":"a539d3e26a8b9c67022301086f81b6db6ae692e8f3a188583fa02c2572e4c7ac","level":"info","message":"Registered trusted device fingerprint for user user-id-123","service":"ahram-pay","timestamp":"2026-09-06 00:27:55"}
+{"fingerprint":"a539d3e26a8b9c67022301086f81b6db6ae692e8f3a188583fa02c2572e4c7ac","level":"info","message":"Registered trusted device fingerprint for user user-001","service":"ahram-pay","timestamp":"2026-09-06 00:27:56"}
+{"level":"warn","message":"Redis is unavailable, using in-memory locks in this single-process deployment","service":"ahram-pay","timestamp":"2026-09-06 00:27:56"}
+{"accountType":"client_user","amount":100,"category":"financial","costLYD":15.504,"customId":"ATT-2609-0001","level":"info","message":"💰 Transfer created successfully","service":"ahram-pay","timestamp":"2026-09-06 00:27:56","transferType":"vodafone"}
+{"attempts":5,"category":"security","identifier":"locked-user","ip":"::ffff:127.0.0.1","level":"warn","lockDuration":"30 minutes","message":"🔒 Account locked due to failed login attempts","service":"ahram-pay","timestamp":"2026-09-06 00:27:58"}
+{"fingerprint":"a539d3e26a8b9c67022301086f81b6db6ae692e8f3a188583fa02c2572e4c7ac","level":"info","message":"Registered trusted device fingerprint for user user-id-123","service":"ahram-pay","timestamp":"2026-09-06 00:28:15"}
+{"fingerprint":"a539d3e26a8b9c67022301086f81b6db6ae692e8f3a188583fa02c2572e4c7ac","level":"info","message":"Registered trusted device fingerprint for user user-001","service":"ahram-pay","timestamp":"2026-09-06 00:28:17"}
+{"level":"warn","message":"Redis is unavailable, using in-memory locks in this single-process deployment","service":"ahram-pay","timestamp":"2026-09-06 00:28:17"}
+{"accountType":"client_user","amount":100,"category":"financial","costLYD":15.504,"customId":"ATT-2609-0001","level":"info","message":"💰 Transfer created successfully","service":"ahram-pay","timestamp":"2026-09-06 00:28:17","transferType":"vodafone"}
+{"attempts":5,"category":"security","identifier":"locked-user","ip":"::ffff:127.0.0.1","level":"warn","lockDuration":"30 minutes","message":"🔒 Account locked due to failed login attempts","service":"ahram-pay","timestamp":"2026-09-06 00:28:19"}
+{"data":{"companyName":"عميل فردي","employeeName":"أحمد محمد"},"level":"info","message":"📢 [EventBus] Publishing event: transfer:created","service":"ahram-pay","timestamp":"2026-09-06 00:28:23"}
+{"category":"financial","level":"info","message":"💰 Transfer Created Event Received","service":"ahram-pay","timestamp":"2026-09-06 00:28:23"}
+{"accountType":"client_user","amount":100,"category":"financial","costLYD":15.504,"customId":"ATT-2609-0123","level":"info","message":"💰 Transfer created successfully","service":"ahram-pay","timestamp":"2026-09-06 00:28:23","transferType":"vodafone"}
+{"data":{"companyName":"شركة A","employeeName":"موظف شركة A"},"level":"info","message":"📢 [EventBus] Publishing event: transfer:created","service":"ahram-pay","timestamp":"2026-09-06 00:28:23"}
+{"category":"financial","level":"info","message":"💰 Transfer Created Event Received","service":"ahram-pay","timestamp":"2026-09-06 00:28:23"}
+{"accountType":"client_company","amount":100,"category":"financial","costLYD":15.267,"customId":"ATT-2609-0124","level":"info","message":"💰 Transfer created successfully","service":"ahram-pay","timestamp":"2026-09-06 00:28:23","transferType":"post_account"}
+{"data":{"emp":{"_id":"emp-123","name":"موظف التجربة"},"reason":"المستلم لم يرد","tx":{"_id":"tx-123","adminNotes":"[تم الإلغاء | المنفذ: موظف التجربة | السبب: المستلم لم يرد]","companyId":"company-123","costLYD":500,"customId":"ATT-2601-0001","notes":"طلب أصلي","operatorId":"emp-123","status":"rejected"}},"level":"info","message":"📢 [EventBus] Publishing event: transfer:cancelled","service":"ahram-pay","timestamp":"2026-09-06 00:28:23"}
+{"category":"financial","customId":"ATT-2601-0001","level":"info","message":"💰 Transfer Cancelled Event Received","refund":500,"service":"ahram-pay","timestamp":"2026-09-06 00:28:23"}
+{"category":"financial","customId":"ATT-2601-0001","executor":"موظف التجربة","level":"info","message":"💰 Transfer cancelled and refunded","reason":"المستلم لم يرد","refund":500,"service":"ahram-pay","timestamp":"2026-09-06 00:28:23"}
+{"data":{"emp":{"_id":"emp-123","name":"موظف التجربة"},"reason":"إلغاء فوري","tx":{"_id":"tx-123","adminNotes":"[تم الإلغاء | المنفذ: موظف التجربة | السبب: إلغاء فوري]","costLYD":500,"customId":"ATT-2601-0001","notes":"طلب أصلي","operatorId":"emp-123","status":"rejected","userId":"01012345678"}},"level":"info","message":"📢 [EventBus] Publishing event: transfer:cancelled","service":"ahram-pay","timestamp":"2026-09-06 00:28:23"}
+{"category":"financial","customId":"ATT-2601-0001","level":"info","message":"💰 Transfer Cancelled Event Received","refund":500,"service":"ahram-pay","timestamp":"2026-09-06 00:28:23"}
+{"category":"financial","customId":"ATT-2601-0001","executor":"موظف التجربة","level":"info","message":"💰 Transfer cancelled and refunded","reason":"إلغاء فوري","refund":500,"service":"ahram-pay","timestamp":"2026-09-06 00:28:23"}
+{"level":"warn","message":"Redis is unavailable, using in-memory locks in this single-process deployment","service":"ahram-pay","timestamp":"2026-09-06 00:28:32"}
+{"data":{"emp":{"_id":"emp1","groupId":{"_id":"g1","parentGroupId":"parent_g1"},"name":"Executor Ali"},"tx":{"_id":"tx123","amount":100,"customId":"ATT-002","executorSenderPhone":"0912345678","operatorId":"emp1","proofImage":"proof_1788654512470.jpg","status":"completed","transferType":"vodafone"}},"level":"info","message":"📢 [EventBus] Publishing event: transfer:completed","service":"ahram-pay","timestamp":"2026-09-06 00:28:32"}
+{"category":"financial","customId":"ATT-002","level":"info","message":"💰 Transfer Completed Event Received","service":"ahram-pay","status":"completed","timestamp":"2026-09-06 00:28:32"}
+{"fingerprint":"a539d3e26a8b9c67022301086f81b6db6ae692e8f3a188583fa02c2572e4c7ac","level":"info","message":"Registered trusted device fingerprint for user sub-account-id-123","service":"ahram-pay","timestamp":"2026-09-06 00:28:33"}
+{"level":"warn","message":"Redis is unavailable, using in-memory locks in this single-process deployment","service":"ahram-pay","timestamp":"2026-09-06 00:28:33"}
+{"accountType":"sub_client","amount":300,"category":"financial","costLYD":46.512,"customId":"ATT-2609-0001","level":"info","message":"💰 Transfer created successfully","service":"ahram-pay","timestamp":"2026-09-06 00:28:33","transferType":"vodafone"}
+{"accountType":"sub_client","amount":300,"category":"financial","costLYD":46.512,"customId":"ATT-2609-0001","level":"info","message":"💰 Transfer created successfully","service":"ahram-pay","timestamp":"2026-09-06 00:28:33","transferType":"vodafone"}
+{"category":"financial","customId":"ATT-2601-0002","executor":"Operator Name","level":"info","message":"💰 Transfer cancelled and refunded","reason":"Failed to execute transfer","refund":46.512,"service":"ahram-pay","timestamp":"2026-09-06 00:28:33"}
+{"error":"Operation `admins.find()` buffering timed out after 10000ms","level":"error","message":"Failed to handle transfer:created event","service":"ahram-pay","timestamp":"2026-09-06 00:28:38"}
+{"error":"Operation `admins.find()` buffering timed out after 10000ms","level":"error","message":"Failed to handle transfer:created event","service":"ahram-pay","timestamp":"2026-09-06 00:28:38"}
+{"level":"info","message":"Transaction ATT-2605-0010 reversed by Admin-Ali with cancellation CAN-2609-00007","service":"ahram-pay","timestamp":"2026-09-06 00:28:53"}
+{"error":"Transaction numbers are only allowed on a replica set member or mongos","level":"warn","message":"Mongo transactions unavailable; falling back to non-transactional reversal for tx-id-123","service":"ahram-pay","timestamp":"2026-09-06 00:28:53"}
+{"level":"info","message":"Transaction ATT-2605-0010 reversed without Mongo transaction by Admin-Ali with cancellation CAN-2609-00008","service":"ahram-pay","timestamp":"2026-09-06 00:28:53"}
+{"level":"info","message":"✅ BullMQ Distributed Queues & Workers initialized successfully","service":"ahram-pay","timestamp":"2026-09-06 00:28:54"}
+{"level":"info","message":"✅ BullMQ Distributed Queues & Workers initialized successfully","service":"ahram-pay","timestamp":"2026-09-06 00:28:54"}
+{"level":"info","message":"✅ BullMQ Distributed Queues & Workers initialized successfully","service":"ahram-pay","timestamp":"2026-09-06 00:28:54"}
+{"level":"info","message":"✅ BullMQ Distributed Queues & Workers initialized successfully","service":"ahram-pay","timestamp":"2026-09-06 00:28:55"}
+{"level":"info","message":"✅ BullMQ Distributed Queues & Workers initialized successfully","service":"ahram-pay","timestamp":"2026-09-06 00:28:55"}
+{"level":"info","message":"✅ BullMQ Distributed Queues & Workers initialized successfully","service":"ahram-pay","timestamp":"2026-09-06 00:28:55"}
+{"level":"info","message":"✅ BullMQ Distributed Queues & Workers initialized successfully","service":"ahram-pay","timestamp":"2026-09-06 00:28:54"}
+{"level":"info","message":"✅ BullMQ Distributed Queues & Workers initialized successfully","service":"ahram-pay","timestamp":"2026-09-06 00:28:54"}
+{"level":"info","message":"[BullMQ] Job added to distributed queue","service":"ahram-pay","timestamp":"2026-09-06 00:28:54","txId":"tx-123"}
+{"level":"info","message":"✅ BullMQ Distributed Queues & Workers initialized successfully","service":"ahram-pay","timestamp":"2026-09-06 00:28:54"}
+{"level":"info","message":"[BullMQ Worker] Sending notification to u1","service":"ahram-pay","timestamp":"2026-09-06 00:28:54"}
+{"level":"info","message":"✅ BullMQ Distributed Queues & Workers initialized successfully","service":"ahram-pay","timestamp":"2026-09-06 00:28:55"}
+{"level":"info","message":"[BullMQ Worker] Generating report/settlement: daily_settlement","service":"ahram-pay","timestamp":"2026-09-06 00:28:55"}
+{"level":"info","message":"✅ BullMQ Distributed Queues & Workers initialized successfully","service":"ahram-pay","timestamp":"2026-09-06 00:28:55"}
+{"level":"info","message":"[BullMQ Worker] Running daily reconciliation...","service":"ahram-pay","timestamp":"2026-09-06 00:28:55"}
+{"level":"info","message":"✅ BullMQ Distributed Queues & Workers initialized successfully","service":"ahram-pay","timestamp":"2026-09-06 00:28:55"}
+{"level":"info","message":"[BullMQ Worker] Triggering system backup...","service":"ahram-pay","timestamp":"2026-09-06 00:28:55"}
+{"level":"info","message":"Backup completed successfully via BullMQ","output":"stdout output","service":"ahram-pay","timestamp":"2026-09-06 00:28:55"}
+{"level":"warn","message":"Redis is unavailable, using in-memory locks in this single-process deployment","service":"ahram-pay","timestamp":"2026-09-06 00:28:59"}
+{"level":"warn","message":"Redis is unavailable, using in-memory locks in this single-process deployment","service":"ahram-pay","timestamp":"2026-09-06 00:28:59"}
+{"level":"warn","message":"Redis is unavailable, using in-memory locks in this single-process deployment","service":"ahram-pay","timestamp":"2026-09-06 00:28:59"}
+{"level":"warn","message":"Redis is unavailable, using in-memory locks in this single-process deployment","service":"ahram-pay","timestamp":"2026-09-06 00:28:59"}
+{"error":"Release error","level":"error","message":"Failed to release lock","service":"ahram-pay","timestamp":"2026-09-06 00:28:59"}
+{"level":"warn","message":"Redis is unavailable, using in-memory locks in this single-process deployment","service":"ahram-pay","timestamp":"2026-09-06 00:28:59"}
+{"level":"info","message":"✅ Redlock initialized successfully","service":"ahram-pay","timestamp":"2026-09-06 00:28:59"}
+{"level":"info","message":"✅ Redlock initialized successfully","service":"ahram-pay","timestamp":"2026-09-06 00:28:59"}
+{"level":"info","message":"✅ Redlock initialized successfully","service":"ahram-pay","timestamp":"2026-09-06 00:28:59"}
+{"error":"Module not found","level":"warn","message":"⚠️ Failed to initialize Redlock, falling back to In-Memory locks","service":"ahram-pay","timestamp":"2026-09-06 00:28:59"}
+{"error":"Redis connection drop","level":"error","message":"Redlock client error","service":"ahram-pay","timestamp":"2026-09-06 00:28:59"}
+{"error":"Redlock failed connection","key":"fallback-key","level":"warn","message":"Redlock acquisition failed, using in-memory locks","service":"ahram-pay","timestamp":"2026-09-06 00:28:59"}
+{"level":"warn","message":"Redis is unavailable, using in-memory locks in this single-process deployment","service":"ahram-pay","timestamp":"2026-09-06 00:29:10"}
+{"documentType":"passport","fullName":"Ahmed KYC User","level":"info","message":"KYC document submitted for user user-kyc-123. Status: PENDING","service":"ahram-pay","timestamp":"2026-09-06 00:29:11"}
+{"level":"info","message":"KYC Status updated for user user-kyc-123 to VERIFIED","reason":"Documents look correct","service":"ahram-pay","timestamp":"2026-09-06 00:29:11"}
+{"documentType":"passport","fullName":"Ahmed Ali","level":"info","message":"KYC document submitted for user user-kyc-123. Status: PENDING","service":"ahram-pay","timestamp":"2026-09-06 00:29:15"}
+{"level":"info","message":"KYC Status updated for user user-kyc-123 to VERIFIED","service":"ahram-pay","timestamp":"2026-09-06 00:29:15"}
+{"hitLists":["OFAC Specially Designated Nationals (SDN)"],"level":"warn","message":"Security Warning: AML/Sanctions hit detected for name: \"Osama Bin Malik\", country: \"Egypt\"","service":"ahram-pay","timestamp":"2026-09-06 00:29:15"}
+{"hitLists":["EU Sanctioned Jurisdictions","UN Embargo List"],"level":"warn","message":"Security Warning: AML/Sanctions hit detected for name: \"Normal Name\", country: \"North Korea\"","service":"ahram-pay","timestamp":"2026-09-06 00:29:15"}
+{"level":"warn","message":"AML Flag: Abnormally large transaction detected: 300000 EGP","service":"ahram-pay","timestamp":"2026-09-06 00:29:15"}
+{"count":51,"level":"warn","message":"Fraud Alert: User user-velocity-test exceeded transaction speed limits! Freezing account...","service":"ahram-pay","timestamp":"2026-09-06 00:29:18"}
+{"count":52,"level":"warn","message":"Fraud Alert: User user-velocity-test exceeded transaction speed limits! Freezing account...","service":"ahram-pay","timestamp":"2026-09-06 00:29:18"}
+{"level":"info","message":"FX Engine updated rate for USD_EGP to 50","service":"ahram-pay","timestamp":"2026-09-06 00:29:21"}
+{"level":"info","message":"FX Engine updated rate for USD_EGP to 47.5","service":"ahram-pay","timestamp":"2026-09-06 00:29:21"}
+{"fingerprint":"45c08ca65ff8b3c7ec1c9c5db6d7d1e6fd85250f058dc337853924f412ba3df1","level":"info","message":"Registered trusted device fingerprint for user user-123","service":"ahram-pay","timestamp":"2026-09-06 00:29:21"}
+{"fingerprint":"3352888d77f8a392e4b3d2d6b003b8ec57c1efa75374edb47f7cd8e7825e59df","level":"warn","message":"Suspicious access attempt: Untrusted device fingerprint detected for user user-123","service":"ahram-pay","timestamp":"2026-09-06 00:29:21"}
+{"level":"info","message":"Transaction ATT-2605-0010 reversed by Admin-Ali with cancellation CAN-2609-00007","service":"ahram-pay","timestamp":"2026-09-06 00:41:29"}
+{"error":"Transaction numbers are only allowed on a replica set member or mongos","level":"warn","message":"Mongo transactions unavailable; falling back to non-transactional reversal for tx-id-123","service":"ahram-pay","timestamp":"2026-09-06 00:41:29"}
+{"level":"info","message":"Transaction ATT-2605-0010 reversed without Mongo transaction by Admin-Ali with cancellation CAN-2609-00008","service":"ahram-pay","timestamp":"2026-09-06 00:41:29"}
+{"level":"warn","message":"Redis is unavailable, using in-memory locks in this single-process deployment","service":"ahram-pay","timestamp":"2026-09-06 00:41:42"}
+{"data":{"emp":{"_id":"emp1","groupId":{"_id":"g1","parentGroupId":"parent_g1"},"name":"Executor Ali"},"tx":{"_id":"tx123","amount":100,"customId":"ATT-002","executorSenderPhone":"0912345678","operatorId":"emp1","proofImage":"proof_1788655302263.jpg","status":"completed","transferType":"vodafone"}},"level":"info","message":"📢 [EventBus] Publishing event: transfer:completed","service":"ahram-pay","timestamp":"2026-09-06 00:41:42"}
+{"category":"financial","customId":"ATT-002","level":"info","message":"💰 Transfer Completed Event Received","service":"ahram-pay","status":"completed","timestamp":"2026-09-06 00:41:42"}
+{"fingerprint":"a539d3e26a8b9c67022301086f81b6db6ae692e8f3a188583fa02c2572e4c7ac","level":"info","message":"Registered trusted device fingerprint for user user-id-123","service":"ahram-pay","timestamp":"2026-09-06 00:41:43"}
+{"data":{"companyName":"عميل فردي","employeeName":"أحمد محمد"},"level":"info","message":"📢 [EventBus] Publishing event: transfer:created","service":"ahram-pay","timestamp":"2026-09-06 00:41:54"}
+{"category":"financial","level":"info","message":"💰 Transfer Created Event Received","service":"ahram-pay","timestamp":"2026-09-06 00:41:54"}
+{"accountType":"client_user","amount":100,"category":"financial","costLYD":15.504,"customId":"ATT-2609-0123","level":"info","message":"💰 Transfer created successfully","service":"ahram-pay","timestamp":"2026-09-06 00:41:54","transferType":"vodafone"}
+{"data":{"companyName":"شركة A","employeeName":"موظف شركة A"},"level":"info","message":"📢 [EventBus] Publishing event: transfer:created","service":"ahram-pay","timestamp":"2026-09-06 00:41:54"}
+{"category":"financial","level":"info","message":"💰 Transfer Created Event Received","service":"ahram-pay","timestamp":"2026-09-06 00:41:54"}
+{"accountType":"client_company","amount":100,"category":"financial","costLYD":15.267,"customId":"ATT-2609-0124","level":"info","message":"💰 Transfer created successfully","service":"ahram-pay","timestamp":"2026-09-06 00:41:54","transferType":"post_account"}
+{"data":{"emp":{"_id":"emp-123","name":"موظف التجربة"},"reason":"المستلم لم يرد","tx":{"_id":"tx-123","adminNotes":"[تم الإلغاء | المنفذ: موظف التجربة | السبب: المستلم لم يرد]","companyId":"company-123","costLYD":500,"customId":"ATT-2601-0001","notes":"طلب أصلي","operatorId":"emp-123","status":"rejected"}},"level":"info","message":"📢 [EventBus] Publishing event: transfer:cancelled","service":"ahram-pay","timestamp":"2026-09-06 00:41:54"}
+{"category":"financial","customId":"ATT-2601-0001","level":"info","message":"💰 Transfer Cancelled Event Received","refund":500,"service":"ahram-pay","timestamp":"2026-09-06 00:41:54"}
+{"category":"financial","customId":"ATT-2601-0001","executor":"موظف التجربة","level":"info","message":"💰 Transfer cancelled and refunded","reason":"المستلم لم يرد","refund":500,"service":"ahram-pay","timestamp":"2026-09-06 00:41:54"}
+{"data":{"emp":{"_id":"emp-123","name":"موظف التجربة"},"reason":"إلغاء فوري","tx":{"_id":"tx-123","adminNotes":"[تم الإلغاء | المنفذ: موظف التجربة | السبب: إلغاء فوري]","costLYD":500,"customId":"ATT-2601-0001","notes":"طلب أصلي","operatorId":"emp-123","status":"rejected","userId":"01012345678"}},"level":"info","message":"📢 [EventBus] Publishing event: transfer:cancelled","service":"ahram-pay","timestamp":"2026-09-06 00:41:54"}
+{"category":"financial","customId":"ATT-2601-0001","level":"info","message":"💰 Transfer Cancelled Event Received","refund":500,"service":"ahram-pay","timestamp":"2026-09-06 00:41:54"}
+{"category":"financial","customId":"ATT-2601-0001","executor":"موظف التجربة","level":"info","message":"💰 Transfer cancelled and refunded","reason":"إلغاء فوري","refund":500,"service":"ahram-pay","timestamp":"2026-09-06 00:41:54"}
+{"error":"Operation `admins.find()` buffering timed out after 10000ms","level":"error","message":"Failed to handle transfer:created event","service":"ahram-pay","timestamp":"2026-09-06 00:42:05"}
+{"error":"Operation `admins.find()` buffering timed out after 10000ms","level":"error","message":"Failed to handle transfer:created event","service":"ahram-pay","timestamp":"2026-09-06 00:42:05"}
+{"level":"info","message":"✅ BullMQ Distributed Queues & Workers initialized successfully","service":"ahram-pay","timestamp":"2026-09-06 00:42:05"}
+{"level":"info","message":"✅ BullMQ Distributed Queues & Workers initialized successfully","service":"ahram-pay","timestamp":"2026-09-06 00:42:05"}
+{"level":"info","message":"✅ BullMQ Distributed Queues & Workers initialized successfully","service":"ahram-pay","timestamp":"2026-09-06 00:42:05"}
+{"level":"info","message":"✅ BullMQ Distributed Queues & Workers initialized successfully","service":"ahram-pay","timestamp":"2026-09-06 00:42:05"}
+{"level":"info","message":"✅ BullMQ Distributed Queues & Workers initialized successfully","service":"ahram-pay","timestamp":"2026-09-06 00:42:05"}
+{"level":"info","message":"✅ BullMQ Distributed Queues & Workers initialized successfully","service":"ahram-pay","timestamp":"2026-09-06 00:42:06"}
+{"level":"info","message":"✅ BullMQ Distributed Queues & Workers initialized successfully","service":"ahram-pay","timestamp":"2026-09-06 00:42:05"}
+{"level":"info","message":"✅ BullMQ Distributed Queues & Workers initialized successfully","service":"ahram-pay","timestamp":"2026-09-06 00:42:05"}
+{"level":"info","message":"[BullMQ] Job added to distributed queue","service":"ahram-pay","timestamp":"2026-09-06 00:42:05","txId":"tx-123"}
+{"level":"info","message":"✅ BullMQ Distributed Queues & Workers initialized successfully","service":"ahram-pay","timestamp":"2026-09-06 00:42:05"}
+{"level":"info","message":"[BullMQ Worker] Sending notification to u1","service":"ahram-pay","timestamp":"2026-09-06 00:42:05"}
+{"level":"info","message":"✅ BullMQ Distributed Queues & Workers initialized successfully","service":"ahram-pay","timestamp":"2026-09-06 00:42:05"}
+{"level":"info","message":"[BullMQ Worker] Generating report/settlement: daily_settlement","service":"ahram-pay","timestamp":"2026-09-06 00:42:05"}
+{"level":"info","message":"✅ BullMQ Distributed Queues & Workers initialized successfully","service":"ahram-pay","timestamp":"2026-09-06 00:42:06"}
+{"level":"info","message":"[BullMQ Worker] Running daily reconciliation...","service":"ahram-pay","timestamp":"2026-09-06 00:42:06"}
+{"level":"info","message":"✅ BullMQ Distributed Queues & Workers initialized successfully","service":"ahram-pay","timestamp":"2026-09-06 00:42:06"}
+{"level":"info","message":"[BullMQ Worker] Triggering system backup...","service":"ahram-pay","timestamp":"2026-09-06 00:42:06"}
+{"level":"info","message":"Backup completed successfully via BullMQ","output":"stdout output","service":"ahram-pay","timestamp":"2026-09-06 00:42:06"}
+{"attempts":5,"category":"security","identifier":"locked-user","ip":"::ffff:127.0.0.1","level":"warn","lockDuration":"30 minutes","message":"🔒 Account locked due to failed login attempts","service":"ahram-pay","timestamp":"2026-09-06 00:42:12"}
+{"level":"warn","message":"Redis is unavailable, using in-memory locks in this single-process deployment","service":"ahram-pay","timestamp":"2026-09-06 00:42:12"}
+{"level":"info","message":"FX Engine updated rate for USD_EGP to 50","service":"ahram-pay","timestamp":"2026-09-06 00:42:18"}
+{"level":"info","message":"FX Engine updated rate for USD_EGP to 47.5","service":"ahram-pay","timestamp":"2026-09-06 00:42:18"}
+{"fingerprint":"a539d3e26a8b9c67022301086f81b6db6ae692e8f3a188583fa02c2572e4c7ac","level":"info","message":"Registered trusted device fingerprint for user user-001","service":"ahram-pay","timestamp":"2026-09-06 00:42:20"}
+{"level":"warn","message":"Redis is unavailable, using in-memory locks in this single-process deployment","service":"ahram-pay","timestamp":"2026-09-06 00:42:20"}
+{"accountType":"client_user","amount":100,"category":"financial","costLYD":15.504,"customId":"ATT-2609-0001","level":"info","message":"💰 Transfer created successfully","service":"ahram-pay","timestamp":"2026-09-06 00:42:20","transferType":"vodafone"}
+{"fingerprint":"a539d3e26a8b9c67022301086f81b6db6ae692e8f3a188583fa02c2572e4c7ac","level":"info","message":"Registered trusted device fingerprint for user sub-account-id-123","service":"ahram-pay","timestamp":"2026-09-06 00:42:21"}
+{"level":"warn","message":"Redis is unavailable, using in-memory locks in this single-process deployment","service":"ahram-pay","timestamp":"2026-09-06 00:42:21"}
+{"accountType":"sub_client","amount":300,"category":"financial","costLYD":46.512,"customId":"ATT-2609-0001","level":"info","message":"💰 Transfer created successfully","service":"ahram-pay","timestamp":"2026-09-06 00:42:21","transferType":"vodafone"}
+{"accountType":"sub_client","amount":300,"category":"financial","costLYD":46.512,"customId":"ATT-2609-0001","level":"info","message":"💰 Transfer created successfully","service":"ahram-pay","timestamp":"2026-09-06 00:42:21","transferType":"vodafone"}
+{"category":"financial","customId":"ATT-2601-0002","executor":"Operator Name","level":"info","message":"💰 Transfer cancelled and refunded","reason":"Failed to execute transfer","refund":46.512,"service":"ahram-pay","timestamp":"2026-09-06 00:42:21"}
+{"level":"warn","message":"Redis is unavailable, using in-memory locks in this single-process deployment","service":"ahram-pay","timestamp":"2026-09-06 00:42:21"}
+{"level":"warn","message":"Redis is unavailable, using in-memory locks in this single-process deployment","service":"ahram-pay","timestamp":"2026-09-06 00:42:21"}
+{"level":"warn","message":"Redis is unavailable, using in-memory locks in this single-process deployment","service":"ahram-pay","timestamp":"2026-09-06 00:42:21"}
+{"level":"warn","message":"Redis is unavailable, using in-memory locks in this single-process deployment","service":"ahram-pay","timestamp":"2026-09-06 00:42:21"}
+{"error":"Release error","level":"error","message":"Failed to release lock","service":"ahram-pay","timestamp":"2026-09-06 00:42:21"}
+{"level":"warn","message":"Redis is unavailable, using in-memory locks in this single-process deployment","service":"ahram-pay","timestamp":"2026-09-06 00:42:21"}
+{"level":"info","message":"✅ Redlock initialized successfully","service":"ahram-pay","timestamp":"2026-09-06 00:42:21"}
+{"level":"info","message":"✅ Redlock initialized successfully","service":"ahram-pay","timestamp":"2026-09-06 00:42:22"}
+{"level":"info","message":"✅ Redlock initialized successfully","service":"ahram-pay","timestamp":"2026-09-06 00:42:22"}
+{"error":"Module not found","level":"warn","message":"⚠️ Failed to initialize Redlock, falling back to In-Memory locks","service":"ahram-pay","timestamp":"2026-09-06 00:42:22"}
+{"error":"Redis connection drop","level":"error","message":"Redlock client error","service":"ahram-pay","timestamp":"2026-09-06 00:42:22"}
+{"error":"Redlock failed connection","key":"fallback-key","level":"warn","message":"Redlock acquisition failed, using in-memory locks","service":"ahram-pay","timestamp":"2026-09-06 00:42:22"}
+{"fingerprint":"45c08ca65ff8b3c7ec1c9c5db6d7d1e6fd85250f058dc337853924f412ba3df1","level":"info","message":"Registered trusted device fingerprint for user user-123","service":"ahram-pay","timestamp":"2026-09-06 00:42:29"}
+{"fingerprint":"3352888d77f8a392e4b3d2d6b003b8ec57c1efa75374edb47f7cd8e7825e59df","level":"warn","message":"Suspicious access attempt: Untrusted device fingerprint detected for user user-123","service":"ahram-pay","timestamp":"2026-09-06 00:42:29"}
+{"count":51,"level":"warn","message":"Fraud Alert: User user-velocity-test exceeded transaction speed limits! Freezing account...","service":"ahram-pay","timestamp":"2026-09-06 00:42:29"}
+{"count":52,"level":"warn","message":"Fraud Alert: User user-velocity-test exceeded transaction speed limits! Freezing account...","service":"ahram-pay","timestamp":"2026-09-06 00:42:29"}
+{"documentType":"passport","fullName":"Ahmed Ali","level":"info","message":"KYC document submitted for user user-kyc-123. Status: PENDING","service":"ahram-pay","timestamp":"2026-09-06 00:42:29"}
+{"level":"info","message":"KYC Status updated for user user-kyc-123 to VERIFIED","service":"ahram-pay","timestamp":"2026-09-06 00:42:29"}
+{"hitLists":["OFAC Specially Designated Nationals (SDN)"],"level":"warn","message":"Security Warning: AML/Sanctions hit detected for name: \"Osama Bin Malik\", country: \"Egypt\"","service":"ahram-pay","timestamp":"2026-09-06 00:42:29"}
+{"hitLists":["EU Sanctioned Jurisdictions","UN Embargo List"],"level":"warn","message":"Security Warning: AML/Sanctions hit detected for name: \"Normal Name\", country: \"North Korea\"","service":"ahram-pay","timestamp":"2026-09-06 00:42:29"}
+{"level":"warn","message":"AML Flag: Abnormally large transaction detected: 300000 EGP","service":"ahram-pay","timestamp":"2026-09-06 00:42:29"}
+{"level":"warn","message":"Redis is unavailable, using in-memory locks in this single-process deployment","service":"ahram-pay","timestamp":"2026-09-06 00:42:57"}
+{"data":{"emp":{"_id":"emp1","groupId":{"_id":"g1","parentGroupId":"parent_g1"},"name":"Executor Ali"},"tx":{"_id":"tx123","amount":100,"customId":"ATT-002","executorSenderPhone":"0912345678","operatorId":"emp1","proofImage":"proof_1788655377584.jpg","status":"completed","transferType":"vodafone"}},"level":"info","message":"📢 [EventBus] Publishing event: transfer:completed","service":"ahram-pay","timestamp":"2026-09-06 00:42:57"}
+{"category":"financial","customId":"ATT-002","level":"info","message":"💰 Transfer Completed Event Received","service":"ahram-pay","status":"completed","timestamp":"2026-09-06 00:42:57"}
+{"level":"info","message":"Transaction ATT-2605-0010 reversed by Admin-Ali with cancellation CAN-2609-00007","service":"ahram-pay","timestamp":"2026-09-06 00:42:58"}
+{"error":"Transaction numbers are only allowed on a replica set member or mongos","level":"warn","message":"Mongo transactions unavailable; falling back to non-transactional reversal for tx-id-123","service":"ahram-pay","timestamp":"2026-09-06 00:42:58"}
+{"level":"info","message":"Transaction ATT-2605-0010 reversed without Mongo transaction by Admin-Ali with cancellation CAN-2609-00008","service":"ahram-pay","timestamp":"2026-09-06 00:42:58"}
+{"data":{"companyName":"عميل فردي","employeeName":"أحمد محمد"},"level":"info","message":"📢 [EventBus] Publishing event: transfer:created","service":"ahram-pay","timestamp":"2026-09-06 00:43:03"}
+{"category":"financial","level":"info","message":"💰 Transfer Created Event Received","service":"ahram-pay","timestamp":"2026-09-06 00:43:03"}
+{"accountType":"client_user","amount":100,"category":"financial","costLYD":15.504,"customId":"ATT-2609-0123","level":"info","message":"💰 Transfer created successfully","service":"ahram-pay","timestamp":"2026-09-06 00:43:03","transferType":"vodafone"}
+{"data":{"companyName":"شركة A","employeeName":"موظف شركة A"},"level":"info","message":"📢 [EventBus] Publishing event: transfer:created","service":"ahram-pay","timestamp":"2026-09-06 00:43:03"}
+{"category":"financial","level":"info","message":"💰 Transfer Created Event Received","service":"ahram-pay","timestamp":"2026-09-06 00:43:03"}
+{"accountType":"client_company","amount":100,"category":"financial","costLYD":15.267,"customId":"ATT-2609-0124","level":"info","message":"💰 Transfer created successfully","service":"ahram-pay","timestamp":"2026-09-06 00:43:03","transferType":"post_account"}
+{"data":{"emp":{"_id":"emp-123","name":"موظف التجربة"},"reason":"المستلم لم يرد","tx":{"_id":"tx-123","adminNotes":"[تم الإلغاء | المنفذ: موظف التجربة | السبب: المستلم لم يرد]","companyId":"company-123","costLYD":500,"customId":"ATT-2601-0001","notes":"طلب أصلي","operatorId":"emp-123","status":"rejected"}},"level":"info","message":"📢 [EventBus] Publishing event: transfer:cancelled","service":"ahram-pay","timestamp":"2026-09-06 00:43:03"}
+{"category":"financial","customId":"ATT-2601-0001","level":"info","message":"💰 Transfer Cancelled Event Received","refund":500,"service":"ahram-pay","timestamp":"2026-09-06 00:43:03"}
+{"category":"financial","customId":"ATT-2601-0001","executor":"موظف التجربة","level":"info","message":"💰 Transfer cancelled and refunded","reason":"المستلم لم يرد","refund":500,"service":"ahram-pay","timestamp":"2026-09-06 00:43:03"}
+{"data":{"emp":{"_id":"emp-123","name":"موظف التجربة"},"reason":"إلغاء فوري","tx":{"_id":"tx-123","adminNotes":"[تم الإلغاء | المنفذ: موظف التجربة | السبب: إلغاء فوري]","costLYD":500,"customId":"ATT-2601-0001","notes":"طلب أصلي","operatorId":"emp-123","status":"rejected","userId":"01012345678"}},"level":"info","message":"📢 [EventBus] Publishing event: transfer:cancelled","service":"ahram-pay","timestamp":"2026-09-06 00:43:03"}
+{"category":"financial","customId":"ATT-2601-0001","level":"info","message":"💰 Transfer Cancelled Event Received","refund":500,"service":"ahram-pay","timestamp":"2026-09-06 00:43:03"}
+{"category":"financial","customId":"ATT-2601-0001","executor":"موظف التجربة","level":"info","message":"💰 Transfer cancelled and refunded","reason":"إلغاء فوري","refund":500,"service":"ahram-pay","timestamp":"2026-09-06 00:43:03"}
+{"error":"Operation `admins.find()` buffering timed out after 10000ms","level":"error","message":"Failed to handle transfer:created event","service":"ahram-pay","timestamp":"2026-09-06 00:43:13"}
+{"error":"Operation `admins.find()` buffering timed out after 10000ms","level":"error","message":"Failed to handle transfer:created event","service":"ahram-pay","timestamp":"2026-09-06 00:43:13"}
+{"attempts":5,"category":"security","identifier":"locked-user","ip":"::ffff:127.0.0.1","level":"warn","lockDuration":"30 minutes","message":"🔒 Account locked due to failed login attempts","service":"ahram-pay","timestamp":"2026-09-06 00:43:14"}
+{"fingerprint":"a539d3e26a8b9c67022301086f81b6db6ae692e8f3a188583fa02c2572e4c7ac","level":"info","message":"Registered trusted device fingerprint for user user-id-123","service":"ahram-pay","timestamp":"2026-09-06 00:43:16"}
+{"fingerprint":"a539d3e26a8b9c67022301086f81b6db6ae692e8f3a188583fa02c2572e4c7ac","level":"info","message":"Registered trusted device fingerprint for user user-001","service":"ahram-pay","timestamp":"2026-09-06 00:43:22"}
+{"level":"warn","message":"Redis is unavailable, using in-memory locks in this single-process deployment","service":"ahram-pay","timestamp":"2026-09-06 00:43:22"}
+{"accountType":"client_user","amount":100,"category":"financial","costLYD":15.504,"customId":"ATT-2609-0001","level":"info","message":"💰 Transfer created successfully","service":"ahram-pay","timestamp":"2026-09-06 00:43:22","transferType":"vodafone"}
+{"level":"info","message":"✅ BullMQ Distributed Queues & Workers initialized successfully","service":"ahram-pay","timestamp":"2026-09-06 00:43:32"}
+{"level":"info","message":"✅ BullMQ Distributed Queues & Workers initialized successfully","service":"ahram-pay","timestamp":"2026-09-06 00:43:32"}
+{"level":"info","message":"✅ BullMQ Distributed Queues & Workers initialized successfully","service":"ahram-pay","timestamp":"2026-09-06 00:43:32"}
+{"level":"info","message":"✅ BullMQ Distributed Queues & Workers initialized successfully","service":"ahram-pay","timestamp":"2026-09-06 00:43:32"}
+{"level":"info","message":"✅ BullMQ Distributed Queues & Workers initialized successfully","service":"ahram-pay","timestamp":"2026-09-06 00:43:32"}
+{"level":"info","message":"✅ BullMQ Distributed Queues & Workers initialized successfully","service":"ahram-pay","timestamp":"2026-09-06 00:43:32"}
+{"level":"info","message":"✅ BullMQ Distributed Queues & Workers initialized successfully","service":"ahram-pay","timestamp":"2026-09-06 00:43:32"}
+{"level":"info","message":"✅ BullMQ Distributed Queues & Workers initialized successfully","service":"ahram-pay","timestamp":"2026-09-06 00:43:32"}
+{"level":"info","message":"[BullMQ] Job added to distributed queue","service":"ahram-pay","timestamp":"2026-09-06 00:43:32","txId":"tx-123"}
+{"level":"info","message":"✅ BullMQ Distributed Queues & Workers initialized successfully","service":"ahram-pay","timestamp":"2026-09-06 00:43:32"}
+{"level":"info","message":"[BullMQ Worker] Sending notification to u1","service":"ahram-pay","timestamp":"2026-09-06 00:43:32"}
+{"level":"info","message":"✅ BullMQ Distributed Queues & Workers initialized successfully","service":"ahram-pay","timestamp":"2026-09-06 00:43:32"}
+{"level":"info","message":"[BullMQ Worker] Generating report/settlement: daily_settlement","service":"ahram-pay","timestamp":"2026-09-06 00:43:32"}
+{"level":"info","message":"✅ BullMQ Distributed Queues & Workers initialized successfully","service":"ahram-pay","timestamp":"2026-09-06 00:43:32"}
+{"level":"info","message":"[BullMQ Worker] Running daily reconciliation...","service":"ahram-pay","timestamp":"2026-09-06 00:43:32"}
+{"level":"info","message":"✅ BullMQ Distributed Queues & Workers initialized successfully","service":"ahram-pay","timestamp":"2026-09-06 00:43:32"}
+{"level":"info","message":"[BullMQ Worker] Triggering system backup...","service":"ahram-pay","timestamp":"2026-09-06 00:43:32"}
+{"level":"info","message":"Backup completed successfully via BullMQ","output":"stdout output","service":"ahram-pay","timestamp":"2026-09-06 00:43:32"}
+{"level":"warn","message":"Redis is unavailable, using in-memory locks in this single-process deployment","service":"ahram-pay","timestamp":"2026-09-06 00:43:33"}
+{"level":"warn","message":"Redis is unavailable, using in-memory locks in this single-process deployment","service":"ahram-pay","timestamp":"2026-09-06 00:43:33"}
+{"level":"warn","message":"Redis is unavailable, using in-memory locks in this single-process deployment","service":"ahram-pay","timestamp":"2026-09-06 00:43:33"}
+{"level":"warn","message":"Redis is unavailable, using in-memory locks in this single-process deployment","service":"ahram-pay","timestamp":"2026-09-06 00:43:33"}
+{"error":"Release error","level":"error","message":"Failed to release lock","service":"ahram-pay","timestamp":"2026-09-06 00:43:33"}
+{"level":"warn","message":"Redis is unavailable, using in-memory locks in this single-process deployment","service":"ahram-pay","timestamp":"2026-09-06 00:43:34"}
+{"level":"info","message":"✅ Redlock initialized successfully","service":"ahram-pay","timestamp":"2026-09-06 00:43:34"}
+{"level":"info","message":"✅ Redlock initialized successfully","service":"ahram-pay","timestamp":"2026-09-06 00:43:34"}
+{"level":"info","message":"✅ Redlock initialized successfully","service":"ahram-pay","timestamp":"2026-09-06 00:43:34"}
+{"error":"Module not found","level":"warn","message":"⚠️ Failed to initialize Redlock, falling back to In-Memory locks","service":"ahram-pay","timestamp":"2026-09-06 00:43:34"}
+{"error":"Redis connection drop","level":"error","message":"Redlock client error","service":"ahram-pay","timestamp":"2026-09-06 00:43:34"}
+{"error":"Redlock failed connection","key":"fallback-key","level":"warn","message":"Redlock acquisition failed, using in-memory locks","service":"ahram-pay","timestamp":"2026-09-06 00:43:34"}
+{"fingerprint":"a539d3e26a8b9c67022301086f81b6db6ae692e8f3a188583fa02c2572e4c7ac","level":"info","message":"Registered trusted device fingerprint for user sub-account-id-123","service":"ahram-pay","timestamp":"2026-09-06 00:43:36"}
+{"level":"warn","message":"Redis is unavailable, using in-memory locks in this single-process deployment","service":"ahram-pay","timestamp":"2026-09-06 00:43:36"}
+{"accountType":"sub_client","amount":300,"category":"financial","costLYD":46.512,"customId":"ATT-2609-0001","level":"info","message":"💰 Transfer created successfully","service":"ahram-pay","timestamp":"2026-09-06 00:43:36","transferType":"vodafone"}
+{"accountType":"sub_client","amount":300,"category":"financial","costLYD":46.512,"customId":"ATT-2609-0001","level":"info","message":"💰 Transfer created successfully","service":"ahram-pay","timestamp":"2026-09-06 00:43:36","transferType":"vodafone"}
+{"category":"financial","customId":"ATT-2601-0002","executor":"Operator Name","level":"info","message":"💰 Transfer cancelled and refunded","reason":"Failed to execute transfer","refund":46.512,"service":"ahram-pay","timestamp":"2026-09-06 00:43:36"}
+{"documentType":"passport","fullName":"Ahmed Ali","level":"info","message":"KYC document submitted for user user-kyc-123. Status: PENDING","service":"ahram-pay","timestamp":"2026-09-06 00:43:43"}
+{"level":"info","message":"KYC Status updated for user user-kyc-123 to VERIFIED","service":"ahram-pay","timestamp":"2026-09-06 00:43:43"}
+{"hitLists":["OFAC Specially Designated Nationals (SDN)"],"level":"warn","message":"Security Warning: AML/Sanctions hit detected for name: \"Osama Bin Malik\", country: \"Egypt\"","service":"ahram-pay","timestamp":"2026-09-06 00:43:43"}
+{"hitLists":["EU Sanctioned Jurisdictions","UN Embargo List"],"level":"warn","message":"Security Warning: AML/Sanctions hit detected for name: \"Normal Name\", country: \"North Korea\"","service":"ahram-pay","timestamp":"2026-09-06 00:43:43"}
+{"level":"warn","message":"AML Flag: Abnormally large transaction detected: 300000 EGP","service":"ahram-pay","timestamp":"2026-09-06 00:43:43"}
+{"level":"warn","message":"Redis is unavailable, using in-memory locks in this single-process deployment","service":"ahram-pay","timestamp":"2026-09-06 00:43:43"}
+{"count":51,"level":"warn","message":"Fraud Alert: User user-velocity-test exceeded transaction speed limits! Freezing account...","service":"ahram-pay","timestamp":"2026-09-06 00:43:43"}
+{"count":52,"level":"warn","message":"Fraud Alert: User user-velocity-test exceeded transaction speed limits! Freezing account...","service":"ahram-pay","timestamp":"2026-09-06 00:43:43"}
+{"fingerprint":"45c08ca65ff8b3c7ec1c9c5db6d7d1e6fd85250f058dc337853924f412ba3df1","level":"info","message":"Registered trusted device fingerprint for user user-123","service":"ahram-pay","timestamp":"2026-09-06 00:43:44"}
+{"fingerprint":"3352888d77f8a392e4b3d2d6b003b8ec57c1efa75374edb47f7cd8e7825e59df","level":"warn","message":"Suspicious access attempt: Untrusted device fingerprint detected for user user-123","service":"ahram-pay","timestamp":"2026-09-06 00:43:44"}
+{"level":"info","message":"FX Engine updated rate for USD_EGP to 50","service":"ahram-pay","timestamp":"2026-09-06 00:43:45"}
+{"level":"info","message":"FX Engine updated rate for USD_EGP to 47.5","service":"ahram-pay","timestamp":"2026-09-06 00:43:45"}
+{"level":"warn","message":"Redis is unavailable, using in-memory locks in this single-process deployment","service":"ahram-pay","timestamp":"2026-09-06 00:44:51"}
+{"data":{"emp":{"_id":"emp1","groupId":{"_id":"g1","parentGroupId":"parent_g1"},"name":"Executor Ali"},"tx":{"_id":"tx123","amount":100,"customId":"ATT-002","executorSenderPhone":"0912345678","operatorId":"emp1","proofImage":"proof_1788655491033.jpg","status":"completed","transferType":"vodafone"}},"level":"info","message":"📢 [EventBus] Publishing event: transfer:completed","service":"ahram-pay","timestamp":"2026-09-06 00:44:51"}
+{"category":"financial","customId":"ATT-002","level":"info","message":"💰 Transfer Completed Event Received","service":"ahram-pay","status":"completed","timestamp":"2026-09-06 00:44:51"}
+{"data":{"companyName":"عميل فردي","employeeName":"أحمد محمد"},"level":"info","message":"📢 [EventBus] Publishing event: transfer:created","service":"ahram-pay","timestamp":"2026-09-06 00:44:58"}
+{"category":"financial","level":"info","message":"💰 Transfer Created Event Received","service":"ahram-pay","timestamp":"2026-09-06 00:44:58"}
+{"accountType":"client_user","amount":100,"category":"financial","costLYD":15.504,"customId":"ATT-2609-0123","level":"info","message":"💰 Transfer created successfully","service":"ahram-pay","timestamp":"2026-09-06 00:44:59","transferType":"vodafone"}
+{"data":{"companyName":"شركة A","employeeName":"موظف شركة A"},"level":"info","message":"📢 [EventBus] Publishing event: transfer:created","service":"ahram-pay","timestamp":"2026-09-06 00:44:59"}
+{"category":"financial","level":"info","message":"💰 Transfer Created Event Received","service":"ahram-pay","timestamp":"2026-09-06 00:44:59"}
+{"accountType":"client_company","amount":100,"category":"financial","costLYD":15.267,"customId":"ATT-2609-0124","level":"info","message":"💰 Transfer created successfully","service":"ahram-pay","timestamp":"2026-09-06 00:44:59","transferType":"post_account"}
+{"data":{"emp":{"_id":"emp-123","name":"موظف التجربة"},"reason":"المستلم لم يرد","tx":{"_id":"tx-123","adminNotes":"[تم الإلغاء | المنفذ: موظف التجربة | السبب: المستلم لم يرد]","companyId":"company-123","costLYD":500,"customId":"ATT-2601-0001","notes":"طلب أصلي","operatorId":"emp-123","status":"rejected"}},"level":"info","message":"📢 [EventBus] Publishing event: transfer:cancelled","service":"ahram-pay","timestamp":"2026-09-06 00:44:59"}
+{"category":"financial","customId":"ATT-2601-0001","level":"info","message":"💰 Transfer Cancelled Event Received","refund":500,"service":"ahram-pay","timestamp":"2026-09-06 00:44:59"}
+{"category":"financial","customId":"ATT-2601-0001","executor":"موظف التجربة","level":"info","message":"💰 Transfer cancelled and refunded","reason":"المستلم لم يرد","refund":500,"service":"ahram-pay","timestamp":"2026-09-06 00:44:59"}
+{"data":{"emp":{"_id":"emp-123","name":"موظف التجربة"},"reason":"إلغاء فوري","tx":{"_id":"tx-123","adminNotes":"[تم الإلغاء | المنفذ: موظف التجربة | السبب: إلغاء فوري]","costLYD":500,"customId":"ATT-2601-0001","notes":"طلب أصلي","operatorId":"emp-123","status":"rejected","userId":"01012345678"}},"level":"info","message":"📢 [EventBus] Publishing event: transfer:cancelled","service":"ahram-pay","timestamp":"2026-09-06 00:44:59"}
+{"category":"financial","customId":"ATT-2601-0001","level":"info","message":"💰 Transfer Cancelled Event Received","refund":500,"service":"ahram-pay","timestamp":"2026-09-06 00:44:59"}
+{"category":"financial","customId":"ATT-2601-0001","executor":"موظف التجربة","level":"info","message":"💰 Transfer cancelled and refunded","reason":"إلغاء فوري","refund":500,"service":"ahram-pay","timestamp":"2026-09-06 00:44:59"}
+{"error":"Operation `admins.find()` buffering timed out after 10000ms","level":"error","message":"Failed to handle transfer:created event","service":"ahram-pay","timestamp":"2026-09-06 00:45:10"}
+{"error":"Operation `admins.find()` buffering timed out after 10000ms","level":"error","message":"Failed to handle transfer:created event","service":"ahram-pay","timestamp":"2026-09-06 00:45:10"}
+{"fingerprint":"a539d3e26a8b9c67022301086f81b6db6ae692e8f3a188583fa02c2572e4c7ac","level":"info","message":"Registered trusted device fingerprint for user user-id-123","service":"ahram-pay","timestamp":"2026-09-06 00:45:17"}
+{"level":"warn","message":"Redis is unavailable, using in-memory locks in this single-process deployment","service":"ahram-pay","timestamp":"2026-09-06 00:45:20"}
+{"level":"warn","message":"Redis is unavailable, using in-memory locks in this single-process deployment","service":"ahram-pay","timestamp":"2026-09-06 00:45:20"}
+{"level":"warn","message":"Redis is unavailable, using in-memory locks in this single-process deployment","service":"ahram-pay","timestamp":"2026-09-06 00:45:20"}
+{"level":"warn","message":"Redis is unavailable, using in-memory locks in this single-process deployment","service":"ahram-pay","timestamp":"2026-09-06 00:45:20"}
+{"error":"Release error","level":"error","message":"Failed to release lock","service":"ahram-pay","timestamp":"2026-09-06 00:45:20"}
+{"level":"warn","message":"Redis is unavailable, using in-memory locks in this single-process deployment","service":"ahram-pay","timestamp":"2026-09-06 00:45:20"}
+{"level":"info","message":"✅ Redlock initialized successfully","service":"ahram-pay","timestamp":"2026-09-06 00:45:21"}
+{"level":"info","message":"✅ Redlock initialized successfully","service":"ahram-pay","timestamp":"2026-09-06 00:45:21"}
+{"level":"info","message":"✅ Redlock initialized successfully","service":"ahram-pay","timestamp":"2026-09-06 00:45:21"}
+{"error":"Module not found","level":"warn","message":"⚠️ Failed to initialize Redlock, falling back to In-Memory locks","service":"ahram-pay","timestamp":"2026-09-06 00:45:23"}
+{"error":"Redis connection drop","level":"error","message":"Redlock client error","service":"ahram-pay","timestamp":"2026-09-06 00:45:21"}
+{"error":"Redlock failed connection","key":"fallback-key","level":"warn","message":"Redlock acquisition failed, using in-memory locks","service":"ahram-pay","timestamp":"2026-09-06 00:45:21"}
+{"fingerprint":"45c08ca65ff8b3c7ec1c9c5db6d7d1e6fd85250f058dc337853924f412ba3df1","level":"info","message":"Registered trusted device fingerprint for user user-123","service":"ahram-pay","timestamp":"2026-09-06 00:45:30"}
+{"fingerprint":"3352888d77f8a392e4b3d2d6b003b8ec57c1efa75374edb47f7cd8e7825e59df","level":"warn","message":"Suspicious access attempt: Untrusted device fingerprint detected for user user-123","service":"ahram-pay","timestamp":"2026-09-06 00:45:30"}
+{"attempts":5,"category":"security","identifier":"locked-user","ip":"::ffff:127.0.0.1","level":"warn","lockDuration":"30 minutes","message":"🔒 Account locked due to failed login attempts","service":"ahram-pay","timestamp":"2026-09-06 00:45:31"}
+{"count":51,"level":"warn","message":"Fraud Alert: User user-velocity-test exceeded transaction speed limits! Freezing account...","service":"ahram-pay","timestamp":"2026-09-06 00:45:36"}
+{"count":52,"level":"warn","message":"Fraud Alert: User user-velocity-test exceeded transaction speed limits! Freezing account...","service":"ahram-pay","timestamp":"2026-09-06 00:45:36"}
+{"level":"info","message":"Transaction ATT-2605-0010 reversed by Admin-Ali with cancellation CAN-2609-00007","service":"ahram-pay","timestamp":"2026-09-06 00:45:37"}
+{"error":"Transaction numbers are only allowed on a replica set member or mongos","level":"warn","message":"Mongo transactions unavailable; falling back to non-transactional reversal for tx-id-123","service":"ahram-pay","timestamp":"2026-09-06 00:45:37"}
+{"level":"info","message":"Transaction ATT-2605-0010 reversed without Mongo transaction by Admin-Ali with cancellation CAN-2609-00008","service":"ahram-pay","timestamp":"2026-09-06 00:45:37"}
+{"fingerprint":"a539d3e26a8b9c67022301086f81b6db6ae692e8f3a188583fa02c2572e4c7ac","level":"info","message":"Registered trusted device fingerprint for user sub-account-id-123","service":"ahram-pay","timestamp":"2026-09-06 00:45:38"}
+{"level":"warn","message":"Redis is unavailable, using in-memory locks in this single-process deployment","service":"ahram-pay","timestamp":"2026-09-06 00:45:38"}
+{"accountType":"sub_client","amount":300,"category":"financial","costLYD":46.512,"customId":"ATT-2609-0001","level":"info","message":"💰 Transfer created successfully","service":"ahram-pay","timestamp":"2026-09-06 00:45:38","transferType":"vodafone"}
+{"accountType":"sub_client","amount":300,"category":"financial","costLYD":46.512,"customId":"ATT-2609-0001","level":"info","message":"💰 Transfer created successfully","service":"ahram-pay","timestamp":"2026-09-06 00:45:38","transferType":"vodafone"}
+{"category":"financial","customId":"ATT-2601-0002","executor":"Operator Name","level":"info","message":"💰 Transfer cancelled and refunded","reason":"Failed to execute transfer","refund":46.512,"service":"ahram-pay","timestamp":"2026-09-06 00:45:38"}
+{"level":"info","message":"✅ BullMQ Distributed Queues & Workers initialized successfully","service":"ahram-pay","timestamp":"2026-09-06 00:45:38"}
+{"level":"info","message":"✅ BullMQ Distributed Queues & Workers initialized successfully","service":"ahram-pay","timestamp":"2026-09-06 00:45:38"}
+{"level":"info","message":"✅ BullMQ Distributed Queues & Workers initialized successfully","service":"ahram-pay","timestamp":"2026-09-06 00:45:39"}
+{"level":"info","message":"✅ BullMQ Distributed Queues & Workers initialized successfully","service":"ahram-pay","timestamp":"2026-09-06 00:45:39"}
+{"level":"info","message":"✅ BullMQ Distributed Queues & Workers initialized successfully","service":"ahram-pay","timestamp":"2026-09-06 00:45:39"}
+{"level":"info","message":"✅ BullMQ Distributed Queues & Workers initialized successfully","service":"ahram-pay","timestamp":"2026-09-06 00:45:39"}
+{"level":"info","message":"✅ BullMQ Distributed Queues & Workers initialized successfully","service":"ahram-pay","timestamp":"2026-09-06 00:45:38"}
+{"level":"info","message":"✅ BullMQ Distributed Queues & Workers initialized successfully","service":"ahram-pay","timestamp":"2026-09-06 00:45:38"}
+{"level":"info","message":"[BullMQ] Job added to distributed queue","service":"ahram-pay","timestamp":"2026-09-06 00:45:38","txId":"tx-123"}
+{"level":"info","message":"✅ BullMQ Distributed Queues & Workers initialized successfully","service":"ahram-pay","timestamp":"2026-09-06 00:45:39"}
+{"level":"info","message":"[BullMQ Worker] Sending notification to u1","service":"ahram-pay","timestamp":"2026-09-06 00:45:39"}
+{"level":"info","message":"✅ BullMQ Distributed Queues & Workers initialized successfully","service":"ahram-pay","timestamp":"2026-09-06 00:45:39"}
+{"level":"info","message":"[BullMQ Worker] Generating report/settlement: daily_settlement","service":"ahram-pay","timestamp":"2026-09-06 00:45:39"}
+{"level":"info","message":"✅ BullMQ Distributed Queues & Workers initialized successfully","service":"ahram-pay","timestamp":"2026-09-06 00:45:39"}
+{"level":"info","message":"[BullMQ Worker] Running daily reconciliation...","service":"ahram-pay","timestamp":"2026-09-06 00:45:39"}
+{"level":"info","message":"✅ BullMQ Distributed Queues & Workers initialized successfully","service":"ahram-pay","timestamp":"2026-09-06 00:45:39"}
+{"level":"info","message":"[BullMQ Worker] Triggering system backup...","service":"ahram-pay","timestamp":"2026-09-06 00:45:39"}
+{"level":"info","message":"Backup completed successfully via BullMQ","output":"stdout output","service":"ahram-pay","timestamp":"2026-09-06 00:45:39"}
+{"fingerprint":"a539d3e26a8b9c67022301086f81b6db6ae692e8f3a188583fa02c2572e4c7ac","level":"info","message":"Registered trusted device fingerprint for user user-001","service":"ahram-pay","timestamp":"2026-09-06 00:45:42"}
+{"level":"warn","message":"Redis is unavailable, using in-memory locks in this single-process deployment","service":"ahram-pay","timestamp":"2026-09-06 00:45:42"}
+{"accountType":"client_user","amount":100,"category":"financial","costLYD":15.504,"customId":"ATT-2609-0001","level":"info","message":"💰 Transfer created successfully","service":"ahram-pay","timestamp":"2026-09-06 00:45:42","transferType":"vodafone"}
+{"level":"info","message":"FX Engine updated rate for USD_EGP to 50","service":"ahram-pay","timestamp":"2026-09-06 00:45:49"}
+{"level":"info","message":"FX Engine updated rate for USD_EGP to 47.5","service":"ahram-pay","timestamp":"2026-09-06 00:45:49"}
+{"documentType":"passport","fullName":"Ahmed Ali","level":"info","message":"KYC document submitted for user user-kyc-123. Status: PENDING","service":"ahram-pay","timestamp":"2026-09-06 00:45:49"}
+{"level":"info","message":"KYC Status updated for user user-kyc-123 to VERIFIED","service":"ahram-pay","timestamp":"2026-09-06 00:45:49"}
+{"hitLists":["OFAC Specially Designated Nationals (SDN)"],"level":"warn","message":"Security Warning: AML/Sanctions hit detected for name: \"Osama Bin Malik\", country: \"Egypt\"","service":"ahram-pay","timestamp":"2026-09-06 00:45:49"}
+{"hitLists":["EU Sanctioned Jurisdictions","UN Embargo List"],"level":"warn","message":"Security Warning: AML/Sanctions hit detected for name: \"Normal Name\", country: \"North Korea\"","service":"ahram-pay","timestamp":"2026-09-06 00:45:49"}
+{"level":"warn","message":"AML Flag: Abnormally large transaction detected: 300000 EGP","service":"ahram-pay","timestamp":"2026-09-06 00:45:49"}
+{"level":"warn","message":"Redis is unavailable, using in-memory locks in this single-process deployment","service":"ahram-pay","timestamp":"2026-09-06 00:45:49"}
+{"documentType":"passport","fullName":"Ahmed KYC User","level":"info","message":"KYC document submitted for user user-kyc-123. Status: PENDING","service":"ahram-pay","timestamp":"2026-09-06 00:46:10"}
+{"level":"info","message":"KYC Status updated for user user-kyc-123 to VERIFIED","reason":"Documents look correct","service":"ahram-pay","timestamp":"2026-09-06 00:46:10"}
+{"level":"warn","message":"Redis is unavailable, using in-memory locks in this single-process deployment","service":"ahram-pay","timestamp":"2026-09-06 00:46:34"}
+{"data":{"emp":{"_id":"emp1","groupId":{"_id":"g1","parentGroupId":"parent_g1"},"name":"Executor Ali"},"tx":{"_id":"tx123","amount":100,"customId":"ATT-002","executorSenderPhone":"0912345678","operatorId":"emp1","proofImage":"proof_1788655594239.jpg","status":"completed","transferType":"vodafone"}},"level":"info","message":"📢 [EventBus] Publishing event: transfer:completed","service":"ahram-pay","timestamp":"2026-09-06 00:46:34"}
+{"category":"financial","customId":"ATT-002","level":"info","message":"💰 Transfer Completed Event Received","service":"ahram-pay","status":"completed","timestamp":"2026-09-06 00:46:34"}
+{"documentType":"passport","fullName":"Ahmed KYC User","level":"info","message":"KYC document submitted for user user-kyc-123. Status: PENDING","service":"ahram-pay","timestamp":"2026-09-06 00:46:35"}
+{"level":"info","message":"KYC Status updated for user user-kyc-123 to VERIFIED","reason":"Documents look correct","service":"ahram-pay","timestamp":"2026-09-06 00:46:35"}
+{"data":{"companyName":"عميل فردي","employeeName":"أحمد محمد"},"level":"info","message":"📢 [EventBus] Publishing event: transfer:created","service":"ahram-pay","timestamp":"2026-09-06 00:46:41"}
+{"category":"financial","level":"info","message":"💰 Transfer Created Event Received","service":"ahram-pay","timestamp":"2026-09-06 00:46:41"}
+{"accountType":"client_user","amount":100,"category":"financial","costLYD":15.504,"customId":"ATT-2609-0123","level":"info","message":"💰 Transfer created successfully","service":"ahram-pay","timestamp":"2026-09-06 00:46:41","transferType":"vodafone"}
+{"data":{"companyName":"شركة A","employeeName":"موظف شركة A"},"level":"info","message":"📢 [EventBus] Publishing event: transfer:created","service":"ahram-pay","timestamp":"2026-09-06 00:46:41"}
+{"category":"financial","level":"info","message":"💰 Transfer Created Event Received","service":"ahram-pay","timestamp":"2026-09-06 00:46:41"}
+{"accountType":"client_company","amount":100,"category":"financial","costLYD":15.267,"customId":"ATT-2609-0124","level":"info","message":"💰 Transfer created successfully","service":"ahram-pay","timestamp":"2026-09-06 00:46:41","transferType":"post_account"}
+{"data":{"emp":{"_id":"emp-123","name":"موظف التجربة"},"reason":"المستلم لم يرد","tx":{"_id":"tx-123","adminNotes":"[تم الإلغاء | المنفذ: موظف التجربة | السبب: المستلم لم يرد]","companyId":"company-123","costLYD":500,"customId":"ATT-2601-0001","notes":"طلب أصلي","operatorId":"emp-123","status":"rejected"}},"level":"info","message":"📢 [EventBus] Publishing event: transfer:cancelled","service":"ahram-pay","timestamp":"2026-09-06 00:46:41"}
+{"category":"financial","customId":"ATT-2601-0001","level":"info","message":"💰 Transfer Cancelled Event Received","refund":500,"service":"ahram-pay","timestamp":"2026-09-06 00:46:41"}
+{"category":"financial","customId":"ATT-2601-0001","executor":"موظف التجربة","level":"info","message":"💰 Transfer cancelled and refunded","reason":"المستلم لم يرد","refund":500,"service":"ahram-pay","timestamp":"2026-09-06 00:46:41"}
+{"data":{"emp":{"_id":"emp-123","name":"موظف التجربة"},"reason":"إلغاء فوري","tx":{"_id":"tx-123","adminNotes":"[تم الإلغاء | المنفذ: موظف التجربة | السبب: إلغاء فوري]","costLYD":500,"customId":"ATT-2601-0001","notes":"طلب أصلي","operatorId":"emp-123","status":"rejected","userId":"01012345678"}},"level":"info","message":"📢 [EventBus] Publishing event: transfer:cancelled","service":"ahram-pay","timestamp":"2026-09-06 00:46:41"}
+{"category":"financial","customId":"ATT-2601-0001","level":"info","message":"💰 Transfer Cancelled Event Received","refund":500,"service":"ahram-pay","timestamp":"2026-09-06 00:46:41"}
+{"category":"financial","customId":"ATT-2601-0001","executor":"موظف التجربة","level":"info","message":"💰 Transfer cancelled and refunded","reason":"إلغاء فوري","refund":500,"service":"ahram-pay","timestamp":"2026-09-06 00:46:41"}
+{"error":"Operation `admins.find()` buffering timed out after 10000ms","level":"error","message":"Failed to handle transfer:created event","service":"ahram-pay","timestamp":"2026-09-06 00:46:52"}
+{"error":"Operation `admins.find()` buffering timed out after 10000ms","level":"error","message":"Failed to handle transfer:created event","service":"ahram-pay","timestamp":"2026-09-06 00:46:52"}
+{"fingerprint":"a539d3e26a8b9c67022301086f81b6db6ae692e8f3a188583fa02c2572e4c7ac","level":"info","message":"Registered trusted device fingerprint for user user-id-123","service":"ahram-pay","timestamp":"2026-09-06 00:46:56"}
+{"level":"warn","message":"Redis is unavailable, using in-memory locks in this single-process deployment","service":"ahram-pay","timestamp":"2026-09-06 00:46:59"}
+{"level":"warn","message":"Redis is unavailable, using in-memory locks in this single-process deployment","service":"ahram-pay","timestamp":"2026-09-06 00:46:59"}
+{"level":"warn","message":"Redis is unavailable, using in-memory locks in this single-process deployment","service":"ahram-pay","timestamp":"2026-09-06 00:46:59"}
+{"level":"warn","message":"Redis is unavailable, using in-memory locks in this single-process deployment","service":"ahram-pay","timestamp":"2026-09-06 00:46:59"}
+{"error":"Release error","level":"error","message":"Failed to release lock","service":"ahram-pay","timestamp":"2026-09-06 00:46:59"}
+{"level":"warn","message":"Redis is unavailable, using in-memory locks in this single-process deployment","service":"ahram-pay","timestamp":"2026-09-06 00:46:59"}
+{"level":"info","message":"✅ Redlock initialized successfully","service":"ahram-pay","timestamp":"2026-09-06 00:46:59"}
+{"level":"info","message":"✅ Redlock initialized successfully","service":"ahram-pay","timestamp":"2026-09-06 00:46:59"}
+{"level":"info","message":"✅ Redlock initialized successfully","service":"ahram-pay","timestamp":"2026-09-06 00:46:59"}
+{"error":"Module not found","level":"warn","message":"⚠️ Failed to initialize Redlock, falling back to In-Memory locks","service":"ahram-pay","timestamp":"2026-09-06 00:46:59"}
+{"error":"Redis connection drop","level":"error","message":"Redlock client error","service":"ahram-pay","timestamp":"2026-09-06 00:46:59"}
+{"error":"Redlock failed connection","key":"fallback-key","level":"warn","message":"Redlock acquisition failed, using in-memory locks","service":"ahram-pay","timestamp":"2026-09-06 00:46:59"}
+{"fingerprint":"45c08ca65ff8b3c7ec1c9c5db6d7d1e6fd85250f058dc337853924f412ba3df1","level":"info","message":"Registered trusted device fingerprint for user user-123","service":"ahram-pay","timestamp":"2026-09-06 00:47:06"}
+{"fingerprint":"3352888d77f8a392e4b3d2d6b003b8ec57c1efa75374edb47f7cd8e7825e59df","level":"warn","message":"Suspicious access attempt: Untrusted device fingerprint detected for user user-123","service":"ahram-pay","timestamp":"2026-09-06 00:47:06"}
+{"attempts":5,"category":"security","identifier":"locked-user","ip":"::ffff:127.0.0.1","level":"warn","lockDuration":"30 minutes","message":"🔒 Account locked due to failed login attempts","service":"ahram-pay","timestamp":"2026-09-06 00:47:06"}
+{"count":51,"level":"warn","message":"Fraud Alert: User user-velocity-test exceeded transaction speed limits! Freezing account...","service":"ahram-pay","timestamp":"2026-09-06 00:47:12"}
+{"count":52,"level":"warn","message":"Fraud Alert: User user-velocity-test exceeded transaction speed limits! Freezing account...","service":"ahram-pay","timestamp":"2026-09-06 00:47:12"}
+{"level":"info","message":"Transaction ATT-2605-0010 reversed by Admin-Ali with cancellation CAN-2609-00007","service":"ahram-pay","timestamp":"2026-09-06 00:47:12"}
+{"error":"Transaction numbers are only allowed on a replica set member or mongos","level":"warn","message":"Mongo transactions unavailable; falling back to non-transactional reversal for tx-id-123","service":"ahram-pay","timestamp":"2026-09-06 00:47:12"}
+{"level":"info","message":"Transaction ATT-2605-0010 reversed without Mongo transaction by Admin-Ali with cancellation CAN-2609-00008","service":"ahram-pay","timestamp":"2026-09-06 00:47:12"}
+{"fingerprint":"a539d3e26a8b9c67022301086f81b6db6ae692e8f3a188583fa02c2572e4c7ac","level":"info","message":"Registered trusted device fingerprint for user sub-account-id-123","service":"ahram-pay","timestamp":"2026-09-06 00:47:13"}
+{"level":"warn","message":"Redis is unavailable, using in-memory locks in this single-process deployment","service":"ahram-pay","timestamp":"2026-09-06 00:47:13"}
+{"accountType":"sub_client","amount":300,"category":"financial","costLYD":46.512,"customId":"ATT-2609-0001","level":"info","message":"💰 Transfer created successfully","service":"ahram-pay","timestamp":"2026-09-06 00:47:13","transferType":"vodafone"}
+{"accountType":"sub_client","amount":300,"category":"financial","costLYD":46.512,"customId":"ATT-2609-0001","level":"info","message":"💰 Transfer created successfully","service":"ahram-pay","timestamp":"2026-09-06 00:47:13","transferType":"vodafone"}
+{"category":"financial","customId":"ATT-2601-0002","executor":"Operator Name","level":"info","message":"💰 Transfer cancelled and refunded","reason":"Failed to execute transfer","refund":46.512,"service":"ahram-pay","timestamp":"2026-09-06 00:47:13"}
+{"level":"info","message":"✅ BullMQ Distributed Queues & Workers initialized successfully","service":"ahram-pay","timestamp":"2026-09-06 00:47:14"}
+{"level":"info","message":"✅ BullMQ Distributed Queues & Workers initialized successfully","service":"ahram-pay","timestamp":"2026-09-06 00:47:14"}
+{"level":"info","message":"✅ BullMQ Distributed Queues & Workers initialized successfully","service":"ahram-pay","timestamp":"2026-09-06 00:47:15"}
+{"level":"info","message":"✅ BullMQ Distributed Queues & Workers initialized successfully","service":"ahram-pay","timestamp":"2026-09-06 00:47:15"}
+{"level":"info","message":"✅ BullMQ Distributed Queues & Workers initialized successfully","service":"ahram-pay","timestamp":"2026-09-06 00:47:15"}
+{"level":"info","message":"✅ BullMQ Distributed Queues & Workers initialized successfully","service":"ahram-pay","timestamp":"2026-09-06 00:47:15"}
+{"level":"info","message":"✅ BullMQ Distributed Queues & Workers initialized successfully","service":"ahram-pay","timestamp":"2026-09-06 00:47:14"}
+{"level":"info","message":"✅ BullMQ Distributed Queues & Workers initialized successfully","service":"ahram-pay","timestamp":"2026-09-06 00:47:14"}
+{"level":"info","message":"[BullMQ] Job added to distributed queue","service":"ahram-pay","timestamp":"2026-09-06 00:47:15","txId":"tx-123"}
+{"level":"info","message":"✅ BullMQ Distributed Queues & Workers initialized successfully","service":"ahram-pay","timestamp":"2026-09-06 00:47:15"}
+{"level":"info","message":"[BullMQ Worker] Sending notification to u1","service":"ahram-pay","timestamp":"2026-09-06 00:47:15"}
+{"level":"info","message":"✅ BullMQ Distributed Queues & Workers initialized successfully","service":"ahram-pay","timestamp":"2026-09-06 00:47:15"}
+{"level":"info","message":"[BullMQ Worker] Generating report/settlement: daily_settlement","service":"ahram-pay","timestamp":"2026-09-06 00:47:15"}
+{"level":"info","message":"✅ BullMQ Distributed Queues & Workers initialized successfully","service":"ahram-pay","timestamp":"2026-09-06 00:47:15"}
+{"level":"info","message":"[BullMQ Worker] Running daily reconciliation...","service":"ahram-pay","timestamp":"2026-09-06 00:47:15"}
+{"level":"info","message":"✅ BullMQ Distributed Queues & Workers initialized successfully","service":"ahram-pay","timestamp":"2026-09-06 00:47:15"}
+{"level":"info","message":"[BullMQ Worker] Triggering system backup...","service":"ahram-pay","timestamp":"2026-09-06 00:47:15"}
+{"level":"info","message":"Backup completed successfully via BullMQ","output":"stdout output","service":"ahram-pay","timestamp":"2026-09-06 00:47:15"}
+{"fingerprint":"a539d3e26a8b9c67022301086f81b6db6ae692e8f3a188583fa02c2572e4c7ac","level":"info","message":"Registered trusted device fingerprint for user user-001","service":"ahram-pay","timestamp":"2026-09-06 00:47:18"}
+{"level":"warn","message":"Redis is unavailable, using in-memory locks in this single-process deployment","service":"ahram-pay","timestamp":"2026-09-06 00:47:18"}
+{"accountType":"client_user","amount":100,"category":"financial","costLYD":15.504,"customId":"ATT-2609-0001","level":"info","message":"💰 Transfer created successfully","service":"ahram-pay","timestamp":"2026-09-06 00:47:18","transferType":"vodafone"}
+{"level":"info","message":"FX Engine updated rate for USD_EGP to 50","service":"ahram-pay","timestamp":"2026-09-06 00:47:24"}
+{"level":"info","message":"FX Engine updated rate for USD_EGP to 47.5","service":"ahram-pay","timestamp":"2026-09-06 00:47:24"}
+{"documentType":"passport","fullName":"Ahmed Ali","level":"info","message":"KYC document submitted for user user-kyc-123. Status: PENDING","service":"ahram-pay","timestamp":"2026-09-06 00:47:25"}
+{"level":"info","message":"KYC Status updated for user user-kyc-123 to VERIFIED","service":"ahram-pay","timestamp":"2026-09-06 00:47:25"}
+{"hitLists":["OFAC Specially Designated Nationals (SDN)"],"level":"warn","message":"Security Warning: AML/Sanctions hit detected for name: \"Osama Bin Malik\", country: \"Egypt\"","service":"ahram-pay","timestamp":"2026-09-06 00:47:25"}
+{"hitLists":["EU Sanctioned Jurisdictions","UN Embargo List"],"level":"warn","message":"Security Warning: AML/Sanctions hit detected for name: \"Normal Name\", country: \"North Korea\"","service":"ahram-pay","timestamp":"2026-09-06 00:47:25"}
+{"level":"warn","message":"AML Flag: Abnormally large transaction detected: 300000 EGP","service":"ahram-pay","timestamp":"2026-09-06 00:47:25"}
+{"level":"warn","message":"Redis is unavailable, using in-memory locks in this single-process deployment","service":"ahram-pay","timestamp":"2026-09-06 00:47:25"}

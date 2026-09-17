@@ -183,7 +183,10 @@ exports.getDashboard = async (req, res) => {
 
         const canViewBalance = req.session.accountType !== 'company' || account.canViewAllReports;
 
-        res.render('client/dashboard', {
+        // Check if user wants modern UI (can be toggled via query param ?ui=modern)
+        const useModernUI = req.query.ui === 'modern';
+
+        res.render(useModernUI ? 'client/dashboard-modern' : 'client/dashboard', {
             user: { name: account.name, phone: account.phone || account.webUsername, balance: balance, role: account.role || 'user', accountType: req.session.accountType, accountCode, canViewBalance },
             isSubAccount, isMaster: !isSubAccount, masterTotalProfit, transactions: combinedTransactions.map(sanitizeStatementTransaction), currentRate, serviceRates, totals, targetDate, dateLabel, showMonth, search, query: req.query, storeCatalog,
             isSystemOpen,

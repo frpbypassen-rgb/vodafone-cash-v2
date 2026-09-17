@@ -40,16 +40,22 @@ const systemDayBoundary = (dateValue, endOfDay = false) => {
     const normalized = String(dateValue || '');
     const match = normalized.match(/^(\d{4})-(\d{2})-(\d{2})$/);
     if (!match) return null;
-    const date = new Date(
-        Number(match[1]),
-        Number(match[2]) - 1,
-        Number(match[3]),
-        endOfDay ? 23 : 0,
-        endOfDay ? 59 : 0,
-        endOfDay ? 59 : 0,
-        endOfDay ? 999 : 0
-    );
-    return systemDateKey(date) === normalized ? date : null;
+    
+    // Libya uses UTC+2 (Africa/Tripoli timezone)
+    // Midnight in Libya = 22:00 UTC previous day
+    const year = Number(match[1]);
+    const month = Number(match[2]) - 1;
+    const day = Number(match[3]);
+    
+    if (endOfDay) {
+        // End of day: next day at midnight (Libya time) = next day -2 hours UTC
+        const date = new Date(Date.UTC(year, month, day + 1, -2, 0, 0, -1));
+        return systemDateKey(date) === normalized ? date : null;
+    } else {
+        // Start of day: current day at midnight (Libya time) = current day -2 hours UTC
+        const date = new Date(Date.UTC(year, month, day, -2, 0, 0, 0));
+        return systemDateKey(date) === normalized ? date : null;
+    }
 };
 
 const systemDayStart = (dateValue) => systemDayBoundary(dateValue, false);

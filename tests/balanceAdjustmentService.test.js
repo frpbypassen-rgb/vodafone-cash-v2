@@ -6,18 +6,22 @@ const queryResult = (value) => ({
     then: (resolve, reject) => Promise.resolve(value).then(resolve, reject)
 });
 
-const Ledger = {
+// Mock factories to avoid out-of-scope variable access in jest.mock
+const createLedgerMock = () => ({
     findOne: jest.fn()
-};
+});
 
-const Transaction = {
+const createTransactionMock = () => ({
     findOneAndUpdate: jest.fn(),
     findById: jest.fn(),
     updateOne: jest.fn()
-};
+});
 
-jest.mock('../models/Ledger', () => Ledger);
-jest.mock('../models/Transaction', () => Transaction);
+let mockLedger = createLedgerMock();
+let mockTransaction = createTransactionMock();
+
+jest.mock('../models/Ledger', () => mockLedger);
+jest.mock('../models/Transaction', () => mockTransaction);
 jest.mock('../services/walletService', () => ({
     updateBalanceWithLedger: jest.fn(),
     isMongoTransactionFallbackError: (error) => String(error?.message || '').includes('replica set')
@@ -43,7 +47,7 @@ describe('Balance adjustment reversal service', () => {
         mongoose.model = jest.fn().mockReturnValue({
             findById: jest.fn().mockReturnValue(queryResult({ _id: entityId, balance: 80 }))
         });
-        Transaction.findOneAndUpdate
+        mockTransaction.findOneAndUpdate
             .mockReturnValueOnce(queryResult(claimed))
             .mockReturnValueOnce(queryResult({
                 ...claimed,
@@ -54,7 +58,7 @@ describe('Balance adjustment reversal service', () => {
                     voidedAt: new Date('2026-08-05T10:00:00.000Z')
                 }
             }));
-        Ledger.findOne
+        mockLedger.findOne
             .mockReturnValueOnce(queryResult({
                 entityModel: 'User',
                 entityId,
@@ -82,7 +86,7 @@ describe('Balance adjustment reversal service', () => {
             expect.stringContaining('إلغاء الخصم'),
             { allowNegative: true }
         );
-        expect(Transaction.findOneAndUpdate).toHaveBeenLastCalledWith(
+        expect(mockTransaction.findOneAndUpdate).toHaveBeenLastCalledWith(
             expect.objectContaining({ _id: transactionId }),
             expect.objectContaining({
                 $set: expect.objectContaining({
@@ -94,7 +98,7 @@ describe('Balance adjustment reversal service', () => {
             }),
             { new: true }
         );
-        expect(Transaction.findOneAndUpdate.mock.calls[1][1].$unset).toEqual({
+        expect(mockTransaction.findOneAndUpdate.mock.calls[1][1].$unset).toEqual({
             'balanceAdjustment.voidToken': 1,
             'balanceAdjustment.voidStartedAt': 1
         });
@@ -103,7 +107,7 @@ describe('Balance adjustment reversal service', () => {
     });
 
     test('يستكمل الإلغاء بعد الانقطاع من قيد العكس الموجود دون تكرار الرصيد', async () => {
-        Ledger.findOne
+        mockLedger.findOne
             .mockReset()
             .mockReturnValueOnce(queryResult({
                 entityModel: 'User',
