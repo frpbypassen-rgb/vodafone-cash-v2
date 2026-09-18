@@ -1,9 +1,9 @@
 'use strict';
 
-const crypto = require('crypto');
 const mongoose = require('mongoose');
 const ClientCompany = require('../models/ClientCompany');
 const Tenant = require('../models/Tenant');
+const { assignHashedApiKey } = require('./merchantCredentialService');
 
 let sandboxConnectionPromise = null;
 
@@ -62,8 +62,6 @@ const getSandboxModels = async (mongoUri) => {
 
 const sourceReference = (account, accountType) => `${accountType}:${String(account._id)}`;
 
-const createSandboxKey = () => crypto.randomBytes(32).toString('hex');
-
 const provisionSandboxMerchant = async ({ account, accountType }) => {
     if (!account || !account._id || !['company', 'agent'].includes(accountType)) {
         throw new Error('SANDBOX_ACCOUNT_INVALID');
@@ -93,6 +91,7 @@ const provisionSandboxMerchant = async ({ account, accountType }) => {
         tenantId: tenant._id
     });
 
+    let revealedKey = null;
     if (!merchant) {
         merchant = new SandboxCompany({
             tenantId: tenant._id,
@@ -102,7 +101,6 @@ const provisionSandboxMerchant = async ({ account, accountType }) => {
             balance: config.defaultBalance,
             tier: Number(account.tier) || 3,
             status: 'active',
-            token: createSandboxKey(),
             sandboxSource: {
                 reference: sourceKey,
                 productionAccountId: sourceId,
@@ -116,6 +114,7 @@ const provisionSandboxMerchant = async ({ account, accountType }) => {
                 registrationNumber: `SANDBOX-${sourceId.slice(-8).toUpperCase()}`
             }
         });
+        revealedKey = assignHashedApiKey(merchant, 'token').apiKey;
         try {
             await merchant.save();
         } catch (error) {
@@ -123,13 +122,14 @@ const provisionSandboxMerchant = async ({ account, accountType }) => {
             merchant = await SandboxCompany.findOne({
                 'sandboxSource.reference': sourceKey,
                 tenantId: tenant._id
-            });
+            }).select('+tokenHash');
             if (!merchant) throw error;
+            revealedKey = null;
         }
     }
 
     return {
-        apiKey: merchant.token,
+        apiKey: revealedKey || (merchant.tokenHint ? `****${merchant.tokenHint}` : ''),
         apiOrigin: config.apiOrigin,
         account: merchant.toObject()
     };

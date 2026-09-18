@@ -10,8 +10,10 @@ const userSchema = new mongoose.Schema({
     creditLimit: { type: Number, default: 0 },
     accountCode: { type: String, trim: true, unique: true, sparse: true },
     agentCode: { type: String, trim: true, sparse: true },
-    // مفتاح الربط الخارجي للوكيل. لا يعاد ضمن الاستعلامات العادية.
+    // مفتاح الربط الخارجي للوكيل. يُخزَّن كهاش فقط. النص الأصلي يُعرض مرة واحدة عند الإنشاء/التدوير.
     apiToken: { type: String, trim: true, unique: true, sparse: true, select: false },
+    apiTokenHash: { type: String, trim: true, unique: true, sparse: true, select: false },
+    apiTokenHint: { type: String, trim: true, default: '' },
     webUsername: { type: String, unique: true, required: true },
     webPassword: { type: String, required: true },
     profilePhotoKey: { type: String, trim: true, default: '' },

@@ -62,9 +62,11 @@ const tenantSchema = new mongoose.Schema({
         commissionRate: { type: Number, default: 0 } // نسبة العمولة للمنصة
     },
 
-    // API Keys
-    apiKey: { type: String, unique: true, sparse: true },
-    apiSecret: { type: String },
+    // API Keys — lookup by hash; plaintext is never stored after issuance.
+    apiKey: { type: String, unique: true, sparse: true, select: false },
+    apiKeyHash: { type: String, unique: true, sparse: true, select: false },
+    apiSecret: { type: String, select: false },
+    apiSecretHash: { type: String, select: false },
 
     // المنشئ
     createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'Admin' }
@@ -74,6 +76,6 @@ const tenantSchema = new mongoose.Schema({
 // فهارس
 tenantSchema.index({ slug: 1 }, { unique: true });
 tenantSchema.index({ status: 1 });
-tenantSchema.index({ apiKey: 1 }, { sparse: true });
+tenantSchema.index({ apiKeyHash: 1 }, { sparse: true });
 
 module.exports = mongoose.model('Tenant', tenantSchema);

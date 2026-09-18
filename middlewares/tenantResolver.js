@@ -7,6 +7,7 @@
 const crypto = require('crypto');
 const Tenant = require('../models/Tenant');
 const logger = require('../utils/logger');
+const { allowLegacyPlaintextApiKeys, hashApiKey } = require('../utils/apiKeyCrypto');
 
 const _tenantCache = new Map();
 const CACHE_TTL = 5 * 60 * 1000;
@@ -152,12 +153,15 @@ const _getTenantById = async (id) => {
 };
 
 const _getTenantByApiKey = async (apiKey) => {
-    const keyHash = crypto.createHash('sha256').update(apiKey).digest('hex');
+    const keyHash = hashApiKey(apiKey);
     const cacheKey = `key:${keyHash}`;
     const cached = _getFromCache(cacheKey);
     if (cached) return cached;
 
-    const tenant = await Tenant.findOne({ apiKey }).lean();
+    let tenant = await Tenant.findOne({ apiKeyHash: keyHash }).lean();
+    if (!tenant && allowLegacyPlaintextApiKeys()) {
+        tenant = await Tenant.findOne({ apiKey }).select('+apiKey').lean();
+    }
     if (tenant) _setInCache(cacheKey, tenant);
     return tenant;
 };

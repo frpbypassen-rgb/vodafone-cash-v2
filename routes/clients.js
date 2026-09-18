@@ -44,6 +44,7 @@ const {
 } = require('../services/accountIntegrationPdfService');
 const { provisionSandboxMerchant } = require('../services/sandboxMerchantProvisioningService');
 const { tenantScope, tenantWriteId } = require('../utils/tenantScope');
+const { assignHashedApiKey } = require('../services/merchantCredentialService');
 
 const accountCodeErrorQuery = (error) => {
     if (error.message === 'ACCOUNT_CODE_DUPLICATE') return 'duplicate';
@@ -53,49 +54,78 @@ const accountCodeErrorQuery = (error) => {
 
 const visibleAccountFilter = { status: { $ne: 'deleted' } };
 
-const createIntegrationApiKey = () => crypto.randomBytes(24).toString('hex');
+const HASH_FIELD = { token: 'tokenHash', apiToken: 'apiTokenHash' };
+const HINT_FIELD = { token: 'tokenHint', apiToken: 'apiTokenHint' };
 
 const ensureIntegrationApiKey = async (account, field) => {
-    if (account[field]) return account[field];
-
-    for (let attempt = 0; attempt < 3; attempt += 1) {
-        account[field] = createIntegrationApiKey();
-        try {
-            await account.save();
-            return account[field];
-        } catch (error) {
-            if (error && error.code === 11000 && attempt < 2) continue;
-            throw error;
-        }
+    const hashField = HASH_FIELD[field];
+    if (account[hashField]) {
+        return {
+            apiKey: null,
+            hint: account[HINT_FIELD[field]] || '',
+            created: false
+        };
     }
 
-    throw new Error('INTEGRATION_KEY_PROVISION_FAILED');
+    const issued = assignHashedApiKey(account, field);
+    try {
+        await account.save();
+        return { apiKey: issued.apiKey, hint: issued.hint, created: true };
+    } catch (error) {
+        if (error && error.code === 11000) {
+            const retry = assignHashedApiKey(account, field);
+            await account.save();
+            return { apiKey: retry.apiKey, hint: retry.hint, created: true };
+        }
+        throw error;
+    }
 };
 
-const apiKeyFingerprint = (value) => crypto
-    .createHash('sha256')
-    .update(String(value || ''))
-    .digest('hex')
-    .slice(0, 12);
-
 const rotateIntegrationApiKey = async (account, field) => {
-    const previousKey = String(account[field] || '');
-
-    for (let attempt = 0; attempt < 3; attempt += 1) {
-        account[field] = createIntegrationApiKey();
-        try {
+    const previousHint = account[HINT_FIELD[field]] || '';
+    const issued = assignHashedApiKey(account, field);
+    try {
+        await account.save();
+        return {
+            apiKey: issued.apiKey,
+            previousFingerprint: previousHint || null,
+            currentFingerprint: issued.fingerprint,
+            hint: issued.hint
+        };
+    } catch (error) {
+        if (error && error.code === 11000) {
+            const retry = assignHashedApiKey(account, field);
             await account.save();
             return {
-                previousFingerprint: previousKey ? apiKeyFingerprint(previousKey) : null,
-                currentFingerprint: apiKeyFingerprint(account[field])
+                apiKey: retry.apiKey,
+                previousFingerprint: previousHint || null,
+                currentFingerprint: retry.fingerprint,
+                hint: retry.hint
             };
-        } catch (error) {
-            if (error && error.code === 11000 && attempt < 2) continue;
-            throw error;
         }
+        throw error;
     }
+};
 
-    throw new Error('INTEGRATION_KEY_ROTATION_FAILED');
+const consumeRevealedApiKey = (req, accountId) => {
+    const pending = req.session?.revealedMerchantApiKey;
+    if (!pending) return null;
+    if (String(pending.accountId) !== String(accountId)) return null;
+    if (Number(pending.expiresAt) <= Date.now()) {
+        delete req.session.revealedMerchantApiKey;
+        return null;
+    }
+    delete req.session.revealedMerchantApiKey;
+    return pending.apiKey;
+};
+
+const rememberRevealedApiKey = (req, accountId, apiKey) => {
+    if (!req.session || !apiKey) return;
+    req.session.revealedMerchantApiKey = {
+        accountId: String(accountId),
+        apiKey,
+        expiresAt: Date.now() + (5 * 60 * 1000)
+    };
 };
 
 const safeIntegrationFileReference = (value) => String(value || 'account')
@@ -103,12 +133,21 @@ const safeIntegrationFileReference = (value) => String(value || 'account')
     .slice(0, 40) || 'account';
 
 const sendIntegrationDocument = async (req, res, { account, accountType }) => {
-    const apiKey = await ensureIntegrationApiKey(account, accountType === 'agent' ? 'apiToken' : 'token');
+    const field = accountType === 'agent' ? 'apiToken' : 'token';
+    const revealed = consumeRevealedApiKey(req, account._id);
+    const issued = revealed
+        ? { apiKey: revealed, hint: revealed.slice(-4), created: true }
+        : await ensureIntegrationApiKey(account, field);
+    if (issued.created && issued.apiKey && !revealed) {
+        rememberRevealedApiKey(req, account._id, issued.apiKey);
+    }
     const settings = await Settings.findOne({}).lean() || {};
     const documentData = buildIntegrationDocumentData({
         account,
         accountType,
-        apiKey,
+        apiKey: issued.created && issued.apiKey
+            ? issued.apiKey
+            : (issued.hint ? `****${issued.hint}` : '(rotate to issue a new key)'),
         apiOrigin: resolvePublicApiOrigin(req),
         serviceRates: getCompanyRateConfig(account, settings).effectiveRates,
         generatedAt: new Date()
@@ -357,7 +396,8 @@ router.get('/company/:id', requireAuth, async (req, res) => {
 
 router.get('/company/:id/integration-guide.pdf', requireAuth, requireMaster, async (req, res) => {
     try {
-        const company = await ClientCompany.findOne({ _id: req.params.id, ...visibleAccountFilter });
+        const company = await ClientCompany.findOne({ _id: req.params.id, ...visibleAccountFilter })
+            .select('+token +tokenHash');
         if (!company) return res.status(404).send('الحساب غير موجود.');
         return await sendIntegrationDocument(req, res, { account: company, accountType: 'company' });
     } catch (error) {
@@ -375,7 +415,7 @@ router.get('/user/:id/integration-guide.pdf', requireAuth, requireMaster, async 
             _id: req.params.id,
             role: 'agent',
             ...visibleAccountFilter
-        }).select('+apiToken');
+        }).select('+apiToken +apiTokenHash');
         if (!agent) return res.status(404).send('حساب الوكيل غير موجود.');
         return await sendIntegrationDocument(req, res, { account: agent, accountType: 'agent' });
     } catch (error) {
@@ -391,10 +431,12 @@ router.get('/user/:id/integration-guide.pdf', requireAuth, requireMaster, async 
 // المطابقة الدقيقة للمفتاح المخزن، لذا لا يبقى للمفتاح السابق أي صلاحية.
 router.post('/company/:id/rotate-api-token', requireAuth, requireMaster, async (req, res) => {
     try {
-        const company = await ClientCompany.findOne({ _id: req.params.id, ...visibleAccountFilter });
+        const company = await ClientCompany.findOne({ _id: req.params.id, ...visibleAccountFilter })
+            .select('+token +tokenHash');
         if (!company) return res.redirect('/clients?section=companies&apiTokenError=notfound');
 
         const rotation = await rotateIntegrationApiKey(company, 'token');
+        rememberRevealedApiKey(req, company._id, rotation.apiKey);
         await logAction({
             action: 'MERCHANT_API_KEY_ROTATED',
             req,

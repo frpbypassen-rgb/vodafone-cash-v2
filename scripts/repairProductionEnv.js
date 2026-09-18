@@ -79,11 +79,11 @@ upsert('COOKIE_SAMESITE', 'lax');
 upsert('TRUST_PROXY_HTTPS', 'true', { force: true });
 
 const forcedSecurityValues = {
-    PASSWORD_ONLY_LOGIN_MODE: 'true',
-    SECURITY_VERIFICATION_ENFORCEMENT_ENABLED: 'false',
-    SECURITY_VERIFICATION_MODE: 'optional',
+    PASSWORD_ONLY_LOGIN_MODE: 'false',
+    SECURITY_VERIFICATION_ENFORCEMENT_ENABLED: 'true',
+    SECURITY_VERIFICATION_MODE: 'required',
     PASSKEY_REQUIRED: 'false',
-    FORCE_CLIENT_OTP: 'false',
+    FORCE_CLIENT_OTP: 'true',
     BYPASS_OTP: 'false',
     BYPASS_CLIENT_OTP: 'false',
     DISABLE_OTP: 'false',
@@ -93,6 +93,9 @@ const forcedSecurityValues = {
     TENANT_ISOLATION_REQUIRED: 'true',
     ALLOW_LEGACY_TENANTLESS_RECORDS: 'false',
     ALLOW_LEGACY_TENANT_TOKENS: 'false',
+    REDIS_ENABLED: 'true',
+    REDIS_REQUIRED: 'true',
+    ENABLE_API_DOCS: 'false',
     ALLOW_PUBLIC_SYSTEM_MONITOR: 'false',
     ALLOW_LEGACY_SAME_ORIGIN_CSRF: 'false'
 };
@@ -137,11 +140,20 @@ for (const key of authenticationSecretKeys) {
     if (invalid) upsert(key, nextUniqueSecret(), { force: true });
 }
 
-for (const key of ['RECEIPT_SHARE_SECRET', 'TENANT_ROUTING_SECRET']) {
+for (const key of ['RECEIPT_SHARE_SECRET', 'TENANT_ROUTING_SECRET', 'API_KEY_PEPPER', 'SECURITY_DEVICE_HASH_SECRET']) {
     const existing = currentValue(key);
     if (existing.length < 32 || placeholderPattern.test(existing)) {
         upsert(key, nextUniqueSecret(), { force: true });
     }
+}
+
+const encryptionKey = currentValue('ENCRYPTION_KEY');
+if (encryptionKey.length !== 64 || !/^[0-9a-f]+$/i.test(encryptionKey) || placeholderPattern.test(encryptionKey)) {
+    upsert('ENCRYPTION_KEY', crypto.randomBytes(32).toString('hex'), { force: true });
+}
+
+if (!currentValue('REDIS_URL') && !currentValue('REDIS_URI')) {
+    upsert('REDIS_URL', 'redis://127.0.0.1:6379');
 }
 
 const safeDefaults = {
@@ -159,8 +171,9 @@ const safeDefaults = {
     API_BALANCE_TOLERANCE: '0.01',
     API_RETURN_MONITOR_ENABLED: 'true',
     API_RETURN_MONITOR_INTERVAL_MS: '300000',
-    REDIS_ENABLED: 'false',
-    REDIS_REQUIRED: 'false',
+    REDIS_ENABLED: 'true',
+    REDIS_REQUIRED: 'true',
+    ENABLE_API_DOCS: 'false',
     TENANT_ROOT_DOMAIN: 'ahrampay.com',
     GLOBAL_RATE_LIMIT_MAX: '5000',
     ACCESS_TOKEN_TTL_SECONDS: '900'
