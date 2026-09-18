@@ -3,19 +3,7 @@
         <div><span class="bw-section-kicker">بيانات العملية</span><h2 id="selectedServiceTitle"><%= typeof isolatedService !== 'undefined' ? isolatedService.label : 'إنشاء تحويل' %></h2></div>
         <div class="bw-transfer-tools"><button type="button" class="bw-button ghost compact" data-focus-mode><i class="fa-solid fa-expand"></i>وضع التركيز</button><button type="button" class="bw-button ghost compact" data-voice-transfer><i class="fa-solid fa-microphone"></i>أمر صوتي</button><span class="bw-secure-label"><i class="fa-solid fa-shield-halved"></i>إرسال آمن</span></div>
     </header>
-    <% const hub = typeof transferHub !== 'undefined' ? transferHub : { favorites: [], suggestedReasons: [], recentOperations: [] }; %>
-    <% if (hub.favorites.length) { %>
-    <section class="bw-beneficiary-strip" aria-label="المستفيدون المتكررون">
-        <header><div><span>وصول سريع</span><strong>آخر المستفيدين</strong></div><small>اختر مستفيداً لتعبئة بياناته</small></header>
-        <div class="bw-beneficiary-list">
-            <% hub.favorites.forEach(item => { %>
-                <button type="button" data-beneficiary-destination="<%= item.destination %>" data-beneficiary-name="<%= item.name %>" data-beneficiary-service="<%= item.transferType %>" data-beneficiary-amount="<%= item.lastAmount %>">
-                    <span><%= String(item.name || item.destination).charAt(0) %></span><strong><%= item.name %></strong><small class="bw-mono"><%= item.destination %></small><em><%= item.count %> مرات</em>
-                </button>
-            <% }) %>
-        </div>
-    </section>
-    <% } %>
+    <% const hub = typeof transferHub !== 'undefined' ? transferHub : { suggestedReasons: [], recentOperations: [] }; %>
     <form id="businessTransferForm" class="bw-form" enctype="multipart/form-data" novalidate>
         <input type="hidden" name="type" id="transferType" value="كاش">
         <input type="hidden" name="number" id="transferAccountNumber" value="">

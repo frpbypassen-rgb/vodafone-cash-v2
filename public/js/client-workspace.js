@@ -1576,19 +1576,6 @@
             transferNotesInput.focus();
         });
     });
-    document.querySelectorAll('[data-beneficiary-destination]').forEach((button) => {
-        button.addEventListener('click', () => {
-            const serviceButton = document.querySelector(`[data-service-key="${CSS.escape(button.dataset.beneficiaryService || '')}"]`);
-            serviceButton?.click();
-            const destination = document.getElementById('transferDestination');
-            const beneficiary = document.getElementById('transferBeneficiary');
-            if (destination) destination.value = button.dataset.beneficiaryDestination || '';
-            if (beneficiary) beneficiary.value = button.dataset.beneficiaryName || '';
-            destination?.dispatchEvent(new Event('input', { bubbles: true }));
-            destination?.focus();
-        });
-    });
-
     document.querySelector('[data-focus-mode]')?.addEventListener('click', (event) => {
         const active = body.classList.toggle('bw-focus-mode');
         event.currentTarget.innerHTML = active

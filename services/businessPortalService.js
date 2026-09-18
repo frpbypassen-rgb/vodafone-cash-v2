@@ -694,11 +694,6 @@ const loadOverview = async (workspace) => {
     };
 };
 
-const transferHubDestination = (transaction) => transaction.vodafoneNumber
-    || transaction.accountNumber
-    || transaction.serviceDetails?.clientPhone
-    || '';
-
 const loadTransferHub = async (workspace, serviceKey = '') => {
     const ownership = await ownershipFilter(workspace);
     const serviceCondition = SERVICE_CATALOG.some((service) => service.key === serviceKey)
@@ -708,36 +703,13 @@ const loadTransferHub = async (workspace, serviceKey = '') => {
         $and: [ownership, serviceCondition, { status: { $nin: ['deposit', 'deposit_pending', 'deduction'] } }]
     }).select('customId status transferType amount accountName vodafoneNumber accountNumber serviceDetails.clientPhone serviceDetails.destinationLabel notes createdAt')
         .sort({ createdAt: -1 }).limit(60).lean();
-    const destinations = new Map();
     const reasons = new Map();
     transactions.forEach((transaction) => {
-        const destination = transferHubDestination(transaction);
-        if (destination) {
-            const current = destinations.get(destination) || {
-                destination,
-                name: transaction.accountName || transaction.serviceDetails?.destinationLabel || 'مستفيد محفوظ من السجل',
-                transferType: transaction.transferType,
-                count: 0,
-                lastAmount: 0,
-                lastUsedAt: transaction.createdAt,
-                recent: []
-            };
-            current.count += 1;
-            if (!current.lastAmount) current.lastAmount = safeNumber(transaction.amount);
-            if (current.recent.length < 3) current.recent.push({
-                reference: transaction.customId,
-                amount: safeNumber(transaction.amount),
-                status: transaction.status,
-                createdAt: transaction.createdAt
-            });
-            destinations.set(destination, current);
-        }
         const note = sanitizeStatementText(transaction.notes || '').trim();
         if (note && note.length <= 80) reasons.set(note, (reasons.get(note) || 0) + 1);
     });
     return {
         transferHub: {
-            favorites: [...destinations.values()].sort((left, right) => right.count - left.count).slice(0, 6),
             suggestedReasons: [...reasons.entries()].sort((left, right) => right[1] - left[1]).slice(0, 5).map(([reason]) => reason),
             recentOperations: transactions.slice(0, 5)
         }
