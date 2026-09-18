@@ -80,7 +80,7 @@ const validateProductionSecurityEnv = (env = process.env) => {
         return { valid: true, errors, warnings };
     }
 
-    const requiredSecrets = ['JWT_SECRET', 'JWT_REFRESH_SECRET', 'SESSION_SECRET', 'OTP_SECRET'];
+    const requiredSecrets = ['JWT_SECRET', 'JWT_REFRESH_SECRET', 'SESSION_SECRET', 'OTP_SECRET', 'API_KEY_PEPPER', 'SECURITY_DEVICE_HASH_SECRET'];
     for (const name of requiredSecrets) {
         if (clean(env[name]).length < 32) {
             errors.push(`${name} must contain at least 32 characters in production.`);
@@ -174,6 +174,9 @@ const validateProductionSecurityEnv = (env = process.env) => {
     if (isEnabled(env.ALLOW_LEGACY_TENANT_TOKENS)) {
         errors.push('ALLOW_LEGACY_TENANT_TOKENS cannot be enabled in production.');
     }
+    if (isEnabled(env.ALLOW_LEGACY_PLAINTEXT_API_KEYS)) {
+        errors.push('ALLOW_LEGACY_PLAINTEXT_API_KEYS cannot be enabled in production.');
+    }
     if (clean(env.SESSION_STORE).toLowerCase() === 'memory') {
         errors.push('SESSION_STORE=memory is forbidden in production.');
     }
@@ -200,8 +203,12 @@ const validateProductionSecurityEnv = (env = process.env) => {
     if (!clean(env.REDIS_URL) && !clean(env.REDIS_URI)) {
         errors.push('REDIS_URL or REDIS_URI is required in production.');
     }
+    if (clean(env.ENCRYPTION_KEY).length !== 64 || !/^[0-9a-f]+$/i.test(clean(env.ENCRYPTION_KEY))) {
+        errors.push('ENCRYPTION_KEY must be 64 hex characters (32 bytes) in production.');
+    }
+
     if (clean(env.SECURITY_DEVICE_HASH_SECRET).length < 32) {
-        warnings.push('SECURITY_DEVICE_HASH_SECRET should use a dedicated random value of at least 32 characters before device enforcement is enabled.');
+        errors.push('SECURITY_DEVICE_HASH_SECRET must contain at least 32 characters in production.');
     }
 
     return { valid: errors.length === 0, errors, warnings };

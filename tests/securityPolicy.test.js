@@ -34,6 +34,9 @@ const productionEnv = (overrides = {}) => ({
     DEFAULT_TENANT_SLUG: 'ahram',
     ALLOW_LEGACY_TENANTLESS_RECORDS: 'false',
     ALLOW_LEGACY_TENANT_TOKENS: 'false',
+    ENCRYPTION_KEY: '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef',
+    API_KEY_PEPPER: 'api-key-pepper-0123456789-abcdefghijklmnopqrstuvwxyz',
+    SECURITY_DEVICE_HASH_SECRET: 'device-hash-secret-0123456789-abcdefghijklmnopqrstuv',
     REDIS_ENABLED: 'true',
     REDIS_REQUIRED: 'true',
     REDIS_URL: 'redis://127.0.0.1:6379',
@@ -162,5 +165,13 @@ describe('Production security policy', () => {
         expect(result.errors.join(' ')).toContain('DEFAULT_TENANT_ID');
         expect(result.errors.join(' ')).toContain('ALLOW_LEGACY_TENANTLESS_RECORDS');
         expect(result.errors.join(' ')).toContain('ALLOW_LEGACY_TENANT_TOKENS');
+    });
+
+    test('rejects leftover plaintext merchant-key lookup in production', () => {
+        const result = validateProductionSecurityEnv(productionEnv({
+            ALLOW_LEGACY_PLAINTEXT_API_KEYS: 'true'
+        }));
+        expect(result.valid).toBe(false);
+        expect(result.errors.join(' ')).toContain('ALLOW_LEGACY_PLAINTEXT_API_KEYS');
     });
 });
