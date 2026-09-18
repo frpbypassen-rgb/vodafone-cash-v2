@@ -39,7 +39,8 @@ Al-Ahram Pay implements **defense-in-depth** security with 6 layers of protectio
 | **Fail Secure** | System defaults to denying access on errors |
 | **Separation of Duties** | Client, executor, admin have distinct permissions |
 | **Audit Everything** | Immutable audit log for all sensitive operations |
-| **Encrypt Sensitive Data** | AES-256-GCM at rest, TLS in transit |
+| **Encrypt Sensitive Data** | AES-256-GCM at rest with `ENCRYPTION_KEY`, TLS in transit |
+| **Honest AML labeling** | `AmlSanctionsService` is a DEMO stub, not a live OFAC/UN/EU feed |
 
 ---
 
@@ -192,6 +193,8 @@ app.use(helmet({
     contentSecurityPolicy: {
         directives: {
             defaultSrc: ["'self'"],
+            // EJS still needs 'unsafe-inline'. A nonce would disable it in modern
+            // browsers and break those pages. Residual XSS risk is documented.
             scriptSrc: ["'self'", "'unsafe-inline'", "cdn.jsdelivr.net", "cdnjs.cloudflare.com"],
             styleSrc: ["'self'", "'unsafe-inline'", "cdn.jsdelivr.net", "cdnjs.cloudflare.com", "fonts.googleapis.com"],
             fontSrc: ["'self'", "fonts.gstatic.com", "cdnjs.cloudflare.com"],
@@ -218,11 +221,13 @@ app.use(helmet({
 | `X-Frame-Options` | `SAMEORIGIN` | Prevent clickjacking |
 | `X-XSS-Protection` | `0` | Deprecated; CSP handles this |
 | `Strict-Transport-Security` | `max-age=31536000; includeSubDomains; preload` | Force HTTPS |
-| `Content-Security-Policy` | (see above) | Prevent XSS/injection |
+| `Content-Security-Policy` | (see above; `'unsafe-inline'` remains for EJS) | Reduce XSS; residual inline-script risk until templates are nonced |
 | `Referrer-Policy` | `strict-origin-when-cross-origin` | Control referrer info |
 | `Permissions-Policy` | camera, microphone, geolocation disabled | Limit browser APIs |
 | `X-DNS-Prefetch-Control` | `off` | Prevent DNS prefetching |
 | `X-Download-Options` | `noopen` | IE download protection |
+
+Global JSON/urlencoded parsing is `256kb`. Only authenticated upload/Base64 routes (profile photos, KYC, task proofs, support attachments, executor portal) may use `40mb`. `/api-docs` is off in production unless `ENABLE_API_DOCS=true`, and then requires an admin session.
 
 ---
 
@@ -234,6 +239,7 @@ app.use(helmet({
 | **Login (Web)** | 1 minute | 10 | Block with 429 | Brute force prevention |
 | **Login (Mobile)** | 15 minutes | 8 | Block with 429 + audit log | Brute force prevention |
 | **Transfer** | 1 minute | 15 | Block with 429 | Abuse prevention |
+| **Merchant transfer** | 1 minute | 15 per merchant | Block with 429 | Replay/abuse prevention |
 | **Mobile API (General)** | 1 minute | 60 | Block with 429 | API abuse |
 | **Account Lock** | 30 minutes | 5 failures | Lock account + audit log | Credential stuffing |
 
@@ -291,10 +297,10 @@ const upload = multer({
 | Data | Algorithm | Key Management |
 |---|---|---|
 | Passwords | bcrypt (12 rounds) | Salt auto-generated |
-| Bot Tokens (`ExecutorBot.token`) | AES-256-GCM | ENCRYPTION_KEY env var |
-| API Keys (`ExecutorBot.apiToken`) | AES-256-GCM | Derived from JWT_SECRET fallback |
-| Refresh Tokens | AES-256-GCM | Encrypted before storage |
-| Telegram Link Tokens | AES-256-GCM | Short-lived, auto-expire |
+| Merchant API keys | HMAC-SHA256 | `API_KEY_PEPPER` (plaintext shown once) |
+| Provider passwords (`ExecutorGroup.apiPassword`) | AES-256-GCM | `ENCRYPTION_KEY` (required in staging/production; never JWT_SECRET) |
+| Provider static tokens (`ExecutorGroup.apiToken`) | AES-256-GCM | `ENCRYPTION_KEY` |
+| Webhook / TOTP secrets | AES-256-GCM | `ENCRYPTION_KEY` |
 
 ### AES-256-GCM Implementation
 
@@ -302,7 +308,8 @@ const upload = multer({
 // Format: iv:encrypted:tag (all hex encoded)
 // IV: 16 bytes (128 bits) — random per encryption
 // Tag: 16 bytes (128 bits) — authentication tag
-// Key: 32 bytes (256 bits) — from ENCRYPTION_KEY or SHA-256(JWT_SECRET)
+// Key: 32 bytes (256 bits) — from ENCRYPTION_KEY only (64 hex chars).
+// JWT_SECRET is never used as an encryption key.
 
 encrypt("bot_token_123")  → "a1b2c3...:d4e5f6...:g7h8i9..."
 decrypt("a1b2c3...:d4e5f6...:g7h8i9...")  → "bot_token_123"
