@@ -38,8 +38,8 @@ export class FraudDetectionEngine {
                 count: activeTimestamps.length
             });
 
-            // تجميد الحساب تلقائياً للحماية من الاختراق
-            await User.updateOne({ phone: userId }, { $set: { status: 'suspended' } });
+            // تجميد الحساب تلقائياً للحماية من الاختراق — JWT userId هو _id وليس رقم الهاتف
+            await User.updateOne({ _id: userId }, { $set: { status: 'suspended' } });
             
             return {
                 isFraudulent: true,
@@ -93,7 +93,7 @@ export class FraudDetectionEngine {
     public async calculateUserRiskScore(userId: string): Promise<number> {
         let score = 20;
 
-        const user = await User.findOne({ phone: userId });
+        const user = await User.findById(userId);
         if (!user) return 100; // مستخدم غير معروف = أقصى خطورة
 
         if (user.status !== 'active') {
