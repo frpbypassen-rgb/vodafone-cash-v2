@@ -194,6 +194,7 @@ router.get('/logout', clientAuthController.logout);
 // 📊 Dashboard Routes
 // ===============================================
 router.get('/dashboard', requireClientAuth, clientDashboardController.getDashboard);
+router.get('/company-next', requireClientAuth, clientWorkspaceController.renderCompanyNext);
 router.get('/account', requireClientAuth, clientHubController.getAccount);
 router.get('/transfers', requireClientAuth, clientHubController.getTransfers);
 router.get('/deposits', requireClientAuth, clientDepositController.getDepositsPage);

@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <meta name="theme-color" content="#f6f8fc">
+    <title>واجهة الشركات الجديدة | الأهرام Pay</title>
+    <script>document.documentElement.dataset.theme=localStorage.getItem('company-next-theme')||'light';</script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800;900&family=JetBrains+Mono:wght@600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css">
+    <link rel="stylesheet" href="/css/company-next.css?v=20260918-1">
+</head>
+<body>
+<div class="cn-layout">
+    <aside class="cn-sidebar" id="companyNextSidebar">
+        <a class="cn-brand" href="/client/company-next"><img src="/images/logo.jpeg" alt="" onerror="this.onerror=null;this.src='/images/logo.jpg'"><span><b>AL-AHRAM</b><small>بوابة الشركات</small></span></a>
+        <nav aria-label="أقسام الشركة">
+            <a class="active" href="/client/company-next"><i class="fa-solid fa-grid-2"></i><span>نظرة عامة</span></a>
+            <% if (workspace.permissions.canTransfer) { %><a href="/client/services"><i class="fa-solid fa-paper-plane"></i><span>تحويل جديد</span></a><% } %>
+            <a href="/client/transactions"><i class="fa-solid fa-arrow-right-arrow-left"></i><span>العمليات</span><% if (Number(monthSummary.pendingCount||0)>0) { %><em><%= monthSummary.pendingCount %></em><% } %></a>
+            <% if (workspace.permissions.canViewBalance) { %><a href="/client/finance"><i class="fa-solid fa-wallet"></i><span>المالية</span></a><% } %>
+            <% if (workspace.permissions.canViewReports) { %><a href="/client/reports"><i class="fa-solid fa-chart-line"></i><span>التقارير</span></a><% } %>
+            <% if (workspace.permissions.manager || workspace.permissions.accountant) { %><a href="/client/staff"><i class="fa-solid fa-users-gear"></i><span>الفريق والصلاحيات</span></a><% } %>
+            <a href="/client/support"><i class="fa-solid fa-headset"></i><span>الدعم</span></a>
+            <a href="/client/settings/workspace"><i class="fa-solid fa-sliders"></i><span>الإعدادات</span></a>
+        </nav>
+        <div class="cn-sidebar-foot"><span class="cn-avatar"><%= String(workspace.actor.name||'م').trim().charAt(0) %></span><div><strong><%= workspace.actor.name %></strong><small><%= workspace.roleLabel %></small></div><a href="/client/logout" aria-label="تسجيل الخروج"><i class="fa-solid fa-arrow-right-from-bracket"></i></a></div>
+    </aside>
+    <button class="cn-overlay" type="button" data-menu-close aria-label="إغلاق القائمة"></button>
+
+    <main class="cn-main">
+        <header class="cn-topbar">
+            <div class="cn-topbar-title"><button type="button" data-menu-open aria-label="فتح القائمة"><i class="fa-solid fa-bars"></i></button><div><small>مساحة عمل الشركة</small><strong><%= workspace.entity.name %></strong></div></div>
+            <div class="cn-topbar-actions">
+                <span class="cn-live <%= systemOpen?'':'off' %>"><i></i><%= systemOpen?'الخدمة متاحة':'الخدمة متوقفة' %></span>
+                <button type="button" data-theme aria-label="تغيير المظهر"><i class="fa-solid fa-moon"></i></button>
+                <a href="/client/dashboard?home=1" class="cn-old-link"><i class="fa-solid fa-arrow-rotate-left"></i><span>الواجهة الحالية</span></a>
+            </div>
+        </header>
+
+        <div class="cn-preview-note"><i class="fa-solid fa-flask"></i><span><strong>نسخة معاينة مستقلة</strong> تستخدم نفس الرصيد والعمليات والصلاحيات دون تغيير الواجهة الحالية.</span></div>
+
+        <section class="cn-hero">
+            <div><span class="cn-kicker">ملخص العمل اليوم</span><h1>مرحباً، <%= workspace.actor.name %></h1><p>كل ما يحتاج انتباهك وإجراءاتك اليومية في شاشة واحدة.</p><div class="cn-actions"><% if(workspace.permissions.canTransfer){ %><a class="primary" href="/client/services"><i class="fa-solid fa-plus"></i>تحويل جديد</a><% } %><a href="/client/transactions"><i class="fa-solid fa-clock-rotate-left"></i>متابعة العمليات</a></div></div>
+            <% if (workspace.permissions.canViewBalance) { %><article class="cn-balance"><span>الرصيد المتاح</span><strong data-sensitive><%= Number(workspace.entity.balance||0).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2}) %></strong><small>دينار ليبي LYD</small><button type="button" data-privacy><i class="fa-solid fa-eye"></i> إخفاء الرصيد</button></article><% } %>
+        </section>
+
+        <section class="cn-kpis">
+            <article><span class="blue"><i class="fa-solid fa-arrow-right-arrow-left"></i></span><div><small>عمليات اليوم</small><strong><%= Number(todaySummary.totalCount||0).toLocaleString('en-US') %></strong><p><%= Number(todaySummary.completedCount||0) %> مكتملة</p></div></article>
+            <article><span class="green"><i class="fa-solid fa-money-bill-trend-up"></i></span><div><small>قيمة اليوم</small><strong><%= Number(todaySummary.totalEGP||0).toLocaleString('en-US',{maximumFractionDigits:0}) %></strong><p>جنيه مصري</p></div></article>
+            <article><span class="amber"><i class="fa-solid fa-hourglass-half"></i></span><div><small>تحتاج متابعة</small><strong><%= Number(monthSummary.pendingCount||0).toLocaleString('en-US') %></strong><p>عملية معلقة</p></div></article>
+            <article><span class="violet"><i class="fa-solid fa-user-group"></i></span><div><small>الفريق النشط</small><strong><%= Number(activeStaffCount||0).toLocaleString('en-US') %></strong><p>من <%= Number(staffCount||0) %> حساب</p></div></article>
+        </section>
+
+        <div class="cn-grid">
+            <section class="cn-card cn-operations">
+                <header><div><span class="cn-kicker">آخر حركة</span><h2>العمليات الأخيرة</h2></div><a href="/client/transactions">عرض الكل <i class="fa-solid fa-arrow-left"></i></a></header>
+                <div class="cn-table">
+                    <% if(!recentTransactions.length){ %><div class="cn-empty"><i class="fa-regular fa-folder-open"></i><strong>لا توجد عمليات بعد</strong><span>ستظهر العمليات الجديدة هنا فور إنشائها.</span></div><% } %>
+                    <% recentTransactions.slice(0,5).forEach(tx=>{ const status=statusMeta[tx.status]||{label:tx.status,tone:'neutral'}; const service=serviceCatalog.find(item=>item.key===tx.transferType); %>
+                    <a class="cn-row" href="/client/transactions?search=<%= encodeURIComponent(tx.customId||'') %>"><span class="cn-service"><i class="fa-solid <%= service?.icon||'fa-money-bill-transfer' %>"></i></span><div><strong><%= tx.customId||'عملية' %></strong><small><%= service?.shortLabel||tx.transferType %> · <%= tx.vodafoneNumber||tx.accountNumber||'---' %></small></div><b><%= Number(tx.amount||0).toLocaleString('en-US',{maximumFractionDigits:0}) %><small> EGP</small></b><em class="<%= status.tone %>"><%= status.label %></em></a>
+                    <% }) %>
+                </div>
+            </section>
+
+            <aside class="cn-card cn-attention">
+                <header><div><span class="cn-kicker">اليوم</span><h2>مركز الانتباه</h2></div></header>
+                <% if(lowBalanceAlert){ %><a class="cn-alert danger" href="/client/finance"><i class="fa-solid fa-triangle-exclamation"></i><span><strong><%= lowBalanceAlert.title %></strong><small><%= lowBalanceAlert.copy %></small></span><i class="fa-solid fa-chevron-left"></i></a><% } %>
+                <a class="cn-alert <%= Number(monthSummary.pendingCount||0)>0?'warning':'success' %>" href="/client/transactions?status=pending"><i class="fa-solid fa-clock"></i><span><strong><%= monthSummary.pendingCount||0 %> عملية معلقة</strong><small>راجع الحالات التي لم تكتمل بعد</small></span><i class="fa-solid fa-chevron-left"></i></a>
+                <% if(workspace.permissions.canRequestDeposit){ %><a class="cn-alert info" href="/client/company/deposits"><i class="fa-solid fa-building-columns"></i><span><strong><%= pendingDepositCount||0 %> طلب إيداع</strong><small>متابعة طلبات تمويل رصيد الشركة</small></span><i class="fa-solid fa-chevron-left"></i></a><% } %>
+                <% if(workspace.permissions.manager||workspace.permissions.accountant){ %><a class="cn-alert plain" href="/client/staff"><i class="fa-solid fa-users"></i><span><strong>إدارة فريق العمل</strong><small>الحسابات والصلاحيات وتقارير الأداء</small></span><i class="fa-solid fa-chevron-left"></i></a><% } %>
+            </aside>
+        </div>
+    </main>
+</div>
+<nav class="cn-mobile-nav" aria-label="التنقل على الهاتف"><a class="active" href="/client/company-next"><i class="fa-solid fa-house"></i><span>الرئيسية</span></a><% if(workspace.permissions.canTransfer){ %><a href="/client/services"><i class="fa-solid fa-paper-plane"></i><span>تحويل</span></a><% } %><a href="/client/transactions"><i class="fa-solid fa-receipt"></i><span>العمليات</span></a><a href="/client/settings/workspace"><i class="fa-solid fa-user"></i><span>الحساب</span></a></nav>
+<script>
+const root=document.documentElement,sidebar=document.getElementById('companyNextSidebar');
+document.querySelector('[data-menu-open]')?.addEventListener('click',()=>document.body.classList.add('menu-open'));
+document.querySelector('[data-menu-close]')?.addEventListener('click',()=>document.body.classList.remove('menu-open'));
+document.querySelector('[data-theme]')?.addEventListener('click',()=>{root.dataset.theme=root.dataset.theme==='dark'?'light':'dark';localStorage.setItem('company-next-theme',root.dataset.theme)});
+document.querySelector('[data-privacy]')?.addEventListener('click',event=>{const value=document.querySelector('[data-sensitive]'),hidden=value?.classList.toggle('hidden');event.currentTarget.innerHTML=hidden?'<i class="fa-solid fa-eye-slash"></i> إظهار الرصيد':'<i class="fa-solid fa-eye"></i> إخفاء الرصيد'});
+</script>
+</body>
+</html>

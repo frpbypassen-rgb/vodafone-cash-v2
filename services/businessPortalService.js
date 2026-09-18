@@ -1455,6 +1455,29 @@ const loadPageContext = async (req, page) => {
     return context;
 };
 
+const loadCompanyNextContext = async (req) => {
+    const workspace = await resolveWorkspace(req);
+    if (!workspace.isCompany) {
+        const error = new Error('NOT_COMPANY_PORTAL');
+        error.statusCode = 404;
+        throw error;
+    }
+
+    // Build the base context from a page the current role may access, then add
+    // the common overview metrics. This keeps the preview usable for managers,
+    // accountants and daily operators without widening any permission.
+    const basePage = canAccessPage(workspace, 'overview')
+        ? 'overview'
+        : canAccessPage(workspace, 'finance')
+            ? 'finance'
+            : 'services';
+    const context = await buildBaseContext(req, basePage, workspace);
+    Object.assign(context, await loadOverview(workspace));
+    context.page = 'company_next';
+    context.pageMeta = { title: 'واجهة الشركات الجديدة', eyebrow: 'نسخة المعاينة', icon: 'fa-wand-magic-sparkles' };
+    return context;
+};
+
 module.exports = {
     STATUS_META,
     SERVICE_CATALOG,
@@ -1483,6 +1506,7 @@ module.exports = {
     buildReportGroups,
     buildReportAnalytics,
     loadPageContext,
+    loadCompanyNextContext,
     loadReports,
     loadCentralCompanyReport,
     safeNumber,
