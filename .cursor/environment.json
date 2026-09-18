@@ -1,0 +1,12 @@
+{
+  "name": "Al-Ahram Pay (Vodafone Cash v2)",
+  "user": "ubuntu",
+  "install": "bash .cursor/install.sh",
+  "start": "bash .cursor/start.sh",
+  "terminals": [
+    {
+      "name": "app-server",
+      "command": "node app.js"
+    }
+  ]
+}
