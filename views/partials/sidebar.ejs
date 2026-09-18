@@ -267,7 +267,56 @@
     body.focus-mode #transactionsFilterForm.is-open .tx-filter-extra {
         display: block !important;
     }
-    body.focus-mode .live-shell .scroll { max-height: calc(100vh - 170px) !important; }
+    body.cinema-mode .sidebar,
+    body.cinema-mode .sidebar-overlay,
+    body.cinema-mode .mobile-nav-toggle,
+    body.cinema-mode .bottom-nav-admin-mobile,
+    body.cinema-mode .top-nav-admin-mobile,
+    body.cinema-mode [data-focus-hide],
+    body.cinema-mode [data-cinema-hide],
+    body.cinema-mode .geo-card,
+    body.cinema-mode .metric-grid,
+    body.cinema-mode .live-head p {
+        display: none !important;
+    }
+    body.cinema-mode .main-content {
+        margin-right: 0 !important;
+        padding: 8px !important;
+    }
+    body.cinema-mode .live-shell { max-width: none; padding-bottom: 8px; }
+    body.cinema-mode .live-head { margin: 6px 0; padding: 10px 14px; }
+    body.cinema-mode .scroll { max-height: calc(100vh - 120px) !important; min-height: calc(100vh - 140px); }
+    body.cinema-mode .admin-focus-exit { display: flex; }
+    .ops-timeflow { display: flex; gap: 3px; align-items: flex-end; overflow: auto; padding: 10px 12px; min-height: 52px; border: 1px solid var(--border-glass, #e3e9f2); border-radius: 16px; background: var(--card-bg, #fff); margin-bottom: 10px; }
+    .ops-timeflow button { flex: 0 0 auto; width: 8px; border: 0; padding: 0; background: transparent; cursor: pointer; }
+    .ops-timeflow i { display: block; width: 8px; border-radius: 999px; background: #94a3b8; }
+    .ops-timeflow button.is-success i { background: #059669; box-shadow: 0 0 8px rgba(5,150,105,.45); }
+    .ops-timeflow button.is-failed i { background: #dc2626; box-shadow: 0 0 8px rgba(220,38,38,.4); }
+    .ops-timeflow button.is-active i { outline: 2px solid #2563eb; }
+    .ops-watchdog { display: grid; gap: 8px; margin-bottom: 10px; }
+    .ops-watch-card { padding: 10px 12px; border-radius: 14px; border: 1px solid rgba(217,119,6,.25); background: rgba(217,119,6,.08); font-size: .74rem; }
+    .ops-watch-card.high { border-color: rgba(220,38,38,.3); background: rgba(220,38,38,.08); }
+    .ops-watch-card header { display: flex; justify-content: space-between; gap: 8px; font-weight: 900; }
+    .ops-fab { display: none; position: fixed; z-index: 1090; bottom: 24px; left: 50%; transform: translateX(-50%); gap: 8px; padding: 10px 12px; border-radius: 999px; background: #111827; color: #fff; box-shadow: 0 12px 30px rgba(0,0,0,.28); }
+    .ops-fab.show { display: flex; }
+    .ops-fab button { height: 34px; border: 0; border-radius: 999px; padding: 0 12px; font-size: .72rem; font-weight: 800; }
+    .panic-btn { border-color: #dc2626 !important; background: #dc2626 !important; color: #fff !important; }
+    .halt-modal { position: fixed; inset: 0; z-index: 1100; background: rgba(2,8,23,.65); display: none; place-items: center; padding: 20px; }
+    .halt-modal.is-open { display: grid; }
+    .ops-timeflow-clear { flex: 0 0 auto; width: auto !important; height: 28px; padding: 0 8px; border-radius: 999px; background: var(--live-soft, #f4f7fb); color: inherit; font-size: .68rem; font-weight: 800; }
+    .trust-path { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+    .trust-node { padding: 8px 10px; border-radius: 10px; background: rgba(15,23,42,.05); font-size: .7rem; font-weight: 800; }
+    .trust-path.is-ok .trust-node { background: rgba(5,150,105,.12); color: #047857; }
+    .trust-path.is-bad .trust-node { background: rgba(220,38,38,.12); color: #b91c1c; }
+    .row-density-1 { background: rgba(37,99,235,.04); }
+    .row-density-2 { background: rgba(37,99,235,.07); }
+    .row-density-3 { background: rgba(37,99,235,.11); }
+    tr.flash-change { animation: flashChange 1.4s ease; }
+    @keyframes flashChange { 50% { background: rgba(234,179,8,.28); } }
+    .assignee-chip { display: inline-flex; align-items: center; gap: 5px; padding: 2px 7px; border-radius: 999px; font-size: .62rem; font-weight: 800; color: #fff; }
+    .cluster-row { background: rgba(124,58,237,.07); font-weight: 800; }
+    .status.s-completed, .status.s-deposit, .status.s-deduction { box-shadow: 0 0 0 1px color-mix(in srgb, var(--live-green, #059669) 35%, transparent); }
+    .status.s-rejected, .status.s-cancelled_by_admin { box-shadow: 0 0 0 1px color-mix(in srgb, var(--live-red, #dc2626) 35%, transparent); }
     .admin-focus-exit {
         display: none;
         position: fixed;
@@ -963,12 +1012,26 @@
     window.__toggleAdminSidebar = toggleSidebar;
     window.closeAdminSidebar = () => setAdminSidebarState(false);
 
+    function resolveAutoTheme() {
+        const mode = localStorage.getItem('ahram_theme_mode');
+        if (mode !== 'auto') return localStorage.getItem('ahram_theme') || 'dark';
+        const hour = Number(new Intl.DateTimeFormat('en-GB', { timeZone: 'Africa/Tripoli', hour: '2-digit', hourCycle: 'h23' }).format(new Date()));
+        const night = hour >= 19 || hour < 7;
+        const prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+        return (night || prefersDark) ? 'dark' : 'light';
+    }
+    function applyResolvedTheme() {
+        const theme = resolveAutoTheme();
+        document.documentElement.setAttribute('data-theme', theme);
+        updateSidebarThemeIcon(theme);
+    }
     function toggleGlobalTheme() {
         const html = document.documentElement;
         const currentTheme = html.getAttribute('data-theme');
         const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
         html.setAttribute('data-theme', newTheme);
         localStorage.setItem('ahram_theme', newTheme);
+        localStorage.setItem('ahram_theme_mode', 'manual');
         updateSidebarThemeIcon(newTheme);
 
         if (typeof Chart !== 'undefined' && window.myChart) {
@@ -1124,6 +1187,22 @@
     }
     window.toggleAdminFocusMode = toggleAdminFocusMode;
     window.applyAdminFocusMode = applyAdminFocusMode;
+    function applyAdminCinemaMode(enabled) {
+        document.body.classList.toggle('cinema-mode', enabled);
+        localStorage.setItem('ahram_admin_cinema_mode', enabled ? '1' : '0');
+        document.querySelectorAll('[data-cinema-label]').forEach((label) => {
+            label.textContent = enabled ? 'إلغاء سينمائي' : 'الوضع السينمائي';
+        });
+        document.querySelectorAll('.js-admin-cinema-toggle').forEach((button) => {
+            button.setAttribute('aria-pressed', enabled ? 'true' : 'false');
+        });
+    }
+    function toggleAdminCinemaMode() {
+        applyAdminCinemaMode(!document.body.classList.contains('cinema-mode'));
+    }
+    window.toggleAdminCinemaMode = toggleAdminCinemaMode;
+    window.applyAdminCinemaMode = applyAdminCinemaMode;
+    window.applyResolvedTheme = applyResolvedTheme;
 
     document.addEventListener('DOMContentLoaded', () => {
         window.toggleSidebar = window.__toggleAdminSidebar || toggleSidebar;
@@ -1143,19 +1222,38 @@
         });
 
         const savedTheme = localStorage.getItem('ahram_theme') || 'light';
-        updateSidebarThemeIcon(savedTheme);
+        if (localStorage.getItem('ahram_theme_mode') === 'auto' || !localStorage.getItem('ahram_theme')) {
+            if (!localStorage.getItem('ahram_theme_mode')) localStorage.setItem('ahram_theme_mode', 'auto');
+            applyResolvedTheme();
+        } else {
+            updateSidebarThemeIcon(savedTheme);
+        }
         applyAdminFocusMode(localStorage.getItem('ahram_admin_focus_mode') === '1');
+        applyAdminCinemaMode(localStorage.getItem('ahram_admin_cinema_mode') === '1');
         document.querySelectorAll('.js-admin-focus-toggle').forEach((button) => {
             button.addEventListener('click', toggleAdminFocusMode);
         });
+        document.querySelectorAll('.js-admin-cinema-toggle').forEach((button) => {
+            button.addEventListener('click', toggleAdminCinemaMode);
+        });
         document.addEventListener('keydown', (event) => {
             if (!event.shiftKey || event.ctrlKey || event.metaKey || event.altKey) return;
-            if (event.key !== 'F' && event.key !== 'f') return;
             const tag = (event.target && event.target.tagName) || '';
             if (/INPUT|TEXTAREA|SELECT/.test(tag) || event.target?.isContentEditable) return;
-            event.preventDefault();
-            toggleAdminFocusMode();
+            if (event.key === 'F' || event.key === 'f') {
+                event.preventDefault();
+                toggleAdminFocusMode();
+            }
+            if (event.key === 'C' || event.key === 'c') {
+                event.preventDefault();
+                toggleAdminCinemaMode();
+            }
         });
+        if (window.matchMedia) {
+            window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
+                if (localStorage.getItem('ahram_theme_mode') === 'auto') applyResolvedTheme();
+            });
+        }
         updateSidebarStats();
         setInterval(updateSidebarStats, 15000);
         

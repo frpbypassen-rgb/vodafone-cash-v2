@@ -3,7 +3,18 @@
 <head>
     <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1">
     <title>مراقبة العمليات الحية | الأهرام Pay</title>
-    <script>document.documentElement.setAttribute('data-theme',localStorage.getItem('ahram_theme')||'dark');</script>
+    <script>
+        (function () {
+            const mode = localStorage.getItem('ahram_theme_mode');
+            let theme = localStorage.getItem('ahram_theme') || 'dark';
+            if (mode === 'auto' || !localStorage.getItem('ahram_theme')) {
+                const hour = Number(new Intl.DateTimeFormat('en-GB', { timeZone: 'Africa/Tripoli', hour: '2-digit', hourCycle: 'h23' }).format(new Date()));
+                const prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+                theme = (hour >= 19 || hour < 7 || prefersDark) ? 'dark' : 'light';
+            }
+            document.documentElement.setAttribute('data-theme', theme);
+        })();
+    </script>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.rtl.min.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800;900&family=JetBrains+Mono:wght@600;700;800&display=swap" rel="stylesheet">
@@ -29,8 +40,19 @@
 <button class="mobile-nav-toggle no-print" onclick="toggleSidebar()"><i class="fa-solid fa-bars"></i></button><div class="sidebar-overlay no-print" onclick="toggleSidebar()"></div>
 <%- include('partials/sidebar', { activePage: 'transactions_live' }) %>
 <main class="main-content"><div class="container-fluid live-shell">
-    <header class="live-head"><div><h1><i class="fa-solid fa-wave-square ms-2 text-primary"></i>مراقبة العمليات الحية</h1><p data-focus-hide>بحث وتحليل وتفاصيل فورية دون مغادرة الصفحة</p></div><div class="d-flex align-items-center gap-2"><button type="button" class="live-btn js-admin-focus-toggle" aria-pressed="false"><i class="fa-solid fa-crosshairs ms-1"></i><span data-focus-label>وضع التركيز</span></button><div id="connection" class="connection off">جارِ الاتصال</div></div></header>
+    <header class="live-head"><div><h1><i class="fa-solid fa-wave-square ms-2 text-primary"></i>مراقبة العمليات الحية</h1><p data-focus-hide>بحث وتحليل وتفاصيل فورية دون مغادرة الصفحة</p></div><div class="d-flex align-items-center gap-2 flex-wrap">
+        <button type="button" class="live-btn js-admin-focus-toggle" aria-pressed="false"><i class="fa-solid fa-crosshairs ms-1"></i><span data-focus-label>وضع التركيز</span></button>
+        <button type="button" class="live-btn js-admin-cinema-toggle" aria-pressed="false"><i class="fa-solid fa-film ms-1"></i><span data-cinema-label>الوضع السينمائي</span></button>
+        <button type="button" class="live-btn" id="copyLink">نسخ الرابط</button>
+        <button type="button" class="live-btn" id="voiceSearch"><i class="fa-solid fa-microphone ms-1"></i>بحث صوتي</button>
+        <% if (typeof capabilities !== 'undefined' && capabilities.emergencyHalt) { %><button type="button" class="live-btn panic-btn" id="panicBtn"><span id="panicState">إيقاف التحويلات</span></button><% } %>
+        <div id="connection" class="connection off">جارِ الاتصال</div>
+    </div></header>
     <div id="failureAlert" class="alert-strip"><i class="fa-solid fa-triangle-exclamation ms-2"></i><span></span></div>
+    <div id="congestionBanner" class="alert-strip" style="border-color:rgba(217,119,6,.3);background:rgba(217,119,6,.1);color:var(--live-amber)"><i class="fa-solid fa-chart-line ms-2"></i><span></span></div>
+    <div id="haltBanner" class="alert-strip"><i class="fa-solid fa-hand ms-2"></i><span></span></div>
+    <small id="voiceStatus" class="geo-meta"></small>
+    <section class="ops-watchdog" id="opsWatchdog" data-cinema-hide></section>
     <section class="metric-grid" data-focus-hide>
         <div class="metric"><i class="fa-solid fa-arrow-right-arrow-left"></i><span>إجمالي تحويلات اليوم</span><strong id="metricTotal">0</strong></div>
         <div class="metric"><i class="fa-solid fa-coins"></i><span>السيولة المتداولة</span><strong id="metricLiquidity">0 ج.م</strong></div>
@@ -64,27 +86,36 @@
         <input id="filterMin" type="number" min="0" placeholder="المبلغ من (مثال 10000)">
         <div id="customRange" class="custom-range"><input id="filterFrom" type="datetime-local"><input id="filterTo" type="datetime-local"></div>
     </section>
-    <section class="table-box"><header class="table-head"><h2>العمليات</h2><small id="resultCount">جاري التحميل...</small></header><div class="scroll"><table class="live-table"><thead><tr><th>المرجع</th><th>العميل</th><th>المستلم</th><th>النوع</th><th>المبلغ</th><th>المنفذ</th><th>الحالة</th><th>الأمان</th><th>الوقت</th></tr></thead><tbody id="rows"></tbody></table><div id="empty" class="empty" hidden>لا توجد عمليات مطابقة</div></div><div class="pager"><button id="loadMore" class="live-btn" hidden>تحميل المزيد</button></div></section>
+    <section class="ops-timeflow" id="opsTimeflow" aria-label="البصمة الزمنية"></section>
+    <section class="table-box"><header class="table-head"><h2>العمليات</h2><small id="resultCount">جاري التحميل...</small></header><div class="scroll"><table class="live-table"><thead><tr><th></th><th>المرجع</th><th>العميل</th><th>المستلم</th><th>النوع</th><th>المبلغ</th><th>المنفذ</th><th>الحالة</th><th>الأمان</th><th>الوقت</th></tr></thead><tbody id="rows"></tbody></table><div id="empty" class="empty" hidden>لا توجد عمليات مطابقة</div></div><div class="pager"><button id="loadMore" class="live-btn" hidden>تحميل المزيد</button></div></section>
 </div></main>
 <div id="flyoutBackdrop" class="flyout-backdrop"></div><aside id="flyout" class="flyout" aria-hidden="true"><div class="flyout-top"><div><small class="text-muted">تفاصيل العملية</small><h2 id="detailReference" class="mono">—</h2></div><button id="closeFlyout" class="close-flyout"><i class="fa-solid fa-xmark"></i></button></div><div id="detailBody"></div></aside>
+<div id="opsFab" class="ops-fab" aria-live="polite">
+    <span id="fabCount">0 محدد</span>
+    <button type="button" id="fabLink">نسخ العرض</button>
+    <button type="button" id="fabExport">تصدير المحدد</button>
+    <button type="button" id="fabAssign" data-need="manage">إسناد متابعة</button>
+</div>
+<div id="haltModal" class="halt-modal" hidden>
+    <form class="behavior-card" style="max-width:420px;width:100%;" onsubmit="return false;">
+        <h2>إيقاف التحويلات الصادرة</h2>
+        <p class="geo-meta">يوقف إنشاء التحويلات الجديدة فقط (isManualClosed). لا يلغي العمليات الجارية ولا يفعّل إغلاق الأمن. المدير الأساسي فقط، مع عبارة تأكيد وكلمة المرور.</p>
+        <label class="d-block mt-2 small fw-bold">عبارة التأكيد: إيقاف التحويلات</label>
+        <input id="haltPhrase" class="form-control mb-2" autocomplete="off">
+        <label class="d-block small fw-bold">كلمة مرور المدير</label>
+        <input id="haltPassword" type="password" class="form-control mb-2">
+        <label class="d-block small fw-bold">السبب</label>
+        <input id="haltReason" class="form-control mb-2" maxlength="300">
+        <div id="haltError" class="text-danger small fw-bold mb-2"></div>
+        <div class="d-flex gap-2 flex-wrap">
+            <button type="button" id="haltConfirm" class="live-btn panic-btn">تأكيد الإيقاف</button>
+            <button type="button" id="haltLift" class="live-btn">رفع الإيقاف</button>
+            <button type="button" id="haltCancel" class="live-btn">إلغاء</button>
+        </div>
+    </form>
+</div>
+<script>window.__opsCapabilities = <%- JSON.stringify(typeof capabilities === 'undefined' ? {} : capabilities) %>;</script>
 <script src="/socket.io/socket.io.js"></script>
 <script src="/js/admin-ops-tools.js"></script>
-<script>
-const state={page:1,pages:1,loading:false,query:'',latestId:'',refreshTimer:null};
-const byId=id=>document.getElementById(id),esc=value=>String(value??'').replace(/[&<>"']/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
-const number=value=>Number(value||0).toLocaleString('en-US',{maximumFractionDigits:2});
-const date=value=>value?new Intl.DateTimeFormat('ar-LY',{dateStyle:'short',timeStyle:'medium'}).format(new Date(value)):'—';
-const statusLabels={pending:'معلق',processing:'قيد المعالجة',accepted:'مقبول',completed:'ناجح',rejected:'فشل',deposit_pending:'إيداع معلق',deposit:'إيداع',deduction:'سحب',cancelled_by_admin:'ملغي'};
-function toggleSidebar(){document.querySelector('.sidebar')?.classList.toggle('active');document.querySelector('.sidebar-overlay')?.classList.toggle('active')}
-function queryParams(page=1){const params=new URLSearchParams({page,limit:40,range:byId('filterRange').value});const values={q:byId('filterSearch').value,status:byId('filterStatus').value,type:byId('filterType').value,minAmount:byId('filterMin').value};Object.entries(values).forEach(([key,value])=>{if(value.trim())params.set(key,value.trim())});if(params.get('range')==='custom'){if(byId('filterFrom').value)params.set('from',new Date(byId('filterFrom').value).toISOString());if(byId('filterTo').value)params.set('to',new Date(byId('filterTo').value).toISOString())}return params}
-function duration(ms){if(!ms)return'—';if(ms<60000)return`${(ms/1000).toFixed(1)} ث`;return`${(ms/60000).toFixed(1)} د`}
-function renderMetrics(metrics){byId('metricTotal').textContent=number(metrics.total);byId('metricLiquidity').textContent=`${number(metrics.liquidity)} ج.م`;byId('metricSuccess').textContent=`${Number(metrics.successRate||0).toFixed(1)}%`;byId('metricPending').textContent=number(metrics.pending);byId('metricDuration').textContent=duration(metrics.averageDurationMs);const alert=byId('failureAlert');alert.classList.toggle('show',metrics.alert===true);alert.querySelector('span').textContent=`نسبة الفشل خلال آخر 5 دقائق ${Number(metrics.failureRate5m||0).toFixed(1)}% — تحتاج مراجعة فورية.`}
-function rowHtml(row){const risks=[row.security?.largeAmount?'مبلغ كبير':'',row.security?.newDevice?'جهاز جديد':''].filter(Boolean);return`<tr data-id="${esc(row.id)}" class="${row.security?.flagged?'risk-row':''}"><td><strong class="mono">${esc(row.reference)}</strong></td><td>${esc(row.customer)}</td><td class="mono">${esc(row.recipient)}</td><td>${esc(row.type||'—')}</td><td><strong class="mono">${number(row.amount)} ج.م</strong></td><td>${esc(row.executor)}</td><td><span class="status s-${esc(row.status)}">${esc(statusLabels[row.status]||row.status)}</span></td><td class="risk">${risks.length?`<i class="fa-solid fa-triangle-exclamation ms-1"></i>${esc(risks.join('، '))}`:'—'}</td><td>${date(row.createdAt)}</td></tr>`}
-async function load(reset=true){if(state.loading)return;state.loading=true;try{const nextPage=reset?1:state.page+1;const response=await fetch('/api/transactions/live?'+queryParams(nextPage),{headers:{Accept:'application/json'}});const data=await response.json();if(!response.ok)throw new Error(data.error||'تعذر التحميل');const body=byId('rows');if(reset)body.innerHTML='';body.insertAdjacentHTML('beforeend',data.rows.map(rowHtml).join(''));if(reset&&data.rows[0]?.id&&data.rows[0].id!==state.latestId){body.querySelector('tr')?.classList.add('flash');state.latestId=data.rows[0].id}state.page=data.pagination.page;state.pages=data.pagination.pages;byId('resultCount').textContent=`${number(data.pagination.total)} عملية`;byId('empty').hidden=data.pagination.total>0;byId('loadMore').hidden=state.page>=state.pages;renderMetrics(data.metrics)}catch(error){byId('resultCount').textContent=error.message}finally{state.loading=false}}
-function scheduleLoad(){clearTimeout(state.refreshTimer);state.refreshTimer=setTimeout(()=>load(true),350)}
-async function openDetail(id){const response=await fetch('/api/transactions/live/'+encodeURIComponent(id),{headers:{Accept:'application/json'}});const data=await response.json();if(!response.ok)return;const tx=data.transaction,audit=data.audit||{};byId('detailReference').textContent=tx.reference;byId('detailBody').innerHTML=`<div class="detail-grid"><div class="detail-card"><span>المرسل</span><strong>${esc(data.parties.sender)}</strong></div><div class="detail-card"><span>المستلم</span><strong class="mono">${esc(data.parties.recipient)}</strong></div><div class="detail-card"><span>المبلغ</span><strong class="mono">${number(tx.amount)} ج.م</strong></div><div class="detail-card"><span>الحالة</span><strong>${esc(statusLabels[tx.status]||tx.status)}</strong></div><div class="detail-card"><span>IP</span><strong class="mono">${esc(audit.ip||'غير مسجل')}</strong></div><div class="detail-card"><span>الدولة</span><strong class="mono">${esc(tx.originCountry||'غير مسجل')}</strong></div><div class="detail-card"><span>الجهاز</span><strong>${esc(audit.deviceType||'غير مسجل')}</strong></div></div><section class="behavior-card" id="behaviorCompare"><div class="geo-empty">جاري مقارنة السلوك...</div></section>${data.error?`<h3 class="section-title">سبب الفشل</h3><div class="error-box"><strong>${esc(data.error.code)}</strong><br>${esc(data.error.message)}</div>`:''}<h3 class="section-title">شجرة الحدث</h3><div class="timeline">${data.timeline.map(item=>`<div class="event ${item.state==='error'?'error':''}"><strong>${esc(item.label)}</strong><time>${date(item.at)}</time></div>`).join('')||'<span class="text-muted">لا توجد أحداث</span>'}</div><div class="flyout-actions">${['pending','processing','accepted'].includes(tx.status)?`<a class="live-btn primary text-decoration-none d-inline-flex align-items-center" href="/transactions/pulse">فتح للتوجيه</a>`:''}<a class="live-btn text-decoration-none d-inline-flex align-items-center" target="_blank" href="/transactions/live/${encodeURIComponent(tx.id)}/receipt"><i class="fa-solid fa-print ms-1"></i>طباعة حرارية / PDF</a></div>`;const subjectId=tx.companyId||tx.userKey;if(subjectId&&window.loadBehaviorComparison){window.loadBehaviorComparison(byId('behaviorCompare'),{id:subjectId,type:tx.companyId?'company':'user'})}else{byId('behaviorCompare').innerHTML='<div class="geo-empty">لا يوجد حساب مرتبط لمقارنة السلوك.</div>'}byId('flyout').classList.add('open');byId('flyoutBackdrop').classList.add('open');byId('flyout').setAttribute('aria-hidden','false')}
-function closeDetail(){byId('flyout').classList.remove('open');byId('flyoutBackdrop').classList.remove('open');byId('flyout').setAttribute('aria-hidden','true')}
-function refreshHeatmap(){if(window.loadGeoHeatmap)window.loadGeoHeatmap(byId('geoHeatmap'),byId('geoWindow').value)}
-document.addEventListener('DOMContentLoaded',()=>{['filterStatus','filterType','filterRange','filterMin','filterFrom','filterTo'].forEach(id=>byId(id).addEventListener('change',()=>{byId('customRange').classList.toggle('show',byId('filterRange').value==='custom');scheduleLoad()}));byId('filterSearch').addEventListener('input',scheduleLoad);byId('toggleFilters').addEventListener('click',()=>byId('liveFilters').classList.toggle('is-open'));byId('geoWindow').addEventListener('change',refreshHeatmap);byId('resetFilters').addEventListener('click',()=>{['filterSearch','filterStatus','filterType','filterMin','filterFrom','filterTo'].forEach(id=>byId(id).value='');byId('filterRange').value='24h';byId('customRange').classList.remove('show');load(true)});byId('exportCsv').addEventListener('click',()=>{const params=queryParams(1);params.delete('page');params.delete('limit');location.href='/api/transactions/live-export.csv?'+params});byId('loadMore').addEventListener('click',()=>load(false));byId('rows').addEventListener('click',event=>{const row=event.target.closest('tr[data-id]');if(row)openDetail(row.dataset.id)});byId('closeFlyout').addEventListener('click',closeDetail);byId('flyoutBackdrop').addEventListener('click',closeDetail);load(true);refreshHeatmap();setInterval(()=>{if(document.visibilityState==='visible'){load(true);refreshHeatmap()}},15000);const socket=window.io?io({transports:['websocket','polling']}):null;if(socket){socket.on('connect',()=>{byId('connection').classList.remove('off');byId('connection').textContent='متصل لحظيًا';socket.emit('transactions:subscribe')});socket.on('disconnect',()=>{byId('connection').classList.add('off');byId('connection').textContent='إعادة الاتصال'});socket.on('transactions:changed',()=>{scheduleLoad();refreshHeatmap()})}});
-</script>
+<script src="/js/admin-ops-live.js"></script>
 </body></html>

@@ -91,7 +91,16 @@ const buildLiveQuery = (req, now = new Date()) => {
     if (status) query.status = status;
     applyTypeFilter(query, req.query?.type);
     const createdAt = resolveTimeRange(req.query, now);
-    if (createdAt) query.createdAt = createdAt;
+    const minute = (() => {
+        const raw = String(req.query?.minute || '').trim();
+        if (!raw) return null;
+        const date = new Date(raw);
+        if (Number.isNaN(date.getTime())) return null;
+        const start = new Date(Math.floor(date.getTime() / 60000) * 60000);
+        return { $gte: start, $lt: new Date(start.getTime() + 60000) };
+    })();
+    if (minute) query.createdAt = minute;
+    else if (createdAt) query.createdAt = createdAt;
     const minimum = Number(req.query?.minAmount);
     const maximum = Number(req.query?.maxAmount);
     if (Number.isFinite(minimum) || Number.isFinite(maximum)) {
@@ -113,6 +122,8 @@ const buildLiveQuery = (req, now = new Date()) => {
             { 'settlementDetails.externalReference': { $regex: safe, $options: 'i' } }
         ];
     }
+    const ids = String(req.query?.ids || '').split(',').map((value) => value.trim()).filter((value) => mongoose.isValidObjectId(value)).slice(0, 100);
+    if (ids.length) query._id = { $in: ids };
     return query;
 };
 
@@ -160,6 +171,8 @@ const mapLiveTransaction = (transaction, audit = null) => {
         durationMs: transaction.completedAt && transaction.createdAt
             ? Math.max(0, new Date(transaction.completedAt) - new Date(transaction.createdAt))
             : null,
+        minute: transaction.createdAt ? new Date(Math.floor(new Date(transaction.createdAt).getTime() / 60000) * 60000).toISOString() : '',
+        task: transaction.opsTask || null,
         error: safeApiError(transaction),
         security: {
             flagged: largeAmount || newDevice,
@@ -190,7 +203,7 @@ const auditMapForTransactions = async (transactions) => {
 
 const listLiveTransactions = async (req) => {
     const page = clamp(req.query?.page, 1, 100_000, 1);
-    const limit = clamp(req.query?.limit, 10, 100, 40);
+    const limit = clamp(req.query?.limit, 10, 100, 50);
     const sortField = SORT_FIELDS.has(String(req.query?.sort)) ? String(req.query.sort) : 'createdAt';
     const sortDirection = String(req.query?.direction) === 'asc' ? 1 : -1;
     const query = buildLiveQuery(req);
@@ -200,8 +213,25 @@ const listLiveTransactions = async (req) => {
             .skip((page - 1) * limit).limit(limit).maxTimeMS(5_000).lean()
     ]);
     const audits = await auditMapForTransactions(transactions);
+    let taskMap = new Map();
+    try {
+        const { tasksForTransactions } = require('./opsCollaborationService');
+        taskMap = await tasksForTransactions(req, transactions.map((item) => item._id));
+    } catch (_) {}
     return {
-        rows: transactions.map((item) => mapLiveTransaction(item, audits.get(String(item._id)) || audits.get(item.customId))),
+        rows: transactions.map((item) => {
+            const task = taskMap.get(String(item._id));
+            const mapped = mapLiveTransaction(item, audits.get(String(item._id)) || audits.get(item.customId));
+            if (task) {
+                mapped.task = {
+                    id: String(task._id),
+                    assigneeName: task.assigneeName,
+                    assigneeColor: task.assigneeColor,
+                    status: task.status
+                };
+            }
+            return mapped;
+        }),
         pagination: { page, limit, total, pages: Math.max(1, Math.ceil(total / limit)) }
     };
 };
@@ -283,6 +313,8 @@ const getTransactionDetail = async (req, id) => {
         transaction.cancelledAt && { key: 'cancelled', label: 'ألغيت العملية', at: transaction.cancelledAt, state: 'error' }
     ].filter(Boolean).sort((left, right) => new Date(left.at) - new Date(right.at));
     const creationAudit = audits.find((item) => item.action === 'TRANSFER_CREATED') || audits[0] || null;
+    const { buildTrustPath } = require('./liveOpsIntelligenceService');
+    const auditCountry = String(creationAudit?.countryCode || creationAudit?.location?.country || '').toUpperCase();
     return {
         transaction: mapLiveTransaction(transaction, creationAudit),
         parties: {
@@ -292,9 +324,16 @@ const getTransactionDetail = async (req, id) => {
         },
         timeline,
         error: safeApiError(transaction),
+        trustPath: buildTrustPath({
+            originCountry: transaction.originCountry,
+            auditCountry,
+            ip: creationAudit?.ipAddress || '',
+            deviceType: creationAudit?.deviceType || ''
+        }),
         audit: creationAudit ? {
             ip: creationAudit.ipAddress || '', deviceType: creationAudit.deviceType || '',
-            userAgent: creationAudit.userAgent || '', location: creationAudit.location || null
+            userAgent: creationAudit.userAgent || '', location: creationAudit.location || null,
+            countryCode: creationAudit.countryCode || ''
         } : null
     };
 };

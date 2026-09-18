@@ -3,12 +3,20 @@
 jest.mock('../models/Transaction', () => ({
     collection: { createIndexes: jest.fn() }
 }));
+jest.mock('../models/OpsInternalNote', () => ({
+    collection: { createIndexes: jest.fn() }
+}));
+jest.mock('../models/OpsWatchTask', () => ({
+    collection: { createIndexes: jest.fn() }
+}));
 jest.mock('../utils/logger', () => ({
     info: jest.fn(),
     error: jest.fn()
 }));
 
 const Transaction = require('../models/Transaction');
+const OpsInternalNote = require('../models/OpsInternalNote');
+const OpsWatchTask = require('../models/OpsWatchTask');
 const logger = require('../utils/logger');
 const { ensurePerformanceIndexes } = require('../services/performanceIndexService');
 
@@ -19,6 +27,8 @@ describe('performanceIndexService', () => {
 
     test('creates the cooldown indexes during startup', async () => {
         Transaction.collection.createIndexes.mockResolvedValue([]);
+        OpsInternalNote.collection.createIndexes.mockResolvedValue([]);
+        OpsWatchTask.collection.createIndexes.mockResolvedValue([]);
 
         await expect(ensurePerformanceIndexes()).resolves.toBe(true);
 
@@ -52,7 +62,17 @@ describe('performanceIndexService', () => {
             expect.objectContaining({
                 name: 'opsBehavior_tenant_company_createdAt',
                 key: expect.objectContaining({ tenantId: 1, companyId: 1, createdAt: -1 })
+            }),
+            expect.objectContaining({
+                name: 'opsLive_tenant_updatedAt',
+                key: expect.objectContaining({ tenantId: 1, updatedAt: -1 })
             })
+        ]));
+        expect(OpsInternalNote.collection.createIndexes).toHaveBeenCalledWith(expect.arrayContaining([
+            expect.objectContaining({ name: 'opsNote_tx_createdAt' })
+        ]));
+        expect(OpsWatchTask.collection.createIndexes).toHaveBeenCalledWith(expect.arrayContaining([
+            expect.objectContaining({ name: 'opsTask_tx_status_createdAt' })
         ]));
         expect(logger.info).toHaveBeenCalled();
     });

@@ -122,4 +122,90 @@
             root.innerHTML = `<div class="geo-empty">${esc(error.message)}</div>`;
         }
     };
+    window.parseVoiceFilter = function parseVoiceFilter(transcript) {
+        const text = String(transcript || '').toLowerCase();
+        const result = {};
+        if (/فشل|فاشل|failed|rejected/.test(text)) result.status = 'failed';
+        else if (/معلق|pending/.test(text)) result.status = 'pending';
+        else if (/نجاح|ناجح|مكتمل|success/.test(text)) result.status = 'success';
+        else if (/ملغ|cancel/.test(text)) result.status = 'cancelled';
+        if (/آخر ساعة|last hour/.test(text) || /ساعة/.test(text)) result.range = '1h';
+        else if (/اليوم|today|24|يوم/.test(text)) result.range = '24h';
+        if (/فودافون|vodafone/.test(text)) result.type = 'vodafone';
+        else if (/بريد|post/.test(text)) result.type = 'post_account';
+        else if (/بنك|bank/.test(text)) result.type = 'bank_account';
+        const amount = text.match(/(\d{3,})/);
+        if (/أكبر|أكثر|above|greater|>/.test(text) && amount) result.minAmount = amount[1];
+        else if (/مبلغ كبير|large/.test(text)) result.minAmount = '10000';
+        return result;
+    };
+
+    window.renderTimeFlow = function renderTimeFlow(root, buckets, activeMinute) {
+        if (!root) return;
+        const rows = Array.isArray(buckets) ? buckets.slice(-60) : [];
+        if (!rows.length) {
+            root.innerHTML = '<div class="geo-empty">لا توجد بصمة زمنية في هذه النافذة.</div>';
+            return;
+        }
+        const dots = rows.map((row) => {
+            const height = 10 + Number(row.intensity || 0) * 28;
+            const kind = Number(row.failed) > Number(row.success) ? 'is-failed' : (row.success ? 'is-success' : '');
+            const active = activeMinute && String(row.minute) === String(activeMinute) ? 'is-active' : '';
+            return `<button type="button" class="${kind} ${active}" data-minute="${esc(row.minute)}" title="${esc(row.minute)} · ${row.total}"><i style="height:${height}px"></i></button>`;
+        }).join('');
+        root.innerHTML = (activeMinute
+            ? '<button type="button" class="ops-timeflow-clear" data-minute="">مسح الدقيقة</button>'
+            : '') + dots;
+    };
+
+    window.renderWatchdog = function renderWatchdog(root, payload) {
+        if (!root) return;
+        const dismissed = new Set(JSON.parse(localStorage.getItem('ahram_ops_watchdog_dismissed') || '[]'));
+        const cards = (payload?.watchdog || []).filter((item) => !dismissed.has(item.id));
+        if (!cards.length) {
+            root.innerHTML = '';
+            root.hidden = true;
+            return;
+        }
+        root.hidden = false;
+        root.innerHTML = `<small class="geo-meta">${esc(payload.disclaimer || 'قواعد تشغيلية — ليست نموذجاً لغوياً.')}</small>` + cards.map((card) => `
+            <article class="ops-watch-card ${esc(card.severity || '')}" data-id="${esc(card.id)}">
+                <header><span>${esc(card.title)}</span><button type="button" data-dismiss="${esc(card.id)}" class="live-btn" style="height:28px;padding:0 8px;">إخفاء</button></header>
+                <p class="mb-2 mt-1">${esc(card.body)}</p>
+                <button type="button" class="live-btn primary" data-watch-action="${esc(JSON.stringify(card.action || {}))}">تطبيق الفلتر</button>
+            </article>
+        `).join('');
+    };
+
+    window.renderTrustPath = function renderTrustPath(root, path) {
+        if (!root) return;
+        const state = path?.state || 'unknown';
+        const cls = state === 'mismatch' ? 'is-bad' : (state === 'consistent' ? 'is-ok' : '');
+        const label = state === 'mismatch' ? 'تعارض بين IP والدولة المخزّنة' : (state === 'consistent' ? 'مسار ثقة متسق' : 'إشارة جغرافية غير مكتملة');
+        root.innerHTML = `<div class="trust-path ${cls}">
+            <span class="trust-node">جهاز ${esc(path?.deviceType || '—')}</span>
+            <span>↔</span>
+            <span class="trust-node mono">${esc(path?.ip || '—')}</span>
+            <span>↔</span>
+            <span class="trust-node">${esc(path?.originCountry || path?.auditCountry || '—')}</span>
+            <small>${esc(label)}</small>
+        </div>`;
+    };
+
+    window.renderBenchmark = function renderBenchmark(root, payload) {
+        if (!root) return;
+        if (!payload || !payload.sample) {
+            root.innerHTML = '<div class="geo-empty">لا توجد عمليات مشابهة كافية للمقارنة.</div>';
+            return;
+        }
+        const flag = payload.slow ? '<b>أبطأ من المعتاد</b>' : '<span>ضمن المعدل</span>';
+        root.innerHTML = `<div class="behavior-metric ${payload.slow ? 'is-flagged' : ''}">
+            <header><span>زمن التنفيذ مقابل المشابه</span>${flag}</header>
+            <div class="behavior-tracks">
+                <div><em>هذه</em><i style="width:${payload.slow ? 90 : 55}%"></i><strong>${esc(Math.round((payload.currentMs || 0) / 1000))} ث</strong></div>
+                <div><em>المعيار</em><i class="is-base" style="width:45%"></i><strong>${esc(Math.round((payload.baselineMs || 0) / 1000))} ث · ${esc(payload.sample)} عينة</strong></div>
+            </div>
+            <small class="geo-meta">شريحة المبلغ ${esc(payload.band || '')} · نفس النوع عند توفره</small>
+        </div>`;
+    };
 })(window, document);

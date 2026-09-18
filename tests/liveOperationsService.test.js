@@ -67,5 +67,24 @@ describe('live operations service', () => {
         expect(row.userKey).toBe('0910000001');
         expect(row.companyId).toBe('64b0000000000000000000cc');
         expect(row.originCountry).toBe('LY');
+        expect(row.minute).toBe('2026-09-18T10:00:00.000Z');
+    });
+
+    test('minute filter replaces the selected range with a single UTC minute', () => {
+        const now = new Date('2026-09-18T12:00:00.000Z');
+        const query = buildLiveQuery({
+            query: { range: '24h', minute: '2026-09-18T11:04:41.000Z' }
+        }, now);
+        expect(query.createdAt.$gte.toISOString()).toBe('2026-09-18T11:04:00.000Z');
+        expect(query.createdAt.$lt.toISOString()).toBe('2026-09-18T11:05:00.000Z');
+    });
+
+    test('ids filter keeps at most 100 valid ObjectIds and ignores junk', () => {
+        const valid = '64b000000000000000000001';
+        const query = buildLiveQuery({
+            query: { ids: `${valid},not-an-id,${valid.replace(/1$/, '2')}` }
+        });
+        expect(query._id.$in).toHaveLength(2);
+        expect(String(query._id.$in[0])).toBe(valid);
     });
 });
