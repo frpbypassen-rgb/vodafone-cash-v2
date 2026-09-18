@@ -6,7 +6,9 @@
 'use strict';
 
 require('dotenv').config();
+const crypto = require('crypto');
 const mongoose = require('mongoose');
+const { assertFinancialResetAllowed, extractDbName } = require('../utils/financialResetGuard');
 
 const MONGO_URI = process.env.MONGO_URI || 'mongodb://127.0.0.1:27017/vodafone_cash_system';
 
@@ -46,12 +48,31 @@ async function factoryReset() {
     console.log('');
 
     try {
-        // 1️⃣ الاتصال بقاعدة البيانات
+        const dbName = extractDbName(MONGO_URI);
+        const { dryRun } = assertFinancialResetAllowed({
+            dbName,
+            scriptName: 'scripts/factoryReset.js'
+        });
+
         console.log(`🔗 الاتصال بـ: ${MONGO_URI}`);
+        if (dryRun) {
+            console.log('🧪 وضع التجربة — لن يتم حذف أي بيانات.');
+        }
         await mongoose.connect(MONGO_URI);
         console.log('✅ تم الاتصال بقاعدة البيانات بنجاح\n');
 
         const db = mongoose.connection.db;
+        const connectedName = db.databaseName;
+        assertFinancialResetAllowed({
+            dbName: connectedName,
+            scriptName: 'scripts/factoryReset.js'
+        });
+
+        if (dryRun) {
+            const collections = await db.listCollections().toArray();
+            console.log(`Dry-run: would drop ${collections.length} collections in "${connectedName}".`);
+            process.exit(0);
+        }
 
         // 2️⃣ حذف جميع الكولكشنات
         console.log('🗑️  حذف جميع البيانات...');
@@ -78,14 +99,17 @@ async function factoryReset() {
         // 3️⃣ إنشاء حساب الأدمن الافتراضي
         console.log('👤 إنشاء حساب الأدمن الافتراضي...');
         const Admin = require('../models/Admin');
+        const adminUsername = process.env.PANEL_USER || 'admin@localhost';
+        const adminPassword = process.env.PANEL_PASS || `DemoAdmin-${crypto.randomBytes(9).toString('hex')}`;
         const defaultAdmin = await Admin.create({
             name: 'المدير العام',
             role: 'master',
-            webUsername: process.env.PANEL_USER || 'admin@ahram.com',
-            webPassword: process.env.PANEL_PASS || 'MyKids0124'
+            webUsername: adminUsername,
+            webPassword: adminPassword
         });
         console.log(`   ✅ الأدمن: ${defaultAdmin.webUsername}`);
-        console.log(`   🔑 كلمة المرور: ${process.env.PANEL_PASS || 'MyKids0124'}`);
+        console.log('   🔑 كلمة المرور طُبعت مرة واحدة محلياً — ليست سراً تشغيلياً.');
+        console.log(`   🔑 كلمة المرور: ${adminPassword}`);
         console.log(`   👑 الدور: ${defaultAdmin.role}\n`);
 
         // 4️⃣ إنشاء الإعدادات الافتراضية
@@ -124,8 +148,8 @@ async function factoryReset() {
         console.log('║    ✅ تم ضبط المصنع بنجاح!                   ║');
         console.log('╠══════════════════════════════════════════════╣');
         console.log('║  📌 بيانات الدخول للوحة التحكم:              ║');
-        console.log(`║  👤 المستخدم: ${(process.env.PANEL_USER || 'admin@ahram.com').padEnd(30)}║`);
-        console.log(`║  🔑 كلمة المرور: ${(process.env.PANEL_PASS || 'MyKids0124').padEnd(27)}║`);
+        console.log(`║  👤 المستخدم: ${adminUsername.padEnd(30)}║`);
+        console.log(`║  🔑 كلمة المرور: ${adminPassword.padEnd(27)}║`);
         console.log('║  🌐 الرابط: http://localhost:3000             ║');
         console.log('╚══════════════════════════════════════════════╝');
         console.log('');

@@ -3,11 +3,12 @@
 // Creates a merchant credential only in the isolated API Sandbox database.
 require('dotenv').config({ path: process.env.DOTENV_CONFIG_PATH || '.env.staging' });
 
-const crypto = require('crypto');
 const mongoose = require('mongoose');
 const Tenant = require('../models/Tenant');
 const ClientCompany = require('../models/ClientCompany');
 const Settings = require('../models/Settings');
+const { assignHashedApiKey } = require('../services/merchantCredentialService');
+const { DEMO_WARNING, assertNotProduction } = require('../utils/scriptSafety');
 
 const optionValue = (flag, fallback = '') => {
     const index = process.argv.indexOf(flag);
@@ -31,6 +32,7 @@ const requireStaging = () => {
 };
 
 async function main() {
+    assertNotProduction('scripts/seedStagingMerchant.js');
     const mongoUri = requireStaging();
     const tenantSlug = String(process.env.DEFAULT_TENANT_SLUG || 'ahram-sandbox').trim().toLowerCase();
     const companyName = optionValue('--name', process.env.STAGING_MERCHANT_NAME || 'شركة اختبار التكامل');
@@ -60,7 +62,7 @@ async function main() {
     );
 
     let company = await ClientCompany.findOne({ tenantId: tenant._id, name: companyName });
-    let apiKey = company ? company.token : crypto.randomBytes(32).toString('hex');
+    let revealedKey = null;
     if (!company) {
         company = new ClientCompany({
             tenantId: tenant._id,
@@ -69,25 +71,29 @@ async function main() {
             balance,
             tier: 3,
             status: 'active',
-            token: apiKey,
             businessProfile: { contactName: 'Sandbox Integration Contact' }
         });
+        revealedKey = assignHashedApiKey(company, 'token').apiKey;
     } else {
         company.status = 'active';
         company.balance = balance;
-        if (rotateKey) {
-            apiKey = crypto.randomBytes(32).toString('hex');
-            company.token = apiKey;
+        if (rotateKey || !company.tokenHash) {
+            revealedKey = assignHashedApiKey(company, 'token').apiKey;
         }
     }
     await company.save();
 
     const baseUrl = String(process.env.PUBLIC_APP_URL || 'https://sandbox-api.ahrampay.com').replace(/\/$/, '');
+    console.log(DEMO_WARNING);
     console.log('\nSandbox merchant is ready. Store this key in the partner secret manager only.');
     console.log(`Base URL: ${baseUrl}/api/v1/merchant`);
     console.log(`Merchant: ${company.name}`);
     console.log(`Balance: ${company.balance}`);
-    console.log(`API key: ${apiKey}`);
+    if (revealedKey) {
+        console.log(`API key (shown once): ${revealedKey}`);
+    } else {
+        console.log(`API key already hashed (hint: ...${company.tokenHint || '****'}). Pass --rotate-key to issue a new key.`);
+    }
 }
 
 main()

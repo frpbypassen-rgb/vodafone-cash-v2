@@ -1,8 +1,8 @@
 require('dotenv').config();
 const mongoose = require('mongoose');
 
-// 🟢 استدعاء نفس ملف الاتصال الخاص بمشروعك لضمان تطابق قاعدة البيانات
 const connectDB = require('./config/database');
+const { assertFinancialResetAllowed } = require('./utils/financialResetGuard');
 
 const Transaction = require('./models/Transaction');
 const ExecutorBot = require('./models/ExecutorBot');
@@ -11,30 +11,45 @@ const User = require('./models/User');
 
 const resetSystem = async () => {
     try {
-        // 1. الاتصال بقاعدة البيانات بنفس طريقتك المعتادة
         await connectDB();
-        console.log('✅ تم الاتصال بقاعدة البيانات بنجاح...');
+        const dbName = mongoose.connection.name;
+        const { dryRun } = assertFinancialResetAllowed({
+            dbName,
+            scriptName: 'reset.js'
+        });
 
-        // 2. مسح سجل العمليات والتحويلات نهائياً (ترجع زيرو)
+        console.log(`✅ Connected to database "${dbName}"`);
+        if (dryRun) {
+            console.log('🧪 DRY RUN — no financial records will be changed.');
+        }
+
+        const txCount = await Transaction.countDocuments({});
+        const execCount = await ExecutorBot.countDocuments({});
+        const clientCount = await ClientBot.countDocuments({});
+        const userCount = await User.countDocuments({});
+        console.log(`Would wipe ${txCount} transactions and zero ${execCount} executor, ${clientCount} client, ${userCount} user balances.`);
+
+        if (dryRun) {
+            console.log('Dry-run complete. Re-run without DRY_RUN=true to apply.');
+            process.exit(0);
+        }
+
         const deletedTxs = await Transaction.deleteMany({});
-        console.log(`🗑️ تم مسح السجل بالكامل! (عدد العمليات المحذوفة: ${deletedTxs.deletedCount})`);
+        console.log(`🗑️ Transactions deleted: ${deletedTxs.deletedCount}`);
 
-        // 3. تصفير أرصدة بوتات التنفيذ (الوكلاء والفرعيين)
         const execUpdate = await ExecutorBot.updateMany({}, { $set: { balance: 0 } });
-        console.log(`🔄 تم تصفير أرصدة التنفيذ (تم تحديث ${execUpdate.modifiedCount} بوت).`);
+        console.log(`🔄 Executor balances zeroed: ${execUpdate.modifiedCount}`);
 
-        // 4. تصفير أرصدة شركات العملاء
         const clientUpdate = await ClientBot.updateMany({}, { $set: { balance: 0 } });
-        console.log(`🔄 تم تصفير أرصدة شركات العملاء (تم تحديث ${clientUpdate.modifiedCount} شركة).`);
+        console.log(`🔄 Client balances zeroed: ${clientUpdate.modifiedCount}`);
 
-        // 5. تصفير أرصدة العملاء الفرديين
         const userUpdate = await User.updateMany({}, { $set: { balance: 0 } });
-        console.log(`🔄 تم تصفير أرصدة العملاء الفرديين (تم تحديث ${userUpdate.modifiedCount} عميل).`);
+        console.log(`🔄 User balances zeroed: ${userUpdate.modifiedCount}`);
 
-        console.log('\n🎉 مبروك يا هندسة! تم تصفير كل شيء ليرجع النظام "زيرو" كأنه جديد تماماً.');
-        process.exit(0); // إنهاء السكربت بنجاح
+        console.log('\nFinancial reset applied to the confirmed non-production database.');
+        process.exit(0);
     } catch (error) {
-        console.error('❌ حدث خطأ أثناء التصفير:', error);
+        console.error('❌ Financial reset refused or failed:', error.message);
         process.exit(1);
     }
 };

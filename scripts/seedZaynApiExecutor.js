@@ -5,6 +5,8 @@ require('dotenv').config();
 const mongoose = require('mongoose');
 const ExecutorGroup = require('../models/ExecutorGroup');
 const { DEFAULT_API_PROVIDER_KEY, getApiProviderPreset } = require('../utils/apiProviderPresets');
+const { encrypt } = require('../utils/encryption');
+const { DEMO_WARNING, assertDemoScriptAllowed } = require('../utils/scriptSafety');
 
 const required = (value, label) => {
     const clean = String(value || '').trim();
@@ -15,6 +17,8 @@ const required = (value, label) => {
 };
 
 async function main() {
+    assertDemoScriptAllowed('scripts/seedZaynApiExecutor.js');
+
     const mongoUri = required(process.env.MONGO_URI, 'MONGO_URI');
     const apiUsername = required(process.env.ZAYN_EXECUTOR_USERNAME || process.env.ZAYN_USERNAME, 'ZAYN_EXECUTOR_USERNAME');
     const apiPassword = required(process.env.ZAYN_EXECUTOR_PASSWORD || process.env.ZAYN_PASSWORD, 'ZAYN_EXECUTOR_PASSWORD');
@@ -23,7 +27,7 @@ async function main() {
 
     await mongoose.connect(mongoUri, { retryWrites: false });
 
-    const botName = process.env.ZAYN_EXECUTOR_NAME || 'Zayn External Aggregator';
+    const botName = process.env.ZAYN_EXECUTOR_NAME || 'Zayn External Aggregator (demo)';
     const bot = await ExecutorGroup.findOneAndUpdate(
         {
             isApiBot: true,
@@ -43,7 +47,7 @@ async function main() {
                 apiProviderKey: preset.key,
                 apiUrl: process.env.ZAYN_EXECUTOR_API_URL || preset.apiUrl,
                 apiUsername,
-                apiPassword,
+                apiPassword: encrypt(apiPassword),
                 apiServiceId: Number(process.env.ZAYN_EXECUTOR_SERVICE_ID || preset.serviceId),
                 apiProviderId: Number(process.env.ZAYN_EXECUTOR_PROVIDER_ID || preset.providerId),
                 apiFieldId: Number(process.env.ZAYN_EXECUTOR_FIELD_ID || preset.fieldId),
@@ -56,9 +60,11 @@ async function main() {
         { upsert: true, returnDocument: 'after', setDefaultsOnInsert: true }
     );
 
-    console.log(`تم تجهيز منفذ API: ${bot.name}`);
+    console.log(DEMO_WARNING);
+    console.log(`تم تجهيز منفذ API تجريبي: ${bot.name}`);
     console.log(`Provider: ${bot.apiProviderKey}`);
     console.log(`Executor ID: ${bot._id}`);
+    console.log('Provider password was encrypted at rest. Do not commit real provider credentials.');
 }
 
 main()

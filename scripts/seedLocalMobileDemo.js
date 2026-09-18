@@ -4,6 +4,8 @@ require('dotenv').config();
 
 const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
+const crypto = require('crypto');
+const { DEMO_WARNING, assertDemoScriptAllowed } = require('../utils/scriptSafety');
 
 const User = require('../models/User');
 const ClientCompany = require('../models/ClientCompany');
@@ -17,7 +19,7 @@ const SupportTicket = require('../models/SupportTicket');
 const Counter = require('../models/Counter');
 
 const uri = process.env.MONGO_URI || 'mongodb://127.0.0.1:27017/vodafone_cash_system?replicaSet=rs0';
-const password = '12345678';
+const password = process.env.SEED_DEMO_PASSWORD || `DemoOnly-${crypto.randomBytes(9).toString('hex')}`;
 
 const hashPassword = () => bcrypt.hash(password, 12);
 
@@ -162,6 +164,7 @@ const seedTickets = async ({ directUser, subClient, executor }) => {
 };
 
 const main = async () => {
+    assertDemoScriptAllowed('scripts/seedLocalMobileDemo.js');
     await mongoose.connect(uri, { serverSelectionTimeoutMS: 10000 });
 
     const hp = await hashPassword();
@@ -302,6 +305,7 @@ const main = async () => {
     await seedTransactions({ directUser, company, companyOwner, agent, subClient, executorGroup, executor });
     await seedTickets({ directUser, subClient, executor });
 
+    console.log(DEMO_WARNING);
     console.log('Local mobile demo seed completed.');
     console.table([
         { role: 'direct client', username: 'client.direct', phone: '01000000001', password },

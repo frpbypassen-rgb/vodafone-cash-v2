@@ -1,1 +1,4 @@
-{"username":"01000000001","password":"123456"}
+{
+  "username": "01000000001",
+  "password": "local-demo-only-not-a-real-secret"
+}

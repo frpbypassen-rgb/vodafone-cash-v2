@@ -4,14 +4,20 @@
 // تُستخدم عند عدم توفر MongoDB للاختبار والتجريب
 // ====================================================
 
+const crypto = require('crypto');
 const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
 const { MongoMemoryServer } = require('mongodb-memory-server');
+const { DEMO_WARNING, assertDemoScriptAllowed } = require('../utils/scriptSafety');
+const { assignHashedApiKey } = require('../services/merchantCredentialService');
 
 let mongoServer;
 
+const generatePlaceholder = (prefix) => `${prefix}-${crypto.randomBytes(9).toString('hex')}`;
+
 const connectMockDB = async () => {
     try {
+        assertDemoScriptAllowed('config/mockDatabase.js');
         mongoServer = await MongoMemoryServer.create();
         const uri = mongoServer.getUri();
         
@@ -48,7 +54,12 @@ const seedDemoData = async () => {
     const StoreProduct = require('../models/StoreProduct');
     const Card = require('../models/Card');
 
+    const demoPassword = process.env.SEED_DEMO_PASSWORD || generatePlaceholder('DemoOnly');
+    const demoPasswordHash = await bcrypt.hash(demoPassword, 12);
+    const issuedMerchantKeys = [];
+
     console.log('[Seed] 🌱 جاري زرع البيانات التجريبية...');
+    console.log(DEMO_WARNING);
 
     // ── 1. الإعدادات العامة ──
     const settings = await Settings.create({
@@ -65,7 +76,7 @@ const seedDemoData = async () => {
     });
 
     // ── 2. المدير ──
-    const hashedPass = await bcrypt.hash(process.env.PANEL_PASS || 'admin123', 12);
+    const hashedPass = await bcrypt.hash(process.env.PANEL_PASS || demoPassword, 12);
     const admin = await Admin.create({
         telegramId: process.env.ADMIN_TELEGRAM_ID || '123456789',
         name: 'المدير الرئيسي (تجريبي)',
@@ -80,7 +91,7 @@ const seedDemoData = async () => {
     const userPhones = ['01012345678', '01123456789', '01234567890', '01098765432', '01567890123'];
 
     for (let i = 0; i < userNames.length; i++) {
-        const userPass = await bcrypt.hash('test123', 12);
+        const userPass = demoPasswordHash;
         const user = await User.create({
             telegramId: `user_tg_${1000 + i}`,
             name: userNames[i],
@@ -96,9 +107,8 @@ const seedDemoData = async () => {
     }
 
     // ── 4. شركات (بوتات العملاء) ──
-    const company1 = await ClientBot.create({
+    const company1 = new ClientBot({
         name: 'شركة النور للصرافة (تجريبي)',
-        token: 'DEMO_CLIENT_BOT_TOKEN_1',
         phone: '091-1234567',
         tier: 1,
         balance: 15000,
@@ -106,10 +116,11 @@ const seedDemoData = async () => {
         creditLimit: 5000,
         status: 'active'
     });
+    issuedMerchantKeys.push({ name: company1.name, ...assignHashedApiKey(company1, 'token') });
+    await company1.save();
 
-    const company2 = await ClientBot.create({
+    const company2 = new ClientBot({
         name: 'مكتب الأمل (تجريبي)',
-        token: 'DEMO_CLIENT_BOT_TOKEN_2',
         phone: '092-7654321',
         tier: 2,
         balance: 8500,
@@ -117,9 +128,11 @@ const seedDemoData = async () => {
         creditLimit: 2000,
         status: 'active'
     });
+    issuedMerchantKeys.push({ name: company2.name, ...assignHashedApiKey(company2, 'token') });
+    await company2.save();
 
     // ── 5. موظفو الشركات ──
-    const empPass = await bcrypt.hash('test123', 12);
+    const empPass = demoPasswordHash;
     const compEmp1 = await ClientEmployee.create({
         telegramId: 'comp_emp_tg_001',
         companyId: company1._id,
@@ -171,8 +184,8 @@ const seedDemoData = async () => {
     });
 
     const zaynApiBot = await ExecutorBot.create({
-        name: 'بوابة ZaynPay الآلية',
-        token: 'ZAYNPAY_API_GROUP_TOKEN',
+        name: 'بوابة ZaynPay الآلية (تجريبي)',
+        token: generatePlaceholder('demo-zayn-token'),
         status: 'active',
         balance: 50000,
         isManagerBot: false,
@@ -181,8 +194,8 @@ const seedDemoData = async () => {
     });
 
     // ── 7. موظفو التنفيذ ──
-    const execEmpPass = await bcrypt.hash('test123', 12);
-    const zaynApiPass = await bcrypt.hash('MyKids0124', 12);
+    const execEmpPass = demoPasswordHash;
+    const zaynApiPass = demoPasswordHash;
 
     const execEmp1 = await Employee.create({
         telegramId: 'exec_emp_tg_001',
@@ -199,7 +212,7 @@ const seedDemoData = async () => {
     await Employee.create({
         telegramId: 'zayn_api_tg',
         name: 'Zayn Api',
-        phone: '01096580417',
+        phone: '01000000017',
         role: 'operator',
         status: 'active',
         botId: zaynApiBot._id,
@@ -349,26 +362,13 @@ const seedDemoData = async () => {
     ]);
 
     console.log('[Seed] ✅ تم زرع البيانات التجريبية بنجاح!');
-    console.log('');
-    console.log('╔═══════════════════════════════════════════════════════╗');
-    console.log('║  🧪  بيانات الدخول التجريبية (Demo Credentials)      ║');
-    console.log('╠═══════════════════════════════════════════════════════╣');
-    console.log(`║  🔑 لوحة الإدارة:                                    ║`);
-    console.log(`║     المستخدم: ${(process.env.PANEL_USER || 'admin').padEnd(38)}║`);
-    console.log(`║     كلمة المرور: ${(process.env.PANEL_PASS || 'admin123').padEnd(35)}║`);
-    console.log('║                                                       ║');
-    console.log('║  👤 موقع العميل (أفراد):                              ║');
-    console.log('║     المستخدم: client1  |  كلمة المرور: test123        ║');
-    console.log('║     (client1 حتى client5)                             ║');
-    console.log('║                                                       ║');
-    console.log('║  🏢 موقع العميل (شركة):                               ║');
-    console.log('║     المستخدم: comp_emp1  |  كلمة المرور: test123      ║');
-    console.log('║                                                       ║');
-    console.log('║  ⚙️  موقع التنفيذ:                                    ║');
-    console.log('║     المستخدم: exec_mgr1  |  كلمة المرور: test123     ║');
-    console.log('║     المستخدم: exec_op1   |  كلمة المرور: test123     ║');
-    console.log('╚═══════════════════════════════════════════════════════╝');
-    console.log('');
+    console.log(DEMO_WARNING);
+    console.log('Demo usernames: admin / client1 / comp_emp1 / exec_mgr1 / zaynapi@ahram.com');
+    console.log(`Demo password (printed once, not committed): ${process.env.PANEL_PASS || demoPassword}`);
+    console.log('Set SEED_DEMO_PASSWORD to reuse a local placeholder. Operators must set real secrets out of band.');
+    issuedMerchantKeys.forEach((issued) => {
+        console.log(`Merchant API key for ${issued.name} (printed once): ${issued.apiKey}`);
+    });
 };
 
 const stopMockDB = async () => {
