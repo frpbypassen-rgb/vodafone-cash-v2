@@ -466,6 +466,9 @@
             }
         });
     });
+    document.querySelector('[data-service-gallery-jump]')?.addEventListener('click', () => {
+        document.getElementById('serviceGallery')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
     transferAmount?.addEventListener('input', () => updateCostEstimate());
     transferAmountLyd?.addEventListener('input', () => {
         if (!activeService || !transferAmount) return;
