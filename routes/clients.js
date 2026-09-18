@@ -9,7 +9,7 @@ const Transaction = require('../models/Transaction');
 const Ledger = require('../models/Ledger');
 const ClientEmployee = require('../models/ClientEmployee');
 const SubAccount = require('../models/SubAccount');
-const { requireAuth, requireMaster } = require('../middlewares/auth');
+const { requireAuth, requireMaster, requirePermission } = require('../middlewares/auth');
 const {
     updateBalanceWithLedger,
     isMongoTransactionFallbackError,
@@ -45,6 +45,7 @@ const {
 const { provisionSandboxMerchant } = require('../services/sandboxMerchantProvisioningService');
 const { tenantScope, tenantWriteId } = require('../utils/tenantScope');
 const { assignHashedApiKey } = require('../services/merchantCredentialService');
+const { compareClientBehavior } = require('../services/clientBehaviorComparisonService');
 
 const accountCodeErrorQuery = (error) => {
     if (error.message === 'ACCOUNT_CODE_DUPLICATE') return 'duplicate';
@@ -355,6 +356,27 @@ router.get('/clients', requireAuth, async (req, res) => {
     } catch (e) {
         console.error('[clients] خطأ في جلب بيانات العملاء:', e.message);
         res.status(500).send('خطأ داخلي في الخادم');
+    }
+});
+
+const allowClientInsight = (req, res, next) => {
+    if (!req.session?.isLoggedIn) return requireAuth(req, res, next);
+    if (req.session.adminRole === 'master') return next();
+    const permissions = new Set(req.session.adminPermissions || []);
+    if (permissions.has('*') || permissions.has('accounts.read') || permissions.has('transactions.read')) {
+        return next();
+    }
+    return res.status(403).json({ success: false, error: 'ليس لديك صلاحية عرض مقارنة السلوك.' });
+};
+
+router.get('/api/admin/clients/:id/behavior-comparison', requireAuth, allowClientInsight, async (req, res) => {
+    try {
+        const type = String(req.query.type || 'user').toLowerCase() === 'company' ? 'company' : 'user';
+        const comparison = await compareClientBehavior(req, { id: req.params.id, type });
+        if (!comparison) return res.status(404).json({ success: false, error: 'الحساب غير موجود.' });
+        return res.json({ success: true, ...comparison });
+    } catch (_) {
+        return res.status(500).json({ success: false, error: 'تعذر تحميل مقارنة السلوك.' });
     }
 });
 

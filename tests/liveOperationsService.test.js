@@ -52,6 +52,20 @@ describe('live operations service', () => {
         });
         expect(row.security.largeAmount).toBe(true);
         expect(row.error).toEqual({ code: 'GATEWAY_TIMEOUT', message: 'Gateway unavailable' });
+        expect(row.originCountry).toBe('');
+        expect(row.companyId).toBe('');
+        expect(row.userKey).toBe('');
         expect(JSON.stringify(row)).not.toContain('must-not-leak');
+    });
+
+    test('exposes company and user keys for behavior comparison', () => {
+        const row = mapLiveTransaction({
+            _id: 'tx-2', customId: 'ATT-002', status: 'completed', transferType: 'vodafone',
+            amount: 120, userId: '0910000001', companyId: '64b0000000000000000000cc',
+            originCountry: 'LY', createdAt: new Date('2026-09-18T10:00:00Z')
+        });
+        expect(row.userKey).toBe('0910000001');
+        expect(row.companyId).toBe('64b0000000000000000000cc');
+        expect(row.originCountry).toBe('LY');
     });
 });

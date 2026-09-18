@@ -10,6 +10,8 @@ const {
     getTransactionDetail,
     listLiveTransactions
 } = require('../services/liveOperationsService');
+const { getGeoHeatmap } = require('../services/opsGeoHeatmapService');
+const { compareClientBehavior } = require('../services/clientBehaviorComparisonService');
 
 const readAccess = [requireAuth, requirePermission('transactions.read')];
 const csvCell = (value) => {
@@ -31,6 +33,27 @@ router.get('/transactions/live', ...readAccess, (req, res) => res.render('live_o
     adminName: req.session.adminName,
     csrfToken: res.locals.csrfToken || ''
 }));
+
+router.get('/api/admin/ops/geo-heatmap', ...readAccess, async (req, res) => {
+    try {
+        const heatmap = await getGeoHeatmap(req);
+        return res.json({ success: true, ...heatmap });
+    } catch (_) {
+        return res.status(500).json({ success: false, error: 'تعذر تحميل الخريطة الحرارية.' });
+    }
+});
+
+router.get('/api/admin/ops/behavior-comparison', ...readAccess, async (req, res) => {
+    try {
+        const type = String(req.query.type || 'user').toLowerCase() === 'company' ? 'company' : 'user';
+        const id = String(req.query.id || '').trim();
+        const comparison = await compareClientBehavior(req, { id, type });
+        if (!comparison) return res.status(404).json({ success: false, error: 'الحساب غير موجود.' });
+        return res.json({ success: true, ...comparison });
+    } catch (_) {
+        return res.status(500).json({ success: false, error: 'تعذر تحميل مقارنة السلوك.' });
+    }
+});
 
 router.get('/api/transactions/live', ...readAccess, async (req, res) => {
     try {

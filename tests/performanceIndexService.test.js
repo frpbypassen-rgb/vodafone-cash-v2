@@ -40,6 +40,20 @@ describe('performanceIndexService', () => {
                 })
             })
         ]));
+        expect(Transaction.collection.createIndexes).toHaveBeenCalledWith(expect.arrayContaining([
+            expect.objectContaining({
+                name: 'opsGeo_tenant_originCountry_createdAt',
+                key: expect.objectContaining({ tenantId: 1, originCountry: 1, createdAt: -1 })
+            }),
+            expect.objectContaining({
+                name: 'opsBehavior_tenant_user_createdAt',
+                key: expect.objectContaining({ tenantId: 1, userId: 1, createdAt: -1 })
+            }),
+            expect.objectContaining({
+                name: 'opsBehavior_tenant_company_createdAt',
+                key: expect.objectContaining({ tenantId: 1, companyId: 1, createdAt: -1 })
+            })
+        ]));
         expect(logger.info).toHaveBeenCalled();
     });
 

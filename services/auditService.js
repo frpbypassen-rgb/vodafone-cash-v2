@@ -1,6 +1,8 @@
 const crypto = require('crypto');
 const AuditLog = require('../models/AuditLog');
 const { acquireLock, releaseLock } = require('./lockService');
+const { extractRequestCountry } = require('../utils/requestGeo');
+const { tenantWriteId } = require('../utils/tenantScope');
 
 const calculateHash = (entry, previousHash) => {
     const data = {
@@ -11,6 +13,8 @@ const calculateHash = (entry, previousHash) => {
         targetId: entry.targetId ? entry.targetId.toString() : null,
         targetModel: entry.targetModel,
         ipAddress: entry.ipAddress,
+        countryCode: entry.countryCode,
+        tenantId: entry.tenantId,
         userAgent: entry.userAgent,
         endpoint: entry.endpoint,
         oldData: entry.oldData,
@@ -146,6 +150,8 @@ const logAction = async (params) => {
             targetId: targetId || null,
             targetModel: targetModel || null,
             ipAddress,
+            countryCode: extractRequestCountry(req) || undefined,
+            tenantId: tenantWriteId(req) || undefined,
             userAgent,
             endpoint,
             oldData: oldData ? sanitizeData(oldData) : undefined,

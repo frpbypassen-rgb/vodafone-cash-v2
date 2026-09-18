@@ -35,6 +35,7 @@ const requireIdempotencyKey = require('../middlewares/requireIdempotencyKey');
 const { acquireLock, releaseLock } = require('../services/lockService');
 const { logAction } = require('../services/auditService');
 const { findMerchantByApiKey } = require('../services/merchantCredentialService');
+const { applyRequestGeo } = require('../utils/requestGeo');
 
 const MERCHANT_TRANSFER_MIN_AMOUNT = 100;
 const MERCHANT_TRANSFER_MAX_AMOUNT = 50000;
@@ -419,7 +420,8 @@ router.post('/transfer', merchantApiAuth, merchantTransferLimiter, requireIdempo
                 executorGroupId: undefined,
                 serviceDetails: receiptWhatsAppNumber ? { clientPhone: receiptWhatsAppNumber } : undefined,
                 idempotencyKey,
-                idempotencyFingerprint
+                idempotencyFingerprint,
+                originCountry: applyRequestGeo({}, req)
             };
             if (autoRouteExecutor) applyAutoRouteFields(txData, autoRouteExecutor);
             const tx = session

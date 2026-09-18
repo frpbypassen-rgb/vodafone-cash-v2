@@ -16,6 +16,7 @@ const Counter = require('../../../models/Counter');
 const Settings = require('../../../models/Settings');
 const SubAccount = require('../../../models/SubAccount');
 const { logAction } = require('../../../services/auditService');
+const { applyRequestGeo } = require('../../../utils/requestGeo');
 const { getRateForTier, getServiceRatesForTier, getCompanyServiceRates } = require('../../../utils/rateHelper');
 const { calculateAgencyPricing } = require('../../../utils/agencyPricing');
 const { calculateTransferCostLYD, getTransferPricingDefinition } = require('../../../utils/transferPricing');
@@ -568,7 +569,8 @@ export class TransferService {
                 idCardImage: savedIdCardPath,
                 oldReceiptImage: savedOldReceiptPath,
                 executorGroupId: undefined,
-                tenantId: (req && req.tenant) ? req.tenant._id : undefined
+                tenantId: (req && req.tenant) ? req.tenant._id : undefined,
+                originCountry: applyRequestGeo({}, req)
             });
             if (autoRouteExecutor) applyAutoRouteFields(newTx, autoRouteExecutor);
 

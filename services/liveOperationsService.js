@@ -26,7 +26,7 @@ const DISPLAY_PROJECTION = [
     'userId', 'companyId', 'subAccountId', 'companyName', 'employeeName',
     'subAccountName', 'accountName', 'vodafoneNumber', 'accountNumber',
     'serviceDetails.clientPhone', 'serviceDetails.destinationLabel',
-    'executorName', 'executorGroupName', 'assignedExecutorName', 'createdAt',
+    'executorName', 'executorGroupName', 'assignedExecutorName', 'originCountry', 'createdAt',
     'updatedAt', 'completedAt', 'executorReceivedAt', 'assignedExecutorAt',
     'cancelledAt', 'cancellationReason', 'cancellationNumber', 'apiResultData'
 ].join(' ');
@@ -151,6 +151,9 @@ const mapLiveTransaction = (transaction, audit = null) => {
         customer: transactionCustomer(transaction),
         recipient: transactionRecipient(transaction),
         executor: transaction.executorName || transaction.assignedExecutorName || transaction.executorGroupName || 'غير محدد',
+        companyId: transaction.companyId ? String(transaction.companyId) : '',
+        userKey: transaction.userId || '',
+        originCountry: transaction.originCountry || '',
         createdAt: transaction.createdAt,
         updatedAt: transaction.updatedAt,
         completedAt: transaction.completedAt,
