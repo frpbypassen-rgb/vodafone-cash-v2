@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title><%= title %> | أثناء التنقل</title>
+    <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/css/corporate-mobile.css">
+    <script>
+        window.corporatePortal = <%- JSON.stringify(bootstrap) %>;
+    </script>
+    <script defer src="/js/corporate-mobile.js"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.8/dist/cdn.min.js"></script>
+</head>
+<body class="cp-mobile" x-data="corporateMobile">
+    <header class="cm-top">
+        <h1>بوابة الشركات</h1>
+        <p><%= actorName %> · <%= roleLabel %> · <%= branding %></p>
+    </header>
+    <div class="cm-offline" :class="{ show: cachedBanner || offline }">بيانات مخزّنة — قد لا تكون أحدث رصيد حي.</div>
+
+    <section class="cm-home" x-show="tab === 'home'">
+        <button class="cm-cta" type="button" @click="tab = homeCta().tab" x-text="homeCta().label"></button>
+        <article class="cm-card">
+            <h2>ملخص سريع</h2>
+            <div class="cm-kpi"><span>معلق</span><strong x-text="kpis.pendingCount || 0"></strong></div>
+            <div class="cm-kpi"><span>منفّذ</span><strong x-text="kpis.executedCount || 0"></strong></div>
+            <div class="cm-kpi"><span>الرصيد</span><strong><%= balance === null ? '—' : Number(balance).toLocaleString('en-US') %></strong></div>
+        </article>
+        <article class="cm-card">
+            <h2>مساعد القواعد</h2>
+            <p class="cm-demo" x-text="insights.disclaimer || 'قواعد/تقديرات'"></p>
+            <p x-show="insights.suggestedBeneficiary">الأكثر استخداماً: <span x-text="insights.suggestedBeneficiary && insights.suggestedBeneficiary.name"></span></p>
+        </article>
+        <a href="/corporate?view=desktop">فتح مركز القيادة</a>
+    </section>
+
+    <% if (permissions.canTransfer) { %>
+    <section class="cm-list" x-show="tab === 'transfers'">
+        <div class="cm-steps">
+            <span :class="{ on: step >= 1 }"></span>
+            <span :class="{ on: step >= 2 }"></span>
+        </div>
+        <form class="cm-form" @submit.prevent="step === 1 ? step = 2 : confirmOpen = true">
+            <template x-if="step === 1">
+                <div class="cm-form">
+                    <select x-model="form.beneficiaryId" required>
+                        <option value="">المستفيد المعتمد</option>
+                        <template x-for="item in beneficiaries.filter(b => b.status === 'approved')" :key="item.id">
+                            <option :value="item.id" x-text="item.name"></option>
+                        </template>
+                    </select>
+                    <button class="cm-btn" type="button" @click="captureOcr()">تصوير فاتورة / OCR</button>
+                    <input id="cm-ocr-input" class="hidden" type="file" accept="image/*" capture="environment" @change="onOcrFile($event)">
+                    <p class="cm-demo" x-text="ocrLabel"></p>
+                    <button class="cm-btn" type="submit">التالي — المبلغ</button>
+                </div>
+            </template>
+            <template x-if="step === 2">
+                <div class="cm-form">
+                    <input type="number" min="0.01" step="0.01" placeholder="المبلغ" x-model="form.amount" required>
+                    <textarea placeholder="بيان اختياري" x-model="form.notes"></textarea>
+                    <button class="cm-btn" type="button" @click="step = 1">رجوع</button>
+                    <button class="cm-btn danger" type="submit">تأكيد</button>
+                </div>
+            </template>
+        </form>
+        <p x-text="message"></p>
+    </section>
+    <% } %>
+
+    <% if (permissions.canApprove) { %>
+    <section class="cm-list" x-show="tab === 'approvals'">
+        <template x-for="item in pending" :key="item.id">
+            <article class="cm-item">
+                <strong x-text="item.beneficiary?.name"></strong>
+                <span x-text="item.amount + ' EGP • ' + item.reference"></span>
+                <button class="cm-btn" type="button" @click="approve(item.id)">اعتماد</button>
+                <button class="cm-btn danger" type="button" @click="reject(item.id)">رفض</button>
+            </article>
+        </template>
+        <p x-show="!pending.length">لا توجد عمليات معلّقة.</p>
+    </section>
+    <% } %>
+
+    <section class="cm-list" x-show="tab === 'reports'">
+        <article class="cm-card">
+            <h2>تصدير دورك</h2>
+            <button class="cm-btn" type="button" @click="exportReport()">تنزيل CSV</button>
+        </article>
+        <template x-for="item in requests" :key="item.id">
+            <article class="cm-item">
+                <strong x-text="item.reference"></strong>
+                <span x-text="item.status + ' — ' + item.amount"></span>
+            </article>
+        </template>
+    </section>
+
+    <div class="cm-sheet" x-show="confirmOpen">
+        <h2>تأكيد التحويل</h2>
+        <p>المبلغ: <span x-text="form.amount"></span> إلى مستفيد معتمد فقط.</p>
+        <p class="cm-demo">التأكيد يستخدم WebAuthn إن وُجد، وإلا كلمة المرور.</p>
+        <button class="cm-btn danger" type="button" @click="submitTransfer()">تنفيذ</button>
+        <button class="cm-btn" type="button" @click="confirmOpen = false">إلغاء</button>
+    </div>
+
+    <nav class="cm-nav" aria-label="تنقل سفلي">
+        <button type="button" :class="{ active: tab === 'home' }" @click="tab = 'home'">الرئيسية</button>
+        <% if (permissions.canTransfer) { %>
+        <button type="button" :class="{ active: tab === 'transfers' }" @click="tab = 'transfers'">تحويل</button>
+        <% } else { %>
+        <button type="button" :class="{ active: tab === 'reports' }" @click="tab = 'reports'">عمليات</button>
+        <% } %>
+        <% if (permissions.canApprove) { %>
+        <button type="button" :class="{ active: tab === 'approvals' }" @click="tab = 'approvals'">اعتماد</button>
+        <% } else { %>
+        <button type="button" :class="{ active: tab === 'home' }" @click="tab = 'home'">ملخص</button>
+        <% } %>
+        <button type="button" :class="{ active: tab === 'reports' }" @click="tab = 'reports'">تقارير</button>
+    </nav>
+</body>
+</html>

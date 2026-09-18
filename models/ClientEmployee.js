@@ -24,6 +24,10 @@ const clientEmployeeSchema = new mongoose.Schema({
     otpIssuedAt: { type: Date },
     otpAttempts: { type: Number, default: 0 },
     role: { type: String, enum: ['owner', 'employee', 'accountant'], default: 'employee' },
+    // بوابة الشركات — أدوار مستقلة عن بوابة العميل الحالية مع نفس جلسة الشركة
+    corporateRole: { type: String, enum: ['manager', 'employee', 'accountant'], default: undefined },
+    approvalLimit: { type: Number, default: null },
+    corporatePortalEnabled: { type: Boolean, default: false },
     canViewAllReports: { type: Boolean, default: false }, // السماح برؤية جميع تقارير الشركة
     canManageCompany: { type: Boolean, default: false }, // صلاحيات مدير تشغيل بدون إنشاء حسابات
     canCreateCompanyStaff: { type: Boolean, default: false }, // مالك الشركة فقط ينشئ حسابات الموظفين
@@ -38,6 +42,8 @@ const clientEmployeeSchema = new mongoose.Schema({
 }, { timestamps: true });
 
 clientEmployeeSchema.index({ tenantId: 1, companyId: 1 });
+clientEmployeeSchema.index({ companyId: 1, corporateRole: 1, status: 1 });
+clientEmployeeSchema.index({ companyId: 1, corporatePortalEnabled: 1 });
 
 // 🔐 تشفير كلمة المرور قبل الحفظ
 clientEmployeeSchema.pre('save', async function() {

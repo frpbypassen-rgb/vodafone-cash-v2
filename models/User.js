@@ -17,6 +17,10 @@ const userSchema = new mongoose.Schema({
     profilePhotoKey: { type: String, trim: true, default: '' },
     profilePhotoUpdatedAt: { type: Date },
     role: { type: String, default: 'user' }, // user | accountant
+    companyId: { type: mongoose.Schema.Types.ObjectId, ref: 'ClientCompany' },
+    corporateRole: { type: String, enum: ['manager', 'employee', 'accountant'], default: undefined },
+    approvalLimit: { type: Number, default: null },
+    corporatePortalEnabled: { type: Boolean, default: false },
     businessProfile: {
         contactName: { type: String, trim: true, default: '' },
         email: { type: String, trim: true, lowercase: true, default: '' },
@@ -68,5 +72,6 @@ userSchema.pre('save', async function() {
 // webUsername لديه unique بالفعل في الشيما
 userSchema.index({ status: 1 });                        // فلتر الحسابات النشيطة
 userSchema.index({ tenantId: 1 });
+userSchema.index({ companyId: 1, corporateRole: 1 });
 
 module.exports = mongoose.model('User', userSchema);

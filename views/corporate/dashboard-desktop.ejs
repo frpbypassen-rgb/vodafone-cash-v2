@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title><%= title %> | مركز قيادة الشركات</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/css/corporate-desktop.css">
+    <script>
+        window.corporatePortal = <%- JSON.stringify(bootstrap) %>;
+    </script>
+    <script defer src="/js/corporate-desktop.js"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.8/dist/cdn.min.js"></script>
+</head>
+<body class="cp-desktop" x-data="corporateDesktop">
+    <div class="cp-shell">
+        <aside class="cp-sidebar">
+            <a class="cp-brand" href="/corporate">
+                <i class="fa-solid fa-briefcase"></i>
+                <span>
+                    <strong>بوابة الشركات</strong>
+                    <small><%= branding %></small>
+                </span>
+            </a>
+            <div class="cp-role-chip">
+                <%= actorName %> — <%= roleLabel %>
+                <div>حد الاعتماد: <%= Number(approvalLimit || 0).toLocaleString('en-US') %> EGP</div>
+            </div>
+            <nav class="cp-nav" aria-label="أقسام مركز القيادة">
+                <button type="button" :class="{ active: tab === 'home' }" @click="tab = 'home'">الرئيسية</button>
+                <% if (permissions.canTransfer) { %>
+                <button type="button" :class="{ active: tab === 'transfers' }" @click="tab = 'transfers'">التحويلات</button>
+                <% } %>
+                <% if (permissions.canApprove) { %>
+                <button type="button" :class="{ active: tab === 'approvals' }" @click="tab = 'approvals'">الاعتمادات</button>
+                <% } %>
+                <button type="button" :class="{ active: tab === 'reports' }" @click="tab = 'reports'">التقارير</button>
+                <% if (permissions.canAddBeneficiaries) { %>
+                <button type="button" :class="{ active: tab === 'beneficiaries' }" @click="tab = 'beneficiaries'">المستفيدون</button>
+                <% } %>
+                <% if (permissions.canViewStaff) { %>
+                <button type="button" :class="{ active: tab === 'team' }" @click="tab = 'team'">الفريق</button>
+                <% } %>
+                <a href="/client/dashboard">بوابة العميل</a>
+                <a href="/client/logout">خروج</a>
+            </nav>
+            <div class="cp-shortcuts">
+                اختصارات لوحة المفاتيح:<br>
+                Ctrl/Cmd+1 الرئيسية<br>
+                Ctrl/Cmd+2 التحويلات<br>
+                Ctrl/Cmd+3 الاعتمادات<br>
+                Ctrl/Cmd+4 التقارير
+            </div>
+        </aside>
+
+        <header class="cp-topbar">
+            <h1>مركز القيادة — <%= roleLabel %></h1>
+            <div>
+                <span class="cp-offline" :class="{ show: offline }">بيانات مخزّنة</span>
+                <a class="cp-btn ghost" href="/corporate?view=mobile">عرض الجوال</a>
+            </div>
+        </header>
+
+        <main class="cp-main">
+            <section class="cp-kpis">
+                <article class="cp-kpi"><span>معلق</span><strong x-text="kpis.pendingCount || 0"></strong></article>
+                <article class="cp-kpi"><span>منفّذ</span><strong x-text="kpis.executedCount || 0"></strong></article>
+                <article class="cp-kpi"><span>حجم منفّذ</span><strong x-text="(kpis.volume || 0).toLocaleString('en-US')"></strong></article>
+                <article class="cp-kpi">
+                    <span>الرصيد</span>
+                    <strong><%= balance === null ? '—' : Number(balance).toLocaleString('en-US') %></strong>
+                </article>
+            </section>
+
+            <section class="cp-panel">
+                <header>
+                    <strong x-show="tab === 'home'">جدول العمليات</strong>
+                    <strong x-show="tab === 'transfers'">إنشاء تحويل</strong>
+                    <strong x-show="tab === 'approvals'">طابور الاعتماد</strong>
+                    <strong x-show="tab === 'reports'">التقارير والتدقيق</strong>
+                    <strong x-show="tab === 'beneficiaries'">المستفيدون المعتمدون</strong>
+                    <strong x-show="tab === 'team'">صلاحيات الفريق</strong>
+                    <button class="cp-btn" type="button" @click="refresh()">تحديث</button>
+                </header>
+
+                <div class="cp-table-wrap" x-show="tab === 'home' || tab === 'approvals' || tab === 'reports'">
+                    <table class="cp-table">
+                        <thead>
+                            <tr>
+                                <th class="sticky-1">المستفيد</th>
+                                <th class="sticky-2">الحالة</th>
+                                <th class="sticky-3">المبلغ</th>
+                                <th>المرجع</th>
+                                <th>مقدم الطلب</th>
+                                <th>المعتمد</th>
+                                <th>مطابقة</th>
+                                <th>التاريخ</th>
+                                <th>إجراء</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <template x-for="item in (tab === 'approvals' ? pending : requests)" :key="item.id">
+                                <tr>
+                                    <td class="sticky-1" x-text="item.beneficiary?.name || '—'"></td>
+                                    <td class="sticky-2"><span class="cp-badge" :class="item.status" x-text="item.status"></span></td>
+                                    <td class="sticky-3" x-text="Number(item.amount || 0).toLocaleString('en-US')"></td>
+                                    <td x-text="item.reference"></td>
+                                    <td x-text="item.requesterName"></td>
+                                    <td x-text="item.approverName || '—'"></td>
+                                    <td x-text="item.reconciled ? 'نعم' : 'لا'"></td>
+                                    <td x-text="item.createdAt"></td>
+                                    <td>
+                                        <div class="cp-actions">
+                                            <% if (permissions.canApprove) { %>
+                                            <button class="cp-btn" type="button" x-show="item.status === 'pending_approval'" @click="openReview(item)">مراجعة</button>
+                                            <% } %>
+                                            <% if (permissions.canAnnotate) { %>
+                                            <button class="cp-btn" type="button" @click="noteBody = 'ملاحظة ' + item.reference; addNote(item.id)">ملاحظة</button>
+                                            <% } %>
+                                            <% if (permissions.canReconcile) { %>
+                                            <button class="cp-btn" type="button" x-show="!item.reconciled" @click="reconcile(item.id)">مطابقة</button>
+                                            <% } %>
+                                        </div>
+                                    </td>
+                                </tr>
+                            </template>
+                        </tbody>
+                    </table>
+                </div>
+
+                <% if (permissions.canTransfer) { %>
+                <form class="cp-form" x-show="tab === 'transfers'" @submit.prevent="createTransfer()">
+                    <select x-model="form.beneficiaryId" required>
+                        <option value="">اختر مستفيداً معتمداً</option>
+                        <template x-for="item in beneficiaries.filter(b => b.status === 'approved')" :key="item.id">
+                            <option :value="item.id" x-text="item.name + ' ••••' + item.accountNumberLast4"></option>
+                        </template>
+                    </select>
+                    <input type="number" min="0.01" step="0.01" placeholder="المبلغ EGP" x-model="form.amount" required>
+                    <textarea placeholder="بيان" x-model="form.notes"></textarea>
+                    <button class="cp-btn primary" type="submit">إرسال التحويل</button>
+                    <p x-text="message"></p>
+                </form>
+                <% } %>
+
+                <% if (permissions.canAddBeneficiaries) { %>
+                <form class="cp-form" x-show="tab === 'beneficiaries'" @submit.prevent="addBeneficiary()">
+                    <input placeholder="اسم المستفيد" x-model="form.name" required>
+                    <input placeholder="رقم الحساب / المحفظة" x-model="form.accountNumber" required>
+                    <select x-model="form.serviceType">
+                        <option value="vodafone">محفظة كاش</option>
+                        <option value="bank_account">حساب بنكي</option>
+                        <option value="post_account">بريد حساب</option>
+                    </select>
+                    <button class="cp-btn primary" type="submit">إضافة مستفيد معتمد</button>
+                </form>
+                <% } %>
+
+                <% if (permissions.canAssignPermissions) { %>
+                <form class="cp-form" x-show="tab === 'team'" @submit.prevent="assignStaff()">
+                    <select x-model="staffForm.id" required>
+                        <option value="">اختر موظفاً</option>
+                        <template x-for="member in staff" :key="member.id">
+                            <option :value="member.id" x-text="member.name + ' — ' + member.role"></option>
+                        </template>
+                    </select>
+                    <select x-model="staffForm.corporateRole">
+                        <option value="manager">مدير</option>
+                        <option value="employee">موظف</option>
+                        <option value="accountant">محاسب</option>
+                    </select>
+                    <input type="number" min="0" x-model="staffForm.approvalLimit" placeholder="حد الاعتماد">
+                    <button class="cp-btn primary" type="submit">حفظ الصلاحيات</button>
+                </form>
+                <% } %>
+
+                <div class="cp-form" x-show="tab === 'reports'">
+                    <button class="cp-btn primary" type="button" @click="exportReport()">تصدير CSV حسب الدور</button>
+                    <% if (permissions.canUploadInvoices) { %>
+                    <div class="cp-drop"
+                         @dragover="onDragOver($event)"
+                         @dragleave="onDragLeave($event)"
+                         @drop="onDrop($event)">
+                        اسحب فاتورة أو مستنداً هنا (محاسب)<br>
+                        <small>PDF / صورة حتى 5MB</small>
+                    </div>
+                    <% } %>
+                </div>
+            </section>
+
+            <aside class="cp-side">
+                <header><strong>مساعد القواعد</strong></header>
+                <div class="cp-insight">
+                    <em x-text="insights.disclaimer || 'قواعد/تقديرات'"></em>
+                    <template x-if="insights.suggestedBeneficiary">
+                        <p>المستفيد الأكثر تكراراً: <span x-text="insights.suggestedBeneficiary.name"></span></p>
+                    </template>
+                    <template x-if="insights.cashFlowProjection">
+                        <p>تقدير أسبوع: <span x-text="insights.cashFlowProjection.estimatedOutflow"></span></p>
+                    </template>
+                    <template x-for="tip in (insights.liquidityTips || [])" :key="tip">
+                        <p x-text="tip"></p>
+                    </template>
+                    <template x-for="flag in (insights.anomalies || [])" :key="flag.reference">
+                        <p>⚠ <span x-text="flag.reference"></span> — <span x-text="flag.reason"></span></p>
+                    </template>
+                    <template x-for="dup in (insights.duplicateInvoices || [])" :key="dup.invoiceId">
+                        <p>فاتورة مكررة محتملة: <span x-text="dup.vendorName"></span></p>
+                    </template>
+                </div>
+            </aside>
+        </main>
+    </div>
+
+    <div class="cp-modals">
+        <template x-for="modal in reviewModals" :key="modal.id">
+            <article class="cp-modal">
+                <header>
+                    <strong x-text="modal.reference"></strong>
+                    <button class="cp-btn ghost" type="button" @click="closeReview(modal.id)">إغلاق</button>
+                </header>
+                <p x-text="(modal.beneficiary?.name || '') + ' — ' + modal.amount"></p>
+                <textarea x-model="rejectReason" placeholder="سبب الرفض"></textarea>
+                <div class="cp-actions">
+                    <button class="cp-btn primary" type="button" @click="approve(modal.id)">اعتماد وتنفيذ</button>
+                    <button class="cp-btn danger" type="button" @click="reject(modal.id)">رفض</button>
+                </div>
+            </article>
+        </template>
+    </div>
+</body>
+</html>
