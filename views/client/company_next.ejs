@@ -3,14 +3,13 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-    <meta name="theme-color" content="#f6f8fc">
+    <meta name="theme-color" content="#ffffff">
     <title>واجهة الشركات الجديدة | الأهرام Pay</title>
-    <script>document.documentElement.dataset.theme=localStorage.getItem('company-next-theme')||'light';</script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800;900&family=JetBrains+Mono:wght@600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css">
-    <link rel="stylesheet" href="/css/company-next.css?v=20260918-1">
+    <link rel="stylesheet" href="/css/company-next.css?v=20260918-white-1">
 </head>
 <body>
 <div class="cn-layout">
@@ -35,7 +34,6 @@
             <div class="cn-topbar-title"><button type="button" data-menu-open aria-label="فتح القائمة"><i class="fa-solid fa-bars"></i></button><div><small>مساحة عمل الشركة</small><strong><%= workspace.entity.name %></strong></div></div>
             <div class="cn-topbar-actions">
                 <span class="cn-live <%= systemOpen?'':'off' %>"><i></i><%= systemOpen?'الخدمة متاحة':'الخدمة متوقفة' %></span>
-                <button type="button" data-theme aria-label="تغيير المظهر"><i class="fa-solid fa-moon"></i></button>
                 <a href="/client/dashboard?home=1" class="cn-old-link"><i class="fa-solid fa-arrow-rotate-left"></i><span>الواجهة الحالية</span></a>
             </div>
         </header>
@@ -77,10 +75,9 @@
 </div>
 <nav class="cn-mobile-nav" aria-label="التنقل على الهاتف"><a class="active" href="/client/company-next"><i class="fa-solid fa-house"></i><span>الرئيسية</span></a><% if(workspace.permissions.canTransfer){ %><a href="/client/services"><i class="fa-solid fa-paper-plane"></i><span>تحويل</span></a><% } %><a href="/client/transactions"><i class="fa-solid fa-receipt"></i><span>العمليات</span></a><a href="/client/settings/workspace"><i class="fa-solid fa-user"></i><span>الحساب</span></a></nav>
 <script>
-const root=document.documentElement,sidebar=document.getElementById('companyNextSidebar');
+const sidebar=document.getElementById('companyNextSidebar');
 document.querySelector('[data-menu-open]')?.addEventListener('click',()=>document.body.classList.add('menu-open'));
 document.querySelector('[data-menu-close]')?.addEventListener('click',()=>document.body.classList.remove('menu-open'));
-document.querySelector('[data-theme]')?.addEventListener('click',()=>{root.dataset.theme=root.dataset.theme==='dark'?'light':'dark';localStorage.setItem('company-next-theme',root.dataset.theme)});
 document.querySelector('[data-privacy]')?.addEventListener('click',event=>{const value=document.querySelector('[data-sensitive]'),hidden=value?.classList.toggle('hidden');event.currentTarget.innerHTML=hidden?'<i class="fa-solid fa-eye-slash"></i> إظهار الرصيد':'<i class="fa-solid fa-eye"></i> إخفاء الرصيد'});
 </script>
 </body>
