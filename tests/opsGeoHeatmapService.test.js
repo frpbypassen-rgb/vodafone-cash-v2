@@ -18,6 +18,7 @@ const AuditLog = require('../models/AuditLog');
 const { extractRequestCountry } = require('../utils/requestGeo');
 const {
     allowDemoHeatmap,
+    geoPointForCountry,
     getGeoHeatmap,
     mergeCountryCounts,
     parseHeatmapWindow
@@ -26,6 +27,17 @@ const {
 describe('ops geo heatmap', () => {
     beforeEach(() => {
         jest.clearAllMocks();
+    });
+
+    test('resolves a leaflet-free mini-map point from a stored country code', () => {
+        expect(geoPointForCountry('ly', { ip: '1.1.1.1' })).toMatchObject({
+            country: 'LY',
+            label: 'ليبيا',
+            ip: '1.1.1.1'
+        });
+        expect(geoPointForCountry('LY').lng).toBeCloseTo(17.2);
+        expect(geoPointForCountry('XX').country).toBe('');
+        expect(geoPointForCountry('').lat).toBeNull();
     });
 
     test('parses known windows and falls back to 15 minutes', () => {

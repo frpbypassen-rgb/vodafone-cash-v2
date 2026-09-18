@@ -72,6 +72,23 @@ const clusterLoadedRows = (rows, threshold = DEFAULT_CLUSTER_THRESHOLD) => {
         .sort((left, right) => right.count - left.count);
 };
 
+const attachLiveClusters = (rows, threshold = DEFAULT_CLUSTER_THRESHOLD) => {
+    const limit = Math.max(2, Number(threshold) || DEFAULT_CLUSTER_THRESHOLD);
+    const clusters = clusterLoadedRows(rows, limit);
+    const keyById = new Map();
+    clusters.forEach((cluster) => {
+        (cluster.ids || []).forEach((id) => keyById.set(String(id), cluster.key));
+    });
+    return {
+        clusterThreshold: limit,
+        clusters,
+        rows: (rows || []).map((row) => ({
+            ...row,
+            clusterKey: keyById.get(String(row.id)) || null
+        }))
+    };
+};
+
 const buildTimeFlow = (buckets = []) => {
     const max = Math.max(1, ...buckets.map((row) => Number(row.total || 0)));
     return buckets.map((row) => ({
@@ -160,8 +177,10 @@ const buildWatchdogSuggestions = ({
             source: 'rules',
             severity: 'high',
             title: `تركّز جغرافي من ${hottest.label || hottest.country}`,
-            body: `${hottest.count} عملية من دولة واحدة خلال النافذة الحالية. راجع الخريطة وضيّق الفلتر على تلك الدولة.`,
-            action: { type: 'filter', q: '', extra: { country: hottest.country } }
+            prompt: 'لاحظنا نمطاً غير اعتيادي في مصدر العمليات. هل تريد تفعيل فلتر المراقبة؟',
+            body: `لاحظنا نمطاً غير اعتيادي: ${hottest.count} عملية من ${hottest.label || hottest.country} خلال النافذة الحالية. هل تريد تفعيل فلتر المراقبة؟`,
+            cta: 'تفعيل فلتر المراقبة',
+            action: { type: 'filter', q: hottest.country, extra: { country: hottest.country } }
         });
     }
     if (Number(failureRate5m || 0) > 8) {
@@ -171,7 +190,9 @@ const buildWatchdogSuggestions = ({
             source: 'rules',
             severity: 'high',
             title: 'ارتفاع مفاجئ في الفشل',
-            body: `نسبة الفشل خلال 5 دقائق بلغت ${Number(failureRate5m).toFixed(1)}%. اعرض العمليات الفاشلة فقط.`,
+            prompt: 'لاحظنا نمطاً غير اعتيادي في نسبة الفشل. هل تريد تفعيل فلتر المراقبة؟',
+            body: `لاحظنا نمطاً غير اعتيادي: نسبة الفشل خلال 5 دقائق بلغت ${Number(failureRate5m).toFixed(1)}%. هل تريد تفعيل فلتر المراقبة على العمليات الفاشلة؟`,
+            cta: 'تفعيل فلتر المراقبة',
             action: { type: 'filter', status: 'failed', range: '1h' }
         });
     }
@@ -182,7 +203,9 @@ const buildWatchdogSuggestions = ({
             source: 'rules',
             severity: 'medium',
             title: `تجميع على مستلم واحد (${item.recipient})`,
-            body: `${item.senders} مرسلين مختلفين و${item.count} عمليات نحو نفس المستفيد.`,
+            prompt: 'لاحظنا نمطاً غير اعتيادي نحو مستفيد واحد. هل تريد تفعيل فلتر المراقبة؟',
+            body: `لاحظنا نمطاً غير اعتيادي: ${item.senders} مرسلين مختلفين و${item.count} عمليات نحو ${item.recipient}. هل تريد تفعيل فلتر المراقبة؟`,
+            cta: 'تفعيل فلتر المراقبة',
             action: { type: 'filter', q: item.recipient, range: '1h' }
         });
     });
@@ -193,7 +216,9 @@ const buildWatchdogSuggestions = ({
             source: 'rules',
             severity: 'medium',
             title: 'ازدحام متوقع',
-            body: congestion.message,
+            prompt: 'لاحظنا نمطاً غير اعتيادي في حجم العمليات. هل تريد تفعيل فلتر المراقبة؟',
+            body: `${congestion.message} هل تريد تفعيل فلتر المراقبة على المعلّق؟`,
+            cta: 'تفعيل فلتر المراقبة',
             action: { type: 'filter', status: 'pending', range: '1h' }
         });
     }
@@ -204,7 +229,9 @@ const buildWatchdogSuggestions = ({
             source: 'rules',
             severity: 'medium',
             title: `Burst من ${cluster.name}`,
-            body: `${cluster.count} عملية في نفس الدقيقة بإجمالي ${Number(cluster.volume || 0).toLocaleString('en-US')} ج.م.`,
+            prompt: 'لاحظنا نمطاً غير اعتيادي من نفس الحساب. هل تريد تفعيل فلتر المراقبة؟',
+            body: `لاحظنا نمطاً غير اعتيادي: ${cluster.count} عملية من ${cluster.name} في نفس الدقيقة. هل تريد تفعيل فلتر المراقبة؟`,
+            cta: 'تفعيل فلتر المراقبة',
             action: { type: 'filter', q: cluster.owner, range: '1h' }
         });
     });
@@ -417,6 +444,7 @@ module.exports = {
     FAN_IN_MIN_COUNT,
     FAN_IN_MIN_SENDERS,
     amountBand,
+    attachLiveClusters,
     buildTimeFlow,
     buildTrustPath,
     buildWatchdogSuggestions,

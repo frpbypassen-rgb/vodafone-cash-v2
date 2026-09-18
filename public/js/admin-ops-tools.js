@@ -12,6 +12,18 @@
         return number.toLocaleString('en-US', { maximumFractionDigits: 1 });
     };
 
+    const worldBackdrop = (width, height) => `
+        <rect width="${width}" height="${height}" rx="16" fill="currentColor" opacity="0.04"></rect>
+        <g fill="currentColor" fill-opacity="0.08">
+            <ellipse cx="${(width * 0.27).toFixed(0)}" cy="${(height * 0.35).toFixed(0)}" rx="${(width * 0.12).toFixed(0)}" ry="${(height * 0.17).toFixed(0)}"></ellipse>
+            <ellipse cx="${(width * 0.36).toFixed(0)}" cy="${(height * 0.67).toFixed(0)}" rx="${(width * 0.06).toFixed(0)}" ry="${(height * 0.21).toFixed(0)}"></ellipse>
+            <ellipse cx="${(width * 0.54).toFixed(0)}" cy="${(height * 0.57).toFixed(0)}" rx="${(width * 0.07).toFixed(0)}" ry="${(height * 0.23).toFixed(0)}"></ellipse>
+            <ellipse cx="${(width * 0.67).toFixed(0)}" cy="${(height * 0.31).toFixed(0)}" rx="${(width * 0.15).toFixed(0)}" ry="${(height * 0.15).toFixed(0)}"></ellipse>
+            <ellipse cx="${(width * 0.81).toFixed(0)}" cy="${(height * 0.37).toFixed(0)}" rx="${(width * 0.11).toFixed(0)}" ry="${(height * 0.14).toFixed(0)}"></ellipse>
+            <ellipse cx="${(width * 0.9).toFixed(0)}" cy="${(height * 0.67).toFixed(0)}" rx="${(width * 0.06).toFixed(0)}" ry="${(height * 0.09).toFixed(0)}"></ellipse>
+        </g>
+        <path d="M20 ${height / 2} H${width - 20} M${width / 2} 16 V${height - 16}" stroke="currentColor" stroke-opacity="0.12" fill="none"></path>
+    `;
     const projectPoint = (lng, lat, width, height) => {
         if (!Number.isFinite(lng) || !Number.isFinite(lat)) return null;
         return {
@@ -49,16 +61,7 @@
             ${demo}
             <div class="geo-layout">
                 <svg class="geo-map" viewBox="0 0 ${width} ${height}" role="img" aria-label="خريطة حرارية للدول">
-                    <rect width="${width}" height="${height}" rx="16" fill="currentColor" opacity="0.04"></rect>
-                    <g fill="currentColor" fill-opacity="0.08">
-                        <ellipse cx="170" cy="88" rx="78" ry="42"></ellipse>
-                        <ellipse cx="228" cy="168" rx="38" ry="52"></ellipse>
-                        <ellipse cx="348" cy="142" rx="42" ry="58"></ellipse>
-                        <ellipse cx="430" cy="78" rx="96" ry="38"></ellipse>
-                        <ellipse cx="520" cy="92" rx="70" ry="34"></ellipse>
-                        <ellipse cx="575" cy="168" rx="36" ry="22"></ellipse>
-                    </g>
-                    <path d="M20 125 H620 M320 20 V230" stroke="currentColor" stroke-opacity="0.12" fill="none"></path>
+                    ${worldBackdrop(width, height)}
                     ${dots}
                 </svg>
                 <div class="geo-bars">${bars || empty}</div>
@@ -148,10 +151,10 @@
             return;
         }
         const dots = rows.map((row) => {
-            const height = 10 + Number(row.intensity || 0) * 28;
             const kind = Number(row.failed) > Number(row.success) ? 'is-failed' : (row.success ? 'is-success' : '');
+            const busy = Number(row.intensity || 0) >= 0.6 ? 'is-busy' : '';
             const active = activeMinute && String(row.minute) === String(activeMinute) ? 'is-active' : '';
-            return `<button type="button" class="${kind} ${active}" data-minute="${esc(row.minute)}" title="${esc(row.minute)} · ${row.total}"><i style="height:${height}px"></i></button>`;
+            return `<button type="button" class="ops-dot ${kind} ${busy} ${active}" data-minute="${esc(row.minute)}" title="${esc(row.minute)} · ${row.total}"><i></i></button>`;
         }).join('');
         root.innerHTML = (activeMinute
             ? '<button type="button" class="ops-timeflow-clear" data-minute="">مسح الدقيقة</button>'
@@ -160,21 +163,46 @@
 
     window.renderWatchdog = function renderWatchdog(root, payload) {
         if (!root) return;
+        const cardsRoot = document.getElementById('opsWatchdogCards') || root;
         const dismissed = new Set(JSON.parse(localStorage.getItem('ahram_ops_watchdog_dismissed') || '[]'));
         const cards = (payload?.watchdog || []).filter((item) => !dismissed.has(item.id));
+        root.hidden = false;
         if (!cards.length) {
-            root.innerHTML = '';
-            root.hidden = true;
+            cardsRoot.innerHTML = '<div class="geo-empty">لا توجد أنماط غير اعتيادية في النافذة الحالية.</div>';
             return;
         }
-        root.hidden = false;
-        root.innerHTML = `<small class="geo-meta">${esc(payload.disclaimer || 'قواعد تشغيلية — ليست نموذجاً لغوياً.')}</small>` + cards.map((card) => `
+        cardsRoot.innerHTML = `<small class="geo-meta">${esc(payload.disclaimer || 'قواعد تشغيلية — ليست نموذجاً لغوياً.')}</small>` + cards.map((card) => `
             <article class="ops-watch-card ${esc(card.severity || '')}" data-id="${esc(card.id)}">
                 <header><span>${esc(card.title)}</span><button type="button" data-dismiss="${esc(card.id)}" class="live-btn" style="height:28px;padding:0 8px;">إخفاء</button></header>
-                <p class="mb-2 mt-1">${esc(card.body)}</p>
-                <button type="button" class="live-btn primary" data-watch-action="${esc(JSON.stringify(card.action || {}))}">تطبيق الفلتر</button>
+                <p class="mb-2 mt-1">${esc(card.body || card.prompt || '')}</p>
+                <button type="button" class="live-btn primary" data-watch-action="${esc(JSON.stringify(card.action || {}))}">${esc(card.cta || 'تفعيل فلتر المراقبة')}</button>
             </article>
         `).join('');
+    };
+
+    window.renderOpsMiniMap = function renderOpsMiniMap(root, geo) {
+        if (!root) return;
+        const width = 360;
+        const height = 160;
+        const point = projectPoint(Number(geo?.lng), Number(geo?.lat), width, height);
+        const dot = point
+            ? `<circle class="ops-minimap-pulse" cx="${point.x.toFixed(1)}" cy="${point.y.toFixed(1)}" r="7" fill="#dc2626"><title>${esc(geo.label || geo.country || '')}</title></circle>`
+            : '';
+        const label = geo?.label || geo?.country
+            ? `${geo.label || geo.country}${geo.ip ? ' · ' + geo.ip : ''}`
+            : 'لا إحداثيات كافية — الدولة غير مسجّلة على هذه العملية';
+        root.innerHTML = `<svg class="ops-minimap" viewBox="0 0 ${width} ${height}" role="img" aria-label="خريطة مصدر العملية">
+            ${worldBackdrop(width, height)}
+            ${dot}
+        </svg><small class="geo-meta">${esc(label)}</small>`;
+    };
+
+    window.opsMiniMapPin = function opsMiniMapPin(geo) {
+        const width = 28;
+        const height = 14;
+        const point = projectPoint(Number(geo?.lng), Number(geo?.lat), width, height);
+        if (!point) return '';
+        return `<svg class="geo-pin" viewBox="0 0 ${width} ${height}" aria-hidden="true"><circle cx="${point.x.toFixed(1)}" cy="${point.y.toFixed(1)}" r="3" fill="#dc2626"></circle></svg>`;
     };
 
     window.renderTrustPath = function renderTrustPath(root, path) {

@@ -34,6 +34,36 @@
         .filters-toolbar input,.filters-toolbar select{height:42px;border:1px solid var(--live-line);border-radius:10px;padding:0 11px;background:var(--live-soft);color:var(--live-text);font-size:.74rem;font-weight:700}
         .filters.can-collapse{grid-template-columns:repeat(3,minmax(130px,1fr)) auto}
         @media(max-width:700px){.filters-toolbar{grid-template-columns:1fr;padding:9px}}
+        .cinema-btn{border-color:#7c3aed;background:linear-gradient(180deg,#f5f3ff,#ede9fe);color:#5b21b6}
+        [data-theme=dark] .cinema-btn{background:linear-gradient(180deg,#2e1065,#1e1b4b);color:#ddd6fe;border-color:#6d28d9}
+        .cinema-btn kbd{margin-right:6px;padding:1px 5px;border-radius:6px;background:rgba(15,23,42,.08);font-size:.58rem;font-weight:800}
+        body.cinema-mode .sidebar,body.cinema-mode .sidebar-overlay,body.cinema-mode .mobile-nav-toggle,body.cinema-mode .bottom-nav-admin-mobile,body.cinema-mode .top-nav-admin-mobile,body.cinema-mode [data-focus-hide],body.cinema-mode [data-cinema-hide],body.cinema-mode .geo-card,body.cinema-mode .metric-grid,body.cinema-mode .live-head p,body.cinema-mode .ops-watchdog,body.cinema-mode .filters-toolbar,body.cinema-mode .filters{display:none!important}
+        body.cinema-mode .main-content{margin-right:0!important;padding:6px!important}
+        body.cinema-mode .live-shell{max-width:none;padding-bottom:4px}
+        body.cinema-mode .live-head{margin:4px 0;padding:10px 14px}
+        body.cinema-mode .table-box{border-radius:12px}
+        body.cinema-mode .scroll{max-height:calc(100vh - 92px)!important;min-height:calc(100vh - 110px)}
+        body.cinema-mode .admin-cinema-exit{display:flex}
+        .row-density-1{background:rgba(37,99,235,.05)}
+        .row-density-2{background:rgba(37,99,235,.09)}
+        .row-density-3{background:rgba(37,99,235,.14)}
+        .ops-section-head{display:flex;justify-content:space-between;align-items:baseline;gap:10px;margin:0 0 8px}
+        .ops-section-head h2{font-size:.88rem;font-weight:900;margin:0}
+        .ops-section-head small{color:var(--live-muted);font-size:.68rem;font-weight:700}
+        .ops-timeflow{display:flex;gap:6px;align-items:center;overflow:auto;padding:12px;min-height:56px;border:1px solid var(--live-line);border-radius:16px;background:var(--live-card);margin-bottom:10px}
+        .ops-timeflow button.ops-dot{flex:0 0 auto;width:16px;height:16px;border:0;padding:0;background:transparent;cursor:pointer;display:grid;place-items:center}
+        .ops-timeflow button.ops-dot i{display:block;width:10px;height:10px;border-radius:50%;background:#94a3b8;box-shadow:0 0 8px rgba(148,163,184,.45);animation:opsDotPulse 2.4s ease-out infinite}
+        .ops-timeflow button.ops-dot.is-busy i{width:12px;height:12px}
+        .ops-timeflow button.is-success i{background:#059669;box-shadow:0 0 10px rgba(5,150,105,.7);animation-name:opsDotPulseGreen}
+        .ops-timeflow button.is-failed i{background:#dc2626;box-shadow:0 0 10px rgba(220,38,38,.65);animation-name:opsDotPulseRed}
+        .ops-timeflow button.is-active i{outline:2px solid #2563eb;outline-offset:2px}
+        @keyframes opsDotPulse{0%{box-shadow:0 0 0 0 rgba(148,163,184,.45)}70%{box-shadow:0 0 0 8px rgba(148,163,184,0)}100%{box-shadow:0 0 0 0 rgba(148,163,184,0)}}
+        @keyframes opsDotPulseGreen{0%{box-shadow:0 0 0 0 rgba(5,150,105,.55)}70%{box-shadow:0 0 0 8px rgba(5,150,105,0)}100%{box-shadow:0 0 0 0 rgba(5,150,105,0)}}
+        @keyframes opsDotPulseRed{0%{box-shadow:0 0 0 0 rgba(220,38,38,.5)}70%{box-shadow:0 0 0 8px rgba(220,38,38,0)}100%{box-shadow:0 0 0 0 rgba(220,38,38,0)}}
+        .ops-minimap-card,.ops-notes-card{margin-top:16px;padding:12px;border:1px solid var(--live-line);border-radius:14px;background:var(--live-soft)}
+        .ops-minimap svg{width:100%;height:auto;color:var(--live-text)}
+        .ops-minimap-pulse { transform-box: fill-box; transform-origin: center; animation: opsMapPulse 1.8s ease-out infinite; }
+        @keyframes opsMapPulse { 0%,100% { transform: scale(1); opacity: 1 } 50% { transform: scale(1.85); opacity: .35 } }
     </style>
 </head>
 <body>
@@ -42,17 +72,25 @@
 <main class="main-content"><div class="container-fluid live-shell">
     <header class="live-head"><div><h1><i class="fa-solid fa-wave-square ms-2 text-primary"></i>مراقبة العمليات الحية</h1><p data-focus-hide>بحث وتحليل وتفاصيل فورية دون مغادرة الصفحة</p></div><div class="d-flex align-items-center gap-2 flex-wrap">
         <button type="button" class="live-btn js-admin-focus-toggle" aria-pressed="false"><i class="fa-solid fa-crosshairs ms-1"></i><span data-focus-label>وضع التركيز</span></button>
-        <button type="button" class="live-btn js-admin-cinema-toggle" aria-pressed="false"><i class="fa-solid fa-film ms-1"></i><span data-cinema-label>الوضع السينمائي</span></button>
+        <button type="button" class="live-btn cinema-btn js-admin-cinema-toggle" id="cinemaModeBtn" aria-pressed="false" title="الوضع السينمائي — اختصار Shift+C">
+            <i class="fa-solid fa-film ms-1"></i><span data-cinema-label>الوضع السينمائي</span><kbd>Shift+C</kbd>
+        </button>
         <button type="button" class="live-btn" id="copyLink">نسخ الرابط</button>
-        <button type="button" class="live-btn" id="voiceSearch"><i class="fa-solid fa-microphone ms-1"></i>بحث صوتي</button>
+        <button type="button" class="live-btn" id="voiceSearch" title="قل: العمليات الفاشلة في آخر ساعة"><i class="fa-solid fa-microphone ms-1"></i>بحث صوتي</button>
         <% if (typeof capabilities !== 'undefined' && capabilities.emergencyHalt) { %><button type="button" class="live-btn panic-btn" id="panicBtn"><span id="panicState">إيقاف التحويلات</span></button><% } %>
         <div id="connection" class="connection off">جارِ الاتصال</div>
     </div></header>
     <div id="failureAlert" class="alert-strip"><i class="fa-solid fa-triangle-exclamation ms-2"></i><span></span></div>
     <div id="congestionBanner" class="alert-strip" style="border-color:rgba(217,119,6,.3);background:rgba(217,119,6,.1);color:var(--live-amber)"><i class="fa-solid fa-chart-line ms-2"></i><span></span></div>
     <div id="haltBanner" class="alert-strip"><i class="fa-solid fa-hand ms-2"></i><span></span></div>
-    <small id="voiceStatus" class="geo-meta"></small>
-    <section class="ops-watchdog" id="opsWatchdog" data-cinema-hide></section>
+    <small id="voiceStatus" class="geo-meta">قل مثلاً: العمليات الفاشلة في آخر ساعة — أو failed last hour</small>
+    <section class="ops-watchdog" id="opsWatchdog" data-cinema-hide>
+        <header class="ops-section-head">
+            <h2>مساعد المراقب</h2>
+            <small>قواعد تشغيلية محددة مسبقاً — ليست نموذجاً لغوياً</small>
+        </header>
+        <div id="opsWatchdogCards"><div class="geo-empty">لا توجد أنماط غير اعتيادية في النافذة الحالية.</div></div>
+    </section>
     <section class="metric-grid" data-focus-hide>
         <div class="metric"><i class="fa-solid fa-arrow-right-arrow-left"></i><span>إجمالي تحويلات اليوم</span><strong id="metricTotal">0</strong></div>
         <div class="metric"><i class="fa-solid fa-coins"></i><span>السيولة المتداولة</span><strong id="metricLiquidity">0 ج.م</strong></div>
@@ -86,10 +124,33 @@
         <input id="filterMin" type="number" min="0" placeholder="المبلغ من (مثال 10000)">
         <div id="customRange" class="custom-range"><input id="filterFrom" type="datetime-local"><input id="filterTo" type="datetime-local"></div>
     </section>
-    <section class="ops-timeflow" id="opsTimeflow" aria-label="البصمة الزمنية"></section>
-    <section class="table-box"><header class="table-head"><h2>العمليات</h2><small id="resultCount">جاري التحميل...</small></header><div class="scroll"><table class="live-table"><thead><tr><th></th><th>المرجع</th><th>العميل</th><th>المستلم</th><th>النوع</th><th>المبلغ</th><th>المنفذ</th><th>الحالة</th><th>الأمان</th><th>الوقت</th></tr></thead><tbody id="rows"></tbody></table><div id="empty" class="empty" hidden>لا توجد عمليات مطابقة</div></div><div class="pager"><button id="loadMore" class="live-btn" hidden>تحميل المزيد</button></div></section>
+    <section class="ops-timeflow-wrap">
+        <header class="ops-section-head">
+            <h2>البصمة الزمنية</h2>
+            <small>نقاط متوهجة لكل دقيقة — انقر لتصفية الجدول · اضغط نفس النقطة أو «مسح الدقيقة» للإلغاء</small>
+        </header>
+        <div class="ops-timeflow" id="opsTimeflow" aria-label="البصمة الزمنية"></div>
+    </section>
+    <section class="table-box"><header class="table-head"><h2>العمليات</h2><small id="resultCount">جاري التحميل...</small><small id="clusterHint" class="geo-meta">تجميع ذكي عند ≥10 عمليات لنفس المستخدم في نفس الدقيقة</small></header><div class="scroll"><table class="live-table"><thead><tr><th></th><th>المرجع</th><th>العميل</th><th>المستلم</th><th>النوع</th><th>المبلغ</th><th>المنفذ</th><th>الحالة</th><th>الأمان</th><th>الوقت</th></tr></thead><tbody id="rows"></tbody></table><div id="empty" class="empty" hidden>لا توجد عمليات مطابقة</div></div><div class="pager"><button id="loadMore" class="live-btn" hidden>تحميل المزيد</button></div></section>
 </div></main>
-<div id="flyoutBackdrop" class="flyout-backdrop"></div><aside id="flyout" class="flyout" aria-hidden="true"><div class="flyout-top"><div><small class="text-muted">تفاصيل العملية</small><h2 id="detailReference" class="mono">—</h2></div><button id="closeFlyout" class="close-flyout"><i class="fa-solid fa-xmark"></i></button></div><div id="detailBody"></div></aside>
+<div id="flyoutBackdrop" class="flyout-backdrop"></div>
+<aside id="flyout" class="flyout" aria-hidden="true">
+    <div class="flyout-top"><div><small class="text-muted">تفاصيل العملية</small><h2 id="detailReference" class="mono">—</h2></div><button id="closeFlyout" class="close-flyout"><i class="fa-solid fa-xmark"></i></button></div>
+    <div id="detailBody"></div>
+    <section class="ops-minimap-card" id="opsMiniMapCard">
+        <h3 class="section-title">خريطة المصدر</h3>
+        <div id="opsMiniMap"><div class="geo-empty">افتح عملية لعرض خريطة IP/الدولة.</div></div>
+    </section>
+    <section class="ops-notes-card" id="opsNotesCard">
+        <h3 class="section-title">ملاحظات الفريق</h3>
+        <p class="geo-meta mb-2">مرئية لفريق الدعم والعمليات. تُحفظ مع اسم الكاتب والوقت.</p>
+        <div id="opsNotes"><div class="geo-empty">افتح عملية لعرض الملاحظات الداخلية.</div></div>
+        <form id="opsNoteForm" class="d-flex gap-2 mt-2" hidden>
+            <input class="form-control" name="body" maxlength="1000" placeholder="ملاحظة داخلية" autocomplete="off">
+            <button class="live-btn primary" type="submit">حفظ</button>
+        </form>
+    </section>
+</aside>
 <div id="opsFab" class="ops-fab" aria-live="polite">
     <span id="fabCount">0 محدد</span>
     <button type="button" id="fabLink">نسخ العرض</button>

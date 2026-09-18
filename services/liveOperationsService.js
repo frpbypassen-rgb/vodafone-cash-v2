@@ -6,6 +6,7 @@ const AuditLog = require('../models/AuditLog');
 const Ledger = require('../models/Ledger');
 const { systemDateKey, systemDateRange } = require('../config/systemTime');
 const { tenantScope } = require('../utils/tenantScope');
+const { geoPointForCountry } = require('./opsGeoHeatmapService');
 
 const ALLOWED_STATUSES = new Set([
     'pending', 'processing', 'accepted', 'completed', 'rejected',
@@ -173,6 +174,8 @@ const mapLiveTransaction = (transaction, audit = null) => {
             : null,
         minute: transaction.createdAt ? new Date(Math.floor(new Date(transaction.createdAt).getTime() / 60000) * 60000).toISOString() : '',
         task: transaction.opsTask || null,
+        geo: geoPointForCountry(transaction.originCountry, { ip: audit?.ipAddress || '', deviceType: audit?.deviceType || '' }),
+        clusterKey: null,
         error: safeApiError(transaction),
         security: {
             flagged: largeAmount || newDevice,
@@ -218,20 +221,23 @@ const listLiveTransactions = async (req) => {
         const { tasksForTransactions } = require('./opsCollaborationService');
         taskMap = await tasksForTransactions(req, transactions.map((item) => item._id));
     } catch (_) {}
+    const rows = transactions.map((item) => {
+        const task = taskMap.get(String(item._id));
+        const mapped = mapLiveTransaction(item, audits.get(String(item._id)) || audits.get(item.customId));
+        if (task) {
+            mapped.task = {
+                id: String(task._id),
+                assigneeName: task.assigneeName,
+                assigneeColor: task.assigneeColor,
+                status: task.status
+            };
+        }
+        return mapped;
+    });
+    const { attachLiveClusters } = require('./liveOpsIntelligenceService');
+    const clustered = attachLiveClusters(rows, req.query?.threshold);
     return {
-        rows: transactions.map((item) => {
-            const task = taskMap.get(String(item._id));
-            const mapped = mapLiveTransaction(item, audits.get(String(item._id)) || audits.get(item.customId));
-            if (task) {
-                mapped.task = {
-                    id: String(task._id),
-                    assigneeName: task.assigneeName,
-                    assigneeColor: task.assigneeColor,
-                    status: task.status
-                };
-            }
-            return mapped;
-        }),
+        ...clustered,
         pagination: { page, limit, total, pages: Math.max(1, Math.ceil(total / limit)) }
     };
 };
@@ -327,6 +333,10 @@ const getTransactionDetail = async (req, id) => {
         trustPath: buildTrustPath({
             originCountry: transaction.originCountry,
             auditCountry,
+            ip: creationAudit?.ipAddress || '',
+            deviceType: creationAudit?.deviceType || ''
+        }),
+        geoMap: geoPointForCountry(transaction.originCountry, {
             ip: creationAudit?.ipAddress || '',
             deviceType: creationAudit?.deviceType || ''
         }),

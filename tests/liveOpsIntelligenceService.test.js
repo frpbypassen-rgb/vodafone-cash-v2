@@ -8,6 +8,7 @@ const {
     buildTrustPath,
     buildWatchdogSuggestions,
     clusterLoadedRows,
+    attachLiveClusters,
     detectFanIn,
     forecastCongestion,
     minuteKey,
@@ -60,6 +61,11 @@ describe('live ops intelligence', () => {
             volume: 1000
         });
         expect(clusterLoadedRows(mixed, 11)).toEqual([]);
+        const packed = attachLiveClusters(mixed, 10);
+        expect(packed.clusterThreshold).toBe(10);
+        expect(packed.clusters).toHaveLength(1);
+        expect(packed.rows.filter((row) => row.clusterKey === packed.clusters[0].key)).toHaveLength(10);
+        expect(packed.rows.find((row) => row.id === 'other').clusterKey).toBeNull();
     });
 
     test('detects fan-in when many distinct senders hit one beneficiary', () => {
@@ -109,6 +115,9 @@ describe('live ops intelligence', () => {
             clusters: [{ key: 'u|m', name: 'شركة', owner: 'u1', count: 12, volume: 5000 }]
         });
         expect(suggestions.every((item) => item.source === 'rules')).toBe(true);
+        expect(suggestions.every((item) => item.cta === 'تفعيل فلتر المراقبة')).toBe(true);
+        expect(suggestions.find((item) => item.kind === 'fan_in').body).toContain('هل تريد تفعيل فلتر المراقبة');
+        expect(suggestions.find((item) => item.kind === 'geo_burst').prompt).toContain('لاحظنا نمطاً غير اعتيادي');
         expect(suggestions.map((item) => item.kind)).toEqual(
             expect.arrayContaining(['geo_burst', 'failure_spike', 'fan_in', 'congestion', 'burst'])
         );

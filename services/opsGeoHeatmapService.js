@@ -71,6 +71,19 @@ const demoHeatmapCountries = () => mergeCountryCounts([
     { _id: 'TR', count: 2 }
 ]);
 
+const geoPointForCountry = (value, extra = {}) => {
+    const country = normalizeCountryCode(value);
+    const centroid = country ? COUNTRY_CENTROIDS[country] : null;
+    return {
+        country: country || '',
+        label: country ? (COUNTRY_LABELS[country] || country) : '',
+        lng: centroid ? centroid[0] : null,
+        lat: centroid ? centroid[1] : null,
+        ip: extra.ip || '',
+        deviceType: extra.deviceType || ''
+    };
+};
+
 const allowDemoHeatmap = (req, env = process.env) => {
     const flagged = ['1', 'true', 'yes', 'on'].includes(String(env.OPS_GEO_DEMO || '').trim().toLowerCase());
     const queryFlag = ['1', 'true', 'yes'].includes(String(req?.query?.demo || '').trim().toLowerCase());
@@ -140,6 +153,7 @@ module.exports = {
     COUNTRY_CENTROIDS,
     COUNTRY_LABELS,
     allowDemoHeatmap,
+    geoPointForCountry,
     demoHeatmapCountries,
     getGeoHeatmap,
     mergeCountryCounts,

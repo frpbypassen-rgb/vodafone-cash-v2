@@ -75,6 +75,23 @@ describe('ops collaboration', () => {
         await expect(addNote(req(), 'not-an-id', 'hello')).resolves.toBeNull();
     });
 
+    test('lists notes with author name and timestamp for other ops roles', async () => {
+        const createdAt = new Date('2026-09-18T10:00:00.000Z');
+        OpsInternalNote.find.mockReturnValue({
+            sort: () => ({
+                limit: () => ({
+                    lean: () => Promise.resolve([
+                        { _id: 'n1', body: 'راجع المبلغ', authorName: 'سارة', createdAt }
+                    ])
+                })
+            })
+        });
+        const notes = await listNotes(req(), TX_ID);
+        expect(notes).toEqual([
+            { id: 'n1', body: 'راجع المبلغ', authorName: 'سارة', createdAt }
+        ]);
+    });
+
     test('assigns a watch task, closes previous open tasks, and records the actor', async () => {
         OpsWatchTask.updateMany.mockResolvedValue({ modifiedCount: 1 });
         OpsWatchTask.colorFor = jest.fn().mockReturnValue('#2563eb');

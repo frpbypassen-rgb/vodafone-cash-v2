@@ -4,7 +4,7 @@
     const capabilities = window.__opsCapabilities || {};
     const state = {
         page: 1, pages: 1, loading: false, latestId: '', refreshTimer: null,
-        rows: [], selected: new Set(), minute: '', lastSync: '', intelligence: null, clusterThreshold: 10
+        rows: [], clusters: [], selected: new Set(), minute: '', lastSync: '', intelligence: null, clusterThreshold: 10
     };
     const byId = (id) => document.getElementById(id);
     const esc = (value) => String(value ?? '').replace(/[&<>"']/g, (char) => ({
@@ -98,11 +98,12 @@
     const rowHtml = (row, density) => {
         const risks = [row.security?.largeAmount ? 'مبلغ كبير' : '', row.security?.newDevice ? 'جهاز جديد' : ''].filter(Boolean);
         const checked = state.selected.has(row.id) ? 'checked' : '';
+        const pin = (row.geo && window.opsMiniMapPin) ? window.opsMiniMapPin(row.geo) : '';
         const task = row.task ? `<span class="assignee-chip" style="background:${esc(row.task.assigneeColor)}">${esc(row.task.assigneeName)}</span>` : '';
         return `<tr data-id="${esc(row.id)}" class="${row.security?.flagged ? 'risk-row' : ''} ${densityClass(row, density || densityCounts(state.rows))}">
             <td><input type="checkbox" class="row-select" data-id="${esc(row.id)}" ${checked}></td>
             <td><strong class="mono">${esc(row.reference)}</strong></td>
-            <td>${esc(row.customer)} ${task}</td>
+            <td>${pin}${esc(row.customer)} ${task}</td>
             <td class="mono">${esc(row.recipient)}</td>
             <td>${esc(row.type || '—')}</td>
             <td><strong class="mono">${number(row.amount)} ج.م</strong></td>
@@ -120,13 +121,21 @@
     const renderRows = (rows) => {
         const body = byId('rows');
         const threshold = state.clusterThreshold || 10;
+        const serverClusters = Array.isArray(state.clusters) ? state.clusters : [];
         const grouped = {};
         rows.forEach((row) => {
-            const key = `${row.userKey || row.customer}|${row.minute || ''}`;
-            grouped[key] = grouped[key] || { name: row.customer, owner: row.userKey || row.customer, count: 0, volume: 0, rows: [] };
+            const key = row.clusterKey || `${row.userKey || row.customer}|${row.minute || ''}`;
+            grouped[key] = grouped[key] || { key, name: row.customer, owner: row.userKey || row.customer, count: 0, volume: 0, rows: [] };
             grouped[key].count += 1;
             grouped[key].volume += Number(row.amount || 0);
+            grouped[key].name = row.customer || grouped[key].name;
             grouped[key].rows.push(row);
+        });
+        serverClusters.forEach((cluster) => {
+            if (!grouped[cluster.key]) return;
+            grouped[cluster.key].name = cluster.name || grouped[cluster.key].name;
+            grouped[cluster.key].count = Math.max(grouped[cluster.key].count, Number(cluster.count || 0));
+            grouped[cluster.key].volume = Math.max(grouped[cluster.key].volume, Number(cluster.volume || 0));
         });
         const density = densityCounts(rows);
         const html = [];
@@ -139,6 +148,9 @@
             }
         });
         body.innerHTML = html.join('');
+        if (byId('clusterHint')) {
+            byId('clusterHint').textContent = `تجميع ذكي عند ≥${threshold} · ${serverClusters.length} مجموعة في هذه الصفحة`;
+        }
     };
 
     state.expandedClusters = new Set();
@@ -161,8 +173,14 @@
             const data = await response.json();
             if (!response.ok) throw new Error(data.error || 'تعذر التحميل');
             state.lastSync = data.serverTime || new Date().toISOString();
-            if (reset) state.rows = data.rows;
-            else state.rows = state.rows.concat(data.rows);
+            if (reset) {
+                state.rows = data.rows;
+                state.clusters = data.clusters || [];
+            } else {
+                state.rows = state.rows.concat(data.rows);
+                state.clusters = (state.clusters || []).concat(data.clusters || []);
+            }
+            state.clusterThreshold = data.clusterThreshold || state.clusterThreshold || 10;
             renderRows(state.rows);
             if (reset && data.rows[0]?.id && data.rows[0].id !== state.latestId) {
                 byId('rows').querySelector('tr')?.classList.add('flash');
@@ -253,9 +271,6 @@
             </div>
             <div id="opsBenchmark"><div class="geo-empty">جاري المقارنة المعيارية...</div></div>
             <section class="behavior-card" id="behaviorCompare"><div class="geo-empty">جاري مقارنة السلوك...</div></section>
-            <h3 class="section-title">ملاحظات الفريق</h3>
-            <div id="opsNotes"></div>
-            ${capabilities.manageTransactions ? `<form id="opsNoteForm" class="d-flex gap-2 mt-2"><input class="form-control" name="body" maxlength="1000" placeholder="ملاحظة داخلية"><button class="live-btn primary" type="submit">حفظ</button></form>` : ''}
             ${data.error ? `<h3 class="section-title">سبب الفشل</h3><div class="error-box"><strong>${esc(data.error.code)}</strong><br>${esc(data.error.message)}</div>` : ''}
             <h3 class="section-title">شجرة الحدث</h3>
             <div class="timeline">${data.timeline.map((item) => `<div class="event ${item.state === 'error' ? 'error' : ''}"><strong>${esc(item.label)}</strong><time>${date(item.at)}</time></div>`).join('') || '<span class="text-muted">لا توجد أحداث</span>'}</div>
@@ -264,6 +279,7 @@
                 <a class="live-btn text-decoration-none d-inline-flex align-items-center" target="_blank" href="/transactions/live/${encodeURIComponent(tx.id)}/receipt"><i class="fa-solid fa-print ms-1"></i>طباعة حرارية / PDF</a>
             </div>`;
         if (window.renderTrustPath) window.renderTrustPath(byId('trustPath'), data.trustPath);
+        if (window.renderOpsMiniMap) window.renderOpsMiniMap(byId('opsMiniMap'), data.geoMap || tx.geo || {});
         const subjectId = tx.companyId || tx.userKey;
         if (subjectId && window.loadBehaviorComparison) window.loadBehaviorComparison(byId('behaviorCompare'), { id: subjectId, type: tx.companyId ? 'company' : 'user' });
         fetch('/api/admin/ops/similar-benchmark?type=' + encodeURIComponent(tx.type || '') + '&amount=' + encodeURIComponent(tx.amount || 0) + '&durationMs=' + encodeURIComponent(tx.durationMs || 0), { headers: { Accept: 'application/json' } })
@@ -273,16 +289,22 @@
                 byId('opsNotes').innerHTML = (payload.notes || []).map((note) => `<div class="detail-card mb-2"><span>${esc(note.authorName)} · ${date(note.createdAt)}</span><strong>${esc(note.body)}</strong></div>`).join('') || '<div class="geo-empty">لا ملاحظات بعد.</div>';
             }).catch(() => {});
         const form = byId('opsNoteForm');
-        if (form) form.addEventListener('submit', async (event) => {
-            event.preventDefault();
-            const body = form.body.value.trim();
-            if (!body) return;
-            const response = await fetch('/api/admin/ops/transactions/' + encodeURIComponent(id) + '/notes', {
-                method: 'POST', headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-                body: JSON.stringify({ body })
-            });
-            if (response.ok) openDetail(id);
-        });
+        if (form) {
+            form.hidden = !capabilities.manageTransactions;
+            form.onsubmit = async (event) => {
+                event.preventDefault();
+                const body = form.body.value.trim();
+                if (!body) return;
+                const response = await fetch('/api/admin/ops/transactions/' + encodeURIComponent(id) + '/notes', {
+                    method: 'POST', headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+                    body: JSON.stringify({ body })
+                });
+                if (response.ok) {
+                    form.body.value = '';
+                    openDetail(id);
+                }
+            };
+        }
         byId('flyout').classList.add('open');
         byId('flyoutBackdrop').classList.add('open');
         byId('flyout').setAttribute('aria-hidden', 'false');

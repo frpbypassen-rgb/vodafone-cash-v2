@@ -67,6 +67,8 @@ describe('live operations service', () => {
         expect(row.userKey).toBe('0910000001');
         expect(row.companyId).toBe('64b0000000000000000000cc');
         expect(row.originCountry).toBe('LY');
+        expect(row.geo).toMatchObject({ country: 'LY', label: 'ليبيا' });
+        expect(row.geo.lat).toBeCloseTo(26.3);
         expect(row.minute).toBe('2026-09-18T10:00:00.000Z');
     });
 
