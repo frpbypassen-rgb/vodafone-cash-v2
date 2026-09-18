@@ -64,10 +64,12 @@
             onShortcut(event) {
                 if (!(event.ctrlKey || event.metaKey)) return;
                 const map = { 1: 'home', 2: 'transfers', 3: 'approvals', 4: 'reports' };
-                if (map[event.key]) {
-                    event.preventDefault();
-                    this.tab = map[event.key];
-                }
+                const next = map[event.key];
+                if (!next) return;
+                if (next === 'transfers' && !this.permissions.canTransfer) return;
+                if (next === 'approvals' && !this.permissions.canApprove) return;
+                event.preventDefault();
+                this.tab = next;
             },
 
             openReview(item) {

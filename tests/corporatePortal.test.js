@@ -20,7 +20,10 @@ jest.mock('../models/CorporatePaymentRequest', () => {
     return Model;
 });
 jest.mock('../models/CorporateInvoice', () => ({ find: jest.fn(), create: jest.fn() }));
-jest.mock('../models/Ledger', () => ({ findOne: jest.fn(), find: jest.fn() }));
+jest.mock('../models/Ledger', () => ({
+    findOne: jest.fn(() => ({ lean: jest.fn().mockResolvedValue(null) })),
+    find: jest.fn(() => ({ sort: jest.fn().mockReturnThis(), limit: jest.fn().mockReturnThis(), lean: jest.fn().mockResolvedValue([]) }))
+}));
 jest.mock('../models/AuditLog', () => ({ find: jest.fn(), findOne: jest.fn() }));
 jest.mock('../services/auditService', () => ({ logAction: jest.fn().mockResolvedValue(undefined) }));
 jest.mock('../services/walletService', () => ({

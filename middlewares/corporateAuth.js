@@ -117,7 +117,7 @@ const requireSameCompany = (req, res, next) => {
     }
 
     const candidates = [
-        req.params.companyId,
+        req.params?.companyId,
         req.body?.companyId,
         req.query?.companyId
     ].filter((value) => value !== undefined && value !== null && String(value).trim() !== '');

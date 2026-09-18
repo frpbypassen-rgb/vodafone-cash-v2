@@ -12,7 +12,8 @@ const buildReference = () => {
 
 const findExistingLedger = async (transactionId) => {
     if (!transactionId) return null;
-    return Ledger.findOne({ transactionId }).lean();
+    const query = Ledger.findOne({ transactionId });
+    return typeof query.lean === 'function' ? query.lean() : query;
 };
 
 /**
