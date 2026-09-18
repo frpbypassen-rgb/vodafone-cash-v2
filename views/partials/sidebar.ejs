@@ -690,26 +690,16 @@
             </span>
             <i class="fa-solid fa-angle-left menu-chevron"></i>
         </a>
-        <a href="/transactions/pulse" class="<%= typeof activePage !== 'undefined' && activePage === 'transactions_pulse' ? 'active' : '' %>">
-            <span class="menu-link-content">
-                <i class="fa-solid fa-bolt"></i> سجل العمليات المباشرة
-            </span>
-            <i class="fa-solid fa-angle-left menu-chevron"></i>
-        </a>
-        <a href="/transactions/live" class="<%= typeof activePage !== 'undefined' && activePage === 'transactions_live' ? 'active' : '' %>">
-            <span class="menu-link-content">
-                <i class="fa-solid fa-wave-square"></i> مراقبة العمليات
-            </span>
-            <i class="fa-solid fa-angle-left menu-chevron"></i>
-        </a>
-        <div class="operations-menu <%= typeof activePage !== 'undefined' && String(activePage).startsWith('transactions') && activePage !== 'transactions_live' ? 'is-open' : '' %>">
+        <div class="operations-menu <%= typeof activePage !== 'undefined' && String(activePage).startsWith('transactions') ? 'is-open' : '' %>">
             <div class="operations-menu-header">
-                <a href="/transactions/operations" class="transaction-workspace-link <%= typeof activePage !== 'undefined' && !['transactions_pulse', 'transactions_live'].includes(activePage) && String(activePage).startsWith('transactions') ? 'active' : '' %>">
-                    <span class="menu-link-content"><i class="fa-solid fa-toolbox"></i> أدوات العمليات</span>
+                <a href="/transactions/pulse" class="transaction-workspace-link <%= typeof activePage !== 'undefined' && activePage === 'transactions_pulse' ? 'active' : '' %>">
+                    <span class="menu-link-content"><i class="fa-solid fa-bolt"></i> سجل العمليات المباشرة</span>
                 </a>
                 <button type="button" class="operations-menu-toggle" aria-label="فتح قائمة سجل العمليات المباشر" aria-expanded="<%= typeof activePage !== 'undefined' && String(activePage).startsWith('transactions') ? 'true' : 'false' %>" onclick="toggleOperationsMenu(this)"><i class="fa-solid fa-angle-left operations-chevron"></i></button>
             </div>
             <div class="operations-submenu">
+                <a href="/transactions/pulse" class="<%= typeof activePage !== 'undefined' && activePage === 'transactions_pulse' ? 'active' : '' %>"><i class="fa-solid fa-paper-plane"></i> شاشة التوجيه السريع</a>
+                <a href="/transactions/live" class="<%= typeof activePage !== 'undefined' && activePage === 'transactions_live' ? 'active' : '' %>"><i class="fa-solid fa-wave-square"></i> المراقبة الحية</a>
                 <a href="/transactions/operations" class="<%= typeof activePage !== 'undefined' && activePage === 'transactions' ? 'active' : '' %>"><i class="fa-solid fa-list-check"></i> العمليات</a>
                 <a href="/transactions/movements" class="<%= typeof activePage !== 'undefined' && activePage === 'transactions_movements' ? 'active' : '' %>"><i class="fa-solid fa-arrow-right-arrow-left"></i> سجل الحركة</a>
                 <a href="/transactions/search" class="<%= typeof activePage !== 'undefined' && activePage === 'transactions_search' ? 'active' : '' %>"><i class="fa-solid fa-magnifying-glass"></i> البحث الشامل</a>
