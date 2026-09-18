@@ -8,6 +8,7 @@
         <input type="hidden" name="type" id="transferType" value="كاش">
         <input type="hidden" name="number" id="transferAccountNumber" value="">
         <div class="bw-form-grid">
+            <div class="bw-form-section-title span-2"><span>1</span><div><strong>بيانات المستلم</strong><small>أدخل بيانات الوجهة كما هي مسجلة.</small></div></div>
             <label class="bw-field span-2" data-destination-field>
                 <span id="destinationFieldLabel">رقم المحفظة</span>
                 <input type="text" name="phone" id="transferDestination" class="bw-input bw-mono" dir="ltr" inputmode="numeric" autocomplete="off" required>
@@ -54,19 +55,20 @@
                 <input type="file" name="idCardImage" id="transferIdentityImage" accept="image/jpeg,image/png,image/webp">
                 <small>JPG أو PNG أو WEBP، بحد أقصى 5MB.</small>
             </label>
+            <div class="bw-form-section-title span-2"><span>2</span><div><strong>قيمة العملية</strong><small>أدخل إحدى القيمتين وسيتم حساب الأخرى تلقائياً.</small></div></div>
             <div class="bw-currency-pair span-2">
-                <label class="bw-field">
+                <label class="bw-field bw-money-field">
                     <span id="transferAmountLabel">المبلغ بالجنيه المصري</span>
-                    <div class="bw-input-affix"><input type="number" name="amount" id="transferAmount" min="1" step="0.01" inputmode="decimal" placeholder="0.00" required><b id="transferAmountCurrency">EGP</b></div>
+                    <div class="bw-input-affix bw-currency-input"><span class="bw-currency-flag" id="transferAmountFlag" aria-hidden="true">🇪🇬</span><input type="number" name="amount" id="transferAmount" min="1" step="0.01" inputmode="decimal" placeholder="0.00" required><b id="transferAmountCurrency">EGP</b></div>
                 </label>
                 <div class="bw-fx-bridge" aria-live="polite">
                     <span>سعر الصرف</span>
                     <strong class="bw-mono" id="transferRateBridge">1 LYD = 0.00 EGP</strong>
                     <small id="transferRateFormula">EGP ÷ السعر = LYD</small>
                 </div>
-                <label class="bw-field">
+                <label class="bw-field bw-money-field">
                     <span>المقابل بالدينار الليبي</span>
-                    <div class="bw-input-affix"><input type="number" id="transferAmountLyd" min="0.01" step="0.01" inputmode="decimal" placeholder="0.00"><b>LYD</b></div>
+                    <div class="bw-input-affix bw-currency-input"><span class="bw-currency-flag" aria-hidden="true">🇱🇾</span><input type="number" id="transferAmountLyd" min="0.01" step="0.01" inputmode="decimal" placeholder="0.00"><b>LYD</b></div>
                 </label>
             </div>
             <div class="bw-amount-shortcuts span-2" aria-label="قيم سريعة">
@@ -76,6 +78,7 @@
                 <button type="button" data-amount-add="1000">+1,000</button>
                 <% if (workspace.permissions.canViewBalance) { %><button type="button" data-amount-max>أقصى متاح</button><% } %>
             </div>
+            <div class="bw-form-section-title span-2"><span>3</span><div><strong>تفاصيل إضافية</strong><small>بيانات اختيارية تساعد في التواصل والمتابعة.</small></div></div>
             <label class="bw-field span-2">
                 <span>رقم واتساب العميل <em>اختياري</em></span>
                 <input type="text" name="clientPhone" id="transferClientPhone" class="bw-mono" dir="ltr" inputmode="tel" autocomplete="off" maxlength="30" placeholder="رقم هاتف العميل">
@@ -91,7 +94,7 @@
         <div class="bw-cost-preview">
             <div><span>الخدمة</span><strong id="costServiceLabel">محافظ كاش</strong></div>
             <div><span>سعر الصرف</span><strong class="bw-mono" id="costRate">1 LYD = 0.00 EGP</strong></div>
-            <div><span>التكلفة التقديرية</span><strong class="bw-mono" id="costEstimate">0.000 LYD</strong></div>
+            <div><span><span class="bw-inline-flag" aria-hidden="true">🇱🇾</span> التكلفة التقديرية</span><strong class="bw-mono" id="costEstimate">0.000 LYD</strong></div>
         </div>
         <div class="bw-form-result" id="transferFormResult" hidden></div>
         <button type="submit" class="bw-button primary wide" id="transferSubmitButton">

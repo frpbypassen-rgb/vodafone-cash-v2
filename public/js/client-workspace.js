@@ -225,6 +225,7 @@
     const transferAmountLyd = document.getElementById('transferAmountLyd');
     const transferAmountLabel = document.getElementById('transferAmountLabel');
     const transferAmountCurrency = document.getElementById('transferAmountCurrency');
+    const transferAmountFlag = document.getElementById('transferAmountFlag');
     const transferBeneficiary = document.getElementById('transferBeneficiary');
     const beneficiaryFieldLabel = document.getElementById('beneficiaryFieldLabel');
     const transferSubtype = document.getElementById('transferSubtype');
@@ -449,6 +450,7 @@
         updateSefaAcknowledgement();
         if (transferAmountLabel) transferAmountLabel.textContent = isSourceToLydRate(service) ? 'المبلغ بالسيفا' : 'المبلغ بالجنيه المصري';
         if (transferAmountCurrency) transferAmountCurrency.textContent = sourceCurrencyLabel(service);
+        if (transferAmountFlag) transferAmountFlag.textContent = sourceCurrencyLabel(service) === 'EGP' ? '🇪🇬' : '🇳🇪';
         if (costServiceLabel) costServiceLabel.textContent = service.label;
         if (costRate) costRate.textContent = formatExchangeRate(service.rate, service);
         if (transferRateBridge) transferRateBridge.textContent = formatExchangeRate(service.rate, service);
