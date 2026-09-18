@@ -57,6 +57,12 @@ const endUnauthorizedClientSession = (req, res) => {
     };
 
     if (!req.session) return sendUnauthorized();
+    // A browser can keep an old client tab open while the same cookie is now
+    // authenticated as an administrator or executor. Client background polls
+    // must never destroy that other portal's valid session. Only destroy a
+    // session that actually claims to be a client session and then fails the
+    // account/status validation above.
+    if (!req.session.isClientLoggedIn || !req.session.clientId) return sendUnauthorized();
     return req.session.destroy(sendUnauthorized);
 };
 
@@ -576,5 +582,7 @@ router.post('/api/support/messages', requireClientAuth, async (req, res) => {
         });
     }
 });
+
+router.__test = { endUnauthorizedClientSession };
 
 module.exports = router;
