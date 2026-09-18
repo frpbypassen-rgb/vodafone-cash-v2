@@ -6,6 +6,7 @@ const {
     resolveAgentPermissions,
     buildNavigation,
     buildReportGroups,
+    buildReportAnalytics,
     summarizeTransactions,
     findServiceByToken,
     resolvePortalHomeHref,
@@ -231,6 +232,18 @@ describe('Business portal service', () => {
         expect(buildReportGroups(transactions, 'organization')).toHaveLength(2);
         expect(buildReportGroups(transactions, 'customers').map((row) => row.key).sort()).toEqual(['عميل 1', 'عميل 2']);
         expect(buildReportGroups(transactions, 'staff').map((row) => row.key).sort()).toEqual(['أحمد', 'سالم']);
+    });
+
+    test('builds liquidity analytics and an end-of-day balance forecast', () => {
+        const analytics = buildReportAnalytics([
+            { status: 'deposit', amount: 200, createdAt: new Date('2026-09-16T10:00:00Z') },
+            { status: 'completed', costLYD: 80, createdAt: new Date('2026-09-16T12:00:00Z') },
+            { status: 'completed', costLYD: 40, createdAt: new Date('2026-09-18T08:00:00Z') }
+        ], 500, new Date('2026-09-18T12:00:00Z'));
+
+        expect(analytics).toMatchObject({ totalIncoming: 200, totalOutgoing: 120, netMovement: 80, averageDailyOutflow: 80 });
+        expect(analytics.forecastBalance).toBe(460);
+        expect(analytics.liquiditySeries).toHaveLength(2);
     });
 
     test('builds a one-time low-balance alert for company accounts that can view balance', () => {

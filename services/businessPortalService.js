@@ -24,7 +24,8 @@ const { findReportTransactions, getUnifiedReportStatus } = require('./unifiedRep
 const { loadAdminReport } = require('./adminReportService');
 const {
     sanitizeStatementMovement,
-    sanitizeStatementTransaction
+    sanitizeStatementTransaction,
+    sanitizeStatementText
 } = require('../utils/accountStatementPrivacy');
 
 const STATUS_META = Object.freeze({
@@ -693,6 +694,56 @@ const loadOverview = async (workspace) => {
     };
 };
 
+const transferHubDestination = (transaction) => transaction.vodafoneNumber
+    || transaction.accountNumber
+    || transaction.serviceDetails?.clientPhone
+    || '';
+
+const loadTransferHub = async (workspace, serviceKey = '') => {
+    const ownership = await ownershipFilter(workspace);
+    const serviceCondition = SERVICE_CATALOG.some((service) => service.key === serviceKey)
+        ? { transferType: serviceKey }
+        : { transferType: { $in: SERVICE_CATALOG.map((service) => service.key) } };
+    const transactions = await Transaction.find({
+        $and: [ownership, serviceCondition, { status: { $nin: ['deposit', 'deposit_pending', 'deduction'] } }]
+    }).select('customId status transferType amount accountName vodafoneNumber accountNumber serviceDetails.clientPhone serviceDetails.destinationLabel notes createdAt')
+        .sort({ createdAt: -1 }).limit(60).lean();
+    const destinations = new Map();
+    const reasons = new Map();
+    transactions.forEach((transaction) => {
+        const destination = transferHubDestination(transaction);
+        if (destination) {
+            const current = destinations.get(destination) || {
+                destination,
+                name: transaction.accountName || transaction.serviceDetails?.destinationLabel || 'مستفيد محفوظ من السجل',
+                transferType: transaction.transferType,
+                count: 0,
+                lastAmount: 0,
+                lastUsedAt: transaction.createdAt,
+                recent: []
+            };
+            current.count += 1;
+            if (!current.lastAmount) current.lastAmount = safeNumber(transaction.amount);
+            if (current.recent.length < 3) current.recent.push({
+                reference: transaction.customId,
+                amount: safeNumber(transaction.amount),
+                status: transaction.status,
+                createdAt: transaction.createdAt
+            });
+            destinations.set(destination, current);
+        }
+        const note = sanitizeStatementText(transaction.notes || '').trim();
+        if (note && note.length <= 80) reasons.set(note, (reasons.get(note) || 0) + 1);
+    });
+    return {
+        transferHub: {
+            favorites: [...destinations.values()].sort((left, right) => right.count - left.count).slice(0, 6),
+            suggestedReasons: [...reasons.entries()].sort((left, right) => right[1] - left[1]).slice(0, 5).map(([reason]) => reason),
+            recentOperations: transactions.slice(0, 5)
+        }
+    };
+};
+
 const loadTransactions = async (workspace, query = {}) => {
     const page = Math.max(1, Number.parseInt(query.page, 10) || 1);
     const limit = 25;
@@ -1016,6 +1067,36 @@ const buildReportGroups = (transactions, scope) => {
     return [...groups.values()].sort((left, right) => new Date(right.lastActivity) - new Date(left.lastActivity));
 };
 
+const buildReportAnalytics = (transactions = [], balance = 0, now = new Date()) => {
+    const dailyMap = new Map();
+    transactions.forEach((transaction) => {
+        const key = formatInputDate(new Date(transaction.createdAt));
+        const current = dailyMap.get(key) || { date: key, incoming: 0, outgoing: 0, count: 0 };
+        current.count += 1;
+        if (transaction.status === 'deposit') current.incoming += safeNumber(transaction.amount);
+        if (transaction.status === 'deduction') current.outgoing += safeNumber(transaction.amount);
+        if (transaction.status === 'completed') current.outgoing += safeNumber(transaction.costLYD);
+        dailyMap.set(key, current);
+    });
+    const liquiditySeries = [...dailyMap.values()].sort((left, right) => left.date.localeCompare(right.date));
+    const totalIncoming = liquiditySeries.reduce((sum, item) => sum + item.incoming, 0);
+    const totalOutgoing = liquiditySeries.reduce((sum, item) => sum + item.outgoing, 0);
+    const todayKey = formatInputDate(now);
+    const completedDays = liquiditySeries.filter((item) => item.date !== todayKey);
+    const averageDailyOutflow = completedDays.length
+        ? completedDays.reduce((sum, item) => sum + item.outgoing, 0) / completedDays.length
+        : (liquiditySeries.find((item) => item.date === todayKey)?.outgoing || 0);
+    const todayOutflow = liquiditySeries.find((item) => item.date === todayKey)?.outgoing || 0;
+    return {
+        liquiditySeries,
+        totalIncoming,
+        totalOutgoing,
+        netMovement: totalIncoming - totalOutgoing,
+        forecastBalance: safeNumber(balance) - Math.max(0, averageDailyOutflow - todayOutflow),
+        averageDailyOutflow
+    };
+};
+
 const centralCompanyReportInput = (workspace, query = {}) => {
     if (!workspace?.isCompany || !workspace.entity?._id) {
         const error = new Error('CENTRAL_COMPANY_REPORT_FORBIDDEN');
@@ -1116,6 +1197,7 @@ const loadReports = async (workspace, query = {}) => {
             ? agencyFinanceService.buildProfitRows(transactions, new Map())
             : [],
         reportTransactions: transactions.slice(0, 100).map(sanitizeStatementTransaction),
+        reportAnalytics: buildReportAnalytics(transactions, workspace.entity.balance),
         filters: { ...range, scope },
         centralReport: buildCentralReportArtifact({
             workspace,
@@ -1349,6 +1431,7 @@ const loadPageContext = async (req, page) => {
         if (workspace.isCompany && workspace.forceToday) {
             Object.assign(context, await loadOverview(workspace));
         }
+        Object.assign(context, await loadTransferHub(workspace, context.servicePage.selectedService));
     }
     if (page === 'service_workbench') {
         const service = findServiceByToken(req.params.serviceKey);
@@ -1365,6 +1448,7 @@ const loadPageContext = async (req, page) => {
             eyebrow: 'خدمة معزولة',
             icon: liveService.icon
         };
+        Object.assign(context, await loadTransferHub(workspace, service.key));
     }
     if (page === 'smart_transfer') {
         context.servicePage = { selectedService: req.query.service || 'vodafone', mode: 'smart' };
@@ -1425,6 +1509,7 @@ module.exports = {
     getSettingsAndRates,
     summarizeTransactions,
     buildReportGroups,
+    buildReportAnalytics,
     loadPageContext,
     loadReports,
     loadCentralCompanyReport,

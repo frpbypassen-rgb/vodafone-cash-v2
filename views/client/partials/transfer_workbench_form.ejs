@@ -1,8 +1,21 @@
 <section class="bw-transfer-workbench">
-    <header class="bw-section-head">
+    <header class="bw-section-head bw-transfer-hub-head">
         <div><span class="bw-section-kicker">بيانات العملية</span><h2 id="selectedServiceTitle"><%= typeof isolatedService !== 'undefined' ? isolatedService.label : 'إنشاء تحويل' %></h2></div>
-        <span class="bw-secure-label"><i class="fa-solid fa-shield-halved"></i>إرسال آمن</span>
+        <div class="bw-transfer-tools"><button type="button" class="bw-button ghost compact" data-focus-mode><i class="fa-solid fa-expand"></i>وضع التركيز</button><button type="button" class="bw-button ghost compact" data-voice-transfer><i class="fa-solid fa-microphone"></i>أمر صوتي</button><span class="bw-secure-label"><i class="fa-solid fa-shield-halved"></i>إرسال آمن</span></div>
     </header>
+    <% const hub = typeof transferHub !== 'undefined' ? transferHub : { favorites: [], suggestedReasons: [], recentOperations: [] }; %>
+    <% if (hub.favorites.length) { %>
+    <section class="bw-beneficiary-strip" aria-label="المستفيدون المتكررون">
+        <header><div><span>وصول سريع</span><strong>آخر المستفيدين</strong></div><small>اختر مستفيداً لتعبئة بياناته</small></header>
+        <div class="bw-beneficiary-list">
+            <% hub.favorites.forEach(item => { %>
+                <button type="button" data-beneficiary-destination="<%= item.destination %>" data-beneficiary-name="<%= item.name %>" data-beneficiary-service="<%= item.transferType %>" data-beneficiary-amount="<%= item.lastAmount %>">
+                    <span><%= String(item.name || item.destination).charAt(0) %></span><strong><%= item.name %></strong><small class="bw-mono"><%= item.destination %></small><em><%= item.count %> مرات</em>
+                </button>
+            <% }) %>
+        </div>
+    </section>
+    <% } %>
     <form id="businessTransferForm" class="bw-form" enctype="multipart/form-data" novalidate>
         <input type="hidden" name="type" id="transferType" value="كاش">
         <input type="hidden" name="number" id="transferAccountNumber" value="">
@@ -68,6 +81,13 @@
                     <div class="bw-input-affix"><input type="number" id="transferAmountLyd" min="0.01" step="0.01" inputmode="decimal" placeholder="0.00"><b>LYD</b></div>
                 </label>
             </div>
+            <div class="bw-amount-shortcuts span-2" aria-label="قيم سريعة">
+                <span>إضافة سريعة</span>
+                <button type="button" data-amount-add="100">+100</button>
+                <button type="button" data-amount-add="500">+500</button>
+                <button type="button" data-amount-add="1000">+1,000</button>
+                <% if (workspace.permissions.canViewBalance) { %><button type="button" data-amount-max>أقصى متاح</button><% } %>
+            </div>
             <label class="bw-field span-2">
                 <span>رقم واتساب العميل <em>اختياري</em></span>
                 <input type="text" name="clientPhone" id="transferClientPhone" class="bw-mono" dir="ltr" inputmode="tel" autocomplete="off" maxlength="30" placeholder="رقم هاتف العميل">
@@ -76,6 +96,7 @@
             <label class="bw-field span-2">
                 <span>ملاحظة العميل <em>اختياري</em></span>
                 <textarea name="notes" id="transferNotes" rows="3" maxlength="500" placeholder="اكتب الملاحظة التي تريد ظهورها مع العملية فقط"></textarea>
+                <% if (hub.suggestedReasons.length) { %><span class="bw-reason-suggestions"><% hub.suggestedReasons.forEach(reason => { %><button type="button" data-transfer-reason="<%= reason %>"><%= reason %></button><% }) %></span><% } %>
             </label>
         </div>
 
@@ -89,4 +110,13 @@
             <i class="fa-solid fa-lock"></i><span><%= typeof workspace !== 'undefined' && workspace.isCompany ? 'مراجعة العملية' : 'مراجعة وإرسال العملية' %></span>
         </button>
     </form>
+    <section class="bw-live-mini-feed" data-transfer-live-feed>
+        <header><div><span class="bw-live-dot"></span><strong>آخر العمليات</strong></div><a href="/client/transactions">عرض الكل</a></header>
+        <div>
+            <% if (!hub.recentOperations.length) { %><p class="bw-live-empty">لا توجد عمليات بعد.</p><% } %>
+            <% hub.recentOperations.forEach(tx => { const meta = statusMeta[tx.status] || { label: tx.status, tone: 'neutral' }; %>
+                <button type="button" data-transaction-id="<%= tx._id %>"><span><strong class="bw-mono"><%= tx.customId %></strong><small><%= tx.accountName || tx.vodafoneNumber || tx.accountNumber || 'مستفيد' %></small></span><b class="bw-mono"><%= Number(tx.amount || 0).toLocaleString('en-US', { maximumFractionDigits: 0 }) %></b><em class="bw-status <%= meta.tone %>"><%= meta.label %></em></button>
+            <% }) %>
+        </div>
+    </section>
 </section>

@@ -53,6 +53,26 @@
         <div class="bw-setting-note"><i class="fa-solid fa-display"></i><span><strong>تجربة شخصية لكل جهاز</strong><small>لن يتأثر إعداد أي موظف آخر بخياراتك.</small></span></div>
     </section>
 
+    <section class="bw-settings-panel" id="notifications">
+        <header class="bw-settings-panel-head"><span class="bw-settings-panel-icon tone-gold"><i class="fa-solid fa-bell"></i></span><div><span>الإشعارات</span><h2>تنبيهات هذا الجهاز</h2><p>اختر القنوات التي تريد استخدامها للتنبيهات التشغيلية.</p></div></header>
+        <div class="bw-notification-choices">
+            <label><span><i class="fa-solid fa-mobile-screen"></i><b>Push</b><small>العمليات وتغير الأسعار</small></span><input type="checkbox" data-notification-preference="push" checked></label>
+            <label><span><i class="fa-solid fa-envelope"></i><b>البريد الإلكتروني</b><small>التقارير والتنبيهات المهمة</small></span><input type="checkbox" data-notification-preference="email"></label>
+            <label><span><i class="fa-solid fa-comment-sms"></i><b>SMS</b><small>تنبيهات الأمان فقط</small></span><input type="checkbox" data-notification-preference="sms"></label>
+        </div>
+        <div class="bw-setting-note"><i class="fa-solid fa-circle-info"></i><span><strong>تفضيلات الجهاز</strong><small>تُحفظ محلياً حالياً، بينما تظل التنبيهات الأمنية الحرجة فعالة دائماً.</small></span></div>
+    </section>
+
+    <% if (workspace.isCompany || workspace.isAgent) { %>
+    <section class="bw-settings-panel" id="integrations">
+        <header class="bw-settings-panel-head"><span class="bw-settings-panel-icon tone-violet"><i class="fa-solid fa-plug"></i></span><div><span>التكاملات</span><h2>ربط أنظمتك الخارجية</h2><p>إدارة استقبال أحداث العمليات ومراجعة سجل التسليم من مكان واحد.</p></div></header>
+        <div class="bw-integration-grid">
+            <a href="/client/integrations/webhooks"><span><i class="fa-solid fa-code-branch"></i></span><div><strong>Webhooks</strong><small>الروابط، الأحداث، المحاولات وإعادة الإرسال</small></div><i class="fa-solid fa-chevron-left"></i></a>
+            <div><span><i class="fa-solid fa-key"></i></span><div><strong>مفتاح API</strong><small>يصدر ويُدوّر من الإدارة لحماية التكامل المالي</small></div><i class="fa-solid fa-lock"></i></div>
+        </div>
+    </section>
+    <% } %>
+
     <% if (!workspace.isCompany) { %>
     <section class="bw-settings-panel bw-settings-security" id="security">
         <header class="bw-settings-panel-head"><span class="bw-settings-panel-icon tone-green"><i class="fa-solid fa-shield-halved"></i></span><div><span>الأمان والدخول</span><h2>حماية الحساب</h2><p>استخدم كلمة مرور قوية وراجع الأجهزة المسجلة بانتظام.</p></div></header>

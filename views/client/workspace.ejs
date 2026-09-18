@@ -2,6 +2,8 @@
 <html lang="ar" dir="rtl">
 <%- include('partials/workspace_head') %>
 <body class="bw-body<%= workspace.isCompany ? ' bw-company-os' : '' %>" data-page="<%= page %>" data-persona="<%= workspace.persona %>" data-portal="<%= workspace.type %>">
+    <div class="bw-offline-banner" data-offline-banner hidden><i class="fa-solid fa-wifi"></i><span><strong>الاتصال متوقف</strong> البيانات المعروضة قديمة، وتم إيقاف إرسال التحويلات حتى عودة الشبكة.</span></div>
+    <div class="bw-privacy-shield" data-privacy-shield hidden><i class="fa-solid fa-eye-slash"></i><strong>تم إخفاء البيانات الحساسة</strong><button type="button" data-privacy-restore>إظهار</button></div>
     <%- include('partials/workspace_sidebar') %>
     <button class="bw-sidebar-overlay" type="button" data-sidebar-close aria-label="إغلاق القائمة"></button>
 
@@ -264,6 +266,20 @@
         </div>
     </dialog>
 
+    <% if (page === 'reports') { const exportParams = new URLSearchParams(query); %>
+    <dialog class="bw-dialog bw-export-preview" id="reportExportDialog" aria-labelledby="reportExportTitle">
+        <div class="bw-dialog-head"><div><span class="bw-section-kicker">معاينة الملف</span><h2 id="reportExportTitle">ماذا سيحتوي التقرير؟</h2></div><button type="button" class="bw-icon-button" data-dialog-close aria-label="إغلاق"><i class="fa-solid fa-xmark"></i></button></div>
+        <div class="bw-export-preview-body">
+            <div class="bw-export-file"><span><i class="fa-solid fa-file-shield"></i></span><div><strong><%= reportScopeLabel %></strong><small><%= filters.label %> · <%= reportSummary.totalCount %> عملية</small></div></div>
+            <ul><li><i class="fa-solid fa-check"></i>بيانات الفترة والفلاتر الحالية فقط</li><li><i class="fa-solid fa-check"></i>رقم تقرير وبصمة تحقق قابلة للمراجعة</li><li><i class="fa-solid fa-check"></i>الملخص المالي وتوزيع الخدمات</li></ul>
+            <div class="bw-dialog-actions">
+                <a class="bw-button secondary" href="/client/reports/export.csv?<%= exportParams.toString() %>"><i class="fa-solid fa-file-csv"></i>CSV للبيانات الخام</a>
+                <% if (workspace.isCompany) { %><a class="bw-button primary" href="/client/reports/central.pdf?<%= exportParams.toString() %>"><i class="fa-solid fa-file-pdf"></i>PDF منسق</a><% } %>
+            </div>
+        </div>
+    </dialog>
+    <% } %>
+
     <script>
         window.businessPortal = <%- JSON.stringify({
             page,
@@ -278,6 +294,7 @@
             pendingRateUpdate,
             entityName: workspace.entity.name,
             roleLabel: workspace.roleLabel,
+            availableBalance: workspace.permissions.canViewBalance ? Number(workspace.entity.balance || 0) : null,
             selectedService: typeof servicePage !== 'undefined' ? servicePage.selectedService : 'vodafone'
         }).replace(/</g, '\\u003c') %>;
         window.rateAlertInitial = <%- JSON.stringify(pendingRateUpdate || null).replace(/</g, '\\u003c') %>;

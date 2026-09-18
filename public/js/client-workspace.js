@@ -98,6 +98,13 @@
         });
     }
 
+    document.querySelectorAll('[data-notification-preference]').forEach((input) => {
+        const key = `powerpay-notification-${input.dataset.notificationPreference}`;
+        const stored = localStorage.getItem(key);
+        if (stored !== null) input.checked = stored === 'true';
+        input.addEventListener('change', () => localStorage.setItem(key, String(input.checked)));
+    });
+
     const settingsShell = document.querySelector('[data-settings-shell]');
     if (settingsShell) {
         const tabs = [...settingsShell.querySelectorAll('[data-settings-tab]')];
@@ -1544,7 +1551,160 @@
         });
     }
 
+    const transferAmountInput = document.getElementById('transferAmount');
+    const transferNotesInput = document.getElementById('transferNotes');
+    document.querySelectorAll('[data-amount-add]').forEach((button) => {
+        button.addEventListener('click', () => {
+            if (!transferAmountInput) return;
+            transferAmountInput.value = String(Math.max(0, Number(transferAmountInput.value || 0)) + Number(button.dataset.amountAdd || 0));
+            transferAmountInput.dispatchEvent(new Event('input', { bubbles: true }));
+        });
+    });
+    document.querySelector('[data-amount-max]')?.addEventListener('click', () => {
+        const service = activeService || (config.services || []).find((item) => item.key === config.selectedService);
+        const rate = Number(service?.rate || 0);
+        const balance = Number(config.availableBalance || 0);
+        if (!transferAmountInput || !(rate > 0) || !(balance > 0)) return;
+        const maximum = service?.rateDirection === 'source_to_lyd' ? balance / rate : balance * rate;
+        transferAmountInput.value = String(Math.floor(maximum * 100) / 100);
+        transferAmountInput.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+    document.querySelectorAll('[data-transfer-reason]').forEach((button) => {
+        button.addEventListener('click', () => {
+            if (!transferNotesInput) return;
+            transferNotesInput.value = button.dataset.transferReason || '';
+            transferNotesInput.focus();
+        });
+    });
+    document.querySelectorAll('[data-beneficiary-destination]').forEach((button) => {
+        button.addEventListener('click', () => {
+            const serviceButton = document.querySelector(`[data-service-key="${CSS.escape(button.dataset.beneficiaryService || '')}"]`);
+            serviceButton?.click();
+            const destination = document.getElementById('transferDestination');
+            const beneficiary = document.getElementById('transferBeneficiary');
+            if (destination) destination.value = button.dataset.beneficiaryDestination || '';
+            if (beneficiary) beneficiary.value = button.dataset.beneficiaryName || '';
+            destination?.dispatchEvent(new Event('input', { bubbles: true }));
+            destination?.focus();
+        });
+    });
+
+    document.querySelector('[data-focus-mode]')?.addEventListener('click', (event) => {
+        const active = body.classList.toggle('bw-focus-mode');
+        event.currentTarget.innerHTML = active
+            ? '<i class="fa-solid fa-compress"></i>إنهاء التركيز'
+            : '<i class="fa-solid fa-expand"></i>وضع التركيز';
+    });
+
+    document.querySelector('[data-voice-transfer]')?.addEventListener('click', (event) => {
+        const Recognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+        if (!Recognition) {
+            event.currentTarget.title = 'الأوامر الصوتية غير مدعومة في هذا المتصفح';
+            return;
+        }
+        const recognition = new Recognition();
+        recognition.lang = 'ar-EG';
+        recognition.interimResults = false;
+        event.currentTarget.classList.add('is-listening');
+        recognition.onresult = ({ results }) => {
+            const text = String(results?.[0]?.[0]?.transcript || '');
+            const amountMatch = text.match(/([0-9٠-٩]+(?:[.,][0-9٠-٩]+)?)/);
+            const normalizedAmount = amountMatch?.[1]?.replace(/[٠-٩]/g, (digit) => '٠١٢٣٤٥٦٧٨٩'.indexOf(digit)).replace(',', '.');
+            if (transferAmountInput && normalizedAmount) {
+                transferAmountInput.value = normalizedAmount;
+                transferAmountInput.dispatchEvent(new Event('input', { bubbles: true }));
+            }
+            const nameMatch = text.match(/(?:إلى|الى|لـ|ل)\s+(.+?)(?:\s+(?:بمبلغ|مبلغ|قيمة)|$)/u);
+            const beneficiary = document.getElementById('transferBeneficiary');
+            if (beneficiary && nameMatch?.[1]) beneficiary.value = nameMatch[1].trim();
+        };
+        recognition.onend = () => event.currentTarget.classList.remove('is-listening');
+        recognition.onerror = () => event.currentTarget.classList.remove('is-listening');
+        recognition.start();
+    });
+
+    const offlineBanner = document.querySelector('[data-offline-banner]');
+    const updateConnectivity = () => {
+        const offline = !navigator.onLine;
+        if (offlineBanner) offlineBanner.hidden = !offline;
+        body.classList.toggle('bw-is-offline', offline);
+        const submit = document.getElementById('transferSubmitButton');
+        if (submit) submit.disabled = offline;
+    };
+    window.addEventListener('online', updateConnectivity);
+    window.addEventListener('offline', updateConnectivity);
+    updateConnectivity();
+
+    const privacyShield = document.querySelector('[data-privacy-shield]');
+    const setPrivacyShield = (active) => {
+        if (privacyShield) privacyShield.hidden = !active;
+        body.classList.toggle('bw-privacy-active', active);
+    };
+    document.querySelectorAll('[data-privacy-toggle]').forEach((button) => button.addEventListener('click', () => setPrivacyShield(true)));
+    document.querySelector('[data-privacy-restore]')?.addEventListener('click', () => setPrivacyShield(false));
+    let lastShakeAt = 0;
+    window.addEventListener('devicemotion', (event) => {
+        const acceleration = event.accelerationIncludingGravity;
+        const strength = Math.abs(acceleration?.x || 0) + Math.abs(acceleration?.y || 0) + Math.abs(acceleration?.z || 0);
+        if (strength > 34 && Date.now() - lastShakeAt > 2500) {
+            lastShakeAt = Date.now();
+            setPrivacyShield(true);
+        }
+    });
+
+    const exportDialog = document.getElementById('reportExportDialog');
+    document.querySelectorAll('[data-report-export-open]').forEach((button) => button.addEventListener('click', () => openDialog(exportDialog)));
+
+    const chart = document.getElementById('liquidityChart');
+    const chartDataNode = document.getElementById('liquiditySeriesData');
+    let liquidityRows = [];
+    try { liquidityRows = JSON.parse(chartDataNode?.textContent || '[]'); } catch (_) { liquidityRows = []; }
+    const renderLiquidityChart = (days = '30') => {
+        if (!chart || !liquidityRows.length) return;
+        const rows = days === 'all' ? liquidityRows : liquidityRows.slice(-Number(days));
+        const width = 760;
+        const height = 250;
+        const padding = 30;
+        const maximum = Math.max(1, ...rows.flatMap((row) => [Number(row.incoming || 0), Number(row.outgoing || 0)]));
+        const x = (index) => padding + (index * (width - padding * 2) / Math.max(1, rows.length - 1));
+        const y = (value) => height - padding - (Number(value || 0) / maximum) * (height - padding * 2);
+        const points = (key) => rows.map((row, index) => `${x(index)},${y(row[key])}`).join(' ');
+        chart.innerHTML = `<svg viewBox="0 0 ${width} ${height}" preserveAspectRatio="none" aria-hidden="true"><defs><linearGradient id="cashIn" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="currentColor" stop-opacity=".25"/><stop offset="1" stop-color="currentColor" stop-opacity="0"/></linearGradient></defs><g class="grid"><line x1="${padding}" y1="${padding}" x2="${width-padding}" y2="${padding}"/><line x1="${padding}" y1="${height/2}" x2="${width-padding}" y2="${height/2}"/><line x1="${padding}" y1="${height-padding}" x2="${width-padding}" y2="${height-padding}"/></g><polyline class="incoming" points="${points('incoming')}"/><polyline class="outgoing" points="${points('outgoing')}"/>${rows.map((row,index)=>`<circle class="incoming-dot" cx="${x(index)}" cy="${y(row.incoming)}" r="4"><title>${escapeHtml(row.date)} — وارد ${formatNumber(row.incoming,2)}</title></circle><circle class="outgoing-dot" cx="${x(index)}" cy="${y(row.outgoing)}" r="4"><title>${escapeHtml(row.date)} — صادر ${formatNumber(row.outgoing,2)}</title></circle>`).join('')}</svg>`;
+    };
+    document.querySelectorAll('[data-chart-days]').forEach((button) => button.addEventListener('click', () => {
+        document.querySelectorAll('[data-chart-days]').forEach((item) => item.classList.toggle('active', item === button));
+        renderLiquidityChart(button.dataset.chartDays);
+    }));
+    renderLiquidityChart('30');
+
+    const liveFeed = document.querySelector('[data-transfer-live-feed] > div');
+    const refreshTransferFeed = async () => {
+        if (!liveFeed || document.visibilityState !== 'visible') return;
+        try {
+            const response = await fetch('/client/api/transactions', { headers: { Accept: 'application/json' } });
+            const payload = await parseJsonResponse(response);
+            if (!response.ok || !payload.success) return;
+            const labels = { completed: 'مكتملة', rejected: 'مرفوضة', pending: 'معلقة', processing: 'قيد التنفيذ', accepted: 'مقبولة' };
+            liveFeed.innerHTML = (payload.transactions || []).slice(0, 5).map((transaction) => `<button type="button" data-transaction-id="${escapeHtml(transaction._id)}"><span><strong class="bw-mono">${escapeHtml(transaction.customId)}</strong><small>${escapeHtml(transaction.accountName || transaction.vodafoneNumber || transaction.accountNumber || 'مستفيد')}</small></span><b class="bw-mono">${formatNumber(transaction.amount)}</b><em class="bw-status">${escapeHtml(labels[transaction.status] || transaction.status)}</em></button>`).join('') || '<p class="bw-live-empty">لا توجد عمليات بعد.</p>';
+        } catch (_) { /* fallback refresh is optional */ }
+    };
+    if (liveFeed) {
+        liveFeed.addEventListener('click', (event) => {
+            const row = event.target.closest('[data-transaction-id]');
+            if (row) openTransactionDetails(row.dataset.transactionId);
+        });
+        window.setInterval(refreshTransferFeed, 20000);
+        if (typeof window.io === 'function') {
+            const liveSocket = window.io();
+            liveSocket.on('connect', () => liveSocket.emit('client:transactions:subscribe'));
+            liveSocket.on('client:transactions:changed', refreshTransferFeed);
+        }
+    }
+
     document.addEventListener('keydown', (event) => {
-        if (event.key === 'Escape') setSidebar(false);
+        if (event.key === 'Escape') {
+            setSidebar(false);
+            if (body.classList.contains('bw-focus-mode')) body.classList.remove('bw-focus-mode');
+        }
     });
 })();

@@ -165,6 +165,7 @@ const triggerUpdate = (doc) => {
         transactionBroadcastTimer = setTimeout(() => {
             transactionBroadcastTimer = null;
             io.to('admin:transactions').emit('transactions:changed', { at: new Date().toISOString() });
+            io.to('client:transactions').emit('client:transactions:changed', { at: new Date().toISOString() });
         }, 250);
         transactionBroadcastTimer.unref?.();
     }
@@ -367,6 +368,11 @@ io.on('connection', (socket) => {
         const allowed = Boolean(sessionData?.isLoggedIn)
             && (sessionData.adminRole === 'master' || permissions.has('*') || permissions.has('transactions.read'));
         if (allowed) socket.join('admin:transactions');
+        if (typeof ack === 'function') ack({ success: allowed });
+    });
+    socket.on('client:transactions:subscribe', (ack) => {
+        const allowed = Boolean(socket.request?.session?.isClientLoggedIn && socket.request?.session?.clientId);
+        if (allowed) socket.join('client:transactions');
         if (typeof ack === 'function') ack({ success: allowed });
     });
 });

@@ -27,9 +27,10 @@
             <a href="/client/reports?<%= params.toString() %>" class="<%= reportScope === scopeKey ? 'active' : '' %>"><i class="fa-solid <%= scopeKey === 'organization' ? 'fa-building' : scopeKey === 'customers' ? 'fa-users' : 'fa-user-group' %>"></i><%= scopeLabel %></a>
         <% }) %>
     </div>
-    <% } else { const centralPdfParams = new URLSearchParams(query); %>
-        <div class="bw-report-actions"><a href="/client/reports/central.pdf?<%= centralPdfParams.toString() %>" class="bw-button primary bw-central-download"><i class="fa-solid fa-file-pdf"></i>تحميل كشف حساب</a></div>
+    <% } else { %>
+        <div class="bw-report-actions"><button type="button" class="bw-button primary bw-central-download" data-report-export-open><i class="fa-solid fa-file-arrow-down"></i>تصدير ذكي</button></div>
     <% } %>
+    <% if (!workspace.isCompany) { %><button type="button" class="bw-button primary" data-report-export-open><i class="fa-solid fa-file-arrow-down"></i>تصدير ذكي</button><% } %>
 </section>
 <% } %>
 
@@ -113,6 +114,21 @@
     <article class="warning"><span>قيد التنفيذ</span><strong class="bw-mono"><%= reportSummary.pendingCount %></strong></article>
     <article class="danger"><span>ملغية أو مرفوضة</span><strong class="bw-mono"><%= reportSummary.cancelledCount %></strong></article>
 </section>
+
+<section class="bw-report-intelligence">
+    <div class="bw-section bw-liquidity-chart-card">
+        <header class="bw-section-head"><div><span class="bw-section-kicker">حركة السيولة</span><h2>الوارد والصادر خلال الفترة</h2></div><div class="bw-chart-range"><button type="button" data-chart-days="7">7 أيام</button><button type="button" data-chart-days="30" class="active">30 يوماً</button><button type="button" data-chart-days="all">الكل</button></div></header>
+        <div class="bw-liquidity-chart" id="liquidityChart" role="img" aria-label="رسم حركة السيولة"><div class="bw-chart-empty">لا توجد بيانات كافية للرسم.</div></div>
+        <footer class="bw-chart-legend"><span class="incoming"><i></i>وارد</span><span class="outgoing"><i></i>صادر</span><span>مرر المؤشر لقراءة اليوم</span></footer>
+    </div>
+    <aside class="bw-section bw-forecast-card">
+        <span class="bw-section-kicker">توقع السيولة</span><h2>الرصيد المتوقع بنهاية اليوم</h2>
+        <strong class="bw-mono"><%= Number(reportAnalytics.forecastBalance || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) %> <small>LYD</small></strong>
+        <p>تقدير يعتمد على متوسط الصادر اليومي في الفترة المحددة، ويُستخدم للمساعدة في التخطيط فقط.</p>
+        <dl><div><dt>إجمالي الوارد</dt><dd class="bw-mono"><%= Number(reportAnalytics.totalIncoming || 0).toFixed(2) %></dd></div><div><dt>إجمالي الصادر</dt><dd class="bw-mono"><%= Number(reportAnalytics.totalOutgoing || 0).toFixed(2) %></dd></div><div><dt>صافي الحركة</dt><dd class="bw-mono"><%= Number(reportAnalytics.netMovement || 0).toFixed(2) %></dd></div></dl>
+    </aside>
+</section>
+<script type="application/json" id="liquiditySeriesData"><%- JSON.stringify(reportAnalytics.liquiditySeries || []).replace(/</g, '\\u003c') %></script>
 
 <section class="bw-report-grid">
     <div class="bw-section">
