@@ -29,6 +29,12 @@ const {
 const { normalizeWhatsAppPhone } = require('../services/whatsappService');
 const { sanitizeStatementText } = require('../utils/accountStatementPrivacy');
 const logger = require('../utils/logger');
+const rateLimit = require('express-rate-limit');
+const crypto = require('crypto');
+const requireIdempotencyKey = require('../middlewares/requireIdempotencyKey');
+const { acquireLock, releaseLock } = require('../services/lockService');
+const { logAction } = require('../services/auditService');
+const { findMerchantByApiKey } = require('../services/merchantCredentialService');
 
 const MERCHANT_TRANSFER_MIN_AMOUNT = 100;
 const MERCHANT_TRANSFER_MAX_AMOUNT = 50000;
@@ -193,37 +199,49 @@ const merchantApiAuth = async (req, res, next) => {
             return res.status(401).json({ status: 'failed', message: 'مفتاح المصادقة x-api-key مفقود' });
         }
 
-        const company = await ClientBot.findOne({ token: apiKey, status: 'active' }).lean();
-        if (company) {
-            req.merchant = {
-                ...company,
-                merchantType: 'company',
-                entityModel: 'ClientCompany',
-                transactionUserId: 'api_merchant'
-            };
-            return next();
-        }
-
-        const agent = await User.findOne({
-            apiToken: apiKey,
-            role: 'agent',
-            status: 'active'
-        }).lean();
-        if (!agent) {
+        const resolved = await findMerchantByApiKey(apiKey);
+        if (!resolved) {
             return res.status(401).json({ status: 'failed', message: 'مفتاح المصادقة غير صحيح أو الحساب موقوف' });
         }
 
+        const { merchant, merchantType, entityModel } = resolved;
         req.merchant = {
-            ...agent,
-            merchantType: 'agent',
-            entityModel: 'User',
-            transactionUserId: agent.phone || agent.webUsername || String(agent._id)
+            ...merchant,
+            merchantType,
+            entityModel,
+            transactionUserId: merchantType === 'agent'
+                ? (merchant.phone || merchant.webUsername || String(merchant._id))
+                : 'api_merchant'
         };
         return next();
     } catch (_error) {
         return res.status(500).json({ status: 'failed', message: 'حدث خطأ داخلي أثناء التحقق من التاجر' });
     }
 };
+
+const merchantTransferLimiter = rateLimit({
+    windowMs: 60 * 1000,
+    max: 15,
+    standardHeaders: true,
+    legacyHeaders: false,
+    keyGenerator: (req) => `merchant:${req.merchant?._id || req.ip || 'anonymous'}`,
+    validate: { keyGeneratorIpFallback: false },
+    handler: (req, res) => res.status(429).json({
+        status: 'failed',
+        code: 'RATE_LIMITED',
+        message: 'معدل طلبات التحويل مرتفع جداً، يرجى الانتظار قليلاً'
+    })
+});
+
+const buildMerchantTransferFingerprint = ({ merchantId, phoneStr, amountValue, serviceKey, receiptWhatsAppNumber }) => (
+    crypto.createHash('sha256').update(JSON.stringify({
+        merchantId: String(merchantId),
+        phoneStr,
+        amountValue,
+        serviceKey,
+        receiptWhatsAppNumber: receiptWhatsAppNumber || ''
+    })).digest('hex')
+);
 
 router.get('/balance', merchantApiAuth, async (req, res) => {
     const settings = await Settings.findOne({}).lean();
@@ -239,8 +257,9 @@ router.get('/balance', merchantApiAuth, async (req, res) => {
     });
 });
 
-router.post('/transfer', merchantApiAuth, async (req, res) => {
+router.post('/transfer', merchantApiAuth, merchantTransferLimiter, requireIdempotencyKey, async (req, res) => {
     let cooldownLock = null;
+    let idempotencyLock = null;
     try {
         const { target_number, amount, transfer_type } = req.body;
         const amountValue = Number(amount);
@@ -249,6 +268,14 @@ router.post('/transfer', merchantApiAuth, async (req, res) => {
         const receiptWhatsAppNumber = normalizeReceiptWhatsAppNumber(
             req.body?.whatsapp_number ?? req.body?.client_phone
         );
+        const idempotencyKey = req.headers['idempotency-key'];
+        const idempotencyFingerprint = buildMerchantTransferFingerprint({
+            merchantId: req.merchant._id,
+            phoneStr,
+            amountValue,
+            serviceKey,
+            receiptWhatsAppNumber
+        });
 
         if (!/^\d{11}$/.test(phoneStr)) {
             return res.status(400).json({ status: 'failed', message: 'رقم الهاتف غير صالح. يجب أن يتكون من 11 رقماً.' });
@@ -269,6 +296,24 @@ router.post('/transfer', merchantApiAuth, async (req, res) => {
             return res.status(400).json({ status: 'failed', message: 'نوع التحويل غير مدعوم' });
         }
 
+        try {
+            idempotencyLock = await acquireLock(`idemp:${idempotencyKey}`, 10000);
+        } catch (_lockError) {
+            return res.status(429).json({
+                status: 'failed',
+                code: 'LOCK_TIMEOUT',
+                message: 'الرجاء الانتظار، هناك عملية جارية حالياً على حسابك'
+            });
+        }
+
+        const existingEarly = await Transaction.findOne({ idempotencyKey }).lean();
+        if (existingEarly) {
+            if (existingEarly.idempotencyFingerprint === idempotencyFingerprint && existingEarly.idempotencyResponse) {
+                return res.json(existingEarly.idempotencyResponse);
+            }
+            throw merchantRequestError(409, 'مفتاح منع التكرار مستخدم لطلب مختلف', 'IDEMPOTENCY_CONFLICT');
+        }
+
         const cooldown = await acquireTransferCooldown({
             ownerModel: req.merchant.entityModel,
             ownerId: req.merchant._id,
@@ -279,6 +324,15 @@ router.post('/transfer', merchantApiAuth, async (req, res) => {
         cooldownLock = cooldown.lock;
 
         const result = await withOptionalTransaction(async (session) => {
+            const existingQuery = Transaction.findOne({ idempotencyKey });
+            const existingTx = session ? await existingQuery.session(session) : await existingQuery;
+            if (existingTx) {
+                if (existingTx.idempotencyFingerprint === idempotencyFingerprint && existingTx.idempotencyResponse) {
+                    return { replay: true, body: existingTx.idempotencyResponse };
+                }
+                throw merchantRequestError(409, 'مفتاح منع التكرار مستخدم لطلب مختلف', 'IDEMPOTENCY_CONFLICT');
+            }
+
             const settingsQuery = Settings.findOne({});
             const settings = session ? await settingsQuery.session(session).lean() : await settingsQuery.lean();
             const autoRouteExecutor = await resolveAutoRouteExecutor(
@@ -329,6 +383,21 @@ router.post('/transfer', merchantApiAuth, async (req, res) => {
             );
             const customId = `ATT-${yy}${mm}-${counter.value.toString().padStart(4, '0')}`;
 
+            const successBody = {
+                status: 'success',
+                message: 'تم استلام الطلب بنجاح وهو الآن قيد المعالجة',
+                data: {
+                    transaction_id: undefined,
+                    invoice_number: customId,
+                    status: 'pending',
+                    amount_egp: amountValue,
+                    exchange_rate: exchangeRate,
+                    cost_lyd: costLYD,
+                    balance: Number(updatedMerchant.balance || 0),
+                    receipt_whatsapp_number: receiptWhatsAppNumber || null
+                }
+            };
+
             const txData = {
                 tenantId: req.merchant.tenantId || req.tenant?._id || undefined,
                 userId: req.merchant.transactionUserId,
@@ -348,7 +417,9 @@ router.post('/transfer', merchantApiAuth, async (req, res) => {
                 notes: '',
                 adminNotes: '[طلب وارد عبر API التاجر الخارجي]',
                 executorGroupId: undefined,
-                serviceDetails: receiptWhatsAppNumber ? { clientPhone: receiptWhatsAppNumber } : undefined
+                serviceDetails: receiptWhatsAppNumber ? { clientPhone: receiptWhatsAppNumber } : undefined,
+                idempotencyKey,
+                idempotencyFingerprint
             };
             if (autoRouteExecutor) applyAutoRouteFields(txData, autoRouteExecutor);
             const tx = session
@@ -372,8 +443,25 @@ router.post('/transfer', merchantApiAuth, async (req, res) => {
                 await ledgerEntry.save();
             }
 
-            return { tx, exchangeRate, balanceAfter, autoRouteExecutor };
+            successBody.data.transaction_id = tx._id;
+            successBody.data.status = tx.status;
+            successBody.data.amount_egp = tx.amount;
+            successBody.data.cost_lyd = tx.costLYD;
+            Object.assign(successBody.data, resolveMerchantExecutorData(tx, autoRouteExecutor));
+            Object.assign(successBody.data, resolveMerchantCancellationData(tx));
+            tx.idempotencyResponse = successBody;
+            if (session) {
+                await tx.save({ session });
+            } else {
+                await tx.save();
+            }
+
+            return { tx, exchangeRate, balanceAfter, autoRouteExecutor, body: successBody };
         });
+
+        if (result.replay) {
+            return res.json(result.body);
+        }
 
         if (result.autoRouteExecutor) {
             enqueueAutoRouteIfNeeded(result.tx, result.autoRouteExecutor).catch((err) => {
@@ -386,22 +474,27 @@ router.post('/transfer', merchantApiAuth, async (req, res) => {
             employeeName: 'Merchant API'
         });
 
-        return res.json({
-            status: 'success',
-            message: 'تم استلام الطلب بنجاح وهو الآن قيد المعالجة',
-            data: {
-                transaction_id: result.tx._id,
-                invoice_number: result.tx.customId,
-                status: result.tx.status,
-                amount_egp: result.tx.amount,
-                exchange_rate: result.exchangeRate,
-                cost_lyd: result.tx.costLYD,
-                balance: result.balanceAfter,
-                receipt_whatsapp_number: receiptWhatsAppNumber || null,
-                ...resolveMerchantExecutorData(result.tx, result.autoRouteExecutor),
-                ...resolveMerchantCancellationData(result.tx)
+        await logAction({
+            action: 'TRANSFER_CREATED',
+            req,
+            performedById: req.merchant._id,
+            performedByModel: req.merchant.merchantType === 'agent' ? 'User' : 'System',
+            performedByName: req.merchant.name,
+            targetId: result.tx._id,
+            targetModel: 'Transaction',
+            newData: {
+                customId: result.tx.customId,
+                amount: result.tx.amount,
+                transferType: result.tx.transferType,
+                costLYD: result.tx.costLYD
+            },
+            metadata: {
+                channel: 'merchant_api',
+                merchantType: req.merchant.merchantType
             }
-        });
+        }).catch(() => {});
+
+        return res.json(result.body);
     } catch (error) {
         logger.error('Merchant API transfer failed', { error: error.message, code: error.code });
         if (error && error.statusCode) {
@@ -417,6 +510,7 @@ router.post('/transfer', merchantApiAuth, async (req, res) => {
         return res.status(500).json({ status: 'failed', message: 'حدث خطأ داخلي أثناء معالجة الطلب' });
     } finally {
         await releaseTransferCooldown(cooldownLock);
+        await releaseLock(idempotencyLock);
     }
 });
 
