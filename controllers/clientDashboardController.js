@@ -85,6 +85,9 @@ exports.getDashboard = async (req, res) => {
         if (account.status && account.status !== 'active') return res.redirect('/client/logout');
 
         if (req.session.accountType === 'company') {
+            if (req.query.legacy !== '1') {
+                return clientWorkspaceController.renderCompanyNext(req, res);
+            }
             try {
                 const workspace = await businessPortalService.resolveWorkspace(req);
                 if (workspace.permissions.employee) {

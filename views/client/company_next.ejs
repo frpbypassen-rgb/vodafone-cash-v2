@@ -14,10 +14,10 @@
 <body>
 <div class="cn-layout cn-desktop-app">
     <aside class="cn-sidebar" id="companyNextSidebar">
-        <a class="cn-brand" href="/client/company-next"><img src="/images/logo.jpeg" alt="" onerror="this.onerror=null;this.src='/images/logo.jpg'"><span><b>AL-AHRAM</b><small>بوابة الشركات</small></span></a>
+        <a class="cn-brand" href="/client/dashboard"><img src="/images/logo.jpeg" alt="" onerror="this.onerror=null;this.src='/images/logo.jpg'"><span><b>AL-AHRAM</b><small>بوابة الشركات</small></span></a>
         <nav aria-label="أقسام الشركة">
             <span class="cn-nav-label">مساحة العمل</span>
-            <a class="active" href="/client/company-next"><i class="fa-solid fa-chart-pie"></i><span>لوحة القيادة</span></a>
+            <a class="active" href="/client/dashboard"><i class="fa-solid fa-chart-pie"></i><span>لوحة القيادة</span></a>
             <% if (workspace.permissions.canTransfer) { %><a href="/client/services"><i class="fa-solid fa-paper-plane"></i><span>تحويل جديد</span></a><% } %>
             <a href="/client/transactions"><i class="fa-solid fa-arrow-right-arrow-left"></i><span>العمليات</span><% if (Number(monthSummary.pendingCount||0)>0) { %><em><%= monthSummary.pendingCount %></em><% } %></a>
             <% if (workspace.permissions.canViewBalance) { %><a href="/client/finance"><i class="fa-solid fa-wallet"></i><span>المالية</span></a><% } %>
@@ -37,7 +37,7 @@
             <div class="cn-topbar-title"><button type="button" data-menu-open aria-label="فتح القائمة"><i class="fa-solid fa-bars"></i></button><div><small>مساحة عمل الشركة</small><strong><%= workspace.entity.name %></strong></div></div>
             <div class="cn-topbar-actions">
                 <span class="cn-live <%= systemOpen?'':'off' %>"><i></i><%= systemOpen?'الخدمة متاحة':'الخدمة متوقفة' %></span>
-                <a href="/client/dashboard?home=1" class="cn-old-link"><i class="fa-solid fa-arrow-rotate-left"></i><span>الواجهة الحالية</span></a>
+                <a href="/client/dashboard?legacy=1&amp;home=1" class="cn-old-link"><i class="fa-solid fa-clock-rotate-left"></i><span>الواجهة السابقة مؤقتاً</span></a>
             </div>
         </header>
 
@@ -144,7 +144,7 @@
     </main>
 
     <nav class="cm-bottom-nav" aria-label="التنقل على الهاتف">
-        <a class="active" href="/client/company-next"><i class="fa-solid fa-house"></i><span>الرئيسية</span></a>
+        <a class="active" href="/client/dashboard"><i class="fa-solid fa-house"></i><span>الرئيسية</span></a>
         <% if(workspace.permissions.canTransfer){ %><a href="/client/services"><i class="fa-solid fa-paper-plane"></i><span>تحويل</span></a><% } %>
         <a href="/client/transactions"><i class="fa-solid fa-receipt"></i><span>العمليات</span></a>
         <a href="/client/settings/workspace"><i class="fa-regular fa-user"></i><span>حسابي</span></a>
