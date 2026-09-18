@@ -89,12 +89,20 @@ const clientPortalIndexes = [
     }
 ];
 
+const liveOperationsIndexes = [
+    { key: { tenantId: 1, status: 1, transferType: 1, createdAt: -1 }, name: 'liveOps_tenant_status_type_createdAt' },
+    { key: { tenantId: 1, amount: -1, createdAt: -1 }, name: 'liveOps_tenant_amount_createdAt' },
+    { key: { tenantId: 1, vodafoneNumber: 1, createdAt: -1 }, name: 'liveOps_tenant_phone_createdAt' },
+    { key: { tenantId: 1, accountNumber: 1, createdAt: -1 }, name: 'liveOps_tenant_account_createdAt' }
+];
+
 const ensurePerformanceIndexes = async () => {
     try {
         await Transaction.collection.createIndexes([
             ...executorTaskIndexes,
             ...transferCooldownIndexes,
-            ...clientPortalIndexes
+            ...clientPortalIndexes,
+            ...liveOperationsIndexes
         ]);
         logger.info('Transaction performance indexes are ready');
         return true;
@@ -104,4 +112,4 @@ const ensurePerformanceIndexes = async () => {
     }
 };
 
-module.exports = { ensurePerformanceIndexes, clientPortalIndexes };
+module.exports = { ensurePerformanceIndexes, clientPortalIndexes, liveOperationsIndexes };

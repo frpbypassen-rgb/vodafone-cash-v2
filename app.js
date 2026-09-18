@@ -154,12 +154,20 @@ io.on('connection', (socket) => {
 // بربط الإشعارات فقط بجدول العمليات (Transaction) لتقليل الضغط بنسبة 90%
 // ==========================================
 const Transaction = require('./models/Transaction');
+let transactionBroadcastTimer = null;
 const triggerUpdate = (doc) => {
     // Do not broadcast a global event for every persistence hook. No client
     // currently consumes this event and high-volume writes otherwise fan out
     // to every connected socket. Targeted events (rates, support, etc.) stay
     // emitted by their owning services.
     systemMonitor.recordTransactionChange(doc, 'تحديث');
+    if (!transactionBroadcastTimer) {
+        transactionBroadcastTimer = setTimeout(() => {
+            transactionBroadcastTimer = null;
+            io.to('admin:transactions').emit('transactions:changed', { at: new Date().toISOString() });
+        }, 250);
+        transactionBroadcastTimer.unref?.();
+    }
 };
 Transaction.schema.post('save', triggerUpdate);
 Transaction.schema.post('findOneAndUpdate', triggerUpdate);
@@ -325,7 +333,7 @@ try {
     sessionStore = new session.MemoryStore();
 }
 
-app.use(session({
+const sessionMiddleware = session({
     name: 'ahram.sid',
     secret: process.env.SESSION_SECRET || 'dev-session-secret-change-me-only-local',
     resave: false, 
@@ -341,7 +349,27 @@ app.use(session({
         maxAge: sessionMaxAgeMs,
         priority: 'high'
     }
-}));
+});
+app.use(sessionMiddleware);
+
+// Socket connections reuse the signed web session. Transaction events contain
+// no financial payload and are delivered only to authorized administrators;
+// clients then retrieve scoped data through the protected HTTP API.
+io.use((socket, next) => sessionMiddleware(socket.request, {
+    getHeader: () => undefined,
+    setHeader: () => undefined,
+    end: () => undefined
+}, next));
+io.on('connection', (socket) => {
+    socket.on('transactions:subscribe', (ack) => {
+        const sessionData = socket.request?.session;
+        const permissions = new Set(sessionData?.adminPermissions || []);
+        const allowed = Boolean(sessionData?.isLoggedIn)
+            && (sessionData.adminRole === 'master' || permissions.has('*') || permissions.has('transactions.read'));
+        if (allowed) socket.join('admin:transactions');
+        if (typeof ack === 'function') ack({ success: allowed });
+    });
+});
 
 app.use(systemMonitor.trackRequest);
 
@@ -418,6 +446,7 @@ app.use('/admin/security', require('./routes/securityAdmin'));
 app.use(enforceAdminPermissions);
 app.use('/', require('./routes/dashboard'));
 app.use('/', require('./routes/adminTransactions'));
+app.use('/', require('./routes/liveOperations'));
 app.use('/', require('./routes/financialMovements'));
 app.use('/', require('./routes/executors'));
 app.use('/', require('./routes/clients'));

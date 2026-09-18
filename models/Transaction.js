@@ -209,6 +209,10 @@ transactionSchema.index({ managerGroupId: 1, status: 1, executorReceivedAt: 1 })
 transactionSchema.index({ executorGroupId: 1, status: 1, updatedAt: -1 });
 transactionSchema.index({ managerGroupId: 1, status: 1, updatedAt: -1 });
 transactionSchema.index({ tenantId: 1, createdAt: -1 });
+transactionSchema.index({ tenantId: 1, status: 1, transferType: 1, createdAt: -1 }, { name: 'liveOps_tenant_status_type_createdAt' });
+transactionSchema.index({ tenantId: 1, amount: -1, createdAt: -1 }, { name: 'liveOps_tenant_amount_createdAt' });
+transactionSchema.index({ tenantId: 1, vodafoneNumber: 1, createdAt: -1 }, { name: 'liveOps_tenant_phone_createdAt' });
+transactionSchema.index({ tenantId: 1, accountNumber: 1, createdAt: -1 }, { name: 'liveOps_tenant_account_createdAt' });
 transactionSchema.index({
     requestOwnerKey: 1,
     canonicalServiceKey: 1,
