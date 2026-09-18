@@ -19,9 +19,10 @@
     "setup:web-push": "node scripts/ensureWebPushKeys.js",
     "seed:zayn-executor": "node scripts/seedZaynApiExecutor.js",
     "lint": "eslint . --quiet",
+    "check:architecture": "node scripts/checkArchitecturePolicy.js",
     "typecheck": "tsc --noEmit --pretty false",
     "test:security": "jest tests/securityPolicy.test.js tests/otpSecurity.test.js tests/sessionSecurity.test.js tests/operationalAccess.test.js tests/tenantResolver.test.js tests/jwtExecutorStatus.test.js tests/walletService.test.js tests/reversalService.test.js tests/merchantAgentApi.test.js tests/controllers.test.js tests/financialRecordImmutability.test.js tests/logSanitizer.test.js --runInBand",
-    "check:release": "eslint . --quiet && tsc --noEmit --pretty false && jest tests/securityPolicy.test.js tests/otpSecurity.test.js tests/sessionSecurity.test.js tests/operationalAccess.test.js tests/tenantResolver.test.js tests/jwtExecutorStatus.test.js tests/walletService.test.js tests/reversalService.test.js tests/merchantAgentApi.test.js tests/controllers.test.js tests/financialRecordImmutability.test.js tests/logSanitizer.test.js tests/adminFinancialMutationService.test.js tests/mobileAuthContract.test.js tests/mobileSubAccountTransferFlow.test.js tests/mobileWebParity.test.js tests/securityControlService.test.js tests/transferFlow.test.js tests/merchantWebhookService.test.js --runInBand",
+    "check:release": "node scripts/checkArchitecturePolicy.js && eslint . --quiet && tsc --noEmit --pretty false && jest tests/securityPolicy.test.js tests/otpSecurity.test.js tests/sessionSecurity.test.js tests/operationalAccess.test.js tests/tenantResolver.test.js tests/jwtExecutorStatus.test.js tests/walletService.test.js tests/reversalService.test.js tests/merchantAgentApi.test.js tests/controllers.test.js tests/financialRecordImmutability.test.js tests/logSanitizer.test.js tests/adminFinancialMutationService.test.js tests/mobileAuthContract.test.js tests/mobileSubAccountTransferFlow.test.js tests/mobileWebParity.test.js tests/securityControlService.test.js tests/transferFlow.test.js tests/merchantWebhookService.test.js tests/architecturePolicy.test.js --runInBand",
     "test": "jest",
     "test:watch": "jest --watch"
   },

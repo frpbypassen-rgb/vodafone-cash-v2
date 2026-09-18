@@ -113,8 +113,8 @@
     if (!panel || panel.dataset.bound === 'true') return;
     panel.dataset.bound = 'true';
     const csrf = <%- JSON.stringify(typeof csrfToken !== 'undefined' ? csrfToken : '') %>;
-    const $ = (selector) => panel.querySelector(selector);
-    const setMessage = (message, error = false) => { const node = $('[data-mfa-message]'); node.textContent = message || ''; node.hidden = !message; node.classList.toggle('error', error); };
+    const find = (selector) => panel.querySelector(selector);
+    const setMessage = (message, error = false) => { const node = find('[data-mfa-message]'); node.textContent = message || ''; node.hidden = !message; node.classList.toggle('error', error); };
     const request = async (path, options = {}) => {
         const response = await fetch(path, { credentials: 'same-origin', ...options, headers: { 'Content-Type': 'application/json', 'x-csrf-token': csrf, ...(options.headers || {}) } });
         const data = await response.json().catch(() => ({}));
@@ -124,31 +124,31 @@
     const setBusy = (busy) => panel.querySelectorAll('button').forEach((button) => { button.disabled = busy; });
     const render = (data) => {
         const enabled = data.enabled === true;
-        $('[data-mfa-enabled]').textContent = enabled ? 'مفعّل' : 'غير مفعّل';
-        $('[data-mfa-login-rule]').textContent = enabled ? 'رمز مطلوب' : 'دخول مباشر';
-        const state = $('[data-mfa-state]'); state.textContent = enabled ? 'حماية نشطة' : 'غير مفعّل'; state.classList.toggle('ready', enabled); state.classList.toggle('warn', false);
-        $('[data-mfa-start]').hidden = enabled;
-        $('[data-mfa-disable]').hidden = !enabled;
+        find('[data-mfa-enabled]').textContent = enabled ? 'مفعّل' : 'غير مفعّل';
+        find('[data-mfa-login-rule]').textContent = enabled ? 'رمز مطلوب' : 'دخول مباشر';
+        const state = find('[data-mfa-state]'); state.textContent = enabled ? 'حماية نشطة' : 'غير مفعّل'; state.classList.toggle('ready', enabled); state.classList.toggle('warn', false);
+        find('[data-mfa-start]').hidden = enabled;
+        find('[data-mfa-disable]').hidden = !enabled;
     };
     const refresh = async () => { try { render(await request('/security/mfa/status', { method: 'GET', headers: {} })); } catch (error) { setMessage(error.message, true); } };
     const copy = async (value) => { await navigator.clipboard.writeText(value); setMessage('تم نسخ البيانات.'); setTimeout(() => setMessage(''), 1800); };
-    $('[data-mfa-copy-secret]').addEventListener('click', () => copy($('[data-mfa-secret]').textContent));
-    $('[data-mfa-copy-uri]').addEventListener('click', () => copy($('[data-mfa-uri]').textContent));
-    $('[data-mfa-start]').addEventListener('click', async () => {
+    find('[data-mfa-copy-secret]').addEventListener('click', () => copy(find('[data-mfa-secret]').textContent));
+    find('[data-mfa-copy-uri]').addEventListener('click', () => copy(find('[data-mfa-uri]').textContent));
+    find('[data-mfa-start]').addEventListener('click', async () => {
         setBusy(true); setMessage('');
         try {
             const data = await request('/security/mfa/setup', { method: 'POST', body: '{}' });
-            $('[data-mfa-secret]').textContent = data.setup.secret; $('[data-mfa-uri]').textContent = data.setup.qrUri;
-            $('[data-mfa-recovery]').innerHTML = (data.setup.recoveryCodes || []).map((code) => `<code>${code}</code>`).join(''); $('[data-mfa-setup]').hidden = false; $('[data-mfa-start]').hidden = true; setMessage('أدخل المفتاح في تطبيق Authenticator ثم اكتب الرمز الحالي للتأكيد.');
+            find('[data-mfa-secret]').textContent = data.setup.secret; find('[data-mfa-uri]').textContent = data.setup.qrUri;
+            find('[data-mfa-recovery]').innerHTML = (data.setup.recoveryCodes || []).map((code) => `<code>${code}</code>`).join(''); find('[data-mfa-setup]').hidden = false; find('[data-mfa-start]').hidden = true; setMessage('أدخل المفتاح في تطبيق Authenticator ثم اكتب الرمز الحالي للتأكيد.');
         } catch (error) { setMessage(error.message, true); } finally { setBusy(false); }
     });
-    $('[data-mfa-confirm]').addEventListener('click', async () => {
-        const token = $('[data-mfa-confirm-token]').value.trim(); const secret = $('[data-mfa-secret]').textContent.trim(); const recoveryCodes = Array.from($('[data-mfa-recovery]').querySelectorAll('code')).map((node) => node.textContent.trim());
+    find('[data-mfa-confirm]').addEventListener('click', async () => {
+        const token = find('[data-mfa-confirm-token]').value.trim(); const secret = find('[data-mfa-secret]').textContent.trim(); const recoveryCodes = Array.from(find('[data-mfa-recovery]').querySelectorAll('code')).map((node) => node.textContent.trim());
         if (!/^\d{6}$/.test(token)) return setMessage('أدخل رمز Authenticator المكون من 6 أرقام.', true);
         setBusy(true);
-        try { await request('/security/mfa/confirm', { method: 'POST', body: JSON.stringify({ secret, token, recoveryCodes }) }); $('[data-mfa-setup]').hidden = true; setMessage('تم تفعيل Authenticator وتوثيق هذا الجهاز لمدة 24 ساعة.'); await refresh(); } catch (error) { setMessage(error.message, true); } finally { setBusy(false); }
+        try { await request('/security/mfa/confirm', { method: 'POST', body: JSON.stringify({ secret, token, recoveryCodes }) }); find('[data-mfa-setup]').hidden = true; setMessage('تم تفعيل Authenticator وتوثيق هذا الجهاز لمدة 24 ساعة.'); await refresh(); } catch (error) { setMessage(error.message, true); } finally { setBusy(false); }
     });
-    $('[data-mfa-disable]').addEventListener('click', async () => {
+    find('[data-mfa-disable]').addEventListener('click', async () => {
         const token = window.prompt('أدخل رمز Authenticator أو رمز الاسترداد لإيقاف الحماية:')?.trim(); if (!token) return;
         setBusy(true); try { await request('/security/mfa/disable', { method: 'POST', body: JSON.stringify({ token }) }); setMessage('تم إيقاف Authenticator وإلغاء وثوق الأجهزة.'); await refresh(); } catch (error) { setMessage(error.message, true); } finally { setBusy(false); }
     });
