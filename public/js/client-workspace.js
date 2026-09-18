@@ -457,7 +457,12 @@
     };
 
     serviceButtons.forEach((button) => {
-        button.addEventListener('click', () => selectService(button.dataset.serviceKey, { resetSmart: true }));
+        button.addEventListener('click', () => {
+            selectService(button.dataset.serviceKey, { resetSmart: true });
+            if (transferForm && window.matchMedia('(max-width: 760px)').matches) {
+                transferForm.closest('.bw-transfer-workbench')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }
+        });
     });
     transferAmount?.addEventListener('input', () => updateCostEstimate());
     transferAmountLyd?.addEventListener('input', () => {

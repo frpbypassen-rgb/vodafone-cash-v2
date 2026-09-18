@@ -47,6 +47,35 @@
 </section>
 <% } %>
 
+<% if (workspace.permissions.canTransfer) { %>
+<section class="ao-service-launcher" aria-labelledby="quickServicesTitle">
+    <header>
+        <div>
+            <span class="bw-section-kicker">ابدأ مباشرة</span>
+            <h2 id="quickServicesTitle">اختر الخدمة ونفّذ</h2>
+            <p>جميع خدمات التحويل أمامك، وكل خدمة تفتح نموذجها الصحيح مباشرة.</p>
+        </div>
+        <a href="/client/services" class="ao-all-services">عرض صفحة الخدمات <i class="fa-solid fa-arrow-left"></i></a>
+    </header>
+    <div class="ao-service-launcher-grid">
+        <% serviceCatalog.forEach(service => { %>
+            <a href="/client/services/<%= service.slug %>" class="ao-service-launcher-item tone-<%= service.tone %>">
+                <span class="bw-service-icon"><i class="fa-solid <%= service.icon %>"></i></span>
+                <strong><%= service.shortLabel || service.label %></strong>
+                <small>فتح الخدمة</small>
+                <i class="fa-solid fa-chevron-left" aria-hidden="true"></i>
+            </a>
+        <% }) %>
+    </div>
+    <nav class="ao-work-links" aria-label="اختصارات العمل">
+        <a href="/client/transactions"><i class="fa-solid fa-list-check"></i><span>متابعة العمليات</span></a>
+        <a href="/client/smart-transfer"><i class="fa-solid fa-wand-magic-sparkles"></i><span>التحويل الذكي</span></a>
+        <% if (workspace.permissions.canViewReports) { %><a href="/client/reports"><i class="fa-solid fa-file-invoice"></i><span>التقارير والكشوف</span></a><% } %>
+        <a href="/client/support"><i class="fa-solid fa-headset"></i><span>المساعدة والدعم</span></a>
+    </nav>
+</section>
+<% } %>
+
 <section class="bw-metric-grid bw-overview-metrics <%= workspace.permissions.canViewBalance ? 'with-balance' : 'without-balance' %><%= workspace.isCompany && workspace.permissions.canViewBalance ? ' with-credit' : '' %>" aria-label="المؤشرات الرئيسية">
     <% if (workspace.permissions.canViewBalance) { %>
         <article class="bw-metric-card accent-dark">
