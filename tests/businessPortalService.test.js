@@ -10,6 +10,7 @@ const {
     summarizeTransactions,
     findServiceByToken,
     resolvePortalHomeHref,
+    resolveClientPostLoginHref,
     forbiddenRedirectPath,
     canAccessPage,
     canPostPortalTransfer,
@@ -116,16 +117,20 @@ describe('Business portal service', () => {
         expect(managerNav.some((item) => item.href === '/client/security')).toBe(true);
         expect(managerNav.find((item) => item.key === 'settings')).toMatchObject({ href: '/client/settings', label: 'بيانات المنشأة' });
         expect(managerNav.some((item) => item.key === 'customers')).toBe(false);
+        expect(managerNav.some((item) => item.href === '/corporate' || item.key === 'corporate')).toBe(false);
+        expect(employeeNav.some((item) => item.href === '/corporate' || item.key === 'corporate')).toBe(false);
         expect(employeeNav.some((item) => item.key === 'overview')).toBe(false);
         expect(employeeNav.some((item) => item.key === 'internal_transfer')).toBe(false);
         expect(employeeNav.some((item) => item.key === 'staff')).toBe(false);
         expect(employeeNav.some((item) => item.key === 'finance')).toBe(false);
         expect(resolvePortalHomeHref({ isCompany: true, persona: 'employee' })).toBe('/client/services');
         expect(resolvePortalHomeHref({ isCompany: true, persona: 'accountant' })).toBe('/client/finance');
-        expect(resolvePortalHomeHref({ isCompany: true, persona: 'manager' })).toBe('/client/dashboard?home=1');
+        expect(resolvePortalHomeHref({ isCompany: true, persona: 'manager' })).toBe('/client/services');
+        expect(resolveClientPostLoginHref('company')).toBe('/client/services');
+        expect(resolveClientPostLoginHref('user')).toBe('/client/dashboard');
         expect(forbiddenRedirectPath({ isCompany: true, persona: 'employee' })).toBe('/client/services?portalError=forbidden');
         expect(forbiddenRedirectPath({ isCompany: true, persona: 'accountant' })).toBe('/client/finance?portalError=forbidden');
-        expect(forbiddenRedirectPath({ isCompany: true, persona: 'manager' })).toBe('/client/dashboard?home=1&portalError=forbidden');
+        expect(forbiddenRedirectPath({ isCompany: true, persona: 'manager' })).toBe('/client/services?portalError=forbidden');
         expect(canAccessPage({
             isCompany: true,
             permissions: { employee: true, canTransfer: true }

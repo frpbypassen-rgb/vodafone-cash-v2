@@ -136,24 +136,6 @@ exports.renderPage = (page) => async (req, res, next) => {
     }
 };
 
-// Parallel company portal preview. It deliberately reuses the same workspace
-// service as the current portal so both interfaces read identical balances,
-// permissions and transaction data while the new UI is being completed.
-exports.renderCompanyNext = async (req, res, next) => {
-    try {
-        const context = await businessPortalService.loadCompanyNextContext(req);
-        res.set('Cache-Control', 'no-store');
-        return res.render('client/company_next', context);
-    } catch (error) {
-        if (['NOT_BUSINESS_PORTAL', 'NOT_COMPANY_PORTAL'].includes(error.message) && typeof next === 'function') return next();
-        if (error.message === 'FORBIDDEN_PAGE') {
-            return businessPortalService.redirectForbiddenPage(req, res);
-        }
-        console.error('[Company Next] preview render failed:', error.message);
-        return res.redirect('/client/dashboard?portalError=preview');
-    }
-};
-
 exports.getCurrentRates = async (req, res) => {
     try {
         const workspace = await businessPortalService.resolveWorkspace(req);

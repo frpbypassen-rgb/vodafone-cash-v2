@@ -10,6 +10,7 @@ const { logAction } = require('../services/auditService');
 const securityControl = require('../services/securityControlService');
 const { isPasskeyRequired } = require('../config/securityPolicy');
 const { checkRegistrationIdentityAvailability } = require('../services/registrationIdentityService');
+const { resolveClientPostLoginHref } = require('../services/businessPortalService');
 
 const LIBYAN_CITIES = [
     'طرابلس', 'بنغازي', 'مصراتة', 'الزاوية', 'زليتن', 'الخمس', 'سبها', 'سرت', 'درنة', 'طبرق',
@@ -77,12 +78,12 @@ const renderRegisterError = (req, res, error, data = {}) => renderRegister(res, 
 });
 
 exports.getLogin = (req, res) => {
-    if (req.session.isClientLoggedIn) return res.redirect('/client/dashboard');
+    if (req.session.isClientLoggedIn) return res.redirect(resolveClientPostLoginHref(req.session.accountType));
     res.redirect('/login');
 };
 
 exports.getRegister = (req, res) => {
-    if (req.session.isClientLoggedIn) return res.redirect('/client/dashboard');
+    if (req.session.isClientLoggedIn) return res.redirect(resolveClientPostLoginHref(req.session.accountType));
     res.set('Cache-Control', 'no-store, no-cache, must-revalidate, private');
     renderRegister(res);
 };
@@ -438,7 +439,7 @@ exports.postVerify = async (req, res) => {
             performedByName: account.name,
             metadata: { accountType, via: 'OTP' }
         });
-        return req.session.save(() => res.redirect('/client/dashboard'));
+        return req.session.save(() => res.redirect(resolveClientPostLoginHref(accountType)));
     } catch (e) { res.redirect('/login'); }
 };
 

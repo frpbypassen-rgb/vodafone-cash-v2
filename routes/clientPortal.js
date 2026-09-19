@@ -168,7 +168,7 @@ const clientDocumentUpload = multer({
 
 router.get('/', (req, res) => {
     if (req.session.isClientLoggedIn && req.session.clientId) {
-        return res.redirect('/client/dashboard');
+        return res.redirect(businessPortalService.resolveClientPostLoginHref(req.session.accountType));
     }
     return res.redirect('/login?portal=client');
 });
@@ -178,7 +178,7 @@ router.get('/', (req, res) => {
 // ===============================================
 router.get('/login', (req, res) => {
     if (req.session.isClientLoggedIn && req.session.clientId) {
-        return res.redirect('/client/dashboard');
+        return res.redirect(businessPortalService.resolveClientPostLoginHref(req.session.accountType));
     }
     return res.redirect('/login?portal=client');
 });
@@ -194,7 +194,7 @@ router.get('/logout', clientAuthController.logout);
 // 📊 Dashboard Routes
 // ===============================================
 router.get('/dashboard', requireClientAuth, clientDashboardController.getDashboard);
-router.get('/company-next', requireClientAuth, clientWorkspaceController.renderCompanyNext);
+router.get('/company-next', (_req, res) => res.redirect(302, '/client/services'));
 router.get('/account', requireClientAuth, clientHubController.getAccount);
 router.get('/transfers', requireClientAuth, clientHubController.getTransfers);
 router.get('/deposits', requireClientAuth, clientDepositController.getDepositsPage);

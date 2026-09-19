@@ -41,6 +41,7 @@ const REMOVED_ADMIN_HREFS = [
 const CLIENT_ONLY_HREFS = [
     '/client',
     '/client/dashboard',
+    '/client/services',
     '/executor-portal',
     '/corporate'
 ];
