@@ -2,11 +2,23 @@
 
 const fs = require('fs');
 const path = require('path');
+const { assertNotProduction } = require('../utils/scriptSafety');
+
+assertNotProduction('scripts/testClientDepositApi.js');
 
 const BASE = process.env.TEST_BASE_URL || 'http://127.0.0.1:3002';
 const OUT_DIR = path.join(process.cwd(), 'artifacts', 'client-deposit-test', new Date().toISOString().replace(/[:.]/g, '-'));
-const CLIENT = { username: 'client.direct', password: '12345678' };
-const ADMIN = { username: 'admin', password: 'admin123' };
+const CLIENT = {
+    username: process.env.SEED_DEMO_CLIENT_USERNAME || 'client.direct',
+    password: process.env.SEED_DEMO_PASSWORD
+};
+const ADMIN = {
+    username: process.env.PANEL_USER || 'admin',
+    password: process.env.PANEL_PASS || process.env.SEED_DEMO_PASSWORD
+};
+if (!CLIENT.password || !ADMIN.password) {
+    throw new Error('Set SEED_DEMO_PASSWORD (and PANEL_PASS if needed) from the local seed output. Demo scripts do not commit passwords.');
+}
 
 function ensureDir(dir) { fs.mkdirSync(dir, { recursive: true }); }
 

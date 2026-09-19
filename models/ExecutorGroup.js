@@ -1,5 +1,6 @@
 const mongoose = require('mongoose');
 const { EXECUTOR_SERVICE_KEYS } = require('../utils/executorServiceCatalog');
+const { applyEncryptedFields, encryptIfPresent } = require('../utils/encryption');
 
 const executorGroupSchema = new mongoose.Schema({
     name: { type: String, required: true },
@@ -65,5 +66,19 @@ const executorGroupSchema = new mongoose.Schema({
 executorGroupSchema.index({ status: 1, archivedAt: -1 });
 executorGroupSchema.index({ manualReceiptPrefix: 1 }, { unique: true, sparse: true });
 executorGroupSchema.index({ tenantId: 1, status: 1, archivedAt: -1 });
+
+const PROVIDER_SECRET_FIELDS = ['apiPassword', 'apiToken'];
+
+executorGroupSchema.pre('save', function encryptProviderSecrets() {
+    for (const field of PROVIDER_SECRET_FIELDS) {
+        if (this.isModified(field) && this[field]) {
+            this[field] = encryptIfPresent(this[field]);
+        }
+    }
+});
+
+executorGroupSchema.pre(['findOneAndUpdate', 'updateOne', 'updateMany'], function encryptProviderSecretUpdates() {
+    applyEncryptedFields(this.getUpdate(), PROVIDER_SECRET_FIELDS);
+});
 
 module.exports = mongoose.model('ExecutorGroup', executorGroupSchema);

@@ -21,6 +21,16 @@ jest.mock('../services/transferCooldownService', () => ({
     acquireTransferCooldown: jest.fn(),
     releaseTransferCooldown: jest.fn()
 }));
+jest.mock('../services/merchantCredentialService', () => ({
+    findMerchantByApiKey: jest.fn()
+}));
+jest.mock('../services/lockService', () => ({
+    acquireLock: jest.fn().mockResolvedValue({}),
+    releaseLock: jest.fn().mockResolvedValue(undefined)
+}));
+jest.mock('../services/auditService', () => ({
+    logAction: jest.fn().mockResolvedValue(undefined)
+}));
 jest.mock('mongoose', () => ({ startSession: jest.fn() }));
 
 const ClientBot = require('../models/ClientBot');
@@ -36,7 +46,24 @@ const {
     enqueueAutoRouteIfNeeded
 } = require('../services/autoRouteService');
 const { acquireTransferCooldown, releaseTransferCooldown } = require('../services/transferCooldownService');
+const { findMerchantByApiKey } = require('../services/merchantCredentialService');
 const merchantApi = require('../routes/merchantApi');
+
+const IDEMPOTENCY_KEY = '550e8400-e29b-41d4-a716-446655440000';
+const asAgent = (agent) => findMerchantByApiKey.mockResolvedValue({
+    merchant: agent,
+    merchantType: 'agent',
+    entityModel: 'User'
+});
+const asCompany = (company) => findMerchantByApiKey.mockResolvedValue({
+    merchant: company,
+    merchantType: 'company',
+    entityModel: 'ClientCompany'
+});
+const createdTx = (transaction, id) => {
+    const doc = { ...transaction, _id: id, save: jest.fn().mockResolvedValue(true) };
+    return [doc];
+};
 
 const leanResult = (value) => ({ lean: jest.fn().mockResolvedValue(value) });
 const sessionLeanResult = (value) => ({
@@ -66,11 +93,16 @@ describe('Merchant API agent authentication', () => {
         });
         releaseTransferCooldown.mockResolvedValue(undefined);
         enqueueAutoRouteIfNeeded.mockResolvedValue(undefined);
+        Transaction.findOne.mockReturnValue({
+            lean: jest.fn().mockResolvedValue(null),
+            session: jest.fn().mockResolvedValue(null),
+            select: jest.fn().mockReturnThis()
+        });
+        findMerchantByApiKey.mockResolvedValue(null);
     });
 
     test('accepts an active agent API key for a balance request', async () => {
-        ClientBot.findOne.mockReturnValue(leanResult(null));
-        User.findOne.mockReturnValue(leanResult({
+        asAgent({
             _id: '66a112233445566778899002',
             name: 'وكالة الاختبار',
             phone: '0912345678',
@@ -80,7 +112,7 @@ describe('Merchant API agent authentication', () => {
             balance: 850,
             tier: 3,
             creditLimit: 150
-        }));
+        });
         Settings.findOne.mockReturnValue(leanResult({ rateLevel3: 5.95 }));
 
         const response = await request(app)
@@ -94,11 +126,7 @@ describe('Merchant API agent authentication', () => {
             balance: 850,
             exchange_rate: expect.any(Number)
         }));
-        expect(User.findOne).toHaveBeenCalledWith({
-            apiToken: 'agent-private-api-key',
-            role: 'agent',
-            status: 'active'
-        });
+        expect(findMerchantByApiKey).toHaveBeenCalledWith('agent-private-api-key');
     });
 
     test('rejects requests without an API key before accessing account data', async () => {
@@ -106,8 +134,7 @@ describe('Merchant API agent authentication', () => {
 
         expect(response.status).toBe(401);
         expect(response.body.status).toBe('failed');
-        expect(ClientBot.findOne).not.toHaveBeenCalled();
-        expect(User.findOne).not.toHaveBeenCalled();
+        expect(findMerchantByApiKey).not.toHaveBeenCalled();
     });
 
     test('records an agent API transfer against the agent wallet and ledger', async () => {
@@ -130,17 +157,17 @@ describe('Merchant API agent authentication', () => {
         };
 
         mongoose.startSession.mockResolvedValue(session);
-        ClientBot.findOne.mockReturnValue(leanResult(null));
-        User.findOne.mockReturnValue(leanResult(agent));
+        asAgent(agent);
         Settings.findOne.mockReturnValue(sessionLeanResult({ rateLevel3: 5.95 }));
         User.findOneAndUpdate.mockResolvedValue({ ...agent, balance: 681.933 });
         Counter.findOneAndUpdate.mockResolvedValue({ value: 77 });
-        Transaction.create.mockImplementation(async ([transaction]) => [{ ...transaction, _id: 'tx-agent-api-1' }]);
+        Transaction.create.mockImplementation(async ([transaction]) => createdTx(transaction, 'tx-agent-api-1'));
         resolveAutoRouteExecutor.mockResolvedValue(null);
 
         const response = await request(app)
             .post('/api/v1/merchant/transfer')
             .set('x-api-key', 'agent-private-api-key')
+            .set('Idempotency-Key', IDEMPOTENCY_KEY)
             .send({ target_number: '01012345678', amount: 1000, transfer_type: 'vodafone' });
 
         expect(response.status).toBe(200);
@@ -199,12 +226,12 @@ describe('Merchant API agent authentication', () => {
             mongoose.startSession.mockRejectedValue(
                 new Error('Transaction numbers are only allowed on a replica set member or mongos')
             );
-            ClientBot.findOne.mockReturnValue(leanResult(null));
-            User.findOne.mockReturnValue(leanResult(agent));
+            asAgent(agent);
 
             const response = await request(app)
                 .post('/api/v1/merchant/transfer')
                 .set('x-api-key', 'agent-private-api-key')
+                .set('Idempotency-Key', IDEMPOTENCY_KEY)
                 .send({ target_number: '01012345678', amount: 1000, transfer_type: 'vodafone' });
 
             expect(response.status).toBe(503);
@@ -239,13 +266,13 @@ describe('Merchant API agent authentication', () => {
             retryAt: '2026-08-09T12:03:00.000Z'
         });
 
-        ClientBot.findOne.mockReturnValue(leanResult(null));
-        User.findOne.mockReturnValue(leanResult(agent));
+        asAgent(agent);
         acquireTransferCooldown.mockRejectedValueOnce(cooldownError);
 
         const response = await request(app)
             .post('/api/v1/merchant/transfer')
             .set('x-api-key', 'agent-private-api-key')
+            .set('Idempotency-Key', IDEMPOTENCY_KEY)
             .send({ target_number: '01012345678', amount: 1000, transfer_type: 'vodafone' });
 
         expect(response.status).toBe(429);
@@ -267,15 +294,17 @@ describe('Merchant API agent authentication', () => {
             status: 'active',
             balance: 1000
         };
-        ClientBot.findOne.mockReturnValue(leanResult(company));
+        asCompany(company);
 
         const tooSmall = await request(app)
             .post('/api/v1/merchant/transfer')
             .set('x-api-key', 'company-private-api-key')
+            .set('Idempotency-Key', IDEMPOTENCY_KEY)
             .send({ target_number: '01012345678', amount: 99, transfer_type: 'vodafone' });
         const tooLarge = await request(app)
             .post('/api/v1/merchant/transfer')
             .set('x-api-key', 'company-private-api-key')
+            .set('Idempotency-Key', '660e8400-e29b-41d4-a716-446655440001')
             .send({ target_number: '01012345678', amount: 50001, transfer_type: 'vodafone' });
 
         expect(tooSmall.status).toBe(400);
@@ -304,7 +333,7 @@ describe('Merchant API agent authentication', () => {
         const executor = { _id: '66a112233445566778899004', name: 'مجموعة تنفيذ القاهرة' };
 
         mongoose.startSession.mockResolvedValue(session);
-        ClientBot.findOne.mockReturnValue(leanResult(company));
+        asCompany(company);
         Settings.findOne.mockReturnValue(sessionLeanResult({ rateLevel3: 5.95 }));
         ClientBot.findOneAndUpdate.mockResolvedValue({ ...company, balance: 831.933 });
         Counter.findOneAndUpdate.mockResolvedValue({ value: 78 });
@@ -314,11 +343,12 @@ describe('Merchant API agent authentication', () => {
             transaction.executorName = routedExecutor.name;
             transaction.status = 'processing';
         });
-        Transaction.create.mockImplementation(async ([transaction]) => [{ ...transaction, _id: 'tx-company-api-1' }]);
+        Transaction.create.mockImplementation(async ([transaction]) => createdTx(transaction, 'tx-company-api-1'));
 
         const response = await request(app)
             .post('/api/v1/merchant/transfer')
             .set('x-api-key', 'company-private-api-key')
+            .set('Idempotency-Key', IDEMPOTENCY_KEY)
             .send({
                 target_number: '01012345678',
                 amount: 1000,
@@ -353,7 +383,7 @@ describe('Merchant API agent authentication', () => {
             status: 'active',
             balance: 1000
         };
-        ClientBot.findOne.mockReturnValue(leanResult(company));
+        asCompany(company);
         Transaction.findOne.mockReturnValue(selectLeanResult({
             _id: 'tx-company-api-1',
             customId: 'ATT-2609-0078',
@@ -404,7 +434,7 @@ describe('Merchant API agent authentication', () => {
             status: 'active',
             balance: 1000
         };
-        ClientBot.findOne.mockReturnValue(leanResult(company));
+        asCompany(company);
         Transaction.findOne.mockReturnValue(selectLeanResult({
             _id: 'tx-company-api-2',
             customId: 'ATT-2609-0079',
@@ -431,5 +461,71 @@ describe('Merchant API agent authentication', () => {
             executed_numbers: [{ phone_number: '01000000000', amount_egp: 1000 }]
         }));
         expect(response.body.data.cancellation_reason).not.toContain('أحمد');
+    });
+
+    test('rejects merchant transfers without an Idempotency-Key', async () => {
+        asCompany({
+            _id: '66a112233445566778899003',
+            name: 'شركة الربط',
+            status: 'active',
+            balance: 1000
+        });
+
+        const response = await request(app)
+            .post('/api/v1/merchant/transfer')
+            .set('x-api-key', 'company-private-api-key')
+            .send({ target_number: '01012345678', amount: 1000, transfer_type: 'vodafone' });
+
+        expect(response.status).toBe(400);
+        expect(response.body).toMatchObject({
+            status: 'failed',
+            code: 'IDEMPOTENCY_KEY_REQUIRED'
+        });
+        expect(User.findOneAndUpdate).not.toHaveBeenCalled();
+        expect(ClientBot.findOneAndUpdate).not.toHaveBeenCalled();
+    });
+
+    test('replays a merchant transfer with the same Idempotency-Key without a second debit', async () => {
+        const company = {
+            _id: '66a112233445566778899003',
+            name: 'شركة الربط',
+            status: 'active',
+            balance: 1000
+        };
+        const replayBody = {
+            status: 'success',
+            message: 'تم استلام الطلب بنجاح وهو الآن قيد المعالجة',
+            data: { invoice_number: 'ATT-2609-0077', status: 'pending' }
+        };
+        asCompany(company);
+        Transaction.findOne.mockReturnValue({
+            lean: jest.fn().mockResolvedValue({
+                idempotencyKey: IDEMPOTENCY_KEY,
+                idempotencyFingerprint: require('crypto')
+                    .createHash('sha256')
+                    .update(JSON.stringify({
+                        merchantId: String(company._id),
+                        phoneStr: '01012345678',
+                        amountValue: 1000,
+                        serviceKey: 'vodafone',
+                        receiptWhatsAppNumber: ''
+                    }))
+                    .digest('hex'),
+                idempotencyResponse: replayBody
+            }),
+            session: jest.fn().mockResolvedValue(null),
+            select: jest.fn().mockReturnThis()
+        });
+
+        const response = await request(app)
+            .post('/api/v1/merchant/transfer')
+            .set('x-api-key', 'company-private-api-key')
+            .set('Idempotency-Key', IDEMPOTENCY_KEY)
+            .send({ target_number: '01012345678', amount: 1000, transfer_type: 'vodafone' });
+
+        expect(response.status).toBe(200);
+        expect(response.body).toEqual(replayBody);
+        expect(ClientBot.findOneAndUpdate).not.toHaveBeenCalled();
+        expect(Transaction.create).not.toHaveBeenCalled();
     });
 });

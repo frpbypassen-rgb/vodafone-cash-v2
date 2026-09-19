@@ -85,6 +85,12 @@ for (let left = 0; left < secretKeys.length; left += 1) {
 requireValue('PANEL_USER');
 requireValue('PANEL_PASS', { minLength: 10 });
 requireValue('RECEIPT_SHARE_SECRET', { minLength: 32 });
+requireValue('API_KEY_PEPPER', { minLength: 32 });
+requireValue('SECURITY_DEVICE_HASH_SECRET', { minLength: 32 });
+const encryptionKey = clean('ENCRYPTION_KEY');
+if (encryptionKey.length !== 64 || !/^[0-9a-f]+$/i.test(encryptionKey) || placeholder(encryptionKey)) {
+    addError('ENCRYPTION_KEY', 'must be 64 hex characters');
+}
 requireValue('WEB_PUSH_PUBLIC_KEY', { minLength: 80 });
 requireValue('WEB_PUSH_PRIVATE_KEY', { minLength: 40 });
 
@@ -127,7 +133,7 @@ if (!passwordOnlyLoginMode && verificationEnforcementEnabled && verificationMode
     addError('FORCE_CLIENT_OTP', 'must be true in production');
 }
 if (passwordOnlyLoginMode || !verificationEnforcementEnabled || verificationMode === 'optional') {
-    addWarning('SECURITY_VERIFICATION_MODE', 'extra login verification is optional and does not block login');
+    addError('SECURITY_VERIFICATION_MODE', 'production requires PASSWORD_ONLY_LOGIN_MODE=false, SECURITY_VERIFICATION_ENFORCEMENT_ENABLED=true, SECURITY_VERIFICATION_MODE=required');
 }
 if (clean('SESSION_STORE').toLowerCase() === 'memory') {
     addError('SESSION_STORE', 'memory sessions are forbidden in production');
@@ -155,6 +161,9 @@ if (enabled('ALLOW_LEGACY_TENANTLESS_RECORDS') || enabled('ALLOW_LEGACY_TENANT_T
     addError('TENANT_LEGACY_MODE', 'legacy tenantless records and tokens must be disabled in production');
 }
 
+if (!enabled('REDIS_REQUIRED')) {
+    addError('REDIS_REQUIRED', 'must be true in production');
+}
 if (enabled('REDIS_REQUIRED') && disabled('REDIS_ENABLED')) {
     addError('REDIS_ENABLED', 'cannot be false while REDIS_REQUIRED is true');
 }

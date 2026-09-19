@@ -20,6 +20,7 @@ const {
 } = require('../services/autoRouteService');
 const { normalizeAccountCode, resolveAccountByCode } = require('../services/accountCodeService');
 const { logAction } = require('../services/auditService');
+const { applyRequestGeo } = require('../utils/requestGeo');
 const {
     getServiceRateForTier,
     getCompanyServiceRates,
@@ -455,7 +456,8 @@ exports.postTransfer = async (req, res) => {
             subAccountCostLYD: isSubAccount ? subCostLYD : 0, commission: commission, exchangeRate: masterRate, subClientRate: isSubAccount ? actualSubRate : 0,
             agencyPricing: isSubAccount ? agencyPricing : undefined,
             notes, customerNotes: notes, status: 'pending', isSubAccountTx: isSubAccount, masterProfit: isSubAccount ? commission : 0,
-            idCardImage: req.file ? `/uploads/${req.file.filename}` : undefined
+            idCardImage: req.file ? `/uploads/${req.file.filename}` : undefined,
+            originCountry: applyRequestGeo({}, req)
         });
         if (autoRouteExecutor) applyAutoRouteFields(newTx, autoRouteExecutor);
         if (isSubAccount) {

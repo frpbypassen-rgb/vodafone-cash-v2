@@ -183,6 +183,9 @@ app.use(helmet({
     contentSecurityPolicy: {
         directives: {
             defaultSrc: ["'self'"],
+            // EJS views still embed inline scripts/styles. A CSP nonce would
+            // disable 'unsafe-inline' in modern browsers and break those pages.
+            // Residual XSS risk from inline EJS is documented in SECURITY.md.
             scriptSrc: ["'self'", "'unsafe-inline'", "cdn.jsdelivr.net", "cdnjs.cloudflare.com"],
             scriptSrcAttr: ["'unsafe-inline'"],
             styleSrc: ["'self'", "'unsafe-inline'", "cdn.jsdelivr.net", "cdnjs.cloudflare.com", "fonts.googleapis.com"],
@@ -190,7 +193,11 @@ app.use(helmet({
             imgSrc: ["'self'", "data:", "blob:", "assets.mixkit.co"],
             connectSrc: ["'self'", "wss:", "ws:"],
             mediaSrc: ["'self'", "assets.mixkit.co"],
+            objectSrc: ["'none'"],
+            baseUri: ["'self'"],
+            formAction: ["'self'"],
             frameSrc: ["'none'"],
+            ...(isProduction ? { upgradeInsecureRequests: [] } : {})
         }
     },
     crossOriginEmbedderPolicy: false,
@@ -242,11 +249,34 @@ app.use(metricsMiddleware);
 const requireIp = require('./middlewares/ipCheck');
 app.use(requireIp);
 
-// إيصالات إيداع شركة التنفيذ تُرسل كصور Base64. خمس صور بحجم 5MB
-// تحتاج مساحة أكبر من حجم الملفات الأصلي بسبب ترميز Base64 (نحو 33%).
-// يبقى التحقق الصارم من عدد الصور وحجم كل صورة داخل خدمة الإيداعات.
-app.use(express.json({ limit: '40mb' }));
-app.use(express.urlencoded({ extended: true, limit: '40mb' }));
+const DEFAULT_JSON_LIMIT = process.env.JSON_BODY_LIMIT || '256kb';
+const UPLOAD_JSON_LIMIT = process.env.UPLOAD_JSON_BODY_LIMIT || '40mb';
+
+const needsLargeJsonBody = (req) => {
+    const pathName = String(req.originalUrl || req.url || '').split('?')[0].toLowerCase();
+    // Keep the global JSON limit small. Only authenticated upload/Base64
+    // routes (profile photos, KYC, task proofs, support attachments) may use 40mb.
+    return (
+        /\/profile-photo(?:\/|$)/.test(pathName)
+        || /\/complete-task\//.test(pathName)
+        || /\/kyc\//.test(pathName)
+        || /\/tickets(?:\/|$)/.test(pathName)
+        || /\/support(?:\/|$)/.test(pathName)
+        || /\/accept-deposit/.test(pathName)
+        || /\/request-deposit/.test(pathName)
+        || /\/deposits\//.test(pathName)
+        || pathName.startsWith('/executor-portal')
+        || pathName.startsWith('/client/support')
+    );
+};
+
+const jsonParserSmall = express.json({ limit: DEFAULT_JSON_LIMIT });
+const jsonParserLarge = express.json({ limit: UPLOAD_JSON_LIMIT });
+const urlencodedSmall = express.urlencoded({ extended: true, limit: DEFAULT_JSON_LIMIT });
+const urlencodedLarge = express.urlencoded({ extended: true, limit: UPLOAD_JSON_LIMIT });
+
+app.use((req, res, next) => (needsLargeJsonBody(req) ? jsonParserLarge(req, res, next) : jsonParserSmall(req, res, next)));
+app.use((req, res, next) => (needsLargeJsonBody(req) ? urlencodedLarge(req, res, next) : urlencodedSmall(req, res, next)));
 
 // 🚫 منع تخزين الصفحات في الكاش المؤقت لضمان تحديث البيانات فوراً (حل مشكلة عدم تحديث البيانات بعد الإرسال)
 app.use((req, res, next) => {
@@ -471,13 +501,18 @@ app.use('/', require('./routes/reports'));
 
 
 
-// 📚 Swagger API Documentation
-const swaggerUi = require('swagger-ui-express');
-const swaggerSpec = require('./config/swagger');
-app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec, {
-    customCss: '.swagger-ui .topbar { display: none }',
-    customSiteTitle: 'Al-Ahram Pay API Docs'
-}));
+// 📚 Swagger API Documentation — disabled in production unless ENABLE_API_DOCS=true.
+const enableApiDocs = process.env.ENABLE_API_DOCS === 'true'
+    || (!isProduction && process.env.ENABLE_API_DOCS !== 'false');
+if (enableApiDocs) {
+    const swaggerUi = require('swagger-ui-express');
+    const swaggerSpec = require('./config/swagger');
+    const swaggerGuards = isProduction ? [requireAuth] : [];
+    app.use('/api-docs', ...swaggerGuards, swaggerUi.serve, swaggerUi.setup(swaggerSpec, {
+        customCss: '.swagger-ui .topbar { display: none }',
+        customSiteTitle: 'Al-Ahram Pay API Docs'
+    }));
+}
 
 app.use(notFoundHandler);
 

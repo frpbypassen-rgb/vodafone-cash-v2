@@ -6,6 +6,10 @@ jest.mock('../src/Domain/Entities/User', () => ({
     findOne: jest.fn().mockResolvedValue({
         status: 'active',
         creditLimit: 5000
+    }),
+    findById: jest.fn().mockResolvedValue({
+        status: 'active',
+        creditLimit: 5000
     })
 }));
 
@@ -45,7 +49,7 @@ describe('Fraud Detection Engine Tests', () => {
         expect(result.isFraudulent).toBe(true);
         expect(result.reason).toBe('VELOCITY_LIMIT_EXCEEDED');
         expect(result.riskScore).toBe(100);
-        expect(User.updateOne).toHaveBeenCalledWith({ phone: userId }, { $set: { status: 'suspended' } });
+        expect(User.updateOne).toHaveBeenCalledWith({ _id: userId }, { $set: { status: 'suspended' } });
     });
 
     test('Should calculate correct user risk score', async () => {

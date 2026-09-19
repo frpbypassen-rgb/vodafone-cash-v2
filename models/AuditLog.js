@@ -35,6 +35,8 @@ const auditLogSchema = new mongoose.Schema({
 
     // ── بيانات الطلب ─────────────────────────────────────────
     ipAddress: { type: String },
+    countryCode: { type: String, trim: true, uppercase: true, maxlength: 8 },
+    tenantId: { type: mongoose.Schema.Types.ObjectId, ref: 'Tenant' },
     userAgent: { type: String },
     endpoint: { type: String }, // المسار الذي تم استدعاؤه
 
@@ -78,6 +80,8 @@ auditLogSchema.index({ performedBy: 1, createdAt: -1 });
 auditLogSchema.index({ action: 1, createdAt: -1 });
 auditLogSchema.index({ targetId: 1, createdAt: -1 });
 auditLogSchema.index({ ipAddress: 1, createdAt: -1 });
+auditLogSchema.index({ action: 1, countryCode: 1, createdAt: -1 }, { name: 'audit_action_country_createdAt' });
+auditLogSchema.index({ tenantId: 1, action: 1, createdAt: -1 }, { name: 'audit_tenant_action_createdAt' });
 auditLogSchema.index({ createdAt: -1 }); // للتقارير اليومية
 auditLogSchema.index({ companyId: 1, createdAt: -1 });
 auditLogSchema.index({ companyId: 1, action: 1, createdAt: -1 });

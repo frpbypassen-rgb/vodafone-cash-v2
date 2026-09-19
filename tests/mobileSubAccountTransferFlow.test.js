@@ -18,6 +18,11 @@ jest.mock('mongoose', () => {
         startSession: jest.fn().mockResolvedValue(session),
         model: jest.fn().mockReturnValue({}),
         Schema: SchemaMock,
+        Types: {
+            ObjectId: {
+                isValid: (value) => /^[a-f0-9]{24}$/i.test(String(value))
+            }
+        },
         _session: session,
     };
 });
@@ -328,7 +333,7 @@ describe('Mobile SubAccount Transfer Flow', () => {
     it('should refund both accounts on cancelTransfer', async () => {
         const Employee = require('../models/Employee');
         const mockOperator = {
-            _id: 'operator-id-123',
+            _id: '507f1f77bcf86cd799439011',
             name: 'Operator Name',
             webUsername: 'operator123'
         };
@@ -340,7 +345,7 @@ describe('Mobile SubAccount Transfer Flow', () => {
             _id: 'tx-to-cancel-id',
             customId: 'ATT-2601-0002',
             status: 'accepted',
-            operatorId: 'operator-id-123',
+            operatorId: '507f1f77bcf86cd799439011',
             isSubAccountTx: true,
             subAccountId: MOCK_SUB._id,
             subAccountCostLYD: 47.244,
@@ -359,7 +364,7 @@ describe('Mobile SubAccount Transfer Flow', () => {
 
         const cancelResult = await transferService.cancelTransfer({
             taskId: 'tx-to-cancel-id',
-            userId: 'operator123',
+            userId: '507f1f77bcf86cd799439011',
             reason: 'Failed to execute transfer'
         });
 

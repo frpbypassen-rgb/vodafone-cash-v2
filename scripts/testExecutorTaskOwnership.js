@@ -1,8 +1,17 @@
 'use strict';
 
 // Local regression check for the atomic executor task claim flow.
+const { assertNotProduction } = require('../utils/scriptSafety');
+
+assertNotProduction('scripts/testExecutorTaskOwnership.js');
+
 const baseUrl = process.env.MOBILE_TEST_BASE_URL || 'http://127.0.0.1:3010/api/mobile';
 const taskId = 'DEMO-EXEC-MOBILE-001';
+const managerPassword = process.env.SEED_DEMO_MANAGER_PASSWORD;
+const operatorPassword = process.env.SEED_DEMO_OPERATOR_PASSWORD;
+if (!managerPassword || !operatorPassword) {
+    throw new Error('Set SEED_DEMO_MANAGER_PASSWORD and SEED_DEMO_OPERATOR_PASSWORD from the local seed output.');
+}
 
 async function login(username, password) {
     const response = await fetch(`${baseUrl}/login`, {
@@ -27,8 +36,8 @@ async function request(path, token, method = 'GET', body) {
 }
 
 async function main() {
-    const manager = await login('local_exec_manager@ahram.com', 'DemoManager2026!');
-    const operator = await login('local_exec_operator@ahram.com', 'DemoOperator2026!');
+    const manager = await login('local_exec_manager@ahram.com', managerPassword);
+    const operator = await login('local_exec_operator@ahram.com', operatorPassword);
     const initial = await request('/executor/live-tasks', manager.token);
     const task = (initial.data.data || []).find((item) => item.txId === taskId);
     if (!task) throw new Error(`Task not found: ${taskId}`);

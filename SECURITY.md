@@ -1,58 +1,66 @@
-# 🔒 التقرير الأمني وأنظمة حماية البيانات المالية (Security Report)
+# Security report — Al-Ahram Pay
 
-> **النظام**: Al-Ahram Pay (الإصدار 2.0)  
-> **الحالة**: معتمد ومطابق لأعلى معايير الأمان المالي لشركات التكنولوجيا المالية (FinTech Standards).
+This document describes **implemented** controls. It is not a certification and does not claim live OFAC/UN/EU AML feeds.
 
-تم تصميم وبناء نظام **Al-Ahram Pay** بمنهجية **الدفاع العميق (Defense in Depth)** لتوفير أقصى حماية ممكنة للبيانات الحساسة وضمان سلامة المعاملات المالية بين الأطراف المختلفة.
+## Credential rotation (public git history)
 
-إليك توضيح شامل للركائز الأمنية الخمس المطبقة في النظام:
+Seed and reset scripts previously contained real-looking passwords, phones, and tokens (including values such as `MyKids0124` and `ZAYNPAY_API_GROUP_TOKEN`). Those files now use generated demo placeholders only.
 
----
+If this repository was ever public or cloned with the old history, **operators must rotate out of band**:
 
-## 1. تشفير البيانات الحساسة (Data Encryption)
-يتبع النظام سياسة صارمة لتشفير البيانات في حالتي السكون والحركة:
+- Admin panel passwords (`PANEL_USER` / `PANEL_PASS`)
+- Merchant API keys (company `token` / agent `apiToken`) — issue new keys from the admin UI
+- Provider credentials (`ZAYN_PASSWORD`, executor `apiPassword` / `apiToken`)
+- JWT / session / OTP / encryption / API-key pepper / device-hash secrets
+- Telegram and WhatsApp tokens
 
-* **التشفير أثناء الحركة (In Transit):** جميع الاتصالات عبر بوابات الويب وتطبيقات الهاتف الذكي وبوتات تليجرام مشفرة بالكامل باستخدام بروتوكولات **TLS 1.2+** وتأمين النقل الصارم **HSTS**.
-* **التشفير أثناء السكون (At Rest):** 
-  - كلمات المرور للمستخدمين والإدارة مشفرة بالكامل باستخدام خوارزمية **bcryptjs** بـ 12 دورة تمليح (Salt Rounds) وهي غير قابلة لفك التشفير نهائياً.
-  - مفاتيح ورموز الربط الخاصة بالبوتات والـ APIs (مثل `ExecutorBot.token` و `apiToken`) ورموز التحديث (`Refresh Tokens`) مشفرة في قاعدة البيانات باستخدام خوارزمية التشفير المتناظر المعتمدة عالمياً **AES-256-GCM** (عبر الملف المخصص [encryption.js](file:///d:/vodafone-cash-system/utils/encryption.js)).
-* **حجب البيانات (Redaction):** يتم تلقائياً تصفية وحجب الكلمات السرية والرموز المشفرة من ملفات السجلات والأخطاء (Logs) لمنع تسربها.
+Do not put real secrets in git. Copy `.env.example` locally and set values on the server only.
 
----
+## 1. Encryption and hashing at rest
 
-## 2. حماية المعاملات ومنع التكرار (Idempotency / Replay Protection)
-لمنع حدوث عمليات خصم مكررة أو تنفيذ تحويل مرتين نتيجة لنقاط الشبكة المتقطعة أو النقر المزدوج من المستخدم:
+| Data | Storage | Key |
+|---|---|---|
+| User / admin passwords | bcrypt (12 rounds) | N/A (one-way) |
+| Merchant API keys (`ClientCompany.tokenHash`, `User.apiTokenHash`, tenant `apiKeyHash`) | HMAC-SHA256 | `API_KEY_PEPPER` (plaintext returned **once** at create/rotate) |
+| Provider passwords / static tokens that must be replayed to an external API (`ExecutorGroup.apiPassword`, `apiToken`) | AES-256-GCM | `ENCRYPTION_KEY` (64 hex chars). Never derived from `JWT_SECRET`. |
+| Webhook secrets / TOTP secrets | AES-256-GCM | `ENCRYPTION_KEY` |
+| Device identifiers | HMAC-SHA256 | `SECURITY_DEVICE_HASH_SECRET` (dedicated; not `SESSION_SECRET`) |
 
-* **مفتاح منع التكرار (Idempotency-Key):** يلتزم النظام برفض أي معاملة مالية حساسة لا تحتوي على مفتاح منع تكرار فريد بصيغة UUID صالح ويتم التحقق منه عبر الميدلوير [requireIdempotencyKey.js](file:///d:/vodafone-cash-system/middlewares/requireIdempotencyKey.js).
-* **بصمة المعاملة (Fingerprint hashing):** عند استقبال الطلب المالي، يتم إنشاء بصمة هاش SHA-256 فريدة للمعاملة تحتوي على (هوية المرسل، القيمة، الرقم المستلم، الملاحظات).
-* **إعادة التشغيل الآمن (Replay Response):** في حال تطابق المفتاح وبصمة الطلب مع عملية مسجلة خلال فترة الصلاحية، يسترجع النظام النتيجة السابقة المخزنة مباشرة دون إعادة الخصم أو التحويل. وفي حال حدوث تضارب (نفس المفتاح ببيانات مختلفة)، يتم رفض المعاملة فوراً بكود `409 IDEMPOTENCY_CONFLICT`.
+Staging and production refuse to boot or encrypt without the purpose-specific secrets above. Local `NODE_ENV=development` / `test` may use clearly labeled local fallbacks.
 
----
+Run `npm run migrate:secrets` with `ENCRYPTION_KEY` and `CONFIRM_DB_NAME` to hash leftover plaintext merchant keys and encrypt provider secrets. Merchant keys that lived in plaintext **must still be rotated**.
 
-## 3. سجل التدقيق المالي الكامل (Immutable Audit Trail)
-يحتوي النظام على نظام تتبع غير قابل للتعديل أو الحذف (Tamper-Proof) يرصد ويوثق بدقة كل حركة إدارية أو مالية:
+## 2. Idempotency / replay protection
 
-* **تسجيل الأحداث الحساسة:** مثل (تعديل الأرصدة، إنشاء التحويلات، تغيير الإعدادات العامة للنظام، قفل أو حظر الحسابات، تسجيل الدخول الناجح والفاشل، وتعديل الصلاحيات).
-* **البيانات الموثقة:** يسجل النظام هوية المنفذ بالتفصيل، نوع حسابه، عنوان الـ IP الخاص به، مواصفات جهاز العميل (User Agent)، البيانات القديمة قبل التغيير، والبيانات الجديدة بعد التغيير بدقة ميكروثانية.
-* **تأمين السجلات:** لا توفر الواجهات البرمجية أو بوابات الإدارة أي صلاحية لحذف أو تعديل سجلات الـ Audit Logs لضمان نزاهتها قانونياً ومالياً.
+Mobile transfers and `POST /api/v1/merchant/transfer` require a UUID `Idempotency-Key`. Matching fingerprint replays the stored response; a conflicting payload returns `409 IDEMPOTENCY_CONFLICT`. Merchant transfers also use per-merchant rate limiting (15/min) and audit logging. Balance debit remains atomic with `$gte`.
 
----
+## 3. Audit trail
 
-## 4. تحديد معدلات الطلب ومنع الاختراق (Rate Limiting & Threat Mitigation)
-تم تطبيق طبقات حماية ديناميكية ضد هجمات حجب الخدمة (DDoS) ومحاولات التخمين (Brute-Force):
+Sensitive admin and financial actions are written to append-only audit logs (no delete/update API). Merchant API transfers log `TRANSFER_CREATED`.
 
-* **محددات الطلبات الموزعة:**
-  - **محدد الطلبات العام:** حد أقصى 2000 طلب كل 5 دقائق لكل مستخدم لحماية الخادم من الغرق في الطلبات المكررة.
-  - **مسار الدخول (Login):** حد أقصى 10 محاولات دخول عبر الويب بالدقيقة، و8 محاولات عبر تطبيق الهاتف كل 15 دقيقة لمنع هجمات القوة الغاشمة.
-  - **مسار التحويل (Transfer API):** حد أقصى 15 طلباً بالدقيقة لمنع إغراق النظام بطلبات السحب العشوائية.
-* **إقفال الحسابات الآلي (Account Lockout):** عند فشل تسجيل الدخول لـ 5 مرات متتالية، يقوم النظام تلقائياً بقفل الحساب المصاب ومنعه من المحاولات لمدة 30 دقيقة مع إرسال إشعار فوري للمديرين.
+## 4. Rate limiting
 
----
+- Global limiter (stricter in production)
+- Login limiters
+- Mobile and merchant transfer limiters (15/min)
 
-## 5. استراتيجية المصادقة والتحقق (JWT & Session Strategy)
-يفصل النظام أمنياً بين بيئات التشغيل المختلفة بذكاء:
+## 5. Authentication
 
-* **بوابات الويب (Web Portals):** تعتمد على ملفات تعريف الارتباط الآمنة (Sessions Cookies) المخزنة في خادم MongoDB مع تعيين محددات الأمان `httpOnly` (لمنع وصول كود جافا سكريبت الخارجي إليها) و `secure` (لضمان نقلها فقط عبر HTTPS) وتأمين `SameSite` لمنع ثغرات الـ CSRF.
-* **تطبيق الهاتف وواجهات الـ API:** تعتمد على نظام الرموز الثنائي الآمن (stateless tokens):
-  - **رمز الوصول (Access Token):** صلاحية قصيرة (ساعة واحدة فقط) لتقليل نافذة الاختراق في حال السرقة.
-  - **رمز التحديث (Refresh Token):** صلاحية طويلة (30 يوماً)، ويتم التحقق منه وتجديده وتدويره (Rotation) تلقائياً عند كل تجديد لمنع استخدام الرموز القديمة. ويتم رفض تشغيل السيرفر تماماً إذا كانت المفاتيح السرية المشفرة للرموز في ملفات البيئة ضعيفة أو قصيرة (أقل من 32 حرفاً).
+Web sessions use Mongo-backed cookies (`httpOnly`, `secure` in production, `SameSite`). Mobile APIs use short-lived access tokens and rotating refresh tokens. Production requires enhanced login verification (`PASSWORD_ONLY_LOGIN_MODE=false`, `SECURITY_VERIFICATION_ENFORCEMENT_ENABLED=true`, `SECURITY_VERIFICATION_MODE=required`, `FORCE_CLIENT_OTP=true`) plus Redis (`REDIS_REQUIRED=true`).
+
+## 6. Device trust, fraud, AML
+
+- Device-trust middleware **fails closed** on transfer routes when verification is required and the lookup errors.
+- `createTransfer` treats only `req.isDeviceTrusted === true` as trusted; `undefined` is untrusted.
+- Velocity freeze updates the user by `_id`, not phone.
+- `AmlSanctionsService` is a **DEMO stub** with an `ISanctionsProvider` interface. It is **not** a live OFAC/UN/EU integration. Do not describe it as production sanctions screening until a licensed provider is wired.
+
+## 7. HTTP hardening
+
+- Global JSON/urlencoded body limit is `256kb`. Authenticated upload/Base64 routes (mobile API, executor portal, deposit proof) may use up to `40mb`.
+- CSP still allows `'unsafe-inline'` because EJS views embed inline scripts; adding a nonce would disable `'unsafe-inline'` in modern browsers and break those pages. Residual XSS risk remains until templates are nonced.
+- `/api-docs` is off in production unless `ENABLE_API_DOCS=true`, and then requires an admin session.
+
+## 8. Destructive scripts
+
+`reset.js` and `scripts/factoryReset.js` never run in production. They also require `ALLOW_FINANCIAL_RESET=true` and `CONFIRM_DB_NAME` matching the connected database. `DRY_RUN=true` prints counts only. Seed scripts refuse `NODE_ENV=production`.

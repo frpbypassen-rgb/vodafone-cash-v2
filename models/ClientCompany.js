@@ -1,5 +1,4 @@
 const mongoose = require('mongoose');
-const crypto = require('crypto');
 
 const clientCompanySchema = new mongoose.Schema({
     name: { type: String, required: true },
@@ -8,13 +7,16 @@ const clientCompanySchema = new mongoose.Schema({
     tier: { type: Number, default: 3 },
     balance: { type: Number, default: 0 },
     accountCode: { type: String, trim: true, unique: true, sparse: true },
+    // Legacy plaintext merchant key. Kept select:false for one-time rotation only.
     token: {
         type: String,
         trim: true,
         unique: true,
         sparse: true,
-        default: () => crypto.randomBytes(24).toString('hex')
+        select: false
     },
+    tokenHash: { type: String, trim: true, unique: true, sparse: true, select: false },
+    tokenHint: { type: String, trim: true, default: '' },
     // Used only by the isolated sandbox database to map a test merchant to its production account.
     sandboxSource: {
         reference: { type: String, trim: true, sparse: true },

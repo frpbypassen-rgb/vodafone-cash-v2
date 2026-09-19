@@ -16,6 +16,7 @@ const Counter = require('../../../models/Counter');
 const Settings = require('../../../models/Settings');
 const SubAccount = require('../../../models/SubAccount');
 const { logAction } = require('../../../services/auditService');
+const { applyRequestGeo } = require('../../../utils/requestGeo');
 const { getRateForTier, getServiceRatesForTier, getCompanyServiceRates } = require('../../../utils/rateHelper');
 const { calculateAgencyPricing } = require('../../../utils/agencyPricing');
 const { calculateTransferCostLYD, getTransferPricingDefinition } = require('../../../utils/transferPricing');
@@ -331,7 +332,7 @@ export class TransferService {
             const { clientDoc, currentRate, companyName, employeeName, TargetModel, targetId, creditLimit, userIdForTx, companyIdForTx } = clientInfo;
 
             // 3. محرك الاحتيال وفحص موثوقية الجهاز (Fraud & Device Trust)
-            const isTrustedDevice = req.isDeviceTrusted !== undefined ? req.isDeviceTrusted : true;
+            const isTrustedDevice = req.isDeviceTrusted === true;
             const fraudResult = await fraudDetectionEngine.evaluateTransaction(userId, amount, isTrustedDevice);
             if (fraudResult.isFraudulent) {
                 await abortSession(session);
@@ -568,7 +569,8 @@ export class TransferService {
                 idCardImage: savedIdCardPath,
                 oldReceiptImage: savedOldReceiptPath,
                 executorGroupId: undefined,
-                tenantId: (req && req.tenant) ? req.tenant._id : undefined
+                tenantId: (req && req.tenant) ? req.tenant._id : undefined,
+                originCountry: applyRequestGeo({}, req)
             });
             if (autoRouteExecutor) applyAutoRouteFields(newTx, autoRouteExecutor);
 
@@ -758,7 +760,10 @@ export class TransferService {
                 tx = await Transaction.findById(taskId).session(session);
             }
 
-            const empQuery: any = { webUsername: userId };
+            const empQuery: any = mongoose.Types.ObjectId.isValid(String(userId))
+                ? { _id: userId }
+                : null;
+            if (!empQuery) throw new Error('EMPLOYEE_NOT_FOUND');
             if (req && req.tenant) empQuery.tenantId = req.tenant._id;
             const emp = await Employee.findOne(empQuery).session(session);
 

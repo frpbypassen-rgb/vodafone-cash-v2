@@ -4,63 +4,77 @@ export interface IScreeningResult {
     passed: boolean;
     hitLists: string[];
     riskLevel: 'low' | 'medium' | 'high';
+    source: 'DEMO_STUB' | 'LIVE_PROVIDER';
 }
 
-export class AmlSanctionsService {
-    // محاكاة لقوائم الحظر والعقوبات الدولية المشبوهة لمنع الربط المكلف أثناء بيئات التجريب
-    private sanctionedNames: Set<string> = new Set([
+export interface ISanctionsProvider {
+    screenName(fullName: string): Promise<string[]>;
+    screenCountry(country: string): Promise<string[]>;
+}
+
+/**
+ * DEMO-ONLY local denylist. This is not OFAC, UN, or EU data and must not be
+ * described as a live sanctions feed. Wire a licensed provider behind
+ * ISanctionsProvider before claiming production AML coverage.
+ */
+class DemoSanctionsProvider implements ISanctionsProvider {
+    readonly source = 'DEMO_STUB' as const;
+
+    private sanctionedNames = new Set([
         'john doe criminal',
         'osama bin malik',
         'terrorist name example',
         'ali badr'
     ]);
 
-    private sanctionedCountries: Set<string> = new Set([
+    private sanctionedCountries = new Set([
         'north korea',
         'iran',
         'syria',
         'crimea'
     ]);
 
-    /**
-     * فحص اسم العميل وموقع التحويل ضد قوائم العقوبات الدولية (OFAC, UN, EU)
-     */
+    async screenName(fullName: string): Promise<string[]> {
+        if (this.sanctionedNames.has(fullName.trim().toLowerCase())) {
+            return ['DEMO denylist (not a live OFAC/UN/EU feed)'];
+        }
+        return [];
+    }
+
+    async screenCountry(country: string): Promise<string[]> {
+        if (this.sanctionedCountries.has(country.trim().toLowerCase())) {
+            return ['DEMO embargo denylist (not a live OFAC/UN/EU feed)'];
+        }
+        return [];
+    }
+}
+
+export class AmlSanctionsService {
+    constructor(private readonly provider: ISanctionsProvider = new DemoSanctionsProvider()) {}
+
     public async screenSanctions(fullName: string, country: string): Promise<IScreeningResult> {
-        const cleanName = fullName.trim().toLowerCase();
-        const cleanCountry = country.trim().toLowerCase();
-        const hitLists: string[] = [];
-
-        // 1. فحص قوائم الحظر بالاسم
-        if (this.sanctionedNames.has(cleanName)) {
-            hitLists.push('OFAC Specially Designated Nationals (SDN)');
-        }
-
-        // 2. فحص الدول الخاضعة للعقوبات الشاملة
-        if (this.sanctionedCountries.has(cleanCountry)) {
-            hitLists.push('EU Sanctioned Jurisdictions');
-            hitLists.push('UN Embargo List');
-        }
-
+        const hitLists = [
+            ...(await this.provider.screenName(fullName)),
+            ...(await this.provider.screenCountry(country))
+        ];
         const passed = hitLists.length === 0;
 
         if (!passed) {
-            logger.warn(`Security Warning: AML/Sanctions hit detected for name: "${fullName}", country: "${country}"`, {
-                hitLists
+            logger.warn(`DEMO AML/Sanctions stub hit for name: "${fullName}", country: "${country}"`, {
+                hitLists,
+                source: 'DEMO_STUB'
             });
         }
 
         return {
             passed,
             hitLists,
-            riskLevel: passed ? 'low' : 'high'
+            riskLevel: passed ? 'low' : 'high',
+            source: 'DEMO_STUB'
         };
     }
 
-    /**
-     * مراقبة العمليات المالية ومكافحة غسيل الأموال (AML Check)
-     */
-    public async checkAmlRules(amount: number, currency: string, historyTotalAmount: number): Promise<{ passed: boolean; reason?: string }> {
-        // القاعدة 1: تحويلات بمبالغ نقدية ضخمة مفاجئة تتطلب مراجعة (مثال: أكثر من 250,000 جنيه مصري)
+    public async checkAmlRules(amount: number, currency: string, historyTotalAmount: number): Promise<{ passed: boolean; reason?: string; source: 'DEMO_STUB' }> {
         const limitInEgp = 250000;
         let egpEquivalent = amount;
 
@@ -68,22 +82,23 @@ export class AmlSanctionsService {
         else if (currency === 'EUR') egpEquivalent = amount * 51.2;
 
         if (egpEquivalent > limitInEgp) {
-            logger.warn(`AML Flag: Abnormally large transaction detected: ${amount} ${currency}`);
+            logger.warn(`DEMO AML stub: large transaction flagged: ${amount} ${currency}`);
             return {
                 passed: false,
-                reason: 'SUSPICIOUS_TRANSACTION_LIMIT_EXCEEDED'
+                reason: 'SUSPICIOUS_TRANSACTION_LIMIT_EXCEEDED',
+                source: 'DEMO_STUB'
             };
         }
 
-        // القاعدة 2: الحجم الكلي للمعاملات اليومية يتجاوز الحد المسموح به دون كشف هوية متقدم
         if (historyTotalAmount > 1000000) {
             return {
                 passed: false,
-                reason: 'ACCUMULATED_VOLUME_LIMIT_EXCEEDED'
+                reason: 'ACCUMULATED_VOLUME_LIMIT_EXCEEDED',
+                source: 'DEMO_STUB'
             };
         }
 
-        return { passed: true };
+        return { passed: true, source: 'DEMO_STUB' };
     }
 }
 

@@ -336,7 +336,7 @@ describe('Transfer Service Deep Tests', () => {
                 _id: 'tx-123',
                 customId: 'ATT-2601-0001',
                 status: 'accepted',
-                operatorId: 'emp-123',
+                operatorId: '507f1f77bcf86cd799439011',
                 companyId: 'company-123',
                 costLYD: 500,
                 notes: 'طلب أصلي',
@@ -344,7 +344,7 @@ describe('Transfer Service Deep Tests', () => {
             };
 
             const mockEmp = {
-                _id: 'emp-123',
+                _id: '507f1f77bcf86cd799439011',
                 name: 'موظف التجربة'
             };
 
@@ -366,7 +366,7 @@ describe('Transfer Service Deep Tests', () => {
 
             const result = await cancelTransfer({
                 taskId: 'tx-123',
-                userId: 'emp-username',
+                userId: '507f1f77bcf86cd799439011',
                 reason: 'المستلم لم يرد',
                 req: {}
             });
@@ -374,6 +374,7 @@ describe('Transfer Service Deep Tests', () => {
             expect(result.success).toBe(true);
             expect(result.statusCode).toBe(200);
             expect(mockTx.status).toBe('rejected');
+            expect(Employee.findOne).toHaveBeenCalledWith({ _id: '507f1f77bcf86cd799439011' });
             expect(ClientCompany.findByIdAndUpdate).toHaveBeenCalledWith(
                 'company-123',
                 { $inc: { balance: 500 } },
@@ -387,7 +388,7 @@ describe('Transfer Service Deep Tests', () => {
                 _id: 'tx-123',
                 customId: 'ATT-2601-0001',
                 status: 'accepted',
-                operatorId: 'emp-123',
+                operatorId: '507f1f77bcf86cd799439011',
                 userId: '01012345678', // رقم هاتف المستخدم الفردي
                 costLYD: 500,
                 notes: 'طلب أصلي',
@@ -395,7 +396,7 @@ describe('Transfer Service Deep Tests', () => {
             };
 
             const mockEmp = {
-                _id: 'emp-123',
+                _id: '507f1f77bcf86cd799439011',
                 name: 'موظف التجربة'
             };
 
@@ -430,7 +431,7 @@ describe('Transfer Service Deep Tests', () => {
 
             const result = await cancelTransfer({
                 taskId: 'tx-123',
-                userId: 'emp-username',
+                userId: '507f1f77bcf86cd799439011',
                 reason: 'إلغاء فوري',
                 req: {}
             });
@@ -456,7 +457,7 @@ describe('Transfer Service Deep Tests', () => {
 
             const result = await cancelTransfer({
                 taskId: 'tx-123',
-                userId: 'wrong-username',
+                userId: '64b1f1f1f1f1f1f1f1f1f1f1',
                 reason: 'إلغاء'
             });
 
@@ -471,7 +472,7 @@ describe('Transfer Service Deep Tests', () => {
                 status: 'pending', // حالة غير صالحة للإلغاء (يجب أن تكون accepted)
                 operatorId: 'emp-abc'
             };
-            const mockEmp = { _id: 'emp-123' };
+            const mockEmp = { _id: '507f1f77bcf86cd799439011' };
 
             Transaction.findById = jest.fn().mockReturnValue({
                 session: jest.fn().mockResolvedValue(mockTx)
@@ -482,13 +483,75 @@ describe('Transfer Service Deep Tests', () => {
 
             const result = await cancelTransfer({
                 taskId: 'tx-123',
-                userId: 'emp-username',
+                userId: '507f1f77bcf86cd799439011',
                 reason: 'إلغاء'
             });
 
             expect(result.success).toBe(false);
             expect(result.statusCode).toBe(500);
             expect(result.code).toBe('INVALID_STATE');
+        });
+
+        test('looks up the executor by _id and tenant scope instead of webUsername', async () => {
+            const mockTx = {
+                _id: 'tx-123',
+                customId: 'ATT-2601-0001',
+                status: 'accepted',
+                operatorId: '507f1f77bcf86cd799439011',
+                companyId: 'company-123',
+                costLYD: 500,
+                notes: 'طلب أصلي',
+                save: jest.fn().mockResolvedValue(true)
+            };
+            const mockEmp = {
+                _id: '507f1f77bcf86cd799439011',
+                name: 'موظف التجربة'
+            };
+
+            Transaction.findOne = jest.fn().mockReturnValue({
+                session: jest.fn().mockResolvedValue(mockTx)
+            });
+            Employee.findOne = jest.fn().mockReturnValue({
+                session: jest.fn().mockResolvedValue(mockEmp)
+            });
+            ClientCompany.findByIdAndUpdate = jest.fn().mockResolvedValue({
+                _id: 'company-123',
+                balance: 1500
+            });
+            Ledger.prototype.save = jest.fn().mockResolvedValue(true);
+
+            const result = await cancelTransfer({
+                taskId: 'tx-123',
+                userId: '507f1f77bcf86cd799439011',
+                reason: 'tenant scoped cancel',
+                req: { tenant: { _id: 'tenant-1' } }
+            });
+
+            expect(result.success).toBe(true);
+            expect(Employee.findOne).toHaveBeenCalledWith({
+                _id: '507f1f77bcf86cd799439011',
+                tenantId: 'tenant-1'
+            });
+            expect(Employee.findOne).not.toHaveBeenCalledWith(expect.objectContaining({
+                webUsername: expect.anything()
+            }));
+        });
+
+        test('rejects cancel when userId is not a Mongo ObjectId', async () => {
+            Transaction.findById = jest.fn().mockReturnValue({
+                session: jest.fn().mockResolvedValue({ status: 'accepted' })
+            });
+            Employee.findOne = jest.fn();
+
+            const result = await cancelTransfer({
+                taskId: 'tx-123',
+                userId: 'exec_mgr1',
+                reason: 'إلغاء'
+            });
+
+            expect(result.success).toBe(false);
+            expect(result.message).toMatch(/EMPLOYEE_NOT_FOUND/);
+            expect(Employee.findOne).not.toHaveBeenCalled();
         });
     });
 });

@@ -60,6 +60,9 @@ const connectDB = async () => {
     const mongoUri = process.env.MONGO_URI;
     
     if (!mongoUri || mongoUri === 'demo' || mongoUri === 'DEMO') {
+        if (String(process.env.NODE_ENV || '').trim().toLowerCase() === 'production') {
+            throw new Error('Mock/demo MongoDB is forbidden in production. Set MONGO_URI to a real replica set.');
+        }
         console.log('[Database] 🧪 لم يتم تحديد MONGO_URI — تشغيل الوضع التجريبي...');
         const { connectMockDB } = require('./mockDatabase');
         return await connectMockDB();

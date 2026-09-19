@@ -41,7 +41,9 @@ export interface ITenant extends Document {
         commissionRate: number;
     };
     apiKey?: string;
+    apiKeyHash?: string;
     apiSecret?: string;
+    apiSecretHash?: string;
     createdBy?: mongoose.Types.ObjectId;
     createdAt: Date;
     updatedAt: Date;
@@ -91,13 +93,15 @@ const tenantSchema = new Schema<ITenant>({
         endDate: { type: Date },
         commissionRate: { type: Number, default: 0 }
     },
-    apiKey: { type: String, unique: true, sparse: true },
-    apiSecret: { type: String },
+    apiKey: { type: String, unique: true, sparse: true, select: false },
+    apiKeyHash: { type: String, unique: true, sparse: true, select: false },
+    apiSecret: { type: String, select: false },
+    apiSecretHash: { type: String, select: false },
     createdBy: { type: Schema.Types.ObjectId, ref: 'Admin' }
 }, { timestamps: true });
 
 tenantSchema.index({ slug: 1 }, { unique: true });
 tenantSchema.index({ status: 1 });
-tenantSchema.index({ apiKey: 1 }, { sparse: true });
+tenantSchema.index({ apiKeyHash: 1 }, { sparse: true });
 
 export default mongoose.models.Tenant as mongoose.Model<ITenant> || mongoose.model<ITenant>('Tenant', tenantSchema);

@@ -2,13 +2,19 @@
 
 const fs = require('fs');
 const path = require('path');
+const { assertNotProduction } = require('../utils/scriptSafety');
+
+assertNotProduction('scripts/testExecutorDepositApi.js');
 
 const BASE = process.env.TEST_BASE_URL || 'http://127.0.0.1:3002';
 const OUT_DIR = path.join(process.cwd(), 'artifacts', 'executor-deposit-test', new Date().toISOString().replace(/[:.]/g, '-'));
 const MANAGER = {
-    username: 'local_exec_manager@ahram.com',
-    password: 'DemoManager2026!'
+    username: process.env.SEED_DEMO_MANAGER_USERNAME || 'local_exec_manager@ahram.com',
+    password: process.env.SEED_DEMO_MANAGER_PASSWORD
 };
+if (!MANAGER.password) {
+    throw new Error('Set SEED_DEMO_MANAGER_PASSWORD from the local seed output. Demo scripts do not commit passwords.');
+}
 
 function ensureDir(dir) {
     fs.mkdirSync(dir, { recursive: true });

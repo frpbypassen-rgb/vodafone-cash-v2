@@ -35,20 +35,21 @@ describe('Compliance Services Tests', () => {
             const res = await amlSanctionsService.screenSanctions('Osama Bin Malik', 'Egypt');
             expect(res.passed).toBe(false);
             expect(res.riskLevel).toBe('high');
-            expect(res.hitLists).toContain('OFAC Specially Designated Nationals (SDN)');
+            expect(res.hitLists).toContain('DEMO denylist (not a live OFAC/UN/EU feed)');
         });
 
         test('Should screen sanctioned countries and return high risk', async () => {
             const res = await amlSanctionsService.screenSanctions('Normal Name', 'North Korea');
             expect(res.passed).toBe(false);
             expect(res.riskLevel).toBe('high');
-            expect(res.hitLists).toContain('UN Embargo List');
+            expect(res.hitLists).toContain('DEMO embargo denylist (not a live OFAC/UN/EU feed)');
         });
 
         test('Should pass screening for normal user and country', async () => {
             const res = await amlSanctionsService.screenSanctions('Mohamed Ali', 'Egypt');
             expect(res.passed).toBe(true);
             expect(res.riskLevel).toBe('low');
+            expect(res.source).toBe('DEMO_STUB');
         });
 
         test('Should detect suspicious amount under AML rules', async () => {

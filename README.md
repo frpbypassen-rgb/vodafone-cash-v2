@@ -360,17 +360,22 @@ vodafone-cash-v2/
 الحماية الحالية مبنية على طبقات، ولا تعتبر بديلًا عن مراجعة أمنية مستقلة قبل الإطلاق المالي العام:
 
 - فشل مغلق عند وجود إعدادات إنتاج ضعيفة أو مفاتيح OTP تجاوز أو جلسة غير آمنة.
-- تشفير كلمات المرور بـbcrypt وعدم تخزينها كنص صريح.
+- تشفير كلمات المرور بـbcrypt. مفاتيح Merchant API تُخزَّن كهاش HMAC مع `API_KEY_PEPPER` وتُعرض مرة واحدة عند الإنشاء/التدوير.
+- كلمات مرور مزودي التنفيذ تُشفَّر AES-256-GCM بمفتاح `ENCRYPTION_KEY` المستقل (وليس `JWT_SECRET`).
 - جلسات ويب في MongoDB مع Cookies آمنة، وCSRF لطلبات الويب المعدلة للبيانات.
 - Access/Refresh Tokens للتطبيق، مع تدوير Refresh Token وكشف إعادة استخدامه.
-- `Idempotency-Key` وبصمة طلب للعمليات المالية الحساسة.
+- `Idempotency-Key` وبصمة طلب للتحويلات عبر الموبايل وMerchant API، مع حد 15 طلباً/دقيقة للتاجر.
 - معاملات MongoDB للخصم والعكس، مع فحص مسبق لدعم Replica Set أو Mongos.
 - عزل `tenantId` والتحقق من ارتباط الحساب والرمز بالمؤسسة.
 - حماية سجلات Ledger وAgencyJournal من التعديل والحذف المباشر في الإنتاج.
-- Helmet وCORS وقواعد Rate Limit وقفل الحساب عند المحاولات المشبوهة.
+- Helmet وCORS وقواعد Rate Limit وقفل الحساب عند المحاولات المشبوهة. CSP ما زال يستخدم `unsafe-inline` لصفحات EJS (مخاطر XSS متبقية موثّقة في `SECURITY.md`).
+- `/api-docs` معطّل في الإنتاج ما لم يُضبط `ENABLE_API_DOCS=true` مع جلسة إدارة.
 - حماية `/metrics` و`/system-monitor` والوصول إلى صور الإثبات.
 - تنقية مركزية للسجلات لإخفاء كلمات المرور والرموز والأسرار.
 - سجل تدقيق للأحداث الإدارية والمالية المهمة.
+- خدمة العقوبات/AML الحالية تجريبية (`DEMO_STUB`) وليست تغذية OFAC حية.
+
+إذا سبق تسريب السكربتات القديمة (`seed-accounts.js` وغيرها) خارجياً، يجب تدوير كل الأسرار التشغيلية ومفاتيح التجار خارج المستودع. انظر `SECURITY.md`.
 
 ### متطلبات إلزامية قبل الإنتاج
 
@@ -378,9 +383,13 @@ vodafone-cash-v2/
 2. `.env` موجود على الخادم فقط، بصلاحيات مقيدة، وجميع أسراره قوية وفريدة.
 3. `SESSION_STORE=mongo` و`SECURE_COOKIE=true` خلف HTTPS.
 4. `MONGO_TRANSACTIONS_REQUIRED=true` و`TENANT_ISOLATION_REQUIRED=true`.
-5. جميع خيارات تجاوز OTP تساوي `false` و`FORCE_CLIENT_OTP=true`.
-6. نسخة احتياطية مشفرة ومختبرة الاستعادة قبل كل نشر مالي.
-7. نجاح CI وفحوص البيئة والمعاملات والهجرة قبل إعادة التشغيل.
+5. جميع خيارات تجاوز OTP تساوي `false` و`FORCE_CLIENT_OTP=true` مع `PASSWORD_ONLY_LOGIN_MODE=false` و`SECURITY_VERIFICATION_ENFORCEMENT_ENABLED=true` و`SECURITY_VERIFICATION_MODE=required`.
+6. `REDIS_REQUIRED=true` و`REDIS_ENABLED=true` و`REDIS_URL` صالح.
+7. `ENCRYPTION_KEY` (64 hex) و`API_KEY_PEPPER` و`SECURITY_DEVICE_HASH_SECRET` قيم فريدة لا تُشتق من `JWT_SECRET`.
+8. نسخة احتياطية مشفرة ومختبرة الاستعادة قبل كل نشر مالي.
+9. نجاح CI وفحوص البيئة والمعاملات والهجرة قبل إعادة التشغيل.
+
+سكربتات البذر والتصفير المالي (`seed-accounts.js`, `reset.js`, `scripts/factoryReset.js`) ترفض الإنتاج. للتصفير المحلي: `ALLOW_FINANCIAL_RESET=true CONFIRM_DB_NAME=<اسم القاعدة>`. أضف `DRY_RUN=true` للتجربة دون حذف.
 
 ## التشغيل المحلي
 
@@ -417,7 +426,7 @@ npm run dev
 - الإدارة: `http://127.0.0.1:3000/login`
 - العملاء: `http://127.0.0.1:3000/client/login`
 - المنفذون: `http://127.0.0.1:3000/executor-portal/login`
-- Swagger: `http://127.0.0.1:3000/api-docs`
+- Swagger (محلي فقط افتراضياً): `http://127.0.0.1:3000/api-docs`
 - Health: `http://127.0.0.1:3000/health`
 
 لا تستخدم حسابات أو مفاتيح الإنتاج في بيئة التطوير.

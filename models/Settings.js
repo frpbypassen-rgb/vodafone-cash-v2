@@ -33,6 +33,9 @@ const settingsSchema = new mongoose.Schema({
     openingTime: { type: String, default: '09:00' },
     closingTime: { type: String, default: '23:00' },
     isManualClosed: { type: Boolean, default: false },
+    opsHaltAt: { type: Date, default: null },
+    opsHaltByName: { type: String, default: '' },
+    opsHaltReason: { type: String, default: '' },
     
     welcomeMessage: { type: String, default: 'مرحباً بك في منظومة الأهرام الرقمية للصرافة.' },
     termsMessage: { type: String, default: '⚠️ يرجى التأكد من الرقم قبل الإرسال.\nالتحويل يتم خلال دقائق.' },

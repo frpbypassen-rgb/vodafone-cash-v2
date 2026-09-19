@@ -3,17 +3,20 @@
 // Adds one isolated task to the local-only Flutter executor demo group.
 require('dotenv').config();
 
+const crypto = require('crypto');
 const mongoose = require('mongoose');
 const ExecutorGroup = require('../models/ExecutorGroup');
 const Employee = require('../models/Employee');
 const Transaction = require('../models/Transaction');
 const User = require('../models/User');
+const { DEMO_WARNING, assertDemoScriptAllowed } = require('../utils/scriptSafety');
 
 const groupName = 'Flutter Local Execution';
 const taskId = 'DEMO-EXEC-MOBILE-001';
 const demoCustomerPhone = '0920001999';
 
 async function main() {
+    assertDemoScriptAllowed('scripts/seedLocalExecutorTask.js');
     const uri = process.env.MONGO_URI;
     if (!uri || !/mongodb:\/\/(?:127\.0\.0\.1|localhost|\[::1\])/i.test(uri)) {
         throw new Error('This script only runs with a local MongoDB URI.');
@@ -32,7 +35,7 @@ async function main() {
             name: 'Local Demo Customer',
             phone: demoCustomerPhone,
             webUsername: 'local_demo_customer@ahram.com',
-            webPassword: 'DemoCustomer2026!'
+            webPassword: process.env.SEED_DEMO_PASSWORD || `DemoOnly-${crypto.randomBytes(9).toString('hex')}`
         });
     }
     customer.name = 'Local Demo Customer';
@@ -80,6 +83,7 @@ async function main() {
         { upsert: true, new: true, setDefaultsOnInsert: true }
     );
 
+    console.log(DEMO_WARNING);
     console.log(`Local executor demo task ready: ${taskId}`);
     await mongoose.disconnect();
 }

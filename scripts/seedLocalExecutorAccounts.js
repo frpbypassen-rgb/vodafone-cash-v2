@@ -3,10 +3,13 @@
 // Creates a predictable, local-only executor team for Flutter role testing.
 require('dotenv').config();
 
+const crypto = require('crypto');
 const mongoose = require('mongoose');
 const Employee = require('../models/Employee');
 const ExecutorGroup = require('../models/ExecutorGroup');
+const { DEMO_WARNING, assertDemoScriptAllowed } = require('../utils/scriptSafety');
 
+const generatePlaceholder = (prefix) => `${prefix}-${crypto.randomBytes(9).toString('hex')}`;
 const groupName = 'Flutter Local Execution';
 
 const accounts = [
@@ -15,7 +18,7 @@ const accounts = [
         name: 'Local Executive Manager',
         phone: '0920001001',
         username: 'local_exec_manager@ahram.com',
-        password: 'DemoManager2026!',
+        password: process.env.SEED_DEMO_MANAGER_PASSWORD || generatePlaceholder('DemoManager'),
         role: 'manager',
         canViewAllReports: true
     },
@@ -24,7 +27,7 @@ const accounts = [
         name: 'Local Executive Operator',
         phone: '0920001002',
         username: 'local_exec_operator@ahram.com',
-        password: 'DemoOperator2026!',
+        password: process.env.SEED_DEMO_OPERATOR_PASSWORD || generatePlaceholder('DemoOperator'),
         role: 'operator',
         canViewAllReports: false
     },
@@ -33,7 +36,7 @@ const accounts = [
         name: 'Local Executive Accountant',
         phone: '0920001003',
         username: 'local_exec_accountant@ahram.com',
-        password: 'DemoAccountant2026!',
+        password: process.env.SEED_DEMO_ACCOUNTANT_PASSWORD || generatePlaceholder('DemoAccountant'),
         role: 'accountant',
         canViewAllReports: true
     }
@@ -88,6 +91,7 @@ async function upsertEmployee(group, account) {
 }
 
 async function main() {
+    assertDemoScriptAllowed('scripts/seedLocalExecutorAccounts.js');
     const uri = process.env.MONGO_URI;
     if (!uri || !/mongodb:\/\/(?:127\.0\.0\.1|localhost|\[::1\])/i.test(uri)) {
         throw new Error('This script only runs with a local MongoDB URI.');
@@ -103,11 +107,14 @@ async function main() {
             role: account.label,
             username: employee.webUsername,
             phone: employee.phone,
-            group: group.name
+            group: group.name,
+            password: account.password
         });
     }
 
+    console.log(DEMO_WARNING);
     console.table(created);
+    console.log('Passwords above are local demo placeholders printed once. Set SEED_DEMO_*_PASSWORD to reuse them.');
     await mongoose.disconnect();
 }
 

@@ -59,11 +59,11 @@ describe('repairProductionEnv', () => {
         expect(new Set(authenticationSecrets).size).toBe(4);
         expect(authenticationSecrets.every((value) => value.length >= 64)).toBe(true);
         expect(repaired.NODE_ENV).toBe('production');
-        expect(repaired.PASSWORD_ONLY_LOGIN_MODE).toBe('true');
-        expect(repaired.SECURITY_VERIFICATION_ENFORCEMENT_ENABLED).toBe('false');
-        expect(repaired.SECURITY_VERIFICATION_MODE).toBe('optional');
+        expect(repaired.PASSWORD_ONLY_LOGIN_MODE).toBe('false');
+        expect(repaired.SECURITY_VERIFICATION_ENFORCEMENT_ENABLED).toBe('true');
+        expect(repaired.SECURITY_VERIFICATION_MODE).toBe('required');
         expect(repaired.PASSKEY_REQUIRED).toBe('false');
-        expect(repaired.FORCE_CLIENT_OTP).toBe('false');
+        expect(repaired.FORCE_CLIENT_OTP).toBe('true');
         expect(repaired.BYPASS_OTP).toBe('false');
         expect(repaired.BYPASS_CLIENT_OTP).toBe('false');
         expect(repaired.DISABLE_OTP).toBe('false');
@@ -77,6 +77,11 @@ describe('repairProductionEnv', () => {
         expect(repaired.ALLOW_LEGACY_TENANT_TOKENS).toBe('false');
         expect(repaired.RECEIPT_SHARE_SECRET).toHaveLength(128);
         expect(repaired.TENANT_ROUTING_SECRET).toHaveLength(128);
+        expect(repaired.API_KEY_PEPPER.length).toBeGreaterThanOrEqual(64);
+        expect(repaired.SECURITY_DEVICE_HASH_SECRET.length).toBeGreaterThanOrEqual(64);
+        expect(repaired.ENCRYPTION_KEY).toMatch(/^[0-9a-f]{64}$/i);
+        expect(repaired.REDIS_REQUIRED).toBe('true');
+        expect(repaired.REDIS_ENABLED).toBe('true');
         expect(output).not.toContain(reusedSecret);
         for (const secret of authenticationSecrets) expect(output).not.toContain(secret);
     });

@@ -239,6 +239,141 @@
 
     .main-content { margin-right: var(--sidebar-width) !important; padding: 30px; transition: margin 0.3s ease-in-out; }
 
+    body.focus-mode .sidebar,
+    body.focus-mode .sidebar-overlay,
+    body.focus-mode .mobile-nav-toggle,
+    body.focus-mode .bottom-nav-admin-mobile,
+    body.focus-mode .top-nav-admin-mobile,
+    body.focus-mode [data-focus-hide] {
+        display: none !important;
+    }
+    body.focus-mode .main-content {
+        margin-right: 0 !important;
+        padding: 16px !important;
+    }
+    body.focus-mode .filters.can-collapse:not(.is-open) { display: none !important; }
+    body.focus-mode #focusFilterToggleWrap,
+    body.focus-mode #toggleFilters,
+    body.focus-mode #txFocusFilters {
+        display: flex !important;
+    }
+    body:not(.focus-mode) #focusFilterToggleWrap,
+    body:not(.focus-mode) #toggleFilters,
+    body:not(.focus-mode) #txFocusFilters {
+        display: none !important;
+    }
+    body.focus-mode .tx-filter-extra { display: none !important; }
+    body.focus-mode .filters.is-open .tx-filter-extra,
+    body.focus-mode #transactionsFilterForm.is-open .tx-filter-extra {
+        display: block !important;
+    }
+    body.cinema-mode .sidebar,
+    body.cinema-mode .sidebar-overlay,
+    body.cinema-mode .mobile-nav-toggle,
+    body.cinema-mode .bottom-nav-admin-mobile,
+    body.cinema-mode .top-nav-admin-mobile,
+    body.cinema-mode [data-focus-hide],
+    body.cinema-mode [data-cinema-hide],
+    body.cinema-mode .geo-card,
+    body.cinema-mode .metric-grid,
+    body.cinema-mode .live-head p {
+        display: none !important;
+    }
+    body.cinema-mode .main-content {
+        margin-right: 0 !important;
+        padding: 8px !important;
+    }
+    body.cinema-mode .live-shell { max-width: none; padding-bottom: 8px; }
+    body.cinema-mode .live-head { margin: 6px 0; padding: 10px 14px; }
+    body.cinema-mode .scroll { max-height: calc(100vh - 120px) !important; min-height: calc(100vh - 140px); }
+    body.cinema-mode .admin-cinema-exit { display: flex; }
+    body.cinema-mode.focus-mode .admin-cinema-exit { top: 56px; }
+    .ops-timeflow { display: flex; gap: 3px; align-items: flex-end; overflow: auto; padding: 10px 12px; min-height: 52px; border: 1px solid var(--border-glass, #e3e9f2); border-radius: 16px; background: var(--card-bg, #fff); margin-bottom: 10px; }
+    .ops-timeflow button { flex: 0 0 auto; width: 8px; border: 0; padding: 0; background: transparent; cursor: pointer; }
+    .ops-timeflow i { display: block; width: 8px; border-radius: 999px; background: #94a3b8; }
+    .ops-timeflow button.is-success i { background: #059669; box-shadow: 0 0 8px rgba(5,150,105,.45); }
+    .ops-timeflow button.is-failed i { background: #dc2626; box-shadow: 0 0 8px rgba(220,38,38,.4); }
+    .ops-timeflow button.is-active i { outline: 2px solid #2563eb; }
+    .ops-watchdog { display: grid; gap: 8px; margin-bottom: 10px; }
+    .ops-watch-card { padding: 10px 12px; border-radius: 14px; border: 1px solid rgba(217,119,6,.25); background: rgba(217,119,6,.08); font-size: .74rem; }
+    .ops-watch-card.high { border-color: rgba(220,38,38,.3); background: rgba(220,38,38,.08); }
+    .ops-watch-card header { display: flex; justify-content: space-between; gap: 8px; font-weight: 900; }
+    .ops-fab { display: none; position: fixed; z-index: 1090; bottom: 24px; left: 50%; transform: translateX(-50%); gap: 8px; padding: 10px 12px; border-radius: 999px; background: #111827; color: #fff; box-shadow: 0 12px 30px rgba(0,0,0,.28); }
+    .ops-fab.show { display: flex; }
+    .ops-fab button { height: 34px; border: 0; border-radius: 999px; padding: 0 12px; font-size: .72rem; font-weight: 800; }
+    .panic-btn { border-color: #dc2626 !important; background: #dc2626 !important; color: #fff !important; }
+    .halt-modal { position: fixed; inset: 0; z-index: 1100; background: rgba(2,8,23,.65); display: none; place-items: center; padding: 20px; }
+    .halt-modal.is-open { display: grid; }
+    .ops-timeflow-clear { flex: 0 0 auto; width: auto !important; height: 28px; padding: 0 8px; border-radius: 999px; background: var(--live-soft, #f4f7fb); color: inherit; font-size: .68rem; font-weight: 800; }
+    .trust-path { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+    .trust-node { padding: 8px 10px; border-radius: 10px; background: rgba(15,23,42,.05); font-size: .7rem; font-weight: 800; }
+    .trust-path.is-ok .trust-node { background: rgba(5,150,105,.12); color: #047857; }
+    .trust-path.is-bad .trust-node { background: rgba(220,38,38,.12); color: #b91c1c; }
+    .row-density-1 { background: rgba(37,99,235,.04); }
+    .row-density-2 { background: rgba(37,99,235,.07); }
+    .row-density-3 { background: rgba(37,99,235,.11); }
+    tr.flash-change { animation: flashChange 1.4s ease; }
+    @keyframes flashChange { 50% { background: rgba(234,179,8,.28); } }
+    .assignee-chip { display: inline-flex; align-items: center; gap: 5px; padding: 2px 7px; border-radius: 999px; font-size: .62rem; font-weight: 800; color: #fff; }
+    .cluster-row { background: rgba(124,58,237,.07); font-weight: 800; }
+    .status.s-completed, .status.s-deposit, .status.s-deduction { box-shadow: 0 0 0 1px color-mix(in srgb, var(--live-green, #059669) 35%, transparent); }
+    .status.s-rejected, .status.s-cancelled_by_admin { box-shadow: 0 0 0 1px color-mix(in srgb, var(--live-red, #dc2626) 35%, transparent); }
+    .admin-focus-exit {
+        display: none;
+        position: fixed;
+        z-index: 1080;
+        top: 12px;
+        left: 12px;
+        align-items: center;
+        gap: 10px;
+        padding: 8px 12px;
+        border-radius: 999px;
+        background: #111827;
+        color: #fff;
+        font-size: .78rem;
+        font-weight: 800;
+        box-shadow: 0 10px 24px rgba(0,0,0,.25);
+    }
+    body.focus-mode .admin-focus-exit { display: flex; }
+    .js-admin-focus-toggle { white-space: nowrap; }
+    .geo-card, .behavior-card {
+        border: 1px solid var(--border-glass, #e3e9f2);
+        border-radius: 18px;
+        background: var(--card-bg, #fff);
+        padding: 14px 16px;
+        margin-bottom: 13px;
+    }
+    .geo-card header, .behavior-card header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 10px;
+        margin-bottom: 10px;
+    }
+    .geo-card h2, .behavior-card h2 { font-size: .92rem; font-weight: 900; margin: 0; }
+    .geo-layout { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(180px, .8fr); gap: 12px; }
+    .geo-map { width: 100%; height: auto; color: var(--text-main, #142036); }
+    .geo-bars { display: grid; gap: 7px; }
+    .geo-bar { position: relative; display: flex; justify-content: space-between; gap: 8px; padding: 8px 10px; border-radius: 10px; background: rgba(37,99,235,.06); overflow: hidden; font-size: .72rem; font-weight: 800; }
+    .geo-bar i { position: absolute; inset: 0 auto 0 0; background: rgba(220,38,38,.18); }
+    .geo-bar.is-hot { background: rgba(220,38,38,.12); }
+    .geo-bar span, .geo-bar strong { position: relative; z-index: 1; }
+    .geo-demo, .behavior-alert { margin-bottom: 10px; padding: 8px 10px; border-radius: 10px; background: rgba(217,119,6,.12); color: #b45309; font-size: .72rem; font-weight: 800; }
+    .behavior-ok { margin-bottom: 10px; padding: 8px 10px; border-radius: 10px; background: rgba(5,150,105,.1); color: #047857; font-size: .72rem; font-weight: 800; }
+    .geo-empty { color: var(--text-muted, #708198); font-size: .74rem; font-weight: 700; padding: 18px 8px; }
+    .geo-meta { display: block; margin-top: 8px; color: var(--text-muted, #708198); font-size: .66rem; }
+    .behavior-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 8px; }
+    .behavior-metric { padding: 10px; border: 1px solid var(--border-glass, #e3e9f2); border-radius: 12px; background: rgba(15,23,42,.02); }
+    .behavior-metric.is-flagged { border-color: rgba(220,38,38,.35); background: rgba(220,38,38,.06); }
+    .behavior-metric header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; font-size: .72rem; font-weight: 800; }
+    .behavior-metric header b { color: #dc2626; font-size: .62rem; }
+    .behavior-tracks { display: grid; gap: 6px; }
+    .behavior-tracks div { display: grid; grid-template-columns: 42px 1fr auto; gap: 6px; align-items: center; font-size: .66rem; }
+    .behavior-tracks em { color: var(--text-muted, #708198); font-style: normal; }
+    .behavior-tracks i { display: block; height: 7px; border-radius: 999px; background: #2563eb; }
+    .behavior-tracks i.is-base { background: #94a3b8; }
+    @media (max-width: 900px) { .geo-layout { grid-template-columns: 1fr; } }
+
     /* =======================================================
        📱 شريط التنقل السفلي للهواتف (Bottom Navigation Bar)
        ======================================================= */
@@ -599,6 +734,16 @@
 
 <button class="mobile-nav-toggle no-print" data-sidebar-toggle onclick="toggleSidebar()" aria-label="فتح القائمة" aria-controls="sidebarMenu" aria-expanded="false"><i class="fa-solid fa-bars"></i></button>
 <div class="sidebar-overlay no-print" id="sidebarOverlay" data-sidebar-close onclick="toggleSidebar()"></div>
+<div id="adminFocusExit" class="admin-focus-exit no-print">
+    <i class="fa-solid fa-crosshairs"></i>
+    <span>وضع التركيز</span>
+    <button type="button" class="live-btn js-admin-focus-toggle" style="height:28px;padding:0 10px;border:0;background:#fff;color:#111;border-radius:999px;font-size:.7rem;font-weight:900;">إلغاء</button>
+</div>
+<div id="adminCinemaExit" class="admin-focus-exit admin-cinema-exit no-print">
+    <i class="fa-solid fa-film"></i>
+    <span>الوضع السينمائي · Shift+C</span>
+    <button type="button" class="live-btn js-admin-cinema-toggle" style="height:28px;padding:0 10px;border:0;background:#fff;color:#111;border-radius:999px;font-size:.7rem;font-weight:900;">إلغاء</button>
+</div>
 
 <div class="top-nav-admin-mobile no-print">
     <div class="d-flex align-items-center">
@@ -873,12 +1018,26 @@
     window.__toggleAdminSidebar = toggleSidebar;
     window.closeAdminSidebar = () => setAdminSidebarState(false);
 
+    function resolveAutoTheme() {
+        const mode = localStorage.getItem('ahram_theme_mode');
+        if (mode !== 'auto') return localStorage.getItem('ahram_theme') || 'dark';
+        const hour = Number(new Intl.DateTimeFormat('en-GB', { timeZone: 'Africa/Tripoli', hour: '2-digit', hourCycle: 'h23' }).format(new Date()));
+        const night = hour >= 19 || hour < 7;
+        const prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+        return (night || prefersDark) ? 'dark' : 'light';
+    }
+    function applyResolvedTheme() {
+        const theme = resolveAutoTheme();
+        document.documentElement.setAttribute('data-theme', theme);
+        updateSidebarThemeIcon(theme);
+    }
     function toggleGlobalTheme() {
         const html = document.documentElement;
         const currentTheme = html.getAttribute('data-theme');
         const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
         html.setAttribute('data-theme', newTheme);
         localStorage.setItem('ahram_theme', newTheme);
+        localStorage.setItem('ahram_theme_mode', 'manual');
         updateSidebarThemeIcon(newTheme);
 
         if (typeof Chart !== 'undefined' && window.myChart) {
@@ -1019,6 +1178,38 @@
         button.setAttribute('aria-expanded', String(isOpen));
     }
 
+    function applyAdminFocusMode(enabled) {
+        document.body.classList.toggle('focus-mode', enabled);
+        localStorage.setItem('ahram_admin_focus_mode', enabled ? '1' : '0');
+        document.querySelectorAll('.js-admin-focus-toggle [data-focus-label]').forEach((label) => {
+            label.textContent = enabled ? 'إلغاء التركيز' : 'وضع التركيز';
+        });
+        document.querySelectorAll('.js-admin-focus-toggle').forEach((button) => {
+            button.setAttribute('aria-pressed', enabled ? 'true' : 'false');
+        });
+    }
+    function toggleAdminFocusMode() {
+        applyAdminFocusMode(!document.body.classList.contains('focus-mode'));
+    }
+    window.toggleAdminFocusMode = toggleAdminFocusMode;
+    window.applyAdminFocusMode = applyAdminFocusMode;
+    function applyAdminCinemaMode(enabled) {
+        document.body.classList.toggle('cinema-mode', enabled);
+        localStorage.setItem('ahram_admin_cinema_mode', enabled ? '1' : '0');
+        document.querySelectorAll('[data-cinema-label]').forEach((label) => {
+            label.textContent = enabled ? 'إلغاء سينمائي' : 'الوضع السينمائي';
+        });
+        document.querySelectorAll('.js-admin-cinema-toggle').forEach((button) => {
+            button.setAttribute('aria-pressed', enabled ? 'true' : 'false');
+        });
+    }
+    function toggleAdminCinemaMode() {
+        applyAdminCinemaMode(!document.body.classList.contains('cinema-mode'));
+    }
+    window.toggleAdminCinemaMode = toggleAdminCinemaMode;
+    window.applyAdminCinemaMode = applyAdminCinemaMode;
+    window.applyResolvedTheme = applyResolvedTheme;
+
     document.addEventListener('DOMContentLoaded', () => {
         window.toggleSidebar = window.__toggleAdminSidebar || toggleSidebar;
 
@@ -1037,7 +1228,38 @@
         });
 
         const savedTheme = localStorage.getItem('ahram_theme') || 'light';
-        updateSidebarThemeIcon(savedTheme);
+        if (localStorage.getItem('ahram_theme_mode') === 'auto' || !localStorage.getItem('ahram_theme')) {
+            if (!localStorage.getItem('ahram_theme_mode')) localStorage.setItem('ahram_theme_mode', 'auto');
+            applyResolvedTheme();
+        } else {
+            updateSidebarThemeIcon(savedTheme);
+        }
+        applyAdminFocusMode(localStorage.getItem('ahram_admin_focus_mode') === '1');
+        applyAdminCinemaMode(localStorage.getItem('ahram_admin_cinema_mode') === '1');
+        document.querySelectorAll('.js-admin-focus-toggle').forEach((button) => {
+            button.addEventListener('click', toggleAdminFocusMode);
+        });
+        document.querySelectorAll('.js-admin-cinema-toggle').forEach((button) => {
+            button.addEventListener('click', toggleAdminCinemaMode);
+        });
+        document.addEventListener('keydown', (event) => {
+            if (!event.shiftKey || event.ctrlKey || event.metaKey || event.altKey) return;
+            const tag = (event.target && event.target.tagName) || '';
+            if (/INPUT|TEXTAREA|SELECT/.test(tag) || event.target?.isContentEditable) return;
+            if (event.key === 'F' || event.key === 'f') {
+                event.preventDefault();
+                toggleAdminFocusMode();
+            }
+            if (event.key === 'C' || event.key === 'c') {
+                event.preventDefault();
+                toggleAdminCinemaMode();
+            }
+        });
+        if (window.matchMedia) {
+            window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
+                if (localStorage.getItem('ahram_theme_mode') === 'auto') applyResolvedTheme();
+            });
+        }
         updateSidebarStats();
         setInterval(updateSidebarStats, 15000);
         

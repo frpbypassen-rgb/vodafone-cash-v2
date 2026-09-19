@@ -1,6 +1,8 @@
 'use strict';
 
 const Transaction = require('../models/Transaction');
+const OpsInternalNote = require('../models/OpsInternalNote');
+const OpsWatchTask = require('../models/OpsWatchTask');
 const logger = require('../utils/logger');
 
 const executorTaskIndexes = [
@@ -93,8 +95,27 @@ const liveOperationsIndexes = [
     { key: { tenantId: 1, status: 1, transferType: 1, createdAt: -1 }, name: 'liveOps_tenant_status_type_createdAt' },
     { key: { tenantId: 1, amount: -1, createdAt: -1 }, name: 'liveOps_tenant_amount_createdAt' },
     { key: { tenantId: 1, vodafoneNumber: 1, createdAt: -1 }, name: 'liveOps_tenant_phone_createdAt' },
-    { key: { tenantId: 1, accountNumber: 1, createdAt: -1 }, name: 'liveOps_tenant_account_createdAt' }
+    { key: { tenantId: 1, accountNumber: 1, createdAt: -1 }, name: 'liveOps_tenant_account_createdAt' },
+    {
+        key: { tenantId: 1, originCountry: 1, createdAt: -1 },
+        name: 'opsGeo_tenant_originCountry_createdAt',
+        partialFilterExpression: { originCountry: { $type: 'string', $gt: '' } }
+    },
+    { key: { tenantId: 1, userId: 1, createdAt: -1 }, name: 'opsBehavior_tenant_user_createdAt' },
+    { key: { tenantId: 1, companyId: 1, createdAt: -1 }, name: 'opsBehavior_tenant_company_createdAt' },
+    { key: { tenantId: 1, updatedAt: -1 }, name: 'opsLive_tenant_updatedAt' }
 ];
+
+const opsCollaborationIndexes = {
+    notes: [
+        { key: { transactionId: 1, createdAt: -1 }, name: 'opsNote_tx_createdAt' },
+        { key: { tenantId: 1, createdAt: -1 }, name: 'opsNote_tenant_createdAt' }
+    ],
+    tasks: [
+        { key: { transactionId: 1, status: 1, createdAt: -1 }, name: 'opsTask_tx_status_createdAt' },
+        { key: { tenantId: 1, status: 1, createdAt: -1 }, name: 'opsTask_tenant_status_createdAt' }
+    ]
+};
 
 const ensurePerformanceIndexes = async () => {
     try {
@@ -104,6 +125,10 @@ const ensurePerformanceIndexes = async () => {
             ...clientPortalIndexes,
             ...liveOperationsIndexes
         ]);
+        await Promise.all([
+            OpsInternalNote.collection.createIndexes(opsCollaborationIndexes.notes),
+            OpsWatchTask.collection.createIndexes(opsCollaborationIndexes.tasks)
+        ]);
         logger.info('Transaction performance indexes are ready');
         return true;
     } catch (error) {
@@ -112,4 +137,4 @@ const ensurePerformanceIndexes = async () => {
     }
 };
 
-module.exports = { ensurePerformanceIndexes, clientPortalIndexes, liveOperationsIndexes };
+module.exports = { ensurePerformanceIndexes, clientPortalIndexes, liveOperationsIndexes, opsCollaborationIndexes };

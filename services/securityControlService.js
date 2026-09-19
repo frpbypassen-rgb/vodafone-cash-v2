@@ -7,6 +7,7 @@ const SecurityAccessRequest = require('../models/SecurityAccessRequest');
 const SecurityState = require('../models/SecurityState');
 const Notification = require('../models/Notification');
 const { isSecurityVerificationRequired } = require('../config/securityPolicy');
+const { isLocalRuntime, isSecureRuntime } = require('../utils/runtimeEnv');
 
 const DEVICE_COOKIE = 'ahrampay_security_device';
 // The requesting device cannot access the account while pending, so a longer
@@ -53,10 +54,21 @@ const ensureDeviceId = (req, res) => {
     return deviceId;
 };
 
-const hashDeviceId = (deviceId) => crypto
-    .createHmac('sha256', process.env.SECURITY_DEVICE_HASH_SECRET || process.env.SESSION_SECRET || 'local-device-hash')
-    .update(String(deviceId || ''))
-    .digest('hex');
+const hashDeviceId = (deviceId) => {
+    const dedicated = String(process.env.SECURITY_DEVICE_HASH_SECRET || '').trim();
+    if (dedicated.length < 32) {
+        if (isSecureRuntime()) {
+            throw new Error('SECURITY_DEVICE_HASH_SECRET is required in staging and production.');
+        }
+        if (!isLocalRuntime()) {
+            throw new Error('SECURITY_DEVICE_HASH_SECRET is required outside local development and test.');
+        }
+    }
+    const secret = dedicated.length >= 32
+        ? dedicated
+        : 'local-device-hash-secret-not-for-production';
+    return crypto.createHmac('sha256', secret).update(String(deviceId || '')).digest('hex');
+};
 
 const hashesEqual = (left, right) => {
     const leftValue = String(left || '');

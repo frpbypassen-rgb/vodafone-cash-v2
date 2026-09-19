@@ -183,6 +183,9 @@ const transactionSchema = new mongoose.Schema({
     // 🎙️ ملاحظة صوتية مرفقة بالعملية
     voiceNote: { type: String, default: null },
 
+    // ISO-3166 alpha-2 from trusted edge headers (cf-ipcountry / x-country-code).
+    originCountry: { type: String, trim: true, uppercase: true, maxlength: 2, default: '' },
+
     // Multi-tenant
     tenantId: { type: mongoose.Schema.Types.ObjectId, ref: 'Tenant' }
 }, { 
@@ -208,7 +211,12 @@ transactionSchema.index({ executorGroupId: 1, status: 1, executorReceivedAt: 1 }
 transactionSchema.index({ managerGroupId: 1, status: 1, executorReceivedAt: 1 });
 transactionSchema.index({ executorGroupId: 1, status: 1, updatedAt: -1 });
 transactionSchema.index({ managerGroupId: 1, status: 1, updatedAt: -1 });
+transactionSchema.index({ tenantId: 1, originCountry: 1, createdAt: -1 }, {
+    name: 'opsGeo_tenant_originCountry_createdAt',
+    partialFilterExpression: { originCountry: { $type: 'string', $gt: '' } }
+});
 transactionSchema.index({ tenantId: 1, createdAt: -1 });
+transactionSchema.index({ tenantId: 1, updatedAt: -1 }, { name: 'opsLive_tenant_updatedAt' });
 transactionSchema.index({ tenantId: 1, status: 1, transferType: 1, createdAt: -1 }, { name: 'liveOps_tenant_status_type_createdAt' });
 transactionSchema.index({ tenantId: 1, amount: -1, createdAt: -1 }, { name: 'liveOps_tenant_amount_createdAt' });
 transactionSchema.index({ tenantId: 1, vodafoneNumber: 1, createdAt: -1 }, { name: 'liveOps_tenant_phone_createdAt' });

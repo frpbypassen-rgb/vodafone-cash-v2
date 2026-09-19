@@ -13,6 +13,9 @@ env:
   JWT_REFRESH_SECRET: ahram-ci-cd-refresh-secret-key-2026-must-be-32-chars
   SESSION_SECRET: ahram-ci-cd-session-secret-2026-must-be-32-chars
   OTP_SECRET: ahram-ci-cd-otp-secret-2026-must-be-32-chars
+  API_KEY_PEPPER: ahram-ci-cd-api-key-pepper-2026-must-be-32-chars
+  SECURITY_DEVICE_HASH_SECRET: ahram-ci-cd-device-hash-secret-2026-32chars
+  ENCRYPTION_KEY: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
 
 jobs:
   # ═══════════════════════════════════════════════
@@ -107,10 +110,11 @@ jobs:
     steps:
     - uses: actions/checkout@v4
 
-    - name: Start transactional MongoDB
+    - name: Start transactional MongoDB and Redis
       run: |
         set -euo pipefail
         docker run -d --name mongo-ci --network host mongo:7 --replSet rs0 --bind_ip_all
+        docker run -d --name redis-ci --network host redis:7-alpine
         for attempt in $(seq 1 30); do
           if docker exec mongo-ci mongosh --quiet --eval "db.adminCommand({ ping: 1 }).ok" | grep -q 1; then
             break
@@ -122,12 +126,14 @@ jobs:
         for attempt in $(seq 1 30); do
           if docker exec mongo-ci mongosh --quiet --eval \
             "db.hello().isWritablePrimary" | grep -q true; then
-            exit 0
+            break
           fi
           sleep 2
         done
-        docker logs mongo-ci
-        exit 1
+        if ! docker exec mongo-ci mongosh --quiet --eval "db.hello().isWritablePrimary" | grep -q true; then
+          docker logs mongo-ci
+          exit 1
+        fi
 
     - name: Build Docker Image
       run: docker build -t ahram-core-api:${{ github.sha }} .
@@ -147,6 +153,9 @@ jobs:
           -e FORCE_CLIENT_OTP=true \
           -e BYPASS_OTP=false \
           -e BYPASS_CLIENT_OTP=false \
+          -e PASSWORD_ONLY_LOGIN_MODE=false \
+          -e SECURITY_VERIFICATION_ENFORCEMENT_ENABLED=true \
+          -e SECURITY_VERIFICATION_MODE=required \
           -e SECURE_COOKIE=true \
           -e SESSION_STORE=mongo \
           -e MONGO_TRANSACTIONS_REQUIRED=true \
@@ -156,8 +165,13 @@ jobs:
           -e ALLOW_LEGACY_TENANTLESS_RECORDS=false \
           -e ALLOW_LEGACY_TENANT_TOKENS=false \
           -e PUBLIC_APP_URL=https://ci.invalid \
-          -e REDIS_ENABLED=false \
-          -e REDIS_REQUIRED=false \
+          -e REDIS_ENABLED=true \
+          -e REDIS_REQUIRED=true \
+          -e REDIS_URL=redis://127.0.0.1:6379 \
+          -e ENCRYPTION_KEY="${{ env.ENCRYPTION_KEY }}" \
+          -e API_KEY_PEPPER="${{ env.API_KEY_PEPPER }}" \
+          -e SECURITY_DEVICE_HASH_SECRET="${{ env.SECURITY_DEVICE_HASH_SECRET }}" \
+          -e ENABLE_API_DOCS=false \
           -e NODE_ENV=production \
           ahram-core-api:${{ github.sha }}
         for attempt in $(seq 1 30); do
@@ -173,9 +187,9 @@ jobs:
       if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
       run: docker tag ahram-core-api:${{ github.sha }} ahram-core-api:latest
 
-    - name: Stop transactional MongoDB
+    - name: Stop transactional MongoDB and Redis
       if: always()
-      run: docker rm -f mongo-ci >/dev/null 2>&1 || true
+      run: docker rm -f mongo-ci redis-ci >/dev/null 2>&1 || true
 
   # ═══════════════════════════════════════════════
   #  5️⃣ ملخص النتائج

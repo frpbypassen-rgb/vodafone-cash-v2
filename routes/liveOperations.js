@@ -2,7 +2,7 @@
 
 const express = require('express');
 const router = express.Router();
-const { requireAuth, requirePermission } = require('../middlewares/auth');
+const { requireAuth, requirePermission, requireMaster } = require('../middlewares/auth');
 const { logAction } = require('../services/auditService');
 const {
     exportLiveTransactions,
@@ -10,8 +10,24 @@ const {
     getTransactionDetail,
     listLiveTransactions
 } = require('../services/liveOperationsService');
+const { getGeoHeatmap } = require('../services/opsGeoHeatmapService');
+const { compareClientBehavior } = require('../services/clientBehaviorComparisonService');
+const {
+    getOpsIntelligence,
+    getSimilarBenchmark,
+    listLiveChanges
+} = require('../services/liveOpsIntelligenceService');
+const {
+    addNote,
+    assignTask,
+    listNotes,
+    listStaff,
+    resolveTask
+} = require('../services/opsCollaborationService');
+const { getEmergencyHaltStatus, parseHaltEnable, setEmergencyHalt } = require('../services/opsEmergencyHaltService');
 
 const readAccess = [requireAuth, requirePermission('transactions.read')];
+const manageAccess = [requireAuth, requirePermission('transactions.manage')];
 const csvCell = (value) => {
     let text = value == null ? '' : String(value);
     if (/^[=+@-]/.test(text)) text = `'${text}`;
@@ -25,17 +41,161 @@ const auditQuery = (req, action, metadata) => logAction({
     metadata,
     success: true
 });
+const jsonError = (res, error, fallback) => {
+    const status = Number(error?.status) || 500;
+    return res.status(status).json({ success: false, error: error?.message || fallback });
+};
+const capabilitiesFor = (req) => {
+    const permissions = new Set(req.session.adminPermissions || []);
+    const master = req.session.adminRole === 'master';
+    const star = permissions.has('*');
+    return {
+        master,
+        manageTransactions: master || star || permissions.has('transactions.manage'),
+        manageAccounts: master || star || permissions.has('accounts.manage'),
+        emergencyHalt: master
+    };
+};
 
 router.get('/transactions/live', ...readAccess, (req, res) => res.render('live_operations', {
     activePage: 'transactions_live',
     adminName: req.session.adminName,
-    csrfToken: res.locals.csrfToken || ''
+    csrfToken: res.locals.csrfToken || '',
+    capabilities: capabilitiesFor(req)
 }));
+
+router.get('/api/admin/ops/geo-heatmap', ...readAccess, async (req, res) => {
+    try {
+        const heatmap = await getGeoHeatmap(req);
+        return res.json({ success: true, ...heatmap });
+    } catch (_) {
+        return res.status(500).json({ success: false, error: 'تعذر تحميل الخريطة الحرارية.' });
+    }
+});
+
+router.get('/api/admin/ops/behavior-comparison', ...readAccess, async (req, res) => {
+    try {
+        const type = String(req.query.type || 'user').toLowerCase() === 'company' ? 'company' : 'user';
+        const id = String(req.query.id || '').trim();
+        const comparison = await compareClientBehavior(req, { id, type });
+        if (!comparison) return res.status(404).json({ success: false, error: 'الحساب غير موجود.' });
+        return res.json({ success: true, ...comparison });
+    } catch (_) {
+        return res.status(500).json({ success: false, error: 'تعذر تحميل مقارنة السلوك.' });
+    }
+});
+
+router.get('/api/admin/ops/intelligence', ...readAccess, async (req, res) => {
+    try {
+        const metrics = await getLiveMetrics(req);
+        const intelligence = await getOpsIntelligence({ ...req, metrics }, new Date());
+        const halt = await getEmergencyHaltStatus();
+        return res.json({ success: true, capabilities: capabilitiesFor(req), halt, metrics, ...intelligence });
+    } catch (_) {
+        return res.status(500).json({ success: false, error: 'تعذر تحميل تحليل المراقبة.' });
+    }
+});
+
+router.get('/api/admin/ops/live-changes', ...readAccess, async (req, res) => {
+    try {
+        const changes = await listLiveChanges(req);
+        return res.json({ success: true, ...changes });
+    } catch (_) {
+        return res.status(500).json({ success: false, error: 'تعذر تحميل التغييرات.' });
+    }
+});
+
+router.get('/api/admin/ops/similar-benchmark', ...readAccess, async (req, res) => {
+    try {
+        const benchmark = await getSimilarBenchmark(req, {
+            type: req.query.type,
+            amount: req.query.amount,
+            durationMs: req.query.durationMs
+        });
+        return res.json({ success: true, ...benchmark });
+    } catch (_) {
+        return res.status(500).json({ success: false, error: 'تعذر تحميل المقارنة المعيارية.' });
+    }
+});
+
+router.get('/api/admin/ops/staff', ...manageAccess, async (_req, res) => {
+    try {
+        return res.json({ success: true, staff: await listStaff() });
+    } catch (_) {
+        return res.status(500).json({ success: false, error: 'تعذر تحميل فريق المتابعة.' });
+    }
+});
+
+router.get('/api/admin/ops/transactions/:id/notes', ...readAccess, async (req, res) => {
+    try {
+        const notes = await listNotes(req, req.params.id);
+        if (!notes) return res.status(404).json({ success: false, error: 'العملية غير موجودة.' });
+        return res.json({ success: true, notes });
+    } catch (error) {
+        return jsonError(res, error, 'تعذر تحميل الملاحظات.');
+    }
+});
+
+router.post('/api/admin/ops/transactions/:id/notes', ...manageAccess, async (req, res) => {
+    try {
+        const note = await addNote(req, req.params.id, req.body?.body);
+        if (!note) return res.status(404).json({ success: false, error: 'العملية غير موجودة.' });
+        return res.json({ success: true, note });
+    } catch (error) {
+        return jsonError(res, error, 'تعذر حفظ الملاحظة.');
+    }
+});
+
+router.post('/api/admin/ops/transactions/:id/task', ...manageAccess, async (req, res) => {
+    try {
+        const task = await assignTask(req, req.params.id, req.body || {});
+        if (!task) return res.status(404).json({ success: false, error: 'العملية غير موجودة.' });
+        return res.json({ success: true, task });
+    } catch (error) {
+        return jsonError(res, error, 'تعذر إسناد المهمة.');
+    }
+});
+
+router.post('/api/admin/ops/tasks/:id/resolve', ...manageAccess, async (req, res) => {
+    try {
+        const task = await resolveTask(req, req.params.id);
+        if (!task) return res.status(404).json({ success: false, error: 'المهمة غير موجودة أو مغلقة.' });
+        return res.json({ success: true, task });
+    } catch (error) {
+        return jsonError(res, error, 'تعذر إغلاق المهمة.');
+    }
+});
+
+router.get('/api/admin/ops/emergency-halt', ...readAccess, async (_req, res) => {
+    try {
+        return res.json({ success: true, ...(await getEmergencyHaltStatus()) });
+    } catch (_) {
+        return res.status(500).json({ success: false, error: 'تعذر قراءة حالة الإيقاف.' });
+    }
+});
+
+router.post('/api/admin/ops/emergency-halt', requireAuth, requireMaster, async (req, res) => {
+    try {
+        const enable = parseHaltEnable(req.body?.enable);
+        if (enable === null) {
+            return res.status(400).json({ success: false, error: 'حدد enable=true أو false.' });
+        }
+        const halt = await setEmergencyHalt(req, {
+            enable,
+            confirmPhrase: req.body?.confirmPhrase,
+            password: req.body?.password,
+            reason: req.body?.reason
+        });
+        return res.json({ success: true, ...halt });
+    } catch (error) {
+        return jsonError(res, error, 'تعذر تنفيذ إيقاف التحويلات.');
+    }
+});
 
 router.get('/api/transactions/live', ...readAccess, async (req, res) => {
     try {
         const [result, metrics] = await Promise.all([listLiveTransactions(req), getLiveMetrics(req)]);
-        const hasFilters = ['q', 'status', 'type', 'range', 'minAmount', 'maxAmount', 'from', 'to']
+        const hasFilters = ['q', 'status', 'type', 'range', 'minAmount', 'maxAmount', 'from', 'to', 'minute', 'ids']
             .some((key) => String(req.query[key] || '').trim());
         if (hasFilters) auditQuery(req, 'TRANSACTION_LIVE_SEARCH', { filters: req.query }).catch(() => {});
         return res.json({ success: true, ...result, metrics, serverTime: new Date().toISOString() });
