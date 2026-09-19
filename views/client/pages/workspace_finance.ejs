@@ -56,7 +56,7 @@
     <% if (listTruncated) { %><div class="bw-alert warning"><i class="fa-solid fa-circle-info"></i><span>تظهر أحدث <%= shownMovementCount %> حركة فقط لتحسين السرعة، بينما إجماليات الفترة أعلاه محسوبة من كامل السجل المالي.</span></div><% } %>
     <% if (workspace.isCompany) { %>
         <div class="cos-ops-list">
-            <% if (!movements.length) { %><div class="bw-empty"><i class="fa-solid fa-scale-balanced"></i><strong>لا توجد حركات مالية</strong><span>لا توجد قيود ضمن الفترة المحددة.</span></div><% } %>
+            <% if (!movements.length) { %><div class="bw-empty"><span class="cp-mark" aria-hidden="true"><svg class="cp-icon"><use href="#cp-icon-balance"></use></svg></span><strong>لا توجد حركات مالية</strong><span>لا توجد قيود ضمن الفترة المحددة.</span></div><% } %>
             <% movements.filter(item => !filters.type || item.direction === filters.type).forEach(item => { %>
                 <article class="cos-ops-card">
                     <div class="cos-ops-main cos-ledger-main">

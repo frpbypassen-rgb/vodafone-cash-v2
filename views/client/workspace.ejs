@@ -1,7 +1,11 @@
 <!DOCTYPE html>
-<html lang="ar" dir="rtl">
+<html lang="ar" dir="rtl"<% if (workspace.isCompany) { %> data-portal="company"<% } %><% if (workspace.isCompany && typeof companyTheme !== 'undefined' && companyTheme) { %> data-theme="<%= companyTheme %>"<% } %>>
 <%- include('partials/workspace_head') %>
-<body class="bw-body<%= workspace.isCompany ? ' bw-company-os cp-shell' : '' %>" data-page="<%= page %>" data-persona="<%= workspace.persona %>" data-portal="<%= workspace.type %>"<%= workspace.isCompany ? ' data-company-shell' : '' %>>
+<body class="bw-body<%= workspace.isCompany ? ' bw-company-os cp-shell' : '' %>" data-page="<%= page %>" data-persona="<%= workspace.persona %>" data-portal="<%= workspace.type %>"<% if (workspace.isCompany) { %> data-company-shell<% } %><% if (workspace.isCompany && typeof companyTheme !== 'undefined' && companyTheme) { %> data-theme="<%= companyTheme %>"<% } %>>
+    <% if (workspace.isCompany) { %>
+        <%- include('partials/company_icons') %>
+        <span class="cp-sand-dust" aria-hidden="true"></span>
+    <% } %>
     <div class="bw-offline-banner" data-offline-banner hidden><i class="fa-solid fa-wifi"></i><span><strong>الاتصال متوقف</strong> البيانات المعروضة قديمة، وتم إيقاف إرسال التحويلات حتى عودة الشبكة.</span></div>
     <div class="bw-privacy-shield" data-privacy-shield hidden><i class="fa-solid fa-eye-slash"></i><strong>تم إخفاء البيانات الحساسة</strong><button type="button" data-privacy-restore>إظهار</button></div>
     <%- include('partials/workspace_sidebar') %>
@@ -211,7 +215,11 @@
 
     <dialog class="bw-dialog cos-seal-dialog" id="transferSuccessDialog" aria-labelledby="transferSuccessTitle">
         <div class="cos-seal-modal">
+            <% if (workspace.isCompany) { %>
+            <span class="cp-mark" aria-hidden="true"><svg class="cp-icon"><use href="#cp-icon-horus"></use></svg></span>
+            <% } else { %>
             <div class="cos-logo-3d"><span class="cos-rings"></span><img src="/images/logo.jpeg" alt="" onerror="this.onerror=null;this.src='/images/logo.jpg'"></div>
+            <% } %>
             <h2 id="transferSuccessTitle">تم استلام العملية</h2>
             <p id="transferSuccessCopy">يمكنك متابعة الحالة من غرفة العمليات.</p>
             <p class="bw-mono" id="transferSuccessRef" hidden></p>
@@ -349,7 +357,7 @@
     </script>
     <script src="/js/client-workspace.js?v=20260918-simple-mobile-2" defer></script>
     <% if (workspace.isCompany) { %>
-    <script src="/js/company-portal.js?v=20260919-pharaoh1" defer></script>
+    <script src="/js/company-portal.js?v=20260919-themes1" defer></script>
     <% } %>
 </body>
 </html>

@@ -10,6 +10,9 @@
         'Content-Type': 'application/json',
         'x-csrf-token': csrf
     };
+    const THEMES = ['day', 'night', 'pharaonic'];
+    const THEME_COLORS = { day: '#F4F6F8', night: '#12110F', pharaonic: '#1A1510' };
+    const THEME_ICONS = { day: 'sun-day', night: 'moon', pharaonic: 'ankh' };
 
     const parseJson = async (response) => {
         const text = await response.text();
@@ -173,7 +176,68 @@
         refresh().catch(() => {});
     };
 
+    const setupTheme = () => {
+        const root = document.documentElement;
+        const body = document.body;
+        const switcher = document.querySelector('[data-company-theme-switcher]');
+        const applyTheme = (value, persist = true) => {
+            const next = THEMES.includes(value) ? value : 'day';
+            root.setAttribute('data-theme', next);
+            body.setAttribute('data-theme', next);
+            const meta = document.querySelector('meta[name="theme-color"]');
+            if (meta) meta.setAttribute('content', THEME_COLORS[next]);
+            document.querySelectorAll('[data-theme-option]').forEach((button) => {
+                button.setAttribute('aria-pressed', button.dataset.themeOption === next ? 'true' : 'false');
+            });
+            const toggleIcon = document.querySelector('[data-theme-menu-toggle] use');
+            if (toggleIcon) toggleIcon.setAttribute('href', `#cp-icon-${THEME_ICONS[next]}`);
+            const select = document.querySelector('[data-preference="company-theme"]');
+            if (select) select.value = next;
+            if (!persist) return;
+            localStorage.setItem('ahram_company_theme', next);
+            fetch('/client/api/theme', {
+                method: 'POST',
+                headers: jsonHeaders,
+                body: JSON.stringify({ theme: next })
+            }).catch(() => {});
+        };
+
+        const stored = localStorage.getItem('ahram_company_theme');
+        const current = THEMES.includes(stored)
+            ? stored
+            : (THEMES.includes(root.getAttribute('data-theme')) ? root.getAttribute('data-theme') : 'day');
+        applyTheme(current, Boolean(stored));
+
+        if (!switcher) return;
+        const toggle = switcher.querySelector('[data-theme-menu-toggle]');
+        const panel = switcher.querySelector('[data-theme-panel]');
+        const setOpen = (open) => {
+            if (!panel || !toggle) return;
+            panel.hidden = !open;
+            toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+        };
+        toggle?.addEventListener('click', (event) => {
+            event.stopPropagation();
+            setOpen(Boolean(panel?.hidden));
+        });
+        document.addEventListener('click', (event) => {
+            if (!switcher.contains(event.target)) setOpen(false);
+        });
+        switcher.addEventListener('click', (event) => {
+            const option = event.target.closest('[data-theme-option]');
+            if (!option) return;
+            applyTheme(option.dataset.themeOption);
+            setOpen(false);
+        });
+        const select = document.querySelector('[data-preference="company-theme"]');
+        if (select) {
+            select.value = current;
+            select.addEventListener('change', () => applyTheme(select.value));
+        }
+    };
+
     registerWorker();
+    setupTheme();
     setupBell();
     setupPush();
 })();

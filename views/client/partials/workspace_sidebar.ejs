@@ -44,7 +44,13 @@
                 <h2><%= group %></h2>
                 <% navigation.filter(item => item.group === group).forEach(item => { %>
                     <a href="<%= item.href %>" class="bw-nav-link <%= item.active ? 'active' : '' %>" <%= item.active ? 'aria-current="page"' : '' %>>
-                        <span class="bw-nav-icon"><i class="fa-solid <%= item.icon %>"></i></span>
+                        <span class="bw-nav-icon">
+                            <% if (workspace.isCompany && item.pharaonicIcon) { %>
+                                <svg class="cp-icon" aria-hidden="true"><use href="#cp-icon-<%= item.pharaonicIcon %>"></use></svg>
+                            <% } else { %>
+                                <i class="fa-solid <%= item.icon %>"></i>
+                            <% } %>
+                        </span>
                         <span><%= item.label %></span>
                         <i class="fa-solid fa-chevron-left bw-nav-arrow"></i>
                     </a>

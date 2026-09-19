@@ -45,7 +45,11 @@
     <section class="bw-settings-panel" id="preferences">
         <header class="bw-settings-panel-head"><span class="bw-settings-panel-icon tone-violet"><i class="fa-solid fa-palette"></i></span><div><span>المظهر والتجربة</span><h2>واجهة هذا الجهاز</h2><p>هذه الخيارات تُحفظ في المتصفح الحالي فقط.</p></div></header>
         <div class="bw-settings-choice-grid">
+            <% if (workspace.isCompany) { %>
+            <label class="bw-field"><span>مظهر بوابة الشركات</span><select id="workspaceThemeSelect" data-preference="company-theme"><option value="day">نهاري</option><option value="night">ليلي</option><option value="pharaonic">فرعوني</option></select></label>
+            <% } else { %>
             <label class="bw-field"><span>المظهر</span><select id="workspaceThemeSelect" data-preference="theme"><option value="light">فاتح</option><option value="dark">داكن</option><option value="system">حسب الجهاز</option></select></label>
+            <% } %>
             <% if (!workspace.isCompany) { %>
             <label class="bw-field"><span>كثافة الجداول</span><select id="workspaceDensitySelect" data-preference="density"><option value="comfortable">مريحة</option><option value="compact">مضغوطة</option></select></label>
             <% } %>

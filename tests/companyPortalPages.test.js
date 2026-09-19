@@ -79,6 +79,7 @@ const renderWorkspacePage = (page, extra = {}) => {
         query: {},
         csrfToken: 'test-csrf',
         now: new Date(),
+        companyTheme: extra.companyTheme || 'day',
         todaySummary: { totalCount: 0 },
         recentTransactions: [],
         filters: { search: '', status: '', service: '', from: '', to: '', type: '', label: 'اليوم', history: '' },
@@ -142,7 +143,8 @@ describe('canonical company portal pages', () => {
             '/api/web-push/subscribe',
             '/api/web-push/unsubscribe',
             '/api/web-push/test',
-            '/api/notifications/read-all'
+            '/api/notifications/read-all',
+            '/api/theme'
         ]));
         expect(registered).not.toContain('/company-next-page');
     });
@@ -171,14 +173,22 @@ describe('canonical company portal pages', () => {
         });
     });
 
-    test('shares one Pharaonic shell with bell, sidebar, and mobile dock', async () => {
+    test('shares one themed shell with switcher, bell, sidebar, and mobile dock', async () => {
         const html = await renderWorkspacePage('services');
         expect(html).toContain('data-company-shell');
+        expect(html).toContain('/css/company-portal.tokens.css');
         expect(html).toContain('/css/company-portal.css');
         expect(html).toContain('IBM+Plex+Sans+Arabic');
         expect(html).toContain('data-company-bell');
         expect(html).toContain('id="businessSidebar"');
         expect(html).toContain('data-company-dock');
+        expect(html).toContain('data-company-theme-switcher');
+        expect(html).toContain('data-theme-option="day"');
+        expect(html).toContain('data-theme-option="night"');
+        expect(html).toContain('data-theme-option="pharaonic"');
+        expect(html).toContain('ahram_company_theme');
+        expect(html).toContain('data-theme="day"');
+        expect(html).toContain('#cp-icon-temple');
         expect(html).toContain('شركة الاختبار');
         expect(html).toContain('الرصيد');
     });
@@ -209,10 +219,17 @@ describe('canonical company portal pages', () => {
         expect(accountantHtml).not.toContain('data-dock-key="smart_transfer"');
     });
 
-    test('keeps the Pharaonic palette in the shared company stylesheet', () => {
-        const css = fs.readFileSync(path.join(__dirname, '..', 'public', 'css', 'company-portal.css'), 'utf8');
-        ['#E8D5B7', '#1A1510', '#C9A227', '#1F6F6A', '#8B3A2F'].forEach((token) => {
+    test('keeps three full palettes in company portal tokens', () => {
+        const css = fs.readFileSync(path.join(__dirname, '..', 'public', 'css', 'company-portal.tokens.css'), 'utf8');
+        ['[data-theme="day"]', '[data-theme="night"]', '[data-theme="pharaonic"]'].forEach((selector) => {
+            expect(css).toContain(selector);
+        });
+        ['#E8D5B7', '#1A1510', '#C9A227', '#1F6F6A', '#8B3A2F', '#F4F6F8', '#12110F'].forEach((token) => {
             expect(css).toContain(token);
         });
+        const layout = fs.readFileSync(path.join(__dirname, '..', 'public', 'css', 'company-portal.css'), 'utf8');
+        expect(layout).toContain('cp-sand-dust');
+        expect(layout).toContain('--cp-touch');
+        expect(layout).toContain('env(safe-area-inset-bottom)');
     });
 });
