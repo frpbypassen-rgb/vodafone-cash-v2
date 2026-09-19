@@ -21,10 +21,12 @@ html[data-portal="customer"] body.cl-app .bw-privacy-shield {
     border-radius: 0;
 }
 
-/* Hide legacy bootstrap chrome when the new shell is on */
+/* Hide leftover / competing chrome when the single cl-app shell is on */
 html[data-portal="customer"] body.cl-app > .navbar-custom,
 html[data-portal="customer"] body.cl-app > .mobile-header,
-html[data-portal="customer"] body.cl-app > .glass-nav {
+html[data-portal="customer"] body.cl-app > .glass-nav,
+html[data-portal="customer"] body.cl-app [data-legacy-wallet-shell-dock],
+html[data-portal="customer"] body.cl-app nav.bottom-nav-mobile:not(.cl-dock) {
     display: none !important;
 }
 
@@ -679,7 +681,321 @@ html[data-portal="customer"] .cl-dock a {
 }
 
 html[data-portal="customer"] .wallet-hub-active .bottom-nav-mobile .bottom-nav-item.active,
-html[data-portal="customer"] .cl-dock a.active {
+html[data-portal="customer"] .cl-dock a.active,
+html[data-portal="customer"] .cl-dock .cl-dock-more.active {
     color: var(--cl-ink);
     background: color-mix(in srgb, var(--cl-indigo) 16%, var(--cl-surface));
+}
+
+html[data-portal="customer"] .cl-dock .cl-dock-more,
+html[data-portal="customer"] .cl-dock button.bottom-nav-item {
+    min-height: var(--cl-touch);
+    min-width: var(--cl-touch);
+    border: 0;
+    background: transparent;
+    color: var(--cl-sidebar-muted);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 3px;
+    font-size: .68rem;
+    font-weight: 800;
+    border-radius: 12px;
+    padding: 0;
+    font-family: inherit;
+}
+
+html[data-portal="customer"] .client-os-mobile-greeting {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+html[data-portal="customer"] .client-os-mobile-greeting-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-shrink: 0;
+}
+
+html[data-portal="customer"] .cl-icon-button,
+html[data-portal="customer"] .cl-bell-button,
+html[data-portal="customer"] .cl-more-close {
+    min-width: var(--cl-touch);
+    min-height: var(--cl-touch);
+    border: 1px solid var(--cl-line);
+    background: var(--cl-surface);
+    color: var(--cl-ink);
+    border-radius: 14px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+html[data-portal="customer"] .cl-bell {
+    position: relative;
+}
+
+html[data-portal="customer"] .cl-bell-count {
+    position: absolute;
+    top: 4px;
+    inset-inline-end: 4px;
+    min-width: 18px;
+    height: 18px;
+    padding: 0 5px;
+    border-radius: 999px;
+    background: #DC2626;
+    color: #fff;
+    font-size: .62rem;
+    font-weight: 800;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+html[data-portal="customer"] .cl-bell-panel {
+    position: absolute;
+    top: calc(100% + 8px);
+    inset-inline-end: 0;
+    z-index: 80;
+    width: min(92vw, 360px);
+    max-height: min(70vh, 480px);
+    overflow: auto;
+    background: var(--cl-surface);
+    color: var(--cl-ink);
+    border: 1px solid var(--cl-line);
+    border-radius: 18px;
+    box-shadow: var(--cl-shadow);
+}
+
+html[data-portal="customer"] .cl-bell-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 12px 14px;
+    border-bottom: 1px solid var(--cl-line);
+}
+
+html[data-portal="customer"] .cl-bell-mark-all,
+html[data-portal="customer"] .cl-bell-item {
+    min-height: var(--cl-touch);
+    border: 0;
+    background: transparent;
+    color: inherit;
+    text-align: start;
+    font-family: inherit;
+}
+
+html[data-portal="customer"] .cl-bell-mark-all {
+    color: var(--cl-indigo);
+    font-weight: 800;
+    padding-inline: 8px;
+}
+
+html[data-portal="customer"] .cl-bell-groups {
+    padding: 8px;
+}
+
+html[data-portal="customer"] .cl-bell-empty {
+    margin: 18px 12px;
+    color: var(--cl-muted);
+    text-align: center;
+}
+
+html[data-portal="customer"] .cl-bell-group-title {
+    font-size: .72rem;
+    font-weight: 800;
+    color: var(--cl-muted);
+    padding: 8px 10px 4px;
+}
+
+html[data-portal="customer"] .cl-bell-item {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: 10px 12px;
+    border-radius: 12px;
+}
+
+html[data-portal="customer"] .cl-bell-item.is-unread {
+    background: color-mix(in srgb, var(--cl-indigo) 10%, var(--cl-surface));
+}
+
+html[data-portal="customer"] .cl-bell-item small {
+    color: var(--cl-muted);
+    font-size: .75rem;
+}
+
+html[data-portal="customer"] .cl-more-drawer {
+    width: min(100vw, 440px);
+    max-width: 100%;
+    margin: auto 0 0;
+    border: 0;
+    border-radius: 22px 22px 0 0;
+    padding: 0;
+    background: var(--cl-surface);
+    color: var(--cl-ink);
+    box-shadow: var(--cl-shadow);
+}
+
+html[data-portal="customer"] .cl-more-drawer::backdrop {
+    background: rgba(7, 11, 20, .46);
+}
+
+html[data-portal="customer"] .cl-more-head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 16px 16px 12px;
+    border-bottom: 1px solid var(--cl-line);
+}
+
+html[data-portal="customer"] .cl-more-kicker {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    color: var(--cl-muted);
+    font-size: .75rem;
+    font-weight: 800;
+}
+
+html[data-portal="customer"] .cl-more-head h2 {
+    margin: 4px 0 0;
+    font-size: 1.1rem;
+}
+
+html[data-portal="customer"] .cl-more-nav {
+    display: grid;
+    gap: 6px;
+    padding: 12px 12px calc(16px + env(safe-area-inset-bottom));
+}
+
+html[data-portal="customer"] .cl-more-link {
+    min-height: var(--cl-touch);
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 12px;
+    border-radius: 14px;
+    text-decoration: none;
+    color: var(--cl-ink);
+    font-weight: 800;
+    border: 1px solid var(--cl-line);
+    background: var(--cl-sand);
+}
+
+html[data-portal="customer"] .cl-more-link.is-active {
+    border-color: color-mix(in srgb, var(--cl-indigo) 32%, var(--cl-line));
+    background: color-mix(in srgb, var(--cl-indigo) 12%, var(--cl-surface));
+}
+
+html[data-portal="customer"] .cl-more-link.is-danger {
+    color: #B91C1C;
+}
+
+html[data-portal="customer"] .cl-more-icon {
+    width: 36px;
+    height: 36px;
+    border-radius: 12px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: color-mix(in srgb, var(--cl-indigo) 12%, var(--cl-surface));
+    color: var(--cl-indigo);
+}
+
+html[data-portal="customer"] .cl-more-link i.fa-chevron-left {
+    margin-inline-start: auto;
+    color: var(--cl-muted);
+}
+
+@media (max-width: 1050px) {
+    html[data-portal="customer"] body.cl-app {
+        font-size: 16px;
+        -webkit-text-size-adjust: 100%;
+    }
+
+    html[data-portal="customer"] .client-os-mobile-greeting h1,
+    html[data-portal="customer"] .client-os-mobile-chrome h1,
+    html[data-portal="customer"] .bw-page-header h1 {
+        font-size: 1.35rem;
+        line-height: 1.3;
+    }
+
+    html[data-portal="customer"] .client-os-mobile-primary-actions,
+    html[data-portal="customer"] .client-hub-services-grid,
+    html[data-portal="customer"] .client-hub-transfer-grid,
+    html[data-portal="customer"] .bw-form-grid,
+    html[data-portal="customer"] .bw-currency-pair,
+    html[data-portal="customer"] .client-hub-tabs {
+        grid-template-columns: 1fr;
+        display: grid;
+    }
+
+    html[data-portal="customer"] .client-os-mobile-primary-actions {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    html[data-portal="customer"] .bw-field.span-2,
+    html[data-portal="customer"] .span-2,
+    html[data-portal="customer"] .bw-form-section-title.span-2 {
+        grid-column: 1 / -1;
+    }
+
+    html[data-portal="customer"] .client-hub-tabs {
+        overflow-x: auto;
+        grid-template-columns: none;
+        display: flex;
+        flex-wrap: nowrap;
+        padding-bottom: 4px;
+        -webkit-overflow-scrolling: touch;
+    }
+
+    html[data-portal="customer"] .client-hub-tabs a,
+    html[data-portal="customer"] .client-hub-service-card,
+    html[data-portal="customer"] .client-hub-transfer-card,
+    html[data-portal="customer"] .bw-button,
+    html[data-portal="customer"] .client-os-workbench-action,
+    html[data-portal="customer"] .chat-input-area .send-btn,
+    html[data-portal="customer"] .chat-input-area .attach-btn,
+    html[data-portal="customer"] .chat-input {
+        min-height: var(--cl-touch);
+    }
+
+    html[data-portal="customer"] .bw-transfer-workbench #transferSubmitButton,
+    html[data-portal="customer"] .bw-transfer-workbench .bw-button.primary.wide,
+    html[data-portal="customer"] .chat-input-area {
+        position: sticky;
+        bottom: calc(var(--cl-dock-height) + env(safe-area-inset-bottom));
+        z-index: 6;
+        background: var(--cl-surface);
+    }
+
+    html[data-portal="customer"] .chat-input-area {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 8px;
+        border-top: 1px solid var(--cl-line);
+    }
+
+    html[data-portal="customer"] .nile-support-body,
+    html[data-portal="customer"] .client-hub-mobile-content,
+    html[data-portal="customer"] .wallet-hub-page-content {
+        max-width: 100%;
+        overflow-x: hidden;
+        padding-bottom: 12px;
+    }
+
+    html[data-portal="customer"] .cl-bell-panel {
+        position: fixed;
+        inset: 64px 12px auto 12px;
+        width: auto;
+        top: calc(12px + env(safe-area-inset-top, 0px) + 52px);
+    }
 }

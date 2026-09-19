@@ -1,21 +1,20 @@
-<%# Unified mobile bottom nav — Client Hub 5 zones %>
+<%# Unified retail mobile dock — 4 pillars + More so no sidebar route is orphaned. %>
 <% const navActive = typeof activeNav !== 'undefined' ? activeNav : 'home'; %>
-<nav class="bottom-nav-mobile client-hub-bottom-nav cl-dock no-print d-md-none" aria-label="التنقل السفلي">
-    <a href="/client/dashboard" class="bottom-nav-item <%= navActive === 'home' ? 'active' : '' %>" data-nav="home">
+<% const moreActive = ['account', 'deposits', 'reports', 'support', 'more'].includes(navActive); %>
+<nav class="bottom-nav-mobile client-hub-bottom-nav cl-dock no-print d-md-none" aria-label="التنقل السفلي" data-customer-dock data-retail-dock>
+    <a href="/client/dashboard" class="bottom-nav-item <%= navActive === 'home' ? 'active' : '' %>" data-nav="home" data-dock-key="home">
         <i class="fa-solid fa-house"></i><span>الرئيسية</span>
     </a>
-    <a href="/client/transfers" class="bottom-nav-item <%= navActive === 'transfers' ? 'active' : '' %>" data-nav="transfers">
+    <a href="/client/transfers" class="bottom-nav-item <%= navActive === 'transfers' ? 'active' : '' %>" data-nav="transfers" data-dock-key="transfers">
         <i class="fa-solid fa-paper-plane"></i><span>تحويل</span>
     </a>
-    <div class="nile-fab-slot">
-        <a href="/client/account?tab=operations" class="nile-fab" aria-label="العمليات وكشف الحساب">
-            <i class="fa-solid fa-receipt"></i>
-        </a>
-    </div>
-    <a href="/client/services" class="bottom-nav-item <%= navActive === 'services' ? 'active' : '' %>" data-nav="services">
+    <a href="/client/services" class="bottom-nav-item <%= navActive === 'services' ? 'active' : '' %>" data-nav="services" data-dock-key="services">
         <i class="fa-solid fa-grid-2"></i><span>الخدمات</span>
     </a>
-    <a href="/client/settings" class="bottom-nav-item <%= navActive === 'settings' ? 'active' : '' %>" data-nav="settings">
+    <a href="/client/settings" class="bottom-nav-item <%= navActive === 'settings' ? 'active' : '' %>" data-nav="settings" data-dock-key="settings">
         <i class="fa-solid fa-user-gear"></i><span>حسابي</span>
     </a>
+    <button type="button" class="bottom-nav-item cl-dock-more <%= moreActive ? 'active' : '' %>" data-cl-more-open data-nav="more" data-dock-key="more" aria-haspopup="dialog" aria-controls="customerMoreSheet">
+        <i class="fa-solid fa-ellipsis"></i><span>المزيد</span>
+    </button>
 </nav>

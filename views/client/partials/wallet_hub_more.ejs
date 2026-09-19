@@ -1,33 +1,30 @@
-<%# More drawer — reports, support, settings, profile %>
-<% const moreUser = (typeof user !== 'undefined' && user) ? user : account; %>
-<% const moreProfile = (typeof profile !== 'undefined' && profile) ? profile : {
-    userRoleLabel: 'عميل',
-    accountCode: moreUser?.accountCode || '',
-    canEditProfile: false
-}; %>
-<dialog class="wh-more-drawer" id="walletHubMoreDrawer" aria-labelledby="walletHubMoreTitle">
-    <div class="wh-more-head">
-        <div>
-            <span class="wh-more-kicker"><i class="fa-solid fa-ellipsis"></i> المزيد</span>
-            <h2 id="walletHubMoreTitle"><%= moreUser?.name || 'Al-Ahram Pay' %></h2>
-            <small><%= moreProfile.userRoleLabel || 'عميل' %> · <%= moreProfile.accountCode || '' %></small>
-        </div>
-        <button type="button" class="nav-btn" data-wh-more-close aria-label="إغلاق"><i class="fa-solid fa-xmark"></i></button>
-    </div>
-    <nav class="wh-more-nav" aria-label="روابط إضافية">
-        <a href="/client/account?tab=operations" class="wh-more-link"><span class="wh-more-icon reports"><i class="fa-solid fa-receipt"></i></span><span>العمليات وكشف الحساب</span><i class="fa-solid fa-chevron-left"></i></a>
-        <% if (moreUser && moreUser.role !== 'agent') { %>
-        <a href="/client/account?tab=deposits-new" class="wh-more-link"><span class="wh-more-icon deposit"><i class="fa-solid fa-arrow-down"></i></span><span>طلب إيداع</span><i class="fa-solid fa-chevron-left"></i></a>
-        <% } %>
-        <a href="/client/support" class="wh-more-link"><span class="wh-more-icon support"><i class="fa-solid fa-headset"></i></span><span>الدعم والشكاوى</span><i class="fa-solid fa-chevron-left"></i></a>
-        <a href="/client/settings?section=security" class="wh-more-link" onclick="closeWalletHubMore()">
-            <span class="wh-more-icon security"><i class="fa-solid fa-shield-halved"></i></span><span>الأمان والإعدادات</span><i class="fa-solid fa-chevron-left"></i>
-        </a>
-        <% if (moreProfile.canEditProfile) { %>
-        <a href="/client/settings?section=profile" class="wh-more-link" onclick="closeWalletHubMore()">
-            <span class="wh-more-icon profile"><i class="fa-solid fa-user-pen"></i></span><span>الملف الشخصي</span><i class="fa-solid fa-chevron-left"></i>
-        </a>
-        <% } %>
-        <a href="/client/logout" class="wh-more-link danger"><span class="wh-more-icon logout"><i class="fa-solid fa-power-off"></i></span><span>تسجيل الخروج</span><i class="fa-solid fa-chevron-left"></i></a>
-    </nav>
-</dialog>
+<%# LEGACY_GATED: retail More sheet now uses the shared customer_more_sheet. %>
+<%
+    const moreUser = (typeof user !== 'undefined' && user) ? user : account;
+    const moreProfile = (typeof profile !== 'undefined' && profile) ? profile : {
+        userRoleLabel: 'عميل',
+        accountCode: moreUser && moreUser.accountCode ? moreUser.accountCode : '',
+        canEditProfile: false
+    };
+    const canDeposit = moreUser && moreUser.role !== 'agent' && moreUser.canRequestDeposit !== false;
+    const moreItems = [
+        { key: 'account', href: '/client/account?tab=operations', label: 'العمليات وكشف الحساب', icon: 'fa-receipt', tone: 'reports' }
+    ];
+    if (canDeposit) {
+        moreItems.push({ key: 'deposits', href: '/client/account?tab=deposits-new', label: 'إضافة رصيد', icon: 'fa-circle-plus', tone: 'deposit' });
+    }
+    moreItems.push(
+        { key: 'support', href: '/client/support', label: 'الدعم والشكاوى', icon: 'fa-headset', tone: 'support' },
+        { key: 'security', href: '/client/settings?section=security', label: 'الأمان والإعدادات', icon: 'fa-shield-halved', tone: 'security' }
+    );
+    if (moreProfile.canEditProfile) {
+        moreItems.push({ key: 'profile', href: '/client/settings?section=profile', label: 'الملف الشخصي', icon: 'fa-user-pen', tone: 'profile' });
+    }
+    moreItems.push({ key: 'logout', href: '/client/logout', label: 'تسجيل الخروج', icon: 'fa-power-off', tone: 'logout', danger: true });
+%>
+<%- include('customer_more_sheet', {
+    moreItems: moreItems,
+    user: moreUser,
+    moreTitle: moreUser && moreUser.name ? moreUser.name : 'Al-Ahram Pay'
+}) %>
+<dialog class="wh-more-drawer" id="walletHubMoreDrawer" hidden aria-hidden="true"></dialog>

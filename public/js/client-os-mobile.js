@@ -1,17 +1,23 @@
 (function (global) {
     'use strict';
 
+    function moreDrawer() {
+        return document.getElementById('customerMoreSheet')
+            || document.getElementById('walletHubMoreDrawer');
+    }
+
     function openWalletHubMore() {
-        const drawer = document.getElementById('walletHubMoreDrawer');
+        const drawer = moreDrawer();
         if (drawer && typeof drawer.showModal === 'function') {
             drawer.showModal();
             return;
         }
-        global.location.assign('/client/dashboard?tab=more');
+        global.location.assign('/client/support');
     }
 
     function closeWalletHubMore() {
-        document.getElementById('walletHubMoreDrawer')?.close();
+        const drawer = moreDrawer();
+        if (drawer && typeof drawer.close === 'function') drawer.close();
     }
 
     function bindDashboardNavOverrides() {
@@ -51,9 +57,9 @@
     global.closeWalletHubMore = closeWalletHubMore;
 
     document.addEventListener('DOMContentLoaded', () => {
-        document.getElementById('walletHubMoreDrawer')
-            ?.querySelector('[data-wh-more-close]')
-            ?.addEventListener('click', closeWalletHubMore);
+        document.querySelectorAll('[data-cl-more-close], [data-wh-more-close]').forEach((button) => {
+            button.addEventListener('click', closeWalletHubMore);
+        });
         bindDashboardNavOverrides();
     });
 }(window));

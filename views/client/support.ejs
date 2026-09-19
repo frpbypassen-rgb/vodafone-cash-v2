@@ -6,24 +6,18 @@
     </script>
     <%- include('partials/wallet_hub_layout_head', {
         pageTitle: 'الدعم الفني',
-        walletHub: typeof walletHub !== 'undefined' ? walletHub : false,
-        extraCss: ['/css/client-support-2027.css?v=20260905-2']
+        walletHub: true,
+        extraCss: ['/css/client-support-2027.css?v=20260920-cl-m1']
     }) %>
-    <script src="/js/client-theme.js?v=20260826-nile2" defer></script>
 </head>
-<body class="cl-app cl-shell client-direct-modern client-nile-theme client-satellite-page nile-support-page<%= (typeof walletHub !== 'undefined' && walletHub) ? ' wallet-hub-active wallet-hub-satellite' : '' %>" data-customer-shell data-theme="<%= typeof clientTheme !== 'undefined' && clientTheme ? clientTheme : 'day' %>">
-    <% if (typeof walletHub !== 'undefined' && walletHub) { %>
+<body class="cl-app cl-shell client-direct-modern client-nile-theme client-satellite-page nile-support-page wallet-hub-active wallet-hub-satellite" data-customer-shell data-theme="<%= typeof clientTheme !== 'undefined' && clientTheme ? clientTheme : 'day' %>">
     <%- include('partials/wallet_hub_mobile_header', {
         user: account,
         mobileKicker: 'مركز الدعم',
         mobileTitle: 'الدعم الفني',
         mobileSubtitle: 'تواصل بأمان مع فريق المساعدة'
     }) %>
-    <% } else { %>
-    <%- include('partials/wallet_shell_topbar', { account: account }) %>
-    <% } %>
 
-    <% if (typeof walletHub !== 'undefined' && walletHub) { %>
     <%- include('partials/wallet_hub_hub_shell_start', {
         user: account,
         activePage: 'support',
@@ -33,17 +27,6 @@
         pageSubtitle: 'تواصل بأمان مع فريق المساعدة — مرتبط بلوحة الإدارة.',
         pageIcon: 'fa-headset'
     }) %>
-    <% } else { %>
-    <nav class="glass-nav no-print d-none d-md-block">
-        <div class="container d-flex justify-content-between align-items-center">
-            <h4 class="m-0 fw-bold nile-page-title"><i class="fa-solid fa-headset me-2"></i> الدعم الفني</h4>
-            <div class="d-flex align-items-center gap-2">
-                <button class="nav-btn btn-theme" onclick="toggleTheme()" title="الوضع الليلي/النهاري"><i class="fa-solid fa-moon" id="themeIcon"></i></button>
-                <a href="/client/dashboard" class="nav-btn"><i class="fa-solid fa-arrow-left me-1"></i> رجوع للوحة</a>
-            </div>
-        </div>
-    </nav>
-    <% } %>
 
     <div class="container d-flex flex-column px-2 nile-support-body wallet-hub-page-content" style="flex: 1;">
         <div id="imagePreviewContainer" class="p-3 border-bottom d-none nile-image-preview" style="border-radius: 20px 20px 0 0; display: flex; align-items: center; gap: 15px; margin: 20px auto 0; width: 100%; max-width: 800px;">
@@ -78,14 +61,9 @@
         </div>
     </div>
 
-    <% if (typeof walletHub !== 'undefined' && walletHub) { %>
     <%- include('partials/wallet_hub_hub_shell_end') %>
     <%- include('partials/wallet_hub_layout_end', { walletHub: true, user: account }) %>
-    <% } %>
-
-    <% if (typeof walletHub !== 'undefined' && walletHub) { %>
     <%- include('partials/wallet_hub_bottom_nav', { activeNav: 'support' }) %>
-    <% } %>
 
     <script>
         const chatBox = document.getElementById('chatBox');
