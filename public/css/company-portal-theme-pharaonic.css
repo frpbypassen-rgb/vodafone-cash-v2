@@ -1,7 +1,8 @@
-/* Pharaonic — temple/obelisk identity. Gold, turquoise, sand.
-   Heavy art is gated behind html.cp-art-ready so it is not painted until idle JS. */
+/* Pharaonic — sand / gold / turquoise temple identity that stays usable
+   for daily company work. Heavy art waits for html.cp-art-ready.
+   Animation is optional and prefers-reduced-motion safe. */
 html[data-theme="pharaonic"] {
-    color-scheme: dark;
+    color-scheme: light;
     --cp-sand: #E8D5B7;
     --cp-stone: #1A1510;
     --cp-gold: #C9A227;
@@ -23,6 +24,7 @@ html[data-theme="pharaonic"] {
     --cp-shadow: 0 8px 22px rgba(26, 21, 16, .12);
     --cp-shadow-lg: 0 20px 40px rgba(26, 21, 16, .18);
     --cp-glow: rgba(201, 162, 39, .22);
+    --cp-hero-wash: linear-gradient(135deg, #1A1510 0%, color-mix(in srgb, #1F6F6A 42%, #1A1510) 100%);
     --cp-chart-1: #1F6F6A;
     --cp-chart-2: #C9A227;
     --cp-chart-3: #8B3A2F;
@@ -31,6 +33,7 @@ html[data-theme="pharaonic"] {
     --cp-warning: #C9A227;
     --cp-danger: #8B3A2F;
     --cp-info: #3E5C8A;
+    --cp-indigo: #3E5C8A;
     --bw-bg: var(--cp-sand);
     --bw-surface: var(--cp-surface);
     --bw-surface-soft: var(--cp-surface-soft);
@@ -45,17 +48,17 @@ html[data-theme="pharaonic"] {
     --bw-sidebar-text: var(--cp-sidebar-text);
     --bw-sidebar-muted: var(--cp-sidebar-muted);
     --bw-green: var(--cp-turquoise);
-    --bw-green-soft: color-mix(in srgb, var(--cp-turquoise) 14%, var(--cp-surface));
+    --bw-green-soft: color-mix(in srgb, var(--cp-turquoise) 16%, var(--cp-surface));
     --bw-blue: var(--cp-info);
-    --bw-blue-soft: color-mix(in srgb, var(--cp-info) 12%, var(--cp-surface));
+    --bw-blue-soft: color-mix(in srgb, var(--cp-info) 14%, var(--cp-surface));
     --bw-amber: var(--cp-gold);
-    --bw-amber-soft: color-mix(in srgb, var(--cp-gold) 16%, var(--cp-surface));
+    --bw-amber-soft: color-mix(in srgb, var(--cp-gold) 18%, var(--cp-surface));
     --bw-gold: var(--cp-gold);
-    --bw-gold-soft: color-mix(in srgb, var(--cp-gold) 16%, var(--cp-surface));
+    --bw-gold-soft: color-mix(in srgb, var(--cp-gold) 18%, var(--cp-surface));
     --bw-red: var(--cp-brick);
-    --bw-red-soft: color-mix(in srgb, var(--cp-brick) 12%, var(--cp-surface));
+    --bw-red-soft: color-mix(in srgb, var(--cp-brick) 14%, var(--cp-surface));
     --bw-cyan: var(--cp-turquoise);
-    --bw-cyan-soft: color-mix(in srgb, var(--cp-turquoise) 12%, var(--cp-surface));
+    --bw-cyan-soft: color-mix(in srgb, var(--cp-turquoise) 14%, var(--cp-surface));
     --bw-shadow-sm: var(--cp-shadow);
     --bw-shadow-md: var(--cp-shadow-lg);
 }
@@ -63,7 +66,7 @@ html[data-theme="pharaonic"] {
 html[data-theme="pharaonic"] body.cp-app,
 html[data-theme="pharaonic"] .bw-company-os {
     background:
-        linear-gradient(180deg, color-mix(in srgb, var(--cp-gold) 22%, transparent), transparent 11rem),
+        linear-gradient(180deg, color-mix(in srgb, var(--cp-gold) 20%, transparent), transparent 10rem),
         repeating-linear-gradient(
             90deg,
             transparent 0 46px,
@@ -78,7 +81,7 @@ html[data-theme="pharaonic"] .bw-company-os .bw-sidebar {
     background:
         linear-gradient(180deg, #261F18, #1A1510 18%);
     color: #FFF8EC;
-    border-inline-end: 10px solid #C9A227;
+    border-inline-end: 8px solid #C9A227;
     box-shadow: inset -1px 0 0 #8B3A2F;
 }
 
@@ -86,6 +89,16 @@ html[data-theme="pharaonic"] .cp-sidebar .bw-brand strong,
 html[data-theme="pharaonic"] .cp-sidebar .bw-nav-link,
 html[data-theme="pharaonic"] .cp-sidebar .bw-entity-copy strong {
     color: #FFF8EC;
+}
+
+html[data-theme="pharaonic"] .cp-sidebar .bw-entity-card {
+    background: #261F18;
+    border-color: color-mix(in srgb, #C9A227 45%, transparent);
+}
+
+html[data-theme="pharaonic"] .cp-sidebar .bw-entity-icon {
+    color: #1A1510;
+    background: #C9A227;
 }
 
 html[data-theme="pharaonic"] .cp-sidebar .bw-nav-link.active {
@@ -104,13 +117,25 @@ html[data-theme="pharaonic"] .cp-sidebar .bw-nav-link.active .bw-nav-icon {
     background: #C9A227;
 }
 
+html[data-theme="pharaonic"] .cp-topbar,
+html[data-theme="pharaonic"] .bw-topbar {
+    background: color-mix(in srgb, #FFF8EC 88%, transparent);
+    border-bottom-color: #D4B98A;
+}
+
+html[data-theme="pharaonic"] .cp-topbar .bw-balance-chip {
+    background: color-mix(in srgb, #C9A227 16%, #FFF8EC);
+    border-color: #C9A227;
+    color: #1A1510;
+}
+
 html[data-theme="pharaonic"] .cp-page-hero {
     color: #FFF8EC;
     border-color: color-mix(in srgb, #C9A227 45%, transparent);
     background:
         radial-gradient(circle at 12% 20%, var(--cp-glow), transparent 42%),
-        linear-gradient(135deg, #1A1510 0%, color-mix(in srgb, #1F6F6A 42%, #1A1510) 100%);
-    clip-path: polygon(0 18px, 18px 0, 100% 0, 100% calc(100% - 18px), calc(100% - 18px) 100%, 0 100%);
+        var(--cp-hero-wash);
+    clip-path: polygon(0 12px, 12px 0, 100% 0, 100% calc(100% - 12px), calc(100% - 12px) 100%, 0 100%);
 }
 
 html[data-theme="pharaonic"] .cp-page-hero h1,
@@ -124,13 +149,12 @@ html[data-theme="pharaonic"] .cp-page-hero .cp-kicker {
     color: color-mix(in srgb, #FFF8EC 78%, transparent);
 }
 
-html[data-theme="pharaonic"] .bw-button.primary,
-html[data-theme="pharaonic"] .cp-service-card {
+html[data-theme="pharaonic"] .bw-button.primary {
     color: #1A1510;
     background: linear-gradient(145deg, color-mix(in srgb, #C9A227 55%, #fff), #C9A227);
     border-color: color-mix(in srgb, #C9A227 50%, #8B3A2F);
     box-shadow: var(--cp-shadow), inset 0 0 0 1px color-mix(in srgb, #C9A227 35%, transparent);
-    clip-path: polygon(10% 0, 100% 0, 90% 100%, 0 100%);
+    clip-path: polygon(8px 0, 100% 0, calc(100% - 8px) 100%, 0 100%);
     border-radius: 0;
 }
 
@@ -139,14 +163,43 @@ html[data-theme="pharaonic"] .bw-button.ghost {
     color: #1A1510;
     background: #FFF8EC;
     border: 1px solid #C9A227;
-    clip-path: polygon(8% 0, 100% 0, 92% 100%, 0 100%);
+    clip-path: polygon(6px 0, 100% 0, calc(100% - 6px) 100%, 0 100%);
     border-radius: 0;
 }
 
+html[data-theme="pharaonic"] .cp-service-card,
+html[data-theme="pharaonic"] .cp-work-card,
+html[data-theme="pharaonic"] .bw-section,
+html[data-theme="pharaonic"] .bw-mini-metrics article,
+html[data-theme="pharaonic"] .bw-filter-band,
+html[data-theme="pharaonic"] .bw-staff-filter-band,
+html[data-theme="pharaonic"] .cp-day-ops {
+    color: #1A1510;
+    background: linear-gradient(180deg, #FFF8EC, #F4E4C4);
+    border-color: #D4B98A;
+}
+
 html[data-theme="pharaonic"] .cp-service-card {
-    background:
-        linear-gradient(180deg, #FFF8EC, #F4E4C4);
-    clip-path: polygon(0 16px, 16px 0, calc(100% - 16px) 0, 100% 16px, 100% calc(100% - 16px), calc(100% - 16px) 100%, 16px 100%, 0 calc(100% - 16px));
+    clip-path: polygon(0 10px, 10px 0, calc(100% - 10px) 0, 100% 10px, 100% calc(100% - 10px), calc(100% - 10px) 100%, 10px 100%, 0 calc(100% - 10px));
+}
+
+html[data-theme="pharaonic"] .cp-service-card.tone-green,
+html[data-theme="pharaonic"] .cp-service-card.tone-cyan {
+    background: linear-gradient(180deg, color-mix(in srgb, #1F6F6A 14%, #FFF8EC), #FFF8EC 50%);
+    border-color: color-mix(in srgb, #1F6F6A 35%, #D4B98A);
+}
+html[data-theme="pharaonic"] .cp-service-card.tone-blue,
+html[data-theme="pharaonic"] .cp-service-card.tone-navy {
+    background: linear-gradient(180deg, color-mix(in srgb, #3E5C8A 14%, #FFF8EC), #FFF8EC 50%);
+    border-color: color-mix(in srgb, #3E5C8A 32%, #D4B98A);
+}
+html[data-theme="pharaonic"] .cp-service-card.tone-amber {
+    background: linear-gradient(180deg, color-mix(in srgb, #C9A227 18%, #FFF8EC), #FFF8EC 50%);
+    border-color: color-mix(in srgb, #C9A227 40%, #D4B98A);
+}
+html[data-theme="pharaonic"] .cp-service-card.tone-red {
+    background: linear-gradient(180deg, color-mix(in srgb, #8B3A2F 14%, #FFF8EC), #FFF8EC 50%);
+    border-color: color-mix(in srgb, #8B3A2F 32%, #D4B98A);
 }
 
 html[data-theme="pharaonic"] .cp-service-card h2,
@@ -157,14 +210,39 @@ html[data-theme="pharaonic"] .cp-service-rate {
 html[data-theme="pharaonic"] .cp-service-icon {
     color: #1F6F6A;
     background: color-mix(in srgb, #1F6F6A 14%, #FFF8EC);
-    border-radius: 4px 18px 4px 18px;
+    border-radius: 4px 16px 4px 16px;
 }
+
+html[data-theme="pharaonic"] .cp-service-card.tone-amber .cp-service-icon { color: #8B3A2F; background: color-mix(in srgb, #C9A227 22%, #FFF8EC); }
+html[data-theme="pharaonic"] .cp-service-card.tone-red .cp-service-icon { color: #8B3A2F; background: color-mix(in srgb, #8B3A2F 14%, #FFF8EC); }
+html[data-theme="pharaonic"] .cp-service-card.tone-blue .cp-service-icon,
+html[data-theme="pharaonic"] .cp-service-card.tone-navy .cp-service-icon { color: #3E5C8A; background: color-mix(in srgb, #3E5C8A 14%, #FFF8EC); }
 
 html[data-theme="pharaonic"] .cp-service-icon .cp-icon,
 html[data-theme="pharaonic"] .bw-nav-icon .cp-icon,
 html[data-theme="pharaonic"] .cp-icon {
-    filter: drop-shadow(0 4px 0 color-mix(in srgb, #1A1510 18%, transparent));
+    filter: drop-shadow(0 3px 0 color-mix(in srgb, #1A1510 14%, transparent));
 }
+
+html[data-theme="pharaonic"] .bw-mini-metrics article.success {
+    background: linear-gradient(180deg, color-mix(in srgb, #1F6F6A 16%, #FFF8EC), #FFF8EC 62%);
+    border-color: color-mix(in srgb, #1F6F6A 32%, #D4B98A);
+}
+html[data-theme="pharaonic"] .bw-mini-metrics article.blue {
+    background: linear-gradient(180deg, color-mix(in srgb, #3E5C8A 14%, #FFF8EC), #FFF8EC 62%);
+    border-color: color-mix(in srgb, #3E5C8A 28%, #D4B98A);
+}
+html[data-theme="pharaonic"] .bw-mini-metrics article.warning {
+    background: linear-gradient(180deg, color-mix(in srgb, #C9A227 18%, #FFF8EC), #FFF8EC 62%);
+    border-color: color-mix(in srgb, #C9A227 36%, #D4B98A);
+}
+
+html[data-theme="pharaonic"] .bw-metric-card.accent-dark { --metric-accent: #C9A227; }
+
+html[data-theme="pharaonic"] .bw-status.success { color: #1F6F6A; background: color-mix(in srgb, #1F6F6A 16%, #FFF8EC); border-color: color-mix(in srgb, #1F6F6A 32%, #D4B98A); }
+html[data-theme="pharaonic"] .bw-status.warning { color: #8B3A2F; background: color-mix(in srgb, #C9A227 22%, #FFF8EC); border-color: #C9A227; }
+html[data-theme="pharaonic"] .bw-status.info { color: #3E5C8A; background: color-mix(in srgb, #3E5C8A 14%, #FFF8EC); border-color: color-mix(in srgb, #3E5C8A 32%, #D4B98A); }
+html[data-theme="pharaonic"] .bw-status.danger { color: #8B3A2F; background: color-mix(in srgb, #8B3A2F 14%, #FFF8EC); border-color: color-mix(in srgb, #8B3A2F 32%, #D4B98A); }
 
 html[data-theme="pharaonic"] .cp-theme-rail {
     background: #261F18;
@@ -197,11 +275,25 @@ html[data-theme="pharaonic"] .bw-mobile-dock a.active {
 
 html[data-theme="pharaonic"] .bw-field input,
 html[data-theme="pharaonic"] .bw-field textarea,
-html[data-theme="pharaonic"] .bw-field select {
+html[data-theme="pharaonic"] .bw-field select,
+html[data-theme="pharaonic"] .bw-search-field input {
     background: #FFF8EC;
     color: #1A1510;
     border-color: #C4A874;
 }
+
+html[data-theme="pharaonic"] .bw-field input:focus,
+html[data-theme="pharaonic"] .bw-field textarea:focus,
+html[data-theme="pharaonic"] .bw-field select:focus,
+html[data-theme="pharaonic"] .bw-search-field input:focus {
+    border-color: #C9A227;
+    box-shadow: 0 0 0 3px rgba(201, 162, 39, .28);
+    outline: none;
+}
+
+html[data-theme="pharaonic"] .bw-team-role-guide article.manager span { color: #3E5C8A; background: color-mix(in srgb, #3E5C8A 14%, #FFF8EC); }
+html[data-theme="pharaonic"] .bw-team-role-guide article.accountant span { color: #1F6F6A; background: color-mix(in srgb, #1F6F6A 14%, #FFF8EC); }
+html[data-theme="pharaonic"] .bw-team-role-guide article.employee span { color: #8B3A2F; background: color-mix(in srgb, #C9A227 18%, #FFF8EC); }
 
 html[data-theme="pharaonic"].cp-art-ready .cp-pyramid-art {
     display: block;
@@ -211,7 +303,7 @@ html[data-theme="pharaonic"].cp-art-ready .cp-pyramid-art {
     height: min(220px, 28vh);
     z-index: 0;
     pointer-events: none;
-    opacity: .18;
+    opacity: .16;
     background:
         linear-gradient(135deg, transparent 49%, #8B3A2F 49% 51%, transparent 51%),
         linear-gradient(-135deg, transparent 49%, #1F6F6A 49% 51%, transparent 51%),
@@ -228,7 +320,7 @@ html[data-theme="pharaonic"].cp-art-ready .cp-glyph-shimmer {
     top: 3px;
     height: 18px;
     pointer-events: none;
-    opacity: .28;
+    opacity: .22;
     background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='120' height='18' viewBox='0 0 120 18' fill='none' stroke='%23C9A227' stroke-width='1'><path d='M6 14V4h6M18 14l4-10 4 10M36 4v10h6M50 14V6a4 4 0 0 1 8 0v8M68 4h8l-8 10h8M86 14V4h8M104 4c4 0 6 3 6 5s-2 5-6 5h-4V4z'/></svg>");
     background-repeat: repeat-x;
     animation: cp-glyph-drift 18s linear infinite;
@@ -244,45 +336,18 @@ html[data-theme="pharaonic"].cp-art-ready .cp-sand-dust {
     border-radius: 50%;
     background: transparent;
     box-shadow:
-        12vw 18vh 0 0 color-mix(in srgb, var(--cp-gold) 35%, transparent),
-        28vw 42vh 0 0 color-mix(in srgb, var(--cp-gold) 22%, transparent),
-        46vw 12vh 0 0 color-mix(in srgb, var(--cp-brick) 18%, transparent),
-        63vw 58vh 0 0 color-mix(in srgb, var(--cp-gold) 28%, transparent),
-        81vw 26vh 0 0 color-mix(in srgb, var(--cp-turquoise) 16%, transparent),
-        8vw 72vh 0 0 color-mix(in srgb, var(--cp-gold) 18%, transparent),
-        92vw 80vh 0 0 color-mix(in srgb, var(--cp-gold) 20%, transparent);
+        12vw 18vh 0 0 color-mix(in srgb, var(--cp-gold) 28%, transparent),
+        28vw 42vh 0 0 color-mix(in srgb, var(--cp-gold) 18%, transparent),
+        46vw 12vh 0 0 color-mix(in srgb, var(--cp-brick) 14%, transparent),
+        63vw 58vh 0 0 color-mix(in srgb, var(--cp-gold) 22%, transparent),
+        81vw 26vh 0 0 color-mix(in srgb, var(--cp-turquoise) 14%, transparent),
+        8vw 72vh 0 0 color-mix(in srgb, var(--cp-gold) 16%, transparent),
+        92vw 80vh 0 0 color-mix(in srgb, var(--cp-gold) 16%, transparent);
     animation: cp-sand-float 16s ease-in-out infinite;
 }
 
-html[data-theme="pharaonic"].cp-art-ready .cp-mark,
-html[data-theme="pharaonic"].cp-art-ready .cp-service-icon {
+html[data-theme="pharaonic"].cp-art-ready .cp-mark {
     animation: cp-ankh-pulse 2.8s ease-in-out infinite;
-}
-
-html[data-theme="pharaonic"].cp-art-ready .cp-service-icon .cp-icon,
-html[data-theme="pharaonic"].cp-art-ready .bw-mobile-dock .cp-icon,
-html[data-theme="pharaonic"].cp-art-ready .bw-nav-icon .cp-icon {
-    animation: cp-float-icon 3.6s ease-in-out infinite;
-}
-
-@keyframes cp-glyph-drift {
-    from { background-position: 0 0; }
-    to { background-position: 120px 0; }
-}
-
-@keyframes cp-sand-float {
-    0%, 100% { transform: translate3d(0, 0, 0); opacity: .55; }
-    50% { transform: translate3d(12px, -18px, 0); opacity: .9; }
-}
-
-@keyframes cp-ankh-pulse {
-    0%, 100% { transform: scale(1); filter: drop-shadow(0 0 0 transparent); }
-    50% { transform: scale(1.04); filter: drop-shadow(0 0 10px var(--cp-glow)); }
-}
-
-@keyframes cp-float-icon {
-    0%, 100% { transform: translateY(0); }
-    50% { transform: translateY(-6px); }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -301,4 +366,19 @@ html[data-theme="pharaonic"].cp-art-ready .bw-nav-icon .cp-icon {
     html[data-theme="pharaonic"].cp-art-ready .bw-nav-icon .cp-icon {
         animation: none !important;
     }
+}
+
+@keyframes cp-glyph-drift {
+    from { background-position: 0 0; }
+    to { background-position: 120px 0; }
+}
+
+@keyframes cp-sand-float {
+    0%, 100% { transform: translate3d(0, 0, 0); opacity: .45; }
+    50% { transform: translate3d(12px, -18px, 0); opacity: .75; }
+}
+
+@keyframes cp-ankh-pulse {
+    0%, 100% { transform: scale(1); filter: drop-shadow(0 0 0 transparent); }
+    50% { transform: scale(1.03); filter: drop-shadow(0 0 8px var(--cp-glow)); }
 }
