@@ -109,22 +109,41 @@ const resolveReportScope = async ({ mainCategory, subId, subType = 'all', tenant
 
     if (mainCategory === 'direct_client') {
         const user = await User.findOne({ _id: subId, ...scopedTenant }).lean();
-        if (!user) throw new Error('REPORT_ENTITY_NOT_FOUND');
-        Object.assign(entityInfo, {
-            name: user.name || '---',
-            phone: user.phone || '---',
-            username: user.webUsername || '---',
-            joinDate: user.createdAt,
-            status: 'عميل فردي مباشر'
-        });
-        const identifiers = [String(user._id), user.phone, user.webUsername].filter(Boolean);
-        baseQuery.$or = [
-            { userId: { $in: identifiers } },
-            { employeeName: user.name, companyName: { $regex: /عميل فردي/ } }
-        ];
-        baseQuery.companyId = null;
-        baseQuery.isSubAccountTx = { $ne: true };
-        auditScope.identifiers = identifiers;
+        if (user) {
+            Object.assign(entityInfo, {
+                name: user.name || '---',
+                phone: user.phone || '---',
+                username: user.webUsername || '---',
+                joinDate: user.createdAt,
+                status: 'عميل فردي مباشر'
+            });
+            const identifiers = [String(user._id), user.phone, user.webUsername].filter(Boolean);
+            baseQuery.$or = [
+                { userId: { $in: identifiers } },
+                { employeeName: user.name, companyName: { $regex: /عميل فردي/ } }
+            ];
+            baseQuery.companyId = null;
+            baseQuery.isSubAccountTx = { $ne: true };
+            auditScope.identifiers = identifiers;
+        } else {
+            const agencyClient = await SubAccount.findOne({ _id: subId, ...scopedTenant }).lean();
+            if (!agencyClient) throw new Error('REPORT_ENTITY_NOT_FOUND');
+            const master = agencyClient.masterType === 'company'
+                ? await ClientCompany.findOne({ _id: agencyClient.masterId, ...scopedTenant }).lean()
+                : await User.findOne({ _id: agencyClient.masterId, ...scopedTenant }).lean();
+            baseQuery.subAccountId = agencyClient._id;
+            Object.assign(entityInfo, {
+                name: agencyClient.name || '---',
+                phone: agencyClient.phone || '---',
+                username: agencyClient.webUsername || '---',
+                joinDate: agencyClient.createdAt,
+                status: `عميل تابع لوكالة (${master?.name || 'غير معروف'})`
+            });
+            auditScope.mainCategory = 'agent';
+            auditScope.subId = String(agencyClient.masterId || '');
+            auditScope.subType = String(agencyClient._id);
+            auditScope.subAccountIds = [String(agencyClient._id)];
+        }
     } else if (mainCategory === 'company') {
         const company = await ClientCompany.findOne({ _id: subId, ...scopedTenant }).lean();
         if (!company) throw new Error('REPORT_ENTITY_NOT_FOUND');

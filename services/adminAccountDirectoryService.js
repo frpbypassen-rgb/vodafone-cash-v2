@@ -1,5 +1,7 @@
 'use strict';
 
+const { decorateAgencyClient } = require('./adminAccountVisibilityService');
+
 const DIRECTORY_SECTIONS = Object.freeze(['users', 'companies', 'agents', 'subaccounts']);
 const DEFAULT_SECTION = 'users';
 const DEFAULT_PAGE_SIZE = 24;
@@ -71,20 +73,19 @@ const attachMasterNames = async ({ User, ClientCompany }, subAccounts) => {
 
     const [users, companies] = await Promise.all([
         userIds.length
-            ? User.find({ _id: { $in: userIds }, status: { $ne: 'deleted' } }).select('name').lean()
+            ? User.find({ _id: { $in: userIds }, status: { $ne: 'deleted' } }).select('name role agentCode accountCode').lean()
             : [],
         companyIds.length
-            ? ClientCompany.find({ _id: { $in: companyIds }, status: { $ne: 'deleted' } }).select('name').lean()
+            ? ClientCompany.find({ _id: { $in: companyIds }, status: { $ne: 'deleted' } }).select('name accountCode').lean()
             : []
     ]);
-    const masterNames = new Map(
-        [...users, ...companies].map((record) => [String(record._id), record.name])
+    const masters = new Map(
+        [...users, ...companies].map((record) => [String(record._id), record])
     );
 
-    return subAccounts.map((subAccount) => ({
-        ...subAccount,
-        masterName: masterNames.get(String(subAccount.masterId)) || 'غير معروف'
-    }));
+    return subAccounts.map((subAccount) => (
+        decorateAgencyClient(subAccount, masters.get(String(subAccount.masterId)) || {})
+    ));
 };
 
 const modelForSection = ({ User, ClientCompany, SubAccount }, section) => {

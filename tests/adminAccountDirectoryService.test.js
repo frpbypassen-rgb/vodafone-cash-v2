@@ -47,6 +47,9 @@ describe('Admin account directory service', () => {
         expect(buildSectionFilter('companies')).toEqual({
             status: { $ne: 'deleted' }
         });
+        expect(buildSectionFilter('subaccounts')).toEqual({
+            status: { $ne: 'deleted' }
+        });
     });
 
     test('loads a new agent in the agents collection even when it has no sub-accounts', async () => {
@@ -76,6 +79,43 @@ describe('Admin account directory service', () => {
         expect(directory.agents).toEqual([]);
         expect(models.ClientCompany.find).toHaveBeenCalledWith({ status: { $ne: 'deleted' } });
         expect(models.User.find).not.toHaveBeenCalled();
+    });
+
+    test('lists an agency client in عملاء الوكلاء with owner labeling', async () => {
+        const agent = {
+            _id: 'agent-1',
+            name: 'وكالة النور',
+            role: 'agent',
+            agentCode: '2044'
+        };
+        const agencyClient = {
+            _id: 'sub-1',
+            masterType: 'user',
+            masterId: 'agent-1',
+            name: 'محل السراي',
+            phone: '0910000001',
+            webUsername: 'sarai.shop',
+            balance: 75,
+            creditLimit: 200,
+            status: 'active'
+        };
+        const models = createModels({ users: [agent], subAccounts: [agencyClient] });
+
+        const directory = await loadAdminAccountDirectory(models, { section: 'subaccounts' });
+
+        expect(directory.activeSection).toBe('subaccounts');
+        expect(directory.subAccounts).toHaveLength(1);
+        expect(directory.subAccounts[0]).toMatchObject({
+            _id: 'sub-1',
+            name: 'محل السراي',
+            ownerKind: 'agent',
+            masterName: 'وكالة النور',
+            agencyLabel: 'وكيل: وكالة النور · 2044'
+        });
+        expect(models.SubAccount.find).toHaveBeenCalledWith({ status: { $ne: 'deleted' } });
+        expect(models.SubAccount.find).toHaveBeenCalledWith(expect.not.objectContaining({
+            accountType: 'client'
+        }));
     });
 
     test('normalizes navigation input and escapes search expressions', () => {

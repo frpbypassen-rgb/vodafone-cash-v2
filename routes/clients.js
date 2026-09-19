@@ -21,6 +21,7 @@ const { createDepositReceiptProof } = require('../services/depositReceiptService
 const { voidBalanceAdjustment } = require('../services/balanceAdjustmentService');
 const { logAction } = require('../services/auditService');
 const { loadAdminAccountDirectory } = require('../services/adminAccountDirectoryService');
+const { decorateAgencyClient, loadAdminAccountHistory } = require('../services/adminAccountVisibilityService');
 const {
     SERVICE_RATE_KEYS,
     COMPANY_RATE_INPUT_FIELDS,
@@ -293,12 +294,18 @@ const reversibleSettlementIds = async ({ transactions, entityModel, entityId }) 
         .map((tx) => tx.customId);
     if (!candidates.length) return [];
 
-    const ledgers = await Ledger.find({
+    const ledgerFilter = {
         transactionId: { $in: candidates },
-        entityModel,
-        entityId,
         type: { $in: ['DEPOSIT', 'DEDUCTION'] }
-    }).select('transactionId').lean();
+    };
+    if (entityModel && entityId) {
+        ledgerFilter.entityModel = entityModel;
+        ledgerFilter.entityId = entityId;
+    } else if (Array.isArray(entityModel) && entityModel.length) {
+        ledgerFilter.entityModel = { $in: entityModel };
+    }
+
+    const ledgers = await Ledger.find(ledgerFilter).select('transactionId').lean();
     return [...new Set(ledgers.map((entry) => entry.transactionId))];
 };
 
@@ -322,8 +329,16 @@ router.get('/clients', requireAuth, async (req, res) => {
 router.get('/user/:id', requireAuth, async (req, res) => {
     const user = await User.findOne({ _id: req.params.id, ...tenantScope(req), ...visibleAccountFilter });
     if (!user) return res.redirect('/clients?section=users&deleteError=notfound');
-    const transactions = await Transaction.find({ ...tenantScope(req), userId: user.phone || user.webUsername, companyId: null }).sort({ createdAt: -1 }).limit(50);
-    const reversibleSettlements = await reversibleSettlementIds({ transactions, entityModel: 'User', entityId: user._id });
+    const kind = user.role === 'agent' ? 'agent' : 'user';
+    const { transactions } = await loadAdminAccountHistory(
+        { Transaction, SubAccount },
+        { kind, account: user, tenant: tenantScope(req), limit: 50 }
+    );
+    const reversibleSettlements = await reversibleSettlementIds({
+        transactions,
+        entityModel: kind === 'agent' ? ['User', 'SubAccount'] : 'User',
+        entityId: kind === 'agent' ? undefined : user._id
+    });
     const hasSubAccounts = await SubAccount.exists({ masterType: 'user', masterId: user._id, ...visibleAccountFilter });
     res.render('user_details', {
         user,
@@ -338,11 +353,17 @@ router.get('/user/:id', requireAuth, async (req, res) => {
 router.get('/company/:id', requireAuth, async (req, res) => {
     const company = await ClientCompany.findOne({ _id: req.params.id, ...tenantScope(req), ...visibleAccountFilter });
     if (!company) return res.redirect('/clients?section=companies&deleteError=notfound');
-    const [transactions, settings] = await Promise.all([
-        Transaction.find({ ...tenantScope(req), companyId: company._id }).sort({ createdAt: -1 }).limit(50),
+    const [{ transactions }, settings] = await Promise.all([
+        loadAdminAccountHistory(
+            { Transaction, SubAccount },
+            { kind: 'company', account: company, tenant: tenantScope(req), limit: 50 }
+        ),
         Settings.findOne({}).lean()
     ]);
-    const reversibleSettlements = await reversibleSettlementIds({ transactions, entityModel: 'ClientCompany', entityId: company._id });
+    const reversibleSettlements = await reversibleSettlementIds({
+        transactions,
+        entityModel: ['ClientCompany', 'SubAccount']
+    });
     res.render('company_details', {
         company,
         transactions,
@@ -903,6 +924,32 @@ router.post('/company/:id/update-account-code', requireAuth, requireMaster, asyn
     } catch (error) {
         res.redirect(`/company/${req.params.id}?codeError=${accountCodeErrorQuery(error)}`);
     }
+});
+
+router.get('/sub-account/:id', requireAuth, async (req, res) => {
+    const subAccount = await SubAccount.findOne({ _id: req.params.id, ...tenantScope(req), ...visibleAccountFilter }).lean();
+    if (!subAccount) return res.redirect('/clients?section=subaccounts&deleteError=notfound');
+
+    const master = subAccount.masterType === 'company'
+        ? await ClientCompany.findOne({ _id: subAccount.masterId, ...visibleAccountFilter }).select('name role accountCode agentCode').lean()
+        : await User.findOne({ _id: subAccount.masterId, ...visibleAccountFilter }).select('name role accountCode agentCode').lean();
+    const account = decorateAgencyClient(subAccount, master || {});
+    const { transactions } = await loadAdminAccountHistory(
+        { Transaction, SubAccount },
+        { kind: 'subaccount', account, tenant: tenantScope(req), limit: 50 }
+    );
+    const reversibleSettlements = await reversibleSettlementIds({
+        transactions,
+        entityModel: 'SubAccount',
+        entityId: subAccount._id
+    });
+    return res.render('subaccount_details', {
+        subAccount: account,
+        transactions,
+        reversibleSettlements,
+        query: req.query,
+        isMaster: req.session.adminRole === 'master'
+    });
 });
 
 router.post('/sub-account/:id/update-account-code', requireAuth, requireMaster, async (req, res) => {
