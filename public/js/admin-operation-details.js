@@ -687,6 +687,9 @@
     function openLightbox(url, caption) {
         const box = document.getElementById('od-lightbox');
         if (!box) return;
+        if (typeof document !== 'undefined' && box.parentElement !== document.body) {
+            document.body.appendChild(box);
+        }
         const img = box.querySelector('img');
         const cap = box.querySelector('.od-lightbox-caption');
         if (img) img.src = url;
