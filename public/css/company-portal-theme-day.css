@@ -81,9 +81,9 @@ html[data-theme="day"] .cp-pyramid-art {
 html[data-theme="day"] .cp-sidebar,
 html[data-theme="day"] .bw-company-os .bw-sidebar {
     background:
-        linear-gradient(180deg, #E8F7F6 0%, #F3FAFB 18%, #F7FCFC 100%);
-    border-inline-end: 1px solid #C5D8E4;
-    box-shadow: 10px 0 28px rgba(15, 118, 110, .05);
+        linear-gradient(180deg, #CFF3EF 0%, #E8F7F6 22%, #F3FAFB 100%);
+    border-inline-end: 1px solid #9AD0CA;
+    box-shadow: 10px 0 28px rgba(15, 118, 110, .08);
 }
 
 html[data-theme="day"] .cp-sidebar .bw-brand {
@@ -133,8 +133,8 @@ html[data-theme="day"] .cp-topbar .bw-balance-chip {
 }
 
 html[data-theme="day"] .cp-page-hero {
-    background: var(--cp-hero-wash);
-    border-color: color-mix(in srgb, #0F766E 22%, #C5D8E4);
+    background: linear-gradient(135deg, #D8F3EC 0%, #EAF6F4 48%, #E4ECFB 100%);
+    border-color: color-mix(in srgb, #0F766E 28%, #C5D8E4);
     box-shadow: var(--cp-shadow);
 }
 
@@ -163,47 +163,54 @@ html[data-theme="day"] .bw-button.ghost {
 }
 
 html[data-theme="day"] .cp-service-card {
-    background: #FFFFFF;
+    background: #EAF6F4;
     border-color: #C5D8E4;
     box-shadow: 0 1px 2px rgba(11, 37, 48, .05), 0 10px 24px rgba(15, 118, 110, .05);
 }
 
 html[data-theme="day"] .cp-service-card.tone-green {
-    background: linear-gradient(180deg, #E8F8F0, #FFFFFF 46%);
-    border-color: color-mix(in srgb, #047857 28%, #C5D8E4);
+    background: #D8F3E6;
+    border-color: #7BC9A4;
 }
 html[data-theme="day"] .cp-service-card.tone-blue {
-    background: linear-gradient(180deg, #EAF0FC, #FFFFFF 46%);
-    border-color: color-mix(in srgb, #1D4ED8 28%, #C5D8E4);
+    background: #DCE6FB;
+    border-color: #9BB0F0;
 }
 html[data-theme="day"] .cp-service-card.tone-amber {
-    background: linear-gradient(180deg, #FFF3E8, #FFFFFF 46%);
-    border-color: color-mix(in srgb, #C2410C 24%, #C5D8E4);
+    background: #FDE6D4;
+    border-color: #F0B184;
 }
 html[data-theme="day"] .cp-service-card.tone-navy {
-    background: linear-gradient(180deg, #E8EEF6, #FFFFFF 46%);
-    border-color: color-mix(in srgb, #1E3A5F 24%, #C5D8E4);
+    background: #D9E3F0;
+    border-color: #8AA3C2;
 }
 html[data-theme="day"] .cp-service-card.tone-cyan {
-    background: linear-gradient(180deg, #E6F7F6, #FFFFFF 46%);
-    border-color: color-mix(in srgb, #0F766E 28%, #C5D8E4);
+    background: #CFF3EF;
+    border-color: #7AC7C0;
 }
 html[data-theme="day"] .cp-service-card.tone-red {
-    background: linear-gradient(180deg, #FDECEE, #FFFFFF 46%);
-    border-color: color-mix(in srgb, #BE123C 24%, #C5D8E4);
+    background: #F8D7DE;
+    border-color: #E7A0B0;
 }
 
 html[data-theme="day"] .cp-service-icon {
-    color: #0F766E;
-    background: color-mix(in srgb, #0F766E 14%, #FFFFFF);
+    color: #FFFFFF;
+    background: #0F766E;
 }
 
-html[data-theme="day"] .cp-service-card.tone-green .cp-service-icon { color: #047857; background: #D8F3E6; }
-html[data-theme="day"] .cp-service-card.tone-blue .cp-service-icon { color: #1D4ED8; background: #DCE6FB; }
-html[data-theme="day"] .cp-service-card.tone-amber .cp-service-icon { color: #C2410C; background: #FDE6D4; }
-html[data-theme="day"] .cp-service-card.tone-navy .cp-service-icon { color: #1E3A5F; background: #D9E3F0; }
-html[data-theme="day"] .cp-service-card.tone-cyan .cp-service-icon { color: #0F766E; background: #D5F0ED; }
-html[data-theme="day"] .cp-service-card.tone-red .cp-service-icon { color: #BE123C; background: #F8D7DE; }
+html[data-theme="day"] .cp-service-card.tone-green .cp-service-icon { color: #FFFFFF; background: #047857; }
+html[data-theme="day"] .cp-service-card.tone-blue .cp-service-icon { color: #FFFFFF; background: #1D4ED8; }
+html[data-theme="day"] .cp-service-card.tone-amber .cp-service-icon { color: #FFFFFF; background: #C2410C; }
+html[data-theme="day"] .cp-service-card.tone-navy .cp-service-icon { color: #FFFFFF; background: #1E3A5F; }
+html[data-theme="day"] .cp-service-card.tone-cyan .cp-service-icon { color: #FFFFFF; background: #0F766E; }
+html[data-theme="day"] .cp-service-card.tone-red .cp-service-icon { color: #FFFFFF; background: #BE123C; }
+
+html[data-theme="day"] .cp-service-card.tone-green .cp-service-rate { color: #047857; background: #FFFFFF; }
+html[data-theme="day"] .cp-service-card.tone-blue .cp-service-rate { color: #1D4ED8; background: #FFFFFF; }
+html[data-theme="day"] .cp-service-card.tone-amber .cp-service-rate { color: #C2410C; background: #FFFFFF; }
+html[data-theme="day"] .cp-service-card.tone-navy .cp-service-rate { color: #1E3A5F; background: #FFFFFF; }
+html[data-theme="day"] .cp-service-card.tone-cyan .cp-service-rate { color: #0F766E; background: #FFFFFF; }
+html[data-theme="day"] .cp-service-card.tone-red .cp-service-rate { color: #BE123C; background: #FFFFFF; }
 
 html[data-theme="day"] .cp-work-card,
 html[data-theme="day"] .bw-section,
@@ -220,22 +227,22 @@ html[data-theme="day"] .cp-work-icon {
 }
 
 html[data-theme="day"] .bw-mini-metrics article {
-    background: #FFFFFF;
+    background: #EAF6F4;
     border-color: #C5D8E4;
     box-shadow: 0 8px 20px rgba(15, 118, 110, .05);
 }
 
 html[data-theme="day"] .bw-mini-metrics article.success {
-    background: linear-gradient(180deg, #E8F8F0, #FFFFFF 58%);
-    border-color: color-mix(in srgb, #047857 26%, #C5D8E4);
+    background: #D8F3E6;
+    border-color: #7BC9A4;
 }
 html[data-theme="day"] .bw-mini-metrics article.blue {
-    background: linear-gradient(180deg, #EAF0FC, #FFFFFF 58%);
-    border-color: color-mix(in srgb, #1D4ED8 26%, #C5D8E4);
+    background: #DCE6FB;
+    border-color: #9BB0F0;
 }
 html[data-theme="day"] .bw-mini-metrics article.warning {
-    background: linear-gradient(180deg, #FFF3E8, #FFFFFF 58%);
-    border-color: color-mix(in srgb, #C2410C 24%, #C5D8E4);
+    background: #FDE6D4;
+    border-color: #F0B184;
 }
 
 html[data-theme="day"] .bw-metric-card.accent-dark { --metric-accent: #0F766E; }

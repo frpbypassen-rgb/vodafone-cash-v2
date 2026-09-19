@@ -1,2 +1,3 @@
-/* Compatibility alias — layout lives in company-portal-layout.css */
-@import url("./company-portal-layout.css");
+/* Compatibility alias. Layout and palettes are loaded separately in workspace_head.ejs
+   (tokens → layout → theme-day/night/pharaonic). Do not re-import layout here or
+   those later rules will flatten the colored theme surfaces. */

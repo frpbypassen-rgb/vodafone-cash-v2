@@ -717,6 +717,17 @@ html[data-portal="company"] .bw-button.ghost,
     line-height: 1.5;
 }
 
+.cp-service-rate {
+    display: inline-flex;
+    align-items: center;
+    min-height: 28px;
+    padding: 4px 10px;
+    border-radius: 999px;
+    color: var(--tone, var(--cp-icon));
+    background: color-mix(in srgb, var(--tone, var(--cp-icon)) 12%, var(--cp-surface));
+    font-size: 0.75rem;
+}
+
 html[data-portal="company"] .cp-service-card[class*="tone-"] {
     position: relative;
     color: var(--cp-ink);

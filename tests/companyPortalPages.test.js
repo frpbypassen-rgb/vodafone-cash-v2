@@ -282,6 +282,8 @@ describe('canonical company portal pages', () => {
         expect(files.pharaonic).toContain('clip-path');
         expect(files.pharaonic).toContain('cp-art-ready');
         expect(fs.existsSync(path.join(__dirname, '..', 'public', 'css', 'company-portal.tokens.css'))).toBe(true);
+        const alias = fs.readFileSync(path.join(__dirname, '..', 'public', 'css', 'company-portal.css'), 'utf8');
+        expect(alias).not.toMatch(/@import/);
     });
 
     test('company page templates do not hardcode colors', async () => {
