@@ -1,13 +1,13 @@
 <% const accountCode = workspace.entity.accountCode || workspace.entity.agentCode || '---'; const canEdit = workspace.permissions.canEditSettings; %>
 
 <% if (workspace.isCompany) { %>
-<section class="cos-ledger-office">
+<section class="cp-page-hero">
     <div>
         <span class="bw-section-kicker">ملف الشركة</span>
         <h2>بيانات المنشأة</h2>
         <p>التواصل والمدينة والسجل في هذه الصفحة. كلمة المرور والأجهزة في أمان الحساب.</p>
     </div>
-    <div class="cos-ledger-links">
+    <div class="cp-page-hero-actions">
         <a href="/client/security" class="bw-button ghost"><i class="fa-solid fa-shield-halved"></i>أمان الحساب</a>
     </div>
 </section>

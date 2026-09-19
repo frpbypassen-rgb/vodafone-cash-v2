@@ -1,16 +1,20 @@
-/* Shared company-portal tokens (sizes, type, touch). Colors live in
-   company-portal-theme-day.css / night / pharaonic. */
+/* Company portal structural tokens. Color palettes live in the three theme files. */
 :root {
     --cp-font: "IBM Plex Sans Arabic", "Tajawal", "Noto Naskh Arabic", "Segoe UI", Tahoma, sans-serif;
-    --cp-radius: 16px;
-    --cp-radius-sm: 12px;
-    --cp-radius-lg: 22px;
+    --cp-mono: "JetBrains Mono", "IBM Plex Sans Arabic", ui-monospace, monospace;
+    --cp-radius: 14px;
+    --cp-radius-sm: 10px;
+    --cp-radius-lg: 20px;
     --cp-touch: 44px;
-    --cp-sidebar-width: 278px;
+    --cp-sidebar-width: 272px;
     --cp-topbar-height: 64px;
-    --cp-dock-height: 72px;
+    --cp-dock-height: 76px;
+    --cp-page-pad: 28px;
+    --cp-gap: 16px;
 }
 
+html[data-portal="company"],
+html[data-portal="company"] body.cp-app,
 .bw-company-os,
 .bw-company-os[data-theme="day"],
 .bw-company-os[data-theme="night"],
@@ -20,6 +24,11 @@
     font-family: var(--cp-font);
 }
 
+html[data-portal="company"] body.cp-app,
+html[data-portal="company"] body.cp-app button,
+html[data-portal="company"] body.cp-app input,
+html[data-portal="company"] body.cp-app select,
+html[data-portal="company"] body.cp-app textarea,
 .bw-company-os,
 .bw-company-os button,
 .bw-company-os input,

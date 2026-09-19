@@ -177,11 +177,20 @@ describe('canonical company portal pages', () => {
     test('shares one themed shell with switcher, bell, sidebar, and mobile dock', async () => {
         const html = await renderWorkspacePage('services');
         expect(html).toContain('data-company-shell');
+        expect(html).toContain('cp-app');
+        expect(html).toContain('cp-sidebar');
+        expect(html).toContain('cp-page-hero');
+        expect(html).toContain('cp-service-grid');
+        expect(html).toContain('cp-service-card');
+        expect(html).toContain('cp-theme-rail');
         expect(html).toContain('/css/company-portal.tokens.css');
         expect(html).toContain('/css/company-portal-layout.css');
         expect(html).toContain('/css/company-portal-theme-day.css');
         expect(html).toContain('/css/company-portal-theme-night.css');
         expect(html).toContain('/css/company-portal-theme-pharaonic.css');
+        expect(html).not.toContain('client-company-os.css');
+        expect(html).not.toContain('cos-ledger-office');
+        expect(html).not.toContain('class="cos-tile');
         expect(html).toContain('data-company-role=');
         expect(html).toContain('IBM+Plex+Sans+Arabic');
         expect(html).toContain('data-company-bell');
@@ -196,6 +205,19 @@ describe('canonical company portal pages', () => {
         expect(html).toContain('#cp-icon-temple');
         expect(html).toContain('شركة الاختبار');
         expect(html).toContain('الرصيد');
+    });
+
+    test('team page uses the new work cards instead of company-os chrome', async () => {
+        const html = await renderWorkspacePage('staff', {
+            staffSummary: { total: 3, active: 2, managers: 1, accountants: 1, monthOperations: 12 },
+            staffFilters: { search: '', role: '', status: '' },
+            staff: []
+        });
+        expect(html).toContain('cp-page-hero');
+        expect(html).toContain('فريق الشركة');
+        expect(html).toContain('cp-work-list');
+        expect(html).not.toContain('cos-ledger-office');
+        expect(html).not.toContain('cos-ops-card');
     });
 
     test('filters mobile dock items by company role', async () => {
@@ -243,6 +265,18 @@ describe('canonical company portal pages', () => {
         expect(layout).toContain('env(safe-area-inset-bottom)');
         expect(files.pharaonic).toContain('cp-sand-dust');
         expect(files.pharaonic).toContain('prefers-reduced-motion');
+        expect(layout).toContain('cp-app');
+        expect(layout).toContain('cp-sidebar');
+        expect(layout).toContain('cp-page-hero');
+        expect(layout).toContain('cp-service-card');
+        expect(layout).toContain('cp-theme-rail');
+        expect(layout.length).toBeGreaterThan(8000);
+        expect(files.day.length).toBeGreaterThan(1500);
+        expect(files.night.length).toBeGreaterThan(1500);
+        expect(files.pharaonic.length).toBeGreaterThan(3000);
+        expect(files.pharaonic).toContain('clip-path');
+        expect(files.pharaonic).toContain('cp-art-ready');
+        expect(fs.existsSync(path.join(__dirname, '..', 'public', 'css', 'company-portal.tokens.css'))).toBe(true);
     });
 
     test('company page templates do not hardcode colors', async () => {
