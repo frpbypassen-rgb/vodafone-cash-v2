@@ -86,4 +86,31 @@ describe('central ledger page layout', () => {
         expect(html).toContain('id="transactionsFilterForm"');
         expect(html).toContain('id="transactionsTable"');
     });
+
+    test('rebuilds the comprehensive operation details modal with tabs and smart header chrome', () => {
+        const html = renderTransactions();
+
+        expect(html).toContain('id="txModal"');
+        expect(html).toContain('id="od-copy-id"');
+        expect(html).toContain('id="od-print-invoice"');
+        expect(html).toContain('onclick="printInvoice()"');
+        expect(html).toContain('تفاصيل العملية الشاملة');
+        expect(html).toContain('data-od-tab="summary"');
+        expect(html).toContain('data-od-tab="parties"');
+        expect(html).toContain('data-od-tab="finance"');
+        expect(html).toContain('data-od-tab="proofs"');
+        expect(html).toContain('data-od-tab="timeline"');
+        expect(html).toContain('data-od-tab="notes"');
+        expect(html).toContain('الملخص');
+        expect(html).toContain('الأطراف');
+        expect(html).toContain('المالية');
+        expect(html).toContain('الإثباتات');
+        expect(html).toContain('الخط الزمني');
+        expect(html).toContain('الملاحظات');
+        expect(html).toContain('/js/admin-operation-details.js');
+        expect(html).toContain('id="transactionsTable"');
+        expect(html).toContain('السجل المركزي والمراقبة');
+        expect(html).not.toContain('id="m_detail_panel"');
+        expect(html).not.toContain('تتبع دورة حياة التنفيذ');
+    });
 });
