@@ -27,6 +27,7 @@ const operationPinService = require('../services/operationPinService');
 const { findByCredentials } = require('../repositories/userRepository');
 const securityControl = require('../services/securityControlService');
 const passkeyService = require('../services/passkeyService');
+const { resolveClientPostLoginHref } = require('../services/businessPortalService');
 
 const resolveWebMfaContext = async (req) => {
     const session = req.session || {};
@@ -370,13 +371,17 @@ router.get('/security/mfa-enroll', requireWebMfaContext, async (req, res) => {
         // marker behind after a process restart. Clear it before returning to
         // the portal; otherwise the dashboard sends the user back here again.
         delete req.session.mfaEnrollmentRequired;
-        const returnUrl = req.session.isExecutorLoggedIn ? '/executor-portal/dashboard' : '/client/dashboard';
+        const returnUrl = req.session.isExecutorLoggedIn
+            ? '/executor-portal/dashboard'
+            : resolveClientPostLoginHref(req.session.accountType);
         return req.session.save(() => res.redirect(returnUrl));
     }
     return res.render('mfa_enroll_required', {
         principalName: securityControl.sessionPrincipal(req.session)?.principalName || 'الحساب',
         csrfToken: req.csrfToken?.() || '',
-        returnUrl: req.session.isExecutorLoggedIn ? '/executor-portal/dashboard' : '/client/dashboard'
+        returnUrl: req.session.isExecutorLoggedIn
+            ? '/executor-portal/dashboard'
+            : resolveClientPostLoginHref(req.session.accountType)
     });
 });
 
@@ -439,7 +444,7 @@ router.get('/security/sessions', requireWebMfaContext, async (req, res) => {
 router.get('/security/enroll', requireWebMfaContext, (req, res) => {
     const returnUrl = req.session.isExecutorLoggedIn
         ? '/executor-portal/dashboard'
-        : '/client/dashboard';
+        : resolveClientPostLoginHref(req.session.accountType);
     if (!isPasskeyRequired()) return res.redirect(returnUrl);
     return res.render('security_enroll', {
         principalName: webSecurityPrincipal(req)?.principalName || 'الحساب',
@@ -798,10 +803,10 @@ const loginAsClient = async (req, res, account, accountType, { authenticatorVeri
         // notice after entry, while avoiding a failed enrollment redirect from
         // taking the public login service offline.
         req.session.showMfaEnableNotice = true;
-        return saveAndRedirect(req, res, '/client/dashboard');
+        return saveAndRedirect(req, res, resolveClientPostLoginHref(accountType));
     }
 
-    return saveAndRedirect(req, res, '/client/dashboard');
+    return saveAndRedirect(req, res, resolveClientPostLoginHref(accountType));
 };
 
 const startClientOtp = async (req, res, account, accountType, Model) => {
@@ -1035,7 +1040,7 @@ router.post('/security/passkey-login/verify', async (req, res) => {
             const account = model ? await model.findOne({ _id: pending.principalId, status: 'active' }).lean() : null;
             if (!account) return res.status(403).json({ success: false, error: 'الحساب موقوف أو غير موجود.' });
             await completeClientSession(req, account, pending.accountType);
-            redirect = '/client/dashboard';
+            redirect = resolveClientPostLoginHref(pending.accountType);
         } else {
             return res.status(400).json({ success: false, error: 'نوع جلسة الدخول غير صالح.' });
         }

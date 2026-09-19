@@ -411,7 +411,6 @@ const buildNavigation = (workspace, activePage) => {
     // repeated shortcuts scattered across dashboard cards.
     const items = workspace.isCompany
         ? [
-            { key: 'corporate', href: '/corporate', label: 'بوابة الشركات', icon: 'fa-briefcase', group: 'القيادة', visible: Boolean(workspace.actor?.corporatePortalEnabled || workspace.entity?.corporatePortal?.enabled) },
             { key: 'overview', href: '/client/dashboard?home=1', label: 'مركز القيادة', icon: 'fa-building-shield', group: 'القيادة', visible: !workspace.permissions.employee },
             { key: 'services', href: '/client/services', label: 'معرض الخدمات', icon: 'fa-cubes', group: 'التنفيذ', visible: workspace.permissions.canTransfer },
             { key: 'smart_transfer', href: '/client/smart-transfer', label: 'التحويل الذكي', icon: 'fa-wand-magic-sparkles', group: 'التنفيذ', visible: workspace.permissions.canTransfer },
@@ -1188,10 +1187,13 @@ const loadReports = async (workspace, query = {}) => {
 
 const resolvePortalHomeHref = (workspace) => {
     if (!workspace?.isCompany) return '/client/dashboard?home=1';
-    if (workspace.persona === 'employee') return '/client/services';
     if (workspace.persona === 'accountant') return '/client/finance';
-    return '/client/dashboard?home=1';
+    return '/client/services';
 };
+
+const resolveClientPostLoginHref = (accountType) => (
+    accountType === 'company' ? '/client/services' : '/client/dashboard'
+);
 
 const forbiddenRedirectPath = (workspace) => {
     const home = resolvePortalHomeHref(workspace);
@@ -1456,133 +1458,6 @@ const loadPageContext = async (req, page) => {
     return context;
 };
 
-const loadCompanyDashboardAnalytics = async (workspace) => {
-    const now = new Date();
-    const todayStart = startOfDay(now);
-    const todayEnd = endOfDay(now);
-    const weekStart = startOfDay(new Date(now.getFullYear(), now.getMonth(), now.getDate() - 6));
-    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0);
-    const historyStart = workspace.forceToday
-        ? todayStart
-        : new Date(Math.min(weekStart.getTime(), monthStart.getTime()));
-    const ownership = await ownershipFilter(workspace);
-    const rawTransactions = await Transaction.find({
-        $and: [ownership, { createdAt: { $gte: historyStart, $lte: todayEnd } }]
-    }).select('customId status transferType amount costLYD subAccountCostLYD exchangeRate subClientRate vodafoneNumber accountNumber serviceDetails.clientPhone employeeName createdAt complaintText')
-        .sort({ createdAt: -1 })
-        .limit(3000)
-        .lean();
-    const excludedStatuses = new Set(['deposit', 'deposit_pending', 'deduction']);
-    const operational = rawTransactions.filter((tx) => !excludedStatuses.has(tx.status));
-    const isCompleted = (tx) => tx.status === 'completed';
-    const inRange = (tx, start, end = todayEnd) => {
-        const createdAt = new Date(tx.createdAt).getTime();
-        return createdAt >= start.getTime() && createdAt <= end.getTime();
-    };
-    const summarize = (rows) => ({
-        count: rows.length,
-        completedCount: rows.filter(isCompleted).length,
-        totalEGP: rows.filter(isCompleted).reduce((sum, tx) => sum + safeNumber(tx.amount), 0),
-        totalLYD: rows.filter(isCompleted).reduce((sum, tx) => sum + safeNumber(tx.costLYD), 0)
-    });
-    const todayRows = operational.filter((tx) => inRange(tx, todayStart));
-    const weekRows = operational.filter((tx) => inRange(tx, weekStart));
-    const monthRows = operational.filter((tx) => inRange(tx, workspace.forceToday ? todayStart : monthStart));
-    const periods = {
-        today: summarize(todayRows),
-        week: summarize(weekRows),
-        month: summarize(monthRows)
-    };
-    const arabicDays = ['الأحد', 'الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت'];
-    const weeklySeries = Array.from({ length: 7 }, (_, index) => {
-        const day = new Date(weekStart.getFullYear(), weekStart.getMonth(), weekStart.getDate() + index);
-        const rows = weekRows.filter((tx) => inRange(tx, startOfDay(day), endOfDay(day)));
-        const summary = summarize(rows);
-        return {
-            key: formatInputDate(day),
-            label: arabicDays[day.getDay()],
-            shortLabel: arabicDays[day.getDay()].slice(0, 3),
-            ...summary
-        };
-    });
-    const maxWeeklyEGP = Math.max(1, ...weeklySeries.map((item) => item.totalEGP));
-    weeklySeries.forEach((item) => {
-        item.barPercent = item.totalEGP > 0 ? Math.max(7, Math.round((item.totalEGP / maxWeeklyEGP) * 100)) : 2;
-    });
-    const employeeMap = new Map();
-    monthRows.forEach((tx) => {
-        const name = String(tx.employeeName || workspace.actor.name || 'غير محدد').trim();
-        const current = employeeMap.get(name) || { name, count: 0, completedCount: 0, totalEGP: 0, totalLYD: 0 };
-        current.count += 1;
-        if (isCompleted(tx)) {
-            current.completedCount += 1;
-            current.totalEGP += safeNumber(tx.amount);
-            current.totalLYD += safeNumber(tx.costLYD);
-        }
-        employeeMap.set(name, current);
-    });
-    const employeePerformance = [...employeeMap.values()]
-        .sort((left, right) => right.totalEGP - left.totalEGP || right.completedCount - left.completedCount)
-        .slice(0, 20);
-    const bestDay = weeklySeries.reduce((best, item) => item.totalEGP > best.totalEGP ? item : best, weeklySeries[0]);
-    const successRate = weekRows.length
-        ? Math.round((weekRows.filter(isCompleted).length / weekRows.length) * 1000) / 10
-        : 0;
-    const averageOperation = periods.week.completedCount
-        ? periods.week.totalEGP / periods.week.completedCount
-        : 0;
-    return {
-        companyDashboard: {
-            periods,
-            weeklySeries,
-            employeePerformance,
-            todayOperations: todayRows.slice(0, 100).map((tx) => ({
-                _id: tx._id,
-                customId: tx.customId,
-                phone: tx.vodafoneNumber || tx.accountNumber || tx.serviceDetails?.clientPhone || '---',
-                amountEGP: safeNumber(tx.amount),
-                exchangeRate: safeNumber(tx.exchangeRate || tx.subClientRate || (safeNumber(tx.costLYD) > 0 ? safeNumber(tx.amount) / safeNumber(tx.costLYD) : 0)),
-                totalLYD: safeNumber(tx.subAccountCostLYD || tx.costLYD),
-                employeeName: tx.employeeName || workspace.actor.name || 'غير محدد',
-                status: tx.status,
-                createdAt: tx.createdAt,
-                hasComplaint: Boolean(tx.complaintText)
-            })),
-            insights: {
-                bestDay: bestDay?.label || 'لا توجد بيانات',
-                bestDayTotal: safeNumber(bestDay?.totalEGP),
-                successRate,
-                averageOperation,
-                topEmployee: employeePerformance[0]?.name || 'لا توجد بيانات'
-            }
-        }
-    };
-};
-
-const loadCompanyNextContext = async (req) => {
-    const workspace = await resolveWorkspace(req);
-    if (!workspace.isCompany) {
-        const error = new Error('NOT_COMPANY_PORTAL');
-        error.statusCode = 404;
-        throw error;
-    }
-
-    // Build the base context from a page the current role may access, then add
-    // the common overview metrics. This keeps the preview usable for managers,
-    // accountants and daily operators without widening any permission.
-    const basePage = canAccessPage(workspace, 'overview')
-        ? 'overview'
-        : canAccessPage(workspace, 'finance')
-            ? 'finance'
-            : 'services';
-    const context = await buildBaseContext(req, basePage, workspace);
-    Object.assign(context, await loadOverview(workspace));
-    Object.assign(context, await loadCompanyDashboardAnalytics(workspace));
-    context.page = 'company_next';
-    context.pageMeta = { title: 'واجهة الشركات الجديدة', eyebrow: 'نسخة المعاينة', icon: 'fa-wand-magic-sparkles' };
-    return context;
-};
-
 module.exports = {
     STATUS_META,
     SERVICE_CATALOG,
@@ -1598,6 +1473,7 @@ module.exports = {
     canAccessPage,
     buildNavigation,
     resolvePortalHomeHref,
+    resolveClientPostLoginHref,
     forbiddenRedirectPath,
     redirectForbiddenPage,
     buildLowBalanceAlert,
@@ -1611,7 +1487,6 @@ module.exports = {
     buildReportGroups,
     buildReportAnalytics,
     loadPageContext,
-    loadCompanyNextContext,
     loadReports,
     loadCentralCompanyReport,
     safeNumber,

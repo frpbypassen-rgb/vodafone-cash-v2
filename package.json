@@ -18,7 +18,6 @@
     "backfill:reports": "node scripts/backfillUnifiedReports.js",
     "setup:web-push": "node scripts/ensureWebPushKeys.js",
     "seed:zayn-executor": "node scripts/seedZaynApiExecutor.js",
-    "seed:corporate": "node scripts/seedCorporatePortal.js",
     "lint": "eslint . --quiet",
     "check:architecture": "node scripts/checkArchitecturePolicy.js",
     "typecheck": "tsc --noEmit --pretty false",
