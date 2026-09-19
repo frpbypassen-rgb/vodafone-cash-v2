@@ -1,11 +1,11 @@
 <% if (workspace.isCompany) { %>
-<section class="cos-ledger-office">
+<section class="cp-page-hero">
     <div>
         <span class="bw-section-kicker"><%= reportScope === 'staff' ? 'أداء الموظفين' : 'كشف الحساب' %></span>
         <h2><%= reportScope === 'staff' ? 'قراءة أداء الفريق' : 'الإقفال الرسمي للفترة' %></h2>
         <p><%= reportScope === 'staff' ? 'هذه الصفحة للكشف وليس لإدارة الحسابات. تعديل الموظفين يبقى في فريق الشركة.' : 'نزّل كشف الحساب من هنا عند إغلاق اليوم. إنشاء التحويل يبقى في معرض الخدمات.' %></p>
     </div>
-    <div class="cos-ledger-links">
+    <div class="cp-page-hero-actions">
         <% if (reportScope === 'staff') { %>
             <a href="/client/reports" class="bw-button ghost"><i class="fa-solid fa-file-invoice"></i>كشف الحساب</a>
             <a href="/client/staff" class="bw-button ghost"><i class="fa-solid fa-user-group"></i>فريق الشركة</a>
@@ -134,18 +134,18 @@
     <div class="bw-section">
         <header class="bw-section-head"><div><span class="bw-section-kicker">تفصيل النتائج</span><h2><%= reportScopeLabel %></h2></div><span class="bw-meta-chip"><%= reportRows.length %> بند</span></header>
         <% if (workspace.isCompany) { %>
-            <div class="cos-ops-list">
+            <div class="cp-work-list">
                 <% if (!reportRows.length) { %><div class="bw-empty"><i class="fa-solid fa-chart-column"></i><strong>لا توجد بيانات للتقرير</strong><span>غيّر الفترة الزمنية أو نوع التقرير.</span></div><% } %>
                 <% reportRows.forEach(row => { %>
-                    <article class="cos-ops-card">
-                        <div class="cos-ops-main cos-ledger-main">
-                            <span class="cos-ops-icon"><i class="fa-solid <%= reportScope === 'staff' ? 'fa-user' : 'fa-calendar-day' %>"></i></span>
+                    <article class="cp-work-card">
+                        <div class="cp-work-main">
+                            <span class="cp-work-icon"><i class="fa-solid <%= reportScope === 'staff' ? 'fa-user' : 'fa-calendar-day' %>"></i></span>
                             <div>
                                 <strong><%= row.key %></strong>
                                 <small><%= row.completedCount %> ناجحة · <%= row.pendingCount %> قيد التنفيذ · <%= row.cancelledCount %> ملغاة<%= row.lastActivity ? ` · ${new Date(row.lastActivity).toLocaleDateString('ar-LY', { timeZone: 'Africa/Tripoli' })}` : '' %></small>
                             </div>
                             <b class="bw-mono"><%= Number(row.totalEGP).toLocaleString('en-US', { maximumFractionDigits: 0 }) %> <em>EGP</em></b>
-                            <% if (workspace.permissions.canViewBalance) { %><span class="cos-ops-cost bw-mono"><%= Number(row.totalLYD).toFixed(2) %> LYD</span><% } %>
+                            <% if (workspace.permissions.canViewBalance) { %><span class="cp-work-cost bw-mono"><%= Number(row.totalLYD).toFixed(2) %> LYD</span><% } %>
                             <span class="bw-status <%= row.pendingCount ? 'warning' : 'success' %>"><%= row.totalCount %> عملية</span>
                         </div>
                     </article>
@@ -188,12 +188,12 @@
 <section class="bw-section bw-report-detail">
     <header class="bw-section-head"><div><span class="bw-section-kicker">عينة التدقيق</span><h2>آخر العمليات داخل التقرير</h2></div><a href="/client/transactions" class="bw-text-link">السجل الكامل <i class="fa-solid fa-arrow-left"></i></a></header>
     <% if (workspace.isCompany) { %>
-        <div class="cos-ops-list">
+        <div class="cp-work-list">
             <% if (!reportTransactions.length) { %><div class="bw-empty"><i class="fa-regular fa-folder-open"></i><strong>لا توجد عمليات في عينة هذا التقرير</strong><span>غيّر الفترة الزمنية أو افتح السجل الكامل.</span></div><% } %>
             <% reportTransactions.slice(0, 12).forEach(tx => { const status = statusMeta[tx.status] || { label: tx.status, tone: 'neutral' }; const service = serviceCatalog.find(item => item.key === tx.transferType); const hasReceipt = Boolean(tx.proofImage || (Array.isArray(tx.proofImages) && tx.proofImages.some(Boolean))); %>
-                <article class="cos-ops-card">
-                    <button type="button" class="cos-ops-main" data-transaction-id="<%= tx._id %>">
-                        <span class="cos-ops-icon"><i class="fa-solid <%= service?.icon || 'fa-money-bill-transfer' %>"></i></span>
+                <article class="cp-work-card">
+                    <button type="button" class="cp-work-main" data-transaction-id="<%= tx._id %>">
+                        <span class="cp-work-icon"><i class="fa-solid <%= service?.icon || 'fa-money-bill-transfer' %>"></i></span>
                         <div>
                             <strong class="bw-mono"><%= tx.customId %></strong>
                             <small><%= service?.shortLabel || tx.transferType %> · <%= tx.employeeName || '---' %> · <%= new Date(tx.createdAt).toLocaleDateString('en-GB', { timeZone: 'Africa/Tripoli' }) %></small>
@@ -201,7 +201,7 @@
                         <b class="bw-mono"><%= Number(tx.amount || 0).toLocaleString('en-US', { maximumFractionDigits: 0 }) %> <em><%= service?.amountCurrencyLabel || 'EGP' %></em></b>
                         <span class="bw-status <%= status.tone %>"><%= status.label %></span>
                     </button>
-                    <div class="cos-ops-actions">
+                    <div class="cp-work-actions">
                         <% if (hasReceipt) { %><button type="button" class="bw-icon-button compact receipt" data-transaction-id="<%= tx._id %>" data-receipt-focus title="عرض صور الإيصال" aria-label="عرض صور إيصال العملية <%= tx.customId %>"><i class="fa-solid fa-receipt"></i></button><% } %>
                         <button type="button" class="bw-icon-button compact" data-transaction-id="<%= tx._id %>" title="التفاصيل" aria-label="عرض تفاصيل العملية <%= tx.customId %>"><i class="fa-solid fa-eye"></i></button>
                     </div>

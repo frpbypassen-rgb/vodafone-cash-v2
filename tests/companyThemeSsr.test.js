@@ -47,6 +47,7 @@ describe('company theme SSR and preferences', () => {
         expect(head).toContain('/css/company-portal-theme-day.css');
         expect(head).toContain('/css/company-portal-theme-night.css');
         expect(head).toContain('/css/company-portal-theme-pharaonic.css');
+        expect(head).not.toContain('client-company-os.css');
         expect(head).toContain('valid.includes(server) ? server');
         expect(head).toContain('ahram_company_theme');
     });

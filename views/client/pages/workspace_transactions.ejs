@@ -1,11 +1,11 @@
 <% if (workspace.isCompany) { %>
-<section class="cos-ledger-office">
+<section class="cp-page-hero">
     <div>
         <span class="bw-section-kicker">غرفة العمليات</span>
         <h2><%= workspace.forceToday ? 'عمليات اليوم' : 'سجل التنفيذ' %></h2>
         <p><%= workspace.forceToday ? 'تابع حالة ما نفّذته اليوم والإيصال عند اكتماله. المالية والكشوف خارج هذه الشاشة.' : 'ابحث بالرقم أو المستلم أو الموظف، ثم افتح التفاصيل أو الإيصال من نفس السجل.' %></p>
     </div>
-    <div class="cos-ledger-links">
+    <div class="cp-page-hero-actions">
         <% if (workspace.permissions.canTransfer) { %>
             <a href="/client/services" class="bw-button primary"><i class="fa-solid fa-cubes"></i>معرض الخدمات</a>
         <% } %>
@@ -50,21 +50,21 @@
     </header>
     <% const showCost = workspace.permissions.canViewBalance; %>
     <% if (workspace.isCompany) { %>
-        <div class="cos-ops-list">
+        <div class="cp-work-list">
             <% if (!transactions.length) { %><div class="bw-empty"><span class="cp-mark" aria-hidden="true"><svg class="cp-icon"><use href="#cp-icon-ankh"></use></svg></span><strong>لا توجد نتائج مطابقة</strong><span>غيّر خيارات البحث أو الفترة الزمنية.</span></div><% } %>
             <% transactions.forEach(tx => { const status = statusMeta[tx.status] || { label: tx.status, tone: 'neutral' }; const service = serviceCatalog.find(item => item.key === tx.transferType); const hasReceipt = Boolean(tx.proofImage || (Array.isArray(tx.proofImages) && tx.proofImages.some(Boolean))); %>
-                <article class="cos-ops-card">
-                    <button type="button" class="cos-ops-main" data-transaction-id="<%= tx._id %>">
-                        <span class="cos-ops-icon"><i class="fa-solid <%= service?.icon || 'fa-money-bill-transfer' %>"></i></span>
+                <article class="cp-work-card">
+                    <button type="button" class="cp-work-main" data-transaction-id="<%= tx._id %>">
+                        <span class="cp-work-icon"><i class="fa-solid <%= service?.icon || 'fa-money-bill-transfer' %>"></i></span>
                         <div>
                             <strong class="bw-mono"><%= tx.customId %></strong>
                             <small><%= service?.shortLabel || tx.transferType %> · <%= tx.vodafoneNumber || tx.accountNumber || '---' %><%= workspace.forceToday ? '' : ` · ${tx.employeeName || '---'}` %> · <%= new Date(tx.createdAt).toLocaleTimeString('ar-LY', { timeZone: 'Africa/Tripoli', hour: '2-digit', minute: '2-digit' }) %></small>
                         </div>
                         <b class="bw-mono"><%= Number(tx.amount || 0).toLocaleString('en-US', { maximumFractionDigits: 0 }) %> <em><%= service?.amountCurrencyLabel || 'EGP' %></em></b>
-                        <% if (showCost) { %><span class="cos-ops-cost bw-mono"><%= Number(tx.costLYD || 0).toFixed(3) %> LYD</span><% } %>
+                        <% if (showCost) { %><span class="cp-work-cost bw-mono"><%= Number(tx.costLYD || 0).toFixed(3) %> LYD</span><% } %>
                         <span class="bw-status <%= status.tone %>"><%= status.label %></span>
                     </button>
-                    <div class="cos-ops-actions">
+                    <div class="cp-work-actions">
                         <% if (hasReceipt) { %><button type="button" class="bw-icon-button compact receipt" data-transaction-id="<%= tx._id %>" data-receipt-focus title="عرض صور الإيصال" aria-label="عرض صور إيصال العملية <%= tx.customId %>"><i class="fa-solid fa-receipt"></i></button><% } %>
                         <button type="button" class="bw-icon-button compact" data-transaction-id="<%= tx._id %>" title="التفاصيل" aria-label="عرض تفاصيل العملية <%= tx.customId %>"><i class="fa-solid fa-eye"></i></button>
                     </div>

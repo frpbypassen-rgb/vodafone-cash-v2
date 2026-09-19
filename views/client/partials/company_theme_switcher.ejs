@@ -4,15 +4,24 @@
         { key: 'night', label: 'ليلي', hint: 'حجر داكن بلا وهج', icon: 'moon' },
         { key: 'pharaonic', label: 'فرعوني', hint: 'رمل وذهب وفيروز', icon: 'ankh' }
     ];
+    const currentTheme = typeof companyTheme !== 'undefined' ? companyTheme : 'day';
 %>
 <div class="cp-theme-switcher" data-company-theme-switcher>
+    <div class="cp-theme-rail" role="group" aria-label="مظهر بوابة الشركات">
+        <% themeOptions.forEach(option => { %>
+            <button type="button" class="cp-theme-option" data-theme-option="<%= option.key %>" aria-pressed="<%= currentTheme === option.key ? 'true' : 'false' %>" title="<%= option.label %> — <%= option.hint %>">
+                <svg class="cp-icon" aria-hidden="true"><use href="#cp-icon-<%= option.icon %>"></use></svg>
+                <span><%= option.label %></span>
+            </button>
+        <% }) %>
+    </div>
     <button type="button" class="bw-icon-button cp-theme-toggle" data-theme-menu-toggle aria-expanded="false" aria-controls="companyThemePanel" title="مظهر بوابة الشركات" aria-label="مظهر بوابة الشركات">
         <svg class="cp-icon" aria-hidden="true"><use href="#cp-icon-ankh"></use></svg>
     </button>
     <div class="cp-theme-panel" id="companyThemePanel" data-theme-panel hidden role="dialog" aria-label="اختيار المظهر">
         <form method="POST" action="/client/settings/theme" class="cp-theme-ssr-form">
             <% themeOptions.forEach(option => { %>
-                <button type="submit" class="cp-theme-option" name="theme" value="<%= option.key %>" data-theme-option="<%= option.key %>" aria-pressed="<%= (typeof companyTheme !== 'undefined' ? companyTheme : 'day') === option.key ? 'true' : 'false' %>">
+                <button type="submit" class="cp-theme-option" name="theme" value="<%= option.key %>" data-theme-option="<%= option.key %>" aria-pressed="<%= currentTheme === option.key ? 'true' : 'false' %>">
                     <svg class="cp-icon" aria-hidden="true"><use href="#cp-icon-<%= option.icon %>"></use></svg>
                     <span><%= option.label %><small><%= option.hint %></small></span>
                 </button>
