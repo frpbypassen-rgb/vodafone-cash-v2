@@ -1597,33 +1597,6 @@
             : '<i class="fa-solid fa-expand"></i>وضع التركيز';
     });
 
-    document.querySelector('[data-voice-transfer]')?.addEventListener('click', (event) => {
-        const Recognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-        if (!Recognition) {
-            event.currentTarget.title = 'الأوامر الصوتية غير مدعومة في هذا المتصفح';
-            return;
-        }
-        const recognition = new Recognition();
-        recognition.lang = 'ar-EG';
-        recognition.interimResults = false;
-        event.currentTarget.classList.add('is-listening');
-        recognition.onresult = ({ results }) => {
-            const text = String(results?.[0]?.[0]?.transcript || '');
-            const amountMatch = text.match(/([0-9٠-٩]+(?:[.,][0-9٠-٩]+)?)/);
-            const normalizedAmount = amountMatch?.[1]?.replace(/[٠-٩]/g, (digit) => '٠١٢٣٤٥٦٧٨٩'.indexOf(digit)).replace(',', '.');
-            if (transferAmountInput && normalizedAmount) {
-                transferAmountInput.value = normalizedAmount;
-                transferAmountInput.dispatchEvent(new Event('input', { bubbles: true }));
-            }
-            const nameMatch = text.match(/(?:إلى|الى|لـ|ل)\s+(.+?)(?:\s+(?:بمبلغ|مبلغ|قيمة)|$)/u);
-            const beneficiary = document.getElementById('transferBeneficiary');
-            if (beneficiary && nameMatch?.[1]) beneficiary.value = nameMatch[1].trim();
-        };
-        recognition.onend = () => event.currentTarget.classList.remove('is-listening');
-        recognition.onerror = () => event.currentTarget.classList.remove('is-listening');
-        recognition.start();
-    });
-
     const offlineBanner = document.querySelector('[data-offline-banner]');
     const updateConnectivity = () => {
         const offline = !navigator.onLine;

@@ -760,6 +760,159 @@ html[data-portal="company"] .cp-overview-grid {
     gap: 16px;
 }
 
+.cp-period-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 16px;
+    margin: 0 0 16px;
+}
+
+.cp-period-card {
+    position: relative;
+    overflow: hidden;
+    min-height: 132px;
+    padding: 18px 18px 16px;
+    border: 1px solid var(--cp-line);
+    border-radius: var(--cp-radius);
+    background: var(--cp-surface);
+    box-shadow: var(--cp-shadow);
+}
+
+.cp-period-card::before {
+    content: "";
+    position: absolute;
+    inset-block: 0;
+    inset-inline-start: 0;
+    width: 4px;
+    background: var(--cp-icon);
+}
+
+.cp-period-card.today::before { background: var(--cp-success); }
+.cp-period-card.week::before { background: var(--cp-info); }
+.cp-period-card.month::before { background: var(--cp-warning); }
+
+.cp-period-kicker {
+    display: block;
+    color: var(--cp-muted);
+    font-size: 0.78rem;
+    font-weight: 800;
+}
+
+.cp-period-card strong {
+    display: block;
+    margin-top: 8px;
+    color: var(--cp-ink);
+    font-size: 1.85rem;
+    line-height: 1.1;
+}
+
+.cp-period-card small,
+.cp-period-card em {
+    display: block;
+    margin-top: 4px;
+    color: var(--cp-muted);
+    font-size: 0.78rem;
+    font-style: normal;
+    font-weight: 600;
+}
+
+.cp-period-card b {
+    display: block;
+    margin-top: 10px;
+    color: var(--cp-ink);
+    font-size: 1rem;
+}
+
+.cp-period-card b em {
+    display: inline;
+    margin: 0;
+    color: var(--cp-muted);
+    font-size: 0.72rem;
+}
+
+.cp-command-chart,
+.cp-employee-status,
+.cp-command-attention {
+    margin-bottom: 16px;
+}
+
+.cp-chart-legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    color: var(--cp-muted);
+    font-size: 0.75rem;
+    font-weight: 800;
+}
+
+.cp-chart-legend span::before {
+    content: "";
+    display: inline-block;
+    width: 10px;
+    height: 10px;
+    margin-inline-end: 6px;
+    border-radius: 3px;
+    background: var(--cp-info);
+    vertical-align: -1px;
+}
+
+.cp-chart-legend .value::before { background: var(--cp-success); }
+
+.cp-chart-wrap {
+    height: 280px;
+}
+
+.cp-chart-empty { margin: 12px 0 4px; }
+
+.cp-roster-meta {
+    color: var(--cp-muted);
+    font-weight: 700;
+}
+
+.cp-roster-cards {
+    display: none;
+    gap: 8px;
+}
+
+.cp-roster-card {
+    display: grid;
+    grid-template-columns: 40px minmax(0, 1fr) auto;
+    gap: 6px 10px;
+    align-items: center;
+    padding: 12px;
+    border: 1px solid var(--cp-line);
+    border-radius: var(--cp-radius-sm);
+    background: var(--cp-surface-soft);
+}
+
+.cp-roster-copy { min-width: 0; }
+.cp-roster-copy small { display: block; color: var(--cp-muted); }
+
+.cp-presence {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.78rem;
+    font-weight: 800;
+    color: var(--cp-muted);
+}
+
+.cp-presence i { font-size: 0.55rem; }
+.cp-presence.success { color: var(--cp-success); }
+.cp-presence.danger { color: var(--cp-danger); }
+
+.cp-last-seen {
+    grid-column: 1 / -1;
+    color: var(--cp-muted);
+}
+
+.cp-command-chart {
+    --cp-chart-count: var(--cp-info);
+    --cp-chart-value: var(--cp-success);
+    --cp-chart-grid: color-mix(in srgb, var(--cp-line) 80%, transparent);
+    --cp-chart-text: var(--cp-muted);
+}
+
 .cp-day-ops {
     padding: 18px;
     border: 1px solid var(--cp-line);
@@ -1358,6 +1511,30 @@ html[data-portal="company"] .cp-work-main {
         grid-template-columns: 40px minmax(0, 1fr);
     }
 
+    .cp-period-grid {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+
+    .cp-chart-wrap { height: 220px; }
+
+    .cp-roster-table { display: none; }
+    .cp-roster-cards { display: grid; }
+    .cp-roster-card {
+        grid-template-columns: 40px minmax(0, 1fr);
+    }
+    .cp-roster-card .bw-role-badge,
+    .cp-roster-card .bw-status,
+    .cp-roster-card .cp-presence,
+    .cp-roster-card > b,
+    .cp-roster-card .cp-work-cost {
+        grid-column: 2;
+    }
+
+    .cp-employee-status .bw-section-head {
+        align-items: flex-start;
+        flex-wrap: wrap;
+    }
+
     .cp-work-main > b,
     .cp-work-cost,
     .cp-work-main .bw-status,
@@ -1368,9 +1545,14 @@ html[data-portal="company"] .cp-work-main {
     .cp-work-actions { justify-content: flex-end; }
 }
 
+@media (max-width: 700px) {
+    .cp-period-grid { grid-template-columns: 1fr; }
+}
+
 @media (max-width: 420px) {
     .cp-service-grid { grid-template-columns: 1fr; }
     .cp-page-hero-actions { grid-template-columns: 1fr; }
+    .cp-period-card strong { font-size: 1.5rem; }
 }
 
 @media (prefers-reduced-motion: reduce) {

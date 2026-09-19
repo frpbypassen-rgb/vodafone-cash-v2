@@ -27,6 +27,7 @@ const {
     sanitizeStatementTransaction,
     sanitizeStatementText
 } = require('../utils/accountStatementPrivacy');
+const { loadCompanyCommandCenter } = require('./companyCommandCenterService');
 const {
     normalizeCompanyTheme,
     resolveAccountCompanyTheme,
@@ -688,27 +689,37 @@ const loadOverview = async (workspace) => {
         summarizeWithAggregation(todayFilter),
         Transaction.find(workspace.forceToday ? todayFilter : ownership).sort({ createdAt: -1 }).limit(8).lean()
     ]);
-    const teamSpotlight = workspace.isCompany && canSeeStaffStats
-        ? await Transaction.aggregate([
-            { $match: { $and: [ownership, { employeeName: { $nin: [null, ''] } }, { createdAt: { $gte: monthRange.start, $lte: monthRange.end } }] } },
-            {
-                $group: {
-                    _id: '$employeeName',
-                    totalCount: { $sum: 1 },
-                    completedCount: { $sum: { $cond: [{ $eq: ['$status', 'completed'] }, 1, 0] } },
-                    pendingCount: { $sum: { $cond: [{ $in: ['$status', ['pending', 'processing', 'accepted']] }, 1, 0] } },
-                    totalEGP: { $sum: { $cond: [{ $eq: ['$status', 'completed'] }, '$amount', 0] } },
-                    lastActivity: { $max: '$createdAt' }
-                }
-            },
-            { $sort: { totalCount: -1, lastActivity: -1 } },
-            { $limit: 5 }
-        ])
-        : [];
+    const teamSpotlight = [];
+
+    const weekRange = {
+        start: new Date(todayRange.start.getTime() - (6 * 24 * 60 * 60 * 1000)),
+        end: todayRange.end
+    };
+    const commandCenter = workspace.isCompany
+        ? await loadCompanyCommandCenter({
+            workspace,
+            ownership,
+            todayRange,
+            weekRange,
+            monthRange,
+            summarize: summarizeWithAggregation
+        })
+        : {
+            weekSummary: summarizeTransactions([]),
+            weekdaySeries: [],
+            employeeRoster: [],
+            onlineWindowMinutes: 10,
+            commandCenterChart: { labels: [], counts: [], values: [], showValues: false }
+        };
 
     return {
         monthSummary,
         todaySummary,
+        weekSummary: commandCenter.weekSummary,
+        weekdaySeries: commandCenter.weekdaySeries,
+        employeeRoster: commandCenter.employeeRoster,
+        onlineWindowMinutes: commandCenter.onlineWindowMinutes,
+        commandCenterChart: commandCenter.commandCenterChart,
         recentTransactions,
         customersCount,
         activeCustomersCount,

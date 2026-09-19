@@ -212,6 +212,19 @@ html[data-theme="night"] .bw-mini-metrics article.warning {
     border-color: rgba(251, 191, 36, .24);
 }
 
+html[data-theme="night"] .cp-period-card.today {
+    background: linear-gradient(180deg, rgba(45, 212, 191, .14), #132033 62%);
+    border-color: rgba(45, 212, 191, .28);
+}
+html[data-theme="night"] .cp-period-card.week {
+    background: linear-gradient(180deg, rgba(56, 189, 248, .14), #132033 62%);
+    border-color: rgba(56, 189, 248, .28);
+}
+html[data-theme="night"] .cp-period-card.month {
+    background: linear-gradient(180deg, rgba(251, 191, 36, .12), #132033 62%);
+    border-color: rgba(251, 191, 36, .24);
+}
+
 html[data-theme="night"] .bw-metric-card.accent-dark { --metric-accent: #38BDF8; }
 
 html[data-theme="night"] .bw-status.success { color: #2DD4BF; background: rgba(45, 212, 191, .16); border-color: rgba(45, 212, 191, .32); }

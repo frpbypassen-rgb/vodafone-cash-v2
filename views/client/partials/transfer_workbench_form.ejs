@@ -2,7 +2,7 @@
     <header class="bw-section-head bw-transfer-hub-head">
         <div><span class="bw-section-kicker">بيانات العملية</span><h2 id="selectedServiceTitle"><%= typeof isolatedService !== 'undefined' ? isolatedService.label : 'إنشاء تحويل' %></h2></div>
         <% if (typeof servicePage !== 'undefined' && !servicePage.isolated) { %><button type="button" class="bw-mobile-service-change" data-service-gallery-jump><i class="fa-solid fa-grid-2"></i>تغيير الخدمة</button><% } %>
-        <div class="bw-transfer-tools"><button type="button" class="bw-button ghost compact" data-focus-mode><i class="fa-solid fa-expand"></i>وضع التركيز</button><button type="button" class="bw-button ghost compact" data-voice-transfer><i class="fa-solid fa-microphone"></i>أمر صوتي</button><span class="bw-secure-label"><i class="fa-solid fa-shield-halved"></i>إرسال آمن</span></div>
+        <div class="bw-transfer-tools"><button type="button" class="bw-button ghost compact" data-focus-mode><i class="fa-solid fa-expand"></i>وضع التركيز</button><span class="bw-secure-label"><i class="fa-solid fa-shield-halved"></i>إرسال آمن</span></div>
     </header>
     <% const hub = typeof transferHub !== 'undefined' ? transferHub : { suggestedReasons: [], recentOperations: [] }; %>
     <form id="businessTransferForm" class="bw-form" enctype="multipart/form-data" novalidate>
