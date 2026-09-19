@@ -18,6 +18,7 @@ const { resolveClientNotificationUserIds } = require('../services/clientNotifica
 const { presentInbox } = require('../services/companyNotificationInboxService');
 const companyWebPushService = require('../services/companyWebPushService');
 const { normalizeCompanyTheme } = require('../utils/companyPortalTheme');
+const { normalizeClientTheme, buildClientThemePreferenceUpdate } = require('../utils/clientPortalTheme');
 const { setPortalSupportReplyChannel } = require('../services/whatChimpSupportService');
 const WebPushSubscription = require('../models/WebPushSubscription');
 const Settings = require('../models/Settings');
@@ -262,7 +263,12 @@ router.post('/customers/:id/credit-limit', requireClientAuth, clientWorkspaceCon
 router.post('/customers/:id/pricing', requireClientAuth, clientWorkspaceController.postUpdateCustomerPricing);
 router.post('/settings/profile', requireClientAuth, clientWorkspaceController.postUpdateSettings);
 router.post('/settings/password', requireClientAuth, clientWorkspaceController.postChangePassword);
-router.post('/settings/theme', requireClientAuth, clientWorkspaceController.postCompanyTheme);
+router.post('/settings/theme', requireClientAuth, (req, res) => {
+    if (req.session.accountType === 'company') {
+        return clientWorkspaceController.postCompanyTheme(req, res);
+    }
+    return clientWorkspaceController.postClientTheme(req, res);
+});
 router.get('/company/staff', requireClientAuth, clientCompanyController.getStaffManagement);
 router.post('/company/staff/add', requireClientAuth, clientCompanyController.postAddStaff);
 router.post('/company/staff/:id/toggle', requireClientAuth, clientCompanyController.postToggleStaff);
@@ -372,18 +378,34 @@ router.post('/api/web-push/test', requireClientAuth, async (req, res) => {
 });
 
 router.post('/api/theme', requireClientAuth, async (req, res) => {
-    if (req.session.accountType !== 'company') {
-        return res.status(403).json({ success: false, error: 'COMPANY_THEME_ONLY' });
+    if (req.session.accountType === 'company') {
+        const theme = normalizeCompanyTheme(req.body?.theme);
+        if (!theme) {
+            return res.status(400).json({ success: false, error: 'INVALID_THEME' });
+        }
+        req.session.companyTheme = theme;
+        try {
+            await ClientEmployee.updateOne(
+                { _id: req.session.clientId, companyId: { $exists: true } },
+                { $set: { 'preferences.companyTheme': theme } }
+            );
+        } catch (_error) {
+            /* session still holds the preference */
+        }
+        return res.json({ success: true, theme });
     }
-    const theme = normalizeCompanyTheme(req.body?.theme);
+    const theme = normalizeClientTheme(req.body?.theme);
     if (!theme) {
         return res.status(400).json({ success: false, error: 'INVALID_THEME' });
     }
-    req.session.companyTheme = theme;
+    req.session.clientTheme = theme;
+    const Model = req.session.accountType === 'agent_staff'
+        ? AgentEmployee
+        : (req.session.accountType === 'sub_client' ? SubAccount : User);
     try {
-        await ClientEmployee.updateOne(
-            { _id: req.session.clientId, companyId: { $exists: true } },
-            { $set: { 'preferences.companyTheme': theme } }
+        await Model.updateOne(
+            { _id: req.session.clientId },
+            { $set: buildClientThemePreferenceUpdate(theme) }
         );
     } catch (_error) {
         /* session still holds the preference */
@@ -559,7 +581,15 @@ router.get('/support', requireClientAuth, async (req, res) => {
             try {
                 const { account } = await getSupportIdentity(req);
                 const walletHub = isWalletHubSession(req.session.accountType, account.role);
-                return res.render('client/support', { account, accountType: req.session.accountType, walletHub, user: account });
+                const { clientThemeLocals } = require('../utils/clientPortalTheme');
+                return res.render('client/support', {
+                    account,
+                    accountType: req.session.accountType,
+                    walletHub,
+                    user: account,
+                    csrfToken: req.session.csrfToken || '',
+                    ...clientThemeLocals(account, req.session.clientTheme)
+                });
             } catch (e) {
                 console.error('[Support] identity/render failed:', e);
                 return res.redirect('/client/dashboard?supportError=1');

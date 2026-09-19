@@ -36,6 +36,10 @@ const {
     pharaonicIconForService
 } = require('../utils/companyPortalTheme');
 const {
+    resolveAccountClientTheme,
+    CLIENT_PORTAL_THEME_META
+} = require('../utils/clientPortalTheme');
+const {
     resolveCompanyAccess,
     toPortalPermissions,
     canAccessCompanyPage
@@ -1326,7 +1330,13 @@ const buildBaseContext = async (req, page, workspace) => {
             : null,
         companyThemeMeta: workspace.isCompany
             ? COMPANY_PORTAL_THEME_META[resolveAccountCompanyTheme(workspace.actor, req.session.companyTheme)]
-            : null
+            : null,
+        clientTheme: workspace.isCompany
+            ? null
+            : resolveAccountClientTheme(workspace.actor, req.session.clientTheme),
+        clientThemeMeta: workspace.isCompany
+            ? null
+            : CLIENT_PORTAL_THEME_META[resolveAccountClientTheme(workspace.actor, req.session.clientTheme)]
     };
 };
 

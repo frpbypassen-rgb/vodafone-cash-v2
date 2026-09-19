@@ -8,6 +8,7 @@ const { isWalletHubSession } = require('../utils/walletHubHelper');
 const { buildPendingRateAlertForClient } = require('../services/rateAlerts/rateAlertAudienceService');
 const { getServiceRatesForTier } = require('../utils/rateHelper');
 const { applyCustomerRateMargins } = require('../utils/agencyPricing');
+const { clientThemeLocals } = require('../utils/clientPortalTheme');
 
 async function loadWalletHubAccount(req) {
     if (!req.session?.isClientLoggedIn || !req.session.clientId) return null;
@@ -116,7 +117,8 @@ async function buildHubRenderContext(req) {
         currentRate,
         pendingRateUpdate,
         canRequestDeposit,
-        csrfToken: req.session?.csrfToken || ''
+        csrfToken: req.session?.csrfToken || '',
+        ...clientThemeLocals(account, req.session?.clientTheme)
     };
 }
 

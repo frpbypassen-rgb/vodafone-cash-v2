@@ -1,4 +1,4 @@
-<header class="bw-topbar cp-topbar">
+<header class="bw-topbar<%= workspace.isCompany ? ' cp-topbar' : ' cl-topbar' %>">
     <div class="bw-topbar-start">
         <button type="button" class="bw-icon-button bw-menu-button" data-sidebar-toggle aria-controls="businessSidebar" aria-expanded="false" title="فتح القائمة">
             <i class="fa-solid fa-bars-staggered"></i>
@@ -60,9 +60,7 @@
             </button>
             <%- include('company_theme_switcher') %>
         <% } else { %>
-        <button type="button" class="bw-icon-button" data-theme-toggle title="تغيير المظهر" aria-label="تغيير المظهر">
-            <i class="fa-solid fa-moon"></i>
-        </button>
+        <%- include('customer_theme_switcher') %>
         <% } %>
         <button type="button" class="bw-icon-button" data-privacy-toggle title="إخفاء البيانات الحساسة" aria-label="إخفاء البيانات الحساسة">
             <i class="fa-solid fa-eye-slash"></i>

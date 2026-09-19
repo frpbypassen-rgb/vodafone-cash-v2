@@ -1,0 +1,19 @@
+<script>
+    (() => {
+        const valid = ['day', 'night', 'pharaonic'];
+        const stored = localStorage.getItem('ahram_client_theme');
+        const server = <%- JSON.stringify(typeof clientTheme !== 'undefined' ? clientTheme : '') %>;
+        const prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+        // After login the server preference wins. localStorage is only a
+        // fallback for first paint when the account has no saved theme.
+        const theme = valid.includes(server) ? server : (valid.includes(stored) ? stored : (prefersDark ? 'night' : 'day'));
+        document.documentElement.setAttribute('data-theme', theme);
+        document.documentElement.setAttribute('data-portal', 'customer');
+        if (valid.includes(server)) {
+            try { localStorage.setItem('ahram_client_theme', server); } catch (_error) { /* private mode */ }
+        }
+        const colors = { day: '#E8EEFA', night: '#070B14', pharaonic: '#1C1610' };
+        const meta = document.querySelector('meta[name="theme-color"]');
+        if (meta) meta.setAttribute('content', colors[theme] || '#E8EEFA');
+    })();
+</script>

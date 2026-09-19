@@ -1,0 +1,217 @@
+/* Pharaonic — dramatic but usable customer identity.
+   Sand / gold / turquoise. Heavy art waits for html.cl-art-ready
+   and is prefers-reduced-motion safe. */
+html[data-theme="pharaonic"] {
+    color-scheme: dark;
+    --cl-sand: #2A2118;
+    --cl-stone: #1C1610;
+    --cl-gold: #D4A017;
+    --cl-turquoise: #0E7C75;
+    --cl-brick: #8B3A2F;
+    --cl-ink: #FFF6E4;
+    --cl-muted: #D4C4A8;
+    --cl-surface: #3A2F22;
+    --cl-surface-soft: #463828;
+    --cl-surface-strong: #554433;
+    --cl-line: #7A6544;
+    --cl-line-strong: #D4A017;
+    --cl-icon: #D4A017;
+    --cl-on-accent: #1C1610;
+    --cl-sidebar: #1C1610;
+    --cl-sidebar-soft: #2A2118;
+    --cl-sidebar-text: #FFF6E4;
+    --cl-sidebar-muted: #C4B49A;
+    --cl-shadow: 0 10px 28px rgba(14, 10, 6, .36);
+    --cl-shadow-lg: 0 22px 44px rgba(14, 10, 6, .46);
+    --cl-glow: rgba(212, 160, 23, .24);
+    --cl-hero-wash: linear-gradient(135deg, #1C1610 0%, color-mix(in srgb, #0E7C75 46%, #1C1610) 100%);
+    --cl-chart-1: #0E7C75;
+    --cl-chart-2: #D4A017;
+    --cl-chart-3: #8B3A2F;
+    --cl-chart-4: #3E5C8A;
+    --cl-success: #2DD4BF;
+    --cl-warning: #D4A017;
+    --cl-danger: #E07A6A;
+    --cl-info: #7EB6C9;
+    --cl-indigo: #3E5C8A;
+    --bw-bg: var(--cl-sand);
+    --bw-surface: var(--cl-surface);
+    --bw-surface-soft: var(--cl-surface-soft);
+    --bw-surface-strong: var(--cl-surface-strong);
+    --bw-border: var(--cl-line);
+    --bw-border-strong: var(--cl-line-strong);
+    --bw-text: var(--cl-ink);
+    --bw-muted: var(--cl-muted);
+    --bw-strong: #FFF8EC;
+    --bw-sidebar: var(--cl-sidebar);
+    --bw-sidebar-soft: var(--cl-sidebar-soft);
+    --bw-sidebar-text: var(--cl-sidebar-text);
+    --bw-sidebar-muted: var(--cl-sidebar-muted);
+    --bw-green: var(--cl-turquoise);
+    --bw-green-soft: color-mix(in srgb, var(--cl-turquoise) 18%, var(--cl-surface));
+    --bw-blue: var(--cl-info);
+    --bw-blue-soft: color-mix(in srgb, var(--cl-info) 16%, var(--cl-surface));
+    --bw-amber: var(--cl-gold);
+    --bw-amber-soft: color-mix(in srgb, var(--cl-gold) 18%, var(--cl-surface));
+    --bw-gold: var(--cl-gold);
+    --bw-gold-soft: color-mix(in srgb, var(--cl-gold) 18%, var(--cl-surface));
+    --bw-red: var(--cl-brick);
+    --bw-red-soft: color-mix(in srgb, var(--cl-brick) 16%, var(--cl-surface));
+    --bw-cyan: var(--cl-turquoise);
+    --bw-cyan-soft: color-mix(in srgb, var(--cl-turquoise) 16%, var(--cl-surface));
+    --bw-shadow-sm: var(--cl-shadow);
+    --bw-shadow-md: var(--cl-shadow-lg);
+}
+
+html[data-theme="pharaonic"] body.cl-app,
+html[data-theme="pharaonic"][data-portal="customer"] {
+    background:
+        linear-gradient(180deg, color-mix(in srgb, var(--cl-gold) 18%, transparent), transparent 10rem),
+        repeating-linear-gradient(
+            90deg,
+            transparent 0 46px,
+            color-mix(in srgb, var(--cl-brick) 9%, transparent) 46px 47px
+        ),
+        var(--cl-sand);
+    color: var(--cl-ink);
+}
+
+html[data-theme="pharaonic"] .cl-sidebar,
+html[data-theme="pharaonic"] body.cl-app .bw-sidebar,
+html[data-theme="pharaonic"] body.cl-app .client-os-sidebar {
+    background: linear-gradient(180deg, #2A2118, #1C1610 18%);
+    color: #FFF6E4;
+    border-inline-end: 8px solid #D4A017;
+    box-shadow: inset -1px 0 0 #8B3A2F;
+}
+
+html[data-theme="pharaonic"] .cl-sidebar .bw-brand strong,
+html[data-theme="pharaonic"] .cl-sidebar .bw-nav-link,
+html[data-theme="pharaonic"] .cl-sidebar .bw-entity-copy strong,
+html[data-theme="pharaonic"] .client-os-mark b,
+html[data-theme="pharaonic"] .client-os-nav-link {
+    color: #FFF6E4;
+}
+
+html[data-theme="pharaonic"] .cl-sidebar .bw-entity-card,
+html[data-theme="pharaonic"] .client-os-account-mini {
+    background: #2A2118;
+    border-color: color-mix(in srgb, #D4A017 45%, transparent);
+}
+
+html[data-theme="pharaonic"] .cl-sidebar .bw-entity-icon,
+html[data-theme="pharaonic"] .client-os-avatar,
+html[data-theme="pharaonic"] .client-os-mark-icon {
+    color: #1C1610;
+    background: #D4A017;
+}
+
+html[data-theme="pharaonic"] .cl-sidebar .bw-nav-link.active,
+html[data-theme="pharaonic"] .client-os-nav-link.is-active {
+    background: color-mix(in srgb, #D4A017 18%, #2A2118);
+    color: #FFE08A;
+    box-shadow: inset 3px 0 0 #D4A017;
+}
+
+html[data-theme="pharaonic"] .cl-topbar,
+html[data-theme="pharaonic"] body.cl-app .bw-topbar,
+html[data-theme="pharaonic"] .client-os-topbar {
+    background: rgba(28, 22, 16, .92);
+    border-bottom: 1px solid #7A6544;
+    color: #FFF6E4;
+}
+
+html[data-theme="pharaonic"] .cl-balance-hero,
+html[data-theme="pharaonic"] .client-os-balance-panel,
+html[data-theme="pharaonic"] .client-os-mobile-balance {
+    background: var(--cl-hero-wash);
+    border: 1px solid color-mix(in srgb, #D4A017 42%, transparent);
+    color: #FFF6E4;
+}
+
+html[data-theme="pharaonic"] .cl-dock,
+html[data-theme="pharaonic"] .client-hub-bottom-nav,
+html[data-theme="pharaonic"] body.cl-app .bw-mobile-dock {
+    background: rgba(28, 22, 16, .96);
+    border-top: 3px solid #D4A017;
+}
+
+html[data-theme="pharaonic"] .cl-dock a.active,
+html[data-theme="pharaonic"] .client-hub-bottom-nav .active,
+html[data-theme="pharaonic"] body.cl-app .bw-mobile-dock a.active {
+    color: #1C1610;
+    background: #D4A017;
+}
+
+html[data-theme="pharaonic"] .bw-button.primary,
+html[data-theme="pharaonic"] .client-os-create,
+html[data-theme="pharaonic"] .client-os-workbench-action.is-primary {
+    background: linear-gradient(135deg, #D4A017, #0E7C75);
+    color: #1C1610;
+    border: 0;
+}
+
+html[data-theme="pharaonic"] .bw-table,
+html[data-theme="pharaonic"] .table-custom,
+html[data-theme="pharaonic"] .client-hub-panel {
+    background: #3A2F22;
+    color: #FFF6E4;
+}
+
+html[data-theme="pharaonic"] .bw-status.success,
+html[data-theme="pharaonic"] .st-done { color: #99F6E4; background: rgba(14, 124, 117, .28); }
+html[data-theme="pharaonic"] .bw-status.warning,
+html[data-theme="pharaonic"] .st-wait { color: #FFE08A; background: rgba(212, 160, 23, .22); }
+html[data-theme="pharaonic"] .bw-status.danger { color: #FFD0C8; background: rgba(139, 58, 47, .28); }
+
+html[data-theme="pharaonic"] .cl-sand-dust,
+html[data-theme="pharaonic"] .cl-pyramid-art,
+html[data-theme="pharaonic"] .cl-glyph-shimmer {
+    display: none;
+    pointer-events: none;
+}
+
+html.cl-art-ready[data-theme="pharaonic"] .cl-sand-dust,
+html.cl-art-ready[data-theme="pharaonic"] .cl-pyramid-art,
+html.cl-art-ready[data-theme="pharaonic"] .cl-glyph-shimmer {
+    display: block;
+    position: fixed;
+    inset: 0;
+    z-index: 0;
+    opacity: .18;
+    background:
+        radial-gradient(circle at 80% 8%, rgba(212, 160, 23, .28), transparent 18rem),
+        radial-gradient(circle at 12% 90%, rgba(14, 124, 117, .18), transparent 16rem);
+}
+
+html.cl-art-ready[data-theme="pharaonic"] .cl-pyramid-art {
+    background:
+        linear-gradient(180deg, transparent 42%, rgba(212, 160, 23, .08) 100%);
+    clip-path: polygon(50% 8%, 92% 100%, 8% 100%);
+    inset: auto 18% 0 18%;
+    height: 42vh;
+    opacity: .12;
+}
+
+html.cl-art-ready[data-theme="pharaonic"] .cl-glyph-shimmer {
+    background-image: repeating-linear-gradient(
+        -18deg,
+        transparent 0 18px,
+        rgba(212, 160, 23, .08) 18px 19px
+    );
+    animation: cl-glyph-drift 28s linear infinite;
+}
+
+@keyframes cl-glyph-drift {
+    from { transform: translateX(0); }
+    to { transform: translateX(-40px); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    html.cl-art-ready[data-theme="pharaonic"] .cl-glyph-shimmer,
+    html.cl-art-ready[data-theme="pharaonic"] .cl-sand-dust,
+    html.cl-art-ready[data-theme="pharaonic"] .cl-pyramid-art {
+        animation: none !important;
+        opacity: .08;
+    }
+}

@@ -1,0 +1,614 @@
+/* Customer portal shell — independent of company chrome and legacy nile UI.
+   Visual values come from theme files via --cl-* / --bw-*. */
+html[data-portal="customer"] {
+    overflow-x: hidden;
+}
+
+html[data-portal="customer"] body.cl-app,
+body.cl-app {
+    --bw-sidebar-width: var(--cl-sidebar-width);
+    --bw-topbar-height: var(--cl-topbar-height);
+    min-height: 100dvh;
+    overflow-x: hidden;
+    background: var(--cl-sand);
+    color: var(--cl-ink);
+    font-family: var(--cl-font);
+    letter-spacing: 0;
+}
+
+html[data-portal="customer"] body.cl-app .bw-offline-banner,
+html[data-portal="customer"] body.cl-app .bw-privacy-shield {
+    border-radius: 0;
+}
+
+/* Hide legacy bootstrap chrome when the new shell is on */
+html[data-portal="customer"] body.cl-app > .navbar-custom,
+html[data-portal="customer"] body.cl-app > .mobile-header,
+html[data-portal="customer"] body.cl-app > .glass-nav {
+    display: none !important;
+}
+
+html[data-portal="customer"] body.cl-app .main-container {
+    max-width: none;
+    padding: 0;
+    margin: 0;
+}
+
+/* ---- Workspace sidebar / wallet hub sidebar ---- */
+html[data-portal="customer"] .cl-sidebar,
+html[data-portal="customer"] body.cl-app .bw-sidebar,
+html[data-portal="customer"] body.cl-app .client-os-sidebar {
+    background: var(--cl-sidebar);
+    color: var(--cl-sidebar-text);
+    border-inline-end: 1px solid var(--cl-line);
+    box-shadow: none;
+}
+
+html[data-portal="customer"] .cl-sidebar .bw-brand,
+html[data-portal="customer"] .client-os-mark {
+    min-height: var(--cl-topbar-height);
+    padding: 16px 18px 14px;
+    gap: 12px;
+    border-bottom: 1px solid var(--cl-line);
+    color: var(--cl-sidebar-text);
+    display: flex;
+    align-items: center;
+    text-decoration: none;
+}
+
+html[data-portal="customer"] .cl-sidebar .bw-brand img,
+html[data-portal="customer"] .client-os-mark-icon {
+    width: 40px;
+    height: 40px;
+    border-radius: 12px;
+    border: 1px solid var(--cl-line);
+    background: var(--cl-surface);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+html[data-portal="customer"] .cl-sidebar .bw-brand strong,
+html[data-portal="customer"] .client-os-mark b {
+    color: var(--cl-sidebar-text);
+    font-size: 0.98rem;
+    font-weight: 800;
+    letter-spacing: 0.04em;
+}
+
+html[data-portal="customer"] .cl-sidebar .bw-brand small,
+html[data-portal="customer"] .client-os-mark small,
+html[data-portal="customer"] .cl-sidebar .bw-nav-group h2,
+html[data-portal="customer"] .client-os-nav-title {
+    color: var(--cl-sidebar-muted);
+    font-size: .72rem;
+    font-weight: 800;
+    letter-spacing: .06em;
+}
+
+html[data-portal="customer"] .cl-sidebar .bw-entity-card,
+html[data-portal="customer"] .client-os-account-mini {
+    margin: 14px 14px 10px;
+    padding: 12px 14px;
+    border: 1px solid var(--cl-line);
+    border-radius: var(--cl-radius-sm);
+    background: var(--cl-sidebar-soft);
+}
+
+html[data-portal="customer"] .bw-nav-link,
+html[data-portal="customer"] .client-os-nav-link {
+    min-height: var(--cl-touch);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 14px;
+    margin: 2px 10px;
+    border-radius: 12px;
+    color: var(--cl-sidebar-text);
+    text-decoration: none;
+    font-weight: 700;
+}
+
+html[data-portal="customer"] .bw-side-balance strong,
+html[data-portal="customer"] .client-os-balance-value,
+html[data-portal="customer"] .client-os-mobile-balance strong {
+    font-family: var(--cl-mono);
+    font-size: clamp(1.8rem, 4vw, 2.6rem);
+    letter-spacing: -0.03em;
+    line-height: 1.1;
+}
+
+/* ---- Topbar ---- */
+html[data-portal="customer"] .cl-topbar,
+html[data-portal="customer"] body.cl-app .bw-topbar,
+html[data-portal="customer"] .client-os-topbar {
+    min-height: var(--cl-topbar-height);
+    padding: 10px 18px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    position: sticky;
+    top: 0;
+    z-index: 30;
+}
+
+html[data-portal="customer"] .client-os-eyebrow,
+html[data-portal="customer"] .bw-section-kicker,
+html[data-portal="customer"] .bw-eyebrow {
+    color: var(--cl-turquoise);
+    font-size: .78rem;
+    font-weight: 800;
+    letter-spacing: .04em;
+}
+
+html[data-portal="customer"] .client-os-topbar h1,
+html[data-portal="customer"] .bw-page-header h1,
+html[data-portal="customer"] .client-os-mobile-greeting h1 {
+    margin: 4px 0 0;
+    font-size: clamp(1.25rem, 2.4vw, 1.7rem);
+    font-weight: 800;
+    color: var(--cl-ink);
+}
+
+html[data-portal="customer"] .bw-button,
+html[data-portal="customer"] .client-os-create,
+html[data-portal="customer"] .client-os-cmd-trigger,
+html[data-portal="customer"] .cl-theme-option,
+html[data-portal="customer"] .cl-theme-toggle {
+    min-height: var(--cl-touch);
+    min-width: var(--cl-touch);
+    border-radius: 12px;
+    font-weight: 800;
+}
+
+html[data-portal="customer"] .bw-button.primary,
+html[data-portal="customer"] .client-os-create {
+    padding: 0 16px;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+}
+
+html[data-portal="customer"] .bw-balance-chip,
+html[data-portal="customer"] .client-os-mobile-chrome-balance {
+    background: color-mix(in srgb, var(--cl-turquoise) 14%, var(--cl-surface));
+    border: 1px solid color-mix(in srgb, var(--cl-turquoise) 28%, var(--cl-line));
+    color: var(--cl-ink);
+    border-radius: 999px;
+    padding: 8px 12px;
+    font-weight: 800;
+}
+
+/* ---- Theme switcher ---- */
+.cl-theme-switcher {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.cl-theme-rail {
+    display: flex;
+    gap: 6px;
+    padding: 4px;
+    border-radius: 999px;
+    background: var(--cl-surface-soft);
+    border: 1px solid var(--cl-line);
+}
+
+.cl-theme-option {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 0 12px;
+    border: 0;
+    background: transparent;
+    color: var(--cl-muted);
+    cursor: pointer;
+}
+
+.cl-theme-option[aria-pressed="true"] {
+    background: var(--cl-surface);
+    color: var(--cl-ink);
+    box-shadow: var(--cl-shadow);
+}
+
+.cl-theme-toggle {
+    display: none;
+    border: 1px solid var(--cl-line);
+    background: var(--cl-surface);
+    color: var(--cl-ink);
+}
+
+.cl-theme-panel {
+    position: absolute;
+    inset-inline-end: 0;
+    top: calc(100% + 8px);
+    min-width: 220px;
+    padding: 10px;
+    border-radius: 16px;
+    background: var(--cl-surface);
+    border: 1px solid var(--cl-line);
+    box-shadow: var(--cl-shadow-lg);
+    z-index: 40;
+}
+
+.cl-theme-ssr-form {
+    display: grid;
+    gap: 6px;
+}
+
+.cl-theme-ssr-form .cl-theme-option {
+    justify-content: flex-start;
+    width: 100%;
+    border-radius: 12px;
+}
+
+.cl-theme-ssr-form small {
+    display: block;
+    font-weight: 600;
+    color: var(--cl-muted);
+}
+
+/* ---- Dashboard / hub surfaces ---- */
+html[data-portal="customer"] .client-os-shell,
+html[data-portal="customer"] .client-hub-shell {
+    display: grid;
+    grid-template-columns: var(--cl-sidebar-width) minmax(0, 1fr);
+    min-height: 100dvh;
+}
+
+html[data-portal="customer"] .client-os-main,
+html[data-portal="customer"] .bw-main,
+html[data-portal="customer"] .client-hub-main {
+    min-width: 0;
+    padding: 0 0 32px;
+}
+
+html[data-portal="customer"] .client-os-overview,
+html[data-portal="customer"] .bw-metric-grid,
+html[data-portal="customer"] .client-os-kpis {
+    display: grid;
+    gap: var(--cl-gap);
+}
+
+html[data-portal="customer"] .client-os-overview {
+    grid-template-columns: minmax(260px, 1.1fr) minmax(0, 1.4fr);
+    padding: 0 24px 8px;
+}
+
+html[data-portal="customer"] .client-os-kpis {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+html[data-portal="customer"] .client-os-balance-panel,
+html[data-portal="customer"] .client-os-kpi,
+html[data-portal="customer"] .bw-metric-card,
+html[data-portal="customer"] .client-os-workbench-action,
+html[data-portal="customer"] .client-os-journey-card,
+html[data-portal="customer"] .client-hub-service-card,
+html[data-portal="customer"] .client-os-activity-card,
+html[data-portal="customer"] .client-os-rates-card,
+html[data-portal="customer"] .bw-section,
+html[data-portal="customer"] .client-hub-panel {
+    background: var(--cl-surface);
+    border: 1px solid var(--cl-line);
+    border-radius: var(--cl-radius);
+    box-shadow: var(--cl-shadow);
+}
+
+html[data-portal="customer"] .client-os-balance-panel,
+html[data-portal="customer"] .client-os-mobile-balance {
+    padding: 22px 24px;
+}
+
+html[data-portal="customer"] .client-os-kpi,
+html[data-portal="customer"] .bw-metric-card {
+    padding: 16px 18px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+html[data-portal="customer"] .client-os-kpi-icon,
+html[data-portal="customer"] .bw-metric-icon,
+html[data-portal="customer"] .client-os-journey-icon {
+    width: 44px;
+    height: 44px;
+    border-radius: 14px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: color-mix(in srgb, var(--cl-indigo) 12%, var(--cl-surface));
+    color: var(--cl-indigo);
+}
+
+html[data-portal="customer"] .client-os-kpi-icon.mint,
+html[data-portal="customer"] .client-os-journey-icon.is-mint {
+    background: color-mix(in srgb, var(--cl-turquoise) 14%, var(--cl-surface));
+    color: var(--cl-turquoise);
+}
+
+html[data-portal="customer"] .client-os-kpi-icon.gold,
+html[data-portal="customer"] .client-os-journey-icon.is-gold {
+    background: color-mix(in srgb, var(--cl-gold) 14%, var(--cl-surface));
+    color: var(--cl-gold);
+}
+
+html[data-portal="customer"] .client-os-workbench,
+html[data-portal="customer"] .client-os-journey-grid,
+html[data-portal="customer"] .client-hub-services-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+    padding: 0 24px;
+}
+
+html[data-portal="customer"] .client-os-workbench-action,
+html[data-portal="customer"] .client-os-journey-card,
+html[data-portal="customer"] .client-hub-service-card {
+    min-height: 76px;
+    padding: 16px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    text-decoration: none;
+    color: inherit;
+    border: 1px solid var(--cl-line);
+    cursor: pointer;
+}
+
+html[data-portal="customer"] .client-os-workbench-action.is-primary {
+    grid-column: 1 / -1;
+}
+
+html[data-portal="customer"] .client-os-recipients,
+html[data-portal="customer"] .client-os-journey,
+html[data-portal="customer"] .client-os-activity-grid,
+html[data-portal="customer"] .client-hub-mobile-content {
+    padding: 8px 24px 0;
+}
+
+html[data-portal="customer"] .client-os-section-heading h2,
+html[data-portal="customer"] .bw-section-head h2 {
+    margin: 0;
+    font-size: 1.05rem;
+}
+
+html[data-portal="customer"] .bw-table,
+html[data-portal="customer"] .table-custom {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+html[data-portal="customer"] .bw-table th,
+html[data-portal="customer"] .bw-table td,
+html[data-portal="customer"] .table-custom th,
+html[data-portal="customer"] .table-custom td {
+    padding: 12px 14px;
+    border-bottom: 1px solid var(--cl-line);
+    text-align: start;
+    vertical-align: middle;
+}
+
+html[data-portal="customer"] .bw-table th,
+html[data-portal="customer"] .table-custom th {
+    font-size: .78rem;
+    color: var(--cl-muted);
+    background: var(--cl-surface-soft);
+}
+
+html[data-portal="customer"] .client-hub-tabs {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-bottom: 16px;
+}
+
+html[data-portal="customer"] .client-hub-tabs a {
+    min-height: var(--cl-touch);
+    padding: 0 14px;
+    border-radius: 999px;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    border: 1px solid var(--cl-line);
+    background: var(--cl-surface);
+    color: var(--cl-ink);
+    text-decoration: none;
+    font-weight: 800;
+}
+
+html[data-portal="customer"] .client-hub-tabs a.is-active {
+    background: color-mix(in srgb, var(--cl-indigo) 14%, var(--cl-surface));
+    border-color: color-mix(in srgb, var(--cl-indigo) 30%, var(--cl-line));
+}
+
+html[data-portal="customer"] .form-control,
+html[data-portal="customer"] .bw-field input,
+html[data-portal="customer"] .filter-input {
+    min-height: var(--cl-touch);
+    border-radius: 12px;
+    border: 1px solid var(--cl-line);
+    background: var(--cl-surface);
+    color: var(--cl-ink);
+    padding: 10px 12px;
+}
+
+/* ---- Mobile dock ---- */
+html[data-portal="customer"] .cl-dock,
+html[data-portal="customer"] .client-hub-bottom-nav,
+html[data-portal="customer"] body.cl-app .bw-mobile-dock {
+    position: fixed;
+    inset-inline: 0;
+    bottom: 0;
+    z-index: 50;
+    display: none;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    align-items: center;
+    min-height: calc(var(--cl-dock-height) + env(safe-area-inset-bottom));
+    padding: 6px 8px calc(8px + env(safe-area-inset-bottom));
+}
+
+html[data-portal="customer"] .cl-dock a,
+html[data-portal="customer"] .client-hub-bottom-nav a,
+html[data-portal="customer"] body.cl-app .bw-mobile-dock a {
+    min-height: var(--cl-touch);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 3px;
+    text-decoration: none;
+    color: var(--cl-muted);
+    font-size: .68rem;
+    font-weight: 800;
+    border-radius: 12px;
+}
+
+html[data-portal="customer"] .nile-fab,
+html[data-portal="customer"] .cl-dock-fab {
+    width: 52px;
+    height: 52px;
+    border-radius: 18px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: linear-gradient(135deg, var(--cl-indigo), var(--cl-turquoise));
+    color: var(--cl-on-accent);
+    box-shadow: var(--cl-shadow);
+}
+
+html[data-portal="customer"] .client-os-mobile,
+html[data-portal="customer"] .client-os-mobile-chrome {
+    padding: 12px 16px;
+}
+
+html[data-portal="customer"] .client-os-mobile-primary-actions {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 8px;
+    margin: 14px 0;
+}
+
+html[data-portal="customer"] .client-os-mobile-primary-actions a,
+html[data-portal="customer"] .client-os-mobile-primary-actions button {
+    min-height: var(--cl-touch);
+    border: 1px solid var(--cl-line);
+    background: var(--cl-surface);
+    color: var(--cl-ink);
+    border-radius: 14px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    font-weight: 800;
+    font-size: .72rem;
+}
+
+html[data-portal="customer"] .client-os-mobile-rates,
+html[data-portal="customer"] .client-os-mobile-summary {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+}
+
+html[data-portal="customer"] .client-os-mobile-rates > *,
+html[data-portal="customer"] .client-os-mobile-summary article {
+    background: var(--cl-surface);
+    border: 1px solid var(--cl-line);
+    border-radius: 14px;
+    padding: 12px;
+}
+
+/* ---- Desktop ---- */
+@media (min-width: 1051px) {
+    html[data-portal="customer"] .cl-dock,
+    html[data-portal="customer"] .client-hub-bottom-nav,
+    html[data-portal="customer"] body.cl-app .bw-mobile-dock,
+    html[data-portal="customer"] .client-os-mobile-chrome,
+    html[data-portal="customer"] .bw-menu-button {
+        display: none !important;
+    }
+
+    html[data-portal="customer"] .desktop-only-layout {
+        display: block !important;
+    }
+
+    html[data-portal="customer"] .mobile-only-layout {
+        display: none !important;
+    }
+}
+
+/* ---- Phone: app-like shell ---- */
+@media (max-width: 1050px) {
+    html[data-portal="customer"] body.cl-app {
+        --cl-topbar-height: 56px;
+        padding-bottom: calc(var(--cl-dock-height) + env(safe-area-inset-bottom));
+    }
+
+    html[data-portal="customer"] .client-os-shell,
+    html[data-portal="customer"] .client-hub-shell,
+    html[data-portal="customer"] body.cl-app .bw-sidebar,
+    html[data-portal="customer"] .client-os-sidebar {
+        display: none;
+    }
+
+    html[data-portal="customer"] body.cl-app.bw-sidebar-open .bw-sidebar,
+    html[data-portal="customer"] body.cl-app.bw-sidebar-open .client-os-sidebar {
+        display: flex;
+        position: fixed;
+        inset: 0 auto 0 0;
+        width: min(86vw, var(--cl-sidebar-width));
+        z-index: 60;
+    }
+
+    html[data-portal="customer"] .cl-dock,
+    html[data-portal="customer"] .client-hub-bottom-nav,
+    html[data-portal="customer"] body.cl-app .bw-mobile-dock {
+        display: grid;
+    }
+
+    html[data-portal="customer"] .client-os-overview,
+    html[data-portal="customer"] .client-os-kpis,
+    html[data-portal="customer"] .client-os-workbench,
+    html[data-portal="customer"] .client-os-journey-grid,
+    html[data-portal="customer"] .client-hub-services-grid {
+        grid-template-columns: 1fr;
+        padding-inline: 14px;
+    }
+
+    html[data-portal="customer"] .client-os-recipients,
+    html[data-portal="customer"] .client-os-journey,
+    html[data-portal="customer"] .client-os-activity-grid,
+    html[data-portal="customer"] .client-hub-mobile-content {
+        padding-inline: 14px;
+    }
+
+    html[data-portal="customer"] .cl-theme-rail { display: none; }
+    html[data-portal="customer"] .cl-theme-toggle { display: inline-flex; }
+
+    html[data-portal="customer"] .bw-user-menu,
+    html[data-portal="customer"] .bw-topbar-date,
+    html[data-portal="customer"] .bw-workspace-shortcut,
+    html[data-portal="customer"] .client-os-cmd-trigger span,
+    html[data-portal="customer"] .client-os-cmd-trigger kbd {
+        display: none !important;
+    }
+
+    html[data-portal="customer"] .desktop-only-layout { display: none !important; }
+    html[data-portal="customer"] .mobile-only-layout { display: block !important; }
+}
+
+html[data-portal="customer"] .cl-sand-dust,
+html[data-portal="customer"] .cl-pyramid-art,
+html[data-portal="customer"] .cl-glyph-shimmer {
+    pointer-events: none;
+}
+
+html[data-portal="customer"] :focus-visible {
+    outline: none;
+    box-shadow: var(--cl-focus);
+}

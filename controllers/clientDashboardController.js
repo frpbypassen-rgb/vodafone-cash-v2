@@ -24,6 +24,7 @@ const { logAction } = require('../services/auditService');
 const { saveProfilePhoto, streamProfilePhoto, removeProfilePhoto } = require('../services/profilePhotoStorageService');
 const { activatePendingRateUpdate } = require('../services/rateChangeService');
 const { buildPendingRateAlertForClient } = require('../services/rateAlerts/rateAlertAudienceService');
+const { clientThemeLocals } = require('../utils/clientPortalTheme');
 
 const renderBusinessOverview = clientWorkspaceController.renderPage('overview');
 const escapeRegExp = (value) => String(value || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -305,7 +306,9 @@ exports.getDashboard = async (req, res) => {
             isSystemOpen,
             profile,
             pendingRateUpdate,
-            showMfaNotice
+            showMfaNotice,
+            csrfToken: req.session.csrfToken || '',
+            ...clientThemeLocals(account, req.session.clientTheme)
         });
     } catch (error) {
         console.error("Dashboard Render Error:", error);

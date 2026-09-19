@@ -32,7 +32,10 @@ const agentEmployeeSchema = new mongoose.Schema({
         webUsername: { type: String }
     },
     deletedAt: { type: Date },
-    deletedBy: { type: String }
+    deletedBy: { type: String },
+    preferences: {
+        clientTheme: { type: String, enum: ['day', 'night', 'pharaonic'], default: undefined }
+    }
 }, { timestamps: true });
 
 agentEmployeeSchema.index({ tenantId: 1, agentId: 1 });

@@ -64,7 +64,10 @@ const subAccountSchema = new mongoose.Schema({
         webUsername: { type: String }
     },
     deletedAt: { type: Date },
-    deletedBy: { type: String }
+    deletedBy: { type: String },
+    preferences: {
+        clientTheme: { type: String, enum: ['day', 'night', 'pharaonic'], default: undefined }
+    }
 }, { timestamps: true });
 
 subAccountSchema.index({ tenantId: 1, masterType: 1, masterId: 1 });

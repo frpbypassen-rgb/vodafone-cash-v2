@@ -1,7 +1,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-    <meta name="theme-color" content="<%= typeof workspace !== 'undefined' && workspace.isCompany ? (typeof companyThemeMeta !== 'undefined' && companyThemeMeta.themeColor ? companyThemeMeta.themeColor : '#E7F1F6') : '#111827' %>">
+    <meta name="theme-color" content="<%= typeof workspace !== 'undefined' && workspace.isCompany ? (typeof companyThemeMeta !== 'undefined' && companyThemeMeta.themeColor ? companyThemeMeta.themeColor : '#E7F1F6') : (typeof clientThemeMeta !== 'undefined' && clientThemeMeta.themeColor ? clientThemeMeta.themeColor : '#E8EEFA') %>">
     <title><%= pageMeta.title %> | Power Pay AL-Ahram</title>
     <script>
         (() => {
@@ -26,10 +26,19 @@
                 if (meta) meta.setAttribute('content', colors[theme]);
                 return;
             }
-            const theme = localStorage.getItem('powerpay-business-theme') || 'light';
-            document.documentElement.dataset.theme = theme === 'system'
-                ? (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light')
-                : theme;
+            const valid = ['day', 'night', 'pharaonic'];
+            const stored = localStorage.getItem('ahram_client_theme');
+            const server = <%- JSON.stringify(typeof clientTheme !== 'undefined' ? clientTheme : '') %>;
+            const prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+            const theme = valid.includes(server) ? server : (valid.includes(stored) ? stored : (prefersDark ? 'night' : 'day'));
+            document.documentElement.setAttribute('data-theme', theme);
+            document.documentElement.setAttribute('data-portal', 'customer');
+            if (valid.includes(server)) {
+                try { localStorage.setItem('ahram_client_theme', server); } catch (_error) { /* private mode */ }
+            }
+            const colors = { day: '#E8EEFA', night: '#070B14', pharaonic: '#1C1610' };
+            const meta = document.querySelector('meta[name="theme-color"]');
+            if (meta) meta.setAttribute('content', colors[theme]);
         })();
     </script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -45,6 +54,8 @@
         <link rel="stylesheet" href="/css/company-portal-theme-night.css?v=20260919-command1">
         <link rel="stylesheet" href="/css/company-portal-theme-pharaonic.css?v=20260919-command1">
         <link rel="stylesheet" href="/css/company-portal.css?v=20260919-command1">
+    <% } else { %>
+        <%- include('customer_portal_styles') %>
     <% } %>
     <link rel="stylesheet" href="/css/rate-alert-overlay.css?v=20260816-3">
     <script src="/socket.io/socket.io.js"></script>
