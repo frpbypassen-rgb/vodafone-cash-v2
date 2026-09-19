@@ -39,6 +39,7 @@ const {
     resolveAccountClientTheme,
     CLIENT_PORTAL_THEME_META
 } = require('../utils/clientPortalTheme');
+const { buildAgentMobileNav } = require('../utils/customerPortalNav');
 const {
     resolveCompanyAccess,
     toPortalPermissions,
@@ -1314,6 +1315,7 @@ const buildBaseContext = async (req, page, workspace) => {
         portalHomeHref: resolvePortalHomeHref(workspace),
         navigation,
         companyMobileNav: workspace.isCompany ? buildCompanyMobileNav(workspace, navigation) : [],
+        customerMobileNav: workspace.isCompany ? null : buildAgentMobileNav(navigation, page),
         statusMeta: STATUS_META,
         serviceCatalog: rates.services,
         serviceRates: rates.serviceRates,
@@ -1529,6 +1531,7 @@ module.exports = {
     canAccessPage,
     buildNavigation,
     buildCompanyMobileNav,
+    buildAgentMobileNav,
     resolvePortalHomeHref,
     resolveClientPostLoginHref,
     forbiddenRedirectPath,

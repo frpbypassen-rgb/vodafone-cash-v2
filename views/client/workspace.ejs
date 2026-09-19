@@ -93,35 +93,7 @@
         <% if (workspace.isCompany) { %>
             <%- include('partials/company_bottom_nav') %>
         <% } else { %>
-        <% const mobileKeys = ['overview', 'services', 'transactions', 'reports'];
-           const mobileNavigation = mobileKeys.map(key => navigation.find(item => item.key === key)).filter(Boolean); %>
-        <nav class="bw-mobile-dock" aria-label="التنقل السريع">
-            <% mobileNavigation.forEach(item => { %>
-                <a href="<%= item.href %>" class="<%= item.active ? 'active' : '' %>">
-                    <i class="fa-solid <%= item.icon %>"></i>
-                    <span><%= item.label
-                        .replace('الخدمات والتحويل', 'تحويل')
-                        .replace('إنشاء تحويل', 'تحويل')
-                        .replace('المعاملات', 'العمليات')
-                        .replace('سجل العمليات', 'العمليات')
-                        .replace('الموظفون والصلاحيات', 'الفريق')
-                        .replace('فريق الشركة', 'الفريق')
-                        .replace('الحركات المالية', 'المالية')
-                        .replace('كشف الحركات', 'المالية')
-                        .replace('كشوف الحساب', 'الكشوف')
-                        .replace('إدارة الحساب', 'الحساب')
-                        .replace('أمان حسابي', 'أماني')
-                        .replace('أمان الحساب', 'أماني')
-                        .replace('بيانات المنشأة', 'البيانات')
-                        .replace('التحويل الذكي', 'ذكي')
-                        .replace('طلب إيداع', 'إيداع')
-                        .replace('متابعة الإيداع', 'متابعة')
-                        .replace('كشف الحساب', 'الكشف')
-                        .replace('دفتر الحركات', 'المالية')
-                        .replace('مكتب المحاسبة', 'المالية') %></span>
-                </a>
-            <% }) %>
-        </nav>
+            <%- include('partials/customer_mobile_dock') %>
         <% } %>
     </div>
 
@@ -373,7 +345,7 @@
     <% if (page === 'overview') { %><script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js" defer></script><% } %>
     <script src="/js/company-portal.js?v=20260919-command1" defer></script>
     <% } else { %>
-    <script src="/js/client-portal.js?v=20260919-cl1" defer></script>
+    <script src="/js/client-portal.js?v=20260920-cl-m2" defer></script>
     <% } %>
 </body>
 </html>

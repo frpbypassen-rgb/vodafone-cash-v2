@@ -1,0 +1,32 @@
+<%#
+  Agent / non-company workspace mobile dock + More sheet.
+  Falls back to navigation when customerMobileNav is omitted.
+%>
+<%
+    const dockKeys = ['overview', 'services', 'transactions', 'support'];
+    const dockLabels = { overview: 'الرئيسية', services: 'تحويل', transactions: 'العمليات', support: 'الدعم' };
+    const pack = (typeof customerMobileNav !== 'undefined' && customerMobileNav) ? customerMobileNav : null;
+    const dockItems = pack && Array.isArray(pack.dock)
+        ? pack.dock
+        : (typeof navigation !== 'undefined' ? dockKeys.map((key) => {
+            const item = navigation.find((nav) => nav.key === key);
+            return item ? Object.assign({}, item, { dockLabel: dockLabels[key] || item.label }) : null;
+        }).filter(Boolean) : []);
+    const moreItems = pack && Array.isArray(pack.more)
+        ? pack.more
+        : (typeof navigation !== 'undefined' ? navigation.filter((item) => !dockKeys.includes(item.key)) : []);
+    const moreActive = pack ? Boolean(pack.moreActive) : moreItems.some((item) => item.active);
+%>
+<nav class="bw-mobile-dock cl-dock" aria-label="التنقل السريع" data-customer-dock>
+    <% dockItems.forEach((item) => { %>
+        <a href="<%= item.href %>" class="<%= item.active ? 'active' : '' %>" data-dock-key="<%= item.key %>">
+            <i class="fa-solid <%= item.icon %>"></i>
+            <span><%= item.dockLabel || item.label %></span>
+        </a>
+    <% }) %>
+    <button type="button" class="cl-dock-more<%= moreActive ? ' active' : '' %>" data-cl-more-open data-dock-key="more" aria-haspopup="dialog" aria-controls="customerMoreSheet">
+        <i class="fa-solid fa-ellipsis"></i>
+        <span>المزيد</span>
+    </button>
+</nav>
+<%- include('customer_more_sheet', { moreItems: moreItems }) %>

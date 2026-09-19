@@ -44,6 +44,8 @@
         <% } %>
         <% if (workspace.isCompany) { %>
             <%- include('company_notifications') %>
+        <% } else { %>
+            <%- include('customer_notifications') %>
         <% } %>
         <a href="<%= workspace.isCompany ? '/client/security' : '/client/settings' %>" class="bw-icon-button bw-topbar-link" title="أمان الحساب" aria-label="أمان الحساب">
             <i class="fa-solid fa-shield-halved"></i>

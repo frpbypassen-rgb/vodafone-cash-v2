@@ -17,6 +17,7 @@
             <div class="client-os-topbar-actions">
                 <button type="button" class="client-os-cmd-trigger" id="clientOsCmdTrigger" aria-label="بحث سريع"><i class="fa-solid fa-magnifying-glass"></i><span>بحث سريع</span><kbd>Ctrl+K</kbd></button>
                 <span class="client-os-status <%= isSystemOpen ? 'is-open' : 'is-closed' %>"><i class="fa-solid <%= isSystemOpen ? 'fa-circle-check' : 'fa-circle-exclamation' %>"></i><%= isSystemOpen ? 'النظام يعمل' : 'النظام مغلق' %></span>
+                <%- include('customer_notifications') %>
                 <%- include('customer_theme_switcher') %>
                 <% if (user.role !== 'accountant') { %>
                     <button type="button" class="client-os-create" data-bs-toggle="modal" data-bs-target="#transferModal"><i class="fa-solid fa-plus"></i><span>تحويل جديد</span></button>

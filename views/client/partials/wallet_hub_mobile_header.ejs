@@ -16,6 +16,7 @@
     </div>
     <div class="client-os-mobile-chrome-actions">
         <span class="client-os-mobile-chrome-balance mono-num" dir="ltr"><%= canViewBal ? bal.toFixed(2) : '***' %> <small>LYD</small></span>
+        <%- include('customer_notifications') %>
         <%- include('customer_theme_switcher') %>
     </div>
 </header>

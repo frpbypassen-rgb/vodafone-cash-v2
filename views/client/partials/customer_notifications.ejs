@@ -1,0 +1,16 @@
+<%# In-app bell / inbox for the customer portal only. Company uses company_notifications. %>
+<div class="cl-bell" data-customer-bell>
+    <button type="button" class="cl-bell-button" data-bell-toggle aria-expanded="false" aria-controls="customerBellPanel" title="الإشعارات" aria-label="الإشعارات">
+        <i class="fa-solid fa-bell" aria-hidden="true"></i>
+        <span class="cl-bell-count" data-bell-count hidden>0</span>
+    </button>
+    <div class="cl-bell-panel" id="customerBellPanel" data-bell-panel hidden role="dialog" aria-label="صندوق الإشعارات">
+        <div class="cl-bell-head">
+            <strong>الإشعارات</strong>
+            <button type="button" class="cl-bell-mark-all" data-bell-read-all>تعليم الكل كمقروء</button>
+        </div>
+        <div class="cl-bell-groups" data-bell-groups>
+            <p class="cl-bell-empty">لا إشعارات حالياً</p>
+        </div>
+    </div>
+</div>
