@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
 <%- include('partials/workspace_head') %>
-<body class="bw-body<%= workspace.isCompany ? ' bw-company-os' : '' %>" data-page="<%= page %>" data-persona="<%= workspace.persona %>" data-portal="<%= workspace.type %>">
+<body class="bw-body<%= workspace.isCompany ? ' bw-company-os cp-shell' : '' %>" data-page="<%= page %>" data-persona="<%= workspace.persona %>" data-portal="<%= workspace.type %>"<%= workspace.isCompany ? ' data-company-shell' : '' %>>
     <div class="bw-offline-banner" data-offline-banner hidden><i class="fa-solid fa-wifi"></i><span><strong>الاتصال متوقف</strong> البيانات المعروضة قديمة، وتم إيقاف إرسال التحويلات حتى عودة الشبكة.</span></div>
     <div class="bw-privacy-shield" data-privacy-shield hidden><i class="fa-solid fa-eye-slash"></i><strong>تم إخفاء البيانات الحساسة</strong><button type="button" data-privacy-restore>إظهار</button></div>
     <%- include('partials/workspace_sidebar') %>
@@ -80,13 +80,10 @@
             <% } %>
         </main>
 
-        <% const mobileKeys = workspace.isCompany
-            ? (workspace.persona === 'manager'
-                ? ['overview', 'services', 'transactions', 'reports']
-                : workspace.persona === 'accountant'
-                    ? ['finance', 'reports', 'transactions', 'deposits']
-                    : ['services', 'transactions', 'smart_transfer', 'support'])
-            : ['overview', 'services', 'transactions', 'reports'];
+        <% if (workspace.isCompany) { %>
+            <%- include('partials/company_bottom_nav') %>
+        <% } else { %>
+        <% const mobileKeys = ['overview', 'services', 'transactions', 'reports'];
            const mobileNavigation = mobileKeys.map(key => navigation.find(item => item.key === key)).filter(Boolean); %>
         <nav class="bw-mobile-dock" aria-label="التنقل السريع">
             <% mobileNavigation.forEach(item => { %>
@@ -115,6 +112,7 @@
                 </a>
             <% }) %>
         </nav>
+        <% } %>
     </div>
 
     <dialog class="bw-dialog bw-transaction-dialog" id="transactionDetailsDialog" aria-labelledby="transactionDetailsTitle">
@@ -350,5 +348,8 @@
         })();
     </script>
     <script src="/js/client-workspace.js?v=20260918-simple-mobile-2" defer></script>
+    <% if (workspace.isCompany) { %>
+    <script src="/js/company-portal.js?v=20260919-pharaoh1" defer></script>
+    <% } %>
 </body>
 </html>

@@ -1,7 +1,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-    <meta name="theme-color" content="<%= typeof workspace !== 'undefined' && workspace.isCompany ? '#0C1B33' : '#111827' %>">
+    <meta name="theme-color" content="<%= typeof workspace !== 'undefined' && workspace.isCompany ? '#1A1510' : '#111827' %>">
     <title><%= pageMeta.title %> | Power Pay AL-Ahram</title>
     <script>
         (() => {
@@ -15,12 +15,13 @@
     </script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800&family=JetBrains+Mono:wght@600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&family=Tajawal:wght@400;500;700;800&family=JetBrains+Mono:wght@600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css">
     <link rel="stylesheet" href="/css/client-workspace.css?v=20260902-phone2">
     <link rel="stylesheet" href="/css/client-portal-2027.css?v=20260918-simple-mobile-2">
     <% if (typeof workspace !== 'undefined' && workspace.isCompany) { %>
         <link rel="stylesheet" href="/css/client-company-os.css?v=20260902-phone2">
+        <link rel="stylesheet" href="/css/company-portal.css?v=20260919-pharaoh1">
     <% } %>
     <link rel="stylesheet" href="/css/rate-alert-overlay.css?v=20260816-3">
     <script src="/socket.io/socket.io.js"></script>

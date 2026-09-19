@@ -12,14 +12,19 @@
             <i class="fa-solid fa-chevron-left"></i>
             <strong><%= pageMeta.title %></strong>
         </div>
+        <% if (workspace.isCompany) { %>
+            <strong class="cp-company-name"><%= workspace.entity.name %></strong>
+        <% } %>
     </div>
     <div class="bw-topbar-actions">
+        <% if (!workspace.isCompany) { %>
         <a href="/client/services" class="bw-workspace-shortcut" title="الخدمات" aria-label="الخدمات المتاحة">
             <i class="fa-solid fa-grid-2"></i><span>الخدمات</span>
         </a>
         <a href="/client/support" class="bw-workspace-shortcut" title="الدعم والمساعدة" aria-label="الدعم والمساعدة">
             <i class="fa-solid fa-headset"></i><span>مساعدة</span>
         </a>
+        <% } %>
         <% if (workspace.permissions.canViewBalance) { %>
             <div class="bw-balance-chip" aria-label="الرصيد الحالي">
                 <span>الرصيد</span>
@@ -36,6 +41,9 @@
                 <i class="fa-solid fa-clock-rotate-left"></i>
                 <span>آخر سعر <%= rateUpdated.toLocaleTimeString('ar-LY', { timeZone: 'Africa/Tripoli', hour: '2-digit', minute: '2-digit' }) %></span>
             </time>
+        <% } %>
+        <% if (workspace.isCompany) { %>
+            <%- include('company_notifications') %>
         <% } %>
         <a href="<%= workspace.isCompany ? '/client/security' : '/client/settings' %>" class="bw-icon-button bw-topbar-link" title="أمان الحساب" aria-label="أمان الحساب">
             <i class="fa-solid fa-shield-halved"></i>
