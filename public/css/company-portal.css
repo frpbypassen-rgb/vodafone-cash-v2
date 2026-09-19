@@ -97,6 +97,49 @@
 
 .bw-company-os .bw-button.primary:hover { filter: brightness(1.05); box-shadow: none; }
 
+.bw-company-os .cos-ledger-office {
+    color: var(--cp-ink);
+    border: 1px solid var(--cp-line);
+    background: var(--cp-surface);
+    box-shadow: var(--cp-shadow);
+}
+
+.bw-company-os .cos-ledger-office .bw-section-kicker { color: var(--cp-gold); }
+.bw-company-os .cos-ledger-office h2 { color: var(--cp-ink); }
+.bw-company-os .cos-ledger-office p { color: var(--cp-muted); }
+
+.bw-company-os .cos-ledger-office .bw-button.secondary,
+.bw-company-os .cos-ledger-office .bw-button.ghost {
+    color: var(--cp-ink);
+    border-color: var(--cp-line);
+    background: var(--cp-surface-soft);
+}
+
+html[data-theme="pharaonic"] .bw-company-os .cos-ledger-office {
+    color: var(--cp-sidebar-text);
+    border-color: color-mix(in srgb, var(--cp-gold) 35%, transparent);
+    background:
+        radial-gradient(circle at 12% 20%, var(--cp-glow), transparent 42%),
+        linear-gradient(135deg, var(--cp-stone) 0%, color-mix(in srgb, var(--cp-turquoise) 42%, var(--cp-stone)) 100%);
+}
+
+html[data-theme="pharaonic"] .bw-company-os .cos-ledger-office h2 {
+    color: var(--cp-sidebar-text);
+}
+
+html[data-theme="pharaonic"] .bw-company-os .cos-ledger-office p {
+    color: color-mix(in srgb, var(--cp-sidebar-text) 78%, transparent);
+}
+
+html[data-theme="pharaonic"] .bw-company-os .bw-button.primary {
+    color: var(--cp-stone);
+    background: linear-gradient(145deg, color-mix(in srgb, var(--cp-gold) 70%, #fff), var(--cp-gold));
+}
+
+html[data-theme="night"] .bw-company-os .cos-ledger-office {
+    background: linear-gradient(180deg, var(--cp-surface-strong), var(--cp-surface));
+}
+
 .bw-company-os .bw-icon-button,
 .bw-company-os .cp-theme-option,
 .bw-company-os .cp-bell-button,
