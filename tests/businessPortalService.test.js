@@ -113,7 +113,7 @@ describe('Business portal service', () => {
             }
         }, 'services');
 
-        expect(managerNav.find((item) => item.key === 'services')).toMatchObject({ href: '/client/services', active: true });
+        expect(managerNav.find((item) => item.key === 'services')).toMatchObject({ href: '/client/services', active: true, pharaonicIcon: 'temple' });
         expect(managerNav.some((item) => item.key === 'smart_transfer')).toBe(true);
         expect(managerNav.some((item) => item.key === 'internal_transfer')).toBe(true);
         expect(managerNav.find((item) => item.key === 'deposits')).toMatchObject({ href: '/client/company/deposits', label: 'طلب إيداع' });

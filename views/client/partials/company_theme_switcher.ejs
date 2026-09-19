@@ -1,0 +1,20 @@
+<%
+    const themeOptions = [
+        { key: 'day', label: 'نهاري', hint: 'فاتح وتباين عالٍ', icon: 'sun-day' },
+        { key: 'night', label: 'ليلي', hint: 'حجر داكن بلا وهج', icon: 'moon' },
+        { key: 'pharaonic', label: 'فرعوني', hint: 'رمل وذهب وفيروز', icon: 'ankh' }
+    ];
+%>
+<div class="cp-theme-switcher" data-company-theme-switcher>
+    <button type="button" class="bw-icon-button cp-theme-toggle" data-theme-menu-toggle aria-expanded="false" aria-controls="companyThemePanel" title="مظهر بوابة الشركات" aria-label="مظهر بوابة الشركات">
+        <svg class="cp-icon" aria-hidden="true"><use href="#cp-icon-ankh"></use></svg>
+    </button>
+    <div class="cp-theme-panel" id="companyThemePanel" data-theme-panel hidden role="dialog" aria-label="اختيار المظهر">
+        <% themeOptions.forEach(option => { %>
+            <button type="button" class="cp-theme-option" data-theme-option="<%= option.key %>" aria-pressed="false">
+                <svg class="cp-icon" aria-hidden="true"><use href="#cp-icon-<%= option.icon %>"></use></svg>
+                <span><%= option.label %><small><%= option.hint %></small></span>
+            </button>
+        <% }) %>
+    </div>
+</div>

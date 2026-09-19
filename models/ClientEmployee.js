@@ -28,6 +28,7 @@ const clientEmployeeSchema = new mongoose.Schema({
     corporateRole: { type: String, enum: ['manager', 'employee', 'accountant'], default: undefined },
     approvalLimit: { type: Number, default: null },
     corporatePortalEnabled: { type: Boolean, default: false },
+    uiTheme: { type: String, enum: ['day', 'night', 'pharaonic'], default: undefined },
     canViewAllReports: { type: Boolean, default: false }, // السماح برؤية جميع تقارير الشركة
     canManageCompany: { type: Boolean, default: false }, // صلاحيات مدير تشغيل بدون إنشاء حسابات
     canCreateCompanyStaff: { type: Boolean, default: false }, // مالك الشركة فقط ينشئ حسابات الموظفين

@@ -82,12 +82,14 @@
     };
 
     const savedTheme = localStorage.getItem('powerpay-business-theme') || 'light';
-    applyTheme(savedTheme);
-    document.querySelectorAll('[data-theme-toggle]').forEach((button) => {
-        button.addEventListener('click', () => applyTheme(root.dataset.theme === 'dark' ? 'light' : 'dark'));
-    });
-    const themeSelect = document.querySelector('[data-preference="theme"]');
-    if (themeSelect) themeSelect.addEventListener('change', () => applyTheme(themeSelect.value));
+    if (config.workspaceType !== 'company' && !body.hasAttribute('data-company-shell')) {
+        applyTheme(savedTheme);
+        document.querySelectorAll('[data-theme-toggle]').forEach((button) => {
+            button.addEventListener('click', () => applyTheme(root.dataset.theme === 'dark' ? 'light' : 'dark'));
+        });
+        const themeSelect = document.querySelector('[data-preference="theme"]');
+        if (themeSelect) themeSelect.addEventListener('change', () => applyTheme(themeSelect.value));
+    }
 
     const densitySelect = document.querySelector('[data-preference="density"]');
     if (densitySelect) {

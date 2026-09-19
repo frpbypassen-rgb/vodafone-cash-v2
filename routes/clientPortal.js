@@ -17,6 +17,7 @@ const Notification = require('../models/Notification');
 const { resolveClientNotificationUserIds } = require('../services/clientNotificationService');
 const { presentInbox } = require('../services/companyNotificationInboxService');
 const companyWebPushService = require('../services/companyWebPushService');
+const { normalizeCompanyTheme } = require('../utils/companyPortalTheme');
 const { setPortalSupportReplyChannel } = require('../services/whatChimpSupportService');
 const WebPushSubscription = require('../models/WebPushSubscription');
 const Settings = require('../models/Settings');
@@ -349,6 +350,23 @@ router.post('/api/web-push/test', requireClientAuth, async (req, res) => {
     } catch (_error) {
         return res.status(500).json({ success: false, error: 'تعذر إرسال إشعار الاختبار.' });
     }
+});
+
+router.post('/api/theme', requireClientAuth, async (req, res) => {
+    if (req.session.accountType !== 'company') {
+        return res.status(403).json({ success: false, error: 'COMPANY_THEME_ONLY' });
+    }
+    const theme = normalizeCompanyTheme(req.body?.theme);
+    if (!theme) {
+        return res.status(400).json({ success: false, error: 'INVALID_THEME' });
+    }
+    req.session.companyTheme = theme;
+    try {
+        await ClientEmployee.updateOne({ _id: req.session.clientId }, { $set: { uiTheme: theme } });
+    } catch (_error) {
+        /* session still holds the preference */
+    }
+    return res.json({ success: true, theme });
 });
 
 router.get('/api/service-requests', requireClientAuth, async (req, res) => {

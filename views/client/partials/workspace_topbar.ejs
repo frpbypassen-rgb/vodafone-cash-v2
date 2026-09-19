@@ -58,10 +58,12 @@
                 <i class="fa-solid fa-sparkles bw-assistant-launcher-spark spark-one" aria-hidden="true"></i>
                 <i class="fa-solid fa-star bw-assistant-launcher-spark spark-two" aria-hidden="true"></i>
             </button>
-        <% } %>
+            <%- include('company_theme_switcher') %>
+        <% } else { %>
         <button type="button" class="bw-icon-button" data-theme-toggle title="تغيير المظهر" aria-label="تغيير المظهر">
             <i class="fa-solid fa-moon"></i>
         </button>
+        <% } %>
         <button type="button" class="bw-icon-button" data-privacy-toggle title="إخفاء البيانات الحساسة" aria-label="إخفاء البيانات الحساسة">
             <i class="fa-solid fa-eye-slash"></i>
         </button>
