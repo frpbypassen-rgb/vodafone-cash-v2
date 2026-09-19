@@ -188,6 +188,7 @@ describe('canonical company portal pages', () => {
         expect(html).toContain('/css/company-portal-theme-day.css');
         expect(html).toContain('/css/company-portal-theme-night.css');
         expect(html).toContain('/css/company-portal-theme-pharaonic.css');
+        expect(html).toContain('20260919-visual3');
         expect(html).not.toContain('client-company-os.css');
         expect(html).not.toContain('cos-ledger-office');
         expect(html).not.toContain('class="cos-tile');
@@ -258,8 +259,12 @@ describe('canonical company portal pages', () => {
         ['#E8D5B7', '#1A1510', '#C9A227', '#1F6F6A', '#8B3A2F'].forEach((token) => {
             expect(files.pharaonic).toContain(token);
         });
-        expect(files.day).toContain('#F4F6F8');
-        expect(files.night).toContain('#12110F');
+        expect(files.day).toContain('#0F766E');
+        expect(files.day).toContain('#E7F1F6');
+        expect(files.day).toContain('#1D4ED8');
+        expect(files.night).toContain('#0B1426');
+        expect(files.night).toContain('#38BDF8');
+        expect(files.night).toContain('#2DD4BF');
         const layout = fs.readFileSync(path.join(__dirname, '..', 'public', 'css', 'company-portal-layout.css'), 'utf8');
         expect(layout).toContain('--cp-touch');
         expect(layout).toContain('env(safe-area-inset-bottom)');
@@ -277,6 +282,8 @@ describe('canonical company portal pages', () => {
         expect(files.pharaonic).toContain('clip-path');
         expect(files.pharaonic).toContain('cp-art-ready');
         expect(fs.existsSync(path.join(__dirname, '..', 'public', 'css', 'company-portal.tokens.css'))).toBe(true);
+        const alias = fs.readFileSync(path.join(__dirname, '..', 'public', 'css', 'company-portal.css'), 'utf8');
+        expect(alias).not.toMatch(/@import/);
     });
 
     test('company page templates do not hardcode colors', async () => {

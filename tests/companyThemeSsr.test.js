@@ -39,7 +39,7 @@ describe('company theme SSR and preferences', () => {
             pageMeta: { title: 'معرض الخدمات' },
             workspace: { isCompany: true, persona: 'manager' },
             companyTheme: 'night',
-            companyThemeMeta: { themeColor: '#12110F' }
+            companyThemeMeta: { themeColor: '#0B1426' }
         }, { filename: WORKSPACE_HEAD });
 
         expect(head).toContain('/css/company-portal.tokens.css');
@@ -64,8 +64,10 @@ describe('company theme SSR and preferences', () => {
         const night = fs.readFileSync(path.join(__dirname, '..', 'public/css/company-portal-theme-night.css'), 'utf8');
         const pharaonic = fs.readFileSync(path.join(__dirname, '..', 'public/css/company-portal-theme-pharaonic.css'), 'utf8');
         const layout = fs.readFileSync(path.join(__dirname, '..', 'public/css/company-portal-layout.css'), 'utf8');
-        expect(day).toContain('#F4F6F8');
-        expect(night).toContain('#12110F');
+        expect(day).toContain('#0F766E');
+        expect(day).toContain('#E7F1F6');
+        expect(night).toContain('#0B1426');
+        expect(night).toContain('#38BDF8');
         expect(pharaonic).toContain('#E8D5B7');
         expect(pharaonic).toContain('#C9A227');
         expect(pharaonic).toContain('#1A1510');
