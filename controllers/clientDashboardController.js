@@ -480,6 +480,8 @@ exports.postSettleSubAccount = async (req, res) => {
             await Transaction.create({
                 customId: txId,
                 subAccountId: sub._id,
+                subAccountName: sub.name,
+                isSubAccountTx: true,
                 userId: parentUserId,
                 companyId: parentClientCompanyId,
                 amount: Math.abs(val),

@@ -110,6 +110,7 @@ const buildLiveQuery = (req, now = new Date()) => {
             { companyName: { $regex: safe, $options: 'i' } },
             { employeeName: { $regex: safe, $options: 'i' } },
             { accountName: { $regex: safe, $options: 'i' } },
+            { subAccountName: { $regex: safe, $options: 'i' } },
             { 'settlementDetails.externalReference': { $regex: safe, $options: 'i' } }
         ];
     }

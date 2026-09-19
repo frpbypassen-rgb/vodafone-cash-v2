@@ -283,7 +283,29 @@ const listDashboardEntities = async ({ type, search = '', limit = 100, tenantId 
     let rows = [];
 
     if (type === 'client') {
-        rows = await User.find({ ...scopedTenant, ...visible, role: { $ne: 'agent' }, ...(regex ? { $or: [{ name: regex }, { phone: regex }, { accountCode: regex }] } : {}) }).select('name phone accountCode').sort({ name: 1 }).limit(safeLimit).lean();
+        const userQuery = { ...scopedTenant, ...visible, role: { $ne: 'agent' }, ...(regex ? { $or: [{ name: regex }, { phone: regex }, { accountCode: regex }] } : {}) };
+        const subQuery = { ...scopedTenant, ...visible, ...(regex ? { $or: [{ name: regex }, { phone: regex }, { accountCode: regex }, { webUsername: regex }] } : {}) };
+        const [users, agencyClients] = await Promise.all([
+            User.find(userQuery).select('name phone accountCode').sort({ name: 1 }).limit(safeLimit).lean(),
+            SubAccount.find(subQuery).select('name phone accountCode masterId masterType').sort({ name: 1 }).limit(safeLimit).lean()
+        ]);
+        const masterIds = agencyClients.filter((row) => row.masterType === 'user').map((row) => row.masterId);
+        const masters = masterIds.length
+            ? await User.find({ _id: { $in: masterIds }, status: { $ne: 'deleted' } }).select('name agentCode accountCode role').lean()
+            : [];
+        const masterMap = new Map(masters.map((row) => [String(row._id), row]));
+        rows = [
+            ...users.map((row) => ({ ...row, entityKind: 'direct_client' })),
+            ...agencyClients.map((row) => {
+                const master = masterMap.get(String(row.masterId)) || {};
+                return {
+                    ...row,
+                    entityKind: 'subaccount',
+                    name: row.name,
+                    detailHint: master.name ? `عميل وكيل · ${master.name}` : 'عميل وكيل'
+                };
+            })
+        ].sort((left, right) => String(left.name || '').localeCompare(String(right.name || ''), 'ar')).slice(0, safeLimit);
     } else if (type === 'agent') {
         rows = await User.find({ ...scopedTenant, ...visible, role: 'agent', ...(regex ? { $or: [{ name: regex }, { phone: regex }, { accountCode: regex }, { agentCode: regex }] } : {}) }).select('name phone accountCode agentCode').sort({ name: 1 }).limit(safeLimit).lean();
     } else if (type === 'company') {
@@ -293,10 +315,15 @@ const listDashboardEntities = async ({ type, search = '', limit = 100, tenantId 
     } else {
         throw new Error('INVALID_ENTITY_TYPE');
     }
-    return rows.map((row) => ({ id: String(row._id), name: row.name || '---', detail: row.phone || row.accountCode || row.agentCode || row.serviceKey || '' }));
+    return rows.map((row) => ({
+        id: String(row._id),
+        name: row.name || '---',
+        detail: row.detailHint || row.phone || row.accountCode || row.agentCode || row.serviceKey || '',
+        kind: row.entityKind || type
+    }));
 };
 
-const entityCategory = (type) => ({ client: 'direct_client', company: 'company', agent: 'agent', executor: 'executor' }[type]);
+const entityCategory = (type) => ({ client: 'direct_client', company: 'company', agent: 'agent', executor: 'executor', subaccount: 'agent' }[type]);
 
 const loadEntityMovementReport = async ({ type, id, days = 30, now = new Date(), tenantId = null }) => {
     const category = entityCategory(type);

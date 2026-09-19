@@ -53,6 +53,7 @@ const buildLedgerFilter = async (query) => {
                 { customId: { $regex: safe, $options: 'i' } },
                 { companyName: { $regex: safe, $options: 'i' } },
                 { employeeName: { $regex: safe, $options: 'i' } },
+                { subAccountName: { $regex: safe, $options: 'i' } },
                 { vodafoneNumber: { $regex: safe, $options: 'i' } },
                 { accountNumber: { $regex: safe, $options: 'i' } },
                 { cancellationNumber: { $regex: safe, $options: 'i' } }

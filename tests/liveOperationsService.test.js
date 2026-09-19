@@ -21,7 +21,8 @@ describe('live operations service', () => {
         expect(query.transferType).toBe('vodafone');
         expect(query.amount).toEqual({ $gte: 10000 });
         expect(query.createdAt.$gte.toISOString()).toBe('2026-09-18T11:00:00.000Z');
-        expect(query.$or).toHaveLength(8);
+        expect(query.$or).toHaveLength(9);
+        expect(query.$or.some((clause) => clause.subAccountName)).toBe(true);
     });
 
     test('falls back to a safe 24 hour range when a custom range is invalid', () => {
