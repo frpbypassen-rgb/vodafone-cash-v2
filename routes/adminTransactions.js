@@ -6,6 +6,7 @@ const Transaction = require('../models/Transaction');
 const Ledger = require('../models/Ledger');
 const { createBalanceTransferReceiptProof } = require('../services/balanceTransferReceiptService');
 const ExecutorGroup = require('../models/ExecutorGroup');
+const ClientCompany = require('../models/ClientCompany');
 const Employee = require('../models/Employee');
 const ClientEmployee = require('../models/ClientEmployee');
 const Admin = require('../models/Admin');
@@ -31,6 +32,10 @@ const {
 } = require('../services/adminFinancialMutationService');
 const eventBus = require('../services/eventBus');
 const { tenantScope } = require('../utils/tenantScope');
+const {
+    emptyPeriodStats,
+    loadCentralLedgerOverview
+} = require('../services/centralLedgerOverviewService');
 
 // 🚀 استدعاء محرك الـ API 
 const { executeTransferViaApi, getApiProviderBalance, saveApiReceiptProof } = require('../services/externalApiService');
@@ -337,48 +342,60 @@ const renderTransactions = async (req, res, operationsWorkspace = false) => {
 
         // هذا الملخص مستقل عن فلاتر السجل: يعرض حركة اليوم دائماً.
         // نستبعد الطرف المقابل لتحويل الرصيد حتى لا تُحسب العملية الداخلية مرتين.
+        const dailyTotals = { transfersEGP: 0, transfersLYD: 0, depositsEGP: 0, deductionsEGP: 0 };
+        let periodStats = emptyPeriodStats();
+        let activeClientCompanies = [];
+        let fundedExecutorCompanies = [];
+
         const todayKey = systemDateKey(new Date());
         const todayRange = systemDateRange(todayKey, todayKey);
-        const dailySummaryQuery = {
+        const executorBalanceQuery = {
             ...tenantScope(req),
-            $and: [
-                {
-                    $or: [
-                        { transferType: { $ne: 'balance_transfer' } },
-                        { customId: { $not: /-C$/ } }
-                    ]
-                }
-            ],
-            ...(todayRange ? { createdAt: todayRange } : {})
+            status: 'active',
+            isManagerBot: { $ne: true },
+            $or: [{ balance: { $gt: 0 } }, { isApiBot: true }]
         };
-        const dailyTotalsAgg = await Transaction.aggregate([
-            { $match: dailySummaryQuery },
-            { $group: {
-                _id: '$status',
-                totalAmount: { $sum: '$amount' },
-                totalCostLYD: { $sum: '$costLYD' }
-            }}
+        const [ledgerOverview, dailyTotalsAgg, executorGroups, executorBalanceCandidates] = await Promise.all([
+            operationsWorkspace
+                ? Promise.resolve(null)
+                : loadCentralLedgerOverview({ Transaction, ClientCompany, ExecutorGroup, source: req }),
+            operationsWorkspace
+                ? Transaction.aggregate([
+                    { $match: {
+                        ...tenantScope(req),
+                        $and: [
+                            {
+                                $or: [
+                                    { transferType: { $ne: 'balance_transfer' } },
+                                    { customId: { $not: /-C$/ } }
+                                ]
+                            }
+                        ],
+                        ...(todayRange ? { createdAt: todayRange } : {})
+                    } },
+                    { $group: {
+                        _id: '$status',
+                        totalAmount: { $sum: '$amount' },
+                        totalCostLYD: { $sum: '$costLYD' }
+                    }}
+                ])
+                : Promise.resolve([]),
+            ExecutorGroup.find({ ...tenantScope(req), status: 'active', isManagerBot: { $ne: true } }),
+            operationsWorkspace
+                // منفذ API قد يكون رصيده الداخلي سالباً رغم وجود رصيد خدمة فعلي عند المزود.
+                ? ExecutorGroup.find(executorBalanceQuery).select('name balance isApiBot updatedAt lastApiBalanceCheckAt lastApiServiceCredit apiProviderKey apiUrl apiToken apiUsername apiPassword apiServiceId apiProviderId apiFieldId apiMachineSerial').lean()
+                : Promise.resolve([])
         ]);
-        const dailyTotals = { transfersEGP: 0, transfersLYD: 0, depositsEGP: 0, deductionsEGP: 0 };
+        if (ledgerOverview) {
+            periodStats = ledgerOverview.periodStats;
+            activeClientCompanies = ledgerOverview.activeClientCompanies;
+            fundedExecutorCompanies = ledgerOverview.fundedExecutorCompanies;
+        }
         dailyTotalsAgg.forEach(row => {
             if (row._id === 'completed') { dailyTotals.transfersEGP = row.totalAmount; dailyTotals.transfersLYD = row.totalCostLYD; }
             else if (row._id === 'deposit') { dailyTotals.depositsEGP = row.totalAmount; }
             else if (row._id === 'deduction') { dailyTotals.deductionsEGP = row.totalAmount; }
         });
-
-        const executorBalanceQuery = {
-            ...tenantScope(req),
-            status: 'active',
-            isManagerBot: { $ne: true },
-            ...(operationsWorkspace
-                ? { $or: [{ balance: { $gt: 0 } }, { isApiBot: true }] }
-                : { balance: { $gt: 0 } })
-        };
-        const [executorGroups, executorBalanceCandidates] = await Promise.all([
-            ExecutorGroup.find({ ...tenantScope(req), status: 'active', isManagerBot: { $ne: true } }),
-            // منفذ API قد يكون رصيده الداخلي سالباً رغم وجود رصيد خدمة فعلي عند المزود.
-            ExecutorGroup.find(executorBalanceQuery).select('name balance isApiBot updatedAt lastApiBalanceCheckAt lastApiServiceCredit apiProviderKey apiUrl apiToken apiUsername apiPassword apiServiceId apiProviderId apiFieldId apiMachineSerial').lean()
-        ]);
         const executorBalanceGroups = (await Promise.all(executorBalanceCandidates.map(async (group) => {
             if (!group.isApiBot) {
                 return {
@@ -472,6 +489,9 @@ const renderTransactions = async (req, res, operationsWorkspace = false) => {
             toDate, 
             filterType,
             dailyTotals,
+            periodStats,
+            activeClientCompanies,
+            fundedExecutorCompanies,
             executorBalanceGroups,
             executorId,
             operationWorkspace: operationsWorkspace,
