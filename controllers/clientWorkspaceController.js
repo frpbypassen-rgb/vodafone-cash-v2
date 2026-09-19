@@ -4,6 +4,15 @@ const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
 
 const businessPortalService = require('../services/businessPortalService');
+const {
+    loadCompanyAccess,
+    assertCapability
+} = require('../services/companyAccessService');
+const { applyOwnPasswordChange } = require('../services/companyPasswordService');
+const {
+    normalizeCompanyTheme,
+    buildThemePreferenceUpdate
+} = require('../utils/companyPortalTheme');
 const centralReportService = require('../services/centralReportService');
 const { generateAdminReportPdf } = require('../services/reportPdfService');
 const ClientCompany = require('../models/ClientCompany');
@@ -530,7 +539,10 @@ exports.postUpdateCustomerPricing = async (req, res) => {
 exports.postUpdateSettings = async (req, res) => {
     try {
         const workspace = await businessPortalService.resolveWorkspace(req);
-        if (!workspace.permissions.canEditSettings) {
+        if (workspace.isCompany) {
+            const companyCtx = await loadCompanyAccess(req);
+            assertCapability(companyCtx.access, 'canManageCompanyProfile');
+        } else if (!workspace.permissions.canEditSettings) {
             return redirectWithMessage(res, '/client/settings', 'settingsError', 'forbidden');
         }
         const Model = workspace.isCompany ? ClientCompany : User;
@@ -578,6 +590,18 @@ exports.postChangePassword = async (req, res) => {
         const currentPassword = String(req.body.currentPassword || '');
         const newPassword = String(req.body.newPassword || '');
         const passwordConfirm = String(req.body.passwordConfirm || '');
+        if (workspace.isCompany) {
+            const result = await applyOwnPasswordChange({
+                actor,
+                currentPassword,
+                newPassword,
+                passwordConfirm,
+                req,
+                portal: workspace.type
+            });
+            req.session.clientSessionVersion = result.sessionVersion;
+            return redirectWithMessage(res, passwordPageHref(workspace), 'settingsSuccess', 'password');
+        }
         if (!actor || !await bcrypt.compare(currentPassword, actor.webPassword || '')) {
             return redirectWithMessage(res, passwordPageHref(workspace), 'settingsError', 'current_password');
         }
@@ -599,8 +623,42 @@ exports.postChangePassword = async (req, res) => {
         });
         return redirectWithMessage(res, passwordPageHref(workspace), 'settingsSuccess', 'password');
     } catch (error) {
+        if (error.code === 'CURRENT_PASSWORD') {
+            return redirectWithMessage(res, passwordPageHref(workspace), 'settingsError', 'current_password');
+        }
+        if (error.code === 'NEW_PASSWORD') {
+            return redirectWithMessage(res, passwordPageHref(workspace), 'settingsError', 'new_password');
+        }
         console.error('[Business Portal] password update failed:', error.message);
         return redirectWithMessage(res, passwordPageHref(workspace), 'settingsError', 'server');
+    }
+};
+
+exports.postCompanyTheme = async (req, res) => {
+    try {
+        const ctx = await loadCompanyAccess(req);
+        const theme = normalizeCompanyTheme(req.body?.theme);
+        if (!theme) {
+            if (req.xhr || (req.headers.accept && req.headers.accept.includes('application/json'))) {
+                return res.status(400).json({ success: false, error: 'INVALID_THEME' });
+            }
+            return redirectWithMessage(res, '/client/settings', 'settingsError', 'theme');
+        }
+        req.session.companyTheme = theme;
+        await ClientEmployee.updateOne(
+            { _id: ctx.account._id, companyId: ctx.companyId },
+            { $set: buildThemePreferenceUpdate(theme) }
+        );
+        if (req.xhr || (req.headers.accept && req.headers.accept.includes('application/json'))) {
+            return res.json({ success: true, theme });
+        }
+        return redirectWithMessage(res, req.body.returnTo || '/client/settings', 'settingsSuccess', 'theme');
+    } catch (error) {
+        const status = error.statusCode || 403;
+        if (req.xhr || (req.headers.accept && req.headers.accept.includes('application/json'))) {
+            return res.status(status).json({ success: false, error: error.code || 'FORBIDDEN' });
+        }
+        return redirectWithMessage(res, '/client/settings', 'settingsError', 'forbidden');
     }
 };
 

@@ -58,11 +58,33 @@ const normalizeCompanyTheme = (value) => {
     return COMPANY_PORTAL_THEMES.includes(theme) ? theme : null;
 };
 
-const resolveCompanyTheme = ({ stored, server, prefersDark } = {}) => (
-    normalizeCompanyTheme(stored)
-    || normalizeCompanyTheme(server)
-    || (prefersDark ? 'night' : 'day')
+const readStoredCompanyTheme = (account) => (
+    normalizeCompanyTheme(account?.preferences?.companyTheme)
+    || normalizeCompanyTheme(account?.uiTheme)
 );
+
+const resolveAccountCompanyTheme = (account, sessionTheme) => (
+    readStoredCompanyTheme(account)
+    || normalizeCompanyTheme(sessionTheme)
+    || 'day'
+);
+
+// After login the server value is authoritative. localStorage is only an
+// instant-paint hint when the account has not yet stored a preference.
+const resolveCompanyTheme = ({ stored, server, prefersDark, serverWins = false } = {}) => {
+    if (serverWins) {
+        return normalizeCompanyTheme(server)
+            || normalizeCompanyTheme(stored)
+            || (prefersDark ? 'night' : 'day');
+    }
+    return normalizeCompanyTheme(stored)
+        || normalizeCompanyTheme(server)
+        || (prefersDark ? 'night' : 'day');
+};
+
+const buildThemePreferenceUpdate = (theme) => ({
+    'preferences.companyTheme': theme
+});
 
 const pharaonicIconForNav = (key) => COMPANY_PHARAONIC_ICONS[key] || 'temple';
 const pharaonicIconForService = (key) => SERVICE_PHARAONIC_ICONS[key] || 'wallet';
@@ -74,7 +96,10 @@ module.exports = {
     COMPANY_PHARAONIC_ICONS,
     SERVICE_PHARAONIC_ICONS,
     normalizeCompanyTheme,
+    readStoredCompanyTheme,
+    resolveAccountCompanyTheme,
     resolveCompanyTheme,
+    buildThemePreferenceUpdate,
     pharaonicIconForNav,
     pharaonicIconForService
 };

@@ -202,11 +202,22 @@
             }).catch(() => {});
         };
 
+        const serverTheme = THEMES.includes(root.getAttribute('data-theme')) ? root.getAttribute('data-theme') : '';
         const stored = localStorage.getItem('ahram_company_theme');
-        const current = THEMES.includes(stored)
-            ? stored
-            : (THEMES.includes(root.getAttribute('data-theme')) ? root.getAttribute('data-theme') : 'day');
-        applyTheme(current, Boolean(stored));
+        const current = serverTheme || (THEMES.includes(stored) ? stored : 'day');
+        applyTheme(current, false);
+        if (serverTheme) {
+            try { localStorage.setItem('ahram_company_theme', serverTheme); } catch (_error) { /* private mode */ }
+        }
+
+        const enableArt = () => {
+            if (current === 'pharaonic') root.classList.add('cp-art-ready');
+        };
+        if (typeof window.requestIdleCallback === 'function') {
+            window.requestIdleCallback(enableArt, { timeout: 1200 });
+        } else {
+            window.setTimeout(enableArt, 400);
+        }
 
         if (!switcher) return;
         const toggle = switcher.querySelector('[data-theme-menu-toggle]');
@@ -226,8 +237,14 @@
         switcher.addEventListener('click', (event) => {
             const option = event.target.closest('[data-theme-option]');
             if (!option) return;
+            event.preventDefault();
             applyTheme(option.dataset.themeOption);
+            if (option.dataset.themeOption === 'pharaonic') root.classList.add('cp-art-ready');
+            else root.classList.remove('cp-art-ready');
             setOpen(false);
+        });
+        switcher.querySelector('.cp-theme-ssr-form')?.addEventListener('submit', (event) => {
+            event.preventDefault();
         });
         const select = document.querySelector('[data-preference="company-theme"]');
         if (select) {

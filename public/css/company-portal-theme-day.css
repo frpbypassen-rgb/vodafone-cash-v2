@@ -1,0 +1,67 @@
+/* Day theme — white/black, soft shadows, eye-friendly. Tokens only. */
+html[data-theme="day"] {
+    color-scheme: light;
+    --cp-sand: #F4F6F8;
+    --cp-stone: #0B1220;
+    --cp-gold: #8A6A12;
+    --cp-turquoise: #0F5C8C;
+    --cp-brick: #B42318;
+    --cp-ink: #0B1220;
+    --cp-muted: #3F4B5A;
+    --cp-surface: #FFFFFF;
+    --cp-surface-soft: #EEF2F6;
+    --cp-surface-strong: #E4E9EF;
+    --cp-line: #C9D2DC;
+    --cp-line-strong: #9AA7B5;
+    --cp-icon: #0F5C8C;
+    --cp-on-accent: #FFFFFF;
+    --cp-sidebar: #F8FAFC;
+    --cp-sidebar-soft: #EEF3F8;
+    --cp-sidebar-text: #0B1220;
+    --cp-sidebar-muted: #4B5563;
+    --cp-shadow: 0 8px 20px rgba(11, 18, 32, .08);
+    --cp-shadow-lg: 0 18px 36px rgba(11, 18, 32, .12);
+    --cp-glow: transparent;
+    --cp-chart-1: #0F5C8C;
+    --cp-chart-2: #0B7A4B;
+    --cp-chart-3: #B45309;
+    --cp-chart-4: #B42318;
+    --cp-success: #0B7A4B;
+    --cp-warning: #B45309;
+    --cp-danger: #B42318;
+    --cp-info: #0F5C8C;
+    --bw-bg: var(--cp-sand);
+    --bw-surface: var(--cp-surface);
+    --bw-surface-soft: var(--cp-surface-soft);
+    --bw-surface-strong: var(--cp-surface-strong);
+    --bw-border: var(--cp-line);
+    --bw-border-strong: var(--cp-line-strong);
+    --bw-text: var(--cp-ink);
+    --bw-muted: var(--cp-muted);
+    --bw-strong: var(--cp-stone);
+    --bw-sidebar: var(--cp-sidebar);
+    --bw-sidebar-soft: var(--cp-sidebar-soft);
+    --bw-sidebar-text: var(--cp-sidebar-text);
+    --bw-sidebar-muted: var(--cp-sidebar-muted);
+    --bw-green: var(--cp-success);
+    --bw-green-soft: color-mix(in srgb, var(--cp-success) 12%, var(--cp-surface));
+    --bw-blue: var(--cp-turquoise);
+    --bw-blue-soft: color-mix(in srgb, var(--cp-turquoise) 12%, var(--cp-surface));
+    --bw-amber: var(--cp-gold);
+    --bw-amber-soft: color-mix(in srgb, var(--cp-gold) 14%, var(--cp-surface));
+    --bw-red: var(--cp-danger);
+    --bw-red-soft: color-mix(in srgb, var(--cp-danger) 12%, var(--cp-surface));
+    --bw-cyan: var(--cp-info);
+    --bw-cyan-soft: color-mix(in srgb, var(--cp-info) 12%, var(--cp-surface));
+    --bw-shadow-sm: var(--cp-shadow);
+    --bw-shadow-md: var(--cp-shadow-lg);
+}
+
+html[data-theme="day"] .bw-company-os .bw-topbar::before { opacity: .28; }
+html[data-theme="day"] .cp-glyph-shimmer,
+html[data-theme="day"] .cp-sand-dust { display: none; }
+html[data-theme="day"] .bw-company-os .bw-sidebar { box-shadow: inset -1px 0 0 var(--cp-line); }
+html[data-theme="day"] .bw-company-os .bw-button.primary,
+html[data-theme="day"] .bw-company-os .cos-tile {
+    box-shadow: var(--cp-shadow);
+}
