@@ -81,6 +81,7 @@ const { closeEligibleDailySettlement } = require('./services/settlementService')
 const systemMonitor = require('./services/systemMonitorService');
 const { restorePendingRateActivation, startRateChangeActivationMonitor } = require('./services/rateChangeService');
 const { startExecutorPushNotificationWorker } = require('./services/executorPushNotificationService');
+require('./services/companyPortalEventHooks');
 const { ensureUnifiedReportInfrastructure } = require('./services/unifiedReportService');
 
 // 🟢 استدعاء طابور المهام الجديد (Queue System)

@@ -9,6 +9,8 @@ const AgentEmployee = require('../models/AgentEmployee');
 const Employee = require('../models/Employee');
 const eventBus = require('./eventBus');
 const { deliverSafely } = require('./mobileAccountPushService');
+const { deliverCompanyWebPushSafely } = require('./companyWebPushService');
+const { hrefForNotification } = require('./companyNotificationInboxService');
 
 const unique = (values) => [...new Set(values.filter(Boolean).map(String))];
 
@@ -168,6 +170,15 @@ const createSupportReplyNotifications = async ({ ticket, channel }) => {
     }).catch(() => null)));
 
     const created = docs.filter(Boolean);
+    if (ticket.entityType === 'client_company' && ticket.entityId) {
+        deliverCompanyWebPushSafely({
+            userIds: [String(ticket.entityId)],
+            title: 'رد جديد من الدعم الفني',
+            body: 'لديك رد جديد داخل محادثة الدعم.',
+            category: 'support_reply',
+            data: { url: '/client/support' }
+        });
+    }
     if (ticket.entityType === 'executor' && ticket.entityId) {
         eventBus.publish('executor:support-reply', {
             employeeId: String(ticket.entityId),
@@ -236,6 +247,18 @@ const createClientNotifications = async ({
         }))
         .catch(() => {});
 
+    if (accountModel === 'ClientCompany') {
+        ClientEmployee.find({ companyId: account._id, status: 'active' }).select('_id').lean()
+            .then((employees) => deliverCompanyWebPushSafely({
+                userIds: employees.map((employee) => String(employee._id)),
+                title,
+                body: message,
+                category: type,
+                data: { url: hrefForNotification({ type, metadata, txId }) }
+            }))
+            .catch(() => {});
+    }
+
     return docs.filter(Boolean);
 };
 
@@ -250,7 +273,7 @@ const buildBalanceAdjustmentMessage = ({ amount, balanceAfter, customId, notes }
 };
 
 const notifyBalanceAdjustment = async ({ accountModel, account, amount, balanceAfter, customId, notes }) => {
-    return createClientNotifications({
+    const created = await createClientNotifications({
         accountModel,
         account,
         title: amount >= 0 ? 'إيداع رصيد' : 'خصم رصيد',
@@ -260,9 +283,30 @@ const notifyBalanceAdjustment = async ({ accountModel, account, amount, balanceA
         metadata: {
             accountName: accountLabel(account),
             amount: Math.abs(Number(amount || 0)),
-            balanceAfter
+            balanceAfter,
+            href: '/client/finance'
         }
     });
+
+    const balance = Number(balanceAfter);
+    const creditLimit = Number(account?.creditLimit || 0);
+    const isLow = Number.isFinite(balance) && (
+        balance < 0
+        || (creditLimit > 0 && balance <= creditLimit * 0.1)
+        || (creditLimit <= 0 && balance < 50)
+    );
+    if (accountModel === 'ClientCompany' && isLow) {
+        await createClientNotifications({
+            accountModel,
+            account,
+            title: 'تنبيه الرصيد',
+            message: `رصيد ${accountLabel(account)} حالياً ${balance.toFixed(2)} LYD.`,
+            type: 'low_balance',
+            metadata: { href: '/client/company/deposits', balanceAfter: balance }
+        });
+    }
+
+    return created;
 };
 
 module.exports = {

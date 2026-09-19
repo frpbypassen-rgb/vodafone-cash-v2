@@ -24,6 +24,21 @@
                 </div>
             </form>
             <%- include('../../partials/mfa_security_panel') %>
+            <% if (workspace.isCompany) { %>
+            <section class="cp-push-card" data-company-push>
+                <header>
+                    <span class="bw-section-kicker">إشعارات المتصفح</span>
+                    <h3>تنبيهات حتى مع إغلاق الصفحة</h3>
+                </header>
+                <p data-push-status>جارٍ فحص حالة الاشتراك...</p>
+                <p>على أجهزة آيفون قد يلزم «إضافة إلى الشاشة الرئيسية» ثم فتح البوابة كتطبيق قبل تفعيل Web Push.</p>
+                <div class="cp-push-actions">
+                    <button type="button" class="bw-button primary" data-push-enable><i class="fa-regular fa-bell"></i>تفعيل الإشعارات</button>
+                    <button type="button" class="bw-button ghost" data-push-test>إرسال اختبار</button>
+                    <button type="button" class="bw-button ghost" data-push-disable>إيقاف هذا المتصفح</button>
+                </div>
+            </section>
+            <% } %>
         </div>
     </section>
 </div>
