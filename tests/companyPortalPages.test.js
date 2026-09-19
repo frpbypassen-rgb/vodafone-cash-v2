@@ -196,6 +196,9 @@ describe('canonical company portal pages', () => {
         expect(html).toContain('/css/company-portal-theme-pharaonic.css');
         expect(html).toContain('20260919-command1');
         expect(html).not.toContain('client-company-os.css');
+        expect(html).not.toContain('client-portal.tokens.css');
+        expect(html).not.toContain('cl-app');
+        expect(html).not.toContain('data-customer-shell');
         expect(html).not.toContain('cos-ledger-office');
         expect(html).not.toContain('class="cos-tile');
         expect(html).toContain('data-company-role=');

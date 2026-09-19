@@ -764,7 +764,10 @@ const completeClientSession = async (req, account, accountType) => {
         clientSessionVersion: Number(account.sessionVersion || 0),
         companyTheme: accountType === 'company'
             ? (account.preferences && account.preferences.companyTheme) || account.uiTheme || undefined
-            : undefined
+            : undefined,
+        clientTheme: accountType === 'company'
+            ? undefined
+            : (account.preferences && account.preferences.clientTheme) || undefined
     });
     if (!account.mfaEnabled || account.mfaType !== 'totp') {
         req.session.showMfaEnableNotice = true;

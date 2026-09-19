@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="ar" dir="rtl">
+<html lang="ar" dir="rtl" data-portal="customer" data-theme="<%= typeof clientTheme !== 'undefined' && clientTheme ? clientTheme : 'day' %>">
 <head>
     <script>
         const csrfToken = <%- JSON.stringify(typeof csrfToken !== 'undefined' ? csrfToken : '') %>;
@@ -11,7 +11,7 @@
     }) %>
     <script src="/js/client-theme.js?v=20260826-nile2" defer></script>
 </head>
-<body class="client-direct-modern client-nile-theme client-satellite-page nile-support-page<%= (typeof walletHub !== 'undefined' && walletHub) ? ' wallet-hub-active wallet-hub-satellite' : '' %>">
+<body class="cl-app cl-shell client-direct-modern client-nile-theme client-satellite-page nile-support-page<%= (typeof walletHub !== 'undefined' && walletHub) ? ' wallet-hub-active wallet-hub-satellite' : '' %>" data-customer-shell data-theme="<%= typeof clientTheme !== 'undefined' && clientTheme ? clientTheme : 'day' %>">
     <% if (typeof walletHub !== 'undefined' && walletHub) { %>
     <%- include('partials/wallet_hub_mobile_header', {
         user: account,

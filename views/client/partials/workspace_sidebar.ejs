@@ -1,4 +1,4 @@
-<aside class="bw-sidebar cp-sidebar" id="businessSidebar" aria-label="القائمة الرئيسية">
+<aside class="bw-sidebar<%= workspace.isCompany ? ' cp-sidebar' : ' cl-sidebar' %>" id="businessSidebar" aria-label="القائمة الرئيسية">
     <a href="<%= typeof portalHomeHref !== 'undefined' ? portalHomeHref : '/client/dashboard?home=1' %>" class="bw-brand" aria-label="Power Pay AL-Ahram - الرئيسية">
         <img src="/images/logo.jpeg" alt="Power Pay AL-Ahram" onerror="this.onerror=null;this.src='/images/logo.jpg'">
         <span>

@@ -53,11 +53,16 @@
 
         <% } else if (section === 'appearance') { %>
             <h2 class="h5 fw-bold mb-3"><i class="fa-solid fa-palette text-info me-1"></i> المظهر</h2>
-            <p class="text-muted small fw-bold">اختر الوضع المناسب للشاشة.</p>
-            <div class="d-flex gap-2 flex-wrap mt-3">
-                <button type="button" class="btn btn-light fw-bold border" onclick="document.documentElement.setAttribute('data-theme','light');localStorage.setItem('ahram_theme','light');"><i class="fa-solid fa-sun me-1"></i> فاتح</button>
-                <button type="button" class="btn btn-dark fw-bold" onclick="document.documentElement.setAttribute('data-theme','dark');localStorage.setItem('ahram_theme','dark');"><i class="fa-solid fa-moon me-1"></i> داكن</button>
-            </div>
+            <p class="text-muted small fw-bold">يُحفظ على الحساب في preferences.clientTheme ويتبعك بعد إعادة الدخول.</p>
+            <form method="POST" action="/client/settings/theme" class="cl-theme-ssr-form mt-3">
+                <% if (typeof csrfToken !== 'undefined' && csrfToken) { %><input type="hidden" name="_csrf" value="<%= csrfToken %>"><% } %>
+                <input type="hidden" name="returnTo" value="/client/settings?section=appearance">
+                <div class="d-flex gap-2 flex-wrap">
+                    <button type="submit" class="btn fw-bold border" name="theme" value="day" data-theme-option="day"><i class="fa-solid fa-sun me-1"></i> نهاري</button>
+                    <button type="submit" class="btn btn-dark fw-bold" name="theme" value="night" data-theme-option="night"><i class="fa-solid fa-moon me-1"></i> ليلي</button>
+                    <button type="submit" class="btn fw-bold" name="theme" value="pharaonic" data-theme-option="pharaonic" style="background:#1C1610;color:#D4A017;border-color:#D4A017;"><i class="fa-solid fa-landmark me-1"></i> فرعوني</button>
+                </div>
+            </form>
 
         <% } else if (section === 'documents') { %>
             <h2 class="h5 fw-bold mb-3"><i class="fa-solid fa-file-shield text-secondary me-1"></i> الحساب والوثائق</h2>

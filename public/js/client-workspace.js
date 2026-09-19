@@ -82,7 +82,8 @@
     };
 
     const savedTheme = localStorage.getItem('powerpay-business-theme') || 'light';
-    if (config.workspaceType !== 'company' && !body.hasAttribute('data-company-shell')) {
+    const isCustomerPortal = root.getAttribute('data-portal') === 'customer' || body.classList.contains('cl-app');
+    if (config.workspaceType !== 'company' && !body.hasAttribute('data-company-shell') && !isCustomerPortal) {
         applyTheme(savedTheme);
         document.querySelectorAll('[data-theme-toggle]').forEach((button) => {
             button.addEventListener('click', () => applyTheme(root.dataset.theme === 'dark' ? 'light' : 'dark'));

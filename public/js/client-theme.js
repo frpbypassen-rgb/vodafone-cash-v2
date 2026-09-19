@@ -1,4 +1,5 @@
 (function initClientTheme() {
+    if (document.documentElement.getAttribute('data-portal') === 'customer') return;
     function applyThemeIcon(theme) {
         const iconClass = theme === 'dark' ? 'fa-solid fa-moon' : 'fa-solid fa-sun';
         document.querySelectorAll('#themeIcon, #mobileThemeIcon').forEach((icon) => {

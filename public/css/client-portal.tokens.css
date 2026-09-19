@@ -1,0 +1,48 @@
+/* Customer portal structural tokens. Color palettes live in the three theme files.
+   Gated to html[data-portal="customer"] / body.cl-app so company cp-app is untouched. */
+:root {
+    --cl-font: "IBM Plex Sans Arabic", "Tajawal", "Noto Naskh Arabic", "Segoe UI", Tahoma, sans-serif;
+    --cl-mono: "JetBrains Mono", "IBM Plex Sans Arabic", ui-monospace, monospace;
+    --cl-space-1: 8px;
+    --cl-space-2: 16px;
+    --cl-space-3: 24px;
+    --cl-space-4: 32px;
+    --cl-radius: 18px;
+    --cl-radius-sm: 12px;
+    --cl-radius-lg: 28px;
+    --cl-touch: 44px;
+    --cl-sidebar-width: 276px;
+    --cl-topbar-height: 64px;
+    --cl-dock-height: 76px;
+    --cl-page-pad: 24px;
+    --cl-gap: 16px;
+    --cl-focus: 0 0 0 3px color-mix(in srgb, var(--cl-icon) 34%, transparent);
+}
+
+html[data-portal="customer"],
+html[data-portal="customer"] body.cl-app,
+body.cl-app {
+    background: var(--cl-sand);
+    color: var(--cl-ink);
+    font-family: var(--cl-font);
+}
+
+html[data-portal="customer"] body.cl-app,
+html[data-portal="customer"] body.cl-app button,
+html[data-portal="customer"] body.cl-app input,
+html[data-portal="customer"] body.cl-app select,
+html[data-portal="customer"] body.cl-app textarea,
+body.cl-app,
+body.cl-app button,
+body.cl-app input,
+body.cl-app select,
+body.cl-app textarea {
+    font-family: var(--cl-font);
+}
+
+html[data-portal="customer"] .mono-num,
+html[data-portal="customer"] .bw-mono,
+body.cl-app .mono-num,
+body.cl-app .bw-mono {
+    font-family: var(--cl-mono);
+}

@@ -16,6 +16,6 @@
     </div>
     <div class="client-os-mobile-chrome-actions">
         <span class="client-os-mobile-chrome-balance mono-num" dir="ltr"><%= canViewBal ? bal.toFixed(2) : '***' %> <small>LYD</small></span>
-        <button type="button" class="nav-btn btn-theme client-os-mobile-chrome-theme" onclick="toggleTheme()" aria-label="تبديل المظهر"><i class="fa-solid fa-moon" id="mobileThemeIcon"></i></button>
+        <%- include('customer_theme_switcher') %>
     </div>
 </header>

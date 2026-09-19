@@ -1,19 +1,15 @@
 <!DOCTYPE html>
-<html lang="ar" dir="rtl">
+<html lang="ar" dir="rtl" data-portal="customer" data-theme="<%= typeof clientTheme !== 'undefined' && clientTheme ? clientTheme : 'day' %>">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="theme-color" content="<%= typeof clientThemeMeta !== 'undefined' && clientThemeMeta.themeColor ? clientThemeMeta.themeColor : '#E8EEFA' %>">
     <title>بوابة العملاء | Al-Ahram Pay</title>
-    
-    <script>
-        const savedTheme = localStorage.getItem('ahram_theme') || 'light';
-        document.documentElement.setAttribute('data-theme', savedTheme);
-        document.documentElement.setAttribute('data-bs-theme', savedTheme);
-    </script>
+    <%- include('partials/customer_theme_boot') %>
 
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.rtl.min.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
-    <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800;900&family=JetBrains+Mono:wght@700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&family=Tajawal:wght@400;500;700;800;900&family=JetBrains+Mono:wght@600;700&display=swap" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     <script src="/socket.io/socket.io.js"></script>
     <link rel="stylesheet" href="/css/rate-alert-overlay.css?v=20260816-3">
@@ -616,6 +612,7 @@
     <link rel="stylesheet" href="/css/client-web-os.css?v=20260905-site">
     <link rel="stylesheet" href="/css/client-os-site.css?v=20260905-mobile1">
     <% } %>
+    <%- include('partials/customer_portal_styles') %>
 
     <!-- PWA Setup -->
     <link rel="manifest" href="/manifest.json">
@@ -625,7 +622,10 @@
     <meta name="apple-mobile-web-app-title" content="Al-Ahram">
     <!-- End PWA Setup -->
 </head>
-<body class="client-direct-modern client-nile-theme<%= (typeof walletHub !== 'undefined' && walletHub) ? ' wallet-hub-active wallet-hub-dashboard' : '' %>">
+<body class="cl-app cl-shell client-direct-modern client-nile-theme<%= (typeof walletHub !== 'undefined' && walletHub) ? ' wallet-hub-active wallet-hub-dashboard' : '' %>" data-customer-shell data-theme="<%= typeof clientTheme !== 'undefined' && clientTheme ? clientTheme : 'day' %>">
+    <span class="cl-sand-dust" aria-hidden="true"></span>
+    <span class="cl-pyramid-art" aria-hidden="true"></span>
+    <span class="cl-glyph-shimmer" aria-hidden="true"></span>
 <% if (typeof showMfaNotice !== 'undefined' && showMfaNotice) { %>
     <div id="mfaEnableNotice" class="alert alert-warning alert-dismissible shadow-sm position-fixed top-0 start-50 translate-middle-x mt-3 mx-3" role="alert" style="z-index: 3000; max-width: 760px; width: calc(100% - 32px);">
         <i class="fa-solid fa-shield-halved ms-1"></i>
@@ -3211,6 +3211,8 @@
     <% if (typeof walletHub !== 'undefined' && walletHub) { %>
     <%- include('partials/wallet_hub_bottom_nav', { activeNav: 'home' }) %>
     <% } %>
+    <script>window.clientPortal = <%- JSON.stringify({ csrfToken: typeof csrfToken !== 'undefined' ? csrfToken : '', page: 'dashboard' }).replace(/</g, '\\u003c') %>;</script>
+    <script src="/js/client-portal.js?v=20260919-cl1" defer></script>
     <script src="/js/client-resilience.js?v=20260918-1" defer></script>
     <style>.client-network-guard{position:fixed;z-index:5000;inset:0 0 auto;display:flex;justify-content:center;align-items:center;gap:9px;padding:10px 14px;background:#8b1d28;color:#fff;font-size:.76rem}.client-network-guard[hidden],.client-visual-shield[hidden]{display:none}.client-visual-shield{position:fixed;z-index:6000;inset:0;display:grid;place-content:center;place-items:center;gap:14px;background:rgba(3,10,22,.97);color:#fff}.client-visual-shield i{font-size:3rem;color:#f4c552}.client-visual-shield button{border:0;border-radius:12px;padding:11px 22px;background:#fff;color:#111827;font-weight:900}</style>
 </body>
