@@ -1,5 +1,5 @@
 <% if (workspace.isCompany) { %>
-<section class="cos-ledger-office">
+<section class="cp-page-hero">
     <div>
         <span class="bw-section-kicker"><%= workspace.persona === 'accountant' ? 'مكتب المحاسبة' : 'صباح التشغيل' %></span>
         <h2>مركز قيادة الشركة</h2>
@@ -11,7 +11,7 @@
             <% } %>
         </p>
     </div>
-    <div class="cos-ledger-links">
+    <div class="cp-page-hero-actions">
         <% if (workspace.permissions.canTransfer) { %>
             <a href="/client/services" class="bw-button primary"><i class="fa-solid fa-cubes"></i>معرض الخدمات</a>
         <% } %>
@@ -123,7 +123,7 @@
     </article>
 </section>
 
-<section class="bw-dashboard-grid<%= workspace.isCompany ? ' cos-pulse' : '' %>">
+<section class="bw-dashboard-grid<%= workspace.isCompany ? ' cp-overview-grid' : '' %>">
     <% if (workspace.isCompany && teamSpotlight.length && (workspace.permissions.manager || workspace.permissions.accountant)) { %>
     <section class="bw-section bw-team-spotlight">
         <header class="bw-section-head"><div><span class="bw-section-kicker">نبض الفريق</span><h2>الأعلى تنفيذاً هذا الشهر</h2></div><a href="/client/reports/staff" class="bw-text-link">فتح كشف الفريق <i class="fa-solid fa-arrow-left"></i></a></header>

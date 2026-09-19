@@ -1,5 +1,5 @@
 <% if (workspace.isCompany) { %>
-<section class="cos-ledger-office">
+<section class="cp-page-hero">
     <div>
         <span class="bw-section-kicker"><%= workspace.persona === 'accountant' ? 'رقابة بلا تنفيذ' : 'مكتب المحاسبة' %></span>
         <h2><%= workspace.persona === 'accountant' ? 'مكتب المحاسب' : 'الرصيد والكشوف في مكان واحد' %></h2>
@@ -11,7 +11,7 @@
             <% } %>
         </p>
     </div>
-    <div class="cos-ledger-links">
+    <div class="cp-page-hero-actions">
         <% if (workspace.permissions.canViewReports) { %>
             <a href="/client/reports/central.pdf" class="bw-button primary"><i class="fa-solid fa-file-pdf"></i>تنزيل كشف PDF</a>
             <a href="/client/reports" class="bw-button ghost"><i class="fa-solid fa-file-invoice"></i>كشف الحساب</a>
@@ -38,7 +38,7 @@
     </form>
 </section>
 
-<section class="bw-metric-grid finance <%= workspace.isCompany ? 'cos-finance-metrics' : '' %>">
+<section class="bw-metric-grid finance <%= workspace.isCompany ? 'cp-finance-metrics' : '' %>">
     <article class="bw-metric-card accent-dark"><span class="bw-metric-icon"><i class="fa-solid fa-wallet"></i></span><div><span>الرصيد</span><strong class="bw-mono"><%= Number(workspace.entity.balance || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) %></strong><small>LYD</small></div></article>
     <% if (workspace.isCompany) { %>
         <article class="bw-metric-card accent-green"><span class="bw-metric-icon"><i class="fa-solid fa-arrow-trend-up"></i></span><div><span>دائن الفترة</span><strong class="bw-mono"><%= Number(financeSummary.credits).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) %></strong><small>LYD</small></div></article>
@@ -55,18 +55,18 @@
     <header class="bw-section-head"><div><span class="bw-section-kicker">كشف الحساب</span><h2>الحركات المالية الموثقة</h2></div><button type="button" class="bw-button secondary compact" onclick="window.print()"><i class="fa-solid fa-print"></i>طباعة</button></header>
     <% if (listTruncated) { %><div class="bw-alert warning"><i class="fa-solid fa-circle-info"></i><span>تظهر أحدث <%= shownMovementCount %> حركة فقط لتحسين السرعة، بينما إجماليات الفترة أعلاه محسوبة من كامل السجل المالي.</span></div><% } %>
     <% if (workspace.isCompany) { %>
-        <div class="cos-ops-list">
+        <div class="cp-work-list">
             <% if (!movements.length) { %><div class="bw-empty"><span class="cp-mark" aria-hidden="true"><svg class="cp-icon"><use href="#cp-icon-balance"></use></svg></span><strong>لا توجد حركات مالية</strong><span>لا توجد قيود ضمن الفترة المحددة.</span></div><% } %>
             <% movements.filter(item => !filters.type || item.direction === filters.type).forEach(item => { %>
-                <article class="cos-ops-card">
-                    <div class="cos-ops-main cos-ledger-main">
-                        <span class="cos-ops-icon"><i class="fa-solid <%= item.direction === 'credit' ? 'fa-arrow-trend-up' : 'fa-arrow-trend-down' %>"></i></span>
+                <article class="cp-work-card">
+                    <div class="cp-work-main">
+                        <span class="cp-work-icon"><i class="fa-solid <%= item.direction === 'credit' ? 'fa-arrow-trend-up' : 'fa-arrow-trend-down' %>"></i></span>
                         <div>
                             <strong class="bw-mono"><%= item.transactionId %></strong>
                             <small><%= item.description || 'حركة مالية' %> · <%= item.source === 'ledger' ? 'قيد دفتر' : 'سجل معاملة' %> · <%= new Date(item.createdAt).toLocaleDateString('en-GB', { timeZone: 'Africa/Tripoli' }) %> <%= new Date(item.createdAt).toLocaleTimeString('ar-LY', { timeZone: 'Africa/Tripoli', hour: '2-digit', minute: '2-digit' }) %></small>
                         </div>
                         <b class="bw-mono <%= item.direction === 'credit' ? 'text-success' : 'text-danger' %>"><%= item.direction === 'credit' ? '+' : '-' %><%= Math.abs(Number(item.amount || 0)).toFixed(3) %> <em>LYD</em></b>
-                        <span class="cos-ops-cost bw-mono"><%= item.balanceAfter !== undefined ? Number(item.balanceAfter).toFixed(3) : '---' %></span>
+                        <span class="cp-work-cost bw-mono"><%= item.balanceAfter !== undefined ? Number(item.balanceAfter).toFixed(3) : '---' %></span>
                         <span class="bw-status <%= item.direction === 'credit' ? 'success' : 'danger' %>"><%= item.direction === 'credit' ? 'دائن' : 'مدين' %></span>
                     </div>
                 </article>

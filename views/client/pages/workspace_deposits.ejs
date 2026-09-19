@@ -1,16 +1,16 @@
-<section class="cos-ledger-office">
+<section class="cp-page-hero">
     <div>
         <span class="bw-section-kicker">تمويل الحساب</span>
         <h2><%= workspace.permissions.manager ? 'طلب إيداع رصيد' : 'متابعة الإيداع' %></h2>
         <p><%= workspace.permissions.manager ? 'يصل الطلب للإدارة عبر الدعم الفني. لا يُضاف الرصيد إلا بعد الاعتماد.' : 'هذه الصفحة للمتابعة المالية. إنشاء طلب جديد يبقى لدى مدير التشغيل.' %></p>
     </div>
-    <div class="cos-ledger-links">
+    <div class="cp-page-hero-actions">
         <% if (workspace.permissions.canViewBalance) { %>
             <a href="/client/finance" class="bw-button ghost"><i class="fa-solid fa-scale-balanced"></i>مكتب المحاسبة</a>
         <% } %>
     </div>
 </section>
-<section class="cos-deposit-layout">
+<section class="cp-deposit-layout">
     <% if (workspace.permissions.manager) { %>
     <article class="bw-section">
         <header class="bw-section-head">
@@ -35,14 +35,14 @@
     <% } %>
     <aside class="bw-section">
         <header class="bw-section-head"><div><span class="bw-section-kicker">سجل التمويل</span><h2>آخر الحركات</h2></div></header>
-        <div class="cos-ops-list">
+        <div class="cp-work-list">
             <% if (!(depositRequests || []).length) { %>
                 <div class="bw-empty compact"><i class="fa-solid fa-building-columns"></i><strong>لا توجد طلبات بعد</strong></div>
             <% } %>
             <% (depositRequests || []).forEach(item => { const status = statusMeta[item.status] || { label: item.status, tone: 'neutral' }; %>
-                <article class="cos-ops-card">
-                    <div class="cos-ops-main cos-ledger-main">
-                        <span class="cos-ops-icon"><i class="fa-solid <%= item.source === 'support' ? 'fa-headset' : 'fa-receipt' %>"></i></span>
+                <article class="cp-work-card">
+                    <div class="cp-work-main">
+                        <span class="cp-work-icon"><i class="fa-solid <%= item.source === 'support' ? 'fa-headset' : 'fa-receipt' %>"></i></span>
                         <div>
                             <strong class="bw-mono"><%= item.customId %></strong>
                             <small><%= status.label %><%= item.note ? ` · ${item.note}` : '' %></small>

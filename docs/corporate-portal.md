@@ -45,21 +45,21 @@
 
 | القيمة | الاسم |
 | --- | --- |
-| `day` | نهاري — أبيض/أسود وظلال ناعمة |
-| `night` | ليلي — تباين نص عالٍ وكتابة مريحة |
-| `pharaonic` | فرعوني — أزرار معبد/مسلة وأيقونات عائمة. الزخرفة الثقيلة تنتظر `cp-art-ready` وتتوقف مع `prefers-reduced-motion` |
+| `day` | نهاري — أسطح بيضاء/شبه بيضاء، نص أسود/رمادي، ظلال ناعمة، شريط جانبي فاتح |
+| `night` | ليلي — فحم داكن وليس أسود صافياً، تباين نص عالٍ وحقول واضحة |
+| `pharaonic` | فرعوني — أزرار معبد/مسلة، رمل وذهب وفيروز، أيقونات عائمة. الزخرفة الثقيلة تنتظر `cp-art-ready` وتتوقف مع `prefers-reduced-motion` |
 
 المصدر بعد تسجيل الدخول: `preferences.companyTheme` (الحقل الكانوني). `uiTheme` اسم مستعار للقراءة فقط أثناء الترحيل. لا تُنشأ أعمدة مظهر منفصلة. `localStorage.ahram_company_theme` للرسم الفوري؛ قيمة الخادم تفوز بعد الدخول وتُكتب إلى المتصفح.
 
 الملفات:
 
 - الرموز المشتركة: `public/css/company-portal.tokens.css`
-- الهيكل: `public/css/company-portal-layout.css`
-- المظاهر: `public/css/company-portal-theme-day.css` و`theme-night` و`theme-pharaonic`
-- المبدّل: `views/client/partials/company_theme_switcher.ejs` (نموذج POST يعمل بلا JS)
+- الهيكل الجديد: `public/css/company-portal-layout.css` (قشرة `cp-app` / `cp-sidebar` / `cp-page-hero` / `cp-service-card`)
+- المظاهر: `public/css/company-portal-theme-day.css` و`theme-night` و`theme-pharaonic` — ملفات كاملة وليست طبقات صغيرة فوق الواجهة القديمة
+- المبدّل الظاهر: `views/client/partials/company_theme_switcher.ejs` (سكة ثلاث أزرار + نموذج POST يعمل بلا JS)
 - الحفظ: `POST /client/settings/theme` و`POST /client/api/theme`
 
-لا تضع ألواناً ثابتة في قوالب صفحات الشركة؛ استخدم `var(--cp-*)`.
+لا تحمّل `client-company-os.css` على بوابة الشركات. لا تضع ألواناً ثابتة في قوالب صفحات الشركة؛ استخدم `var(--cp-*)`.
 
 ## الإشعارات وWeb Push
 

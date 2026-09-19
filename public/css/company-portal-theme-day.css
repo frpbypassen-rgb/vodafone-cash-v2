@@ -1,4 +1,4 @@
-/* Day theme — white/black, soft shadows, eye-friendly. Tokens only. */
+/* Day — white surfaces, black/gray type, soft shadows. Calm modern SaaS. */
 html[data-theme="day"] {
     color-scheme: light;
     --cp-sand: #F4F6F8;
@@ -9,18 +9,18 @@ html[data-theme="day"] {
     --cp-ink: #0B1220;
     --cp-muted: #3F4B5A;
     --cp-surface: #FFFFFF;
-    --cp-surface-soft: #EEF2F6;
-    --cp-surface-strong: #E4E9EF;
-    --cp-line: #C9D2DC;
-    --cp-line-strong: #9AA7B5;
-    --cp-icon: #0F5C8C;
+    --cp-surface-soft: #F8FAFC;
+    --cp-surface-strong: #EEF2F6;
+    --cp-line: #E2E8F0;
+    --cp-line-strong: #94A3B8;
+    --cp-icon: #0F172A;
     --cp-on-accent: #FFFFFF;
-    --cp-sidebar: #F8FAFC;
-    --cp-sidebar-soft: #EEF3F8;
+    --cp-sidebar: #FFFFFF;
+    --cp-sidebar-soft: #F8FAFC;
     --cp-sidebar-text: #0B1220;
-    --cp-sidebar-muted: #4B5563;
-    --cp-shadow: 0 8px 20px rgba(11, 18, 32, .08);
-    --cp-shadow-lg: 0 18px 36px rgba(11, 18, 32, .12);
+    --cp-sidebar-muted: #64748B;
+    --cp-shadow: 0 1px 2px rgba(15, 23, 42, .06), 0 8px 24px rgba(15, 23, 42, .04);
+    --cp-shadow-lg: 0 18px 40px rgba(15, 23, 42, .08);
     --cp-glow: transparent;
     --cp-chart-1: #0F5C8C;
     --cp-chart-2: #0B7A4B;
@@ -49,6 +49,8 @@ html[data-theme="day"] {
     --bw-blue-soft: color-mix(in srgb, var(--cp-turquoise) 12%, var(--cp-surface));
     --bw-amber: var(--cp-gold);
     --bw-amber-soft: color-mix(in srgb, var(--cp-gold) 14%, var(--cp-surface));
+    --bw-gold: var(--cp-gold);
+    --bw-gold-soft: color-mix(in srgb, var(--cp-gold) 14%, var(--cp-surface));
     --bw-red: var(--cp-danger);
     --bw-red-soft: color-mix(in srgb, var(--cp-danger) 12%, var(--cp-surface));
     --bw-cyan: var(--cp-info);
@@ -57,11 +59,95 @@ html[data-theme="day"] {
     --bw-shadow-md: var(--cp-shadow-lg);
 }
 
-html[data-theme="day"] .bw-company-os .bw-topbar::before { opacity: .28; }
+html[data-theme="day"] body.cp-app,
+html[data-theme="day"] .bw-company-os {
+    background:
+        linear-gradient(180deg, #FFFFFF 0, #F4F6F8 180px);
+    color: var(--cp-ink);
+}
+
 html[data-theme="day"] .cp-glyph-shimmer,
-html[data-theme="day"] .cp-sand-dust { display: none; }
-html[data-theme="day"] .bw-company-os .bw-sidebar { box-shadow: inset -1px 0 0 var(--cp-line); }
-html[data-theme="day"] .bw-company-os .bw-button.primary,
-html[data-theme="day"] .bw-company-os .cos-tile {
-    box-shadow: var(--cp-shadow);
+html[data-theme="day"] .cp-sand-dust,
+html[data-theme="day"] .cp-pyramid-art {
+    display: none;
+}
+
+html[data-theme="day"] .cp-sidebar,
+html[data-theme="day"] .bw-company-os .bw-sidebar {
+    background: #FFFFFF;
+    border-inline-end: 1px solid #E2E8F0;
+    box-shadow: 8px 0 24px rgba(15, 23, 42, .03);
+}
+
+html[data-theme="day"] .cp-sidebar .bw-nav-link.active {
+    background: #F1F5F9;
+    color: #0B1220;
+}
+
+html[data-theme="day"] .cp-sidebar .bw-nav-link.active .bw-nav-icon {
+    color: #FFFFFF;
+    background: #0F172A;
+}
+
+html[data-theme="day"] .cp-page-hero {
+    background: #FFFFFF;
+    border-color: #E2E8F0;
+    box-shadow: 0 1px 2px rgba(15, 23, 42, .05);
+}
+
+html[data-theme="day"] .cp-page-hero h1,
+html[data-theme="day"] .cp-page-hero h2 {
+    color: #0B1220;
+}
+
+html[data-theme="day"] .bw-button.primary {
+    background: #0F172A;
+    color: #FFFFFF;
+}
+
+html[data-theme="day"] .cp-service-card {
+    background: #FFFFFF;
+    border-color: #E2E8F0;
+    box-shadow: 0 1px 2px rgba(15, 23, 42, .05);
+}
+
+html[data-theme="day"] .cp-service-icon {
+    color: #0F172A;
+    background: #F1F5F9;
+}
+
+html[data-theme="day"] .cp-theme-rail {
+    background: #F1F5F9;
+    border-color: #E2E8F0;
+}
+
+html[data-theme="day"] .cp-theme-rail .cp-theme-option[aria-pressed="true"] {
+    background: #FFFFFF;
+    color: #0B1220;
+    box-shadow: 0 1px 3px rgba(15, 23, 42, .08);
+}
+
+html[data-theme="day"] .bw-mobile-dock {
+    background: #FFFFFF;
+    border-color: #E2E8F0;
+}
+
+html[data-theme="day"] .bw-field input,
+html[data-theme="day"] .bw-field textarea,
+html[data-theme="day"] .bw-field select {
+    background: #FFFFFF;
+    color: #0B1220;
+    border-color: #CBD5E1;
+}
+
+html[data-theme="day"] .cp-topbar,
+html[data-theme="day"] .bw-topbar {
+    background: rgba(255, 255, 255, .92);
+}
+
+@media (max-width: 1050px) {
+    html[data-theme="day"] .bw-mobile-dock {
+        background: #FFFFFF;
+        box-shadow: 0 12px 32px rgba(15, 23, 42, .12);
+    }
 }
