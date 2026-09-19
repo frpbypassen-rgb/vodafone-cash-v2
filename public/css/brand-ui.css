@@ -411,8 +411,8 @@ body,
     content: "Power Pay AL-Ahram";
     position: absolute;
     left: 16px;
-    bottom: 12px;
-    color: rgba(255, 255, 255, 0.24);
+    bottom: 68px;
+    color: rgba(255, 255, 255, 0.18);
     font: 800 0.68rem/1.1 system-ui, sans-serif;
     letter-spacing: 0.08em;
     text-transform: uppercase;
@@ -477,6 +477,16 @@ body,
 .sidebar-menu a.active i,
 .sidebar-menu a.active .menu-chevron {
     color: #111827 !important;
+}
+
+.menu-category-header {
+    color: rgba(244, 198, 79, 0.82) !important;
+    text-transform: none !important;
+    letter-spacing: 0.04em !important;
+}
+
+.sidebar-menu-group {
+    border-bottom-color: rgba(255, 255, 255, 0.08);
 }
 
 .topbar .brand-lockup::before,
