@@ -6,9 +6,6 @@ const Transaction = require('../models/Transaction');
 const Ledger = require('../models/Ledger');
 const { createBalanceTransferReceiptProof } = require('../services/balanceTransferReceiptService');
 const ExecutorGroup = require('../models/ExecutorGroup');
-const ClientCompany = require('../models/ClientCompany');
-const SubAccount = require('../models/SubAccount');
-const User = require('../models/User');
 const Employee = require('../models/Employee');
 const ClientEmployee = require('../models/ClientEmployee');
 const Admin = require('../models/Admin');
@@ -156,204 +153,6 @@ const monthDateRange = (dateKey) => {
     return systemDateRange(`${year}-${String(month).padStart(2, '0')}-01`, `${year}-${String(month).padStart(2, '0')}-${lastDay}`);
 };
 
-const summarizeTransactionPeriod = async (createdAt, source = null) => {
-    const baseQuery = transactionLedgerBaseQuery(source);
-    if (createdAt) baseQuery.createdAt = createdAt;
-
-    const rows = await Transaction.aggregate([
-        { $match: baseQuery },
-        {
-            $group: {
-                _id: '$status',
-                count: { $sum: 1 },
-                amount: { $sum: '$amount' },
-                costLYD: { $sum: '$costLYD' }
-            }
-        }
-    ]);
-    const byStatus = Object.fromEntries(rows.map((row) => [row._id, row]));
-    const metric = (status) => byStatus[status] || { count: 0, amount: 0, costLYD: 0 };
-    const cancelled = [metric('rejected'), metric('cancelled_by_admin')].reduce((total, row) => ({
-        count: total.count + row.count,
-        amount: total.amount + row.amount,
-        costLYD: total.costLYD + row.costLYD
-    }), { count: 0, amount: 0, costLYD: 0 });
-
-    return {
-        deposits: metric('deposit'),
-        deductions: metric('deduction'),
-        successful: metric('completed'),
-        cancelled,
-        statusCounts: {
-            pending: metric('pending').count,
-            processing: metric('processing').count,
-            accepted: metric('accepted').count,
-            completed: metric('completed').count,
-            cancelled: cancelled.count
-        },
-        operationsCount: OPERATION_STATUSES.reduce((total, status) => total + metric(status).count, 0)
-    };
-};
-
-const dateKeysBefore = (todayKey, count) => {
-    const keys = [];
-    const cursor = new Date(`${todayKey}T12:00:00`);
-    for (let index = count - 1; index >= 0; index -= 1) {
-        const date = new Date(cursor);
-        date.setDate(date.getDate() - index);
-        keys.push(systemDateKey(date));
-    }
-    return keys;
-};
-
-const getTransactionPulseData = async (req) => {
-    const now = new Date();
-    const todayKey = systemDateKey(new Date());
-    const todayRange = systemDateRange(todayKey, todayKey);
-    const monthRange = monthDateRange(todayKey);
-    const sevenDayKeys = dateKeysBefore(todayKey, 7);
-    const sevenDayRange = systemDateRange(sevenDayKeys[0], sevenDayKeys[sevenDayKeys.length - 1]);
-    const scopedTenant = tenantScope(req);
-    const trendBase = transactionLedgerBaseQuery(req);
-    if (sevenDayRange) trendBase.createdAt = sevenDayRange;
-
-    const [today, month, trendRows, companies, executorGroups, liveTransactions, companyTotals, executorTotals] = await Promise.all([
-        summarizeTransactionPeriod(todayRange, req),
-        summarizeTransactionPeriod(monthRange, req),
-        Transaction.aggregate([
-            { $match: { ...trendBase, status: 'completed' } },
-            {
-                $group: {
-                    _id: { $dateToString: { date: '$createdAt', format: '%Y-%m-%d', timezone: 'Africa/Tripoli' } },
-                    successfulCount: { $sum: 1 },
-                    successfulAmount: { $sum: '$amount' }
-                }
-            },
-            { $sort: { _id: 1 } }
-        ]),
-        ClientCompany.find({ ...scopedTenant, status: 'active', deletedAt: { $exists: false } })
-            .select('name balance creditLimit accountCode')
-            .sort({ balance: 1, name: 1 }).limit(40).lean(),
-        ExecutorGroup.find({ ...scopedTenant, status: 'active', archivedAt: null, isManagerGroup: { $ne: true }, isManagerBot: { $ne: true } })
-            .select('name balance serviceKey isApiGroup isApiBot lastApiAvailableBalance lastApiTestStatus lastApiTestAt lastApiBalanceCheckStatus')
-            .sort({ isApiBot: -1, balance: -1, name: 1 }).limit(60).lean(),
-        Transaction.find({
-            ...transactionLedgerBaseQuery(req),
-            status: { $in: OPERATION_STATUSES },
-            ...(todayRange ? { createdAt: todayRange } : {})
-        }).select('+clientActorModel customId status amount costLYD exchangeRate transferType userId companyId subAccountId subAccountName isSubAccountTx companyName employeeName accountName vodafoneNumber accountNumber serviceDetails notes createdAt executorGroupId executorName isApiReview')
-            .sort({ createdAt: -1 }).limit(80).lean(),
-        ClientCompany.aggregate([
-            { $match: { ...scopedTenant, status: 'active', deletedAt: { $exists: false } } },
-            { $group: { _id: null, total: { $sum: { $ifNull: ['$balance', 0] } } } }
-        ]),
-        ExecutorGroup.aggregate([
-            { $match: { ...scopedTenant, status: 'active', archivedAt: null, isManagerGroup: { $ne: true }, isManagerBot: { $ne: true } } },
-            { $group: { _id: null, total: { $sum: { $cond: [
-                { $and: ['$isApiBot', { $ne: ['$lastApiAvailableBalance', null] }] },
-                '$lastApiAvailableBalance',
-                { $ifNull: ['$balance', 0] }
-            ] } } } }
-        ])
-    ]);
-    const trendMap = new Map(trendRows.map((row) => [row._id, row]));
-    const trend = sevenDayKeys.map((key) => ({
-            label: key.slice(5),
-            successfulCount: trendMap.get(key)?.successfulCount || 0,
-            successfulAmount: trendMap.get(key)?.successfulAmount || 0
-    }));
-    const executors = executorGroups.map((group) => ({
-        ...group,
-        serviceLabel: getExecutorServiceLabel(group),
-        supportedTypes: getExecutorSupportedTransferTypes(group),
-        availableBalance: group.isApiBot && group.lastApiAvailableBalance != null && Number.isFinite(Number(group.lastApiAvailableBalance))
-            ? Number(group.lastApiAvailableBalance)
-            : Number(group.balance || 0),
-        apiHealth: group.isApiBot
-            ? (group.lastApiTestStatus === 'success' ? 'online' : group.lastApiTestStatus === 'failed' ? 'offline' : 'unknown')
-            : 'manual'
-    }));
-    const subAccountIds = liveTransactions.filter((item) => item.subAccountId).map((item) => item.subAccountId);
-    const userKeys = liveTransactions.filter((item) => item.userId).map((item) => String(item.userId));
-    const [subAccounts, operationUsers] = await Promise.all([
-        subAccountIds.length
-            ? SubAccount.find({ ...scopedTenant, _id: { $in: subAccountIds } }).select('masterType').lean()
-            : [],
-        userKeys.length
-            ? User.find({ ...scopedTenant, $or: [{ _id: { $in: userKeys.filter((value) => mongoose.isValidObjectId(value)) } }, { phone: { $in: userKeys } }, { webUsername: { $in: userKeys } }] }).select('name phone webUsername role').lean()
-            : []
-    ]);
-    const subAccountTypeById = new Map(subAccounts.map((item) => [String(item._id), item.masterType]));
-    const userByKey = new Map();
-    operationUsers.forEach((item) => {
-        [item._id, item.phone, item.webUsername].filter(Boolean).forEach((key) => userByKey.set(String(key), item));
-    });
-    const operations = liveTransactions.map((transaction) => {
-        const ageMinutes = Math.max(0, Math.floor((now.getTime() - new Date(transaction.createdAt).getTime()) / 60000));
-        const candidates = executors.filter((group) => (
-            group.status !== 'inactive'
-            && executorSupportsTransferType(group, transaction.transferType)
-            && group.availableBalance >= Number(transaction.amount || 0)
-            && group.apiHealth !== 'offline'
-        ));
-        const recommended = candidates.sort((a, b) => {
-            if (a.isApiBot !== b.isApiBot) return a.isApiBot ? -1 : 1;
-            return b.availableBalance - a.availableBalance;
-        })[0];
-        const linkedUser = userByKey.get(String(transaction.userId || ''));
-        const subMasterType = transaction.subAccountId ? subAccountTypeById.get(String(transaction.subAccountId)) : '';
-        const isAgencyCustomer = Boolean(transaction.isSubAccountTx && subMasterType === 'user');
-        const isAgency = isAgencyCustomer || transaction.clientActorModel === 'AgentEmployee' || linkedUser?.role === 'agent';
-        const isCompany = !isAgency && Boolean(transaction.companyId || (transaction.companyName && transaction.companyName !== 'عميل فردي'));
-        const entityType = isAgency ? 'agent' : isCompany ? 'company' : 'client';
-        const entityName = entityType === 'client'
-            ? (transaction.employeeName || linkedUser?.name || transaction.accountName || 'عميل غير محدد')
-            : (transaction.companyName || linkedUser?.name || 'حساب غير محدد');
-        const actorName = isAgencyCustomer
-            ? (transaction.subAccountName || transaction.employeeName || 'عميل تابع')
-            : entityType === 'client'
-                ? 'المدير'
-                : (transaction.employeeName || (linkedUser?.role === 'agent' ? 'المدير' : 'موظف/مدير غير محدد'));
-        return {
-            ...transaction,
-            ageMinutes,
-            priority: ageMinutes >= 30 ? 'critical' : ageMinutes >= 15 ? 'warning' : 'normal',
-            customerName: entityName,
-            entityType,
-            entityLabel: entityType === 'agent' ? 'وكالة' : entityType === 'company' ? 'شركة' : 'عميل',
-            actorName,
-            actorLabel: isAgencyCustomer ? 'عميل تابع للوكالة' : entityType === 'client' ? 'المدير' : 'الموظف/المدير',
-            actorIsCustomer: isAgencyCustomer,
-            recipient: transaction.vodafoneNumber || transaction.accountNumber || transaction.serviceDetails?.clientPhone || '-',
-            displayNote: customerFacingNotes(transaction.notes).split(/\r?\n/)[0] || '---',
-            serviceLabel: getExecutorServiceLabel(normalizeExecutorServiceKey(transaction.transferType)),
-            recommendedExecutorId: recommended ? String(recommended._id) : '',
-            recommendedExecutorName: recommended?.name || ''
-        };
-    });
-    const statusPriority = { pending: 0, processing: 1, accepted: 2, completed: 3, rejected: 4, cancelled_by_admin: 5 };
-    operations.sort((a, b) => (
-        (statusPriority[a.status] ?? 9) - (statusPriority[b.status] ?? 9)
-        || (['pending', 'processing', 'accepted'].includes(a.status)
-            ? b.ageMinutes - a.ageMinutes
-            : new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
-    ));
-    const pendingOperations = operations.filter((item) => item.status === 'pending');
-    const oldestPendingMinutes = pendingOperations.reduce((max, item) => Math.max(max, item.ageMinutes), 0);
-    return {
-        today, month, trend, todayKey, companies, executors, operations,
-        command: {
-            companyBalanceTotal: Number(companyTotals[0]?.total) || 0,
-            executorBalanceTotal: Number(executorTotals[0]?.total) || 0,
-            pendingCount: pendingOperations.length,
-            urgentCount: pendingOperations.filter((item) => item.priority !== 'normal').length,
-            oldestPendingMinutes,
-            apiOnline: executors.filter((item) => item.isApiBot && item.apiHealth === 'online').length,
-            apiTotal: executors.filter((item) => item.isApiBot).length
-        }
-    };
-};
-
 const transactionSearchMatchReason = (transaction, rawSearch, exactAmount) => {
     const needle = String(rawSearch || '').trim().toLocaleLowerCase();
     const contains = (value) => String(value || '').toLocaleLowerCase().includes(needle);
@@ -366,20 +165,6 @@ const transactionSearchMatchReason = (transaction, rawSearch, exactAmount) => {
     if (contains(transaction.executorName) || contains(transaction.executorGroupName)) return 'تطابق المنفذ';
     if (Number.isFinite(exactAmount) && Number(transaction.amount) === exactAmount) return 'تطابق مبلغ دقيق';
     return 'تطابق ضمن بيانات العملية';
-};
-
-const renderTransactionPulse = async (req, res) => {
-    try {
-        const pulse = await getTransactionPulseData(req);
-        res.render('transaction_pulse', {
-            activePage: 'transactions_pulse',
-            adminName: req.session.adminName,
-            ...pulse
-        });
-    } catch (error) {
-        console.error('[adminTransactions/pulse] error:', error.message);
-        res.status(500).send('تعذر تحميل شاشة نبض العمليات');
-    }
 };
 
 const renderTransactionSearch = async (req, res) => {
@@ -445,15 +230,6 @@ const renderTransactionSearch = async (req, res) => {
     }
 };
 
-router.get('/transactions/pulse', renderTransactionPulse);
-router.get('/transactions/pulse/data', async (req, res) => {
-    try {
-        return res.json({ success: true, ...(await getTransactionPulseData(req)) });
-    } catch (error) {
-        console.error('[adminTransactions/pulse-data] error:', error.message);
-        return res.status(500).json({ success: false });
-    }
-});
 router.get('/transactions/search', renderTransactionSearch);
 router.get('/transactions/movements', (req, res) => {
     const params = new URLSearchParams(req.query);
