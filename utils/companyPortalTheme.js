@@ -6,15 +6,15 @@ const COMPANY_PORTAL_THEME_META = Object.freeze({
     day: Object.freeze({
         key: 'day',
         label: 'نهاري',
-        description: 'واجهة نهارية فاتحة بتباين عالٍ',
-        themeColor: '#F4F6F8',
+        description: 'واجهة شركات ملوّنة بأخضر مزرق نيلي',
+        themeColor: '#E7F1F6',
         colorScheme: 'light'
     }),
     night: Object.freeze({
         key: 'night',
         label: 'ليلي',
-        description: 'حجر داكن وإضاءة منخفضة',
-        themeColor: '#12110F',
+        description: 'غرفة عمليات كحلية بلمسات ملوّنة',
+        themeColor: '#0B1426',
         colorScheme: 'dark'
     }),
     pharaonic: Object.freeze({

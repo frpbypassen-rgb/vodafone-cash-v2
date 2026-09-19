@@ -11,7 +11,7 @@
         'x-csrf-token': csrf
     };
     const THEMES = ['day', 'night', 'pharaonic'];
-    const THEME_COLORS = { day: '#F4F6F8', night: '#12110F', pharaonic: '#1A1510' };
+    const THEME_COLORS = { day: '#E7F1F6', night: '#0B1426', pharaonic: '#1A1510' };
     const THEME_ICONS = { day: 'sun-day', night: 'moon', pharaonic: 'ankh' };
 
     const parseJson = async (response) => {

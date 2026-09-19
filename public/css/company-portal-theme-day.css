@@ -1,35 +1,39 @@
-/* Day — white surfaces, black/gray type, soft shadows. Calm modern SaaS. */
+/* Day — professional colored corporate UI.
+   Deep teal primary, indigo secondary, cool gray-blue canvas, white cards.
+   Not monochrome. Stripe Atlas / MENA fintech density. */
 html[data-theme="day"] {
     color-scheme: light;
-    --cp-sand: #F4F6F8;
-    --cp-stone: #0B1220;
-    --cp-gold: #8A6A12;
-    --cp-turquoise: #0F5C8C;
-    --cp-brick: #B42318;
-    --cp-ink: #0B1220;
-    --cp-muted: #3F4B5A;
+    --cp-sand: #E7F1F6;
+    --cp-stone: #0B2530;
+    --cp-gold: #C2410C;
+    --cp-turquoise: #0F766E;
+    --cp-brick: #BE123C;
+    --cp-ink: #0B2530;
+    --cp-muted: #3B5B6A;
     --cp-surface: #FFFFFF;
-    --cp-surface-soft: #F8FAFC;
-    --cp-surface-strong: #EEF2F6;
-    --cp-line: #E2E8F0;
-    --cp-line-strong: #94A3B8;
-    --cp-icon: #0F172A;
+    --cp-surface-soft: #F2F8FB;
+    --cp-surface-strong: #D7E8F0;
+    --cp-line: #C5D8E4;
+    --cp-line-strong: #7AA3B5;
+    --cp-icon: #0F766E;
     --cp-on-accent: #FFFFFF;
-    --cp-sidebar: #FFFFFF;
-    --cp-sidebar-soft: #F8FAFC;
-    --cp-sidebar-text: #0B1220;
-    --cp-sidebar-muted: #64748B;
-    --cp-shadow: 0 1px 2px rgba(15, 23, 42, .06), 0 8px 24px rgba(15, 23, 42, .04);
-    --cp-shadow-lg: 0 18px 40px rgba(15, 23, 42, .08);
-    --cp-glow: transparent;
-    --cp-chart-1: #0F5C8C;
-    --cp-chart-2: #0B7A4B;
-    --cp-chart-3: #B45309;
-    --cp-chart-4: #B42318;
-    --cp-success: #0B7A4B;
-    --cp-warning: #B45309;
-    --cp-danger: #B42318;
-    --cp-info: #0F5C8C;
+    --cp-sidebar: #F3FAFB;
+    --cp-sidebar-soft: #DDF1F2;
+    --cp-sidebar-text: #0B2530;
+    --cp-sidebar-muted: #4A6B78;
+    --cp-shadow: 0 1px 2px rgba(11, 37, 48, .06), 0 10px 28px rgba(15, 118, 110, .08);
+    --cp-shadow-lg: 0 18px 40px rgba(11, 37, 48, .12);
+    --cp-glow: rgba(15, 118, 110, .18);
+    --cp-hero-wash: linear-gradient(135deg, #FFFFFF 0%, #E6F6F4 58%, #EAF2FB 100%);
+    --cp-chart-1: #0F766E;
+    --cp-chart-2: #1D4ED8;
+    --cp-chart-3: #C2410C;
+    --cp-chart-4: #BE123C;
+    --cp-success: #047857;
+    --cp-warning: #C2410C;
+    --cp-danger: #BE123C;
+    --cp-info: #1D4ED8;
+    --cp-indigo: #1D4ED8;
     --bw-bg: var(--cp-sand);
     --bw-surface: var(--cp-surface);
     --bw-surface-soft: var(--cp-surface-soft);
@@ -44,17 +48,17 @@ html[data-theme="day"] {
     --bw-sidebar-text: var(--cp-sidebar-text);
     --bw-sidebar-muted: var(--cp-sidebar-muted);
     --bw-green: var(--cp-success);
-    --bw-green-soft: color-mix(in srgb, var(--cp-success) 12%, var(--cp-surface));
-    --bw-blue: var(--cp-turquoise);
-    --bw-blue-soft: color-mix(in srgb, var(--cp-turquoise) 12%, var(--cp-surface));
-    --bw-amber: var(--cp-gold);
-    --bw-amber-soft: color-mix(in srgb, var(--cp-gold) 14%, var(--cp-surface));
-    --bw-gold: var(--cp-gold);
-    --bw-gold-soft: color-mix(in srgb, var(--cp-gold) 14%, var(--cp-surface));
+    --bw-green-soft: color-mix(in srgb, var(--cp-success) 16%, var(--cp-surface));
+    --bw-blue: var(--cp-info);
+    --bw-blue-soft: color-mix(in srgb, var(--cp-info) 14%, var(--cp-surface));
+    --bw-amber: var(--cp-warning);
+    --bw-amber-soft: color-mix(in srgb, var(--cp-warning) 14%, var(--cp-surface));
+    --bw-gold: var(--cp-warning);
+    --bw-gold-soft: color-mix(in srgb, var(--cp-warning) 14%, var(--cp-surface));
     --bw-red: var(--cp-danger);
-    --bw-red-soft: color-mix(in srgb, var(--cp-danger) 12%, var(--cp-surface));
-    --bw-cyan: var(--cp-info);
-    --bw-cyan-soft: color-mix(in srgb, var(--cp-info) 12%, var(--cp-surface));
+    --bw-red-soft: color-mix(in srgb, var(--cp-danger) 14%, var(--cp-surface));
+    --bw-cyan: var(--cp-turquoise);
+    --bw-cyan-soft: color-mix(in srgb, var(--cp-turquoise) 16%, var(--cp-surface));
     --bw-shadow-sm: var(--cp-shadow);
     --bw-shadow-md: var(--cp-shadow-lg);
 }
@@ -62,7 +66,9 @@ html[data-theme="day"] {
 html[data-theme="day"] body.cp-app,
 html[data-theme="day"] .bw-company-os {
     background:
-        linear-gradient(180deg, #FFFFFF 0, #F4F6F8 180px);
+        radial-gradient(circle at 12% -8%, rgba(15, 118, 110, .16), transparent 22rem),
+        radial-gradient(circle at 92% 0%, rgba(29, 78, 216, .10), transparent 20rem),
+        linear-gradient(180deg, #DCEEF4 0, #E7F1F6 220px);
     color: var(--cp-ink);
 }
 
@@ -74,80 +80,224 @@ html[data-theme="day"] .cp-pyramid-art {
 
 html[data-theme="day"] .cp-sidebar,
 html[data-theme="day"] .bw-company-os .bw-sidebar {
+    background:
+        linear-gradient(180deg, #E8F7F6 0%, #F3FAFB 18%, #F7FCFC 100%);
+    border-inline-end: 1px solid #C5D8E4;
+    box-shadow: 10px 0 28px rgba(15, 118, 110, .05);
+}
+
+html[data-theme="day"] .cp-sidebar .bw-brand {
+    background: linear-gradient(180deg, rgba(15, 118, 110, .08), transparent);
+}
+
+html[data-theme="day"] .cp-sidebar .bw-entity-card {
     background: #FFFFFF;
-    border-inline-end: 1px solid #E2E8F0;
-    box-shadow: 8px 0 24px rgba(15, 23, 42, .03);
+    border-color: color-mix(in srgb, #0F766E 22%, #C5D8E4);
+    box-shadow: 0 8px 20px rgba(15, 118, 110, .06);
+}
+
+html[data-theme="day"] .cp-sidebar .bw-entity-icon {
+    color: #FFFFFF;
+    background: #0F766E;
+}
+
+html[data-theme="day"] .cp-sidebar .bw-nav-link:hover {
+    background: color-mix(in srgb, #0F766E 10%, transparent);
 }
 
 html[data-theme="day"] .cp-sidebar .bw-nav-link.active {
-    background: #F1F5F9;
-    color: #0B1220;
+    background: linear-gradient(90deg, color-mix(in srgb, #0F766E 18%, #FFFFFF), #FFFFFF);
+    color: #115E59;
+}
+
+html[data-theme="day"] .cp-sidebar .bw-nav-icon {
+    color: #0F766E;
+    background: color-mix(in srgb, #0F766E 12%, #FFFFFF);
 }
 
 html[data-theme="day"] .cp-sidebar .bw-nav-link.active .bw-nav-icon {
     color: #FFFFFF;
-    background: #0F172A;
-}
-
-html[data-theme="day"] .cp-page-hero {
-    background: #FFFFFF;
-    border-color: #E2E8F0;
-    box-shadow: 0 1px 2px rgba(15, 23, 42, .05);
-}
-
-html[data-theme="day"] .cp-page-hero h1,
-html[data-theme="day"] .cp-page-hero h2 {
-    color: #0B1220;
-}
-
-html[data-theme="day"] .bw-button.primary {
-    background: #0F172A;
-    color: #FFFFFF;
-}
-
-html[data-theme="day"] .cp-service-card {
-    background: #FFFFFF;
-    border-color: #E2E8F0;
-    box-shadow: 0 1px 2px rgba(15, 23, 42, .05);
-}
-
-html[data-theme="day"] .cp-service-icon {
-    color: #0F172A;
-    background: #F1F5F9;
-}
-
-html[data-theme="day"] .cp-theme-rail {
-    background: #F1F5F9;
-    border-color: #E2E8F0;
-}
-
-html[data-theme="day"] .cp-theme-rail .cp-theme-option[aria-pressed="true"] {
-    background: #FFFFFF;
-    color: #0B1220;
-    box-shadow: 0 1px 3px rgba(15, 23, 42, .08);
-}
-
-html[data-theme="day"] .bw-mobile-dock {
-    background: #FFFFFF;
-    border-color: #E2E8F0;
-}
-
-html[data-theme="day"] .bw-field input,
-html[data-theme="day"] .bw-field textarea,
-html[data-theme="day"] .bw-field select {
-    background: #FFFFFF;
-    color: #0B1220;
-    border-color: #CBD5E1;
+    background: #0F766E;
 }
 
 html[data-theme="day"] .cp-topbar,
 html[data-theme="day"] .bw-topbar {
-    background: rgba(255, 255, 255, .92);
+    background: color-mix(in srgb, #FFFFFF 86%, #E7F1F6);
+    border-bottom-color: #C5D8E4;
 }
+
+html[data-theme="day"] .cp-topbar .bw-balance-chip {
+    background: color-mix(in srgb, #0F766E 10%, #FFFFFF);
+    border-color: color-mix(in srgb, #0F766E 28%, #C5D8E4);
+    color: #115E59;
+}
+
+html[data-theme="day"] .cp-page-hero {
+    background: var(--cp-hero-wash);
+    border-color: color-mix(in srgb, #0F766E 22%, #C5D8E4);
+    box-shadow: var(--cp-shadow);
+}
+
+html[data-theme="day"] .cp-page-hero h1,
+html[data-theme="day"] .cp-page-hero h2 {
+    color: #0B2530;
+}
+
+html[data-theme="day"] .cp-page-hero .bw-section-kicker,
+html[data-theme="day"] .cp-kicker {
+    color: #0F766E;
+}
+
+html[data-theme="day"] .bw-button.primary {
+    background: linear-gradient(180deg, #149084, #0F766E);
+    color: #FFFFFF;
+    border-color: #115E59;
+    box-shadow: 0 8px 18px rgba(15, 118, 110, .22);
+}
+
+html[data-theme="day"] .bw-button.secondary,
+html[data-theme="day"] .bw-button.ghost {
+    color: #115E59;
+    background: #FFFFFF;
+    border-color: color-mix(in srgb, #0F766E 28%, #C5D8E4);
+}
+
+html[data-theme="day"] .cp-service-card {
+    background: #FFFFFF;
+    border-color: #C5D8E4;
+    box-shadow: 0 1px 2px rgba(11, 37, 48, .05), 0 10px 24px rgba(15, 118, 110, .05);
+}
+
+html[data-theme="day"] .cp-service-card.tone-green {
+    background: linear-gradient(180deg, #E8F8F0, #FFFFFF 46%);
+    border-color: color-mix(in srgb, #047857 28%, #C5D8E4);
+}
+html[data-theme="day"] .cp-service-card.tone-blue {
+    background: linear-gradient(180deg, #EAF0FC, #FFFFFF 46%);
+    border-color: color-mix(in srgb, #1D4ED8 28%, #C5D8E4);
+}
+html[data-theme="day"] .cp-service-card.tone-amber {
+    background: linear-gradient(180deg, #FFF3E8, #FFFFFF 46%);
+    border-color: color-mix(in srgb, #C2410C 24%, #C5D8E4);
+}
+html[data-theme="day"] .cp-service-card.tone-navy {
+    background: linear-gradient(180deg, #E8EEF6, #FFFFFF 46%);
+    border-color: color-mix(in srgb, #1E3A5F 24%, #C5D8E4);
+}
+html[data-theme="day"] .cp-service-card.tone-cyan {
+    background: linear-gradient(180deg, #E6F7F6, #FFFFFF 46%);
+    border-color: color-mix(in srgb, #0F766E 28%, #C5D8E4);
+}
+html[data-theme="day"] .cp-service-card.tone-red {
+    background: linear-gradient(180deg, #FDECEE, #FFFFFF 46%);
+    border-color: color-mix(in srgb, #BE123C 24%, #C5D8E4);
+}
+
+html[data-theme="day"] .cp-service-icon {
+    color: #0F766E;
+    background: color-mix(in srgb, #0F766E 14%, #FFFFFF);
+}
+
+html[data-theme="day"] .cp-service-card.tone-green .cp-service-icon { color: #047857; background: #D8F3E6; }
+html[data-theme="day"] .cp-service-card.tone-blue .cp-service-icon { color: #1D4ED8; background: #DCE6FB; }
+html[data-theme="day"] .cp-service-card.tone-amber .cp-service-icon { color: #C2410C; background: #FDE6D4; }
+html[data-theme="day"] .cp-service-card.tone-navy .cp-service-icon { color: #1E3A5F; background: #D9E3F0; }
+html[data-theme="day"] .cp-service-card.tone-cyan .cp-service-icon { color: #0F766E; background: #D5F0ED; }
+html[data-theme="day"] .cp-service-card.tone-red .cp-service-icon { color: #BE123C; background: #F8D7DE; }
+
+html[data-theme="day"] .cp-work-card,
+html[data-theme="day"] .bw-section,
+html[data-theme="day"] .bw-filter-band,
+html[data-theme="day"] .bw-staff-filter-band,
+html[data-theme="day"] .cp-day-ops {
+    background: #FFFFFF;
+    border-color: #C5D8E4;
+}
+
+html[data-theme="day"] .cp-work-icon {
+    color: #1D4ED8;
+    background: #E4ECFB;
+}
+
+html[data-theme="day"] .bw-mini-metrics article {
+    background: #FFFFFF;
+    border-color: #C5D8E4;
+    box-shadow: 0 8px 20px rgba(15, 118, 110, .05);
+}
+
+html[data-theme="day"] .bw-mini-metrics article.success {
+    background: linear-gradient(180deg, #E8F8F0, #FFFFFF 58%);
+    border-color: color-mix(in srgb, #047857 26%, #C5D8E4);
+}
+html[data-theme="day"] .bw-mini-metrics article.blue {
+    background: linear-gradient(180deg, #EAF0FC, #FFFFFF 58%);
+    border-color: color-mix(in srgb, #1D4ED8 26%, #C5D8E4);
+}
+html[data-theme="day"] .bw-mini-metrics article.warning {
+    background: linear-gradient(180deg, #FFF3E8, #FFFFFF 58%);
+    border-color: color-mix(in srgb, #C2410C 24%, #C5D8E4);
+}
+
+html[data-theme="day"] .bw-metric-card.accent-dark { --metric-accent: #0F766E; }
+
+html[data-theme="day"] .bw-status.success,
+html[data-theme="day"] .bw-status.danger,
+html[data-theme="day"] .bw-status.warning,
+html[data-theme="day"] .bw-status.info {
+    border-radius: 999px;
+}
+
+html[data-theme="day"] .bw-status.success { color: #047857; background: #D8F3E6; border-color: #86D4B0; }
+html[data-theme="day"] .bw-status.warning { color: #C2410C; background: #FDE6D4; border-color: #F0B184; }
+html[data-theme="day"] .bw-status.info { color: #1D4ED8; background: #DCE6FB; border-color: #A4B8F2; }
+html[data-theme="day"] .bw-status.danger { color: #BE123C; background: #F8D7DE; border-color: #E7A0B0; }
+
+html[data-theme="day"] .cp-theme-rail {
+    background: #DDF1F2;
+    border-color: #C5D8E4;
+}
+
+html[data-theme="day"] .cp-theme-rail .cp-theme-option[aria-pressed="true"] {
+    background: #0F766E;
+    color: #FFFFFF;
+    box-shadow: 0 6px 14px rgba(15, 118, 110, .22);
+}
+
+html[data-theme="day"] .bw-mobile-dock {
+    background: #FFFFFF;
+    border-color: #C5D8E4;
+}
+
+html[data-theme="day"] .bw-mobile-dock a.active {
+    color: #0F766E;
+    background: #D5F0ED;
+}
+
+html[data-theme="day"] .bw-field input,
+html[data-theme="day"] .bw-field textarea,
+html[data-theme="day"] .bw-field select,
+html[data-theme="day"] .bw-search-field input {
+    background: #FFFFFF;
+    color: #0B2530;
+    border-color: #9BB7C6;
+}
+
+html[data-theme="day"] .bw-field input:focus,
+html[data-theme="day"] .bw-field textarea:focus,
+html[data-theme="day"] .bw-field select:focus,
+html[data-theme="day"] .bw-search-field input:focus {
+    border-color: #0F766E;
+    box-shadow: 0 0 0 3px rgba(15, 118, 110, .18);
+    outline: none;
+}
+
+html[data-theme="day"] .bw-team-role-guide article.manager span { color: #1D4ED8; background: #DCE6FB; }
+html[data-theme="day"] .bw-team-role-guide article.accountant span { color: #0F766E; background: #D5F0ED; }
+html[data-theme="day"] .bw-team-role-guide article.employee span { color: #C2410C; background: #FDE6D4; }
 
 @media (max-width: 1050px) {
     html[data-theme="day"] .bw-mobile-dock {
         background: #FFFFFF;
-        box-shadow: 0 12px 32px rgba(15, 23, 42, .12);
+        box-shadow: 0 16px 36px rgba(15, 118, 110, .16);
     }
 }

@@ -153,10 +153,22 @@ html[data-portal="company"] .cp-sidebar .bw-nav-link:hover,
 
 html[data-portal="company"] .cp-sidebar .bw-nav-link.active,
 .bw-company-os .bw-nav-link.active {
+    position: relative;
     color: var(--cp-sidebar-text);
     background: color-mix(in srgb, var(--cp-icon) 16%, var(--cp-sidebar-soft));
     box-shadow: none;
     border: 0;
+}
+
+html[data-portal="company"] .cp-sidebar .bw-nav-link.active::before,
+.bw-company-os .bw-nav-link.active::before {
+    content: "";
+    position: absolute;
+    inset-block: 8px;
+    inset-inline-start: 0;
+    width: 3px;
+    border-radius: 999px;
+    background: var(--cp-icon);
 }
 
 html[data-portal="company"] .cp-sidebar .bw-nav-icon,
@@ -243,9 +255,9 @@ html[data-portal="company"] .cp-topbar .bw-balance-chip,
 .bw-company-os .bw-balance-chip {
     min-height: 40px;
     padding: 6px 12px;
-    border: 1px solid var(--cp-line);
+    border: 1px solid color-mix(in srgb, var(--cp-icon) 28%, var(--cp-line));
     border-radius: 999px;
-    background: var(--cp-surface-soft);
+    background: color-mix(in srgb, var(--cp-icon) 10%, var(--cp-surface));
     box-shadow: none;
     color: var(--cp-ink);
 }
@@ -358,8 +370,8 @@ html[data-portal="company"] .cp-topbar .bw-avatar,
 .cp-theme-rail .cp-theme-option small { display: none; }
 
 .cp-theme-rail .cp-theme-option[aria-pressed="true"] {
-    color: var(--cp-ink);
-    background: var(--cp-surface);
+    color: var(--cp-on-accent);
+    background: var(--cp-icon);
     box-shadow: var(--cp-shadow);
 }
 
@@ -541,13 +553,25 @@ html[data-portal="company"] .cp-main,
     display: flex;
     align-items: flex-end;
     justify-content: space-between;
-    gap: 18px;
-    margin: 0 0 22px;
-    padding: 22px 24px;
+    gap: 16px;
+    margin: 0 0 24px;
+    padding: 24px;
     border: 1px solid var(--cp-line);
     border-radius: var(--cp-radius-lg);
-    background: var(--cp-surface);
+    background: var(--cp-hero-wash, var(--cp-surface));
     box-shadow: var(--cp-shadow);
+    position: relative;
+    overflow: hidden;
+}
+
+.cp-page-hero::before {
+    content: "";
+    position: absolute;
+    inset-block: 16px;
+    inset-inline-start: 0;
+    width: 4px;
+    border-radius: 999px;
+    background: var(--cp-icon);
 }
 
 .cp-page-hero-copy,
@@ -564,7 +588,7 @@ html[data-portal="company"] .cp-main,
     align-items: center;
     gap: 6px;
     margin: 0;
-    color: var(--cp-muted);
+    color: var(--cp-icon);
     font-size: 0.75rem;
     font-weight: 700;
     letter-spacing: 0.04em;
@@ -611,6 +635,7 @@ html[data-portal="company"] .bw-button.primary,
     background: var(--cp-icon);
     color: var(--cp-on-accent);
     border-color: transparent;
+    box-shadow: 0 8px 18px color-mix(in srgb, var(--cp-icon) 22%, transparent);
 }
 
 html[data-portal="company"] .bw-button.primary:hover,
@@ -653,6 +678,7 @@ html[data-portal="company"] .bw-button.ghost,
     border: 1px solid var(--cp-line);
     border-radius: var(--cp-radius);
     box-shadow: var(--cp-shadow);
+    overflow: hidden;
     transition: transform .16s ease, box-shadow .16s ease, border-color .16s ease;
 }
 
@@ -692,8 +718,30 @@ html[data-portal="company"] .bw-button.ghost,
 }
 
 html[data-portal="company"] .cp-service-card[class*="tone-"] {
-    background: var(--cp-surface);
+    position: relative;
     color: var(--cp-ink);
+}
+
+html[data-portal="company"] .cp-service-card[class*="tone-"]::before {
+    content: "";
+    position: absolute;
+    inset-block: 12px;
+    inset-inline-start: 0;
+    width: 4px;
+    border-radius: 999px;
+    background: var(--tone, var(--cp-icon));
+}
+
+html[data-portal="company"] .cp-service-card.tone-green { --tone: var(--cp-success); }
+html[data-portal="company"] .cp-service-card.tone-blue { --tone: var(--cp-info); }
+html[data-portal="company"] .cp-service-card.tone-amber { --tone: var(--cp-warning); }
+html[data-portal="company"] .cp-service-card.tone-navy { --tone: var(--cp-indigo, var(--cp-info)); }
+html[data-portal="company"] .cp-service-card.tone-cyan { --tone: var(--cp-turquoise); }
+html[data-portal="company"] .cp-service-card.tone-red { --tone: var(--cp-danger); }
+
+html[data-portal="company"] .cp-service-card[class*="tone-"] .cp-service-icon {
+    color: var(--tone, var(--cp-icon));
+    background: color-mix(in srgb, var(--tone, var(--cp-icon)) 16%, var(--cp-surface));
 }
 
 html[data-portal="company"] .cp-finance-metrics,
@@ -810,6 +858,16 @@ html[data-portal="company"] .cp-push-card,
     animation: none;
 }
 
+html[data-portal="company"] .bw-metric-card.accent-dark {
+    --metric-accent: var(--cp-icon);
+}
+
+html[data-portal="company"] .bw-metric-icon {
+    color: var(--metric-accent, var(--cp-icon));
+    background: color-mix(in srgb, var(--metric-accent, var(--cp-icon)) 14%, var(--cp-surface));
+    border-color: color-mix(in srgb, var(--metric-accent, var(--cp-icon)) 24%, var(--cp-line));
+}
+
 html[data-portal="company"] .bw-mini-metrics,
 .bw-company-os .bw-mini-metrics {
     display: grid;
@@ -820,13 +878,29 @@ html[data-portal="company"] .bw-mini-metrics,
 
 html[data-portal="company"] .bw-mini-metrics article,
 .bw-company-os .bw-mini-metrics article {
+    position: relative;
+    overflow: hidden;
     min-height: 84px;
     padding: 14px 16px;
     border: 1px solid var(--cp-line);
     border-radius: var(--cp-radius-sm);
     background: var(--cp-surface);
-    box-shadow: none;
+    box-shadow: var(--cp-shadow);
 }
+
+html[data-portal="company"] .bw-mini-metrics article::before,
+.bw-company-os .bw-mini-metrics article::before {
+    content: "";
+    position: absolute;
+    inset-block: 0;
+    inset-inline-start: 0;
+    width: 4px;
+    background: var(--cp-icon);
+}
+
+html[data-portal="company"] .bw-mini-metrics article.success::before { background: var(--cp-success); }
+html[data-portal="company"] .bw-mini-metrics article.blue::before { background: var(--cp-info); }
+html[data-portal="company"] .bw-mini-metrics article.warning::before { background: var(--cp-warning); }
 
 html[data-portal="company"] .bw-mini-metrics span,
 .bw-company-os .bw-mini-metrics span {
@@ -879,12 +953,14 @@ html[data-portal="company"] .bw-chat-input textarea,
 html[data-portal="company"] .bw-field input:focus,
 html[data-portal="company"] .bw-field textarea:focus,
 html[data-portal="company"] .bw-field select:focus,
+html[data-portal="company"] .bw-search-field input:focus,
 .bw-company-os .bw-field input:focus,
 .bw-company-os .bw-field textarea:focus,
-.bw-company-os .bw-field select:focus {
-    outline: 2px solid color-mix(in srgb, var(--cp-icon) 45%, transparent);
-    outline-offset: 1px;
+.bw-company-os .bw-field select:focus,
+.bw-company-os .bw-search-field input:focus {
+    outline: none;
     border-color: var(--cp-icon);
+    box-shadow: var(--cp-focus, 0 0 0 3px color-mix(in srgb, var(--cp-icon) 32%, transparent));
 }
 
 html[data-portal="company"] .bw-empty i,
@@ -892,14 +968,38 @@ html[data-portal="company"] .bw-empty .cp-icon,
 .bw-company-os .bw-empty i,
 .bw-company-os .bw-empty .cp-icon { color: var(--cp-icon); }
 
+html[data-portal="company"] .bw-status,
+.bw-company-os .bw-status,
+html[data-portal="company"] .bw-role-badge,
+.bw-company-os .bw-role-badge {
+    border-radius: 999px;
+    font-weight: 800;
+}
+
 html[data-portal="company"] .bw-status.success,
-.bw-company-os .bw-status.success { color: var(--cp-success); }
+.bw-company-os .bw-status.success {
+    color: var(--cp-success);
+    background: color-mix(in srgb, var(--cp-success) 16%, var(--cp-surface));
+    border-color: color-mix(in srgb, var(--cp-success) 32%, var(--cp-line));
+}
 html[data-portal="company"] .bw-status.danger,
-.bw-company-os .bw-status.danger { color: var(--cp-danger); }
+.bw-company-os .bw-status.danger {
+    color: var(--cp-danger);
+    background: color-mix(in srgb, var(--cp-danger) 14%, var(--cp-surface));
+    border-color: color-mix(in srgb, var(--cp-danger) 32%, var(--cp-line));
+}
 html[data-portal="company"] .bw-status.warning,
-.bw-company-os .bw-status.warning { color: var(--cp-warning); }
+.bw-company-os .bw-status.warning {
+    color: var(--cp-warning);
+    background: color-mix(in srgb, var(--cp-warning) 16%, var(--cp-surface));
+    border-color: color-mix(in srgb, var(--cp-warning) 32%, var(--cp-line));
+}
 html[data-portal="company"] .bw-status.info,
-.bw-company-os .bw-status.info { color: var(--cp-info); }
+.bw-company-os .bw-status.info {
+    color: var(--cp-info);
+    background: color-mix(in srgb, var(--cp-info) 16%, var(--cp-surface));
+    border-color: color-mix(in srgb, var(--cp-info) 32%, var(--cp-line));
+}
 
 html[data-portal="company"] .bw-team-role-guide,
 html[data-portal="company"] .bw-staff-filter-band,

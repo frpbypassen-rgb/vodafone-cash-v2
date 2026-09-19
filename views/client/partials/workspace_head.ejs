@@ -1,7 +1,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-    <meta name="theme-color" content="<%= typeof workspace !== 'undefined' && workspace.isCompany ? (typeof companyThemeMeta !== 'undefined' && companyThemeMeta.themeColor ? companyThemeMeta.themeColor : '#F4F6F8') : '#111827' %>">
+    <meta name="theme-color" content="<%= typeof workspace !== 'undefined' && workspace.isCompany ? (typeof companyThemeMeta !== 'undefined' && companyThemeMeta.themeColor ? companyThemeMeta.themeColor : '#E7F1F6') : '#111827' %>">
     <title><%= pageMeta.title %> | Power Pay AL-Ahram</title>
     <script>
         (() => {
@@ -21,7 +21,7 @@
                 if (valid.includes(server)) {
                     try { localStorage.setItem('ahram_company_theme', server); } catch (_error) { /* private mode */ }
                 }
-                const colors = { day: '#F4F6F8', night: '#12110F', pharaonic: '#1A1510' };
+                const colors = { day: '#E7F1F6', night: '#0B1426', pharaonic: '#1A1510' };
                 const meta = document.querySelector('meta[name="theme-color"]');
                 if (meta) meta.setAttribute('content', colors[theme]);
                 return;
@@ -36,15 +36,15 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&family=Tajawal:wght@400;500;700;800&family=JetBrains+Mono:wght@600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css">
-    <link rel="stylesheet" href="/css/client-workspace.css?v=20260919-visual2">
-    <link rel="stylesheet" href="/css/client-portal-2027.css?v=20260919-visual2">
+    <link rel="stylesheet" href="/css/client-workspace.css?v=20260919-visual3">
+    <link rel="stylesheet" href="/css/client-portal-2027.css?v=20260919-visual3">
     <% if (typeof workspace !== 'undefined' && workspace.isCompany) { %>
-        <link rel="stylesheet" href="/css/company-portal.tokens.css?v=20260919-visual2">
-        <link rel="stylesheet" href="/css/company-portal-layout.css?v=20260919-visual2">
-        <link rel="stylesheet" href="/css/company-portal-theme-day.css?v=20260919-visual2">
-        <link rel="stylesheet" href="/css/company-portal-theme-night.css?v=20260919-visual2">
-        <link rel="stylesheet" href="/css/company-portal-theme-pharaonic.css?v=20260919-visual2">
-        <link rel="stylesheet" href="/css/company-portal.css?v=20260919-visual2">
+        <link rel="stylesheet" href="/css/company-portal.tokens.css?v=20260919-visual3">
+        <link rel="stylesheet" href="/css/company-portal-layout.css?v=20260919-visual3">
+        <link rel="stylesheet" href="/css/company-portal-theme-day.css?v=20260919-visual3">
+        <link rel="stylesheet" href="/css/company-portal-theme-night.css?v=20260919-visual3">
+        <link rel="stylesheet" href="/css/company-portal-theme-pharaonic.css?v=20260919-visual3">
+        <link rel="stylesheet" href="/css/company-portal.css?v=20260919-visual3">
     <% } %>
     <link rel="stylesheet" href="/css/rate-alert-overlay.css?v=20260816-3">
     <script src="/socket.io/socket.io.js"></script>
