@@ -210,9 +210,9 @@
     }
     .menu-link-text {
         min-width: 0;
-        overflow: hidden;
-        text-overflow: ellipsis;
-        white-space: nowrap;
+        overflow-wrap: anywhere;
+        white-space: normal;
+        line-height: 1.35;
     }
     .menu-chevron {
         font-size: 0.72rem;
@@ -446,9 +446,6 @@
         [data-theme="light"] .menu-category-header {
             color: #9a7b1c;
         }
-        .operations-menu {
-            background: rgba(255,255,255,0.04);
-        }
         .sidebar-menu a {
             padding: 13px 18px;
             margin: 6px 0;
@@ -484,6 +481,25 @@
             font-weight: 800;
             border: none;
             box-shadow: 0 8px 20px rgba(212, 175, 55, 0.25);
+        }
+        .operations-menu {
+            margin: 6px 0;
+            padding: 4px;
+            background: rgba(255,255,255,0.05);
+            border: 1px solid rgba(255,255,255,0.08);
+        }
+        .sidebar-menu a.transaction-workspace-link,
+        .sidebar-menu .operations-submenu a {
+            margin: 2px 0;
+            background: transparent;
+            border-color: transparent;
+        }
+        .operations-menu-header {
+            background: rgba(255,255,255,0.04);
+            border-radius: 14px;
+        }
+        .operations-menu-toggle {
+            border-radius: 12px;
         }
         [data-theme="light"] .sidebar-mobile-close {
             border-color: rgba(0, 0, 0, 0.08);
