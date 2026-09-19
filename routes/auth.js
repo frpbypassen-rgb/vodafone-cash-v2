@@ -760,7 +760,11 @@ const completeClientSession = async (req, account, accountType) => {
         isClientLoggedIn: true,
         clientId: account._id,
         accountType,
-        clientName: account.name || account.webUsername || 'حساب عميل'
+        clientName: account.name || account.webUsername || 'حساب عميل',
+        clientSessionVersion: Number(account.sessionVersion || 0),
+        companyTheme: accountType === 'company'
+            ? (account.preferences && account.preferences.companyTheme) || account.uiTheme || undefined
+            : undefined
     });
     if (!account.mfaEnabled || account.mfaType !== 'totp') {
         req.session.showMfaEnableNotice = true;

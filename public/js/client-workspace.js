@@ -214,6 +214,8 @@
             if (!staffPasswordDialog || !staffPasswordForm) return;
             staffPasswordForm.action = `/client/${config.workspaceType === 'company' ? 'company' : 'agent'}/staff/${encodeURIComponent(button.dataset.memberId)}/password`;
             if (staffPasswordName) staffPasswordName.textContent = button.dataset.memberName || 'الموظف';
+            const usernameInput = document.getElementById('staffPasswordUsername');
+            if (usernameInput) usernameInput.value = button.dataset.memberUsername || '';
             openDialog(staffPasswordDialog);
         });
     });

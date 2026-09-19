@@ -4,6 +4,8 @@ const {
     COMPANY_PORTAL_THEMES,
     normalizeCompanyTheme,
     resolveCompanyTheme,
+    resolveAccountCompanyTheme,
+    readStoredCompanyTheme,
     pharaonicIconForNav,
     pharaonicIconForService
 } = require('../utils/companyPortalTheme');
@@ -22,6 +24,9 @@ describe('company portal theme helpers', () => {
         expect(resolveCompanyTheme({ stored: null, server: 'night', prefersDark: false })).toBe('night');
         expect(resolveCompanyTheme({ prefersDark: true })).toBe('night');
         expect(resolveCompanyTheme({ prefersDark: false })).toBe('day');
+        expect(resolveCompanyTheme({ stored: 'day', server: 'night', serverWins: true })).toBe('night');
+        expect(resolveAccountCompanyTheme({ preferences: { companyTheme: 'pharaonic' } }, 'day')).toBe('pharaonic');
+        expect(readStoredCompanyTheme({ uiTheme: 'night' })).toBe('night');
     });
 
     test('maps dock and service keys to Pharaonic icon ids', () => {

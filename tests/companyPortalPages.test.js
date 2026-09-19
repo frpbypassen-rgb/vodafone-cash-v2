@@ -144,7 +144,8 @@ describe('canonical company portal pages', () => {
             '/api/web-push/unsubscribe',
             '/api/web-push/test',
             '/api/notifications/read-all',
-            '/api/theme'
+            '/api/theme',
+            '/settings/theme'
         ]));
         expect(registered).not.toContain('/company-next-page');
     });
@@ -177,7 +178,11 @@ describe('canonical company portal pages', () => {
         const html = await renderWorkspacePage('services');
         expect(html).toContain('data-company-shell');
         expect(html).toContain('/css/company-portal.tokens.css');
-        expect(html).toContain('/css/company-portal.css');
+        expect(html).toContain('/css/company-portal-layout.css');
+        expect(html).toContain('/css/company-portal-theme-day.css');
+        expect(html).toContain('/css/company-portal-theme-night.css');
+        expect(html).toContain('/css/company-portal-theme-pharaonic.css');
+        expect(html).toContain('data-company-role=');
         expect(html).toContain('IBM+Plex+Sans+Arabic');
         expect(html).toContain('data-company-bell');
         expect(html).toContain('id="businessSidebar"');
@@ -219,17 +224,33 @@ describe('canonical company portal pages', () => {
         expect(accountantHtml).not.toContain('data-dock-key="smart_transfer"');
     });
 
-    test('keeps three full palettes in company portal tokens', () => {
-        const css = fs.readFileSync(path.join(__dirname, '..', 'public', 'css', 'company-portal.tokens.css'), 'utf8');
-        ['[data-theme="day"]', '[data-theme="night"]', '[data-theme="pharaonic"]'].forEach((selector) => {
-            expect(css).toContain(selector);
+    test('keeps three full palettes in dedicated theme files', () => {
+        const files = {
+            day: fs.readFileSync(path.join(__dirname, '..', 'public', 'css', 'company-portal-theme-day.css'), 'utf8'),
+            night: fs.readFileSync(path.join(__dirname, '..', 'public', 'css', 'company-portal-theme-night.css'), 'utf8'),
+            pharaonic: fs.readFileSync(path.join(__dirname, '..', 'public', 'css', 'company-portal-theme-pharaonic.css'), 'utf8')
+        };
+        expect(files.day).toContain('[data-theme="day"]');
+        expect(files.night).toContain('[data-theme="night"]');
+        expect(files.pharaonic).toContain('[data-theme="pharaonic"]');
+        ['#E8D5B7', '#1A1510', '#C9A227', '#1F6F6A', '#8B3A2F'].forEach((token) => {
+            expect(files.pharaonic).toContain(token);
         });
-        ['#E8D5B7', '#1A1510', '#C9A227', '#1F6F6A', '#8B3A2F', '#F4F6F8', '#12110F'].forEach((token) => {
-            expect(css).toContain(token);
-        });
-        const layout = fs.readFileSync(path.join(__dirname, '..', 'public', 'css', 'company-portal.css'), 'utf8');
-        expect(layout).toContain('cp-sand-dust');
+        expect(files.day).toContain('#F4F6F8');
+        expect(files.night).toContain('#12110F');
+        const layout = fs.readFileSync(path.join(__dirname, '..', 'public', 'css', 'company-portal-layout.css'), 'utf8');
         expect(layout).toContain('--cp-touch');
         expect(layout).toContain('env(safe-area-inset-bottom)');
+        expect(files.pharaonic).toContain('cp-sand-dust');
+        expect(files.pharaonic).toContain('prefers-reduced-motion');
+    });
+
+    test('company page templates do not hardcode colors', async () => {
+        const pagesDir = path.join(__dirname, '..', 'views', 'client', 'pages');
+        const files = fs.readdirSync(pagesDir).filter((name) => name.endsWith('.ejs'));
+        files.forEach((name) => {
+            const source = fs.readFileSync(path.join(pagesDir, name), 'utf8');
+            expect(source).not.toMatch(/style="[^"]*(?:color|background)\s*:\s*#/);
+        });
     });
 });

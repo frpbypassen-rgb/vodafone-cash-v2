@@ -64,7 +64,7 @@
                     <div class="cos-ops-actions">
                         <a href="/client/transactions?staff=<%= encodeURIComponent(member.name) %>&history=all" class="bw-icon-button compact" title="سجل عمليات <%= member.name %>" aria-label="فتح سجل عمليات <%= member.name %>"><i class="fa-solid fa-chart-line"></i></a>
                         <% if (workspace.permissions.canManageStaff && !isSelf && member.role !== 'owner') { %>
-                            <button type="button" class="bw-icon-button compact" data-staff-password data-member-id="<%= member._id %>" data-member-name="<%= member.name %>" title="تغيير كلمة المرور" aria-label="تغيير كلمة مرور <%= member.name %>"><i class="fa-solid fa-key"></i></button>
+                            <button type="button" class="bw-icon-button compact" data-staff-password data-member-id="<%= member._id %>" data-member-name="<%= member.name %>" data-member-username="<%= member.webUsername %>" title="تغيير كلمة المرور" aria-label="تغيير كلمة مرور <%= member.name %>"><i class="fa-solid fa-key"></i></button>
                             <form method="POST" action="/client/<%= workspace.isCompany ? 'company' : 'agent' %>/staff/<%= member._id %>/toggle" data-confirm="<%= member.status === 'active' ? 'إيقاف حساب الموظف؟' : 'إعادة تنشيط حساب الموظف؟' %>"><button type="submit" class="bw-icon-button compact <%= member.status === 'active' ? 'danger' : 'success' %>" aria-label="تغيير حالة <%= member.name %>"><i class="fa-solid <%= member.status === 'active' ? 'fa-pause' : 'fa-play' %>"></i></button></form>
                         <% } %>
                     </div>
@@ -89,7 +89,7 @@
                             <div class="bw-row-actions">
                                 <a href="/client/transactions?staff=<%= encodeURIComponent(member.name) %>&history=all" class="bw-icon-button compact" title="سجل عمليات <%= member.name %>" aria-label="فتح سجل عمليات <%= member.name %>"><i class="fa-solid fa-chart-line"></i></a>
                                 <% if (workspace.permissions.canManageStaff && !isSelf && member.role !== 'owner') { %>
-                                    <button type="button" class="bw-icon-button compact" data-staff-password data-member-id="<%= member._id %>" data-member-name="<%= member.name %>" title="تغيير كلمة المرور" aria-label="تغيير كلمة مرور <%= member.name %>"><i class="fa-solid fa-key"></i></button>
+                                    <button type="button" class="bw-icon-button compact" data-staff-password data-member-id="<%= member._id %>" data-member-name="<%= member.name %>" data-member-username="<%= member.webUsername %>" title="تغيير كلمة المرور" aria-label="تغيير كلمة مرور <%= member.name %>"><i class="fa-solid fa-key"></i></button>
                                     <form method="POST" action="/client/<%= workspace.isCompany ? 'company' : 'agent' %>/staff/<%= member._id %>/toggle" data-confirm="<%= member.status === 'active' ? 'إيقاف حساب الموظف؟' : 'إعادة تنشيط حساب الموظف؟' %>"><button type="submit" class="bw-icon-button compact <%= member.status === 'active' ? 'danger' : 'success' %>" aria-label="تغيير حالة <%= member.name %>"><i class="fa-solid <%= member.status === 'active' ? 'fa-pause' : 'fa-play' %>"></i></button></form>
                                 <% } %>
                             </div>
@@ -113,6 +113,11 @@
             <label class="bw-field"><span>كلمة المرور</span><input type="password" name="webPassword" minlength="8" autocomplete="new-password" required></label>
             <label class="bw-field"><span>صفة الموظف</span><select name="role"><option value="employee">موظف تنفيذ — عمليات اليوم</option><option value="accountant">محاسب — تقارير وحركات مالية</option></select></label>
             <label class="bw-check-row span-2"><input type="checkbox" name="<%= workspace.isCompany ? 'canManageCompany' : 'canManageAgent' %>"><span><i class="fa-solid fa-user-shield"></i><strong>منحه صلاحية مدير تشغيل</strong><small><%= workspace.isCompany ? 'يتابع الفريق والعمليات والتقارير دون إنشاء حسابات موظفين.' : 'يتابع العملاء والعمليات دون إنشاء حسابات موظفين.' %></small></span></label>
+            <% if (workspace.isCompany) { %>
+            <label class="bw-check-row span-2"><input type="checkbox" name="canCreateTransfer" checked><span><i class="fa-solid fa-paper-plane"></i><strong>يمكنه إنشاء تحويل</strong><small>صلاحية مستقلة عن الدور. المحاسب بلا هذه العلامة لا يرسل.</small></span></label>
+            <label class="bw-check-row span-2"><input type="checkbox" name="canViewAllReports"><span><i class="fa-solid fa-file-invoice"></i><strong>عرض كل التقارير</strong><small>مستقلة عن الدور. المالك والمحاسب يملكانها افتراضياً.</small></span></label>
+            <label class="bw-check-row span-2"><input type="checkbox" name="canManageCompanyProfile"><span><i class="fa-solid fa-address-card"></i><strong>تعديل ملف الشركة</strong><small>مستقلة عن إدارة الفريق. المالك فقط ينشئ الحسابات.</small></span></label>
+            <% } %>
         </div>
         <div class="bw-dialog-actions"><button type="button" class="bw-button secondary" data-dialog-close>إلغاء</button><button type="submit" class="bw-button primary"><i class="fa-solid fa-user-plus"></i>إنشاء الحساب</button></div>
     </form>
@@ -121,7 +126,14 @@
 <dialog class="bw-dialog compact-dialog" id="staffPasswordDialog" aria-labelledby="staffPasswordTitle">
     <form method="POST" action="" class="bw-dialog-form" id="staffPasswordForm">
         <div class="bw-dialog-head"><div><span class="bw-section-kicker">أمان الحساب</span><h2 id="staffPasswordTitle">تغيير كلمة المرور</h2></div><button type="button" class="bw-icon-button" data-dialog-close aria-label="إغلاق"><i class="fa-solid fa-xmark"></i></button></div>
-        <div class="bw-dialog-body"><p class="bw-dialog-note">سيتم تغيير كلمة مرور <strong id="staffPasswordName">الموظف</strong> فور الحفظ.</p><label class="bw-field"><span>كلمة المرور الجديدة</span><input type="password" name="newPassword" minlength="8" autocomplete="new-password" required></label></div>
+        <div class="bw-dialog-body">
+            <p class="bw-dialog-note">إعادة تعيين كلمة مرور <strong id="staffPasswordName">الموظف</strong> تُلغي جلساته وتفرض تغييراً عند الدخول التالي. لن تُحفظ كلمة المرور في سجل التدقيق.</p>
+            <label class="bw-field"><span>كلمة المرور المؤقتة</span><input type="password" name="newPassword" minlength="8" autocomplete="new-password" required></label>
+            <% if (workspace.isCompany) { %>
+            <label class="bw-field"><span>أعد كتابة اسم المستخدم للتأكيد</span><input type="text" name="confirmUsername" id="staffPasswordUsername" dir="ltr" autocomplete="off" required></label>
+            <label class="bw-field"><span>اكتب RESET بالإنجليزية</span><input type="text" name="confirmPhrase" autocomplete="off" required></label>
+            <% } %>
+        </div>
         <div class="bw-dialog-actions"><button type="button" class="bw-button secondary" data-dialog-close>إلغاء</button><button type="submit" class="bw-button primary"><i class="fa-solid fa-key"></i>حفظ كلمة المرور</button></div>
     </form>
 </dialog>

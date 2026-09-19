@@ -5,50 +5,66 @@
 - تسجيل دخول الشركة من `/login?portal=client` يفتح `/client/services`.
 - الروابط القديمة `/corporate` و`/corporate/*` و`/client/company-next` تُحوَّل بـ 302 إلى `/client/services`.
 - الصفحات المرتبطة بنفس بوابة الشركات تبقى تحت `/client/*` (التحويل الذكي، عمليات اليوم، بيانات المنشأة، أمان الحساب، الدعم، المالية، التقارير).
-- نفس الهيكل لكل الأدوار (مدير / محاسب / موظف). الفرق في البطاقات والإجراءات الظاهرة فقط.
+- نفس الهيكل لكل الأدوار. الفرق في الوحدات المسموحة فقط.
 - سطح المكتب: شريط جانبي + شريط علوي + محتوى. الهاتف: غلاف تطبيقي مع إرساء سفلي وأهداف لمس ≥ 44px وحشوة safe-area.
+- الخادم هو مصدر الصلاحيات الوحيد. خرائط التنقل في EJS/JS للعرض فقط.
+
+## الأدوار مقابل الصلاحيات
+
+الدور المخزّن على `ClientEmployee.role` هو واحد فقط:
+
+| الدور | المعنى |
+| --- | --- |
+| `owner` | مالك الشركة. وحده يدير الفريق ويعيد تعيين كلمات المرور |
+| `accountant` | محاسب. كشوف ورصيد بلا تحويل ما لم تُمنح صلاحية مستقلة |
+| `employee` | موظف تنفيذ |
+
+الحقل القديم `corporateRole` (`manager` / `accountant`) والحقول `canManageCompany` و`canCreateCompanyStaff` و`canViewAllReports === true` بدون `canManageCompany` (المالك القديم) تبقى أسماء مستعارة للتوافق. `manager` ليس دوراً مخزّناً؛ هو شخصية تشغيلية عندما يكون الدور `owner` أو `canManageCompany === true`.
+
+صلاحيات مستقلة عن الدور (تُشتق إن لم تُضبط صراحة):
+
+| الصلاحية | الافتراضي |
+| --- | --- |
+| `canCreateTransfer` | كل الأدوار إلا المحاسب |
+| `canViewAllReports` | العلم المخزّن، ويُكمل المالك/المدير/المحاسب رؤية الكشوف |
+| `canManageCompanyProfile` | المالك أو `canManageCompany` |
+| `canManageTeam` / `canResetStaffPassword` | المالك فقط — لا تُرفع بصلاحية مصطنعة |
+
+كل مسار/متحكم للشركة يعيد فحص `companyId` + الدور + الصلاحية. إخفاء بند القائمة ليس حماية.
+
+## كلمات المرور والتدقيق
+
+- تغيير كلمة مرور الحساب الحالي يتطلب الكلمة الحالية.
+- إعادة تعيين موظف تتطلب كتابة اسم المستخدم و`RESET`، وتمنع المالك من استهداف نفسه، وتمنع أي هدف خارج الشركة الحالية.
+- بعد إعادة التعيين: تُزاد `sessionVersion` (إبطال الجلسات) ويُفرض `mustChangePassword` عند الدخول التالي.
+- `AuditLog` يسجّل الإجراء دون كلمة المرور.
 
 ## المظاهر الثلاثة
 
-البوابة تستخدم `data-theme` على عنصر `html` (ويُنسخ إلى `body.bw-company-os`) بقيم:
+الخادم يضع `data-theme` و`data-company-role` على HTML. JavaScript يعزّز المبدّل فقط.
 
-| القيمة | الاسم | الاستخدام |
-| --- | --- | --- |
-| `day` | نهاري | فاتح، نظيف، تباين عالٍ |
-| `night` | ليلي | حجر داكن وإضاءة منخفضة |
-| `pharaonic` | فرعوني | هوية رمل/ذهب/فيروز/طوب كاملة مع زخرفة متحركة خفيفة |
+| القيمة | الاسم |
+| --- | --- |
+| `day` | نهاري — أبيض/أسود وظلال ناعمة |
+| `night` | ليلي — تباين نص عالٍ وكتابة مريحة |
+| `pharaonic` | فرعوني — أزرار معبد/مسلة وأيقونات عائمة. الزخرفة الثقيلة تنتظر `cp-art-ready` وتتوقف مع `prefers-reduced-motion` |
 
-المصدر بالترتيب: `localStorage.ahram_company_theme` ثم تفضيل الحساب (`ClientEmployee.uiTheme` / الجلسة) ثم `prefers-color-scheme` (ليلي إن كان الجهاز داكناً، وإلا نهاري). بعد اختيار المستخدم لا يُعاد تطبيق تفضيل النظام.
+المصدر بعد تسجيل الدخول: `preferences.companyTheme` (الحقل الكانوني). `uiTheme` اسم مستعار للقراءة فقط أثناء الترحيل. لا تُنشأ أعمدة مظهر منفصلة. `localStorage.ahram_company_theme` للرسم الفوري؛ قيمة الخادم تفوز بعد الدخول وتُكتب إلى المتصفح.
 
 الملفات:
 
-- الرموز: `public/css/company-portal.tokens.css` (`--cp-*` وربط `--bw-*`)
-- الهيكل والحركة والأيقونات: `public/css/company-portal.css`
-- المبدّل: `views/client/partials/company_theme_switcher.ejs`
-- الأيقونات الفرعونية: `views/client/partials/company_icons.ejs` و`public/icons/pharaonic/sprite.svg`
-- الحفظ الاختياري على الخادم: `POST /client/api/theme`
+- الرموز المشتركة: `public/css/company-portal.tokens.css`
+- الهيكل: `public/css/company-portal-layout.css`
+- المظاهر: `public/css/company-portal-theme-day.css` و`theme-night` و`theme-pharaonic`
+- المبدّل: `views/client/partials/company_theme_switcher.ejs` (نموذج POST يعمل بلا JS)
+- الحفظ: `POST /client/settings/theme` و`POST /client/api/theme`
 
-### إضافة مظهر رابع
-
-1. أضف المفتاح إلى `COMPANY_PORTAL_THEMES` في `utils/companyPortalTheme.js` وإلى `ClientEmployee.uiTheme`.
-2. انسخ كتلة `html[data-theme="..."]` في `company-portal.tokens.css` وعدّل `--cp-*`.
-3. أضف زراً في `company_theme_switcher.ejs` وخياراً في صفحة بيانات المنشأة.
-4. أضف القيمة إلى مصفوفة `THEMES` في `public/js/company-portal.js`.
-5. لا تضع ألواناً ثابتة في صفحات `/client/*`؛ استخدم `var(--cp-surface)` و`var(--cp-ink)` ونظائرها.
-
-الحركة الزخرفية (وميض الهيروغليف وغبار الرمل وعلامة حورس) تظهر في المظهر الفرعوني فقط وتتوقف مع `prefers-reduced-motion`.
+لا تضع ألواناً ثابتة في قوالب صفحات الشركة؛ استخدم `var(--cp-*)`.
 
 ## الإشعارات وWeb Push
 
 - جرس الإشعارات داخل البوابة يقرأ صندوقاً محفوظاً على الخادم (`/client/api/notifications`) مع تعليم كمقروء.
-- Web Push يستخدم مفاتيح VAPID الموجودة: `WEB_PUSH_PUBLIC_KEY` و`WEB_PUSH_PRIVATE_KEY` و`WEB_PUSH_SUBJECT` (نفس مسار بوابة التنفيذ، بدون المساس بـ FCM).
+- Web Push يستخدم مفاتيح VAPID الموجودة: `WEB_PUSH_PUBLIC_KEY` و`WEB_PUSH_PRIVATE_KEY` و`WEB_PUSH_SUBJECT`.
 - التفعيل من `/client/security`. اختبار QA: `POST /client/api/web-push/test`.
-- أحداث مربوطة حالياً: اكتمال تحويل الشركة، تنبيه الرصيد المنخفض، ورد الدعم.
-- على iOS قد يلزم «إضافة إلى الشاشة الرئيسية» ثم فتح البوابة من الأيقونة.
-
-## فجوات الأدوار
-
-- الحقول المستخدمة: `ClientEmployee.role` (`owner` / `employee` / `accountant`) مع `canManageCompany` و`canViewAllReports` و`canCreateCompanyStaff`.
-- الحقل المتبقي `corporateRole` يُحترم كاحتياط إذا وُجد (`manager` / `accountant`) ولا توجد صفحة موافقات على `/client/*`. مجموعة «موافقات» في الجرس جاهزة إذا ظهرت تلك الأحداث لاحقاً.
 
 لا توجد واجهة موازية على `/corporate` ولا «واجهة جديدة» منفصلة عن هذه البوابة.

@@ -1,7 +1,7 @@
 <!DOCTYPE html>
-<html lang="ar" dir="rtl"<% if (workspace.isCompany) { %> data-portal="company"<% } %><% if (workspace.isCompany && typeof companyTheme !== 'undefined' && companyTheme) { %> data-theme="<%= companyTheme %>"<% } %>>
+<html lang="ar" dir="rtl"<% if (workspace.isCompany) { %> data-portal="company" data-company-role="<%= workspace.canonicalRole || (workspace.permissions && workspace.permissions.canonicalRole) || (workspace.persona === 'accountant' ? 'accountant' : (workspace.permissions && workspace.permissions.owner ? 'owner' : 'employee')) %>" data-theme="<%= typeof companyTheme !== 'undefined' && companyTheme ? companyTheme : 'day' %>"<% } %>>
 <%- include('partials/workspace_head') %>
-<body class="bw-body<%= workspace.isCompany ? ' bw-company-os cp-shell' : '' %>" data-page="<%= page %>" data-persona="<%= workspace.persona %>" data-portal="<%= workspace.type %>"<% if (workspace.isCompany) { %> data-company-shell<% } %><% if (workspace.isCompany && typeof companyTheme !== 'undefined' && companyTheme) { %> data-theme="<%= companyTheme %>"<% } %>>
+<body class="bw-body<%= workspace.isCompany ? ' bw-company-os cp-shell' : '' %>" data-page="<%= page %>" data-persona="<%= workspace.persona %>" data-portal="<%= workspace.type %>"<% if (workspace.isCompany) { %> data-company-shell data-company-role="<%= workspace.canonicalRole || (workspace.permissions && workspace.permissions.canonicalRole) || 'employee' %>" data-theme="<%= typeof companyTheme !== 'undefined' && companyTheme ? companyTheme : 'day' %>"<% } %>>
     <% if (workspace.isCompany) { %>
         <%- include('partials/company_icons') %>
         <span class="cp-sand-dust" aria-hidden="true"></span>

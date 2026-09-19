@@ -29,9 +29,16 @@ const {
 } = require('../utils/accountStatementPrivacy');
 const {
     normalizeCompanyTheme,
+    resolveAccountCompanyTheme,
+    COMPANY_PORTAL_THEME_META,
     pharaonicIconForNav,
     pharaonicIconForService
 } = require('../utils/companyPortalTheme');
+const {
+    resolveCompanyAccess,
+    toPortalPermissions,
+    canAccessCompanyPage
+} = require('./companyAccessService');
 
 const STATUS_META = Object.freeze({
     pending: { label: 'قيد الانتظار', tone: 'warning' },
@@ -271,28 +278,7 @@ const isLegacyCompanyOwner = (actor) => {
     return role !== 'accountant' && actor.canViewAllReports === true && actor.canManageCompany !== true;
 };
 
-const resolveCompanyPermissions = (actor) => {
-    const role = String(actor.role || '').toLowerCase();
-    const corporateRole = String(actor.corporateRole || '').toLowerCase();
-    const owner = role === 'owner' || actor.canCreateCompanyStaff === true || isLegacyCompanyOwner(actor);
-    const accountant = role === 'accountant' || (!owner && corporateRole === 'accountant');
-    const manager = owner || actor.canManageCompany === true || (!accountant && corporateRole === 'manager');
-    return {
-        owner,
-        manager,
-        accountant,
-        employee: !manager && !accountant,
-        canTransfer: !accountant,
-        canViewBalance: owner || manager || accountant || actor.canViewAllReports === true,
-        // الشركة تعمل بفريق داخلي فقط؛ العملاء تابعون للوكلاء وليس للشركات.
-        canManageCustomers: false,
-        canManageStaff: owner,
-        canViewReports: owner || manager || accountant || actor.canViewAllReports === true,
-        canEditSettings: owner || manager,
-        canInternalTransfer: !accountant && manager,
-        canRequestDeposit: manager || accountant
-    };
-};
+const resolveCompanyPermissions = (actor) => toPortalPermissions(resolveCompanyAccess(actor));
 
 const resolveAgentPermissions = (actor) => {
     const owner = actor.role === 'agent';
@@ -404,6 +390,7 @@ const buildWorkspaceResult = ({ type, actor, entity, actorModel, entityModel, pe
             ? 'بوابة الشركات'
             : (permissions.employee ? 'واجهة العميل' : 'بوابة الوكلاء'),
         permissions,
+        canonicalRole: type === 'company' ? (permissions.canonicalRole || (permissions.owner ? 'owner' : (permissions.accountant ? 'accountant' : 'employee'))) : undefined,
         masterType: type === 'company' ? 'company' : 'user',
         masterId: entity._id,
         forceToday: permissions.employee
@@ -484,6 +471,9 @@ const buildCompanyMobileNav = (workspace, navigation = []) => {
 };
 
 const canAccessPage = (workspace, page) => {
+    if (workspace.isCompany) {
+        return canAccessCompanyPage(workspace.permissions, page);
+    }
     if (page === 'overview') return !(workspace.isCompany && workspace.permissions.employee);
     if (['transactions', 'settings', 'security', 'support'].includes(page)) return true;
     if (page === 'services' || page === 'service_workbench' || page === 'smart_transfer') {
@@ -1321,7 +1311,10 @@ const buildBaseContext = async (req, page, workspace) => {
         formatInputDate,
         now: new Date(),
         companyTheme: workspace.isCompany
-            ? (normalizeCompanyTheme(req.session.companyTheme) || normalizeCompanyTheme(workspace.actor?.uiTheme) || null)
+            ? resolveAccountCompanyTheme(workspace.actor, req.session.companyTheme)
+            : null,
+        companyThemeMeta: workspace.isCompany
+            ? COMPANY_PORTAL_THEME_META[resolveAccountCompanyTheme(workspace.actor, req.session.companyTheme)]
             : null
     };
 };
