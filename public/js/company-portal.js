@@ -253,8 +253,91 @@
         }
     };
 
+    const setupCommandChart = () => {
+        const canvas = document.getElementById('commandCenterWeekChart');
+        const chart = config.commandCenterChart;
+        if (!canvas || !chart || typeof window.Chart === 'undefined') return;
+        const labels = Array.isArray(chart.labels) ? chart.labels : [];
+        const counts = Array.isArray(chart.counts) ? chart.counts : [];
+        const values = Array.isArray(chart.values) ? chart.values : [];
+        if (!labels.length) return;
+        const styles = getComputedStyle(document.documentElement);
+        const readToken = (name, fallback) => styles.getPropertyValue(name).trim() || fallback;
+        const countColor = readToken('--cp-chart-count', readToken('--cp-info', '#1D4ED8'));
+        const valueColor = readToken('--cp-chart-value', readToken('--cp-success', '#0F766E'));
+        const textColor = readToken('--cp-chart-text', readToken('--cp-muted', '#64748b'));
+        const gridColor = readToken('--cp-chart-grid', 'rgba(100,116,139,.18)');
+        const datasets = [{
+            type: 'bar',
+            label: 'العدد',
+            data: counts,
+            backgroundColor: countColor,
+            borderRadius: 8,
+            maxBarThickness: 28,
+            yAxisID: 'yCount',
+            order: 2
+        }];
+        if (chart.showValues) {
+            datasets.push({
+                type: 'line',
+                label: 'القيمة EGP',
+                data: values,
+                borderColor: valueColor,
+                backgroundColor: valueColor,
+                pointRadius: 4,
+                tension: 0.35,
+                yAxisID: 'yValue',
+                order: 1
+            });
+        }
+        const scales = {
+            x: {
+                ticks: { color: textColor, font: { family: 'IBM Plex Sans Arabic', weight: '700' } },
+                grid: { display: false }
+            },
+            yCount: {
+                beginAtZero: true,
+                position: 'right',
+                ticks: { color: textColor, precision: 0 },
+                grid: { color: gridColor },
+                title: { display: true, text: 'العدد', color: textColor, font: { family: 'IBM Plex Sans Arabic' } }
+            }
+        };
+        if (chart.showValues) {
+            scales.yValue = {
+                beginAtZero: true,
+                position: 'left',
+                ticks: { color: textColor },
+                grid: { display: false },
+                title: { display: true, text: 'EGP', color: textColor, font: { family: 'IBM Plex Sans Arabic' } }
+            };
+        }
+        // Chart.js is loaded only on the company command center page.
+        window.commandCenterWeekChart = new window.Chart(canvas, {
+            data: { labels, datasets },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                interaction: { mode: 'index', intersect: false },
+                plugins: {
+                    legend: { display: false },
+                    tooltip: {
+                        rtl: true,
+                        callbacks: {
+                            label: (item) => item.dataset.yAxisID === 'yCount'
+                                ? `${item.raw} عملية`
+                                : `${Number(item.raw || 0).toLocaleString('en-US')} EGP`
+                        }
+                    }
+                },
+                scales
+            }
+        });
+    };
+
     registerWorker();
     setupTheme();
     setupBell();
     setupPush();
+    setupCommandChart();
 })();

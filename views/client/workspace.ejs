@@ -303,7 +303,8 @@
             entityName: workspace.entity.name,
             roleLabel: workspace.roleLabel,
             availableBalance: workspace.permissions.canViewBalance ? Number(workspace.entity.balance || 0) : null,
-            selectedService: typeof servicePage !== 'undefined' ? servicePage.selectedService : 'vodafone'
+            selectedService: typeof servicePage !== 'undefined' ? servicePage.selectedService : 'vodafone',
+            commandCenterChart: typeof commandCenterChart !== 'undefined' ? commandCenterChart : null
         }).replace(/</g, '\\u003c') %>;
         window.rateAlertInitial = <%- JSON.stringify(pendingRateUpdate || null).replace(/</g, '\\u003c') %>;
         window.rateAlertPushPublicKey = <%- JSON.stringify(process.env.WEB_PUSH_PUBLIC_KEY || '').replace(/</g, '\\u003c') %>;
@@ -357,9 +358,10 @@
             }
         })();
     </script>
-    <script src="/js/client-workspace.js?v=20260919-visual3" defer></script>
+    <script src="/js/client-workspace.js?v=20260919-command1" defer></script>
     <% if (workspace.isCompany) { %>
-    <script src="/js/company-portal.js?v=20260919-visual3" defer></script>
+    <% if (page === 'overview') { %><script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js" defer></script><% } %>
+    <script src="/js/company-portal.js?v=20260919-command1" defer></script>
     <% } %>
 </body>
 </html>

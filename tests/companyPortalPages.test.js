@@ -80,7 +80,13 @@ const renderWorkspacePage = (page, extra = {}) => {
         csrfToken: 'test-csrf',
         now: new Date(),
         companyTheme: extra.companyTheme || 'day',
-        todaySummary: { totalCount: 0 },
+        todaySummary: { totalCount: 0, completedCount: 0, pendingCount: 0, totalEGP: 0, totalLYD: 0 },
+        weekSummary: { totalCount: 0, completedCount: 0, pendingCount: 0, totalEGP: 0, totalLYD: 0 },
+        monthSummary: { totalCount: 0, completedCount: 0, pendingCount: 0, totalEGP: 0, totalLYD: 0 },
+        weekdaySeries: [],
+        employeeRoster: [],
+        commandCenterChart: { labels: [], counts: [], values: [], showValues: true },
+        currentMonthLabel: 'شهر الاختبار',
         recentTransactions: [],
         filters: { search: '', status: '', service: '', from: '', to: '', type: '', label: 'اليوم', history: '' },
         summary: { totalCount: 0, completedCount: 0, pendingCount: 0, cancelledCount: 0, totalEGP: 0 },
@@ -188,7 +194,7 @@ describe('canonical company portal pages', () => {
         expect(html).toContain('/css/company-portal-theme-day.css');
         expect(html).toContain('/css/company-portal-theme-night.css');
         expect(html).toContain('/css/company-portal-theme-pharaonic.css');
-        expect(html).toContain('20260919-visual3');
+        expect(html).toContain('20260919-command1');
         expect(html).not.toContain('client-company-os.css');
         expect(html).not.toContain('cos-ledger-office');
         expect(html).not.toContain('class="cos-tile');
@@ -284,6 +290,60 @@ describe('canonical company portal pages', () => {
         expect(fs.existsSync(path.join(__dirname, '..', 'public', 'css', 'company-portal.tokens.css'))).toBe(true);
         const alias = fs.readFileSync(path.join(__dirname, '..', 'public', 'css', 'company-portal.css'), 'utf8');
         expect(alias).not.toMatch(/@import/);
+    });
+
+    test('command center dashboard renders period cards, weekday chart, and employee status', async () => {
+        const html = await renderWorkspacePage('overview', {
+            pageMeta: { title: 'مركز قيادة الشركة', eyebrow: 'لوحة موحّدة للتشغيل', icon: 'fa-building-shield' },
+            todaySummary: { totalCount: 4, completedCount: 3, pendingCount: 1, totalEGP: 1200, totalLYD: 180 },
+            weekSummary: { totalCount: 11, completedCount: 9, pendingCount: 2, totalEGP: 5400, totalLYD: 800 },
+            monthSummary: { totalCount: 21, completedCount: 18, pendingCount: 2, totalEGP: 12000, totalLYD: 1800 },
+            weekdaySeries: [
+                { date: '2026-09-13', label: 'الأحد', shortLabel: 'أحد', count: 2, amountEGP: 400 }
+            ],
+            employeeRoster: [{
+                id: '1',
+                name: 'سالم التنفيذي',
+                webUsername: 'salem@ahram.com',
+                roleLabel: 'موظف تنفيذ',
+                accountActive: true,
+                accountLabel: 'نشط',
+                presenceLabel: 'متصل',
+                presenceTone: 'success',
+                isOnline: true,
+                lastSeenAt: new Date('2026-09-19T10:00:00Z'),
+                ops: { todayCount: 2, totalCount: 8, completedCount: 7, totalEGP: 2100 }
+            }],
+            commandCenterChart: { labels: ['أحد'], counts: [2], values: [400], showValues: true },
+            pendingDepositCount: 1,
+            staffCount: 3,
+            activeStaffCount: 2
+        });
+        expect(html).toContain('لوحة تشغيل الشركة');
+        expect(html).toContain('اليوم');
+        expect(html).toContain('الأسبوع');
+        expect(html).toContain('الشهر');
+        expect(html).toContain('commandCenterWeekChart');
+        expect(html).toContain('موظفون الشركة');
+        expect(html).toContain('سالم التنفيذي');
+        expect(html).toContain('متصل');
+        expect(html).toContain('chart.js');
+        expect(html).toContain('مركز القيادة');
+        expect(html).not.toContain('أمر صوتي');
+        expect(html).not.toContain('href="/corporate"');
+        expect(html).not.toContain('ao-service-launcher');
+    });
+
+    test('service workbench keeps focus and secure send and drops voice order', async () => {
+        const html = await renderWorkspacePage('service_workbench', {
+            servicePage: { isolated: true, selectedService: 'vodafone' },
+            transferHub: { suggestedReasons: [], recentOperations: [] }
+        });
+        expect(html).toContain('وضع التركيز');
+        expect(html).toContain('إرسال آمن');
+        expect(html).toContain('data-focus-mode');
+        expect(html).not.toContain('أمر صوتي');
+        expect(html).not.toContain('data-voice-transfer');
     });
 
     test('company page templates do not hardcode colors', async () => {
