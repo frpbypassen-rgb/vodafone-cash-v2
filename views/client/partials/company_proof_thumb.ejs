@@ -1,0 +1,24 @@
+<%
+    const proofImages = Array.isArray(tx.receiptImages) ? tx.receiptImages.filter((item) => item && item.url) : [];
+    const proofFirst = proofImages[0];
+    const proofHas = proofImages.length > 0 || tx.hasProof === true;
+    const proofCompact = typeof compactProof !== 'undefined' && compactProof;
+    const proofUrls = proofImages.map((item) => item.url).join(',');
+    const proofLabel = proofFirst ? (proofFirst.label || 'صورة الإثبات') : 'صورة الإثبات';
+%>
+<% if (proofFirst) { %>
+<button type="button"
+    class="<%= proofCompact ? 'bw-proof-thumb compact' : 'cp-proof-thumb' %>"
+    data-receipt-lightbox
+    data-receipt-url="<%= proofFirst.url %>"
+    data-receipt-urls="<%= proofUrls %>"
+    data-receipt-label="<%= proofLabel %>"
+    title="عرض صورة الإثبات"
+    aria-label="عرض صورة إثبات العملية <%= tx.customId %>">
+    <img src="<%= proofFirst.url %>" alt="صورة الإثبات" loading="lazy">
+    <% if (proofImages.length > 1) { %><span class="cp-proof-count"><%= proofImages.length %></span><% } %>
+    <span class="cp-proof-label">الإثبات</span>
+</button>
+<% } else if (proofHas) { %>
+<button type="button" class="bw-icon-button compact receipt" data-transaction-id="<%= tx._id %>" data-receipt-focus title="عرض صور الإثبات" aria-label="عرض صور إثبات العملية <%= tx.customId %>"><i class="fa-solid fa-receipt"></i></button>
+<% } %>

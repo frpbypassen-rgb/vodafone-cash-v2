@@ -33,7 +33,8 @@ const {
 } = require('../services/walletService');
 const { notifyBalanceAdjustment } = require('../services/clientNotificationService');
 const { createDepositReceiptProof } = require('../services/depositReceiptService');
-const { buildClientReceiptImages } = require('../services/clientReceiptService');
+const { presentClientVisibleReceipts } = require('../services/clientReceiptService');
+const { assertCompanyOwnsProofTransaction } = require('../services/clientProofAccessService');
 const { logAction } = require('../services/auditService');
 const { customerNoteFromTransaction } = require('../utils/transactionNotes');
 const { sanitizeStatementText } = require('../utils/accountStatementPrivacy');
@@ -673,7 +674,13 @@ exports.getTransactionDetails = async (req, res) => {
         }
         const transaction = await Transaction.findOne({ $and: conditions }).lean();
         if (!transaction) return res.status(404).json({ success: false, error: 'العملية غير موجودة.' });
-        const receiptImages = buildClientReceiptImages(transaction);
+        if (workspace.isCompany) {
+            assertCompanyOwnsProofTransaction({
+                companyId: workspace.entity._id,
+                status: workspace.actor.status || 'active'
+            }, transaction);
+        }
+        const receipts = presentClientVisibleReceipts(transaction);
         const service = businessPortalService.SERVICE_CATALOG.find((item) => item.key === transaction.transferType);
 
         return res.json({
@@ -704,8 +711,8 @@ exports.getTransactionDetails = async (req, res) => {
                 cancellationReason: sanitizeStatementText(transaction.cancellationReason, transaction.cancellationReason ? 'تم إلغاء العملية' : ''),
                 createdAt: transaction.createdAt,
                 updatedAt: transaction.updatedAt,
-                hasProof: receiptImages.length > 0,
-                receiptImages,
+                hasProof: receipts.hasProof,
+                receiptImages: receipts.receiptImages,
                 hasIdentityImage: Boolean(transaction.idCardImage)
             }
         });

@@ -17,6 +17,7 @@ const clientCompanyController = require('./clientCompanyController');
 const clientWorkspaceController = require('./clientWorkspaceController');
 const businessPortalService = require('../services/businessPortalService');
 const { sanitizeStatementTransaction } = require('../utils/accountStatementPrivacy');
+const { presentClientVisibleReceipts } = require('../services/clientReceiptService');
 const { sanitizeStatementText } = require('../utils/accountStatementPrivacy');
 const { normalizeCreditLimit } = require('../services/agencyCreditLimitService');
 const { logAction } = require('../services/auditService');
@@ -33,7 +34,8 @@ const normalizeDashboardSearch = (value) => String(value || '').trim().slice(0, 
 const toClientTransactionDto = (transaction, { canViewBalance = true } = {}) => {
     const safe = sanitizeStatementTransaction(transaction);
     const details = safe.serviceDetails || {};
-    const hasProof = Boolean(safe.proofImage || (safe.proofImages || []).length);
+    const receipts = presentClientVisibleReceipts(transaction);
+    const hasProof = receipts.hasProof;
     return {
         _id: safe._id,
         customId: safe.customId,
@@ -63,11 +65,10 @@ const toClientTransactionDto = (transaction, { canViewBalance = true } = {}) => 
         cancellationReason: safe.cancellationReason || '',
         createdAt: safe.createdAt,
         updatedAt: safe.updatedAt,
-        hasProof: hasProof,
-        // الواجهة القديمة تعتمد على وجود هذا الحقل فقط لإظهار زر الإيصال؛
-        // لا نكشف اسم أو مسار ملف التخزين.
-        proofImage: hasProof ? 'protected' : '',
-        proofImages: hasProof ? ['protected'] : [],
+        hasProof,
+        proofImage: receipts.proofImage,
+        proofImages: receipts.proofImages,
+        receiptImages: receipts.receiptImages,
         wasAdjusted: /تعديل/i.test(String(transaction.adminNotes || ''))
     };
 };

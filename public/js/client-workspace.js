@@ -1220,28 +1220,41 @@
 
     const renderReceiptGallery = (transaction) => {
         const receiptImages = Array.isArray(transaction.receiptImages) ? transaction.receiptImages : [];
-        if (!receiptImages.length) return '';
+        if (!receiptImages.length) {
+            return `
+                <section class="bw-receipt-section">
+                    <header class="bw-receipt-section-head">
+                        <div><span>مستندات التنفيذ</span><strong><i class="fa-regular fa-image"></i> صورة الإثبات</strong></div>
+                    </header>
+                    <div class="bw-receipt-empty">
+                        <i class="fa-regular fa-image"></i>
+                        <strong>لا توجد صورة إثبات</strong>
+                        <span>لم يُرفق إثبات مرئي لهذه العملية بعد.</span>
+                    </div>
+                </section>
+            `;
+        }
 
         return `
             <section class="bw-receipt-section">
                 <header class="bw-receipt-section-head">
-                    <div><span>مستندات التنفيذ</span><strong><i class="fa-solid fa-receipt"></i> صور الإيصال</strong></div>
+                    <div><span>مستندات التنفيذ</span><strong><i class="fa-solid fa-receipt"></i> صور الإثبات</strong></div>
                     <span class="bw-meta-chip">${formatNumber(receiptImages.length)} ${receiptImages.length === 1 ? 'صورة' : 'صور'}</span>
                 </header>
                 <div class="bw-receipt-gallery">
                     ${receiptImages.map((image, index) => {
                         const url = escapeHtml(image.url);
-                        const label = escapeHtml(image.label || `صورة الإيصال ${index + 1}`);
+                        const label = escapeHtml(image.label || `صورة الإثبات ${index + 1}`);
                         return `
                             <figure class="bw-receipt-figure">
-                                <a href="${url}" target="_blank" rel="noopener" class="bw-receipt-preview" title="فتح ${label} بالحجم الكامل">
+                                <a href="${url}" class="bw-receipt-preview" data-receipt-lightbox data-receipt-url="${url}" data-receipt-label="${label}" title="تكبير ${label}">
                                     <img src="${url}" alt="${label}" loading="eager" data-receipt-image>
                                 </a>
                                 <figcaption>
                                     <strong>${label}</strong>
                                     <span class="bw-receipt-actions">
-                                        <a href="${url}" target="_blank" rel="noopener" class="bw-icon-button compact" title="فتح بالحجم الكامل" aria-label="فتح ${label} بالحجم الكامل"><i class="fa-solid fa-up-right-from-square"></i></a>
-                                        <a href="${url}" download="receipt-${escapeHtml(transaction.customId || index + 1)}-${index + 1}" class="bw-icon-button compact receipt" title="تحميل الصورة" aria-label="تحميل ${label}"><i class="fa-solid fa-download"></i></a>
+                                        <button type="button" class="bw-icon-button compact" data-receipt-lightbox data-receipt-url="${url}" data-receipt-label="${label}" title="تكبير الصورة" aria-label="تكبير ${label}"><i class="fa-solid fa-expand"></i></button>
+                                        <a href="${url}" download="proof-${escapeHtml(transaction.customId || index + 1)}-${index + 1}" class="bw-icon-button compact receipt" title="تحميل الصورة" aria-label="تحميل ${label}"><i class="fa-solid fa-download"></i></a>
                                     </span>
                                 </figcaption>
                             </figure>
@@ -1271,9 +1284,10 @@
                 <div><small>رقم العملية</small><strong class="bw-mono">${escapeHtml(transaction.customId)}</strong></div>
                 <div class="bw-detail-hero-state">
                     <span class="bw-status ${statusTone}">${escapeHtml(transaction.statusLabel)}</span>
-                    ${transaction.hasProof ? '<span class="bw-receipt-chip"><i class="fa-solid fa-receipt"></i> إيصال متاح</span>' : ''}
+                    ${transaction.hasProof ? '<span class="bw-receipt-chip"><i class="fa-solid fa-receipt"></i> إثبات متاح</span>' : '<span class="bw-receipt-chip empty"><i class="fa-regular fa-image"></i> بدون إثبات</span>'}
                 </div>
             </div>
+            ${renderReceiptGallery(transaction)}
             <div class="bw-detail-grid">
                 ${detailItem('الخدمة', transaction.serviceLabel)}
                 ${detailItem('المبلغ', `${formatNumber(transaction.amount, 0)} ${transaction.amountCurrencyLabel || 'EGP'}`, true)}
@@ -1296,7 +1310,6 @@
             </div>
             <div class="bw-detail-notes"><span>ملاحظة العميل</span><p>${escapeHtml(transaction.notes || 'لا توجد ملاحظة')}</p></div>
             ${whatsappHref ? `<div class="cos-detail-actions"><a class="bw-button ${whatsappButtonClass}" href="${whatsappHref}" target="_blank" rel="noopener"><i class="fa-brands fa-whatsapp"></i>واتساب المستلم</a></div>` : ''}
-            ${renderReceiptGallery(transaction)}
         `;
     };
 
@@ -1329,6 +1342,45 @@
             button.dataset.transactionId,
             button.hasAttribute('data-receipt-focus')
         ));
+    });
+
+    const receiptLightbox = document.getElementById('receiptLightbox');
+    const receiptLightboxImage = document.getElementById('receiptLightboxImage');
+    const receiptLightboxCaption = document.getElementById('receiptLightboxCaption');
+
+    const closeReceiptLightbox = () => {
+        if (receiptLightbox && receiptLightbox.open) receiptLightbox.close();
+        if (receiptLightboxImage) receiptLightboxImage.removeAttribute('src');
+    };
+
+    const openReceiptLightbox = (url, label) => {
+        if (!receiptLightbox || !receiptLightboxImage || !url) return;
+        receiptLightboxImage.src = url;
+        receiptLightboxImage.alt = label || 'صورة الإثبات';
+        if (receiptLightboxCaption) receiptLightboxCaption.textContent = label || 'صورة الإثبات';
+        if (typeof receiptLightbox.showModal === 'function') receiptLightbox.showModal();
+        else receiptLightbox.setAttribute('open', '');
+    };
+
+    document.addEventListener('click', (event) => {
+        const closer = event.target.closest('[data-lightbox-close]');
+        if (closer) {
+            event.preventDefault();
+            closeReceiptLightbox();
+            return;
+        }
+        const trigger = event.target.closest('[data-receipt-lightbox]');
+        if (!trigger) return;
+        event.preventDefault();
+        event.stopPropagation();
+        openReceiptLightbox(
+            trigger.getAttribute('data-receipt-url') || trigger.getAttribute('href'),
+            trigger.getAttribute('data-receipt-label') || trigger.getAttribute('title') || 'صورة الإثبات'
+        );
+    });
+    receiptLightbox?.addEventListener('cancel', closeReceiptLightbox);
+    receiptLightbox?.addEventListener('click', (event) => {
+        if (event.target === receiptLightbox) closeReceiptLightbox();
     });
 
     const supportMessages = document.getElementById('supportMessages');

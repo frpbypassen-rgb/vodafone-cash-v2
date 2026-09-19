@@ -134,6 +134,12 @@
         </div>
     </dialog>
 
+    <dialog class="bw-receipt-lightbox" id="receiptLightbox" aria-label="صورة الإثبات">
+        <button type="button" class="bw-receipt-lightbox-close" data-lightbox-close aria-label="إغلاق"><i class="fa-solid fa-xmark"></i></button>
+        <img id="receiptLightboxImage" alt="صورة الإثبات">
+        <p class="bw-receipt-lightbox-caption" id="receiptLightboxCaption">صورة الإثبات</p>
+    </dialog>
+
     <dialog class="bw-dialog bw-assistant-dialog" id="businessAssistantDialog" aria-label="المساعد الذكي">
         <div class="bw-dialog-head">
             <span class="bw-assistant-mark" aria-hidden="true"><i class="fa-solid fa-wand-magic-sparkles"></i><i class="fa-solid fa-star bw-assistant-mark-star"></i></span>
@@ -358,7 +364,7 @@
             }
         })();
     </script>
-    <script src="/js/client-workspace.js?v=20260919-command1" defer></script>
+    <script src="/js/client-workspace.js?v=20260919-proof2" defer></script>
     <% if (workspace.isCompany) { %>
     <% if (page === 'overview') { %><script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js" defer></script><% } %>
     <script src="/js/company-portal.js?v=20260919-command1" defer></script>
