@@ -6,6 +6,7 @@ const AuditLog = require('../models/AuditLog');
 const Ledger = require('../models/Ledger');
 const { systemDateKey, systemDateRange } = require('../config/systemTime');
 const { tenantScope } = require('../utils/tenantScope');
+const { applyAdminTxPrivacy } = require('./adminAccountVisibilityService');
 
 const ALLOWED_STATUSES = new Set([
     'pending', 'processing', 'accepted', 'completed', 'rejected',
@@ -86,7 +87,7 @@ const resolveTimeRange = (query = {}, now = new Date()) => {
 };
 
 const buildLiveQuery = (req, now = new Date()) => {
-    const query = { ...tenantScope(req) };
+    const query = applyAdminTxPrivacy({ ...tenantScope(req) });
     const status = resolveStatusFilter(req.query?.status);
     if (status) query.status = status;
     applyTypeFilter(query, req.query?.type);
@@ -110,7 +111,6 @@ const buildLiveQuery = (req, now = new Date()) => {
             { companyName: { $regex: safe, $options: 'i' } },
             { employeeName: { $regex: safe, $options: 'i' } },
             { accountName: { $regex: safe, $options: 'i' } },
-            { subAccountName: { $regex: safe, $options: 'i' } },
             { 'settlementDetails.externalReference': { $regex: safe, $options: 'i' } }
         ];
     }

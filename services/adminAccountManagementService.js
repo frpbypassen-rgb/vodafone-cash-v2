@@ -629,7 +629,7 @@ const updateEditableAccount = async ({ type, id, payload, uploads = {} }) => {
 const getReturnUrl = (type, account) => {
     if (type === 'user' || type === 'agent') return `/user/${account._id}`;
     if (type === 'company') return `/company/${account._id}`;
-    if (type === 'subaccount') return '/clients?section=subaccounts';
+    if (type === 'subaccount') return '/clients?section=agents';
     if (type === 'executor') return `/executor/${account._id}`;
     if (type === 'executor-employee') return '/employees?section=executors';
     return '/employees?section=clients';

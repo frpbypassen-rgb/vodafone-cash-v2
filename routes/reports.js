@@ -4,7 +4,6 @@ const express = require('express');
 const router = express.Router();
 const ClientCompany = require('../models/ClientCompany');
 const ExecutorGroup = require('../models/ExecutorGroup');
-const SubAccount = require('../models/SubAccount');
 const Transaction = require('../models/Transaction');
 const User = require('../models/User');
 const { requireAuth } = require('../middlewares/auth');
@@ -33,28 +32,17 @@ const reportError = (error) => {
 
 router.get('/reports', requireAuth, async (req, res) => {
     try {
-        const [users, companies, masterIds, executors, apiExecutors] = await Promise.all([
+        const [users, companies, agents, executors, apiExecutors] = await Promise.all([
             User.find({ role: 'user' }).select('_id name phone').lean(),
             ClientCompany.find().select('_id name phone').lean(),
-            SubAccount.distinct('masterId'),
+            User.find({ role: 'agent' }).select('_id name phone').lean(),
             ExecutorGroup.find({ isApiGroup: false }).select('_id name').lean(),
             ExecutorGroup.find({ isApiGroup: true }).select('_id name').lean()
         ]);
-        const [agentUsers, agentCompanies] = await Promise.all([
-            User.find({ _id: { $in: masterIds } }).select('_id name phone').lean(),
-            ClientCompany.find({ _id: { $in: masterIds } }).select('_id name phone').lean()
-        ]);
-        const agents = [
-            ...agentUsers.map((agent) => ({ ...agent, type: 'user' })),
-            ...agentCompanies.map((agent) => ({ ...agent, type: 'company' }))
-        ];
 
         await Promise.all([
             ...companies.map(async (company) => {
                 company.employees = await Transaction.distinct('employeeName', { companyId: company._id });
-            }),
-            ...agents.map(async (agent) => {
-                agent.subAccounts = await SubAccount.find({ masterId: agent._id }).select('_id name phone').lean();
             }),
             ...executors.map(async (executor) => {
                 executor.employees = await Transaction.distinct('executorName', { executorGroupId: executor._id });
