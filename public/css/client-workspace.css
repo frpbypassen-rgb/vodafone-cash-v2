@@ -3078,6 +3078,126 @@ a {
     font-size: 0.72rem;
 }
 
+.bw-receipt-chip.empty {
+    color: var(--bw-muted);
+    background: rgba(148, 163, 184, 0.12);
+    border-color: rgba(148, 163, 184, 0.28);
+}
+
+.bw-receipt-empty {
+    display: grid;
+    min-height: 120px;
+    place-items: center;
+    align-content: center;
+    gap: 6px;
+    padding: 18px 12px;
+    color: var(--bw-muted);
+    text-align: center;
+    background: var(--bw-surface-soft);
+    border: 1px dashed var(--bw-border-strong);
+    border-radius: 8px;
+}
+
+.bw-receipt-empty i {
+    font-size: 1.35rem;
+}
+
+.bw-receipt-empty strong {
+    color: var(--bw-strong);
+    font-size: 0.82rem;
+}
+
+.bw-receipt-empty span {
+    font-size: 0.72rem;
+}
+
+.bw-proof-thumb,
+.cp-proof-thumb {
+    position: relative;
+    display: grid;
+    width: 52px;
+    height: 52px;
+    min-width: 44px;
+    min-height: 44px;
+    place-items: center;
+    padding: 0;
+    overflow: hidden;
+    border: 1px solid var(--bw-border-strong, #d5dee7);
+    border-radius: 8px;
+    background: #eef3f7;
+    cursor: pointer;
+}
+
+.bw-proof-thumb.compact {
+    width: 36px;
+    height: 36px;
+    min-width: 36px;
+    min-height: 36px;
+}
+
+.bw-proof-thumb img,
+.cp-proof-thumb img {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+}
+
+.cp-proof-count {
+    position: absolute;
+    top: 4px;
+    left: 4px;
+    min-width: 16px;
+    padding: 0 4px;
+    color: #fff;
+    background: rgba(15, 23, 42, 0.72);
+    border-radius: 999px;
+    font-size: 0.62rem;
+    font-weight: 800;
+    line-height: 16px;
+}
+
+.bw-receipt-lightbox {
+    width: min(96vw, 1100px);
+    max-height: 96vh;
+    padding: 28px 24px 20px;
+    border: 0;
+    background: #020617;
+    color: #e2e8f0;
+}
+
+.bw-receipt-lightbox::backdrop {
+    background: rgba(2, 6, 23, 0.88);
+}
+
+.bw-receipt-lightbox img {
+    display: block;
+    max-width: min(92vw, 1040px);
+    max-height: 78vh;
+    margin: 0 auto;
+    object-fit: contain;
+    border-radius: 12px;
+}
+
+.bw-receipt-lightbox-caption {
+    margin: 12px 0 0;
+    text-align: center;
+    font-weight: 800;
+}
+
+.bw-receipt-lightbox-close {
+    position: absolute;
+    top: 12px;
+    left: 12px;
+    width: 40px;
+    height: 40px;
+    border: 0;
+    border-radius: 10px;
+    background: rgba(255, 255, 255, 0.12);
+    color: #fff;
+    cursor: pointer;
+}
+
 .bw-mobile-dock {
     display: none;
 }

@@ -22,9 +22,9 @@ const { buildPendingRateAlertForClient } = require('./rateAlerts/rateAlertAudien
 const { buildArtifact: buildCentralReportArtifact } = require('./centralReportService');
 const { findReportTransactions, getUnifiedReportStatus } = require('./unifiedReportService');
 const { loadAdminReport } = require('./adminReportService');
+const { presentClientPortalTransaction } = require('./clientReceiptService');
 const {
     sanitizeStatementMovement,
-    sanitizeStatementTransaction,
     sanitizeStatementText
 } = require('../utils/accountStatementPrivacy');
 const { loadCompanyCommandCenter } = require('./companyCommandCenterService');
@@ -720,7 +720,7 @@ const loadOverview = async (workspace) => {
         employeeRoster: commandCenter.employeeRoster,
         onlineWindowMinutes: commandCenter.onlineWindowMinutes,
         commandCenterChart: commandCenter.commandCenterChart,
-        recentTransactions,
+        recentTransactions: recentTransactions.map(presentClientPortalTransaction),
         customersCount,
         activeCustomersCount,
         staffCount,
@@ -769,7 +769,7 @@ const loadTransactions = async (workspace, query = {}) => {
     ]);
 
     return {
-        transactions,
+        transactions: transactions.map(presentClientPortalTransaction),
         total,
         summary,
         staff,
@@ -1206,7 +1206,7 @@ const loadReports = async (workspace, query = {}) => {
         agencyProfitRows: workspace.isAgent && workspace.permissions.canViewBalance
             ? agencyFinanceService.buildProfitRows(transactions, new Map())
             : [],
-        reportTransactions: transactions.slice(0, 100).map(sanitizeStatementTransaction),
+        reportTransactions: transactions.slice(0, 100).map(presentClientPortalTransaction),
         reportAnalytics: buildReportAnalytics(transactions, workspace.entity.balance),
         filters: { ...range, scope },
         centralReport: buildCentralReportArtifact({

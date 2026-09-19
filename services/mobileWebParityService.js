@@ -24,6 +24,7 @@ const { resolveAccountByCode, normalizeAccountCode } = require('./accountCodeSer
 const { logAction } = require('./auditService');
 const { acquireLock, releaseLock } = require('./lockService');
 const { sanitizeStatementTransaction } = require('../utils/accountStatementPrivacy');
+const { presentClientVisibleReceipts } = require('./clientReceiptService');
 const { pricingFromTransaction, roundMoney } = require('../utils/agencyPricing');
 const { recordTransferRepricing } = require('./agencyJournalService');
 const { generateExecutorReceiptBase64 } = require('../utils/manualExecutorReceipt');
@@ -64,14 +65,14 @@ const clientExecutionNumbers = (transaction = {}) => {
 
 const presentClientReportTransaction = (transaction = {}) => {
     const sanitized = sanitizeStatementTransaction(transaction);
-    const receiptUrl = sanitized.proofImage
-        ? `/client/proxy/image/${encodeURIComponent(String(sanitized._id))}/0`
-        : null;
+    const receipts = presentClientVisibleReceipts(transaction);
     delete sanitized.proofImage;
     delete sanitized.proofImages;
     return {
         ...sanitized,
-        receiptUrl,
+        receiptUrl: receipts.receiptImages[0]?.url || null,
+        receiptImages: receipts.receiptImages,
+        hasProof: receipts.hasProof,
         // تعرض أرقام التنفيذ فقط عند تعددها؛ لا تعرض أي اسم أو رصيد أو بيانات
         // داخلية تخص شركة التنفيذ.
         executionNumbers: clientExecutionNumbers(transaction)

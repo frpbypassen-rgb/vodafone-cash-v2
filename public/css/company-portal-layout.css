@@ -984,7 +984,50 @@ html[data-portal="company"] .cp-overview-grid {
 .cp-work-actions {
     display: flex;
     justify-content: flex-end;
+    align-items: center;
     gap: 6px;
+}
+
+html[data-portal="company"] .cp-proof-thumb,
+.bw-company-os .cp-proof-thumb {
+    width: 52px;
+    height: 52px;
+    min-width: var(--cp-touch);
+    min-height: var(--cp-touch);
+    border-color: var(--cp-line);
+    border-radius: var(--cp-radius-sm);
+    background: var(--cp-surface);
+}
+
+html[data-portal="company"] .bw-proof-thumb,
+.bw-company-os .bw-proof-thumb {
+    border-color: var(--cp-line);
+    background: var(--cp-surface);
+}
+
+html[data-portal="company"] .bw-receipt-preview,
+.bw-company-os .bw-receipt-preview {
+    aspect-ratio: 4 / 3;
+    max-height: 240px;
+    background: var(--cp-surface);
+}
+
+html[data-portal="company"] .bw-receipt-section,
+.bw-company-os .bw-receipt-section,
+html[data-portal="company"] .bw-receipt-empty,
+.bw-company-os .bw-receipt-empty,
+html[data-portal="company"] .bw-receipt-figure,
+.bw-company-os .bw-receipt-figure {
+    color: var(--cp-ink);
+    border-color: var(--cp-line);
+    background: var(--cp-surface-soft);
+}
+
+html[data-portal="company"] .bw-receipt-figure figcaption,
+.bw-company-os .bw-receipt-figure figcaption {
+    color: var(--cp-ink);
+    background: var(--cp-surface);
+    border-top-color: var(--cp-line);
 }
 
 .cp-staff-card .cp-work-main {
