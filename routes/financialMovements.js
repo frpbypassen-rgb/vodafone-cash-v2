@@ -9,7 +9,7 @@ const { escapeRegex } = require('../middlewares/sanitize');
 const { systemDateKey, systemDayEnd, systemDayStart } = require('../config/systemTime');
 
 const MOVEMENT_TYPES = ['DEPOSIT', 'DEDUCTION', 'TRANSFER', 'INTERNAL_TRANSFER', 'COMMISSION', 'REFUND', 'REVERSAL'];
-const ENTITY_MODELS = ['User', 'ClientCompany', 'ClientBot', 'SubAccount', 'ExecutorBot', 'ExecutorGroup'];
+const ENTITY_MODELS = ['User', 'ClientCompany', 'ClientBot', 'ExecutorBot', 'ExecutorGroup'];
 const SORT_FIELDS = new Set(['createdAt', 'amount', 'balanceBefore', 'balanceAfter', 'type', 'entityModel']);
 
 const parseDateRange = (query) => {
@@ -32,7 +32,9 @@ const buildLedgerFilter = async (query) => {
 
     if (query.type === 'INTERNAL_TRANSFER') filter.type = 'TRANSFER';
     else if (MOVEMENT_TYPES.includes(query.type)) filter.type = query.type;
-    if (ENTITY_MODELS.includes(query.entityModel)) filter.entityModel = query.entityModel;
+    if (query.entityModel === 'SubAccount') filter.entityModel = { $in: [] };
+    else if (ENTITY_MODELS.includes(query.entityModel)) filter.entityModel = query.entityModel;
+    else filter.entityModel = { $ne: 'SubAccount' };
 
     const minAmount = Number(query.minAmount);
     const maxAmount = Number(query.maxAmount);
@@ -49,11 +51,11 @@ const buildLedgerFilter = async (query) => {
     if (search) {
         const safe = escapeRegex(search);
         const txMatches = await Transaction.find({
+            isSubAccountTx: { $ne: true },
             $or: [
                 { customId: { $regex: safe, $options: 'i' } },
                 { companyName: { $regex: safe, $options: 'i' } },
                 { employeeName: { $regex: safe, $options: 'i' } },
-                { subAccountName: { $regex: safe, $options: 'i' } },
                 { vodafoneNumber: { $regex: safe, $options: 'i' } },
                 { accountNumber: { $regex: safe, $options: 'i' } },
                 { cancellationNumber: { $regex: safe, $options: 'i' } }

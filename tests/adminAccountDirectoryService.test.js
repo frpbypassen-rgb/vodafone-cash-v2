@@ -1,7 +1,11 @@
 'use strict';
 
+const fs = require('fs');
+const path = require('path');
+
 const {
     DEFAULT_PAGE_SIZE,
+    DIRECTORY_SECTIONS,
     normalizeSection,
     normalizeSearch,
     normalizePage,
@@ -36,6 +40,7 @@ const createModels = ({ users = [], companies = [], subAccounts = [] } = {}) => 
 
 describe('Admin account directory service', () => {
     test('classifies accounts by their explicit type instead of sub-account ownership', () => {
+        expect(DIRECTORY_SECTIONS).toEqual(['users', 'companies', 'agents']);
         expect(buildSectionFilter('users')).toEqual({
             status: { $ne: 'deleted' },
             role: { $ne: 'agent' }
@@ -47,9 +52,7 @@ describe('Admin account directory service', () => {
         expect(buildSectionFilter('companies')).toEqual({
             status: { $ne: 'deleted' }
         });
-        expect(buildSectionFilter('subaccounts')).toEqual({
-            status: { $ne: 'deleted' }
-        });
+        expect(normalizeSection('subaccounts')).toBe('users');
     });
 
     test('loads a new agent in the agents collection even when it has no sub-accounts', async () => {
@@ -81,7 +84,7 @@ describe('Admin account directory service', () => {
         expect(models.User.find).not.toHaveBeenCalled();
     });
 
-    test('lists an agency client in عملاء الوكلاء with owner labeling', async () => {
+    test('does not list agency clients in دليل الحسابات', async () => {
         const agent = {
             _id: 'agent-1',
             name: 'وكالة النور',
@@ -101,21 +104,23 @@ describe('Admin account directory service', () => {
         };
         const models = createModels({ users: [agent], subAccounts: [agencyClient] });
 
-        const directory = await loadAdminAccountDirectory(models, { section: 'subaccounts' });
+        const hidden = await loadAdminAccountDirectory(models, { section: 'subaccounts' });
 
-        expect(directory.activeSection).toBe('subaccounts');
-        expect(directory.subAccounts).toHaveLength(1);
-        expect(directory.subAccounts[0]).toMatchObject({
-            _id: 'sub-1',
-            name: 'محل السراي',
-            ownerKind: 'agent',
-            masterName: 'وكالة النور',
-            agencyLabel: 'وكيل: وكالة النور · 2044'
-        });
-        expect(models.SubAccount.find).toHaveBeenCalledWith({ status: { $ne: 'deleted' } });
-        expect(models.SubAccount.find).toHaveBeenCalledWith(expect.not.objectContaining({
-            accountType: 'client'
-        }));
+        expect(hidden.activeSection).toBe('users');
+        expect(hidden.subAccounts).toEqual([]);
+        expect(hidden.directoryCounts.subaccounts).toBe(0);
+        expect(JSON.stringify(hidden)).not.toContain('محل السراي');
+        expect(models.SubAccount.find).not.toHaveBeenCalled();
+        expect(models.SubAccount.countDocuments).not.toHaveBeenCalled();
+    });
+
+    test('admin directory page has no agency-client section or rows', () => {
+        const html = fs.readFileSync(path.join(__dirname, '../views/clients.ejs'), 'utf8');
+        expect(html).not.toContain('عملاء الوكلاء');
+        expect(html).not.toContain('section=subaccounts');
+        expect(html).not.toContain('subaccounts-tab');
+        expect(html).not.toContain('/sub-account/');
+        expect(fs.existsSync(path.join(__dirname, '../views/subaccount_details.ejs'))).toBe(false);
     });
 
     test('normalizes navigation input and escapes search expressions', () => {
