@@ -1,11 +1,12 @@
 'use strict';
 
 const {
+    ADMIN_TX_NAME_SEARCH_FIELDS,
     adminListIncludesAgencyDeposit,
-    agencyOwnerLabel,
+    applyAdminTxPrivacy,
     agentOwnsSubAccount,
     buildAdminAccountHistoryQuery,
-    decorateAgencyClient
+    isAgencyClientScopedTx
 } = require('../services/adminAccountVisibilityService');
 const { agentOwnsSubAccount: ownershipCheck } = require('../utils/agencyOwnership');
 
@@ -20,25 +21,19 @@ const AGENCY_CLIENT = {
     balance: 40
 };
 
-describe('Admin visibility for agency-scoped clients', () => {
-    test('directory decoration labels the owning agency without changing ownership', () => {
-        const decorated = decorateAgencyClient(AGENCY_CLIENT, { ...AGENT_A, agentCode: '1188' });
-        expect(decorated.ownerKind).toBe('agent');
-        expect(decorated.agencyLabel).toBe('وكيل: وكالة أ · 1188');
-        expect(decorated.masterName).toBe('وكالة أ');
-        expect(agencyOwnerLabel({ masterType: 'user', master: { name: 'وكالة أ', role: 'agent' } })).toBe('وكيل: وكالة أ');
-    });
-
-    test('admin history query includes an agent deposit to their own agency client', () => {
+describe('Admin privacy for agency-scoped clients', () => {
+    test('admin history for an agent excludes agency-client deposits', () => {
         const query = buildAdminAccountHistoryQuery({
             kind: 'agent',
             account: AGENT_A,
             subAccountIds: [AGENCY_CLIENT._id]
         });
-        expect(query.$or).toEqual(expect.arrayContaining([
-            { subAccountId: { $in: [AGENCY_CLIENT._id] } },
-            { userId: { $in: ['0911111111', 'agent.a'] }, companyId: null }
-        ]));
+
+        expect(query.isSubAccountTx).toEqual({ $ne: true });
+        expect(query.userId).toEqual({ $in: ['0911111111', 'agent.a'] });
+        expect(query.companyId).toBeNull();
+        expect(JSON.stringify(query)).not.toContain(String(AGENCY_CLIENT._id));
+        expect(query.$or).toBeUndefined();
 
         const deposit = {
             status: 'deposit',
@@ -48,14 +43,26 @@ describe('Admin visibility for agency-scoped clients', () => {
             userId: AGENT_A.phone,
             companyName: 'تسوية وكيل'
         };
-        expect(adminListIncludesAgencyDeposit(deposit, { subAccountIds: [AGENCY_CLIENT._id] })).toBe(true);
+        expect(isAgencyClientScopedTx(deposit)).toBe(true);
+        expect(adminListIncludesAgencyDeposit(deposit)).toBe(false);
+        expect(adminListIncludesAgencyDeposit({
+            status: 'deposit',
+            userId: AGENT_A.phone,
+            isSubAccountTx: false
+        })).toBe(false);
+    });
 
+    test('admin has no sub-account ledger query and search fields omit agency client names', () => {
         const clientQuery = buildAdminAccountHistoryQuery({
             kind: 'subaccount',
             account: AGENCY_CLIENT
         });
-        expect(clientQuery).toEqual({ subAccountId: AGENCY_CLIENT._id });
-        expect(clientQuery.isSubAccountTx).toBeUndefined();
+        expect(clientQuery).toEqual({ isSubAccountTx: { $ne: true }, _id: null });
+        expect(ADMIN_TX_NAME_SEARCH_FIELDS).not.toContain('subAccountName');
+        expect(applyAdminTxPrivacy({ companyId: 'co-1' })).toEqual({
+            companyId: 'co-1',
+            isSubAccountTx: { $ne: true }
+        });
     });
 
     test('cross-agency agent still cannot operate on another agency client', () => {
@@ -66,14 +73,14 @@ describe('Admin visibility for agency-scoped clients', () => {
 
         const otherAgentHistory = buildAdminAccountHistoryQuery({
             kind: 'agent',
-            account: AGENT_B,
-            subAccountIds: []
+            account: AGENT_B
         });
         expect(otherAgentHistory.subAccountId).toBeUndefined();
+        expect(otherAgentHistory.isSubAccountTx).toEqual({ $ne: true });
         expect(JSON.stringify(otherAgentHistory)).not.toContain(String(AGENCY_CLIENT._id));
         expect(adminListIncludesAgencyDeposit(
-            { status: 'deposit', subAccountId: AGENCY_CLIENT._id },
-            { subAccountIds: [] }
+            { status: 'deposit', subAccountId: AGENCY_CLIENT._id, isSubAccountTx: true },
+            { subAccountIds: [AGENCY_CLIENT._id] }
         )).toBe(false);
     });
 });

@@ -145,6 +145,7 @@ const OPERATION_STATUSES = ['pending', 'processing', 'accepted', 'completed', 'r
 
 const transactionLedgerBaseQuery = (source = null) => ({
     ...tenantScope(source),
+    isSubAccountTx: { $ne: true },
     $and: [
         {
             $or: [
@@ -170,7 +171,7 @@ const transactionSearchMatchReason = (transaction, rawSearch, exactAmount) => {
     if (contains(transaction.settlementDetails?.externalReference)) return 'تطابق رقم الإيداع أو المرجع';
     if (contains(transaction.vodafoneNumber) || contains(transaction.serviceDetails?.clientPhone)) return 'تطابق هاتف المستلم';
     if (contains(transaction.accountNumber)) return 'تطابق رقم الحساب';
-    if (contains(transaction.companyName) || contains(transaction.employeeName) || contains(transaction.accountName) || contains(transaction.subAccountName)) return 'تطابق اسم العميل';
+    if (contains(transaction.companyName) || contains(transaction.employeeName) || contains(transaction.accountName)) return 'تطابق اسم العميل';
     if (contains(transaction.executorName) || contains(transaction.executorGroupName)) return 'تطابق المنفذ';
     if (Number.isFinite(exactAmount) && Number(transaction.amount) === exactAmount) return 'تطابق مبلغ دقيق';
     return 'تطابق ضمن بيانات العملية';
@@ -207,7 +208,6 @@ const renderTransactionSearch = async (req, res) => {
                 { companyName: { $regex: safeSearch, $options: 'i' } },
                 { employeeName: { $regex: safeSearch, $options: 'i' } },
                 { accountName: { $regex: safeSearch, $options: 'i' } },
-                { subAccountName: { $regex: safeSearch, $options: 'i' } },
                 { executorName: { $regex: safeSearch, $options: 'i' } },
                 { executorGroupName: { $regex: safeSearch, $options: 'i' } }
             ];
@@ -292,8 +292,7 @@ const renderTransactions = async (req, res, operationsWorkspace = false) => {
                     { vodafoneNumber: { $regex: safeSearch, $options: 'i' } },
                     { accountNumber: { $regex: safeSearch, $options: 'i' } },
                     { companyName: { $regex: safeSearch, $options: 'i' } },
-                    { employeeName: { $regex: safeSearch, $options: 'i' } },
-                    { subAccountName: { $regex: safeSearch, $options: 'i' } }
+                    { employeeName: { $regex: safeSearch, $options: 'i' } }
                 ]
             });
         }
@@ -519,6 +518,7 @@ router.get('/transactions/print', async (req, res) => {
         }
 
         let query = {
+            isSubAccountTx: { $ne: true },
             $and: [
                 {
                     $or: [
@@ -537,8 +537,7 @@ router.get('/transactions/print', async (req, res) => {
                     { customId: { $regex: safeSearch, $options: 'i' } },
                     { vodafoneNumber: { $regex: safeSearch, $options: 'i' } },
                     { companyName: { $regex: safeSearch, $options: 'i' } },
-                    { employeeName: { $regex: safeSearch, $options: 'i' } },
-                    { subAccountName: { $regex: safeSearch, $options: 'i' } }
+                    { employeeName: { $regex: safeSearch, $options: 'i' } }
                 ]
             });
         }

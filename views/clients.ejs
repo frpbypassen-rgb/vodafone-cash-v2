@@ -295,7 +295,7 @@
             color: var(--text-main); font-weight: 900; box-shadow: 0 8px 18px rgba(0,0,0,0.04);
         }
         .clients-metrics {
-            display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px;
+            display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px;
         }
         .clients-metric {
             display: flex; align-items: center; justify-content: space-between; gap: 10px;
@@ -463,8 +463,7 @@
     const sectionLabels = {
         users: 'العملاء المباشرون',
         companies: 'الشركات',
-        agents: 'الوكلاء',
-        subaccounts: 'عملاء الوكلاء'
+        agents: 'الوكلاء'
     };
 %>
 
@@ -500,7 +499,6 @@
                 <div class="clients-metric metric-users"><span>عملاء مباشرون</span><strong><%= directoryCounts.users %></strong></div>
                 <div class="clients-metric metric-companies"><span>شركات</span><strong><%= directoryCounts.companies %></strong></div>
                 <div class="clients-metric metric-agents"><span>وكلاء</span><strong><%= directoryCounts.agents %></strong></div>
-                <div class="clients-metric metric-subs"><span>عملاء تابعون</span><strong><%= directoryCounts.subaccounts %></strong></div>
             </div>
 
             <form class="search-container" method="GET" action="/clients" role="search" data-directory-search>
@@ -534,11 +532,6 @@
                 <li class="nav-item">
                     <a class="nav-link <%= activeSection === 'agents' ? 'active' : '' %>" href="<%= directoryUrl('agents') %>" data-directory-nav>
                         <i class="fa-solid fa-user-tie me-1"></i> وكلاء <span class="section-count"><%= directoryCounts.agents %></span>
-                    </a>
-                </li>
-                <li class="nav-item">
-                    <a class="nav-link <%= activeSection === 'subaccounts' ? 'active' : '' %>" href="<%= directoryUrl('subaccounts') %>" data-directory-nav>
-                        <i class="fa-solid fa-users me-1"></i> عملاء الوكلاء <span class="section-count"><%= directoryCounts.subaccounts %></span>
                     </a>
                 </li>
             </ul>
@@ -759,101 +752,6 @@
                                             </a>
                                         <% } %>
                                         <form action="/user/<%= agent._id %>/delete" method="POST" class="delete-account-form" onsubmit="return confirm('هل أنت متأكد من حذف هذا الوكيل؟ سيتم إيقاف الحساب والعملاء التابعين له مع حفظ العمليات السابقة.');">
-                                            <button type="submit" class="btn-3d btn-delete-account">
-                                                <i class="fa-solid fa-trash-can me-2"></i> حذف الحساب
-                                            </button>
-                                        </form>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    <% }) %>
-                </div>
-            </div>
-
-            <!-- Sub accounts (Reseller-assigned clients) Tab -->
-            <div class="tab-pane fade <%= activeSection === 'subaccounts' ? 'show active' : '' %>" id="subaccounts-tab">
-                <div class="row g-4 pb-5">
-                    <% if(subAccounts.length === 0) { %>
-                        <div class="col-12 text-center py-5 system-empty-placeholder">
-                            <i class="fa-solid <%= search ? 'fa-magnifying-glass-minus' : 'fa-network-wired' %> fa-4x text-muted opacity-25 mb-3"></i>
-                            <h5 class="text-muted fw-bold"><%= search ? 'لا توجد نتائج مطابقة في عملاء الوكلاء.' : 'لا يوجد عملاء وكلاء مسجلون في المنظومة.' %></h5>
-                        </div>
-                    <% } %>
-
-                    <% subAccounts.forEach(sub => { %>
-                        <div class="col-xl-3 col-lg-4 col-md-6 client-card-item" data-name="<%= sub.name %>" data-phone="<%= sub.phone || '' %>" data-username="<%= sub.webUsername %>" data-code="<%= sub.accountCode || '' %>" data-master="<%= sub.masterName || '' %>">
-                            <div class="card-3d-wrapper">
-                                <div class="client-card-3d" style="border-top: 5px solid #10b981;">
-                                    <div>
-                                        <div class="d-flex justify-content-between align-items-start mb-4">
-                                            <div class="d-flex align-items-center gap-3 w-100">
-                                                <div class="profile-icon subaccount-icon">
-                                                    <i class="fa-solid fa-shop"></i>
-                                                </div>
-                                                <div style="width: calc(100% - 80px);">
-                                                    <h5 class="client-name fw-bold m-0 text-dark mb-1" title="<%= sub.name %>"><%= sub.name %></h5>
-                                                    <span class="badge <%= sub.status === 'active' ? 'bg-success' : 'bg-danger' %> bg-opacity-10 text-<%= sub.status === 'active' ? 'success' : 'danger' %> border rounded-pill px-2 py-1 mt-1" style="font-size:0.75rem;">
-                                                        <i class="fa-solid <%= sub.status === 'active' ? 'fa-check-circle' : 'fa-ban' %> me-1"></i><%= sub.status === 'active' ? 'نشط' : 'محظور' %>
-                                                    </span>
-                                                </div>
-                                            </div>
-                                        </div>
-
-                                        <div class="d-flex justify-content-between align-items-center text-muted small fw-bold mb-2 px-1">
-                                            <span dir="ltr"><i class="fa-solid fa-phone me-1 opacity-50" style="color: #10b981;"></i> <%= sub.phone || 'بدون هاتف' %></span>
-                                            <span class="badge bg-secondary bg-opacity-10 text-secondary border border-secondary rounded-pill px-2">حد: <%= sub.creditLimit || 0 %></span>
-                                        </div>
-
-                                        <div class="text-muted small fw-bold mb-2 px-1 text-truncate">
-                                            <i class="fa-solid fa-user-lock me-1 opacity-50" style="color: #10b981;"></i> اسم الدخول: <code class="text-dark"><%= sub.webUsername %></code>
-                                        </div>
-
-                                        <form action="/sub-account/<%= sub._id %>/update-account-code" method="POST" class="mb-3 px-1">
-                                            <label class="text-muted small fw-bold mb-1"><i class="fa-solid fa-id-badge me-1 opacity-50" style="color: #10b981;"></i> ID عميل الوكيل (6 أرقام)</label>
-                                            <div class="input-group input-group-sm">
-                                                <input type="text" name="accountCode" class="form-control mono-num fw-bold text-center" value="<%= sub.accountCode || '' %>" placeholder="000000" pattern="\d{6}" maxlength="6" inputmode="numeric">
-                                                <button class="btn btn-success fw-bold" type="submit">حفظ</button>
-                                            </div>
-                                        </form>
-
-                                        <div class="text-muted small fw-bold mb-3 px-1 text-truncate">
-                                            <i class="fa-solid fa-network-wired me-1 opacity-50" style="color: #10b981;"></i>
-                                            <%= sub.agencyLabel || ((sub.masterType === 'company' ? 'شركة: ' : 'وكيل: ') + (sub.masterName || 'غير معروف')) %>
-                                            <% if (sub.masterType === 'user') { %>
-                                                <a href="/user/<%= sub.masterId %>" class="text-decoration-none fw-bold d-block" style="color: #f59e0b;"><%= sub.masterName %></a>
-                                            <% } else { %>
-                                                <a href="/company/<%= sub.masterId %>" class="text-decoration-none fw-bold d-block" style="color: #f59e0b;"><%= sub.masterName %></a>
-                                            <% } %>
-                                        </div>
-
-                                        <div class="balance-box">
-                                            <div class="text-muted small fw-bold mb-2"><i class="fa-solid fa-wallet me-1 opacity-50"></i> الرصيد الحالي (LYD)</div>
-                                            <div class="mono-num <%= Number(sub.balance) < 0 ? 'text-danger' : 'text-success' %>" dir="ltr">
-                                                <%= Number(sub.balance || 0).toFixed(2) %>
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    <div class="client-actions">
-                                        <a href="/sub-account/<%= sub._id %>" class="btn-3d subaccount-btn">
-                                            <i class="fa-solid fa-folder-open me-2"></i> عرض الحساب والحركات
-                                        </a>
-                                        <% if (typeof isMaster !== 'undefined' && isMaster) { %>
-                                            <a href="/admin/accounts/subaccount/<%= sub._id %>/edit" class="btn-3d" style="color:#087f74; border-color:rgba(8,127,116,.35);">
-                                                <i class="fa-solid fa-pen-to-square me-2"></i> تعديل بيانات الحساب
-                                            </a>
-                                        <% } %>
-                                        <% if (sub.masterType === 'user') { %>
-                                            <a href="/user/<%= sub.masterId %>" class="btn-3d subaccount-btn">
-                                                <i class="fa-solid fa-user-tie me-2"></i> ملف الوكيل الرئيسي
-                                            </a>
-                                        <% } else { %>
-                                            <a href="/company/<%= sub.masterId %>" class="btn-3d subaccount-btn">
-                                                <i class="fa-solid fa-building me-2"></i> ملف الوكيل الرئيسي
-                                            </a>
-                                        <% } %>
-                                        <form action="/sub-account/<%= sub._id %>/delete" method="POST" class="delete-account-form" onsubmit="return confirm('هل أنت متأكد من حذف حساب عميل الوكيل؟ سيتم إيقاف دخوله وإخفاؤه من القائمة مع حفظ العمليات السابقة.');">
                                             <button type="submit" class="btn-3d btn-delete-account">
                                                 <i class="fa-solid fa-trash-can me-2"></i> حذف الحساب
                                             </button>
