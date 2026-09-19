@@ -990,10 +990,10 @@ html[data-portal="company"] .cp-overview-grid {
 
 html[data-portal="company"] .cp-proof-thumb,
 .bw-company-os .cp-proof-thumb {
-    width: 52px;
-    height: 52px;
-    min-width: var(--cp-touch);
-    min-height: var(--cp-touch);
+    width: 88px;
+    height: 88px;
+    min-width: 72px;
+    min-height: 72px;
     border-color: var(--cp-line);
     border-radius: var(--cp-radius-sm);
     background: var(--cp-surface);
@@ -1377,10 +1377,17 @@ html[data-portal="company"] .cp-work-main {
     html[data-portal="company"] .bw-mobile-dock,
     .bw-company-os .bw-mobile-dock { display: none !important; }
     html[data-portal="company"] .bw-transaction-dialog {
-        width: min(420px, 38vw);
+        display: flex;
+        flex-direction: column;
+        width: min(520px, 44vw);
         max-height: calc(100vh - var(--cp-topbar-height) - 24px);
         margin: calc(var(--cp-topbar-height) + 12px) 12px 12px auto;
         border-radius: 18px 0 0 18px;
+    }
+    html[data-portal="company"] .bw-transaction-dialog .bw-dialog-body {
+        flex: 1 1 auto;
+        min-height: 0;
+        overflow-y: auto;
     }
     html[data-portal="company"] .bw-table { font-size: .86rem; }
     html[data-portal="company"] .bw-table th,

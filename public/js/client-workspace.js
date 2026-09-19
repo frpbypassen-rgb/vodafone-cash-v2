@@ -1287,6 +1287,7 @@
                     ${transaction.hasProof ? '<span class="bw-receipt-chip"><i class="fa-solid fa-receipt"></i> إثبات متاح</span>' : '<span class="bw-receipt-chip empty"><i class="fa-regular fa-image"></i> بدون إثبات</span>'}
                 </div>
             </div>
+            ${renderReceiptGallery(transaction)}
             <div class="bw-detail-grid">
                 ${detailItem('الخدمة', transaction.serviceLabel)}
                 ${detailItem('المبلغ', `${formatNumber(transaction.amount, 0)} ${transaction.amountCurrencyLabel || 'EGP'}`, true)}
@@ -1309,7 +1310,6 @@
             </div>
             <div class="bw-detail-notes"><span>ملاحظة العميل</span><p>${escapeHtml(transaction.notes || 'لا توجد ملاحظة')}</p></div>
             ${whatsappHref ? `<div class="cos-detail-actions"><a class="bw-button ${whatsappButtonClass}" href="${whatsappHref}" target="_blank" rel="noopener"><i class="fa-brands fa-whatsapp"></i>واتساب المستلم</a></div>` : ''}
-            ${renderReceiptGallery(transaction)}
         `;
     };
 

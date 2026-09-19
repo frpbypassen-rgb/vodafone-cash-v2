@@ -384,6 +384,8 @@ describe('canonical company portal pages', () => {
         expect(html).toContain('data-receipt-lightbox');
         expect(html).toContain('id="receiptLightbox"');
         expect(html).toContain('OP-1001');
+        expect(html).toContain('الإثبات');
+        expect(html).toContain('20260919-proof2');
         expect(html).not.toContain('href="/corporate"');
         expect(html).not.toContain('proofs/official.svg');
     });

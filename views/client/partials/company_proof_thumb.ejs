@@ -17,6 +17,7 @@
     aria-label="عرض صورة إثبات العملية <%= tx.customId %>">
     <img src="<%= proofFirst.url %>" alt="صورة الإثبات" loading="lazy">
     <% if (proofImages.length > 1) { %><span class="cp-proof-count"><%= proofImages.length %></span><% } %>
+    <span class="cp-proof-label">الإثبات</span>
 </button>
 <% } else if (proofHas) { %>
 <button type="button" class="bw-icon-button compact receipt" data-transaction-id="<%= tx._id %>" data-receipt-focus title="عرض صور الإثبات" aria-label="عرض صور إثبات العملية <%= tx.customId %>"><i class="fa-solid fa-receipt"></i></button>
