@@ -190,7 +190,7 @@
     <% if (workspace.isCompany) { %>
         <div class="cp-work-list">
             <% if (!reportTransactions.length) { %><div class="bw-empty"><i class="fa-regular fa-folder-open"></i><strong>لا توجد عمليات في عينة هذا التقرير</strong><span>غيّر الفترة الزمنية أو افتح السجل الكامل.</span></div><% } %>
-            <% reportTransactions.slice(0, 12).forEach(tx => { const status = statusMeta[tx.status] || { label: tx.status, tone: 'neutral' }; const service = serviceCatalog.find(item => item.key === tx.transferType); const hasReceipt = Boolean(tx.proofImage || (Array.isArray(tx.proofImages) && tx.proofImages.some(Boolean))); %>
+            <% reportTransactions.slice(0, 12).forEach(tx => { const status = statusMeta[tx.status] || { label: tx.status, tone: 'neutral' }; const service = serviceCatalog.find(item => item.key === tx.transferType); %>
                 <article class="cp-work-card">
                     <button type="button" class="cp-work-main" data-transaction-id="<%= tx._id %>">
                         <span class="cp-work-icon"><i class="fa-solid <%= service?.icon || 'fa-money-bill-transfer' %>"></i></span>
@@ -202,7 +202,7 @@
                         <span class="bw-status <%= status.tone %>"><%= status.label %></span>
                     </button>
                     <div class="cp-work-actions">
-                        <% if (hasReceipt) { %><button type="button" class="bw-icon-button compact receipt" data-transaction-id="<%= tx._id %>" data-receipt-focus title="عرض صور الإيصال" aria-label="عرض صور إيصال العملية <%= tx.customId %>"><i class="fa-solid fa-receipt"></i></button><% } %>
+                        <%- include('../partials/company_proof_thumb', { tx }) %>
                         <button type="button" class="bw-icon-button compact" data-transaction-id="<%= tx._id %>" title="التفاصيل" aria-label="عرض تفاصيل العملية <%= tx.customId %>"><i class="fa-solid fa-eye"></i></button>
                     </div>
                 </article>
@@ -210,9 +210,9 @@
         </div>
     <% } else { %>
     <div class="bw-table-wrap"><table class="bw-table"><thead><tr><th>العملية</th><th>الخدمة</th><th><%= workspace.isCompany ? 'الموظف' : 'الموظف / العميل' %></th><th>المبلغ</th><th>الحالة</th><th>التاريخ</th></tr></thead><tbody>
-        <% reportTransactions.slice(0, 12).forEach(tx => { const status = statusMeta[tx.status] || { label: tx.status, tone: 'neutral' }; const service = serviceCatalog.find(item => item.key === tx.transferType); const hasReceipt = Boolean(tx.proofImage || (Array.isArray(tx.proofImages) && tx.proofImages.some(Boolean))); %>
+        <% reportTransactions.slice(0, 12).forEach(tx => { const status = statusMeta[tx.status] || { label: tx.status, tone: 'neutral' }; const service = serviceCatalog.find(item => item.key === tx.transferType); %>
             <tr>
-                <td data-label="العملية"><span class="bw-id-with-receipt"><button type="button" class="bw-id-button bw-mono" data-transaction-id="<%= tx._id %>"><%= tx.customId %></button><% if (hasReceipt) { %><button type="button" class="bw-receipt-indicator" data-transaction-id="<%= tx._id %>" data-receipt-focus title="عرض صور الإيصال" aria-label="عرض صور إيصال العملية <%= tx.customId %>"><i class="fa-solid fa-receipt"></i></button><% } %></span></td>
+                <td data-label="العملية"><span class="bw-id-with-receipt"><button type="button" class="bw-id-button bw-mono" data-transaction-id="<%= tx._id %>"><%= tx.customId %></button><%- include('../partials/company_proof_thumb', { tx, compactProof: true }) %></span></td>
                 <td data-label="الخدمة"><%= service?.shortLabel || tx.transferType %></td>
                 <td data-label="<%= workspace.isCompany ? 'الموظف' : 'الموظف / العميل' %>"><strong><%= tx.employeeName || '---' %></strong><% if (!workspace.isCompany) { %><small><%= tx.subAccountName || 'الحساب الرئيسي' %></small><% } %></td>
                 <td data-label="المبلغ" class="bw-mono"><%= Number(tx.amount || 0).toLocaleString('en-US', { maximumFractionDigits: 0 }) %> <%= service?.amountCurrencyLabel || 'EGP' %></td>

@@ -346,6 +346,50 @@ describe('canonical company portal pages', () => {
         expect(html).not.toContain('data-voice-transfer');
     });
 
+    test('company reports show proof thumbnails from authorized proxy URLs', async () => {
+        const html = await renderWorkspacePage('reports', {
+            reportScope: 'organization',
+            reportScopeLabel: 'كشف الحساب',
+            reportScopes: { organization: 'كشف الحساب' },
+            centralAdminReport: null,
+            centralDownloads: [],
+            centralReport: { reportId: 'R-1', checksum: 'abc', issuedAt: new Date() },
+            centralSync: { status: 'ready' },
+            filters: { from: '', to: '', month: '2026-09', label: 'شهر 9 / 2026', scope: 'organization' },
+            reportSummary: { totalCount: 1, completedCount: 1, pendingCount: 0, cancelledCount: 0, totalEGP: 100, totalLYD: 20 },
+            reportAnalytics: { forecastBalance: 0, totalIncoming: 0, totalOutgoing: 0, netMovement: 0, liquiditySeries: [] },
+            reportRows: [],
+            serviceBreakdown: [],
+            agencyProfitRows: [],
+            companyReportEmployees: [],
+            centralAdminReportInput: { dateType: 'month', dateValue: '2026-09' },
+            reportTransactions: [{
+                _id: '64f123456789012345678901',
+                customId: 'OP-1001',
+                status: 'completed',
+                transferType: 'vodafone',
+                amount: 500,
+                employeeName: 'موظف الشركة',
+                createdAt: new Date('2026-09-19T10:00:00Z'),
+                hasProof: true,
+                receiptImages: [{
+                    index: 0,
+                    label: 'صورة الإثبات 1',
+                    url: '/client/proxy/image/64f123456789012345678901/0'
+                }]
+            }]
+        });
+        expect(html).toContain('صورة الإثبات');
+        expect(html).toContain('/client/proxy/image/64f123456789012345678901/0');
+        expect(html).toContain('data-receipt-lightbox');
+        expect(html).toContain('id="receiptLightbox"');
+        expect(html).toContain('OP-1001');
+        expect(html).toContain('الإثبات');
+        expect(html).toContain('20260919-proof2');
+        expect(html).not.toContain('href="/corporate"');
+        expect(html).not.toContain('proofs/official.svg');
+    });
+
     test('company page templates do not hardcode colors', async () => {
         const pagesDir = path.join(__dirname, '..', 'views', 'client', 'pages');
         const files = fs.readdirSync(pagesDir).filter((name) => name.endsWith('.ejs'));

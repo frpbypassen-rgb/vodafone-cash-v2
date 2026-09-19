@@ -27,7 +27,7 @@ const {
 } = require('../utils/rateHelper');
 const { getTransferServiceDefinition } = require('../utils/mobileTransferServiceCatalog');
 const { validateTransferInput } = require('../utils/transferServiceRules');
-const { getClientReceiptProofIds } = require('../services/clientReceiptService');
+const { resolveClientProofImage } = require('../services/clientProofAccessService');
 const { normalizeCustomerNoteInput } = require('../utils/transactionNotes');
 const { normalizeWhatsAppPhone } = require('../services/whatsappService');
 const { activatePendingRateUpdate } = require('../services/rateChangeService');
@@ -709,22 +709,18 @@ exports.postComplaint = async (req, res) => {
 
 exports.getProxyImage = async (req, res) => {
     try {
-        if (!mongoose.isValidObjectId(req.params.id)) return res.status(404).send('لا توجد صورة إثبات');
-        const ownership = await clientOwnershipFilter(req);
-        if (!ownership) return res.status(403).send('غير مصرح لك بعرض هذه الصورة أو الإيصال');
-        const tx = await Transaction.findOne({ $and: [{ _id: req.params.id }, ownership] });
-        if (!tx) return res.status(403).send('غير مصرح لك بعرض هذه الصورة أو الإيصال');
-
-        const index = req.params.index === undefined ? 0 : Number.parseInt(req.params.index, 10);
-        if (!Number.isInteger(index) || index < 0) return res.status(400).send('رقم صورة الإيصال غير صالح');
-        const photoId = getClientReceiptProofIds(tx)[index];
-
-        if (!photoId) return res.status(404).send('لا توجد صورة إثبات');
+        const { photoId } = await resolveClientProofImage({
+            session: req.session,
+            transactionId: req.params.id,
+            index: req.params.index,
+            ownershipFilter: await clientOwnershipFilter(req)
+        });
 
         const { proofSourceUrl, streamProofImage } = require('../services/proofStorageService');
         await streamProofImage(proofSourceUrl(photoId), res);
         return;
     } catch (error) {
+        if (error.statusCode) return res.status(error.statusCode).send(error.message);
         console.error(error);
         res.status(500).send('خطأ داخلي في الخادم');
     }
