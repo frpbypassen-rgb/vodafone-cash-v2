@@ -415,6 +415,7 @@
             .ledger-panel-list { max-height: none; }
         }
     </style>
+    <link rel="stylesheet" href="/css/admin-operation-details.css?v=20260919-od2">
 </head>
 <body>
 <%
@@ -1138,44 +1139,61 @@
     </div>
 </div>
 
-<div class="modal fade" id="txModal" tabindex="-1">
-    <div class="modal-dialog modal-xl modal-dialog-centered">
-        <div class="modal-content border-0">
-            <div class="modal-header border-0 pb-0 justify-content-center position-relative">
-                <button type="button" class="btn-close position-absolute" style="left:20px; filter:invert(0.5);" data-bs-dismiss="modal"></button>
-                <h5 class="fw-bold m-0 text-center text-primary"><i class="fa-solid fa-receipt me-2"></i> تـفـاصـيـل الـعـمـلـيـة الـشـامـلـة</h5>
-                <button class="btn btn-warning btn-sm fw-bold shadow-sm position-absolute" style="right:20px; border-radius: 8px; color: #000;" onclick="printInvoice()">
-                    <i class="fa-solid fa-print me-1"></i> الفاتورة
-                </button>
-            </div>
-            <div class="modal-body p-4">
-                <div class="row g-4">
-                    <div class="col-md-7" id="m_detail_container">
-                        <div class="info-panel" id="m_detail_panel">
-                            <!-- سيتم حقن المحتوى ديناميكياً بناءً على نوع العملية -->
-                        </div>
+<div class="modal fade" id="txModal" tabindex="-1" aria-labelledby="odTitle">
+    <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable od-modal-dialog">
+        <div class="modal-content od-modal-content border-0">
+            <div class="od-header" id="od-header">
+                <div class="od-header-toolbar">
+                    <div class="od-header-actions">
+                        <button type="button" class="btn btn-sm od-copy-btn" id="od-copy-id" title="نسخ رقم العملية">
+                            <i class="fa-regular fa-copy me-1"></i> نسخ رقم العملية
+                        </button>
+                        <button type="button" class="btn btn-sm od-invoice-btn fw-bold" id="od-print-invoice" onclick="printInvoice()">
+                            <i class="fa-solid fa-print me-1"></i> الفاتورة
+                        </button>
                     </div>
-                    <div class="col-lg-5" id="m_timeline_container">
-                        <div class="info-panel">
-                            <div class="panel-title text-danger"><i class="fa-solid fa-microchip ms-2"></i> تتبع دورة حياة التنفيذ</div>
-                            <div class="timeline-box">
-                                <div class="timeline-item"><span class="data-label">وقت إنشاء الطلب:</span><span class="data-val small mono-num text-muted" id="m_t_created"></span></div>
-                                <div class="timeline-item"><span class="data-label">الموظف المنفذ:</span><span class="data-val text-primary" id="m_t_executor"></span></div>
-                                <div class="timeline-item"><span class="data-label">وقت القبول:</span><span class="data-val small mono-num text-muted" id="m_t_accepted"></span></div>
-                                <div class="timeline-item"><span class="data-label">وقت الإكمال النهائي:</span><span class="data-val small text-success mono-num" id="m_t_completed"></span></div>
-                                <div class="timeline-item" style="padding:0;"><span class="data-label">حالة العملية:</span><div id="m_t_status"></div></div>
-                            </div>
-                        </div>
-                        
-                        <div class="mt-4 text-center fw-bold mb-3 text-primary"><i class="fa-solid fa-camera-retro me-2"></i> إثباتات التنفيذ (Screenshots)</div>
-                        <div class="position-relative p-2 border rounded-4" id="m_proof_container" style="background: rgba(0,0,0,0.02); min-height: 200px; display: flex; align-items: center; justify-content: center; flex-direction: column;">
-                            <div class="text-muted text-center"><i class="fa-solid fa-image fs-1 d-block mb-2 opacity-25"></i> جاري التحميل...</div>
-                        </div>
+                    <button type="button" class="od-close-btn" data-bs-dismiss="modal" aria-label="إغلاق"><i class="fa-solid fa-xmark"></i></button>
+                </div>
+                <div class="od-header-title-wrap">
+                    <h5 id="odTitle"><i class="fa-solid fa-receipt me-2"></i> تفاصيل العملية الشاملة</h5>
+                    <div id="od-op-number" class="od-op-number">—</div>
+                </div>
+                <div id="od-header-meta"></div>
+            </div>
+            <div class="modal-body od-body">
+                <div id="od-loading" class="text-center py-5">
+                    <div class="spinner-border text-primary" role="status"></div>
+                    <div class="text-muted mt-2 fw-bold">جاري تحميل تفاصيل العملية...</div>
+                </div>
+                <div id="od-content" hidden>
+                    <p id="od-human-summary" class="od-human-summary"></p>
+                    <div id="od-emphasis" class="od-emphasis" hidden></div>
+                    <div id="od-missing-host"></div>
+                    <div class="od-tabs-bar" id="od-tabs" role="tablist">
+                        <button type="button" class="active" data-od-tab="summary" role="tab" aria-selected="true">الملخص</button>
+                        <button type="button" data-od-tab="parties" role="tab" aria-selected="false">الأطراف</button>
+                        <button type="button" data-od-tab="finance" role="tab" aria-selected="false">المالية</button>
+                        <button type="button" data-od-tab="proofs" role="tab" aria-selected="false">الإثباتات</button>
+                        <button type="button" data-od-tab="timeline" role="tab" aria-selected="false">الخط الزمني</button>
+                        <button type="button" data-od-tab="notes" role="tab" aria-selected="false">الملاحظات</button>
+                    </div>
+                    <div class="od-tab-panels">
+                        <div class="od-pane" data-od-pane="summary" role="tabpanel"></div>
+                        <div class="od-pane" data-od-pane="parties" role="tabpanel" hidden></div>
+                        <div class="od-pane" data-od-pane="finance" role="tabpanel" hidden></div>
+                        <div class="od-pane" data-od-pane="proofs" role="tabpanel" hidden></div>
+                        <div class="od-pane" data-od-pane="timeline" role="tabpanel" hidden></div>
+                        <div class="od-pane" data-od-pane="notes" role="tabpanel" hidden></div>
                     </div>
                 </div>
             </div>
         </div>
     </div>
+</div>
+<div id="od-lightbox" class="od-lightbox" hidden aria-hidden="true" role="dialog" aria-label="معاينة الإثبات">
+    <button type="button" class="od-lightbox-close" id="od-lightbox-close" aria-label="إغلاق المعاينة"><i class="fa-solid fa-xmark"></i></button>
+    <img alt="إثبات العملية">
+    <div class="od-lightbox-caption"></div>
 </div>
 
 <div class="modal fade" id="editTxModal" tabindex="-1">
@@ -1260,6 +1278,7 @@
 </script>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+<script src="/js/admin-operation-details.js?v=20260919-od2"></script>
 <script>
     function toggleSidebar() { document.querySelector('.sidebar').classList.toggle('active'); document.querySelector('.sidebar-overlay').classList.toggle('active'); }
 
@@ -1327,123 +1346,6 @@
         };
     }
 
-    function txStatusLabel(status) {
-        const labels = {
-            completed: 'مكتملة',
-            pending: 'معلقة',
-            processing: 'موجهة للتنفيذ',
-            accepted: 'قيد العمل',
-            deposit_pending: 'طلب إيداع معلق',
-            deposit: 'إيداع',
-            deduction: 'خصم',
-            rejected: 'مرفوضة',
-            cancelled_by_admin: 'ملغية'
-        };
-        return labels[status] || status || 'غير محددة';
-    }
-
-    function txTypeLabel(tx) {
-        if (tx.transferType === 'balance_transfer') return 'تحويل داخلي';
-        if (tx.status === 'deposit' || tx.status === 'deposit_pending') return 'إيداع';
-        if (tx.status === 'deduction') return 'خصم';
-        if (tx.transferType === 'post_account') return 'حساب بريد';
-        if (tx.transferType === 'post_card') return 'بطاقة بريد';
-        if (tx.transferType === 'bank_transfer') return 'تحويل بنكي';
-        if (tx.transferType === 'nita_transfer') return 'سفا للنيجر';
-        if (tx.transferType === 'bankak_transfer') return 'بنكك للسودان';
-        return 'محفظة كاش';
-    }
-
-    function renderMetric(label, value, icon, valueClass = '') {
-        return `
-            <div class="tx-detail-metric">
-                <div class="tx-detail-label"><i class="fa-solid ${icon} me-1"></i>${label}</div>
-                <div class="tx-detail-value ${valueClass}">${value}</div>
-            </div>
-        `;
-    }
-
-    function renderTransactionSummary(tx, entityName, formatDate) {
-        const statusClass = ['rejected', 'cancelled_by_admin'].includes(tx.status) ? 'st-fail' : (['pending', 'deposit_pending'].includes(tx.status) ? 'st-wait' : (['processing', 'accepted'].includes(tx.status) ? 'st-proc' : 'st-done'));
-        const amountCurrency = tx.transferType === 'balance_transfer' ? 'LYD' : 'EGP';
-        const costLine = tx.costLYD ? `${Number(tx.costLYD).toFixed(2)} LYD` : '---';
-        return `
-            <div class="tx-detail-hero">
-                <div class="d-flex flex-column flex-md-row justify-content-between gap-3 mb-3">
-                    <div>
-                        <div class="small fw-bold text-muted">ملخص العملية</div>
-                        <div class="fs-5 fw-bold text-dark">${txEscape(entityName)}</div>
-                    </div>
-                    <div class="d-flex flex-wrap gap-2 align-items-start justify-content-md-end">
-                        <span class="badge-st ${statusClass}">${txEscape(txStatusLabel(tx.status))}</span>
-                        <span class="badge bg-light text-dark border px-3 py-2">${txEscape(txTypeLabel(tx))}</span>
-                    </div>
-                </div>
-                <div class="tx-detail-grid">
-                    ${renderMetric('رقم العملية', txEscape(tx.customId || tx._id || '---'), 'fa-hashtag', 'mono-num')}
-                    ${renderMetric('المبلغ', `${Number(tx.amount || 0).toFixed(2)} ${amountCurrency}`, 'fa-money-bill-transfer', 'mono-num text-success')}
-                    ${renderMetric('التاريخ', txEscape(formatDate(tx.createdAt)), 'fa-calendar-days')}
-                    ${renderMetric('الرقم / الحساب', txEscape(tx.vodafoneNumber || tx.accountNumber || '---'), 'fa-address-book', 'mono-num')}
-                    ${renderMetric('التكلفة', txEscape(costLine), 'fa-wallet', 'mono-num text-danger')}
-                    ${renderMetric('المنفذ', txEscape(tx.executorName || 'قيد الانتظار'), 'fa-user-gear')}
-                </div>
-            </div>
-        `;
-    }
-
-    function renderCustomerNotesSection(noteText) {
-        return `
-            <div class="tx-section">
-                <div class="tx-section-title"><i class="fa-regular fa-comment-dots text-primary"></i> ملاحظة العميل / الرقم المرجعي</div>
-                <div class="fw-bold small" style="white-space: pre-line; line-height: 1.7;">${txEscape(noteText || 'لا توجد ملاحظة من العميل أو رقم مرجعي محفوظ.')}</div>
-            </div>
-        `;
-    }
-
-    function renderSystemDetailsSection(tx, systemText, ledgerInfo) {
-        const ledgerRows = (ledgerInfo || []).map((item) => {
-            const amount = Number(item.amount || 0);
-            const color = amount < 0 ? 'text-danger' : 'text-success';
-            return `<div class="data-line"><span class="data-val mono-num ${color}">${amount.toFixed(2)}</span><span class="data-label">${txEscape(item.type || 'قيد مالي')} - ${txEscape(item.description || '')}</span></div>`;
-        }).join('');
-        const cancellationRows = tx.cancellationNumber ? `
-            <div class="data-line"><span class="data-val mono-num text-danger fw-bold">${txEscape(tx.cancellationNumber)}</span><span class="data-label">رقم الإلغاء:</span></div>
-            <div class="data-line"><span class="data-val">${txEscape(tx.cancellationReason || '---')}</span><span class="data-label">سبب الإلغاء:</span></div>
-        ` : '';
-        const executionNumber = tx.executorExecutionNumber || tx.executorSenderPhone || tx.executorExecutionNumberMasked;
-        const executionRows = executionNumber ? `
-            <div class="data-line align-items-center">
-                <span class="data-val mono-num text-primary fw-bold d-flex align-items-center gap-2">
-                    <span dir="ltr">${txEscape(executionNumber)}</span>
-                    <button type="button" class="btn btn-sm btn-outline-primary" data-copy="${txEscape(executionNumber)}" onclick="copyAdminDetailValue(this)" title="نسخ رقم التنفيذ">
-                        <i class="fa-regular fa-copy"></i>
-                    </button>
-                </span>
-                <span class="data-label">رقم التنفيذ كما أدخله المنفذ:</span>
-            </div>
-        ` : '';
-        const log = systemText ? `<div class="tx-system-log mt-2">${txEscape(systemText)}</div>` : '<div class="text-muted fw-bold small">لا يوجد سجل إداري إضافي.</div>';
-        return `
-            <div class="tx-section">
-                <div class="tx-section-title"><i class="fa-solid fa-clipboard-list text-secondary"></i> تفاصيل الإدارة والنظام</div>
-                ${cancellationRows}
-                ${executionRows}
-                ${ledgerRows}
-                ${log}
-            </div>
-        `;
-    }
-
-    async function copyAdminDetailValue(button) {
-        const value = button?.dataset?.copy || '';
-        if (!value) return;
-        try {
-            await navigator.clipboard.writeText(value);
-            button.innerHTML = '<i class="fa-solid fa-check"></i>';
-            setTimeout(() => { button.innerHTML = '<i class="fa-regular fa-copy"></i>'; }, 1200);
-        } catch (_) {}
-    }
-
     // 🟢 دالة عرض نافذة السجل المنبثقة (مُحدثة لتقرأ الجملة الجديدة والقديمة معاً)
     function showApiLog(btn) {
         const rawNotes = decodeURIComponent(btn.getAttribute('data-log'));
@@ -1496,97 +1398,25 @@
             .replace(/'/g, '&#039;');
     }
 
-    function txMoney(value) {
-        const amount = Number(value);
-        return Number.isFinite(amount) ? `${amount.toFixed(2)} LYD` : '---';
-    }
-
-    function renderBalanceTransferDetails(tx, ledgerInfo, pairInfo, formatDate) {
-        const transferId = pairInfo?.transferId || tx.customId.replace(/-[CD]$/, '');
-        const source = pairInfo?.source || {};
-        const target = pairInfo?.target || {};
-        const senderLedger = ledgerInfo ? ledgerInfo.find((item) => item.amount < 0) : null;
-        const receiverLedger = ledgerInfo ? ledgerInfo.find((item) => item.amount > 0) : null;
-        const sourceName = source.name || tx.accountName || tx.employeeName || '---';
-        const sourceCode = source.code || tx.accountNumber || tx.vodafoneNumber || '---';
-        const targetName = target.name || '---';
-        const targetCode = target.code || '---';
-        const sourceBefore = source.balanceBefore ?? senderLedger?.balanceBefore;
-        const sourceAfter = source.balanceAfter ?? senderLedger?.balanceAfter;
-        const targetBefore = target.balanceBefore ?? receiverLedger?.balanceBefore;
-        const targetAfter = target.balanceAfter ?? receiverLedger?.balanceAfter;
-        const noteView = splitTransactionNotes(tx);
-        const receiptButton = (tx.proofImage || (tx.proofImages && tx.proofImages.length > 0))
-            ? `<button type="button" class="btn btn-success fw-bold rounded-pill px-4 mt-3" onclick="document.getElementById('m_proof_container')?.scrollIntoView({ behavior: 'smooth', block: 'center' });"><i class="fa-solid fa-receipt me-1"></i> عرض إيصال التحويل</button>`
-            : '';
-
-        return `
-            <div class="panel-title text-primary mb-3"><i class="fa-solid fa-right-left ms-2"></i> تحويل رصيد داخلي بين الحسابات</div>
-            <div class="p-4 rounded-4 mb-4" style="background: linear-gradient(135deg, rgba(15,118,110,0.12), rgba(37,99,235,0.06)); border: 1px solid rgba(15,118,110,0.18);">
-                <div class="d-flex flex-column flex-md-row align-items-stretch gap-3">
-                    <div class="flex-fill p-3 rounded-4 text-center" style="background: var(--card-bg); border: 1px solid var(--border-glass);">
-                        <div class="small text-muted fw-bold mb-1">المرسل</div>
-                        <div class="fw-bold text-danger fs-5">${txEscape(sourceName)}</div>
-                        <div class="mono-num text-muted mt-1">${txEscape(sourceCode)}</div>
-                    </div>
-                    <div class="d-flex align-items-center justify-content-center fs-2 text-primary px-2"><i class="fa-solid fa-circle-arrow-left"></i></div>
-                    <div class="flex-fill p-3 rounded-4 text-center" style="background: var(--card-bg); border: 1px solid var(--border-glass);">
-                        <div class="small text-muted fw-bold mb-1">المستقبل</div>
-                        <div class="fw-bold text-success fs-5">${txEscape(targetName)}</div>
-                        <div class="mono-num text-muted mt-1">${txEscape(targetCode)}</div>
-                    </div>
-                </div>
-                <div class="text-center mt-4">
-                    <div class="small text-muted fw-bold">المبلغ المحول</div>
-                    <div class="display-6 fw-bold text-primary mono-num">${txMoney(tx.amount)}</div>
-                    <span class="badge bg-success px-3 py-2 rounded-pill"><i class="fa-solid fa-circle-check me-1"></i> مكتملة بنجاح</span>
-                    ${receiptButton}
-                </div>
-            </div>
-            <div class="row g-3 mb-4">
-                <div class="col-md-6">
-                    <div class="p-3 rounded-4 h-100" style="background: rgba(239,68,68,0.06); border: 1px solid rgba(239,68,68,0.14);">
-                        <div class="fw-bold text-danger mb-3"><i class="fa-solid fa-wallet me-1"></i> رصيد المرسل</div>
-                        <div class="d-flex justify-content-between mb-2"><span class="text-muted fw-bold">قبل العملية</span><strong class="mono-num">${txMoney(sourceBefore)}</strong></div>
-                        <div class="d-flex justify-content-between"><span class="text-muted fw-bold">بعد العملية</span><strong class="mono-num text-danger">${txMoney(sourceAfter)}</strong></div>
-                    </div>
-                </div>
-                <div class="col-md-6">
-                    <div class="p-3 rounded-4 h-100" style="background: rgba(16,185,129,0.06); border: 1px solid rgba(16,185,129,0.14);">
-                        <div class="fw-bold text-success mb-3"><i class="fa-solid fa-wallet me-1"></i> رصيد المستقبل</div>
-                        <div class="d-flex justify-content-between mb-2"><span class="text-muted fw-bold">قبل العملية</span><strong class="mono-num">${txMoney(targetBefore)}</strong></div>
-                        <div class="d-flex justify-content-between"><span class="text-muted fw-bold">بعد العملية</span><strong class="mono-num text-success">${txMoney(targetAfter)}</strong></div>
-                    </div>
-                </div>
-            </div>
-            <div class="data-line"><span class="data-val mono-num fw-bold text-dark">${txEscape(source.customId || `${transferId}-D`)}</span><span class="data-label">رقم عملية الخصم:</span></div>
-            <div class="data-line"><span class="data-val mono-num fw-bold text-dark">${txEscape(target.customId || `${transferId}-C`)}</span><span class="data-label">رقم عملية الإيداع:</span></div>
-            <div class="data-line"><span class="data-val text-muted">${txEscape(formatDate(tx.createdAt))}</span><span class="data-label">تاريخ العملية:</span></div>
-            <div class="data-line"><span class="data-val text-muted">${txEscape(noteView.customerText || 'لا توجد ملاحظات')}</span><span class="data-label">ملاحظة العميل:</span></div>
-        `;
+    function copyAdminDetailValue(button) {
+        const value = button?.dataset?.copy || '';
+        if (!value) return;
+        if (window.AdminOperationDetails && AdminOperationDetails.copyText) {
+            return AdminOperationDetails.copyText(value, button);
+        }
     }
 
     async function viewTransactionDetails(el) {
         const txData = JSON.parse(el.getAttribute('data-tx'));
-        
-        // Show loading state or modal loading before fetching
-        const m_detail_panel = document.getElementById('m_detail_panel');
-        m_detail_panel.innerHTML = `
-            <div class="text-center py-5">
-                <div class="spinner-border text-primary" role="status"></div>
-                <div class="text-muted mt-2 fw-bold">جاري تحميل تفاصيل العملية...</div>
-            </div>
-        `;
-        
-        // Show the modal first so the user sees it's loading
         const modalEl = document.getElementById('txModal');
         const modalInstance = bootstrap.Modal.getOrCreateInstance(modalEl);
+        if (window.AdminOperationDetails) AdminOperationDetails.showLoading(modalEl);
         modalInstance.show();
-        
+
         let tx = txData;
         let ledgerInfo = null;
         let balanceTransferPair = null;
-        
+
         try {
             const response = await fetch(`/transactions/${txData._id}/details`);
             const resData = await response.json();
@@ -1598,293 +1428,24 @@
         } catch (err) {
             console.error('Error fetching transaction details:', err);
         }
-        
-        window.currentTxToPrint = tx; 
+
+        window.currentTxToPrint = tx;
         window.currentLedgerInfo = ledgerInfo;
-        const f = (d) => d ? new Date(d).toLocaleString('en-GB', { timeZone: 'Africa/Tripoli' }).replace(',', '') : '---';
-        const entityName = (tx.companyName && tx.companyName !== 'عميل فردي') ? tx.companyName : (tx.employeeName || 'عميل فردي');
-        
+
         const executorBotsElement = document.getElementById('executorBotsData');
         const executorBots = executorBotsElement && executorBotsElement.textContent.trim() ? JSON.parse(executorBotsElement.textContent) : [];
+        const formatDate = (d) => d ? new Date(d).toLocaleString('en-GB', { timeZone: 'Africa/Tripoli' }).replace(',', '') : (window.AdminOperationDetails ? AdminOperationDetails.EMPTY_NONE : 'لا يوجد');
 
-        let isCancelled = ['rejected', 'cancelled_by_admin'].includes(tx.status);
-        let isBalanceTransfer = tx.transferType === 'balance_transfer';
-        let isDepositOrDeduction = (tx.status === 'deposit' || tx.status === 'deduction' || tx.status === 'deposit_pending') && !isBalanceTransfer;
-        const noteView = splitTransactionNotes(tx);
-        
-        // Dynamic column adjustments: Hide timeline for balance transfers and make details container full-width
-        const detailContainer = document.getElementById('m_detail_container');
-        const timelineContainer = document.getElementById('m_timeline_container');
-        if (detailContainer && timelineContainer) {
-            if (isBalanceTransfer) {
-                detailContainer.className = 'col-md-12';
-                timelineContainer.style.display = 'none';
-            } else {
-                detailContainer.className = 'col-md-7';
-                timelineContainer.style.display = 'block';
-            }
-        }
-
-        let htmlContent = renderTransactionSummary(tx, entityName, f);
-        
-        // 🔴 التنبيه الخاص بالعمليات الملغية
-        if (isCancelled) {
-            const cancellationMeta = [
-                tx.cancellationNumber ? `<span class="mono-num fw-bold text-danger">رقم الإلغاء: ${txEscape(tx.cancellationNumber)}</span>` : '',
-                tx.cancelledBy ? `<span>بواسطة: ${txEscape(tx.cancelledBy)}</span>` : '',
-                tx.cancelledAt ? `<span>تاريخ الإلغاء: ${f(tx.cancelledAt)}</span>` : ''
-            ].filter(Boolean).join(' · ');
-            htmlContent += `
-                <div class="alert alert-danger border-0 p-3 rounded-4 mb-4 d-flex align-items-center gap-3" style="background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.2) !important;">
-                    <div class="fs-2 text-danger"><i class="fa-solid fa-circle-xmark"></i></div>
-                    <div>
-                        <h6 class="fw-bold m-0 text-danger" style="font-size: 1rem;">هذه العملية ملغية / مرفوضة 🚨</h6>
-                        <div class="small fw-bold text-muted mt-1">تم إرجاع كافة الأرصدة والمديونيات المرتبطة بالعملية تلقائياً.</div>
-                        ${cancellationMeta ? `<div class="small fw-bold mt-2">${cancellationMeta}</div>` : ''}
-                        ${tx.cancellationReason ? `<div class="small text-muted mt-1">السبب: ${txEscape(tx.cancellationReason)}</div>` : ''}
-                    </div>
-                </div>
-            `;
-        }
-        
-        if (isBalanceTransfer) {
-            htmlContent += renderBalanceTransferDetails(tx, ledgerInfo, balanceTransferPair, f);
-        } else if (false) {
-            // 🔄 تصميم مخصص ومحسن لتحويل الرصيد بين العملاء
-            let senderName = tx.accountName || '---';
-            let senderCode = tx.accountNumber || tx.vodafoneNumber || '---';
-            let recipientName = '---';
-            let recipientCode = '---';
-            
-            // Find sender and receiver ledger entries to display balances
-            let senderLedger = ledgerInfo ? ledgerInfo.find(l => l.amount < 0) : null;
-            let receiverLedger = ledgerInfo ? ledgerInfo.find(l => l.amount > 0) : null;
-            
-            let senderBefore = senderLedger ? senderLedger.balanceBefore.toFixed(2) + ' LYD' : '---';
-            let senderAfter = senderLedger ? senderLedger.balanceAfter.toFixed(2) + ' LYD' : '---';
-            let receiverBefore = receiverLedger ? receiverLedger.balanceBefore.toFixed(2) + ' LYD' : '---';
-            let receiverAfter = receiverLedger ? receiverLedger.balanceAfter.toFixed(2) + ' LYD' : '---';
-            
-            // Parse recipient details from ledger description or tx notes
-            if (senderLedger && senderLedger.description) {
-                const match = /تحويل رصيد إلى\s+(.*?)\s*\((.*?)\)/.exec(senderLedger.description);
-                if (match) {
-                    recipientName = match[1].trim();
-                    recipientCode = match[2].trim();
-                }
-            }
-            if (recipientName === '---') {
-                const match = /إلى\s+(.*?)\s+-\s+ID:\s*(\w+)/.exec([tx.adminNotes, tx.notes].filter(Boolean).join('\n'));
-                if (match) {
-                    recipientName = match[1].trim();
-                    recipientCode = match[2].trim();
-                }
-            }
-            
-            const baseId = tx.customId.replace(/-[CD]$/, '');
-            const transferIdD = `${baseId}-D`;
-            const transferIdC = `${baseId}-C`;
-            
-            htmlContent += `
-                <div class="panel-title text-primary mb-3"><i class="fa-solid fa-right-left ms-2"></i> تحويل رصيد داخلي بين العملاء</div>
-                
-                <div class="d-flex align-items-center justify-content-between p-3 rounded-4 mb-4" style="background: rgba(59, 130, 246, 0.08); border: 1px solid rgba(59, 130, 246, 0.15);">
-                    <div class="text-center flex-fill">
-                        <div class="small text-muted fw-bold mb-1">المرسل (خصم)</div>
-                        <div class="fw-bold text-primary" style="font-size: 1.1rem;">${senderName}</div>
-                        <div class="small text-muted mt-1">كود: <span class="mono-num fw-bold text-dark">${senderCode}</span></div>
-                    </div>
-                    <div class="fs-3 text-primary px-3"><i class="fa-solid fa-circle-arrow-left"></i></div>
-                    <div class="text-center flex-fill">
-                        <div class="small text-muted fw-bold mb-1">المستقبل (إضافة)</div>
-                        <div class="fw-bold text-success" style="font-size: 1.1rem;">${recipientName}</div>
-                        <div class="small text-muted mt-1">كود: <span class="mono-num fw-bold text-dark">${recipientCode}</span></div>
-                    </div>
-                </div>
-                
-                <div class="row g-3 mb-4">
-                    <div class="col-md-6">
-                        <div class="p-3 rounded-4" style="background: rgba(239, 68, 68, 0.05); border: 1px solid rgba(239, 68, 68, 0.1);">
-                            <div class="fw-bold text-danger mb-2"><i class="fa-solid fa-wallet me-1"></i> رصيد المرسل:</div>
-                            <div class="d-flex justify-content-between small mb-1"><span>قبل التحويل:</span><strong class="mono-num">${senderBefore}</strong></div>
-                            <div class="d-flex justify-content-between small"><span>بعد التحويل:</span><strong class="mono-num text-danger">${senderAfter}</strong></div>
-                        </div>
-                    </div>
-                    <div class="col-md-6">
-                        <div class="p-3 rounded-4" style="background: rgba(16, 185, 129, 0.05); border: 1px solid rgba(16, 185, 129, 0.1);">
-                            <div class="fw-bold text-success mb-2"><i class="fa-solid fa-wallet me-1"></i> رصيد المستقبل:</div>
-                            <div class="d-flex justify-content-between small mb-1"><span>قبل الاستلام:</span><strong class="mono-num">${receiverBefore}</strong></div>
-                            <div class="d-flex justify-content-between small"><span>بعد الاستلام:</span><strong class="mono-num text-success">${receiverAfter}</strong></div>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="p-4 rounded-4 text-center mb-4" style="background: var(--input-bg); border: 1px solid var(--border-glass);">
-                    <div class="text-muted fw-bold small mb-1">المبلغ المحول</div>
-                    <div class="fs-2 fw-bold text-danger mono-num">${tx.amount.toFixed(2)} LYD</div>
-                    <div class="small text-success mt-1 fw-bold"><i class="fa-solid fa-circle-check"></i> الحالة: مكتملة (تمت بنجاح)</div>
-                </div>
-                
-                <div class="data-line"><span class="data-val mono-num fw-bold text-dark">${transferIdD}</span><span class="data-label">رقم عملية التحويل (المرسل):</span></div>
-                <div class="data-line"><span class="data-val mono-num fw-bold text-dark">${transferIdC}</span><span class="data-label">رقم عملية الاستلام (المستقبل):</span></div>
-                <div class="data-line"><span class="data-val text-muted">${f(tx.createdAt)}</span><span class="data-label">تاريخ العملية:</span></div>
-            `;
-        } else if (isDepositOrDeduction) {
-            // 💵 تصميم مخصص للإيداعات والخصومات (تسويات مالية)
-            const typeLabel = tx.status === 'deposit' ? 'إيداع (سداد رصيد للعميل)' : tx.status === 'deposit_pending' ? 'طلب إيداع معلق' : 'خصم رصيد (تسوية)';
-            const typeClass = tx.status === 'deposit' ? 'text-success' : tx.status === 'deposit_pending' ? 'text-warning' : 'text-danger';
-            const badgeBg = tx.status === 'deposit' ? 'bg-success' : tx.status === 'deposit_pending' ? 'bg-warning text-dark' : 'bg-danger';
-            
-            htmlContent += `
-                <div class="panel-title text-success mb-3"><i class="fa-solid fa-scale-balanced ms-2"></i> تسوية مالية / إيداع وخصم</div>
-                
-                <div class="p-4 rounded-4 text-center mb-4" style="background: var(--input-bg); border: 1px solid var(--border-glass);">
-                    <div class="text-muted fw-bold small mb-1">المبلغ المالي المعتمد</div>
-                    <div class="fs-2 fw-bold ${typeClass} mono-num">${tx.amount.toFixed(2)} EGP</div>
-                    <div class="badge ${badgeBg} px-3 py-2 mt-2 fw-bold" style="font-size: 0.85rem;">
-                        ${typeLabel}
-                    </div>
-                </div>
-                
-                <div class="data-line"><span class="data-val fw-bold">${entityName}</span><span class="data-label">الجهة / العميل المستهدف:</span></div>
-                <div class="data-line"><span class="data-val">${tx.employeeName || 'الإدارة'}</span><span class="data-label">الموظف المنفذ:</span></div>
-                <div class="data-line"><span class="data-val mono-num">${tx.customId}</span><span class="data-label">رقم العملية المالي:</span></div>
-                <div class="data-line"><span class="data-val text-muted">${f(tx.createdAt)}</span><span class="data-label">تاريخ التسجيل:</span></div>
-            `;
-        } else {
-            // 📱 تصميم مخصص لتحويلات الكاش والبريد
-            let typeHtml = '';
-            if(tx.transferType === 'post_account') typeHtml = '<span class="badge bg-warning text-dark px-3 py-2 fw-bold"><i class="fa-solid fa-envelope me-1"></i> حساب بريد</span>';
-            else if(tx.transferType === 'post_card') typeHtml = '<span class="badge bg-info text-dark px-3 py-2 fw-bold"><i class="fa-solid fa-id-card me-1"></i> بطاقة عميل</span>';
-            else {
-                let numStr = tx.vodafoneNumber || tx.accountNumber || '';
-                let networkName = 'فودافون كاش';
-                let networkColor = '#dc3545';
-                if(numStr.startsWith('011')) { networkName = 'اتصالات كاش'; networkColor = '#198754'; }
-                else if(numStr.startsWith('012')) { networkName = 'اورانج كاش'; networkColor = '#fd7e14'; }
-                else if(numStr.startsWith('015')) { networkName = 'وي باي'; networkColor = '#0dcaf0'; }
-                typeHtml = `<span class="badge px-3 py-2 fw-bold text-white" style="background: ${networkColor};"><i class="fa-solid fa-mobile-screen me-1"></i> ${networkName}</span>`;
-            }
-            
-            const botOptions = executorBots
-                .filter(bot => (bot.supportedTransferTypes || ['vodafone']).includes(tx.transferType || 'vodafone'))
-                .map(bot => `<option value="${bot._id}">${bot.name} - ${bot.serviceLabel || ''}</option>`)
-                .join('');
-            
-            htmlContent += `
-                <div class="panel-title text-primary mb-3"><i class="fa-solid fa-mobile-screen ms-2"></i> تفاصيل تحويل كاش / بريد</div>
-                
-                <div class="data-line"><span class="data-val fw-bold">${entityName}</span><span class="data-label">الجهة / الشركة:</span></div>
-                <div class="data-line"><span class="data-val">${tx.employeeName || '---'}</span><span class="data-label">الموظف الطالب:</span></div>
-                
-                <div class="data-line">
-                    <span class="data-val text-primary d-flex flex-column align-items-end gap-1">
-                        <div class="d-flex align-items-center gap-2">
-                            <button id="m_bot_edit_btn" class="btn btn-sm btn-outline-warning py-0 px-2 fw-bold" style="${tx.status === 'completed' && tx.executorBotId ? 'display: inline-block' : 'display: none'}; font-size: 0.7rem; border-radius: 6px;" onclick="document.getElementById('m_bot_edit_form').style.display='block'; this.style.display='none';"><i class="fa-solid fa-right-left"></i> نقل</button>
-                            <span id="m_bot_name_text" class="fw-bold">${tx.executorBotName || (tx.executorBotId ? (allBotsMap[tx.executorBotId] || 'غير معروف') : 'غير معروف')}</span>
-                        </div>
-                        <div id="m_bot_edit_form" style="display:none; margin-top: 5px;">
-                            <form id="changeBotForm" method="POST" action="/transaction/${tx._id}/change-bot" onsubmit="return confirm('سيتم نقل العملية وتعديل أرصدة البوتات والوكلاء محاسبياً. هل أنت متأكد؟')">
-                                <div class="input-group input-group-sm">
-                                    <button type="submit" class="btn btn-success border-0 px-2"><i class="fa-solid fa-check"></i></button>
-                                    <select name="newGroupId" class="form-select border-0 fw-bold text-end" style="font-size: 0.75rem;" required>
-                                        <option value="">- اختر بوت -</option>
-                                        ${botOptions}
-                                    </select>
-                                </div>
-                            </form>
-                        </div>
-                    </span>
-                    <span class="data-label">بوت التنفيذ:</span>
-                </div>
-                
-                <div class="data-line"><span class="data-val">${typeHtml}</span><span class="data-label">نوع التحويل:</span></div>
-                <div class="data-line"><span class="data-val mono-num fs-6" style="direction: ltr;">${tx.vodafoneNumber || tx.accountNumber || '---'}</span><span class="data-label">الرقم/الحساب:</span></div>
-                <div class="data-line"><span class="data-val text-success mono-num fs-5 fw-bold">${tx.amount.toFixed(2)} EGP</span><span class="data-label">المبلغ المحول:</span></div>
-                <div class="data-line"><span class="data-val mono-num text-warning fw-bold">${tx.exchangeRate ? Number(tx.exchangeRate).toFixed(2) : (tx.costLYD ? (tx.amount / tx.costLYD).toFixed(2) : '---')}</span><span class="data-label">سعر الصرف:</span></div>
-                <div class="data-line"><span class="data-val text-danger mono-num fs-5 fw-bold">${tx.costLYD ? tx.costLYD.toFixed(2) : '---'} LYD</span><span class="data-label">إجمالي التكلفة:</span></div>
-            `;
-            
-            if (tx.accountName && tx.transferType !== 'vodafone') {
-                htmlContent += `
-                    <div class="col-12 mt-3">
-                        <div class="p-3" style="background-color: rgba(245, 158, 11, 0.1); border-right: 4px solid #f59e0b; border-radius: 8px;">
-                            <div class="fw-bold mb-2 text-warning"><i class="fa-solid fa-address-card me-2"></i> بيانات مستلم البريد:</div>
-                            <div class="fw-bold" style="line-height: 1.8; font-size: 0.95rem;">${tx.accountName.replace(/\n/g, '<br>')}</div>
-                        </div>
-                    </div>
-                `;
-            }
-        }
-        
-        htmlContent += renderCustomerNotesSection(noteView.customerText);
-        htmlContent += renderSystemDetailsSection(tx, noteView.systemText, ledgerInfo);
-        
-        // حقن المحتوى
-        document.getElementById('m_detail_panel').innerHTML = htmlContent;
-        
-        // تحديث معلومات التتبع على اليسار
-        document.getElementById('m_t_created').innerText = f(tx.createdAt);
-        document.getElementById('m_t_executor').innerText = isBalanceTransfer ? 'النظام (تلقائي)' : (tx.executorName || 'قيد الانتظار');
-        document.getElementById('m_t_accepted').innerText = tx.status !== 'pending' ? f(tx.updatedAt) : '---';
-        document.getElementById('m_t_completed').innerText = tx.status === 'completed' ? f(tx.updatedAt) : '---';
-        
-        let b = ''; const s = tx.status;
-        if(s === 'completed') b = '<span class="badge-st st-done"><i class="fa-solid fa-circle-check"></i> مكتمل</span>';
-        else if(s === 'pending') b = '<span class="badge-st st-wait"><i class="fa-solid fa-circle-pause"></i> معلق</span>';
-        else if(s === 'processing') b = '<span class="badge-st st-proc"><i class="fa-solid fa-spinner fa-spin"></i> توجيه</span>';
-        else if(s === 'accepted') b = '<span class="badge-st" style="background: rgba(139, 92, 246, 0.1); color: #8b5cf6;"><i class="fa-solid fa-user-check"></i> قيد العمل</span>';
-        else if(s === 'deposit_pending') b = '<span class="badge bg-warning text-dark px-3 py-2"><i class="fa-solid fa-hand-holding-dollar"></i> طلب إيداع</span>';
-        else if(s === 'deposit') b = '<span class="badge-st st-done"><i class="fa-solid fa-arrow-down"></i> إيداع</span>';
-        else if(s === 'deduction') b = '<span class="badge-st st-fail"><i class="fa-solid fa-arrow-up"></i> خصم</span>';
-        else b = '<span class="badge-st st-fail"><i class="fa-solid fa-ban"></i> ملغي</span>';
-        document.getElementById('m_t_status').innerHTML = b;
-
-        const container = document.getElementById('m_proof_container');
-        if(container) {
-            if (false) {
-                container.innerHTML = '<div class="text-muted text-center py-4"><i class="fa-solid fa-circle-info fs-1 d-block mb-2 opacity-25"></i> تحويل رصيد داخلي لا يتطلب إثبات صور</div>';
-            } else {
-                const officialReceipt = tx.proofImage || (tx.proofImages && tx.proofImages[0]);
-                const executorProofs = Array.isArray(tx.executorProofImages)
-                    ? tx.executorProofImages.filter(Boolean)
-                    : [];
-
-                if (officialReceipt || executorProofs.length > 0) {
-                    const officialSection = officialReceipt ? `
-                        <section class="mb-4">
-                            <div class="d-flex align-items-center justify-content-between mb-2">
-                                <strong><i class="fa-solid fa-receipt text-success me-1"></i> الإيصال النظامي المرسل للعميل</strong>
-                                <span class="badge bg-success-subtle text-success border border-success-subtle">عام للعميل</span>
-                            </div>
-                            <div class="rounded-3 border bg-light p-2 text-center">
-                                <img src="/proxy/image/${tx._id}/0" style="display:block; border-radius: 10px; max-height: 500px; max-width: 100%; margin: 0 auto; object-fit: contain;">
-                            </div>
-                        </section>
-                    ` : '';
-                    const executorOffset = officialReceipt ? 1 : 0;
-                    const executorSection = executorProofs.length ? `
-                        <section>
-                            <div class="d-flex align-items-center justify-content-between mb-2">
-                                <strong><i class="fa-solid fa-shield-halved text-primary me-1"></i> صور إثبات المنفذ</strong>
-                                <span class="badge bg-primary-subtle text-primary border border-primary-subtle">للإدارة فقط</span>
-                            </div>
-                            <div class="row g-2">
-                                ${executorProofs.map((_, index) => `
-                                    <div class="col-6 col-lg-4">
-                                        <a href="/proxy/image/${tx._id}/${executorOffset + index}" target="_blank" class="d-block rounded-3 border bg-light p-1">
-                                            <img src="/proxy/image/${tx._id}/${executorOffset + index}" alt="إثبات المنفذ ${index + 1}" style="width:100%; aspect-ratio: 1 / 1; border-radius:8px; object-fit:cover;">
-                                        </a>
-                                    </div>
-                                `).join('')}
-                            </div>
-                        </section>
-                    ` : '';
-                    container.innerHTML = officialSection + executorSection;
-                } else {
-                    container.innerHTML = '<div class="text-muted text-center"><i class="fa-solid fa-image fs-1 d-block mb-2 opacity-25"></i> لم يتم إرفاق إثبات تنفيذ بعد</div>';
-                }
-            }
+        if (window.AdminOperationDetails) {
+            AdminOperationDetails.mount(modalEl, {
+                tx,
+                ledgerInfo,
+                balanceTransferPair,
+                allBotsMap,
+                executorBots,
+                noteView: splitTransactionNotes(tx),
+                formatDate
+            });
         }
     }
 
