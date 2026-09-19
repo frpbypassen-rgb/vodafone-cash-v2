@@ -329,7 +329,7 @@
 <button class="mobile-nav-toggle" onclick="toggleSidebar()"><i class="fa-solid fa-bars"></i></button>
 <div class="sidebar-overlay" onclick="toggleSidebar()"></div>
 
-<%- include('partials/sidebar', { activePage: 'transactions' }) %>
+<%- include('partials/sidebar', { activePage: typeof operationWorkspace !== 'undefined' && operationWorkspace ? 'transactions' : 'transactions_central' }) %>
 
 <div class="main-content">
     <div class="container-fluid">
