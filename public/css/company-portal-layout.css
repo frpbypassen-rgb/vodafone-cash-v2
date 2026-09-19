@@ -1101,7 +1101,8 @@ html[data-portal="company"] .cp-work-main {
     html[data-portal="company"] .bw-page-status,
     html[data-portal="company"] .bw-user-menu,
     html[data-portal="company"] .bw-assistant-launcher,
-    html[data-portal="company"] .bw-topbar-link[href="/client/logout"],
+    html[data-portal="company"] .bw-topbar-link,
+    html[data-portal="company"] [data-privacy-toggle],
     html[data-portal="company"] .bw-breadcrumbs > span,
     html[data-portal="company"] .bw-breadcrumbs > i {
         display: none !important;
