@@ -36,6 +36,10 @@ const {
     emptyPeriodStats,
     loadCentralLedgerOverview
 } = require('../services/centralLedgerOverviewService');
+const {
+    sortTransactionsByStatusQueue,
+    transactionStatusQueuePipelineStages
+} = require('../utils/transactionStatusQueue');
 
 // 🚀 استدعاء محرك الـ API 
 const { executeTransferViaApi, getApiProviderBalance, saveApiReceiptProof } = require('../services/externalApiService');
@@ -314,31 +318,15 @@ const renderTransactions = async (req, res, operationsWorkspace = false) => {
 
         const totalTxs = await Transaction.countDocuments(query);
         const totalPages = Math.ceil(totalTxs / limit);
-        const transactions = operationsWorkspace
-            ? await Transaction.aggregate([
+        const transactions = sortTransactionsByStatusQueue(
+            await Transaction.aggregate([
                 { $match: query },
-                {
-                    $addFields: {
-                        operationQueueOrder: {
-                            $switch: {
-                                branches: [
-                                    { case: { $eq: ['$status', 'pending'] }, then: 0 },
-                                    { case: { $eq: ['$status', 'processing'] }, then: 1 },
-                                    { case: { $eq: ['$status', 'accepted'] }, then: 2 },
-                                    { case: { $eq: ['$status', 'completed'] }, then: 3 },
-                                    { case: { $in: ['$status', ['rejected', 'cancelled_by_admin']] }, then: 4 }
-                                ],
-                                default: 5
-                            }
-                        }
-                    }
-                },
-                { $sort: { operationQueueOrder: 1, createdAt: -1 } },
-                { $skip: (page - 1) * limit },
-                { $limit: limit },
-                { $project: { operationQueueOrder: 0 } }
+                ...transactionStatusQueuePipelineStages({
+                    skip: (page - 1) * limit,
+                    limit
+                })
             ])
-            : await Transaction.find(query).sort({ createdAt: -1 }).skip((page - 1) * limit).limit(limit);
+        );
 
         // هذا الملخص مستقل عن فلاتر السجل: يعرض حركة اليوم دائماً.
         // نستبعد الطرف المقابل لتحويل الرصيد حتى لا تُحسب العملية الداخلية مرتين.
