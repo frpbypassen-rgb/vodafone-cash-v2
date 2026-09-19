@@ -65,9 +65,9 @@ html[data-theme="day"] {
 html[data-theme="day"] body.cl-app,
 html[data-theme="day"][data-portal="customer"] {
     background:
-        radial-gradient(circle at 10% -10%, rgba(55, 48, 163, .16), transparent 22rem),
-        radial-gradient(circle at 92% 0%, rgba(15, 118, 110, .12), transparent 20rem),
-        linear-gradient(180deg, #DCE4F8 0, #E8EEFA 220px);
+        radial-gradient(circle at 10% -10%, rgba(55, 48, 163, .22), transparent 22rem),
+        radial-gradient(circle at 92% 0%, rgba(15, 118, 110, .16), transparent 20rem),
+        linear-gradient(180deg, #C9D6F5 0, #DCE6FA 160px, #E8EEFA 100%);
     color: var(--cl-ink);
 }
 

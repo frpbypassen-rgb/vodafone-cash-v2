@@ -612,3 +612,44 @@ html[data-portal="customer"] :focus-visible {
     outline: none;
     box-shadow: var(--cl-focus);
 }
+
+/* Beat leftover hardcoded whites from client-web-os / nile CSS */
+html[data-portal="customer"] .client-os-shell,
+html[data-portal="customer"] .client-hub-shell,
+html[data-portal="customer"] .client-os-main,
+html[data-portal="customer"] .client-hub-main,
+html[data-portal="customer"] .client-os-satellite,
+html[data-portal="customer"] .wallet-hub-dashboard,
+html[data-portal="customer"] .client-hub-page,
+html[data-portal="customer"] .desktop-only-layout,
+html[data-portal="customer"] .mobile-only-layout {
+    background: transparent !important;
+    color: var(--cl-ink);
+}
+
+html[data-portal="customer"] .client-os-recipients,
+html[data-portal="customer"] .client-os-journey,
+html[data-portal="customer"] .client-os-activity-grid,
+html[data-portal="customer"] .client-os-recipient-chip,
+html[data-portal="customer"] .client-os-workbench-action:not(.is-primary),
+html[data-portal="customer"] .client-os-journey-card,
+html[data-portal="customer"] .client-hub-service-card,
+html[data-portal="customer"] .client-os-activity-card,
+html[data-portal="customer"] .client-os-rates-card,
+html[data-portal="customer"] .client-hub-panel,
+html[data-portal="customer"] .client-hub-tabs a,
+html[data-portal="customer"] .client-os-mobile-tools a,
+html[data-portal="customer"] .hub-service-card,
+html[data-portal="customer"] .client-hub-services-intro,
+html[data-portal="customer"] .client-hub-transfer-card,
+html[data-portal="customer"] .client-hub-transfer-intro {
+    background: var(--cl-surface) !important;
+    color: var(--cl-ink);
+    border-color: var(--cl-line) !important;
+}
+
+html[data-portal="customer"] .client-os-recipient-chip small,
+html[data-portal="customer"] .client-os-subtitle,
+html[data-portal="customer"] .client-os-section-heading p {
+    color: var(--cl-muted);
+}
