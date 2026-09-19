@@ -818,23 +818,27 @@
                                         </form>
 
                                         <div class="text-muted small fw-bold mb-3 px-1 text-truncate">
-                                            <i class="fa-solid fa-network-wired me-1 opacity-50" style="color: #10b981;"></i> الوكيل:
+                                            <i class="fa-solid fa-network-wired me-1 opacity-50" style="color: #10b981;"></i>
+                                            <%= sub.agencyLabel || ((sub.masterType === 'company' ? 'شركة: ' : 'وكيل: ') + (sub.masterName || 'غير معروف')) %>
                                             <% if (sub.masterType === 'user') { %>
-                                                <a href="/user/<%= sub.masterId %>" class="text-decoration-none fw-bold" style="color: #f59e0b;"><%= sub.masterName %></a>
+                                                <a href="/user/<%= sub.masterId %>" class="text-decoration-none fw-bold d-block" style="color: #f59e0b;"><%= sub.masterName %></a>
                                             <% } else { %>
-                                                <a href="/company/<%= sub.masterId %>" class="text-decoration-none fw-bold" style="color: #f59e0b;"><%= sub.masterName %></a>
+                                                <a href="/company/<%= sub.masterId %>" class="text-decoration-none fw-bold d-block" style="color: #f59e0b;"><%= sub.masterName %></a>
                                             <% } %>
                                         </div>
 
                                         <div class="balance-box">
                                             <div class="text-muted small fw-bold mb-2"><i class="fa-solid fa-wallet me-1 opacity-50"></i> الرصيد الحالي (LYD)</div>
-                                            <div class="mono-num <%= sub.balance < 0 ? 'text-danger' : 'text-success' %>" dir="ltr">
-                                                <%= sub.balance.toFixed(2) %>
+                                            <div class="mono-num <%= Number(sub.balance) < 0 ? 'text-danger' : 'text-success' %>" dir="ltr">
+                                                <%= Number(sub.balance || 0).toFixed(2) %>
                                             </div>
                                         </div>
                                     </div>
 
                                     <div class="client-actions">
+                                        <a href="/sub-account/<%= sub._id %>" class="btn-3d subaccount-btn">
+                                            <i class="fa-solid fa-folder-open me-2"></i> عرض الحساب والحركات
+                                        </a>
                                         <% if (typeof isMaster !== 'undefined' && isMaster) { %>
                                             <a href="/admin/accounts/subaccount/<%= sub._id %>/edit" class="btn-3d" style="color:#087f74; border-color:rgba(8,127,116,.35);">
                                                 <i class="fa-solid fa-pen-to-square me-2"></i> تعديل بيانات الحساب
