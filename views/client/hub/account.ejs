@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="ar" dir="rtl">
+<html lang="ar" dir="rtl" data-portal="customer" data-theme="<%= typeof clientTheme !== 'undefined' && clientTheme ? clientTheme : 'day' %>">
 <head>
     <script>window.csrfToken = <%- JSON.stringify(typeof csrfToken !== 'undefined' ? csrfToken : '') %>;</script>
     <%- include('../partials/wallet_hub_layout_head', {
@@ -9,7 +9,7 @@
     }) %>
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 </head>
-<body class="client-direct-modern client-nile-theme wallet-hub-active wallet-hub-satellite client-hub-page client-report-2027">
+<body class="cl-app cl-shell client-direct-modern client-nile-theme wallet-hub-active wallet-hub-satellite client-hub-page client-report-2027" data-customer-shell data-theme="<%= typeof clientTheme !== 'undefined' && clientTheme ? clientTheme : 'day' %>">
     <%- include('../partials/wallet_hub_mobile_header', {
         user: user,
         mobileKicker: 'المالية',

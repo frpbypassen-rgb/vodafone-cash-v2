@@ -13,6 +13,10 @@ const {
     normalizeCompanyTheme,
     buildThemePreferenceUpdate
 } = require('../utils/companyPortalTheme');
+const {
+    normalizeClientTheme,
+    buildClientThemePreferenceUpdate
+} = require('../utils/clientPortalTheme');
 const centralReportService = require('../services/centralReportService');
 const { generateAdminReportPdf } = require('../services/reportPdfService');
 const ClientCompany = require('../models/ClientCompany');
@@ -661,6 +665,35 @@ exports.postCompanyTheme = async (req, res) => {
         }
         return redirectWithMessage(res, '/client/settings', 'settingsError', 'forbidden');
     }
+};
+
+exports.postClientTheme = async (req, res) => {
+    const theme = normalizeClientTheme(req.body?.theme);
+    const fail = (status, error) => {
+        if (req.xhr || (req.headers.accept && req.headers.accept.includes('application/json'))) {
+            return res.status(status).json({ success: false, error });
+        }
+        return redirectWithMessage(res, '/client/settings', 'settingsError', 'theme');
+    };
+    if (!theme) return fail(400, 'INVALID_THEME');
+    if (req.session.accountType === 'company') return fail(403, 'COMPANY_THEME_ONLY');
+
+    req.session.clientTheme = theme;
+    const Model = req.session.accountType === 'agent_staff'
+        ? AgentEmployee
+        : (req.session.accountType === 'sub_client' ? SubAccount : User);
+    try {
+        await Model.updateOne(
+            { _id: req.session.clientId },
+            { $set: buildClientThemePreferenceUpdate(theme) }
+        );
+    } catch (_error) {
+        /* session still holds the preference */
+    }
+    if (req.xhr || (req.headers.accept && req.headers.accept.includes('application/json'))) {
+        return res.json({ success: true, theme });
+    }
+    return redirectWithMessage(res, req.body.returnTo || '/client/settings', 'settingsSuccess', 'theme');
 };
 
 exports.getTransactionDetails = async (req, res) => {

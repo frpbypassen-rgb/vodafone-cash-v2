@@ -429,7 +429,10 @@ exports.postVerify = async (req, res) => {
             clientSessionVersion: Number(account.sessionVersion || 0),
             companyTheme: accountType === 'company'
                 ? (account.preferences && account.preferences.companyTheme) || account.uiTheme || undefined
-                : undefined
+                : undefined,
+            clientTheme: accountType === 'company'
+                ? undefined
+                : (account.preferences && account.preferences.clientTheme) || undefined
         });
         await securityControl.applySessionSecurity(req, principal, 'account');
         delete req.session.pendingSecurityLocation;

@@ -1,12 +1,16 @@
 <!DOCTYPE html>
-<html lang="ar" dir="rtl"<% if (workspace.isCompany) { %> data-portal="company" data-company-role="<%= workspace.canonicalRole || (workspace.permissions && workspace.permissions.canonicalRole) || (workspace.persona === 'accountant' ? 'accountant' : (workspace.permissions && workspace.permissions.owner ? 'owner' : 'employee')) %>" data-theme="<%= typeof companyTheme !== 'undefined' && companyTheme ? companyTheme : 'day' %>"<% } %>>
+<html lang="ar" dir="rtl"<% if (workspace.isCompany) { %> data-portal="company" data-company-role="<%= workspace.canonicalRole || (workspace.permissions && workspace.permissions.canonicalRole) || (workspace.persona === 'accountant' ? 'accountant' : (workspace.permissions && workspace.permissions.owner ? 'owner' : 'employee')) %>" data-theme="<%= typeof companyTheme !== 'undefined' && companyTheme ? companyTheme : 'day' %>"<% } else { %> data-portal="customer" data-theme="<%= typeof clientTheme !== 'undefined' && clientTheme ? clientTheme : 'day' %>"<% } %>>
 <%- include('partials/workspace_head') %>
-<body class="bw-body<%= workspace.isCompany ? ' bw-company-os cp-shell cp-app' : '' %>" data-page="<%= page %>" data-persona="<%= workspace.persona %>" data-portal="<%= workspace.type %>"<% if (workspace.isCompany) { %> data-company-shell data-company-role="<%= workspace.canonicalRole || (workspace.permissions && workspace.permissions.canonicalRole) || 'employee' %>" data-theme="<%= typeof companyTheme !== 'undefined' && companyTheme ? companyTheme : 'day' %>"<% } %>>
+<body class="bw-body<%= workspace.isCompany ? ' bw-company-os cp-shell cp-app' : ' cl-app cl-shell' %>" data-page="<%= page %>" data-persona="<%= workspace.persona %>" data-portal="<%= workspace.type %>"<% if (workspace.isCompany) { %> data-company-shell data-company-role="<%= workspace.canonicalRole || (workspace.permissions && workspace.permissions.canonicalRole) || 'employee' %>" data-theme="<%= typeof companyTheme !== 'undefined' && companyTheme ? companyTheme : 'day' %>"<% } else { %> data-customer-shell data-theme="<%= typeof clientTheme !== 'undefined' && clientTheme ? clientTheme : 'day' %>"<% } %>>
     <% if (workspace.isCompany) { %>
         <%- include('partials/company_icons') %>
         <span class="cp-sand-dust" aria-hidden="true"></span>
         <span class="cp-pyramid-art" aria-hidden="true"></span>
         <span class="cp-glyph-shimmer" aria-hidden="true"></span>
+    <% } else { %>
+        <span class="cl-sand-dust" aria-hidden="true"></span>
+        <span class="cl-pyramid-art" aria-hidden="true"></span>
+        <span class="cl-glyph-shimmer" aria-hidden="true"></span>
     <% } %>
     <div class="bw-offline-banner" data-offline-banner hidden><i class="fa-solid fa-wifi"></i><span><strong>الاتصال متوقف</strong> البيانات المعروضة قديمة، وتم إيقاف إرسال التحويلات حتى عودة الشبكة.</span></div>
     <div class="bw-privacy-shield" data-privacy-shield hidden><i class="fa-solid fa-eye-slash"></i><strong>تم إخفاء البيانات الحساسة</strong><button type="button" data-privacy-restore>إظهار</button></div>
@@ -368,6 +372,8 @@
     <% if (workspace.isCompany) { %>
     <% if (page === 'overview') { %><script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js" defer></script><% } %>
     <script src="/js/company-portal.js?v=20260919-command1" defer></script>
+    <% } else { %>
+    <script src="/js/client-portal.js?v=20260919-cl1" defer></script>
     <% } %>
 </body>
 </html>
