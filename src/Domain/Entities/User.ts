@@ -17,6 +17,10 @@ export interface IUser extends Document {
     webUsername: string;
     webPassword: string;
     role: string;
+    companyId?: mongoose.Types.ObjectId;
+    corporateRole?: 'manager' | 'employee' | 'accountant';
+    approvalLimit?: number;
+    corporatePortalEnabled?: boolean;
     refreshToken?: string;
     otpCode?: string;
     otpExpires?: Date;
@@ -43,6 +47,10 @@ const userSchema = new Schema<IUser>({
     webUsername: { type: String, unique: true, required: true },
     webPassword: { type: String, required: true },
     role: { type: String, default: 'user' },
+    companyId: { type: Schema.Types.ObjectId, ref: 'ClientCompany' },
+    corporateRole: { type: String, enum: ['manager', 'employee', 'accountant'] },
+    approvalLimit: { type: Number, default: null },
+    corporatePortalEnabled: { type: Boolean, default: false },
     refreshToken: { type: String },
     otpCode: { type: String },
     otpExpires: { type: Date },

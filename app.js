@@ -440,6 +440,8 @@ const { syncBotBalance } = require('./services/balanceService');
 // ==========================================
 app.use('/client', require('./routes/clientPortal'));
 app.use('/client', require('./routes/clientReports')); // Reports for clients
+app.use('/corporate', require('./routes/corporate'));
+app.use('/api/corporate', require('./routes/corporateApi'));
 app.use('/executor-portal', require('./routes/executorPortal'));
 app.use('/executor-portal', require('./routes/executorReports')); // Reports for executors
 app.use('/api/mobile', require('./routes/mobileApi'));

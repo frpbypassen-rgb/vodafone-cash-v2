@@ -411,6 +411,7 @@ const buildNavigation = (workspace, activePage) => {
     // repeated shortcuts scattered across dashboard cards.
     const items = workspace.isCompany
         ? [
+            { key: 'corporate', href: '/corporate', label: 'بوابة الشركات', icon: 'fa-briefcase', group: 'القيادة', visible: Boolean(workspace.actor?.corporatePortalEnabled || workspace.entity?.corporatePortal?.enabled) },
             { key: 'overview', href: '/client/dashboard?home=1', label: 'مركز القيادة', icon: 'fa-building-shield', group: 'القيادة', visible: !workspace.permissions.employee },
             { key: 'services', href: '/client/services', label: 'معرض الخدمات', icon: 'fa-cubes', group: 'التنفيذ', visible: workspace.permissions.canTransfer },
             { key: 'smart_transfer', href: '/client/smart-transfer', label: 'التحويل الذكي', icon: 'fa-wand-magic-sparkles', group: 'التنفيذ', visible: workspace.permissions.canTransfer },

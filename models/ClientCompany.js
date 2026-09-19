@@ -54,6 +54,13 @@ const clientCompanySchema = new mongoose.Schema({
     creditLimit: { type: Number, default: 0 }, 
     
     status: { type: String, default: 'active' }, // active, inactive
+    corporatePortal: {
+        enabled: { type: Boolean, default: false },
+        brandingName: { type: String, trim: true, default: '' },
+        sharedDailyLimit: { type: Number, default: 0 },
+        defaultEmployeeApprovalLimit: { type: Number, default: 0 },
+        defaultManagerApprovalLimit: { type: Number, default: 0 }
+    },
     tenantId: { type: mongoose.Schema.Types.ObjectId, ref: 'Tenant' },
     deletedAt: { type: Date },
     deletedBy: { type: String }

@@ -7,7 +7,11 @@ const ledgerSchema = new mongoose.Schema({
     entityModel: { type: String, required: true, enum: ['User', 'ClientCompany', 'ClientBot', 'SubAccount', 'ExecutorBot', 'ExecutorGroup'] }, // نوع الحساب
     transactionId: { type: String, required: true }, // رقم الفاتورة (مثال: ATT-2605-0001)
     type: { type: String, required: true, enum: ['DEPOSIT', 'DEDUCTION', 'TRANSFER', 'COMMISSION', 'REFUND', 'REVERSAL'] }, // نوع الحركة
-    amount: { type: Number, required: true }, // المبلغ المخصوم أو المضاف
+    amount: { type: Number, required: true }, // المبلغ المخصوم أو المضاف (دينار المحفظة)
+    originalAmount: { type: Number },
+    originalCurrency: { type: String, trim: true },
+    settledCurrency: { type: String, trim: true, default: 'LYD' },
+    exchangeRate: { type: Number },
     debitAccount: { type: String },
     creditAccount: { type: String },
     balanceBefore: { type: Number, required: true }, // الرصيد قبل الحركة
