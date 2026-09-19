@@ -10,11 +10,13 @@
         <svg class="cp-icon" aria-hidden="true"><use href="#cp-icon-ankh"></use></svg>
     </button>
     <div class="cp-theme-panel" id="companyThemePanel" data-theme-panel hidden role="dialog" aria-label="اختيار المظهر">
-        <% themeOptions.forEach(option => { %>
-            <button type="button" class="cp-theme-option" data-theme-option="<%= option.key %>" aria-pressed="false">
-                <svg class="cp-icon" aria-hidden="true"><use href="#cp-icon-<%= option.icon %>"></use></svg>
-                <span><%= option.label %><small><%= option.hint %></small></span>
-            </button>
-        <% }) %>
+        <form method="POST" action="/client/settings/theme" class="cp-theme-ssr-form">
+            <% themeOptions.forEach(option => { %>
+                <button type="submit" class="cp-theme-option" name="theme" value="<%= option.key %>" data-theme-option="<%= option.key %>" aria-pressed="<%= (typeof companyTheme !== 'undefined' ? companyTheme : 'day') === option.key ? 'true' : 'false' %>">
+                    <svg class="cp-icon" aria-hidden="true"><use href="#cp-icon-<%= option.icon %>"></use></svg>
+                    <span><%= option.label %><small><%= option.hint %></small></span>
+                </button>
+            <% }) %>
+        </form>
     </div>
 </div>

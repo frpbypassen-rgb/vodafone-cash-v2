@@ -425,7 +425,11 @@ exports.postVerify = async (req, res) => {
             clientId: account._id,
             accountType,
             clientName: principal.principalName,
-            pendingSecurityLocation: pendingLocation
+            pendingSecurityLocation: pendingLocation,
+            clientSessionVersion: Number(account.sessionVersion || 0),
+            companyTheme: accountType === 'company'
+                ? (account.preferences && account.preferences.companyTheme) || account.uiTheme || undefined
+                : undefined
         });
         await securityControl.applySessionSecurity(req, principal, 'account');
         delete req.session.pendingSecurityLocation;

@@ -1,0 +1,77 @@
+/* Night theme — dark, high text contrast, comfortable typing. */
+html[data-theme="night"] {
+    color-scheme: dark;
+    --cp-sand: #12110F;
+    --cp-stone: #0A0908;
+    --cp-gold: #C4A35A;
+    --cp-turquoise: #4AA39A;
+    --cp-brick: #C47A6E;
+    --cp-ink: #F3EDE3;
+    --cp-muted: #B8A994;
+    --cp-surface: #1C1A17;
+    --cp-surface-soft: #25221D;
+    --cp-surface-strong: #2E2A24;
+    --cp-line: #3A342C;
+    --cp-line-strong: #524A40;
+    --cp-icon: #C4A35A;
+    --cp-on-accent: #12110F;
+    --cp-sidebar: #0E0C0A;
+    --cp-sidebar-soft: #1A1714;
+    --cp-sidebar-text: #F3EDE3;
+    --cp-sidebar-muted: #B8A994;
+    --cp-shadow: 0 10px 28px rgba(0, 0, 0, .38);
+    --cp-shadow-lg: 0 22px 44px rgba(0, 0, 0, .46);
+    --cp-glow: rgba(196, 163, 90, .08);
+    --cp-chart-1: #4AA39A;
+    --cp-chart-2: #C4A35A;
+    --cp-chart-3: #7EA8D6;
+    --cp-chart-4: #C47A6E;
+    --cp-success: #5FBF9A;
+    --cp-warning: #C4A35A;
+    --cp-danger: #C47A6E;
+    --cp-info: #7EA8D6;
+    --bw-bg: var(--cp-sand);
+    --bw-surface: var(--cp-surface);
+    --bw-surface-soft: var(--cp-surface-soft);
+    --bw-surface-strong: var(--cp-surface-strong);
+    --bw-border: var(--cp-line);
+    --bw-border-strong: var(--cp-line-strong);
+    --bw-text: var(--cp-ink);
+    --bw-muted: var(--cp-muted);
+    --bw-strong: #FFF8EC;
+    --bw-sidebar: var(--cp-sidebar);
+    --bw-sidebar-soft: var(--cp-sidebar-soft);
+    --bw-sidebar-text: var(--cp-sidebar-text);
+    --bw-sidebar-muted: var(--cp-sidebar-muted);
+    --bw-green: var(--cp-success);
+    --bw-green-soft: color-mix(in srgb, var(--cp-success) 16%, var(--cp-surface));
+    --bw-blue: var(--cp-info);
+    --bw-blue-soft: color-mix(in srgb, var(--cp-info) 16%, var(--cp-surface));
+    --bw-amber: var(--cp-gold);
+    --bw-amber-soft: color-mix(in srgb, var(--cp-gold) 16%, var(--cp-surface));
+    --bw-red: var(--cp-danger);
+    --bw-red-soft: color-mix(in srgb, var(--cp-danger) 16%, var(--cp-surface));
+    --bw-cyan: var(--cp-turquoise);
+    --bw-cyan-soft: color-mix(in srgb, var(--cp-turquoise) 16%, var(--cp-surface));
+    --bw-shadow-sm: var(--cp-shadow);
+    --bw-shadow-md: var(--cp-shadow-lg);
+}
+
+html[data-theme="night"] .bw-company-os {
+    background: radial-gradient(circle at 80% -10%, var(--cp-glow), transparent 18rem), var(--cp-sand);
+}
+
+html[data-theme="night"] .cp-glyph-shimmer,
+html[data-theme="night"] .cp-sand-dust { display: none; }
+
+html[data-theme="night"] .bw-company-os .bw-topbar {
+    background: color-mix(in srgb, var(--cp-surface) 88%, transparent);
+}
+
+html[data-theme="night"] .bw-company-os input,
+html[data-theme="night"] .bw-company-os select,
+html[data-theme="night"] .bw-company-os textarea {
+    background: var(--cp-surface-soft);
+    color: var(--cp-ink);
+    caret-color: var(--cp-gold);
+}

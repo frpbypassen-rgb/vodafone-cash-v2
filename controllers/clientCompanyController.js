@@ -9,6 +9,19 @@ const Admin = require('../models/Admin');
 const { getCompanyServiceRates } = require('../utils/rateHelper');
 const { logAction } = require('../services/auditService');
 const businessPortalService = require('../services/businessPortalService');
+const {
+    isLegacyOwner,
+    resolveCanonicalRole,
+    resolveCompanyAccess,
+    dashboardPersona,
+    assertCapability,
+    assertNotSelf,
+    loadCompanyAccess,
+    findCompanyStaffTarget
+} = require('../services/companyAccessService');
+const {
+    applyStaffPasswordReset
+} = require('../services/companyPasswordService');
 
 const COMPANY_USERNAME_DOMAIN = '@ahram.com';
 
@@ -101,53 +114,14 @@ const resolveRange = (query = {}, forceToday = false) => {
     };
 };
 
-const isLegacyOwner = (account) => {
-    const role = String(account.role || '').toLowerCase();
-    return role !== 'accountant'
-        && account.canViewAllReports === true
-        && account.canManageCompany !== true;
-};
-
-const isCompanyOwner = (account) => (
-    String(account.role || '').toLowerCase() === 'owner'
-    || account.canCreateCompanyStaff === true
-    || isLegacyOwner(account)
-);
-
-const canManageCompany = (account) => isCompanyOwner(account) || account.canManageCompany === true;
-
-const canViewCompanyBalance = (account) => (
-    isCompanyOwner(account)
-    || account.canManageCompany === true
-    || account.canViewAllReports === true
-    || String(account.role || '').toLowerCase() === 'accountant'
-);
-
-const canCreateStaff = (account) => isCompanyOwner(account);
-
-const dashboardPersona = (account) => {
-    const role = String(account.role || '').toLowerCase();
-    if (role === 'accountant') return 'accountant';
-    if (canManageCompany(account)) return 'manager';
-    return 'employee';
-};
+const isCompanyOwner = (account) => resolveCanonicalRole(account) === 'owner';
+const canManageCompany = (account) => resolveCompanyAccess(account).manager === true;
+const canViewCompanyBalance = (account) => resolveCompanyAccess(account).canViewBalance === true;
+const canCreateStaff = (account) => resolveCompanyAccess(account).canManageTeam === true;
 
 const getCompanyActor = async (req, preloadedAccount = null) => {
-    if (!req.session || req.session.accountType !== 'company') {
-        throw new Error('NOT_COMPANY_SESSION');
-    }
-
-    const account = preloadedAccount || await ClientEmployee.findById(req.session.clientId);
-    if (!account || account.status !== 'active') {
-        throw new Error('INVALID_COMPANY_EMPLOYEE');
-    }
-
-    const company = await ClientCompany.findById(account.companyId);
-    if (!company || company.status !== 'active') {
-        throw new Error('INVALID_COMPANY');
-    }
-
-    return { account, company };
+    const loaded = await loadCompanyAccess(req, { preloadedAccount });
+    return { account: loaded.account, company: loaded.company, access: loaded.access };
 };
 
 const assertUsernameAvailable = async (webUsername) => {
@@ -269,23 +243,28 @@ exports.getStaffManagement = async (req, res) => {
     return res.redirect('/client/staff');
 };
 
+const denyStaff = (res, code = 'forbidden') => res.status(403).redirect(`/client/staff?staffError=${code}`);
+
 exports.postAddStaff = async (req, res) => {
     try {
-        const { account, company } = await getCompanyActor(req);
-        if (!canCreateStaff(account)) {
-            return res.status(403).redirect('/client/staff?staffError=forbidden');
-        }
+        const { account, company, access } = await getCompanyActor(req);
+        assertCapability(access, 'canManageTeam');
 
         const name = String(req.body.name || '').trim();
         const phone = String(req.body.phone || '').trim();
         const webPassword = String(req.body.webPassword || '').trim();
         const role = String(req.body.role || 'employee').trim();
         const grantManagerAccess = isChecked(req.body.canManageCompany);
+        const canCreateTransfer = req.body.canCreateTransfer === undefined
+            ? role !== 'accountant'
+            : isChecked(req.body.canCreateTransfer);
+        const canManageCompanyProfile = isChecked(req.body.canManageCompanyProfile);
+        const canViewAllReports = isChecked(req.body.canViewAllReports) || role === 'accountant' || grantManagerAccess;
 
         if (!name || !phone || !webPassword || !['employee', 'accountant'].includes(role)) {
             return res.redirect('/client/staff?staffError=missing');
         }
-        if (webPassword.length < 6) {
+        if (webPassword.length < 8) {
             return res.redirect('/client/staff?staffError=password');
         }
 
@@ -301,9 +280,12 @@ exports.postAddStaff = async (req, res) => {
             webPassword,
             role,
             status: 'active',
+            mustChangePassword: true,
             canManageCompany: grantManagerAccess,
             canCreateCompanyStaff: false,
-            canViewAllReports: role === 'accountant' || grantManagerAccess
+            canCreateTransfer,
+            canManageCompanyProfile,
+            canViewAllReports
         });
 
         await logAction({
@@ -316,15 +298,19 @@ exports.postAddStaff = async (req, res) => {
             targetModel: 'ClientEmployee',
             result: 'ناجح',
             metadata: {
-                companyId: company._id,
+                companyId: String(company._id),
                 role,
                 canManageCompany: grantManagerAccess,
+                canCreateTransfer,
+                canManageCompanyProfile,
+                canViewAllReports,
                 webUsername
             }
         });
 
         return res.redirect('/client/staff?staffSuccess=created');
     } catch (error) {
+        if (error.code === 'FORBIDDEN' || error.message === 'FORBIDDEN') return denyStaff(res);
         const code = error.message === 'USERNAME_TAKEN'
             ? 'username'
             : error.message === 'INVALID_USERNAME'
@@ -337,15 +323,11 @@ exports.postAddStaff = async (req, res) => {
 
 exports.postToggleStaff = async (req, res) => {
     try {
-        const { account, company } = await getCompanyActor(req);
-        if (!canCreateStaff(account)) {
-            return res.status(403).redirect('/client/staff?staffError=forbidden');
-        }
-
-        const target = await ClientEmployee.findOne({ _id: req.params.id, companyId: company._id });
-        if (!target || String(target._id) === String(account._id) || isCompanyOwner(target)) {
-            return res.redirect('/client/staff?staffError=forbidden');
-        }
+        const { account, company, access } = await getCompanyActor(req);
+        assertCapability(access, 'canManageTeam');
+        const target = await findCompanyStaffTarget({ companyId: company._id, targetId: req.params.id });
+        assertNotSelf(account._id, target._id);
+        if (isCompanyOwner(target)) return denyStaff(res);
 
         target.status = target.status === 'active' ? 'banned' : 'active';
         await target.save();
@@ -359,60 +341,53 @@ exports.postToggleStaff = async (req, res) => {
             targetId: target._id,
             targetModel: 'ClientEmployee',
             result: target.status,
-            metadata: { companyId: company._id, webUsername: target.webUsername }
+            metadata: { companyId: String(company._id), webUsername: target.webUsername }
         });
 
         return res.redirect('/client/staff?staffSuccess=status');
     } catch (error) {
         console.error('[Company Staff] toggle failed:', error.message);
+        if (['FORBIDDEN', 'CROSS_COMPANY', 'SELF_TARGET_FORBIDDEN'].includes(error.code || error.message)) {
+            return denyStaff(res);
+        }
         return res.redirect('/client/staff?staffError=server');
     }
 };
 
 exports.postResetStaffPassword = async (req, res) => {
     try {
-        const { account, company } = await getCompanyActor(req);
-        if (!canCreateStaff(account)) {
-            return res.status(403).redirect('/client/staff?staffError=forbidden');
-        }
-
-        const newPassword = String(req.body.newPassword || '').trim();
-        if (newPassword.length < 6) {
-            return res.redirect('/client/staff?staffError=password');
-        }
-
-        const target = await ClientEmployee.findOne({ _id: req.params.id, companyId: company._id });
-        if (!target || String(target._id) === String(account._id) || isCompanyOwner(target)) {
-            return res.redirect('/client/staff?staffError=forbidden');
-        }
-
-        target.webPassword = newPassword;
-        await target.save();
-
-        await logAction({
-            action: 'USER_PASSWORD_CHANGED',
-            req,
-            performedById: account._id,
-            performedByModel: 'ClientEmployee',
-            performedByName: account.name,
-            targetId: target._id,
-            targetModel: 'ClientEmployee',
-            result: 'ناجح',
-            metadata: { companyId: company._id, webUsername: target.webUsername }
+        const { account, company, access } = await getCompanyActor(req);
+        const target = await findCompanyStaffTarget({ companyId: company._id, targetId: req.params.id });
+        await applyStaffPasswordReset({
+            actor: account,
+            access,
+            company,
+            target,
+            newPassword: String(req.body.newPassword || '').trim(),
+            confirmPhrase: req.body.confirmPhrase,
+            confirmUsername: req.body.confirmUsername,
+            req
         });
-
         return res.redirect('/client/staff?staffSuccess=password');
     } catch (error) {
         console.error('[Company Staff] password reset failed:', error.message);
+        if (error.code === 'RESET_CONFIRM_REQUIRED') return denyStaff(res, 'confirm');
+        if (error.code === 'NEW_PASSWORD') return res.redirect('/client/staff?staffError=password');
+        if (['FORBIDDEN', 'CROSS_COMPANY', 'SELF_TARGET_FORBIDDEN'].includes(error.code || error.message)) {
+            return denyStaff(res);
+        }
         return res.redirect('/client/staff?staffError=server');
     }
 };
 
 exports.companyRoleHelpers = {
     isCompanyOwner,
+    isLegacyOwner,
     canManageCompany,
     canViewCompanyBalance,
     canCreateStaff,
     dashboardPersona,
-    normalizeCompanyUsername
+    normalizeCompanyUsername,
+    resolveCanonicalRole,
+    resolveCompanyAccess
 };

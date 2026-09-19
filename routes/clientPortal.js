@@ -73,10 +73,15 @@ const isActiveClientSession = async (req) => {
     if (!req.session.isClientLoggedIn || !req.session.clientId) return false;
 
     if (req.session.accountType === 'company') {
-        const employee = await ClientEmployee.findById(req.session.clientId).select('status companyId').lean();
+        const employee = await ClientEmployee.findById(req.session.clientId).select('status companyId sessionVersion mustChangePassword').lean();
         if (!employee || employee.status !== 'active') return false;
+        if (Number(employee.sessionVersion || 0) !== Number(req.session.clientSessionVersion || 0)) {
+            return false;
+        }
 
         const company = await ClientCompany.findById(employee.companyId).select('status').lean();
+        req.companyMustChangePassword = employee.mustChangePassword === true;
+        req.companyEmployee = employee;
         return Boolean(company && company.status === 'active');
     }
 
@@ -106,8 +111,21 @@ const requireClientAuth = async (req, res, next) => {
             return res.redirect('/executor-portal/dashboard');
         }
         if (req.session?.mfaEnrollmentRequired) return res.redirect('/security/mfa-enroll');
-        if (await isActiveClientSession(req)) return next();
-        return endUnauthorizedClientSession(req, res);
+        if (!(await isActiveClientSession(req))) return endUnauthorizedClientSession(req, res);
+        if (req.session.accountType === 'company' && req.companyMustChangePassword) {
+            const path = String(req.path || '');
+            const allowed = path === '/security'
+                || path === '/settings/password'
+                || path === '/logout'
+                || path === '/profile-photo';
+            if (!allowed) {
+                if (req.xhr || (req.headers.accept && req.headers.accept.includes('application/json'))) {
+                    return res.status(403).json({ success: false, error: 'MUST_CHANGE_PASSWORD' });
+                }
+                return res.redirect('/client/security?settingsError=must_change');
+            }
+        }
+        return next();
     } catch (_error) {
         return endUnauthorizedClientSession(req, res);
     }
@@ -244,6 +262,7 @@ router.post('/customers/:id/credit-limit', requireClientAuth, clientWorkspaceCon
 router.post('/customers/:id/pricing', requireClientAuth, clientWorkspaceController.postUpdateCustomerPricing);
 router.post('/settings/profile', requireClientAuth, clientWorkspaceController.postUpdateSettings);
 router.post('/settings/password', requireClientAuth, clientWorkspaceController.postChangePassword);
+router.post('/settings/theme', requireClientAuth, clientWorkspaceController.postCompanyTheme);
 router.get('/company/staff', requireClientAuth, clientCompanyController.getStaffManagement);
 router.post('/company/staff/add', requireClientAuth, clientCompanyController.postAddStaff);
 router.post('/company/staff/:id/toggle', requireClientAuth, clientCompanyController.postToggleStaff);
@@ -362,7 +381,10 @@ router.post('/api/theme', requireClientAuth, async (req, res) => {
     }
     req.session.companyTheme = theme;
     try {
-        await ClientEmployee.updateOne({ _id: req.session.clientId }, { $set: { uiTheme: theme } });
+        await ClientEmployee.updateOne(
+            { _id: req.session.clientId, companyId: { $exists: true } },
+            { $set: { 'preferences.companyTheme': theme } }
+        );
     } catch (_error) {
         /* session still holds the preference */
     }
