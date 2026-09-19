@@ -89,7 +89,7 @@ describe('customer portal theme SSR and preferences', () => {
         expect(head).toContain('/css/client-portal-theme-day.css');
         expect(head).toContain('/css/client-portal-theme-night.css');
         expect(head).toContain('/css/client-portal-theme-pharaonic.css');
-        expect(head).toContain('20260920-cl-m1');
+        expect(head).toContain('20260920-cl-m2');
         expect(head).not.toContain('company-portal.tokens.css');
         expect(head).not.toContain('company-portal-layout.css');
         expect(head).toContain('ahram_client_theme');
@@ -135,7 +135,7 @@ describe('customer portal theme SSR and preferences', () => {
         expect(html).toContain('data-portal="customer"');
         expect(html).toContain('data-theme="night"');
         expect(html).toContain('data-client-theme-switcher');
-        expect(html).toContain('/js/client-portal.js?v=20260920-cl-m1');
+        expect(html).toContain('/js/client-portal.js?v=20260920-cl-m2');
         expect(html).toContain('data-customer-bell');
         expect(html).toContain('data-customer-dock');
         expect(html).toContain('data-cl-more-open');
@@ -151,7 +151,7 @@ describe('customer portal theme SSR and preferences', () => {
         expect(html).toContain('cl-app');
         expect(html).toContain('customer_portal_styles');
         expect(html).toContain('customer_theme_boot');
-        expect(html).toContain('/js/client-portal.js?v=20260920-cl-m1');
+        expect(html).toContain('/js/client-portal.js?v=20260920-cl-m2');
         expect(html).toContain('wallet_hub_bottom_nav');
         expect(html).toContain('customer_portal_styles');
     });

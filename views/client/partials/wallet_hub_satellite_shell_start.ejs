@@ -1,5 +1,5 @@
 <%# LEGACY_GATED: satellite pages now share the single hub sidebar + customer chrome. %>
-<div class="client-os-shell client-os-satellite client-hub-shell d-none d-md-grid">
+<div class="client-os-shell client-os-satellite client-hub-shell">
     <%- include('wallet_hub_sidebar_hub', {
         user: typeof user !== 'undefined' ? user : account,
         activePage: typeof activePage !== 'undefined' ? activePage : '',

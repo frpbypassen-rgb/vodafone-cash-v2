@@ -189,7 +189,7 @@ describe('customer portal mobile chrome and exclusivity', () => {
         expect(html).toContain('/client/finance');
         expect(html).toContain('/client/customers');
         expect(html).toContain('/client/settings');
-        expect(html).toContain('20260920-cl-m1');
+        expect(html).toContain('20260920-cl-m2');
         expect(html).not.toContain('company-portal.tokens.css');
         expect(html).not.toContain('company-portal-layout.css');
         expect(html).not.toContain('data-company-bell');
@@ -215,7 +215,7 @@ describe('customer portal mobile chrome and exclusivity', () => {
         }, { filename: COMPANY_HEAD });
 
         expect(styles).toContain('data-customer-shell-css');
-        expect(styles).toContain('20260920-cl-m1');
+        expect(styles).toContain('20260920-cl-m2');
         expect(styles).not.toContain('href="/css/company-portal');
         expect(head).toContain('client-portal.tokens.css');
         expect(head).not.toContain('company-portal.tokens.css');
@@ -261,6 +261,9 @@ describe('customer portal mobile chrome and exclusivity', () => {
         expect(services).toContain('wallet_hub_layout_end');
         expect(support).toContain('wallet_hub_mobile_header');
         expect(support).not.toContain('wallet_shell_topbar');
+        const hubShell = fs.readFileSync(path.join(ROOT, 'views/client/partials/wallet_hub_hub_shell_start.ejs'), 'utf8');
+        expect(hubShell).not.toContain('d-none d-md-grid');
+        expect(fs.readFileSync(LAYOUT_CSS, 'utf8')).toContain('client-hub-shell.d-none');
         expect(dock).toContain('data-cl-more-open');
         expect(dock).toContain('data-dock-key="more"');
         expect(dock).toContain('/client/dashboard');

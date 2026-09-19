@@ -16,6 +16,11 @@ body.cl-app {
     letter-spacing: 0;
 }
 
+html[data-portal="customer"] body.cl-app,
+html[data-portal="customer"] body.cl-app *:not(.mono-num):not(.bw-mono) {
+    letter-spacing: 0 !important;
+}
+
 html[data-portal="customer"] body.cl-app .bw-offline-banner,
 html[data-portal="customer"] body.cl-app .bw-privacy-shield {
     border-radius: 0;
@@ -85,7 +90,6 @@ html[data-portal="customer"] .client-os-nav-title {
     color: var(--cl-sidebar-muted);
     font-size: .72rem;
     font-weight: 800;
-    letter-spacing: .06em;
 }
 
 html[data-portal="customer"] .cl-sidebar .bw-entity-card,
@@ -141,7 +145,6 @@ html[data-portal="customer"] .bw-eyebrow {
     color: var(--cl-turquoise);
     font-size: .78rem;
     font-weight: 800;
-    letter-spacing: .04em;
 }
 
 html[data-portal="customer"] .client-os-topbar h1,
@@ -553,8 +556,17 @@ html[data-portal="customer"] .client-os-mobile-summary article {
 
     html[data-portal="customer"] .client-os-shell,
     html[data-portal="customer"] .client-hub-shell,
+    html[data-portal="customer"] .client-os-shell.d-none,
+    html[data-portal="customer"] .client-hub-shell.d-none {
+        display: block !important;
+        grid-template-columns: minmax(0, 1fr);
+        min-height: 0;
+    }
+
     html[data-portal="customer"] body.cl-app .bw-sidebar,
-    html[data-portal="customer"] .client-os-sidebar {
+    html[data-portal="customer"] .client-os-sidebar,
+    html[data-portal="customer"] .client-hub-shell .client-os-topbar,
+    html[data-portal="customer"] .client-os-satellite-topbar {
         display: none;
     }
 
@@ -577,7 +589,8 @@ html[data-portal="customer"] .client-os-mobile-summary article {
     html[data-portal="customer"] .client-os-kpis,
     html[data-portal="customer"] .client-os-workbench,
     html[data-portal="customer"] .client-os-journey-grid,
-    html[data-portal="customer"] .client-hub-services-grid {
+    html[data-portal="customer"] .client-hub-services-grid,
+    html[data-portal="customer"] .client-hub-mobile-content {
         grid-template-columns: 1fr;
         padding-inline: 14px;
     }
@@ -665,6 +678,22 @@ html[data-portal="customer"] .client-os-mobile-rates > * {
     background: var(--cl-surface) !important;
     color: var(--cl-ink) !important;
     border-color: var(--cl-line) !important;
+}
+
+html[data-portal="customer"] .client-os-mobile-journey > div {
+    display: grid;
+    gap: 8px;
+}
+
+html[data-portal="customer"] .client-os-mobile-journey a {
+    min-height: var(--cl-touch);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 12px;
+    border-radius: 14px;
+    text-decoration: none;
+    font-weight: 800;
 }
 
 html[data-portal="customer"] .wallet-hub-active .bottom-nav-mobile,

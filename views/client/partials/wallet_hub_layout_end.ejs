@@ -5,9 +5,9 @@
     profile: typeof profile !== 'undefined' ? profile : null
 }) %>
 <%- include('wallet_hub_command_palette') %>
-<script src="/js/client-os-mobile.js?v=20260920-cl-m1" defer></script>
+<script src="/js/client-os-mobile.js?v=20260920-cl-m2" defer></script>
 <script src="/js/client-web-os.js?v=20260905-site" defer></script>
 <% } %>
 <script>window.clientPortal = window.clientPortal || <%- JSON.stringify({ csrfToken: typeof csrfToken !== 'undefined' ? csrfToken : '', page: typeof activePage !== 'undefined' ? activePage : 'hub', retail: true }).replace(/</g, '\\u003c') %>;</script>
-<script src="/js/client-portal.js?v=20260920-cl-m1" defer></script>
+<script src="/js/client-portal.js?v=20260920-cl-m2" defer></script>
 <script src="/js/client-theme.js?v=20260905-site" defer></script>
