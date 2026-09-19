@@ -653,3 +653,33 @@ html[data-portal="customer"] .client-os-subtitle,
 html[data-portal="customer"] .client-os-section-heading p {
     color: var(--cl-muted);
 }
+
+html[data-portal="customer"] .client-os-mobile-journey,
+html[data-portal="customer"] .client-os-mobile-journey > div,
+html[data-portal="customer"] .client-os-mobile-journey a,
+html[data-portal="customer"] .client-os-mobile-greeting,
+html[data-portal="customer"] .client-os-mobile-summary article,
+html[data-portal="customer"] .client-os-mobile-rates > * {
+    background: var(--cl-surface) !important;
+    color: var(--cl-ink) !important;
+    border-color: var(--cl-line) !important;
+}
+
+html[data-portal="customer"] .wallet-hub-active .bottom-nav-mobile,
+html[data-portal="customer"] .bottom-nav-mobile.client-hub-bottom-nav,
+html[data-portal="customer"] .cl-dock {
+    background: var(--cl-sidebar) !important;
+    border-top-color: var(--cl-line) !important;
+    color: var(--cl-sidebar-text);
+}
+
+html[data-portal="customer"] .wallet-hub-active .bottom-nav-mobile .bottom-nav-item,
+html[data-portal="customer"] .cl-dock a {
+    color: var(--cl-sidebar-muted);
+}
+
+html[data-portal="customer"] .wallet-hub-active .bottom-nav-mobile .bottom-nav-item.active,
+html[data-portal="customer"] .cl-dock a.active {
+    color: var(--cl-ink);
+    background: color-mix(in srgb, var(--cl-indigo) 16%, var(--cl-surface));
+}
