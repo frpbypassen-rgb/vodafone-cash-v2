@@ -17,7 +17,7 @@
         --brand-dark: #000c24;
         --brand-gold: #d4af37;
         --brand-gold-dark: #b5952f;
-        --sidebar-width: 260px;
+        --sidebar-width: 276px;
         --mobile-topbar-height: 65px;
         --mobile-bottombar-height: 64px;
 
@@ -128,12 +128,19 @@
     }
     
     .sidebar-menu {
-        display: flex; flex: 1 1 auto; flex-direction: column; min-height: 0;
-        padding: 10px 15px 22px; overflow-x: hidden; overflow-y: auto;
+        display: flex; flex: 1 1 auto; flex-direction: column; min-height: 0; gap: 2px;
+        padding: 8px 12px 20px; overflow-x: hidden; overflow-y: auto;
         overscroll-behavior: contain; scrollbar-gutter: stable;
     }
-    .sidebar-menu::-webkit-scrollbar { width: 4px; }
-    .sidebar-menu::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 10px; }
+    .sidebar-menu::-webkit-scrollbar { width: 5px; }
+    .sidebar-menu::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.14); border-radius: 10px; }
+    .sidebar-menu-group {
+        display: flex; flex-direction: column; gap: 2px;
+        padding: 2px 0 10px;
+        margin: 0 0 4px;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+    }
+    .sidebar-menu-group:last-of-type { border-bottom: 0; margin-bottom: 0; padding-bottom: 4px; }
 
     .sidebar-footer {
         display: grid; grid-template-columns: 44px minmax(0, 1fr); gap: 8px;
@@ -160,63 +167,90 @@
         border-color: rgba(255, 255, 255, 0.32); background: rgba(255, 255, 255, 0.1);
     }
     
-    .sidebar-menu a { color: #a8b2c1; text-decoration: none; padding: 11px 16px; display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 3px 0; border-radius: 12px; transition: all 0.2s ease; font-size: 0.92rem; font-weight: 700; border: 1px solid transparent; overflow: hidden; max-width: 100%; box-sizing: border-box; }
-    .sidebar-menu a i { width: 25px; font-size: 1.1rem; margin-left: 8px; text-align: center; flex: 0 0 auto; }
-    .sidebar-menu a:hover { background: rgba(255,255,255,0.05); color: #fff; transform: translateX(-4px); }
-    .sidebar-menu a:hover i { color: var(--brand-gold); }
-    .sidebar-menu a.active { background: linear-gradient(90deg, var(--brand-gold), var(--brand-gold-dark)); color: white !important; box-shadow: 0 4px 15px rgba(212, 175, 55, 0.3); border: none; }
-    .sidebar-menu a.active i { color: #fff; }
+    .sidebar-menu a {
+        color: rgba(226, 232, 240, 0.86); text-decoration: none; padding: 10px 14px; min-height: 44px;
+        display: flex; align-items: center; justify-content: space-between; gap: 10px;
+        margin: 1px 0; border-radius: 12px; font-size: 0.9rem; font-weight: 700; line-height: 1.35;
+        border: 1px solid transparent; overflow: hidden; max-width: 100%; box-sizing: border-box;
+        transition: background 0.2s ease, color 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+    }
+    .sidebar-menu a i { width: 22px; font-size: 1rem; margin-left: 0; text-align: center; flex: 0 0 22px; }
+    .sidebar-menu a:hover, .sidebar-menu a:focus-visible {
+        background: rgba(255,255,255,0.07); color: #fff; transform: translateX(-3px);
+        border-color: rgba(255,255,255,0.08); outline: none;
+    }
+    .sidebar-menu a:hover i, .sidebar-menu a:focus-visible i { color: var(--brand-gold); }
+    .sidebar-menu a.active { background: linear-gradient(90deg, var(--brand-gold), var(--brand-gold-dark)); color: #111827 !important; box-shadow: 0 6px 16px rgba(212, 175, 55, 0.28); border-color: transparent; }
+    .sidebar-menu a.active i { color: #111827; }
+    .sidebar-menu a.sidebar-link-accent { color: var(--brand-gold); }
+    .sidebar-menu a.sidebar-link-accent:hover, .sidebar-menu a.sidebar-link-accent:focus-visible { color: #fff; }
 
     .menu-category-header {
-        font-size: 0.72rem;
-        text-transform: uppercase;
-        color: rgba(255, 255, 255, 0.35);
+        font-size: 0.68rem;
+        text-transform: none;
+        color: rgba(244, 198, 79, 0.78);
         font-weight: 800;
-        margin: 18px 14px 6px;
-        letter-spacing: 0.8px;
-        border-bottom: 1px solid rgba(255, 255, 255, 0.05);
-        padding-bottom: 4px;
-        font-family: sans-serif;
+        margin: 6px 8px 8px;
+        letter-spacing: 0.04em;
+        border-bottom: 0;
+        padding: 0 4px;
+        font-family: inherit;
     }
     [data-theme="light"] .menu-category-header {
-        color: var(--text-muted);
-        border-bottom-color: rgba(0, 0, 0, 0.06);
+        color: rgba(244, 198, 79, 0.92);
+        border-bottom-color: transparent;
     }
     .menu-link-content {
         display: flex;
         align-items: center;
+        gap: 10px;
         flex: 1 1 auto;
         min-width: 0;
         line-height: 1.35;
     }
     .menu-link-text {
         min-width: 0;
-        overflow-wrap: anywhere;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
     }
     .menu-chevron {
-        font-size: 0.8rem;
-        opacity: 0.4;
+        font-size: 0.72rem;
+        opacity: 0.38;
+        flex: 0 0 auto;
         transition: transform 0.2s ease, opacity 0.2s;
     }
-    .sidebar-menu a:hover .menu-chevron {
+    .sidebar-menu a:hover .menu-chevron,
+    .sidebar-menu a:focus-visible .menu-chevron {
         transform: translateX(-3px);
-        opacity: 0.85;
+        opacity: 0.9;
     }
     .sidebar-menu a.active .menu-chevron {
-        opacity: 1;
-        color: #fff;
+        opacity: 0.85;
+        color: #111827;
     }
-    .operations-menu { margin: 3px 0; border-radius: 12px; overflow: visible; display: block; }
-    .operations-menu-header { display: flex; align-items: stretch; gap: 3px; min-height: 48px; }
-    .sidebar-menu a.transaction-workspace-link { flex: 1 1 auto; min-width: 0; min-height: 48px; margin: 0; }
-    .operations-menu-toggle { flex: 0 0 44px; width: 44px; min-height: 48px; color: #a8b2c1; padding: 0; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; border: 0; border-radius: 12px; background: transparent; }
-    .operations-menu-toggle:hover, .operations-menu.is-open .operations-menu-toggle { background: rgba(255,255,255,.05); color: #fff; }
+    .operations-menu {
+        margin: 4px 0 6px; border-radius: 14px; overflow: visible; display: block;
+        background: rgba(255,255,255,0.035); border: 1px solid rgba(255,255,255,0.07);
+    }
+    .operations-menu-header { display: flex; align-items: stretch; gap: 2px; min-height: 44px; }
+    .sidebar-menu a.transaction-workspace-link { flex: 1 1 auto; min-width: 0; min-height: 44px; margin: 0; border-radius: 12px 0 0 12px; }
+    .operations-menu-toggle {
+        flex: 0 0 42px; width: 42px; min-height: 44px; color: #a8b2c1; padding: 0; display: inline-flex;
+        align-items: center; justify-content: center; cursor: pointer; border: 0;
+        border-radius: 0 12px 12px 0; background: transparent;
+    }
+    .operations-menu-toggle:hover, .operations-menu-toggle:focus-visible,
+    .operations-menu.is-open .operations-menu-toggle { background: rgba(255,255,255,.06); color: #fff; outline: none; }
     .operations-menu-toggle .operations-chevron { font-size: .78rem; opacity: .65; transition: transform .2s ease; }
     .operations-menu.is-open .operations-chevron { transform: rotate(-90deg); }
-    .operations-menu .operations-submenu { display: none; padding: 4px 10px 8px 0; border-right: 1px solid rgba(255,255,255,.14); margin-right: 28px; }
+    .operations-menu .operations-submenu {
+        display: none; padding: 4px 8px 10px 8px; border-right: 2px solid rgba(212, 175, 55, 0.32);
+        margin: 0 18px 6px 8px;
+    }
     .operations-menu.is-open .operations-submenu { display: block; }
-    .sidebar-menu .operations-submenu a { padding: 9px 12px; margin: 2px 0; font-size: .82rem; border-radius: 9px; justify-content: flex-start; }
-    .sidebar-menu .operations-submenu a i { width: 18px; font-size: .85rem; margin-left: 7px; }
+    .sidebar-menu .operations-submenu a { padding: 8px 12px; margin: 2px 0; min-height: 38px; font-size: .82rem; border-radius: 10px; justify-content: flex-start; }
+    .sidebar-menu .operations-submenu a i { width: 18px; flex-basis: 18px; font-size: .85rem; margin-left: 0; }
     .sidebar-mobile-close {
         transition: background 0.2s, transform 0.2s;
         cursor: pointer;
@@ -400,6 +434,20 @@
         .sidebar-menu {
             max-height: none;
             padding-bottom: 18px;
+        }
+        .sidebar-menu-group {
+            border-bottom-color: rgba(255, 255, 255, 0.08);
+            padding-bottom: 8px;
+            margin-bottom: 6px;
+        }
+        [data-theme="light"] .sidebar-menu-group {
+            border-bottom-color: rgba(0, 0, 0, 0.06);
+        }
+        [data-theme="light"] .menu-category-header {
+            color: #9a7b1c;
+        }
+        .operations-menu {
+            background: rgba(255,255,255,0.04);
         }
         .sidebar-menu a {
             padding: 13px 18px;
@@ -602,7 +650,7 @@
         .main-content { margin-right: 0 !important; padding: 0 !important; }
     }
 </style>
-<link rel="stylesheet" href="/css/brand-ui.css?v=20260804-brand1">
+<link rel="stylesheet" href="/css/brand-ui.css?v=20260919-sidebar">
 
 <button class="mobile-nav-toggle no-print" data-sidebar-toggle onclick="toggleSidebar()" aria-label="فتح القائمة" aria-controls="sidebarMenu" aria-expanded="false"><i class="fa-solid fa-bars"></i></button>
 <div class="sidebar-overlay no-print" id="sidebarOverlay" data-sidebar-close onclick="toggleSidebar()"></div>
@@ -688,18 +736,13 @@
         <span class="badge small" style="background-color: rgba(25, 135, 84, 0.2); color: #20c997; border: 1px solid #198754;"><i class="fa-solid fa-circle fa-fade me-1" style="font-size: 0.5rem;"></i> متصل الآن</span>
     </div>
     
-    <div class="sidebar-menu mt-3">
+    <div class="sidebar-menu mt-2">
+        <div class="sidebar-menu-group">
         <div class="menu-category-header">الرصد والمتابعة</div>
 
         <a href="/" class="<%= typeof activePage !== 'undefined' && activePage === 'dashboard' ? 'active' : '' %>">
             <span class="menu-link-content">
                 <i class="fa-solid fa-chart-pie"></i> <span class="menu-link-text">لوحة القيادة</span>
-            </span>
-            <i class="fa-solid fa-angle-left menu-chevron"></i>
-        </a>
-        <a href="/system-monitor" class="<%= typeof activePage !== 'undefined' && activePage === 'system_monitor' ? 'active' : '' %>">
-            <span class="menu-link-content">
-                <i class="fa-solid fa-heart-pulse"></i> <span class="menu-link-text">مراقبة النظام</span>
             </span>
             <i class="fa-solid fa-angle-left menu-chevron"></i>
         </a>
@@ -709,18 +752,12 @@
             </span>
             <i class="fa-solid fa-angle-left menu-chevron"></i>
         </a>
-        <a href="/transactions/pulse" class="<%= typeof activePage !== 'undefined' && activePage === 'transactions_pulse' ? 'active' : '' %>">
-            <span class="menu-link-content">
-                <i class="fa-solid fa-bolt"></i> <span class="menu-link-text">سجل العمليات المباشرة</span>
-            </span>
-            <i class="fa-solid fa-angle-left menu-chevron"></i>
-        </a>
-        <div class="operations-menu <%= typeof activePage !== 'undefined' && String(activePage).startsWith('transactions') && activePage !== 'transactions_pulse' ? 'is-open' : '' %>">
+        <div class="operations-menu <%= typeof activePage !== 'undefined' && String(activePage).startsWith('transactions') ? 'is-open' : '' %>">
             <div class="operations-menu-header">
                 <a href="/transactions/live" class="transaction-workspace-link <%= typeof activePage !== 'undefined' && activePage === 'transactions_live' ? 'active' : '' %>">
                     <span class="menu-link-content"><i class="fa-solid fa-wave-square"></i> <span class="menu-link-text">متابعة العمليات</span></span>
                 </a>
-                <button type="button" class="operations-menu-toggle" aria-label="فتح قائمة متابعة العمليات" aria-expanded="<%= typeof activePage !== 'undefined' && String(activePage).startsWith('transactions') && activePage !== 'transactions_pulse' ? 'true' : 'false' %>" onclick="toggleOperationsMenu(this)"><i class="fa-solid fa-angle-left operations-chevron"></i></button>
+                <button type="button" class="operations-menu-toggle" aria-label="فتح قائمة متابعة العمليات" aria-expanded="<%= typeof activePage !== 'undefined' && String(activePage).startsWith('transactions') ? 'true' : 'false' %>" onclick="toggleOperationsMenu(this)"><i class="fa-solid fa-angle-left operations-chevron"></i></button>
             </div>
             <div class="operations-submenu">
                 <a href="/transactions/live" class="<%= typeof activePage !== 'undefined' && activePage === 'transactions_live' ? 'active' : '' %>"><i class="fa-solid fa-wave-square"></i> المراقبة الحية</a>
@@ -730,7 +767,7 @@
                 <a href="/transactions/search" class="<%= typeof activePage !== 'undefined' && activePage === 'transactions_search' ? 'active' : '' %>"><i class="fa-solid fa-magnifying-glass"></i> البحث الشامل</a>
             </div>
         </div>
-        <a href="/reports" class="<%= typeof activePage !== 'undefined' && activePage === 'reports' ? 'active' : '' %>" style="color: var(--brand-gold);">
+        <a href="/reports" class="sidebar-link-accent <%= typeof activePage !== 'undefined' && activePage === 'reports' ? 'active' : '' %>">
             <span class="menu-link-content">
                 <i class="fa-solid fa-chart-line"></i> <span class="menu-link-text">التقارير الشاملة</span>
             </span>
@@ -754,7 +791,9 @@
             </span>
             <i class="fa-solid fa-angle-left menu-chevron"></i>
         </a>
+        </div>
 
+        <div class="sidebar-menu-group">
         <div class="menu-category-header">إدارة الحسابات</div>
 
         <a href="/clients" class="<%= typeof activePage !== 'undefined' && activePage === 'clients' ? 'active' : '' %>">
@@ -784,7 +823,9 @@
                 <i class="fa-solid fa-angle-left menu-chevron"></i>
             </span>
         </a>
+        </div>
 
+        <div class="sidebar-menu-group">
         <div class="menu-category-header">التواصل والدعم</div>
 
         <a href="/support" class="<%= typeof activePage !== 'undefined' && activePage === 'support' ? 'active' : '' %>">
@@ -817,7 +858,9 @@
             </span>
             <i class="fa-solid fa-angle-left menu-chevron"></i>
         </a>
+        </div>
 
+        <div class="sidebar-menu-group">
         <div class="menu-category-header">النظام والإعدادات</div>
 
         <a href="/settings" class="<%= typeof activePage !== 'undefined' && activePage === 'settings' ? 'active' : '' %>">
@@ -858,6 +901,7 @@
             </span>
             <i class="fa-solid fa-angle-left menu-chevron"></i>
         </a>
+        </div>
         
     </div>
 

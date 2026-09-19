@@ -479,6 +479,16 @@ body,
     color: #111827 !important;
 }
 
+.menu-category-header {
+    color: rgba(244, 198, 79, 0.82) !important;
+    text-transform: none !important;
+    letter-spacing: 0.04em !important;
+}
+
+.sidebar-menu-group {
+    border-bottom-color: rgba(255, 255, 255, 0.08);
+}
+
 .topbar .brand-lockup::before,
 .navbar-custom .d-flex.align-items-center.gap-3::before,
 .navbar-glass .fw-bold.fs-5::before,
