@@ -3,7 +3,7 @@
 const CorporateBeneficiary = require('../models/CorporateBeneficiary');
 const CorporatePaymentRequest = require('../models/CorporatePaymentRequest');
 const { logAction } = require('./auditService');
-const { executeCompanyDebit, buildReference, findExistingLedger } = require('./corporateLedgerService');
+const { executeCompanyPayout, buildReference, CorporateLedgerError } = require('./corporateLedgerService');
 const { resolveCorporateRole, resolveApprovalLimit } = require('./corporateRoleService');
 
 class CorporateError extends Error {
@@ -14,12 +14,26 @@ class CorporateError extends Error {
     }
 }
 
+const RETRYABLE_STATUSES = Object.freeze(['pending_approval', 'approved', 'execution_failed']);
+const TERMINAL_EXECUTED = 'executed';
+
+const wrapLedgerError = (error) => {
+    if (error instanceof CorporateError) return error;
+    if (error instanceof CorporateLedgerError) {
+        return new CorporateError(error.code, error.message, error.statusCode || 400);
+    }
+    return new CorporateError(error.code || 'PAYOUT_FAILED', error.message || 'تعذر تنفيذ التحويل.', error.statusCode || 500);
+};
+
 const loadApprovedBeneficiary = async (companyId, beneficiaryId) => {
-    const beneficiary = await CorporateBeneficiary.findOne({
+    const query = CorporateBeneficiary.findOne({
         _id: beneficiaryId,
         companyId,
         status: 'approved'
-    }).select('+accountNumberEncrypted');
+    });
+    const beneficiary = query && typeof query.select === 'function'
+        ? await query.select('+accountNumberEncrypted')
+        : await query;
     if (!beneficiary) throw new CorporateError('BENEFICIARY_NOT_ALLOWED', 'المستفيد غير معتمد أو لا يخص هذه الشركة.', 403);
     return beneficiary;
 };
@@ -38,7 +52,12 @@ const toPublicRequest = (doc) => {
         companyId: String(plain.companyId),
         reference: plain.reference,
         amount: plain.amount,
-        currency: plain.currency || 'EGP',
+        currency: plain.currency || plain.originalCurrency || 'EGP',
+        originalAmount: plain.originalAmount != null ? plain.originalAmount : plain.amount,
+        originalCurrency: plain.originalCurrency || plain.currency || 'EGP',
+        settledAmount: plain.settledAmount != null ? plain.settledAmount : null,
+        settledCurrency: plain.settledCurrency || 'LYD',
+        exchangeRate: plain.exchangeRate != null ? plain.exchangeRate : null,
         beneficiaryId: String(plain.beneficiaryId),
         beneficiary: plain.beneficiarySnapshot || {},
         status: plain.status,
@@ -51,13 +70,166 @@ const toPublicRequest = (doc) => {
         rejectedAt: plain.rejectedAt || null,
         rejectionReason: plain.rejectionReason || '',
         executedAt: plain.executedAt || null,
+        executionError: plain.executionError || '',
         ledgerTransactionId: plain.ledgerTransactionId || '',
+        payoutTransactionId: plain.payoutTransactionId || '',
         notes: plain.notes || '',
         auditNotes: plain.auditNotes || [],
         reconciled: Boolean(plain.reconciled),
         createdAt: plain.createdAt,
         updatedAt: plain.updatedAt
     };
+};
+
+const applySettlement = (request, payout) => {
+    const quote = payout.quote || {};
+    request.originalAmount = quote.originalAmount != null ? quote.originalAmount : request.amount;
+    request.originalCurrency = quote.originalCurrency || request.currency || 'EGP';
+    request.settledAmount = payout.costLYD != null ? payout.costLYD : quote.settledAmount;
+    request.settledCurrency = quote.settledCurrency || 'LYD';
+    request.exchangeRate = payout.exchangeRate != null ? payout.exchangeRate : quote.exchangeRate;
+    request.payoutTransactionId = payout.txId;
+    request.ledgerTransactionId = payout.txId;
+    request.executionError = '';
+};
+
+const markExecutionFailed = async (request, error) => {
+    request.status = 'execution_failed';
+    request.executionError = String(error.message || error.code || 'PAYOUT_FAILED').slice(0, 500);
+    await request.save();
+    return request;
+};
+
+const claimForExecution = async ({ requestId, companyId, actor, fromStatuses = RETRYABLE_STATUSES }) => {
+    const current = await CorporatePaymentRequest.findOne({ _id: requestId, companyId });
+    if (!current) throw new CorporateError('NOT_FOUND', 'الطلب غير موجود.', 404);
+
+    if (current.status === TERMINAL_EXECUTED && current.payoutTransactionId) {
+        return { request: current, idempotent: true };
+    }
+
+    const claimed = await CorporatePaymentRequest.findOneAndUpdate(
+        {
+            _id: requestId,
+            companyId,
+            status: { $in: fromStatuses },
+            $or: [
+                { payoutTransactionId: { $exists: false } },
+                { payoutTransactionId: null },
+                { payoutTransactionId: '' }
+            ]
+        },
+        {
+            $set: {
+                status: 'executing',
+                executionAttemptedAt: new Date(),
+                executionError: '',
+                ...(actor ? {
+                    approverId: current.approverId || actor._id,
+                    approverName: current.approverName || actor.name,
+                    approvedAt: current.approvedAt || new Date()
+                } : {})
+            }
+        },
+        { new: true }
+    );
+
+    if (claimed) return { request: claimed, idempotent: false };
+
+    const again = await CorporatePaymentRequest.findOne({ _id: requestId, companyId });
+    if (again?.status === TERMINAL_EXECUTED && again.payoutTransactionId) {
+        return { request: again, idempotent: true };
+    }
+    if (again?.status === 'executing') {
+        throw new CorporateError('IN_FLIGHT', 'التنفيذ جارٍ بالفعل. أعد المحاولة بعد لحظات.', 409);
+    }
+    throw new CorporateError('INVALID_STATUS', 'لا يمكن تنفيذ هذا الطلب في حالته الحالية.', 409);
+};
+
+const executeClaimedRequest = async ({ context, request, req, autoApproved = false }) => {
+    if (request.status === TERMINAL_EXECUTED && request.payoutTransactionId) {
+        return { request: toPublicRequest(request), created: false, executed: true, idempotent: true };
+    }
+
+    let beneficiary;
+    try {
+        beneficiary = await loadApprovedBeneficiary(context.companyId, request.beneficiaryId);
+        const payout = await executeCompanyPayout({ context, request, beneficiary, req });
+        applySettlement(request, payout);
+        request.status = TERMINAL_EXECUTED;
+        request.executedAt = request.executedAt || new Date();
+        if (autoApproved && !request.approverId) {
+            request.approverId = context.actor._id;
+            request.approverName = context.actor.name;
+            request.approvedAt = request.approvedAt || new Date();
+        }
+        await request.save();
+
+        await logAction({
+            action: 'CORPORATE_TRANSFER_EXECUTED',
+            req,
+            performedById: context.actor._id,
+            performedByModel: 'ClientEmployee',
+            performedByName: context.actor.name,
+            targetId: request._id,
+            targetModel: 'CorporatePaymentRequest',
+            companyId: context.companyId,
+            metadata: {
+                companyId: String(context.companyId),
+                reference: request.reference,
+                ledgerTransactionId: request.ledgerTransactionId,
+                payoutTransactionId: request.payoutTransactionId,
+                originalAmount: request.originalAmount,
+                originalCurrency: request.originalCurrency,
+                settledAmount: request.settledAmount,
+                settledCurrency: request.settledCurrency,
+                exchangeRate: request.exchangeRate,
+                idempotent: payout.idempotent
+            }
+        });
+
+        if (payout.newBalance != null) context.company.balance = payout.newBalance;
+        return {
+            request: toPublicRequest(request),
+            created: false,
+            executed: true,
+            idempotent: payout.idempotent
+        };
+    } catch (error) {
+        await markExecutionFailed(request, error);
+        throw wrapLedgerError(error);
+    }
+};
+
+const executeRequest = async ({ context, request, req, autoApproved = false }) => {
+    if (request.status === TERMINAL_EXECUTED && request.payoutTransactionId) {
+        return { request: toPublicRequest(request), created: false, executed: true, idempotent: true };
+    }
+
+    const fromStatuses = request.status === 'executing' ? ['executing', ...RETRYABLE_STATUSES] : RETRYABLE_STATUSES;
+    const claimed = await claimForExecution({
+        requestId: request._id,
+        companyId: context.companyId,
+        actor: context.actor,
+        fromStatuses
+    });
+    if (claimed.idempotent) {
+        return { request: toPublicRequest(claimed.request), created: false, executed: true, idempotent: true };
+    }
+    return executeClaimedRequest({ context, request: claimed.request, req, autoApproved });
+};
+
+const retryExecution = async ({ context, requestId, req }) => {
+    const request = await CorporatePaymentRequest.findOne({ _id: requestId, companyId: context.companyId });
+    if (!request) throw new CorporateError('NOT_FOUND', 'الطلب غير موجود.', 404);
+    const isRequester = String(request.requesterId) === String(context.actor._id);
+    if (!context.permissions.canApprove && !isRequester) {
+        throw new CorporateError('CORPORATE_FORBIDDEN', 'إعادة التنفيذ متاحة لمقدم الطلب أو المدير.', 403);
+    }
+    if (!RETRYABLE_STATUSES.includes(request.status) && request.status !== TERMINAL_EXECUTED) {
+        throw new CorporateError('INVALID_STATUS', 'لا يمكن إعادة تنفيذ هذا الطلب في حالته الحالية.', 409);
+    }
+    return executeRequest({ context, request, req, autoApproved: isRequester && !context.permissions.canApprove });
 };
 
 const createRequest = async ({ context, payload, req }) => {
@@ -80,7 +252,7 @@ const createRequest = async ({ context, payload, req }) => {
                 $match: {
                     companyId,
                     createdAt: { $gte: start },
-                    status: { $in: ['pending_approval', 'approved', 'executed'] }
+                    status: { $in: ['pending_approval', 'approved', 'executing', 'executed'] }
                 }
             },
             { $group: { _id: null, total: { $sum: '$amount' } } }
@@ -92,7 +264,6 @@ const createRequest = async ({ context, payload, req }) => {
     }
 
     const beneficiary = await loadApprovedBeneficiary(companyId, payload.beneficiaryId);
-    const reference = payload.reference || buildReference();
     const pending = needsManagerApproval({ amount, actor, profile: profile || company.corporatePortal });
     const requestedStatus = payload.status === 'draft' ? 'draft' : (pending ? 'pending_approval' : 'approved');
 
@@ -107,9 +278,12 @@ const createRequest = async ({ context, payload, req }) => {
     const request = await CorporatePaymentRequest.create({
         companyId,
         tenantId,
-        reference,
+        reference: buildReference(),
         amount,
         currency: payload.currency || 'EGP',
+        originalAmount: amount,
+        originalCurrency: payload.currency || 'EGP',
+        settledCurrency: 'LYD',
         beneficiaryId: beneficiary._id,
         beneficiarySnapshot: {
             name: beneficiary.name,
@@ -133,7 +307,7 @@ const createRequest = async ({ context, payload, req }) => {
         targetId: request._id,
         targetModel: 'CorporatePaymentRequest',
         companyId,
-        metadata: { companyId: String(companyId), reference, amount, status: requestedStatus },
+        metadata: { companyId: String(companyId), reference: request.reference, amount, status: requestedStatus },
         result: requestedStatus === 'pending_approval' ? 'معلق' : 'ناجح'
     });
 
@@ -142,72 +316,6 @@ const createRequest = async ({ context, payload, req }) => {
     }
 
     return { request: toPublicRequest(request), created: true };
-};
-
-const executeRequest = async ({ context, request, req, autoApproved = false }) => {
-    if (request.status === 'executed' && request.ledgerTransactionId) {
-        return { request: toPublicRequest(request), created: false, executed: true, idempotent: true };
-    }
-    if (!['approved', 'pending_approval'].includes(request.status) && request.status !== 'executed') {
-        throw new CorporateError('INVALID_STATUS', 'لا يمكن تنفيذ هذا الطلب في حالته الحالية.', 409);
-    }
-
-    if (request.status === 'executed') {
-        return { request: toPublicRequest(request), created: false, executed: true, idempotent: true };
-    }
-
-    const existingLedger = await findExistingLedger(request.reference);
-    if (existingLedger) {
-        request.status = 'executed';
-        request.ledgerTransactionId = request.reference;
-        request.executedAt = request.executedAt || new Date();
-        if (autoApproved && !request.approverId) {
-            request.approverId = context.actor._id;
-            request.approverName = context.actor.name;
-            request.approvedAt = request.approvedAt || new Date();
-        }
-        await request.save();
-        return { request: toPublicRequest(request), created: false, executed: true, idempotent: true };
-    }
-
-    const debit = await executeCompanyDebit({
-        company: context.company,
-        amount: request.amount,
-        reference: request.reference,
-        description: `تحويل شركات إلى ${request.beneficiarySnapshot?.name || 'مستفيد'} (${request.reference})`,
-        tenantId: context.tenantId,
-        minBalance: -(Number(context.company.creditLimit) || 0)
-    });
-
-    request.status = 'executed';
-    request.ledgerTransactionId = debit.transactionId;
-    request.executedAt = new Date();
-    if (autoApproved && !request.approverId) {
-        request.approverId = context.actor._id;
-        request.approverName = context.actor.name;
-        request.approvedAt = new Date();
-    }
-    await request.save();
-
-    await logAction({
-        action: 'CORPORATE_TRANSFER_EXECUTED',
-        req,
-        performedById: context.actor._id,
-        performedByModel: 'ClientEmployee',
-        performedByName: context.actor.name,
-        targetId: request._id,
-        targetModel: 'CorporatePaymentRequest',
-        companyId: context.companyId,
-        metadata: {
-            companyId: String(context.companyId),
-            reference: request.reference,
-            ledgerTransactionId: debit.transactionId,
-            idempotent: debit.idempotent
-        }
-    });
-
-    context.company.balance = debit.balanceAfter;
-    return { request: toPublicRequest(request), created: false, executed: true, idempotent: debit.idempotent };
 };
 
 const decideRequest = async ({ context, requestId, decision, reason, req }) => {
@@ -221,14 +329,11 @@ const decideRequest = async ({ context, requestId, decision, reason, req }) => {
 
     const request = await CorporatePaymentRequest.findOne({ _id: requestId, companyId });
     if (!request) throw new CorporateError('NOT_FOUND', 'الطلب غير موجود.', 404);
-    if (request.status !== 'pending_approval') {
-        throw new CorporateError('INVALID_STATUS', 'هذا الطلب ليس معلقاً للاعتماد.', 409);
-    }
-    if (String(request.requesterId) === String(actor._id) && decision === 'approve') {
-        throw new CorporateError('SELF_APPROVE', 'لا يمكن للمدير اعتماد طلبه عندما يتجاوز حدّه. اطلب مديراً آخر.', 403);
-    }
 
     if (decision === 'reject') {
+        if (request.status !== 'pending_approval') {
+            throw new CorporateError('INVALID_STATUS', 'هذا الطلب ليس معلقاً للاعتماد.', 409);
+        }
         request.status = 'rejected';
         request.rejectedAt = new Date();
         request.rejectionReason = String(reason || '').trim().slice(0, 500);
@@ -249,11 +354,16 @@ const decideRequest = async ({ context, requestId, decision, reason, req }) => {
         return { request: toPublicRequest(request) };
     }
 
-    request.status = 'approved';
-    request.approverId = actor._id;
-    request.approverName = actor.name;
-    request.approvedAt = new Date();
-    await request.save();
+    if (request.status === TERMINAL_EXECUTED && request.payoutTransactionId) {
+        return { request: toPublicRequest(request), executed: true, idempotent: true };
+    }
+    if (!RETRYABLE_STATUSES.includes(request.status)) {
+        throw new CorporateError('INVALID_STATUS', 'هذا الطلب ليس معلقاً للاعتماد أو قابلاً لإعادة التنفيذ.', 409);
+    }
+    if (String(request.requesterId) === String(actor._id) && request.status === 'pending_approval') {
+        throw new CorporateError('SELF_APPROVE', 'لا يمكن للمدير اعتماد طلبه عندما يتجاوز حدّه. اطلب مديراً آخر.', 403);
+    }
+
     await logAction({
         action: 'CORPORATE_TRANSFER_APPROVED',
         req,
@@ -263,7 +373,7 @@ const decideRequest = async ({ context, requestId, decision, reason, req }) => {
         targetId: request._id,
         targetModel: 'CorporatePaymentRequest',
         companyId,
-        metadata: { companyId: String(companyId), reference: request.reference, role }
+        metadata: { companyId: String(companyId), reference: request.reference, role, fromStatus: request.status }
     });
 
     return executeRequest({ context, request, req });
@@ -325,11 +435,13 @@ const reconcileRequest = async ({ context, requestId, req }) => {
 
 module.exports = {
     CorporateError,
+    RETRYABLE_STATUSES,
     loadApprovedBeneficiary,
     needsManagerApproval,
     toPublicRequest,
     createRequest,
     executeRequest,
+    retryExecution,
     decideRequest,
     addAuditNote,
     reconcileRequest

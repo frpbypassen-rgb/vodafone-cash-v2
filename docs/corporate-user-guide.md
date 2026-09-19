@@ -22,7 +22,7 @@ Short per-role guide. Insights marked **قواعد/تقديرات** or **DEMO** 
 
 - Home CTA on mobile is **تحويل سريع**.
 - Two steps: pick beneficiary → amount, then confirm sheet.
-- Confirm uses WebAuthn / `PublicKeyCredential` when a passkey exists; otherwise password/PIN.
+- Confirm uses WebAuthn / `PublicKeyCredential` when a passkey exists; otherwise password/PIN. **The password or WebAuthn assertion is sent on the create/approve request itself** — a prior UI-only confirm is not enough.
 - Amounts above your limit go to the manager (`pending_approval`).
 - You cannot add beneficiaries, approve others, or export the full company ledger — only your own history CSV.
 - Hitting accountant or manager APIs returns **403**.

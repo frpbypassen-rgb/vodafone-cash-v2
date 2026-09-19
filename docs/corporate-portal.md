@@ -58,7 +58,9 @@ Amounts use the same EGP major units as `Transaction.amount` (not piasters), so 
 
 - If `amount > actor.approvalLimit` (or the company default for that role) the request becomes `pending_approval`.
 - Only a **manager other than the requester** can approve.
-- Approval posts a `TRANSFER` debit on `ClientCompany` via `updateBalanceWithLedger` and is idempotent on `reference`.
+- Approval runs the real `transferService.createTransfer` pipeline: EGP→LYD via company rates, LYD wallet debit, ledger row, and a pending executor `Transaction`. Idempotent on a **server** key `corp:{companyId}:{requestId}` — client `reference` is ignored.
+- Sensitive create/approve/retry calls require **server-side** password or WebAuthn proof on the same request (or a single-use 90s `stepUpToken`).
+- CSV export returns up to **500** request rows (and 500 ledger lines for accountants). The list API default is 50, max 500.
 
 ### Demo locally
 
@@ -75,6 +77,8 @@ NODE_ENV=development ALLOW_CORPORATE_DEMO_SEED=true npm run seed:corporate
 # 3. Sign in as a company user, then:
 # Desktop command center:  http://localhost:3000/corporate?view=desktop
 # Mobile on-the-go:        http://localhost:3000/corporate?view=mobile
+# If device enforcement is on, set cookie ahrampay_security_device or header
+# x-device-id to the first-device id printed by the seed.
 ```
 
 Force override is stored on the session (`?view=mobile|desktop`). UA detection is the default.
@@ -115,7 +119,7 @@ Insights, OCR, and invoice matching are **rule-based / DEMO** unless `CORPORATE_
 | `ClientCompany.corporatePortal` | company-level enable + shared limits + branding |
 | `CompanyProfile` | 1:1 settings + linked user ids |
 | `CorporateBeneficiary` | approved payees; account numbers AES-GCM encrypted |
-| `CorporatePaymentRequest` | `draft \| pending_approval \| approved \| rejected \| executed` + ledger id |
+| `CorporatePaymentRequest` | `draft \| pending_approval \| approved \| executing \| execution_failed \| rejected \| executed` + FX + payout `Transaction` id |
 | `CorporateInvoice` | accountant uploads + match metadata |
 | `AuditLog.companyId` | company-scoped immutable append |
 

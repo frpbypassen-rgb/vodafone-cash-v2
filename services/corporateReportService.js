@@ -16,6 +16,10 @@ const toCsv = (rows) => {
     return [headers.join(','), ...rows.map((row) => headers.map((key) => csvEscape(row[key])).join(','))].join('\n');
 };
 
+const DEFAULT_LIST_LIMIT = 50;
+const MAX_LIST_LIMIT = 500;
+const EXPORT_LIMIT = 500;
+
 const scopedFilter = (context, extra = {}) => {
     const filter = { companyId: context.companyId, ...extra };
     if (!context.permissions.canViewAllOps) {
@@ -27,7 +31,8 @@ const scopedFilter = (context, extra = {}) => {
 const loadOperations = async (context, query = {}) => {
     const filter = scopedFilter(context);
     if (query.status) filter.status = query.status;
-    const limit = Math.min(200, Math.max(1, Number(query.limit) || 50));
+    const requested = Number(query.limit);
+    const limit = Math.min(MAX_LIST_LIMIT, Math.max(1, Number.isFinite(requested) ? requested : DEFAULT_LIST_LIMIT));
     const items = await CorporatePaymentRequest.find(filter)
         .sort({ createdAt: -1 })
         .limit(limit)
@@ -44,24 +49,29 @@ const buildExportRows = async (context, query = {}) => {
         throw new CorporateError('CORPORATE_FORBIDDEN', 'التصدير غير متاح لدورك.', 403);
     }
 
-    const requests = await loadOperations(context, { ...query, limit: 500 });
+    const requests = await loadOperations(context, { ...query, limit: EXPORT_LIMIT });
 
     if (role === 'accountant') {
         const ledger = await Ledger.find({
             entityId: context.companyId,
             entityModel: 'ClientCompany'
-        }).sort({ createdAt: -1 }).limit(500).lean();
+        }).sort({ createdAt: -1 }).limit(EXPORT_LIMIT).lean();
 
         const requestRows = requests.map((item) => ({
             section: 'request',
             reference: item.reference,
             status: item.status,
             amount: item.amount,
+            originalCurrency: item.originalCurrency || item.currency || 'EGP',
+            settledAmount: item.settledAmount || '',
+            settledCurrency: item.settledCurrency || 'LYD',
+            exchangeRate: item.exchangeRate || '',
             beneficiary: item.beneficiarySnapshot?.name || '',
             requester: item.requesterName,
             approver: item.approverName || '',
             reconciled: item.reconciled ? 'yes' : 'no',
             ledgerTransactionId: item.ledgerTransactionId || '',
+            payoutTransactionId: item.payoutTransactionId || '',
             createdAt: item.createdAt?.toISOString?.() || item.createdAt
         }));
         const ledgerRows = ledger.map((entry) => ({
@@ -136,5 +146,8 @@ module.exports = {
     scopedFilter,
     loadOperations,
     buildExportRows,
-    summarizeDashboard
+    summarizeDashboard,
+    DEFAULT_LIST_LIMIT,
+    MAX_LIST_LIMIT,
+    EXPORT_LIMIT
 };

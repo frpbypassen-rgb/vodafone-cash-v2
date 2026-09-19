@@ -8,13 +8,41 @@ if (process.env.NODE_ENV === 'production' || process.env.ALLOW_CORPORATE_DEMO_SE
 }
 
 const mongoose = require('mongoose');
+const crypto = require('crypto');
 const ClientCompany = require('../models/ClientCompany');
 const ClientEmployee = require('../models/ClientEmployee');
 const CorporateBeneficiary = require('../models/CorporateBeneficiary');
+const SecurityDevice = require('../models/SecurityDevice');
 const { enableCompanyPortal, assignCorporateRole } = require('../services/corporateOnboardingService');
+const securityControl = require('../services/securityControlService');
 
 const uri = process.env.MONGO_URI || 'mongodb://127.0.0.1:27017/vodafone_cash_system';
 const demoPassword = 'CorpDemo!234';
+
+const stableDemoDeviceId = (username) => {
+    const hex = crypto.createHash('sha256').update(`corporate-demo-device:${username}`).digest('hex').slice(0, 32);
+    return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20, 32)}`;
+};
+
+const enrollFirstDemoDevice = async (employee) => {
+    const deviceId = stableDemoDeviceId(employee.webUsername);
+    await SecurityDevice.updateMany(
+        { principalType: 'client_company', principalId: String(employee._id), status: 'active' },
+        { $set: { status: 'revoked', revokedAt: new Date(), revokedReason: 'corporate_demo_seed_replace' } }
+    );
+    await SecurityDevice.create({
+        principalType: 'client_company',
+        principalId: String(employee._id),
+        channel: 'web',
+        displayName: 'جهاز تجريبي — بوابة الشركات',
+        deviceIdHash: securityControl.hashDeviceId(deviceId),
+        status: 'active',
+        approvedBy: 'corporate_demo_seed',
+        approvedAt: new Date(),
+        lastSeenAt: new Date()
+    });
+    return deviceId;
+};
 
 const upsertEmployee = async ({ companyId, name, username, corporateRole, approvalLimit, phone }) => {
     let employee = await ClientEmployee.findOne({ webUsername: username });
@@ -89,6 +117,10 @@ const run = async () => {
         phone: '01000000013'
     });
 
+    const managerDevice = await enrollFirstDemoDevice(manager);
+    const employeeDevice = await enrollFirstDemoDevice(employee);
+    const accountantDevice = await enrollFirstDemoDevice(accountant);
+
     const existingPayee = await CorporateBeneficiary.findOne({ companyId: company._id, name: 'مورد تجريبي' });
     if (!existingPayee) {
         const encrypted = CorporateBeneficiary.encryptAccountNumber('01098765432');
@@ -108,7 +140,10 @@ const run = async () => {
     console.log('  manager    corp.manager@ahram.com');
     console.log('  employee   corp.employee@ahram.com');
     console.log('  accountant corp.accountant@ahram.com');
-    console.log(`Users: ${manager.webUsername}, ${employee.webUsername}, ${accountant.webUsername}`);
+    console.log('First-device approval is pre-seeded. Use cookie ahrampay_security_device or header x-device-id:');
+    console.log(`  manager    ${managerDevice}`);
+    console.log(`  employee   ${employeeDevice}`);
+    console.log(`  accountant ${accountantDevice}`);
     await mongoose.disconnect();
 };
 

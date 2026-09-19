@@ -17,6 +17,7 @@ const insightService = require('../services/corporateInsightService');
 const { assignCorporateRole } = require('../services/corporateOnboardingService');
 const passkeyService = require('../services/passkeyService');
 const SecurityDevice = require('../models/SecurityDevice');
+const { issueStepUpTicket } = require('../middlewares/corporateStepUp');
 
 const sendError = (res, error) => {
     const status = error.statusCode || 400;
@@ -286,6 +287,19 @@ exports.rejectRequest = async (req, res) => {
     }
 };
 
+exports.retryExecute = async (req, res) => {
+    try {
+        const result = await approvalService.retryExecution({
+            context: req.corporate,
+            requestId: req.params.id,
+            req
+        });
+        return res.json({ success: true, ...result });
+    } catch (error) {
+        return sendError(res, error);
+    }
+};
+
 exports.addRequestNote = async (req, res) => {
     try {
         const result = await approvalService.addAuditNote({
@@ -495,7 +509,8 @@ exports.confirmPassword = async (req, res) => {
         if (!ok) {
             return res.status(403).json({ success: false, code: 'CONFIRM_FAILED', error: 'كلمة المرور غير صحيحة.' });
         }
-        return res.json({ success: true, method: 'password' });
+        const stepUpToken = issueStepUpTicket(req);
+        return res.json({ success: true, method: 'password', stepUpToken });
     } catch (error) {
         return sendError(res, error);
     }
@@ -543,7 +558,8 @@ exports.webauthnVerify = async (req, res) => {
             device
         });
         delete req.session.corporateWebauthnChallenge;
-        return res.json({ success: true, method: 'webauthn' });
+        const stepUpToken = issueStepUpTicket(req);
+        return res.json({ success: true, method: 'webauthn', stepUpToken });
     } catch (error) {
         return res.status(403).json({ success: false, code: 'WEBAUTHN_FAILED', error: error.message || 'فشل التأكيد الحيوي.' });
     }

@@ -93,13 +93,21 @@
                 this.persistSnapshot();
             },
 
+            async confirmProof() {
+                const password = window.prompt('أكد العملية بكلمة مرور الحساب');
+                if (!password) throw new Error('تم إلغاء التأكيد');
+                return { password };
+            },
+
             async createTransfer() {
+                const proof = await this.confirmProof();
                 const payload = await api('/api/corporate/requests', {
                     method: 'POST',
                     body: JSON.stringify({
                         beneficiaryId: this.form.beneficiaryId,
                         amount: Number(this.form.amount),
                         notes: this.form.notes,
+                        password: proof.password,
                         idempotencyKey: `desk-${Date.now()}-${this.form.amount}`
                     })
                 });
@@ -110,7 +118,11 @@
             },
 
             async approve(id) {
-                await api(`/api/corporate/requests/${id}/approve`, { method: 'POST', body: '{}' });
+                const proof = await this.confirmProof();
+                await api(`/api/corporate/requests/${id}/approve`, {
+                    method: 'POST',
+                    body: JSON.stringify({ password: proof.password })
+                });
                 this.closeReview(id);
                 await this.refresh();
             },

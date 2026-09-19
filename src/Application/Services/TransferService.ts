@@ -613,6 +613,10 @@ export class TransferService {
                     creditAccount: 'Assets:Receivables',
                     balanceBefore: clientInfo.masterObj.balance,
                     balanceAfter: updatedMaster.balance,
+                    originalAmount: amount,
+                    originalCurrency: pricingDefinition.amountCurrencyCode,
+                    settledCurrency: 'LYD',
+                    exchangeRate: masterRate,
                     description: `تحويل من نقطة بيع (${clientInfo.subAccount.name}): ${amount} ${pricingDefinition.amountCurrencyLabel} إلى ${number}`
                 });
                 await ledgerMaster.save({ session });
@@ -623,7 +627,11 @@ export class TransferService {
                     debitAccount: 'Liabilities:ClientDeposits',
                     creditAccount: 'Assets:Receivables',
                     balanceBefore: currentBalance, balanceAfter: this.getWalletBalance(updatedClient, currency),
-                    description: `تحويل حوالة مالية بقيمة ${amount} ${pricingDefinition.amountCurrencyLabel} - رقم العملية ${customId}`
+                    originalAmount: amount,
+                    originalCurrency: pricingDefinition.amountCurrencyCode,
+                    settledCurrency: 'LYD',
+                    exchangeRate: finalRate,
+                    description: `تحويل حوالة مالية بقيمة ${amount} ${pricingDefinition.amountCurrencyLabel} بسعر ${finalRate} = ${costLYD} LYD - رقم العملية ${customId}`
                 });
                 await ledgerEntry.save({ session });
             }

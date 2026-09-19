@@ -27,13 +27,7 @@
                             challenge: Uint8Array.from(atob(challenge.options.challenge.replace(/-/g, '+').replace(/_/g, '/')), (c) => c.charCodeAt(0))
                         }
                     });
-                    if (credential) {
-                        await api('/api/corporate/confirm/webauthn/verify', {
-                            method: 'POST',
-                            body: JSON.stringify(credential)
-                        });
-                        return 'webauthn';
-                    }
+                    if (credential) return { webauthn: credential };
                 }
             } catch (_error) {
                 // fall through to password
@@ -41,11 +35,7 @@
         }
         const password = window.prompt('أكّد العملية بكلمة المرور أو الرمز');
         if (!password) throw new Error('تم إلغاء التأكيد');
-        await api('/api/corporate/confirm/password', {
-            method: 'POST',
-            body: JSON.stringify({ password })
-        });
-        return 'password';
+        return { password };
     };
 
     document.addEventListener('alpine:init', () => {
@@ -151,13 +141,15 @@
             },
 
             async submitTransfer() {
-                await confirmSensitive();
+                const proof = await confirmSensitive();
                 const payload = await api('/api/corporate/requests', {
                     method: 'POST',
                     body: JSON.stringify({
                         beneficiaryId: this.form.beneficiaryId,
                         amount: Number(this.form.amount),
                         notes: this.form.notes,
+                        password: proof.password,
+                        webauthn: proof.webauthn,
                         idempotencyKey: `mob-${Date.now()}-${this.form.amount}`
                     })
                 });
@@ -170,8 +162,14 @@
             },
 
             async approve(id) {
-                await confirmSensitive();
-                await api(`/api/corporate/requests/${id}/approve`, { method: 'POST', body: '{}' });
+                const proof = await confirmSensitive();
+                await api(`/api/corporate/requests/${id}/approve`, {
+                    method: 'POST',
+                    body: JSON.stringify({
+                        password: proof.password,
+                        webauthn: proof.webauthn
+                    })
+                });
                 await this.refresh();
             },
 

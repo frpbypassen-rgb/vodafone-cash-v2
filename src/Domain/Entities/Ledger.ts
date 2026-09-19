@@ -5,7 +5,11 @@ export interface ILedger extends Document {
     entityModel: 'User' | 'ClientCompany' | 'ClientBot' | 'SubAccount' | 'ExecutorBot';
     transactionId: string;
     type: 'DEPOSIT' | 'DEDUCTION' | 'TRANSFER' | 'COMMISSION' | 'REFUND';
-    amount: number; // Signed amount
+    amount: number; // Signed amount (wallet/settlement currency)
+    originalAmount?: number;
+    originalCurrency?: string;
+    settledCurrency?: string;
+    exchangeRate?: number;
     debitAccount?: string;
     creditAccount?: string;
     balanceBefore: number;
@@ -20,6 +24,10 @@ const ledgerSchema = new Schema<ILedger>({
     transactionId: { type: String, required: true },
     type: { type: String, required: true, enum: ['DEPOSIT', 'DEDUCTION', 'TRANSFER', 'COMMISSION', 'REFUND'] },
     amount: { type: Number, required: true },
+    originalAmount: { type: Number },
+    originalCurrency: { type: String },
+    settledCurrency: { type: String, default: 'LYD' },
+    exchangeRate: { type: Number },
     debitAccount: { type: String },
     creditAccount: { type: String },
     balanceBefore: { type: Number, required: true },

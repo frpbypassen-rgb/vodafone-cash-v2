@@ -11,6 +11,7 @@ const {
     requireSameCompany,
     allowCorporateCamera
 } = require('../middlewares/corporateAuth');
+const { requireCorporateStepUp } = require('../middlewares/corporateStepUp');
 const controller = require('../controllers/corporatePortalController');
 
 const invoiceUpload = multer({
@@ -46,8 +47,9 @@ router.post('/beneficiaries', requireCorporateRole(['manager']), controller.crea
 router.patch('/beneficiaries/:id', requireCorporateRole(['manager']), controller.updateBeneficiary);
 
 router.get('/requests', controller.listRequests);
-router.post('/requests', requireCorporateRole(['manager', 'employee']), controller.createPaymentRequest);
-router.post('/requests/:id/approve', requireCorporateRole(['manager']), controller.approveRequest);
+router.post('/requests', requireCorporateRole(['manager', 'employee']), requireCorporateStepUp, controller.createPaymentRequest);
+router.post('/requests/:id/approve', requireCorporateRole(['manager']), requireCorporateStepUp, controller.approveRequest);
+router.post('/requests/:id/execute', requireCorporateRole(['manager', 'employee']), requireCorporateStepUp, controller.retryExecute);
 router.post('/requests/:id/reject', requireCorporateRole(['manager']), controller.rejectRequest);
 router.post('/requests/:id/notes', requireCorporateRole(['manager', 'accountant']), controller.addRequestNote);
 router.post('/requests/:id/reconcile', requireCorporateRole(['accountant']), controller.reconcileRequest);
