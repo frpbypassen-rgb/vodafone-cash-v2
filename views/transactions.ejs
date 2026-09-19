@@ -249,6 +249,171 @@
             border-color: var(--brand-gold) !important;
             box-shadow: 0 4px 10px rgba(212, 175, 55, 0.25);
         }
+
+        .ledger-stats-bar {
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 8px;
+            padding: 8px;
+            border-radius: 16px;
+            background: var(--card-bg);
+            border: 1px solid var(--border-glass);
+            box-shadow: var(--shadow-soft);
+        }
+        .ledger-stat {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 10px;
+            min-width: 0;
+            padding: 8px 12px;
+            border-radius: 12px;
+            background: var(--input-bg);
+            border: 1px solid transparent;
+        }
+        .ledger-stat-today { border-color: rgba(16, 185, 129, .25); }
+        .ledger-stat-week { border-color: rgba(59, 130, 246, .25); }
+        .ledger-stat-month { border-color: rgba(139, 92, 246, .25); }
+        .ledger-stat-copy { min-width: 0; }
+        .ledger-stat-label {
+            display: block;
+            color: var(--text-muted);
+            font-size: .72rem;
+            font-weight: 800;
+            line-height: 1.35;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .ledger-stat-value {
+            display: block;
+            margin-top: 2px;
+            color: var(--text-main);
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 1.05rem;
+            font-weight: 900;
+            line-height: 1.2;
+            direction: ltr;
+            text-align: right;
+        }
+        .ledger-stat-value small {
+            font-family: 'Tajawal', sans-serif;
+            font-size: .68rem;
+            font-weight: 800;
+            color: var(--text-muted);
+        }
+        .ledger-stat-amount {
+            display: block;
+            margin-top: 1px;
+            color: var(--text-muted);
+            font-family: 'JetBrains Mono', monospace;
+            font-size: .68rem;
+            font-weight: 800;
+            direction: ltr;
+            text-align: right;
+        }
+        .ledger-stat-icon {
+            flex: 0 0 32px;
+            width: 32px;
+            height: 32px;
+            border-radius: 10px;
+            display: grid;
+            place-items: center;
+            font-size: .9rem;
+        }
+        .ledger-stat-today .ledger-stat-icon { color: #10b981; background: rgba(16, 185, 129, .12); }
+        .ledger-stat-week .ledger-stat-icon { color: #3b82f6; background: rgba(59, 130, 246, .12); }
+        .ledger-stat-month .ledger-stat-icon { color: #8b5cf6; background: rgba(139, 92, 246, .12); }
+        .ledger-panel {
+            height: 100%;
+            border-radius: 16px;
+            background: var(--card-bg);
+            border: 1px solid var(--border-glass);
+            box-shadow: var(--shadow-soft);
+            overflow: hidden;
+        }
+        .ledger-panel-head {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 10px;
+            padding: 12px 14px 10px;
+            border-bottom: 1px solid var(--border-glass);
+        }
+        .ledger-panel-head h6 {
+            margin: 0;
+            color: var(--text-main);
+            font-size: .92rem;
+            font-weight: 900;
+        }
+        .ledger-panel-head p {
+            margin: 2px 0 0;
+            color: var(--text-muted);
+            font-size: .72rem;
+            font-weight: 700;
+        }
+        .ledger-panel-count {
+            flex: 0 0 auto;
+            padding: 3px 8px;
+            border-radius: 999px;
+            background: var(--input-bg);
+            color: var(--text-muted);
+            font-size: .72rem;
+            font-weight: 800;
+        }
+        .ledger-panel-list {
+            max-height: 220px;
+            overflow: auto;
+        }
+        .ledger-balance-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 10px;
+            padding: 9px 14px;
+            text-decoration: none;
+            border-bottom: 1px dashed var(--border-glass);
+            transition: background .18s ease;
+        }
+        .ledger-balance-row:last-child { border-bottom: 0; }
+        .ledger-balance-row:hover { background: rgba(59, 130, 246, .06); }
+        .ledger-balance-name {
+            min-width: 0;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            color: var(--text-main);
+            font-weight: 800;
+            font-size: .86rem;
+        }
+        .ledger-balance-meta {
+            display: block;
+            margin-top: 2px;
+            color: var(--text-muted);
+            font-size: .66rem;
+            font-weight: 700;
+        }
+        .ledger-balance-value {
+            flex: 0 0 auto;
+            color: #10b981;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: .8rem;
+            font-weight: 900;
+            direction: ltr;
+            text-align: left;
+        }
+        .ledger-balance-value.is-negative { color: #ef4444; }
+        .ledger-empty {
+            padding: 22px 14px;
+            text-align: center;
+            color: var(--text-muted);
+            font-size: .8rem;
+            font-weight: 800;
+        }
+        @media (max-width: 767.98px) {
+            .ledger-stats-bar { grid-template-columns: 1fr; }
+            .ledger-panel-list { max-height: none; }
+        }
     </style>
 </head>
 <body>
@@ -314,6 +479,11 @@
         return merged.includes('--- سجل الـ API') ? merged : '';
     };
     const transactionWorkspacePath = operationWorkspace ? '/transactions/operations' : '/transactions';
+    const formatCount = (value) => Number(value || 0).toLocaleString('en-US');
+    const formatMoney = (value) => Number(value || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    const ledgerPeriodStats = (typeof periodStats !== 'undefined' && periodStats) ? periodStats : { today: { count: 0, amountEGP: 0 }, week: { count: 0, amountEGP: 0 }, month: { count: 0, amountEGP: 0 } };
+    const ledgerCompanies = Array.isArray(typeof activeClientCompanies !== 'undefined' ? activeClientCompanies : null) ? activeClientCompanies : [];
+    const ledgerExecutors = Array.isArray(typeof fundedExecutorCompanies !== 'undefined' ? fundedExecutorCompanies : null) ? fundedExecutorCompanies : [];
     const operationAgeFor = (tx = {}) => {
         const createdAt = new Date(tx.createdAt || Date.now());
         const minutes = Math.max(0, Math.floor((Date.now() - createdAt.getTime()) / 60000));
@@ -357,6 +527,7 @@
             <div class="alert alert-danger fw-bold rounded-3"><i class="fa-solid fa-triangle-exclamation me-1"></i> <%= transactionErrorMessages[query.routeError] || transactionErrorMessages.update_failed %></div>
         <% } %>
 
+        <% if (operationWorkspace) { %>
         <div class="mobile-summary-strip d-lg-none mb-3">
             <div class="mobile-summary-item">
                 <span class="mobile-summary-label">تحويلات اليوم</span>
@@ -372,6 +543,83 @@
                 <span class="mobile-summary-value text-danger"><%= dailyTotals.deductionsEGP.toFixed(2) %> EGP</span>
             </div>
         </div>
+        <% } else { %>
+        <div class="ledger-stats-bar mb-3" role="group" aria-label="إجماليات العمليات الناجحة">
+            <div class="ledger-stat ledger-stat-today">
+                <div class="ledger-stat-copy">
+                    <span class="ledger-stat-label">إجمالي العمليات الناجحة اليوم</span>
+                    <strong class="ledger-stat-value"><%= formatCount(ledgerPeriodStats.today.count) %> <small>عملية</small></strong>
+                    <span class="ledger-stat-amount"><%= formatMoney(ledgerPeriodStats.today.amountEGP) %> EGP</span>
+                </div>
+                <span class="ledger-stat-icon" aria-hidden="true"><i class="fa-solid fa-circle-check"></i></span>
+            </div>
+            <div class="ledger-stat ledger-stat-week">
+                <div class="ledger-stat-copy">
+                    <span class="ledger-stat-label">إجمالي الأسبوع</span>
+                    <strong class="ledger-stat-value"><%= formatCount(ledgerPeriodStats.week.count) %> <small>عملية</small></strong>
+                    <span class="ledger-stat-amount"><%= formatMoney(ledgerPeriodStats.week.amountEGP) %> EGP</span>
+                </div>
+                <span class="ledger-stat-icon" aria-hidden="true"><i class="fa-solid fa-calendar-week"></i></span>
+            </div>
+            <div class="ledger-stat ledger-stat-month">
+                <div class="ledger-stat-copy">
+                    <span class="ledger-stat-label">إجمالي الشهر</span>
+                    <strong class="ledger-stat-value"><%= formatCount(ledgerPeriodStats.month.count) %> <small>عملية</small></strong>
+                    <span class="ledger-stat-amount"><%= formatMoney(ledgerPeriodStats.month.amountEGP) %> EGP</span>
+                </div>
+                <span class="ledger-stat-icon" aria-hidden="true"><i class="fa-solid fa-calendar-days"></i></span>
+            </div>
+        </div>
+
+        <div class="row g-3 mb-4 ledger-overview-cols">
+            <div class="col-lg-6">
+                <section class="ledger-panel">
+                    <div class="ledger-panel-head">
+                        <div>
+                            <h6><i class="fa-solid fa-building text-primary ms-1"></i> الشركات النشطة</h6>
+                            <p>أرصدة الشركة</p>
+                        </div>
+                        <span class="ledger-panel-count"><%= formatCount(ledgerCompanies.length) %></span>
+                    </div>
+                    <div class="ledger-panel-list">
+                        <% if (ledgerCompanies.length) { %>
+                            <% ledgerCompanies.forEach(company => { %>
+                                <a class="ledger-balance-row" href="/company/<%= company.id %>" title="فتح ملف <%= company.name %>">
+                                    <span class="ledger-balance-name"><%= company.name %><small class="ledger-balance-meta"><%= company.accountCode ? ('كود ' + company.accountCode) : 'بدون كود حساب' %></small></span>
+                                    <span class="ledger-balance-value <%= Number(company.balance) < 0 ? 'is-negative' : '' %>" dir="ltr"><%= formatMoney(company.balance) %> LYD</span>
+                                </a>
+                            <% }); %>
+                        <% } else { %>
+                            <div class="ledger-empty"><i class="fa-solid fa-building ms-1 opacity-50"></i> لا توجد شركات نشطة حالياً.</div>
+                        <% } %>
+                    </div>
+                </section>
+            </div>
+            <div class="col-lg-6">
+                <section class="ledger-panel">
+                    <div class="ledger-panel-head">
+                        <div>
+                            <h6><i class="fa-solid fa-user-gear text-success ms-1"></i> الشركات المنفذة</h6>
+                            <p>رصيد متاح أكبر من صفر</p>
+                        </div>
+                        <span class="ledger-panel-count"><%= formatCount(ledgerExecutors.length) %></span>
+                    </div>
+                    <div class="ledger-panel-list">
+                        <% if (ledgerExecutors.length) { %>
+                            <% ledgerExecutors.forEach(group => { %>
+                                <a class="ledger-balance-row" href="/executor/<%= group.id %>" title="فتح ملف <%= group.name %>">
+                                    <span class="ledger-balance-name"><%= group.name %><small class="ledger-balance-meta"><%= group.isManager ? 'وكالة تنفيذ' : (group.balanceSource === 'api_service' ? 'API · رصيد خدمة' : 'منفذ · رصيد داخلي') %></small></span>
+                                    <span class="ledger-balance-value" dir="ltr"><%= formatMoney(group.balance) %> EGP</span>
+                                </a>
+                            <% }); %>
+                        <% } else { %>
+                            <div class="ledger-empty"><i class="fa-solid fa-wallet ms-1 opacity-50"></i> لا توجد شركة منفذة برصيد متاح حالياً.</div>
+                        <% } %>
+                    </div>
+                </section>
+            </div>
+        </div>
+        <% } %>
 
         <div class="mobile-filter-card d-lg-none mb-3">
             <form method="GET" action="<%= transactionWorkspacePath %>" id="mobileTransactionsFilterForm">
@@ -423,6 +671,7 @@
             </form>
         </div>
 
+        <% if (operationWorkspace) { %>
         <div class="row g-3 mb-4 d-none d-lg-flex">
             <div class="col-md-4">
                 <div class="data-card summary-box box-success m-0">
@@ -453,6 +702,7 @@
                 </div>
             </div>
         </div>
+        <% } %>
 
         <div class="data-card border-0 mb-4 p-4 d-none d-lg-block">
             <form method="GET" action="<%= transactionWorkspacePath %>" class="row g-3 align-items-end" id="transactionsFilterForm">
