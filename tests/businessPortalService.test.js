@@ -5,6 +5,7 @@ const {
     resolveCompanyPermissions,
     resolveAgentPermissions,
     buildNavigation,
+    buildCompanyMobileNav,
     buildReportGroups,
     buildReportAnalytics,
     summarizeTransactions,
@@ -30,6 +31,8 @@ describe('Business portal service', () => {
         expect(owner).toMatchObject({ owner: true, manager: true, canManageStaff: true, canManageCustomers: false, canInternalTransfer: true, canRequestDeposit: true });
         expect(manager).toMatchObject({ owner: false, manager: true, canManageStaff: false, canManageCustomers: false, canInternalTransfer: true });
         expect(employee).toMatchObject({ employee: true, canViewBalance: false, canViewReports: false, canTransfer: true, canInternalTransfer: false });
+        expect(resolveCompanyPermissions({ role: 'employee', corporateRole: 'manager' })).toMatchObject({ manager: true, employee: false, canTransfer: true });
+        expect(resolveCompanyPermissions({ role: 'employee', corporateRole: 'accountant' })).toMatchObject({ accountant: true, canTransfer: false });
     });
 
     test('keeps accountants read-only and agent owners fully enabled', () => {
@@ -187,6 +190,41 @@ describe('Business portal service', () => {
         expect(canPostPortalTransfer('agent_staff', { role: 'accountant' })).toBe(false);
         expect(canPostPortalTransfer('user', { role: 'agent' })).toBe(true);
         expect(canPostPortalTransfer('user', { role: 'accountant' })).toBe(false);
+    });
+
+    test('builds a five-item company mobile dock from existing permissions', () => {
+        const managerNav = buildNavigation({
+            isCompany: true,
+            forceToday: false,
+            permissions: {
+                canTransfer: true,
+                canViewBalance: true,
+                manager: true,
+                accountant: false,
+                employee: false,
+                canViewReports: true,
+                canInternalTransfer: true,
+                canRequestDeposit: true
+            }
+        }, 'services');
+        const dock = buildCompanyMobileNav({ persona: 'manager', isCompany: true }, managerNav);
+        expect(dock.map((item) => item.key)).toEqual(['services', 'smart_transfer', 'transactions', 'support', 'settings']);
+        expect(dock.every((item) => item.dockLabel)).toBe(true);
+
+        const employeeNav = buildNavigation({
+            isCompany: true,
+            forceToday: true,
+            permissions: {
+                canTransfer: true,
+                canViewBalance: false,
+                manager: false,
+                accountant: false,
+                employee: true,
+                canViewReports: false
+            }
+        }, 'services');
+        expect(buildCompanyMobileNav({ persona: 'employee' }, employeeNav).map((item) => item.key))
+            .toEqual(['services', 'smart_transfer', 'transactions', 'support', 'security']);
     });
 
     test('resolves company service workbenches by key or slug', () => {

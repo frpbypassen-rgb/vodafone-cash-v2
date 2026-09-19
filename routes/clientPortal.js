@@ -15,6 +15,8 @@ const SubAccount = require('../models/SubAccount');
 const AgentEmployee = require('../models/AgentEmployee');
 const Notification = require('../models/Notification');
 const { resolveClientNotificationUserIds } = require('../services/clientNotificationService');
+const { presentInbox } = require('../services/companyNotificationInboxService');
+const companyWebPushService = require('../services/companyWebPushService');
 const { setPortalSupportReplyChannel } = require('../services/whatChimpSupportService');
 const WebPushSubscription = require('../models/WebPushSubscription');
 const Settings = require('../models/Settings');
@@ -189,6 +191,12 @@ router.post('/register', clientAuthController.postRegister);
 router.get('/verify', clientAuthController.getVerify);
 router.post('/verify', otpVerifyLimiter, clientAuthController.postVerify);
 router.get('/logout', clientAuthController.logout);
+router.get('/sw.js', (_req, res) => {
+    res.setHeader('Content-Type', 'application/javascript; charset=utf-8');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Service-Worker-Allowed', '/client/');
+    return res.sendFile(path.join(__dirname, '../public/company-portal-sw.js'));
+});
 
 // ===============================================
 // 📊 Dashboard Routes
@@ -262,9 +270,84 @@ router.get('/api/notifications/unread', requireClientAuth, async (req, res) => {
             type: { $ne: 'rate_change' }
         }).sort({ createdAt: -1 }).limit(10).lean();
 
-        return res.json({ success: true, count: notifications.length, notifications });
+        const inbox = presentInbox(notifications);
+        return res.json({ success: true, count: inbox.unreadCount, notifications, groups: inbox.groups, unreadCount: inbox.unreadCount });
     } catch (e) {
         return res.status(500).json({ success: false, error: 'Internal Server Error' });
+    }
+});
+
+router.get('/api/notifications', requireClientAuth, async (req, res) => {
+    try {
+        const userIds = await resolveClientNotificationUserIds({
+            accountType: req.session.accountType,
+            clientId: req.session.clientId
+        });
+        if (!userIds.length) return res.json(presentInbox([]));
+        const notifications = await Notification.find({
+            userId: { $in: userIds },
+            audience: { $in: ['client', 'all'] },
+            type: { $ne: 'rate_change' }
+        }).sort({ createdAt: -1 }).limit(40).lean();
+        return res.json(presentInbox(notifications));
+    } catch (_error) {
+        return res.status(500).json({ success: false, error: 'NOTIFICATION_INBOX_FAILED' });
+    }
+});
+
+router.get('/api/web-push/status', requireClientAuth, async (req, res) => {
+    try {
+        if (req.session.accountType !== 'company') {
+            return res.status(403).json({ success: false, error: 'COMPANY_PUSH_ONLY' });
+        }
+        const status = await companyWebPushService.getCompanyWebPushStatus(req.session.clientId);
+        return res.json({ success: true, ...status });
+    } catch (_error) {
+        return res.status(500).json({ success: false, error: 'تعذر فحص إشعارات المتصفح.' });
+    }
+});
+
+router.post('/api/web-push/subscribe', requireClientAuth, async (req, res) => {
+    try {
+        if (req.session.accountType !== 'company') {
+            return res.status(403).json({ success: false, error: 'COMPANY_PUSH_ONLY' });
+        }
+        await companyWebPushService.upsertCompanySubscription({
+            userId: req.session.clientId,
+            accountType: 'company',
+            subscription: req.body?.subscription
+        });
+        return res.json({ success: true, subscribed: true });
+    } catch (_error) {
+        return res.status(400).json({ success: false, error: 'بيانات اشتراك الإشعارات غير صالحة.' });
+    }
+});
+
+router.post('/api/web-push/unsubscribe', requireClientAuth, async (req, res) => {
+    if (req.session.accountType !== 'company') {
+        return res.status(403).json({ success: false, error: 'COMPANY_PUSH_ONLY' });
+    }
+    await companyWebPushService.disableCompanySubscription({
+        userId: req.session.clientId,
+        endpoint: req.body?.endpoint
+    });
+    return res.json({ success: true, subscribed: false });
+});
+
+router.post('/api/web-push/test', requireClientAuth, async (req, res) => {
+    try {
+        if (req.session.accountType !== 'company') {
+            return res.status(403).json({ success: false, error: 'COMPANY_PUSH_ONLY' });
+        }
+        const result = await companyWebPushService.sendCompanyWebPushTest(req.session.clientId);
+        if (!result.configured) {
+            return res.status(503).json({ success: false, error: 'مفاتيح Web Push غير مضبوطة. راجع WEB_PUSH_* في البيئة.' });
+        }
+        if (!result.attempted) return res.status(409).json({ success: false, error: 'لا يوجد متصفح مسجل لاستقبال الاختبار.' });
+        if (!result.sent) return res.status(502).json({ success: false, error: 'رفض مزود الإشعارات رسالة الاختبار.' });
+        return res.json({ success: true, ...result });
+    } catch (_error) {
+        return res.status(500).json({ success: false, error: 'تعذر إرسال إشعار الاختبار.' });
     }
 });
 

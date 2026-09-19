@@ -268,9 +268,10 @@ const isLegacyCompanyOwner = (actor) => {
 
 const resolveCompanyPermissions = (actor) => {
     const role = String(actor.role || '').toLowerCase();
+    const corporateRole = String(actor.corporateRole || '').toLowerCase();
     const owner = role === 'owner' || actor.canCreateCompanyStaff === true || isLegacyCompanyOwner(actor);
-    const manager = owner || actor.canManageCompany === true;
-    const accountant = role === 'accountant';
+    const accountant = role === 'accountant' || (!owner && corporateRole === 'accountant');
+    const manager = owner || actor.canManageCompany === true || (!accountant && corporateRole === 'manager');
     return {
         owner,
         manager,
@@ -395,7 +396,7 @@ const buildWorkspaceResult = ({ type, actor, entity, actorModel, entityModel, pe
         roleLabel,
         entityLabel: type === 'company' ? 'الشركة' : 'الوكيل',
         portalLabel: type === 'company'
-            ? (permissions.employee ? 'غرفة التنفيذ' : permissions.accountant ? 'مكتب المحاسبة' : 'غرفة الشركات')
+            ? 'بوابة الشركات'
             : (permissions.employee ? 'واجهة العميل' : 'بوابة الوكلاء'),
         permissions,
         masterType: type === 'company' ? 'company' : 'user',
@@ -448,6 +449,32 @@ const buildNavigation = (workspace, activePage) => {
             || (navPage === 'customer_profile' && item.key === 'customers')
             || (navPage === 'reports' && item.key === 'reports')
     }));
+};
+
+const COMPANY_MOBILE_KEYS = Object.freeze({
+    manager: ['services', 'smart_transfer', 'transactions', 'support', 'settings'],
+    accountant: ['finance', 'transactions', 'reports', 'support', 'settings'],
+    employee: ['services', 'smart_transfer', 'transactions', 'support', 'security']
+});
+
+const COMPANY_MOBILE_LABELS = Object.freeze({
+    services: 'الخدمات',
+    smart_transfer: 'تحويل',
+    transactions: 'عمليات',
+    support: 'الدعم',
+    settings: 'الحساب',
+    security: 'الحساب',
+    finance: 'المالية',
+    reports: 'التقارير'
+});
+
+const buildCompanyMobileNav = (workspace, navigation = []) => {
+    const keys = COMPANY_MOBILE_KEYS[workspace?.persona] || COMPANY_MOBILE_KEYS.employee;
+    return keys.map((key) => {
+        const item = navigation.find((nav) => nav.key === key);
+        if (!item) return null;
+        return { ...item, dockLabel: COMPANY_MOBILE_LABELS[key] || item.label };
+    }).filter(Boolean).slice(0, 5);
 };
 
 const canAccessPage = (workspace, page) => {
@@ -1264,12 +1291,14 @@ const buildBaseContext = async (req, page, workspace) => {
     if (workspace.isCompany && page === 'services' && workspace.forceToday) {
         Object.assign(pageMeta, { title: 'اختر · راجع · أرسل', eyebrow: 'يوم التنفيذ' });
     }
+    const navigation = buildNavigation(workspace, page);
     return {
         page,
         pageMeta,
         workspace,
         portalHomeHref: resolvePortalHomeHref(workspace),
-        navigation: buildNavigation(workspace, page),
+        navigation,
+        companyMobileNav: workspace.isCompany ? buildCompanyMobileNav(workspace, navigation) : [],
         statusMeta: STATUS_META,
         serviceCatalog: rates.services,
         serviceRates: rates.serviceRates,
@@ -1472,6 +1501,7 @@ module.exports = {
     resolveWorkspace,
     canAccessPage,
     buildNavigation,
+    buildCompanyMobileNav,
     resolvePortalHomeHref,
     resolveClientPostLoginHref,
     forbiddenRedirectPath,
