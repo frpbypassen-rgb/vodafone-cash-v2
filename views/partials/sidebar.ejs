@@ -160,8 +160,8 @@
         border-color: rgba(255, 255, 255, 0.32); background: rgba(255, 255, 255, 0.1);
     }
     
-    .sidebar-menu a { color: #a8b2c1; text-decoration: none; padding: 12px 18px; display: flex; align-items: center; margin: 3px 0; border-radius: 12px; transition: all 0.2s ease; font-size: 0.95rem; font-weight: 700; border: 1px solid transparent; }
-    .sidebar-menu a i { width: 25px; font-size: 1.1rem; margin-left: 8px; text-align: center; }
+    .sidebar-menu a { color: #a8b2c1; text-decoration: none; padding: 11px 16px; display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 3px 0; border-radius: 12px; transition: all 0.2s ease; font-size: 0.92rem; font-weight: 700; border: 1px solid transparent; }
+    .sidebar-menu a i { width: 25px; font-size: 1.1rem; margin-left: 8px; text-align: center; flex: 0 0 auto; }
     .sidebar-menu a:hover { background: rgba(255,255,255,0.05); color: #fff; transform: translateX(-4px); }
     .sidebar-menu a:hover i { color: var(--brand-gold); }
     .sidebar-menu a.active { background: linear-gradient(90deg, var(--brand-gold), var(--brand-gold-dark)); color: white !important; box-shadow: 0 4px 15px rgba(212, 175, 55, 0.3); border: none; }
@@ -185,6 +185,13 @@
     .menu-link-content {
         display: flex;
         align-items: center;
+        flex: 1 1 auto;
+        min-width: 0;
+        line-height: 1.35;
+    }
+    .menu-link-text {
+        min-width: 0;
+        overflow-wrap: anywhere;
     }
     .menu-chevron {
         font-size: 0.8rem;
@@ -208,7 +215,7 @@
     .operations-menu.is-open .operations-chevron { transform: rotate(-90deg); }
     .operations-menu .operations-submenu { display: none; padding: 4px 10px 8px 0; border-right: 1px solid rgba(255,255,255,.14); margin-right: 28px; }
     .operations-menu.is-open .operations-submenu { display: block; }
-    .sidebar-menu .operations-submenu a { padding: 9px 12px; margin: 2px 0; font-size: .82rem; border-radius: 9px; }
+    .sidebar-menu .operations-submenu a { padding: 9px 12px; margin: 2px 0; font-size: .82rem; border-radius: 9px; justify-content: flex-start; }
     .sidebar-menu .operations-submenu a i { width: 18px; font-size: .85rem; margin-left: 7px; }
     .sidebar-mobile-close {
         transition: background 0.2s, transform 0.2s;
@@ -464,7 +471,7 @@
             font-size: 1.18rem;
             margin-bottom: 3px;
         }
-        .sidebar-menu-hide-mobile { display: none !important; }
+        /* القائمة الجانبية تعرض كل صفحات الإدارة على الموبايل أيضاً */
         
         .top-nav-admin-mobile {
             display: flex; position: fixed; top: 0; left: 0; right: 0;
@@ -642,7 +649,7 @@
         <i class="fa-solid fa-chart-pie"></i>
         <span>الرئيسية</span>
     </a>
-    <a href="/transactions" class="bottom-nav-item position-relative <%= typeof activePage !== 'undefined' && activePage === 'transactions' ? 'active' : '' %>">
+    <a href="/transactions" class="bottom-nav-item position-relative <%= typeof activePage !== 'undefined' && (activePage === 'transactions' || activePage === 'transactions_central') ? 'active' : '' %>">
         <i class="fa-solid fa-list-check"></i>
         <span class="badge bg-danger text-white rounded-pill position-absolute" id="mobileTransactionsBadge" style="display: none; top: 6px; right: 25%; font-size: 0.65rem; padding: 2px 5px;">0</span>
         <span>العمليات</span>
@@ -656,7 +663,7 @@
         <i class="fa-solid fa-users"></i>
         <span>العملاء</span>
     </a>
-    <a href="/settings" class="bottom-nav-item <%= typeof activePage !== 'undefined' && activePage === 'settings' ? 'active' : '' %>">
+    <a href="/settings" class="bottom-nav-item <%= typeof activePage !== 'undefined' && String(activePage).startsWith('settings') ? 'active' : '' %>">
         <i class="fa-solid fa-gear"></i>
         <span>الإعدادات</span>
     </a>
@@ -683,42 +690,67 @@
     
     <div class="sidebar-menu mt-3">
         <div class="menu-category-header">الرصد والمتابعة</div>
-        
-        <a href="/" class="<%= typeof activePage !== 'undefined' && activePage === 'dashboard' ? 'active' : '' %> sidebar-menu-hide-mobile">
+
+        <a href="/" class="<%= typeof activePage !== 'undefined' && activePage === 'dashboard' ? 'active' : '' %>">
             <span class="menu-link-content">
-                <i class="fa-solid fa-chart-pie"></i> لوحة القيادة
+                <i class="fa-solid fa-chart-pie"></i> <span class="menu-link-text">لوحة القيادة</span>
+            </span>
+            <i class="fa-solid fa-angle-left menu-chevron"></i>
+        </a>
+        <a href="/system-monitor" class="<%= typeof activePage !== 'undefined' && activePage === 'system_monitor' ? 'active' : '' %>">
+            <span class="menu-link-content">
+                <i class="fa-solid fa-heart-pulse"></i> <span class="menu-link-text">مراقبة النظام</span>
+            </span>
+            <i class="fa-solid fa-angle-left menu-chevron"></i>
+        </a>
+        <a href="/financial-movements" class="<%= typeof activePage !== 'undefined' && activePage === 'financial_movements' ? 'active' : '' %>">
+            <span class="menu-link-content">
+                <i class="fa-solid fa-scale-balanced"></i> <span class="menu-link-text">السجل المركزي (الحركات المالية)</span>
             </span>
             <i class="fa-solid fa-angle-left menu-chevron"></i>
         </a>
         <a href="/transactions/pulse" class="<%= typeof activePage !== 'undefined' && activePage === 'transactions_pulse' ? 'active' : '' %>">
             <span class="menu-link-content">
-                <i class="fa-solid fa-bolt"></i> سجل العمليات المباشرة
+                <i class="fa-solid fa-bolt"></i> <span class="menu-link-text">سجل العمليات المباشرة</span>
             </span>
             <i class="fa-solid fa-angle-left menu-chevron"></i>
         </a>
         <div class="operations-menu <%= typeof activePage !== 'undefined' && String(activePage).startsWith('transactions') && activePage !== 'transactions_pulse' ? 'is-open' : '' %>">
             <div class="operations-menu-header">
                 <a href="/transactions/live" class="transaction-workspace-link <%= typeof activePage !== 'undefined' && activePage === 'transactions_live' ? 'active' : '' %>">
-                    <span class="menu-link-content"><i class="fa-solid fa-wave-square"></i> متابعة العمليات</span>
+                    <span class="menu-link-content"><i class="fa-solid fa-wave-square"></i> <span class="menu-link-text">متابعة العمليات</span></span>
                 </a>
                 <button type="button" class="operations-menu-toggle" aria-label="فتح قائمة متابعة العمليات" aria-expanded="<%= typeof activePage !== 'undefined' && String(activePage).startsWith('transactions') && activePage !== 'transactions_pulse' ? 'true' : 'false' %>" onclick="toggleOperationsMenu(this)"><i class="fa-solid fa-angle-left operations-chevron"></i></button>
             </div>
             <div class="operations-submenu">
                 <a href="/transactions/live" class="<%= typeof activePage !== 'undefined' && activePage === 'transactions_live' ? 'active' : '' %>"><i class="fa-solid fa-wave-square"></i> المراقبة الحية</a>
+                <a href="/transactions" class="<%= typeof activePage !== 'undefined' && activePage === 'transactions_central' ? 'active' : '' %>"><i class="fa-solid fa-book"></i> السجل المركزي</a>
                 <a href="/transactions/operations" class="<%= typeof activePage !== 'undefined' && activePage === 'transactions' ? 'active' : '' %>"><i class="fa-solid fa-list-check"></i> العمليات</a>
                 <a href="/transactions/movements" class="<%= typeof activePage !== 'undefined' && activePage === 'transactions_movements' ? 'active' : '' %>"><i class="fa-solid fa-arrow-right-arrow-left"></i> سجل الحركة</a>
                 <a href="/transactions/search" class="<%= typeof activePage !== 'undefined' && activePage === 'transactions_search' ? 'active' : '' %>"><i class="fa-solid fa-magnifying-glass"></i> البحث الشامل</a>
             </div>
         </div>
-        <a href="/financial-movements" class="<%= typeof activePage !== 'undefined' && activePage === 'financial_movements' ? 'active' : '' %>">
+        <a href="/reports" class="<%= typeof activePage !== 'undefined' && activePage === 'reports' ? 'active' : '' %>" style="color: var(--brand-gold);">
             <span class="menu-link-content">
-                <i class="fa-solid fa-scale-balanced"></i> الحركات المالية
+                <i class="fa-solid fa-chart-line"></i> <span class="menu-link-text">التقارير الشاملة</span>
             </span>
             <i class="fa-solid fa-angle-left menu-chevron"></i>
         </a>
-        <a href="/reports" class="<%= typeof activePage !== 'undefined' && activePage === 'reports' ? 'active' : '' %>" style="color: var(--brand-gold);">
+        <a href="/whatsapp-monitor" class="<%= typeof activePage !== 'undefined' && activePage === 'whatsapp_monitor' ? 'active' : '' %>">
             <span class="menu-link-content">
-                <i class="fa-solid fa-chart-line"></i> التقارير الشاملة
+                <i class="fa-brands fa-whatsapp"></i> <span class="menu-link-text">مراقبة واتساب</span>
+            </span>
+            <i class="fa-solid fa-angle-left menu-chevron"></i>
+        </a>
+        <a href="/admin/webhooks" class="<%= typeof activePage !== 'undefined' && activePage === 'webhooks' ? 'active' : '' %>">
+            <span class="menu-link-content">
+                <i class="fa-solid fa-code-branch"></i> <span class="menu-link-text">مراقبة Webhooks</span>
+            </span>
+            <i class="fa-solid fa-angle-left menu-chevron"></i>
+        </a>
+        <a href="/audit-log" class="<%= typeof activePage !== 'undefined' && activePage === 'audit_log' ? 'active' : '' %>">
+            <span class="menu-link-content">
+                <i class="fa-solid fa-clock-rotate-left"></i> <span class="menu-link-text">سجل التدقيق</span>
             </span>
             <i class="fa-solid fa-angle-left menu-chevron"></i>
         </a>
@@ -727,25 +759,25 @@
 
         <a href="/clients" class="<%= typeof activePage !== 'undefined' && activePage === 'clients' ? 'active' : '' %>">
             <span class="menu-link-content">
-                <i class="fa-solid fa-address-book"></i> دليل الحسابات
+                <i class="fa-solid fa-address-book"></i> <span class="menu-link-text">دليل الحسابات</span>
             </span>
             <i class="fa-solid fa-angle-left menu-chevron"></i>
         </a>
         <a href="/executors" class="<%= typeof activePage !== 'undefined' && activePage === 'executors' ? 'active' : '' %>">
             <span class="menu-link-content">
-                <i class="fa-solid fa-robot"></i> منفذو وبوتات التنفيذ
+                <i class="fa-solid fa-robot"></i> <span class="menu-link-text">منفذو وبوتات التنفيذ</span>
             </span>
             <i class="fa-solid fa-angle-left menu-chevron"></i>
         </a>
         <a href="/employees" class="<%= typeof activePage !== 'undefined' && activePage === 'employees' ? 'active' : '' %>">
             <span class="menu-link-content">
-                <i class="fa-solid fa-id-badge"></i> إدارة الموظفين
+                <i class="fa-solid fa-id-badge"></i> <span class="menu-link-text">إدارة الموظفين</span>
             </span>
             <i class="fa-solid fa-angle-left menu-chevron"></i>
         </a>
         <a href="/registration-requests" class="<%= typeof activePage !== 'undefined' && activePage === 'registration_requests' ? 'active' : '' %>">
             <span class="menu-link-content">
-                <i class="fa-solid fa-user-plus"></i> طلبات التسجيل
+                <i class="fa-solid fa-user-plus"></i> <span class="menu-link-text">طلبات التسجيل</span>
             </span>
             <span class="d-flex align-items-center gap-2">
                 <span class="badge bg-warning text-dark rounded-pill shadow-sm" id="sidebarRegBadge" style="display: none;">0</span>
@@ -757,7 +789,7 @@
 
         <a href="/support" class="<%= typeof activePage !== 'undefined' && activePage === 'support' ? 'active' : '' %>">
             <span class="menu-link-content">
-                <i class="fa-solid fa-headset"></i> الدعم الفني
+                <i class="fa-solid fa-headset"></i> <span class="menu-link-text">الدعم الفني</span>
             </span>
             <span class="d-flex align-items-center gap-2">
                 <span class="badge bg-danger rounded-pill shadow-sm" id="sidebarSupportBadge" style="display: none;">0</span>
@@ -766,19 +798,13 @@
         </a>
         <a href="/support?category=deposit" class="<%= typeof activePage !== 'undefined' && activePage === 'executor_deposits' ? 'active' : '' %>">
             <span class="menu-link-content">
-                <i class="fa-solid fa-building-columns"></i> إيداعات التنفيذ
+                <i class="fa-solid fa-building-columns"></i> <span class="menu-link-text">إيداعات التنفيذ</span>
             </span>
             <i class="fa-solid fa-angle-left menu-chevron"></i>
         </a>
-        <a href="/whatsapp-monitor" class="<%= typeof activePage !== 'undefined' && activePage === 'whatsapp_monitor' ? 'active' : '' %> sidebar-menu-hide-mobile">
+        <a href="/complaints" class="<%= typeof activePage !== 'undefined' && activePage === 'complaints' ? 'active' : '' %>">
             <span class="menu-link-content">
-                <i class="fa-brands fa-whatsapp"></i> مراقبة رسائل واتساب
-            </span>
-            <i class="fa-solid fa-angle-left menu-chevron"></i>
-        </a>
-        <a href="/complaints" class="<%= typeof activePage !== 'undefined' && activePage === 'complaints' ? 'active' : '' %> sidebar-menu-hide-mobile">
-            <span class="menu-link-content">
-                <i class="fa-solid fa-flag"></i> قسم الشكاوي
+                <i class="fa-solid fa-flag"></i> <span class="menu-link-text">قسم الشكاوي</span>
             </span>
             <span class="d-flex align-items-center gap-2">
                 <span class="badge bg-warning text-dark rounded-pill shadow-sm" id="sidebarComplaintsBadge" style="display: none;">0</span>
@@ -787,29 +813,48 @@
         </a>
         <a href="/broadcast" class="<%= typeof activePage !== 'undefined' && activePage === 'broadcast' ? 'active' : '' %>">
             <span class="menu-link-content">
-                <i class="fa-solid fa-bullhorn"></i> الإشعارات والبث
+                <i class="fa-solid fa-bullhorn"></i> <span class="menu-link-text">الإشعارات والبث</span>
             </span>
             <i class="fa-solid fa-angle-left menu-chevron"></i>
         </a>
 
-        <div class="menu-category-header sidebar-menu-hide-mobile">النظام والإعدادات</div>
+        <div class="menu-category-header">النظام والإعدادات</div>
 
-        <a href="/settings" class="<%= typeof activePage !== 'undefined' && activePage === 'settings' ? 'active' : '' %> sidebar-menu-hide-mobile">
+        <a href="/settings" class="<%= typeof activePage !== 'undefined' && activePage === 'settings' ? 'active' : '' %>">
             <span class="menu-link-content">
-                <i class="fa-solid fa-gear"></i> إعدادات المنظومة
+                <i class="fa-solid fa-gear"></i> <span class="menu-link-text">إعدادات المنظومة</span>
             </span>
             <i class="fa-solid fa-angle-left menu-chevron"></i>
         </a>
-        <a href="/admin/security" class="<%= typeof activePage !== 'undefined' && activePage === 'security' ? 'active' : '' %> sidebar-menu-hide-mobile">
+        <a href="/settings/clients-web" class="<%= typeof activePage !== 'undefined' && activePage === 'settings_clients_web' ? 'active' : '' %>">
             <span class="menu-link-content">
-                <i class="fa-solid fa-shield-halved"></i> الأمان والتحكم في الوصول
+                <i class="fa-solid fa-globe"></i> <span class="menu-link-text">ويب العملاء</span>
             </span>
             <i class="fa-solid fa-angle-left menu-chevron"></i>
         </a>
-        <a href="/admin/webhooks" class="<%= typeof activePage !== 'undefined' && activePage === 'webhooks' ? 'active' : '' %> sidebar-menu-hide-mobile"><i class="fa-solid fa-code-branch"></i><span>مراقبة Webhooks</span></a>
-        <a href="/audit-log" class="<%= typeof activePage !== 'undefined' && activePage === 'audit_log' ? 'active' : '' %> sidebar-menu-hide-mobile">
+        <a href="/settings/executors-web" class="<%= typeof activePage !== 'undefined' && activePage === 'settings_executors_web' ? 'active' : '' %>">
             <span class="menu-link-content">
-                <i class="fa-solid fa-clock-rotate-left"></i> سجل التدفق والتدقيق
+                <i class="fa-solid fa-laptop-code"></i> <span class="menu-link-text">ويب المنفذين</span>
+            </span>
+            <i class="fa-solid fa-angle-left menu-chevron"></i>
+        </a>
+        <% if (typeof role !== 'undefined' && role === 'master') { %>
+        <a href="/settings/users" class="<%= typeof activePage !== 'undefined' && activePage === 'settings_users' ? 'active' : '' %>">
+            <span class="menu-link-content">
+                <i class="fa-solid fa-user-shield"></i> <span class="menu-link-text">مديري لوحة التحكم</span>
+            </span>
+            <i class="fa-solid fa-angle-left menu-chevron"></i>
+        </a>
+        <% } %>
+        <a href="/admin/security" class="<%= typeof activePage !== 'undefined' && activePage === 'security' ? 'active' : '' %>">
+            <span class="menu-link-content">
+                <i class="fa-solid fa-shield-halved"></i> <span class="menu-link-text">الأمان والتحكم في الوصول</span>
+            </span>
+            <i class="fa-solid fa-angle-left menu-chevron"></i>
+        </a>
+        <a href="/security/sessions" class="<%= typeof activePage !== 'undefined' && activePage === 'security_sessions' ? 'active' : '' %>">
+            <span class="menu-link-content">
+                <i class="fa-solid fa-laptop-mobile"></i> <span class="menu-link-text">الأجهزة والجلسات</span>
             </span>
             <i class="fa-solid fa-angle-left menu-chevron"></i>
         </a>
