@@ -245,6 +245,19 @@ html[data-theme="day"] .bw-mini-metrics article.warning {
     border-color: #F0B184;
 }
 
+html[data-theme="day"] .cp-period-card.today {
+    background: #D8F3E6;
+    border-color: #7BC9A4;
+}
+html[data-theme="day"] .cp-period-card.week {
+    background: #DCE6FB;
+    border-color: #9BB0F0;
+}
+html[data-theme="day"] .cp-period-card.month {
+    background: #FDE6D4;
+    border-color: #F0B184;
+}
+
 html[data-theme="day"] .bw-metric-card.accent-dark { --metric-accent: #0F766E; }
 
 html[data-theme="day"] .bw-status.success,

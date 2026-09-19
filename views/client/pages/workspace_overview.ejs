@@ -1,13 +1,28 @@
 <% if (workspace.isCompany) { %>
+<%
+    const emptyPeriod = { totalCount: 0, completedCount: 0, pendingCount: 0, totalEGP: 0, totalLYD: 0 };
+    const todayOps = typeof todaySummary !== 'undefined' ? todaySummary : emptyPeriod;
+    const weekOps = typeof weekSummary !== 'undefined' ? weekSummary : emptyPeriod;
+    const monthOps = typeof monthSummary !== 'undefined' ? monthSummary : emptyPeriod;
+    const weekdays = Array.isArray(typeof weekdaySeries !== 'undefined' ? weekdaySeries : null) ? weekdaySeries : [];
+    const roster = Array.isArray(typeof employeeRoster !== 'undefined' ? employeeRoster : null) ? employeeRoster : [];
+    const showValues = workspace.permissions.canViewBalance === true;
+    const formatCount = (value) => Number(value || 0).toLocaleString('en-US');
+    const formatMoney = (value) => Number(value || 0).toLocaleString('en-US', { maximumFractionDigits: 0 });
+    const formatTime = (value) => value ? new Date(value).toLocaleString('ar-LY', { timeZone: 'Africa/Tripoli', hour: '2-digit', minute: '2-digit' }) : 'لا يوجد';
+    const formatDay = (value) => value ? new Date(value).toLocaleDateString('ar-LY', { timeZone: 'Africa/Tripoli' }) : '';
+    const onlineMinutes = typeof onlineWindowMinutes !== 'undefined' ? onlineWindowMinutes : 10;
+    const onlineNow = roster.filter((member) => member.isOnline).length;
+%>
 <section class="cp-page-hero">
     <div>
-        <span class="bw-section-kicker"><%= workspace.persona === 'accountant' ? 'مكتب المحاسبة' : 'صباح التشغيل' %></span>
-        <h2>مركز قيادة الشركة</h2>
+        <span class="bw-section-kicker"><%= workspace.persona === 'accountant' ? 'رقابة التشغيل' : 'مركز القيادة' %></span>
+        <h2>لوحة تشغيل الشركة</h2>
         <p>
             <% if (workspace.persona === 'accountant') { %>
-                الرصيد والقيود والكشف الرسمي. لا معرض خدمات ولا نموذج إرسال من هنا.
+                ملخص اليوم والأسبوع والشهر، حركة القيمة والعدد، وحالة الفريق بلا تنفيذ تحويلات من هنا.
             <% } else { %>
-                أرقام وانتباه فقط. التحويل يتم من معرض الخدمات، والكشف من مكتب المحاسبة.
+                أرقام حية للعمليات: اليوم والأسبوع والشهر، رسم أيام الأسبوع، وتقرير حالة كل موظف.
             <% } %>
         </p>
     </div>
@@ -23,6 +38,152 @@
         <% } %>
     </div>
 </section>
+
+<section class="cp-period-grid" aria-label="ملخص العمليات">
+    <article class="cp-period-card today">
+        <span class="cp-period-kicker">اليوم</span>
+        <strong class="bw-mono"><%= formatCount(todayOps.totalCount) %></strong>
+        <small>عملية · <%= formatCount(todayOps.completedCount) %> ناجحة</small>
+        <% if (showValues) { %><b class="bw-mono"><%= formatMoney(todayOps.totalEGP) %> <em>EGP</em></b><% } %>
+        <% if (showValues) { %><em><%= Number(todayOps.totalLYD || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) %> LYD</em><% } %>
+    </article>
+    <article class="cp-period-card week">
+        <span class="cp-period-kicker">الأسبوع</span>
+        <strong class="bw-mono"><%= formatCount(weekOps.totalCount) %></strong>
+        <small>آخر 7 أيام · <%= formatCount(weekOps.completedCount) %> ناجحة</small>
+        <% if (showValues) { %><b class="bw-mono"><%= formatMoney(weekOps.totalEGP) %> <em>EGP</em></b><% } %>
+        <% if (showValues) { %><em><%= Number(weekOps.totalLYD || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) %> LYD</em><% } %>
+    </article>
+    <article class="cp-period-card month">
+        <span class="cp-period-kicker">الشهر</span>
+        <strong class="bw-mono"><%= formatCount(monthOps.totalCount) %></strong>
+        <small><%= typeof currentMonthLabel !== 'undefined' ? currentMonthLabel : 'هذا الشهر' %> · <%= formatCount(monthOps.completedCount) %> ناجحة</small>
+        <% if (showValues) { %><b class="bw-mono"><%= formatMoney(monthOps.totalEGP) %> <em>EGP</em></b><% } %>
+        <% if (showValues) { %><em><%= Number(monthOps.totalLYD || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) %> LYD</em><% } %>
+    </article>
+</section>
+
+<section class="bw-section cp-command-chart" aria-labelledby="commandWeekTitle">
+    <header class="bw-section-head">
+        <div>
+            <span class="bw-section-kicker">أيام الأسبوع</span>
+            <h2 id="commandWeekTitle">القيمة والعدد</h2>
+        </div>
+        <div class="cp-chart-legend" aria-hidden="true">
+            <span class="count">العدد</span>
+            <% if (showValues) { %><span class="value">القيمة EGP</span><% } %>
+        </div>
+    </header>
+    <% if (!weekdays.length || weekdays.every((row) => !row.count && !row.amountEGP)) { %>
+        <div class="bw-empty cp-chart-empty"><i class="fa-solid fa-chart-column"></i><strong>لا توجد عمليات في آخر 7 أيام</strong><span>سيظهر الرسم فور تسجيل أول عملية في الفترة.</span></div>
+    <% } else { %>
+        <div class="cp-chart-wrap"><canvas id="commandCenterWeekChart" role="img" aria-label="رسم القيمة والعدد لأيام الأسبوع"></canvas></div>
+    <% } %>
+</section>
+
+<% if (workspace.permissions.manager || workspace.permissions.accountant) { %>
+<section class="bw-section cp-employee-status" aria-labelledby="employeeStatusTitle">
+    <header class="bw-section-head">
+        <div>
+            <span class="bw-section-kicker">تقرير الحالة</span>
+            <h2 id="employeeStatusTitle">موظفون الشركة</h2>
+        </div>
+        <small class="cp-roster-meta"><%= onlineNow %> متصل الآن · نافذة <%= onlineMinutes %> دقائق</small>
+        <a href="/client/staff" class="bw-text-link">فتح فريق الشركة <i class="fa-solid fa-arrow-left"></i></a>
+    </header>
+    <div class="cp-roster-cards">
+        <% if (!roster.length) { %>
+            <div class="bw-empty"><i class="fa-solid fa-user-group"></i><strong>لا توجد حسابات موظفين</strong><span>أضف الفريق من صفحة فريق الشركة.</span></div>
+        <% } %>
+        <% roster.forEach((member) => { %>
+            <article class="cp-roster-card">
+                <span class="bw-avatar"><%= String(member.name || 'م').charAt(0) %></span>
+                <div class="cp-roster-copy">
+                    <strong><%= member.name %></strong>
+                    <small class="bw-mono"><%= member.webUsername || member.phone || 'بدون دخول' %></small>
+                </div>
+                <span class="bw-role-badge"><%= member.roleLabel %></span>
+                <span class="bw-status <%= member.accountActive ? 'success' : 'danger' %>"><%= member.accountLabel %></span>
+                <span class="cp-presence <%= member.presenceTone %>"><i class="fa-solid fa-circle"></i><%= member.presenceLabel %></span>
+                <b class="bw-mono"><%= formatCount(member.ops && member.ops.todayCount) %> <em>اليوم</em></b>
+                <b class="bw-mono"><%= formatCount(member.ops && member.ops.totalCount) %> <em>الشهر</em></b>
+                <% if (showValues) { %><span class="cp-work-cost bw-mono"><%= formatMoney(member.ops && member.ops.totalEGP) %> EGP</span><% } %>
+                <small class="cp-last-seen"><%= member.lastSeenAt ? `${formatDay(member.lastSeenAt)} · ${formatTime(member.lastSeenAt)}` : 'بدون ظهور' %></small>
+            </article>
+        <% }) %>
+    </div>
+    <div class="bw-table-wrap cp-roster-table">
+        <table class="bw-table">
+            <thead>
+                <tr>
+                    <th>الموظف</th>
+                    <th>الدور</th>
+                    <th>الحساب</th>
+                    <th>الحضور</th>
+                    <th>اليوم</th>
+                    <th>الشهر</th>
+                    <% if (showValues) { %><th>القيمة</th><% } %>
+                    <th>آخر ظهور</th>
+                </tr>
+            </thead>
+            <tbody>
+                <% if (!roster.length) { %>
+                    <tr><td colspan="<%= showValues ? 8 : 7 %>"><div class="bw-empty"><i class="fa-solid fa-user-group"></i><strong>لا توجد حسابات موظفين</strong><span>أضف الفريق من صفحة فريق الشركة.</span></div></td></tr>
+                <% } %>
+                <% roster.forEach((member) => { %>
+                    <tr>
+                        <td data-label="الموظف"><span class="bw-person-cell"><span class="bw-avatar small"><%= String(member.name || 'م').charAt(0) %></span><span><strong><%= member.name %></strong><small class="bw-mono"><%= member.webUsername || member.phone || 'بدون دخول' %></small></span></span></td>
+                        <td data-label="الدور"><span class="bw-role-badge"><%= member.roleLabel %></span></td>
+                        <td data-label="الحساب"><span class="bw-status <%= member.accountActive ? 'success' : 'danger' %>"><%= member.accountLabel %></span></td>
+                        <td data-label="الحضور"><span class="cp-presence <%= member.presenceTone %>"><i class="fa-solid fa-circle"></i><%= member.presenceLabel %></span></td>
+                        <td data-label="اليوم"><strong class="bw-mono"><%= formatCount(member.ops && member.ops.todayCount) %></strong></td>
+                        <td data-label="الشهر"><strong class="bw-mono"><%= formatCount(member.ops && member.ops.totalCount) %></strong><small><%= formatCount(member.ops && member.ops.completedCount) %> ناجحة</small></td>
+                        <% if (showValues) { %><td data-label="القيمة"><strong class="bw-mono"><%= formatMoney(member.ops && member.ops.totalEGP) %></strong><small>EGP</small></td><% } %>
+                        <td data-label="آخر ظهور"><% if (member.lastSeenAt) { %><strong><%= formatDay(member.lastSeenAt) %></strong><small><%= formatTime(member.lastSeenAt) %></small><% } else { %><span class="bw-muted">لا يوجد</span><% } %></td>
+                    </tr>
+                <% }) %>
+            </tbody>
+        </table>
+    </div>
+</section>
+<% } %>
+
+<aside class="bw-section bw-priority-section cp-command-attention">
+    <header class="bw-section-head">
+        <div>
+            <span class="bw-section-kicker">مركز الانتباه</span>
+            <h2>ما يحتاج متابعة</h2>
+        </div>
+    </header>
+    <div class="bw-priority-list">
+        <a href="/client/transactions?status=pending" class="bw-priority-row warning">
+            <span><i class="fa-solid fa-clock-rotate-left"></i></span>
+            <div><strong><%= monthOps.pendingCount || 0 %> عملية معلقة</strong><small>بانتظار التنفيذ أو تحديث الحالة</small></div>
+            <i class="fa-solid fa-chevron-left"></i>
+        </a>
+        <% if (workspace.permissions.canViewBalance && Number(workspace.entity.creditLimit || 0) > 0) { const remainingPct = Math.max(0, Math.round((Number(workspace.entity.balance || 0) / Number(workspace.entity.creditLimit)) * 100)); %>
+            <a href="/client/finance" class="bw-priority-row <%= remainingPct <= 10 ? 'warning' : 'green' %>">
+                <span><i class="fa-solid fa-gauge-high"></i></span>
+                <div><strong>المتبقي من الحد <%= remainingPct %>%</strong><small>الرصيد الحالي مقابل الحد الائتماني</small></div>
+                <i class="fa-solid fa-chevron-left"></i>
+            </a>
+        <% } %>
+        <% if (workspace.permissions.canRequestDeposit) { %>
+            <a href="/client/company/deposits" class="bw-priority-row blue">
+                <span><i class="fa-solid fa-building-columns"></i></span>
+                <div><strong><%= typeof pendingDepositCount !== 'undefined' ? pendingDepositCount : 0 %> طلب إيداع قيد المراجعة</strong><small><%= workspace.permissions.manager ? 'أرسل طلباً جديداً أو تابع الاعتماد' : 'للمتابعة المالية دون إنشاء طلب' %></small></div>
+                <i class="fa-solid fa-chevron-left"></i>
+            </a>
+        <% } %>
+        <% if (workspace.permissions.manager || workspace.permissions.accountant) { %>
+            <a href="/client/staff" class="bw-priority-row green">
+                <span><i class="fa-solid fa-user-group"></i></span>
+                <div><strong><%= typeof activeStaffCount !== 'undefined' ? activeStaffCount : roster.filter((member) => member.accountActive).length %> حساب موظف نشط</strong><small>من إجمالي <%= typeof staffCount !== 'undefined' ? staffCount : roster.length %> حساب</small></div>
+                <i class="fa-solid fa-chevron-left"></i>
+            </a>
+        <% } %>
+    </div>
+</aside>
 <% } else { %>
 <section class="bw-command-strip">
     <div class="bw-command-copy">
@@ -45,7 +206,6 @@
         <% } %>
     </div>
 </section>
-<% } %>
 
 <% if (workspace.permissions.canTransfer) { %>
 <section class="ao-service-launcher" aria-labelledby="quickServicesTitle">
@@ -76,7 +236,7 @@
 </section>
 <% } %>
 
-<section class="bw-metric-grid bw-overview-metrics <%= workspace.permissions.canViewBalance ? 'with-balance' : 'without-balance' %><%= workspace.isCompany && workspace.permissions.canViewBalance ? ' with-credit' : '' %>" aria-label="المؤشرات الرئيسية">
+<section class="bw-metric-grid bw-overview-metrics <%= workspace.permissions.canViewBalance ? 'with-balance' : 'without-balance' %>" aria-label="المؤشرات الرئيسية">
     <% if (workspace.permissions.canViewBalance) { %>
         <article class="bw-metric-card accent-dark">
             <span class="bw-metric-icon"><i class="fa-solid fa-wallet"></i></span>
@@ -86,16 +246,6 @@
                 <small>دينار ليبي</small>
             </div>
         </article>
-        <% if (workspace.isCompany) { %>
-        <article class="bw-metric-card accent-amber">
-            <span class="bw-metric-icon"><i class="fa-solid fa-shield-halved"></i></span>
-            <div>
-                <span>الحد الائتماني</span>
-                <strong class="bw-mono"><%= Number(workspace.entity.creditLimit || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) %></strong>
-                <small>دينار ليبي</small>
-            </div>
-        </article>
-        <% } %>
     <% } %>
     <article class="bw-metric-card accent-green">
         <span class="bw-metric-icon"><i class="fa-solid fa-circle-check"></i></span>
@@ -123,18 +273,7 @@
     </article>
 </section>
 
-<section class="bw-dashboard-grid<%= workspace.isCompany ? ' cp-overview-grid' : '' %>">
-    <% if (workspace.isCompany && teamSpotlight.length && (workspace.permissions.manager || workspace.permissions.accountant)) { %>
-    <section class="bw-section bw-team-spotlight">
-        <header class="bw-section-head"><div><span class="bw-section-kicker">نبض الفريق</span><h2>الأعلى تنفيذاً هذا الشهر</h2></div><a href="/client/reports/staff" class="bw-text-link">فتح كشف الفريق <i class="fa-solid fa-arrow-left"></i></a></header>
-        <div class="bw-team-spotlight-list">
-            <% teamSpotlight.forEach((member, index) => { %>
-                <article><span class="bw-team-rank"><%= index + 1 %></span><span class="bw-avatar small"><%= String(member._id || 'م').charAt(0) %></span><div><strong><%= member._id %></strong><small><%= member.completedCount %> ناجحة من <%= member.totalCount %> عملية</small></div><b class="bw-mono"><%= Number(member.totalEGP || 0).toLocaleString('en-US', { maximumFractionDigits: 0 }) %><small>EGP</small></b></article>
-            <% }) %>
-        </div>
-    </section>
-    <% } %>
-    <% if (!workspace.isCompany) { %>
+<section class="bw-dashboard-grid">
     <div class="bw-section bw-recent-section">
         <header class="bw-section-head">
             <div>
@@ -176,13 +315,12 @@
             </table>
             </div>
     </div>
-    <% } %>
 
     <aside class="bw-section bw-priority-section">
         <header class="bw-section-head">
             <div>
-                <span class="bw-section-kicker"><%= workspace.isCompany ? 'مركز الانتباه' : 'مركز المتابعة' %></span>
-                <h2><%= workspace.isCompany ? 'ما لا يتكرر في شاشة أخرى' : 'ما يحتاج انتباهك' %></h2>
+                <span class="bw-section-kicker">مركز المتابعة</span>
+                <h2>ما يحتاج انتباهك</h2>
             </div>
         </header>
         <div class="bw-priority-list">
@@ -191,26 +329,6 @@
                 <div><strong><%= monthSummary.pendingCount %> عملية معلقة</strong><small>بانتظار التنفيذ أو تحديث الحالة</small></div>
                 <i class="fa-solid fa-chevron-left"></i>
             </a>
-            <% if (workspace.isCompany && workspace.permissions.canViewBalance && Number(workspace.entity.creditLimit || 0) > 0) { const remainingPct = Math.max(0, Math.round((Number(workspace.entity.balance || 0) / Number(workspace.entity.creditLimit)) * 100)); %>
-                <a href="/client/finance" class="bw-priority-row <%= remainingPct <= 10 ? 'warning' : 'green' %>">
-                    <span><i class="fa-solid fa-gauge-high"></i></span>
-                    <div><strong>المتبقي من الحد <%= remainingPct %>%</strong><small>الرصيد الحالي مقابل الحد الائتماني</small></div>
-                    <i class="fa-solid fa-chevron-left"></i>
-                </a>
-            <% } %>
-            <% if (workspace.isCompany && typeof pendingRateUpdate !== 'undefined' && pendingRateUpdate) { %>
-                <div class="bw-priority-row warning">
-                    <span><i class="fa-solid fa-chart-line"></i></span>
-                    <div><strong>تحديث سعر قريب</strong><small>سيظهر التنبيه في نافذة أعلى الشاشة، وليس شريطاً مكرراً</small></div>
-                </div>
-            <% } %>
-            <% if (workspace.isCompany && workspace.permissions.canRequestDeposit) { %>
-                <a href="/client/company/deposits" class="bw-priority-row blue">
-                    <span><i class="fa-solid fa-building-columns"></i></span>
-                    <div><strong><%= pendingDepositCount || 0 %> طلب إيداع قيد المراجعة</strong><small><%= workspace.permissions.manager ? 'أرسل طلباً جديداً أو تابع الاعتماد' : 'للمتابعة المالية دون إنشاء طلب' %></small></div>
-                    <i class="fa-solid fa-chevron-left"></i>
-                </a>
-            <% } %>
             <% if (workspace.permissions.canManageCustomers) { %>
                 <a href="/client/customers" class="bw-priority-row blue">
                     <span><i class="fa-solid fa-users"></i></span>
@@ -235,3 +353,4 @@
         </div>
     </aside>
 </section>
+<% } %>

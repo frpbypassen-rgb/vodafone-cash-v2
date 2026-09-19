@@ -237,6 +237,19 @@ html[data-theme="pharaonic"] .bw-mini-metrics article.warning {
     border-color: color-mix(in srgb, #C9A227 36%, #D4B98A);
 }
 
+html[data-theme="pharaonic"] .cp-period-card.today {
+    background: linear-gradient(180deg, color-mix(in srgb, #1F6F6A 16%, #FFF8EC), #FFF8EC 62%);
+    border-color: color-mix(in srgb, #1F6F6A 32%, #D4B98A);
+}
+html[data-theme="pharaonic"] .cp-period-card.week {
+    background: linear-gradient(180deg, color-mix(in srgb, #3E5C8A 14%, #FFF8EC), #FFF8EC 62%);
+    border-color: color-mix(in srgb, #3E5C8A 28%, #D4B98A);
+}
+html[data-theme="pharaonic"] .cp-period-card.month {
+    background: linear-gradient(180deg, color-mix(in srgb, #C9A227 18%, #FFF8EC), #FFF8EC 62%);
+    border-color: color-mix(in srgb, #C9A227 36%, #D4B98A);
+}
+
 html[data-theme="pharaonic"] .bw-metric-card.accent-dark { --metric-accent: #C9A227; }
 
 html[data-theme="pharaonic"] .bw-status.success { color: #1F6F6A; background: color-mix(in srgb, #1F6F6A 16%, #FFF8EC); border-color: color-mix(in srgb, #1F6F6A 32%, #D4B98A); }
