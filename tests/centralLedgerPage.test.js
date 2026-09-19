@@ -57,13 +57,14 @@ describe('central ledger page layout', () => {
         expect(html).toContain('الشركات المنفذة');
         expect(html).toContain('شركة النور');
         expect(html).toContain('منفذ كاش');
-        expect(html).toContain('البحث الشامل');
-        expect(html).toContain('تصفية سريعة');
+        expect(html).not.toContain('تصفية سريعة');
+        expect(html).not.toContain('id="transactionsFilterForm"');
+        expect(html).not.toContain('id="mobileTransactionsFilterForm"');
+        expect(html).not.toContain('id="searchInput"');
         expect(html).toContain('id="transactionsTable"');
         expect(html.indexOf('ledger-stats-bar')).toBeGreaterThan(-1);
         expect(html.indexOf('ledger-stats-bar')).toBeLessThan(html.indexOf('الشركات النشطة'));
-        expect(html.indexOf('ledger-overview-cols')).toBeLessThan(html.indexOf('id="transactionsFilterForm"'));
-        expect(html.indexOf('id="transactionsFilterForm"')).toBeLessThan(html.indexOf('id="transactionsTable"'));
+        expect(html.indexOf('ledger-overview-cols')).toBeLessThan(html.indexOf('id="transactionsTable"'));
 
         expect(html).not.toContain('إجمالي تحويلات اليوم (مكتملة)');
         expect(html).not.toContain('إجمالي إيداعات اليوم');
@@ -81,6 +82,8 @@ describe('central ledger page layout', () => {
         expect(html).toContain('إجمالي خصومات اليوم');
         expect(html).not.toContain('إجمالي العمليات الناجحة اليوم');
         expect(html).not.toContain('الشركات النشطة');
+        expect(html).toContain('البحث الشامل');
+        expect(html).toContain('id="transactionsFilterForm"');
         expect(html).toContain('id="transactionsTable"');
     });
 });

@@ -621,6 +621,7 @@
         </div>
         <% } %>
 
+        <% if (operationWorkspace) { %>
         <div class="mobile-filter-card d-lg-none mb-3">
             <form method="GET" action="<%= transactionWorkspacePath %>" id="mobileTransactionsFilterForm">
                 <input type="hidden" name="filterType" id="mobileFilterTypeInput" value="<%= typeof filterType !== 'undefined' ? filterType : '' %>">
@@ -670,6 +671,7 @@
                 </div>
             </form>
         </div>
+        <% } %>
 
         <% if (operationWorkspace) { %>
         <div class="row g-3 mb-4 d-none d-lg-flex">
@@ -704,6 +706,7 @@
         </div>
         <% } %>
 
+        <% if (operationWorkspace) { %>
         <div class="data-card border-0 mb-4 p-4 d-none d-lg-block">
             <form method="GET" action="<%= transactionWorkspacePath %>" class="row g-3 align-items-end" id="transactionsFilterForm">
                 <input type="hidden" name="filterType" value="<%= typeof filterType !== 'undefined' ? filterType : '' %>">
@@ -743,6 +746,7 @@
                 </div>
             </form>
         </div>
+        <% } %>
 
         <% if (operationWorkspace) { %>
         <div class="mb-4 d-none d-lg-block">
@@ -752,43 +756,6 @@
                 <% operationStatusChips.forEach(chip => { %>
                     <a href="?fromDate=<%= fromDate %>&toDate=<%= toDate %>&search=<%= encodeURIComponent(search) %>&status=<%= chip.value %><%= executorId ? `&executorId=${executorId}` : '' %>" class="btn fw-bold px-3 py-2 border-0 rounded-3 filter-btn <%= statusFilter === chip.value ? 'active' : '' %>" style="font-size:.85rem;"><i class="fa-solid <%= chip.icon %> me-1"></i><%= chip.label %></a>
                 <% }); %>
-            </div>
-        </div>
-        <% } else { %>
-        <!-- أزرار التصفية السريعة بالاعلي -->
-        <div class="mb-4 d-none d-lg-block">
-            <div class="d-flex justify-content-start align-items-center gap-2 p-2 rounded-4 shadow-sm" style="background: var(--card-bg) !important; border: 1px solid var(--border-glass) !important;">
-                <span class="fw-bold me-3 text-muted small ms-2"><i class="fa-solid fa-tags text-primary"></i> تصفية سريعة:</span>
-                
-                <a href="?filterType=&fromDate=<%= fromDate %>&toDate=<%= toDate %>&search=<%= search %>&status=<%= statusFilter %>" 
-                   class="btn fw-bold px-4 py-2 border-0 rounded-3 filter-btn <%= !filterType ? 'active' : '' %>" 
-                   style="font-size: 0.9rem;">
-                    <i class="fa-solid fa-list-check me-1"></i> جميع العمليات
-                </a>
-                
-                <a href="?filterType=cash_transfer&fromDate=<%= fromDate %>&toDate=<%= toDate %>&search=<%= search %>&status=<%= statusFilter %>" 
-                   class="btn fw-bold px-4 py-2 border-0 rounded-3 filter-btn <%= filterType === 'cash_transfer' ? 'active' : '' %>" 
-                   style="font-size: 0.9rem;">
-                    <i class="fa-solid fa-mobile-screen me-1"></i> تحويلات الكاش
-                </a>
-                
-                <a href="?filterType=deposit_deduction&fromDate=<%= fromDate %>&toDate=<%= toDate %>&search=<%= search %>&status=<%= statusFilter %>" 
-                   class="btn fw-bold px-4 py-2 border-0 rounded-3 filter-btn <%= filterType === 'deposit_deduction' ? 'active' : '' %>" 
-                   style="font-size: 0.9rem;">
-                    <i class="fa-solid fa-hand-holding-dollar me-1"></i> الإيداعات والخصم
-                </a>
-                
-                <a href="?filterType=balance_transfer&fromDate=<%= fromDate %>&toDate=<%= toDate %>&search=<%= search %>&status=<%= statusFilter %>" 
-                   class="btn fw-bold px-4 py-2 border-0 rounded-3 filter-btn <%= filterType === 'balance_transfer' ? 'active' : '' %>" 
-                   style="font-size: 0.9rem;">
-                    <i class="fa-solid fa-right-left me-1"></i> التحويلات بين العملاء
-                </a>
-
-                <a href="?filterType=cancelled&fromDate=<%= fromDate %>&toDate=<%= toDate %>&search=<%= search %>&status=<%= statusFilter %>" 
-                   class="btn fw-bold px-4 py-2 border-0 rounded-3 filter-btn <%= filterType === 'cancelled' ? 'active' : '' %>" 
-                   style="font-size: 0.9rem;">
-                    <i class="fa-solid fa-ban me-1"></i> العمليات الملغية
-                </a>
             </div>
         </div>
         <% } %>
