@@ -1,5 +1,8 @@
 <%#
-  Unified Client OS head — use on all wallet-hub pages.
+  Retail hub page head.
+  Chrome/shell CSS comes only from customer_portal_styles (tokens + layout + 3 themes).
+  The nile/os/hub-pages files below are page-body leftovers, gated so they cannot
+  paint a second dock or navbar on cl-app.
   Locals: pageTitle, extraCss (array of optional css paths), walletHub (default true)
 %>
 <% const hubActive = typeof walletHub === 'undefined' ? true : !!walletHub; %>

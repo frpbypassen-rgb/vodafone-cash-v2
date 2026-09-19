@@ -2,7 +2,11 @@
 <section class="client-os-mobile" aria-label="الرئيسية">
     <header class="client-os-mobile-greeting">
         <div><p>بوابة العملاء</p><h1>أهلاً، <%= user.name %></h1><span><i class="fa-solid fa-circle-check"></i> <%= isSystemOpen ? 'الخدمات متاحة الآن' : 'الخدمات متوقفة مؤقتاً' %></span></div>
-        <button type="button" onclick="openWalletHubMore()" aria-label="إعدادات الحساب"><i class="fa-solid fa-sliders"></i></button>
+        <div class="client-os-mobile-greeting-actions">
+            <%- include('customer_notifications') %>
+            <%- include('customer_theme_switcher') %>
+            <button type="button" class="cl-icon-button" data-cl-more-open aria-label="المزيد"><i class="fa-solid fa-ellipsis"></i></button>
+        </div>
     </header>
 
     <article class="client-os-mobile-balance">

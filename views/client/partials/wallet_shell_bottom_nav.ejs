@@ -1,5 +1,6 @@
+<%# LEGACY_GATED: leftover tab dock. Customer cl-app pages use wallet_hub_bottom_nav / customer_mobile_dock. %>
 <% const navActive = typeof activeNav !== 'undefined' ? activeNav : ''; %>
-<nav class="bottom-nav-mobile no-print d-md-none" aria-label="التنقل السفلي">
+<nav class="bottom-nav-mobile no-print d-md-none" aria-label="التنقل السفلي" data-legacy-wallet-shell-dock>
     <a href="/client/dashboard" class="bottom-nav-item <%= navActive === 'home' ? 'active' : '' %>">
         <i class="fa-solid fa-house"></i>
         <span>الرئيسية</span>
