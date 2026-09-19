@@ -159,7 +159,6 @@ const resolveReportScope = async ({ mainCategory, subId, subType = 'all', tenant
             status: 'وكالة'
         });
         auditScope.identifiers = identifiers;
-    }
     } else if (mainCategory === 'executor' || mainCategory === 'api_executor') {
         const group = await ExecutorGroup.findOne({ _id: subId, ...scopedTenant }).lean();
         if (!group) throw new Error('REPORT_ENTITY_NOT_FOUND');
