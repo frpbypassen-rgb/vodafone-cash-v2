@@ -19,7 +19,9 @@
 <div class="cos-scene" role="list">
     <% serviceCatalog.forEach(service => { %>
         <a href="/client/services/<%= service.slug || service.key %>" class="cos-tile tone-<%= service.tone %>" role="listitem">
-            <span class="cos-tile-icon"><i class="fa-solid <%= service.icon %>"></i></span>
+            <span class="cos-tile-icon">
+                <svg class="cp-icon" aria-hidden="true"><use href="#cp-icon-<%= service.pharaonicIcon || 'wallet' %>"></use></svg>
+            </span>
             <h2><%= service.label %></h2>
             <small><%= workspace.forceToday ? 'ابدأ من هنا — الحقول والسعر داخل المنضدة فقط' : service.description %></small>
             <% if (!workspace.forceToday) { %>
@@ -34,7 +36,7 @@
         <h2><%= (typeof todaySummary !== 'undefined' ? todaySummary.totalCount : 0) %> عملية</h2>
         <div class="cos-ops-list">
             <% if (!(typeof recentTransactions !== 'undefined' && recentTransactions.length)) { %>
-                <div class="bw-empty compact"><i class="fa-regular fa-folder-open"></i><strong>لا عمليات بعد اليوم</strong></div>
+                <div class="bw-empty compact"><span class="cp-mark" aria-hidden="true"><svg class="cp-icon"><use href="#cp-icon-ankh"></use></svg></span><strong>لا عمليات بعد اليوم</strong></div>
             <% } %>
             <% (typeof recentTransactions !== 'undefined' ? recentTransactions : []).slice(0, 6).forEach(tx => { const status = statusMeta[tx.status] || { label: tx.status, tone: 'neutral' }; const service = serviceCatalog.find(item => item.key === tx.transferType); %>
                 <article class="cos-ops-card">

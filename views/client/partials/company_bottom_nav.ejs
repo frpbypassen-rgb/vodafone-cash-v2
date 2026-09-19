@@ -4,7 +4,7 @@
 <nav class="bw-mobile-dock" aria-label="التنقل السريع" data-company-dock>
     <% dockItems.forEach(item => { %>
         <a href="<%= item.href %>" class="<%= item.active ? 'active' : '' %>" data-dock-key="<%= item.key %>">
-            <i class="fa-solid <%= item.icon %>"></i>
+            <svg class="cp-icon" aria-hidden="true"><use href="#cp-icon-<%= item.pharaonicIcon || 'temple' %>"></use></svg>
             <span><%= item.dockLabel || item.label %></span>
         </a>
     <% }) %>

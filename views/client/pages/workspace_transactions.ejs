@@ -51,7 +51,7 @@
     <% const showCost = workspace.permissions.canViewBalance; %>
     <% if (workspace.isCompany) { %>
         <div class="cos-ops-list">
-            <% if (!transactions.length) { %><div class="bw-empty"><i class="fa-solid fa-magnifying-glass"></i><strong>لا توجد نتائج مطابقة</strong><span>غيّر خيارات البحث أو الفترة الزمنية.</span></div><% } %>
+            <% if (!transactions.length) { %><div class="bw-empty"><span class="cp-mark" aria-hidden="true"><svg class="cp-icon"><use href="#cp-icon-ankh"></use></svg></span><strong>لا توجد نتائج مطابقة</strong><span>غيّر خيارات البحث أو الفترة الزمنية.</span></div><% } %>
             <% transactions.forEach(tx => { const status = statusMeta[tx.status] || { label: tx.status, tone: 'neutral' }; const service = serviceCatalog.find(item => item.key === tx.transferType); const hasReceipt = Boolean(tx.proofImage || (Array.isArray(tx.proofImages) && tx.proofImages.some(Boolean))); %>
                 <article class="cos-ops-card">
                     <button type="button" class="cos-ops-main" data-transaction-id="<%= tx._id %>">

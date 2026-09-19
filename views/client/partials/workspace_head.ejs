@@ -5,12 +5,26 @@
     <title><%= pageMeta.title %> | Power Pay AL-Ahram</title>
     <script>
         (() => {
-            const theme = localStorage.getItem('powerpay-business-theme') || 'light';
+            const isCompany = <%- JSON.stringify(typeof workspace !== 'undefined' && Boolean(workspace.isCompany)) %>;
             const density = localStorage.getItem('powerpay-business-density') || 'comfortable';
+            document.documentElement.dataset.density = density;
+            if (isCompany) {
+                const valid = ['day', 'night', 'pharaonic'];
+                const stored = localStorage.getItem('ahram_company_theme');
+                const server = <%- JSON.stringify(typeof companyTheme !== 'undefined' ? companyTheme : '') %>;
+                const prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+                const theme = valid.includes(stored) ? stored : (valid.includes(server) ? server : (prefersDark ? 'night' : 'day'));
+                document.documentElement.setAttribute('data-theme', theme);
+                document.documentElement.setAttribute('data-portal', 'company');
+                const colors = { day: '#F4F6F8', night: '#12110F', pharaonic: '#1A1510' };
+                const meta = document.querySelector('meta[name="theme-color"]');
+                if (meta) meta.setAttribute('content', colors[theme]);
+                return;
+            }
+            const theme = localStorage.getItem('powerpay-business-theme') || 'light';
             document.documentElement.dataset.theme = theme === 'system'
                 ? (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light')
                 : theme;
-            document.documentElement.dataset.density = density;
         })();
     </script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -20,8 +34,9 @@
     <link rel="stylesheet" href="/css/client-workspace.css?v=20260902-phone2">
     <link rel="stylesheet" href="/css/client-portal-2027.css?v=20260918-simple-mobile-2">
     <% if (typeof workspace !== 'undefined' && workspace.isCompany) { %>
+        <link rel="stylesheet" href="/css/company-portal.tokens.css?v=20260919-themes1">
         <link rel="stylesheet" href="/css/client-company-os.css?v=20260902-phone2">
-        <link rel="stylesheet" href="/css/company-portal.css?v=20260919-pharaoh1">
+        <link rel="stylesheet" href="/css/company-portal.css?v=20260919-themes1">
     <% } %>
     <link rel="stylesheet" href="/css/rate-alert-overlay.css?v=20260816-3">
     <script src="/socket.io/socket.io.js"></script>

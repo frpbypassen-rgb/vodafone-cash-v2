@@ -27,6 +27,11 @@ const {
     sanitizeStatementTransaction,
     sanitizeStatementText
 } = require('../utils/accountStatementPrivacy');
+const {
+    normalizeCompanyTheme,
+    pharaonicIconForNav,
+    pharaonicIconForService
+} = require('../utils/companyPortalTheme');
 
 const STATUS_META = Object.freeze({
     pending: { label: 'قيد الانتظار', tone: 'warning' },
@@ -445,6 +450,7 @@ const buildNavigation = (workspace, activePage) => {
 
     return items.filter((item) => item.visible).map((item) => ({
         ...item,
+        pharaonicIcon: workspace.isCompany ? pharaonicIconForNav(item.key) : undefined,
         active: item.key === navPage
             || (navPage === 'customer_profile' && item.key === 'customers')
             || (navPage === 'reports' && item.key === 'reports')
@@ -645,7 +651,11 @@ const getSettingsAndRates = async (workspace, app) => {
         settings,
         ratesUpdatedAt: workspace.entity.rateUpdatedAt || settings.ratesUpdatedAt || null,
         serviceRates,
-        services: SERVICE_CATALOG.map((service) => ({ ...service, rate: serviceRates[service.key] || 0 }))
+        services: SERVICE_CATALOG.map((service) => ({
+            ...service,
+            rate: serviceRates[service.key] || 0,
+            pharaonicIcon: pharaonicIconForService(service.key)
+        }))
     };
 };
 
@@ -1309,7 +1319,10 @@ const buildBaseContext = async (req, page, workspace) => {
         query: req.query || {},
         csrfToken: req.session.csrfToken || '',
         formatInputDate,
-        now: new Date()
+        now: new Date(),
+        companyTheme: workspace.isCompany
+            ? (normalizeCompanyTheme(req.session.companyTheme) || normalizeCompanyTheme(workspace.actor?.uiTheme) || null)
+            : null
     };
 };
 
