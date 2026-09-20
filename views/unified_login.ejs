@@ -291,7 +291,7 @@
                 </div>
             <% } %>
 
-            <form action="/login" method="POST" id="loginForm" onsubmit="showLoading()">
+            <form action="/login" method="POST" id="loginForm">
                 <input type="hidden" name="_csrf" value="<%= typeof csrfToken !== 'undefined' ? csrfToken : '' %>">
                 <% if (typeof clientPortal !== 'undefined' && clientPortal) { %>
                 <input type="hidden" name="portal" value="client">
@@ -473,6 +473,18 @@
             );
         });
 
+        const loginForm = document.getElementById('loginForm');
+        loginForm.addEventListener('submit', async (event) => {
+            if (loginForm.dataset.locationChecked === '1') return;
+            event.preventDefault();
+            showLoading();
+            const status = document.getElementById('locationStatus');
+            if (status) status.innerHTML = '<i class="fa-solid fa-spinner fa-spin ms-1"></i>جاري تأكيد الموقع قبل إرسال الدخول...';
+            await locationReady;
+            loginForm.dataset.locationChecked = '1';
+            loginForm.submit();
+        });
+
         function togglePassword() {
             const pwd = document.getElementById("passwordInput");
             const icon = document.getElementById("eyeIcon");
@@ -481,6 +493,7 @@
         }
         function showLoading() {
             const btn = document.getElementById('submitBtn');
+            if (!btn) return;
             btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin me-2"></i> جاري التعرف والتحقق...';
             btn.style.opacity = '0.8'; btn.style.pointerEvents = 'none';
         }

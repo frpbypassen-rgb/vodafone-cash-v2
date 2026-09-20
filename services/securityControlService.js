@@ -6,7 +6,7 @@ const SecurityDevice = require('../models/SecurityDevice');
 const SecurityAccessRequest = require('../models/SecurityAccessRequest');
 const SecurityState = require('../models/SecurityState');
 const Notification = require('../models/Notification');
-const { isSecurityVerificationRequired } = require('../config/securityPolicy');
+const { isSecurityVerificationRequired, getEmergencyClientOtpBypassState } = require('../config/securityPolicy');
 
 const DEVICE_COOKIE = 'ahrampay_security_device';
 // The requesting device cannot access the account while pending, so a longer
@@ -264,6 +264,9 @@ const authorizeLogin = async ({ req, res, principal, accountClass = 'account', a
         && process.env.SECURITY_CONTROL_TEST_ENFORCEMENT !== 'true') {
         return { allowed: true, enforcementEnabled: false };
     }
+    if (!isSecurityVerificationRequired()) {
+        return { allowed: true, enforcementEnabled: false, verificationMode: 'optional' };
+    }
     const state = await getState();
     // Device approval is a core account protection now.  Legacy state records
     // without the new fields are treated as enabled, which avoids silently
@@ -277,7 +280,8 @@ const authorizeLogin = async ({ req, res, principal, accountClass = 'account', a
         return { allowed: false, code: 'NETWORK_RISK_BLOCKED', message: 'تعذر إكمال الدخول من هذه الشبكة.' };
     }
     const location = parseLocation(req);
-    if (state.locationRequired && !location) {
+    const emergencyOtpBypass = getEmergencyClientOtpBypassState();
+    if (state.locationRequired && !location && !emergencyOtpBypass.active) {
         return { allowed: false, code: 'LOCATION_REQUIRED', message: 'يجب السماح بالوصول إلى الموقع لإكمال الدخول الآمن.' };
     }
     const deviceId = ensureDeviceId(req, res);

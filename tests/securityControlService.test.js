@@ -106,4 +106,33 @@ describe('securityControlService', () => {
             .toMatchObject({ rpID: 'localhost', origin: 'http://localhost:3018' });
         process.env.NODE_ENV = previousNodeEnv;
     });
+
+    test('does not block portal login while enhanced verification is optional', async () => {
+        const previous = {
+            enforcement: process.env.SECURITY_CONTROL_TEST_ENFORCEMENT,
+            passwordOnly: process.env.PASSWORD_ONLY_LOGIN_MODE,
+            enabled: process.env.SECURITY_VERIFICATION_ENFORCEMENT_ENABLED,
+            mode: process.env.SECURITY_VERIFICATION_MODE
+        };
+        process.env.SECURITY_CONTROL_TEST_ENFORCEMENT = 'true';
+        process.env.PASSWORD_ONLY_LOGIN_MODE = 'true';
+        process.env.SECURITY_VERIFICATION_ENFORCEMENT_ENABLED = 'false';
+        process.env.SECURITY_VERIFICATION_MODE = 'optional';
+        try {
+            await expect(securityControl.authorizeLogin({
+                req: { headers: {}, body: {}, session: {} },
+                res: null,
+                principal: { principalType: 'executor', principalId: 'exec-1', principalName: 'منفذ' }
+            })).resolves.toMatchObject({ allowed: true, verificationMode: 'optional' });
+        } finally {
+            if (previous.enforcement === undefined) delete process.env.SECURITY_CONTROL_TEST_ENFORCEMENT;
+            else process.env.SECURITY_CONTROL_TEST_ENFORCEMENT = previous.enforcement;
+            if (previous.passwordOnly === undefined) delete process.env.PASSWORD_ONLY_LOGIN_MODE;
+            else process.env.PASSWORD_ONLY_LOGIN_MODE = previous.passwordOnly;
+            if (previous.enabled === undefined) delete process.env.SECURITY_VERIFICATION_ENFORCEMENT_ENABLED;
+            else process.env.SECURITY_VERIFICATION_ENFORCEMENT_ENABLED = previous.enabled;
+            if (previous.mode === undefined) delete process.env.SECURITY_VERIFICATION_MODE;
+            else process.env.SECURITY_VERIFICATION_MODE = previous.mode;
+        }
+    });
 });

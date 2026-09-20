@@ -138,7 +138,7 @@
             <i class="fa-solid fa-shield-halved"></i>
         </div>
         <h4 class="fw-bold mb-2" style="color: var(--text-main);">تأمين الدخول للمنصة</h4>
-        <p class="small mb-4 fw-bold" style="color: var(--brand-gold);">أرسلنا كود من 6 أرقام إلى حسابك عبر الواتساب (أو التليجرام) لتأكيد هويتك.</p>
+        <p class="small mb-4 fw-bold" style="color: var(--brand-gold);">أرسلنا رمز تحقق من 6 أرقام إلى واتساب المسجّل على الحساب. أدخله هنا لإكمال الدخول.</p>
 
         <% if (error) { %>
             <div class="alert alert-danger fw-bold small rounded-3 mb-4 border-0" style="background: rgba(239, 68, 68, 0.1); color: #ef4444;">
@@ -147,6 +147,7 @@
         <% } %>
 
         <form action="/client/verify" method="POST">
+            <input type="hidden" name="_csrf" value="<%= typeof csrfToken !== 'undefined' ? csrfToken : '' %>">
             <div class="mb-4">
                 <input type="text" name="otp" class="form-control otp-input" placeholder="------" maxlength="6" autocomplete="off" required dir="ltr">
             </div>

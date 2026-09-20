@@ -10,6 +10,7 @@ const {
     isPasskeyRequired,
     isSecurityVerificationRequired
 } = require('../config/securityPolicy');
+const { isLoginOtpRequired, issueLoginOtp } = require('../services/loginOtpService');
 const { isEnvironmentAdminLoginEnabled } = require('../config/adminAuthPolicy');
 const { establishAuthenticatedSession } = require('../utils/sessionSecurity');
 const Admin = require('../models/Admin');
@@ -86,11 +87,21 @@ const passwordResetLimiter = rateLimit({
     legacyHeaders: false,
 });
 
+const SECURITY_LOGIN_ERRORS = {
+    SECURITY_SESSION_EXPIRED: 'انتهت الجلسة الآمنة. سجل الدخول مرة أخرى.',
+    ADMIN_SESSION_REVOKED: 'تم إنهاء الجلسة الإدارية. سجل الدخول مرة أخرى.',
+    NETWORK_RISK_BLOCKED: 'تعذر إكمال الدخول من هذه الشبكة.',
+    DEVICE_BINDING_MISMATCH: 'هذه الجلسة غير مرتبطة بالجهاز المصرح به. سجل الدخول من جديد.',
+    LOCATION_REQUIRED: 'يجب السماح بالوصول إلى الموقع لإكمال الدخول الآمن.',
+    DEVICE_APPROVAL_REQUIRED: 'هذا الجهاز يحتاج موافقة الإدارة قبل الدخول.'
+};
+
 const renderLogin = (res, error = null, data = {}) => {
     const req = res.req;
     const clientPortal = data.clientPortal ?? !!(req && (req.query?.portal === 'client' || req.body?.portal === 'client'));
+    const securityCode = String(req?.query?.security || '').trim();
     return res.render('unified_login', {
-        error,
+        error: error || SECURITY_LOGIN_ERRORS[securityCode] || null,
         mfaRequired: false,
         recoveryCodeRequired: false,
         passkeyLoginRequired: false,
@@ -734,7 +745,7 @@ const completeExecutorSession = async (req, executor) => {
 
 const loginAsExecutor = async (req, res, executor, { showMfaEnableNotice = false, authenticatorVerified = false } = {}) => {
     const principal = { principalType: 'executor', principalId: String(executor._id), principalName: executor.name || 'منفذ' };
-    const authorization = await securityControl.authorizeLogin({ req, res, principal, accountClass: 'account', allowFirstDevice: false, authenticatorVerified });
+    const authorization = await securityControl.authorizeLogin({ req, res, principal, accountClass: 'account', allowFirstDevice: true, authenticatorVerified });
     if (!authorization.allowed) {
         await logLoginFailure(req, req.body.username, authorization.code, authorization.message);
         return renderLogin(res, authorization.message, { submittedUsername: String(req.body.username || '') });
@@ -793,12 +804,15 @@ const completeClientSession = async (req, account, accountType) => {
 const loginAsClient = async (req, res, account, accountType, { authenticatorVerified = false } = {}) => {
     const principalType = ({ user: 'client_user', company: 'client_company', agent_staff: 'agent_staff', sub_client: 'sub_client' })[accountType] || 'client_user';
     const principal = { principalType, principalId: String(account._id), principalName: account.name || account.webUsername || 'حساب عميل' };
-    if (!securityControl.parseLocation(req)) {
-        return renderLogin(res, 'يجب السماح بالوصول إلى موقع الجهاز لإكمال تسجيل الدخول بأمان.', {
-            submittedUsername: String(req.body.username || '')
-        });
+    if (isSecurityVerificationRequired() && !getEmergencyClientOtpBypassState().active) {
+        const state = await securityControl.getState();
+        if (state.locationRequired !== false && !securityControl.parseLocation(req)) {
+            return renderLogin(res, 'يجب السماح بالوصول إلى موقع الجهاز لإكمال تسجيل الدخول بأمان.', {
+                submittedUsername: String(req.body.username || '')
+            });
+        }
     }
-    const authorization = await securityControl.authorizeLogin({ req, res, principal, accountClass: 'account', allowFirstDevice: false, authenticatorVerified });
+    const authorization = await securityControl.authorizeLogin({ req, res, principal, accountClass: 'account', allowFirstDevice: true, authenticatorVerified });
     if (!authorization.allowed) {
         await logLoginFailure(req, req.body.username, authorization.code, authorization.message);
         return renderLogin(res, authorization.message, { submittedUsername: String(req.body.username || '') });
@@ -816,124 +830,82 @@ const loginAsClient = async (req, res, account, accountType, { authenticatorVeri
     return saveAndRedirect(req, res, resolveClientPostLoginHref(accountType));
 };
 
-const startClientOtp = async (req, res, account, accountType, Model) => {
+const finishLoginAfterOtpBypass = async (req, res, account, accountType) => {
+    if (accountType === 'executor') {
+        return loginAsExecutor(req, res, account, { showMfaEnableNotice: true });
+    }
+    return loginAsClient(req, res, account, accountType);
+};
+
+const startClientOtp = async (req, res, account, accountType) => {
     req.session.pendingSecurityLocation = securityControl.parseLocation(req);
     req.session.pendingSecurityUsername = String(req.body.username || '');
-    const pendingChallenge = String(req.session.otpChallengeId || '');
-    const resendCooldownSeconds = Math.min(
-        300,
-        Math.max(30, Number(process.env.OTP_RESEND_COOLDOWN_SECONDS) || 60)
-    );
-    const issuedAtMs = new Date(account.otpIssuedAt || 0).getTime();
-    const resendCooldownActive = Number.isFinite(issuedAtMs)
-        && (Date.now() - issuedAtMs) < (resendCooldownSeconds * 1000);
-    const hasReusableChallenge = (
-        String(req.session.tempClientId || '') === String(account._id)
-        && req.session.tempAccountType === accountType
-        && pendingChallenge
-        && pendingChallenge === String(account.otpChallengeId || '')
-        && account.otpExpires
-        && new Date(account.otpExpires) > new Date()
-        && resendCooldownActive
-    );
-    if (hasReusableChallenge) return saveAndRedirect(req, res, '/client/verify');
+    const issued = await issueLoginOtp({ account, accountType, session: req.session });
+    const portal = issued.portal;
+    const performedByModel = portal?.performedByModel || 'User';
 
-    const otp = generateOtp();
-    const otpExpires = new Date(Date.now() + 5 * 60 * 1000);
-    const otpChallengeId = randomUUID();
-
-    await Model.updateOne(
-        { _id: account._id },
-        {
-            $set: {
-                otpCode: hashOtp(otp),
-                otpExpires,
-                otpChallengeId,
-                otpIssuedAt: new Date(),
-                otpAttempts: 0
-            }
-        },
-        { strict: false }
-    );
-
-    const accountLabel = ({
-        user: 'العميل',
-        company: 'الشركة',
-        agent_staff: 'موظف الوكيل',
-        sub_client: 'عميل الوكالة'
-    })[accountType] || 'الحساب';
-    let delivery;
-    try {
-        const { sendOtp } = require('../services/whatsappService');
-        delivery = await sendOtp({
-            phone: account.phone,
-            otp,
-            expiresMinutes: 5,
-            accountName: account.name || account.webUsername || '',
-            accountType: accountLabel
-        });
-    } catch (error) {
-        delivery = { success: false, code: 'WHATSAPP_OTP_FAILED', message: error.message };
+    if (issued.status === 'reuse') {
+        return saveAndRedirect(req, res, portal.verifyPath);
     }
 
-    if (!delivery?.success) {
-        await Model.updateOne(
-            { _id: account._id },
-            { $unset: { otpCode: 1, otpExpires: 1, otpChallengeId: 1, otpIssuedAt: 1, otpAttempts: 1 } },
-            { strict: false }
-        );
+    if (issued.status === 'emergency_bypass') {
         await logAction({
             action: 'LOGIN_FAILED',
             req,
             performedById: account._id,
-            performedByModel: accountType === 'company'
-                ? 'ClientEmployee'
-                : (accountType === 'agent_staff' ? 'AgentEmployee' : (accountType === 'sub_client' ? 'SubAccount' : 'User')),
+            performedByModel,
             performedByName: account.name,
             success: false,
-            errorCode: delivery?.code || 'WHATSAPP_OTP_FAILED',
-            metadata: { accountType, reason: 'OTP_DELIVERY_FAILED', provider: delivery?.provider || 'whatchimp' }
+            errorCode: issued.code || 'WHATSAPP_OTP_FAILED',
+            metadata: {
+                accountType,
+                reason: 'OTP_DELIVERY_FAILED',
+                provider: issued.delivery?.provider || 'whatchimp'
+            }
         });
-
-        // During a documented provider outage, retain access without creating a permanent shared OTP.
-        if (getEmergencyClientOtpBypassState().active) {
-            await logAction({
-                action: 'LOGIN_OTP_EMERGENCY_BYPASS',
-                req,
-                performedById: account._id,
-                performedByModel: accountType === 'company'
-                    ? 'ClientEmployee'
-                    : (accountType === 'agent_staff' ? 'AgentEmployee' : (accountType === 'sub_client' ? 'SubAccount' : 'User')),
-                performedByName: account.name,
-                success: true,
-                metadata: {
-                    accountType,
-                    provider: delivery?.provider || 'whatchimp',
-                    deliveryFailureCode: delivery?.code || 'WHATSAPP_OTP_FAILED',
-                    emergencyExpiresAt: getEmergencyClientOtpBypassState().expiresAt
-                }
-            });
-            return loginAsClient(req, res, account, accountType);
-        }
-
-        const failureCode = String(delivery?.code || 'WHATSAPP_OTP_FAILED').replace(/[^A-Z0-9_]/g, '');
-        return renderLogin(
-            res,
-            `تعذر إرسال رمز التحقق عبر واتساب حالياً. أعد المحاولة بعد دقيقة. رمز الحالة: ${failureCode}`
-        );
+        await logAction({
+            action: 'LOGIN_OTP_EMERGENCY_BYPASS',
+            req,
+            performedById: account._id,
+            performedByModel,
+            performedByName: account.name,
+            success: true,
+            metadata: {
+                accountType,
+                provider: issued.delivery?.provider || 'whatchimp',
+                deliveryFailureCode: issued.code || 'WHATSAPP_OTP_FAILED',
+                emergencyExpiresAt: issued.emergencyExpiresAt
+            }
+        });
+        return finishLoginAfterOtpBypass(req, res, account, accountType);
     }
 
-    await establishAuthenticatedSession(req, {
-        tempClientId: account._id,
+    if (issued.status !== 'sent') {
+        await logAction({
+            action: 'LOGIN_FAILED',
+            req,
+            performedById: account._id,
+            performedByModel,
+            performedByName: account.name,
+            success: false,
+            errorCode: issued.code || 'WHATSAPP_OTP_FAILED',
+            metadata: {
+                accountType,
+                reason: 'OTP_DELIVERY_FAILED',
+                provider: issued.delivery?.provider || 'whatchimp'
+            }
+        });
+        return renderLogin(res, issued.message || 'تعذر إرسال رمز التحقق عبر واتساب حالياً.');
+    }
+
+    const sessionPayload = {
         tempAccountType: accountType,
-        otpChallengeId,
+        otpChallengeId: issued.otpChallengeId,
         pendingSecurityLocation: securityControl.parseLocation(req),
         pendingSecurityUsername: String(req.body.username || '')
-    });
-
-    const performedByModel = accountType === 'company'
-        ? 'ClientEmployee'
-        : (accountType === 'agent_staff' ? 'AgentEmployee' : (accountType === 'sub_client' ? 'SubAccount' : 'User'));
+    };
+    sessionPayload[portal.sessionTempIdKey] = account._id;
+    await establishAuthenticatedSession(req, sessionPayload);
     await logAction({
         action: 'LOGIN_FAILED',
         req,
@@ -944,12 +916,16 @@ const startClientOtp = async (req, res, account, accountType, Model) => {
         metadata: {
             accountType,
             reason: 'OTP_REQUIRED',
-            whatsappProvider: delivery.provider,
-            whatsappMessageId: delivery.messageId || null
+            whatsappProvider: issued.delivery?.provider,
+            whatsappMessageId: issued.delivery?.messageId || null
         }
     });
+    return saveAndRedirect(req, res, portal.verifyPath);
+};
 
-    return saveAndRedirect(req, res, '/client/verify');
+const continueVerifiedPortalLogin = async (req, res, account, accountType) => {
+    if (isLoginOtpRequired()) return startClientOtp(req, res, account, accountType);
+    return finishLoginAfterOtpBypass(req, res, account, accountType);
 };
 
 const logLoginFailure = async (req, username, errorCode, reason) => {
@@ -1332,22 +1308,22 @@ router.post('/login', loginLimiter, async (req, res) => {
                     return renderLogin(res, 'حساب التنفيذ أو مجموعة التنفيذ غير مفعلة حالياً.', { submittedUsername: username });
                 }
                 if (await beginExecutorMfaChallenge(req, res, executor)) return;
-                return loginAsExecutor(req, res, executor, { showMfaEnableNotice: true });
+                return continueVerifiedPortalLogin(req, res, executor, 'executor');
             }
 
             if (accountType === 'sub_client') {
                 if (await beginAccountMfaChallenge(req, res, account, 'sub_client')) return;
-                return loginAsClient(req, res, account, 'sub_client');
+                return continueVerifiedPortalLogin(req, res, account, 'sub_client');
             }
 
             if (accountType === 'client_user') {
                 if (await beginAccountMfaChallenge(req, res, account, 'user')) return;
-                return loginAsClient(req, res, account, 'user');
+                return continueVerifiedPortalLogin(req, res, account, 'user');
             }
 
             if (accountType === 'client_company') {
                 if (await beginAccountMfaChallenge(req, res, account, 'company')) return;
-                return loginAsClient(req, res, account, 'company');
+                return continueVerifiedPortalLogin(req, res, account, 'company');
             }
 
             if (accountType === 'agent_staff') {
@@ -1357,7 +1333,7 @@ router.post('/login', loginLimiter, async (req, res) => {
                     return renderLogin(res, 'حساب الوكيل الرئيسي غير نشط.', { submittedUsername: username });
                 }
                 if (await beginAccountMfaChallenge(req, res, account, 'agent_staff')) return;
-                return loginAsClient(req, res, account, 'agent_staff');
+                return continueVerifiedPortalLogin(req, res, account, 'agent_staff');
             }
         }
 

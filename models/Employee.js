@@ -20,6 +20,9 @@ const employeeSchema = new mongoose.Schema({
     otpExpires: { type: Date },
     lastOtpDate: { type: String },
     telegramId: { type: String }, // معرف التليجرام للموظف
+    otpChallengeId: { type: String },
+    otpIssuedAt: { type: Date },
+    otpAttempts: { type: Number, default: 0 },
     canViewAllReports: { type: Boolean, default: false }, // السماح برؤية جميع تقارير المجموعة
     balance: { type: Number, default: 0 }, // رصيد الموظف الخارجي
     tenantId: { type: mongoose.Schema.Types.ObjectId, ref: 'Tenant' },
