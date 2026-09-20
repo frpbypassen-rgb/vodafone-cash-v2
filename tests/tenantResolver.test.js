@@ -145,6 +145,23 @@ describe('Trusted tenant resolution', () => {
         expect(next).not.toHaveBeenCalled();
     });
 
+    test('does not rewrite session.tenantId when it already matches', async () => {
+        process.env.DEFAULT_TENANT_SLUG = 'ahram';
+        Tenant.findOne.mockReturnValue(queryResult(activeTenant));
+        let assigned = 0;
+        const session = {
+            _tenantId: activeTenant._id,
+            get tenantId() { return this._tenantId; },
+            set tenantId(value) { assigned += 1; this._tenantId = value; }
+        };
+
+        const { next } = await runResolver({ headers: { host: 'ahrampay.com' }, session });
+
+        expect(next).toHaveBeenCalledTimes(1);
+        expect(assigned).toBe(0);
+        expect(session.tenantId).toBe(activeTenant._id);
+    });
+
     test('resolves a subdomain only inside the configured multi-tenant root', () => {
         process.env.TENANT_MODE = 'multi';
         process.env.TENANT_ROOT_DOMAIN = 'ahrampay.com';

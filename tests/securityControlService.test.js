@@ -29,6 +29,9 @@ describe('securityControlService', () => {
         expect(uniqueIndex).toBeDefined();
         expect(uniqueIndex[0]).toMatchObject({ principalType: 1, principalId: 1, status: 1 });
         expect(uniqueIndex[1].unique).toBe(true);
+        const lastSeen = SecurityDevice.schema.indexes().find(([, options]) => options.name === 'security_device_lastSeenAt');
+        expect(lastSeen).toBeDefined();
+        expect(lastSeen[0]).toMatchObject({ status: 1, lastSeenAt: -1 });
     });
 
     test('hashes device identifiers deterministically and separately', () => {
@@ -67,7 +70,7 @@ describe('securityControlService', () => {
             select: jest.fn().mockReturnThis(),
             exec: jest.fn().mockResolvedValue({ emergencyCodeHash, lockdownActive: false })
         };
-        const stateLookup = jest.spyOn(SecurityState, 'findOneAndUpdate').mockReturnValue(query);
+        const stateLookup = jest.spyOn(SecurityState, 'findOne').mockReturnValue(query);
         securityControl.invalidateStateCache();
 
         await expect(securityControl.verifyEmergencyCode('ahram-12345678-abcdef12')).resolves.toBe(true);
@@ -185,6 +188,7 @@ describe('securityControlService', () => {
                 select: jest.fn().mockReturnThis(),
                 exec: jest.fn().mockResolvedValue(enforcementState)
             };
+            jest.spyOn(SecurityState, 'findOne').mockReturnValue(query);
             return jest.spyOn(SecurityState, 'findOneAndUpdate').mockReturnValue(query);
         };
 
@@ -291,6 +295,50 @@ describe('securityControlService', () => {
                 type: 'security_device_transfer',
                 audience: 'admin'
             }));
+        });
+
+        test('does not mint a new device identifier when minting is disabled', () => {
+            const req = { headers: {}, session: {} };
+            const res = { cookie: jest.fn() };
+            expect(securityControl.ensureDeviceId(req, res, { mint: false })).toBe('');
+            expect(res.cookie).not.toHaveBeenCalled();
+        });
+
+        test('does not rewrite lastSeenAt when the same IP was seen recently', async () => {
+            const updateOne = jest.spyOn(SecurityDevice, 'updateOne').mockResolvedValue({});
+            const device = { _id: 'dev-1', lastSeenAt: new Date(), lastIp: '10.0.0.8' };
+            await expect(securityControl.touchDeviceLastSeen(device, { ip: '10.0.0.8' })).resolves.toBe(false);
+            expect(updateOne).not.toHaveBeenCalled();
+        });
+
+        test('writes lastSeenAt when the device has never been seen', async () => {
+            const updateOne = jest.spyOn(SecurityDevice, 'updateOne').mockResolvedValue({});
+            const device = { _id: 'dev-1', lastSeenAt: null, lastIp: '' };
+            await expect(securityControl.touchDeviceLastSeen(device, { ip: '10.0.0.8' })).resolves.toBe(true);
+            expect(updateOne).toHaveBeenCalledWith(
+                { _id: 'dev-1' },
+                { $set: expect.objectContaining({ lastSeenAt: expect.any(Date), lastIp: '10.0.0.8' }) }
+            );
+        });
+
+        test('reads security state without a write and reuses the in-process cache', async () => {
+            securityControl.invalidateStateCache();
+            const findOne = jest.spyOn(SecurityState, 'findOne').mockReturnValue({
+                select: jest.fn().mockReturnThis(),
+                exec: jest.fn().mockResolvedValue({
+                    key: 'global',
+                    lockdownActive: false,
+                    accountDeviceEnforcementEnabled: true
+                })
+            });
+            const findOneAndUpdate = jest.spyOn(SecurityState, 'findOneAndUpdate');
+
+            await securityControl.getState();
+            await securityControl.getState();
+
+            expect(findOne).toHaveBeenCalledTimes(1);
+            expect(findOneAndUpdate).not.toHaveBeenCalled();
+            securityControl.invalidateStateCache();
         });
 
         test('keeps unverified device transfers on the admin review path', async () => {

@@ -105,13 +105,48 @@ const enforceSecuritySession = async (req, res, next) => {
             : state.accountDeviceEnforcementEnabled;
         if (!enforcementEnabled) return next();
 
-        const deviceId = securityControl.ensureDeviceId(req, res);
+        const deviceId = securityControl.ensureDeviceId(req, res, { mint: false });
         const deviceHash = securityControl.hashDeviceId(deviceId);
+        if (!deviceId) {
+            const emergencyDeviceBypass = getEmergencyDeviceBindingBypassState();
+            if (emergencyDeviceBypass.active) {
+                const device = await securityControl.activateDevice({
+                    req,
+                    res,
+                    principal,
+                    approvedBy: 'emergency_device_binding_bypass'
+                });
+                req.securityDevice = device;
+                securityControl.markSessionDeviceVerified(req, { deviceId: securityControl.ensureDeviceId(req, res), device });
+                return next();
+            }
+            return endSession(req, res, 403, 'DEVICE_BINDING_MISMATCH', DEVICE_BINDING_MISMATCH_MESSAGE);
+        }
+        if (securityControl.sessionDeviceRecentlyVerified(req.session, deviceHash)
+            && (!isPasskeyRequired() || req.session.securityHasPasskey !== undefined)) {
+            if (isPasskeyRequired() && !req.session.securityHasPasskey) {
+                const adminEnrollmentPath = req.path.startsWith('/admin/security');
+                const accountEnrollmentPath = req.path.startsWith('/security/enroll')
+                    || req.path.startsWith('/security/passkey/')
+                    || req.path.startsWith('/security/mfa/')
+                    || req.path.startsWith('/security/sessions')
+                    || req.path === '/logout';
+                if (accountClass === 'admin' && !adminEnrollmentPath && req.path !== '/logout') {
+                    if (wantsJson(req)) return res.status(428).json({ success: false, code: 'PASSKEY_ENROLLMENT_REQUIRED', error: 'يجب تسجيل بصمة الجهاز الإداري أولاً.' });
+                    return res.redirect('/admin/security?enroll=1');
+                }
+                if (accountClass === 'account' && !accountEnrollmentPath) {
+                    if (wantsJson(req)) return res.status(428).json({ success: false, code: 'PASSKEY_ENROLLMENT_REQUIRED', error: 'يجب تسجيل بصمة الجهاز أولاً.' });
+                    return res.redirect('/security/enroll');
+                }
+            }
+            return next();
+        }
         const active = await SecurityDevice.findOne({
             principalType: principal.principalType,
             principalId: principal.principalId,
             status: 'active'
-        }).select('+deviceIdHash');
+        }).select('+deviceIdHash lastSeenAt lastIp credentialId').lean();
         const bound = Boolean(active && hashesEqual(active.deviceIdHash, deviceHash));
         if (!bound) {
             const emergencyDeviceBypass = getEmergencyDeviceBindingBypassState();
@@ -123,13 +158,13 @@ const enforceSecuritySession = async (req, res, next) => {
                     approvedBy: 'emergency_device_binding_bypass'
                 });
                 req.securityDevice = device;
+                securityControl.markSessionDeviceVerified(req, { deviceId, device });
                 return next();
             }
             return endSession(req, res, 403, 'DEVICE_BINDING_MISMATCH', DEVICE_BINDING_MISMATCH_MESSAGE);
         }
-        active.lastSeenAt = new Date();
-        active.lastIp = securityControl.requestIp(req);
-        await active.save();
+        await securityControl.touchDeviceLastSeen(active, { ip: securityControl.requestIp(req) });
+        securityControl.markSessionDeviceVerified(req, { deviceId, device: active });
         req.securityDevice = active;
         if (isPasskeyRequired() && !active.credentialId) {
             const adminEnrollmentPath = req.path.startsWith('/admin/security');

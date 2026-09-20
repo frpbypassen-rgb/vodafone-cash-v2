@@ -11,7 +11,10 @@ jest.mock('../services/securityControlService', () => ({
     ensureDeviceId: jest.fn(() => 'device-id'),
     hashDeviceId: jest.fn(() => 'a'.repeat(64)),
     requestIp: jest.fn(() => '127.0.0.1'),
-    activateDevice: jest.fn()
+    activateDevice: jest.fn(),
+    sessionDeviceRecentlyVerified: jest.fn(() => false),
+    markSessionDeviceVerified: jest.fn(),
+    touchDeviceLastSeen: jest.fn().mockResolvedValue(false)
 }));
 
 const securityControl = require('../services/securityControlService');
@@ -218,10 +221,12 @@ describe('security control middleware', () => {
             id === boundId ? 'a'.repeat(64) : 'b'.repeat(64)
         ));
         const findOne = jest.spyOn(SecurityDevice, 'findOne').mockReturnValue({
-            select: jest.fn().mockResolvedValue({
-                deviceIdHash: 'a'.repeat(64),
-                credentialId: 'cred',
-                save: jest.fn().mockResolvedValue({})
+            select: jest.fn().mockReturnValue({
+                lean: jest.fn().mockResolvedValue({
+                    deviceIdHash: 'a'.repeat(64),
+                    credentialId: 'cred',
+                    lastSeenAt: new Date(0)
+                })
             })
         });
         const req = {
@@ -242,6 +247,8 @@ describe('security control middleware', () => {
 
         expect(next).toHaveBeenCalledTimes(1);
         expect(res.redirect).not.toHaveBeenCalled();
+        expect(securityControl.touchDeviceLastSeen).toHaveBeenCalled();
+        expect(securityControl.markSessionDeviceVerified).toHaveBeenCalled();
         findOne.mockRestore();
     });
 
@@ -261,9 +268,10 @@ describe('security control middleware', () => {
         securityControl.hashDeviceId.mockReturnValue('b'.repeat(64));
         const destroy = jest.fn((cb) => cb());
         const findOne = jest.spyOn(SecurityDevice, 'findOne').mockReturnValue({
-            select: jest.fn().mockResolvedValue({
-                deviceIdHash: 'a'.repeat(64),
-                save: jest.fn()
+            select: jest.fn().mockReturnValue({
+                lean: jest.fn().mockResolvedValue({
+                    deviceIdHash: 'a'.repeat(64)
+                })
             })
         });
         const req = {
@@ -285,6 +293,44 @@ describe('security control middleware', () => {
         expect(destroy).toHaveBeenCalled();
         expect(res.redirect).toHaveBeenCalledWith('/login?security=DEVICE_BINDING_MISMATCH');
         expect(next).not.toHaveBeenCalled();
+        findOne.mockRestore();
+    });
+
+    test('skips the SecurityDevice lookup when the session was verified recently', async () => {
+        securityControl.sessionPrincipal.mockReturnValue({
+            principalType: 'client_company',
+            principalId: 'company-1',
+            principalName: 'شركة'
+        });
+        securityControl.getState.mockResolvedValue({
+            adminSessionHours: 12,
+            accountSessionHours: 12,
+            highConfidenceVpnBlockEnabled: false,
+            adminDeviceEnforcementEnabled: true,
+            accountDeviceEnforcementEnabled: true
+        });
+        securityControl.sessionDeviceRecentlyVerified.mockReturnValue(true);
+        const findOne = jest.spyOn(SecurityDevice, 'findOne');
+        const req = {
+            path: '/client/dashboard',
+            method: 'GET',
+            headers: {},
+            session: {
+                isClientLoggedIn: true,
+                clientId: 'company-1',
+                securityDeviceHash: 'a'.repeat(64),
+                securityHasPasskey: true,
+                securityExpiresAt: Date.now() + 60 * 60 * 1000
+            }
+        };
+        const res = { redirect: jest.fn(), status: jest.fn().mockReturnThis(), json: jest.fn() };
+        const next = jest.fn();
+
+        await enforceSecuritySession(req, res, next);
+
+        expect(next).toHaveBeenCalledTimes(1);
+        expect(findOne).not.toHaveBeenCalled();
+        expect(securityControl.touchDeviceLastSeen).not.toHaveBeenCalled();
         findOne.mockRestore();
     });
 });

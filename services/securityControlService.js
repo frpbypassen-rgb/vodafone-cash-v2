@@ -19,7 +19,32 @@ const DEVICE_ID_PATTERN = /^[a-f0-9-]{32,64}$/i;
 // the Authenticator flow every few minutes.
 const REQUEST_TTL_MS = 24 * 60 * 60 * 1000;
 const DEFAULT_LOCKDOWN_MINUTES = 60;
+const DEFAULT_STATE_CACHE_MS = 15 * 1000;
+const DEFAULT_LAST_SEEN_MIN_INTERVAL_MS = 60 * 1000;
+const DEFAULT_DEVICE_RECHECK_MS = 30 * 1000;
+const DEFAULT_DEVICE_BINDING_CACHE_MS = 30 * 1000;
 const stateCache = { value: null, expiresAt: 0 };
+const deviceBindingCache = new Map();
+
+const envMs = (name, fallback, { min, max }) => {
+    const configured = Number(process.env[name]);
+    if (!Number.isFinite(configured)) return fallback;
+    return Math.min(max, Math.max(min, Math.floor(configured)));
+};
+
+const stateCacheTtlMs = () => envMs('SECURITY_STATE_CACHE_MS', DEFAULT_STATE_CACHE_MS, { min: 3000, max: 60 * 1000 });
+const lastSeenMinIntervalMs = () => envMs('SECURITY_DEVICE_LAST_SEEN_MS', DEFAULT_LAST_SEEN_MIN_INTERVAL_MS, {
+    min: 15 * 1000,
+    max: 5 * 60 * 1000
+});
+const deviceRecheckMs = () => envMs('SECURITY_DEVICE_RECHECK_MS', DEFAULT_DEVICE_RECHECK_MS, {
+    min: 5 * 1000,
+    max: 2 * 60 * 1000
+});
+const deviceBindingCacheMs = () => envMs('SECURITY_DEVICE_BINDING_CACHE_MS', DEFAULT_DEVICE_BINDING_CACHE_MS, {
+    min: 5 * 1000,
+    max: 2 * 60 * 1000
+});
 
 const requestChannel = (req) => {
     // The client headers are informational only. Channel authorization must be
@@ -40,8 +65,9 @@ const readCookie = (req, name) => {
     return item ? decodeURIComponent(item.slice(name.length + 1)) : '';
 };
 
-const persistDeviceCookie = (res, deviceId) => {
+const persistDeviceCookie = (res, deviceId, req = null) => {
     if (!res?.cookie || !deviceId) return;
+    if (req && readCookie(req, DEVICE_COOKIE).trim() === deviceId) return;
     res.cookie(DEVICE_COOKIE, deviceId, {
         httpOnly: true,
         secure: process.env.NODE_ENV === 'production' || String(process.env.SECURE_COOKIE || '').toLowerCase() === 'true',
@@ -54,15 +80,16 @@ const persistDeviceCookie = (res, deviceId) => {
 
 const rememberSessionDevice = (req, deviceId) => {
     if (!req?.session || !deviceId) return deviceId;
-    req.session.securityDeviceId = deviceId;
-    req.session.securityDeviceHash = hashDeviceId(deviceId);
+    const nextHash = hashDeviceId(deviceId);
+    if (req.session.securityDeviceId !== deviceId) req.session.securityDeviceId = deviceId;
+    if (req.session.securityDeviceHash !== nextHash) req.session.securityDeviceHash = nextHash;
     return deviceId;
 };
 
-const ensureDeviceId = (req, res) => {
+const ensureDeviceId = (req, res, { mint = true } = {}) => {
     const supplied = String(req.headers?.['x-device-id'] || '').trim().slice(0, 200);
     if (supplied) {
-        persistDeviceCookie(res, supplied);
+        persistDeviceCookie(res, supplied, req);
         rememberSessionDevice(req, supplied);
         return supplied;
     }
@@ -73,12 +100,13 @@ const ensureDeviceId = (req, res) => {
     }
     const fromSession = String(req.session?.securityDeviceId || '').trim();
     if (fromSession && DEVICE_ID_PATTERN.test(fromSession)) {
-        persistDeviceCookie(res, fromSession);
+        persistDeviceCookie(res, fromSession, req);
         rememberSessionDevice(req, fromSession);
         return fromSession;
     }
+    if (!mint) return '';
     const deviceId = crypto.randomUUID();
-    persistDeviceCookie(res, deviceId);
+    persistDeviceCookie(res, deviceId, req);
     rememberSessionDevice(req, deviceId);
     return deviceId;
 };
@@ -158,29 +186,115 @@ const assessNetworkRisk = (req) => {
     return { highRisk: signals.length > 0, signals, countryCode };
 };
 
-const getState = async ({ fresh = false, includeSecret = false } = {}) => {
-    if (!fresh && stateCache.value && stateCache.expiresAt > Date.now()) return stateCache.value;
-    const query = SecurityState.findOneAndUpdate(
+const presentLockdown = (state) => {
+    if (!state) return state;
+    if (state.lockdownActive && state.lockdownEndsAt && new Date(state.lockdownEndsAt) <= new Date()) {
+        state.lockdownActive = false;
+        state.lockdownReason = '';
+        state.lockdownEndsAt = null;
+    }
+    return state;
+};
+
+const toCacheableState = (state) => {
+    if (!state) return state;
+    const raw = typeof state.toObject === 'function' ? state.toObject() : { ...state };
+    return presentLockdown(raw);
+};
+
+const loadSecurityState = async ({ includeSecret = false } = {}) => {
+    const query = SecurityState.findOne({ key: 'global' });
+    if (includeSecret) query.select('+emergencyCodeHash');
+    let state = await query.exec();
+    if (state) return state;
+    const upsert = SecurityState.findOneAndUpdate(
         { key: 'global' },
         { $setOnInsert: { key: 'global' } },
         { returnDocument: 'after', upsert: true, setDefaultsOnInsert: true }
     );
-    if (includeSecret) query.select('+emergencyCodeHash');
-    let state = await query.exec();
-    if (state.lockdownActive && state.lockdownEndsAt && state.lockdownEndsAt <= new Date()) {
-        state.lockdownActive = false;
-        state.lockdownReason = '';
-        state.lockdownEndsAt = null;
-        await state.save();
+    if (includeSecret) upsert.select('+emergencyCodeHash');
+    return upsert.exec();
+};
+
+const getState = async ({ fresh = false, includeSecret = false } = {}) => {
+    if (!fresh && !includeSecret && stateCache.value && stateCache.expiresAt > Date.now()) {
+        return presentLockdown({ ...stateCache.value });
     }
-    stateCache.value = state;
-    stateCache.expiresAt = Date.now() + 1000;
+    const state = await loadSecurityState({ includeSecret });
+    presentLockdown(state);
+    if (!includeSecret) {
+        stateCache.value = toCacheableState(state);
+        stateCache.expiresAt = Date.now() + stateCacheTtlMs();
+        if (!fresh) return presentLockdown({ ...stateCache.value });
+    }
     return state;
 };
 
 const invalidateStateCache = () => {
     stateCache.value = null;
     stateCache.expiresAt = 0;
+    deviceBindingCache.clear();
+};
+
+const cachedDeviceBinding = (key) => {
+    const item = deviceBindingCache.get(String(key || ''));
+    if (!item) return undefined;
+    if (item.expiresAt <= Date.now()) {
+        deviceBindingCache.delete(String(key || ''));
+        return undefined;
+    }
+    return item.value;
+};
+
+const rememberDeviceBinding = (key, value) => {
+    const cacheKey = String(key || '');
+    if (!cacheKey) return;
+    if (deviceBindingCache.size > 5000) {
+        const oldest = deviceBindingCache.keys().next().value;
+        deviceBindingCache.delete(oldest);
+    }
+    deviceBindingCache.set(cacheKey, {
+        value: Boolean(value),
+        expiresAt: Date.now() + deviceBindingCacheMs()
+    });
+};
+
+const shouldTouchLastSeen = (device, { ip, now = Date.now() } = {}) => {
+    if (!device) return false;
+    if (ip && device.lastIp && ip !== device.lastIp) return true;
+    const last = device.lastSeenAt ? new Date(device.lastSeenAt).getTime() : 0;
+    return !Number.isFinite(last) || last <= 0 || (now - last) >= lastSeenMinIntervalMs();
+};
+
+const touchDeviceLastSeen = async (device, { ip, location } = {}) => {
+    if (!device?._id || !shouldTouchLastSeen(device, { ip })) return false;
+    const update = { lastSeenAt: new Date() };
+    if (ip) update.lastIp = ip;
+    if (location) update.lastLocation = location;
+    await SecurityDevice.updateOne({ _id: device._id }, { $set: update });
+    device.lastSeenAt = update.lastSeenAt;
+    if (ip) device.lastIp = ip;
+    if (location) device.lastLocation = location;
+    return true;
+};
+
+const markSessionDeviceVerified = (req, { deviceId, device, now = Date.now() } = {}) => {
+    if (!req?.session) return;
+    if (deviceId) rememberSessionDevice(req, deviceId);
+    req.session.securityDeviceCheckedAt = now;
+    if (device) req.session.securityHasPasskey = Boolean(device.credentialId);
+};
+
+const sessionDeviceRecentlyVerified = (session, deviceHash, now = Date.now()) => {
+    const sessionHash = session?.securityDeviceHash;
+    const checkedAt = Number(session?.securityDeviceCheckedAt || 0);
+    return Boolean(
+        sessionHash
+        && deviceHash
+        && hashesEqual(sessionHash, deviceHash)
+        && checkedAt > 0
+        && (now - checkedAt) < deviceRecheckMs()
+    );
 };
 
 const sessionPrincipal = (session = {}) => {
@@ -389,15 +503,12 @@ const authorizeLogin = async ({
             reviewedBy: 'first_verified_login',
             reviewNote: 'Superseded by the first verified device enrollment.'
         });
-        rememberSessionDevice(req, deviceId);
+        markSessionDeviceVerified(req, { deviceId, device });
         return { allowed: true, enforcementEnabled: true, device, enrolled: true };
     }
     if (active && hashesEqual(active.deviceIdHash, deviceIdHash)) {
-        active.lastIp = requestIp(req);
-        active.lastLocation = location || active.lastLocation;
-        active.lastSeenAt = new Date();
-        await active.save();
-        rememberSessionDevice(req, deviceId);
+        await touchDeviceLastSeen(active, { ip: requestIp(req), location: location || undefined });
+        markSessionDeviceVerified(req, { deviceId, device: active });
         return { allowed: true, enforcementEnabled: true, device: active };
     }
     if (active && canRebindMismatch) {
@@ -416,7 +527,7 @@ const authorizeLogin = async ({
             purpose: 'device_transfer',
             previousDevice: active
         });
-        rememberSessionDevice(req, deviceId);
+        markSessionDeviceVerified(req, { deviceId, device });
         return { allowed: true, enforcementEnabled: true, device, rebound: true };
     }
     if (active && !authenticatorVerified && !verifiedLogin) {
@@ -603,10 +714,14 @@ const reviewPrincipalAccessRequest = async ({ principal, requestId, approve, rev
     return { request, device };
 };
 
-const ensureSecurityDeviceIndexes = async () => {
-    await SecurityDevice.createCollection().catch((error) => {
-        if (!/already exists|NamespaceExists/i.test(error.message)) throw error;
-    });
+const backfillMissingSecurityChannels = async () => {
+    const TrustedDevice = require('../models/TrustedDevice');
+    const [deviceMissing, requestMissing, trustedMissing] = await Promise.all([
+        SecurityDevice.exists({ channel: { $exists: false } }),
+        SecurityAccessRequest.exists({ channel: { $exists: false } }),
+        TrustedDevice.exists({ channel: { $exists: false } })
+    ]);
+    if (!deviceMissing && !requestMissing && !trustedMissing) return false;
     await Promise.all([
         SecurityDevice.updateMany(
             { channel: { $exists: false }, userAgent: /dart|flutter|okhttp/i },
@@ -616,7 +731,7 @@ const ensureSecurityDeviceIndexes = async () => {
             { channel: { $exists: false }, userAgent: /dart|flutter|okhttp/i },
             { $set: { channel: 'app' } }
         ),
-        require('../models/TrustedDevice').updateMany(
+        TrustedDevice.updateMany(
             { channel: { $exists: false }, sessionId: { $ne: null } },
             { $set: { channel: 'app' } }
         )
@@ -624,41 +739,53 @@ const ensureSecurityDeviceIndexes = async () => {
     await Promise.all([
         SecurityDevice.updateMany({ channel: { $exists: false } }, { $set: { channel: 'web' } }),
         SecurityAccessRequest.updateMany({ channel: { $exists: false } }, { $set: { channel: 'web' } }),
-        require('../models/TrustedDevice').updateMany({ channel: { $exists: false } }, { $set: { channel: 'web' } })
+        TrustedDevice.updateMany({ channel: { $exists: false } }, { $set: { channel: 'web' } })
     ]);
+    return true;
+};
+
+const ensureSecurityDeviceIndexes = async () => {
+    await SecurityDevice.createCollection().catch((error) => {
+        if (!/already exists|NamespaceExists/i.test(error.message)) throw error;
+    });
+    await backfillMissingSecurityChannels();
 
     const indexes = await SecurityDevice.collection.indexes();
-    const previousIndexes = indexes.filter((index) => (
-        index.name === 'uniq_active_security_device_per_channel'
-        || (index.unique
-            && index.key?.principalType === 1
-            && index.key?.principalId === 1
-            && index.key?.status === 1)
-    ));
-    for (const index of previousIndexes) await SecurityDevice.collection.dropIndex(index.name);
-    // Existing accounts may have one web and one app record. Keep the most
-    // recently seen one and revoke the rest before adding the single-device
-    // unique index.
-    const duplicateGroups = await SecurityDevice.aggregate([
-        { $match: { status: 'active' } },
-        { $sort: { lastSeenAt: -1, updatedAt: -1 } },
-        { $group: { _id: { principalType: '$principalType', principalId: '$principalId' }, ids: { $push: '$_id' }, count: { $sum: 1 } } },
-        { $match: { count: { $gt: 1 } } }
-    ]);
-    for (const group of duplicateGroups) {
-        await SecurityDevice.updateMany(
-            { _id: { $in: group.ids.slice(1) } },
-            { $set: { status: 'revoked', revokedAt: new Date(), revokedReason: 'single_device_policy_migration' } }
+    const indexNames = new Set(indexes.map((index) => index.name));
+    if (indexNames.has('uniq_active_security_device_per_channel')) {
+        await SecurityDevice.collection.dropIndex('uniq_active_security_device_per_channel');
+    }
+    if (!indexNames.has('uniq_active_security_device_per_account')) {
+        // Existing accounts may have one web and one app record. Keep the most
+        // recently seen one and revoke the rest before adding the single-device
+        // unique index. Do not drop this unique index on every process boot.
+        const duplicateGroups = await SecurityDevice.aggregate([
+            { $match: { status: 'active' } },
+            { $sort: { lastSeenAt: -1, updatedAt: -1 } },
+            { $group: { _id: { principalType: '$principalType', principalId: '$principalId' }, ids: { $push: '$_id' }, count: { $sum: 1 } } },
+            { $match: { count: { $gt: 1 } } }
+        ]);
+        for (const group of duplicateGroups) {
+            await SecurityDevice.updateMany(
+                { _id: { $in: group.ids.slice(1) } },
+                { $set: { status: 'revoked', revokedAt: new Date(), revokedReason: 'single_device_policy_migration' } }
+            );
+        }
+        await SecurityDevice.collection.createIndex(
+            { principalType: 1, principalId: 1, status: 1 },
+            {
+                name: 'uniq_active_security_device_per_account',
+                unique: true,
+                partialFilterExpression: { status: 'active' }
+            }
         );
     }
-    await SecurityDevice.collection.createIndex(
-        { principalType: 1, principalId: 1, status: 1 },
-        {
-            name: 'uniq_active_security_device_per_account',
-            unique: true,
-            partialFilterExpression: { status: 'active' }
-        }
-    );
+    if (!indexNames.has('security_device_lastSeenAt')) {
+        await SecurityDevice.collection.createIndex(
+            { status: 1, lastSeenAt: -1 },
+            { name: 'security_device_lastSeenAt' }
+        );
+    }
 };
 
 const applySessionSecurity = async (req, principal, accountClass = 'account', res = null) => {
@@ -670,7 +797,7 @@ const applySessionSecurity = async (req, principal, accountClass = 'account', re
     req.session.securityExpiresAt = Date.now() + (hours * 60 * 60 * 1000);
     req.session.securityLocation = parseLocation(req);
     req.session.securityLoginIp = requestIp(req);
-    rememberSessionDevice(req, deviceId);
+    markSessionDeviceVerified(req, { deviceId });
 };
 
 const rotateEmergencyCode = async (updatedBy) => {
@@ -724,9 +851,18 @@ module.exports = {
     DEVICE_COOKIE,
     requestChannel,
     DEVICE_ID_PATTERN,
+    DEFAULT_STATE_CACHE_MS,
+    DEFAULT_LAST_SEEN_MIN_INTERVAL_MS,
+    DEFAULT_DEVICE_RECHECK_MS,
     ensureDeviceId,
     persistDeviceCookie,
     rememberSessionDevice,
+    markSessionDeviceVerified,
+    sessionDeviceRecentlyVerified,
+    shouldTouchLastSeen,
+    touchDeviceLastSeen,
+    cachedDeviceBinding,
+    rememberDeviceBinding,
     hashDeviceId,
     requestIp,
     parseLocation,

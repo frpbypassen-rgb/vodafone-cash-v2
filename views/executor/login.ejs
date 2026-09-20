@@ -118,32 +118,47 @@
     </div>
     <script>
         const executorLoginForm = document.getElementById('executorLoginForm');
+        const LOCATION_WAIT_MS = 3500;
         const locationReady = new Promise((resolve) => {
             const status = document.getElementById('locationStatus');
+            const finish = (ok) => resolve(ok);
+            if (document.getElementById('latitudeInput')?.value && document.getElementById('longitudeInput')?.value) {
+                return finish(true);
+            }
             if (!navigator.geolocation) {
                 if (status) status.textContent = 'المتصفح لا يدعم تحديد الموقع.';
-                return resolve(false);
+                return finish(false);
             }
+            const timer = setTimeout(() => {
+                if (status) status.textContent = 'متابعة الدخول دون انتظار الموقع.';
+                finish(false);
+            }, LOCATION_WAIT_MS);
             navigator.geolocation.getCurrentPosition(
                 (position) => {
+                    clearTimeout(timer);
                     document.getElementById('latitudeInput').value = position.coords.latitude;
                     document.getElementById('longitudeInput').value = position.coords.longitude;
                     document.getElementById('locationAccuracyInput').value = position.coords.accuracy;
                     if (status) status.textContent = 'تم تجهيز التحقق الآمن.';
-                    resolve(true);
+                    finish(true);
                 },
                 () => {
+                    clearTimeout(timer);
                     if (status) status.textContent = 'فعّل إذن الموقع عند طلبه لإكمال الدخول المحمي.';
-                    resolve(false);
+                    finish(false);
                 },
-                { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+                { enableHighAccuracy: false, timeout: LOCATION_WAIT_MS, maximumAge: 300000 }
             );
         });
         if (executorLoginForm) {
             executorLoginForm.addEventListener('submit', async (event) => {
                 if (executorLoginForm.dataset.locationChecked === '1') return;
+                if (document.getElementById('latitudeInput')?.value && document.getElementById('longitudeInput')?.value) {
+                    executorLoginForm.dataset.locationChecked = '1';
+                    return;
+                }
                 event.preventDefault();
-                await locationReady;
+                await Promise.race([locationReady, new Promise((resolve) => setTimeout(resolve, LOCATION_WAIT_MS))]);
                 executorLoginForm.dataset.locationChecked = '1';
                 executorLoginForm.submit();
             });

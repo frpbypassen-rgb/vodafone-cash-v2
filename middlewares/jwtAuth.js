@@ -77,14 +77,22 @@ const ensureBoundSecurityDevice = async (decodedUser, req) => {
     const state = await securityControl.getState();
     if (!state.accountDeviceEnforcementEnabled) return true;
     const deviceId = String(req.headers?.['x-device-id'] || '').trim();
-    if (!deviceId || (state.highConfidenceVpnBlockEnabled && securityControl.assessNetworkRisk(req).highRisk)) return false;
+    const cacheKey = `${decodedUser.accountType}:${decodedUser.userId}:${deviceId}`;
+    const cached = securityControl.cachedDeviceBinding(cacheKey);
+    if (cached !== undefined) return cached;
+    if (!deviceId || (state.highConfidenceVpnBlockEnabled && securityControl.assessNetworkRisk(req).highRisk)) {
+        securityControl.rememberDeviceBinding(cacheKey, false);
+        return false;
+    }
     const active = await SecurityDevice.findOne({
         principalType: decodedUser.accountType,
         principalId: String(decodedUser.userId),
         channel: 'app',
         status: 'active'
     }).select('+deviceIdHash').lean();
-    return Boolean(active && active.deviceIdHash === securityControl.hashDeviceId(deviceId));
+    const bound = Boolean(active && active.deviceIdHash === securityControl.hashDeviceId(deviceId));
+    securityControl.rememberDeviceBinding(cacheKey, bound);
+    return bound;
 };
 
 const authenticateJWT = (req, res, next) => {

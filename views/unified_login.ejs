@@ -451,36 +451,51 @@
     <script>
         document.getElementById('devicePlatformInput').value = navigator.userAgentData?.platform || navigator.platform || '';
         document.getElementById('deviceNameInput').value = `${navigator.userAgentData?.platform || navigator.platform || 'Device'} - ${navigator.userAgentData?.brands?.[0]?.brand || 'Browser'}`;
+        const LOCATION_WAIT_MS = 3500;
         const locationReady = new Promise((resolve) => {
             const status = document.getElementById('locationStatus');
+            const finish = (ok) => resolve(ok);
+            if (document.getElementById('latitudeInput').value && document.getElementById('longitudeInput').value) {
+                return finish(true);
+            }
             if (!navigator.geolocation) {
                 status.innerHTML = '<i class="fa-solid fa-triangle-exclamation ms-1"></i>المتصفح لا يدعم تحديد الموقع.';
-                return resolve(false);
+                return finish(false);
             }
+            const timer = setTimeout(() => {
+                status.innerHTML = '<i class="fa-solid fa-location-dot text-warning ms-1"></i>متابعة الدخول دون انتظار الموقع.';
+                finish(false);
+            }, LOCATION_WAIT_MS);
             navigator.geolocation.getCurrentPosition(
                 (position) => {
+                    clearTimeout(timer);
                     document.getElementById('latitudeInput').value = position.coords.latitude;
                     document.getElementById('longitudeInput').value = position.coords.longitude;
                     document.getElementById('locationAccuracyInput').value = position.coords.accuracy;
                     status.innerHTML = '<i class="fa-solid fa-location-dot text-success ms-1"></i>تم تجهيز التحقق الآمن.';
-                    resolve(true);
+                    finish(true);
                 },
                 () => {
+                    clearTimeout(timer);
                     status.innerHTML = '<i class="fa-solid fa-location-dot text-danger ms-1"></i>فعّل إذن الموقع عند طلبه لإكمال الدخول المحمي.';
-                    resolve(false);
+                    finish(false);
                 },
-                { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+                { enableHighAccuracy: false, timeout: LOCATION_WAIT_MS, maximumAge: 300000 }
             );
         });
 
         const loginForm = document.getElementById('loginForm');
         loginForm.addEventListener('submit', async (event) => {
             if (loginForm.dataset.locationChecked === '1') return;
+            if (document.getElementById('latitudeInput').value && document.getElementById('longitudeInput').value) {
+                loginForm.dataset.locationChecked = '1';
+                return;
+            }
             event.preventDefault();
             showLoading();
             const status = document.getElementById('locationStatus');
             if (status) status.innerHTML = '<i class="fa-solid fa-spinner fa-spin ms-1"></i>جاري تأكيد الموقع قبل إرسال الدخول...';
-            await locationReady;
+            await Promise.race([locationReady, new Promise((resolve) => setTimeout(resolve, LOCATION_WAIT_MS))]);
             loginForm.dataset.locationChecked = '1';
             loginForm.submit();
         });
