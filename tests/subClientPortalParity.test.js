@@ -1,5 +1,7 @@
 'use strict';
 
+jest.mock('../middlewares/tenantResolver', () => ({ tenantMode: () => 'single' }));
+
 const fs = require('fs');
 const path = require('path');
 const ejs = require('ejs');
@@ -26,6 +28,8 @@ const {
     adminListIncludesAgencyDeposit
 } = require('../services/adminAccountVisibilityService');
 const { loadAdminAccountDirectory } = require('../services/adminAccountDirectoryService');
+const { mongoQueryMatches } = require('./mongoQueryMatch');
+const { buildLiveQuery } = require('../services/liveOperationsService');
 const {
     SERVICE_CATALOG,
     STATUS_META,
@@ -279,8 +283,19 @@ describe('sub_client operations reach admin ops and the agency log', () => {
         const liveQuery = applyAdminTxPrivacy({});
         expect(liveQuery.isSubAccountTx).toBeUndefined();
         expect(JSON.stringify(liveQuery.$nor)).toContain('deposit_pending');
+        expect(JSON.stringify(liveQuery.$nor)).not.toContain('"$or"');
+        liveQuery.$nor.forEach((clause) => {
+            expect(clause.$or).toBeUndefined();
+            expect(clause.$and).toBeUndefined();
+        });
         expect(adminVisibleTransactionQuery({}, { status: 'pending' }).status).toBe('pending');
         expect(adminVisibleTransactionQuery({}, { status: 'pending' }).isSubAccountTx).toBeUndefined();
+        expect(mongoQueryMatches(pendingOp, liveQuery)).toBe(true);
+        expect(mongoQueryMatches(completedOp, liveQuery)).toBe(true);
+        expect(mongoQueryMatches(directOp, liveQuery)).toBe(true);
+        expect(mongoQueryMatches(agencyDeposit, liveQuery)).toBe(false);
+        expect(mongoQueryMatches(pendingOp, adminVisibleTransactionQuery({}, { status: 'pending' }))).toBe(true);
+        expect(mongoQueryMatches(agencyDeposit, adminVisibleTransactionQuery({}, { status: 'pending' }))).toBe(false);
 
         const transferSource = fs.readFileSync(path.join(ROOT, 'controllers/clientTransactionController.js'), 'utf8');
         expect(transferSource).toMatch(/status: 'pending', isSubAccountTx: isSubAccount/);
@@ -307,6 +322,37 @@ describe('sub_client operations reach admin ops and the agency log', () => {
 
         const hiddenClient = buildAdminAccountHistoryQuery({ kind: 'subaccount', account: { _id: SUB_ID } });
         expect(hiddenClient).toEqual({ isSubAccountTx: { $ne: true }, _id: null });
+    });
+
+    test('pending sub-client transfer matches admin live query and a deposit does not', () => {
+        const now = new Date('2026-09-20T20:00:00.000Z');
+        const pendingTransfer = {
+            ...pendingOp,
+            createdAt: now,
+            amount: 500
+        };
+        const fundingDeposit = {
+            ...agencyDeposit,
+            createdAt: now,
+            amount: 200
+        };
+        const liveAll = buildLiveQuery({ query: { range: 'all' } }, now);
+        const livePendingVodafone = buildLiveQuery(
+            { query: { status: 'pending', type: 'vodafone', range: 'all' } },
+            now
+        );
+        const liveDefault24h = buildLiveQuery({ query: {} }, now);
+        const opsPending = adminVisibleTransactionQuery({}, { status: { $in: ['pending', 'processing', 'accepted', 'completed', 'rejected', 'cancelled_by_admin'] } });
+
+        expect(mongoQueryMatches(pendingTransfer, liveAll)).toBe(true);
+        expect(mongoQueryMatches(pendingTransfer, livePendingVodafone)).toBe(true);
+        expect(mongoQueryMatches(pendingTransfer, liveDefault24h)).toBe(true);
+        expect(mongoQueryMatches(pendingTransfer, opsPending)).toBe(true);
+        expect(mongoQueryMatches(fundingDeposit, liveAll)).toBe(false);
+        expect(mongoQueryMatches(fundingDeposit, livePendingVodafone)).toBe(false);
+        expect(mongoQueryMatches(fundingDeposit, liveDefault24h)).toBe(false);
+        expect(mongoQueryMatches(fundingDeposit, opsPending)).toBe(false);
+        expect(mongoQueryMatches(directOp, livePendingVodafone)).toBe(true);
     });
 
     test('admin account directory lists agents not SubAccount clients', async () => {
