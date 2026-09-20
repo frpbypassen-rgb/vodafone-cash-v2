@@ -21,7 +21,7 @@ const {
     loadEntityMovementReport
 } = require('../services/dashboardIntelligenceService');
 const { adminVisibleTransactionQuery } = require('../services/adminAccountVisibilityService');
-const { tenantScope } = require('../utils/tenantScope');
+const { adminAccountScope, tenantScope } = require('../utils/tenantScope');
 
 const appendAdminNoteText = (current, note) => {
     const cleanNote = String(note || '').trim();
@@ -56,6 +56,7 @@ router.get(['/proxy/image/:id', '/proxy/image/:id/:index'], requireAuth, async (
 router.get('/', requireAuth, async (req, res) => {
     try {
         const scopedTenant = tenantScope(req);
+        const accountScope = adminAccountScope(req);
         const [
             usersCount,
             companiesCount,
@@ -65,9 +66,9 @@ router.get('/', requireAuth, async (req, res) => {
             completedTxs,
             intelligence
         ] = await Promise.all([
-            User.countDocuments(scopedTenant),
-            ClientCompany.countDocuments(scopedTenant),
-            Employee.countDocuments(scopedTenant),
+            User.countDocuments(accountScope),
+            ClientCompany.countDocuments(accountScope),
+            Employee.countDocuments(accountScope),
             Transaction.countDocuments(adminVisibleTransactionQuery(scopedTenant, { status: 'pending' })),
             Transaction.countDocuments(adminVisibleTransactionQuery(scopedTenant, { status: { $in: ['processing', 'accepted'] } })),
             Transaction.countDocuments(adminVisibleTransactionQuery(scopedTenant, { status: 'completed' })),

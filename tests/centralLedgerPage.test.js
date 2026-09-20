@@ -71,6 +71,20 @@ describe('central ledger page layout', () => {
         expect(html).not.toContain('إجمالي خصومات اليوم');
         expect(html).toContain('href="/transactions/live"');
         expect(html).toContain('المراقبة الحية');
+        expect(html).not.toContain('لا توجد شركات نشطة حالياً');
+        expect(html).not.toContain('لا توجد شركة منفذة برصيد متاح حالياً');
+    });
+
+    test('shows the empty header copy only when company and executor lists are empty', () => {
+        const html = renderTransactions({
+            activeClientCompanies: [],
+            fundedExecutorCompanies: []
+        });
+
+        expect(html).toContain('لا توجد شركات نشطة حالياً');
+        expect(html).toContain('لا توجد شركة منفذة برصيد متاح حالياً');
+        expect(html).not.toContain('شركة النور');
+        expect(html).not.toContain('منفذ كاش');
     });
 
     test('keeps the operations workspace KPI cards unchanged', () => {
