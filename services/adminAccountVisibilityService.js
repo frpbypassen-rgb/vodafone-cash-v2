@@ -21,6 +21,16 @@ const applyAdminTxPrivacy = (query = {}) => ({
     ...excludeAgencyClientTxFilter
 });
 
+const adminVisibleTransactionQuery = (scope = {}, extra = {}) => (
+    applyAdminTxPrivacy({ ...scope, ...extra })
+);
+
+const ADMIN_HIDDEN_PRINCIPAL_TYPES = Object.freeze(['sub_client']);
+
+const isAdminHiddenPrincipalType = (principalType) => (
+    ADMIN_HIDDEN_PRINCIPAL_TYPES.includes(String(principalType || '').trim())
+);
+
 const isAgencyClientScopedTx = (transaction) => (
     Boolean(transaction)
     && (transaction.isSubAccountTx === true || Boolean(transaction.subAccountId))
@@ -64,13 +74,16 @@ const loadAdminAccountHistory = async ({ Transaction }, {
 };
 
 module.exports = {
+    ADMIN_HIDDEN_PRINCIPAL_TYPES,
     ADMIN_TX_NAME_SEARCH_FIELDS,
     accountIdentifiers,
     adminListIncludesAgencyDeposit,
+    adminVisibleTransactionQuery,
     agentOwnsSubAccount,
     applyAdminTxPrivacy,
     buildAdminAccountHistoryQuery,
     excludeAgencyClientTxFilter,
+    isAdminHiddenPrincipalType,
     isAgencyClientScopedTx,
     isVisibleAgencyClient,
     loadAdminAccountHistory

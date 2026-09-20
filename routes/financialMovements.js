@@ -5,6 +5,7 @@ const router = express.Router();
 const Ledger = require('../models/Ledger');
 const Transaction = require('../models/Transaction');
 const { requireAuth } = require('../middlewares/auth');
+const { applyAdminTxPrivacy } = require('../services/adminAccountVisibilityService');
 const { escapeRegex } = require('../middlewares/sanitize');
 const { systemDateKey, systemDayEnd, systemDayStart } = require('../config/systemTime');
 
@@ -75,7 +76,7 @@ const buildLedgerFilter = async (query) => {
 
 const enrichMovements = async (ledgers) => {
     const txIds = [...new Set(ledgers.map((item) => item.transactionId).filter(Boolean))];
-    const txs = await Transaction.find({ customId: { $in: txIds } })
+    const txs = await Transaction.find(applyAdminTxPrivacy({ customId: { $in: txIds } }))
         .select('customId status amount costLYD companyName employeeName vodafoneNumber transferType cancellationNumber cancellationReason executorName proofImage proofImages createdAt updatedAt')
         .lean();
     const txMap = new Map(txs.map((tx) => [tx.customId, tx]));

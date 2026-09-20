@@ -31,6 +31,7 @@ const {
     reassignTransactionExecutor
 } = require('../services/adminFinancialMutationService');
 const eventBus = require('../services/eventBus');
+const { adminVisibleTransactionQuery, applyAdminTxPrivacy } = require('../services/adminAccountVisibilityService');
 const { tenantScope } = require('../utils/tenantScope');
 const {
     emptyPeriodStats,
@@ -142,6 +143,8 @@ const customerFacingNotes = (notes) => {
 };
 
 const OPERATION_STATUSES = ['pending', 'processing', 'accepted', 'completed', 'rejected', 'cancelled_by_admin'];
+
+const adminTxById = (req, id) => adminVisibleTransactionQuery(tenantScope(req), { _id: id });
 
 const transactionLedgerBaseQuery = (source = null) => ({
     ...tenantScope(source),
@@ -583,7 +586,7 @@ router.get('/transactions/print', async (req, res) => {
 
 router.post('/transaction/:id/assign-executor', async (req, res) => {
     try {
-        const txId = req.params.id; const executorGroupId = req.body.executorGroupId || req.body.executorBotId; const tx = await Transaction.findOne({ _id: txId, ...tenantScope(req) });
+        const txId = req.params.id; const executorGroupId = req.body.executorGroupId || req.body.executorBotId; const tx = await Transaction.findOne(adminTxById(req, txId));
         if (!tx || tx.status !== 'pending') {
             return respondTransactionAction(req, res, 409, {
                 success: false,
@@ -788,7 +791,7 @@ router.post('/transaction/:id/assign-executor', async (req, res) => {
 
 router.post('/transaction/:id/pull-task', async (req, res) => {
     try {
-        const tx = await Transaction.findOne({ _id: req.params.id, ...tenantScope(req) });
+        const tx = await Transaction.findOne(adminTxById(req, req.params.id));
         if (!tx || !['processing', 'accepted'].includes(tx.status)) {
             return respondTransactionAction(req, res, 409, {
                 success: false,
@@ -819,7 +822,7 @@ router.post('/transaction/:id/pull-task', async (req, res) => {
 
 router.post('/transaction/:id/emergency-alert', async (req, res) => {
     try {
-        const tx = await Transaction.findOne({ _id: req.params.id, ...tenantScope(req) });
+        const tx = await Transaction.findOne(adminTxById(req, req.params.id));
         if (!tx || !['processing', 'accepted'].includes(tx.status)) { return res.redirect('/transactions'); }
         const alertMsg = req.body.alertMessage || `تنبيه عاجل من الإدارة للطلب رقم ${tx.customId || tx._id}! يرجى سرعة التنفيذ!`;
         await Transaction.updateOne({ _id: tx._id }, { $set: { emergencyAlert: alertMsg } }, { strict: false });
@@ -835,7 +838,7 @@ router.post('/transaction/:id/emergency-alert', async (req, res) => {
 
 router.post('/transaction/:id/accept-deposit-web', async (req, res) => {
     try {
-        const tx = await Transaction.findOne({ _id: req.params.id, ...tenantScope(req) });
+        const tx = await Transaction.findOne(adminTxById(req, req.params.id));
         if (!tx || tx.status !== 'deposit_pending') return res.json({ success: false, error: 'الطلب غير متاح' });
 
         if (tx.depositRequest?.submittedByRole === 'client' && tx.depositRequest?.supportTicketId) {
@@ -858,7 +861,7 @@ router.post('/transaction/:id/accept-deposit-web', async (req, res) => {
 
 router.post('/transaction/:id/reject-deposit-web', async (req, res) => {
     try {
-        const { reason } = req.body; const tx = await Transaction.findOne({ _id: req.params.id, ...tenantScope(req) });
+        const { reason } = req.body; const tx = await Transaction.findOne(adminTxById(req, req.params.id));
         if (!tx || tx.status !== 'deposit_pending') return res.redirect('/transactions');
 
         if (tx.depositRequest?.submittedByRole === 'client' && tx.depositRequest?.supportTicketId) {
@@ -945,12 +948,13 @@ router.post('/transaction/:id/global-cancel', async (req, res) => {
     try {
         const reason = req.body.reason || 'إلغاء من الإدارة';
         const adminName = req.session.adminName || 'الإدارة';
-        const originalTx = await Transaction.findOne({ _id: req.params.id, ...tenantScope(req) }).lean();
+        const originalTx = await Transaction.findOne(adminTxById(req, req.params.id)).lean();
+        if (!originalTx) return res.redirect('/transactions');
         
         // 🟢 استخدام خدمة الاسترجاع الموحدة لضمان الدبل إنتري والأحداث المتسلسلة
         const result = await reversalService.reverseTransaction(req.params.id, reason, adminName, { status: 'cancelled_by_admin' });
         if (result.success) {
-            const tx = await Transaction.findOne({ _id: req.params.id, ...tenantScope(req) });
+            const tx = await Transaction.findOne(adminTxById(req, req.params.id));
             if (tx) {
                 const groupId = tx.executorGroupId; 
                 const managerGroupId = tx.managerGroupId;
@@ -1025,7 +1029,7 @@ router.post('/admin/kyc/review', async (req, res) => {
 // 🔍 الحصول على تفاصيل العملية الشاملة + قيود الدفتر المالي (Ledger)
 router.get('/transactions/:id/details', async (req, res) => {
     try {
-        const tx = await Transaction.findOne({ _id: req.params.id, ...tenantScope(req) }).select('+executorExecutionNumber');
+        const tx = await Transaction.findOne(adminTxById(req, req.params.id)).select('+executorExecutionNumber');
         if (!tx) return res.status(404).json({ success: false, error: 'العملية غير موجودة' });
         
         let ledgerInfo = null;
@@ -1033,9 +1037,10 @@ router.get('/transactions/:id/details', async (req, res) => {
         if (tx.transferType === 'balance_transfer') {
             const transferId = tx.customId.replace(/-[CD]$/, '');
             ledgerInfo = await Ledger.find({ transactionId: transferId }).lean();
-            const pairTransactions = await Transaction.find({ ...tenantScope(req),
+            const pairTransactions = await Transaction.find(applyAdminTxPrivacy({
+                ...tenantScope(req),
                 customId: { $in: [`${transferId}-D`, `${transferId}-C`] }
-            }).lean();
+            })).lean();
 
             const sourceTx = pairTransactions.find((item) => item.status === 'deduction' || String(item.customId).endsWith('-D'));
             const targetTx = pairTransactions.find((item) => item.status === 'deposit' || String(item.customId).endsWith('-C'));

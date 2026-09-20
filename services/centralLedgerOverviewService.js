@@ -1,5 +1,6 @@
 'use strict';
 
+const { applyAdminTxPrivacy } = require('./adminAccountVisibilityService');
 const { tenantScope } = require('../utils/tenantScope');
 const { systemDateKey, systemDateRange, systemDayStart } = require('../config/systemTime');
 
@@ -34,7 +35,7 @@ const successfulOpsPeriodBounds = (now = new Date()) => {
     };
 };
 
-const successfulOpsLedgerMatch = (source) => ({
+const successfulOpsLedgerMatch = (source) => applyAdminTxPrivacy({
     ...tenantScope(source),
     status: SUCCESS_STATUS,
     $and: [

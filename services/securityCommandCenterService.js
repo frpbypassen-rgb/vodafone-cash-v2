@@ -6,7 +6,7 @@ const User = require('../models/User');
 const ClientEmployee = require('../models/ClientEmployee');
 const Employee = require('../models/Employee');
 const AgentEmployee = require('../models/AgentEmployee');
-const SubAccount = require('../models/SubAccount');
+const { isAdminHiddenPrincipalType } = require('./adminAccountVisibilityService');
 
 const ONLINE_WINDOW_MINUTES = 10;
 
@@ -136,26 +136,25 @@ const accountRow = ({ id, principalType, name, category, status, devicesByAccoun
 const buildCommandCenter = async ({ now = new Date() } = {}) => {
     const onlineSince = new Date(now.getTime() - ONLINE_WINDOW_MINUTES * 60 * 1000);
     const today = startOfToday(now);
-    const [devices, logs, users, companyStaff, executors, agentStaff, subAccounts] = await Promise.all([
+    const [devices, logs, users, companyStaff, executors, agentStaff] = await Promise.all([
         SecurityDevice.find().sort({ lastSeenAt: -1 }).limit(500).lean(),
         AuditLog.find().sort({ createdAt: -1 }).limit(150).lean(),
         User.find({ deletedAt: { $exists: false } }).select('name role status').sort({ name: 1 }).limit(1000).lean(),
         ClientEmployee.find({ deletedAt: { $exists: false } }).select('name status companyId').populate('companyId', 'name').sort({ name: 1 }).limit(1000).lean(),
         Employee.find({ archivedAt: null }).select('name status groupId').populate('groupId', 'name').sort({ name: 1 }).limit(1000).lean(),
-        AgentEmployee.find({ deletedAt: { $exists: false } }).select('name status agentId').populate('agentId', 'name').sort({ name: 1 }).limit(1000).lean(),
-        SubAccount.find({ deletedAt: { $exists: false } }).select('name status').sort({ name: 1 }).limit(1000).lean()
+        AgentEmployee.find({ deletedAt: { $exists: false } }).select('name status agentId').populate('agentId', 'name').sort({ name: 1 }).limit(1000).lean()
     ]);
 
-    const devicesByAccount = buildDeviceMap(devices);
+    const visibleDevices = devices.filter((item) => !isAdminHiddenPrincipalType(item.principalType));
+    const devicesByAccount = buildDeviceMap(visibleDevices);
     const accounts = [
         ...users.map((item) => accountRow({ id: item._id, principalType: 'client_user', name: item.name, category: item.role === 'agent' ? 'وكيل' : 'عميل', status: item.status, devicesByAccount })),
         ...companyStaff.map((item) => accountRow({ id: item._id, principalType: 'client_company', name: item.companyId?.name ? `${item.companyId.name} — ${item.name}` : item.name, category: 'شركة', status: item.status, devicesByAccount })),
         ...executors.map((item) => accountRow({ id: item._id, principalType: 'executor', name: item.groupId?.name ? `${item.groupId.name} — ${item.name}` : item.name, category: 'منفذ', status: item.status, devicesByAccount })),
-        ...agentStaff.map((item) => accountRow({ id: item._id, principalType: 'agent_staff', name: item.agentId?.name ? `${item.agentId.name} — ${item.name}` : item.name, category: 'وكيل', status: item.status, devicesByAccount })),
-        ...subAccounts.map((item) => accountRow({ id: item._id, principalType: 'sub_client', name: item.name, category: 'عميل', status: item.status, devicesByAccount }))
+        ...agentStaff.map((item) => accountRow({ id: item._id, principalType: 'agent_staff', name: item.agentId?.name ? `${item.agentId.name} — ${item.name}` : item.name, category: 'وكيل', status: item.status, devicesByAccount }))
     ];
     const names = new Map(accounts.map((item) => [keyFor(item.principalType, item.id), item.name]));
-    const onlineDevices = devices.filter((item) => item.status === 'active' && item.lastSeenAt && new Date(item.lastSeenAt) >= onlineSince);
+    const onlineDevices = visibleDevices.filter((item) => item.status === 'active' && item.lastSeenAt && new Date(item.lastSeenAt) >= onlineSince);
     const connectedDevices = onlineDevices.map((device) => ({
         ...device,
         accountName: names.get(keyFor(device.principalType, device.principalId)) || device.displayName || device.principalId,
@@ -169,7 +168,7 @@ const buildCommandCenter = async ({ now = new Date() } = {}) => {
     const failedToday = todayLogs.filter((log) => log.success === false || /FAILED|REJECTED/.test(log.action || '')).length;
     const transfersToday = todayLogs.filter((log) => log.action === 'TRANSFER_CREATED').length;
     const criticalToday = todayLogs.filter((log) => log.severity === 'critical').length;
-    const newDevicesToday = devices.filter((device) => new Date(device.createdAt) >= today).length;
+    const newDevicesToday = visibleDevices.filter((device) => new Date(device.createdAt) >= today).length;
     const alerts = [];
     if (failedToday) alerts.push({ tone: 'danger', title: `${failedToday} محاولة أو حركة فاشلة اليوم`, text: 'راجع سجل الحركة وحدد الحسابات أو عناوين الشبكة المتكررة.', tab: 'activity' });
     if (criticalToday) alerts.push({ tone: 'danger', title: `${criticalToday} حدث حرج اليوم`, text: 'تحتاج الأحداث الحرجة إلى مراجعة الإدارة.', tab: 'activity' });

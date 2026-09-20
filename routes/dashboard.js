@@ -20,6 +20,7 @@ const {
     loadDashboardIntelligence,
     loadEntityMovementReport
 } = require('../services/dashboardIntelligenceService');
+const { adminVisibleTransactionQuery } = require('../services/adminAccountVisibilityService');
 const { tenantScope } = require('../utils/tenantScope');
 
 const appendAdminNoteText = (current, note) => {
@@ -30,7 +31,7 @@ const appendAdminNoteText = (current, note) => {
 
 router.get(['/proxy/image/:id', '/proxy/image/:id/:index'], requireAuth, async (req, res) => {
     try {
-        const tx = await Transaction.findOne({ _id: req.params.id, ...tenantScope(req) });
+        const tx = await Transaction.findOne(adminVisibleTransactionQuery(tenantScope(req), { _id: req.params.id }));
         if (!tx) return res.status(404).send('لا توجد صورة إثبات');
 
         const index = req.params.index ? parseInt(req.params.index) : 0;
@@ -67,9 +68,9 @@ router.get('/', requireAuth, async (req, res) => {
             User.countDocuments(scopedTenant),
             ClientCompany.countDocuments(scopedTenant),
             Employee.countDocuments(scopedTenant),
-            Transaction.countDocuments({ ...scopedTenant, status: 'pending' }),
-            Transaction.countDocuments({ ...scopedTenant, status: { $in: ['processing', 'accepted'] } }),
-            Transaction.countDocuments({ ...scopedTenant, status: 'completed' }),
+            Transaction.countDocuments(adminVisibleTransactionQuery(scopedTenant, { status: 'pending' })),
+            Transaction.countDocuments(adminVisibleTransactionQuery(scopedTenant, { status: { $in: ['processing', 'accepted'] } })),
+            Transaction.countDocuments(adminVisibleTransactionQuery(scopedTenant, { status: 'completed' })),
             loadDashboardIntelligence(new Date(), { tenantId: req.tenantId })
         ]);
 
@@ -122,15 +123,15 @@ router.get('/api/sidebar-stats', requireAuth, async (req, res) => {
     try {
         const scopedTenant = tenantScope(req);
         const [complaintsCount, regRequestsCount, supportCount, pendingCount] = await Promise.all([
-            Transaction.countDocuments({ ...scopedTenant,
+            Transaction.countDocuments(adminVisibleTransactionQuery(scopedTenant, {
                 $or: [
                     { complaintText: { $exists: true, $ne: '' } },
                     { emergencyAlert: { $exists: true, $ne: '' } }
                 ]
-            }),
+            })),
             RegistrationRequest.countDocuments({ status: 'pending' }),
             SupportTicket.countDocuments({ unreadAdmin: { $gt: 0 } }),
-            Transaction.countDocuments({ ...scopedTenant, status: 'pending' })
+            Transaction.countDocuments(adminVisibleTransactionQuery(scopedTenant, { status: 'pending' }))
         ]);
         res.json({
             success: true,
@@ -182,12 +183,12 @@ router.post('/api/notifications/read-all', requireAuth, async (req, res) => {
 
 router.get('/complaints', requireAuth, async (req, res) => {
     try {
-        const complaints = await Transaction.find({ ...tenantScope(req),
+        const complaints = await Transaction.find(adminVisibleTransactionQuery(tenantScope(req), {
             $or: [
                 { complaintText: { $exists: true, $ne: '' } },
                 { emergencyAlert: { $exists: true, $ne: '' } }
             ]
-        }).sort({ updatedAt: -1, createdAt: -1 });
+        })).sort({ updatedAt: -1, createdAt: -1 });
         res.render('complaints', { complaints, adminName: req.session.adminName });
     } catch (e) { res.status(500).send('خطأ داخلي'); }
 });
@@ -196,7 +197,7 @@ router.post('/api/resolve-complaint', requireAuth, async (req, res) => {
     try {
         const { transactionId } = req.body;
         if (!transactionId) return res.status(400).json({ error: 'معرف العملية مطلوب' });
-        await Transaction.findOneAndUpdate({ _id: transactionId, ...tenantScope(req) }, {
+        await Transaction.findOneAndUpdate(adminVisibleTransactionQuery(tenantScope(req), { _id: transactionId }), {
             $unset: { complaintText: "", emergencyAlert: "" }
         });
         res.json({ success: true });
@@ -209,7 +210,7 @@ router.post('/api/complaints/:id/edit-amount', requireAuth, async (req, res) => 
         const newAmount = parseFloat(req.body.newAmount);
         const reason = req.body.reason || '';
         if (isNaN(newAmount) || newAmount <= 0) return res.status(400).json({ error: 'المبلغ غير صالح' });
-        if (!await Transaction.exists({ _id: txId, ...tenantScope(req) })) return res.status(404).json({ error: 'العملية غير موجودة' });
+        if (!await Transaction.exists(adminVisibleTransactionQuery(tenantScope(req), { _id: txId }))) return res.status(404).json({ error: 'العملية غير موجودة' });
         
         const result = await editTransactionAmount({
             transactionId: txId,
@@ -233,7 +234,7 @@ router.post('/api/complaints/:id/edit-rate', requireAuth, async (req, res) => {
         const newRate = parseFloat(req.body.newRate);
         const reason = req.body.reason || '';
         if (isNaN(newRate) || newRate <= 0) return res.status(400).json({ error: 'سعر الصرف غير صالح' });
-        if (!await Transaction.exists({ _id: req.params.id, ...tenantScope(req) })) return res.status(404).json({ error: 'العملية غير موجودة' });
+        if (!await Transaction.exists(adminVisibleTransactionQuery(tenantScope(req), { _id: req.params.id }))) return res.status(404).json({ error: 'العملية غير موجودة' });
         await repriceTransaction({
             transactionId: req.params.id,
             newRate,
@@ -271,7 +272,7 @@ router.post('/api/complaints/:id/upload-proof', requireAuth, async (req, res) =>
         const { imageBase64 } = req.body;
         if (!imageBase64) return res.status(400).json({ error: 'الصورة مطلوبة' });
 
-        const tx = await Transaction.findOne({ _id: req.params.id, ...tenantScope(req) });
+        const tx = await Transaction.findOne(adminVisibleTransactionQuery(tenantScope(req), { _id: req.params.id }));
         if (!tx) return res.status(404).json({ error: 'العملية غير موجودة' });
 
         const base64Data = imageBase64.replace(/^data:image\/\w+;base64,/, "");
@@ -302,7 +303,7 @@ router.post('/api/complaints/:id/resolve', requireAuth, async (req, res) => {
         const { reason } = req.body;
         if (!reason) return res.status(400).json({ error: 'السبب مطلوب' });
 
-        const tx = await Transaction.findOne({ _id: txId, ...tenantScope(req) });
+        const tx = await Transaction.findOne(adminVisibleTransactionQuery(tenantScope(req), { _id: txId }));
         if (!tx) return res.status(404).json({ error: 'العملية غير موجودة' });
 
         const adminName = req.session.adminName || 'الإدارة';
@@ -325,7 +326,7 @@ router.post('/api/complaints/:id/cancel', requireAuth, async (req, res) => {
         const { reason } = req.body;
         if (!reason) return res.status(400).json({ error: 'السبب مطلوب' });
 
-        const tx = await Transaction.findOne({ _id: txId, ...tenantScope(req) });
+        const tx = await Transaction.findOne(adminVisibleTransactionQuery(tenantScope(req), { _id: txId }));
         if (tx) {
             const groupId = tx.executorGroupId;
             const managerGroupId = tx.managerGroupId;

@@ -471,13 +471,18 @@ app.use('/', require('./routes/reports'));
 
 
 
-// 📚 Swagger API Documentation
-const swaggerUi = require('swagger-ui-express');
-const swaggerSpec = require('./config/swagger');
-app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec, {
-    customCss: '.swagger-ui .topbar { display: none }',
-    customSiteTitle: 'Al-Ahram Pay API Docs'
-}));
+// Swagger is a development/sandbox surface. Production stays closed unless
+// ENABLE_SWAGGER=true is set explicitly on the host.
+const swaggerEnabled = process.env.NODE_ENV !== 'production'
+    || ['1', 'true', 'yes', 'on'].includes(String(process.env.ENABLE_SWAGGER || '').trim().toLowerCase());
+if (swaggerEnabled) {
+    const swaggerUi = require('swagger-ui-express');
+    const swaggerSpec = require('./config/swagger');
+    app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec, {
+        customCss: '.swagger-ui .topbar { display: none }',
+        customSiteTitle: 'Al-Ahram Pay API Docs'
+    }));
+}
 
 app.use(notFoundHandler);
 

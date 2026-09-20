@@ -6,6 +6,7 @@ const Transaction = require('../models/Transaction');
 const User = require('../models/User');
 const { SYSTEM_TIME_ZONE, systemDateKey, systemDateParts } = require('../config/systemTime');
 const { resolveReportScope } = require('./adminReportService');
+const { applyAdminTxPrivacy } = require('./adminAccountVisibilityService');
 const { tenantScope } = require('../utils/tenantScope');
 
 const SUCCESS_STATUS = 'completed';
@@ -171,7 +172,7 @@ const buildInsights = ({ metrics, weekly, peakDays, executors, todayStatus, now 
 
 const loadDashboardIntelligence = async (now = new Date(), { tenantId = null } = {}) => {
     const periods = buildPeriods(now);
-    const scopedTenant = tenantScope(tenantId);
+    const scopedTenant = applyAdminTxPrivacy(tenantScope(tenantId));
     const facet = {
         today: metricFacet(periods.todayStart, now),
         yesterday: metricFacet(periods.yesterdayStart, periods.yesterdayEquivalentEnd),
@@ -308,7 +309,11 @@ const loadEntityMovementReport = async ({ type, id, days = 30, now = new Date(),
     const safeDays = [7, 30, 90].includes(Number(days)) ? Number(days) : 30;
     const start = startOfDay(addDays(now, -(safeDays - 1)));
     const scope = await resolveReportScope({ mainCategory: category, subId: id, subType: 'all', tenantId });
-    const baseQuery = { ...scope.baseQuery, ...tenantScope(tenantId), createdAt: { $gte: start, $lte: now } };
+    const baseQuery = applyAdminTxPrivacy({
+        ...scope.baseQuery,
+        ...tenantScope(tenantId),
+        createdAt: { $gte: start, $lte: now }
+    });
     const [summaryRows, trendRows, recent] = await Promise.all([
         Transaction.aggregate([
             { $match: baseQuery },
