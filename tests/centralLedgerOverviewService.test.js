@@ -14,6 +14,7 @@ describe('central ledger overview', () => {
     test('counts only completed operations and skips the counterpart of an internal balance transfer', () => {
         expect(successfulOpsLedgerMatch({}).status).toBe('completed');
         expect(successfulOpsLedgerMatch({})).toEqual(expect.objectContaining({
+            isSubAccountTx: { $ne: true },
             $and: [{
                 $or: [
                     { transferType: { $ne: 'balance_transfer' } },
@@ -110,7 +111,10 @@ describe('central ledger overview', () => {
         expect(overview.activeClientCompanies).toHaveLength(1);
         expect(overview.fundedExecutorCompanies.map((row) => row.id)).toEqual(['e1']);
         expect(Transaction.aggregate).toHaveBeenCalledTimes(1);
-        expect(Transaction.aggregate.mock.calls[0][0][0].$match.status).toBe('completed');
+        expect(Transaction.aggregate.mock.calls[0][0][0].$match).toEqual(expect.objectContaining({
+            status: 'completed',
+            isSubAccountTx: { $ne: true }
+        }));
         expect(ClientCompany.find).toHaveBeenCalledWith(expect.objectContaining({ status: 'active' }));
         expect(ExecutorGroup.find).toHaveBeenCalledWith(expect.objectContaining({
             status: 'active',

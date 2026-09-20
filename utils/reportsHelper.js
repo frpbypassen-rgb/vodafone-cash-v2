@@ -5,6 +5,7 @@ const ExecutorGroup = require('../models/ExecutorGroup');
 const Transaction = require('../models/Transaction');
 const Employee = require('../models/Employee');
 const ClientEmployee = require('../models/ClientEmployee');
+const { applyAdminTxPrivacy } = require('../services/adminAccountVisibilityService');
 const { systemDayEnd, systemDayStart } = require('../config/systemTime');
 
 const renderHtmlPromisified = (appInstance, view, data) => {
@@ -35,7 +36,7 @@ const sendBulkReportsInBg = async (periodType, dateValue, appReq) => {
                 else if (type === 'executor') { query.executorGroupId = entityId; queryBefore.executorGroupId = entityId; } 
                 else if (type === 'user') { query.userId = targetObj.phone || targetObj.webUsername; query.companyId = null; queryBefore.userId = targetObj.phone || targetObj.webUsername; queryBefore.companyId = null; }
 
-                const transactions = await Transaction.find(query).sort({ updatedAt: 1 });
+                const transactions = await Transaction.find(applyAdminTxPrivacy(query)).sort({ updatedAt: 1 });
                 if (transactions.length === 0) return; 
 
                 let totals = { transfersEGP: 0, transfersLYD: 0, depositsEGP: 0, deductionsEGP: 0 };
@@ -46,7 +47,7 @@ const sendBulkReportsInBg = async (periodType, dateValue, appReq) => {
                 });
 
                 let openingBalance = 0;
-                const txsBefore = await Transaction.find(queryBefore);
+                const txsBefore = await Transaction.find(applyAdminTxPrivacy(queryBefore));
                 txsBefore.forEach(tx => {
                     if (type === 'client' || type === 'user') {
                         if (tx.status === 'completed') openingBalance -= (tx.costLYD || 0); else if (tx.status === 'deposit') openingBalance += (tx.amount || 0); else if (tx.status === 'deduction') openingBalance -= Math.abs(tx.amount || 0);

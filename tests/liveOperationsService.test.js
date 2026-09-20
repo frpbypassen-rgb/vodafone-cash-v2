@@ -56,4 +56,17 @@ describe('live operations service', () => {
         expect(row.error).toEqual({ code: 'GATEWAY_TIMEOUT', message: 'Gateway unavailable' });
         expect(JSON.stringify(row)).not.toContain('must-not-leak');
     });
+
+    test('does not surface agency client names on live operation rows', () => {
+        const row = mapLiveTransaction({
+            _id: 'tx-agency',
+            customId: 'ATT-AGENCY',
+            status: 'completed',
+            transferType: 'vodafone',
+            amount: 50,
+            subAccountName: 'عميل وكالة سري'
+        });
+        expect(row.customer).toBe('عميل غير محدد');
+        expect(JSON.stringify(row)).not.toContain('عميل وكالة سري');
+    });
 });

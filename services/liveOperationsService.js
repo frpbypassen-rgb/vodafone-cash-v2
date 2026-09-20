@@ -135,7 +135,6 @@ const transactionRecipient = (transaction) => transaction.vodafoneNumber
 const transactionCustomer = (transaction) => transaction.companyName
     || transaction.employeeName
     || transaction.accountName
-    || transaction.subAccountName
     || 'عميل غير محدد';
 
 const mapLiveTransaction = (transaction, audit = null) => {
@@ -213,7 +212,7 @@ const exportLiveTransactions = async (req, limit = 10_000) => {
 
 const getLiveMetrics = async (req, now = new Date()) => {
     const todayRange = systemDateRange(systemDateKey(now), systemDateKey(now));
-    const base = { ...tenantScope(req), ...(todayRange ? { createdAt: todayRange } : {}) };
+    const base = applyAdminTxPrivacy({ ...tenantScope(req), ...(todayRange ? { createdAt: todayRange } : {}) });
     const fiveMinutesAgo = new Date(now.getTime() - 5 * 60 * 1000);
     const [summary, recent] = await Promise.all([
         Transaction.aggregate([
@@ -234,7 +233,7 @@ const getLiveMetrics = async (req, now = new Date()) => {
             } }
         ]),
         Transaction.aggregate([
-            { $match: { ...tenantScope(req), createdAt: { $gte: fiveMinutesAgo, $lte: now } } },
+            { $match: applyAdminTxPrivacy({ ...tenantScope(req), createdAt: { $gte: fiveMinutesAgo, $lte: now } }) },
             { $group: {
                 _id: null, total: { $sum: 1 },
                 failed: { $sum: { $cond: [{ $eq: ['$status', 'rejected'] }, 1, 0] } }
@@ -260,7 +259,7 @@ const getLiveMetrics = async (req, now = new Date()) => {
 
 const getTransactionDetail = async (req, id) => {
     if (!mongoose.isValidObjectId(id)) return null;
-    const transaction = await Transaction.findOne({ _id: id, ...tenantScope(req) }).select(`+clientActorId +clientActorModel ${DISPLAY_PROJECTION}`).lean();
+    const transaction = await Transaction.findOne(applyAdminTxPrivacy({ _id: id, ...tenantScope(req) })).select(`+clientActorId +clientActorModel ${DISPLAY_PROJECTION}`).lean();
     if (!transaction) return null;
     const [audits, ledgers] = await Promise.all([
         AuditLog.find({ $or: [{ targetId: transaction._id }, { 'metadata.transactionId': transaction.customId }] })
@@ -285,7 +284,7 @@ const getTransactionDetail = async (req, id) => {
         transaction: mapLiveTransaction(transaction, creationAudit),
         parties: {
             sender: transactionCustomer(transaction),
-            senderActor: transaction.employeeName || transaction.subAccountName || 'المدير',
+            senderActor: transaction.employeeName || 'المدير',
             recipient: transactionRecipient(transaction)
         },
         timeline,
