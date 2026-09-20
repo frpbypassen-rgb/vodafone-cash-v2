@@ -25,12 +25,13 @@ const tenantScope = (source, { includeLegacy = true } = {}) => {
     return { tenantId };
 };
 
-// Admin directory-style queries (companies, executors, users, and the
-// single-tenant central-ledger overview). Production often resolves a new
-// DEFAULT_TENANT_SLUG while older rows still carry a historical tenantId
-// (or none). Filtering those widgets by the current tenant hides active
-// companies, funded executors, and completed ops whose tenant predates the
-// default. Multi-tenant keeps a hard tenant boundary.
+// Admin directory and account-detail queries (companies, agency masters,
+// executors, users, and the single-tenant central-ledger overview).
+// Production often resolves a new DEFAULT_TENANT_SLUG while older rows still
+// carry a historical tenantId (or none). Filtering those lookups by the
+// current tenant hides active companies and agency masters in the directory
+// and then 302s their detail pages as not found. Multi-tenant keeps a hard
+// tenant boundary.
 const adminAccountScope = (source, options = {}) => {
     if (tenantMode() === 'single') return {};
     return tenantScope(source, options);
