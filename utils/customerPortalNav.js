@@ -10,7 +10,8 @@ const RETAIL_DOCK = Object.freeze([
 ]);
 
 const RETAIL_MORE = Object.freeze([
-    { key: 'account', href: '/client/account?tab=operations', label: 'العمليات وكشف الحساب', icon: 'fa-receipt', tone: 'reports' },
+    { key: 'account', href: '/client/account?tab=operations', label: 'العمليات وكشف الحساب', icon: 'fa-receipt', tone: 'account' },
+    { key: 'reports', href: '/client/reports', label: 'التقارير', icon: 'fa-chart-column', tone: 'reports' },
     { key: 'deposits', href: '/client/account?tab=deposits-new', label: 'إضافة رصيد', icon: 'fa-circle-plus', tone: 'deposit', hideForAgent: true },
     { key: 'support', href: '/client/support', label: 'الدعم والشكاوى', icon: 'fa-headset', tone: 'support' },
     { key: 'security', href: '/client/settings?section=security', label: 'الأمان والإعدادات', icon: 'fa-shield-halved', tone: 'security' },
@@ -22,6 +23,7 @@ const RETAIL_SIDEBAR_HREFS = Object.freeze([
     '/client/transfers',
     '/client/account?tab=operations',
     '/client/account?tab=deposits-new',
+    '/client/reports',
     '/client/services',
     '/client/support',
     '/client/settings?section=security'
@@ -74,19 +76,23 @@ const buildRetailDock = (activeNav = 'home') => RETAIL_DOCK.map((item) => ({
 
 const isRetailMoreActive = (activeNav = '') => RETAIL_MORE_ACTIVE.includes(String(activeNav || ''));
 
-const buildRetailMore = ({ canRequestDeposit = true, canEditProfile = false, isAgent = false } = {}) => {
+const buildRetailMore = ({ canRequestDeposit = true, canEditProfile = false, isAgent = false, activeNav = '' } = {}) => {
     const items = RETAIL_MORE.filter((item) => {
         if (item.hideForAgent && isAgent) return false;
         if (item.key === 'deposits' && canRequestDeposit === false) return false;
         return true;
-    }).map((item) => ({ ...item }));
+    }).map((item) => ({
+        ...item,
+        active: item.key === activeNav
+    }));
     if (canEditProfile) {
         items.splice(items.length - 1, 0, {
             key: 'profile',
             href: '/client/settings?section=profile',
             label: 'الملف الشخصي',
             icon: 'fa-user-pen',
-            tone: 'profile'
+            tone: 'profile',
+            active: activeNav === 'profile'
         });
     }
     return items;

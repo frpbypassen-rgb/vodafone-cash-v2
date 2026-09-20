@@ -24,6 +24,7 @@
             { label: 'تحويل مالي', hint: 'بدء عملية جديدة', icon: 'fa-paper-plane', shortcut: '+', action: openTransferModal },
             { label: 'إضافة رصيد', hint: 'إرسال طلب إيداع للمراجعة', icon: 'fa-circle-plus', action: () => { global.location.href = '/client/account?tab=deposits-new'; } },
             { label: 'العمليات وكشف الحساب', hint: 'بحث وتصدير ومتابعة الإيصالات', icon: 'fa-receipt', action: () => { global.location.href = '/client/account?tab=operations'; } },
+            { label: 'التقارير', hint: 'ملخص الفترة وكشف العمليات', icon: 'fa-chart-column', action: () => { global.location.href = '/client/reports'; } },
             { label: 'الخدمات', hint: 'كل الخدمات المتاحة لحسابك', icon: 'fa-grid-2', action: () => { global.location.href = '/client/services'; } },
             { label: 'الدعم والشكاوى', hint: 'تواصل مع الفريق بأمان', icon: 'fa-headset', action: () => { global.location.href = '/client/support'; } },
             { label: 'الأمان', hint: 'إعدادات الحماية', icon: 'fa-shield-halved', action: () => global.openClientSecurityPanel?.() },

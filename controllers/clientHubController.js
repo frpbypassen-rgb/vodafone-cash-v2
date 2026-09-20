@@ -50,13 +50,11 @@ exports.getServices = async (req, res) => {
     return renderHubPage(req, res, 'client/hub/services');
 };
 
-exports.redirectLegacyReports = async (req, res) => {
-    const ctx = await loadWalletHubAccount(req);
-    if (!ctx) return res.redirect('/client/reports');
-    const qs = new URLSearchParams(req.query);
-    qs.set('tab', qs.get('tab') || 'operations');
-    return res.redirect(`/client/account?${qs.toString()}`);
+exports.getReports = async (req, res) => {
+    return renderHubPage(req, res, 'client/hub/reports');
 };
+
+exports.redirectLegacyReports = (req, res) => exports.getReports(req, res);
 
 exports.redirectLegacyDeposits = async (req, res) => {
     const ctx = await loadWalletHubAccount(req);

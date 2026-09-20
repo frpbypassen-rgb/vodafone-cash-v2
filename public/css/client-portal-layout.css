@@ -938,6 +938,16 @@ html[data-portal="customer"] .cl-more-icon {
     color: var(--cl-indigo);
 }
 
+html[data-portal="customer"] .cl-more-icon.reports {
+    background: color-mix(in srgb, #C9A227 16%, var(--cl-surface));
+    color: #B45309;
+}
+
+html[data-portal="customer"] .cl-more-icon.account {
+    background: color-mix(in srgb, var(--cl-turquoise) 14%, var(--cl-surface));
+    color: var(--cl-turquoise);
+}
+
 html[data-portal="customer"] .cl-more-link i.fa-chevron-left {
     margin-inline-start: auto;
     color: var(--cl-muted);
@@ -1019,6 +1029,32 @@ html[data-portal="customer"] .cl-more-link i.fa-chevron-left {
         max-width: 100%;
         overflow-x: hidden;
         padding-bottom: 12px;
+    }
+
+    html[data-portal="customer"] [data-page="reports"] .bw-main,
+    html[data-portal="customer"] [data-customer-reports],
+    html[data-portal="customer"] #hubAccountReportsPanel,
+    html[data-portal="customer"] .bw-report-toolbar,
+    html[data-portal="customer"] .bw-report-cover,
+    html[data-portal="customer"] .bw-filter-band,
+    html[data-portal="customer"] .bw-central-downloads,
+    html[data-portal="customer"] .bw-table-wrap {
+        display: block;
+        visibility: visible;
+        overflow: visible;
+        color: var(--cl-ink);
+    }
+
+    html[data-portal="customer"] [data-customer-reports] .client-hub-panel {
+        overflow: visible;
+        min-height: 0;
+    }
+
+    html[data-portal="customer"] [data-customer-reports] #mobileReportList,
+    html[data-portal="customer"] [data-customer-reports] #mobileDepositList {
+        display: flex;
+        visibility: visible;
+        max-width: 100%;
     }
 
     html[data-portal="customer"] .cl-bell-panel {

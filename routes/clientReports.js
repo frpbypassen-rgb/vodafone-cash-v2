@@ -1,5 +1,6 @@
 const express = require('express');
 const { isWalletHubSession } = require('../utils/walletHubHelper');
+const { buildHubRenderContext } = require('../services/clientHubContextService');
 const router = express.Router();
 const ClientEmployee = require('../models/ClientEmployee');
 const ClientCompany = require('../models/ClientCompany');
@@ -63,6 +64,11 @@ const renderReports = async (req, res) => {
     }
 
     try {
+        const hubCtx = await buildHubRenderContext(req);
+        if (hubCtx) {
+            return res.render('client/hub/reports', hubCtx);
+        }
+
         const isCompanyEmployee = req.session.accountType === 'company';
         const isAgentStaff = req.session.accountType === 'agent_staff';
         const isSubAccount = req.session.accountType === 'sub_client';
@@ -92,11 +98,6 @@ const renderReports = async (req, res) => {
         if (!account) return res.redirect('/client/logout');
         account.canViewBalance = canViewBalance;
         const walletHub = isWalletHubSession(req.session.accountType, account.role);
-        if (walletHub) {
-            const qs = new URLSearchParams(req.query);
-            if (!qs.get('tab')) qs.set('tab', 'operations');
-            return res.redirect(`/client/account?${qs.toString()}`);
-        }
         return res.render('client/reports', { account, accountType: req.session.accountType, walletHub, user: account });
     } catch (e) {
         console.error('Reports Render Error:', e);

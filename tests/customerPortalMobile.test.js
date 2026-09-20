@@ -31,10 +31,14 @@ const HUB_SERVICES = path.join(ROOT, 'views/client/hub/services.ejs');
 const HUB_TRANSFERS = path.join(ROOT, 'views/client/hub/transfers.ejs');
 const HUB_ACCOUNT = path.join(ROOT, 'views/client/hub/account.ejs');
 const HUB_SETTINGS = path.join(ROOT, 'views/client/hub/settings.ejs');
+const HUB_REPORTS = path.join(ROOT, 'views/client/hub/reports.ejs');
 const SUPPORT_VIEW = path.join(ROOT, 'views/client/support.ejs');
 const CUSTOMER_STYLES = path.join(ROOT, 'views/client/partials/customer_portal_styles.ejs');
 const COMPANY_HEAD = path.join(ROOT, 'views/client/partials/workspace_head.ejs');
 const BOTTOM_NAV = path.join(ROOT, 'views/client/partials/wallet_hub_bottom_nav.ejs');
+const WALLET_HUB_MORE = path.join(ROOT, 'views/client/partials/wallet_hub_more.ejs');
+const WALLET_HUB_HOME = path.join(ROOT, 'views/client/partials/wallet_hub_home.ejs');
+const WALLET_HUB_SIDEBAR = path.join(ROOT, 'views/client/partials/wallet_hub_sidebar_hub.ejs');
 const MORE_SHEET = path.join(ROOT, 'views/client/partials/customer_more_sheet.ejs');
 const NOTIFICATIONS = path.join(ROOT, 'views/client/partials/customer_notifications.ejs');
 const LAYOUT_CSS = path.join(ROOT, 'public/css/client-portal-layout.css');
@@ -162,7 +166,12 @@ describe('customer portal mobile chrome and exclusivity', () => {
         });
         expect(isRetailMoreActive('support')).toBe(true);
         expect(isRetailMoreActive('account')).toBe(true);
+        expect(isRetailMoreActive('reports')).toBe(true);
         expect(isRetailMoreActive('home')).toBe(false);
+        expect(buildRetailMore({ canRequestDeposit: true }).some((item) => (
+            item.key === 'reports' && item.href === '/client/reports' && item.label === 'التقارير'
+        ))).toBe(true);
+        expect(buildRetailMore({ canRequestDeposit: true, activeNav: 'reports' }).find((item) => item.key === 'reports').active).toBe(true);
     });
 
     test('agent workspace dock + More cover every sidebar item', () => {
@@ -173,6 +182,7 @@ describe('customer portal mobile chrome and exclusivity', () => {
         expect(more.some((item) => item.key === 'finance')).toBe(true);
         expect(more.some((item) => item.key === 'settings')).toBe(true);
         expect(more.some((item) => item.key === 'customers')).toBe(true);
+        expect(more.some((item) => item.key === 'reports' && item.href === '/client/reports')).toBe(true);
         expect(dock.some((item) => item.key === 'support')).toBe(true);
     });
 
@@ -215,7 +225,7 @@ describe('customer portal mobile chrome and exclusivity', () => {
         }, { filename: COMPANY_HEAD });
 
         expect(styles).toContain('data-customer-shell-css');
-        expect(styles).toContain('20260920-cl-m2');
+        expect(styles).toContain('20260920-cl-r1');
         expect(styles).not.toContain('href="/css/company-portal');
         expect(head).toContain('client-portal.tokens.css');
         expect(head).not.toContain('company-portal.tokens.css');
@@ -249,12 +259,17 @@ describe('customer portal mobile chrome and exclusivity', () => {
         const transfers = fs.readFileSync(HUB_TRANSFERS, 'utf8');
         const account = fs.readFileSync(HUB_ACCOUNT, 'utf8');
         const settings = fs.readFileSync(HUB_SETTINGS, 'utf8');
+        const reports = fs.readFileSync(HUB_REPORTS, 'utf8');
         const support = fs.readFileSync(SUPPORT_VIEW, 'utf8');
         const dock = fs.readFileSync(BOTTOM_NAV, 'utf8');
         const more = fs.readFileSync(MORE_SHEET, 'utf8');
+        const retailMore = fs.readFileSync(WALLET_HUB_MORE, 'utf8');
+        const home = fs.readFileSync(WALLET_HUB_HOME, 'utf8');
+        const sidebar = fs.readFileSync(WALLET_HUB_SIDEBAR, 'utf8');
         const bell = fs.readFileSync(NOTIFICATIONS, 'utf8');
+        const reportsRoute = fs.readFileSync(path.join(ROOT, 'routes/clientReports.js'), 'utf8');
 
-        [dashboard, services, transfers, account, settings, support].forEach((html) => {
+        [dashboard, services, transfers, account, settings, reports, support].forEach((html) => {
             expect(html).toContain('cl-app');
             expect(html).toContain('data-portal="customer"');
             expect(html).toContain('wallet_hub_bottom_nav');
@@ -266,6 +281,7 @@ describe('customer portal mobile chrome and exclusivity', () => {
         const hubShell = fs.readFileSync(path.join(ROOT, 'views/client/partials/wallet_hub_hub_shell_start.ejs'), 'utf8');
         expect(hubShell).not.toContain('d-none d-md-grid');
         expect(fs.readFileSync(LAYOUT_CSS, 'utf8')).toContain('client-hub-shell.d-none');
+        expect(fs.readFileSync(LAYOUT_CSS, 'utf8')).toContain('data-customer-reports');
         expect(dock).toContain('data-cl-more-open');
         expect(dock).toContain('data-dock-key="more"');
         expect(dock).toContain('/client/dashboard');
@@ -273,8 +289,49 @@ describe('customer portal mobile chrome and exclusivity', () => {
         expect(dock).toContain('/client/services');
         expect(dock).toContain('/client/settings');
         expect(more).toContain('data-customer-more');
+        expect(retailMore).toContain("key: 'reports'");
+        expect(retailMore).toContain('/client/reports');
+        expect(retailMore).toContain('التقارير');
+        expect(home).toContain('/client/reports');
+        expect(home).toContain('التقارير');
+        expect(sidebar).toContain('href="/client/reports"');
+        expect(sidebar).toContain('التقارير');
+        expect(reports).toContain('data-customer-reports');
+        expect(reports).toContain("activeNav: 'reports'");
+        expect(reports).toContain('hub_account_reports');
+        expect(reportsRoute).toContain("res.render('client/hub/reports'");
+        expect(reportsRoute).not.toContain('return res.redirect(`/client/account?${qs.toString()}`)');
         expect(bell).toContain('data-customer-bell');
         expect(bell).toContain('لا إشعارات حالياً');
+    });
+
+    test('retail reports page renders cl-app chrome with More reports entry', async () => {
+        const html = await ejs.renderFile(HUB_REPORTS, {
+            pageTitle: 'التقارير',
+            user: { name: 'عميل الاختبار', balance: 12.5, canViewBalance: true, role: 'user' },
+            account: { name: 'عميل الاختبار', role: 'user' },
+            accountType: 'user',
+            profile: { userRoleLabel: 'عميل', canEditProfile: false },
+            isSystemOpen: true,
+            csrfToken: 'test-csrf',
+            clientTheme: 'day',
+            clientThemeMeta: { themeColor: '#E8EEFA' },
+            canRequestDeposit: true,
+            walletHub: true
+        }, { filename: HUB_REPORTS });
+
+        expect(html).toContain('data-portal="customer"');
+        expect(html).toContain('cl-app');
+        expect(html).toContain('data-customer-reports');
+        expect(html).toContain('data-customer-dock');
+        expect(html).toContain('data-customer-more');
+        expect(html).toContain('data-more-key="reports"');
+        expect(html).toContain('href="/client/reports"');
+        expect(html).toContain('التقارير');
+        expect(html).toContain('hubAccountReportsPanel');
+        expect(html).toContain('id="mobileReportList"');
+        expect(html).not.toContain('data-company-dock');
+        expect(html).not.toContain('company-portal.tokens.css');
     });
 
     test('rewrites company-oriented notification hrefs for retail inbox', () => {

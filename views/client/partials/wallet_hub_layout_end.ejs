@@ -2,7 +2,8 @@
 <% if (typeof walletHub === 'undefined' || walletHub) { %>
 <%- include('wallet_hub_more', {
     user: (typeof user !== 'undefined' && user) ? user : account,
-    profile: typeof profile !== 'undefined' ? profile : null
+    profile: typeof profile !== 'undefined' ? profile : null,
+    activeNav: typeof activeNav !== 'undefined' ? activeNav : ''
 }) %>
 <%- include('wallet_hub_command_palette') %>
 <script src="/js/client-os-mobile.js?v=20260920-cl-m2" defer></script>
