@@ -3,6 +3,7 @@
 const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
 
+const { loadWalletHubAccount, buildHubRenderContext } = require('../services/clientHubContextService');
 const businessPortalService = require('../services/businessPortalService');
 const {
     loadCompanyAccess,
@@ -152,6 +153,16 @@ exports.renderPage = (page) => async (req, res, next) => {
 
 exports.getCurrentRates = async (req, res) => {
     try {
+        const hub = await loadWalletHubAccount(req);
+        if (hub) {
+            const context = await buildHubRenderContext(req);
+            res.set('Cache-Control', 'no-store');
+            return res.json({
+                success: true,
+                serviceRates: context?.serviceRates || {},
+                updatedAt: null
+            });
+        }
         const workspace = await businessPortalService.resolveWorkspace(req);
         const { serviceRates, ratesUpdatedAt } = await businessPortalService.getSettingsAndRates(workspace, req.app);
         res.set('Cache-Control', 'no-store');

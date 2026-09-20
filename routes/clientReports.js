@@ -1,5 +1,5 @@
 const express = require('express');
-const { isWalletHubSession } = require('../utils/walletHubHelper');
+const { isWalletHubSession, canRequestRetailDeposit } = require('../utils/walletHubHelper');
 const { buildHubRenderContext } = require('../services/clientHubContextService');
 const router = express.Router();
 const ClientEmployee = require('../models/ClientEmployee');
@@ -98,7 +98,13 @@ const renderReports = async (req, res) => {
         if (!account) return res.redirect('/client/logout');
         account.canViewBalance = canViewBalance;
         const walletHub = isWalletHubSession(req.session.accountType, account.role);
-        return res.render('client/reports', { account, accountType: req.session.accountType, walletHub, user: account });
+        return res.render('client/reports', {
+            account,
+            accountType: req.session.accountType,
+            walletHub,
+            user: account,
+            canRequestDeposit: canRequestRetailDeposit(req.session.accountType, account.role)
+        });
     } catch (e) {
         console.error('Reports Render Error:', e);
         return res.redirect('/client/dashboard');

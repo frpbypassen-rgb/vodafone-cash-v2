@@ -5,6 +5,9 @@
 <% const shellUser = user || {}; %>
 <% const active = typeof activePage !== 'undefined' ? activePage : 'home'; %>
 <% const systemOpen = typeof isSystemOpen === 'undefined' ? true : !!isSystemOpen; %>
+<% const showDeposits = typeof canRequestDeposit === 'undefined'
+    ? shellUser.role !== 'agent' && shellUser.canRequestDeposit !== false
+    : canRequestDeposit; %>
 <aside class="client-os-sidebar client-hub-sidebar cl-sidebar" aria-label="التنقل الرئيسي">
     <a class="client-os-mark" href="/client/dashboard" aria-label="الرئيسية">
         <span class="client-os-mark-icon"><i class="fa-solid fa-building-columns"></i></span>
@@ -24,7 +27,7 @@
         <span class="client-os-nav-title">إدارة أموالك</span>
         <a href="/client/account?tab=operations" class="client-os-nav-link <%= active === 'account' ? 'is-active' : '' %>"><i class="fa-solid fa-wallet"></i><span>الحساب والعمليات</span></a>
         <a href="/client/reports" class="client-os-nav-link <%= active === 'reports' ? 'is-active' : '' %>"><i class="fa-solid fa-chart-column"></i><span>التقارير</span></a>
-        <a href="/client/account?tab=deposits-new" class="client-os-nav-link <%= active === 'deposits' ? 'is-active' : '' %>"><i class="fa-solid fa-circle-plus"></i><span>إضافة رصيد</span></a>
+        <% if (showDeposits) { %><a href="/client/account?tab=deposits-new" class="client-os-nav-link <%= active === 'deposits' ? 'is-active' : '' %>"><i class="fa-solid fa-circle-plus"></i><span>إضافة رصيد</span></a><% } %>
         <a href="/client/services" class="client-os-nav-link <%= active === 'services' ? 'is-active' : '' %>"><i class="fa-solid fa-grid-2"></i><span>الخدمات والمدفوعات</span></a>
 
         <span class="client-os-nav-title">الحساب والمساعدة</span>

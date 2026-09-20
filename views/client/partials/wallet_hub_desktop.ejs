@@ -4,7 +4,8 @@
         user: user,
         activePage: 'home',
         isSystemOpen: isSystemOpen,
-        isSatellite: false
+        isSatellite: false,
+        canRequestDeposit: typeof canRequestDeposit === 'undefined' ? undefined : canRequestDeposit
     }) %>
 
     <main class="client-os-main">
@@ -93,7 +94,7 @@
                     <span class="client-os-journey-icon is-blue"><i class="fa-solid fa-receipt"></i></span>
                     <div><strong>العمليات والإيصالات</strong><small>ابحث، راجع الحالة، وحمّل كشفك</small></div><i class="fa-solid fa-arrow-left"></i>
                 </a>
-                <% if (user.role !== 'agent') { %>
+                <% if (typeof canRequestDeposit === 'undefined' ? user.role !== 'agent' : canRequestDeposit) { %>
                 <a href="/client/account?tab=deposits-new" class="client-os-journey-card">
                     <span class="client-os-journey-icon is-mint"><i class="fa-solid fa-circle-plus"></i></span>
                     <div><strong>إضافة رصيد</strong><small>أرسل طلباً وتابع مراجعته</small></div><i class="fa-solid fa-arrow-left"></i>
