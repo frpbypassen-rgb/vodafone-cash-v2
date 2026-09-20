@@ -10,11 +10,13 @@ jest.mock('../services/securityControlService', () => ({
     assessNetworkRisk: jest.fn(() => ({ highRisk: false, signals: [] })),
     ensureDeviceId: jest.fn(() => 'device-id'),
     hashDeviceId: jest.fn(() => 'a'.repeat(64)),
-    requestIp: jest.fn(() => '127.0.0.1')
+    requestIp: jest.fn(() => '127.0.0.1'),
+    activateDevice: jest.fn()
 }));
 
 const securityControl = require('../services/securityControlService');
 const Admin = require('../models/Admin');
+const SecurityDevice = require('../models/SecurityDevice');
 const {
     enforceSecuritySession,
     enforceEmergencyLockdown,
@@ -174,5 +176,115 @@ describe('security control middleware', () => {
         expect(next).toHaveBeenCalledTimes(1);
         expect(res.redirect).not.toHaveBeenCalled();
         findById.mockRestore();
+    });
+
+    test('lets OTP verify complete even when a leftover client session is present', async () => {
+        securityControl.sessionPrincipal.mockReturnValue({
+            principalType: 'client_company',
+            principalId: 'company-1',
+            principalName: 'شركة'
+        });
+        const req = {
+            path: '/client/verify',
+            method: 'GET',
+            headers: {},
+            session: { isClientLoggedIn: true, clientId: 'company-1' }
+        };
+        const res = { redirect: jest.fn(), status: jest.fn().mockReturnThis(), json: jest.fn() };
+        const next = jest.fn();
+
+        await enforceSecuritySession(req, res, next);
+
+        expect(next).toHaveBeenCalledTimes(1);
+        expect(res.redirect).not.toHaveBeenCalled();
+    });
+
+    test('restores the bound device from the session and allows the portal request', async () => {
+        const boundId = 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee';
+        securityControl.sessionPrincipal.mockReturnValue({
+            principalType: 'client_company',
+            principalId: 'company-1',
+            principalName: 'شركة'
+        });
+        securityControl.getState.mockResolvedValue({
+            adminSessionHours: 12,
+            accountSessionHours: 12,
+            highConfidenceVpnBlockEnabled: false,
+            adminDeviceEnforcementEnabled: true,
+            accountDeviceEnforcementEnabled: true
+        });
+        securityControl.ensureDeviceId.mockImplementation((req) => req.session.securityDeviceId || 'other');
+        securityControl.hashDeviceId.mockImplementation((id) => (
+            id === boundId ? 'a'.repeat(64) : 'b'.repeat(64)
+        ));
+        const findOne = jest.spyOn(SecurityDevice, 'findOne').mockReturnValue({
+            select: jest.fn().mockResolvedValue({
+                deviceIdHash: 'a'.repeat(64),
+                credentialId: 'cred',
+                save: jest.fn().mockResolvedValue({})
+            })
+        });
+        const req = {
+            path: '/client/dashboard',
+            method: 'GET',
+            headers: {},
+            session: {
+                isClientLoggedIn: true,
+                clientId: 'company-1',
+                securityDeviceId: boundId,
+                securityExpiresAt: Date.now() + 60 * 60 * 1000
+            }
+        };
+        const res = { redirect: jest.fn(), status: jest.fn().mockReturnThis(), json: jest.fn(), cookie: jest.fn() };
+        const next = jest.fn();
+
+        await enforceSecuritySession(req, res, next);
+
+        expect(next).toHaveBeenCalledTimes(1);
+        expect(res.redirect).not.toHaveBeenCalled();
+        findOne.mockRestore();
+    });
+
+    test('redirects a mismatched session to login with DEVICE_BINDING_MISMATCH', async () => {
+        securityControl.sessionPrincipal.mockReturnValue({
+            principalType: 'executor',
+            principalId: 'exec-1',
+            principalName: 'منفذ'
+        });
+        securityControl.getState.mockResolvedValue({
+            adminSessionHours: 12,
+            accountSessionHours: 12,
+            highConfidenceVpnBlockEnabled: false,
+            accountDeviceEnforcementEnabled: true
+        });
+        securityControl.ensureDeviceId.mockReturnValue('new-device');
+        securityControl.hashDeviceId.mockReturnValue('b'.repeat(64));
+        const destroy = jest.fn((cb) => cb());
+        const findOne = jest.spyOn(SecurityDevice, 'findOne').mockReturnValue({
+            select: jest.fn().mockResolvedValue({
+                deviceIdHash: 'a'.repeat(64),
+                save: jest.fn()
+            })
+        });
+        const req = {
+            path: '/executor-portal/dashboard',
+            method: 'GET',
+            headers: {},
+            session: {
+                isExecutorLoggedIn: true,
+                executorId: 'exec-1',
+                securityExpiresAt: Date.now() + 60 * 60 * 1000,
+                destroy
+            }
+        };
+        const res = { redirect: jest.fn(), status: jest.fn().mockReturnThis(), json: jest.fn() };
+        const next = jest.fn();
+
+        await enforceSecuritySession(req, res, next);
+
+        expect(destroy).toHaveBeenCalled();
+        expect(res.redirect).toHaveBeenCalledWith('/login?security=DEVICE_BINDING_MISMATCH');
+        expect(next).not.toHaveBeenCalled();
+        findOne.mockRestore();
     });
 });

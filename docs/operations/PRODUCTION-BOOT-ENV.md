@@ -93,6 +93,43 @@ pm2 reload ecosystem.config.js --env production --update-env
 
 Boot still warns: `Emergency client OTP bypass is active until …`.
 
+## Documented break-glass (device-binding mismatch)
+
+OTP bypass alone does **not** clear `/login?security=DEVICE_BINDING_MISMATCH`.
+After a verified password + OTP (or OTP emergency bypass), the portal now
+enrolls the first device and rebinds the current browser when a stale device
+record would otherwise soft-lock the business. Suspicious transfers still
+create an admin notification in the security center.
+
+If a live session still bounces after pull/reload, use a **separate** 24h
+window. Leave these **out of PM2** `env_production`:
+
+```
+EMERGENCY_DEVICE_BINDING_BYPASS=true
+EMERGENCY_DEVICE_BINDING_BYPASS_EXPIRES_AT=2026-09-21T12:00:00Z
+EMERGENCY_DEVICE_BINDING_BYPASS_REASON=DEVICE_BINDING_MISMATCH portal lockout
+```
+
+Then `pm2 reload ecosystem.config.js --env production --update-env`.
+
+Remove the three lines when the window ends.
+
+## Administrator: pull and restart (production outage)
+
+On the live host, as the service user, from the application directory:
+
+```powershell
+git fetch origin main
+git pull origin main
+node scripts/auditProductionEnv.js .env
+pm2 reload ecosystem.config.js --env production --update-env
+pm2 logs Ahram_Core_API --lines 80
+```
+
+Confirm `/health` returns `authenticationMode: enhanced-verification` and
+that Redis stays required. Do **not** set `PASSWORD_ONLY_LOGIN_MODE=true`,
+`BYPASS_OTP=true`, or `REDIS_REQUIRED=false`.
+
 Related financial break-glass (unchanged):
 
 - `EMERGENCY_STANDALONE_FINANCIAL_WRITES=true` with the matching expiry and reason

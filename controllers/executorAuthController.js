@@ -54,7 +54,8 @@ const completeExecutorLogin = async (req, res, executor, { showMfaNotice = false
         principal,
         accountClass: 'account',
         allowFirstDevice: true,
-        authenticatorVerified
+        authenticatorVerified,
+        verifiedLogin: true
     });
     if (!authorization.allowed) {
         return res.render('executor/login', {
@@ -71,7 +72,7 @@ const completeExecutorLogin = async (req, res, executor, { showMfaNotice = false
         executorName: executor.name || 'منفذ'
     });
     if (showMfaNotice) req.session.showMfaEnableNotice = true;
-    await securityControl.applySessionSecurity(req, principal, 'account');
+    await securityControl.applySessionSecurity(req, principal, 'account', res);
     await logAction({
         action: 'LOGIN_SUCCESS',
         req,
@@ -113,12 +114,15 @@ const startExecutorOtp = async (req, res, executor) => {
             submittedUsername: executor.webUsername || ''
         });
     }
+    const deviceId = securityControl.ensureDeviceId(req, res);
     await establishAuthenticatedSession(req, {
         tempExecutorId: executor._id,
         tempAccountType: 'executor',
         otpChallengeId: issued.otpChallengeId,
         pendingSecurityLocation: securityControl.parseLocation(req),
-        pendingSecurityUsername: executor.webUsername || String(req.body.username || '')
+        pendingSecurityUsername: executor.webUsername || String(req.body.username || ''),
+        securityDeviceId: deviceId,
+        securityDeviceHash: securityControl.hashDeviceId(deviceId)
     });
     return req.session.save(() => res.redirect(portal.verifyPath));
 };
@@ -130,6 +134,7 @@ const continueExecutorAfterPassword = async (req, res, executor, options = {}) =
 
 exports.getLogin = (req, res) => {
     if (req.session.isExecutorLoggedIn) return res.redirect('/executor-portal/dashboard');
+    securityControl.ensureDeviceId(req, res);
     res.render('executor/login', { error: null, mfaRequired: false, mfaNotice: false, submittedUsername: '' });
 };
 

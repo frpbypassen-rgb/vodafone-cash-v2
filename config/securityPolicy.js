@@ -27,10 +27,11 @@ const isPasskeyRequired = (env = process.env) => (
 );
 const MAX_EMERGENCY_OTP_BYPASS_MS = 24 * 60 * 60 * 1000;
 const MAX_EMERGENCY_STANDALONE_FINANCIAL_WRITES_MS = 24 * 60 * 60 * 1000;
+const MAX_EMERGENCY_DEVICE_BINDING_BYPASS_MS = 24 * 60 * 60 * 1000;
 
-const getEmergencyClientOtpBypassState = (env = process.env, now = Date.now()) => {
-    const enabled = isEnabled(env.EMERGENCY_CLIENT_OTP_BYPASS);
-    const expiresAt = clean(env.EMERGENCY_CLIENT_OTP_BYPASS_EXPIRES_AT);
+const getEmergencyWindowState = (env, now, enabledKey, expiresKey) => {
+    const enabled = isEnabled(env[enabledKey]);
+    const expiresAt = clean(env[expiresKey]);
     const expiresAtMs = Date.parse(expiresAt);
     const validExpiry = Number.isFinite(expiresAtMs);
     return {
@@ -41,6 +42,14 @@ const getEmergencyClientOtpBypassState = (env = process.env, now = Date.now()) =
         active: enabled && validExpiry && expiresAtMs > now
     };
 };
+
+const getEmergencyClientOtpBypassState = (env = process.env, now = Date.now()) => (
+    getEmergencyWindowState(env, now, 'EMERGENCY_CLIENT_OTP_BYPASS', 'EMERGENCY_CLIENT_OTP_BYPASS_EXPIRES_AT')
+);
+
+const getEmergencyDeviceBindingBypassState = (env = process.env, now = Date.now()) => (
+    getEmergencyWindowState(env, now, 'EMERGENCY_DEVICE_BINDING_BYPASS', 'EMERGENCY_DEVICE_BINDING_BYPASS_EXPIRES_AT')
+);
 
 const getEmergencyStandaloneFinancialWritesState = (env = process.env, now = Date.now()) => {
     const enabled = isEnabled(env.EMERGENCY_STANDALONE_FINANCIAL_WRITES);
@@ -123,20 +132,51 @@ const validateProductionSecurityEnv = (env = process.env) => {
     if (!verificationRequired) {
         errors.push('Production requires enhanced login verification. Set PASSWORD_ONLY_LOGIN_MODE=false, SECURITY_VERIFICATION_ENFORCEMENT_ENABLED=true, SECURITY_VERIFICATION_MODE=required, and FORCE_CLIENT_OTP=true.');
     }
-    const emergencyBypass = getEmergencyClientOtpBypassState(env);
-    if (emergencyBypass.enabled) {
-        if (!emergencyBypass.validExpiry) {
-            errors.push('EMERGENCY_CLIENT_OTP_BYPASS_EXPIRES_AT must be a valid ISO timestamp.');
-        } else if (emergencyBypass.expiresAtMs > Date.now() + MAX_EMERGENCY_OTP_BYPASS_MS) {
-            errors.push('Emergency client OTP bypass cannot remain active for more than 24 hours.');
-        } else if (emergencyBypass.active && !clean(env.EMERGENCY_CLIENT_OTP_BYPASS_REASON)) {
-            errors.push('EMERGENCY_CLIENT_OTP_BYPASS_REASON is required while the emergency bypass is active.');
-        } else if (emergencyBypass.active) {
-            warnings.push(`Emergency client OTP bypass is active until ${emergencyBypass.expiresAt}.`);
+    const validateEmergencyBypass = ({
+        state,
+        reasonKey,
+        expiresError,
+        durationError,
+        reasonError,
+        activeWarning,
+        expiredWarning,
+        maxMs
+    }) => {
+        if (!state.enabled) return;
+        if (!state.validExpiry) {
+            errors.push(expiresError);
+        } else if (state.expiresAtMs > Date.now() + maxMs) {
+            errors.push(durationError);
+        } else if (state.active && !clean(env[reasonKey])) {
+            errors.push(reasonError);
+        } else if (state.active) {
+            warnings.push(activeWarning(state.expiresAt));
         } else {
-            warnings.push('Emergency client OTP bypass has expired and is inactive.');
+            warnings.push(expiredWarning);
         }
-    }
+    };
+    const emergencyBypass = getEmergencyClientOtpBypassState(env);
+    validateEmergencyBypass({
+        state: emergencyBypass,
+        reasonKey: 'EMERGENCY_CLIENT_OTP_BYPASS_REASON',
+        expiresError: 'EMERGENCY_CLIENT_OTP_BYPASS_EXPIRES_AT must be a valid ISO timestamp.',
+        durationError: 'Emergency client OTP bypass cannot remain active for more than 24 hours.',
+        reasonError: 'EMERGENCY_CLIENT_OTP_BYPASS_REASON is required while the emergency bypass is active.',
+        activeWarning: (expiresAt) => `Emergency client OTP bypass is active until ${expiresAt}.`,
+        expiredWarning: 'Emergency client OTP bypass has expired and is inactive.',
+        maxMs: MAX_EMERGENCY_OTP_BYPASS_MS
+    });
+    const emergencyDeviceBypass = getEmergencyDeviceBindingBypassState(env);
+    validateEmergencyBypass({
+        state: emergencyDeviceBypass,
+        reasonKey: 'EMERGENCY_DEVICE_BINDING_BYPASS_REASON',
+        expiresError: 'EMERGENCY_DEVICE_BINDING_BYPASS_EXPIRES_AT must be a valid ISO timestamp.',
+        durationError: 'Emergency device-binding bypass cannot remain active for more than 24 hours.',
+        reasonError: 'EMERGENCY_DEVICE_BINDING_BYPASS_REASON is required while the emergency bypass is active.',
+        activeWarning: (expiresAt) => `Emergency device-binding bypass is active until ${expiresAt}.`,
+        expiredWarning: 'Emergency device-binding bypass has expired and is inactive.',
+        maxMs: MAX_EMERGENCY_DEVICE_BINDING_BYPASS_MS
+    });
     if (!isEnabled(env.SECURE_COOKIE)) errors.push('SECURE_COOKIE=true is required in production.');
     if (!isEnabled(env.MONGO_TRANSACTIONS_REQUIRED)) {
         errors.push('MONGO_TRANSACTIONS_REQUIRED=true is required in production.');
@@ -220,6 +260,7 @@ const assertProductionSecurityEnv = (env = process.env) => {
 module.exports = {
     assertProductionSecurityEnv,
     getEmergencyClientOtpBypassState,
+    getEmergencyDeviceBindingBypassState,
     getEmergencyStandaloneFinancialWritesState,
     getSecurityVerificationMode,
     isEnabled,

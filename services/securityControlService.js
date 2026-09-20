@@ -6,9 +6,14 @@ const SecurityDevice = require('../models/SecurityDevice');
 const SecurityAccessRequest = require('../models/SecurityAccessRequest');
 const SecurityState = require('../models/SecurityState');
 const Notification = require('../models/Notification');
-const { isSecurityVerificationRequired, getEmergencyClientOtpBypassState } = require('../config/securityPolicy');
+const {
+    isSecurityVerificationRequired,
+    getEmergencyClientOtpBypassState,
+    getEmergencyDeviceBindingBypassState
+} = require('../config/securityPolicy');
 
 const DEVICE_COOKIE = 'ahrampay_security_device';
+const DEVICE_ID_PATTERN = /^[a-f0-9-]{32,64}$/i;
 // The requesting device cannot access the account while pending, so a longer
 // window lets the administrator review it without forcing the user to repeat
 // the Authenticator flow every few minutes.
@@ -35,21 +40,46 @@ const readCookie = (req, name) => {
     return item ? decodeURIComponent(item.slice(name.length + 1)) : '';
 };
 
+const persistDeviceCookie = (res, deviceId) => {
+    if (!res?.cookie || !deviceId) return;
+    res.cookie(DEVICE_COOKIE, deviceId, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production' || String(process.env.SECURE_COOKIE || '').toLowerCase() === 'true',
+        sameSite: process.env.COOKIE_SAMESITE || 'lax',
+        path: '/',
+        maxAge: 365 * 24 * 60 * 60 * 1000,
+        priority: 'high'
+    });
+};
+
+const rememberSessionDevice = (req, deviceId) => {
+    if (!req?.session || !deviceId) return deviceId;
+    req.session.securityDeviceId = deviceId;
+    req.session.securityDeviceHash = hashDeviceId(deviceId);
+    return deviceId;
+};
+
 const ensureDeviceId = (req, res) => {
     const supplied = String(req.headers?.['x-device-id'] || '').trim().slice(0, 200);
-    if (supplied) return supplied;
-    const existing = readCookie(req, DEVICE_COOKIE).trim();
-    if (existing && /^[a-f0-9-]{32,64}$/i.test(existing)) return existing;
-    const deviceId = crypto.randomUUID();
-    if (res?.cookie) {
-        res.cookie(DEVICE_COOKIE, deviceId, {
-            httpOnly: true,
-            secure: process.env.NODE_ENV === 'production',
-            sameSite: 'lax',
-            maxAge: 365 * 24 * 60 * 60 * 1000,
-            priority: 'high'
-        });
+    if (supplied) {
+        persistDeviceCookie(res, supplied);
+        rememberSessionDevice(req, supplied);
+        return supplied;
     }
+    const existing = readCookie(req, DEVICE_COOKIE).trim();
+    if (existing && DEVICE_ID_PATTERN.test(existing)) {
+        rememberSessionDevice(req, existing);
+        return existing;
+    }
+    const fromSession = String(req.session?.securityDeviceId || '').trim();
+    if (fromSession && DEVICE_ID_PATTERN.test(fromSession)) {
+        persistDeviceCookie(res, fromSession);
+        rememberSessionDevice(req, fromSession);
+        return fromSession;
+    }
+    const deviceId = crypto.randomUUID();
+    persistDeviceCookie(res, deviceId);
+    rememberSessionDevice(req, deviceId);
     return deviceId;
 };
 
@@ -221,6 +251,44 @@ const createAccessRequest = async ({ req, principal, deviceIdHash, purpose = 'fi
     return request;
 };
 
+const notifyDeviceTransfer = async ({ req, principal, purpose, previousDevice = null }) => {
+    const device = detectDevice(req);
+    const channel = requestChannel(req);
+    await Notification.create({
+        userId: 'admin',
+        audience: 'admin',
+        type: 'security_device_transfer',
+        title: 'تم ربط جهاز بعد تحقق ناجح',
+        message: `${principal.principalName || principal.principalId} ربط ${channel === 'app' ? 'تطبيقاً' : 'متصفحاً'} بعد تسجيل دخول متحقَّق. يمكن مراجعة الجهاز أو إلغاؤه من مركز الأمان.`,
+        metadata: {
+            principalType: principal.principalType,
+            principalId: principal.principalId,
+            purpose,
+            previousDeviceId: previousDevice ? String(previousDevice._id) : null,
+            channel,
+            displayName: device.displayName
+        }
+    }).catch((error) => console.error('[SecurityControl] device transfer notice failed:', error.message));
+};
+
+const supersedePendingAccessRequests = async ({ principal, reviewedBy, reviewNote }) => {
+    await SecurityAccessRequest.updateMany(
+        {
+            principalType: principal.principalType,
+            principalId: principal.principalId,
+            status: 'pending'
+        },
+        {
+            $set: {
+                status: 'rejected',
+                reviewedBy,
+                reviewedAt: new Date(),
+                reviewNote
+            }
+        }
+    );
+};
+
 const activateDevice = async ({ req, res, principal, credential = null, approvedBy = '' }) => {
     const deviceId = ensureDeviceId(req, res);
     const deviceIdHash = hashDeviceId(deviceId);
@@ -257,7 +325,15 @@ const activateDevice = async ({ req, res, principal, credential = null, approved
     return record;
 };
 
-const authorizeLogin = async ({ req, res, principal, accountClass = 'account', allowFirstDevice = false, authenticatorVerified = false }) => {
+const authorizeLogin = async ({
+    req,
+    res,
+    principal,
+    accountClass = 'account',
+    allowFirstDevice = false,
+    authenticatorVerified = false,
+    verifiedLogin = false
+}) => {
     // Authentication contract tests do not provision the security collections.
     // Dedicated enforcement tests can opt in; production always evaluates policy.
     if (process.env.NODE_ENV === 'test'
@@ -268,12 +344,13 @@ const authorizeLogin = async ({ req, res, principal, accountClass = 'account', a
         return { allowed: true, enforcementEnabled: false, verificationMode: 'optional' };
     }
     const state = await getState();
-    // Device approval is a core account protection now.  Legacy state records
-    // without the new fields are treated as enabled, which avoids silently
-    // weakening security during a rollout.
-    const enabled = state.adminApprovalRequired !== false
-        && state.singleDeviceOnly !== false;
-    if (!enabled) return { allowed: true, enforcementEnabled: false };
+    // Keep login binding aligned with the session guard. Admin-approval and
+    // single-device flags control *how* a new device is handled, not whether
+    // the current browser is enrolled at all.
+    const enforcementEnabled = accountClass === 'admin'
+        ? state.adminDeviceEnforcementEnabled !== false
+        : state.accountDeviceEnforcementEnabled !== false;
+    if (!enforcementEnabled) return { allowed: true, enforcementEnabled: false };
 
     const risk = assessNetworkRisk(req);
     if (state.highConfidenceVpnBlockEnabled && risk.highRisk) {
@@ -281,8 +358,13 @@ const authorizeLogin = async ({ req, res, principal, accountClass = 'account', a
     }
     const location = parseLocation(req);
     const emergencyOtpBypass = getEmergencyClientOtpBypassState();
-    if (state.locationRequired && !location && !emergencyOtpBypass.active) {
-        return { allowed: false, code: 'LOCATION_REQUIRED', message: 'يجب السماح بالوصول إلى الموقع لإكمال الدخول الآمن.' };
+    const emergencyDeviceBypass = getEmergencyDeviceBindingBypassState();
+    if (state.locationRequired && !location && !emergencyOtpBypass.active && !emergencyDeviceBypass.active) {
+        return {
+            allowed: false,
+            code: 'LOCATION_REQUIRED',
+            message: 'يجب السماح بالوصول إلى الموقع لإكمال الدخول الآمن. فعّل الموقع في المتصفح ثم أعد المحاولة.'
+        };
     }
     const deviceId = ensureDeviceId(req, res);
     const deviceIdHash = hashDeviceId(deviceId);
@@ -292,39 +374,52 @@ const authorizeLogin = async ({ req, res, principal, accountClass = 'account', a
         principalId: principal.principalId,
         status: 'active'
     }).select('+deviceIdHash');
-    const hasDeviceHistory = !active && allowFirstDevice
-        ? Boolean(await SecurityDevice.exists({
-            principalType: principal.principalType,
-            principalId: principal.principalId,
-        }))
-        : false;
-    if (!active && allowFirstDevice && !hasDeviceHistory) {
+    const canRebindMismatch = allowFirstDevice && (
+        verifiedLogin
+        || authenticatorVerified
+        || emergencyDeviceBypass.active
+        || emergencyOtpBypass.active
+        || state.adminApprovalRequired === false
+    );
+
+    if (!active && allowFirstDevice) {
         const device = await activateDevice({ req, res, principal, approvedBy: 'first_verified_login' });
-        await SecurityAccessRequest.updateMany(
-            {
-                principalType: principal.principalType,
-                principalId: principal.principalId,
-                status: 'pending'
-            },
-            {
-                $set: {
-                    status: 'rejected',
-                    reviewedBy: 'first_verified_login',
-                    reviewedAt: new Date(),
-                    reviewNote: 'Superseded by the first verified device enrollment.'
-                }
-            }
-        );
-        return { allowed: true, enforcementEnabled: true, device };
+        await supersedePendingAccessRequests({
+            principal,
+            reviewedBy: 'first_verified_login',
+            reviewNote: 'Superseded by the first verified device enrollment.'
+        });
+        rememberSessionDevice(req, deviceId);
+        return { allowed: true, enforcementEnabled: true, device, enrolled: true };
     }
     if (active && hashesEqual(active.deviceIdHash, deviceIdHash)) {
         active.lastIp = requestIp(req);
         active.lastLocation = location || active.lastLocation;
         active.lastSeenAt = new Date();
         await active.save();
+        rememberSessionDevice(req, deviceId);
         return { allowed: true, enforcementEnabled: true, device: active };
     }
-    if (active && !authenticatorVerified) {
+    if (active && canRebindMismatch) {
+        const approvedBy = emergencyDeviceBypass.active
+            ? 'emergency_device_binding_bypass'
+            : 'verified_login_rebind';
+        const device = await activateDevice({ req, res, principal, approvedBy });
+        await supersedePendingAccessRequests({
+            principal,
+            reviewedBy: approvedBy,
+            reviewNote: 'Superseded by a verified login that rebound the current device.'
+        });
+        await notifyDeviceTransfer({
+            req,
+            principal,
+            purpose: 'device_transfer',
+            previousDevice: active
+        });
+        rememberSessionDevice(req, deviceId);
+        return { allowed: true, enforcementEnabled: true, device, rebound: true };
+    }
+    if (active && !authenticatorVerified && !verifiedLogin) {
         return {
             allowed: false,
             code: 'AUTHENTICATOR_REQUIRED_FOR_DEVICE_TRANSFER',
@@ -341,7 +436,7 @@ const authorizeLogin = async ({ req, res, principal, accountClass = 'account', a
     return {
         allowed: false,
         code: 'DEVICE_APPROVAL_REQUIRED',
-        message: `هذا ${channel === 'app' ? 'تطبيق' : 'متصفح'} جديد. طلب الموافقة ${request.requestCode} أُرسل إلى الإدارة.`,
+        message: `هذا ${channel === 'app' ? 'تطبيق' : 'متصفح'} جديد ولم يُعتمد بعد. طلب الموافقة ${request.requestCode} أُرسل إلى الإدارة. انتظر الاعتماد أو سجّل الدخول من الجهاز المعتمد.`,
         requestCode: request.requestCode
     };
 };
@@ -566,14 +661,16 @@ const ensureSecurityDeviceIndexes = async () => {
     );
 };
 
-const applySessionSecurity = async (req, principal, accountClass = 'account') => {
+const applySessionSecurity = async (req, principal, accountClass = 'account', res = null) => {
     const state = await getState();
     const hours = accountClass === 'admin' ? state.adminSessionHours : state.accountSessionHours;
+    const deviceId = ensureDeviceId(req, res);
     req.session.securityPrincipalType = principal.principalType;
     req.session.securityPrincipalId = principal.principalId;
     req.session.securityExpiresAt = Date.now() + (hours * 60 * 60 * 1000);
     req.session.securityLocation = parseLocation(req);
     req.session.securityLoginIp = requestIp(req);
+    rememberSessionDevice(req, deviceId);
 };
 
 const rotateEmergencyCode = async (updatedBy) => {
@@ -626,7 +723,10 @@ const isLockdownActive = async () => {
 module.exports = {
     DEVICE_COOKIE,
     requestChannel,
+    DEVICE_ID_PATTERN,
     ensureDeviceId,
+    persistDeviceCookie,
+    rememberSessionDevice,
     hashDeviceId,
     requestIp,
     parseLocation,
