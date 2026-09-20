@@ -14,6 +14,23 @@ html[data-portal="company"] body.cp-app,
     color: var(--cp-ink);
     font-family: var(--cp-font);
     letter-spacing: 0;
+    -webkit-text-size-adjust: 100%;
+}
+
+html[data-portal="company"] body.cp-app,
+html[data-portal="company"] body.cp-app *:not(.bw-mono):not(.mono-num) {
+    letter-spacing: 0 !important;
+}
+
+html[data-portal="company"] body.cp-app .bw-main,
+html[data-portal="company"] body.cp-app .bw-section,
+html[data-portal="company"] body.cp-app .bw-section-head h2,
+html[data-portal="company"] body.cp-app .cp-page-hero h1,
+html[data-portal="company"] body.cp-app .cp-page-hero h2,
+html[data-portal="company"] body.cp-app .bw-table,
+html[data-portal="company"] body.cp-app .bw-report-cover,
+html[data-portal="company"] body.cp-app .bw-filter-band {
+    color: var(--cp-ink);
 }
 
 html[data-portal="company"] body.cp-app .bw-offline-banner,
@@ -1336,7 +1353,14 @@ html[data-portal="company"] .cp-dialog,
     vertical-align: -0.15em;
 }
 
-.cp-icon-sprite { position: absolute; width: 0; height: 0; overflow: hidden; }
+.cp-icon-sprite {
+    position: absolute;
+    width: 24px;
+    height: 24px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    pointer-events: none;
+}
 
 .bw-company-os .bw-mobile-dock .cp-icon {
     width: 22px;
@@ -1422,13 +1446,13 @@ html[data-portal="company"] .cp-work-main {
         display: none !important;
     }
 
-    html[data-portal="company"] .cp-theme-rail .cp-theme-option span {
-        display: none;
+    html[data-portal="company"] .cp-theme-rail {
+        display: none !important;
     }
 
-    html[data-portal="company"] .cp-theme-rail .cp-theme-option {
-        padding: 0;
-        width: 40px;
+    html[data-portal="company"] .cp-theme-toggle {
+        display: grid !important;
+        place-items: center;
     }
 
     html[data-portal="company"] .cp-topbar,
@@ -1479,13 +1503,16 @@ html[data-portal="company"] .cp-work-main {
         display: grid !important;
         grid-auto-flow: column;
         grid-auto-columns: 1fr;
+        grid-template-columns: none;
         min-height: var(--cp-dock-height);
+        overflow: visible;
         padding: 6px;
         padding-bottom: max(6px, env(safe-area-inset-bottom));
         background: var(--cp-surface);
         border: 1px solid var(--cp-line);
         border-radius: 22px;
         box-shadow: var(--cp-shadow-lg);
+        color: var(--cp-ink);
     }
 
     html[data-portal="company"] .bw-mobile-dock a,
@@ -1496,12 +1523,34 @@ html[data-portal="company"] .cp-work-main {
         justify-content: center;
         gap: 4px;
         min-height: var(--cp-touch);
-        min-width: var(--cp-touch);
+        min-width: 0;
+        padding: 4px 2px;
         border-radius: 16px;
         color: var(--cp-muted);
+        background: transparent;
         text-decoration: none;
-        font-size: .68rem;
+        font-size: .72rem;
         font-weight: 800;
+        letter-spacing: 0 !important;
+    }
+
+    html[data-portal="company"] .bw-mobile-dock a span,
+    .bw-company-os .bw-mobile-dock a span {
+        display: block;
+        max-width: 100%;
+        overflow: visible;
+        color: inherit;
+        white-space: nowrap;
+        text-overflow: clip;
+        letter-spacing: 0 !important;
+    }
+
+    html[data-portal="company"] .bw-mobile-dock a i,
+    .bw-company-os .bw-mobile-dock a i {
+        display: block;
+        font-size: 1.05rem;
+        line-height: 1;
+        color: inherit;
     }
 
     html[data-portal="company"] .bw-mobile-dock a.active,
@@ -1510,9 +1559,20 @@ html[data-portal="company"] .cp-work-main {
         background: color-mix(in srgb, var(--cp-icon) 12%, transparent);
     }
 
-    html[data-portal="company"] .bw-mobile-dock .cp-icon {
-        width: 24px;
-        height: 24px;
+    html[data-portal="company"] .bw-report-toolbar,
+    html[data-portal="company"] .bw-report-cover,
+    html[data-portal="company"] .bw-central-downloads,
+    html[data-portal="company"] .bw-filter-band,
+    html[data-portal="company"] .bw-table-wrap,
+    html[data-portal="company"] [data-page="reports"] .bw-main {
+        display: block;
+        visibility: visible;
+        color: var(--cp-ink);
+    }
+
+    html[data-portal="company"] .bw-assistant-dialog,
+    html[data-portal="company"] .bw-assistant-launcher {
+        display: none !important;
     }
 
     .cp-day-layout,

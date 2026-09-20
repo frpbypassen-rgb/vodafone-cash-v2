@@ -221,6 +221,8 @@ describe('customer portal mobile chrome and exclusivity', () => {
         expect(head).not.toContain('company-portal.tokens.css');
         expect(companyHead).toContain('company-portal.tokens.css');
         expect(companyHead).not.toContain('client-portal.tokens.css');
+        expect(companyHead).not.toContain('client-portal-2027.css');
+        expect(head).toContain('client-portal-2027.css');
         expect(layout).toContain('data-legacy-wallet-shell-dock');
         expect(layout).toContain('nav.bottom-nav-mobile:not(.cl-dock)');
         expect(layout).not.toContain('data-portal="company"');

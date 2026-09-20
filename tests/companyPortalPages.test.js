@@ -194,7 +194,8 @@ describe('canonical company portal pages', () => {
         expect(html).toContain('/css/company-portal-theme-day.css');
         expect(html).toContain('/css/company-portal-theme-night.css');
         expect(html).toContain('/css/company-portal-theme-pharaonic.css');
-        expect(html).toContain('20260919-command1');
+        expect(html).toContain('20260920-cp-m1');
+        expect(html).not.toContain('client-portal-2027.css');
         expect(html).not.toContain('client-company-os.css');
         expect(html).not.toContain('client-portal.tokens.css');
         expect(html).not.toContain('cl-app');
@@ -233,8 +234,10 @@ describe('canonical company portal pages', () => {
     test('filters mobile dock items by company role', async () => {
         const managerHtml = await renderWorkspacePage('services');
         expect(managerHtml).toContain('data-dock-key="services"');
-        expect(managerHtml).toContain('data-dock-key="smart_transfer"');
+        expect(managerHtml).toContain('data-dock-key="reports"');
         expect(managerHtml).toContain('data-dock-key="settings"');
+        expect(managerHtml).toContain('fa-file-invoice');
+        expect(managerHtml).not.toContain('data-dock-key="smart_transfer"');
 
         const accountantHtml = await renderWorkspacePage('finance', {
             workspace: {
@@ -252,6 +255,7 @@ describe('canonical company portal pages', () => {
             }
         });
         expect(accountantHtml).toContain('data-dock-key="finance"');
+        expect(accountantHtml).toContain('data-dock-key="reports"');
         expect(accountantHtml).not.toContain('data-dock-key="services"');
         expect(accountantHtml).not.toContain('data-dock-key="smart_transfer"');
     });
@@ -277,6 +281,8 @@ describe('canonical company portal pages', () => {
         const layout = fs.readFileSync(path.join(__dirname, '..', 'public', 'css', 'company-portal-layout.css'), 'utf8');
         expect(layout).toContain('--cp-touch');
         expect(layout).toContain('env(safe-area-inset-bottom)');
+        expect(layout).toContain('letter-spacing: 0 !important');
+        expect(layout).toContain('clip-path: inset(50%)');
         expect(files.pharaonic).toContain('cp-sand-dust');
         expect(files.pharaonic).toContain('prefers-reduced-motion');
         expect(layout).toContain('cp-app');
@@ -388,9 +394,36 @@ describe('canonical company portal pages', () => {
         expect(html).toContain('id="receiptLightbox"');
         expect(html).toContain('OP-1001');
         expect(html).toContain('الإثبات');
-        expect(html).toContain('20260919-proof2');
+        expect(html).toContain('20260920-cp-m1');
         expect(html).not.toContain('href="/corporate"');
         expect(html).not.toContain('proofs/official.svg');
+    });
+
+    test('company reports stay in the manager phone dock with labels and icons', async () => {
+        const html = await renderWorkspacePage('reports', {
+            reportScope: 'organization',
+            reportScopeLabel: 'كشف الحساب',
+            reportScopes: { organization: 'كشف الحساب' },
+            centralAdminReport: null,
+            centralDownloads: [],
+            centralReport: { reportId: 'R-1', checksum: 'abc', issuedAt: new Date() },
+            centralSync: { status: 'ready' },
+            filters: { from: '', to: '', month: '2026-09', label: 'شهر 9 / 2026', scope: 'organization' },
+            reportSummary: { totalCount: 0, completedCount: 0, pendingCount: 0, cancelledCount: 0, totalEGP: 0, totalLYD: 0 },
+            reportAnalytics: { forecastBalance: 0, totalIncoming: 0, totalOutgoing: 0, netMovement: 0, liquiditySeries: [] },
+            reportRows: [],
+            serviceBreakdown: [],
+            agencyProfitRows: [],
+            companyReportEmployees: [],
+            centralAdminReportInput: { dateType: 'month', dateValue: '2026-09' },
+            reportTransactions: []
+        });
+        expect(html).toContain('data-dock-key="reports"');
+        expect(html).toContain('data-company-dock');
+        expect(html).toMatch(/data-dock-key="reports"[\s\S]*fa-file-invoice[\s\S]*التقارير/);
+        expect(html).toContain('كشف الحساب');
+        expect(html).toContain('إنشاء التقرير');
+        expect(html).not.toContain('client-portal-2027.css');
     });
 
     test('company page templates do not hardcode colors', async () => {

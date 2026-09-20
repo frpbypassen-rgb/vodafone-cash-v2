@@ -161,6 +161,11 @@ const enforceEmergencyLockdown = async (req, res, next) => {
     }
 };
 
+const {
+    isAccountantRole,
+    accountantPathAllowed
+} = require('../config/adminRoles');
+
 const permissionRules = [
     { pattern: /^\/admin\/security/, read: 'security.read', write: 'security.manage' },
     { pattern: /^\/settings/, read: 'settings.read', write: 'settings.manage' },
@@ -169,13 +174,25 @@ const permissionRules = [
     { pattern: /^\/(executors|executor\/|employees)/, read: 'executors.read', write: 'executors.manage' },
     { pattern: /^\/(support|complaints|whatsapp-monitor)/, read: 'support.read', write: 'support.manage' },
     { pattern: /^\/broadcast/, read: 'accounts.read', write: 'accounts.manage' },
+    { pattern: /^\/registration-requests/, read: 'accounts.read', write: 'accounts.manage' },
+    { pattern: /^\/admin\/webhooks/, read: 'reports.read', write: 'reports.manage' },
     { pattern: /^\/(reports|audit-log|financial-movements)/, read: 'reports.read', write: 'reports.manage' },
     { pattern: /^\/$/, read: 'dashboard.read', write: 'dashboard.manage' }
 ];
 
+const denyAdminPermission = (req, res, required) => {
+    if (wantsJson(req)) {
+        return res.status(403).json({ success: false, code: 'ADMIN_PERMISSION_DENIED', error: 'ليس لديك الصلاحية المطلوبة.' });
+    }
+    return res.status(403).render('access_denied', { requiredPermission: required });
+};
+
 const enforceAdminPermissions = async (req, res, next) => {
     try {
         if (!req.session?.isLoggedIn || req.session.adminRole === 'master') return next();
+        if (isAccountantRole(req.session.adminRole) && !accountantPathAllowed(req.method, req.originalUrl || req.path)) {
+            return denyAdminPermission(req, res, 'reports.read');
+        }
         // Permissions are a security boundary, not an optional presentation
         // preference. Historical state rows may contain `false`; they must not
         // silently grant every authenticated administrator full access.
@@ -184,8 +201,7 @@ const enforceAdminPermissions = async (req, res, next) => {
         const required = ['GET', 'HEAD', 'OPTIONS'].includes(req.method) ? rule.read : rule.write;
         const permissions = new Set(req.session.adminPermissions || []);
         if (permissions.has('*') || permissions.has(required)) return next();
-        if (wantsJson(req)) return res.status(403).json({ success: false, code: 'ADMIN_PERMISSION_DENIED', error: 'ليس لديك الصلاحية المطلوبة.' });
-        return res.status(403).render('access_denied', { requiredPermission: required });
+        return denyAdminPermission(req, res, required);
     } catch (error) {
         console.error('[SecurityControl] permission guard failed:', error.message);
         return res.status(503).send('Security control unavailable');

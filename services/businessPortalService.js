@@ -451,7 +451,7 @@ const buildNavigation = (workspace, activePage) => {
 };
 
 const COMPANY_MOBILE_KEYS = Object.freeze({
-    manager: ['services', 'smart_transfer', 'transactions', 'support', 'settings'],
+    manager: ['services', 'transactions', 'reports', 'support', 'settings'],
     accountant: ['finance', 'transactions', 'reports', 'support', 'settings'],
     employee: ['services', 'smart_transfer', 'transactions', 'support', 'security']
 });
