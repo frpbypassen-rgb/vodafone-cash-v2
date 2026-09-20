@@ -311,7 +311,7 @@ const loadEntityMovementReport = async ({ type, id, days = 30, now = new Date(),
     const scope = await resolveReportScope({ mainCategory: category, subId: id, subType: 'all', tenantId });
     const baseQuery = applyAdminTxPrivacy({
         ...scope.baseQuery,
-        ...tenantScope(tenantId),
+        ...adminAccountScope(tenantId),
         createdAt: { $gte: start, $lte: now }
     });
     const [summaryRows, trendRows, recent] = await Promise.all([

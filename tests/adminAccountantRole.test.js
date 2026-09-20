@@ -26,6 +26,8 @@ const accountantApp = () => {
     app.get('/reports', (_req, res) => res.json({ ok: true, page: 'reports' }));
     app.get('/financial-movements', (_req, res) => res.json({ ok: true, page: 'ledger' }));
     app.get('/clients', (_req, res) => res.json({ ok: true, page: 'clients' }));
+    app.get('/company/:id', (_req, res) => res.json({ ok: true, page: 'company' }));
+    app.get('/user/:id', (_req, res) => res.json({ ok: true, page: 'agent' }));
     app.get('/transactions/live', (_req, res) => res.json({ ok: true, page: 'live' }));
     app.get('/settings', (_req, res) => res.json({ ok: true, page: 'settings' }));
     app.post('/settings/update', (_req, res) => res.json({ ok: true }));
@@ -49,6 +51,8 @@ describe('accountant admin read-only role', () => {
         const ledger = await request(app).get('/financial-movements').set('Accept', 'application/json');
         const live = await request(app).get('/transactions/live').set('Accept', 'application/json');
         const clients = await request(app).get('/clients').set('Accept', 'application/json');
+        const company = await request(app).get('/company/1').set('Accept', 'application/json');
+        const agent = await request(app).get('/user/1').set('Accept', 'application/json');
         const settingsGet = await request(app).get('/settings').set('Accept', 'application/json');
         const settingsPost = await request(app).post('/settings/update').set('Accept', 'application/json');
         const balancePost = await request(app).post('/user/1/add-balance').set('Accept', 'application/json');
@@ -59,6 +63,8 @@ describe('accountant admin read-only role', () => {
         expect(ledger.status).toBe(200);
         expect(live.status).toBe(200);
         expect(clients.status).toBe(200);
+        expect(company.status).toBe(200);
+        expect(agent.status).toBe(200);
         expect(settingsGet.status).toBe(403);
         expect(settingsPost.status).toBe(403);
         expect(balancePost.status).toBe(403);
@@ -75,5 +81,7 @@ describe('accountant admin read-only role', () => {
         expect(accountantPathAllowed('GET', '/sub-account/1')).toBe(false);
         expect(accountantPathAllowed('POST', '/sub-account/1/delete')).toBe(false);
         expect(accountantPathAllowed('GET', '/admin/accounts/user/1/edit')).toBe(false);
+        expect(accountantPathAllowed('GET', '/company/1')).toBe(true);
+        expect(accountantPathAllowed('GET', '/user/1')).toBe(true);
     });
 });
