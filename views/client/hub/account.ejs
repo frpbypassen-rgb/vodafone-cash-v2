@@ -31,6 +31,7 @@
         <% const tab = typeof activeTab !== 'undefined' ? activeTab : 'operations'; %>
         <nav class="client-hub-tabs" aria-label="أقسام الحساب">
             <a href="/client/account?tab=operations" class="<%= tab === 'operations' ? 'is-active' : '' %>"><i class="fa-solid fa-list"></i> سجل العمليات</a>
+            <a href="/client/reports"><i class="fa-solid fa-chart-column"></i> التقارير</a>
             <% if (canRequestDeposit) { %>
             <a href="/client/account?tab=deposits-new" class="<%= tab.startsWith('deposit') ? 'is-active' : '' %>"><i class="fa-solid fa-arrow-down"></i> الإيداعات</a>
             <% } %>

@@ -1529,7 +1529,7 @@
     </div>
 
     <% if (typeof walletHub !== 'undefined' && walletHub) { %>
-    <%- include('partials/wallet_hub_more', { user: user, profile: profile }) %>
+    <%- include('partials/wallet_hub_more', { user: user, profile: profile, activeNav: 'home' }) %>
     <%- include('partials/wallet_hub_command_palette') %>
     <script src="/js/client-os-mobile.js?v=20260905-mobile1" defer></script>
     <script src="/js/client-web-os.js?v=20260905-site" defer></script>
