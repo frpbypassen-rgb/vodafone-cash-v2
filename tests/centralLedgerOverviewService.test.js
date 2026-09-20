@@ -24,6 +24,7 @@ describe('central ledger overview', () => {
                 ]
             }]
         }));
+        expect(successfulOpsLedgerMatch({}).tenantId).toBeUndefined();
     });
 
     test('builds today, rolling 7-day week, and calendar-month bounds', () => {
@@ -118,6 +119,7 @@ describe('central ledger overview', () => {
             status: 'completed',
             isSubAccountTx: { $ne: true }
         }));
+        expect(Transaction.aggregate.mock.calls[0][0][0].$match.tenantId).toBeUndefined();
         expect(ClientCompany.find).toHaveBeenCalledWith(adminVisibleCompanyQuery({}));
         expect(ExecutorGroup.find).toHaveBeenCalledWith(adminVisibleExecutorQuery({}));
         expect(JSON.stringify(ClientCompany.find.mock.calls[0][0])).not.toContain('isSubAccountTx');
@@ -140,9 +142,24 @@ describe('central ledger overview', () => {
             { isApiBot: true, lastApiServiceCredit: { $gt: 0 } },
             { isApiGroup: true, lastApiServiceCredit: { $gt: 0 } }
         ]));
+        expect(successfulOpsLedgerMatch(source).tenantId).toBeUndefined();
         expect(successfulOpsLedgerMatch(source)).toEqual(expect.objectContaining({
-            tenantId: { $in: [source.tenantId, null] },
+            status: 'completed',
             isSubAccountTx: { $ne: true }
         }));
+    });
+
+    test('period stats keep a hard tenant boundary in multi-tenant mode and still hide SubAccount ledgers', () => {
+        jest.resetModules();
+        jest.doMock('../middlewares/tenantResolver', () => ({ tenantMode: () => 'multi' }));
+        const scoped = require('../services/centralLedgerOverviewService');
+        const tenantId = 'tenant-a';
+        expect(scoped.successfulOpsLedgerMatch(tenantId)).toEqual(expect.objectContaining({
+            tenantId,
+            status: 'completed',
+            isSubAccountTx: { $ne: true }
+        }));
+        expect(scoped.adminVisibleCompanyQuery(tenantId).tenantId).toBe(tenantId);
+        expect(scoped.adminVisibleExecutorQuery(tenantId).tenantId).toBe(tenantId);
     });
 });
