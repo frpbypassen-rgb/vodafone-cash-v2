@@ -29,14 +29,26 @@ const excludeAgencyClientTxFilter = Object.freeze({
 
 // Hide only agency-client funding rows from admin ops. Transfers stay visible
 // so a sub_client cash op appears in the live queue the same way a direct
-// retail client's op does. $nor is used so callers can still set $or (search).
-const agencyClientFundingNorClause = Object.freeze({
-    status: { $in: AGENCY_CLIENT_FUNDING_STATUSES },
-    $or: [
-        { isSubAccountTx: true },
-        { subAccountId: { $ne: null } }
-    ]
-});
+// retail client's op does.
+//
+// Each hide rule is a *separate* $nor clause with only field predicates.
+// Nesting `$or` inside a $nor operand is unsafe: MongoDB/Mongoose can lift
+// that `$or` into a sibling $nor expression, which then excludes every
+// `isSubAccountTx: true` row (pending transfers included). $nor is still
+// used at the top level so callers can set `$or` for search.
+const agencyClientFundingHideClauses = Object.freeze([
+    Object.freeze({
+        status: { $in: AGENCY_CLIENT_FUNDING_STATUSES },
+        isSubAccountTx: true
+    }),
+    Object.freeze({
+        status: { $in: AGENCY_CLIENT_FUNDING_STATUSES },
+        subAccountId: { $exists: true, $nin: [null] }
+    })
+]);
+
+// Backward-compatible alias: first hide clause (funding + isSubAccountTx).
+const agencyClientFundingNorClause = agencyClientFundingHideClauses[0];
 
 const VISIBLE_ADMIN_ACCOUNT_STATUS = Object.freeze({
     status: { $ne: 'deleted' }
@@ -64,7 +76,7 @@ const applyAdminDirectoryTxPrivacy = (query = {}) => ({
 const applyAdminTxPrivacy = (query = {}) => {
     const next = { ...query };
     const existingNor = Array.isArray(next.$nor) ? next.$nor : [];
-    next.$nor = existingNor.concat(agencyClientFundingNorClause);
+    next.$nor = existingNor.concat(agencyClientFundingHideClauses);
     return next;
 };
 
@@ -151,6 +163,7 @@ module.exports = {
     adminAccountFindQuery,
     adminListIncludesAgencyDeposit,
     adminVisibleTransactionQuery,
+    agencyClientFundingHideClauses,
     agencyClientFundingNorClause,
     agentOwnsSubAccount,
     applyAdminDirectoryTxPrivacy,

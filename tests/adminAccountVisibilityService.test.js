@@ -15,6 +15,7 @@ const {
 } = require('../services/adminAccountVisibilityService');
 const { adminAccountScope } = require('../utils/tenantScope');
 const { agentOwnsSubAccount: ownershipCheck } = require('../utils/agencyOwnership');
+const { mongoQueryMatches } = require('./mongoQueryMatch');
 
 const AGENT_A = { _id: 'agent-a', name: 'وكالة أ', role: 'agent', phone: '0911111111', webUsername: 'agent.a' };
 const AGENT_B = { _id: 'agent-b', name: 'وكالة ب', role: 'agent', phone: '0922222222', webUsername: 'agent.b' };
@@ -69,14 +70,33 @@ describe('Admin privacy for agency-scoped clients', () => {
         expect(applyAdminTxPrivacy({ companyId: 'co-1' }).isSubAccountTx).toBeUndefined();
         expect(applyAdminTxPrivacy({ companyId: 'co-1' }).$nor).toEqual(expect.arrayContaining([
             expect.objectContaining({
-                status: { $in: ['deposit', 'deduction', 'deposit_pending'] }
+                status: { $in: ['deposit', 'deduction', 'deposit_pending'] },
+                isSubAccountTx: true
+            }),
+            expect.objectContaining({
+                status: { $in: ['deposit', 'deduction', 'deposit_pending'] },
+                subAccountId: { $exists: true, $nin: [null] }
             })
         ]));
+        applyAdminTxPrivacy({ companyId: 'co-1' }).$nor.forEach((clause) => {
+            expect(clause.$or).toBeUndefined();
+        });
         expect(adminVisibleTransactionQuery({ tenantId: 't-1' }, { _id: 'tx-agency' })).toEqual(expect.objectContaining({
             tenantId: 't-1',
             _id: 'tx-agency'
         }));
         expect(adminVisibleTransactionQuery({ tenantId: 't-1' }, { _id: 'tx-agency' }).isSubAccountTx).toBeUndefined();
+        expect(mongoQueryMatches({
+            status: 'pending',
+            transferType: 'vodafone',
+            isSubAccountTx: true,
+            subAccountId: AGENCY_CLIENT._id
+        }, applyAdminTxPrivacy({}))).toBe(true);
+        expect(mongoQueryMatches({
+            status: 'deposit',
+            isSubAccountTx: true,
+            subAccountId: AGENCY_CLIENT._id
+        }, applyAdminTxPrivacy({}))).toBe(false);
         expect(isAdminHiddenPrincipalType('sub_client')).toBe(true);
         expect(isAdminHiddenPrincipalType('client_user')).toBe(false);
         expect(buildAdminAccountHistoryQuery({

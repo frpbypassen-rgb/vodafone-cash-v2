@@ -7,6 +7,7 @@ const {
     mapLiveTransaction,
     resolveTimeRange
 } = require('../services/liveOperationsService');
+const { mongoQueryMatches } = require('./mongoQueryMatch');
 
 describe('live operations service', () => {
     test('builds server-side filters without treating the request as a tenant id', () => {
@@ -24,9 +25,15 @@ describe('live operations service', () => {
         expect(query.isSubAccountTx).toBeUndefined();
         expect(query.$nor).toEqual(expect.arrayContaining([
             expect.objectContaining({
-                status: { $in: ['deposit', 'deduction', 'deposit_pending'] }
+                status: { $in: ['deposit', 'deduction', 'deposit_pending'] },
+                isSubAccountTx: true
+            }),
+            expect.objectContaining({
+                status: { $in: ['deposit', 'deduction', 'deposit_pending'] },
+                subAccountId: { $exists: true, $nin: [null] }
             })
         ]));
+        query.$nor.forEach((clause) => expect(clause.$or).toBeUndefined());
         expect(query.$or).toHaveLength(8);
         expect(query.$or.some((clause) => clause.subAccountName)).toBe(false);
     });
@@ -76,15 +83,42 @@ describe('live operations service', () => {
     });
 
     test('pending sub-client transfers are not excluded from the live ops query', () => {
-        const query = buildLiveQuery({ query: { status: 'pending', type: 'vodafone', range: 'all' } });
+        const now = new Date('2026-09-20T20:00:00.000Z');
+        const query = buildLiveQuery({ query: { status: 'pending', type: 'vodafone', range: 'all' } }, now);
         expect(query.status).toEqual({ $in: ['pending', 'processing', 'accepted', 'deposit_pending'] });
         expect(query.transferType).toBe('vodafone');
         expect(query.isSubAccountTx).toBeUndefined();
         expect(query.$nor).toEqual(expect.arrayContaining([
             expect.objectContaining({
                 status: { $in: ['deposit', 'deduction', 'deposit_pending'] },
-                $or: expect.arrayContaining([{ isSubAccountTx: true }])
+                isSubAccountTx: true
+            }),
+            expect.objectContaining({
+                status: { $in: ['deposit', 'deduction', 'deposit_pending'] },
+                subAccountId: { $exists: true, $nin: [null] }
             })
         ]));
+        query.$nor.forEach((clause) => expect(clause.$or).toBeUndefined());
+
+        const pendingSubClient = {
+            status: 'pending',
+            transferType: 'vodafone',
+            isSubAccountTx: true,
+            subAccountId: '64b0000000000000000000aa',
+            createdAt: now,
+            amount: 250
+        };
+        const agencyDeposit = {
+            status: 'deposit',
+            transferType: 'vodafone',
+            isSubAccountTx: true,
+            subAccountId: '64b0000000000000000000aa',
+            createdAt: now,
+            amount: 250
+        };
+        expect(mongoQueryMatches(pendingSubClient, query)).toBe(true);
+        expect(mongoQueryMatches(agencyDeposit, query)).toBe(false);
+        expect(mongoQueryMatches(pendingSubClient, buildLiveQuery({ query: {} }, now))).toBe(true);
+        expect(mongoQueryMatches(agencyDeposit, buildLiveQuery({ query: { range: 'all' } }, now))).toBe(false);
     });
 });
