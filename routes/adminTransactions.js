@@ -32,7 +32,7 @@ const {
 } = require('../services/adminFinancialMutationService');
 const eventBus = require('../services/eventBus');
 const { adminVisibleTransactionQuery, applyAdminTxPrivacy } = require('../services/adminAccountVisibilityService');
-const { tenantScope } = require('../utils/tenantScope');
+const { adminAccountScope, tenantScope } = require('../utils/tenantScope');
 const {
     emptyPeriodStats,
     loadCentralLedgerOverview
@@ -144,10 +144,10 @@ const customerFacingNotes = (notes) => {
 
 const OPERATION_STATUSES = ['pending', 'processing', 'accepted', 'completed', 'rejected', 'cancelled_by_admin'];
 
-const adminTxById = (req, id) => adminVisibleTransactionQuery(tenantScope(req), { _id: id });
+const adminTxById = (req, id) => adminVisibleTransactionQuery(adminAccountScope(req), { _id: id });
 
 const transactionLedgerBaseQuery = (source = null) => ({
-    ...tenantScope(source),
+    ...adminAccountScope(source),
     isSubAccountTx: { $ne: true },
     $and: [
         {
@@ -1038,7 +1038,7 @@ router.get('/transactions/:id/details', async (req, res) => {
             const transferId = tx.customId.replace(/-[CD]$/, '');
             ledgerInfo = await Ledger.find({ transactionId: transferId }).lean();
             const pairTransactions = await Transaction.find(applyAdminTxPrivacy({
-                ...tenantScope(req),
+                ...adminAccountScope(req),
                 customId: { $in: [`${transferId}-D`, `${transferId}-C`] }
             })).lean();
 

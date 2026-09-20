@@ -127,4 +127,17 @@ describe('central ledger page layout', () => {
         expect(html).not.toContain('id="m_detail_panel"');
         expect(html).not.toContain('تتبع دورة حياة التنفيذ');
     });
+
+    test('ledger table and period-stat queries use adminAccountScope and keep SubAccount privacy', () => {
+        const routeSource = fs.readFileSync(path.join(__dirname, '..', 'routes', 'adminTransactions.js'), 'utf8');
+        const overviewSource = fs.readFileSync(path.join(__dirname, '..', 'services', 'centralLedgerOverviewService.js'), 'utf8');
+        const appSource = fs.readFileSync(path.join(__dirname, '..', 'app.js'), 'utf8');
+
+        expect(routeSource).toMatch(/const transactionLedgerBaseQuery = \(source = null\) => \(\{[\s\S]*\.\.\.adminAccountScope\(source\),[\s\S]*isSubAccountTx: \{ \$ne: true \}/);
+        expect(routeSource).toMatch(/adminVisibleTransactionQuery\(adminAccountScope\(req\)/);
+        expect(overviewSource).toMatch(/applyAdminTxPrivacy\(\{[\s\S]*\.\.\.adminAccountScope\(source\),[\s\S]*status: SUCCESS_STATUS/);
+        expect(overviewSource).not.toMatch(/\.\.\.tenantScope\(source\)/);
+        expect(appSource.indexOf("require('./routes/liveOperations')"))
+            .toBeLessThan(appSource.indexOf("require('./routes/adminTransactions')"));
+    });
 });
