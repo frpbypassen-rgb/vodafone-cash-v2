@@ -209,4 +209,28 @@ describe('queueService API execution', () => {
         expect(executeTransferViaApi).not.toHaveBeenCalled();
         expect(startApiBalanceAudit).not.toHaveBeenCalled();
     });
+
+    test('does not silently keep a routed API task in processing when the executor is missing', async () => {
+        const logger = require('../utils/logger');
+        Transaction.findById.mockResolvedValue({
+            _id: 'tx-missing-group',
+            customId: 'ATT-2609-MISS',
+            status: 'processing'
+        });
+        ExecutorGroup.findById.mockResolvedValue(null);
+
+        await queueService.processSingleJob('tx-missing-group', 'missing-api');
+
+        expect(executeTransferViaApi).not.toHaveBeenCalled();
+        expect(logger.warn).toHaveBeenCalledWith(
+            'API transfer job skipped before provider dispatch',
+            expect.objectContaining({
+                txId: 'tx-missing-group',
+                apiGroupId: 'missing-api',
+                hasTx: true,
+                hasExecutorGroup: false,
+                status: 'processing'
+            })
+        );
+    });
 });

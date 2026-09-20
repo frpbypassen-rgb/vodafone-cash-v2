@@ -494,6 +494,10 @@ app.use(errorHandler);
 
 const PORT = process.env.PORT || 3000;
 Promise.all([connectDB(), initRedis()]).then(async () => {
+    const { initBullMQ } = require('./services/bullQueueService');
+    if (!initBullMQ()) {
+        logger.warn('BullMQ API transfer worker is not ready; API routing will use in-process queue');
+    }
     const merchantWebhookService = require('./services/merchantWebhookService');
     await Promise.all([
         ensureApiReconciliationIndexes(),
