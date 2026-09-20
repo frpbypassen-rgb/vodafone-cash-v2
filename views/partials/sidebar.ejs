@@ -708,6 +708,7 @@
     </div>
 </div>
 
+<% const canSeeAdminHref = (href) => typeof adminHrefVisible !== 'function' || adminHrefVisible(href); %>
 <div class="bottom-nav-admin-mobile no-print">
     <a href="/" class="bottom-nav-item <%= typeof activePage !== 'undefined' && activePage === 'dashboard' ? 'active' : '' %>">
         <i class="fa-solid fa-chart-pie"></i>
@@ -718,19 +719,29 @@
         <span class="badge bg-danger text-white rounded-pill position-absolute" id="mobileTransactionsBadge" style="display: none; top: 6px; right: 25%; font-size: 0.65rem; padding: 2px 5px;">0</span>
         <span>العمليات</span>
     </a>
+    <% if (canSeeAdminHref('/reports') && !canSeeAdminHref('/settings')) { %>
+    <a href="/reports" class="bottom-nav-item <%= typeof activePage !== 'undefined' && activePage === 'reports' ? 'active' : '' %>">
+        <i class="fa-solid fa-chart-line"></i>
+        <span>التقارير</span>
+    </a>
+    <% } %>
+    <% if (canSeeAdminHref('/complaints')) { %>
     <a href="/complaints" class="bottom-nav-item <%= typeof activePage !== 'undefined' && activePage === 'complaints' ? 'active' : '' %>">
         <i class="fa-solid fa-flag"></i>
         <span class="badge bg-warning text-dark rounded-pill position-absolute" id="mobileComplaintsBadge" style="display: none; top: 6px; right: 15%; font-size: 0.65rem; padding: 2px 5px;">0</span>
         <span>الشكاوى</span>
     </a>
+    <% } %>
     <a href="/clients" class="bottom-nav-item <%= typeof activePage !== 'undefined' && activePage === 'clients' ? 'active' : '' %>">
         <i class="fa-solid fa-users"></i>
         <span>العملاء</span>
     </a>
+    <% if (canSeeAdminHref('/settings')) { %>
     <a href="/settings" class="bottom-nav-item <%= typeof activePage !== 'undefined' && String(activePage).startsWith('settings') ? 'active' : '' %>">
         <i class="fa-solid fa-gear"></i>
         <span>الإعدادات</span>
     </a>
+    <% } %>
 </div>
 
 <div class="sidebar" id="sidebarMenu">
@@ -789,18 +800,22 @@
             </span>
             <i class="fa-solid fa-angle-left menu-chevron"></i>
         </a>
+        <% if (canSeeAdminHref('/whatsapp-monitor')) { %>
         <a href="/whatsapp-monitor" class="<%= typeof activePage !== 'undefined' && activePage === 'whatsapp_monitor' ? 'active' : '' %>">
             <span class="menu-link-content">
                 <i class="fa-brands fa-whatsapp"></i> <span class="menu-link-text">مراقبة واتساب</span>
             </span>
             <i class="fa-solid fa-angle-left menu-chevron"></i>
         </a>
+        <% } %>
+        <% if (canSeeAdminHref('/admin/webhooks')) { %>
         <a href="/admin/webhooks" class="<%= typeof activePage !== 'undefined' && activePage === 'webhooks' ? 'active' : '' %>">
             <span class="menu-link-content">
                 <i class="fa-solid fa-code-branch"></i> <span class="menu-link-text">مراقبة Webhooks</span>
             </span>
             <i class="fa-solid fa-angle-left menu-chevron"></i>
         </a>
+        <% } %>
         <a href="/audit-log" class="<%= typeof activePage !== 'undefined' && activePage === 'audit_log' ? 'active' : '' %>">
             <span class="menu-link-content">
                 <i class="fa-solid fa-clock-rotate-left"></i> <span class="menu-link-text">سجل التدقيق</span>
@@ -818,6 +833,7 @@
             </span>
             <i class="fa-solid fa-angle-left menu-chevron"></i>
         </a>
+        <% if (canSeeAdminHref('/executors')) { %>
         <a href="/executors" class="<%= typeof activePage !== 'undefined' && activePage === 'executors' ? 'active' : '' %>">
             <span class="menu-link-content">
                 <i class="fa-solid fa-robot"></i> <span class="menu-link-text">منفذو وبوتات التنفيذ</span>
@@ -839,8 +855,10 @@
                 <i class="fa-solid fa-angle-left menu-chevron"></i>
             </span>
         </a>
+        <% } %>
         </div>
 
+        <% if (canSeeAdminHref('/support')) { %>
         <div class="sidebar-menu-group">
         <div class="menu-category-header">التواصل والدعم</div>
 
@@ -875,7 +893,9 @@
             <i class="fa-solid fa-angle-left menu-chevron"></i>
         </a>
         </div>
+        <% } %>
 
+        <% if (canSeeAdminHref('/settings')) { %>
         <div class="sidebar-menu-group">
         <div class="menu-category-header">النظام والإعدادات</div>
 
@@ -918,6 +938,7 @@
             <i class="fa-solid fa-angle-left menu-chevron"></i>
         </a>
         </div>
+        <% } %>
         
     </div>
 

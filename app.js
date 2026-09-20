@@ -426,11 +426,13 @@ const {
 app.use(enforceSecuritySession);
 app.use(enforceEmergencyLockdown);
 
+const { adminHrefVisible } = require('./config/adminRoles');
 app.use((req, res, next) => {
     res.locals.adminName = req.session.adminName || 'مدير';
     // ✅ إصلاح: استخدام adminRole (وليس role) بما يتوافق مع auth middleware
     res.locals.role = req.session.adminRole || null;
     res.locals.tenant = req.tenant || null;
+    res.locals.adminHrefVisible = (href) => adminHrefVisible(req.session?.adminRole, href);
     next();
 });
 
@@ -450,6 +452,7 @@ app.use('/api/v1/merchant', require('./routes/merchantApi'));
 app.use('/', require('./routes/merchantWebhooks'));
 
 app.use('/', require('./routes/auth'));
+app.use('/', require('./routes/adminAliases'));
 app.use('/admin/security', require('./routes/securityAdmin'));
 app.use(enforceAdminPermissions);
 app.use('/', require('./routes/dashboard'));

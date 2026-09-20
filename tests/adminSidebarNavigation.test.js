@@ -6,6 +6,8 @@ const ejs = require('ejs');
 
 const SIDEBAR_PATH = path.join(__dirname, '..', 'views', 'partials', 'sidebar.ejs');
 
+const { adminHrefVisible } = require('../config/adminRoles');
+
 const REQUIRED_ADMIN_HREFS = [
     '/',
     '/financial-movements',
@@ -98,6 +100,24 @@ describe('admin sidebar navigation', () => {
         const html = renderSidebar({ activePage: 'settings_users', role: 'master' });
         expect(extractHrefs(html)).toContain('/settings/users');
         expect(html).toMatch(/مديري لوحة التحكم/);
+    });
+
+    test('accountant sidebar keeps review pages and hides mutation settings', () => {
+        const html = renderSidebar({
+            activePage: 'dashboard',
+            role: 'accountant',
+            adminHrefVisible: (href) => adminHrefVisible('accountant', href)
+        });
+        const hrefs = new Set(extractHrefs(html));
+        expect(hrefs.has('/reports')).toBe(true);
+        expect(hrefs.has('/financial-movements')).toBe(true);
+        expect(hrefs.has('/clients')).toBe(true);
+        expect(hrefs.has('/transactions/live')).toBe(true);
+        expect(hrefs.has('/settings')).toBe(false);
+        expect(hrefs.has('/settings/users')).toBe(false);
+        expect(hrefs.has('/broadcast')).toBe(false);
+        expect(hrefs.has('/admin/security')).toBe(false);
+        expect(html).toMatch(/التقارير/);
     });
 
     test('removed monitor dashboard and pulse view files', () => {

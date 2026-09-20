@@ -50,6 +50,14 @@
                                 <input type="text" name="webPassword" class="form-control bg-light border-0" placeholder="12345678" required style="direction: ltr; text-align: left;">
                             </div>
                         </div>
+                        <div class="mb-4">
+                            <label class="form-label fw-bold small">الدور</label>
+                            <select name="role" class="form-select bg-light border-0">
+                                <option value="admin">مدير بصلاحيات</option>
+                                <option value="accountant">محاسب — تقارير وحسابات للعرض فقط</option>
+                            </select>
+                            <small class="text-muted d-block mt-2">حساب المحاسب يراجع التقارير والسجل المركزي دون إنشاء أو تعديل أو حذف.</small>
+                        </div>
                         <button type="submit" class="btn btn-primary w-100 fw-bold shadow-sm py-2">
                             <i class="fa-solid fa-plus me-1"></i> إنشاء الحساب
                         </button>
@@ -68,7 +76,7 @@
                                 <tr>
                                     <th>الاسم</th>
                                     <th>اسم المستخدم (Login)</th>
-                                    <th>كلمة المرور</th>
+                                    <th>الدور</th>
                                     <th>تاريخ الإنشاء</th>
                                     <th>إجراء</th>
                                 </tr>
@@ -81,7 +89,7 @@
                                 <tr>
                                     <td class="fw-bold text-primary"><i class="fa-solid fa-user-tie me-1 text-muted"></i> <%= admin.name %></td>
                                     <td><code class="fs-6"><%= admin.webUsername %></code></td>
-                                    <td><code class="fs-6 text-danger"><%= admin.webPassword %></code></td>
+                                    <td><%= admin.role === 'accountant' ? 'محاسب' : (admin.role === 'master' ? 'مدير رئيسي' : 'مدير') %></td>
                                     <td class="small text-muted"><%= admin.createdAt.toLocaleDateString('en-GB', { timeZone: 'Africa/Tripoli' }) %></td>
                                     <td>
                                         <form action="/settings/users/delete/<%= admin._id %>" method="POST" class="mb-0" onsubmit="return confirm('هل أنت متأكد من حذف حساب هذا المدير؟ لن يتمكن من الدخول للموقع بعد الآن.')">
