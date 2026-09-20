@@ -50,11 +50,51 @@ pm2 reload ecosystem.config.js --env production --update-env
 `.env.example` keeps password-only Redis-optional values for
 `NODE_ENV=development` only. Do not copy those onto the live host.
 
-## Documented break-glass
+## Documented break-glass (OTP provider outage)
 
-Leave these **out of PM2** so a time-limited `.env` window still works:
+Leave these **out of PM2** `env_production` so a time-limited `.env` window still
+works. The flag name says `CLIENT`, but the code applies it to **every portal
+that uses WhatsApp login OTP**: retail clients, company staff, agency staff,
+agency SubAccounts, and executors.
 
-- `EMERGENCY_CLIENT_OTP_BYPASS=true` plus ISO `EMERGENCY_CLIENT_OTP_BYPASS_EXPIRES_AT` (max 24h) and `EMERGENCY_CLIENT_OTP_BYPASS_REASON`
+Do **not** set `PASSWORD_ONLY_LOGIN_MODE=true`, `BYPASS_OTP=true`, or
+`FORCE_CLIENT_OTP=false` on the live host. Those are rejected by
+`assertProductionSecurityEnv()` or permanently weaken production login.
+
+### Exact `.env` steps (max 24 hours)
+
+1. Confirm WhatChimp is the blocker (login page shows a WhatsApp status code
+   such as `WHATCHIMP_TIMEOUT`, `WHATCHIMP_CONFIG_MISSING`, or
+   `WHATSAPP_PHONE_REQUIRED`). Redis must stay required; this bypass does not
+   disable Redis or agency SubAccount privacy.
+2. Edit **only** `.env` (not `ecosystem.config.js`):
+
+```
+EMERGENCY_CLIENT_OTP_BYPASS=true
+EMERGENCY_CLIENT_OTP_BYPASS_EXPIRES_AT=2026-09-21T12:00:00Z
+EMERGENCY_CLIENT_OTP_BYPASS_REASON=WhatChimp OTP delivery outage
+```
+
+`EMERGENCY_CLIENT_OTP_BYPASS_EXPIRES_AT` must be a valid ISO timestamp **no
+more than 24 hours in the future**. The reason is required while the window
+is active.
+
+3. Reload so Node re-reads `.env`. PM2 must **not** pin the emergency keys:
+
+```powershell
+pm2 reload ecosystem.config.js --env production --update-env
+```
+
+4. Users sign in with username + password. WhatsApp OTP is skipped until
+   expiry. The first verified device is enrolled so the session guard does
+   not bounce them back to `/login?security=DEVICE_BINDING_MISMATCH`.
+5. When WhatChimp is healthy, remove the three `EMERGENCY_CLIENT_OTP_BYPASS*`
+   lines (or set the flag to `false`) and reload again.
+
+Boot still warns: `Emergency client OTP bypass is active until …`.
+
+Related financial break-glass (unchanged):
+
 - `EMERGENCY_STANDALONE_FINANCIAL_WRITES=true` with the matching expiry and reason
 
 `ENABLE_ENV_ADMIN_LOGIN` stays false. Do not use `PANEL_USER` / `PANEL_PASS` for normal production login.

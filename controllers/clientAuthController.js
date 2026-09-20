@@ -447,7 +447,10 @@ exports.postVerify = async (req, res) => {
             metadata: { accountType, via: 'OTP' }
         });
         return req.session.save(() => res.redirect(resolveClientPostLoginHref(accountType)));
-    } catch (e) { res.redirect('/login'); }
+    } catch (e) {
+        console.error('[Client OTP] verify failed:', e.message);
+        return res.render('client/verify', { error: 'تعذر إكمال التحقق. أعد المحاولة.' });
+    }
 };
 
 exports.logout = async (req, res) => {
