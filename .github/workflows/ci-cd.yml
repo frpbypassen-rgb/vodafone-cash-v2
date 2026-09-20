@@ -137,6 +137,7 @@ jobs:
         set -euo pipefail
         cleanup() { docker rm -f ahram-test >/dev/null 2>&1 || true; }
         trap cleanup EXIT
+        docker run -d --name redis-ci --network host redis:7
         docker run -d --name ahram-test --network host \
           -e PORT=3080 \
           -e MONGO_URI="mongodb://127.0.0.1:27017/ahram-docker-ci?replicaSet=rs0" \
@@ -144,6 +145,9 @@ jobs:
           -e JWT_REFRESH_SECRET="${{ env.JWT_REFRESH_SECRET }}" \
           -e SESSION_SECRET="${{ env.SESSION_SECRET }}" \
           -e OTP_SECRET="${{ env.OTP_SECRET }}" \
+          -e PASSWORD_ONLY_LOGIN_MODE=false \
+          -e SECURITY_VERIFICATION_ENFORCEMENT_ENABLED=true \
+          -e SECURITY_VERIFICATION_MODE=required \
           -e FORCE_CLIENT_OTP=true \
           -e BYPASS_OTP=false \
           -e BYPASS_CLIENT_OTP=false \
@@ -156,8 +160,9 @@ jobs:
           -e ALLOW_LEGACY_TENANTLESS_RECORDS=false \
           -e ALLOW_LEGACY_TENANT_TOKENS=false \
           -e PUBLIC_APP_URL=https://ci.invalid \
-          -e REDIS_ENABLED=false \
-          -e REDIS_REQUIRED=false \
+          -e REDIS_ENABLED=true \
+          -e REDIS_REQUIRED=true \
+          -e REDIS_URL=redis://127.0.0.1:6379 \
           -e NODE_ENV=production \
           ahram-core-api:${{ github.sha }}
         for attempt in $(seq 1 30); do
@@ -175,7 +180,7 @@ jobs:
 
     - name: Stop transactional MongoDB
       if: always()
-      run: docker rm -f mongo-ci >/dev/null 2>&1 || true
+      run: docker rm -f mongo-ci redis-ci >/dev/null 2>&1 || true
 
   # ═══════════════════════════════════════════════
   #  5️⃣ ملخص النتائج

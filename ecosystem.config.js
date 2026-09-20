@@ -1,10 +1,12 @@
+const { PRODUCTION_SECURITY_FLAGS } = require('./config/productionSecurityDefaults');
+
 module.exports = {
   apps: [
     {
       name: "Ahram_Core_API",
       script: "./app.js",
-      // A shared Redis cache is not provisioned on the current server.
-      // One process keeps session, lock, cron, and Socket.IO behavior consistent.
+      // Production requires Redis (`REDIS_REQUIRED=true`). One process still
+      // keeps cron and Socket.IO simple; Redis holds cache, locks, and pub/sub.
       instances: 1,
       exec_mode: "fork",
       watch: false,
@@ -21,32 +23,12 @@ module.exports = {
         // process variables across restarts, so a previous staging value must
         // never be allowed to redirect the core API to .env.staging.
         DOTENV_CONFIG_PATH: ".env",
-        PASSWORD_ONLY_LOGIN_MODE: "true",
-        // Operational kill switch: login is username/password only until the
-        // owner explicitly enables the complete verification rollout.
-        SECURITY_VERIFICATION_ENFORCEMENT_ENABLED: "false",
-        // Never allow the legacy plaintext .env admin login in production.
-        ENABLE_ENV_ADMIN_LOGIN: "false",
-        BYPASS_OTP: "false",
-        BYPASS_CLIENT_OTP: "false",
-        DISABLE_OTP: "false",
-        EMERGENCY_CLIENT_OTP_BYPASS: "false",
-        EMERGENCY_CLIENT_OTP_BYPASS_EXPIRES_AT: "",
-        EMERGENCY_CLIENT_OTP_BYPASS_REASON: "",
+        ...PRODUCTION_SECURITY_FLAGS,
+        // Emergency OTP / standalone-write break-glass stays in `.env` only.
+        // Pinning those keys here would override a time-limited .env window.
         OTP_RESEND_COOLDOWN_SECONDS: "60",
-        SECURE_COOKIE: "true",
         TRUST_PROXY_HTTPS: "true",
-        SESSION_STORE: "mongo",
-        MONGO_TRANSACTIONS_REQUIRED: "true",
-        // Emergency financial-write controls deliberately come from .env only.
-        // PM2 environment values override dotenv; keeping them here would make a
-        // time-limited operational override silently expire while blocking .env.
-        TENANT_ISOLATION_REQUIRED: "true",
         TENANT_MODE: "single",
-        ALLOW_LEGACY_TENANTLESS_RECORDS: "false",
-        ALLOW_LEGACY_TENANT_TOKENS: "false",
-        REDIS_ENABLED: "true",
-        REDIS_REQUIRED: "true",
         APP_INSTANCE_COUNT: "1",
       }
     },

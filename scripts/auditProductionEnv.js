@@ -123,11 +123,14 @@ const verificationEnforcementEnabled = enabled('SECURITY_VERIFICATION_ENFORCEMEN
 if (!['optional', 'required'].includes(verificationMode)) {
     addError('SECURITY_VERIFICATION_MODE', 'must be optional or required');
 }
+if (passwordOnlyLoginMode || !verificationEnforcementEnabled || verificationMode === 'optional') {
+    addError(
+        'SECURITY_VERIFICATION_MODE',
+        'production requires PASSWORD_ONLY_LOGIN_MODE=false, SECURITY_VERIFICATION_ENFORCEMENT_ENABLED=true, and SECURITY_VERIFICATION_MODE=required'
+    );
+}
 if (!passwordOnlyLoginMode && verificationEnforcementEnabled && verificationMode === 'required' && !enabled('FORCE_CLIENT_OTP') && !enabled('FORCE_OTP')) {
     addError('FORCE_CLIENT_OTP', 'must be true in production');
-}
-if (passwordOnlyLoginMode || !verificationEnforcementEnabled || verificationMode === 'optional') {
-    addWarning('SECURITY_VERIFICATION_MODE', 'extra login verification is optional and does not block login');
 }
 if (clean('SESSION_STORE').toLowerCase() === 'memory') {
     addError('SESSION_STORE', 'memory sessions are forbidden in production');
@@ -155,13 +158,15 @@ if (enabled('ALLOW_LEGACY_TENANTLESS_RECORDS') || enabled('ALLOW_LEGACY_TENANT_T
     addError('TENANT_LEGACY_MODE', 'legacy tenantless records and tokens must be disabled in production');
 }
 
-if (enabled('REDIS_REQUIRED') && disabled('REDIS_ENABLED')) {
-    addError('REDIS_ENABLED', 'cannot be false while REDIS_REQUIRED is true');
+if (!enabled('REDIS_REQUIRED')) {
+    addError('REDIS_REQUIRED', 'must be true in production');
 }
-if ((enabled('REDIS_ENABLED') || enabled('REDIS_REQUIRED')) && !clean('REDIS_URL') && !clean('REDIS_URI')) {
-    addError('REDIS_URL', 'REDIS_URL or REDIS_URI is required when Redis is enabled');
+if (disabled('REDIS_ENABLED')) {
+    addError('REDIS_ENABLED', 'cannot be disabled in production');
 }
-if (disabled('REDIS_ENABLED')) notes.push('Redis is explicitly disabled; the single PM2 process uses in-memory locks/cache.');
+if (!clean('REDIS_URL') && !clean('REDIS_URI')) {
+    addError('REDIS_URL', 'REDIS_URL or REDIS_URI is required in production');
+}
 
 if (enabled('WHATCHIMP_ENABLED')) {
     requireHttpsUrl('WHATCHIMP_API_BASE_URL');

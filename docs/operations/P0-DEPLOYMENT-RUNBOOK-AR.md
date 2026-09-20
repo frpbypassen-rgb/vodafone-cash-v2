@@ -9,6 +9,7 @@
 - MongoDB يعمل كـ Replica Set أو Sharded Cluster؛ وضع Standalone مرفوض للعمليات المالية.
 - ملف `.env` موجود على الخادم فقط، غير متتبع في Git، وصلاحيته مقيدة لحساب الخدمة.
 - مفاتيح JWT والجلسة وOTP وWeb Push وWhatsApp حقيقية ومختلفة، وليست قيمًا تجريبية.
+- الإنتاج يتطلب تحقق الدخول المعزّز وRedis. لا تستخدم `PASSWORD_ONLY_LOGIN_MODE=true` على المضيف الحي. راجع `docs/operations/PRODUCTION-BOOT-ENV.md`.
 - لا توجد عملية مالية يدوية أو تسوية جارية أثناء نافذة النشر.
 
 ## 2. فحص ما قبل النشر
@@ -24,7 +25,7 @@ node scripts/checkMongoTransactionSupport.js .env
 node scripts/migrateTenantIsolation.js
 ```
 
-الأمران `repairProductionEnv` و`migrateTenantIsolation` في هذه المرحلة للمعاينة فقط ولا يكتبان أي تغيير. يجب أن ينجح فحص البيئة وفحص معاملات MongoDB قبل المتابعة.
+الأمران `repairProductionEnv` و`migrateTenantIsolation` في هذه المرحلة للمعاينة فقط ولا يكتبان أي تغيير. يجب أن ينجح فحص البيئة وفحص معاملات MongoDB قبل المتابعة. `repairProductionEnv --apply` يفرض تحقق الدخول و`REDIS_REQUIRED=true` ليتوافق مع `assertProductionSecurityEnv()`.
 
 ## 3. النسخ الاحتياطي
 
