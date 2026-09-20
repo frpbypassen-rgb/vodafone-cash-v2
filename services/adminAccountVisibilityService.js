@@ -9,8 +9,33 @@ const ADMIN_TX_NAME_SEARCH_FIELDS = Object.freeze([
     'accountName'
 ]);
 
+const AGENCY_CLIENT_FUNDING_STATUSES = Object.freeze(['deposit', 'deduction', 'deposit_pending']);
+
+const SUB_CLIENT_OPERATION_STATUSES = Object.freeze([
+    'pending',
+    'processing',
+    'accepted',
+    'completed',
+    'rejected',
+    'cancelled_by_admin'
+]);
+
+// Directory / account-history listings still hide every agency-client row
+// (clients + deposits). Live ops and other operational queues must not use
+// this filter — sub-client transfers have to reach central admin.
 const excludeAgencyClientTxFilter = Object.freeze({
     isSubAccountTx: { $ne: true }
+});
+
+// Hide only agency-client funding rows from admin ops. Transfers stay visible
+// so a sub_client cash op appears in the live queue the same way a direct
+// retail client's op does. $nor is used so callers can still set $or (search).
+const agencyClientFundingNorClause = Object.freeze({
+    status: { $in: AGENCY_CLIENT_FUNDING_STATUSES },
+    $or: [
+        { isSubAccountTx: true },
+        { subAccountId: { $ne: null } }
+    ]
 });
 
 const VISIBLE_ADMIN_ACCOUNT_STATUS = Object.freeze({
@@ -31,10 +56,17 @@ const accountIdentifiers = (account = {}) => (
     [account.phone, account.webUsername].map((value) => String(value || '').trim()).filter(Boolean)
 );
 
-const applyAdminTxPrivacy = (query = {}) => ({
+const applyAdminDirectoryTxPrivacy = (query = {}) => ({
     ...query,
     ...excludeAgencyClientTxFilter
 });
+
+const applyAdminTxPrivacy = (query = {}) => {
+    const next = { ...query };
+    const existingNor = Array.isArray(next.$nor) ? next.$nor : [];
+    next.$nor = existingNor.concat(agencyClientFundingNorClause);
+    return next;
+};
 
 const adminVisibleTransactionQuery = (scope = {}, extra = {}) => (
     applyAdminTxPrivacy({ ...scope, ...extra })
@@ -51,8 +83,29 @@ const isAgencyClientScopedTx = (transaction) => (
     && (transaction.isSubAccountTx === true || Boolean(transaction.subAccountId))
 );
 
+const isAgencyClientFundingTx = (transaction) => (
+    isAgencyClientScopedTx(transaction)
+    && AGENCY_CLIENT_FUNDING_STATUSES.includes(String(transaction?.status || ''))
+);
+
+const isSubClientOperationTx = (transaction) => (
+    Boolean(transaction?.isSubAccountTx)
+    && Boolean(transaction.subAccountId)
+    && SUB_CLIENT_OPERATION_STATUSES.includes(String(transaction.status || ''))
+);
+
+const isAdminOpsVisibleTransaction = (transaction) => (
+    Boolean(transaction) && !isAgencyClientFundingTx(transaction)
+);
+
+const isAgencyLogVisibleTransaction = (transaction, customerIds = []) => {
+    if (!transaction?.isSubAccountTx || !transaction.subAccountId) return false;
+    if (!customerIds.length) return true;
+    return customerIds.map(String).includes(String(transaction.subAccountId));
+};
+
 const buildAdminAccountHistoryQuery = ({ kind, account, tenant = {} } = {}) => {
-    const scoped = applyAdminTxPrivacy(tenant);
+    const scoped = applyAdminDirectoryTxPrivacy(tenant);
 
     if (kind === 'subaccount') {
         return { ...scoped, _id: null };
@@ -71,7 +124,7 @@ const buildAdminAccountHistoryQuery = ({ kind, account, tenant = {} } = {}) => {
 };
 
 const adminListIncludesAgencyDeposit = (transaction) => {
-    if (!transaction || !['deposit', 'deduction', 'deposit_pending'].includes(transaction.status)) {
+    if (!transaction || !AGENCY_CLIENT_FUNDING_STATUSES.includes(transaction.status)) {
         return false;
     }
     return false;
@@ -91,17 +144,25 @@ const loadAdminAccountHistory = async ({ Transaction }, {
 module.exports = {
     ADMIN_HIDDEN_PRINCIPAL_TYPES,
     ADMIN_TX_NAME_SEARCH_FIELDS,
+    AGENCY_CLIENT_FUNDING_STATUSES,
+    SUB_CLIENT_OPERATION_STATUSES,
     VISIBLE_ADMIN_ACCOUNT_STATUS,
     accountIdentifiers,
     adminAccountFindQuery,
     adminListIncludesAgencyDeposit,
     adminVisibleTransactionQuery,
+    agencyClientFundingNorClause,
     agentOwnsSubAccount,
+    applyAdminDirectoryTxPrivacy,
     applyAdminTxPrivacy,
     buildAdminAccountHistoryQuery,
     excludeAgencyClientTxFilter,
     isAdminHiddenPrincipalType,
+    isAdminOpsVisibleTransaction,
+    isAgencyClientFundingTx,
     isAgencyClientScopedTx,
+    isAgencyLogVisibleTransaction,
+    isSubClientOperationTx,
     isVisibleAgencyClient,
     loadAdminAccountHistory
 };

@@ -1,4 +1,4 @@
-<%# LEGACY_GATED: retail More sheet now uses the shared customer_more_sheet. %>
+<%# LEGACY_GATED: retail More sheet now uses the shared customer_more_sheet. Keep this list aligned with utils/customerPortalNav buildRetailMore. %>
 <%
     const moreUser = (typeof user !== 'undefined' && user) ? user : account;
     const moreProfile = (typeof profile !== 'undefined' && profile) ? profile : {
@@ -6,7 +6,9 @@
         accountCode: moreUser && moreUser.accountCode ? moreUser.accountCode : '',
         canEditProfile: false
     };
-    const canDeposit = moreUser && moreUser.role !== 'agent' && moreUser.canRequestDeposit !== false;
+    const canDeposit = typeof canRequestDeposit !== 'undefined'
+        ? canRequestDeposit !== false
+        : Boolean(moreUser && moreUser.role !== 'agent' && moreUser.canRequestDeposit !== false);
     const moreActiveKey = typeof activeNav !== 'undefined' ? String(activeNav) : '';
     const moreItems = [
         { key: 'account', href: '/client/account?tab=operations', label: 'العمليات وكشف الحساب', icon: 'fa-receipt', tone: 'account', active: moreActiveKey === 'account' },
@@ -20,7 +22,7 @@
         { key: 'security', href: '/client/settings?section=security', label: 'الأمان والإعدادات', icon: 'fa-shield-halved', tone: 'security', active: moreActiveKey === 'settings' }
     );
     if (moreProfile.canEditProfile) {
-        moreItems.push({ key: 'profile', href: '/client/settings?section=profile', label: 'الملف الشخصي', icon: 'fa-user-pen', tone: 'profile' });
+        moreItems.push({ key: 'profile', href: '/client/settings?section=profile', label: 'الملف الشخصي', icon: 'fa-user-pen', tone: 'profile', active: moreActiveKey === 'profile' });
     }
     moreItems.push({ key: 'logout', href: '/client/logout', label: 'تسجيل الخروج', icon: 'fa-power-off', tone: 'logout', danger: true });
 %>

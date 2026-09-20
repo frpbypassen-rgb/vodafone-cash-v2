@@ -133,7 +133,8 @@ describe('central ledger page layout', () => {
         const overviewSource = fs.readFileSync(path.join(__dirname, '..', 'services', 'centralLedgerOverviewService.js'), 'utf8');
         const appSource = fs.readFileSync(path.join(__dirname, '..', 'app.js'), 'utf8');
 
-        expect(routeSource).toMatch(/const transactionLedgerBaseQuery = \(source = null\) => \(\{[\s\S]*\.\.\.adminAccountScope\(source\),[\s\S]*isSubAccountTx: \{ \$ne: true \}/);
+        expect(routeSource).toMatch(/const transactionLedgerBaseQuery = \(source = null\) => applyAdminTxPrivacy\(\{[\s\S]*\.\.\.adminAccountScope\(source\),/);
+        expect(routeSource).not.toMatch(/isSubAccountTx: \{ \$ne: true \}/);
         expect(routeSource).toMatch(/adminVisibleTransactionQuery\(adminAccountScope\(req\)/);
         expect(routeSource).toMatch(/ExecutorGroup\.find\(\{ \.\.\.adminAccountScope\(req\), status: 'active', isManagerBot: \{ \$ne: true \} \}\)/);
         expect(overviewSource).toMatch(/applyAdminTxPrivacy\(\{[\s\S]*\.\.\.adminAccountScope\(source\),[\s\S]*status: SUCCESS_STATUS/);

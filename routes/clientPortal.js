@@ -1,7 +1,7 @@
 // routes/clientPortal.js
 const express = require('express');
 const router = express.Router();
-const { isWalletHubSession } = require('../utils/walletHubHelper');
+const { isWalletHubSession, canRequestRetailDeposit } = require('../utils/walletHubHelper');
 const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
@@ -587,6 +587,7 @@ router.get('/support', requireClientAuth, async (req, res) => {
                     accountType: req.session.accountType,
                     walletHub,
                     user: account,
+                    canRequestDeposit: canRequestRetailDeposit(req.session.accountType, account.role),
                     csrfToken: req.session.csrfToken || '',
                     ...clientThemeLocals(account, req.session.clientTheme)
                 });

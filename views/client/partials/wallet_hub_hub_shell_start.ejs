@@ -3,7 +3,7 @@
   Locals: user, account, activePage, pageTitle, pageSubtitle, pageKicker, pageIcon, isSystemOpen
 %>
 <div class="client-os-shell client-os-satellite client-hub-shell">
-    <%- include('wallet_hub_sidebar_hub', { user: user, activePage: activePage, isSystemOpen: isSystemOpen }) %>
+    <%- include('wallet_hub_sidebar_hub', { user: user, activePage: activePage, isSystemOpen: isSystemOpen, canRequestDeposit: typeof canRequestDeposit === 'undefined' ? undefined : canRequestDeposit }) %>
     <main class="client-os-main client-os-satellite-main client-hub-main">
         <header class="client-os-topbar client-os-satellite-topbar">
             <div>

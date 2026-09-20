@@ -209,7 +209,8 @@ describe('admin assign-executor source contracts', () => {
         expect(routeSource).toMatch(/enqueueApiExecutorTransfer\(routedTx\._id, executorGroup\._id\)/);
         expect(routeSource).toMatch(/queueService\.addJob\(String\(txId\), String\(apiGroupId\)\)/);
         expect(routeSource).not.toMatch(/executeTransferViaApi\(tx, executorGroup\)/);
-        expect(routeSource).toMatch(/isSubAccountTx: \{ \$ne: true \}/);
+        expect(routeSource).toMatch(/applyAdminTxPrivacy\(/);
+        expect(routeSource).not.toMatch(/isSubAccountTx: \{ \$ne: true \}/);
     });
 
     test('starts BullMQ workers after Redis connects', () => {

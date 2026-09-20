@@ -4,7 +4,7 @@ const User = require('../models/User');
 const SubAccount = require('../models/SubAccount');
 const ClientCompany = require('../models/ClientCompany');
 const Settings = require('../models/Settings');
-const { isWalletHubSession } = require('../utils/walletHubHelper');
+const { isWalletHubSession, canRequestRetailDeposit } = require('../utils/walletHubHelper');
 const { buildPendingRateAlertForClient } = require('../services/rateAlerts/rateAlertAudienceService');
 const { getServiceRatesForTier } = require('../utils/rateHelper');
 const { applyCustomerRateMargins } = require('../utils/agencyPricing');
@@ -42,7 +42,7 @@ async function buildClientProfile(req, account, isSubAccount) {
             ? await User.findById(account.masterId).lean()
             : await ClientCompany.findById(account.masterId).lean();
         accountTypeDetail = profileMaster ? profileMaster.name : 'غير معروف';
-        userRoleLabel = 'نقطة بيع فرعية';
+        userRoleLabel = 'عميل فردي';
     } else if (account.role === 'accountant') {
         userRoleLabel = 'محاسب';
     }
@@ -95,7 +95,7 @@ async function buildHubRenderContext(req) {
     const currentHour = new Date().getHours();
     const isSystemOpen = currentHour >= 8 && currentHour < 23;
     const canViewBalance = true;
-    const canRequestDeposit = accountType === 'user' && account.role !== 'agent';
+    const canRequestDeposit = canRequestRetailDeposit(accountType, account.role);
 
     return {
         account,
@@ -106,7 +106,8 @@ async function buildHubRenderContext(req) {
             role: account.role || 'user',
             accountType,
             accountCode: account.accountCode,
-            canViewBalance
+            canViewBalance,
+            canRequestDeposit
         },
         accountType,
         isSubAccount,

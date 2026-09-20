@@ -18,7 +18,7 @@
     <% if (user.role !== 'accountant') { %>
     <div class="client-os-mobile-primary-actions">
         <button type="button" data-bs-toggle="modal" data-bs-target="#transferModal"><i class="fa-solid fa-paper-plane"></i><span>تحويل مالي</span></button>
-        <% if (user.role !== 'agent') { %><a href="/client/account?tab=deposits-new"><i class="fa-solid fa-circle-plus"></i><span>إيداع</span></a><% } %>
+        <% if (typeof canRequestDeposit === 'undefined' ? user.role !== 'agent' : canRequestDeposit) { %><a href="/client/account?tab=deposits-new"><i class="fa-solid fa-circle-plus"></i><span>إيداع</span></a><% } %>
         <a href="/client/account?tab=operations"><i class="fa-solid fa-file-invoice"></i><span>كشف حساب</span></a>
         <a href="/client/reports"><i class="fa-solid fa-chart-column"></i><span>التقارير</span></a>
         <a href="/client/support"><i class="fa-solid fa-headset"></i><span>دعم</span></a>
@@ -30,7 +30,7 @@
         <div>
             <a href="/client/account?tab=operations"><i class="fa-solid fa-receipt"></i><span>العمليات والإيصالات</span></a>
             <a href="/client/reports"><i class="fa-solid fa-chart-column"></i><span>التقارير</span></a>
-            <% if (user.role !== 'agent') { %><a href="/client/account?tab=deposits-new"><i class="fa-solid fa-circle-plus"></i><span>إضافة رصيد</span></a><% } %>
+            <% if (typeof canRequestDeposit === 'undefined' ? user.role !== 'agent' : canRequestDeposit) { %><a href="/client/account?tab=deposits-new"><i class="fa-solid fa-circle-plus"></i><span>إضافة رصيد</span></a><% } %>
             <a href="/client/support"><i class="fa-solid fa-headset"></i><span>الدعم والشكاوى</span></a>
             <a href="/client/settings?section=security"><i class="fa-solid fa-shield-halved"></i><span>الأمان</span></a>
         </div>

@@ -21,7 +21,12 @@ describe('live operations service', () => {
         expect(query.transferType).toBe('vodafone');
         expect(query.amount).toEqual({ $gte: 10000 });
         expect(query.createdAt.$gte.toISOString()).toBe('2026-09-18T11:00:00.000Z');
-        expect(query.isSubAccountTx).toEqual({ $ne: true });
+        expect(query.isSubAccountTx).toBeUndefined();
+        expect(query.$nor).toEqual(expect.arrayContaining([
+            expect.objectContaining({
+                status: { $in: ['deposit', 'deduction', 'deposit_pending'] }
+            })
+        ]));
         expect(query.$or).toHaveLength(8);
         expect(query.$or.some((clause) => clause.subAccountName)).toBe(false);
     });
@@ -68,5 +73,18 @@ describe('live operations service', () => {
         });
         expect(row.customer).toBe('عميل غير محدد');
         expect(JSON.stringify(row)).not.toContain('عميل وكالة سري');
+    });
+
+    test('pending sub-client transfers are not excluded from the live ops query', () => {
+        const query = buildLiveQuery({ query: { status: 'pending', type: 'vodafone', range: 'all' } });
+        expect(query.status).toEqual({ $in: ['pending', 'processing', 'accepted', 'deposit_pending'] });
+        expect(query.transferType).toBe('vodafone');
+        expect(query.isSubAccountTx).toBeUndefined();
+        expect(query.$nor).toEqual(expect.arrayContaining([
+            expect.objectContaining({
+                status: { $in: ['deposit', 'deduction', 'deposit_pending'] },
+                $or: expect.arrayContaining([{ isSubAccountTx: true }])
+            })
+        ]));
     });
 });

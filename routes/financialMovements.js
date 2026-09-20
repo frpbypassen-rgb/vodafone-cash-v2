@@ -51,8 +51,7 @@ const buildLedgerFilter = async (query) => {
     const search = String(query.search || '').trim();
     if (search) {
         const safe = escapeRegex(search);
-        const txMatches = await Transaction.find({
-            isSubAccountTx: { $ne: true },
+        const txMatches = await Transaction.find(applyAdminTxPrivacy({
             $or: [
                 { customId: { $regex: safe, $options: 'i' } },
                 { companyName: { $regex: safe, $options: 'i' } },
@@ -61,7 +60,7 @@ const buildLedgerFilter = async (query) => {
                 { accountNumber: { $regex: safe, $options: 'i' } },
                 { cancellationNumber: { $regex: safe, $options: 'i' } }
             ]
-        }).select('customId').limit(300).lean();
+        })).select('customId').limit(300).lean();
 
         const txIds = txMatches.map((tx) => tx.customId).filter(Boolean);
         filter.$or = [

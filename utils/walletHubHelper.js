@@ -10,6 +10,12 @@ function isWalletHubSession(accountType, role) {
     return false;
 }
 
+function canRequestRetailDeposit(accountType, role) {
+    // Direct retail clients fund via central admin. Agency sub-clients are
+    // funded by their agent; those deposits stay out of the admin directory.
+    return accountType === 'user' && role !== 'agent';
+}
+
 function walletHubViewFlags(req, account = {}) {
     const walletHub = isWalletHubSession(req.session?.accountType, account.role);
     return {
@@ -19,4 +25,4 @@ function walletHubViewFlags(req, account = {}) {
     };
 }
 
-module.exports = { isWalletHubSession, walletHubViewFlags };
+module.exports = { isWalletHubSession, canRequestRetailDeposit, walletHubViewFlags };

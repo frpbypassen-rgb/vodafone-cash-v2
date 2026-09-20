@@ -65,15 +65,18 @@ describe('Admin privacy for agency-scoped clients', () => {
         });
         expect(clientQuery).toEqual({ isSubAccountTx: { $ne: true }, _id: null });
         expect(ADMIN_TX_NAME_SEARCH_FIELDS).not.toContain('subAccountName');
-        expect(applyAdminTxPrivacy({ companyId: 'co-1' })).toEqual({
-            companyId: 'co-1',
-            isSubAccountTx: { $ne: true }
-        });
-        expect(adminVisibleTransactionQuery({ tenantId: 't-1' }, { _id: 'tx-agency' })).toEqual({
+        expect(applyAdminTxPrivacy({ companyId: 'co-1' }).companyId).toBe('co-1');
+        expect(applyAdminTxPrivacy({ companyId: 'co-1' }).isSubAccountTx).toBeUndefined();
+        expect(applyAdminTxPrivacy({ companyId: 'co-1' }).$nor).toEqual(expect.arrayContaining([
+            expect.objectContaining({
+                status: { $in: ['deposit', 'deduction', 'deposit_pending'] }
+            })
+        ]));
+        expect(adminVisibleTransactionQuery({ tenantId: 't-1' }, { _id: 'tx-agency' })).toEqual(expect.objectContaining({
             tenantId: 't-1',
-            _id: 'tx-agency',
-            isSubAccountTx: { $ne: true }
-        });
+            _id: 'tx-agency'
+        }));
+        expect(adminVisibleTransactionQuery({ tenantId: 't-1' }, { _id: 'tx-agency' }).isSubAccountTx).toBeUndefined();
         expect(isAdminHiddenPrincipalType('sub_client')).toBe(true);
         expect(isAdminHiddenPrincipalType('client_user')).toBe(false);
         expect(buildAdminAccountHistoryQuery({

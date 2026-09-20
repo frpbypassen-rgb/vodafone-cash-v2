@@ -16,15 +16,19 @@ describe('central ledger overview', () => {
     test('counts only completed operations and skips the counterpart of an internal balance transfer', () => {
         expect(successfulOpsLedgerMatch({}).status).toBe('completed');
         expect(successfulOpsLedgerMatch({})).toEqual(expect.objectContaining({
-            isSubAccountTx: { $ne: true },
-            $and: [{
-                $or: [
-                    { transferType: { $ne: 'balance_transfer' } },
-                    { customId: { $not: /-C$/ } }
-                ]
-            }]
+            status: 'completed',
+            $nor: expect.arrayContaining([
+                expect.objectContaining({
+                    status: { $in: ['deposit', 'deduction', 'deposit_pending'] }
+                })
+            ])
         }));
-        expect(successfulOpsLedgerMatch({}).tenantId).toBeUndefined();
+        expect(successfulOpsLedgerMatch({}).$and).toEqual([{
+            $or: [
+                { transferType: { $ne: 'balance_transfer' } },
+                { customId: { $not: /-C$/ } }
+            ]
+        }]);
     });
 
     test('builds today, rolling 7-day week, and calendar-month bounds', () => {
@@ -116,9 +120,14 @@ describe('central ledger overview', () => {
         expect(overview.fundedExecutorCompanies.map((row) => row.id)).toEqual(['e1']);
         expect(Transaction.aggregate).toHaveBeenCalledTimes(1);
         expect(Transaction.aggregate.mock.calls[0][0][0].$match).toEqual(expect.objectContaining({
-            status: 'completed',
-            isSubAccountTx: { $ne: true }
+            status: 'completed'
         }));
+        expect(Transaction.aggregate.mock.calls[0][0][0].$match.isSubAccountTx).toBeUndefined();
+        expect(Transaction.aggregate.mock.calls[0][0][0].$match.$nor).toEqual(expect.arrayContaining([
+            expect.objectContaining({
+                status: { $in: ['deposit', 'deduction', 'deposit_pending'] }
+            })
+        ]));
         expect(Transaction.aggregate.mock.calls[0][0][0].$match.tenantId).toBeUndefined();
         expect(ClientCompany.find).toHaveBeenCalledWith(adminVisibleCompanyQuery({}));
         expect(ExecutorGroup.find).toHaveBeenCalledWith(adminVisibleExecutorQuery({}));
@@ -144,21 +153,23 @@ describe('central ledger overview', () => {
         ]));
         expect(successfulOpsLedgerMatch(source).tenantId).toBeUndefined();
         expect(successfulOpsLedgerMatch(source)).toEqual(expect.objectContaining({
-            status: 'completed',
-            isSubAccountTx: { $ne: true }
+            status: 'completed'
         }));
+        expect(successfulOpsLedgerMatch(source).isSubAccountTx).toBeUndefined();
+        expect(successfulOpsLedgerMatch(source).$nor).toBeDefined();
     });
 
-    test('period stats keep a hard tenant boundary in multi-tenant mode and still hide SubAccount ledgers', () => {
+    test('period stats keep a hard tenant boundary in multi-tenant mode and still hide agency-client deposits', () => {
         jest.resetModules();
         jest.doMock('../middlewares/tenantResolver', () => ({ tenantMode: () => 'multi' }));
         const scoped = require('../services/centralLedgerOverviewService');
         const tenantId = 'tenant-a';
         expect(scoped.successfulOpsLedgerMatch(tenantId)).toEqual(expect.objectContaining({
             tenantId,
-            status: 'completed',
-            isSubAccountTx: { $ne: true }
+            status: 'completed'
         }));
+        expect(scoped.successfulOpsLedgerMatch(tenantId).isSubAccountTx).toBeUndefined();
+        expect(scoped.successfulOpsLedgerMatch(tenantId).$nor).toBeDefined();
         expect(scoped.adminVisibleCompanyQuery(tenantId).tenantId).toBe(tenantId);
         expect(scoped.adminVisibleExecutorQuery(tenantId).tenantId).toBe(tenantId);
     });

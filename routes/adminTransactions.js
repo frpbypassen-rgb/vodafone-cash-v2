@@ -155,9 +155,8 @@ const OPERATION_STATUSES = ['pending', 'processing', 'accepted', 'completed', 'r
 
 const adminTxById = (req, id) => adminVisibleTransactionQuery(adminAccountScope(req), { _id: id });
 
-const transactionLedgerBaseQuery = (source = null) => ({
+const transactionLedgerBaseQuery = (source = null) => applyAdminTxPrivacy({
     ...adminAccountScope(source),
-    isSubAccountTx: { $ne: true },
     $and: [
         {
             $or: [
@@ -529,8 +528,7 @@ router.get('/transactions/print', async (req, res) => {
             toDate = toDate || '';
         }
 
-        let query = {
-            isSubAccountTx: { $ne: true },
+        let query = applyAdminTxPrivacy({
             $and: [
                 {
                     $or: [
@@ -539,7 +537,7 @@ router.get('/transactions/print', async (req, res) => {
                     ]
                 }
             ]
-        };
+        });
 
         // ✅ NoSQL Regex Injection
         if (search) {
