@@ -7,7 +7,7 @@ const User = require('../models/User');
 const { SYSTEM_TIME_ZONE, systemDateKey, systemDateParts } = require('../config/systemTime');
 const { resolveReportScope } = require('./adminReportService');
 const { applyAdminTxPrivacy } = require('./adminAccountVisibilityService');
-const { tenantScope } = require('../utils/tenantScope');
+const { adminAccountScope, tenantScope } = require('../utils/tenantScope');
 
 const SUCCESS_STATUS = 'completed';
 const CANCELLED_STATUSES = ['rejected', 'cancelled_by_admin'];
@@ -47,21 +47,18 @@ const percentageChange = (current, previous) => {
 
 const emptyMetric = () => ({ count: 0, amountEGP: 0, costLYD: 0, profitLYD: 0 });
 
-const normalizeMetric = (rows) => {
-    const row = Array.isArray(rows) && rows[0] ? rows[0] : {};
-    return {
-        count: Number(row.count) || 0,
-        amountEGP: Number(row.amountEGP) || 0,
-        costLYD: Number(row.costLYD) || 0,
-        profitLYD: Number(row.profitLYD) || 0
-    };
-};
+const completedInRange = (start, end) => ({
+    $or: [
+        { completedAt: { $gte: start, $lte: end } },
+        { $and: [
+            { $or: [{ completedAt: { $exists: false } }, { completedAt: null }] },
+            { createdAt: { $gte: start, $lte: end } }
+        ] }
+    ]
+});
 
 const metricFacet = (start, end) => [
-    { $match: { $expr: { $and: [
-        { $gte: [{ $ifNull: ['$completedAt', '$createdAt'] }, start] },
-        { $lte: [{ $ifNull: ['$completedAt', '$createdAt'] }, end] }
-    ] } } },
+    { $match: completedInRange(start, end) },
     {
         $group: {
             _id: null,
@@ -72,6 +69,16 @@ const metricFacet = (start, end) => [
         }
     }
 ];
+
+const normalizeMetric = (rows) => {
+    const row = Array.isArray(rows) && rows[0] ? rows[0] : {};
+    return {
+        count: Number(row.count) || 0,
+        amountEGP: Number(row.amountEGP) || 0,
+        costLYD: Number(row.costLYD) || 0,
+        profitLYD: Number(row.profitLYD) || 0
+    };
+};
 
 const buildPeriods = (now = new Date()) => {
     const todayStart = startOfDay(now);
@@ -183,18 +190,22 @@ const loadDashboardIntelligence = async (now = new Date(), { tenantId = null } =
     };
 
     const [metricRows, weeklyRows, peakRows, executorRows, statusRows] = await Promise.all([
-        Transaction.aggregate([{ $match: { ...scopedTenant, status: SUCCESS_STATUS } }, { $facet: facet }]),
+        Transaction.aggregate([{
+            $match: {
+                ...scopedTenant,
+                status: SUCCESS_STATUS,
+                createdAt: { $gte: periods.previousMonthStart, $lte: now }
+            }
+        }, { $facet: facet }]),
         Transaction.aggregate([
-            { $match: { ...scopedTenant, status: SUCCESS_STATUS, createdAt: { $lte: now } } },
+            { $match: { ...scopedTenant, status: SUCCESS_STATUS, createdAt: { $gte: periods.weekStart, $lte: now } } },
             { $set: { dashboardCompletedAt: { $ifNull: ['$completedAt', '$createdAt'] } } },
-            { $match: { dashboardCompletedAt: { $gte: periods.weekStart, $lte: now } } },
             { $group: { _id: { $dateToString: { format: '%Y-%m-%d', date: '$dashboardCompletedAt', timezone: SYSTEM_TIME_ZONE } }, count: { $sum: 1 }, amountEGP: { $sum: '$amount' }, costLYD: { $sum: '$costLYD' } } },
             { $sort: { _id: 1 } }
         ]),
         Transaction.aggregate([
-            { $match: { ...scopedTenant, status: SUCCESS_STATUS, createdAt: { $lte: now } } },
+            { $match: { ...scopedTenant, status: SUCCESS_STATUS, createdAt: { $gte: periods.historyStart, $lte: now } } },
             { $set: { dashboardCompletedAt: { $ifNull: ['$completedAt', '$createdAt'] } } },
-            { $match: { dashboardCompletedAt: { $gte: periods.historyStart, $lte: now } } },
             { $group: { _id: { $dayOfWeek: { date: '$dashboardCompletedAt', timezone: SYSTEM_TIME_ZONE } }, totalAmountEGP: { $sum: '$amount' }, totalOperations: { $sum: 1 }, activeDays: { $addToSet: { $dateToString: { format: '%Y-%m-%d', date: '$dashboardCompletedAt', timezone: SYSTEM_TIME_ZONE } } } } },
             { $project: { totalAmountEGP: 1, totalOperations: 1, activeDayCount: { $size: '$activeDays' }, averageAmountEGP: { $divide: ['$totalAmountEGP', { $max: [{ $size: '$activeDays' }, 1] }] } } },
             { $sort: { averageAmountEGP: -1 } }
@@ -279,7 +290,7 @@ const listDashboardEntities = async ({ type, search = '', limit = 100, tenantId 
     const safeLimit = Math.min(200, Math.max(1, Number(limit) || 100));
     const regex = search ? new RegExp(String(search).replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i') : null;
     const visible = { status: { $ne: 'deleted' } };
-    const scopedTenant = tenantScope(tenantId);
+    const scopedTenant = adminAccountScope(tenantId);
     let rows = [];
 
     if (type === 'client') {
@@ -311,7 +322,7 @@ const loadEntityMovementReport = async ({ type, id, days = 30, now = new Date(),
     const scope = await resolveReportScope({ mainCategory: category, subId: id, subType: 'all', tenantId });
     const baseQuery = applyAdminTxPrivacy({
         ...scope.baseQuery,
-        ...tenantScope(tenantId),
+        ...adminAccountScope(tenantId),
         createdAt: { $gte: start, $lte: now }
     });
     const [summaryRows, trendRows, recent] = await Promise.all([
@@ -355,6 +366,7 @@ const loadEntityMovementReport = async ({ type, id, days = 30, now = new Date(),
 module.exports = {
     buildInsights,
     buildPeriods,
+    completedInRange,
     fillDailySeries,
     listDashboardEntities,
     loadDashboardIntelligence,

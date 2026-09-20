@@ -1,6 +1,8 @@
 'use strict';
 
 const {
+    adminVisibleCompanyQuery,
+    adminVisibleExecutorQuery,
     emptyPeriodStats,
     fromFacetRow,
     loadCentralLedgerOverview,
@@ -22,6 +24,7 @@ describe('central ledger overview', () => {
                 ]
             }]
         }));
+        expect(successfulOpsLedgerMatch({}).tenantId).toBeUndefined();
     });
 
     test('builds today, rolling 7-day week, and calendar-month bounds', () => {
@@ -61,10 +64,11 @@ describe('central ledger overview', () => {
             { _id: 'e2', name: 'منفذ بلا رصيد', balance: 0, isManagerBot: false },
             { _id: 'e3', name: 'API', balance: -10, isApiBot: true, lastApiServiceCredit: 90 },
             { _id: 'e4', name: 'API فارغ', balance: 0, isApiBot: true, lastApiServiceCredit: 0 },
-            { _id: 'e5', name: 'وكالة', balance: 800, isManagerBot: true }
+            { _id: 'e5', name: 'وكالة', balance: 800, isManagerBot: true },
+            { _id: 'e6', name: 'API مجموعة', balance: 0, isApiGroup: true, lastApiServiceCredit: 70 }
         ]);
 
-        expect(mapped.map((row) => row.id)).toEqual(['e5', 'e1', 'e3']);
+        expect(mapped.map((row) => row.id)).toEqual(['e5', 'e1', 'e3', 'e6']);
         expect(mapped.find((row) => row.id === 'e3')).toMatchObject({
             balance: 90,
             balanceSource: 'api_service'
@@ -115,13 +119,47 @@ describe('central ledger overview', () => {
             status: 'completed',
             isSubAccountTx: { $ne: true }
         }));
-        expect(ClientCompany.find).toHaveBeenCalledWith(expect.objectContaining({ status: 'active' }));
-        expect(ExecutorGroup.find).toHaveBeenCalledWith(expect.objectContaining({
-            status: 'active',
-            $or: [
-                { balance: { $gt: 0 } },
-                { isApiBot: true, lastApiServiceCredit: { $gt: 0 } }
-            ]
+        expect(Transaction.aggregate.mock.calls[0][0][0].$match.tenantId).toBeUndefined();
+        expect(ClientCompany.find).toHaveBeenCalledWith(adminVisibleCompanyQuery({}));
+        expect(ExecutorGroup.find).toHaveBeenCalledWith(adminVisibleExecutorQuery({}));
+        expect(JSON.stringify(ClientCompany.find.mock.calls[0][0])).not.toContain('isSubAccountTx');
+        expect(JSON.stringify(ExecutorGroup.find.mock.calls[0][0])).not.toContain('isSubAccountTx');
+    });
+
+    test('header account queries stay open in single-tenant even when the request has a tenant id', () => {
+        const source = { tenantId: { _bsontype: 'ObjectId', toHexString: () => '507f1f77bcf86cd799439011' } };
+        const companyQuery = adminVisibleCompanyQuery(source);
+        const executorQuery = adminVisibleExecutorQuery(source);
+
+        expect(companyQuery.tenantId).toBeUndefined();
+        expect(companyQuery.isSubAccountTx).toBeUndefined();
+        expect(companyQuery.status).toEqual({ $nin: ['deleted', 'inactive', 'archived'] });
+        expect(executorQuery.tenantId).toBeUndefined();
+        expect(executorQuery.isSubAccountTx).toBeUndefined();
+        expect(executorQuery.status).toEqual({ $nin: ['deleted', 'archived'] });
+        expect(executorQuery.$or).toEqual(expect.arrayContaining([
+            { balance: { $gt: 0 } },
+            { isApiBot: true, lastApiServiceCredit: { $gt: 0 } },
+            { isApiGroup: true, lastApiServiceCredit: { $gt: 0 } }
+        ]));
+        expect(successfulOpsLedgerMatch(source).tenantId).toBeUndefined();
+        expect(successfulOpsLedgerMatch(source)).toEqual(expect.objectContaining({
+            status: 'completed',
+            isSubAccountTx: { $ne: true }
         }));
+    });
+
+    test('period stats keep a hard tenant boundary in multi-tenant mode and still hide SubAccount ledgers', () => {
+        jest.resetModules();
+        jest.doMock('../middlewares/tenantResolver', () => ({ tenantMode: () => 'multi' }));
+        const scoped = require('../services/centralLedgerOverviewService');
+        const tenantId = 'tenant-a';
+        expect(scoped.successfulOpsLedgerMatch(tenantId)).toEqual(expect.objectContaining({
+            tenantId,
+            status: 'completed',
+            isSubAccountTx: { $ne: true }
+        }));
+        expect(scoped.adminVisibleCompanyQuery(tenantId).tenantId).toBe(tenantId);
+        expect(scoped.adminVisibleExecutorQuery(tenantId).tenantId).toBe(tenantId);
     });
 });

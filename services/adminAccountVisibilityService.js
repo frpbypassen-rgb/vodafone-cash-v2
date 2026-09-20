@@ -1,6 +1,7 @@
 'use strict';
 
 const { agentOwnsSubAccount, isVisibleAgencyClient } = require('../utils/agencyOwnership');
+const { adminAccountScope } = require('../utils/tenantScope');
 
 const ADMIN_TX_NAME_SEARCH_FIELDS = Object.freeze([
     'companyName',
@@ -10,6 +11,20 @@ const ADMIN_TX_NAME_SEARCH_FIELDS = Object.freeze([
 
 const excludeAgencyClientTxFilter = Object.freeze({
     isSubAccountTx: { $ne: true }
+});
+
+const VISIBLE_ADMIN_ACCOUNT_STATUS = Object.freeze({
+    status: { $ne: 'deleted' }
+});
+
+// Directory widgets use adminAccountScope so single-tenant production can
+// still open companies and agency masters whose tenantId predates the
+// current DEFAULT_TENANT_SLUG. Detail/edit lookups must use the same helper
+// or those rows appear in /clients and then redirect as not found.
+const adminAccountFindQuery = (source, extra = {}) => ({
+    ...adminAccountScope(source),
+    ...VISIBLE_ADMIN_ACCOUNT_STATUS,
+    ...extra
 });
 
 const accountIdentifiers = (account = {}) => (
@@ -76,7 +91,9 @@ const loadAdminAccountHistory = async ({ Transaction }, {
 module.exports = {
     ADMIN_HIDDEN_PRINCIPAL_TYPES,
     ADMIN_TX_NAME_SEARCH_FIELDS,
+    VISIBLE_ADMIN_ACCOUNT_STATUS,
     accountIdentifiers,
+    adminAccountFindQuery,
     adminListIncludesAgencyDeposit,
     adminVisibleTransactionQuery,
     agentOwnsSubAccount,

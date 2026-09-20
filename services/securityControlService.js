@@ -6,15 +6,45 @@ const SecurityDevice = require('../models/SecurityDevice');
 const SecurityAccessRequest = require('../models/SecurityAccessRequest');
 const SecurityState = require('../models/SecurityState');
 const Notification = require('../models/Notification');
-const { isSecurityVerificationRequired } = require('../config/securityPolicy');
+const {
+    isSecurityVerificationRequired,
+    getEmergencyClientOtpBypassState,
+    getEmergencyDeviceBindingBypassState
+} = require('../config/securityPolicy');
 
 const DEVICE_COOKIE = 'ahrampay_security_device';
+const DEVICE_ID_PATTERN = /^[a-f0-9-]{32,64}$/i;
 // The requesting device cannot access the account while pending, so a longer
 // window lets the administrator review it without forcing the user to repeat
 // the Authenticator flow every few minutes.
 const REQUEST_TTL_MS = 24 * 60 * 60 * 1000;
 const DEFAULT_LOCKDOWN_MINUTES = 60;
+const DEFAULT_STATE_CACHE_MS = 15 * 1000;
+const DEFAULT_LAST_SEEN_MIN_INTERVAL_MS = 60 * 1000;
+const DEFAULT_DEVICE_RECHECK_MS = 30 * 1000;
+const DEFAULT_DEVICE_BINDING_CACHE_MS = 30 * 1000;
 const stateCache = { value: null, expiresAt: 0 };
+const deviceBindingCache = new Map();
+
+const envMs = (name, fallback, { min, max }) => {
+    const configured = Number(process.env[name]);
+    if (!Number.isFinite(configured)) return fallback;
+    return Math.min(max, Math.max(min, Math.floor(configured)));
+};
+
+const stateCacheTtlMs = () => envMs('SECURITY_STATE_CACHE_MS', DEFAULT_STATE_CACHE_MS, { min: 3000, max: 60 * 1000 });
+const lastSeenMinIntervalMs = () => envMs('SECURITY_DEVICE_LAST_SEEN_MS', DEFAULT_LAST_SEEN_MIN_INTERVAL_MS, {
+    min: 15 * 1000,
+    max: 5 * 60 * 1000
+});
+const deviceRecheckMs = () => envMs('SECURITY_DEVICE_RECHECK_MS', DEFAULT_DEVICE_RECHECK_MS, {
+    min: 5 * 1000,
+    max: 2 * 60 * 1000
+});
+const deviceBindingCacheMs = () => envMs('SECURITY_DEVICE_BINDING_CACHE_MS', DEFAULT_DEVICE_BINDING_CACHE_MS, {
+    min: 5 * 1000,
+    max: 2 * 60 * 1000
+});
 
 const requestChannel = (req) => {
     // The client headers are informational only. Channel authorization must be
@@ -35,21 +65,49 @@ const readCookie = (req, name) => {
     return item ? decodeURIComponent(item.slice(name.length + 1)) : '';
 };
 
-const ensureDeviceId = (req, res) => {
+const persistDeviceCookie = (res, deviceId, req = null) => {
+    if (!res?.cookie || !deviceId) return;
+    if (req && readCookie(req, DEVICE_COOKIE).trim() === deviceId) return;
+    res.cookie(DEVICE_COOKIE, deviceId, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production' || String(process.env.SECURE_COOKIE || '').toLowerCase() === 'true',
+        sameSite: process.env.COOKIE_SAMESITE || 'lax',
+        path: '/',
+        maxAge: 365 * 24 * 60 * 60 * 1000,
+        priority: 'high'
+    });
+};
+
+const rememberSessionDevice = (req, deviceId) => {
+    if (!req?.session || !deviceId) return deviceId;
+    const nextHash = hashDeviceId(deviceId);
+    if (req.session.securityDeviceId !== deviceId) req.session.securityDeviceId = deviceId;
+    if (req.session.securityDeviceHash !== nextHash) req.session.securityDeviceHash = nextHash;
+    return deviceId;
+};
+
+const ensureDeviceId = (req, res, { mint = true } = {}) => {
     const supplied = String(req.headers?.['x-device-id'] || '').trim().slice(0, 200);
-    if (supplied) return supplied;
-    const existing = readCookie(req, DEVICE_COOKIE).trim();
-    if (existing && /^[a-f0-9-]{32,64}$/i.test(existing)) return existing;
-    const deviceId = crypto.randomUUID();
-    if (res?.cookie) {
-        res.cookie(DEVICE_COOKIE, deviceId, {
-            httpOnly: true,
-            secure: process.env.NODE_ENV === 'production',
-            sameSite: 'lax',
-            maxAge: 365 * 24 * 60 * 60 * 1000,
-            priority: 'high'
-        });
+    if (supplied) {
+        persistDeviceCookie(res, supplied, req);
+        rememberSessionDevice(req, supplied);
+        return supplied;
     }
+    const existing = readCookie(req, DEVICE_COOKIE).trim();
+    if (existing && DEVICE_ID_PATTERN.test(existing)) {
+        rememberSessionDevice(req, existing);
+        return existing;
+    }
+    const fromSession = String(req.session?.securityDeviceId || '').trim();
+    if (fromSession && DEVICE_ID_PATTERN.test(fromSession)) {
+        persistDeviceCookie(res, fromSession, req);
+        rememberSessionDevice(req, fromSession);
+        return fromSession;
+    }
+    if (!mint) return '';
+    const deviceId = crypto.randomUUID();
+    persistDeviceCookie(res, deviceId, req);
+    rememberSessionDevice(req, deviceId);
     return deviceId;
 };
 
@@ -128,29 +186,115 @@ const assessNetworkRisk = (req) => {
     return { highRisk: signals.length > 0, signals, countryCode };
 };
 
-const getState = async ({ fresh = false, includeSecret = false } = {}) => {
-    if (!fresh && stateCache.value && stateCache.expiresAt > Date.now()) return stateCache.value;
-    const query = SecurityState.findOneAndUpdate(
+const presentLockdown = (state) => {
+    if (!state) return state;
+    if (state.lockdownActive && state.lockdownEndsAt && new Date(state.lockdownEndsAt) <= new Date()) {
+        state.lockdownActive = false;
+        state.lockdownReason = '';
+        state.lockdownEndsAt = null;
+    }
+    return state;
+};
+
+const toCacheableState = (state) => {
+    if (!state) return state;
+    const raw = typeof state.toObject === 'function' ? state.toObject() : { ...state };
+    return presentLockdown(raw);
+};
+
+const loadSecurityState = async ({ includeSecret = false } = {}) => {
+    const query = SecurityState.findOne({ key: 'global' });
+    if (includeSecret) query.select('+emergencyCodeHash');
+    let state = await query.exec();
+    if (state) return state;
+    const upsert = SecurityState.findOneAndUpdate(
         { key: 'global' },
         { $setOnInsert: { key: 'global' } },
         { returnDocument: 'after', upsert: true, setDefaultsOnInsert: true }
     );
-    if (includeSecret) query.select('+emergencyCodeHash');
-    let state = await query.exec();
-    if (state.lockdownActive && state.lockdownEndsAt && state.lockdownEndsAt <= new Date()) {
-        state.lockdownActive = false;
-        state.lockdownReason = '';
-        state.lockdownEndsAt = null;
-        await state.save();
+    if (includeSecret) upsert.select('+emergencyCodeHash');
+    return upsert.exec();
+};
+
+const getState = async ({ fresh = false, includeSecret = false } = {}) => {
+    if (!fresh && !includeSecret && stateCache.value && stateCache.expiresAt > Date.now()) {
+        return presentLockdown({ ...stateCache.value });
     }
-    stateCache.value = state;
-    stateCache.expiresAt = Date.now() + 1000;
+    const state = await loadSecurityState({ includeSecret });
+    presentLockdown(state);
+    if (!includeSecret) {
+        stateCache.value = toCacheableState(state);
+        stateCache.expiresAt = Date.now() + stateCacheTtlMs();
+        if (!fresh) return presentLockdown({ ...stateCache.value });
+    }
     return state;
 };
 
 const invalidateStateCache = () => {
     stateCache.value = null;
     stateCache.expiresAt = 0;
+    deviceBindingCache.clear();
+};
+
+const cachedDeviceBinding = (key) => {
+    const item = deviceBindingCache.get(String(key || ''));
+    if (!item) return undefined;
+    if (item.expiresAt <= Date.now()) {
+        deviceBindingCache.delete(String(key || ''));
+        return undefined;
+    }
+    return item.value;
+};
+
+const rememberDeviceBinding = (key, value) => {
+    const cacheKey = String(key || '');
+    if (!cacheKey) return;
+    if (deviceBindingCache.size > 5000) {
+        const oldest = deviceBindingCache.keys().next().value;
+        deviceBindingCache.delete(oldest);
+    }
+    deviceBindingCache.set(cacheKey, {
+        value: Boolean(value),
+        expiresAt: Date.now() + deviceBindingCacheMs()
+    });
+};
+
+const shouldTouchLastSeen = (device, { ip, now = Date.now() } = {}) => {
+    if (!device) return false;
+    if (ip && device.lastIp && ip !== device.lastIp) return true;
+    const last = device.lastSeenAt ? new Date(device.lastSeenAt).getTime() : 0;
+    return !Number.isFinite(last) || last <= 0 || (now - last) >= lastSeenMinIntervalMs();
+};
+
+const touchDeviceLastSeen = async (device, { ip, location } = {}) => {
+    if (!device?._id || !shouldTouchLastSeen(device, { ip })) return false;
+    const update = { lastSeenAt: new Date() };
+    if (ip) update.lastIp = ip;
+    if (location) update.lastLocation = location;
+    await SecurityDevice.updateOne({ _id: device._id }, { $set: update });
+    device.lastSeenAt = update.lastSeenAt;
+    if (ip) device.lastIp = ip;
+    if (location) device.lastLocation = location;
+    return true;
+};
+
+const markSessionDeviceVerified = (req, { deviceId, device, now = Date.now() } = {}) => {
+    if (!req?.session) return;
+    if (deviceId) rememberSessionDevice(req, deviceId);
+    req.session.securityDeviceCheckedAt = now;
+    if (device) req.session.securityHasPasskey = Boolean(device.credentialId);
+};
+
+const sessionDeviceRecentlyVerified = (session, deviceHash, now = Date.now()) => {
+    const sessionHash = session?.securityDeviceHash;
+    const checkedAt = Number(session?.securityDeviceCheckedAt || 0);
+    return Boolean(
+        sessionHash
+        && deviceHash
+        && hashesEqual(sessionHash, deviceHash)
+        && checkedAt > 0
+        && (now - checkedAt) < deviceRecheckMs()
+    );
 };
 
 const sessionPrincipal = (session = {}) => {
@@ -221,6 +365,44 @@ const createAccessRequest = async ({ req, principal, deviceIdHash, purpose = 'fi
     return request;
 };
 
+const notifyDeviceTransfer = async ({ req, principal, purpose, previousDevice = null }) => {
+    const device = detectDevice(req);
+    const channel = requestChannel(req);
+    await Notification.create({
+        userId: 'admin',
+        audience: 'admin',
+        type: 'security_device_transfer',
+        title: 'تم ربط جهاز بعد تحقق ناجح',
+        message: `${principal.principalName || principal.principalId} ربط ${channel === 'app' ? 'تطبيقاً' : 'متصفحاً'} بعد تسجيل دخول متحقَّق. يمكن مراجعة الجهاز أو إلغاؤه من مركز الأمان.`,
+        metadata: {
+            principalType: principal.principalType,
+            principalId: principal.principalId,
+            purpose,
+            previousDeviceId: previousDevice ? String(previousDevice._id) : null,
+            channel,
+            displayName: device.displayName
+        }
+    }).catch((error) => console.error('[SecurityControl] device transfer notice failed:', error.message));
+};
+
+const supersedePendingAccessRequests = async ({ principal, reviewedBy, reviewNote }) => {
+    await SecurityAccessRequest.updateMany(
+        {
+            principalType: principal.principalType,
+            principalId: principal.principalId,
+            status: 'pending'
+        },
+        {
+            $set: {
+                status: 'rejected',
+                reviewedBy,
+                reviewedAt: new Date(),
+                reviewNote
+            }
+        }
+    );
+};
+
 const activateDevice = async ({ req, res, principal, credential = null, approvedBy = '' }) => {
     const deviceId = ensureDeviceId(req, res);
     const deviceIdHash = hashDeviceId(deviceId);
@@ -257,28 +439,46 @@ const activateDevice = async ({ req, res, principal, credential = null, approved
     return record;
 };
 
-const authorizeLogin = async ({ req, res, principal, accountClass = 'account', allowFirstDevice = false, authenticatorVerified = false }) => {
+const authorizeLogin = async ({
+    req,
+    res,
+    principal,
+    accountClass = 'account',
+    allowFirstDevice = false,
+    authenticatorVerified = false,
+    verifiedLogin = false
+}) => {
     // Authentication contract tests do not provision the security collections.
     // Dedicated enforcement tests can opt in; production always evaluates policy.
     if (process.env.NODE_ENV === 'test'
         && process.env.SECURITY_CONTROL_TEST_ENFORCEMENT !== 'true') {
         return { allowed: true, enforcementEnabled: false };
     }
+    if (!isSecurityVerificationRequired()) {
+        return { allowed: true, enforcementEnabled: false, verificationMode: 'optional' };
+    }
     const state = await getState();
-    // Device approval is a core account protection now.  Legacy state records
-    // without the new fields are treated as enabled, which avoids silently
-    // weakening security during a rollout.
-    const enabled = state.adminApprovalRequired !== false
-        && state.singleDeviceOnly !== false;
-    if (!enabled) return { allowed: true, enforcementEnabled: false };
+    // Keep login binding aligned with the session guard. Admin-approval and
+    // single-device flags control *how* a new device is handled, not whether
+    // the current browser is enrolled at all.
+    const enforcementEnabled = accountClass === 'admin'
+        ? state.adminDeviceEnforcementEnabled !== false
+        : state.accountDeviceEnforcementEnabled !== false;
+    if (!enforcementEnabled) return { allowed: true, enforcementEnabled: false };
 
     const risk = assessNetworkRisk(req);
     if (state.highConfidenceVpnBlockEnabled && risk.highRisk) {
         return { allowed: false, code: 'NETWORK_RISK_BLOCKED', message: 'تعذر إكمال الدخول من هذه الشبكة.' };
     }
     const location = parseLocation(req);
-    if (state.locationRequired && !location) {
-        return { allowed: false, code: 'LOCATION_REQUIRED', message: 'يجب السماح بالوصول إلى الموقع لإكمال الدخول الآمن.' };
+    const emergencyOtpBypass = getEmergencyClientOtpBypassState();
+    const emergencyDeviceBypass = getEmergencyDeviceBindingBypassState();
+    if (state.locationRequired && !location && !emergencyOtpBypass.active && !emergencyDeviceBypass.active) {
+        return {
+            allowed: false,
+            code: 'LOCATION_REQUIRED',
+            message: 'يجب السماح بالوصول إلى الموقع لإكمال الدخول الآمن. فعّل الموقع في المتصفح ثم أعد المحاولة.'
+        };
     }
     const deviceId = ensureDeviceId(req, res);
     const deviceIdHash = hashDeviceId(deviceId);
@@ -288,39 +488,49 @@ const authorizeLogin = async ({ req, res, principal, accountClass = 'account', a
         principalId: principal.principalId,
         status: 'active'
     }).select('+deviceIdHash');
-    const hasDeviceHistory = !active && allowFirstDevice
-        ? Boolean(await SecurityDevice.exists({
-            principalType: principal.principalType,
-            principalId: principal.principalId,
-        }))
-        : false;
-    if (!active && allowFirstDevice && !hasDeviceHistory) {
+    const canRebindMismatch = allowFirstDevice && (
+        verifiedLogin
+        || authenticatorVerified
+        || emergencyDeviceBypass.active
+        || emergencyOtpBypass.active
+        || state.adminApprovalRequired === false
+    );
+
+    if (!active && allowFirstDevice) {
         const device = await activateDevice({ req, res, principal, approvedBy: 'first_verified_login' });
-        await SecurityAccessRequest.updateMany(
-            {
-                principalType: principal.principalType,
-                principalId: principal.principalId,
-                status: 'pending'
-            },
-            {
-                $set: {
-                    status: 'rejected',
-                    reviewedBy: 'first_verified_login',
-                    reviewedAt: new Date(),
-                    reviewNote: 'Superseded by the first verified device enrollment.'
-                }
-            }
-        );
-        return { allowed: true, enforcementEnabled: true, device };
+        await supersedePendingAccessRequests({
+            principal,
+            reviewedBy: 'first_verified_login',
+            reviewNote: 'Superseded by the first verified device enrollment.'
+        });
+        markSessionDeviceVerified(req, { deviceId, device });
+        return { allowed: true, enforcementEnabled: true, device, enrolled: true };
     }
     if (active && hashesEqual(active.deviceIdHash, deviceIdHash)) {
-        active.lastIp = requestIp(req);
-        active.lastLocation = location || active.lastLocation;
-        active.lastSeenAt = new Date();
-        await active.save();
+        await touchDeviceLastSeen(active, { ip: requestIp(req), location: location || undefined });
+        markSessionDeviceVerified(req, { deviceId, device: active });
         return { allowed: true, enforcementEnabled: true, device: active };
     }
-    if (active && !authenticatorVerified) {
+    if (active && canRebindMismatch) {
+        const approvedBy = emergencyDeviceBypass.active
+            ? 'emergency_device_binding_bypass'
+            : 'verified_login_rebind';
+        const device = await activateDevice({ req, res, principal, approvedBy });
+        await supersedePendingAccessRequests({
+            principal,
+            reviewedBy: approvedBy,
+            reviewNote: 'Superseded by a verified login that rebound the current device.'
+        });
+        await notifyDeviceTransfer({
+            req,
+            principal,
+            purpose: 'device_transfer',
+            previousDevice: active
+        });
+        markSessionDeviceVerified(req, { deviceId, device });
+        return { allowed: true, enforcementEnabled: true, device, rebound: true };
+    }
+    if (active && !authenticatorVerified && !verifiedLogin) {
         return {
             allowed: false,
             code: 'AUTHENTICATOR_REQUIRED_FOR_DEVICE_TRANSFER',
@@ -337,7 +547,7 @@ const authorizeLogin = async ({ req, res, principal, accountClass = 'account', a
     return {
         allowed: false,
         code: 'DEVICE_APPROVAL_REQUIRED',
-        message: `هذا ${channel === 'app' ? 'تطبيق' : 'متصفح'} جديد. طلب الموافقة ${request.requestCode} أُرسل إلى الإدارة.`,
+        message: `هذا ${channel === 'app' ? 'تطبيق' : 'متصفح'} جديد ولم يُعتمد بعد. طلب الموافقة ${request.requestCode} أُرسل إلى الإدارة. انتظر الاعتماد أو سجّل الدخول من الجهاز المعتمد.`,
         requestCode: request.requestCode
     };
 };
@@ -504,10 +714,14 @@ const reviewPrincipalAccessRequest = async ({ principal, requestId, approve, rev
     return { request, device };
 };
 
-const ensureSecurityDeviceIndexes = async () => {
-    await SecurityDevice.createCollection().catch((error) => {
-        if (!/already exists|NamespaceExists/i.test(error.message)) throw error;
-    });
+const backfillMissingSecurityChannels = async () => {
+    const TrustedDevice = require('../models/TrustedDevice');
+    const [deviceMissing, requestMissing, trustedMissing] = await Promise.all([
+        SecurityDevice.exists({ channel: { $exists: false } }),
+        SecurityAccessRequest.exists({ channel: { $exists: false } }),
+        TrustedDevice.exists({ channel: { $exists: false } })
+    ]);
+    if (!deviceMissing && !requestMissing && !trustedMissing) return false;
     await Promise.all([
         SecurityDevice.updateMany(
             { channel: { $exists: false }, userAgent: /dart|flutter|okhttp/i },
@@ -517,7 +731,7 @@ const ensureSecurityDeviceIndexes = async () => {
             { channel: { $exists: false }, userAgent: /dart|flutter|okhttp/i },
             { $set: { channel: 'app' } }
         ),
-        require('../models/TrustedDevice').updateMany(
+        TrustedDevice.updateMany(
             { channel: { $exists: false }, sessionId: { $ne: null } },
             { $set: { channel: 'app' } }
         )
@@ -525,51 +739,65 @@ const ensureSecurityDeviceIndexes = async () => {
     await Promise.all([
         SecurityDevice.updateMany({ channel: { $exists: false } }, { $set: { channel: 'web' } }),
         SecurityAccessRequest.updateMany({ channel: { $exists: false } }, { $set: { channel: 'web' } }),
-        require('../models/TrustedDevice').updateMany({ channel: { $exists: false } }, { $set: { channel: 'web' } })
+        TrustedDevice.updateMany({ channel: { $exists: false } }, { $set: { channel: 'web' } })
     ]);
-
-    const indexes = await SecurityDevice.collection.indexes();
-    const previousIndexes = indexes.filter((index) => (
-        index.name === 'uniq_active_security_device_per_channel'
-        || (index.unique
-            && index.key?.principalType === 1
-            && index.key?.principalId === 1
-            && index.key?.status === 1)
-    ));
-    for (const index of previousIndexes) await SecurityDevice.collection.dropIndex(index.name);
-    // Existing accounts may have one web and one app record. Keep the most
-    // recently seen one and revoke the rest before adding the single-device
-    // unique index.
-    const duplicateGroups = await SecurityDevice.aggregate([
-        { $match: { status: 'active' } },
-        { $sort: { lastSeenAt: -1, updatedAt: -1 } },
-        { $group: { _id: { principalType: '$principalType', principalId: '$principalId' }, ids: { $push: '$_id' }, count: { $sum: 1 } } },
-        { $match: { count: { $gt: 1 } } }
-    ]);
-    for (const group of duplicateGroups) {
-        await SecurityDevice.updateMany(
-            { _id: { $in: group.ids.slice(1) } },
-            { $set: { status: 'revoked', revokedAt: new Date(), revokedReason: 'single_device_policy_migration' } }
-        );
-    }
-    await SecurityDevice.collection.createIndex(
-        { principalType: 1, principalId: 1, status: 1 },
-        {
-            name: 'uniq_active_security_device_per_account',
-            unique: true,
-            partialFilterExpression: { status: 'active' }
-        }
-    );
+    return true;
 };
 
-const applySessionSecurity = async (req, principal, accountClass = 'account') => {
+const ensureSecurityDeviceIndexes = async () => {
+    await SecurityDevice.createCollection().catch((error) => {
+        if (!/already exists|NamespaceExists/i.test(error.message)) throw error;
+    });
+    await backfillMissingSecurityChannels();
+
+    const indexes = await SecurityDevice.collection.indexes();
+    const indexNames = new Set(indexes.map((index) => index.name));
+    if (indexNames.has('uniq_active_security_device_per_channel')) {
+        await SecurityDevice.collection.dropIndex('uniq_active_security_device_per_channel');
+    }
+    if (!indexNames.has('uniq_active_security_device_per_account')) {
+        // Existing accounts may have one web and one app record. Keep the most
+        // recently seen one and revoke the rest before adding the single-device
+        // unique index. Do not drop this unique index on every process boot.
+        const duplicateGroups = await SecurityDevice.aggregate([
+            { $match: { status: 'active' } },
+            { $sort: { lastSeenAt: -1, updatedAt: -1 } },
+            { $group: { _id: { principalType: '$principalType', principalId: '$principalId' }, ids: { $push: '$_id' }, count: { $sum: 1 } } },
+            { $match: { count: { $gt: 1 } } }
+        ]);
+        for (const group of duplicateGroups) {
+            await SecurityDevice.updateMany(
+                { _id: { $in: group.ids.slice(1) } },
+                { $set: { status: 'revoked', revokedAt: new Date(), revokedReason: 'single_device_policy_migration' } }
+            );
+        }
+        await SecurityDevice.collection.createIndex(
+            { principalType: 1, principalId: 1, status: 1 },
+            {
+                name: 'uniq_active_security_device_per_account',
+                unique: true,
+                partialFilterExpression: { status: 'active' }
+            }
+        );
+    }
+    if (!indexNames.has('security_device_lastSeenAt')) {
+        await SecurityDevice.collection.createIndex(
+            { status: 1, lastSeenAt: -1 },
+            { name: 'security_device_lastSeenAt' }
+        );
+    }
+};
+
+const applySessionSecurity = async (req, principal, accountClass = 'account', res = null) => {
     const state = await getState();
     const hours = accountClass === 'admin' ? state.adminSessionHours : state.accountSessionHours;
+    const deviceId = ensureDeviceId(req, res);
     req.session.securityPrincipalType = principal.principalType;
     req.session.securityPrincipalId = principal.principalId;
     req.session.securityExpiresAt = Date.now() + (hours * 60 * 60 * 1000);
     req.session.securityLocation = parseLocation(req);
     req.session.securityLoginIp = requestIp(req);
+    markSessionDeviceVerified(req, { deviceId });
 };
 
 const rotateEmergencyCode = async (updatedBy) => {
@@ -622,7 +850,19 @@ const isLockdownActive = async () => {
 module.exports = {
     DEVICE_COOKIE,
     requestChannel,
+    DEVICE_ID_PATTERN,
+    DEFAULT_STATE_CACHE_MS,
+    DEFAULT_LAST_SEEN_MIN_INTERVAL_MS,
+    DEFAULT_DEVICE_RECHECK_MS,
     ensureDeviceId,
+    persistDeviceCookie,
+    rememberSessionDevice,
+    markSessionDeviceVerified,
+    sessionDeviceRecentlyVerified,
+    shouldTouchLastSeen,
+    touchDeviceLastSeen,
+    cachedDeviceBinding,
+    rememberDeviceBinding,
     hashDeviceId,
     requestIp,
     parseLocation,

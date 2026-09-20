@@ -88,4 +88,9 @@ WHATCHIMP_RECEIPT_VARIABLE_ORDER=accountName,reference,amount,currency,completed
 3. سجّل الدخول بحساب تجريبي وتأكد من وصول OTP.
 4. أكمل عملية تحويل تجريبية، ثم تحقق من وصول الإيصال في WhatsApp.
 
+إذا فشل إرسال OTP في الإنتاج، لا تعطّل `FORCE_CLIENT_OTP`. استخدم نافذة
+`EMERGENCY_CLIENT_OTP_BYPASS` الموثّقة في
+[`docs/operations/PRODUCTION-BOOT-ENV.md`](../operations/PRODUCTION-BOOT-ENV.md)
+(24 ساعة كحد أقصى). هذه النافذة تغطي العملاء والشركات والوكلاء والمنفذين.
+
 تتطلب رسائل WhatsApp الاستباقية قالب Meta معتمداً. WhatChimp يرسل القوالب من خلال `/api/v1/whatsapp/send`، ويعيد معرف الرسالة الذي يمكن استخدامه لتتبع التسليم. راجع وثائق WhatChimp الرسمية قبل تغيير أسماء القوالب أو ترتيب متغيراتها.

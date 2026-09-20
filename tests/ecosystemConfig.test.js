@@ -41,6 +41,7 @@ describe('PM2 environment isolation', () => {
         expect(core.env_production).toMatchObject(PRODUCTION_SECURITY_FLAGS);
         expect(core.env_production.PASSWORD_ONLY_LOGIN_MODE).toBe('false');
         expect(core.env_production.EMERGENCY_CLIENT_OTP_BYPASS).toBeUndefined();
+        expect(core.env_production.EMERGENCY_DEVICE_BINDING_BYPASS).toBeUndefined();
         expect(core.env_production.EMERGENCY_STANDALONE_FINANCIAL_WRITES).toBeUndefined();
 
         const merged = { ...productionSecrets, ...core.env_production };

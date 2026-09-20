@@ -8,6 +8,7 @@ const {
     isSecurityVerificationEnforcementEnabled,
     isSecurityVerificationRequired,
     shouldBypassClientOtp,
+    getEmergencyDeviceBindingBypassState,
     validateProductionSecurityEnv
 } = require('../config/securityPolicy');
 
@@ -117,6 +118,26 @@ describe('Production security policy', () => {
         });
 
         expect(shouldBypassClientOtp(env, now)).toBe(true);
+    });
+
+    test('accepts a time-limited device-binding bypass and rejects a window longer than 24h', () => {
+        const now = Date.parse('2026-09-20T12:00:00Z');
+        const valid = productionEnv({
+            EMERGENCY_DEVICE_BINDING_BYPASS: 'true',
+            EMERGENCY_DEVICE_BINDING_BYPASS_EXPIRES_AT: '2026-09-21T12:00:00Z',
+            EMERGENCY_DEVICE_BINDING_BYPASS_REASON: 'DEVICE_BINDING_MISMATCH portal lockout'
+        });
+        expect(getEmergencyDeviceBindingBypassState(valid, now).active).toBe(true);
+        expect(validateProductionSecurityEnv(valid).valid).toBe(true);
+
+        const tooLong = productionEnv({
+            EMERGENCY_DEVICE_BINDING_BYPASS: 'true',
+            EMERGENCY_DEVICE_BINDING_BYPASS_EXPIRES_AT: '2026-09-22T12:00:01Z',
+            EMERGENCY_DEVICE_BINDING_BYPASS_REASON: 'too long'
+        });
+        const result = validateProductionSecurityEnv(tooLong);
+        expect(result.valid).toBe(false);
+        expect(result.errors.join(' ')).toContain('device-binding bypass cannot remain active for more than 24 hours');
     });
 
     test('does not bypass OTP after the emergency window expires', () => {

@@ -71,6 +71,20 @@ describe('central ledger page layout', () => {
         expect(html).not.toContain('إجمالي خصومات اليوم');
         expect(html).toContain('href="/transactions/live"');
         expect(html).toContain('المراقبة الحية');
+        expect(html).not.toContain('لا توجد شركات نشطة حالياً');
+        expect(html).not.toContain('لا توجد شركة منفذة برصيد متاح حالياً');
+    });
+
+    test('shows the empty header copy only when company and executor lists are empty', () => {
+        const html = renderTransactions({
+            activeClientCompanies: [],
+            fundedExecutorCompanies: []
+        });
+
+        expect(html).toContain('لا توجد شركات نشطة حالياً');
+        expect(html).toContain('لا توجد شركة منفذة برصيد متاح حالياً');
+        expect(html).not.toContain('شركة النور');
+        expect(html).not.toContain('منفذ كاش');
     });
 
     test('keeps the operations workspace KPI cards unchanged', () => {
@@ -112,5 +126,19 @@ describe('central ledger page layout', () => {
         expect(html).toContain('السجل المركزي والمراقبة');
         expect(html).not.toContain('id="m_detail_panel"');
         expect(html).not.toContain('تتبع دورة حياة التنفيذ');
+    });
+
+    test('ledger table and period-stat queries use adminAccountScope and keep SubAccount privacy', () => {
+        const routeSource = fs.readFileSync(path.join(__dirname, '..', 'routes', 'adminTransactions.js'), 'utf8');
+        const overviewSource = fs.readFileSync(path.join(__dirname, '..', 'services', 'centralLedgerOverviewService.js'), 'utf8');
+        const appSource = fs.readFileSync(path.join(__dirname, '..', 'app.js'), 'utf8');
+
+        expect(routeSource).toMatch(/const transactionLedgerBaseQuery = \(source = null\) => \(\{[\s\S]*\.\.\.adminAccountScope\(source\),[\s\S]*isSubAccountTx: \{ \$ne: true \}/);
+        expect(routeSource).toMatch(/adminVisibleTransactionQuery\(adminAccountScope\(req\)/);
+        expect(routeSource).toMatch(/ExecutorGroup\.find\(\{ \.\.\.adminAccountScope\(req\), status: 'active', isManagerBot: \{ \$ne: true \} \}\)/);
+        expect(overviewSource).toMatch(/applyAdminTxPrivacy\(\{[\s\S]*\.\.\.adminAccountScope\(source\),[\s\S]*status: SUCCESS_STATUS/);
+        expect(overviewSource).not.toMatch(/\.\.\.tenantScope\(source\)/);
+        expect(appSource.indexOf("require('./routes/liveOperations')"))
+            .toBeLessThan(appSource.indexOf("require('./routes/adminTransactions')"));
     });
 });

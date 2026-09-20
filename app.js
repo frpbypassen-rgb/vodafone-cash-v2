@@ -57,7 +57,7 @@ const upload = multer({
     }
 });
 
-const connectDB = require('./config/database');
+const { mongoSessionStoreOptions } = require('./config/sessionStore');
 const { initRedis, isRedis } = require('./config/redis');
 const { requireAuth, requireMaster } = require('./middlewares/auth');
 const restrictClientRawUploads = require('./middlewares/restrictClientRawUploads');
@@ -309,17 +309,10 @@ try {
         console.warn('⚠️ Session Store: MemoryStore (SESSION_STORE=memory)');
     } else {
         const { MongoStore } = require('connect-mongo');
-        sessionStore = MongoStore.create({
+        sessionStore = MongoStore.create(mongoSessionStoreOptions({
             mongoUrl: process.env.MONGO_URI,
-            ttl: Math.ceil(sessionMaxAgeMs / 1000),
-            autoRemove: 'native',
-            mongoOptions: {
-                retryWrites: false,
-                serverSelectionTimeoutMS: 120000,
-                connectTimeoutMS: 120000,
-                socketTimeoutMS: 120000
-            }
-        });
+            ttl: Math.ceil(sessionMaxAgeMs / 1000)
+        }));
         sessionStore.on('error', (error) => {
             app.locals.sessionStoreHealthy = false;
             logger.error('Session store error', { error: error.message });
@@ -426,11 +419,13 @@ const {
 app.use(enforceSecuritySession);
 app.use(enforceEmergencyLockdown);
 
+const { adminHrefVisible } = require('./config/adminRoles');
 app.use((req, res, next) => {
     res.locals.adminName = req.session.adminName || 'مدير';
     // ✅ إصلاح: استخدام adminRole (وليس role) بما يتوافق مع auth middleware
     res.locals.role = req.session.adminRole || null;
     res.locals.tenant = req.tenant || null;
+    res.locals.adminHrefVisible = (href) => adminHrefVisible(req.session?.adminRole, href);
     next();
 });
 
@@ -450,11 +445,12 @@ app.use('/api/v1/merchant', require('./routes/merchantApi'));
 app.use('/', require('./routes/merchantWebhooks'));
 
 app.use('/', require('./routes/auth'));
+app.use('/', require('./routes/adminAliases'));
 app.use('/admin/security', require('./routes/securityAdmin'));
 app.use(enforceAdminPermissions);
 app.use('/', require('./routes/dashboard'));
-app.use('/', require('./routes/adminTransactions'));
 app.use('/', require('./routes/liveOperations'));
+app.use('/', require('./routes/adminTransactions'));
 app.use('/', require('./routes/financialMovements'));
 app.use('/', require('./routes/executors'));
 app.use('/', require('./routes/clients'));
@@ -494,6 +490,10 @@ app.use(errorHandler);
 
 const PORT = process.env.PORT || 3000;
 Promise.all([connectDB(), initRedis()]).then(async () => {
+    const { initBullMQ } = require('./services/bullQueueService');
+    if (!initBullMQ()) {
+        logger.warn('BullMQ API transfer worker is not ready; API routing will use in-process queue');
+    }
     const merchantWebhookService = require('./services/merchantWebhookService');
     await Promise.all([
         ensureApiReconciliationIndexes(),

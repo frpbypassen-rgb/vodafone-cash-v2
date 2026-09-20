@@ -133,7 +133,10 @@ const tenantResolver = async (req, res, next) => {
 
         req.tenant = tenant || null;
         req.tenantId = tenant ? tenant._id : null;
-        if (req.session && tenant) req.session.tenantId = String(tenant._id);
+        if (req.session && tenant) {
+            const tenantId = String(tenant._id);
+            if (req.session.tenantId !== tenantId) req.session.tenantId = tenantId;
+        }
         return next();
     } catch (error) {
         logger.error('Tenant resolution failed closed', { error: error.message });

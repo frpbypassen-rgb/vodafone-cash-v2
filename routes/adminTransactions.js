@@ -32,7 +32,7 @@ const {
 } = require('../services/adminFinancialMutationService');
 const eventBus = require('../services/eventBus');
 const { adminVisibleTransactionQuery, applyAdminTxPrivacy } = require('../services/adminAccountVisibilityService');
-const { tenantScope } = require('../utils/tenantScope');
+const { adminAccountScope, tenantScope } = require('../utils/tenantScope');
 const {
     emptyPeriodStats,
     loadCentralLedgerOverview
@@ -43,7 +43,7 @@ const {
 } = require('../utils/transactionStatusQueue');
 
 // 🚀 استدعاء محرك الـ API 
-const { executeTransferViaApi, getApiProviderBalance, saveApiReceiptProof } = require('../services/externalApiService');
+const { getApiProviderBalance } = require('../services/externalApiService');
 const { reversalService } = require('../src/Application/Services/ReversalService');
 
 router.use(requireAuth);
@@ -60,12 +60,21 @@ const appendAdminNote = (tx, note) => {
     tx.adminNotes = appendNoteText(tx.adminNotes, note);
 };
 
-const appendCustomerReference = (tx, label, value) => {
-    const cleanValue = String(value || '').trim();
-    if (!cleanValue) return;
-    const line = `[${label}: ${cleanValue}]`;
-    if (!String(tx.notes || '').includes(line)) {
-        tx.notes = appendNoteText(tx.notes, line);
+const enqueueApiExecutorTransfer = async (txId, apiGroupId) => {
+    try {
+        const { addTransferJob } = require('../services/bullQueueService');
+        await addTransferJob(String(txId), String(apiGroupId));
+        return true;
+    } catch (queueError) {
+        console.error('[adminTransactions/assign-executor] API queue failed:', queueError.message);
+        try {
+            const queueService = require('../services/queueService');
+            await queueService.addJob(String(txId), String(apiGroupId));
+            return true;
+        } catch (fallbackError) {
+            console.error('[adminTransactions/assign-executor] API in-memory queue failed:', fallbackError.message);
+            return false;
+        }
     }
 };
 
@@ -144,10 +153,10 @@ const customerFacingNotes = (notes) => {
 
 const OPERATION_STATUSES = ['pending', 'processing', 'accepted', 'completed', 'rejected', 'cancelled_by_admin'];
 
-const adminTxById = (req, id) => adminVisibleTransactionQuery(tenantScope(req), { _id: id });
+const adminTxById = (req, id) => adminVisibleTransactionQuery(adminAccountScope(req), { _id: id });
 
 const transactionLedgerBaseQuery = (source = null) => ({
-    ...tenantScope(source),
+    ...adminAccountScope(source),
     isSubAccountTx: { $ne: true },
     $and: [
         {
@@ -342,7 +351,7 @@ const renderTransactions = async (req, res, operationsWorkspace = false) => {
         const todayKey = systemDateKey(new Date());
         const todayRange = systemDateRange(todayKey, todayKey);
         const executorBalanceQuery = {
-            ...tenantScope(req),
+            ...adminAccountScope(req),
             status: 'active',
             isManagerBot: { $ne: true },
             $or: [{ balance: { $gt: 0 } }, { isApiBot: true }]
@@ -372,7 +381,7 @@ const renderTransactions = async (req, res, operationsWorkspace = false) => {
                     }}
                 ])
                 : Promise.resolve([]),
-            ExecutorGroup.find({ ...tenantScope(req), status: 'active', isManagerBot: { $ne: true } }),
+            ExecutorGroup.find({ ...adminAccountScope(req), status: 'active', isManagerBot: { $ne: true } }),
             operationsWorkspace
                 // منفذ API قد يكون رصيده الداخلي سالباً رغم وجود رصيد خدمة فعلي عند المزود.
                 ? ExecutorGroup.find(executorBalanceQuery).select('name balance isApiBot updatedAt lastApiBalanceCheckAt lastApiServiceCredit apiProviderKey apiUrl apiToken apiUsername apiPassword apiServiceId apiProviderId apiFieldId apiMachineSerial').lean()
@@ -441,7 +450,7 @@ const renderTransactions = async (req, res, operationsWorkspace = false) => {
             serviceLabel: getExecutorServiceLabel(group),
             supportedTransferTypes: getExecutorSupportedTransferTypes(group)
         }));
-        const allGroups = await ExecutorGroup.find(tenantScope(req)).lean();
+        const allGroups = await ExecutorGroup.find(adminAccountScope(req)).lean();
         const allGroupsMap = {};
         allGroups.forEach((group) => {
             allGroupsMap[group._id.toString()] = group.name;
@@ -594,7 +603,7 @@ router.post('/transaction/:id/assign-executor', async (req, res) => {
             });
         }
 
-        const executorGroup = await ExecutorGroup.findOne({ _id: executorGroupId, ...tenantScope(req) });
+        const executorGroup = await ExecutorGroup.findOne({ _id: executorGroupId, ...adminAccountScope(req) });
 
         if (
             executorGroup
@@ -631,125 +640,16 @@ router.post('/transaction/:id/assign-executor', async (req, res) => {
             if (executorGroup.isApiBot) {
                 publishExecutorTaskAvailable(routedTx, 'admin-api-route');
 
-                // The operation is already routed and persisted. Queueing must
-                // never make the administrator see a failed routing action.
-                // The in-memory queue will continue processing in the background.
-                try {
-                    const { addTransferJob } = require('../services/bullQueueService');
-                    await addTransferJob(String(routedTx._id), String(executorGroup._id));
-                } catch (queueError) {
-                    console.error('[adminTransactions/assign-executor] API queue failed:', queueError.message);
-                }
+                // Persist routing first, then dispatch. Queueing must never
+                // make the administrator see a failed routing action, but the
+                // job MUST still reach the in-process worker if Redis/BullMQ
+                // is not actually consuming jobs.
+                await enqueueApiExecutorTransfer(routedTx._id, executorGroup._id);
                 return respondTransactionAction(req, res, 200, {
                     success: true,
                     message: 'تم توجيه العملية إلى منفذ API.',
                     transaction: { id: String(routedTx._id), status: routedTx.status, executorName: routedTx.executorName }
                 });
-
-                // التخاطب مع سيرفر الشركة الخارجية
-                const apiResult = await executeTransferViaApi(tx, executorGroup);
-
-                if (apiResult.success === true) {
-                    const exactRefNumber = String(apiResult.reference_number || apiResult.sender_number || apiResult.external_transaction_id || '').trim();
-
-                    if (exactRefNumber) {
-                        tx.status = 'completed';
-                        tx.executorName = 'تنفيذ آلي (API)';
-                        tx.executorSenderPhone = exactRefNumber;
-                        appendCustomerReference(tx, 'الرقم المرجعي', exactRefNumber);
-                        if (apiResult.external_transaction_id && apiResult.external_transaction_id !== exactRefNumber) {
-                            appendCustomerReference(tx, 'رقم عملية المزود', apiResult.external_transaction_id);
-                        }
-                        appendAdminNote(tx, `[تنفيذ آلي ناجح | الرقم المرجعي: ${exactRefNumber || '---'} | رقم عملية المزود: ${apiResult.external_transaction_id || '---'}]`);
-                        
-                        try {
-                            const receiptProof = await saveApiReceiptProof(tx, apiResult);
-                            if (receiptProof) {
-                                tx.proofImage = receiptProof;
-                                tx.proofImages = [receiptProof];
-                            } else {
-                                appendAdminNote(tx, '[تنبيه: تم تنفيذ API بنجاح لكن تعذر توليد صورة الإيصال]');
-                            }
-                        } catch (err) {
-                            console.error('[adminTransactions/assign-executor] خطأ في إنشاء إيصال الـ API:', err.message);
-                            appendAdminNote(tx, `[تعذر توليد إيصال API: ${err.message}]`);
-                        }
-
-                        if (apiResult.processLog) {
-                            appendAdminNote(tx, `--- سجل الـ API\n${apiResult.processLog}`);
-                        }
-                        await tx.save();
-
-                        executorGroup.balance -= tx.amount;
-                        await executorGroup.save();
-
-                        // 2. إشعار العميل عبر النظام 
-                        // 🟢 تم استبدال التيليجرام بـ Socket.IO لاحقاً
-
-                        // 3. 🟢 إرسال Log النجاح لـ "بوت المراقبة البشري" (إن وجد)
-                        const parentGroupId = getParentGroupId(executorGroup);
-                        if (parentGroupId) {
-                            try {
-                                const monitorGroup = await ExecutorGroup.findOne({ _id: parentGroupId, ...tenantScope(req) });
-                                if (monitorGroup) {
-                                    // 🟢 تم استبدال التيليجرام بـ Socket.IO لاحقاً
-                                }
-                            } catch(e){}
-                        }
-                    } else {
-                        tx.status = 'pending';
-                        tx.executorGroupId = executorGroup._id;
-                        tx.executorName = 'في انتظار رقم مرجعي (API)';
-                        appendCustomerReference(tx, 'رقم المرسل', exactRefNumber);
-                        appendAdminNote(tx, '[معلقة - تم تنفيذ طلب API بدون رقم مرجعي واضح]');
-                        if (apiResult.processLog) {
-                            appendAdminNote(tx, `--- سجل الـ API\n${apiResult.processLog}`);
-                        }
-                        await tx.save();
-
-                        // إرسال رسالة إلى مجموعة الواتساب
-                        try {
-                            const { sendWhatsAppAlert } = require('../services/whatsappService');
-                            await sendWhatsAppAlert(tx, apiResult);
-                        } catch (waErr) {
-                            console.error('[adminTransactions/assign-executor] خطأ في إرسال تنبيه الواتساب:', waErr.message);
-                        }
-                    }
-
-                } else {
-                    // 🔴 فشل الـ API -> تحويل الطلب فوراً للبشر (Human Fallback)
-                    const parentGroupId = getParentGroupId(executorGroup);
-                    if (parentGroupId) {
-                        const monitorGroup = await ExecutorGroup.findOne({ _id: parentGroupId, ...tenantScope(req) });
-                        if (monitorGroup) {
-                            // تغيير مسؤولية الطلب ليكون من نصيب الفريق البشري
-                            tx.executorGroupId = monitorGroup._id;
-                            tx.managerGroupId = getParentGroupId(monitorGroup);
-                            tx.executorReceivedAt = new Date();
-                            tx.executorName = monitorGroup.name;
-                            tx.status = 'processing';
-                            appendAdminNote(tx, `[فشل API - تم التحويل للمراقبة البشرية | السبب: ${apiResult.message}]`);
-                            if (apiResult.processLog) {
-                                appendAdminNote(tx, `--- سجل الـ API\n${apiResult.processLog}`);
-                            }
-                            await tx.save();
-                            eventBus.publish('executor:task-available', { tx, source: 'api-human-fallback' });
-
-                            // 🟢 تم استبدال إشعارات التيليجرام بـ Socket.IO لاحقاً
-                        }
-                    } else {
-                        // لا يوجد فريق بشري مرتبط -> إرجاع الطلب للإدارة
-                        tx.status = 'pending'; 
-                        appendAdminNote(tx, `[فشل التنفيذ الآلي: ${apiResult.message}]`);
-                        if (apiResult.processLog) {
-                            appendAdminNote(tx, `--- سجل الـ API\n${apiResult.processLog}`);
-                        }
-                        tx.executorGroupId = undefined;
-                        tx.executorName = undefined;
-                        await tx.save();
-                    }
-                }
-                return res.redirect('/transactions');
             }
 
             // 👨‍💻====================================================👨‍💻
@@ -1038,7 +938,7 @@ router.get('/transactions/:id/details', async (req, res) => {
             const transferId = tx.customId.replace(/-[CD]$/, '');
             ledgerInfo = await Ledger.find({ transactionId: transferId }).lean();
             const pairTransactions = await Transaction.find(applyAdminTxPrivacy({
-                ...tenantScope(req),
+                ...adminAccountScope(req),
                 customId: { $in: [`${transferId}-D`, `${transferId}-C`] }
             })).lean();
 

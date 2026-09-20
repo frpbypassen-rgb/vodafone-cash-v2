@@ -96,13 +96,19 @@ const liveOperationsIndexes = [
     { key: { tenantId: 1, accountNumber: 1, createdAt: -1 }, name: 'liveOps_tenant_account_createdAt' }
 ];
 
+const adminDashboardIndexes = [
+    { key: { status: 1, createdAt: -1 }, name: 'adminDashboard_status_createdAt' },
+    { key: { status: 1, completedAt: -1 }, name: 'adminDashboard_status_completedAt' }
+];
+
 const ensurePerformanceIndexes = async () => {
     try {
         await Transaction.collection.createIndexes([
             ...executorTaskIndexes,
             ...transferCooldownIndexes,
             ...clientPortalIndexes,
-            ...liveOperationsIndexes
+            ...liveOperationsIndexes,
+            ...adminDashboardIndexes
         ]);
         logger.info('Transaction performance indexes are ready');
         return true;
@@ -112,4 +118,4 @@ const ensurePerformanceIndexes = async () => {
     }
 };
 
-module.exports = { ensurePerformanceIndexes, clientPortalIndexes, liveOperationsIndexes };
+module.exports = { ensurePerformanceIndexes, clientPortalIndexes, liveOperationsIndexes, adminDashboardIndexes };

@@ -21,7 +21,10 @@ const { createDepositReceiptProof } = require('../services/depositReceiptService
 const { voidBalanceAdjustment } = require('../services/balanceAdjustmentService');
 const { logAction } = require('../services/auditService');
 const { loadAdminAccountDirectory } = require('../services/adminAccountDirectoryService');
-const { loadAdminAccountHistory } = require('../services/adminAccountVisibilityService');
+const {
+    adminAccountFindQuery,
+    loadAdminAccountHistory
+} = require('../services/adminAccountVisibilityService');
 const {
     SERVICE_RATE_KEYS,
     COMPANY_RATE_INPUT_FIELDS,
@@ -44,7 +47,7 @@ const {
     resolvePublicApiOrigin
 } = require('../services/accountIntegrationPdfService');
 const { provisionSandboxMerchant } = require('../services/sandboxMerchantProvisioningService');
-const { tenantScope, tenantWriteId } = require('../utils/tenantScope');
+const { adminAccountScope, tenantWriteId } = require('../utils/tenantScope');
 
 const accountCodeErrorQuery = (error) => {
     if (error.message === 'ACCOUNT_CODE_DUPLICATE') return 'duplicate';
@@ -321,12 +324,12 @@ router.get('/clients', requireAuth, async (req, res) => {
 });
 
 router.get('/user/:id', requireAuth, async (req, res) => {
-    const user = await User.findOne({ _id: req.params.id, ...tenantScope(req), ...visibleAccountFilter });
-    if (!user) return res.redirect('/clients?section=users&deleteError=notfound');
+    const user = await User.findOne(adminAccountFindQuery(req, { _id: req.params.id }));
+    if (!user) return res.redirect(`/clients?section=${req.query.section === 'agents' ? 'agents' : 'users'}&deleteError=notfound`);
     const kind = user.role === 'agent' ? 'agent' : 'user';
     const { transactions } = await loadAdminAccountHistory(
         { Transaction },
-        { kind, account: user, tenant: tenantScope(req), limit: 50 }
+        { kind, account: user, tenant: adminAccountScope(req), limit: 50 }
     );
     const reversibleSettlements = await reversibleSettlementIds({
         transactions,
@@ -345,12 +348,12 @@ router.get('/user/:id', requireAuth, async (req, res) => {
 });
 
 router.get('/company/:id', requireAuth, async (req, res) => {
-    const company = await ClientCompany.findOne({ _id: req.params.id, ...tenantScope(req), ...visibleAccountFilter });
+    const company = await ClientCompany.findOne(adminAccountFindQuery(req, { _id: req.params.id }));
     if (!company) return res.redirect('/clients?section=companies&deleteError=notfound');
     const [{ transactions }, settings] = await Promise.all([
         loadAdminAccountHistory(
             { Transaction },
-            { kind: 'company', account: company, tenant: tenantScope(req), limit: 50 }
+            { kind: 'company', account: company, tenant: adminAccountScope(req), limit: 50 }
         ),
         Settings.findOne({}).lean()
     ]);
@@ -373,7 +376,7 @@ router.get('/company/:id', requireAuth, async (req, res) => {
 
 router.get('/company/:id/integration-guide.pdf', requireAuth, requireMaster, async (req, res) => {
     try {
-        const company = await ClientCompany.findOne({ _id: req.params.id, ...visibleAccountFilter });
+        const company = await ClientCompany.findOne(adminAccountFindQuery(req, { _id: req.params.id }));
         if (!company) return res.status(404).send('الحساب غير موجود.');
         return await sendIntegrationDocument(req, res, { account: company, accountType: 'company' });
     } catch (error) {
@@ -387,11 +390,7 @@ router.get('/company/:id/integration-guide.pdf', requireAuth, requireMaster, asy
 
 router.get('/user/:id/integration-guide.pdf', requireAuth, requireMaster, async (req, res) => {
     try {
-        const agent = await User.findOne({
-            _id: req.params.id,
-            role: 'agent',
-            ...visibleAccountFilter
-        }).select('+apiToken');
+        const agent = await User.findOne(adminAccountFindQuery(req, { _id: req.params.id, role: 'agent' })).select('+apiToken');
         if (!agent) return res.status(404).send('حساب الوكيل غير موجود.');
         return await sendIntegrationDocument(req, res, { account: agent, accountType: 'agent' });
     } catch (error) {
@@ -407,7 +406,7 @@ router.get('/user/:id/integration-guide.pdf', requireAuth, requireMaster, async 
 // المطابقة الدقيقة للمفتاح المخزن، لذا لا يبقى للمفتاح السابق أي صلاحية.
 router.post('/company/:id/rotate-api-token', requireAuth, requireMaster, async (req, res) => {
     try {
-        const company = await ClientCompany.findOne({ _id: req.params.id, ...visibleAccountFilter });
+        const company = await ClientCompany.findOne(adminAccountFindQuery(req, { _id: req.params.id }));
         if (!company) return res.redirect('/clients?section=companies&apiTokenError=notfound');
 
         const rotation = await rotateIntegrationApiKey(company, 'token');
@@ -442,7 +441,7 @@ router.post('/company/:id/rotate-api-token', requireAuth, requireMaster, async (
 
 router.get('/company/:id/sandbox-api-guide.pdf', requireAuth, requireMaster, async (req, res) => {
     try {
-        const company = await ClientCompany.findOne({ _id: req.params.id, ...visibleAccountFilter });
+        const company = await ClientCompany.findOne(adminAccountFindQuery(req, { _id: req.params.id }));
         if (!company) return res.status(404).send('الحساب غير موجود.');
         return await sendSandboxIntegrationDocument(req, res, { account: company, accountType: 'company' });
     } catch (error) {
@@ -462,11 +461,7 @@ router.get('/company/:id/sandbox-api-guide.pdf', requireAuth, requireMaster, asy
 
 router.get('/user/:id/sandbox-api-guide.pdf', requireAuth, requireMaster, async (req, res) => {
     try {
-        const agent = await User.findOne({
-            _id: req.params.id,
-            role: 'agent',
-            ...visibleAccountFilter
-        });
+        const agent = await User.findOne(adminAccountFindQuery(req, { _id: req.params.id, role: 'agent' }));
         if (!agent) return res.status(404).send('حساب الوكيل غير موجود.');
         return await sendSandboxIntegrationDocument(req, res, { account: agent, accountType: 'agent' });
     } catch (error) {
@@ -491,7 +486,7 @@ router.post('/user/:id/add-balance', requireAuth, async (req, res) => {
         if (!Number.isFinite(amount) || amount === 0) return res.redirect(`/user/${req.params.id}?balanceError=invalid`);
 
         const { user, tx, balanceAfter } = await runDbTransaction(async (session) => {
-            const accountQuery = User.findOne({ _id: req.params.id, ...tenantScope(req) });
+            const accountQuery = User.findOne(adminAccountFindQuery(req, { _id: req.params.id }));
             const account = session ? await accountQuery.session(session) : await accountQuery;
             if (!account) throw new Error('ACCOUNT_NOT_FOUND');
 
@@ -566,12 +561,12 @@ router.post('/user/:id/add-balance', requireAuth, async (req, res) => {
 });
 
 router.post('/user/:id/toggle-status', requireAuth, requireMaster, async (req, res) => {
-    const user = await User.findOne({ _id: req.params.id, ...tenantScope(req) }); if (!user) return res.status(404).send('الحساب غير موجود'); user.status = user.status === 'active' ? 'banned' : 'active'; await user.save(); res.redirect(`/user/${user._id}`);
+    const user = await User.findOne(adminAccountFindQuery(req, { _id: req.params.id })); if (!user) return res.status(404).send('الحساب غير موجود'); user.status = user.status === 'active' ? 'banned' : 'active'; await user.save(); res.redirect(`/user/${user._id}`);
 });
 
 router.post('/user/:id/delete', requireAuth, requireMaster, async (req, res) => {
     try {
-        const user = await User.findOne({ _id: req.params.id, ...tenantScope(req), ...visibleAccountFilter }).select('_id role');
+        const user = await User.findOne(adminAccountFindQuery(req, { _id: req.params.id })).select('_id role');
         if (!user) return res.redirect('/clients?section=users&deleteError=notfound');
         const returnSection = user.role === 'agent' ? 'agents' : 'users';
 
@@ -605,7 +600,7 @@ router.post('/user/:id/update-limit', requireAuth, requireMaster, async (req, re
 
 router.post('/user/:id/update-account-code', requireAuth, requireMaster, async (req, res) => {
     try {
-        const user = await User.findOne({ _id: req.params.id, ...tenantScope(req) });
+        const user = await User.findOne(adminAccountFindQuery(req, { _id: req.params.id }));
         const hasSubAccounts = await SubAccount.exists({ masterType: 'user', masterId: user._id });
         await saveAccountCode({
             Model: User,
@@ -635,7 +630,7 @@ router.post('/company/:id/add-balance', requireAuth, async (req, res) => {
         if (!Number.isFinite(amount) || amount === 0) return res.redirect(`/company/${req.params.id}?balanceError=invalid`);
 
         const { company, tx, balanceAfter } = await runDbTransaction(async (session) => {
-            const accountQuery = ClientCompany.findOne({ _id: req.params.id, ...tenantScope(req) });
+            const accountQuery = ClientCompany.findOne(adminAccountFindQuery(req, { _id: req.params.id }));
             const account = session ? await accountQuery.session(session) : await accountQuery;
             if (!account) throw new Error('ACCOUNT_NOT_FOUND');
 
@@ -712,7 +707,7 @@ router.post('/company/:id/add-balance', requireAuth, async (req, res) => {
 
 router.post('/transaction/:id/void-balance-adjustment', requireAuth, async (req, res) => {
     try {
-        if (!await Transaction.exists({ _id: req.params.id, ...tenantScope(req) })) return res.status(404).send('الحركة غير موجودة');
+        if (!await Transaction.exists({ _id: req.params.id, ...adminAccountScope(req) })) return res.status(404).send('الحركة غير موجودة');
         const performedBy = req.session.adminName || req.session.adminUsername || 'الإدارة';
         const result = await voidBalanceAdjustment({
             transactionId: req.params.id,
@@ -782,7 +777,7 @@ router.post('/transaction/:id/void-balance-adjustment', requireAuth, async (req,
 
 router.post('/company/:id/update-rate', requireAuth, requireMaster, async (req, res) => {
     try {
-        const company = await ClientCompany.findOne({ _id: req.params.id, ...visibleAccountFilter }).lean();
+        const company = await ClientCompany.findOne(adminAccountFindQuery(req, { _id: req.params.id })).lean();
         if (!company) return res.redirect('/clients?section=companies&rateError=notfound');
 
         const settings = await Settings.findOne({}).lean() || {};
@@ -862,12 +857,12 @@ router.post('/company/:id/update-rate', requireAuth, requireMaster, async (req, 
 });
 
 router.post('/company/:id/toggle-status', requireAuth, requireMaster, async (req, res) => {
-    const comp = await ClientCompany.findOne({ _id: req.params.id, ...tenantScope(req) }); if (!comp) return res.status(404).send('الشركة غير موجودة'); comp.status = comp.status === 'active' ? 'inactive' : 'active'; await comp.save(); res.redirect(`/company/${comp._id}`);
+    const comp = await ClientCompany.findOne(adminAccountFindQuery(req, { _id: req.params.id })); if (!comp) return res.status(404).send('الشركة غير موجودة'); comp.status = comp.status === 'active' ? 'inactive' : 'active'; await comp.save(); res.redirect(`/company/${comp._id}`);
 });
 
 router.post('/company/:id/delete', requireAuth, requireMaster, async (req, res) => {
     try {
-        const company = await ClientCompany.findOne({ _id: req.params.id, ...visibleAccountFilter }).select('_id');
+        const company = await ClientCompany.findOne(adminAccountFindQuery(req, { _id: req.params.id })).select('_id');
         if (!company) return res.redirect('/clients?section=companies&deleteError=notfound');
 
         const subAccounts = await SubAccount.find({ masterType: 'company', masterId: company._id, ...visibleAccountFilter }).select('_id').lean();

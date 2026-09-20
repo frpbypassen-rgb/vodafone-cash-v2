@@ -8,7 +8,7 @@ const Ledger = require('../models/Ledger');
 const { findReportTransactions } = require('./unifiedReportService');
 const User = require('../models/User');
 const { systemDateKey, systemDayStart, systemDayEnd } = require('../config/systemTime');
-const { tenantScope } = require('../utils/tenantScope');
+const { adminAccountScope } = require('../utils/tenantScope');
 const { buildReportSummary } = require('../utils/adminReportCalculations');
 const {
     EXECUTOR_LEDGER_MODELS,
@@ -94,7 +94,7 @@ const buildScopeMetadata = (transaction = {}) => ({
 const resolveReportScope = async ({ mainCategory, subId, subType = 'all', tenantId = null }) => {
     if (!mainCategory || !subId) throw new Error('REPORT_SCOPE_REQUIRED');
 
-    const scopedTenant = tenantScope(tenantId);
+    const scopedTenant = adminAccountScope(tenantId);
     const baseQuery = { ...scopedTenant };
     const entityInfo = {
         name: '---',

@@ -13,6 +13,8 @@ const Admin = require('../models/Admin');
 const { requireAuth, requireMaster } = require('../middlewares/auth');
 const { pickAllowed } = require('../middlewares/sanitize');
 const { hashPassword } = require('../services/passwordService');
+const { logAction } = require('../services/auditService');
+const { normalizeAdminRole, permissionsForRole } = require('../config/adminRoles');
 const {
     SERVICE_RATE_ADMIN_FIELDS,
     getAdminRateServices,
@@ -417,12 +419,25 @@ router.post('/users/add', requireMaster, async (req, res) => {
     try {
         const { name, webUsername, webPassword } = req.body;
         if (!name || !webUsername || !webPassword) return res.redirect('/settings/users');
-        
-        await Admin.create({ 
-            name: name.trim(), 
-            webUsername: webUsername.trim().toLowerCase(), 
-            webPassword: webPassword.trim(), // سيتم تشفيره في pre('save') hook
-            role: 'admin' 
+        const role = normalizeAdminRole(req.body.role === 'master' ? 'admin' : req.body.role);
+
+        const admin = await Admin.create({
+            name: name.trim(),
+            webUsername: webUsername.trim().toLowerCase(),
+            webPassword: webPassword.trim(),
+            role,
+            permissions: permissionsForRole(role, req.body.permissions || [])
+        });
+        await logAction({
+            action: 'SECURITY_ADMIN_CREATED',
+            req,
+            performedById: req.session.adminId,
+            performedByModel: 'Admin',
+            performedByName: req.session.adminName,
+            targetId: admin._id,
+            targetModel: 'Admin',
+            severity: 'critical',
+            newData: { username: admin.webUsername, role: admin.role, permissions: admin.permissions, source: 'settings_users' }
         });
         res.redirect('/settings/users');
     } catch (e) {

@@ -34,7 +34,8 @@ describe('BullMQ Queue Service Tests (Local / Memory Fallback)', () => {
 
         jest.mock('../config/redis', () => ({
             isRedis: () => false,
-            getRedisClient: () => null
+            getRedisClient: () => null,
+            createBullMQConnection: () => null
         }));
         
         jest.mock('../services/queueService', () => ({
@@ -99,7 +100,8 @@ describe('BullMQ Queue Service Tests (Redis / Distributed Queue)', () => {
 
         jest.mock('../config/redis', () => ({
             isRedis: () => true,
-            getRedisClient: () => ({})
+            getRedisClient: () => ({ options: { maxRetriesPerRequest: 3 } }),
+            createBullMQConnection: () => ({ options: { maxRetriesPerRequest: null } })
         }));
 
         jest.mock('../services/queueService', () => ({
@@ -192,5 +194,81 @@ describe('BullMQ Queue Service Tests (Redis / Distributed Queue)', () => {
         const p = handler({ id: 'job-backup' });
         await expect(p).resolves.toBe('stdout output');
         expect(childProcess.exec).toHaveBeenCalledWith('sh ./scripts/backup.sh', expect.any(Function));
+    });
+
+    test('falls back to in-memory when the API worker fails to start so jobs are not stranded in Redis', async () => {
+        jest.resetModules();
+        jest.doMock('../config/redis', () => ({
+            isRedis: () => true,
+            getRedisClient: () => ({ options: { maxRetriesPerRequest: 3 } }),
+            createBullMQConnection: () => ({ options: { maxRetriesPerRequest: null } })
+        }));
+        const addJob = jest.fn().mockResolvedValue(true);
+        jest.doMock('../services/queueService', () => ({
+            processSingleJob: jest.fn().mockResolvedValue(true),
+            addJob
+        }));
+        jest.doMock('bullmq', () => ({
+            Queue: jest.fn().mockImplementation(() => ({ add: mockAdd })),
+            Worker: jest.fn().mockImplementation((name) => {
+                if (name === 'api-transfers-queue') {
+                    throw new Error('BullMQ: Your redis options maxRetriesPerRequest must be null.');
+                }
+                return { on: mockOn };
+            })
+        }));
+
+        const queueService = require('../services/queueService');
+        const { initBullMQ, addTransferJob, isApiTransferWorkerReady } = require('../services/bullQueueService');
+
+        expect(initBullMQ()).toBe(false);
+        expect(isApiTransferWorkerReady()).toBe(false);
+
+        await addTransferJob('tx-stuck', 'api-group');
+
+        expect(mockAdd).not.toHaveBeenCalled();
+        expect(queueService.addJob).toHaveBeenCalledWith('tx-stuck', 'api-group');
+    });
+
+    test('retries BullMQ init after Redis becomes available', async () => {
+        jest.resetModules();
+        const redisState = { available: false };
+        jest.doMock('../config/redis', () => ({
+            isRedis: () => redisState.available,
+            getRedisClient: () => (redisState.available ? { options: { maxRetriesPerRequest: 3 } } : null),
+            createBullMQConnection: () => (redisState.available ? { options: { maxRetriesPerRequest: null } } : null)
+        }));
+        const addJob = jest.fn().mockResolvedValue(true);
+        jest.doMock('../services/queueService', () => ({
+            processSingleJob: jest.fn().mockResolvedValue(true),
+            addJob
+        }));
+        jest.doMock('bullmq', () => {
+            const Queue = jest.fn().mockImplementation(() => ({ add: mockAdd }));
+            const Worker = jest.fn().mockImplementation((name, processor) => {
+                mockWorkerCallbacks[name] = processor;
+                return { on: mockOn };
+            });
+            return { Queue, Worker };
+        });
+
+        mockAdd.mockResolvedValue({ id: 'job-ok' });
+        const queueService = require('../services/queueService');
+        const { addTransferJob, initBullMQ, isApiTransferWorkerReady } = require('../services/bullQueueService');
+
+        await addTransferJob('tx-before-redis', 'group-1');
+        expect(queueService.addJob).toHaveBeenCalledWith('tx-before-redis', 'group-1');
+        expect(isApiTransferWorkerReady()).toBe(false);
+
+        redisState.available = true;
+        expect(initBullMQ()).toBe(true);
+        expect(isApiTransferWorkerReady()).toBe(true);
+
+        await addTransferJob('tx-after-redis', 'group-2');
+        expect(mockAdd).toHaveBeenCalledWith(
+            'transfer_tx-after-redis',
+            { txId: 'tx-after-redis', apiGroupId: 'group-2' },
+            expect.any(Object)
+        );
     });
 });

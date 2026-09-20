@@ -1,7 +1,10 @@
 'use strict';
 
+jest.mock('../middlewares/tenantResolver', () => ({ tenantMode: () => 'single' }));
+
 const {
     ADMIN_TX_NAME_SEARCH_FIELDS,
+    adminAccountFindQuery,
     adminListIncludesAgencyDeposit,
     adminVisibleTransactionQuery,
     applyAdminTxPrivacy,
@@ -10,6 +13,7 @@ const {
     isAdminHiddenPrincipalType,
     isAgencyClientScopedTx
 } = require('../services/adminAccountVisibilityService');
+const { adminAccountScope } = require('../utils/tenantScope');
 const { agentOwnsSubAccount: ownershipCheck } = require('../utils/agencyOwnership');
 
 const AGENT_A = { _id: 'agent-a', name: 'وكالة أ', role: 'agent', phone: '0911111111', webUsername: 'agent.a' };
@@ -72,6 +76,18 @@ describe('Admin privacy for agency-scoped clients', () => {
         });
         expect(isAdminHiddenPrincipalType('sub_client')).toBe(true);
         expect(isAdminHiddenPrincipalType('client_user')).toBe(false);
+        expect(buildAdminAccountHistoryQuery({
+            kind: 'company',
+            account: { _id: 'company-1', name: 'شركة النور' }
+        })).toEqual({
+            isSubAccountTx: { $ne: true },
+            companyId: 'company-1'
+        });
+        expect(adminAccountFindQuery({ tenantId: 't-historical' }, { _id: 'company-1' })).toEqual({
+            _id: 'company-1',
+            status: { $ne: 'deleted' }
+        });
+        expect(adminAccountScope({ tenantId: 't-historical' })).toEqual({});
     });
 
     test('cross-agency agent still cannot operate on another agency client', () => {

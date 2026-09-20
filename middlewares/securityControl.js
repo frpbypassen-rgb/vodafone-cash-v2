@@ -4,13 +4,30 @@ const crypto = require('crypto');
 const SecurityDevice = require('../models/SecurityDevice');
 const Admin = require('../models/Admin');
 const securityControl = require('../services/securityControlService');
-const { isPasskeyRequired, isSecurityVerificationRequired } = require('../config/securityPolicy');
+const { isPasskeyRequired, isSecurityVerificationRequired, getEmergencyDeviceBindingBypassState } = require('../config/securityPolicy');
 
 const wantsJson = (req) => Boolean(
     req.xhr
     || req.path.startsWith('/api/')
     || String(req.headers?.accept || '').includes('application/json')
 );
+
+const PUBLIC_SECURITY_PATHS = [
+    '/login',
+    '/logout',
+    '/client/login',
+    '/client/verify',
+    '/executor-portal/login',
+    '/executor-portal/verify',
+    '/security/emergency-access'
+];
+
+const isPublicSecurityPath = (path) => {
+    const normalized = String(path || '').split('?')[0].replace(/\/+$/, '') || '/';
+    return PUBLIC_SECURITY_PATHS.some((prefix) => (
+        normalized === prefix || normalized.startsWith(`${prefix}/`)
+    ));
+};
 
 const endSession = (req, res, status, code, message) => {
     const respond = () => {
@@ -26,11 +43,14 @@ const hashesEqual = (left, right) => {
     return crypto.timingSafeEqual(Buffer.from(left, 'hex'), Buffer.from(right, 'hex'));
 };
 
+const DEVICE_BINDING_MISMATCH_MESSAGE = 'هذه الجلسة غير مرتبطة بالجهاز المصرح به. سجّل الدخول من جديد ببياناتك ورمز التحقق لربط هذا المتصفح.';
+
 const enforceSecuritySession = async (req, res, next) => {
     try {
-        // Login must always remain reachable. A stale session from a deployment
-        // cannot be allowed to redirect this public entry point back to itself.
-        if (req.path === '/login') return next();
+        // Login, OTP verify, and logout must remain reachable. A stale session
+        // from a deployment cannot redirect these public entry points back to
+        // themselves via DEVICE_BINDING_MISMATCH.
+        if (isPublicSecurityPath(req.path)) return next();
         const principal = securityControl.sessionPrincipal(req.session);
         if (!principal) return next();
         if (req.session.emergencyOnly) {
@@ -85,20 +105,66 @@ const enforceSecuritySession = async (req, res, next) => {
             : state.accountDeviceEnforcementEnabled;
         if (!enforcementEnabled) return next();
 
-        const deviceId = securityControl.ensureDeviceId(req, res);
+        const deviceId = securityControl.ensureDeviceId(req, res, { mint: false });
         const deviceHash = securityControl.hashDeviceId(deviceId);
+        if (!deviceId) {
+            const emergencyDeviceBypass = getEmergencyDeviceBindingBypassState();
+            if (emergencyDeviceBypass.active) {
+                const device = await securityControl.activateDevice({
+                    req,
+                    res,
+                    principal,
+                    approvedBy: 'emergency_device_binding_bypass'
+                });
+                req.securityDevice = device;
+                securityControl.markSessionDeviceVerified(req, { deviceId: securityControl.ensureDeviceId(req, res), device });
+                return next();
+            }
+            return endSession(req, res, 403, 'DEVICE_BINDING_MISMATCH', DEVICE_BINDING_MISMATCH_MESSAGE);
+        }
+        if (securityControl.sessionDeviceRecentlyVerified(req.session, deviceHash)
+            && (!isPasskeyRequired() || req.session.securityHasPasskey !== undefined)) {
+            if (isPasskeyRequired() && !req.session.securityHasPasskey) {
+                const adminEnrollmentPath = req.path.startsWith('/admin/security');
+                const accountEnrollmentPath = req.path.startsWith('/security/enroll')
+                    || req.path.startsWith('/security/passkey/')
+                    || req.path.startsWith('/security/mfa/')
+                    || req.path.startsWith('/security/sessions')
+                    || req.path === '/logout';
+                if (accountClass === 'admin' && !adminEnrollmentPath && req.path !== '/logout') {
+                    if (wantsJson(req)) return res.status(428).json({ success: false, code: 'PASSKEY_ENROLLMENT_REQUIRED', error: 'يجب تسجيل بصمة الجهاز الإداري أولاً.' });
+                    return res.redirect('/admin/security?enroll=1');
+                }
+                if (accountClass === 'account' && !accountEnrollmentPath) {
+                    if (wantsJson(req)) return res.status(428).json({ success: false, code: 'PASSKEY_ENROLLMENT_REQUIRED', error: 'يجب تسجيل بصمة الجهاز أولاً.' });
+                    return res.redirect('/security/enroll');
+                }
+            }
+            return next();
+        }
         const active = await SecurityDevice.findOne({
             principalType: principal.principalType,
             principalId: principal.principalId,
-            channel: 'web',
             status: 'active'
-        }).select('+deviceIdHash');
-        if (!active || !hashesEqual(active.deviceIdHash, deviceHash)) {
-            return endSession(req, res, 403, 'DEVICE_BINDING_MISMATCH', 'هذه الجلسة غير مرتبطة بالجهاز المصرح به.');
+        }).select('+deviceIdHash lastSeenAt lastIp credentialId').lean();
+        const bound = Boolean(active && hashesEqual(active.deviceIdHash, deviceHash));
+        if (!bound) {
+            const emergencyDeviceBypass = getEmergencyDeviceBindingBypassState();
+            if (emergencyDeviceBypass.active) {
+                const device = await securityControl.activateDevice({
+                    req,
+                    res,
+                    principal,
+                    approvedBy: 'emergency_device_binding_bypass'
+                });
+                req.securityDevice = device;
+                securityControl.markSessionDeviceVerified(req, { deviceId, device });
+                return next();
+            }
+            return endSession(req, res, 403, 'DEVICE_BINDING_MISMATCH', DEVICE_BINDING_MISMATCH_MESSAGE);
         }
-        active.lastSeenAt = new Date();
-        active.lastIp = securityControl.requestIp(req);
-        await active.save();
+        await securityControl.touchDeviceLastSeen(active, { ip: securityControl.requestIp(req) });
+        securityControl.markSessionDeviceVerified(req, { deviceId, device: active });
         req.securityDevice = active;
         if (isPasskeyRequired() && !active.credentialId) {
             const adminEnrollmentPath = req.path.startsWith('/admin/security');
@@ -161,6 +227,11 @@ const enforceEmergencyLockdown = async (req, res, next) => {
     }
 };
 
+const {
+    isAccountantRole,
+    accountantPathAllowed
+} = require('../config/adminRoles');
+
 const permissionRules = [
     { pattern: /^\/admin\/security/, read: 'security.read', write: 'security.manage' },
     { pattern: /^\/settings/, read: 'settings.read', write: 'settings.manage' },
@@ -169,13 +240,25 @@ const permissionRules = [
     { pattern: /^\/(executors|executor\/|employees)/, read: 'executors.read', write: 'executors.manage' },
     { pattern: /^\/(support|complaints|whatsapp-monitor)/, read: 'support.read', write: 'support.manage' },
     { pattern: /^\/broadcast/, read: 'accounts.read', write: 'accounts.manage' },
+    { pattern: /^\/registration-requests/, read: 'accounts.read', write: 'accounts.manage' },
+    { pattern: /^\/admin\/webhooks/, read: 'reports.read', write: 'reports.manage' },
     { pattern: /^\/(reports|audit-log|financial-movements)/, read: 'reports.read', write: 'reports.manage' },
     { pattern: /^\/$/, read: 'dashboard.read', write: 'dashboard.manage' }
 ];
 
+const denyAdminPermission = (req, res, required) => {
+    if (wantsJson(req)) {
+        return res.status(403).json({ success: false, code: 'ADMIN_PERMISSION_DENIED', error: 'ليس لديك الصلاحية المطلوبة.' });
+    }
+    return res.status(403).render('access_denied', { requiredPermission: required });
+};
+
 const enforceAdminPermissions = async (req, res, next) => {
     try {
         if (!req.session?.isLoggedIn || req.session.adminRole === 'master') return next();
+        if (isAccountantRole(req.session.adminRole) && !accountantPathAllowed(req.method, req.originalUrl || req.path)) {
+            return denyAdminPermission(req, res, 'reports.read');
+        }
         // Permissions are a security boundary, not an optional presentation
         // preference. Historical state rows may contain `false`; they must not
         // silently grant every authenticated administrator full access.
@@ -184,8 +267,7 @@ const enforceAdminPermissions = async (req, res, next) => {
         const required = ['GET', 'HEAD', 'OPTIONS'].includes(req.method) ? rule.read : rule.write;
         const permissions = new Set(req.session.adminPermissions || []);
         if (permissions.has('*') || permissions.has(required)) return next();
-        if (wantsJson(req)) return res.status(403).json({ success: false, code: 'ADMIN_PERMISSION_DENIED', error: 'ليس لديك الصلاحية المطلوبة.' });
-        return res.status(403).render('access_denied', { requiredPermission: required });
+        return denyAdminPermission(req, res, required);
     } catch (error) {
         console.error('[SecurityControl] permission guard failed:', error.message);
         return res.status(503).send('Security control unavailable');
@@ -197,5 +279,6 @@ module.exports = {
     enforceEmergencyLockdown,
     enforceAdminPermissions,
     protectedMutation,
-    permissionRules
+    permissionRules,
+    isPublicSecurityPath
 };

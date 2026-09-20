@@ -82,7 +82,7 @@
             <i class="fa-solid fa-shield-halved"></i>
         </div>
         <h4 class="fw-bold text-dark mb-2">التحقق بخطوتين</h4>
-        <p class="text-muted small mb-4">تم إرسال كود من 6 أرقام إلى حسابك في تيليجرام (في البوت المخصص لك). يرجى إدخاله هنا.</p>
+        <p class="text-muted small mb-4">تم إرسال رمز تحقق من 6 أرقام إلى واتساب المسجّل على حساب المنفذ. أدخله هنا لإكمال الدخول.</p>
 
         <% if (error) { %>
             <div class="alert alert-danger fw-bold small rounded-3 mb-4">
@@ -91,6 +91,7 @@
         <% } %>
 
         <form action="/executor-portal/verify" method="POST">
+            <input type="hidden" name="_csrf" value="<%= typeof csrfToken !== 'undefined' ? csrfToken : '' %>">
             <div class="mb-4">
                 <input type="text" name="otp" class="form-control otp-input bg-light" placeholder="------" maxlength="6" autocomplete="off" required dir="ltr">
             </div>

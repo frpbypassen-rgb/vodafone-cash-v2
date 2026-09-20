@@ -6,6 +6,8 @@ const ejs = require('ejs');
 
 const SIDEBAR_PATH = path.join(__dirname, '..', 'views', 'partials', 'sidebar.ejs');
 
+const { adminHrefVisible } = require('../config/adminRoles');
+
 const REQUIRED_ADMIN_HREFS = [
     '/',
     '/financial-movements',
@@ -100,8 +102,34 @@ describe('admin sidebar navigation', () => {
         expect(html).toMatch(/مديري لوحة التحكم/);
     });
 
+    test('accountant sidebar keeps review pages and hides mutation settings', () => {
+        const html = renderSidebar({
+            activePage: 'dashboard',
+            role: 'accountant',
+            adminHrefVisible: (href) => adminHrefVisible('accountant', href)
+        });
+        const hrefs = new Set(extractHrefs(html));
+        expect(hrefs.has('/reports')).toBe(true);
+        expect(hrefs.has('/financial-movements')).toBe(true);
+        expect(hrefs.has('/clients')).toBe(true);
+        expect(hrefs.has('/transactions/live')).toBe(true);
+        expect(hrefs.has('/settings')).toBe(false);
+        expect(hrefs.has('/settings/users')).toBe(false);
+        expect(hrefs.has('/broadcast')).toBe(false);
+        expect(hrefs.has('/admin/security')).toBe(false);
+        expect(html).toMatch(/التقارير/);
+    });
+
     test('removed monitor dashboard and pulse view files', () => {
         expect(fs.existsSync(path.join(__dirname, '..', 'public', 'system-monitor.html'))).toBe(false);
         expect(fs.existsSync(path.join(__dirname, '..', 'views', 'transaction_pulse.ejs'))).toBe(false);
+    });
+
+    test('registers live operations before the parameterized transaction details route', () => {
+        const appSource = fs.readFileSync(path.join(__dirname, '..', 'app.js'), 'utf8');
+        expect(appSource.indexOf("require('./routes/liveOperations')"))
+            .toBeLessThan(appSource.indexOf("require('./routes/adminTransactions')"));
+        expect(appSource).toContain("require('./routes/merchantWebhooks')");
+        expect(appSource).toMatch(/app\.use\('\/settings'/);
     });
 });

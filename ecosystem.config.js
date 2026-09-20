@@ -24,8 +24,9 @@ module.exports = {
         // never be allowed to redirect the core API to .env.staging.
         DOTENV_CONFIG_PATH: ".env",
         ...PRODUCTION_SECURITY_FLAGS,
-        // Emergency OTP / standalone-write break-glass stays in `.env` only.
-        // Pinning those keys here would override a time-limited .env window.
+        // Emergency OTP / standalone-write / device-binding break-glass stays
+        // in `.env` only. Pinning those keys here would override a time-limited
+        // .env window.
         OTP_RESEND_COOLDOWN_SECONDS: "60",
         TRUST_PROXY_HTTPS: "true",
         TENANT_MODE: "single",

@@ -359,7 +359,7 @@ const login = async (username, password, req) => {
             res: null,
             principal: { principalType: accountType, principalId: String(account._id), principalName: account.name || account.webUsername || 'Mobile account' },
             accountClass: 'account',
-            allowFirstDevice: false
+            allowFirstDevice: true
         });
         if (!enrollmentAuthorization.allowed) {
             return {
@@ -415,8 +415,9 @@ const login = async (username, password, req) => {
                 principalName: account.name || account.webUsername || 'Mobile account'
             },
             accountClass: 'account',
-            allowFirstDevice: false,
-            authenticatorVerified: mfaVerifiedWithCode
+            allowFirstDevice: true,
+            authenticatorVerified: mfaVerifiedWithCode,
+            verifiedLogin: mfaVerifiedWithCode
         });
         if (!deviceAuthorization.allowed) {
             return {

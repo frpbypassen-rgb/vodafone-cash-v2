@@ -3,7 +3,7 @@ const bcrypt = require('bcryptjs');
 
 const adminSchema = new mongoose.Schema({
     name: { type: String, default: 'بدون اسم' },
-    role: { type: String, default: 'admin' }, 
+    role: { type: String, enum: ['master', 'admin', 'accountant'], default: 'admin', index: true }, 
     webUsername: { type: String, unique: true, required: true },
     webPassword: { type: String, required: true },
     status: { type: String, enum: ['active', 'suspended'], default: 'active', index: true },

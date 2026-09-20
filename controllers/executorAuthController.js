@@ -5,6 +5,9 @@ const { escapeRegex, verifyAndUpgradePassword, getTodayString } = require('../ut
 const { verifyOtp } = require('../utils/otp');
 const accountMfaService = require('../services/accountMfaService');
 const { logAction } = require('../services/auditService');
+const securityControl = require('../services/securityControlService');
+const { establishAuthenticatedSession } = require('../utils/sessionSecurity');
+const { isLoginOtpRequired, issueLoginOtp, getLoginOtpPortal } = require('../services/loginOtpService');
 const {
     ExecutorAccountError,
     normalizeExecutorPhone,
@@ -37,15 +40,39 @@ const renderExecutorRegistration = (res, { error = null, success = null, formDat
 );
 
 
-const completeExecutorLogin = async (req, res, executor, { showMfaNotice = false } = {}) => {
+const completeExecutorLogin = async (req, res, executor, { showMfaNotice = false, authenticatorVerified = false } = {}) => {
     delete req.session.pendingExecutorMfaId;
     delete req.session.pendingExecutorMfaStartedAt;
-    req.session.isExecutorLoggedIn = true;
-    req.session.executorId = executor._id;
-    req.session.executorGroupId = executor.groupId ? executor.groupId._id : null;
-    if (showMfaNotice) {
-        req.session.showMfaEnableNotice = true;
+    const principal = {
+        principalType: 'executor',
+        principalId: String(executor._id),
+        principalName: executor.name || 'منفذ'
+    };
+    const authorization = await securityControl.authorizeLogin({
+        req,
+        res,
+        principal,
+        accountClass: 'account',
+        allowFirstDevice: true,
+        authenticatorVerified,
+        verifiedLogin: true
+    });
+    if (!authorization.allowed) {
+        return res.render('executor/login', {
+            error: authorization.message,
+            mfaRequired: false,
+            mfaNotice: false,
+            submittedUsername: executor.webUsername || ''
+        });
     }
+    await establishAuthenticatedSession(req, {
+        isExecutorLoggedIn: true,
+        executorId: executor._id,
+        executorGroupId: executor.groupId ? executor.groupId._id : null,
+        executorName: executor.name || 'منفذ'
+    });
+    if (showMfaNotice) req.session.showMfaEnableNotice = true;
+    await securityControl.applySessionSecurity(req, principal, 'account', res);
     await logAction({
         action: 'LOGIN_SUCCESS',
         req,
@@ -57,8 +84,57 @@ const completeExecutorLogin = async (req, res, executor, { showMfaNotice = false
     return req.session.save(() => res.redirect('/executor-portal/dashboard'));
 };
 
+const startExecutorOtp = async (req, res, executor) => {
+    const issued = await issueLoginOtp({ account: executor, accountType: 'executor', session: req.session });
+    const portal = issued.portal || getLoginOtpPortal('executor');
+    if (issued.status === 'reuse') {
+        return req.session.save(() => res.redirect(portal.verifyPath));
+    }
+    if (issued.status === 'emergency_bypass') {
+        await logAction({
+            action: 'LOGIN_OTP_EMERGENCY_BYPASS',
+            req,
+            performedById: executor._id,
+            performedByModel: 'Employee',
+            performedByName: executor.name,
+            success: true,
+            metadata: {
+                accountType: 'executor',
+                deliveryFailureCode: issued.code,
+                emergencyExpiresAt: issued.emergencyExpiresAt
+            }
+        });
+        return completeExecutorLogin(req, res, executor, { showMfaNotice: true });
+    }
+    if (issued.status !== 'sent') {
+        return res.render('executor/login', {
+            error: issued.message || 'تعذر إرسال رمز التحقق عبر واتساب حالياً.',
+            mfaRequired: false,
+            mfaNotice: false,
+            submittedUsername: executor.webUsername || ''
+        });
+    }
+    const deviceId = securityControl.ensureDeviceId(req, res);
+    await establishAuthenticatedSession(req, {
+        tempExecutorId: executor._id,
+        tempAccountType: 'executor',
+        otpChallengeId: issued.otpChallengeId,
+        pendingSecurityLocation: securityControl.parseLocation(req),
+        pendingSecurityUsername: executor.webUsername || String(req.body.username || ''),
+        securityDeviceId: deviceId,
+        securityDeviceHash: securityControl.hashDeviceId(deviceId)
+    });
+    return req.session.save(() => res.redirect(portal.verifyPath));
+};
+
+const continueExecutorAfterPassword = async (req, res, executor, options = {}) => {
+    if (isLoginOtpRequired()) return startExecutorOtp(req, res, executor);
+    return completeExecutorLogin(req, res, executor, options);
+};
+
 exports.getLogin = (req, res) => {
     if (req.session.isExecutorLoggedIn) return res.redirect('/executor-portal/dashboard');
+    securityControl.ensureDeviceId(req, res);
     res.render('executor/login', { error: null, mfaRequired: false, mfaNotice: false, submittedUsername: '' });
 };
 
@@ -100,7 +176,7 @@ exports.postLogin = async (req, res) => {
             }
             const mfaAccount = await accountMfaService.loadAccount('executor', executor._id, executor.tenantId || null);
             if (!mfaAccount || !accountMfaService.isEnabled(mfaAccount)) {
-                return completeExecutorLogin(req, res, executor, { showMfaNotice: true });
+                return continueExecutorAfterPassword(req, res, executor, { showMfaNotice: true });
             }
             const valid = await accountMfaService.verifyAccountToken(mfaAccount, mfaToken);
             if (!valid) {
@@ -112,7 +188,7 @@ exports.postLogin = async (req, res) => {
                 });
             }
             delete req.session.pendingExecutorMfaId;
-            return completeExecutorLogin(req, res, executor);
+            return completeExecutorLogin(req, res, executor, { authenticatorVerified: true });
         }
 
         if (!username || !password) return res.render('executor/login', { error: 'يرجى إدخال البيانات.', mfaRequired: false, mfaNotice: false, submittedUsername: '' });
@@ -145,7 +221,7 @@ exports.postLogin = async (req, res) => {
             }));
         }
 
-        return completeExecutorLogin(req, res, executor, { showMfaNotice: true });
+        return continueExecutorAfterPassword(req, res, executor, { showMfaNotice: true });
     } catch (e) {
         console.error(e);
         res.render('executor/login', { error: 'حدث خطأ في النظام.', mfaRequired: false, mfaNotice: false, submittedUsername: '' });
@@ -243,20 +319,62 @@ exports.getVerify = (req, res) => {
 
 exports.postVerify = async (req, res) => {
     try {
-        const { otp } = req.body;
-        const account = await Employee.findById(req.session.tempExecutorId).lean();
-        
-        if (!account || !verifyOtp(otp, account.otpCode) || new Date(account.otpExpires) < new Date()) {
+        const otp = String(req.body.otp || '').trim();
+        const accountId = req.session.tempExecutorId;
+        const otpChallengeId = String(req.session.otpChallengeId || '');
+        if (!accountId || !otpChallengeId || !otp) return res.redirect('/login');
+
+        const account = await Employee.findById(accountId).lean();
+        const otpAccepted = Boolean(
+            account
+            && account.otpChallengeId === otpChallengeId
+            && account.otpExpires
+            && new Date(account.otpExpires) >= new Date()
+            && verifyOtp(otp, account.otpCode)
+        );
+        if (!otpAccepted) {
+            if (account) {
+                const updated = await Employee.findOneAndUpdate(
+                    { _id: account._id, otpChallengeId },
+                    { $inc: { otpAttempts: 1 } },
+                    { new: true }
+                ).lean();
+                if (Number(updated?.otpAttempts || 0) >= 5) {
+                    await Employee.updateOne(
+                        { _id: account._id, otpChallengeId },
+                        { $unset: { otpCode: 1, otpExpires: 1, otpChallengeId: 1, otpIssuedAt: 1, otpAttempts: 1 } }
+                    );
+                    return res.render('executor/verify', { error: 'تم تجاوز عدد المحاولات. سجل الدخول من جديد للحصول على رمز آخر.' });
+                }
+            }
             return res.render('executor/verify', { error: 'الرمز غير صحيح أو انتهت صلاحيته.' });
         }
 
-        const todayStr = getTodayString();
-        await Employee.updateOne({ _id: account._id }, { $set: { lastOtpDate: todayStr }, $unset: { otpCode: 1, otpExpires: 1 } }, { strict: false });
+        const consumedAccount = await Employee.findOneAndUpdate(
+            {
+                _id: account._id,
+                otpCode: account.otpCode,
+                otpChallengeId,
+                otpExpires: { $gte: new Date() }
+            },
+            {
+                $set: { lastOtpDate: getTodayString() },
+                $unset: { otpCode: 1, otpExpires: 1, otpChallengeId: 1, otpIssuedAt: 1, otpAttempts: 1 }
+            },
+            { new: true }
+        ).populate('groupId').lean();
+        if (!consumedAccount) {
+            return res.render('executor/verify', { error: 'تم استخدام الرمز أو انتهت صلاحيته. سجل الدخول من جديد.' });
+        }
 
-        req.session.isExecutorLoggedIn = true; req.session.executorId = account._id; req.session.executorGroupId = account.groupId;
-        req.session.tempExecutorId = null;
-        res.redirect('/executor-portal/dashboard');
-    } catch (e) { res.redirect('/login'); }
+        delete req.session.tempExecutorId;
+        delete req.session.otpChallengeId;
+        delete req.session.tempAccountType;
+        return completeExecutorLogin(req, res, consumedAccount, { showMfaNotice: true });
+    } catch (e) {
+        console.error('[Executor OTP] verify failed:', e.message);
+        return res.render('executor/verify', { error: 'تعذر إكمال التحقق. أعد المحاولة.' });
+    }
 };
 
 exports.logout = (req, res) => { req.session.destroy(); res.redirect('/login'); };
