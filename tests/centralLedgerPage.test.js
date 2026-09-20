@@ -135,6 +135,7 @@ describe('central ledger page layout', () => {
 
         expect(routeSource).toMatch(/const transactionLedgerBaseQuery = \(source = null\) => \(\{[\s\S]*\.\.\.adminAccountScope\(source\),[\s\S]*isSubAccountTx: \{ \$ne: true \}/);
         expect(routeSource).toMatch(/adminVisibleTransactionQuery\(adminAccountScope\(req\)/);
+        expect(routeSource).toMatch(/ExecutorGroup\.find\(\{ \.\.\.adminAccountScope\(req\), status: 'active', isManagerBot: \{ \$ne: true \} \}\)/);
         expect(overviewSource).toMatch(/applyAdminTxPrivacy\(\{[\s\S]*\.\.\.adminAccountScope\(source\),[\s\S]*status: SUCCESS_STATUS/);
         expect(overviewSource).not.toMatch(/\.\.\.tenantScope\(source\)/);
         expect(appSource.indexOf("require('./routes/liveOperations')"))

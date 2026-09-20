@@ -56,7 +56,16 @@ class ApiTransferQueue {
             const tx = await Transaction.findById(txId);
             const executorGroup = await ExecutorGroup.findById(apiGroupId);
 
-            if (!tx || !executorGroup || tx.status !== 'processing') return;
+            if (!tx || !executorGroup || tx.status !== 'processing') {
+                logger.warn('API transfer job skipped before provider dispatch', {
+                    txId,
+                    apiGroupId,
+                    hasTx: Boolean(tx),
+                    hasExecutorGroup: Boolean(executorGroup),
+                    status: tx ? tx.status : null
+                });
+                return;
+            }
 
             if (!executorSupportsTransferType(executorGroup, tx.transferType)) {
                 tx.status = 'pending';
