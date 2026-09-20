@@ -1,7 +1,7 @@
 'use strict';
 
 const { applyAdminTxPrivacy } = require('./adminAccountVisibilityService');
-const { tenantScope } = require('../utils/tenantScope');
+const { adminAccountScope, tenantScope } = require('../utils/tenantScope');
 const { systemDateKey, systemDateRange, systemDayStart } = require('../config/systemTime');
 
 const SUCCESS_STATUS = 'completed';
@@ -89,6 +89,21 @@ const loadSuccessfulOpsPeriodStats = async (Transaction, source, now = new Date(
     };
 };
 
+const adminVisibleCompanyQuery = (source) => ({
+    ...adminAccountScope(source),
+    status: { $nin: ['deleted', 'inactive', 'archived'] }
+});
+
+const adminVisibleExecutorQuery = (source) => ({
+    ...adminAccountScope(source),
+    status: { $nin: ['deleted', 'archived'] },
+    $or: [
+        { balance: { $gt: 0 } },
+        { isApiBot: true, lastApiServiceCredit: { $gt: 0 } },
+        { isApiGroup: true, lastApiServiceCredit: { $gt: 0 } }
+    ]
+});
+
 const mapActiveClientCompanies = (companies = []) => companies.map((company) => ({
     id: String(company._id),
     name: company.name || 'شركة بدون اسم',
@@ -98,10 +113,12 @@ const mapActiveClientCompanies = (companies = []) => companies.map((company) => 
 }));
 
 const loadActiveClientCompanyBalances = async (ClientCompany, source) => {
-    const companies = await ClientCompany.find({
-        ...tenantScope(source),
-        status: 'active'
-    }).select('name balance accountCode phone').sort({ name: 1 }).lean();
+    // Account widgets must not use applyAdminTxPrivacy — that filter is for
+    // transaction ledgers (isSubAccountTx) and would be meaningless here.
+    const companies = await ClientCompany.find(adminVisibleCompanyQuery(source))
+        .select('name balance accountCode phone')
+        .sort({ name: 1 })
+        .lean();
     return mapActiveClientCompanies(companies);
 };
 
@@ -109,12 +126,12 @@ const mapFundedExecutorBalances = (groups = []) => groups
     .map((group) => {
         const apiCredit = Number(group.lastApiServiceCredit);
         const internalBalance = Number(group.balance) || 0;
-        const useApiCredit = Boolean(group.isApiBot) && Number.isFinite(apiCredit) && apiCredit > 0;
+        const useApiCredit = Boolean(group.isApiBot || group.isApiGroup) && Number.isFinite(apiCredit) && apiCredit > 0;
         return {
             id: String(group._id),
             name: group.name || 'منفذ بدون اسم',
             balance: useApiCredit ? apiCredit : internalBalance,
-            isManager: Boolean(group.isManagerBot),
+            isManager: Boolean(group.isManagerBot || group.isManagerGroup),
             balanceSource: useApiCredit ? 'api_service' : 'internal',
             checkedAt: group.lastApiBalanceCheckAt || group.updatedAt || null
         };
@@ -123,14 +140,9 @@ const mapFundedExecutorBalances = (groups = []) => groups
     .sort((left, right) => right.balance - left.balance || String(left.name).localeCompare(String(right.name), 'ar'));
 
 const loadFundedExecutorBalances = async (ExecutorGroup, source) => {
-    const groups = await ExecutorGroup.find({
-        ...tenantScope(source),
-        status: 'active',
-        $or: [
-            { balance: { $gt: 0 } },
-            { isApiBot: true, lastApiServiceCredit: { $gt: 0 } }
-        ]
-    }).select('name balance isApiBot isManagerBot lastApiServiceCredit lastApiBalanceCheckAt updatedAt').lean();
+    const groups = await ExecutorGroup.find(adminVisibleExecutorQuery(source))
+        .select('name balance isApiBot isApiGroup isManagerBot isManagerGroup lastApiServiceCredit lastApiBalanceCheckAt updatedAt')
+        .lean();
     return mapFundedExecutorBalances(groups);
 };
 
@@ -151,6 +163,8 @@ const loadCentralLedgerOverview = async ({
 
 module.exports = {
     SUCCESS_STATUS,
+    adminVisibleCompanyQuery,
+    adminVisibleExecutorQuery,
     emptyPeriodStats,
     fromFacetRow,
     loadActiveClientCompanyBalances,

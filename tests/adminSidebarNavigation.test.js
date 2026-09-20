@@ -104,4 +104,12 @@ describe('admin sidebar navigation', () => {
         expect(fs.existsSync(path.join(__dirname, '..', 'public', 'system-monitor.html'))).toBe(false);
         expect(fs.existsSync(path.join(__dirname, '..', 'views', 'transaction_pulse.ejs'))).toBe(false);
     });
+
+    test('registers live operations before the parameterized transaction details route', () => {
+        const appSource = fs.readFileSync(path.join(__dirname, '..', 'app.js'), 'utf8');
+        expect(appSource.indexOf("require('./routes/liveOperations')"))
+            .toBeLessThan(appSource.indexOf("require('./routes/adminTransactions')"));
+        expect(appSource).toContain("require('./routes/merchantWebhooks')");
+        expect(appSource).toMatch(/app\.use\('\/settings'/);
+    });
 });

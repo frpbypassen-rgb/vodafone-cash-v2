@@ -7,7 +7,7 @@ const User = require('../models/User');
 const { SYSTEM_TIME_ZONE, systemDateKey, systemDateParts } = require('../config/systemTime');
 const { resolveReportScope } = require('./adminReportService');
 const { applyAdminTxPrivacy } = require('./adminAccountVisibilityService');
-const { tenantScope } = require('../utils/tenantScope');
+const { adminAccountScope, tenantScope } = require('../utils/tenantScope');
 
 const SUCCESS_STATUS = 'completed';
 const CANCELLED_STATUSES = ['rejected', 'cancelled_by_admin'];
@@ -279,7 +279,7 @@ const listDashboardEntities = async ({ type, search = '', limit = 100, tenantId 
     const safeLimit = Math.min(200, Math.max(1, Number(limit) || 100));
     const regex = search ? new RegExp(String(search).replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i') : null;
     const visible = { status: { $ne: 'deleted' } };
-    const scopedTenant = tenantScope(tenantId);
+    const scopedTenant = adminAccountScope(tenantId);
     let rows = [];
 
     if (type === 'client') {

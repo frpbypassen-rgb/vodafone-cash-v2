@@ -72,6 +72,13 @@ describe('Admin privacy for agency-scoped clients', () => {
         });
         expect(isAdminHiddenPrincipalType('sub_client')).toBe(true);
         expect(isAdminHiddenPrincipalType('client_user')).toBe(false);
+        expect(buildAdminAccountHistoryQuery({
+            kind: 'company',
+            account: { _id: 'company-1', name: 'شركة النور' }
+        })).toEqual({
+            isSubAccountTx: { $ne: true },
+            companyId: 'company-1'
+        });
     });
 
     test('cross-agency agent still cannot operate on another agency client', () => {
