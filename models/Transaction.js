@@ -200,6 +200,8 @@ transactionSchema.index({ companyId: 1, clientActorId: 1, createdAt: -1 });
 transactionSchema.index({ userId: 1, clientActorId: 1, createdAt: -1 });
 transactionSchema.index({ executorGroupId: 1, status: 1 });        // مهام المنفذ
 transactionSchema.index({ status: 1, updatedAt: -1 });           // التقارير والإحصاءات
+transactionSchema.index({ status: 1, createdAt: -1 }, { name: 'adminDashboard_status_createdAt' });
+transactionSchema.index({ status: 1, completedAt: -1 }, { name: 'adminDashboard_status_completedAt' });
 transactionSchema.index({ executorGroupId: 1, createdAt: -1 });    // رصيد المنفذ
 transactionSchema.index({ executorGroupId: 1, executorReceivedAt: 1 }); // ترتيب قائمة مهام المنفذ
 transactionSchema.index({ managerGroupId: 1, status: 1 });         // مهام المدير

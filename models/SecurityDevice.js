@@ -52,5 +52,9 @@ securityDeviceSchema.index(
         partialFilterExpression: { status: 'active' }
     }
 );
+securityDeviceSchema.index(
+    { status: 1, lastSeenAt: -1 },
+    { name: 'security_device_lastSeenAt' }
+);
 
 module.exports = mongoose.model('SecurityDevice', securityDeviceSchema);

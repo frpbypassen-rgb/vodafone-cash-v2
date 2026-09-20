@@ -38,6 +38,14 @@ describe('performanceIndexService', () => {
                     canonicalRecipient: 1,
                     status: 1
                 })
+            }),
+            expect.objectContaining({
+                name: 'adminDashboard_status_createdAt',
+                key: { status: 1, createdAt: -1 }
+            }),
+            expect.objectContaining({
+                name: 'adminDashboard_status_completedAt',
+                key: { status: 1, completedAt: -1 }
             })
         ]));
         expect(logger.info).toHaveBeenCalled();

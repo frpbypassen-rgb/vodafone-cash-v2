@@ -57,7 +57,7 @@ const upload = multer({
     }
 });
 
-const connectDB = require('./config/database');
+const { mongoSessionStoreOptions } = require('./config/sessionStore');
 const { initRedis, isRedis } = require('./config/redis');
 const { requireAuth, requireMaster } = require('./middlewares/auth');
 const restrictClientRawUploads = require('./middlewares/restrictClientRawUploads');
@@ -309,17 +309,10 @@ try {
         console.warn('⚠️ Session Store: MemoryStore (SESSION_STORE=memory)');
     } else {
         const { MongoStore } = require('connect-mongo');
-        sessionStore = MongoStore.create({
+        sessionStore = MongoStore.create(mongoSessionStoreOptions({
             mongoUrl: process.env.MONGO_URI,
-            ttl: Math.ceil(sessionMaxAgeMs / 1000),
-            autoRemove: 'native',
-            mongoOptions: {
-                retryWrites: false,
-                serverSelectionTimeoutMS: 120000,
-                connectTimeoutMS: 120000,
-                socketTimeoutMS: 120000
-            }
-        });
+            ttl: Math.ceil(sessionMaxAgeMs / 1000)
+        }));
         sessionStore.on('error', (error) => {
             app.locals.sessionStoreHealthy = false;
             logger.error('Session store error', { error: error.message });
