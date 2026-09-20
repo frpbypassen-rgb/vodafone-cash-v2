@@ -91,9 +91,10 @@ const SECURITY_LOGIN_ERRORS = {
     SECURITY_SESSION_EXPIRED: 'انتهت الجلسة الآمنة. سجل الدخول مرة أخرى.',
     ADMIN_SESSION_REVOKED: 'تم إنهاء الجلسة الإدارية. سجل الدخول مرة أخرى.',
     NETWORK_RISK_BLOCKED: 'تعذر إكمال الدخول من هذه الشبكة.',
-    DEVICE_BINDING_MISMATCH: 'هذه الجلسة غير مرتبطة بالجهاز المصرح به. سجل الدخول من جديد.',
-    LOCATION_REQUIRED: 'يجب السماح بالوصول إلى الموقع لإكمال الدخول الآمن.',
-    DEVICE_APPROVAL_REQUIRED: 'هذا الجهاز يحتاج موافقة الإدارة قبل الدخول.'
+    DEVICE_BINDING_MISMATCH: 'هذه الجلسة غير مرتبطة بالجهاز المصرح به. سجّل الدخول من جديد ببياناتك ورمز التحقق لربط هذا المتصفح.',
+    LOCATION_REQUIRED: 'يجب السماح بالوصول إلى الموقع لإكمال الدخول الآمن. فعّل الموقع في المتصفح ثم أعد المحاولة.',
+    DEVICE_APPROVAL_REQUIRED: 'هذا الجهاز يحتاج موافقة الإدارة قبل الدخول. سجّل الدخول من الجهاز المعتمد أو انتظر اعتماد طلبك.',
+    AUTHENTICATOR_REQUIRED_FOR_DEVICE_TRANSFER: 'أدخل رمز Authenticator أولاً لطلب نقل الحساب إلى الجهاز الجديد.'
 };
 
 const renderLogin = (res, error = null, data = {}) => {
@@ -632,7 +633,7 @@ const phoneMatches = (storedPhone, submittedPhone) => {
 
 const { logAction } = require('../services/auditService');
 
-const completeAdminSession = async (req, adminData = null) => {
+const completeAdminSession = async (req, adminData = null, res = null) => {
     const principal = {
         principalType: adminData ? 'admin' : 'master_admin',
         principalId: adminData ? String(adminData._id) : 'master_admin',
@@ -646,7 +647,7 @@ const completeAdminSession = async (req, adminData = null) => {
         adminPermissions: adminData ? (adminData.permissions || []) : ['*'],
         adminSessionVersion: adminData ? Number(adminData.sessionVersion || 0) : 0
     });
-    await securityControl.applySessionSecurity(req, principal, 'admin');
+    await securityControl.applySessionSecurity(req, principal, 'admin', res);
 
     await logAction({
         action: 'LOGIN_SUCCESS',
@@ -715,7 +716,7 @@ const loginAsAdmin = async (req, res, adminData = null, { authenticatorVerified 
         return renderLogin(res, authorization.message, { submittedUsername: String(req.body.username || '') });
     }
     if (await requirePasskeyLogin({ req, res, principal, authorization, accountClass: 'admin', loginKind: 'admin' })) return;
-    await completeAdminSession(req, adminData);
+    await completeAdminSession(req, adminData, res);
     return saveAndRedirect(
         req,
         res,
@@ -723,7 +724,7 @@ const loginAsAdmin = async (req, res, adminData = null, { authenticatorVerified 
     );
 };
 
-const completeExecutorSession = async (req, executor) => {
+const completeExecutorSession = async (req, executor, res = null) => {
     const principal = { principalType: 'executor', principalId: String(executor._id), principalName: executor.name || 'منفذ' };
     await establishAuthenticatedSession(req, {
         isExecutorLoggedIn: true,
@@ -731,7 +732,7 @@ const completeExecutorSession = async (req, executor) => {
         executorGroupId: executor.groupId ? executor.groupId._id : null,
         executorName: executor.name || 'منفذ'
     });
-    await securityControl.applySessionSecurity(req, principal, 'account');
+    await securityControl.applySessionSecurity(req, principal, 'account', res);
 
     await logAction({
         action: 'LOGIN_SUCCESS',
@@ -745,13 +746,21 @@ const completeExecutorSession = async (req, executor) => {
 
 const loginAsExecutor = async (req, res, executor, { showMfaEnableNotice = false, authenticatorVerified = false } = {}) => {
     const principal = { principalType: 'executor', principalId: String(executor._id), principalName: executor.name || 'منفذ' };
-    const authorization = await securityControl.authorizeLogin({ req, res, principal, accountClass: 'account', allowFirstDevice: true, authenticatorVerified });
+    const authorization = await securityControl.authorizeLogin({
+        req,
+        res,
+        principal,
+        accountClass: 'account',
+        allowFirstDevice: true,
+        authenticatorVerified,
+        verifiedLogin: true
+    });
     if (!authorization.allowed) {
         await logLoginFailure(req, req.body.username, authorization.code, authorization.message);
         return renderLogin(res, authorization.message, { submittedUsername: String(req.body.username || '') });
     }
     if (await requirePasskeyLogin({ req, res, principal, authorization, accountClass: 'account', loginKind: 'executor' })) return;
-    await completeExecutorSession(req, executor);
+    await completeExecutorSession(req, executor, res);
     if (!accountMfaService.isEnabled(executor)) {
         // Temporary continuity mode: credentials were already verified, so
         // allow the executor into the portal and show the enrollment notice
@@ -764,7 +773,7 @@ const loginAsExecutor = async (req, res, executor, { showMfaEnableNotice = false
     return saveAndRedirect(req, res, '/executor-portal/dashboard');
 };
 
-const completeClientSession = async (req, account, accountType) => {
+const completeClientSession = async (req, account, accountType, res = null) => {
     const principalType = ({ user: 'client_user', company: 'client_company', agent_staff: 'agent_staff', sub_client: 'sub_client' })[accountType] || 'client_user';
     const principal = { principalType, principalId: String(account._id), principalName: account.name || account.webUsername || 'حساب عميل' };
     await establishAuthenticatedSession(req, {
@@ -783,7 +792,7 @@ const completeClientSession = async (req, account, accountType) => {
     if (!account.mfaEnabled || account.mfaType !== 'totp') {
         req.session.showMfaEnableNotice = true;
     }
-    await securityControl.applySessionSecurity(req, principal, 'account');
+    await securityControl.applySessionSecurity(req, principal, 'account', res);
     const performedByModel = accountType === 'company'
         ? 'ClientEmployee'
         : (accountType === 'agent_staff' ? 'AgentEmployee' : (accountType === 'sub_client' ? 'SubAccount' : 'User'));
@@ -812,13 +821,21 @@ const loginAsClient = async (req, res, account, accountType, { authenticatorVeri
             });
         }
     }
-    const authorization = await securityControl.authorizeLogin({ req, res, principal, accountClass: 'account', allowFirstDevice: true, authenticatorVerified });
+    const authorization = await securityControl.authorizeLogin({
+        req,
+        res,
+        principal,
+        accountClass: 'account',
+        allowFirstDevice: true,
+        authenticatorVerified,
+        verifiedLogin: true
+    });
     if (!authorization.allowed) {
         await logLoginFailure(req, req.body.username, authorization.code, authorization.message);
         return renderLogin(res, authorization.message, { submittedUsername: String(req.body.username || '') });
     }
     if (await requirePasskeyLogin({ req, res, principal, authorization, accountClass: 'account', loginKind: 'client', accountType })) return;
-    await completeClientSession(req, account, accountType);
+    await completeClientSession(req, account, accountType, res);
     if (!accountMfaService.isEnabled(account)) {
         // Temporary continuity mode: keep mandatory enrollment visible as a
         // notice after entry, while avoiding a failed enrollment redirect from
@@ -838,6 +855,7 @@ const finishLoginAfterOtpBypass = async (req, res, account, accountType) => {
 };
 
 const startClientOtp = async (req, res, account, accountType) => {
+    const deviceId = securityControl.ensureDeviceId(req, res);
     req.session.pendingSecurityLocation = securityControl.parseLocation(req);
     req.session.pendingSecurityUsername = String(req.body.username || '');
     const issued = await issueLoginOtp({ account, accountType, session: req.session });
@@ -902,7 +920,9 @@ const startClientOtp = async (req, res, account, accountType) => {
         tempAccountType: accountType,
         otpChallengeId: issued.otpChallengeId,
         pendingSecurityLocation: securityControl.parseLocation(req),
-        pendingSecurityUsername: String(req.body.username || '')
+        pendingSecurityUsername: String(req.body.username || ''),
+        securityDeviceId: deviceId,
+        securityDeviceHash: securityControl.hashDeviceId(deviceId)
     };
     sessionPayload[portal.sessionTempIdKey] = account._id;
     await establishAuthenticatedSession(req, sessionPayload);
@@ -1010,19 +1030,19 @@ router.post('/security/passkey-login/verify', async (req, res) => {
             if (pending.principalId !== 'master_admin' && !adminData) {
                 return res.status(403).json({ success: false, error: 'حساب الإدارة موقوف أو غير موجود.' });
             }
-            await completeAdminSession(req, adminData);
+            await completeAdminSession(req, adminData, res);
         } else if (pending.loginKind === 'executor') {
             const executor = await Employee.findOne({ _id: pending.principalId, status: 'active' }).populate('groupId').lean();
             if (!executor?.groupId || executor.groupId.status !== 'active') {
                 return res.status(403).json({ success: false, error: 'حساب التنفيذ أو مجموعته غير مفعلة.' });
             }
-            await completeExecutorSession(req, executor);
+            await completeExecutorSession(req, executor, res);
             redirect = '/executor-portal/dashboard';
         } else if (pending.loginKind === 'client') {
             const model = ({ user: User, company: ClientEmployee, agent_staff: AgentEmployee, sub_client: SubAccount })[pending.accountType];
             const account = model ? await model.findOne({ _id: pending.principalId, status: 'active' }).lean() : null;
             if (!account) return res.status(403).json({ success: false, error: 'الحساب موقوف أو غير موجود.' });
-            await completeClientSession(req, account, pending.accountType);
+            await completeClientSession(req, account, pending.accountType, res);
             redirect = resolveClientPostLoginHref(pending.accountType);
         } else {
             return res.status(400).json({ success: false, error: 'نوع جلسة الدخول غير صالح.' });
@@ -1132,6 +1152,7 @@ const createPasswordResetTicket = async (resetRequest) => {
 };
 
 router.get('/login', async (req, res) => {
+    securityControl.ensureDeviceId(req, res);
     if (req.query?.reset === '1') return resetLoginSession(req, res);
     const pendingExecutorMfa = req.session.pendingExecutorMfaLogin;
     if (pendingExecutorMfa?.executorId) {

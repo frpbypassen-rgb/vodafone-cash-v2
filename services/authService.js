@@ -416,7 +416,8 @@ const login = async (username, password, req) => {
             },
             accountClass: 'account',
             allowFirstDevice: true,
-            authenticatorVerified: mfaVerifiedWithCode
+            authenticatorVerified: mfaVerifiedWithCode,
+            verifiedLogin: mfaVerifiedWithCode
         });
         if (!deviceAuthorization.allowed) {
             return {

@@ -4,13 +4,30 @@ const crypto = require('crypto');
 const SecurityDevice = require('../models/SecurityDevice');
 const Admin = require('../models/Admin');
 const securityControl = require('../services/securityControlService');
-const { isPasskeyRequired, isSecurityVerificationRequired } = require('../config/securityPolicy');
+const { isPasskeyRequired, isSecurityVerificationRequired, getEmergencyDeviceBindingBypassState } = require('../config/securityPolicy');
 
 const wantsJson = (req) => Boolean(
     req.xhr
     || req.path.startsWith('/api/')
     || String(req.headers?.accept || '').includes('application/json')
 );
+
+const PUBLIC_SECURITY_PATHS = [
+    '/login',
+    '/logout',
+    '/client/login',
+    '/client/verify',
+    '/executor-portal/login',
+    '/executor-portal/verify',
+    '/security/emergency-access'
+];
+
+const isPublicSecurityPath = (path) => {
+    const normalized = String(path || '').split('?')[0].replace(/\/+$/, '') || '/';
+    return PUBLIC_SECURITY_PATHS.some((prefix) => (
+        normalized === prefix || normalized.startsWith(`${prefix}/`)
+    ));
+};
 
 const endSession = (req, res, status, code, message) => {
     const respond = () => {
@@ -26,11 +43,14 @@ const hashesEqual = (left, right) => {
     return crypto.timingSafeEqual(Buffer.from(left, 'hex'), Buffer.from(right, 'hex'));
 };
 
+const DEVICE_BINDING_MISMATCH_MESSAGE = 'هذه الجلسة غير مرتبطة بالجهاز المصرح به. سجّل الدخول من جديد ببياناتك ورمز التحقق لربط هذا المتصفح.';
+
 const enforceSecuritySession = async (req, res, next) => {
     try {
-        // Login must always remain reachable. A stale session from a deployment
-        // cannot be allowed to redirect this public entry point back to itself.
-        if (req.path === '/login') return next();
+        // Login, OTP verify, and logout must remain reachable. A stale session
+        // from a deployment cannot redirect these public entry points back to
+        // themselves via DEVICE_BINDING_MISMATCH.
+        if (isPublicSecurityPath(req.path)) return next();
         const principal = securityControl.sessionPrincipal(req.session);
         if (!principal) return next();
         if (req.session.emergencyOnly) {
@@ -90,11 +110,22 @@ const enforceSecuritySession = async (req, res, next) => {
         const active = await SecurityDevice.findOne({
             principalType: principal.principalType,
             principalId: principal.principalId,
-            channel: 'web',
             status: 'active'
         }).select('+deviceIdHash');
-        if (!active || !hashesEqual(active.deviceIdHash, deviceHash)) {
-            return endSession(req, res, 403, 'DEVICE_BINDING_MISMATCH', 'هذه الجلسة غير مرتبطة بالجهاز المصرح به.');
+        const bound = Boolean(active && hashesEqual(active.deviceIdHash, deviceHash));
+        if (!bound) {
+            const emergencyDeviceBypass = getEmergencyDeviceBindingBypassState();
+            if (emergencyDeviceBypass.active) {
+                const device = await securityControl.activateDevice({
+                    req,
+                    res,
+                    principal,
+                    approvedBy: 'emergency_device_binding_bypass'
+                });
+                req.securityDevice = device;
+                return next();
+            }
+            return endSession(req, res, 403, 'DEVICE_BINDING_MISMATCH', DEVICE_BINDING_MISMATCH_MESSAGE);
         }
         active.lastSeenAt = new Date();
         active.lastIp = securityControl.requestIp(req);
@@ -213,5 +244,6 @@ module.exports = {
     enforceEmergencyLockdown,
     enforceAdminPermissions,
     protectedMutation,
-    permissionRules
+    permissionRules,
+    isPublicSecurityPath
 };

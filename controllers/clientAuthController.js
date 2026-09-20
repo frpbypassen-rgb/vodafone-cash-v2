@@ -399,7 +399,8 @@ exports.postVerify = async (req, res) => {
             res,
             principal,
             accountClass: 'account',
-            allowFirstDevice: true
+            allowFirstDevice: true,
+            verifiedLogin: true
         });
         if (!authorization.allowed) {
             return res.render('client/verify', { error: authorization.message });
@@ -434,7 +435,7 @@ exports.postVerify = async (req, res) => {
                 ? undefined
                 : (account.preferences && account.preferences.clientTheme) || undefined
         });
-        await securityControl.applySessionSecurity(req, principal, 'account');
+        await securityControl.applySessionSecurity(req, principal, 'account', res);
         delete req.session.pendingSecurityLocation;
         delete req.session.pendingSecurityUsername;
 
