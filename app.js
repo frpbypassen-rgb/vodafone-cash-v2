@@ -58,6 +58,7 @@ const upload = multer({
 });
 
 const { mongoSessionStoreOptions } = require('./config/sessionStore');
+const connectDB = require('./config/database');
 const { initRedis, isRedis } = require('./config/redis');
 const { requireAuth, requireMaster } = require('./middlewares/auth');
 const restrictClientRawUploads = require('./middlewares/restrictClientRawUploads');
