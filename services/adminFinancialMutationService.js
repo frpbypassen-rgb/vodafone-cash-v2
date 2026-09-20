@@ -12,6 +12,7 @@ const {
     requiresMongoTransactions,
     financialTransactionsUnavailableError
 } = require('./walletService');
+const { isAgencyClientScopedTx } = require('./adminAccountVisibilityService');
 
 const appendNote = (current, note) => [current, String(note || '').trim()]
     .filter(Boolean)
@@ -40,6 +41,14 @@ const withOptionalMongoTransaction = async (work) => {
 };
 
 const queryWithSession = (query, session) => (session ? query.session(session) : query);
+
+const loadAdminVisibleTransaction = async (transactionId, session) => {
+    const transaction = await queryWithSession(Transaction.findById(transactionId), session);
+    if (!transaction || isAgencyClientScopedTx(transaction)) {
+        throw new Error('TRANSACTION_NOT_FOUND');
+    }
+    return transaction;
+};
 
 const incrementBalance = async ({ Model, filter, amount, session, modelName }) => {
     if (!amount) return null;
@@ -80,8 +89,7 @@ const adjustOwnerBalance = async ({ transaction, deltaLYD, session }) => {
  * owner's balance in one database transaction.
  */
 const repriceTransaction = async ({ transactionId, newRate, adminName, noteDetail = '' }) => withOptionalMongoTransaction(async (session) => {
-    const transaction = await queryWithSession(Transaction.findById(transactionId), session);
-    if (!transaction) throw new Error('TRANSACTION_NOT_FOUND');
+    const transaction = await loadAdminVisibleTransaction(transactionId, session);
     if (['rejected', 'cancelled_by_admin'].includes(transaction.status)) {
         throw new Error('TRANSACTION_NOT_EDITABLE');
     }
@@ -132,8 +140,7 @@ const editTransactionAmount = async ({
     noteDetail = '',
     createdAt
 }) => withOptionalMongoTransaction(async (session) => {
-    const transaction = await queryWithSession(Transaction.findById(transactionId), session);
-    if (!transaction) throw new Error('TRANSACTION_NOT_FOUND');
+    const transaction = await loadAdminVisibleTransaction(transactionId, session);
     if (['rejected', 'cancelled_by_admin'].includes(transaction.status)) {
         throw new Error('TRANSACTION_NOT_EDITABLE');
     }
@@ -237,8 +244,7 @@ const editTransactionAmount = async ({
 
 /** Reassigns a completed transfer and its executor ledger balances atomically. */
 const reassignTransactionExecutor = async ({ transactionId, newGroupId }) => withOptionalMongoTransaction(async (session) => {
-    const transaction = await queryWithSession(Transaction.findById(transactionId), session);
-    if (!transaction) throw new Error('TRANSACTION_NOT_FOUND');
+    const transaction = await loadAdminVisibleTransaction(transactionId, session);
     if (transaction.status !== 'completed') throw new Error('TRANSACTION_NOT_COMPLETED');
     if (transaction.executorGroupId && String(transaction.executorGroupId) === String(newGroupId)) {
         throw new Error('EXECUTOR_ALREADY_ASSIGNED');

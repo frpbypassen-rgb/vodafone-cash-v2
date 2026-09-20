@@ -3,9 +3,11 @@
 const {
     ADMIN_TX_NAME_SEARCH_FIELDS,
     adminListIncludesAgencyDeposit,
+    adminVisibleTransactionQuery,
     applyAdminTxPrivacy,
     agentOwnsSubAccount,
     buildAdminAccountHistoryQuery,
+    isAdminHiddenPrincipalType,
     isAgencyClientScopedTx
 } = require('../services/adminAccountVisibilityService');
 const { agentOwnsSubAccount: ownershipCheck } = require('../utils/agencyOwnership');
@@ -63,6 +65,13 @@ describe('Admin privacy for agency-scoped clients', () => {
             companyId: 'co-1',
             isSubAccountTx: { $ne: true }
         });
+        expect(adminVisibleTransactionQuery({ tenantId: 't-1' }, { _id: 'tx-agency' })).toEqual({
+            tenantId: 't-1',
+            _id: 'tx-agency',
+            isSubAccountTx: { $ne: true }
+        });
+        expect(isAdminHiddenPrincipalType('sub_client')).toBe(true);
+        expect(isAdminHiddenPrincipalType('client_user')).toBe(false);
     });
 
     test('cross-agency agent still cannot operate on another agency client', () => {
