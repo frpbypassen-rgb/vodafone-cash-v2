@@ -6,7 +6,15 @@ const path = require('path');
 const { execFileSync } = require('child_process');
 const dotenv = require('dotenv');
 
-const scriptPath = path.resolve(__dirname, '..', 'scripts', 'repairProductionEnv.js');
+const ecosystem = require('../ecosystem.config');
+const { PRODUCTION_SECURITY_FLAGS } = require('../config/productionSecurityDefaults');
+const {
+    assertProductionSecurityEnv,
+    isSecurityVerificationRequired,
+    validateProductionSecurityEnv
+} = require('../config/securityPolicy');
+
+const scriptPath = path.resolve(__dirname, '..', 'scripts/repairProductionEnv.js');
 
 const runRepair = (envPath, ...args) => execFileSync(
     process.execPath,
@@ -35,6 +43,9 @@ describe('repairProductionEnv', () => {
             `JWT_REFRESH_SECRET=${reusedSecret}`,
             `SESSION_SECRET=${reusedSecret}`,
             `OTP_SECRET=${reusedSecret}`,
+            'PASSWORD_ONLY_LOGIN_MODE=true',
+            'SECURITY_VERIFICATION_ENFORCEMENT_ENABLED=false',
+            'SECURITY_VERIFICATION_MODE=optional',
             'BYPASS_OTP=true',
             'BYPASS_CLIENT_OTP=true',
             'DISABLE_OTP=true',
@@ -44,7 +55,10 @@ describe('repairProductionEnv', () => {
             'MONGO_TRANSACTIONS_REQUIRED=false',
             'TENANT_ISOLATION_REQUIRED=false',
             'ALLOW_LEGACY_TENANTLESS_RECORDS=true',
-            'ALLOW_LEGACY_TENANT_TOKENS=true'
+            'ALLOW_LEGACY_TENANT_TOKENS=true',
+            'REDIS_ENABLED=false',
+            'REDIS_REQUIRED=false',
+            'MONGO_URI=mongodb://127.0.0.1:27017/ahram'
         ].join('\n'));
 
         const output = runRepair(envPath, '--apply');
@@ -59,11 +73,12 @@ describe('repairProductionEnv', () => {
         expect(new Set(authenticationSecrets).size).toBe(4);
         expect(authenticationSecrets.every((value) => value.length >= 64)).toBe(true);
         expect(repaired.NODE_ENV).toBe('production');
-        expect(repaired.PASSWORD_ONLY_LOGIN_MODE).toBe('true');
-        expect(repaired.SECURITY_VERIFICATION_ENFORCEMENT_ENABLED).toBe('false');
-        expect(repaired.SECURITY_VERIFICATION_MODE).toBe('optional');
+        expect(repaired).toMatchObject(PRODUCTION_SECURITY_FLAGS);
+        expect(repaired.PASSWORD_ONLY_LOGIN_MODE).toBe('false');
+        expect(repaired.SECURITY_VERIFICATION_ENFORCEMENT_ENABLED).toBe('true');
+        expect(repaired.SECURITY_VERIFICATION_MODE).toBe('required');
+        expect(repaired.FORCE_CLIENT_OTP).toBe('true');
         expect(repaired.PASSKEY_REQUIRED).toBe('false');
-        expect(repaired.FORCE_CLIENT_OTP).toBe('false');
         expect(repaired.BYPASS_OTP).toBe('false');
         expect(repaired.BYPASS_CLIENT_OTP).toBe('false');
         expect(repaired.DISABLE_OTP).toBe('false');
@@ -75,10 +90,35 @@ describe('repairProductionEnv', () => {
         expect(repaired.DEFAULT_TENANT_SLUG).toBe('ahram');
         expect(repaired.ALLOW_LEGACY_TENANTLESS_RECORDS).toBe('false');
         expect(repaired.ALLOW_LEGACY_TENANT_TOKENS).toBe('false');
+        expect(repaired.REDIS_ENABLED).toBe('true');
+        expect(repaired.REDIS_REQUIRED).toBe('true');
+        expect(repaired.REDIS_URL).toBe('redis://127.0.0.1:6379');
         expect(repaired.RECEIPT_SHARE_SECRET).toHaveLength(128);
         expect(repaired.TENANT_ROUTING_SECRET).toHaveLength(128);
         expect(output).not.toContain(reusedSecret);
         for (const secret of authenticationSecrets) expect(output).not.toContain(secret);
+    });
+
+    test('repaired env plus PM2 production overlay satisfies assertProductionSecurityEnv', () => {
+        fs.writeFileSync(envPath, [
+            'PASSWORD_ONLY_LOGIN_MODE=true',
+            'SECURITY_VERIFICATION_ENFORCEMENT_ENABLED=false',
+            'MONGO_URI=mongodb://127.0.0.1:27017/ahram',
+            'PUBLIC_APP_URL=https://ahrampay.com',
+            `JWT_SECRET=${'j'.repeat(64)}`,
+            `JWT_REFRESH_SECRET=${'r'.repeat(64)}`,
+            `SESSION_SECRET=${'s'.repeat(64)}`,
+            `OTP_SECRET=${'o'.repeat(64)}`
+        ].join('\n'));
+
+        runRepair(envPath, '--apply');
+        const repaired = dotenv.parse(fs.readFileSync(envPath, 'utf8'));
+        const core = ecosystem.apps.find((app) => app.name === 'Ahram_Core_API');
+        const merged = { ...repaired, ...core.env_production };
+
+        expect(isSecurityVerificationRequired(merged)).toBe(true);
+        expect(validateProductionSecurityEnv(merged).valid).toBe(true);
+        expect(() => assertProductionSecurityEnv(merged)).not.toThrow();
     });
 
     test('preview reports changes without writing the environment file', () => {
@@ -102,7 +142,8 @@ describe('repairProductionEnv', () => {
             ...Object.entries(secrets).map(([key, value]) => `${key}=${value}`),
             'TENANT_MODE=multi',
             'DEFAULT_TENANT_ID=507f1f77bcf86cd799439011',
-            'TENANT_ROOT_DOMAIN=ahrampay.com'
+            'TENANT_ROOT_DOMAIN=ahrampay.com',
+            'REDIS_URL=redis://cache.internal:6379'
         ].join('\n'));
 
         runRepair(envPath, '--apply');
@@ -111,5 +152,7 @@ describe('repairProductionEnv', () => {
         for (const [key, value] of Object.entries(secrets)) expect(repaired[key]).toBe(value);
         expect(repaired.TENANT_MODE).toBe('multi');
         expect(repaired.DEFAULT_TENANT_ID).toBe('507f1f77bcf86cd799439011');
+        expect(repaired.REDIS_URL).toBe('redis://cache.internal:6379');
+        expect(repaired.PASSWORD_ONLY_LOGIN_MODE).toBe('false');
     });
 });
