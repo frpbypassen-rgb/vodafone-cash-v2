@@ -3,7 +3,7 @@
     const currentPage = String(typeof activePage === 'undefined' ? '' : activePage);
     const executorRoleLabel = executorRole === 'manager'
         ? 'مدير تنفيذي'
-        : (executorRole === 'accountant' ? 'محاسب' : (executorRole === 'external' ? 'موظف خارجي' : 'موظف تنفيذ'));
+        : (executorRole === 'accountant' ? 'محاسب' : (executorRole === 'external' ? 'منفّذ خارجي' : 'موظف تنفيذ'));
     const canHandleTasks = executorRole !== 'accountant';
     const canManageEmployees = executorRole === 'manager';
     const canViewDeposits = ['manager', 'accountant', 'external'].includes(executorRole);
@@ -45,7 +45,7 @@
 <div class="container-fluid px-3 px-md-4 pt-3">
     <div class="alert alert-warning alert-dismissible fade show mb-0 rounded-3 border-0 x-notice-warn" role="alert">
         <i class="fa-solid fa-triangle-exclamation me-1"></i>
-        رصيد شركة التنفيذ منخفض (<b><%= Number(emp.groupId.balance || 0).toLocaleString('en-US') %> ج.م</b>). يرجى الإيداع لتجنب توقف العمليات.
+        الرصيد الخاص لشركة التنفيذ منخفض (<b><%= Number(emp.groupId.balance || 0).toLocaleString('en-US') %> ج.م</b>). يرجى الإيداع لتجنب توقف العمليات.
         <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="إغلاق" style="filter: invert(0.7);"></button>
     </div>
 </div>

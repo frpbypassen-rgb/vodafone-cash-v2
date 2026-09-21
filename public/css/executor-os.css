@@ -275,6 +275,8 @@ body.executor-os::before {
 .exo-command-actions {
     display: flex;
     align-items: center;
+    flex-wrap: wrap;
+    justify-content: flex-end;
     gap: 8px;
 }
 
@@ -295,6 +297,12 @@ body.executor-os::before {
 }
 
 .exo-chip { padding: 0 12px; }
+.exo-chip.exo-balance {
+    min-height: 44px;
+    padding: 6px 12px;
+    gap: 6px;
+}
+.exo-chip.exo-balance .exo-balance-short { display: none; }
 .exo-chip.exo-balance strong { font-family: 'JetBrains Mono', 'Cairo', monospace; font-size: 0.82rem; letter-spacing: 0.01em; }
 .exo-chip.exo-balance.is-positive {
     color: var(--executor-green);
@@ -695,8 +703,25 @@ body.executor-os.executor-page-settings .settings-topbar { display: none !import
         padding: 8px 10px;
         border-radius: 20px;
     }
-    .exo-who small,
-    .exo-chip span { display: none; }
+    .exo-who small { display: none; }
+    .exo-chip.exo-balance {
+        flex-direction: column;
+        align-items: flex-start;
+        justify-content: center;
+        min-height: 46px;
+        padding: 5px 9px;
+        gap: 0;
+        line-height: 1.2;
+    }
+    .exo-chip.exo-balance .exo-balance-full { display: none; }
+    .exo-chip.exo-balance .exo-balance-short {
+        display: inline;
+        font-size: 0.62rem;
+        font-weight: 800;
+        color: inherit;
+        opacity: 0.86;
+    }
+    .exo-chip.exo-balance strong { font-size: 0.72rem; }
     .exo-chip { padding: 0 9px; font-size: 0.7rem; }
     .exo-hero { align-items: flex-start; flex-direction: column; }
     body.executor-os .executor-task-data { grid-template-columns: 1fr; }

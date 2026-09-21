@@ -18,14 +18,16 @@
     </div>
     <div class="exo-command-actions">
         <% if (exoShowBalance) { %>
-            <span class="exo-chip exo-balance <%= exoTotal > 0 ? 'is-positive' : '' %>" title="إجمالي الرصيد كما تراه الإدارة">
+            <span id="executorTotalBalance" class="exo-chip exo-balance <%= exoTotal > 0 ? 'is-positive' : '' %>" data-company-balance="total" title="إجمالي الرصيد: الرصيد الخاص + مجموعات الرصيد + المنفذين المنفردين (كما تراه الإدارة).">
                 <i class="fa-solid fa-vault"></i>
-                <span>إجمالي الرصيد</span>
+                <span class="exo-balance-full">إجمالي الرصيد</span>
+                <span class="exo-balance-short">إجمالي</span>
                 <strong dir="ltr"><%= formatEgp(exoTotal) %> ج.م</strong>
             </span>
-            <span id="executorManagerBalance" class="exo-chip exo-balance <%= exoBalanceClass %>" title="الرصيد الخاص المتاح للمدير">
+            <span id="executorManagerBalance" class="exo-chip exo-balance <%= exoBalanceClass %>" data-company-balance="private" title="الرصيد الخاص: رأس مال الشركة المتاح للمدير فقط. تمويل منفّذ خارجي يُخصم من هنا.">
                 <i class="fa-solid fa-wallet"></i>
-                <span>الرصيد الخاص</span>
+                <span class="exo-balance-full">الرصيد الخاص</span>
+                <span class="exo-balance-short">خاص</span>
                 <strong dir="ltr"><%= formatEgp(exoPrivate) %> ج.م</strong>
             </span>
         <% } %>
