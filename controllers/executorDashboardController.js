@@ -19,6 +19,7 @@ const mobileWebParityService = require('../services/mobileWebParityService');
 const mobileWebParityMapper = require('../mappers/mobileWebParityMapper');
 const executorDepositRequestService = require('../services/executorDepositRequestService');
 const { loadPortalLiveTasks } = require('../services/executorLiveTasksService');
+const { getExecutorServiceLabel } = require('../utils/executorServiceCatalog');
 const {
     ExecutorBalancePoolError,
     archivePool,
@@ -117,7 +118,13 @@ exports.getSettings = async (req, res) => {
                 allocatedBalance: Number(overview.company.allocatedBalance || 0)
             }
             : null;
-        return res.render('executor/settings', { emp, overview, showMfaNotice, companyBalances });
+        return res.render('executor/settings', {
+            emp,
+            overview,
+            showMfaNotice,
+            companyBalances,
+            serviceLabel: getExecutorServiceLabel(overview.company?.serviceKey || emp.groupId?.serviceKey)
+        });
     } catch (_) {
         return res.redirect('/executor-portal/dashboard');
     }
