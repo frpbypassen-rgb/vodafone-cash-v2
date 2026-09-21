@@ -24,7 +24,8 @@ const employeeSchema = new mongoose.Schema({
     otpIssuedAt: { type: Date },
     otpAttempts: { type: Number, default: 0 },
     canViewAllReports: { type: Boolean, default: false }, // السماح برؤية جميع تقارير المجموعة
-    balance: { type: Number, default: 0 }, // رصيد الموظف الخارجي
+    balance: { type: Number, default: 0 }, // رصيد الموظف الخارجي الفردي (يُصفَّر عند الانضمام لمجموعة مشتركة)
+    balancePoolId: { type: mongoose.Schema.Types.ObjectId, ref: 'ExecutorBalancePool', default: null },
     tenantId: { type: mongoose.Schema.Types.ObjectId, ref: 'Tenant' },
     archivedAt: { type: Date, default: null },
     archivedBy: { type: String, default: '' }
@@ -33,6 +34,7 @@ const employeeSchema = new mongoose.Schema({
 employeeSchema.index({ webUsername: 1, groupId: 1 }, { unique: true });
 employeeSchema.index({ tenantId: 1 });
 employeeSchema.index({ groupId: 1, archivedAt: 1, role: 1 });
+employeeSchema.index({ balancePoolId: 1, role: 1, archivedAt: 1 });
 
 employeeSchema.pre('save', async function() {
     if (!this.isModified('webPassword') || !this.webPassword) return;

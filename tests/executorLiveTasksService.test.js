@@ -14,6 +14,7 @@ const {
     BUSY_POLL_INTERVAL_SECONDS,
     LIVE_TASK_PROJECTION,
     completedTodayQuery,
+    depositAlertQuery,
     loadPortalLiveTasks,
     pollIntervalSecondsFor
 } = require('../services/executorLiveTasksService');
@@ -103,5 +104,15 @@ describe('executor live-tasks hot path', () => {
     test('poll interval stays short while a live task is in the queue', () => {
         expect(pollIntervalSecondsFor([{ status: 'processing' }])).toBe(BUSY_POLL_INTERVAL_SECONDS);
         expect(pollIntervalSecondsFor([])).toBe(IDLE_POLL_INTERVAL_SECONDS);
+    });
+
+    test('external funding alerts are scoped to the recipient instead of the whole company', () => {
+        const query = depositAlertQuery({ _id: 'ahmed', groupId: 'group-1' }, Date.parse('2026-09-21T10:00:00.000Z'));
+        expect(query.$and[2].$or[0]).toEqual({ operatorId: 'ahmed', transferType: 'external_balance' });
+        expect(query.$and[2].$or[1]).toEqual(expect.objectContaining({
+            transferType: { $ne: 'external_balance' }
+        }));
+        expect(DEP_ALERT_LIMIT).toBeGreaterThan(0);
+        expect(COMPLETED_TODAY_LIMIT).toBeGreaterThan(0);
     });
 });

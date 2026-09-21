@@ -14,17 +14,27 @@ const syncBotBalance = async (botId) => {
     if (!bot) return 0;
     
     let queryFilter = {};
+    // Funding an external executor (or their shared pool) is an internal
+    // allocation. Those rows must not inflate or deflate the company ledger
+    // that admin and syncBotBalance treat as the company total/private split.
+    const excludeInternalAllocation = { transferType: { $ne: 'external_balance' } };
     if (bot.isManagerGroup) {
-        queryFilter = { 
-            $or: [
-                { managerGroupId: bot._id, status: 'completed' }, 
-                { executorGroupId: bot._id, status: { $in: ['deposit', 'deduction'] } } 
+        queryFilter = {
+            $and: [
+                excludeInternalAllocation,
+                {
+                    $or: [
+                        { managerGroupId: bot._id, status: 'completed' },
+                        { executorGroupId: bot._id, status: { $in: ['deposit', 'deduction'] } }
+                    ]
+                }
             ]
         };
     } else {
-        queryFilter = { 
-            executorGroupId: bot._id, 
-            status: { $in: ['completed', 'deposit', 'deduction'] } 
+        queryFilter = {
+            executorGroupId: bot._id,
+            status: { $in: ['completed', 'deposit', 'deduction'] },
+            ...excludeInternalAllocation
         };
     }
 

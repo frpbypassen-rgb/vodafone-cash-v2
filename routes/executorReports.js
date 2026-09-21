@@ -4,6 +4,7 @@ const { invalidateExecutorAuth, loadExecutorEmployee } = require('../services/ex
 const mobileWebParityService = require('../services/mobileWebParityService');
 const mobileWebParityMapper = require('../mappers/mobileWebParityMapper');
 const { generateExecutorReportPdf } = require('../services/reportPdfService');
+const { snapshotCompanyBalances, workingBalanceForEmployee } = require('../services/executorBalancePoolService');
 
 const reportErrorResponse = (res, error) => {
     const messages = {
@@ -56,7 +57,13 @@ const requireExecutorAuth = async (req, res, next) => {
 router.get('/reports', requireExecutorAuth, async (req, res) => {
     try {
         const emp = req.executorEmployee;
-        res.render('executor/reports', { emp });
+        const companyBalances = ['manager', 'accountant'].includes(emp?.role)
+            ? await snapshotCompanyBalances(emp.groupId).catch(() => null)
+            : null;
+        const workingBalance = emp?.role === 'external'
+            ? await workingBalanceForEmployee(emp).catch(() => null)
+            : null;
+        res.render('executor/reports', { emp, companyBalances, workingBalance });
     } catch (_) { res.status(500).send('Error'); }
 });
 

@@ -143,7 +143,18 @@ const loadFundedExecutorBalances = async (ExecutorGroup, source) => {
     const groups = await ExecutorGroup.find(adminVisibleExecutorQuery(source))
         .select('name balance isApiBot isApiGroup isManagerBot isManagerGroup lastApiServiceCredit lastApiBalanceCheckAt updatedAt')
         .lean();
-    return mapFundedExecutorBalances(groups);
+    let allocatedByGroup = new Map();
+    try {
+        const { loadAllocatedByGroupIds } = require('./executorBalancePoolService');
+        allocatedByGroup = await loadAllocatedByGroupIds(groups.map((group) => group._id));
+    } catch (_) {
+        allocatedByGroup = new Map();
+    }
+    return mapFundedExecutorBalances(groups.map((group) => {
+        const allocated = allocatedByGroup.get(String(group._id)) || 0;
+        const isApi = Boolean(group.isApiBot || group.isApiGroup);
+        return isApi ? group : { ...group, balance: (Number(group.balance) || 0) + allocated };
+    }));
 };
 
 const loadCentralLedgerOverview = async ({

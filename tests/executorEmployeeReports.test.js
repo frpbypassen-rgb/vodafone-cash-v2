@@ -270,6 +270,45 @@ describe('executor employee reports', () => {
         ]);
     });
 
+    test('excludes internal external-executor funding from the company deposit ledger', async () => {
+        Employee.findById.mockResolvedValue({
+            _id: 'manager-1',
+            groupId: 'group-1',
+            role: 'manager',
+            name: 'مدير التنفيذ',
+            phone: '0940000000',
+            webUsername: 'manager@ahram.com'
+        });
+        ExecutorGroup.findById.mockReturnValue(leanResult({
+            _id: 'group-1',
+            name: 'شركة التنفيذ',
+            balance: 900
+        }));
+        Transaction.find.mockImplementation(() => ({
+            sort: jest.fn().mockReturnValue(leanResult([
+                {
+                    _id: 'deposit-company', customId: 'DEP-1', status: 'deposit', amount: 300,
+                    createdAt: new Date('2026-08-14T09:00:00.000Z')
+                },
+                {
+                    _id: 'deposit-external', customId: 'EXT-1', status: 'deposit', amount: 1500,
+                    transferType: 'external_balance', operatorId: 'ahmed',
+                    createdAt: new Date('2026-08-14T09:10:00.000Z')
+                }
+            ]))
+        }));
+
+        const report = await getExecutorReports({
+            executorId: 'manager-1',
+            dateType: 'day',
+            dateValue: '2026-08-14'
+        });
+
+        expect(report.deposits.map((item) => item.customId)).toEqual(['DEP-1']);
+        expect(report.financialSummary.additions).toBe(300);
+        expect(report.financialSummary.additions).not.toBe(1800);
+    });
+
     test('keeps pending work out of the successful operations list', async () => {
         Transaction.find.mockImplementation(() => ({
             sort: jest.fn().mockReturnValue(leanResult([

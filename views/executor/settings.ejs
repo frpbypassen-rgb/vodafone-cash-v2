@@ -67,19 +67,24 @@
     </article>
 
     <% const isManager = emp.role === 'manager'; const isOperator = emp.role === 'operator'; const isAccountant = emp.role === 'accountant'; const isExternal = emp.role === 'external'; %>
-    <section class="executor-summary-grid settings-summary-grid <%= isAccountant || isExternal ? 'cols-1' : (isOperator ? 'cols-3' : '') %> mb-3">
+    <section class="executor-summary-grid settings-summary-grid <%= isAccountant || isExternal ? 'cols-2' : (isOperator ? 'cols-3' : '') %> mb-3">
         <% if (overview.permissions?.canViewCompanyBalance) { %>
             <article class="executor-summary-card" style="--summary-color: var(--executor-green)">
+                <span class="summary-icon"><i class="fa-solid fa-vault"></i></span>
+                <small>إجمالي الرصيد</small>
+                <strong dir="ltr"><%= Number(overview.company?.totalBalance ?? overview.company?.balance ?? 0).toLocaleString('en-US', { maximumFractionDigits: 2 }) %> ج.م</strong>
+            </article>
+            <article class="executor-summary-card" style="--summary-color: var(--executor-gold)">
                 <span class="summary-icon"><i class="fa-solid fa-wallet"></i></span>
-                <small>رصيد شركة التنفيذ</small>
-                <strong dir="ltr"><%= Number(overview.company?.balance || 0).toLocaleString('en-US', { maximumFractionDigits: 2 }) %> ج.م</strong>
+                <small>الرصيد الخاص</small>
+                <strong dir="ltr"><%= Number(overview.company?.privateBalance ?? overview.company?.balance ?? 0).toLocaleString('en-US', { maximumFractionDigits: 2 }) %> ج.م</strong>
             </article>
         <% } %>
-        <% if (isExternal && typeof emp.balance !== 'undefined' && emp.balance !== null) { %>
+        <% if (isExternal) { %>
             <article class="executor-summary-card" style="--summary-color: var(--executor-green)">
                 <span class="summary-icon"><i class="fa-solid fa-wallet"></i></span>
-                <small>رصيدك الشخصي</small>
-                <strong dir="ltr"><%= Number(emp.balance || 0).toLocaleString('en-US', { maximumFractionDigits: 2 }) %> ج.م</strong>
+                <small><%= overview.executor?.balancePool ? `رصيد مجموعة «${overview.executor.balancePool.name}»` : 'رصيدك الشخصي' %></small>
+                <strong dir="ltr"><%= Number(overview.executor?.workingBalance ?? emp.balance ?? 0).toLocaleString('en-US', { maximumFractionDigits: 2 }) %> ج.م</strong>
             </article>
         <% } %>
         <% if (!isAccountant) { %>

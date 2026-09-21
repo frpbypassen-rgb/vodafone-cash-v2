@@ -23,6 +23,12 @@ const { executeBalanceTransfer } = require('./balanceTransferService');
 const { resolveAccountByCode, normalizeAccountCode } = require('./accountCodeService');
 const { logAction } = require('./auditService');
 const { acquireLock, releaseLock } = require('./lockService');
+const {
+    decorateExternalEmployee,
+    detachEmployeeOnArchive,
+    snapshotCompanyBalances,
+    workingBalanceForEmployee
+} = require('./executorBalancePoolService');
 const { sanitizeStatementTransaction } = require('../utils/accountStatementPrivacy');
 const { presentClientVisibleReceipts } = require('./clientReceiptService');
 const { pricingFromTransaction, roundMoney } = require('../utils/agencyPricing');
@@ -1395,9 +1401,11 @@ async function getExecutorReports({ executorId, dateType, dateValue, dateFrom, d
             sort: { createdAt: -1 }
         }
     );
-    const deposits = currentTransactions.filter((tx) =>
-        ['deposit', 'deduction', 'deposit_pending'].includes(tx.status)
-    );
+    const deposits = currentTransactions.filter((tx) => {
+        if (!['deposit', 'deduction', 'deposit_pending'].includes(tx.status)) return false;
+        if (isExternal) return true;
+        return tx.transferType !== 'external_balance';
+    });
     const reportTransactions = currentTransactions.filter((tx) => !deposits.includes(tx));
     // Keep each report section mutually exclusive. The mobile UI presents
     // pending work above the successful-operations list, so including it in
@@ -1459,15 +1467,19 @@ async function getExecutorReports({ executorId, dateType, dateValue, dateFrom, d
     };
 
     if (isExternal) {
+        const working = await workingBalanceForEmployee(reportOwner);
+        const closingBalance = Number(working.balance || reportOwner.balance || 0);
         personalReport.deposits = deposits;
         personalReport.totalDeposits = additions;
+        personalReport.workingBalance = closingBalance;
+        personalReport.balancePool = working.pool;
         personalReport.financialSummary = {
-            openingBalance: Number(reportOwner.balance || 0) - (additions - deductions),
+            openingBalance: closingBalance - (additions - deductions),
             additions,
             deductions,
             executedAmount: Number(totals.totalEGP || 0),
             netMovement: additions - deductions - Number(totals.totalEGP || 0),
-            closingBalance: Number(reportOwner.balance || 0)
+            closingBalance
         };
     }
 
@@ -1595,19 +1607,30 @@ async function getExecutorOverview({ executorId, tenantId }) {
     ]);
     const isManager = emp.role === 'manager';
     const isAccountant = emp.role === 'accountant';
+    const companyBalances = (isManager || isAccountant)
+        ? await snapshotCompanyBalances(group._id).catch(() => null)
+        : null;
+    const workingBalance = emp.role === 'external'
+        ? await workingBalanceForEmployee(emp).catch(() => null)
+        : null;
 
     return {
         company: {
             id: String(group._id),
             name: group.name,
             serviceKey: group.serviceKey || null,
-            balance: isManager || isAccountant ? Number(group.balance || 0) : null
+            balance: companyBalances ? companyBalances.privateBalance : (isManager || isAccountant ? Number(group.balance || 0) : null),
+            privateBalance: companyBalances ? companyBalances.privateBalance : null,
+            totalBalance: companyBalances ? companyBalances.totalBalance : null,
+            allocatedBalance: companyBalances ? companyBalances.allocatedBalance : null
         },
         executor: {
             id: String(emp._id),
             name: emp.name,
             phone: emp.phone || '',
-            role: emp.role || 'operator'
+            role: emp.role || 'operator',
+            workingBalance: workingBalance ? workingBalance.balance : (emp.role === 'external' ? Number(emp.balance || 0) : null),
+            balancePool: workingBalance?.pool || null
         },
         permissions: {
             canHandleTasks: !isAccountant,
@@ -1779,7 +1802,8 @@ async function getEmployeesWorkspace({ executorId, tenantId }) {
     );
     if (employeeTenantScope) activeEmployeeQuery.tenantId = employeeTenantScope;
 
-    const [employees, todayTransactions, currentTasks, devices] = await Promise.all([
+    const ExecutorBalancePool = require('../models/ExecutorBalancePool');
+    const [employees, todayTransactions, currentTasks, devices, pools] = await Promise.all([
         Employee.find(activeEmployeeQuery).sort({ role: 1, createdAt: -1 }).lean(),
         Transaction.find(
             buildExecutorReportQuery(groupQuery, executorReportDateQuery(today.start, today.end))
@@ -1791,8 +1815,13 @@ async function getEmployeesWorkspace({ executorId, tenantId }) {
             accountType: 'executor',
             executorGroupId: manager.groupId,
             enabled: true
-        }).lean()
+        }).lean(),
+        ExecutorBalancePool.find({
+            groupId: manager.groupId,
+            $or: [{ archivedAt: null }, { archivedAt: { $exists: false } }]
+        }).select('_id name balance').lean()
     ]);
+    const poolsById = new Map(pools.map((pool) => [String(pool._id), pool]));
 
     const metricsByEmployee = new Map();
     const taskByEmployee = new Map();
@@ -1871,7 +1900,7 @@ async function getEmployeesWorkspace({ executorId, tenantId }) {
             && now - new Date(lastSeenAt).getTime() <= EMPLOYEE_ONLINE_WINDOW_MS;
 
         return {
-            ...employee,
+            ...decorateExternalEmployee(employee, poolsById),
             metrics: {
                 completedCount: rawMetrics.completedCount,
                 cancelledCount: rawMetrics.cancelledCount,
@@ -2024,15 +2053,17 @@ async function deleteEmployee({ executorId, targetId }) {
     const emp = await Employee.findById(targetId);
     if (!emp || String(emp.groupId) !== String(manager.groupId)) throw new Error('NOT_FOUND');
     if (emp.role === 'manager') throw new Error('FORBIDDEN');
+    const detached = await detachEmployeeOnArchive(emp);
 
-    emp.status = 'suspended';
-    emp.archivedAt = new Date();
-    emp.archivedBy = String(manager._id);
-    emp.refreshToken = undefined;
-    await emp.save();
+    detached.status = 'suspended';
+    detached.archivedAt = new Date();
+    detached.archivedBy = String(manager._id);
+    detached.refreshToken = undefined;
+    detached.balancePoolId = null;
+    await detached.save();
 
     await MobilePushDevice.updateMany(
-        { accountType: 'executor', accountId: String(emp._id) },
+        { accountType: 'executor', accountId: String(detached._id) },
         { $set: { enabled: false } }
     );
 
@@ -2041,10 +2072,10 @@ async function deleteEmployee({ executorId, targetId }) {
         performedById: manager._id,
         performedByModel: 'Employee',
         performedByName: manager.name,
-        targetId: emp._id,
+        targetId: detached._id,
         targetModel: 'Employee',
         result: 'ناجح',
-        metadata: { username: emp.webUsername, name: emp.name, role: emp.role }
+        metadata: { username: detached.webUsername, name: detached.name, role: detached.role }
     });
     return true;
 }

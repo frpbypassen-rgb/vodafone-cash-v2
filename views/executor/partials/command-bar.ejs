@@ -2,9 +2,11 @@
     const exoName = String(emp?.name || 'منفذ');
     const exoInitial = exoName.trim().charAt(0) || 'أ';
     const exoShowBalance = typeof showBalance === 'undefined' ? (emp?.role === 'manager') : showBalance;
-    const exoBalance = Number(emp?.groupId?.balance || 0);
-    const exoBalanceClass = exoBalance > 0 ? 'is-positive' : (exoBalance < 0 ? 'is-negative' : 'is-zero');
-    const exoBalanceText = exoBalance.toLocaleString('en-US', { maximumFractionDigits: 2 });
+    const snapshot = typeof companyBalances === 'object' && companyBalances ? companyBalances : null;
+    const exoPrivate = snapshot ? Number(snapshot.privateBalance || 0) : Number(emp?.groupId?.balance || 0);
+    const exoTotal = snapshot ? Number(snapshot.totalBalance || 0) : exoPrivate;
+    const exoBalanceClass = exoPrivate > 0 ? 'is-positive' : (exoPrivate < 0 ? 'is-negative' : 'is-zero');
+    const formatEgp = (value) => Number(value || 0).toLocaleString('en-US', { maximumFractionDigits: 2 });
 %>
 <header class="exo-command">
     <div class="exo-who">
@@ -16,10 +18,15 @@
     </div>
     <div class="exo-command-actions">
         <% if (exoShowBalance) { %>
-            <span id="executorManagerBalance" class="exo-chip exo-balance <%= exoBalanceClass %>" title="الرصيد الحالي">
+            <span class="exo-chip exo-balance <%= exoTotal > 0 ? 'is-positive' : '' %>" title="إجمالي الرصيد كما تراه الإدارة">
+                <i class="fa-solid fa-vault"></i>
+                <span>إجمالي الرصيد</span>
+                <strong dir="ltr"><%= formatEgp(exoTotal) %> ج.م</strong>
+            </span>
+            <span id="executorManagerBalance" class="exo-chip exo-balance <%= exoBalanceClass %>" title="الرصيد الخاص المتاح للمدير">
                 <i class="fa-solid fa-wallet"></i>
-                <span>الرصيد الحالي</span>
-                <strong dir="ltr"><%= exoBalanceText %> ج.م</strong>
+                <span>الرصيد الخاص</span>
+                <strong dir="ltr"><%= formatEgp(exoPrivate) %> ج.م</strong>
             </span>
         <% } %>
         <%- typeof extras === 'string' ? extras : '' %>
