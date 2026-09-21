@@ -773,23 +773,29 @@
             </span>
             <i class="fa-solid fa-angle-left menu-chevron"></i>
         </a>
+        <a href="/transactions/operations" class="<%= typeof activePage !== 'undefined' && activePage === 'transactions' ? 'active' : '' %>">
+            <span class="menu-link-content">
+                <i class="fa-solid fa-list-check"></i> <span class="menu-link-text">العمليات</span>
+            </span>
+            <i class="fa-solid fa-angle-left menu-chevron"></i>
+        </a>
         <a href="/financial-movements" class="<%= typeof activePage !== 'undefined' && activePage === 'financial_movements' ? 'active' : '' %>">
             <span class="menu-link-content">
                 <i class="fa-solid fa-scale-balanced"></i> <span class="menu-link-text">السجل المركزي (الحركات المالية)</span>
             </span>
             <i class="fa-solid fa-angle-left menu-chevron"></i>
         </a>
-        <div class="operations-menu <%= typeof activePage !== 'undefined' && String(activePage).startsWith('transactions') ? 'is-open' : '' %>">
+        <% const operationsSubmenuOpen = typeof activePage !== 'undefined' && String(activePage).startsWith('transactions') && activePage !== 'transactions'; %>
+        <div class="operations-menu <%= operationsSubmenuOpen ? 'is-open' : '' %>">
             <div class="operations-menu-header">
                 <a href="/transactions/live" class="transaction-workspace-link <%= typeof activePage !== 'undefined' && activePage === 'transactions_live' ? 'active' : '' %>">
                     <span class="menu-link-content"><i class="fa-solid fa-wave-square"></i> <span class="menu-link-text">متابعة العمليات</span></span>
                 </a>
-                <button type="button" class="operations-menu-toggle" aria-label="فتح قائمة متابعة العمليات" aria-expanded="<%= typeof activePage !== 'undefined' && String(activePage).startsWith('transactions') ? 'true' : 'false' %>" onclick="toggleOperationsMenu(this)"><i class="fa-solid fa-angle-left operations-chevron"></i></button>
+                <button type="button" class="operations-menu-toggle" aria-label="فتح قائمة متابعة العمليات" aria-expanded="<%= operationsSubmenuOpen ? 'true' : 'false' %>" onclick="toggleOperationsMenu(this)"><i class="fa-solid fa-angle-left operations-chevron"></i></button>
             </div>
             <div class="operations-submenu">
                 <a href="/transactions/live" class="<%= typeof activePage !== 'undefined' && activePage === 'transactions_live' ? 'active' : '' %>"><i class="fa-solid fa-wave-square"></i> المراقبة الحية</a>
                 <a href="/transactions" class="<%= typeof activePage !== 'undefined' && activePage === 'transactions_central' ? 'active' : '' %>"><i class="fa-solid fa-book"></i> السجل المركزي</a>
-                <a href="/transactions/operations" class="<%= typeof activePage !== 'undefined' && activePage === 'transactions' ? 'active' : '' %>"><i class="fa-solid fa-list-check"></i> العمليات</a>
                 <a href="/transactions/movements" class="<%= typeof activePage !== 'undefined' && activePage === 'transactions_movements' ? 'active' : '' %>"><i class="fa-solid fa-arrow-right-arrow-left"></i> سجل الحركة</a>
                 <a href="/transactions/search" class="<%= typeof activePage !== 'undefined' && activePage === 'transactions_search' ? 'active' : '' %>"><i class="fa-solid fa-magnifying-glass"></i> البحث الشامل</a>
             </div>

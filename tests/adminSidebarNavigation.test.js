@@ -75,10 +75,31 @@ describe('admin sidebar navigation', () => {
         const menuStart = source.indexOf('class="sidebar-menu');
         const monitoringBlock = source.slice(menuStart, source.indexOf('إدارة الحسابات'));
         expect(monitoringBlock.indexOf('/financial-movements')).toBeGreaterThan(-1);
+        expect(monitoringBlock.indexOf('/transactions/operations')).toBeLessThan(monitoringBlock.indexOf('/financial-movements'));
         expect(monitoringBlock.indexOf('/financial-movements')).toBeLessThan(monitoringBlock.indexOf('/transactions/live'));
         expect(monitoringBlock).toMatch(/السجل المركزي \(الحركات المالية\)/);
         expect(monitoringBlock).toMatch(/المراقبة الحية/);
         expect(monitoringBlock).toMatch(/التقارير الشاملة/);
+    });
+
+    test('places the operations page directly under the dashboard', () => {
+        const html = renderSidebar({ activePage: 'dashboard', role: 'admin' });
+        const menuStart = html.indexOf('class="sidebar-menu');
+        const monitoringBlock = html.slice(menuStart, html.indexOf('إدارة الحسابات'));
+        const anchors = [...monitoringBlock.matchAll(/<a\b[^>]*href="([^"]+)"[^>]*>/g)].map((match) => match[1]);
+        expect(anchors.slice(0, 4)).toEqual([
+            '/',
+            '/transactions/operations',
+            '/financial-movements',
+            '/transactions/live'
+        ]);
+        const dashboardAt = monitoringBlock.indexOf('لوحة القيادة');
+        const operationsAt = monitoringBlock.indexOf('href="/transactions/operations"');
+        expect(dashboardAt).toBeGreaterThan(-1);
+        expect(operationsAt).toBeGreaterThan(dashboardAt);
+        expect(monitoringBlock.slice(dashboardAt, operationsAt)).not.toMatch(/href="/);
+        expect(monitoringBlock).toMatch(/menu-link-text">العمليات</);
+        expect(monitoringBlock.match(/href="\/transactions\/operations"/g)).toHaveLength(1);
     });
 
     test('lists every admin page that exists as a staff route', () => {
