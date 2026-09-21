@@ -29,6 +29,7 @@ import 'customer/portal/customer_portal_scope.dart';
 import 'customer/portal/customer_shell.dart';
 import 'customer/transfer_step_bar.dart';
 import 'executor_alert_service.dart';
+import 'executor_execution_policy.dart';
 import 'executor_notification_center.dart';
 import 'executor_ui.dart';
 import 'external_link.dart';
@@ -15794,6 +15795,7 @@ class _ExecutorTasksScreenState extends State<ExecutorTasksScreen>
   bool _actionBusy = false;
   bool _urgentAlarmPlaying = false;
   bool _manualTaskRoutingEnabled = false;
+  Map<String, dynamic>? _executionPolicy;
   String? _syncError;
   Map<String, dynamic>? _overview;
   DateTime? _lastUpdated;
@@ -15955,6 +15957,11 @@ class _ExecutorTasksScreenState extends State<ExecutorTasksScreen>
       final rawAlerts = response['alerts'];
       final manualTaskRoutingEnabled =
           response['manualTaskRoutingEnabled'] == true;
+      final executionPolicy = response['executionPolicy'] is Map
+          ? Map<String, dynamic>.from(response['executionPolicy'] as Map)
+          : (_overview?['executionPolicy'] is Map
+                ? Map<String, dynamic>.from(_overview!['executionPolicy'] as Map)
+                : _executionPolicy);
       final urgentAlerts = rawAlerts is List
           ? rawAlerts
                 .whereType<Map>()
@@ -15982,6 +15989,7 @@ class _ExecutorTasksScreenState extends State<ExecutorTasksScreen>
           _tasks = tasks;
           _urgentAlerts = urgentAlerts;
           _manualTaskRoutingEnabled = manualTaskRoutingEnabled;
+          _executionPolicy = executionPolicy;
           _lastUpdated = DateTime.now();
           _syncError = null;
         });
@@ -16163,7 +16171,11 @@ class _ExecutorTasksScreenState extends State<ExecutorTasksScreen>
     final success = await showDialog<bool>(
       context: context,
       builder: (context) =>
-          CompleteTaskDialog(api: widget.controller.api, task: task),
+          CompleteTaskDialog(
+            api: widget.controller.api,
+            task: task,
+            executionPolicy: _executionPolicy,
+          ),
     );
     if (success == true) await _load();
   }
@@ -18681,6 +18693,8 @@ class _ExecutorSettingsScreenState extends State<ExecutorSettingsScreen> {
   bool _preferenceBusy = false;
   bool _previewBusy = false;
   Map<String, dynamic>? _mfaStatus;
+  Map<String, dynamic>? _companyExecutionPolicy;
+  bool _policyBusy = false;
 
   @override
   void initState() {
@@ -18730,6 +18744,11 @@ class _ExecutorSettingsScreenState extends State<ExecutorSettingsScreen> {
         setState(() {
           _overview = Map<String, dynamic>.from(raw);
           _manualTaskRoutingEnabled = manualTaskRoutingEnabled;
+          _companyExecutionPolicy = raw['companyExecutionPolicy'] is Map
+              ? Map<String, dynamic>.from(raw['companyExecutionPolicy'] as Map)
+              : (raw['executionPolicy'] is Map
+                    ? Map<String, dynamic>.from(raw['executionPolicy'] as Map)
+                    : _companyExecutionPolicy);
           _pushStatus = pushStatus;
           _pushStatusError = pushStatusError;
           _localPushDiagnostics = localPushDiagnostics;
@@ -18926,6 +18945,34 @@ class _ExecutorSettingsScreenState extends State<ExecutorSettingsScreen> {
       if (mounted) showSnack(context, error.message, error: true);
     } finally {
       if (mounted) setState(() => _routingBusy = false);
+    }
+  }
+
+  Future<void> _editCompanyExecutionPolicy() async {
+    final payload = await showDialog<Map<String, dynamic>>(
+      context: context,
+      builder: (context) => ExecutorExecutionPolicyEditorDialog(
+        title: 'صلاحيات التنفيذ للشركة',
+        policy: ExecutorExecutionPolicy.fromJson(_companyExecutionPolicy),
+      ),
+    );
+    if (payload == null) return;
+    setState(() => _policyBusy = true);
+    try {
+      final response = await widget.controller.api.setExecutorExecutionPolicy(
+        payload,
+      );
+      if (!mounted) return;
+      setState(() {
+        _companyExecutionPolicy = response['executionPolicy'] is Map
+            ? Map<String, dynamic>.from(response['executionPolicy'] as Map)
+            : payload;
+      });
+      showSnack(context, 'تم حفظ صلاحيات التنفيذ للشركة.');
+    } on ApiFailure catch (error) {
+      if (mounted) showSnack(context, error.message, error: true);
+    } finally {
+      if (mounted) setState(() => _policyBusy = false);
     }
   }
 
@@ -19337,6 +19384,40 @@ class _ExecutorSettingsScreenState extends State<ExecutorSettingsScreen> {
               ),
             ),
           ),
+          const SizedBox(height: 18),
+          ExecutorSurface(
+            accent: ExecutorUiColors.cobalt,
+            child: ListTile(
+              contentPadding: EdgeInsets.zero,
+              enabled: !_policyBusy,
+              onTap: _policyBusy ? null : _editCompanyExecutionPolicy,
+              leading: const ExecutorMetalIcon(
+                icon: Icons.shield_outlined,
+                color: ExecutorUiColors.cobalt,
+                size: 38,
+                selected: true,
+              ),
+              title: const Text(
+                'صلاحيات التنفيذ',
+                style: TextStyle(fontWeight: FontWeight.w900),
+              ),
+              subtitle: Text(() {
+                final policy = ExecutorExecutionPolicy.fromJson(
+                  _companyExecutionPolicy,
+                );
+                final ttl = policy.sessionTtlEnabled
+                    ? 'جلسة ${((policy.sessionTtlSeconds ?? 28800) / 3600).round()}س'
+                    : 'بدون تسجيل خروج للخمول';
+                return 'أرقام ${policy.lengthsHint} · ${policy.proofRequired ? 'صورة إجبارية' : 'صورة اختيارية'} · ${policy.maxConcurrentDevices} جهاز · $ttl';
+              }()),
+              trailing: _policyBusy
+                  ? const SizedBox.square(
+                      dimension: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.chevron_left),
+            ),
+          ),
         ],
         if (metrics is Map) ...[
           const SizedBox(height: 18),
@@ -19388,6 +19469,7 @@ class _ExecutorEmployeesScreenState extends State<ExecutorEmployeesScreen>
     with WidgetsBindingObserver {
   List<Map<String, dynamic>> _employees = <Map<String, dynamic>>[];
   Map<String, dynamic> _summary = <String, dynamic>{};
+  Map<String, dynamic>? _companyExecutionPolicy;
   final TextEditingController _searchController = TextEditingController();
   Object? _error;
   bool _loading = true;
@@ -19449,6 +19531,11 @@ class _ExecutorEmployeesScreenState extends State<ExecutorEmployeesScreen>
           _summary = rawSummary is Map
               ? Map<String, dynamic>.from(rawSummary)
               : <String, dynamic>{};
+          _companyExecutionPolicy = workspace['companyExecutionPolicy'] is Map
+              ? Map<String, dynamic>.from(
+                  workspace['companyExecutionPolicy'] as Map,
+                )
+              : _companyExecutionPolicy;
           _syncError = null;
           _lastUpdated = DateTime.now();
         });
@@ -19576,6 +19663,36 @@ class _ExecutorEmployeesScreenState extends State<ExecutorEmployeesScreen>
     }
   }
 
+  Future<void> _editExecutionPolicy(Map<String, dynamic> employee) async {
+    final id = '${employee['id']}';
+    final payload = await showDialog<Map<String, dynamic>>(
+      context: context,
+      builder: (context) => ExecutorExecutionPolicyEditorDialog(
+        title: 'صلاحيات ${employee['name'] ?? 'المنفذ'}',
+        allowInherit: true,
+        policy: ExecutorExecutionPolicy.fromJson(
+          employee['executionPolicy'] is Map
+              ? Map<String, dynamic>.from(employee['executionPolicy'] as Map)
+              : _companyExecutionPolicy,
+        ),
+      ),
+    );
+    if (payload == null) return;
+    setState(() => _busyId = id);
+    try {
+      await widget.controller.api.setExecutorEmployeeExecutionPolicy(
+        id: id,
+        policy: payload,
+      );
+      if (mounted) showSnack(context, 'تم حفظ صلاحيات المنفذ.');
+      await _load();
+    } on ApiFailure catch (error) {
+      if (mounted) showSnack(context, error.message, error: true);
+    } finally {
+      if (mounted) setState(() => _busyId = null);
+    }
+  }
+
   Future<void> _toggleStatus(Map<String, dynamic> employee) async {
     final id = '${employee['id']}';
     setState(() => _busyId = id);
@@ -19670,6 +19787,9 @@ class _ExecutorEmployeesScreenState extends State<ExecutorEmployeesScreen>
           onResetPassword: () => _resetPassword(employee),
           onToggleStatus: () => _toggleStatus(employee),
           onToggleReports: () => _toggleReportsPermission(employee),
+          onExecutionPolicy: employee['role'] == 'manager'
+              ? null
+              : () => _editExecutionPolicy(employee),
           onReport: () => _openReport(employee),
         ),
       ),
@@ -20482,6 +20602,7 @@ class ExecutorEmployeeDetailsScreen extends StatelessWidget {
     required this.onToggleStatus,
     required this.onToggleReports,
     required this.onReport,
+    this.onExecutionPolicy,
   });
 
   final Map<String, dynamic> employee;
@@ -20491,6 +20612,7 @@ class ExecutorEmployeeDetailsScreen extends StatelessWidget {
   final VoidCallback onToggleStatus;
   final VoidCallback onToggleReports;
   final VoidCallback onReport;
+  final VoidCallback? onExecutionPolicy;
 
   String get _roleLabel => switch ('${employee['role']}') {
     'manager' => 'مدير تنفيذي',
@@ -20796,6 +20918,14 @@ class ExecutorEmployeeDetailsScreen extends StatelessWidget {
                   icon: const Icon(Icons.key_outlined),
                   label: const Text('تغيير كلمة المرور'),
                 ),
+                if (onExecutionPolicy != null) ...[
+                  const SizedBox(height: 9),
+                  OutlinedButton.icon(
+                    onPressed: busy ? null : onExecutionPolicy,
+                    icon: const Icon(Icons.shield_outlined),
+                    label: const Text('صلاحيات التنفيذ'),
+                  ),
+                ],
                 const SizedBox(height: 9),
                 OutlinedButton.icon(
                   onPressed: busy ? null : onToggleReports,
@@ -20999,6 +21129,174 @@ class _ExecutorEmployeeEditorDialogState
           onPressed: _save,
           child: Text(_editing ? 'حفظ التعديل' : 'إنشاء الحساب'),
         ),
+      ],
+    );
+  }
+}
+
+class ExecutorExecutionPolicyEditorDialog extends StatefulWidget {
+  const ExecutorExecutionPolicyEditorDialog({
+    super.key,
+    required this.policy,
+    this.title = 'صلاحيات التنفيذ',
+    this.allowInherit = false,
+  });
+
+  final ExecutorExecutionPolicy policy;
+  final String title;
+  final bool allowInherit;
+
+  @override
+  State<ExecutorExecutionPolicyEditorDialog> createState() =>
+      _ExecutorExecutionPolicyEditorDialogState();
+}
+
+class _ExecutorExecutionPolicyEditorDialogState
+    extends State<ExecutorExecutionPolicyEditorDialog> {
+  late bool _inherit;
+  late String _phoneMode;
+  late bool _proofRequired;
+  late final TextEditingController _devices;
+  late bool _sessionTtlEnabled;
+  late final TextEditingController _hours;
+
+  @override
+  void initState() {
+    super.initState();
+    _inherit = widget.allowInherit && widget.policy.inheritsCompanyPolicy;
+    _phoneMode = widget.policy.phoneLengthMode;
+    _proofRequired = widget.policy.proofRequired;
+    _devices = TextEditingController(
+      text: '${widget.policy.maxConcurrentDevices}',
+    );
+    _sessionTtlEnabled = widget.policy.sessionTtlEnabled;
+    _hours = TextEditingController(
+      text:
+          '${((widget.policy.sessionTtlSeconds ?? 28800) / 3600).round().clamp(1, 720)}',
+    );
+  }
+
+  @override
+  void dispose() {
+    _devices.dispose();
+    _hours.dispose();
+    super.dispose();
+  }
+
+  void _save() {
+    final devices = int.tryParse(_devices.text.trim()) ?? 1;
+    final hours = int.tryParse(_hours.text.trim()) ?? 8;
+    final policy = ExecutorExecutionPolicy(
+      proofRequired: _proofRequired,
+      allowedPhoneLengths: _phoneMode == 'all'
+          ? const <int>[3, 4, 11]
+          : <int>[int.tryParse(_phoneMode) ?? 11],
+      phoneLengthMode: _phoneMode,
+      maxConcurrentDevices: devices,
+      sessionTtlEnabled: _sessionTtlEnabled,
+      sessionTtlSeconds: hours * 3600,
+    );
+    Navigator.pop(
+      context,
+      policy.toSavePayload(inheritCompanyPolicy: widget.allowInherit && _inherit),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: Text(widget.title),
+      content: SizedBox(
+        width: 420,
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              if (widget.allowInherit)
+                SwitchListTile.adaptive(
+                  contentPadding: EdgeInsets.zero,
+                  value: _inherit,
+                  onChanged: (value) => setState(() => _inherit = value),
+                  title: const Text('استخدام إعداد الشركة'),
+                ),
+              if (!_inherit) ...[
+                const Text(
+                  'أرقام إثبات المرسل',
+                  style: TextStyle(fontWeight: FontWeight.w900),
+                ),
+                RadioGroup<String>(
+                  groupValue: _phoneMode,
+                  onChanged: (value) =>
+                      setState(() => _phoneMode = value ?? 'all'),
+                  child: const Column(
+                    children: [
+                      RadioListTile<String>(
+                        contentPadding: EdgeInsets.zero,
+                        value: '3',
+                        title: Text('3 أرقام فقط'),
+                      ),
+                      RadioListTile<String>(
+                        contentPadding: EdgeInsets.zero,
+                        value: '4',
+                        title: Text('4 أرقام فقط'),
+                      ),
+                      RadioListTile<String>(
+                        contentPadding: EdgeInsets.zero,
+                        value: '11',
+                        title: Text('11 رقماً فقط'),
+                      ),
+                      RadioListTile<String>(
+                        contentPadding: EdgeInsets.zero,
+                        value: 'all',
+                        title: Text('الثلاثة مسموحة'),
+                      ),
+                    ],
+                  ),
+                ),
+                SwitchListTile.adaptive(
+                  contentPadding: EdgeInsets.zero,
+                  value: _proofRequired,
+                  onChanged: (value) => setState(() => _proofRequired = value),
+                  title: const Text('صورة الإثبات إجبارية'),
+                ),
+                TextField(
+                  controller: _devices,
+                  keyboardType: TextInputType.number,
+                  decoration: const InputDecoration(
+                    labelText: 'أقصى أجهزة متزامنة',
+                    helperText: '1 = الدخول الجديد يُخرج الجهاز السابق.',
+                  ),
+                ),
+                SwitchListTile.adaptive(
+                  contentPadding: EdgeInsets.zero,
+                  value: _sessionTtlEnabled,
+                  onChanged: (value) =>
+                      setState(() => _sessionTtlEnabled = value),
+                  title: const Text('حد مدة الجلسة'),
+                  subtitle: const Text(
+                    'عند الإيقاف تبقى الجلسة مفتوحة ويُحدَّث التوكن تلقائياً.',
+                  ),
+                ),
+                TextField(
+                  controller: _hours,
+                  enabled: _sessionTtlEnabled,
+                  keyboardType: TextInputType.number,
+                  decoration: const InputDecoration(
+                    labelText: 'مدة الجلسة (ساعات)',
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('إلغاء'),
+        ),
+        FilledButton(onPressed: _save, child: const Text('حفظ الصلاحيات')),
       ],
     );
   }
@@ -21654,10 +21952,16 @@ class _CancelTaskDialogState extends State<CancelTaskDialog> {
 }
 
 class CompleteTaskDialog extends StatefulWidget {
-  const CompleteTaskDialog({super.key, required this.api, required this.task});
+  const CompleteTaskDialog({
+    super.key,
+    required this.api,
+    required this.task,
+    this.executionPolicy,
+  });
 
   final MobileApi api;
   final Map<String, dynamic> task;
+  final Map<String, dynamic>? executionPolicy;
 
   @override
   State<CompleteTaskDialog> createState() => _CompleteTaskDialogState();
@@ -21671,6 +21975,9 @@ class _CompleteTaskDialogState extends State<CompleteTaskDialog> {
   final List<TextEditingController> _senderAmounts = <TextEditingController>[];
   bool _busy = false;
   String? _error;
+
+  ExecutorExecutionPolicy get _policy =>
+      ExecutorExecutionPolicy.fromJson(widget.executionPolicy);
 
   @override
   void dispose() {
@@ -21745,15 +22052,27 @@ class _CompleteTaskDialogState extends State<CompleteTaskDialog> {
 
   Future<void> _complete() async {
     final executionNumber = _execution.text.trim();
-    if (!RegExp(r'^\d{11}$').hasMatch(executionNumber)) {
-      setState(() => _error = 'رقم التنفيذ إجباري ويجب أن يتكون من 11 رقماً.');
+    final executionError = _policy.validateDigits(
+      executionNumber,
+      isSplit: false,
+    );
+    if (executionError != null) {
+      setState(() => _error = executionError);
+      return;
+    }
+    if (_policy.proofRequired && _images.isEmpty) {
+      setState(() => _error = 'إرفاق صورة الإثبات إجباري لهذا المنفذ.');
       return;
     }
     final senderEntries = <Map<String, dynamic>>[];
     for (var index = 0; index < _senderPhones.length; index++) {
       final phone = _senderPhones[index].text.trim();
-      if (!RegExp(r'^\d{11}$').hasMatch(phone)) {
-        setState(() => _error = 'كل رقم مرسل يجب أن يتكون من 11 رقماً.');
+      final phoneError = _policy.validateDigits(
+        phone,
+        isSplit: _senderPhones.length > 1,
+      );
+      if (phoneError != null) {
+        setState(() => _error = phoneError);
         return;
       }
       final entry = <String, dynamic>{'phone': phone};
@@ -21845,11 +22164,11 @@ class _CompleteTaskDialogState extends State<CompleteTaskDialog> {
                 controller: _execution,
                 textDirection: ui.TextDirection.ltr,
                 keyboardType: TextInputType.number,
-                maxLength: 11,
+                maxLength: _policy.maxDigitLength,
                 inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                decoration: const InputDecoration(
-                  labelText: 'رقم التنفيذ (11 رقماً) *',
-                  prefixIcon: Icon(Icons.tag_outlined),
+                decoration: InputDecoration(
+                  labelText: _policy.executionNumberLabel,
+                  prefixIcon: const Icon(Icons.tag_outlined),
                 ),
               ),
               const SizedBox(height: 12),
@@ -21885,12 +22204,12 @@ class _CompleteTaskDialogState extends State<CompleteTaskDialog> {
                               controller: _senderPhones[index],
                               textDirection: ui.TextDirection.ltr,
                               keyboardType: TextInputType.phone,
-                              maxLength: 11,
+                              maxLength: _policy.maxDigitLength,
                               inputFormatters: [
                                 FilteringTextInputFormatter.digitsOnly,
                               ],
                               decoration: InputDecoration(
-                                labelText: 'رقم المرسل ${index + 1}',
+                                labelText: _policy.senderPhoneLabel(index),
                                 prefixIcon: const Icon(
                                   Icons.phone_android_outlined,
                                 ),
@@ -21935,6 +22254,7 @@ class _CompleteTaskDialogState extends State<CompleteTaskDialog> {
               const SizedBox(height: 4),
               ExecutorProofAttachments(
                 images: _images,
+                requiredProof: _policy.proofRequired,
                 onPick: _pick,
                 onRemove: (index) => setState(() => _images.removeAt(index)),
               ),
@@ -21966,11 +22286,13 @@ class ExecutorProofAttachments extends StatelessWidget {
     required this.images,
     required this.onPick,
     required this.onRemove,
+    this.requiredProof = false,
   });
 
   final List<Uint8List> images;
   final VoidCallback onPick;
   final ValueChanged<int> onRemove;
+  final bool requiredProof;
 
   @override
   Widget build(BuildContext context) {
@@ -21986,7 +22308,9 @@ class ExecutorProofAttachments extends StatelessWidget {
           icon: const Icon(Icons.add_photo_alternate_outlined),
           label: Text(
             images.isEmpty
-                ? 'إرفاق صور إثبات (اختياري)'
+                ? (requiredProof
+                      ? 'إرفاق صور إثبات (إجباري)'
+                      : 'إرفاق صور إثبات (اختياري)')
                 : 'إضافة صورة (${images.length}/5)',
           ),
         ),
@@ -22032,7 +22356,9 @@ class ExecutorProofAttachments extends StatelessWidget {
         ],
         const SizedBox(height: 6),
         Text(
-          'يمكن إنهاء العملية دون صورة؛ سيُنشأ إيصال المنظومة تلقائياً.',
+          requiredProof
+              ? 'يجب إرفاق صورة إثبات واحدة على الأقل قبل إتمام العملية.'
+              : 'يمكن إنهاء العملية دون صورة؛ سيُنشأ إيصال المنظومة تلقائياً.',
           style: Theme.of(context).textTheme.bodySmall,
         ),
       ],

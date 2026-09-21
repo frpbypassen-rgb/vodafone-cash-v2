@@ -17,6 +17,8 @@ const {
 } = require('../services/executorTaskRoutingService');
 const mobileWebParityService = require('../services/mobileWebParityService');
 const mobileWebParityMapper = require('../mappers/mobileWebParityMapper');
+const { clearExecutorAuthCache, invalidateExecutorAuth } = require('../services/executorAuthCache');
+const { readExecutorManualPolicy, toPublicExecutionPolicy } = require('../utils/executorManualPolicy');
 const executorDepositRequestService = require('../services/executorDepositRequestService');
 const { loadPortalLiveTasks } = require('../services/executorLiveTasksService');
 const { getExecutorServiceLabel } = require('../utils/executorServiceCatalog');
@@ -99,7 +101,13 @@ exports.getDashboard = async (req, res) => {
     const workingBalance = emp?.role === 'external'
         ? await workingBalanceForEmployee(emp).catch(() => null)
         : null;
-    res.render('executor/dashboard', { emp, showMfaNotice, companyBalances, workingBalance });
+    res.render('executor/dashboard', {
+        emp,
+        showMfaNotice,
+        companyBalances,
+        workingBalance,
+        executionPolicy: toPublicExecutionPolicy(readExecutorManualPolicy(emp?.groupId, emp))
+    });
 };
 
 exports.getSettings = async (req, res) => {
@@ -225,7 +233,8 @@ exports.getEmployeesList = async (req, res) => {
                 ...(pools?.balances || {})
             },
             pools: pools?.pools || [],
-            soloExternals: pools?.solos || []
+            soloExternals: pools?.solos || [],
+            companyExecutionPolicy: workspace.companyExecutionPolicy || null
         });
     } catch (e) { res.status(500).json({ success: false, error: e.message }); }
 };
@@ -485,6 +494,35 @@ exports.postTaskRoutingMode = async (req, res) => {
         return res.json({ success: true, manualTaskRoutingEnabled: group.manualTaskRoutingEnabled });
     } catch (_) {
         return res.status(500).json({ success: false, error: 'تعذر تحديث وضع التوجيه.' });
+    }
+};
+
+exports.postExecutionPolicy = async (req, res) => {
+    try {
+        const policy = await mobileWebParityService.updateCompanyExecutionPolicy({
+            executorId: req.managerEmp._id,
+            body: req.body
+        });
+        clearExecutorAuthCache();
+        return res.json({ success: true, executionPolicy: policy });
+    } catch (error) {
+        const status = error.message === 'NOT_FOUND' ? 404 : (error.message === 'FORBIDDEN' ? 403 : 400);
+        return res.status(status).json({ success: false, error: 'تعذر حفظ صلاحيات التنفيذ.' });
+    }
+};
+
+exports.postEmployeeExecutionPolicy = async (req, res) => {
+    try {
+        const result = await mobileWebParityService.updateEmployeeExecutionPolicy({
+            executorId: req.managerEmp._id,
+            targetId: req.params.id,
+            body: req.body
+        });
+        invalidateExecutorAuth(req.params.id);
+        return res.json({ success: true, ...result });
+    } catch (error) {
+        const status = error.message === 'NOT_FOUND' ? 404 : (error.message === 'FORBIDDEN' ? 403 : 400);
+        return res.status(status).json({ success: false, error: 'تعذر حفظ صلاحيات المنفذ.' });
     }
 };
 

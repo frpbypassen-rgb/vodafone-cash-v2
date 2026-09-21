@@ -24,6 +24,12 @@ const MobileDeviceSession = require('../models/MobileDeviceSession');
 const { buildContext } = require('../mappers/mobileAuthMapper');
 const accountMfaService = require('./accountMfaService');
 const securityControl = require('./securityControlService');
+const ExecutorGroup = require('../models/ExecutorGroup');
+const { enforceExecutorDeviceLimit } = require('./executorDeviceSessionService');
+const {
+    absoluteSessionExpiresAtForPolicy,
+    readExecutorManualPolicy
+} = require('../utils/executorManualPolicy');
 
 const requestedAccessTokenTtl = Number(process.env.ACCESS_TOKEN_TTL_SECONDS);
 const ACCESS_TOKEN_EXPIRY_SECONDS = Number.isFinite(requestedAccessTokenTtl)
@@ -51,6 +57,16 @@ const tokenMatchesTenant = (decoded, req) => {
     if (!currentTenantId) return process.env.NODE_ENV !== 'production';
     if (!tokenTenantId) return allowsLegacyTenantTokens();
     return currentTenantId === tokenTenantId;
+};
+const isTrackedMobileAccountType = (accountType) => (
+    ['client_user', 'sub_client', 'executor'].includes(accountType)
+);
+const loadExecutorLoginPolicy = async (account) => {
+    let group = account?.groupId;
+    if (!group || typeof group !== 'object' || group.manualProofRequired === undefined) {
+        group = await ExecutorGroup.findById(account?.groupId).lean();
+    }
+    return readExecutorManualPolicy(group, account);
 };
 const findTenantScopedById = (Model, id, req) => {
     const tenantId = requestTenantId(req);
@@ -432,9 +448,17 @@ const login = async (username, password, req) => {
     resetFailedAttempts(username);
 
     const isCustomerMobileSession = ['client_user', 'sub_client'].includes(accountType);
-    const mobileSessionId = isCustomerMobileSession ? crypto.randomUUID() : null;
+    const isExecutorMobileSession = accountType === 'executor';
+    const isTrackedMobileSession = isCustomerMobileSession || isExecutorMobileSession;
+    const mobileSessionId = isTrackedMobileSession ? crypto.randomUUID() : null;
     const tenantId = requestTenantId(req) || cleanId(account.tenantId) || null;
-    const absoluteSessionExpiresAt = Date.now() + (SECURITY_SESSION_TTL_SECONDS * 1000);
+    const executorPolicy = isExecutorMobileSession ? await loadExecutorLoginPolicy(account) : null;
+    const absoluteSessionExpiresAt = isExecutorMobileSession
+        ? absoluteSessionExpiresAtForPolicy(executorPolicy)
+        : Date.now() + (SECURITY_SESSION_TTL_SECONDS * 1000);
+    const refreshExpiresIn = isExecutorMobileSession && !executorPolicy?.sessionTtlEnabled
+        ? REFRESH_TOKEN_EXPIRY_SECONDS
+        : Math.max(60, Math.floor((absoluteSessionExpiresAt - Date.now()) / 1000) || SECURITY_SESSION_TTL_SECONDS);
     const accessToken = jwt.sign(
         {
             userId: account._id,
@@ -463,21 +487,23 @@ const login = async (username, password, req) => {
         { expiresIn: `${REFRESH_TOKEN_EXPIRY_SECONDS}s` }
     );
 
-    // One app session is allowed per account. The web session is tracked in a
-    // separate security channel and remains active.
-    if (isCustomerMobileSession) {
+    // Customers keep a single app session. Executors honor company/employee
+    // maxConcurrentDevices (1 = new login kicks the previous device).
+    if (isTrackedMobileSession) {
         const device = extractDeviceInfo(req);
-        await MobileDeviceSession.updateMany(
-            { accountId: account._id, accountType, active: true },
-            {
-                $set: {
-                    active: false,
-                    revokedAt: new Date(),
-                    revokeReason: 'replaced_by_new_app_session',
-                    lastSeenAt: new Date()
+        if (isCustomerMobileSession) {
+            await MobileDeviceSession.updateMany(
+                { accountId: account._id, accountType, active: true },
+                {
+                    $set: {
+                        active: false,
+                        revokedAt: new Date(),
+                        revokeReason: 'replaced_by_new_app_session',
+                        lastSeenAt: new Date()
+                    }
                 }
-            }
-        );
+            );
+        }
         await MobileDeviceSession.create({
             accountId: account._id,
             accountType,
@@ -488,6 +514,14 @@ const login = async (username, password, req) => {
             userAgent: device.userAgent,
             deviceType: 'هاتف'
         });
+        if (isExecutorMobileSession) {
+            await enforceExecutorDeviceLimit({
+                account,
+                group: account.groupId,
+                keepSessionId: mobileSessionId
+            });
+            await userRepo.updateRefreshToken(account._id, accountType, refreshToken);
+        }
     } else {
         await userRepo.updateRefreshToken(account._id, accountType, refreshToken);
     }
@@ -628,7 +662,7 @@ const login = async (username, password, req) => {
         token: accessToken,
         refreshToken,
         expiresIn: ACCESS_TOKEN_EXPIRY_SECONDS,
-        refreshExpiresIn: SECURITY_SESSION_TTL_SECONDS,
+        refreshExpiresIn,
         id: String(account._id),
         accountType,
         name: account.name,
@@ -689,7 +723,7 @@ const refreshAccessToken = async (refreshToken, req) => {
                         success: false,
                         statusCode: 403,
                         code: 'SECURITY_SESSION_EXPIRED',
-                        message: 'انتهت الجلسة الآمنة ذات 12 ساعة. سجل الدخول مرة أخرى.'
+                        message: 'انتهت الجلسة. سجل الدخول مرة أخرى.'
                     });
                 }
                 if (!tokenMatchesTenant(decoded, req)) {
@@ -710,9 +744,9 @@ const refreshAccessToken = async (refreshToken, req) => {
                 }
                 const account = await userRepo.findById(userId, accountType, req.tenant ? req.tenant._id : null);
 
-                const isCustomerMobileSession = ['client_user', 'sub_client'].includes(accountType);
+                const isTrackedMobileSession = isTrackedMobileAccountType(accountType);
                 const presentedTokenHash = hashToken(refreshToken);
-                const deviceSession = isCustomerMobileSession && decoded.sessionId
+                const deviceSession = isTrackedMobileSession && decoded.sessionId
                     ? await MobileDeviceSession.findOne({
                         accountId: userId,
                         accountType,
@@ -721,7 +755,7 @@ const refreshAccessToken = async (refreshToken, req) => {
                         active: true
                     })
                     : null;
-                const refreshTokenMatches = isCustomerMobileSession && decoded.sessionId
+                const refreshTokenMatches = isTrackedMobileSession && decoded.sessionId
                     ? Boolean(deviceSession && deviceSession.refreshTokenHash === presentedTokenHash)
                     : account && account.refreshToken === refreshToken;
 
@@ -757,10 +791,14 @@ const refreshAccessToken = async (refreshToken, req) => {
 
                 const telegramId = account.telegramId;
                 const executorGroupId = accountType === 'executor' ? (account.groupId ? account.groupId._id : (account.botId ? account.botId._id : null)) : null;
-                const nextSessionId = decoded.sessionId || (isCustomerMobileSession ? crypto.randomUUID() : null);
+                const nextSessionId = decoded.sessionId || (isTrackedMobileSession ? crypto.randomUUID() : null);
                 const tenantId = requestTenantId(req) || cleanId(decoded.tenantId) || cleanId(account.tenantId) || null;
-                const absoluteSessionExpiresAt = Number(decoded.absoluteSessionExpiresAt || 0)
-                    || (Date.now() + SECURITY_SESSION_TTL_SECONDS * 1000);
+                const storedAbsoluteExpiry = Number(decoded.absoluteSessionExpiresAt || 0);
+                const absoluteSessionExpiresAt = storedAbsoluteExpiry > 0
+                    ? storedAbsoluteExpiry
+                    : (accountType === 'executor'
+                        ? 0
+                        : (Date.now() + SECURITY_SESSION_TTL_SECONDS * 1000));
                 const nextRefreshToken = jwt.sign(
                     {
                         userId: account._id,
@@ -809,7 +847,10 @@ const refreshAccessToken = async (refreshToken, req) => {
                             message: 'تم إبطال الجلسة'
                         });
                     }
-                } else if (isCustomerMobileSession) {
+                    if (accountType === 'executor') {
+                        await userRepo.updateRefreshToken(account._id, accountType, nextRefreshToken);
+                    }
+                } else if (isTrackedMobileSession) {
                     // One-time migration for refresh tokens issued before per-device sessions.
                     const device = extractDeviceInfo(req);
                     await MobileDeviceSession.create({
@@ -824,7 +865,11 @@ const refreshAccessToken = async (refreshToken, req) => {
                         rotationCounter: 1,
                         lastRotatedAt: new Date()
                     });
-                    await userRepo.clearRefreshToken(account._id, accountType);
+                    if (accountType === 'executor') {
+                        await userRepo.updateRefreshToken(account._id, accountType, nextRefreshToken);
+                    } else {
+                        await userRepo.clearRefreshToken(account._id, accountType);
+                    }
                 } else {
                     const rotation = await userRepo.rotateRefreshToken(
                         account._id,
@@ -857,7 +902,9 @@ const refreshAccessToken = async (refreshToken, req) => {
                     token: newAccessToken,
                     refreshToken: nextRefreshToken,
                     expiresIn: ACCESS_TOKEN_EXPIRY_SECONDS,
-                    refreshExpiresIn: Math.max(0, Math.floor((absoluteSessionExpiresAt - Date.now()) / 1000)),
+                    refreshExpiresIn: absoluteSessionExpiresAt
+                        ? Math.max(0, Math.floor((absoluteSessionExpiresAt - Date.now()) / 1000))
+                        : REFRESH_TOKEN_EXPIRY_SECONDS,
                     serverTime: new Date().toISOString()
                 });
             } catch (e) {
@@ -878,12 +925,13 @@ const refreshAccessToken = async (refreshToken, req) => {
  * @param {string} accountType
  */
 const logout = async (userId, accountType, sessionId = null) => {
-    if (['client_user', 'sub_client'].includes(accountType) && sessionId) {
+    if (isTrackedMobileAccountType(accountType) && sessionId) {
         await MobileDeviceSession.updateOne(
             { accountId: userId, accountType, sessionId },
             { $set: { active: false, lastSeenAt: new Date() } }
         );
-    } else {
+    }
+    if (accountType === 'executor' || !sessionId) {
         await userRepo.clearRefreshToken(userId, accountType);
     }
     return {

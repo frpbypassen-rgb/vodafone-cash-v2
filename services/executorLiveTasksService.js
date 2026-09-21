@@ -4,6 +4,7 @@ const Transaction = require('../models/Transaction');
 const { taskOwnershipFilter } = require('./executorTaskRoutingService');
 const { toExecutorPortalTaskDto } = require('../utils/executorTaskPrivacy');
 const { systemDayStart, systemDayEnd, systemDateKey } = require('../config/systemTime');
+const { readExecutorManualPolicy, toPublicExecutionPolicy } = require('../utils/executorManualPolicy');
 
 const COMPLETED_TODAY_LIMIT = 60;
 const DEP_ALERT_LIMIT = 20;
@@ -203,6 +204,7 @@ const loadPortalLiveTasks = async ({ emp, includeCompletedList = true, now = new
         completedTodaySummary,
         manualTaskRoutingEnabled: Boolean(emp.groupId?.manualTaskRoutingEnabled),
         canRouteTasks: emp.role === 'manager',
+        executionPolicy: toPublicExecutionPolicy(readExecutorManualPolicy(emp.groupId, emp)),
         pollIntervalSeconds: pollIntervalSecondsFor(liveTasks)
     };
 };
@@ -217,6 +219,7 @@ const loadMobileLiveTasks = async ({ emp, tenantId = null } = {}) => {
     return {
         tasks: list,
         alerts: list.filter((tx) => tx.emergencyAlert),
+        executionPolicy: toPublicExecutionPolicy(readExecutorManualPolicy(emp.groupId, emp)),
         pollIntervalSeconds: pollIntervalSecondsFor(list)
     };
 };

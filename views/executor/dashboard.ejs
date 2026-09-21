@@ -345,9 +345,9 @@
     const taskTypeMeta = (transferType) => executorTaskTypeMeta[String(transferType || '').trim().toLowerCase()]
         || { name: 'عملية تنفيذ', short: 'تنفيذ', icon: 'fa-bolt' };
     const executorManualPolicy = {
-        proofRequired: <%= emp.groupId?.manualProofRequired ? 'true' : 'false' %>,
-        allowedPhoneLengths: <%= JSON.stringify(Array.isArray(emp.groupId?.manualAllowedPhoneLengths) ? emp.groupId.manualAllowedPhoneLengths : [3, 4, 11]) %>,
-        splitRequiresFullPhone: <%= emp.groupId?.manualSplitRequiresFullPhone !== false ? 'true' : 'false' %>
+        proofRequired: <%= (typeof executionPolicy !== 'undefined' ? executionPolicy.proofRequired : emp.groupId?.manualProofRequired) ? 'true' : 'false' %>,
+        allowedPhoneLengths: <%= JSON.stringify((typeof executionPolicy !== 'undefined' && Array.isArray(executionPolicy.allowedPhoneLengths)) ? executionPolicy.allowedPhoneLengths : (Array.isArray(emp.groupId?.manualAllowedPhoneLengths) ? emp.groupId.manualAllowedPhoneLengths : [3, 4, 11])) %>,
+        splitRequiresFullPhone: <%= (typeof executionPolicy !== 'undefined' ? executionPolicy.splitRequiresFullPhone !== false : emp.groupId?.manualSplitRequiresFullPhone !== false) ? 'true' : 'false' %>
     };
 </script>
 
@@ -958,6 +958,16 @@
             }
             manualTaskRoutingEnabled = Boolean(data.manualTaskRoutingEnabled);
             renderManualRoutingControl();
+            if (data.executionPolicy) {
+                executorManualPolicy = {
+                    proofRequired: Boolean(data.executionPolicy.proofRequired),
+                    allowedPhoneLengths: Array.isArray(data.executionPolicy.allowedPhoneLengths)
+                        ? data.executionPolicy.allowedPhoneLengths
+                        : (executorManualPolicy.allowedPhoneLengths || [3, 4, 11]),
+                    splitRequiresFullPhone: data.executionPolicy.splitRequiresFullPhone !== false
+                };
+                if (typeof updateProofRequirement === 'function') updateProofRequirement();
+            }
             
             // 📊 تحديث إحصائيات المعاملات المنجزة اليوم في صفحة حسابي
             if (data.completedToday) {

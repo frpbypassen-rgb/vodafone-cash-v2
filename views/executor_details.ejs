@@ -250,23 +250,44 @@
                                             </div>
                                         </div>
                                         <div class="col-12">
-                                            <div class="fw-bold small mb-2">أطوال رقم الهاتف المسموحة (اختر واحداً أو أكثر)</div>
+                                            <div class="fw-bold small mb-2">أرقام إثبات المرسل</div>
                                             <div class="d-flex flex-wrap gap-3">
                                                 <% const allowedLengths = Array.isArray(bot.manualAllowedPhoneLengths) ? bot.manualAllowedPhoneLengths : [3,4,11]; %>
+                                                <% const phoneMode = allowedLengths.length === 1 ? String(allowedLengths[0]) : 'all'; %>
                                                 <div class="form-check">
-                                                    <input class="form-check-input" type="checkbox" id="allowPhone3" name="allowPhone3" <%= allowedLengths.includes(3) ? 'checked' : '' %>>
-                                                    <label class="form-check-label fw-bold small" for="allowPhone3">3 أرقام</label>
+                                                    <input class="form-check-input" type="radio" id="phoneLength3" name="phoneLengthMode" value="3" <%= phoneMode === '3' ? 'checked' : '' %>>
+                                                    <label class="form-check-label fw-bold small" for="phoneLength3">3 أرقام فقط</label>
                                                 </div>
                                                 <div class="form-check">
-                                                    <input class="form-check-input" type="checkbox" id="allowPhone4" name="allowPhone4" <%= allowedLengths.includes(4) ? 'checked' : '' %>>
-                                                    <label class="form-check-label fw-bold small" for="allowPhone4">4 أرقام</label>
+                                                    <input class="form-check-input" type="radio" id="phoneLength4" name="phoneLengthMode" value="4" <%= phoneMode === '4' ? 'checked' : '' %>>
+                                                    <label class="form-check-label fw-bold small" for="phoneLength4">4 أرقام فقط</label>
                                                 </div>
                                                 <div class="form-check">
-                                                    <input class="form-check-input" type="checkbox" id="allowPhone11" name="allowPhone11" <%= allowedLengths.includes(11) ? 'checked' : '' %>>
-                                                    <label class="form-check-label fw-bold small" for="allowPhone11">11 رقم</label>
+                                                    <input class="form-check-input" type="radio" id="phoneLength11" name="phoneLengthMode" value="11" <%= phoneMode === '11' ? 'checked' : '' %>>
+                                                    <label class="form-check-label fw-bold small" for="phoneLength11">11 رقماً فقط</label>
+                                                </div>
+                                                <div class="form-check">
+                                                    <input class="form-check-input" type="radio" id="phoneLengthAll" name="phoneLengthMode" value="all" <%= phoneMode === 'all' ? 'checked' : '' %>>
+                                                    <label class="form-check-label fw-bold small" for="phoneLengthAll">الثلاثة مسموحة (3 أو 4 أو 11)</label>
                                                 </div>
                                             </div>
-                                            <small class="text-muted d-block mt-1">إذا اخترت أكثر من طول، يسمح للمنفذ باستخدام أي طول من المحدد فقط.</small>
+                                        </div>
+                                        <div class="col-md-4">
+                                            <label class="form-label fw-bold small" for="maxConcurrentDevices">أقصى أجهزة متزامنة</label>
+                                            <input class="form-control" type="number" min="1" max="20" id="maxConcurrentDevices" name="maxConcurrentDevices" value="<%= Number(bot.maxConcurrentDevices || 1) %>">
+                                            <small class="text-muted d-block mt-1">1 = الدخول الجديد يُخرج الجهاز السابق.</small>
+                                        </div>
+                                        <div class="col-md-4">
+                                            <div class="form-check form-switch mt-4">
+                                                <input class="form-check-input" type="checkbox" role="switch" id="sessionTtlEnabled" name="sessionTtlEnabled" <%= bot.sessionTtlEnabled ? 'checked' : '' %>>
+                                                <label class="form-check-label fw-bold small" for="sessionTtlEnabled">حد مدة الجلسة</label>
+                                            </div>
+                                            <small class="text-muted d-block">عند الإيقاف تبقى الجلسة مفتوحة ويُحدَّث التوكن تلقائياً.</small>
+                                        </div>
+                                        <div class="col-md-4">
+                                            <label class="form-label fw-bold small" for="sessionTtlHours">مدة الجلسة (ساعات)</label>
+                                            <input class="form-control" type="number" min="1" max="720" id="sessionTtlHours" name="sessionTtlHours" value="<%= Math.max(1, Math.round(Number(bot.sessionTtlSeconds || 28800) / 3600)) %>" <%= bot.sessionTtlEnabled ? '' : 'disabled' %>>
+                                            <small class="text-muted d-block mt-1">عند تفعيل الحد تُغلق الجلسة بعد هذه المدة. عند الإيقاف لا يوجد تسجيل خروج بسبب الخمول.</small>
                                         </div>
                                         <div class="col-12 d-grid d-md-flex justify-content-md-end">
                                             <button type="submit" class="btn btn-primary fw-bold"><i class="fa-solid fa-floppy-disk me-1"></i> حفظ الصلاحيات</button>
@@ -411,6 +432,34 @@
     }
 
     function confirmToggle() {
+        const switchEl = document.getElementById('cyberSwitch');
+        const isCurrentlyActive = switchEl.classList.contains('active');
+        const actionText = isCurrentlyActive ? 'إيقاف وتعطيل' : 'تشغيل وتفعيل';
+        const actionColor = isCurrentlyActive ? '#ef4444' : '#10b981';
+
+        Swal.fire({
+            title: `تأكيد ${actionText} البوت؟`,
+            text: isCurrentlyActive ? "لن يستقبل البوت أي عمليات وسيتم إرسال إشعار للمنفذين بتوقف عملهم." : "سيعود البوت للعمل واستقبال العمليات وسيتم إشعار المنفذين.",
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: actionColor,
+            cancelButtonColor: '#64748b',
+            confirmButtonText: `نعم، ${actionText}`,
+            cancelButtonText: 'تراجع',
+            customClass: { popup: 'rounded-4 bg-glass' }
+        }).then((result) => {
+            if (result.isConfirmed) {
+                switchEl.classList.toggle('active');
+                document.getElementById('statusText').innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> جاري...';
+                document.getElementById('toggleForm').submit();
+            }
+        });
+    }
+
+    document.getElementById('sessionTtlEnabled')?.addEventListener('change', (event) => {
+        const hours = document.getElementById('sessionTtlHours');
+        if (hours) hours.disabled = !event.currentTarget.checked;
+    });
         const switchEl = document.getElementById('cyberSwitch');
         const isCurrentlyActive = switchEl.classList.contains('active');
         const actionText = isCurrentlyActive ? 'إيقاف وتعطيل' : 'تشغيل وتفعيل';

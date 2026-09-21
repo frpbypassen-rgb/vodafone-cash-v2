@@ -354,7 +354,7 @@ exports.postCompleteTask = async (req, res) => {
             return res.status(401).json({ success: false, error: 'حساب المنفذ غير مفعل.' });
         }
 
-        const manualPolicy = readExecutorManualPolicy(emp.groupId);
+        const manualPolicy = readExecutorManualPolicy(emp.groupId, emp);
         const tx = await findOwnedAcceptedExecutorTask({
             transactionId: req.params.id,
             executor: emp
@@ -376,7 +376,8 @@ exports.postCompleteTask = async (req, res) => {
                 requestedSenderEntries,
                 senderPhone: req.body.executionNumber ?? req.body.senderPhone,
                 operationAmount: tx.amount,
-                group: emp.groupId
+                group: emp.groupId,
+                policy: manualPolicy
             });
         } catch (error) {
             if (error instanceof ExecutorSenderEntriesError) {

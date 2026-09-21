@@ -26,6 +26,14 @@ const employeeSchema = new mongoose.Schema({
     canViewAllReports: { type: Boolean, default: false }, // السماح برؤية جميع تقارير المجموعة
     balance: { type: Number, default: 0 }, // رصيد الموظف الخارجي الفردي (يُصفَّر عند الانضمام لمجموعة مشتركة)
     balancePoolId: { type: mongoose.Schema.Types.ObjectId, ref: 'ExecutorBalancePool', default: null },
+    executionPolicyOverride: {
+        proofRequired: { type: Boolean, default: undefined },
+        allowedPhoneLengths: { type: [Number], default: undefined },
+        maxConcurrentDevices: { type: Number, min: 1, max: 20, default: undefined },
+        sessionTtlEnabled: { type: Boolean, default: undefined },
+        sessionTtlSeconds: { type: Number, min: 0, default: undefined }
+    },
+    sessionVersion: { type: Number, default: 0 },
     tenantId: { type: mongoose.Schema.Types.ObjectId, ref: 'Tenant' },
     archivedAt: { type: Date, default: null },
     archivedBy: { type: String, default: '' }
