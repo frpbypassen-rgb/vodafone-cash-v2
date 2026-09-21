@@ -31,6 +31,7 @@ import 'customer/transfer_step_bar.dart';
 import 'executor_alert_service.dart';
 import 'executor_execution_policy.dart';
 import 'executor_quick_execute.dart';
+import 'executor_task_sla.dart';
 import 'executor_notification_center.dart';
 import 'executor_ui.dart';
 import 'external_link.dart';
@@ -24970,6 +24971,12 @@ class ExecutorTaskTile extends StatelessWidget {
                 ],
               ),
             ),
+            if (isManager && routingState == 'pending_with_assignee') ...[
+              const SizedBox(height: 8),
+              _StuckAssigneeSlaHint(
+                assignedExecutorAt: task['assignedExecutorAt'],
+              ),
+            ],
           ],
           if (takenByAnother) ...[
             const Divider(height: 22),
@@ -25019,6 +25026,7 @@ class ExecutorTaskTile extends StatelessWidget {
               width: double.infinity,
               child: FilledButton.icon(
                 onPressed: busy || acceptBlocked ? null : onAccept,
+                style: FilledButton.styleFrom(minimumSize: const Size(0, 52)),
                 icon: const Icon(Icons.task_alt_outlined),
                 label: Text(
                   acceptBlocked
@@ -25035,6 +25043,7 @@ class ExecutorTaskTile extends StatelessWidget {
                 Expanded(
                   child: FilledButton.icon(
                     onPressed: busy ? null : onComplete,
+                    style: FilledButton.styleFrom(minimumSize: const Size(0, 52)),
                     icon: const Icon(Icons.task_alt_outlined),
                     label: const Text('تم التنفيذ'),
                   ),
@@ -25102,6 +25111,67 @@ class ExecutorTaskTile extends StatelessWidget {
   }
 }
 
+class _StuckAssigneeSlaHint extends StatefulWidget {
+  const _StuckAssigneeSlaHint({this.assignedExecutorAt});
+
+  final Object? assignedExecutorAt;
+
+  @override
+  State<_StuckAssigneeSlaHint> createState() => _StuckAssigneeSlaHintState();
+}
+
+class _StuckAssigneeSlaHintState extends State<_StuckAssigneeSlaHint> {
+  Timer? _ticker;
+
+  @override
+  void initState() {
+    super.initState();
+    _ticker = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (mounted) setState(() {});
+    });
+  }
+
+  @override
+  void dispose() {
+    _ticker?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final hint = stuckAssigneeSlaHint(
+      routingState: 'pending_with_assignee',
+      assignedExecutorAt: widget.assignedExecutorAt,
+    );
+    if (hint == null) return const SizedBox.shrink();
+    final colors = Theme.of(context).colorScheme;
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF59E0B).withValues(alpha: 0.14),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.hourglass_bottom, color: Color(0xFFB45309)),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              hint,
+              style: TextStyle(
+                color: colors.onSurface,
+                fontWeight: FontWeight.w800,
+                fontSize: 13,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _TaskDataLine extends StatelessWidget {
   const _TaskDataLine({
     required this.icon,
@@ -25126,7 +25196,7 @@ class _TaskDataLine extends StatelessWidget {
       onTap: onCopy,
       borderRadius: BorderRadius.circular(8),
       child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 3),
+        padding: const EdgeInsets.symmetric(vertical: 10),
         child: Row(
           children: [
             Icon(icon, size: 20, color: colors.onSurfaceVariant),

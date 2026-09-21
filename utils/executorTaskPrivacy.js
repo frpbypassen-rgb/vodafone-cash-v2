@@ -77,6 +77,27 @@ const buildTaskRoutingVisibility = (transaction = {}, executorId = null) => {
 };
 
 const LIVE_TASK_NOTES_MAX = 400;
+const STUCK_ASSIGNEE_SLA_SECONDS = 90;
+
+const stuckAssigneeSlaHint = ({
+    routingState,
+    assignedExecutorAt,
+    now = Date.now(),
+    thresholdSeconds = STUCK_ASSIGNEE_SLA_SECONDS
+} = {}) => {
+    if (routingState !== ROUTING_STATES.PENDING_WITH_ASSIGNEE || !assignedExecutorAt) {
+        return null;
+    }
+    const assignedAtMs = new Date(assignedExecutorAt).getTime();
+    if (!Number.isFinite(assignedAtMs)) return null;
+    const waitedSeconds = Math.max(0, Math.floor((now - assignedAtMs) / 1000));
+    if (waitedSeconds < thresholdSeconds) return null;
+    const minutes = Math.max(1, Math.round(waitedSeconds / 60));
+    return {
+        waitedSeconds,
+        labelAr: `معلّقة عنده منذ ${minutes} د — قد تحتاج إعادة توجيه`
+    };
+};
 
 const portalLiveTaskNotes = (notes) => {
     let text = String(notes || '');
@@ -123,11 +144,13 @@ module.exports = {
     LIVE_TASK_NOTES_MAX,
     ROUTING_STATES,
     ROUTING_STATE_LABELS,
+    STUCK_ASSIGNEE_SLA_SECONDS,
     buildExecutorTaskRecipient,
     buildTaskRoutingVisibility,
     isTaskOwnedByExecutor,
     portalLiveTaskNotes,
     routingStateForTask,
+    stuckAssigneeSlaHint,
     taskRecipientPrefix,
     taskRecipientValue,
     toExecutorPortalTaskDto
