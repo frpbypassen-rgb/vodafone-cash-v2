@@ -46,6 +46,14 @@ describe('performanceIndexService', () => {
             expect.objectContaining({
                 name: 'adminDashboard_status_completedAt',
                 key: { status: 1, completedAt: -1 }
+            }),
+            expect.objectContaining({
+                name: 'executorGroupId_1_status_1_completedAt_-1',
+                key: { executorGroupId: 1, status: 1, completedAt: -1 }
+            }),
+            expect.objectContaining({
+                name: 'operatorId_1_status_1_completedAt_-1',
+                key: { operatorId: 1, status: 1, completedAt: -1 }
             })
         ]));
         expect(logger.info).toHaveBeenCalled();

@@ -122,6 +122,7 @@ const {
     routeExecutorTask,
     routingErrorMessage
 } = require('../services/executorTaskRoutingService');
+const { loadMobileLiveTasks } = require('../services/executorLiveTasksService');
 const { buildExecutorTaskRecipient } = require('../utils/executorTaskPrivacy');
 const {
     findBrowserExecutable,
@@ -1456,23 +1457,10 @@ router.get('/executor/live-tasks', authenticateJWT, async (req, res) => {
             return sendMobileError(res, 409, 'EXECUTOR_GROUP_MISSING', 'حساب المنفذ غير مرتبط بشركة تنفيذ.', req.correlationId);
         }
 
-        const queryTasks = {
-            ...taskOwnershipFilter(effectiveEmployee),
-            // Some legacy/queue transitions expose a grouped task as pending
-            // for a short period. Keep it actionable instead of showing a
-            // stale card that inevitably fails on accept.
-            status: { $in: ['processing', 'pending', 'accepted'] }
-        };
-        if (req.tenant) queryTasks.tenantId = executorTenantScope(req);
-        const tasks = await Transaction.find(queryTasks).sort({ createdAt: 1 }).lean();
-
-        const queryAlerts = {
-            ...taskOwnershipFilter(effectiveEmployee),
-            emergencyAlert: { $exists: true, $ne: null },
-            status: { $in: ['processing', 'pending', 'accepted'] }
-        };
-        if (req.tenant) queryAlerts.tenantId = executorTenantScope(req);
-        const alerts = await Transaction.find(queryAlerts).lean();
+        const { tasks, alerts, pollIntervalSeconds } = await loadMobileLiveTasks({
+            emp: effectiveEmployee,
+            tenantId: req.tenant ? executorTenantScope(req) : null
+        });
 
         return res.json({
             success: true,
@@ -1480,7 +1468,7 @@ router.get('/executor/live-tasks', authenticateJWT, async (req, res) => {
             alerts: alerts.map((task) => toExecutorTaskDto(task, userId)),
             manualTaskRoutingEnabled: Boolean(effectiveEmployee.groupId?.manualTaskRoutingEnabled),
             canRouteTasks: effectiveEmployee.role === 'manager',
-            pollIntervalSeconds: 5,
+            pollIntervalSeconds,
             serverTime: new Date().toISOString()
         });
     } catch (e) {

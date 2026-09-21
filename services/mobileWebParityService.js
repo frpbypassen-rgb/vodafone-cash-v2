@@ -1530,6 +1530,43 @@ async function getExecutorReports({ executorId, dateType, dateValue, dateFrom, d
     };
 }
 
+async function aggregateExecutorCompletedStats({ groupQuery, start, end, operatorId }) {
+    const match = {
+        $and: [
+            groupQuery,
+            { status: 'completed' },
+            {
+                $or: [
+                    { completedAt: { $gte: start, $lte: end } },
+                    {
+                        $and: [
+                            { $or: [{ completedAt: null }, { completedAt: { $exists: false } }] },
+                            { updatedAt: { $gte: start, $lte: end } }
+                        ]
+                    }
+                ]
+            }
+        ]
+    };
+    const [row] = await Transaction.aggregate([
+        { $match: match },
+        {
+            $group: {
+                _id: null,
+                count: { $sum: 1 },
+                amount: { $sum: '$amount' },
+                ownCount: {
+                    $sum: { $cond: [{ $eq: ['$operatorId', String(operatorId)] }, 1, 0] }
+                },
+                ownAmount: {
+                    $sum: { $cond: [{ $eq: ['$operatorId', String(operatorId)] }, '$amount', 0] }
+                }
+            }
+        }
+    ]);
+    return row || { count: 0, amount: 0, ownCount: 0, ownAmount: 0 };
+}
+
 async function getExecutorOverview({ executorId, tenantId }) {
     const emp = await Employee.findById(executorId).lean();
     if (!emp) throw new Error('UNAUTHORIZED');
@@ -1542,12 +1579,20 @@ async function getExecutorOverview({ executorId, tenantId }) {
     const todayPeriod = resolveExecutorReportPeriod({ dateType: 'day', dateValue: today });
     const monthPeriod = resolveExecutorReportPeriod({ dateType: 'month', dateValue: month });
     const query = executorGroupQuery(emp.groupId, tenantId);
-    const [todayTransactions, monthTransactions] = await Promise.all([
-        findReportTransactions(buildExecutorReportQuery(query, executorReportDateQuery(todayPeriod.start, todayPeriod.end))),
-        findReportTransactions(buildExecutorReportQuery(query, executorReportDateQuery(monthPeriod.start, monthPeriod.end)))
+    const [todayStats, monthStats] = await Promise.all([
+        aggregateExecutorCompletedStats({
+            groupQuery: query,
+            start: todayPeriod.start,
+            end: todayPeriod.end,
+            operatorId: emp._id
+        }),
+        aggregateExecutorCompletedStats({
+            groupQuery: query,
+            start: monthPeriod.start,
+            end: monthPeriod.end,
+            operatorId: emp._id
+        })
     ]);
-    const ownToday = todayTransactions.filter((tx) => String(tx.operatorId || '') === String(emp._id));
-    const ownTotals = executorReportTotals(ownToday);
     const isManager = emp.role === 'manager';
     const isAccountant = emp.role === 'accountant';
 
@@ -1571,12 +1616,12 @@ async function getExecutorOverview({ executorId, tenantId }) {
             canViewMonthReport: isManager || isAccountant
         },
         metrics: isManager ? {
-            todayOperations: todayTransactions.filter((tx) => tx.status === 'completed').length,
-            monthOperations: monthTransactions.filter((tx) => tx.status === 'completed').length
+            todayOperations: todayStats.count,
+            monthOperations: monthStats.count
         } : null,
         myPerformance: {
-            totalEGP: ownTotals.totalEGP,
-            completedCount: ownTotals.completedCount
+            totalEGP: Number(todayStats.ownAmount || 0),
+            completedCount: Number(todayStats.ownCount || 0)
         },
         serverDate: today
     };

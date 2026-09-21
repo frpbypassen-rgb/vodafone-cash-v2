@@ -19,6 +19,32 @@ const executorTaskIndexes = [
     {
         key: { managerGroupId: 1, status: 1, updatedAt: -1 },
         name: 'managerGroupId_1_status_1_updatedAt_-1'
+    },
+    {
+        key: { executorGroupId: 1, status: 1, completedAt: -1 },
+        name: 'executorGroupId_1_status_1_completedAt_-1'
+    },
+    {
+        key: { managerGroupId: 1, status: 1, completedAt: -1 },
+        name: 'managerGroupId_1_status_1_completedAt_-1'
+    },
+    {
+        key: { operatorId: 1, status: 1, completedAt: -1 },
+        name: 'operatorId_1_status_1_completedAt_-1'
+    },
+    {
+        key: { operatorId: 1, status: 1, updatedAt: -1 },
+        name: 'operatorId_1_status_1_updatedAt_-1'
+    },
+    {
+        key: { executorGroupId: 1, updatedAt: -1 },
+        name: 'executorPortal_webAlert_executorGroup',
+        partialFilterExpression: { executorWebAlert: { $exists: true } }
+    },
+    {
+        key: { managerGroupId: 1, updatedAt: -1 },
+        name: 'executorPortal_webAlert_managerGroup',
+        partialFilterExpression: { executorWebAlert: { $exists: true } }
     }
 ];
 
@@ -118,4 +144,10 @@ const ensurePerformanceIndexes = async () => {
     }
 };
 
-module.exports = { ensurePerformanceIndexes, clientPortalIndexes, liveOperationsIndexes, adminDashboardIndexes };
+module.exports = {
+    ensurePerformanceIndexes,
+    clientPortalIndexes,
+    liveOperationsIndexes,
+    adminDashboardIndexes,
+    executorTaskIndexes
+};

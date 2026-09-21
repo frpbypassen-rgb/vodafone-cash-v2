@@ -115,7 +115,7 @@ const csrfProtection = (req, res, next) => {
     const originalSend = res.send.bind(res);
     res.send = (body) => {
         const contentType = String(res.getHeader('content-type') || '');
-        if (token && typeof body === 'string' && (contentType.includes('text/html') || body.includes('<html') || body.includes('<form'))) {
+        if (token && typeof body === 'string' && !contentType.includes('application/json') && (contentType.includes('text/html') || body.includes('<html') || body.includes('<form'))) {
             return originalSend(injectTokenIntoHtml(body, token));
         }
         return originalSend(body);

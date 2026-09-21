@@ -509,7 +509,7 @@ void executorAlertBackgroundEntry(ServiceInstance service) async {
   await poll();
   // The administration may choose a short countdown, so customer alerts are
   // checked frequently enough to surface the warning before activation.
-  Timer.periodic(const Duration(seconds: 8), (_) => poll());
+  Timer.periodic(const Duration(seconds: 12), (_) => poll());
 }
 
 Future<void> _showCustomerAlert({

@@ -127,26 +127,24 @@ describe('Executor dashboard group ownership', () => {
             executorReceivedAt: new Date(Date.now() - 130000),
             createdAt: new Date(Date.now() - 130000)
         };
-        const taskQuery = { lean: jest.fn().mockResolvedValue([task]) };
-        const alertsQuery = { lean: jest.fn().mockResolvedValue([]) };
-        const depositAlertsQuery = { lean: jest.fn().mockResolvedValue([]) };
-        const completedQuery = {
+        const chain = (result) => ({
+            select: jest.fn().mockReturnThis(),
             sort: jest.fn().mockReturnThis(),
             limit: jest.fn().mockReturnThis(),
-            select: jest.fn().mockReturnThis(),
-            lean: jest.fn().mockResolvedValue([{ customId: 'ATT-1', amount: 100 }])
-        };
+            lean: jest.fn().mockResolvedValue(result)
+        });
+        const completedQuery = chain([{ customId: 'ATT-1', amount: 100 }]);
         Transaction.find
-            .mockReturnValueOnce(taskQuery)
-            .mockReturnValueOnce(alertsQuery)
-            .mockReturnValueOnce(depositAlertsQuery)
+            .mockReturnValueOnce(chain([task]))
+            .mockReturnValueOnce(chain([]))
             .mockReturnValueOnce(completedQuery);
         Transaction.updateMany.mockResolvedValue({ modifiedCount: 1 });
         Transaction.aggregate.mockResolvedValue([{ count: 125, amount: 40000 }]);
 
         const req = {
             session: { executorId: 'employee-1' },
-            executorEmployee: { _id: 'employee-1', role: 'operator', groupId: 'group-1' }
+            executorEmployee: { _id: 'employee-1', role: 'operator', groupId: 'group-1' },
+            query: {}
         };
         const res = response();
 
@@ -156,7 +154,36 @@ describe('Executor dashboard group ownership', () => {
         expect(completedQuery.limit).toHaveBeenCalledWith(60);
         expect(res.json).toHaveBeenCalledWith(expect.objectContaining({
             completedToday: [{ customId: 'ATT-1', amount: 100 }],
-            completedTodaySummary: { count: 125, amount: 40000 }
+            completedTodaySummary: { count: 125, amount: 40000 },
+            pollIntervalSeconds: expect.any(Number)
+        }));
+    });
+
+    test('lite live-tasks skips the completed list query', async () => {
+        const chain = (result) => ({
+            select: jest.fn().mockReturnThis(),
+            sort: jest.fn().mockReturnThis(),
+            limit: jest.fn().mockReturnThis(),
+            lean: jest.fn().mockResolvedValue(result)
+        });
+        Transaction.find
+            .mockReturnValueOnce(chain([]))
+            .mockReturnValueOnce(chain([]));
+        Transaction.aggregate.mockResolvedValue([{ count: 3, amount: 900 }]);
+
+        const req = {
+            session: { executorId: 'employee-1' },
+            executorEmployee: { _id: 'employee-1', role: 'operator', groupId: 'group-1' },
+            query: { lite: '1' }
+        };
+        const res = response();
+
+        await controller.getLiveTasks(req, res);
+
+        expect(Transaction.find).toHaveBeenCalledTimes(2);
+        expect(res.json).toHaveBeenCalledWith(expect.objectContaining({
+            completedToday: [],
+            completedTodaySummary: { count: 3, amount: 900 }
         }));
     });
 });

@@ -11,18 +11,14 @@ const {
     normalizeExecutorUsername
 } = require('../services/executorAccountService');
 const {
-    taskOwnershipFilter,
     listRouteCandidates,
     routeExecutorTask,
     routingErrorMessage
 } = require('../services/executorTaskRoutingService');
-const { toExecutorPortalTaskDto } = require('../utils/executorTaskPrivacy');
 const mobileWebParityService = require('../services/mobileWebParityService');
 const mobileWebParityMapper = require('../mappers/mobileWebParityMapper');
-const { systemDayStart, systemDayEnd, systemDateKey } = require('../config/systemTime');
 const executorDepositRequestService = require('../services/executorDepositRequestService');
-
-const COMPLETED_TODAY_LIMIT = 60;
+const { loadPortalLiveTasks } = require('../services/executorLiveTasksService');
 
 const objectIdString = (value) => String(value?._id || value || '');
 const belongsToGroup = (employee, group) => (
@@ -417,107 +413,12 @@ exports.getLiveTasks = async (req, res) => {
     try {
         const emp = req.executorEmployee || await Employee.findById(req.session.executorId);
         if (!emp) return res.status(401).json({ success: false, error: 'Unauthorized' });
-        const filter = {
-            ...taskOwnershipFilter(emp),
-            status: { $in: ['processing', 'accepted'] }
-        };
-        const taskArrivalTime = (tx) => {
-            const value = new Date(tx.executorReceivedAt || tx.createdAt || 0).getTime();
-            return Number.isFinite(value) ? value : 0;
-        };
-
-        const tasks = await Transaction.find(filter).lean();
-        tasks.sort((first, second) => taskArrivalTime(first) - taskArrivalTime(second));
-
-        const now = Date.now();
-        const notificationIds = tasks
-            .filter((tx) => tx.status === 'processing' && !tx.notifiedExecutors)
-            .map((tx) => tx._id);
-        const delayedTaskIds = tasks
-            .filter((tx) => tx.status === 'processing' && !tx.autoAlertFired && now - taskArrivalTime(tx) >= 120000)
-            .map((tx) => tx._id);
-
-        await Promise.all([
-            notificationIds.length
-                ? Transaction.updateMany(
-                    { _id: { $in: notificationIds }, notifiedExecutors: { $ne: true } },
-                    { $set: { notifiedExecutors: true } },
-                    { strict: false }
-                )
-                : Promise.resolve(),
-            delayedTaskIds.length
-                ? Transaction.updateMany(
-                    { _id: { $in: delayedTaskIds }, autoAlertFired: { $ne: true } },
-                    { $set: { emergencyAlert: 'تأخير استجابة! الطلب تخطى 120 ثانية ولم يقبله أحد، يرجى سحبه فوراً!', autoAlertFired: true } },
-                    { strict: false }
-                )
-                : Promise.resolve()
-        ]);
-
-        // Completed-today follows Tripoli day boundaries and operational timestamps,
-        // not server-local midnight or updatedAt alone.
-        const todayKey = systemDateKey(new Date());
-        const dayStart = systemDayStart(todayKey);
-        const dayEnd = systemDayEnd(todayKey);
-        const completedTodayRange = dayStart && dayEnd ? { $gte: dayStart, $lte: dayEnd } : null;
-
-        let completedTodayQuery = { status: 'completed' };
-        const seesGroupCompletedToday = emp.role === 'manager' || emp.role === 'accountant';
-        const completedTodayScope = seesGroupCompletedToday
-            ? { $or: [{ executorGroupId: emp.groupId }, { managerGroupId: emp.groupId }] }
-            : { operatorId: emp._id.toString() };
-        if (completedTodayRange) {
-            const completedTodayClauses = [
-                completedTodayQuery,
-                completedTodayScope,
-                {
-                    $or: [
-                        { createdAt: completedTodayRange },
-                        { updatedAt: completedTodayRange },
-                        { completedAt: completedTodayRange },
-                        { executorReceivedAt: completedTodayRange }
-                    ]
-                }
-            ];
-            completedTodayQuery = { $and: completedTodayClauses };
-        } else {
-            completedTodayQuery = { ...completedTodayQuery, ...completedTodayScope };
-        }
-
-        const [alerts, depAlerts, completedToday, completedTodayStats] = await Promise.all([
-            Transaction.find({
-                ...taskOwnershipFilter(emp),
-                emergencyAlert: { $exists: true, $ne: null },
-                status: { $in: ['processing', 'accepted'] }
-            }).lean(),
-            Transaction.find({
-                $or: [ { operatorId: emp._id.toString() }, { executorGroupId: emp.groupId }, { managerGroupId: emp.groupId } ],
-                executorWebAlert: { $exists: true, $ne: null }
-            }).lean(),
-            Transaction.find(completedTodayQuery)
-                .sort({ updatedAt: -1 })
-                .limit(COMPLETED_TODAY_LIMIT)
-                .select('customId amount transferType vodafoneNumber accountNumber updatedAt executorName')
-                .lean(),
-            Transaction.aggregate([
-                { $match: completedTodayQuery },
-                { $group: { _id: null, count: { $sum: 1 }, amount: { $sum: '$amount' } } }
-            ])
-        ]);
-
-        const completedTodaySummary = completedTodayStats[0] || { count: 0, amount: 0 };
-        res.json({
-            tasks: tasks.map((tx) => toExecutorPortalTaskDto(tx, emp._id)),
-            alerts: alerts.map((tx) => toExecutorPortalTaskDto(tx, emp._id)),
-            depAlerts: depAlerts.map((tx) => ({
-                _id: String(tx._id),
-                executorWebAlert: tx.executorWebAlert || null
-            })),
-            completedToday,
-            completedTodaySummary,
-            manualTaskRoutingEnabled: Boolean(emp.groupId?.manualTaskRoutingEnabled),
-            canRouteTasks: emp.role === 'manager'
+        const lite = req.query?.lite === '1' || req.query?.lite === 'true';
+        const payload = await loadPortalLiveTasks({
+            emp,
+            includeCompletedList: !lite
         });
+        return res.json(payload);
     } catch (_) { res.status(500).json({ error: true }); }
 };
 

@@ -320,6 +320,8 @@ describe('📱 Automated Tests: Mobile API Consolidation & Safety', () => {
             expect(res.body.data[0].recipientPrefix).toBe('010');
             expect(res.body.data[0].recipientRevealed).toBe(false);
             expect(res.body.data[0].amount).toBe(500);
+            expect(res.body.pollIntervalSeconds).toBeGreaterThanOrEqual(8);
+            expect(Transaction.find).toHaveBeenCalledTimes(1);
         });
 
         test('accountant executor cannot read execution tasks', async () => {

@@ -210,6 +210,18 @@ transactionSchema.index({ executorGroupId: 1, status: 1, executorReceivedAt: 1 }
 transactionSchema.index({ managerGroupId: 1, status: 1, executorReceivedAt: 1 });
 transactionSchema.index({ executorGroupId: 1, status: 1, updatedAt: -1 });
 transactionSchema.index({ managerGroupId: 1, status: 1, updatedAt: -1 });
+transactionSchema.index({ executorGroupId: 1, status: 1, completedAt: -1 });
+transactionSchema.index({ managerGroupId: 1, status: 1, completedAt: -1 });
+transactionSchema.index({ operatorId: 1, status: 1, completedAt: -1 });
+transactionSchema.index({ operatorId: 1, status: 1, updatedAt: -1 });
+transactionSchema.index(
+    { executorGroupId: 1, updatedAt: -1 },
+    { name: 'executorPortal_webAlert_executorGroup', partialFilterExpression: { executorWebAlert: { $exists: true } } }
+);
+transactionSchema.index(
+    { managerGroupId: 1, updatedAt: -1 },
+    { name: 'executorPortal_webAlert_managerGroup', partialFilterExpression: { executorWebAlert: { $exists: true } } }
+);
 transactionSchema.index({ tenantId: 1, createdAt: -1 });
 transactionSchema.index({ tenantId: 1, status: 1, transferType: 1, createdAt: -1 }, { name: 'liveOps_tenant_status_type_createdAt' });
 transactionSchema.index({ tenantId: 1, amount: -1, createdAt: -1 }, { name: 'liveOps_tenant_amount_createdAt' });
