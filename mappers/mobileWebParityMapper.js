@@ -339,7 +339,12 @@ const toEmployeeDto = (emp) => {
             amount: Number(currentTask.amount || 0),
             receivedAt: currentTask.receivedAt ? new Date(currentTask.receivedAt).toISOString() : null
         } : null,
-        ...(emp.role === 'external' ? { balance: Number(emp.balance || 0) } : {})
+        ...(emp.role === 'external' ? {
+            balance: Number(emp.workingBalance != null ? emp.workingBalance : emp.balance || 0),
+            soloBalance: Number(emp.soloBalance != null ? emp.soloBalance : emp.balance || 0),
+            balanceMembership: emp.balanceMembership || (emp.balancePool ? 'pool' : 'solo'),
+            balancePool: emp.balancePool || null
+        } : {})
     };
 };
 

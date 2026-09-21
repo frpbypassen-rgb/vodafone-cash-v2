@@ -157,36 +157,50 @@
                     <p class="text-center text-muted fw-bold mb-3 small"><%= bot.isManagerBot ? 'وكالة إدارية (لا تنفذ مباشر)' : 'طاقم تنفيذ (كاشير)' %></p>
 
                     <div class="info-box d-block text-center border-0 shadow-sm py-3" style="background: rgba(16, 185, 129, 0.05); border-right: 4px solid #10b981 !important;">
-                        <span class="d-block small text-muted fw-bold mb-1"><i class="fa-solid fa-wallet me-1"></i> <%= bot.isManagerBot ? 'الإجمالي المتاح داخل الشركة (EGP)' : 'الرصيد الحالي (EGP)' %></span>
-                        <% const externalTotal = Array.isArray(externalEmployees) ? externalEmployees.reduce((sum, item) => sum + Number(item.balance || 0), 0) : 0; %>
-                        <% const companyDirectBalance = Number(bot.balance || 0); %>
-                        <% const combinedBalance = bot.isManagerBot ? companyDirectBalance + externalTotal : companyDirectBalance; %>
+                        <span class="d-block small text-muted fw-bold mb-1"><i class="fa-solid fa-wallet me-1"></i> إجمالي الرصيد (EGP)</span>
+                        <% const snapshot = typeof companyBalances === 'object' && companyBalances ? companyBalances : null; %>
+                        <% const externalTotal = snapshot ? Number(snapshot.allocatedBalance || 0) : (Array.isArray(externalEmployees) ? externalEmployees.reduce((sum, item) => sum + Number(item.workingBalance || item.balance || 0), 0) : 0); %>
+                        <% const companyDirectBalance = snapshot ? Number(snapshot.privateBalance || 0) : Number(bot.balance || 0); %>
+                        <% const combinedBalance = snapshot ? Number(snapshot.totalBalance || 0) : companyDirectBalance + externalTotal; %>
                         <h2 class="m-0 fw-900 mono-num <%= combinedBalance < 0 ? 'text-danger' : 'text-success' %>" dir="ltr"><%= combinedBalance.toFixed(2) %></h2>
-                        <% if (bot.isManagerBot) { %>
-                            <div class="mt-3 text-start small">
-                                <div class="d-flex justify-content-between py-1 border-bottom" style="border-color: var(--glass-border) !important;">
-                                    <span class="text-muted fw-bold">المتاح في الشركة مباشرة</span>
-                                    <strong class="mono-num" dir="ltr"><%= companyDirectBalance.toFixed(2) %></strong>
-                                </div>
-                                <div class="d-flex justify-content-between py-1 border-bottom" style="border-color: var(--glass-border) !important;">
-                                    <span class="text-muted fw-bold">المتاح عند المنفذين الخارجيين</span>
-                                    <strong class="mono-num" dir="ltr"><%= externalTotal.toFixed(2) %></strong>
-                                </div>
-                                <% if (Array.isArray(externalEmployees) && externalEmployees.length) { %>
-                                    <details class="mt-2">
-                                        <summary class="fw-bold text-primary" style="cursor:pointer;">عرض تفاصيل المنفذين الخارجيين</summary>
-                                        <div class="mt-2 d-grid gap-2">
-                                            <% externalEmployees.forEach((member) => { %>
-                                                <div class="info-box py-2 px-3 m-0">
-                                                    <span class="fw-bold"><%= member.name %></span>
-                                                    <strong class="mono-num <%= Number(member.balance || 0) < 0 ? 'text-danger' : 'text-success' %>" dir="ltr"><%= Number(member.balance || 0).toFixed(2) %> EGP</strong>
-                                                </div>
-                                            <% }) %>
-                                        </div>
-                                    </details>
-                                <% } %>
+                        <div class="mt-3 text-start small">
+                            <div class="d-flex justify-content-between py-1 border-bottom" style="border-color: var(--glass-border) !important;">
+                                <span class="text-muted fw-bold">الرصيد الخاص</span>
+                                <strong class="mono-num" dir="ltr"><%= companyDirectBalance.toFixed(2) %></strong>
                             </div>
-                        <% } %>
+                            <div class="d-flex justify-content-between py-1 border-bottom" style="border-color: var(--glass-border) !important;">
+                                <span class="text-muted fw-bold">المتاح عند المنفذين الخارجيين</span>
+                                <strong class="mono-num" dir="ltr"><%= externalTotal.toFixed(2) %></strong>
+                            </div>
+                            <% if (Array.isArray(externalPools) && externalPools.length) { %>
+                                <details class="mt-2">
+                                    <summary class="fw-bold text-primary" style="cursor:pointer;">مجموعات الرصيد المشتركة</summary>
+                                    <div class="mt-2 d-grid gap-2">
+                                        <% externalPools.forEach((pool) => { %>
+                                            <div class="info-box py-2 px-3 m-0">
+                                                <span class="fw-bold"><%= pool.name %></span>
+                                                <small class="text-muted"><%= (pool.members || []).map((member) => member.name).join(' · ') || 'بدون أعضاء' %></small>
+                                                <strong class="mono-num <%= Number(pool.balance || 0) < 0 ? 'text-danger' : 'text-success' %>" dir="ltr"><%= Number(pool.balance || 0).toFixed(2) %> EGP</strong>
+                                            </div>
+                                        <% }) %>
+                                    </div>
+                                </details>
+                            <% } %>
+                            <% if (Array.isArray(externalEmployees) && externalEmployees.length) { %>
+                                <details class="mt-2">
+                                    <summary class="fw-bold text-primary" style="cursor:pointer;">عرض المنفذين الخارجيين</summary>
+                                    <div class="mt-2 d-grid gap-2">
+                                        <% externalEmployees.forEach((member) => { %>
+                                            <div class="info-box py-2 px-3 m-0">
+                                                <span class="fw-bold"><%= member.name %></span>
+                                                <small class="text-muted"><%= member.balancePool ? member.balancePool.name : 'رصيد فردي' %></small>
+                                                <strong class="mono-num <%= Number(member.workingBalance || member.balance || 0) < 0 ? 'text-danger' : 'text-success' %>" dir="ltr"><%= Number(member.workingBalance || member.balance || 0).toFixed(2) %> EGP</strong>
+                                            </div>
+                                        <% }) %>
+                                    </div>
+                                </details>
+                            <% } %>
+                        </div>
                     </div>
 
                     <% if(!bot.isManagerBot) { %>

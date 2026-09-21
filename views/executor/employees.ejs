@@ -313,7 +313,8 @@
         </div>
     </div>
     <div class="nav-actions">
-        <span class="nav-btn text-success border border-success border-opacity-25" style="cursor: default; font-weight: 800;" title="المبلغ المتاح"><i class="fa-solid fa-wallet me-1"></i> <%= Number(emp.groupId?.balance || 0).toLocaleString('en-US', { maximumFractionDigits: 0 }) %> ج.م</span>
+        <span class="nav-btn text-success border border-success border-opacity-25" style="cursor: default; font-weight: 800;" title="إجمالي الرصيد"><i class="fa-solid fa-vault me-1"></i> <%= Number(companyBalances?.totalBalance ?? emp.groupId?.balance ?? 0).toLocaleString('en-US', { maximumFractionDigits: 0 }) %> ج.م</span>
+        <span class="nav-btn text-warning border border-warning border-opacity-25" style="cursor: default; font-weight: 800;" title="الرصيد الخاص"><i class="fa-solid fa-wallet me-1"></i> <%= Number(companyBalances?.privateBalance ?? emp.groupId?.balance ?? 0).toLocaleString('en-US', { maximumFractionDigits: 0 }) %> ج.م</span>
         <button class="nav-btn btn-theme shadow-sm" onclick="toggleTheme()" title="المظهر"><i class="fa-solid fa-moon" id="themeIcon"></i></button>
         <a href="/executor-portal/logout" class="nav-btn btn-logout"><i class="fa-solid fa-power-off"></i></a>
     </div>
@@ -330,11 +331,27 @@
     </div>
 
     <section class="executor-summary-grid mb-4">
+        <article class="executor-summary-card" style="--summary-color: var(--executor-green)"><span class="summary-icon"><i class="fa-solid fa-vault"></i></span><small>إجمالي الرصيد</small><strong id="summaryTotalBalance" dir="ltr"><%= Number(companyBalances?.totalBalance || 0).toLocaleString('en-US', { maximumFractionDigits: 2 }) %></strong></article>
+        <article class="executor-summary-card" style="--summary-color: var(--executor-gold)"><span class="summary-icon"><i class="fa-solid fa-wallet"></i></span><small>الرصيد الخاص</small><strong id="summaryPrivateBalance" dir="ltr"><%= Number(companyBalances?.privateBalance || 0).toLocaleString('en-US', { maximumFractionDigits: 2 }) %></strong></article>
         <article class="executor-summary-card" style="--summary-color: var(--executor-blue)"><span class="summary-icon"><i class="fa-solid fa-users"></i></span><small>إجمالي الفريق</small><strong id="summaryTotal">0</strong></article>
         <article class="executor-summary-card" style="--summary-color: var(--executor-green)"><span class="summary-icon"><i class="fa-solid fa-signal"></i></span><small>متصلون الآن</small><strong id="summaryOnline">0</strong></article>
         <article class="executor-summary-card" style="--summary-color: var(--executor-gold)"><span class="summary-icon"><i class="fa-solid fa-bolt"></i></span><small>ينفذون الآن</small><strong id="summaryBusy">0</strong></article>
         <article class="executor-summary-card" style="--summary-color: #7a57d1"><span class="summary-icon"><i class="fa-solid fa-check-double"></i></span><small>عمليات اليوم</small><strong id="summaryCompleted">0</strong></article>
     </section>
+
+    <div class="page-card mb-4">
+        <div class="d-flex flex-wrap align-items-center justify-content-between gap-3 mb-3">
+            <h5 class="section-title m-0"><i class="fa-solid fa-link"></i> مجموعات الرصيد المشتركة للمنفذين الخارجيين</h5>
+            <button type="button" class="btn-create" style="padding:10px 18px;font-size:0.9rem" onclick="createBalancePool()"><i class="fa-solid fa-plus me-1"></i> مجموعة جديدة</button>
+        </div>
+        <p class="text-muted small mb-3">اربط عدة منفذين خارجيين برصيد واحد باسم واضح (مثل «شركة النور»). المنفذ غير المرتبط يبقى برصيد فردي خاص به. الإيداع يُخصم من الرصيد الخاص، والإيصال يظهر فقط للشخص المستهدف.</p>
+        <div id="poolList" class="d-flex flex-column gap-3"></div>
+        <div id="poolEmpty" class="empty-state d-none">
+            <i class="fa-solid fa-layer-group d-block"></i>
+            <p class="fw-bold">لا توجد مجموعات رصيد حالياً</p>
+            <p class="small">أنشئ مجموعة ثم أضف إليها المنفذين الخارجيين الذين تريد أن يشاركوا نفس الرصيد.</p>
+        </div>
+    </div>
     <!-- قسم إنشاء حساب جديد -->
     <div class="page-card mb-4">
         <h5 class="section-title"><i class="fa-solid fa-user-plus"></i> إنشاء حساب موظف جديد</h5>
@@ -477,6 +494,60 @@
     });
 
     let employeesCache = [];
+    let poolsCache = [];
+
+    function formatEgp(value) {
+        return Number(value || 0).toLocaleString('en-US', { maximumFractionDigits: 2 });
+    }
+
+    function applyBalanceSummary(summary) {
+        if (!summary) return;
+        if (summary.totalBalance != null && document.getElementById('summaryTotalBalance')) {
+            document.getElementById('summaryTotalBalance').textContent = formatEgp(summary.totalBalance);
+        }
+        if (summary.privateBalance != null && document.getElementById('summaryPrivateBalance')) {
+            document.getElementById('summaryPrivateBalance').textContent = formatEgp(summary.privateBalance);
+        }
+    }
+
+    function eligibleExternalsForPool(poolId) {
+        return employeesCache.filter((employee) => {
+            if (employee.role !== 'external' || employee.status !== 'active') return false;
+            const currentPoolId = employee.balancePool?.id || '';
+            return !currentPoolId || currentPoolId === poolId;
+        });
+    }
+
+    function renderPools() {
+        const list = document.getElementById('poolList');
+        const empty = document.getElementById('poolEmpty');
+        if (!list) return;
+        list.innerHTML = '';
+        empty.classList.toggle('d-none', poolsCache.length > 0);
+        poolsCache.forEach((pool) => {
+            const memberNames = (pool.members || []).map((member) => escapeEmployeeHtml(member.name)).join(' · ') || 'بدون أعضاء بعد';
+            const memberOptions = eligibleExternalsForPool(pool.id)
+                .filter((employee) => (employee.balancePool?.id || '') !== pool.id)
+                .map((employee) => `<option value="${employee.id || employee._id}">${escapeEmployeeHtml(employee.name)}</option>`)
+                .join('');
+            list.innerHTML += `<article class="mobile-emp-card">
+                <div class="mobile-emp-header">
+                    <div>
+                        <span class="emp-card-name">${escapeEmployeeHtml(pool.name)}</span>
+                        <div class="emp-card-username text-muted">${memberNames}</div>
+                    </div>
+                    <strong class="balance-positive" dir="ltr">${formatEgp(pool.balance)} ج.م</strong>
+                </div>
+                <div class="d-flex flex-wrap gap-2">
+                    <button class="btn-action" onclick="renameBalancePool('${pool.id}', '${encodeURIComponent(pool.name)}')"><i class="fa-solid fa-pen"></i> إعادة تسمية</button>
+                    <button class="btn-action" onclick="attachPoolMember('${pool.id}')" ${memberOptions ? '' : 'disabled'}><i class="fa-solid fa-user-plus"></i> إضافة منفذ</button>
+                    ${(pool.members || []).map((member) => `<button class="btn-action btn-delete" onclick="detachPoolMember('${pool.id}', '${member.id}', '${encodeURIComponent(member.name)}')"><i class="fa-solid fa-link-slash"></i> فصل ${escapeEmployeeHtml(member.name)}</button>`).join('')}
+                    <button class="btn-action btn-delete" onclick="archiveBalancePool('${pool.id}', '${encodeURIComponent(pool.name)}')"><i class="fa-solid fa-box-archive"></i> أرشفة</button>
+                </div>
+                <select id="attach-${pool.id}" class="d-none">${memberOptions}</select>
+            </article>`;
+        });
+    }
     const escapeEmployeeHtml = (value) => String(value ?? '').replace(/[&<>"']/g, (char) => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#039;' }[char]));
     const employeeDuration = (seconds) => {
         if (!Number.isFinite(Number(seconds))) return '---';
@@ -519,9 +590,13 @@
                 ? `<span class="executor-status-pill" style="--pill-color:var(--executor-gold)"><i class="fa-solid fa-bolt"></i> ${escapeEmployeeHtml(employee.currentTask.customId || 'مهمة جارية')}</span>`
                 : '<span class="small text-muted">متاح</span>';
             const performanceHtml = `<div class="d-grid gap-1"><strong>${Number(metrics.completedCount || 0)} عملية</strong><small class="text-muted">${Number(metrics.totalEGP || 0).toLocaleString('en-US', { maximumFractionDigits: 2 })} ج.م · متوسط ${employeeDuration(metrics.averageDurationSeconds)}</small></div>`;
-            const balanceValue = Number(employee.balance || 0);
+            const pool = employee.balancePool;
+            const membershipLabel = employee.role === 'external'
+                ? (pool ? `مجموعة «${pool.name}»` : 'رصيد فردي')
+                : '';
+            const balanceValue = Number(employee.workingBalance != null ? employee.workingBalance : (employee.balance || 0));
             const balanceHtml = employee.role === 'external'
-                ? `<span class="${balanceValue < 0 ? 'balance-negative' : 'balance-positive'}" dir="ltr">${balanceValue.toLocaleString('en-US', { maximumFractionDigits: 2 })} ج.م</span>`
+                ? `<span class="${balanceValue < 0 ? 'balance-negative' : 'balance-positive'}" dir="ltr">${balanceValue.toLocaleString('en-US', { maximumFractionDigits: 2 })} ج.م</span><div class="small text-muted mt-1">${escapeEmployeeHtml(membershipLabel)}</div>`
                 : '<span class="balance-muted">—</span>';
             const encodedName = encodeURIComponent(employee.name || '');
             const encodedPhone = encodeURIComponent(employee.phone || '');
@@ -569,11 +644,14 @@
         try {
             const data = await readExecutorApiResponse(await executorApiFetch('/executor-portal/api/employees'));
             employeesCache = Array.isArray(data.employees) ? data.employees : [];
+            poolsCache = Array.isArray(data.pools) ? data.pools : [];
             document.getElementById('summaryTotal').textContent = data.summary?.totalEmployees || employeesCache.length;
             document.getElementById('summaryOnline').textContent = data.summary?.onlineEmployees || 0;
             document.getElementById('summaryBusy').textContent = data.summary?.busyEmployees || 0;
             document.getElementById('summaryCompleted').textContent = data.summary?.completedCount || 0;
+            applyBalanceSummary(data.summary);
             renderEmployees();
+            renderPools();
         } catch (error) {
             console.error(error);
             Swal.fire('تعذر تحميل الفريق', error.message || 'حدث خطأ أثناء جلب بيانات الموظفين.', 'error');
@@ -688,6 +766,118 @@
             if (data.success) Swal.fire({ icon: 'success', title: 'تم تسجيل العملية', text: `رقم العملية: ${data.customId}`, timer: 1500, showConfirmButton: false });
             loadEmployees();
         } catch (error) { Swal.fire('خطأ', error.message || 'تعذر تسجيل العملية', 'error'); }
+    }
+
+    async function createBalancePool() {
+        const externals = employeesCache.filter((employee) => employee.role === 'external' && employee.status === 'active' && !employee.balancePool);
+        const memberChecks = externals.map((employee) => `
+            <label class="d-flex align-items-center justify-content-between gap-2 py-1">
+                <span>${escapeEmployeeHtml(employee.name)}</span>
+                <input type="checkbox" class="pool-member-check" value="${employee.id || employee._id}">
+            </label>`).join('') || '<p class="small text-muted">لا يوجد منفذون خارجيون فرديون حالياً. يمكنك إنشاء المجموعة فارغة ثم إضافة الأعضاء لاحقاً.</p>';
+        const result = await Swal.fire({
+            title: 'مجموعة رصيد مشتركة',
+            html: `<label class="form-label w-100 text-end">اسم المجموعة</label><input id="poolName" class="swal2-input m-0 mb-3 w-100" placeholder="مثال: شركة النور"><div class="text-end small fw-bold mb-2">ربط منفذين خارجيين (اختياري)</div><div class="text-end">${memberChecks}</div>`,
+            showCancelButton: true,
+            confirmButtonText: 'إنشاء المجموعة',
+            cancelButtonText: 'إلغاء',
+            preConfirm: () => {
+                const name = document.getElementById('poolName').value.trim();
+                if (name.length < 2) return Swal.showValidationMessage('أدخل اسماً واضحاً للمجموعة.');
+                return {
+                    name,
+                    memberIds: [...document.querySelectorAll('.pool-member-check:checked')].map((input) => input.value)
+                };
+            }
+        });
+        if (!result.isConfirmed) return;
+        try {
+            await readExecutorApiResponse(await executorApiFetch('/executor-portal/api/balance-pools', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(result.value)
+            }));
+            Swal.fire({ icon: 'success', title: 'تم إنشاء مجموعة الرصيد', timer: 1300, showConfirmButton: false });
+            loadEmployees();
+        } catch (error) { Swal.fire('تعذر الإنشاء', error.message, 'error'); }
+    }
+
+    async function renameBalancePool(id, encodedName) {
+        const currentName = decodeURIComponent(encodedName);
+        const result = await Swal.fire({
+            title: 'إعادة تسمية المجموعة',
+            input: 'text',
+            inputValue: currentName,
+            showCancelButton: true,
+            confirmButtonText: 'حفظ',
+            cancelButtonText: 'إلغاء',
+            inputValidator: (value) => { if (!value || value.trim().length < 2) return 'أدخل اسماً واضحاً.'; }
+        });
+        if (!result.isConfirmed) return;
+        try {
+            await readExecutorApiResponse(await executorApiFetch('/executor-portal/api/balance-pools/' + id + '/rename', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name: result.value.trim() })
+            }));
+            loadEmployees();
+        } catch (error) { Swal.fire('تعذر التعديل', error.message, 'error'); }
+    }
+
+    async function attachPoolMember(poolId) {
+        const select = document.getElementById('attach-' + poolId);
+        const options = select ? [...select.options] : [];
+        if (!options.length) return Swal.fire('تنبيه', 'لا يوجد منفذ خارجي فردي يمكن إضافته. افصل المنفذ من مجموعته الحالية أولاً.', 'info');
+        const result = await Swal.fire({
+            title: 'إضافة منفذ للمجموعة',
+            input: 'select',
+            inputOptions: Object.fromEntries(options.map((option) => [option.value, option.text])),
+            showCancelButton: true,
+            confirmButtonText: 'إضافة',
+            cancelButtonText: 'إلغاء'
+        });
+        if (!result.isConfirmed) return;
+        try {
+            await readExecutorApiResponse(await executorApiFetch('/executor-portal/api/balance-pools/' + poolId + '/members', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ memberIds: [result.value] })
+            }));
+            loadEmployees();
+        } catch (error) { Swal.fire('تعذر الإضافة', error.message, 'error'); }
+    }
+
+    async function detachPoolMember(poolId, employeeId, encodedName) {
+        const name = decodeURIComponent(encodedName);
+        const result = await Swal.fire({
+            title: 'فصل من مجموعة الرصيد',
+            html: `<p>فصل <b>${escapeEmployeeHtml(name)}</b> من المجموعة؟ إذا كان آخر عضو سيُنقل رصيد المجموعة إلى رصيده الفردي.</p>`,
+            showCancelButton: true,
+            confirmButtonText: 'فصل',
+            cancelButtonText: 'إلغاء'
+        });
+        if (!result.isConfirmed) return;
+        try {
+            await readExecutorApiResponse(await executorApiFetch(`/executor-portal/api/balance-pools/${poolId}/members/${employeeId}/detach`, { method: 'POST' }));
+            loadEmployees();
+        } catch (error) { Swal.fire('تعذر الفصل', error.message, 'error'); }
+    }
+
+    async function archiveBalancePool(id, encodedName) {
+        const name = decodeURIComponent(encodedName);
+        const result = await Swal.fire({
+            title: 'أرشفة المجموعة',
+            html: `<p>أرشفة مجموعة <b>${escapeEmployeeHtml(name)}</b>؟ يجب ألا يبقى فيها أعضاء أو رصيد.</p>`,
+            showCancelButton: true,
+            confirmButtonText: 'أرشفة',
+            cancelButtonText: 'إلغاء',
+            confirmButtonColor: '#ef4444'
+        });
+        if (!result.isConfirmed) return;
+        try {
+            await readExecutorApiResponse(await executorApiFetch('/executor-portal/api/balance-pools/' + id + '/archive', { method: 'POST' }));
+            loadEmployees();
+        } catch (error) { Swal.fire('تعذر الأرشفة', error.message, 'error'); }
     }
 
     // حذف موظف

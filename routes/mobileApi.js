@@ -72,6 +72,7 @@ const {
 } = require('../validators/mobileValidators');
 
 const mobileWebParityService = require('../services/mobileWebParityService');
+const executorBalancePoolService = require('../services/executorBalancePoolService');
 const executorDepositRequestService = require('../services/executorDepositRequestService');
 const executorSupportService = require('../services/executorSupportService');
 const mobileWebParityMapper = require('../mappers/mobileWebParityMapper');
@@ -3816,10 +3817,20 @@ router.get('/executor/employees', authenticateJWT, async (req, res) => {
             executorId: userId,
             tenantId: req.tenant ? executorTenantScope(req) : null
         });
+        const manager = await Employee.findById(userId).select('role groupId tenantId name').lean();
+        let poolWorkspace = null;
+        if (manager?.role === 'manager') {
+            poolWorkspace = await executorBalancePoolService.listExternalBalanceWorkspace({ manager }).catch(() => null);
+        }
         return res.json({
             success: true,
             employees: workspace.employees.map(emp => mobileWebParityMapper.toEmployeeDto(emp)),
-            summary: workspace.summary
+            summary: {
+                ...workspace.summary,
+                ...(poolWorkspace?.balances || {})
+            },
+            pools: poolWorkspace?.pools || [],
+            soloExternals: poolWorkspace?.solos || []
         });
     } catch (e) {
         if (e.message === 'UNAUTHORIZED') {
@@ -4002,6 +4013,96 @@ router.delete('/executor/employees/:id', authenticateJWT, async (req, res) => {
             return sendMobileError(res, 404, 'NOT_FOUND', 'الموظف غير موجود أو لا ينتمي إلى مجموعتك', req.correlationId);
         }
         return sendServerError(res, req, 'حدث خطأ أثناء حذف الموظف');
+    }
+});
+
+const handleExecutorPoolError = (res, req, error) => {
+    if (error instanceof executorBalancePoolService.ExecutorBalancePoolError) {
+        return sendMobileError(res, error.status || 400, error.code, error.message, req.correlationId);
+    }
+    return sendServerError(res, req, error.message || 'تعذر إكمال العملية');
+};
+
+router.get('/executor/balance-pools', authenticateJWT, async (req, res) => {
+    try {
+        const manager = await Employee.findById(req.user.userId);
+        const workspace = await executorBalancePoolService.listExternalBalanceWorkspace({ manager });
+        return res.json({ success: true, ...workspace, serverTime: new Date().toISOString() });
+    } catch (error) {
+        return handleExecutorPoolError(res, req, error);
+    }
+});
+
+router.post('/executor/balance-pools', authenticateJWT, async (req, res) => {
+    try {
+        const manager = await Employee.findById(req.user.userId);
+        const pool = await executorBalancePoolService.createPool({
+            manager,
+            name: req.body?.name,
+            memberIds: req.body?.memberIds || req.body?.members
+        });
+        const workspace = await executorBalancePoolService.listExternalBalanceWorkspace({ manager });
+        return res.status(201).json({ success: true, pool, ...workspace });
+    } catch (error) {
+        return handleExecutorPoolError(res, req, error);
+    }
+});
+
+router.post('/executor/balance-pools/:id/rename', authenticateJWT, async (req, res) => {
+    try {
+        const manager = await Employee.findById(req.user.userId);
+        const pool = await executorBalancePoolService.renamePool({
+            manager,
+            poolId: req.params.id,
+            name: req.body?.name
+        });
+        return res.json({ success: true, pool });
+    } catch (error) {
+        return handleExecutorPoolError(res, req, error);
+    }
+});
+
+router.post('/executor/balance-pools/:id/members', authenticateJWT, async (req, res) => {
+    try {
+        const manager = await Employee.findById(req.user.userId);
+        const workspace = await executorBalancePoolService.attachMembers({
+            manager,
+            poolId: req.params.id,
+            memberIds: req.body?.memberIds || req.body?.members || [req.body?.employeeId]
+        });
+        return res.json({ success: true, ...workspace });
+    } catch (error) {
+        return handleExecutorPoolError(res, req, error);
+    }
+});
+
+router.post('/executor/balance-pools/:id/members/:employeeId/detach', authenticateJWT, async (req, res) => {
+    try {
+        const manager = await Employee.findById(req.user.userId);
+        const workspace = await executorBalancePoolService.detachMember({
+            manager,
+            poolId: req.params.id,
+            employeeId: req.params.employeeId
+        });
+        return res.json({ success: true, ...workspace });
+    } catch (error) {
+        return handleExecutorPoolError(res, req, error);
+    }
+});
+
+router.post('/executor/employees/:id/external-transaction', authenticateJWT, async (req, res) => {
+    try {
+        const manager = await Employee.findById(req.user.userId);
+        const result = await executorBalancePoolService.fundExternalExecutor({
+            manager,
+            employeeId: req.params.id,
+            type: req.body?.type,
+            amount: req.body?.amount,
+            note: req.body?.note
+        });
+        return res.json({ success: true, ...result });
+    } catch (error) {
+        return handleExecutorPoolError(res, req, error);
     }
 });
 

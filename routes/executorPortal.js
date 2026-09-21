@@ -130,6 +130,12 @@ router.post('/api/employees/toggle-reports/:id', requireExecutorManager, dashboa
 router.post('/api/employees/reset-password/:id', requireExecutorManager, dashboardController.postEmployeesResetPassword);
 router.post('/api/employees/delete/:id', requireExecutorManager, dashboardController.postEmployeesDelete);
 router.post('/api/employees/external-transaction/:id', requireExecutorManager, dashboardController.postExternalEmployeeTransaction);
+router.get('/api/balance-pools', requireExecutorManager, dashboardController.getBalancePools);
+router.post('/api/balance-pools', requireExecutorManager, dashboardController.postBalancePoolCreate);
+router.post('/api/balance-pools/:id/rename', requireExecutorManager, dashboardController.postBalancePoolRename);
+router.post('/api/balance-pools/:id/members', requireExecutorManager, dashboardController.postBalancePoolAttach);
+router.post('/api/balance-pools/:id/members/:employeeId/detach', requireExecutorManager, dashboardController.postBalancePoolDetach);
+router.post('/api/balance-pools/:id/archive', requireExecutorManager, dashboardController.postBalancePoolArchive);
 router.post('/api/task-routing-mode', requireExecutorManager, dashboardController.postTaskRoutingMode);
 router.get('/api/route-candidates', requireExecutorManager, dashboardController.getRouteCandidates);
 router.post('/api/route-task/:id', requireExecutorManager, dashboardController.postRouteTask);

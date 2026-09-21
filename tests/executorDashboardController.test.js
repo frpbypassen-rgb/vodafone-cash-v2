@@ -22,6 +22,33 @@ jest.mock('../services/mobileWebParityService', () => ({
     deleteEmployee: jest.fn(),
     getEmployeesWorkspace: jest.fn()
 }));
+jest.mock('../services/executorBalancePoolService', () => ({
+    ExecutorBalancePoolError: class ExecutorBalancePoolError extends Error {
+        constructor(code, message, status = 400) {
+            super(message);
+            this.code = code;
+            this.status = status;
+        }
+    },
+    archivePool: jest.fn(),
+    attachMembers: jest.fn(),
+    createPool: jest.fn(),
+    detachMember: jest.fn(),
+    fundExternalExecutor: jest.fn(),
+    listExternalBalanceWorkspace: jest.fn().mockResolvedValue({
+        pools: [],
+        solos: [],
+        employees: [],
+        balances: { privateBalance: 0, totalBalance: 0, allocatedBalance: 0 }
+    }),
+    renamePool: jest.fn(),
+    snapshotCompanyBalances: jest.fn().mockResolvedValue({
+        privateBalance: 0,
+        totalBalance: 0,
+        allocatedBalance: 0
+    }),
+    workingBalanceForEmployee: jest.fn().mockResolvedValue({ kind: 'solo', balance: 0, pool: null })
+}));
 
 const Transaction = require('../models/Transaction');
 const { proofSourceUrl, streamProofImage } = require('../services/proofStorageService');

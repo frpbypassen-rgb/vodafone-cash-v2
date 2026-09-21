@@ -14,6 +14,10 @@ jest.mock('../models/MobilePushDevice', () => ({
     updateMany: jest.fn()
 }));
 
+jest.mock('../models/ExecutorBalancePool', () => ({
+    find: jest.fn()
+}));
+
 const mockLogAction = jest.fn();
 jest.mock('../services/auditService', () => ({
     logAction: (...args) => mockLogAction(...args)
@@ -22,6 +26,7 @@ jest.mock('../services/auditService', () => ({
 const Employee = require('../models/Employee');
 const Transaction = require('../models/Transaction');
 const MobilePushDevice = require('../models/MobilePushDevice');
+const ExecutorBalancePool = require('../models/ExecutorBalancePool');
 const {
     getEmployeesWorkspace,
     deleteEmployee
@@ -37,6 +42,11 @@ describe('executor employee workspace', () => {
     beforeEach(() => {
         jest.clearAllMocks();
         mockLogAction.mockResolvedValue(undefined);
+        ExecutorBalancePool.find.mockReturnValue({
+            select: jest.fn().mockReturnValue({
+                lean: jest.fn().mockResolvedValue([])
+            })
+        });
     });
 
     test('returns server-scoped presence, current task, and daily performance', async () => {

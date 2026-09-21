@@ -94,17 +94,24 @@ const liveTaskFilter = (emp, statuses, tenantId = null) => {
 
 const depositAlertQuery = (emp, now = Date.now()) => {
     const groupId = objectIdString(emp.groupId);
+    const selfId = objectIdString(emp._id);
     return {
         $and: [
+            { executorWebAlert: { $exists: true, $ne: null } },
+            { updatedAt: { $gte: new Date(now - DEP_ALERT_LOOKBACK_MS) } },
             {
                 $or: [
-                    { operatorId: objectIdString(emp._id) },
-                    { executorGroupId: groupId },
-                    { managerGroupId: groupId }
+                    { operatorId: selfId, transferType: 'external_balance' },
+                    {
+                        transferType: { $ne: 'external_balance' },
+                        $or: [
+                            { operatorId: selfId },
+                            { executorGroupId: groupId },
+                            { managerGroupId: groupId }
+                        ]
+                    }
                 ]
-            },
-            { executorWebAlert: { $exists: true, $ne: null } },
-            { updatedAt: { $gte: new Date(now - DEP_ALERT_LOOKBACK_MS) } }
+            }
         ]
     };
 };
@@ -223,6 +230,7 @@ module.exports = {
     IDLE_POLL_INTERVAL_SECONDS,
     LIVE_TASK_PROJECTION,
     completedTodayQuery,
+    depositAlertQuery,
     loadMobileLiveTasks,
     loadPortalLiveTasks,
     pollIntervalSecondsFor

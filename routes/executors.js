@@ -413,13 +413,27 @@ router.get('/executor/:id', requireAuth, async (req, res) => {
             });
         }
 
+        const { snapshotCompanyBalances, listExternalBalanceWorkspace } = require('../services/executorBalancePoolService');
+        let externalEmployees = [];
+        let companyBalances = null;
+        let externalPools = [];
+        try {
+            companyBalances = await snapshotCompanyBalances(bot._id);
+            const fakeManager = { role: 'manager', groupId: bot._id, _id: req.session.adminId };
+            const workspace = await listExternalBalanceWorkspace({ manager: fakeManager });
+            externalEmployees = workspace.employees || [];
+            externalPools = workspace.pools || [];
+        } catch (_) {
+            externalEmployees = await Employee.find({ groupId: bot._id, role: 'external', status: 'active' }).select('name balance phone webUsername').lean();
+        }
+
         res.render('executor_details', {
             bot,
             transactions,
             managerBots,
-            externalEmployees: bot.isManagerBot
-                ? await Employee.find({ groupId: bot._id, role: 'external', status: 'active' }).select('name balance phone webUsername').lean()
-                : [],
+            externalEmployees,
+            externalPools,
+            companyBalances,
             adminName: req.session.adminName,
             isMaster: req.session.adminRole === 'master',
             query: req.query

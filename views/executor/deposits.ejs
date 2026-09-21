@@ -21,6 +21,9 @@
         .deposit-hero h1 { font-size: clamp(1.35rem, 3vw, 2rem); font-weight: 900; margin: 0 0 6px; }
         .deposit-hero p { color: var(--x-muted, #9cadc3); margin: 0; max-width: 640px; line-height: 1.7; }
         .deposit-balance-card { min-width: 220px; padding: 14px 16px; border-radius: 16px; border: 1px solid rgba(52, 211, 153, 0.28); background: rgba(52, 211, 153, 0.08); text-align: start; }
+        .deposit-balance-stack { display: flex; flex-wrap: wrap; gap: 10px; }
+        .deposit-balance-private { border-color: rgba(251, 191, 36, 0.35); background: rgba(251, 191, 36, 0.08); }
+        .deposit-balance-private strong { color: #fbbf24; }
         .deposit-balance-card span { display: block; color: var(--x-muted, #9cadc3); font-size: 0.74rem; font-weight: 800; margin-bottom: 4px; }
         .deposit-balance-card strong { font-family: 'JetBrains Mono', monospace; font-size: 1.35rem; color: #34d399; }
         .deposit-steps { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin-bottom: 18px; }
@@ -100,9 +103,22 @@
                 <h1><i class="fa-solid <%= isExternalDepositView ? 'fa-wallet' : 'fa-building-columns' %> text-info ms-2"></i><%= isExternalDepositView ? 'حركات رصيدك' : 'إيداعات شركة التنفيذ' %></h1>
                 <p><%= isExternalDepositView ? 'هنا تظهر فقط الإيداعات والخصومات التي أضافها لك مدير شركة التنفيذ. لا تظهر لك أي بيانات أو إيداعات تخص الشركة.' : 'تصل إليك طلبات الإيداع الصادرة من الإدارة مع الإيصالات. راجع الطلب ثم اقبله أو ألغِه من هذه الصفحة.' %></p>
             </div>
-            <div class="deposit-balance-card">
-                <span><i class="fa-solid fa-wallet ms-1"></i> <%= isExternalDepositView ? 'رصيدك المتاح حالياً' : 'الرصيد المتاح حالياً' %></span>
-                <strong dir="ltr"><%= Number(isExternalDepositView ? (emp.balance || 0) : (emp.groupId?.balance || 0)).toLocaleString('en-US', { maximumFractionDigits: 2 }) %> EGP</strong>
+            <div class="deposit-balance-stack">
+                <% if (isExternalDepositView) { %>
+                    <div class="deposit-balance-card">
+                        <span><i class="fa-solid fa-wallet ms-1"></i> <%= workingBalance && workingBalance.pool ? `رصيد مجموعة «${workingBalance.pool.name}»` : 'رصيدك المتاح حالياً' %></span>
+                        <strong dir="ltr"><%= Number((workingBalance && workingBalance.balance != null) ? workingBalance.balance : (emp.balance || 0)).toLocaleString('en-US', { maximumFractionDigits: 2 }) %> EGP</strong>
+                    </div>
+                <% } else { %>
+                    <div class="deposit-balance-card">
+                        <span><i class="fa-solid fa-vault ms-1"></i> إجمالي الرصيد</span>
+                        <strong dir="ltr"><%= Number(companyBalances?.totalBalance ?? emp.groupId?.balance ?? 0).toLocaleString('en-US', { maximumFractionDigits: 2 }) %> EGP</strong>
+                    </div>
+                    <div class="deposit-balance-card deposit-balance-private">
+                        <span><i class="fa-solid fa-wallet ms-1"></i> الرصيد الخاص</span>
+                        <strong dir="ltr"><%= Number(companyBalances?.privateBalance ?? emp.groupId?.balance ?? 0).toLocaleString('en-US', { maximumFractionDigits: 2 }) %> EGP</strong>
+                    </div>
+                <% } %>
             </div>
         </header>
 

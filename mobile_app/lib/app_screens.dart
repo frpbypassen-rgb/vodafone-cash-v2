@@ -19033,11 +19033,36 @@ class _ExecutorSettingsScreenState extends State<ExecutorSettingsScreen> {
                 label: 'الخدمة',
                 value: serviceLabel(company['serviceKey']?.toString()),
               ),
-              if (company['balance'] != null)
+              if (company['totalBalance'] != null)
+                DetailLine(
+                  label: 'إجمالي الرصيد',
+                  value:
+                      '${formatEgpAmount(numberValue(company['totalBalance']))} ج.م',
+                ),
+              if (company['privateBalance'] != null)
+                DetailLine(
+                  label: 'الرصيد الخاص',
+                  value:
+                      '${formatEgpAmount(numberValue(company['privateBalance']))} ج.م',
+                ),
+              if (company['balance'] != null &&
+                  company['privateBalance'] == null)
                 DetailLine(
                   label: 'رصيد الشركة',
                   value:
                       '${formatEgpAmount(numberValue(company['balance']))} ج.م',
+                ),
+              if (executor['workingBalance'] != null)
+                DetailLine(
+                  label: () {
+                    final pool = executor['balancePool'];
+                    final poolName = pool is Map ? '${pool['name'] ?? ''}' : '';
+                    return poolName.isEmpty
+                        ? 'رصيدك'
+                        : 'رصيد مجموعة «$poolName»';
+                  }(),
+                  value:
+                      '${formatEgpAmount(numberValue(executor['workingBalance']))} ج.م',
                 ),
             ],
           ),
