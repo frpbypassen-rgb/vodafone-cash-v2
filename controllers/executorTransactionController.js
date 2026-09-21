@@ -306,18 +306,26 @@ exports.postCancelTask = async (req, res) => {
             tx.cancelledAt = cancelledAt;
             appendAdminNote(tx, `[تم الإلغاء | المنفذ: ${emp.name} | السبب: ${reason}]`);
             await tx.save();
+            let cancellationReceiptReady = false;
             try {
-                await attachCancellationReceipt(tx, {
+                cancellationReceiptReady = Boolean(await attachCancellationReceipt(tx, {
                     reason,
                     performedBy: emp.name || 'المنفذ',
                     cancelledAt
-                });
+                }));
             } catch (receiptError) {
                 appendAdminNote(tx, `[تعذر توليد إيصال الإلغاء: ${receiptError.message}]`);
                 await tx.save();
             }
 
-            // WhatsApp notification removed
+            if (cancellationReceiptReady) {
+                try {
+                    const { sendCancelledTransactionReceipt } = require('../services/whatsappReceiptDeliveryService');
+                    await sendCancelledTransactionReceipt(tx);
+                } catch (whatsappError) {
+                    console.error('[executor/cancel-task] WhatsApp cancellation receipt failed:', whatsappError.message);
+                }
+            }
 
             const adminMsg = `🚨 <b>تنبيه للإدارة: تم إلغاء عملية من قِبل المنفذ!</b>\n\n🏢 <b>الجهة/العميل:</b> ${tx.companyName || 'عميل فردي'}\n👤 <b>الموظف الطالب:</b> ${tx.employeeName || 'غير محدد'}\n🤖 <b>بواسطة المنفذ:</b> ${emp.name}\n\n🧾 <b>رقم الطلب:</b> <code>${tx.customId || tx._id}</code>\n📞 <b>الرقم/الحساب:</b> <code>${tx.vodafoneNumber || tx.accountNumber || '---'}</code>\n💵 <b>المبلغ:</b> ${tx.amount} EGP\n🇱🇾 <b>التكلفة المسترجعة:</b> ${tx.costLYD.toFixed(2)} LYD\n⚠️ <b>سبب الإلغاء:</b> <b>${reason}</b>`;
             notifyAdmins(adminMsg);

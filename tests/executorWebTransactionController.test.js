@@ -24,6 +24,19 @@ jest.mock('../utils/manualExecutorReceipt', () => ({
     }),
     ManualExecutionNumberError: class ManualExecutionNumberError extends Error {}
 }));
+jest.mock('../models/Admin', () => ({ find: jest.fn().mockResolvedValue([]) }));
+jest.mock('../models/User', () => ({
+    findOne: jest.fn(),
+    findOneAndUpdate: jest.fn().mockResolvedValue({})
+}));
+jest.mock('../models/ClientCompany', () => ({ findByIdAndUpdate: jest.fn().mockResolvedValue({}) }));
+jest.mock('../services/cancellationReceiptService', () => ({
+    attachCancellationReceipt: jest.fn().mockResolvedValue('proofs/CAN-1_cancellation_receipt.jpg')
+}));
+jest.mock('../services/whatsappReceiptDeliveryService', () => ({
+    sendCancelledTransactionReceipt: jest.fn().mockResolvedValue({ success: true }),
+    sendCompletedTransactionReceipt: jest.fn()
+}));
 jest.mock('../services/manualExecutorReceiptReferenceService', () => ({
     reserveManualExecutorReceiptReference: jest.fn().mockResolvedValue({
         prefix: '999',
@@ -41,6 +54,7 @@ const eventBus = require('../services/eventBus');
 const { generateReceiptBase64 } = require('../utils/receiptGenerator');
 const { generateManualExecutorReceiptBase64, maskManualExecutionNumber } = require('../utils/manualExecutorReceipt');
 const { reserveManualExecutorReceiptReference } = require('../services/manualExecutorReceiptReferenceService');
+const { sendCancelledTransactionReceipt } = require('../services/whatsappReceiptDeliveryService');
 const controller = require('../controllers/executorTransactionController');
 
 describe('Executor web transaction completion', () => {
@@ -179,6 +193,23 @@ describe('Executor web transaction completion', () => {
         expect(tx.executorProofImages[0]).toMatch(/^EXEC-TEST-001_[a-z0-9]+(?:_\d+)?\.png$/);
         expect(tx.executorExecutionNumber).toBe('2258');
         expect(tx.executorExecutionNumberMasked).toBe('01*****2258');
+    });
+
+    test('sends the cancellation receipt on WhatsApp when the executor cancels', async () => {
+        req.body.reason = 'الرقم غير مسجل';
+        tx.operatorId = 'employee-1';
+        tx.costLYD = 12.5;
+        tx.companyName = 'شركة النور';
+        Transaction.findById.mockResolvedValue(tx);
+        Employee.findById.mockResolvedValue({
+            _id: { toString: () => 'employee-1' },
+            name: 'منفذ الاختبار'
+        });
+
+        await controller.postCancelTask(req, res);
+
+        expect(sendCancelledTransactionReceipt).toHaveBeenCalledWith(tx);
+        expect(res.json).toHaveBeenCalledWith({ success: true });
     });
 
     test('requires a cancellation reason before changing the transaction', async () => {

@@ -16,6 +16,8 @@ const REQUIRED_ADMIN_HREFS = [
     '/transactions/operations',
     '/transactions/movements',
     '/transactions/search',
+    '/transactions/deposits?party=company',
+    '/transactions/deposits?party=executor',
     '/reports',
     '/whatsapp-monitor',
     '/admin/webhooks',

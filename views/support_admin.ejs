@@ -21,7 +21,7 @@
     <button class="mobile-nav-toggle" onclick="toggleSidebar()" title="فتح القائمة"><i class="fa-solid fa-bars"></i></button>
     <div class="sidebar-overlay" onclick="toggleSidebar()"></div>
 
-    <%- include('partials/sidebar', { activePage: 'support' }) %>
+    <%- include('partials/sidebar', { activePage: typeof activePage !== 'undefined' ? activePage : 'support' }) %>
 
     <main class="main-content">
         <div class="support-page">

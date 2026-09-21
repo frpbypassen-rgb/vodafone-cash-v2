@@ -83,6 +83,20 @@ describe('Support workspace service', () => {
         expect(filter.$or[0].ticketId.test('TCK-123')).toBe(true);
     });
 
+    test('deposit queue includes company and executor deposit tickets', () => {
+        const filter = buildTicketFilter({ category: 'deposit', status: 'all' }, admin);
+        expect(filter.category).toBeUndefined();
+        expect(filter.$and).toEqual([
+            {
+                $or: [
+                    { category: 'deposit' },
+                    { 'metadata.type': { $in: ['executor_deposit', 'client_deposit', 'company_deposit'] } },
+                    { entityType: 'client_company', 'messages.text': { $regex: 'طلب إيداع رصيد' } }
+                ]
+            }
+        ]);
+    });
+
     test('reports a live lock held by another administrator', () => {
         const summary = serializeTicketSummary({
             _id: 'ticket-1',

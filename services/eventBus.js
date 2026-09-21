@@ -113,7 +113,7 @@ eventBus.on('transfer:completed', async (data) => {
 });
 
 // 3. عند إلغاء تحويل مالي
-eventBus.on('transfer:cancelled', async (data) => {
+const handleTransferCancelled = async (data) => {
     try {
         const { tx, emp, reason, cancellationNumber } = data;
         logger.financial('Transfer Cancelled Event Received', { customId: tx.customId, refund: tx.costLYD });
@@ -136,6 +136,10 @@ eventBus.on('transfer:cancelled', async (data) => {
                 error: err.message
             });
         });
+        const { sendCancelledTransactionReceipt } = require('./whatsappReceiptDeliveryService');
+        await sendCancelledTransactionReceipt(tx).catch((error) => {
+            logger.error('Failed to send WhatsApp cancellation receipt', { customId: tx.customId, error: error.message });
+        });
         const msg = `❌ تم إلغاء الحوالة رقم ${tx.customId} وإرجاع القيمة ${tx.costLYD} LYD لرصيدك. السبب: ${reason}`;
         
         if (tx.userId) {
@@ -144,7 +148,10 @@ eventBus.on('transfer:cancelled', async (data) => {
     } catch (err) {
         logger.error('Failed to handle transfer:cancelled event', { error: err.message });
     }
-});
+};
+
+eventBus.on('transfer:cancelled', handleTransferCancelled);
 
 module.exports = eventBus;
 module.exports.summarizeEventForLog = summarizeEventForLog;
+module.exports.handleTransferCancelled = handleTransferCancelled;
