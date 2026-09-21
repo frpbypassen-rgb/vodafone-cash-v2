@@ -1,8 +1,13 @@
 'use strict';
 
 const Employee = require('../models/Employee');
+const Transaction = require('../models/Transaction');
 const { decrypt, encrypt, hashForLog } = require('../utils/encryption');
-const { findOwnedAcceptedExecutorTask } = require('./executorTaskRoutingService');
+const {
+    acceptExecutorTask,
+    findOwnedAcceptedExecutorTask,
+    routingErrorMessage
+} = require('./executorTaskRoutingService');
 const { invalidateExecutorAuth } = require('./executorAuthCache');
 const { readExecutorManualPolicy } = require('../utils/executorManualPolicy');
 const {
@@ -18,7 +23,11 @@ const {
     toPublicQuickExecuteState,
     validateWalletPin
 } = require('../utils/executorQuickExecuteUssd');
-const { taskRecipientValue } = require('../utils/executorTaskPrivacy');
+const { isCashWalletTask, taskRecipientValue } = require('../utils/executorTaskPrivacy');
+
+const TASK_NOT_ACCEPTED_AR = 'هذه المهمة ليست ضمن مهامك المقبولة. اسحب/اقبل المهمة أولًا ثم استخدم التنفيذ السريع.';
+const TASK_NOT_CLAIMABLE_AR = 'هذه المهمة ليست لك أو غير قابلة للسحب. اسحب/اقبل المهمة أولًا إن كانت متاحة لك.';
+const ACCEPTABLE_DIAL_STATUSES = new Set(['processing', 'pending']);
 
 class QuickExecuteError extends Error {
     constructor(code, message, status = 400) {
@@ -28,6 +37,34 @@ class QuickExecuteError extends Error {
         this.status = status;
     }
 }
+
+const stringId = (value) => String(value?._id || value || '').trim();
+
+const normalizeDialTenantScope = (tenantId) => {
+    if (!tenantId) return null;
+    if (typeof tenantId === 'object' && Array.isArray(tenantId.$in)) return tenantId;
+    return String(process.env.TENANT_MODE || '').trim().toLowerCase() === 'single'
+        ? { $in: [tenantId, null] }
+        : tenantId;
+};
+
+const executorIdentitySet = (employee) => new Set([
+    stringId(employee?._id),
+    String(employee?.webUsername || '').trim()
+].filter(Boolean));
+
+const executorOwnsAcceptedTask = (task, employee) => {
+    if (!task || String(task.status || '') !== 'accepted') return false;
+    const identities = executorIdentitySet(employee);
+    return [task.operatorId, task.assignedExecutorId]
+        .map(stringId)
+        .some((ownerId) => ownerId && identities.has(ownerId));
+};
+
+const taskAssignedToExecutor = (task, employee) => {
+    const assignedId = stringId(task?.assignedExecutorId);
+    return Boolean(assignedId && executorIdentitySet(employee).has(assignedId));
+};
 
 const loadExecutorForQuickExecute = async (executorId, { includePin = false } = {}) => {
     const query = Employee.findById(executorId);
@@ -89,22 +126,92 @@ const resolveStoredPin = (employee) => {
     }
 };
 
-const buildQuickExecuteDial = async ({ executorId, taskId, pin, tenantId = null }) => {
+const loadDialCandidate = async (taskId) => {
+    if (typeof Transaction.findById !== 'function') return null;
+    return Transaction.findById(taskId);
+};
+
+const throwAcceptFailure = (result) => {
+    const code = result?.code || 'TASK_UNAVAILABLE';
+    if (code === 'TASK_ASSIGNED_TO_OTHER' || code === 'TASK_TAKEN' || code === 'FORBIDDEN') {
+        throw new QuickExecuteError(code, TASK_NOT_CLAIMABLE_AR, 403);
+    }
+    if (code === 'ACTIVE_TASK_EXISTS' || code === 'ROUTING_REQUIRED') {
+        throw new QuickExecuteError(code, routingErrorMessage(code), 409);
+    }
+    throw new QuickExecuteError('TASK_NOT_ACCEPTED', TASK_NOT_ACCEPTED_AR, 403);
+};
+
+const resolveDialTask = async ({ employee, taskId, tenantId, autoAccept }) => {
+    const tenantScope = normalizeDialTenantScope(tenantId);
+    const ownedTask = await findOwnedAcceptedExecutorTask({
+        transactionId: taskId,
+        executor: employee,
+        tenantId: tenantScope
+    });
+    if (ownedTask) return { task: ownedTask, acceptedNow: false };
+
+    const candidate = await loadDialCandidate(taskId);
+    if (!candidate) {
+        throw new QuickExecuteError('TASK_NOT_FOUND', 'لم تعد العملية موجودة في النظام. حدّث قائمة المهام.', 404);
+    }
+    if (!isCashWalletTask(candidate)) {
+        throw new QuickExecuteError('NOT_CASH_WALLET', 'التنفيذ السريع متاح لتحويلات المحفظة النقدية فقط.');
+    }
+
+    if (executorOwnsAcceptedTask(candidate, employee)) {
+        return { task: candidate, acceptedNow: false };
+    }
+
+    const claimable = ACCEPTABLE_DIAL_STATUSES.has(String(candidate.status || ''));
+    if (autoAccept && claimable && taskAssignedToExecutor(candidate, employee)) {
+        const accepted = await acceptExecutorTask({
+            transactionId: taskId,
+            executor: employee,
+            tenantId: tenantScope
+        });
+        if (accepted?.ok || accepted?.replayed) {
+            const task = accepted.transaction || await findOwnedAcceptedExecutorTask({
+                transactionId: taskId,
+                executor: employee,
+                tenantId: tenantScope
+            }) || candidate;
+            const plain = task && typeof task.toObject === 'function' ? task.toObject() : task;
+            return { task: { ...plain, status: 'accepted' }, acceptedNow: !accepted.replayed };
+        }
+        throwAcceptFailure(accepted);
+    }
+
+    if (claimable) {
+        throw new QuickExecuteError('TASK_NOT_ACCEPTED', TASK_NOT_ACCEPTED_AR, 403);
+    }
+    throw new QuickExecuteError('TASK_NOT_OWNED', TASK_NOT_CLAIMABLE_AR, 403);
+};
+
+const buildQuickExecuteDial = async ({
+    executorId,
+    executor = null,
+    taskId,
+    pin,
+    tenantId = null,
+    autoAccept = true
+} = {}) => {
     const employee = await loadExecutorForQuickExecute(executorId, { includePin: true });
+    if (!employee.groupId && executor?.groupId) employee.groupId = executor.groupId;
+    if (!employee.webUsername && executor?.webUsername) employee.webUsername = executor.webUsername;
+
     const policy = readExecutorManualPolicy(employee.groupId, employee);
     if (!policy.quickExecuteEnabled) {
         throw new QuickExecuteError('QUICK_EXECUTE_DISABLED', 'التنفيذ السريع غير مفعّل لحسابك.', 403);
     }
 
-    const task = await findOwnedAcceptedExecutorTask({
-        transactionId: taskId,
-        executor: employee,
-        tenantId
+    const { task, acceptedNow } = await resolveDialTask({
+        employee,
+        taskId,
+        tenantId,
+        autoAccept
     });
-    if (!task) {
-        throw new QuickExecuteError('TASK_NOT_OWNED', 'هذه المهمة ليست ضمن مهامك المقبولة.', 403);
-    }
-    if (String(task.transferType || '').trim() !== 'vodafone') {
+    if (!isCashWalletTask(task)) {
         throw new QuickExecuteError('NOT_CASH_WALLET', 'التنفيذ السريع متاح لتحويلات المحفظة النقدية فقط.');
     }
 
@@ -143,6 +250,7 @@ const buildQuickExecuteDial = async ({ executorId, taskId, pin, tenantId = null 
         securityNote: pinRequired ? PIN_SECURITY_NOTE_AR : '',
         ussd,
         telUri: toTelUri(ussd),
+        acceptedNow: Boolean(acceptedNow),
         debug: redactUssdForLog(ussd, providedPin),
         pinFingerprint: pinRequired && providedPin ? hashForLog(providedPin) : null
     };
@@ -150,8 +258,11 @@ const buildQuickExecuteDial = async ({ executorId, taskId, pin, tenantId = null 
 
 module.exports = {
     QuickExecuteError,
+    TASK_NOT_ACCEPTED_AR,
+    TASK_NOT_CLAIMABLE_AR,
     buildQuickExecuteDial,
     getQuickExecuteState,
+    normalizeDialTenantScope,
     saveQuickExecutePreferences,
     toPublicQuickExecuteState
 };

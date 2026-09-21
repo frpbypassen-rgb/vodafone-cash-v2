@@ -23,6 +23,9 @@ describe('executor portal performance contracts', () => {
         expect(dashboardSource).toContain('تنفيذ سريع');
         expect(dashboardSource).toContain('fa-phone-flip');
         expect(dashboardSource).toContain('/executor-portal/api/quick-execute/dial/');
+        expect(dashboardSource).toContain('encodeQuickExecuteTelUri');
+        expect(dashboardSource).toContain('%2A');
+        expect(dashboardSource).toContain('canClaimThenQuickExecute');
         expect(dashboardSource).toContain('executor-sla-hint');
         expect(dashboardSource).toContain('STUCK_ASSIGNEE_SLA_SECONDS');
     });

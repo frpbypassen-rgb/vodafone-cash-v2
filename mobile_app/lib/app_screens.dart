@@ -16258,22 +16258,81 @@ class _ExecutorTasksScreenState extends State<ExecutorTasksScreen>
         taskId: taskId,
         pin: pin.isEmpty ? null : pin,
       );
-      final telUri = '${response['telUri'] ?? ''}';
-      if (telUri.isEmpty) {
+      final ussd = '${response['ussd'] ?? ''}'.trim();
+      final telUri = toQuickExecuteTelUri(
+        '${response['telUri'] ?? ussd}'.trim(),
+      );
+      if (telUri == 'tel:' || ussd.isEmpty && '${response['telUri'] ?? ''}'.isEmpty) {
         throw const ApiFailure('تعذر تجهيز كود الاتصال.');
       }
-      final launched = await openExternalLink(Uri.parse(telUri));
+      final launched = await openExternalUrl(telUri);
+      if (response['acceptedNow'] == true) await _load();
       if (!launched && mounted) {
-        await Clipboard.setData(
-          ClipboardData(text: '${response['ussd'] ?? telUri}'),
-        );
-        showSnack(context, 'تعذر فتح الاتصال؛ تم نسخ كود USSD.');
+        await _showQuickExecuteCopyFallback(ussd.isEmpty ? telUri : ussd, telUri);
       }
     } on ApiFailure catch (error) {
-      if (mounted) showSnack(context, error.message, error: true);
+      if (mounted) {
+        await showDialog<void>(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Text('تعذر التنفيذ السريع'),
+            content: Text(error.message),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('إغلاق'),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('حسناً'),
+              ),
+            ],
+          ),
+        );
+      }
     } finally {
       if (mounted) setState(() => _actionBusy = false);
     }
+  }
+
+  Future<void> _showQuickExecuteCopyFallback(String ussd, String telUri) async {
+    final retry = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('تعذر فتح الاتصال'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const Text(
+              'انسخ كود USSD واتصل يدوياً إذا لم يفتح الهاتف شاشة الاتصال.',
+            ),
+            const SizedBox(height: 12),
+            SelectableText(
+              ussd,
+              textDirection: ui.TextDirection.ltr,
+              style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('إعادة المحاولة'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('نسخ الكود'),
+          ),
+        ],
+      ),
+    );
+    if (retry == true) {
+      await openExternalUrl(telUri);
+      return;
+    }
+    await Clipboard.setData(ClipboardData(text: ussd));
+    if (mounted) showSnack(context, 'تم نسخ كود USSD.');
   }
 
   @override
@@ -24738,6 +24797,14 @@ class ExecutorTaskTile extends StatelessWidget {
     final isCashWallet = transferType == 'vodafone';
     final recipient = '${task['recipientNumber'] ?? '-'}';
     final recipientRevealed = task['recipientRevealed'] == true && acceptedByMe;
+    final showsQuickExecute = taskOffersQuickExecute(
+      enabled: quickExecuteEnabled,
+      transferType: transferType,
+      acceptedByMe: acceptedByMe,
+      assignedToMe: routedToMe,
+      canQuickExecute: task['canQuickExecute'] == true,
+      canClaimThenQuickExecute: task['canClaimThenQuickExecute'] == true,
+    ) && onQuickExecute != null;
     final amount = formatEgpAmount(numberValue(task['amount']));
     final notes = '${task['notes'] ?? ''}'.trim();
     final receivedAt = task['executorReceivedAt'] ?? task['createdAt'];
@@ -25022,20 +25089,41 @@ class ExecutorTaskTile extends StatelessWidget {
               ),
             )
           else if (!accepted)
-            SizedBox(
-              width: double.infinity,
-              child: FilledButton.icon(
-                onPressed: busy || acceptBlocked ? null : onAccept,
-                style: FilledButton.styleFrom(minimumSize: const Size(0, 52)),
-                icon: const Icon(Icons.task_alt_outlined),
-                label: Text(
-                  acceptBlocked
-                      ? 'أكمل العملية الحالية أولاً'
-                      : (routedToMe
-                          ? 'اسحب المهمة الموجهة إليك'
-                          : 'قبول العملية'),
+            Row(
+              children: [
+                Expanded(
+                  child: FilledButton.icon(
+                    onPressed: busy || acceptBlocked ? null : onAccept,
+                    style: FilledButton.styleFrom(minimumSize: const Size(0, 52)),
+                    icon: const Icon(Icons.task_alt_outlined),
+                    label: Text(
+                      acceptBlocked
+                          ? 'أكمل العملية الحالية أولاً'
+                          : (routedToMe
+                              ? 'اسحب المهمة الموجهة إليك'
+                              : 'قبول العملية'),
+                    ),
+                  ),
                 ),
-              ),
+                if (showsQuickExecute) ...[
+                  const SizedBox(width: 8),
+                  Tooltip(
+                    message: 'تنفيذ سريع',
+                    child: SizedBox(
+                      width: 52,
+                      height: 52,
+                      child: FilledButton(
+                        onPressed: busy ? null : onQuickExecute,
+                        style: FilledButton.styleFrom(
+                          padding: EdgeInsets.zero,
+                          backgroundColor: const Color(0xFF0EA5E9),
+                        ),
+                        child: const Icon(Icons.phone_in_talk_outlined),
+                      ),
+                    ),
+                  ),
+                ],
+              ],
             )
           else if (acceptedByMe)
             Row(
@@ -25048,10 +25136,7 @@ class ExecutorTaskTile extends StatelessWidget {
                     label: const Text('تم التنفيذ'),
                   ),
                 ),
-                if (quickExecuteEnabled &&
-                    isCashWallet &&
-                    recipientRevealed &&
-                    onQuickExecute != null) ...[
+                if (showsQuickExecute) ...[
                   const SizedBox(width: 8),
                   Tooltip(
                     message: 'تنفيذ سريع',

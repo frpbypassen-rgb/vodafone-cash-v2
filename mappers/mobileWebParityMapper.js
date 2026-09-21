@@ -2,7 +2,11 @@
 'use strict';
 
 const { getTransferServiceLabel } = require('../utils/mobileTransferServiceCatalog');
-const { buildExecutorTaskRecipient } = require('../utils/executorTaskPrivacy');
+const {
+    buildExecutorTaskRecipient,
+    canClaimThenQuickExecuteTask,
+    canQuickExecuteTask
+} = require('../utils/executorTaskPrivacy');
 const { createReceiptImageUrl } = require('../services/receiptShareService');
 const { readExecutorManualPolicy, toPublicExecutionPolicy } = require('../utils/executorManualPolicy');
 
@@ -275,6 +279,8 @@ const toExecutorTaskDto = (tx, currentExecutorId = null) => {
         operatorId: tx.operatorId ? String(tx.operatorId) : null,
         acceptedByName: tx.status === 'accepted' ? (tx.executorName || null) : null,
         isOwnedByCurrentExecutor: recipient.recipientRevealed,
+        canQuickExecute: canQuickExecuteTask(tx, currentExecutorId),
+        canClaimThenQuickExecute: canClaimThenQuickExecuteTask(tx, currentExecutorId),
         createdAt: tx.createdAt ? new Date(tx.createdAt).toISOString() : null,
         emergencyAlert: tx.emergencyAlert || null
     };

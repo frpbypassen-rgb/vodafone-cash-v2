@@ -131,7 +131,12 @@ const {
     getQuickExecuteState,
     saveQuickExecutePreferences
 } = require('../services/executorQuickExecuteService');
-const { buildExecutorTaskRecipient, buildTaskRoutingVisibility } = require('../utils/executorTaskPrivacy');
+const {
+    buildExecutorTaskRecipient,
+    buildTaskRoutingVisibility,
+    canClaimThenQuickExecuteTask,
+    canQuickExecuteTask
+} = require('../utils/executorTaskPrivacy');
 const {
     findBrowserExecutable,
     getSharedBrowser,
@@ -365,6 +370,8 @@ const toExecutorTaskDto = (tx, currentExecutorId = null) => {
                     && (operatorId === String(currentExecutorId) || assignedExecutorId === String(currentExecutorId));
             })()
         ),
+        canQuickExecute: canQuickExecuteTask(tx, currentExecutorId),
+        canClaimThenQuickExecute: canClaimThenQuickExecuteTask(tx, currentExecutorId),
         executorReceivedAt: tx.executorReceivedAt
             ? new Date(tx.executorReceivedAt).toISOString()
             : (tx.createdAt ? new Date(tx.createdAt).toISOString() : null),
@@ -1680,7 +1687,8 @@ router.post('/executor/quick-execute/dial/:id', authenticateJWT, async (req, res
             pinSet: Boolean(dial.pinSet),
             securityNote: dial.securityNote || '',
             ussd: dial.ussd,
-            telUri: dial.telUri
+            telUri: dial.telUri,
+            acceptedNow: Boolean(dial.acceptedNow)
         });
     } catch (error) {
         if (error instanceof QuickExecuteError) {

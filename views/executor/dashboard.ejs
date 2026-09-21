@@ -1144,7 +1144,8 @@
                 let othersTasks = [];
 
                 data.tasks.forEach(t => {
-                    const ownedByMe = t.operatorId === myExecutorId && t.status === 'accepted';
+                    const ownedByMe = t.isOwnedByCurrentExecutor === true
+                        || (t.operatorId === myExecutorId && t.status === 'accepted');
                     const routedToMe = t.isAssignedToCurrentExecutor === true || (
                         String(t.assignedExecutorId || '') === myExecutorId && t.status !== 'accepted'
                     );
@@ -1158,12 +1159,19 @@
                 let html = '';
                 
                 smartSortedTasks.forEach(t => {
-                    const isMine = t.operatorId === myExecutorId && t.status === 'accepted';
+                    const isMine = t.isOwnedByCurrentExecutor === true
+                        || (t.operatorId === myExecutorId && t.status === 'accepted');
                     const routedToMe = !isMine && (
                         t.isAssignedToCurrentExecutor === true
-                        || String(t.assignedExecutorId || '') === myExecutorId
+                        || (String(t.assignedExecutorId || '') === myExecutorId && t.status !== 'accepted')
                     );
                     const acceptedByOther = t.status === 'accepted' && !isMine;
+                    const quickExecuteEnabled = executorManualPolicy.quickExecuteEnabled || executorQuickExecute.enabled;
+                    const showQuickExecute = quickExecuteEnabled && (
+                        t.canQuickExecute === true
+                        || t.canClaimThenQuickExecute === true
+                        || ((t.transferType || '') === 'vodafone' && (isMine || routedToMe))
+                    );
                     const canRoute = isExecutorManager && manualTaskRoutingEnabled && (t.status === 'processing' || t.status === 'pending');
                     const routingState = t.routingState || (t.status === 'accepted' ? 'in_progress' : (t.assignedExecutorId ? 'pending_with_assignee' : 'unassigned'));
                     const routingStateLabel = t.routingStateLabel
@@ -1259,7 +1267,7 @@
                                       isMine ? `
                                          <div class="complete-actions-row">
                                             <button onclick="openUpload('${t._id}', '${t.transferType || ''}', ${Number(t.amount || 0)})" class="btn-cyber-main mb-0"><i class="fa-solid fa-check-double"></i> إنهاء العملية</button>
-                                            ${(executorManualPolicy.quickExecuteEnabled || executorQuickExecute.enabled) && (t.transferType || '') === 'vodafone' ? `
+                                            ${showQuickExecute ? `
                                             <button type="button" onclick="quickExecuteDial('${t._id}')" class="btn-quick-execute" title="تنفيذ سريع" aria-label="تنفيذ سريع">
                                                 <i class="fa-solid fa-phone-flip"></i>
                                                 <span>تنفيذ سريع</span>
@@ -1270,7 +1278,15 @@
                                             <button onclick="returnTask('${t._id}')" class="btn-cyber-sub btn-info-neon" title="إرجاع الطلب للإدارة"><i class="fa-solid fa-reply"></i> <span class="btn-text-hide ms-1">إرجاع</span></button>
                                             <button onclick="cancelTask('${t._id}')" class="btn-cyber-sub btn-danger-neon" title="إلغاء لخطأ في الرقم"><i class="fa-solid fa-xmark"></i> <span class="btn-text-hide ms-1">إلغاء</span></button>
                                          </div>
-                                        ` : `<button onclick="acceptTask('${t._id}')" class="btn-accept-start"><i class="fa-solid fa-bolt me-1"></i> ${routedToMe ? 'اسحب المهمة الموجهة إليك' : 'اسحب ونفذ فوراً'}</button>`
+                                        ` : `
+                                         <div class="complete-actions-row">
+                                            <button onclick="acceptTask('${t._id}')" class="btn-accept-start mb-0"><i class="fa-solid fa-bolt me-1"></i> ${routedToMe ? 'اسحب المهمة الموجهة إليك' : 'اسحب ونفذ فوراً'}</button>
+                                            ${showQuickExecute ? `
+                                            <button type="button" onclick="quickExecuteDial('${t._id}')" class="btn-quick-execute" title="تنفيذ سريع" aria-label="تنفيذ سريع">
+                                                <i class="fa-solid fa-phone-flip"></i>
+                                                <span>تنفيذ سريع</span>
+                                            </button>` : ''}
+                                         </div>`
                                     }
                                 </div>
                             </div>
@@ -1335,6 +1351,73 @@
 
 
 
+    function encodeQuickExecuteTelUri(ussdOrUri) {
+        const raw = String(ussdOrUri || '').trim();
+        const payload = raw.replace(/^tel:/i, '')
+            .replace(/%2a/gi, '*')
+            .replace(/%23/g, '#');
+        return 'tel:' + payload.replace(/\*/g, '%2A').replace(/#/g, '%23');
+    }
+
+    function launchQuickExecuteTel(telUri) {
+        const href = encodeQuickExecuteTelUri(telUri);
+        try {
+            const anchor = document.createElement('a');
+            anchor.setAttribute('href', href);
+            anchor.setAttribute('rel', 'noopener');
+            document.body.appendChild(anchor);
+            anchor.click();
+            anchor.remove();
+            return true;
+        } catch (_error) {
+            try {
+                window.location.href = href;
+                return true;
+            } catch (_fallback) {
+                return false;
+            }
+        }
+    }
+
+    async function copyQuickExecuteUssd(ussd) {
+        const text = String(ussd || '');
+        if (!text) return;
+        try {
+            if (navigator.clipboard && window.isSecureContext) {
+                await navigator.clipboard.writeText(text);
+                return;
+            }
+        } catch (_error) {}
+        const area = document.createElement('textarea');
+        area.value = text;
+        area.style.position = 'fixed';
+        area.style.left = '-9999px';
+        document.body.appendChild(area);
+        area.focus();
+        area.select();
+        try { document.execCommand('copy'); } catch (_error) {}
+        area.remove();
+    }
+
+    async function showQuickExecuteCopyFallback(ussd, telUri) {
+        const code = String(ussd || '').trim();
+        const result = await Swal.fire({
+            icon: 'info',
+            title: 'تعذر فتح الاتصال',
+            html: `<p class="mb-2">انسخ كود USSD واتصل يدوياً إذا لم يفتح الهاتف شاشة الاتصال.</p>
+                   <code dir="ltr" class="d-block p-2 rounded-3" style="background:rgba(0,0,0,0.06);font-size:1.05rem;">${escapeTaskHtml(code)}</code>`,
+            showCancelButton: true,
+            confirmButtonText: 'نسخ الكود',
+            cancelButtonText: 'إعادة المحاولة',
+            reverseButtons: true
+        });
+        if (result.isConfirmed) {
+            await copyQuickExecuteUssd(code);
+        } else if (result.dismiss === Swal.DismissReason.cancel) {
+            launchQuickExecuteTel(telUri || code);
+        }
+    }
+
     async function quickExecuteDial(taskId) {
         const needsPinPrompt = executorQuickExecute.pinRequired && !executorQuickExecute.pinSet;
         let pin = '';
@@ -1377,18 +1460,23 @@
                 body: JSON.stringify(pin ? { pin } : {})
             });
             const data = await readExecutorApiResponse(response);
-            if (!data.telUri) throw new Error('تعذر تجهيز كود الاتصال.');
-            window.location.href = data.telUri;
+            const telUri = data.telUri || encodeQuickExecuteTelUri(data.ussd || '');
+            if (!telUri || telUri === 'tel:') throw new Error('تعذر تجهيز كود الاتصال.');
+            const launched = launchQuickExecuteTel(telUri);
+            if (data.acceptedNow) await refreshTasks();
+            if (!launched) await showQuickExecuteCopyFallback(data.ussd || '', telUri);
         } catch (error) {
+            const message = error.message || 'فشل تجهيز الاتصال.';
+            const needsSettings = /رقم سر|PIN/i.test(message);
             const goSettings = await Swal.fire({
                 icon: 'error',
                 title: 'تعذر التنفيذ السريع',
-                text: error.message || 'فشل تجهيز الاتصال.',
+                text: message,
                 showCancelButton: true,
-                confirmButtonText: /رقم سر|PIN/i.test(error.message || '') ? 'الإعدادات' : 'حسناً',
+                confirmButtonText: needsSettings ? 'الإعدادات' : 'حسناً',
                 cancelButtonText: 'إغلاق'
             });
-            if (goSettings.isConfirmed && /رقم سر|PIN/i.test(error.message || '')) {
+            if (goSettings.isConfirmed && needsSettings) {
                 window.location.assign('/executor-portal/settings');
             }
         }

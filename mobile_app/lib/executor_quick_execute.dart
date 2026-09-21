@@ -103,8 +103,28 @@ String redactUssdForLog(String ussd, String? pin) {
   return ussd.split(pinDigits).join('[PIN]');
 }
 
-String toQuickExecuteTelUri(String ussd) =>
-    'tel:${ussd.replaceAll('#', '%23')}';
+String toQuickExecuteTelUri(String ussd) {
+  final decoded = ussd
+      .replaceFirst(RegExp(r'^tel:', caseSensitive: false), '')
+      .replaceAll('%2A', '*')
+      .replaceAll('%2a', '*')
+      .replaceAll('%23', '#');
+  return 'tel:${decoded.replaceAll('*', '%2A').replaceAll('#', '%23')}';
+}
+
+bool taskOffersQuickExecute({
+  required bool enabled,
+  required String? transferType,
+  bool acceptedByMe = false,
+  bool assignedToMe = false,
+  bool? canQuickExecute,
+  bool? canClaimThenQuickExecute,
+}) {
+  if (!enabled) return false;
+  if ((transferType ?? '').trim() != 'vodafone') return false;
+  if (canQuickExecute == true || canClaimThenQuickExecute == true) return true;
+  return acceptedByMe || assignedToMe;
+}
 
 class ExecutorQuickExecuteState {
   const ExecutorQuickExecuteState({
