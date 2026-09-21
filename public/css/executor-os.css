@@ -564,9 +564,41 @@ body.executor-os .btn-quick-execute {
     white-space: nowrap;
 }
 body.executor-os .btn-quick-execute:active { transform: translateY(1px); }
+body.executor-os .copy-box {
+    min-height: 48px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+body.executor-os .btn-accept-start,
+body.executor-os .btn-cyber-main,
+body.executor-os .complete-actions-row .btn-cyber-main {
+    min-height: 52px;
+}
+body.executor-os .btn-cyber-sub,
+body.executor-os .horizontal-actions .btn-cyber-sub {
+    min-height: 48px;
+    min-width: 48px;
+}
+body.executor-os .executor-sla-hint {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 8px;
+    padding: 10px 12px;
+    border-radius: 12px;
+    background: color-mix(in srgb, #f59e0b 16%, transparent);
+    color: var(--exo-ink);
+    font-size: 0.82rem;
+    font-weight: 800;
+}
+body.executor-os .executor-sla-hint[hidden] { display: none !important; }
 @media (max-width: 640px) {
     body.executor-os .btn-quick-execute { min-width: 52px; min-height: 52px; }
     body.executor-os .btn-quick-execute span { display: none; }
+    body.executor-os .copy-box { min-height: 52px; }
+    body.executor-os .btn-accept-start,
+    body.executor-os .btn-cyber-main { min-height: 52px; }
 }
 
 .exo-empty {
