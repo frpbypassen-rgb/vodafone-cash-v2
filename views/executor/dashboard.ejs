@@ -324,9 +324,9 @@
         [data-theme="dark"] .swal2-input, [data-theme="dark"] .swal2-textarea { background: rgba(255,255,255,0.04) !important; }
     </style>
     <link rel="stylesheet" href="/css/brand-ui.css?v=20260804-brand1">
-    <link rel="stylesheet" href="/css/executor-workspace.css?v=20260921-quick-exec">
+    <link rel="stylesheet" href="/css/executor-workspace.css?v=20260921-task-card">
     <link rel="stylesheet" href="/css/executor-2030-override.css?v=20260825-balance1">
-    <link rel="stylesheet" href="/css/executor-os.css?v=20260921-quick-exec">
+    <link rel="stylesheet" href="/css/executor-os.css?v=20260921-task-card">
 </head>
 <body class="executor-os executor-portal-v2 executor-page-dashboard">
 
@@ -1246,6 +1246,11 @@
                                             <strong>${escapeTaskHtml(assigneeName)}</strong>
                                         </div>
                                     </div>` : ''}
+                                    ${isExecutorManager && routingState === 'pending_with_assignee' ? `
+                                    <div class="executor-sla-hint" hidden data-assigned-at="${escapeTaskHtml(t.assignedExecutorAt || '')}">
+                                        <i class="fa-solid fa-hourglass-half"></i>
+                                        <span>معلّقة عنده — إذا تجاوز الانتظار قد تحتاج إعادة توجيه</span>
+                                    </div>` : ''}
                                 </div>
                                 
                                 <div class="action-zone border-0">
@@ -1278,6 +1283,7 @@
     }
 
     // ⏱️ تحديث العدادات الزمنية بشكل حي في الشاشة
+    const STUCK_ASSIGNEE_SLA_SECONDS = 90;
     setInterval(() => {
         document.querySelectorAll('.live-timer').forEach(el => {
             const createdTime = new Date(el.getAttribute('data-time')).getTime();
@@ -1294,6 +1300,22 @@
                 else if (diffSec >= 60) { el.style.color = 'var(--accent-gold)'; el.classList.remove('fa-fade'); } 
                 else { el.style.color = 'var(--text-main)'; el.classList.remove('fa-fade'); }
             }
+        });
+        document.querySelectorAll('.executor-sla-hint[data-assigned-at]').forEach((el) => {
+            const assignedMs = new Date(el.getAttribute('data-assigned-at')).getTime();
+            if (!Number.isFinite(assignedMs)) {
+                el.hidden = true;
+                return;
+            }
+            const waited = Math.floor((Date.now() - assignedMs) / 1000);
+            if (waited < STUCK_ASSIGNEE_SLA_SECONDS) {
+                el.hidden = true;
+                return;
+            }
+            const minutes = Math.max(1, Math.round(waited / 60));
+            const label = el.querySelector('span');
+            if (label) label.textContent = `معلّقة عنده منذ ${minutes} د — قد تحتاج إعادة توجيه`;
+            el.hidden = false;
         });
     }, 1000);
 

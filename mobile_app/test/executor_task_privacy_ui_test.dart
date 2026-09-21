@@ -43,6 +43,7 @@ Map<String, dynamic> _task({
   String? assignedExecutorName,
   String? routingState,
   String? routingStateLabel,
+  DateTime? assignedExecutorAt,
   bool isAssignedToCurrentExecutor = false,
   bool isOwnedByCurrentExecutor = false,
   String? operatorId,
@@ -59,6 +60,8 @@ Map<String, dynamic> _task({
       'status': accepted ? 'accepted' : 'processing',
       'operatorId': operatorId ?? (accepted ? 'employee-1' : null),
       'assignedExecutorId': assignedExecutorId,
+      'assignedExecutorAt':
+          (assignedExecutorAt ?? DateTime(2026, 8, 19, 9, 50)).toIso8601String(),
       'assignedExecutorName': assignedExecutorName,
       'routingState': routingState,
       'routingStateLabel': routingStateLabel,
@@ -113,6 +116,9 @@ Future<void> main() async {
           assignedExecutorName: 'أحمد الخارجي',
           routingState: 'pending_with_assignee',
           routingStateLabel: 'معلّقة عنده',
+          assignedExecutorAt: DateTime.now().toUtc().subtract(
+            const Duration(minutes: 5),
+          ),
         ),
         canRoute: true,
         isManager: true,
@@ -123,6 +129,7 @@ Future<void> main() async {
     expect(find.text('معلّقة عنده'), findsWidgets);
     expect(find.text('أحمد الخارجي'), findsOneWidget);
     expect(find.text('إعادة التوجيه إلى منفذ'), findsOneWidget);
+    expect(find.textContaining('قد تحتاج إعادة توجيه'), findsOneWidget);
     expect(find.text('اسحب المهمة الموجهة إليك'), findsNothing);
   });
 

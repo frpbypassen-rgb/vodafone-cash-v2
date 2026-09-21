@@ -23,6 +23,8 @@ describe('executor portal performance contracts', () => {
         expect(dashboardSource).toContain('تنفيذ سريع');
         expect(dashboardSource).toContain('fa-phone-flip');
         expect(dashboardSource).toContain('/executor-portal/api/quick-execute/dial/');
+        expect(dashboardSource).toContain('executor-sla-hint');
+        expect(dashboardSource).toContain('STUCK_ASSIGNEE_SLA_SECONDS');
     });
 
     test('live-task notes drop the API terminal log before it is sent to the browser', () => {

@@ -3,6 +3,8 @@
 const Transaction = require('../models/Transaction');
 const {
     buildExecutorTaskRecipient,
+    stuckAssigneeSlaHint,
+    STUCK_ASSIGNEE_SLA_SECONDS,
     toExecutorPortalTaskDto
 } = require('../utils/executorTaskPrivacy');
 
@@ -90,6 +92,31 @@ describe('executor task recipient privacy', () => {
             routingStateLabel: 'بدأ التنفيذ',
             isAssignedToCurrentExecutor: false
         }));
+    });
+
+    test('SLA hint appears only after a routed task stays pending with the assignee', () => {
+        const assignedAt = new Date('2026-09-21T12:00:00.000Z');
+        expect(stuckAssigneeSlaHint({
+            routingState: 'pending_with_assignee',
+            assignedExecutorAt: assignedAt,
+            now: assignedAt.getTime() + 30 * 1000
+        })).toBeNull();
+
+        const stuck = stuckAssigneeSlaHint({
+            routingState: 'pending_with_assignee',
+            assignedExecutorAt: assignedAt,
+            now: assignedAt.getTime() + (STUCK_ASSIGNEE_SLA_SECONDS + 5) * 1000
+        });
+        expect(stuck).toEqual(expect.objectContaining({
+            waitedSeconds: STUCK_ASSIGNEE_SLA_SECONDS + 5
+        }));
+        expect(stuck.labelAr).toContain('معلّقة عنده');
+        expect(stuck.labelAr).toContain('إعادة توجيه');
+        expect(stuckAssigneeSlaHint({
+            routingState: 'in_progress',
+            assignedExecutorAt: assignedAt,
+            now: assignedAt.getTime() + 600 * 1000
+        })).toBeNull();
     });
 
     test('raw execution number is private by default in the transaction schema', () => {
