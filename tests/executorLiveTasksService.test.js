@@ -99,6 +99,39 @@ describe('executor live-tasks hot path', () => {
         expect(payload.completedTodaySummary).toEqual({ count: 4, amount: 800 });
         expect(payload.pollIntervalSeconds).toBe(IDLE_POLL_INTERVAL_SECONDS);
         expect(payload.canRouteTasks).toBe(true);
+        expect(payload.manualTaskRoutingEnabled).toBe(true);
+    });
+
+    test('portal live tasks expose assignee routing state for managers', async () => {
+        const liveQuery = chain([{
+            _id: 'task-ext',
+            status: 'processing',
+            assignedExecutorId: 'external-1',
+            assignedExecutorName: 'أحمد الخارجي',
+            notifiedExecutors: true,
+            autoAlertFired: true,
+            executorReceivedAt: new Date(),
+            createdAt: new Date(),
+            amount: 250,
+            customId: 'ATT-2'
+        }]);
+        Transaction.find
+            .mockReturnValueOnce(liveQuery)
+            .mockReturnValueOnce(chain([]))
+            .mockReturnValueOnce(chain([]));
+        Transaction.aggregate.mockResolvedValue([{ count: 0, amount: 0 }]);
+
+        const payload = await loadPortalLiveTasks({
+            emp: { _id: 'manager-1', role: 'manager', groupId: { _id: 'group-1', manualTaskRoutingEnabled: true } }
+        });
+
+        expect(payload.tasks[0]).toEqual(expect.objectContaining({
+            _id: 'task-ext',
+            assignedExecutorId: 'external-1',
+            assignedExecutorName: 'أحمد الخارجي',
+            routingState: 'pending_with_assignee',
+            routingStateLabel: 'معلّقة عنده'
+        }));
     });
 
     test('poll interval stays short while a live task is in the queue', () => {

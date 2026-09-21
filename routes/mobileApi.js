@@ -124,7 +124,7 @@ const {
     routingErrorMessage
 } = require('../services/executorTaskRoutingService');
 const { loadMobileLiveTasks } = require('../services/executorLiveTasksService');
-const { buildExecutorTaskRecipient } = require('../utils/executorTaskPrivacy');
+const { buildExecutorTaskRecipient, buildTaskRoutingVisibility } = require('../utils/executorTaskPrivacy');
 const {
     findBrowserExecutable,
     getSharedBrowser,
@@ -326,6 +326,7 @@ const buildReceiptProxyUrl = (req, ticket) => {
 
 const toExecutorTaskDto = (tx, currentExecutorId = null) => {
     const recipient = buildExecutorTaskRecipient(tx, currentExecutorId);
+    const routing = buildTaskRoutingVisibility(tx, currentExecutorId);
     return {
         id: tx._id ? String(tx._id) : null,
         txId: tx.customId || null,
@@ -339,18 +340,19 @@ const toExecutorTaskDto = (tx, currentExecutorId = null) => {
         notes: customerFacingNotes(customerNoteFromTransaction(tx)) || null,
         status: tx.status || 'unknown',
         operatorId: tx.operatorId ? String(tx.operatorId) : null,
-        assignedExecutorId: tx.assignedExecutorId ? String(tx.assignedExecutorId) : null,
-        assignedExecutorName: tx.assignedExecutorName || null,
-        isAssignedToCurrentExecutor: Boolean(
-            currentExecutorId &&
-            tx.assignedExecutorId &&
-            String(tx.assignedExecutorId) === String(currentExecutorId)
-        ),
-        acceptedByName: tx.status === 'accepted' ? (tx.executorName || null) : null,
+        assignedExecutorId: routing.assignedExecutorId,
+        assignedExecutorName: routing.assignedExecutorName,
+        assignedExecutorAt: routing.assignedExecutorAt
+            ? new Date(routing.assignedExecutorAt).toISOString()
+            : null,
+        routingState: routing.routingState,
+        routingStateLabel: routing.routingStateLabel,
+        isAssignedToCurrentExecutor: routing.isAssignedToCurrentExecutor,
+        acceptedByName: tx.status === 'accepted' ? (tx.executorName || routing.assignedExecutorName || null) : null,
         isOwnedByCurrentExecutor: Boolean(
             currentExecutorId && tx.status === 'accepted' && (() => {
                 const operatorId = tx.operatorId ? String(tx.operatorId) : '';
-                const assignedExecutorId = tx.assignedExecutorId ? String(tx.assignedExecutorId) : '';
+                const assignedExecutorId = routing.assignedExecutorId || '';
                 return (!operatorId || operatorId === String(currentExecutorId))
                     && (!assignedExecutorId || assignedExecutorId === String(currentExecutorId))
                     && (operatorId === String(currentExecutorId) || assignedExecutorId === String(currentExecutorId));

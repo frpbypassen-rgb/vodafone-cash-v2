@@ -620,12 +620,12 @@ const resolveAudienceEmployeeIds = async (outbox, tx) => {
     const roles = audience.type === 'group_all'
         ? ['manager', 'operator', 'accountant']
         : (audience.type === 'group_roles' && Array.isArray(audience.roles)
-            ? audience.roles.filter((role) => ['manager', 'operator', 'accountant'].includes(role))
-            : ['manager', 'operator']);
+            ? audience.roles.filter((role) => ['manager', 'operator', 'accountant', 'external'].includes(role))
+            : ['manager', 'operator', 'external']);
     const employees = await Employee.find({
         groupId,
         status: 'active',
-        role: { $in: roles.length > 0 ? roles : ['manager', 'operator'] }
+        role: { $in: roles.length > 0 ? roles : ['manager', 'operator', 'external'] }
     }).select('_id role').lean();
 
     const included = (audience.includeEmployeeIds || []).map(String).filter(Boolean);

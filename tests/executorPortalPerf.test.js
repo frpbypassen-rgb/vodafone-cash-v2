@@ -16,6 +16,10 @@ describe('executor portal performance contracts', () => {
         expect(dashboardSource).toContain('scheduleLiveTasksPoll');
         expect(dashboardSource).not.toMatch(/setInterval\(refreshVisibleExecutorTasks,\s*8000\)/);
         expect(dashboardSource).toContain('preload="none"');
+        expect(dashboardSource).toContain('معلّقة عنده');
+        expect(dashboardSource).toContain('بدأ التنفيذ');
+        expect(dashboardSource).toContain('اسحب المهمة الموجهة إليك');
+        expect(dashboardSource).toContain('منفّذ خارجي');
     });
 
     test('live-task notes drop the API terminal log before it is sent to the browser', () => {

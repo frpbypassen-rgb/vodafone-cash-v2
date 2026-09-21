@@ -3,7 +3,12 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:mobile_app/app_screens.dart';
 
-Widget _shell(Map<String, dynamic> task) {
+Widget _shell(
+  Map<String, dynamic> task, {
+  String currentExecutorId = 'employee-1',
+  bool canRoute = false,
+  bool isManager = false,
+}) {
   return MaterialApp(
     locale: const Locale('ar'),
     home: Scaffold(
@@ -13,10 +18,10 @@ Widget _shell(Map<String, dynamic> task) {
           child: ExecutorTaskTile(
             task: task,
             busy: false,
-            currentExecutorId: 'employee-1',
+            currentExecutorId: currentExecutorId,
             acceptBlocked: false,
-            canRoute: false,
-            isManager: false,
+            canRoute: canRoute,
+            isManager: isManager,
             onAccept: () {},
             onRoute: () {},
             onCancel: () {},
@@ -29,20 +34,35 @@ Widget _shell(Map<String, dynamic> task) {
   );
 }
 
-Map<String, dynamic> _task({required bool accepted}) => <String, dynamic>{
-  'id': 'task-1',
-  'txId': 'ATT-2608-2001',
-  'transferType': 'vodafone',
-  'transferTypeLabel': 'محافظ كاش',
-  'amount': 100,
-  'recipientNumber': accepted ? '01108172258' : '011',
-  'recipientPrefix': '011',
-  'recipientRevealed': accepted,
-  'status': accepted ? 'accepted' : 'processing',
-  'operatorId': accepted ? 'employee-1' : null,
-  'isOwnedByCurrentExecutor': accepted,
-  'createdAt': DateTime(2026, 8, 19, 10).toIso8601String(),
-};
+Map<String, dynamic> _task({
+  required bool accepted,
+  String? assignedExecutorId,
+  String? assignedExecutorName,
+  String? routingState,
+  String? routingStateLabel,
+  bool isAssignedToCurrentExecutor = false,
+  bool isOwnedByCurrentExecutor = false,
+  String? operatorId,
+}) =>
+    <String, dynamic>{
+      'id': 'task-1',
+      'txId': 'ATT-2608-2001',
+      'transferType': 'vodafone',
+      'transferTypeLabel': 'محافظ كاش',
+      'amount': 100,
+      'recipientNumber': accepted ? '01108172258' : '011',
+      'recipientPrefix': '011',
+      'recipientRevealed': accepted,
+      'status': accepted ? 'accepted' : 'processing',
+      'operatorId': operatorId ?? (accepted ? 'employee-1' : null),
+      'assignedExecutorId': assignedExecutorId,
+      'assignedExecutorName': assignedExecutorName,
+      'routingState': routingState,
+      'routingStateLabel': routingStateLabel,
+      'isAssignedToCurrentExecutor': isAssignedToCurrentExecutor,
+      'isOwnedByCurrentExecutor': isOwnedByCurrentExecutor || accepted,
+      'createdAt': DateTime(2026, 8, 19, 10).toIso8601String(),
+    };
 
 Future<void> main() async {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -77,5 +97,76 @@ Future<void> main() async {
       find.textContaining('يظهر الرقم كاملاً بعد قبول المهمة'),
       findsNothing,
     );
+  });
+
+  testWidgets('manager sees assignee name and معلّقة عنده before claim', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      _shell(
+        _task(
+          accepted: false,
+          assignedExecutorId: 'external-1',
+          assignedExecutorName: 'أحمد الخارجي',
+          routingState: 'pending_with_assignee',
+          routingStateLabel: 'معلّقة عنده',
+        ),
+        canRoute: true,
+        isManager: true,
+        currentExecutorId: 'manager-1',
+      ),
+    );
+
+    expect(find.text('معلّقة عنده'), findsWidgets);
+    expect(find.text('أحمد الخارجي'), findsOneWidget);
+    expect(find.text('إعادة التوجيه إلى منفذ'), findsOneWidget);
+    expect(find.text('اسحب المهمة الموجهة إليك'), findsNothing);
+  });
+
+  testWidgets('manager sees بدأ التنفيذ after the assignee accepts', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      _shell(
+        _task(
+          accepted: true,
+          assignedExecutorId: 'external-1',
+          assignedExecutorName: 'أحمد الخارجي',
+          routingState: 'in_progress',
+          routingStateLabel: 'بدأ التنفيذ',
+          operatorId: 'external-1',
+          isOwnedByCurrentExecutor: false,
+        ),
+        canRoute: true,
+        isManager: true,
+        currentExecutorId: 'manager-1',
+      ),
+    );
+
+    expect(find.text('بدأ التنفيذ'), findsWidgets);
+    expect(find.text('أحمد الخارجي'), findsOneWidget);
+    expect(find.text('قبول العملية'), findsNothing);
+  });
+
+  testWidgets('external executor sees a routed task with a claim action', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      _shell(
+        _task(
+          accepted: false,
+          assignedExecutorId: 'external-1',
+          assignedExecutorName: 'أحمد الخارجي',
+          routingState: 'pending_with_assignee',
+          routingStateLabel: 'معلّقة عنده',
+          isAssignedToCurrentExecutor: true,
+        ),
+        currentExecutorId: 'external-1',
+      ),
+    );
+
+    expect(find.text('موجهة إليك'), findsWidgets);
+    expect(find.text('اسحب المهمة الموجهة إليك'), findsOneWidget);
+    expect(find.text('قبول العملية'), findsNothing);
   });
 }
