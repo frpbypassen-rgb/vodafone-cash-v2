@@ -36,6 +36,29 @@ const isTaskOwnedByExecutor = (transaction = {}, executorId = null) => (
     && stringId(transaction.operatorId) === stringId(executorId)
 );
 
+const isAcceptedOwnedByExecutor = (transaction = {}, executorId = null) => {
+    if (transaction.status !== 'accepted' || !executorId) return false;
+    const currentId = stringId(executorId);
+    const operatorId = stringId(transaction.operatorId);
+    const assignedExecutorId = stringId(transaction.assignedExecutorId);
+    return (
+        (!operatorId || operatorId === currentId)
+        && (!assignedExecutorId || assignedExecutorId === currentId)
+        && (operatorId === currentId || assignedExecutorId === currentId)
+    );
+};
+
+const isCashWalletTask = (transaction = {}) => String(transaction.transferType || '').trim() === 'vodafone';
+
+const canQuickExecuteTask = (transaction = {}, executorId = null) => (
+    isCashWalletTask(transaction) && isAcceptedOwnedByExecutor(transaction, executorId)
+);
+
+const canClaimThenQuickExecuteTask = (transaction = {}, executorId = null) => (
+    isCashWalletTask(transaction)
+    && Boolean(buildTaskRoutingVisibility(transaction, executorId).isAssignedToCurrentExecutor)
+);
+
 const buildExecutorTaskRecipient = (transaction = {}, executorId = null) => {
     const fullRecipient = taskRecipientValue(transaction);
     const recipientPrefix = taskRecipientPrefix(fullRecipient);
@@ -134,6 +157,9 @@ const toExecutorPortalTaskDto = (transaction = {}, executorId = null) => {
         routingState: routing.routingState,
         routingStateLabel: routing.routingStateLabel,
         isAssignedToCurrentExecutor: routing.isAssignedToCurrentExecutor,
+        isOwnedByCurrentExecutor: isAcceptedOwnedByExecutor(transaction, executorId),
+        canQuickExecute: canQuickExecuteTask(transaction, executorId),
+        canClaimThenQuickExecute: canClaimThenQuickExecuteTask(transaction, executorId),
         executorReceivedAt: transaction.executorReceivedAt || null,
         createdAt: transaction.createdAt || null,
         emergencyAlert: transaction.emergencyAlert || null
@@ -147,6 +173,10 @@ module.exports = {
     STUCK_ASSIGNEE_SLA_SECONDS,
     buildExecutorTaskRecipient,
     buildTaskRoutingVisibility,
+    canClaimThenQuickExecuteTask,
+    canQuickExecuteTask,
+    isAcceptedOwnedByExecutor,
+    isCashWalletTask,
     isTaskOwnedByExecutor,
     portalLiveTaskNotes,
     routingStateForTask,

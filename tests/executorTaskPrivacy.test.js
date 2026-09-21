@@ -79,6 +79,17 @@ describe('executor task recipient privacy', () => {
         }), 'external-1');
         expect(assignedToExternal.isAssignedToCurrentExecutor).toBe(true);
         expect(assignedToExternal.routingStateLabel).toBe('معلّقة عنده');
+        expect(assignedToExternal.canClaimThenQuickExecute).toBe(true);
+        expect(assignedToExternal.canQuickExecute).toBe(false);
+        expect(assignedToExternal.isOwnedByCurrentExecutor).toBe(false);
+
+        const owned = toExecutorPortalTaskDto(task({
+            status: 'accepted',
+            operatorId: 'employee-1'
+        }), 'employee-1');
+        expect(owned.canQuickExecute).toBe(true);
+        expect(owned.isOwnedByCurrentExecutor).toBe(true);
+        expect(owned.canClaimThenQuickExecute).toBe(false);
 
         const inProgress = toExecutorPortalTaskDto(task({
             status: 'accepted',

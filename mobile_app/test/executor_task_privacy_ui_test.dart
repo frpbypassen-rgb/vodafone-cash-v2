@@ -193,4 +193,23 @@ Future<void> main() async {
     await tester.pumpWidget(_shell(_task(accepted: true)));
     expect(find.byIcon(Icons.phone_in_talk_outlined), findsNothing);
   });
+
+  testWidgets('assigned cash task shows quick-execute for claim-then-dial', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      _shell(
+        _task(
+          accepted: false,
+          assignedExecutorId: 'external-1',
+          isAssignedToCurrentExecutor: true,
+        ),
+        currentExecutorId: 'external-1',
+        quickExecuteEnabled: true,
+      ),
+    );
+
+    expect(find.text('اسحب المهمة الموجهة إليك'), findsOneWidget);
+    expect(find.byIcon(Icons.phone_in_talk_outlined), findsOneWidget);
+  });
 }

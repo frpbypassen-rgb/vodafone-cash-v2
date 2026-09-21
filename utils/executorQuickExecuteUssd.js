@@ -136,7 +136,16 @@ const buildUssdString = ({ network, phone, amount, pin } = {}) => {
     return `*7*2*${phoneDigits}*${amountDigits}*${pinDigits}#`;
 };
 
-const toTelUri = (ussd) => `tel:${String(ussd || '').replace(/#/g, '%23')}`;
+const encodeUssdForTel = (ussd) => String(ussd || '')
+    .replace(/\*/g, '%2A')
+    .replace(/#/g, '%23');
+
+const decodeUssdFromTel = (value) => String(value || '')
+    .replace(/^tel:/i, '')
+    .replace(/%2a/gi, '*')
+    .replace(/%23/g, '#');
+
+const toTelUri = (ussd) => `tel:${encodeUssdForTel(decodeUssdFromTel(ussd))}`;
 
 const redactUssdForLog = (ussd, pin) => {
     const preview = String(ussd || '');
@@ -182,7 +191,9 @@ module.exports = {
     PIN_SECURITY_NOTE_AR,
     USSD_NETWORKS,
     buildUssdString,
+    decodeUssdFromTel,
     describeUssdForDebug,
+    encodeUssdForTel,
     listUssdNetworks,
     networkRequiresPin,
     normalizeUssdNetwork,

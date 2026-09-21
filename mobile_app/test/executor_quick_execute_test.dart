@@ -32,7 +32,36 @@ void main() {
     expect(redacted.contains('[PIN]'), isTrue);
     expect(
       toQuickExecuteTelUri('*9*7*01108172258*250#'),
-      'tel:*9*7*01108172258*250%23',
+      'tel:%2A9%2A7%2A01108172258%2A250%23',
+    );
+    expect(
+      toQuickExecuteTelUri('tel:*9*7*01108172258*250%23'),
+      'tel:%2A9%2A7%2A01108172258%2A250%23',
+    );
+    expect(
+      taskOffersQuickExecute(
+        enabled: true,
+        transferType: 'vodafone',
+        acceptedByMe: false,
+        assignedToMe: false,
+      ),
+      isFalse,
+    );
+    expect(
+      taskOffersQuickExecute(
+        enabled: true,
+        transferType: 'vodafone',
+        assignedToMe: true,
+      ),
+      isTrue,
+    );
+    expect(
+      taskOffersQuickExecute(
+        enabled: true,
+        transferType: 'vodafone',
+        canQuickExecute: true,
+      ),
+      isTrue,
     );
   });
 

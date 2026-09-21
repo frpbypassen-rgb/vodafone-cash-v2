@@ -75,9 +75,10 @@ describe('quick execute USSD builders', () => {
         expect(debug.pinRequired).toBe(true);
     });
 
-    test('encodes hash for tel: URIs and exposes a public state without secrets', () => {
+    test('encodes star and hash for tel: URIs and exposes a public state without secrets', () => {
         const ussd = buildUssdString({ network: 'vodafone', phone, amount });
-        expect(toTelUri(ussd)).toBe('tel:*9*7*01108172258*250%23');
+        expect(toTelUri(ussd)).toBe('tel:%2A9%2A7%2A01108172258%2A250%23');
+        expect(toTelUri('tel:*9*7*01108172258*250%23')).toBe('tel:%2A9%2A7%2A01108172258%2A250%23');
         expect(normalizeUssdNetwork('WE')).toBe('we');
         expect(PIN_SECURITY_NOTE_AR).toMatch(/رقم سر/);
 

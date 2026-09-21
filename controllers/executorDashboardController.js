@@ -623,7 +623,8 @@ const publicDialPayload = (dial) => ({
     pinSet: Boolean(dial.pinSet),
     securityNote: dial.securityNote || '',
     ussd: dial.ussd,
-    telUri: dial.telUri
+    telUri: dial.telUri,
+    acceptedNow: Boolean(dial.acceptedNow)
 });
 
 exports.getQuickExecute = async (req, res) => {
@@ -659,6 +660,7 @@ exports.postQuickExecuteDial = async (req, res) => {
         if (!emp) return res.status(401).json({ success: false, error: 'انتهت جلسة الدخول.' });
         const dial = await buildQuickExecuteDial({
             executorId: emp._id,
+            executor: emp,
             taskId: req.params.id,
             pin: req.body?.pin,
             tenantId: req.tenant ? req.tenant._id : null
