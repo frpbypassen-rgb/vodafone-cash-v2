@@ -259,8 +259,24 @@ router.get('/transactions/movements', (req, res) => {
 });
 
 
+const DEPOSIT_LEDGER_STATUSES = ['deposit', 'deduction', 'deposit_pending'];
+
+const redirectDepositLedger = (req, res) => {
+    const statusFilter = String(req.query.status || '');
+    const filterType = String(req.query.filterType || '');
+    if (filterType !== 'deposit_deduction' && !DEPOSIT_LEDGER_STATUSES.includes(statusFilter)) return false;
+    const params = new URLSearchParams();
+    if (DEPOSIT_LEDGER_STATUSES.includes(statusFilter)) params.set('status', statusFilter);
+    ['search', 'fromDate', 'toDate', 'settlementVoided', 'voidError'].forEach((key) => {
+        if (req.query[key]) params.set(key, String(req.query[key]));
+    });
+    res.redirect(`/transactions/deposits?${params.toString()}`);
+    return true;
+};
+
 const renderTransactions = async (req, res, operationsWorkspace = false) => {
     try {
+        if (redirectDepositLedger(req, res)) return;
         const backgroundRefresh = req.get('X-Requested-With') === 'XMLHttpRequest';
         // أرصدة الـ API لا تُستعلم إلا عند فتح شاشة العمليات أو بطلب يدوي صريح.
         // التحديث الخلفي للجدول يعيد استخدام آخر رصيد محفوظ ولا يضغط على مزود الخدمة.

@@ -451,6 +451,7 @@ app.use('/admin/security', require('./routes/securityAdmin'));
 app.use(enforceAdminPermissions);
 app.use('/', require('./routes/dashboard'));
 app.use('/', require('./routes/liveOperations'));
+app.use('/', require('./routes/adminDeposits'));
 app.use('/', require('./routes/adminTransactions'));
 app.use('/', require('./routes/financialMovements'));
 app.use('/', require('./routes/executors'));

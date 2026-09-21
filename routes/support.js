@@ -42,7 +42,9 @@ const WHATSAPP_TEST_MESSAGE = 'رسالة اختبار من منظومة Power P
 
 router.get('/support', requireAuth, async (req, res) => {
     try {
+        const category = String(req.query.category || '').trim();
         res.render('support_admin', {
+            activePage: category === 'deposit' ? 'executor_deposits' : 'support',
             adminName: req.session.adminName,
             supportAdmin: getAdminIdentity(req)
         });

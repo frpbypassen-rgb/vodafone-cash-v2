@@ -36,6 +36,7 @@ const ACCOUNTANT_ALLOWED_HREFS = Object.freeze([
     '/transactions/operations',
     '/transactions/movements',
     '/transactions/search',
+    '/transactions/deposits',
     '/reports',
     '/audit-log',
     '/clients'

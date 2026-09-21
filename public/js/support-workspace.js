@@ -1061,6 +1061,8 @@
         bindEvents();
         setMobilePanel('queue');
         await Promise.all([loadAgents(), loadSummary(), loadTickets()]);
+        const requestedTicket = new URLSearchParams(window.location.search).get('ticket');
+        if (requestedTicket) await openTicket(requestedTicket);
         connectRealtime();
         window.setInterval(updateCountdowns, 1000);
         state.listTimer = window.setInterval(() => {
