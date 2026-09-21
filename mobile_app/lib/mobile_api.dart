@@ -1444,6 +1444,27 @@ class MobileApi {
     );
   }
 
+  Future<Map<String, dynamic>> setExecutorExecutionPolicy(
+    Map<String, dynamic> policy,
+  ) {
+    return _request(
+      'POST',
+      '/executor/execution-policy',
+      data: policy,
+    );
+  }
+
+  Future<Map<String, dynamic>> setExecutorEmployeeExecutionPolicy({
+    required String id,
+    required Map<String, dynamic> policy,
+  }) {
+    return _request(
+      'PATCH',
+      '/executor/employees/$id/execution-policy',
+      data: policy,
+    );
+  }
+
   Future<List<Map<String, dynamic>>> executorRouteCandidates() async {
     final response = await _request('GET', '/executor/route-candidates');
     return _extractList(response, 'data');

@@ -7,6 +7,7 @@ const accountMfaService = require('../services/accountMfaService');
 const { logAction } = require('../services/auditService');
 const securityControl = require('../services/securityControlService');
 const { establishAuthenticatedSession } = require('../utils/sessionSecurity');
+const { readExecutorManualPolicy, webSessionMaxAgeMsForPolicy } = require('../utils/executorManualPolicy');
 const { isLoginOtpRequired, issueLoginOtp, getLoginOtpPortal } = require('../services/loginOtpService');
 const {
     ExecutorAccountError,
@@ -71,6 +72,10 @@ const completeExecutorLogin = async (req, res, executor, { showMfaNotice = false
         executorGroupId: executor.groupId ? executor.groupId._id : null,
         executorName: executor.name || 'منفذ'
     });
+    const policy = readExecutorManualPolicy(executor.groupId, executor);
+    if (req.session.cookie) {
+        req.session.cookie.maxAge = webSessionMaxAgeMsForPolicy(policy, req.session.cookie.maxAge);
+    }
     if (showMfaNotice) req.session.showMfaEnableNotice = true;
     await securityControl.applySessionSecurity(req, principal, 'account', res);
     await logAction({

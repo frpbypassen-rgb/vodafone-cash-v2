@@ -4,6 +4,7 @@
 const { getTransferServiceLabel } = require('../utils/mobileTransferServiceCatalog');
 const { buildExecutorTaskRecipient } = require('../utils/executorTaskPrivacy');
 const { createReceiptImageUrl } = require('../services/receiptShareService');
+const { readExecutorManualPolicy, toPublicExecutionPolicy } = require('../utils/executorManualPolicy');
 
 const receiptFields = (tx) => {
     const hasProofImage = Boolean(tx.receiptUrl || tx.proofImage || (tx.proofImages && tx.proofImages.length > 0));
@@ -310,6 +311,8 @@ const toEmployeeDto = (emp) => {
         status: emp.status,
         webUsername: emp.webUsername,
         canViewAllReports: !!emp.canViewAllReports,
+        executionPolicy: emp.executionPolicy || null,
+        executionPolicyOverride: emp.executionPolicyOverride || {},
         createdAt: emp.createdAt ? new Date(emp.createdAt).toISOString() : null,
         metrics: {
             completedCount: Number(metrics.completedCount || 0),

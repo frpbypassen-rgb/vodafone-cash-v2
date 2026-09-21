@@ -4,7 +4,7 @@ const Employee = require('../models/Employee');
 
 const DEFAULT_TTL_MS = 15 * 1000;
 const MAX_TTL_MS = 60 * 1000;
-const EMPLOYEE_FIELDS = 'name phone role status groupId webUsername telegramId canViewAllReports balance';
+const EMPLOYEE_FIELDS = 'name phone role status groupId webUsername telegramId canViewAllReports balance executionPolicyOverride sessionVersion';
 const GROUP_FIELDS = [
     'name',
     'status',
@@ -13,6 +13,9 @@ const GROUP_FIELDS = [
     'manualProofRequired',
     'manualAllowedPhoneLengths',
     'manualSplitRequiresFullPhone',
+    'maxConcurrentDevices',
+    'sessionTtlEnabled',
+    'sessionTtlSeconds',
     'manualReceiptPrefix',
     'parentGroupId'
 ].join(' ');

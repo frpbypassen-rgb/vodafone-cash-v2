@@ -521,6 +521,7 @@
     let employeesCache = [];
     let poolsCache = [];
     let solosCache = [];
+    let companyExecutionPolicyCache = null;
     let companyBalancesCache = {
         totalBalance: Number(<%= Number(companyBalances?.totalBalance || 0) %>),
         privateBalance: Number(<%= Number(companyBalances?.privateBalance || 0) %>)
@@ -706,6 +707,7 @@
                 <button onclick="externalTransaction('${employeeId}', '${encodedName}', 'deduction')" class="btn-action" style="color:var(--executor-red)" title="خصم من المنفّذ الخارجي"><i class="fa-solid fa-arrow-up"></i></button>` : '';
             const actions = employee.role !== 'manager' ? `
                 <button onclick="editEmployee('${employeeId}', '${encodedName}', '${encodedPhone}')" class="btn-action" title="تعديل البيانات"><i class="fa-solid fa-pen"></i></button>
+                <button onclick="editExecutionPolicy('${employeeId}')" class="btn-action" title="صلاحيات التنفيذ"><i class="fa-solid fa-shield-halved"></i></button>
                 <button onclick="toggleEmployee('${employeeId}')" class="btn-action ${toggleClass}" title="${toggleTitle}"><i class="fa-solid ${toggleIcon}"></i></button>
                 <a href="/executor-portal/reports?employeeId=${employeeId}" class="btn-action" title="تقرير الموظف"><i class="fa-solid fa-chart-line"></i></a>
                 ${externalActions}
@@ -747,6 +749,7 @@
             employeesCache = Array.isArray(data.employees) ? data.employees : [];
             poolsCache = Array.isArray(data.pools) ? data.pools : [];
             solosCache = Array.isArray(data.soloExternals) ? data.soloExternals : [];
+            companyExecutionPolicyCache = data.companyExecutionPolicy || companyExecutionPolicyCache;
             document.getElementById('summaryTotal').textContent = data.summary?.totalEmployees || employeesCache.length;
             document.getElementById('summaryOnline').textContent = data.summary?.onlineEmployees || 0;
             document.getElementById('summaryBusy').textContent = data.summary?.busyEmployees || 0;
@@ -785,6 +788,91 @@
             Swal.fire({ icon:'success', title:'تم تعديل بيانات الموظف', timer:1300, showConfirmButton:false });
             loadEmployees();
         } catch (error) { Swal.fire('تعذر التعديل', error.message, 'error'); }
+    }
+
+    function policyModeChecked(mode, value) {
+        return mode === value ? 'checked' : '';
+    }
+
+    async function editExecutionPolicy(id) {
+        const employee = employeesCache.find((item) => String(item.id || item._id) === String(id));
+        if (!employee) return Swal.fire('تنبيه', 'تعذر العثور على الموظف.', 'warning');
+        const policy = employee.executionPolicy || {};
+        const inherited = policy.inherited || {};
+        const inheritAll = Boolean(
+            inherited.proofRequired !== false
+            && inherited.allowedPhoneLengths !== false
+            && inherited.maxConcurrentDevices !== false
+            && inherited.sessionTtl !== false
+        );
+        const mode = policy.phoneLengthMode || 'all';
+        const hours = Math.max(1, Math.round(Number(policy.sessionTtlSeconds || 28800) / 3600));
+        const result = await Swal.fire({
+            title: 'صلاحيات التنفيذ',
+            html: `<p class="small text-end mb-3">تجاوز افتراضي الشركة لـ <b>${escapeEmployeeHtml(employee.name)}</b></p>
+                <label class="d-flex align-items-center justify-content-between gap-2 mb-3">
+                    <span>استخدام إعداد الشركة</span>
+                    <input type="checkbox" id="policyInheritAll" ${inheritAll ? 'checked' : ''}>
+                </label>
+                <div id="policyOverrideFields" class="${inheritAll ? 'd-none' : ''}">
+                    <div class="text-end small fw-bold mb-2">أرقام إثبات المرسل</div>
+                    <div class="text-end d-flex flex-wrap gap-2 mb-3">
+                        <label class="form-check"><input class="form-check-input" type="radio" name="policyPhoneMode" value="3" ${policyModeChecked(mode, '3')}> 3 فقط</label>
+                        <label class="form-check"><input class="form-check-input" type="radio" name="policyPhoneMode" value="4" ${policyModeChecked(mode, '4')}> 4 فقط</label>
+                        <label class="form-check"><input class="form-check-input" type="radio" name="policyPhoneMode" value="11" ${policyModeChecked(mode, '11')}> 11 فقط</label>
+                        <label class="form-check"><input class="form-check-input" type="radio" name="policyPhoneMode" value="all" ${policyModeChecked(mode, 'all')}> الثلاثة</label>
+                    </div>
+                    <label class="d-flex align-items-center justify-content-between gap-2 mb-3">
+                        <span>صورة الإثبات إجبارية</span>
+                        <input type="checkbox" id="policyProofRequired" ${policy.proofRequired ? 'checked' : ''}>
+                    </label>
+                    <label class="form-label w-100 text-end">أقصى أجهزة متزامنة</label>
+                    <input id="policyDevices" type="number" min="1" max="20" class="swal2-input m-0 mb-3 w-100" value="${Number(policy.maxConcurrentDevices || 1)}">
+                    <label class="d-flex align-items-center justify-content-between gap-2 mb-2">
+                        <span>حد مدة الجلسة</span>
+                        <input type="checkbox" id="policySessionTtl" ${policy.sessionTtlEnabled ? 'checked' : ''}>
+                    </label>
+                    <label class="form-label w-100 text-end">مدة الجلسة (ساعات)</label>
+                    <input id="policySessionHours" type="number" min="1" max="720" class="swal2-input m-0 w-100" value="${hours}" ${policy.sessionTtlEnabled ? '' : 'disabled'}>
+                </div>`,
+            showCancelButton: true,
+            confirmButtonText: 'حفظ الصلاحيات',
+            cancelButtonText: 'إلغاء',
+            didOpen: () => {
+                const inherit = document.getElementById('policyInheritAll');
+                const fields = document.getElementById('policyOverrideFields');
+                const ttl = document.getElementById('policySessionTtl');
+                const hoursInput = document.getElementById('policySessionHours');
+                inherit?.addEventListener('change', () => fields?.classList.toggle('d-none', inherit.checked));
+                ttl?.addEventListener('change', () => { if (hoursInput) hoursInput.disabled = !ttl.checked; });
+            },
+            preConfirm: () => {
+                const inheritCompanyPolicy = document.getElementById('policyInheritAll')?.checked === true;
+                if (inheritCompanyPolicy) return { inheritCompanyPolicy: true };
+                return {
+                    inheritCompanyPolicy: false,
+                    inheritProofRequired: false,
+                    inheritPhoneLengths: false,
+                    inheritMaxConcurrentDevices: false,
+                    inheritSessionTtl: false,
+                    phoneLengthMode: document.querySelector('input[name="policyPhoneMode"]:checked')?.value || 'all',
+                    proofRequired: document.getElementById('policyProofRequired')?.checked === true,
+                    maxConcurrentDevices: Number(document.getElementById('policyDevices')?.value || 1),
+                    sessionTtlEnabled: document.getElementById('policySessionTtl')?.checked === true,
+                    sessionTtlHours: Number(document.getElementById('policySessionHours')?.value || 8)
+                };
+            }
+        });
+        if (!result.isConfirmed) return;
+        try {
+            await readExecutorApiResponse(await executorApiFetch('/executor-portal/api/employees/' + id + '/execution-policy', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(result.value)
+            }));
+            Swal.fire({ icon: 'success', title: 'تم حفظ صلاحيات المنفذ', timer: 1400, showConfirmButton: false });
+            loadEmployees();
+        } catch (error) { Swal.fire('تعذر الحفظ', error.message, 'error'); }
     }
 
     // تعليق / تفعيل موظف

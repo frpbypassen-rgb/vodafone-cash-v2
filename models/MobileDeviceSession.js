@@ -4,7 +4,7 @@ const mongoose = require('mongoose');
 
 const mobileDeviceSessionSchema = new mongoose.Schema({
     accountId: { type: mongoose.Schema.Types.ObjectId, required: true, index: true },
-    accountType: { type: String, enum: ['client_user', 'sub_client'], required: true },
+    accountType: { type: String, enum: ['client_user', 'sub_client', 'executor'], required: true },
     tenantId: { type: mongoose.Schema.Types.ObjectId, ref: 'Tenant' },
     sessionId: { type: String, required: true, unique: true, index: true },
     refreshTokenHash: { type: String, required: true },

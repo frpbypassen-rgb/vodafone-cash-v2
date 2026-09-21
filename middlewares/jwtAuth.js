@@ -35,14 +35,27 @@ const ensureActiveExecutor = async (decodedUser) => {
 
     const Employee = require('../models/Employee');
     const employee = await Employee.findById(decodedUser.userId)
-        .select('status groupId')
+        .select('status groupId sessionVersion')
         .populate('groupId', 'status');
-    return Boolean(
+    const accountIsActive = Boolean(
         employee
         && employee.status === 'active'
         && employee.groupId
         && employee.groupId.status === 'active'
+        && Number(employee.sessionVersion || 0) === Number(decodedUser.sessionVersion || 0)
     );
+    if (!accountIsActive) return false;
+    if (!decodedUser.sessionId) return true;
+
+    const MobileDeviceSession = require('../models/MobileDeviceSession');
+    const session = await MobileDeviceSession.exists({
+        accountId: decodedUser.userId,
+        accountType: 'executor',
+        ...(decodedUser.tenantId ? { tenantId: decodedUser.tenantId } : {}),
+        sessionId: decodedUser.sessionId,
+        active: true
+    });
+    return Boolean(session);
 };
 
 const ensureActiveCustomerSession = async (decodedUser) => {

@@ -97,6 +97,7 @@ const {
     generateManualExecutorReceiptBase64
 } = require('../utils/manualExecutorReceipt');
 const { reserveManualExecutorReceiptReference } = require('../services/manualExecutorReceiptReferenceService');
+const { readExecutorManualPolicy, toPublicExecutionPolicy, validateSenderPhoneDigits } = require('../utils/executorManualPolicy');
 const {
     acknowledgeMobilePushTask,
     getMobilePushDeviceStatus,
@@ -1460,7 +1461,7 @@ router.get('/executor/live-tasks', authenticateJWT, async (req, res) => {
             return sendMobileError(res, 409, 'EXECUTOR_GROUP_MISSING', 'حساب المنفذ غير مرتبط بشركة تنفيذ.', req.correlationId);
         }
 
-        const { tasks, alerts, pollIntervalSeconds } = await loadMobileLiveTasks({
+        const { tasks, alerts, pollIntervalSeconds, executionPolicy } = await loadMobileLiveTasks({
             emp: effectiveEmployee,
             tenantId: req.tenant ? executorTenantScope(req) : null
         });
@@ -1471,6 +1472,7 @@ router.get('/executor/live-tasks', authenticateJWT, async (req, res) => {
             alerts: alerts.map((task) => toExecutorTaskDto(task, userId)),
             manualTaskRoutingEnabled: Boolean(effectiveEmployee.groupId?.manualTaskRoutingEnabled),
             canRouteTasks: effectiveEmployee.role === 'manager',
+            executionPolicy,
             pollIntervalSeconds,
             serverTime: new Date().toISOString()
         });
@@ -1573,6 +1575,46 @@ router.post('/executor/task-routing-mode', authenticateJWT, async (req, res) => 
         );
         return res.json({ success: true, manualTaskRoutingEnabled: Boolean(group?.manualTaskRoutingEnabled) });
     } catch (error) {
+        return sendServerError(res, req);
+    }
+});
+
+router.post('/executor/execution-policy', authenticateJWT, async (req, res) => {
+    try {
+        if (req.user.accountType !== 'executor') {
+            return sendMobileError(res, 403, 'FORBIDDEN', 'صلاحيات غير كافية', req.correlationId);
+        }
+        const policy = await mobileWebParityService.updateCompanyExecutionPolicy({
+            executorId: req.user.userId,
+            body: req.body
+        });
+        return res.json({ success: true, executionPolicy: policy });
+    } catch (error) {
+        if (error.message === 'FORBIDDEN' || error.message === 'UNAUTHORIZED') {
+            return sendMobileError(res, 403, 'FORBIDDEN', 'هذه العملية متاحة لمدير التنفيذ فقط.', req.correlationId);
+        }
+        return sendServerError(res, req);
+    }
+});
+
+router.patch('/executor/employees/:id/execution-policy', authenticateJWT, async (req, res) => {
+    try {
+        if (req.user.accountType !== 'executor') {
+            return sendMobileError(res, 403, 'FORBIDDEN', 'صلاحيات غير كافية', req.correlationId);
+        }
+        const result = await mobileWebParityService.updateEmployeeExecutionPolicy({
+            executorId: req.user.userId,
+            targetId: req.params.id,
+            body: req.body
+        });
+        return res.json({ success: true, ...result });
+    } catch (error) {
+        if (error.message === 'FORBIDDEN' || error.message === 'UNAUTHORIZED') {
+            return sendMobileError(res, 403, 'FORBIDDEN', 'هذه العملية متاحة لمدير التنفيذ فقط.', req.correlationId);
+        }
+        if (error.message === 'NOT_FOUND') {
+            return sendMobileError(res, 404, 'NOT_FOUND', 'الموظف غير موجود.', req.correlationId);
+        }
         return sendServerError(res, req);
     }
 });
@@ -2243,13 +2285,32 @@ router.post('/executor/complete-task/:id', authenticateJWT, completeTaskValidato
             senderPhone,
             senderEntries: requestedSenderEntries
         } = req.body;
-        const executionNumber = String(requestedExecutionNumber ?? senderPhone ?? '').trim();
+        const executionNumber = String(requestedExecutionNumber ?? senderPhone ?? '').replace(/\D/g, '');
         const { userId, accountType } = req.user;
         if (accountType !== 'executor') {
             return sendMobileError(res, 403, 'FORBIDDEN', 'صلاحيات غير كافية', req.correlationId);
         }
-        if (!/^\d{11}$/.test(executionNumber)) {
-            return sendMobileError(res, 400, 'INVALID_EXECUTION_NUMBER', 'رقم التنفيذ يجب أن يتكون من 11 رقماً', req.correlationId);
+        const empQuery = { _id: userId };
+        if (req.tenant) empQuery.tenantId = req.tenant._id;
+        const employeeRecord = await Employee.findOne(empQuery).populate('groupId');
+        const emp = executorWithSessionGroup(employeeRecord, req.user.executorGroupId);
+        if (!emp) {
+            return sendMobileError(res, 404, 'EMPLOYEE_NOT_FOUND', 'لم يتم العثور على حساب المنفذ', req.correlationId);
+        }
+        if (emp.role === 'accountant') {
+            return sendMobileError(res, 403, 'TASKS_FORBIDDEN', 'صلاحيات المحاسب لا تسمح بتنفيذ العمليات', req.correlationId);
+        }
+
+        const manualPolicy = readExecutorManualPolicy(emp.groupId, emp);
+        if (executionNumber) {
+            const executionCheck = validateSenderPhoneDigits(executionNumber, {
+                allowedPhoneLengths: manualPolicy.allowedPhoneLengths,
+                splitRequiresFullPhone: false,
+                isSplit: false
+            });
+            if (!executionCheck.ok) {
+                return sendMobileError(res, 400, executionCheck.code, executionCheck.message, req.correlationId);
+            }
         }
 
         let maskedExecutionNumber = '';
@@ -2260,17 +2321,6 @@ router.post('/executor/complete-task/:id', authenticateJWT, completeTaskValidato
                 return sendMobileError(res, 400, error.code, error.message, req.correlationId);
             }
             throw error;
-        }
-
-        const empQuery = { _id: userId };
-        if (req.tenant) empQuery.tenantId = req.tenant._id;
-        const employeeRecord = await Employee.findOne(empQuery).populate('groupId');
-        const emp = executorWithSessionGroup(employeeRecord, req.user.executorGroupId);
-        if (!emp) {
-            return sendMobileError(res, 404, 'EMPLOYEE_NOT_FOUND', 'لم يتم العثور على حساب المنفذ', req.correlationId);
-        }
-        if (emp.role === 'accountant') {
-            return sendMobileError(res, 403, 'TASKS_FORBIDDEN', 'صلاحيات المحاسب لا تسمح بتنفيذ العمليات', req.correlationId);
         }
 
         const tx = await findOwnedAcceptedExecutorTask({
@@ -2285,15 +2335,25 @@ router.post('/executor/complete-task/:id', authenticateJWT, completeTaskValidato
         try {
             senderEntries = normalizeExecutorSenderEntries({
                 requestedSenderEntries,
-                senderPhone,
+                senderPhone: senderPhone || executionNumber,
                 operationAmount: tx.amount,
-                group: emp.groupId
+                group: emp.groupId,
+                policy: manualPolicy
             });
         } catch (error) {
             if (error instanceof ExecutorSenderEntriesError) {
                 return sendMobileError(res, error.statusCode, error.code, error.message, req.correlationId);
             }
             throw error;
+        }
+        const uploadedImages = Array.isArray(imagesBase64) && imagesBase64.length
+            ? imagesBase64
+            : (imageBase64 ? [imageBase64] : []);
+        if (uploadedImages.length > 5 || uploadedImages.some((image) => typeof image !== 'string')) {
+            return sendMobileError(res, 400, 'INVALID_PROOF_IMAGES', 'يمكن إرفاق خمس صور إثبات كحد أقصى', req.correlationId);
+        }
+        if (manualPolicy.proofRequired && uploadedImages.length === 0 && senderEntries.every((entry) => !entry.proofImage)) {
+            return sendMobileError(res, 400, 'PROOF_REQUIRED', 'إرفاق صورة الإثبات إجباري لهذا المنفذ.', req.correlationId);
         }
         const executorReceipt = await reserveManualExecutorReceiptReference({ group: emp.groupId });
         const completedAt = new Date();
@@ -2317,12 +2377,6 @@ router.post('/executor/complete-task/:id', authenticateJWT, completeTaskValidato
             await ExecutorGroup.findByIdAndUpdate(emp.groupId._id, { $inc: { balance: -tx.amount } });
         }
 
-        const uploadedImages = Array.isArray(imagesBase64) && imagesBase64.length
-            ? imagesBase64
-            : (imageBase64 ? [imageBase64] : []);
-        if (uploadedImages.length > 5 || uploadedImages.some((image) => typeof image !== 'string')) {
-            return sendMobileError(res, 400, 'INVALID_PROOF_IMAGES', 'يمكن إرفاق خمس صور إثبات كحد أقصى', req.correlationId);
-        }
         const savedFileIds = uploadedImages.map((image, index) => (
             saveProofImage(image, `${tx.customId || tx._id}_executor_${index + 1}`)
         ));
@@ -3832,7 +3886,8 @@ router.get('/executor/employees', authenticateJWT, async (req, res) => {
                 ...(poolWorkspace?.balances || {})
             },
             pools: poolWorkspace?.pools || [],
-            soloExternals: poolWorkspace?.solos || []
+            soloExternals: poolWorkspace?.solos || [],
+            companyExecutionPolicy: workspace.companyExecutionPolicy || null
         });
     } catch (e) {
         if (e.message === 'UNAUTHORIZED') {

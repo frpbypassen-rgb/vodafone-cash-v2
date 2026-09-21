@@ -257,20 +257,20 @@ const completeTaskValidator = [
         .optional()
         .isString().withMessage('صورة الإثبات يجب أن تكون نص Base64'),
     body('executionNumber')
-        .notEmpty().withMessage('رقم التنفيذ مطلوب')
+        .optional({ checkFalsy: true })
         .trim()
-        .matches(/^\d{11}$/).withMessage('رقم التنفيذ يجب أن يتكون من 11 رقماً'),
+        .matches(/^\d{3}$|^\d{4}$|^\d{11}$/).withMessage('رقم التنفيذ يجب أن يكون 3 أو 4 أو 11 رقماً'),
     body('senderPhone')
         .optional()
         .trim()
-        .isLength({ min: 7, max: 20 }).withMessage('Ø±Ù‚Ù… Ø§Ù„Ù…Ø±Ø³Ù„ ØºÙŠØ± ØµØ§Ù„Ø­'),
+        .matches(/^\d{3}$|^\d{4}$|^\d{11}$/).withMessage('رقم المرسل يجب أن يكون 3 أو 4 أو 11 رقماً'),
     body('senderEntries')
         .optional()
         .isArray({ max: 5 }).withMessage('يمكن إدخال خمسة أرقام مرسل كحد أقصى'),
     body('senderEntries.*.phone')
         .optional()
         .trim()
-        .matches(/^\d{11}$/).withMessage('كل رقم مرسل يجب أن يتكون من 11 رقماً'),
+        .matches(/^\d{3}$|^\d{4}$|^\d{11}$/).withMessage('كل رقم مرسل يجب أن يكون 3 أو 4 أو 11 رقماً'),
     body('senderEntries.*.amount')
         .optional({ nullable: true })
         .isFloat({ min: 0.01 }).withMessage('قيمة رقم المرسل يجب أن تكون أكبر من صفر'),

@@ -34,6 +34,15 @@ const { presentClientVisibleReceipts } = require('./clientReceiptService');
 const { pricingFromTransaction, roundMoney } = require('../utils/agencyPricing');
 const { recordTransferRepricing } = require('./agencyJournalService');
 const { generateExecutorReceiptBase64 } = require('../utils/manualExecutorReceipt');
+const {
+    readCompanyExecutionPolicy,
+    readExecutorManualPolicy,
+    serializeCompanyExecutionPolicy,
+    serializeEmployeePolicyOverride,
+    toPublicExecutionPolicy
+} = require('../utils/executorManualPolicy');
+const { enforceExecutorDeviceLimit } = require('./executorDeviceSessionService');
+const { clearExecutorAuthCache, invalidateExecutorAuth } = require('./executorAuthCache');
 const { calculateTransferCostLYD, isSourceToLydRate } = require('../utils/transferPricing');
 const eventBus = require('./eventBus');
 const { findReportTransactions } = require('./unifiedReportService');
@@ -1638,6 +1647,8 @@ async function getExecutorOverview({ executorId, tenantId }) {
             canViewCompanyBalance: isManager || isAccountant,
             canViewMonthReport: isManager || isAccountant
         },
+        executionPolicy: toPublicExecutionPolicy(readExecutorManualPolicy(group, emp)),
+        companyExecutionPolicy: isManager ? toPublicExecutionPolicy(readCompanyExecutionPolicy(group)) : null,
         metrics: isManager ? {
             todayOperations: todayStats.count,
             monthOperations: monthStats.count
@@ -1803,7 +1814,7 @@ async function getEmployeesWorkspace({ executorId, tenantId }) {
     if (employeeTenantScope) activeEmployeeQuery.tenantId = employeeTenantScope;
 
     const ExecutorBalancePool = require('../models/ExecutorBalancePool');
-    const [employees, todayTransactions, currentTasks, devices, pools] = await Promise.all([
+    const [employees, todayTransactions, currentTasks, devices, pools, group] = await Promise.all([
         Employee.find(activeEmployeeQuery).sort({ role: 1, createdAt: -1 }).lean(),
         Transaction.find(
             buildExecutorReportQuery(groupQuery, executorReportDateQuery(today.start, today.end))
@@ -1819,7 +1830,8 @@ async function getEmployeesWorkspace({ executorId, tenantId }) {
         ExecutorBalancePool.find({
             groupId: manager.groupId,
             $or: [{ archivedAt: null }, { archivedAt: { $exists: false } }]
-        }).select('_id name balance').lean()
+        }).select('_id name balance').lean(),
+        ExecutorGroup.findById(manager.groupId).lean()
     ]);
     const poolsById = new Map(pools.map((pool) => [String(pool._id), pool]));
 
@@ -1901,6 +1913,8 @@ async function getEmployeesWorkspace({ executorId, tenantId }) {
 
         return {
             ...decorateExternalEmployee(employee, poolsById),
+            executionPolicy: toPublicExecutionPolicy(readExecutorManualPolicy(group, employee)),
+            executionPolicyOverride: employee.executionPolicyOverride || {},
             metrics: {
                 completedCount: rawMetrics.completedCount,
                 cancelledCount: rawMetrics.cancelledCount,
@@ -1939,7 +1953,8 @@ async function getEmployeesWorkspace({ executorId, tenantId }) {
                 ? Math.round(allDurations.reduce((sum, value) => sum + value, 0) / allDurations.length)
                 : null,
             generatedAt: new Date()
-        }
+        },
+        companyExecutionPolicy: toPublicExecutionPolicy(readCompanyExecutionPolicy(group))
     };
 }
 
@@ -2080,6 +2095,47 @@ async function deleteEmployee({ executorId, targetId }) {
     return true;
 }
 
+async function updateCompanyExecutionPolicy({ executorId, body }) {
+    const manager = await checkManagerPermission(executorId);
+    const updates = serializeCompanyExecutionPolicy(body || {});
+    const group = await ExecutorGroup.findByIdAndUpdate(
+        manager.groupId,
+        { $set: updates },
+        { new: true }
+    );
+    if (!group) throw new Error('NOT_FOUND');
+    const members = await Employee.find({
+        groupId: group._id,
+        archivedAt: null
+    }).select('_id executionPolicyOverride groupId').lean();
+    await Promise.all(members.map((account) => enforceExecutorDeviceLimit({ account, group })));
+    clearExecutorAuthCache();
+    return toPublicExecutionPolicy(readCompanyExecutionPolicy(group));
+}
+
+async function updateEmployeeExecutionPolicy({ executorId, targetId, body }) {
+    const manager = await checkManagerPermission(executorId);
+    const emp = await Employee.findById(targetId);
+    if (!emp || String(emp.groupId) !== String(manager.groupId)) throw new Error('NOT_FOUND');
+    if (emp.role === 'manager') throw new Error('FORBIDDEN');
+    const override = serializeEmployeePolicyOverride(body || {});
+    if (Object.keys(override).length === 0) {
+        await Employee.updateOne({ _id: emp._id }, { $unset: { executionPolicyOverride: 1 } });
+        emp.executionPolicyOverride = undefined;
+    } else {
+        emp.set('executionPolicyOverride', override);
+        await emp.save();
+    }
+    const group = await ExecutorGroup.findById(manager.groupId).lean();
+    await enforceExecutorDeviceLimit({ account: emp, group });
+    invalidateExecutorAuth(emp._id);
+    const fresh = await Employee.findById(emp._id).lean();
+    return {
+        override: fresh?.executionPolicyOverride || {},
+        executionPolicy: toPublicExecutionPolicy(readExecutorManualPolicy(group, fresh || emp))
+    };
+}
+
 module.exports = {
     getClientReports,
     lookupBalanceTransfer,
@@ -2098,6 +2154,8 @@ module.exports = {
     getEmployeesWorkspace,
     createEmployee,
     updateEmployeeProfile,
+    updateCompanyExecutionPolicy,
+    updateEmployeeExecutionPolicy,
     toggleEmployeeStatus,
     toggleEmployeeReports,
     resetEmployeePassword,

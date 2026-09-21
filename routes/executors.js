@@ -32,7 +32,9 @@ const {
     ManualExecutorReceiptReferenceError,
     normalizeManualExecutorReceiptPrefix
 } = require('../services/manualExecutorReceiptReferenceService');
-const { serializeAllowedPhoneLengths } = require('../utils/executorManualPolicy');
+const { serializeCompanyExecutionPolicy } = require('../utils/executorManualPolicy');
+const { enforceExecutorDeviceLimit } = require('../services/executorDeviceSessionService');
+const { clearExecutorAuthCache } = require('../services/executorAuthCache');
 const multer = require('multer');
 const { createDepositRequest } = require('../services/executorDepositRequestService');
 
@@ -782,10 +784,21 @@ router.post('/executor/:id/manual-policy', requireAuth, requireMaster, async (re
             return res.redirect('/executors?manualPolicyError=NOT_AVAILABLE');
         }
 
-        bot.manualProofRequired = req.body.manualProofRequired === 'on';
-        bot.manualAllowedPhoneLengths = serializeAllowedPhoneLengths(req.body);
-        bot.manualSplitRequiresFullPhone = req.body.manualSplitRequiresFullPhone === 'on';
+        const serialized = serializeCompanyExecutionPolicy(req.body);
+        bot.manualProofRequired = serialized.manualProofRequired;
+        bot.manualAllowedPhoneLengths = serialized.manualAllowedPhoneLengths;
+        bot.manualSplitRequiresFullPhone = serialized.manualSplitRequiresFullPhone;
+        bot.maxConcurrentDevices = serialized.maxConcurrentDevices;
+        bot.sessionTtlEnabled = serialized.sessionTtlEnabled;
+        bot.sessionTtlSeconds = serialized.sessionTtlSeconds;
         await bot.save();
+
+        const members = await Employee.find({
+            groupId: bot._id,
+            archivedAt: null
+        }).select('_id executionPolicyOverride groupId').lean();
+        await Promise.all(members.map((account) => enforceExecutorDeviceLimit({ account, group: bot })));
+        clearExecutorAuthCache();
 
         await logAction({
             action: 'EXECUTOR_MANUAL_POLICY_UPDATED',
@@ -798,7 +811,10 @@ router.post('/executor/:id/manual-policy', requireAuth, requireMaster, async (re
             newData: {
                 manualProofRequired: bot.manualProofRequired,
                 manualAllowedPhoneLengths: bot.manualAllowedPhoneLengths,
-                manualSplitRequiresFullPhone: bot.manualSplitRequiresFullPhone
+                manualSplitRequiresFullPhone: bot.manualSplitRequiresFullPhone,
+                maxConcurrentDevices: bot.maxConcurrentDevices,
+                sessionTtlEnabled: bot.sessionTtlEnabled,
+                sessionTtlSeconds: bot.sessionTtlSeconds
             },
             metadata: { executorName: bot.name }
         }).catch(() => {});

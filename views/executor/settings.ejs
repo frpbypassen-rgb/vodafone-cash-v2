@@ -243,6 +243,51 @@
                         <input class="form-check-input" type="checkbox" role="switch" id="manualRoutingSwitch" <%= emp.groupId?.manualTaskRoutingEnabled ? 'checked' : '' %>>
                     </div>
                 </div>
+
+                <div class="routing-control mt-4 align-items-start">
+                    <div class="w-100">
+                        <h2 class="panel-title mb-1"><i class="fa-solid fa-shield-halved"></i> صلاحيات التنفيذ</h2>
+                        <p class="mb-3">الافتراضي للشركة. يمكن تجاوزه لكل منفّذ من صفحة الفريق.</p>
+                        <% const companyLengths = Array.isArray(emp.groupId?.manualAllowedPhoneLengths) ? emp.groupId.manualAllowedPhoneLengths : [3,4,11]; %>
+                        <% const companyMode = companyLengths.length === 1 ? String(companyLengths[0]) : 'all'; %>
+                        <form id="executionPolicyForm" class="row g-3">
+                            <div class="col-12">
+                                <label class="form-label fw-bold">أرقام إثبات المرسل</label>
+                                <div class="d-flex flex-wrap gap-3">
+                                    <label class="form-check"><input class="form-check-input" type="radio" name="phoneLengthMode" value="3" <%= companyMode === '3' ? 'checked' : '' %>> 3 أرقام فقط</label>
+                                    <label class="form-check"><input class="form-check-input" type="radio" name="phoneLengthMode" value="4" <%= companyMode === '4' ? 'checked' : '' %>> 4 أرقام فقط</label>
+                                    <label class="form-check"><input class="form-check-input" type="radio" name="phoneLengthMode" value="11" <%= companyMode === '11' ? 'checked' : '' %>> 11 رقماً فقط</label>
+                                    <label class="form-check"><input class="form-check-input" type="radio" name="phoneLengthMode" value="all" <%= companyMode === 'all' ? 'checked' : '' %>> الثلاثة مسموحة</label>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="form-check form-switch">
+                                    <input class="form-check-input" type="checkbox" role="switch" id="proofRequiredSwitch" <%= emp.groupId?.manualProofRequired ? 'checked' : '' %>>
+                                    <label class="form-check-label fw-bold" for="proofRequiredSwitch">صورة الإثبات إجبارية</label>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label fw-bold" for="maxConcurrentDevices">أقصى أجهزة متزامنة</label>
+                                <input class="form-control" type="number" min="1" max="20" id="maxConcurrentDevices" value="<%= Number(emp.groupId?.maxConcurrentDevices || 1) %>">
+                                <small class="text-muted">1 = الدخول الجديد يُخرج الجهاز السابق.</small>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="form-check form-switch">
+                                    <input class="form-check-input" type="checkbox" role="switch" id="sessionTtlSwitch" <%= emp.groupId?.sessionTtlEnabled ? 'checked' : '' %>>
+                                    <label class="form-check-label fw-bold" for="sessionTtlSwitch">حد مدة الجلسة</label>
+                                </div>
+                                <small class="text-muted">عند الإيقاف تبقى الجلسة مفتوحة ويُحدَّث التوكن تلقائياً.</small>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label fw-bold" for="sessionTtlHours">مدة الجلسة (ساعات)</label>
+                                <input class="form-control" type="number" min="1" max="720" id="sessionTtlHours" value="<%= Math.max(1, Math.round(Number(emp.groupId?.sessionTtlSeconds || 28800) / 3600)) %>" <%= emp.groupId?.sessionTtlEnabled ? '' : 'disabled' %>>
+                            </div>
+                            <div class="col-12">
+                                <button type="submit" class="settings-btn-primary"><i class="fa-solid fa-floppy-disk"></i> حفظ صلاحيات الشركة</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
             </section>
             <% } %>
         </div>
@@ -345,6 +390,38 @@
             input.checked = !input.checked;
             Swal.fire({ icon: 'error', title: 'تعذر تحديث التوجيه', text: error.message });
         } finally { input.disabled = false; }
+    });
+
+    document.getElementById('sessionTtlSwitch')?.addEventListener('change', (event) => {
+        const hours = document.getElementById('sessionTtlHours');
+        if (hours) hours.disabled = !event.currentTarget.checked;
+    });
+
+    document.getElementById('executionPolicyForm')?.addEventListener('submit', async (event) => {
+        event.preventDefault();
+        const form = event.currentTarget;
+        const button = form.querySelector('button[type="submit"]');
+        if (button) button.disabled = true;
+        try {
+            const hours = Number(document.getElementById('sessionTtlHours')?.value || 8);
+            const response = await executorApiFetch('/executor-portal/api/execution-policy', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    phoneLengthMode: form.querySelector('input[name="phoneLengthMode"]:checked')?.value || 'all',
+                    proofRequired: document.getElementById('proofRequiredSwitch')?.checked === true,
+                    maxConcurrentDevices: Number(document.getElementById('maxConcurrentDevices')?.value || 1),
+                    sessionTtlEnabled: document.getElementById('sessionTtlSwitch')?.checked === true,
+                    sessionTtlHours: hours
+                })
+            });
+            await readExecutorApiResponse(response);
+            Swal.fire({ icon: 'success', title: 'تم حفظ صلاحيات الشركة', timer: 1500, showConfirmButton: false });
+        } catch (error) {
+            Swal.fire({ icon: 'error', title: 'تعذر حفظ الصلاحيات', text: error.message });
+        } finally {
+            if (button) button.disabled = false;
+        }
     });
 
     document.getElementById('pushLearnToggle')?.addEventListener('click', (event) => {

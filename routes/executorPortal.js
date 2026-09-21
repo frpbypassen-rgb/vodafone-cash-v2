@@ -137,6 +137,8 @@ router.post('/api/balance-pools/:id/members', requireExecutorManager, dashboardC
 router.post('/api/balance-pools/:id/members/:employeeId/detach', requireExecutorManager, dashboardController.postBalancePoolDetach);
 router.post('/api/balance-pools/:id/archive', requireExecutorManager, dashboardController.postBalancePoolArchive);
 router.post('/api/task-routing-mode', requireExecutorManager, dashboardController.postTaskRoutingMode);
+router.post('/api/execution-policy', requireExecutorManager, dashboardController.postExecutionPolicy);
+router.post('/api/employees/:id/execution-policy', requireExecutorManager, dashboardController.postEmployeeExecutionPolicy);
 router.get('/api/route-candidates', requireExecutorManager, dashboardController.getRouteCandidates);
 router.post('/api/route-task/:id', requireExecutorManager, dashboardController.postRouteTask);
 
