@@ -11,9 +11,9 @@
     <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800;900&family=JetBrains+Mono:wght@700&display=swap" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     <script src="/js/executor-api.js"></script>
-    <link rel="stylesheet" href="/css/executor-workspace.css?v=20260826-deposit-review">
+    <link rel="stylesheet" href="/css/executor-workspace.css?v=20260921-pool-ui">
     <link rel="stylesheet" href="/css/executor-2030-override.css?v=20260826-deposit-review">
-    <link rel="stylesheet" href="/css/executor-os.css?v=20260826-deposit-review">
+    <link rel="stylesheet" href="/css/executor-os.css?v=20260921-pool-ui">
     <style>
         body { font-family: Tajawal, sans-serif; background: var(--x-bg, #08111f); color: var(--x-text, #edf5ff); }
         .deposit-main { max-width: 1180px; margin: 0 auto; padding: 30px 22px 110px; }
@@ -26,6 +26,7 @@
         .deposit-balance-private strong { color: #fbbf24; }
         .deposit-balance-card span { display: block; color: var(--x-muted, #9cadc3); font-size: 0.74rem; font-weight: 800; margin-bottom: 4px; }
         .deposit-balance-card strong { font-family: 'JetBrains Mono', monospace; font-size: 1.35rem; color: #34d399; }
+        .deposit-balance-card small.deposit-balance-help { display: block; margin-top: 6px; font-size: 0.68rem; font-weight: 700; line-height: 1.45; color: var(--x-muted, #9cadc3); }
         .deposit-steps { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin-bottom: 18px; }
         .deposit-step { padding: 12px; border-radius: 14px; border: 1px solid var(--x-border, rgba(94, 234, 212, 0.18)); background: rgba(255, 255, 255, 0.03); }
         .deposit-step strong { display: block; font-size: 0.82rem; margin-bottom: 4px; }
@@ -96,6 +97,9 @@
 </head>
 <body class="executor-os">
     <%- include('partials/navigation', { emp, activePage: 'deposits', showMfaNotice }) %>
+    <div class="exo-stage">
+        <%- include('partials/command-bar', { emp }) %>
+    </div>
     <% const isExternalDepositView = depositScope === 'external'; %>
     <main class="deposit-main">
         <header class="deposit-hero">
@@ -106,17 +110,20 @@
             <div class="deposit-balance-stack">
                 <% if (isExternalDepositView) { %>
                     <div class="deposit-balance-card">
-                        <span><i class="fa-solid fa-wallet ms-1"></i> <%= workingBalance && workingBalance.pool ? `رصيد مجموعة «${workingBalance.pool.name}»` : 'رصيدك المتاح حالياً' %></span>
+                        <span><i class="fa-solid fa-wallet ms-1"></i> <%= workingBalance && workingBalance.pool ? `رصيد مجموعة «${workingBalance.pool.name}»` : 'رصيدك المنفرد' %></span>
                         <strong dir="ltr"><%= Number((workingBalance && workingBalance.balance != null) ? workingBalance.balance : (emp.balance || 0)).toLocaleString('en-US', { maximumFractionDigits: 2 }) %> EGP</strong>
+                        <small class="deposit-balance-help"><%= workingBalance && workingBalance.pool ? 'تشارك هذا الرصيد مع باقي أعضاء المجموعة. إيصال التمويل يظهر لك وحدك.' : 'رصيدك الخاص كمنفّذ خارجي منفرد.' %></small>
                     </div>
                 <% } else { %>
-                    <div class="deposit-balance-card">
+                    <div class="deposit-balance-card" data-company-balance="total">
                         <span><i class="fa-solid fa-vault ms-1"></i> إجمالي الرصيد</span>
                         <strong dir="ltr"><%= Number(companyBalances?.totalBalance ?? emp.groupId?.balance ?? 0).toLocaleString('en-US', { maximumFractionDigits: 2 }) %> EGP</strong>
+                        <small class="deposit-balance-help">الخاص + مجموعات الرصيد + المنفردين. كما تراه الإدارة.</small>
                     </div>
-                    <div class="deposit-balance-card deposit-balance-private">
+                    <div class="deposit-balance-card deposit-balance-private" data-company-balance="private">
                         <span><i class="fa-solid fa-wallet ms-1"></i> الرصيد الخاص</span>
                         <strong dir="ltr"><%= Number(companyBalances?.privateBalance ?? emp.groupId?.balance ?? 0).toLocaleString('en-US', { maximumFractionDigits: 2 }) %> EGP</strong>
+                        <small class="deposit-balance-help">رأس مال الشركة للمدير. قبول إيداع الإدارة يزيد الرصيد الخاص.</small>
                     </div>
                 <% } %>
             </div>
@@ -437,14 +444,14 @@
                     if (!result.isConfirmed) return;
                     reason = result.value.trim();
                 } else {
-                    const result = await Swal.fire({ icon: 'warning', title: 'قبول الإيداع؟', text: 'سيضاف المبلغ إلى رصيد الشركة مرة واحدة فقط.', showCancelButton: true, confirmButtonText: 'قبول وإضافة الرصيد', cancelButtonText: 'تراجع', confirmButtonColor: '#0e9b86' });
+                    const result = await Swal.fire({ icon: 'warning', title: 'قبول الإيداع؟', text: 'سيُضاف المبلغ إلى الرصيد الخاص للشركة، وبالتالي يرتفع إجمالي الرصيد.', showCancelButton: true, confirmButtonText: 'قبول وإضافة للرصيد الخاص', cancelButtonText: 'تراجع', confirmButtonColor: '#0e9b86' });
                     if (!result.isConfirmed) return;
                 }
                 reviewButton.disabled = true;
                 try {
                     const response = await executorApiFetch(`/executor-portal/api/deposits/${reviewButton.dataset.requestId}/review`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ decision, reason }) });
                     await readExecutorApiResponse(response);
-                    await Swal.fire(decision === 'approve' ? 'تم القبول' : 'تم الإلغاء', decision === 'approve' ? 'تمت إضافة الرصيد إلى الشركة.' : 'تم إرسال قرار الإلغاء إلى الإدارة.', 'success');
+                    await Swal.fire(decision === 'approve' ? 'تم القبول' : 'تم الإلغاء', decision === 'approve' ? 'تمت إضافة المبلغ إلى الرصيد الخاص للشركة.' : 'تم إرسال قرار الإلغاء إلى الإدارة.', 'success');
                     await loadRequests();
                 } catch (error) { Swal.fire('تعذر حفظ القرار', error.message, 'error'); }
             }

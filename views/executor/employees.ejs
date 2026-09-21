@@ -285,9 +285,9 @@
         }
     </style>
     <link rel="stylesheet" href="/css/brand-ui.css?v=20260804-brand1">
-    <link rel="stylesheet" href="/css/executor-workspace.css?v=20260825-balance1">
+    <link rel="stylesheet" href="/css/executor-workspace.css?v=20260921-pool-ui">
     <link rel="stylesheet" href="/css/executor-2030-override.css?v=20260825-balance1">
-    <link rel="stylesheet" href="/css/executor-os.css?v=20260825-balance1">
+    <link rel="stylesheet" href="/css/executor-os.css?v=20260921-pool-ui">
 
     <!-- PWA Setup -->
     <link rel="manifest" href="/manifest.json">
@@ -313,8 +313,8 @@
         </div>
     </div>
     <div class="nav-actions">
-        <span class="nav-btn text-success border border-success border-opacity-25" style="cursor: default; font-weight: 800;" title="إجمالي الرصيد"><i class="fa-solid fa-vault me-1"></i> <%= Number(companyBalances?.totalBalance ?? emp.groupId?.balance ?? 0).toLocaleString('en-US', { maximumFractionDigits: 0 }) %> ج.م</span>
-        <span class="nav-btn text-warning border border-warning border-opacity-25" style="cursor: default; font-weight: 800;" title="الرصيد الخاص"><i class="fa-solid fa-wallet me-1"></i> <%= Number(companyBalances?.privateBalance ?? emp.groupId?.balance ?? 0).toLocaleString('en-US', { maximumFractionDigits: 0 }) %> ج.م</span>
+        <span class="nav-btn text-success border border-success border-opacity-25" style="cursor: default; font-weight: 800;" title="إجمالي الرصيد: الخاص + مجموعات الرصيد + المنفردين"><i class="fa-solid fa-vault me-1"></i> إجمالي <%= Number(companyBalances?.totalBalance ?? emp.groupId?.balance ?? 0).toLocaleString('en-US', { maximumFractionDigits: 0 }) %> ج.م</span>
+        <span class="nav-btn text-warning border border-warning border-opacity-25" style="cursor: default; font-weight: 800;" title="الرصيد الخاص المتاح للمدير"><i class="fa-solid fa-wallet me-1"></i> خاص <%= Number(companyBalances?.privateBalance ?? emp.groupId?.balance ?? 0).toLocaleString('en-US', { maximumFractionDigits: 0 }) %> ج.م</span>
         <button class="nav-btn btn-theme shadow-sm" onclick="toggleTheme()" title="المظهر"><i class="fa-solid fa-moon" id="themeIcon"></i></button>
         <a href="/executor-portal/logout" class="nav-btn btn-logout"><i class="fa-solid fa-power-off"></i></a>
     </div>
@@ -325,31 +325,45 @@
         <div>
             <span class="executor-kicker"><i class="fa-solid fa-users-gear"></i> إدارة الفريق</span>
             <h1>الموظفون وحالة التشغيل</h1>
-            <p>متابعة التوفر والمهام الحالية وأداء اليوم، مع إدارة الحسابات من مكان واحد.</p>
+            <p>متابعة التوفر والمهام الحالية، وإدارة حسابات الفريق ومجموعات رصيد المنفذين الخارجيين من مكان واحد.</p>
         </div>
         <button type="button" class="nav-btn" onclick="loadEmployees()" title="تحديث"><i class="fa-solid fa-rotate"></i></button>
     </div>
 
     <section class="executor-summary-grid mb-4">
-        <article class="executor-summary-card" style="--summary-color: var(--executor-green)"><span class="summary-icon"><i class="fa-solid fa-vault"></i></span><small>إجمالي الرصيد</small><strong id="summaryTotalBalance" dir="ltr"><%= Number(companyBalances?.totalBalance || 0).toLocaleString('en-US', { maximumFractionDigits: 2 }) %></strong></article>
-        <article class="executor-summary-card" style="--summary-color: var(--executor-gold)"><span class="summary-icon"><i class="fa-solid fa-wallet"></i></span><small>الرصيد الخاص</small><strong id="summaryPrivateBalance" dir="ltr"><%= Number(companyBalances?.privateBalance || 0).toLocaleString('en-US', { maximumFractionDigits: 2 }) %></strong></article>
+        <article class="executor-summary-card" style="--summary-color: var(--executor-green)" data-company-balance="total"><span class="summary-icon"><i class="fa-solid fa-vault"></i></span><small>إجمالي الرصيد</small><strong id="summaryTotalBalance" dir="ltr"><%= Number(companyBalances?.totalBalance || 0).toLocaleString('en-US', { maximumFractionDigits: 2 }) %></strong><span class="summary-help">الخاص + مجموعات الرصيد + المنفردين. كما تراه الإدارة.</span></article>
+        <article class="executor-summary-card" style="--summary-color: var(--executor-gold)" data-company-balance="private"><span class="summary-icon"><i class="fa-solid fa-wallet"></i></span><small>الرصيد الخاص</small><strong id="summaryPrivateBalance" dir="ltr"><%= Number(companyBalances?.privateBalance || 0).toLocaleString('en-US', { maximumFractionDigits: 2 }) %></strong><span class="summary-help">رأس مال الشركة للمدير فقط. تمويل منفّذ خارجي يُخصم من هنا.</span></article>
         <article class="executor-summary-card" style="--summary-color: var(--executor-blue)"><span class="summary-icon"><i class="fa-solid fa-users"></i></span><small>إجمالي الفريق</small><strong id="summaryTotal">0</strong></article>
         <article class="executor-summary-card" style="--summary-color: var(--executor-green)"><span class="summary-icon"><i class="fa-solid fa-signal"></i></span><small>متصلون الآن</small><strong id="summaryOnline">0</strong></article>
         <article class="executor-summary-card" style="--summary-color: var(--executor-gold)"><span class="summary-icon"><i class="fa-solid fa-bolt"></i></span><small>ينفذون الآن</small><strong id="summaryBusy">0</strong></article>
         <article class="executor-summary-card" style="--summary-color: #7a57d1"><span class="summary-icon"><i class="fa-solid fa-check-double"></i></span><small>عمليات اليوم</small><strong id="summaryCompleted">0</strong></article>
     </section>
 
-    <div class="page-card mb-4">
+    <div class="page-card mb-4" id="externalPoolWorkspace">
         <div class="d-flex flex-wrap align-items-center justify-content-between gap-3 mb-3">
-            <h5 class="section-title m-0"><i class="fa-solid fa-link"></i> مجموعات الرصيد المشتركة للمنفذين الخارجيين</h5>
-            <button type="button" class="btn-create" style="padding:10px 18px;font-size:0.9rem" onclick="createBalancePool()"><i class="fa-solid fa-plus me-1"></i> مجموعة جديدة</button>
+            <h5 class="section-title m-0"><i class="fa-solid fa-link"></i> مجموعات الرصيد للمنفذين الخارجيين</h5>
+            <button type="button" class="btn-create" style="padding:10px 18px;font-size:0.9rem" onclick="createBalancePool()"><i class="fa-solid fa-plus me-1"></i> مجموعة رصيد جديدة</button>
         </div>
-        <p class="text-muted small mb-3">اربط عدة منفذين خارجيين برصيد واحد باسم واضح (مثل «شركة النور»). المنفذ غير المرتبط يبقى برصيد فردي خاص به. الإيداع يُخصم من الرصيد الخاص، والإيصال يظهر فقط للشخص المستهدف.</p>
-        <div id="poolList" class="d-flex flex-column gap-3"></div>
-        <div id="poolEmpty" class="empty-state d-none">
-            <i class="fa-solid fa-layer-group d-block"></i>
-            <p class="fw-bold">لا توجد مجموعات رصيد حالياً</p>
-            <p class="small">أنشئ مجموعة ثم أضف إليها المنفذين الخارجيين الذين تريد أن يشاركوا نفس الرصيد.</p>
+        <p class="text-muted small mb-3">أنشئ <b>مجموعة رصيد</b> باسم واضح (مثل «شركة النور») واربط بها المنفذين الخارجيين، أو اترك المنفّذ <b>منفردًا</b>. العضوية حصرية: مجموعة واحدة أو منفرد — ليس الاثنين. تمويل منفّذ خارجي يُخصم من <b>الرصيد الخاص</b>، والإيصال يظهر <b>للمستلم فقط</b>.</p>
+        <div class="pool-workspace">
+            <section class="pool-workspace-col" aria-label="مجموعات الرصيد">
+                <h6><i class="fa-solid fa-layer-group"></i> مجموعات الرصيد</h6>
+                <div id="poolList" class="d-flex flex-column gap-3"></div>
+                <div id="poolEmpty" class="empty-state d-none">
+                    <i class="fa-solid fa-layer-group d-block"></i>
+                    <p class="fw-bold">لا توجد مجموعات رصيد حالياً</p>
+                    <p class="small">أنشئ مجموعة باسم ثم أضف إليها المنفذين الخارجيين الذين تريد أن يشاركوا نفس الرصيد.</p>
+                </div>
+            </section>
+            <section class="pool-workspace-col" aria-label="منفّذون خارجيون منفردون">
+                <h6><i class="fa-solid fa-user"></i> منفّذون خارجيون منفردون</h6>
+                <div id="soloList" class="d-flex flex-column gap-3"></div>
+                <div id="soloEmpty" class="empty-state d-none">
+                    <i class="fa-solid fa-user-slash d-block"></i>
+                    <p class="fw-bold">لا يوجد منفّذ خارجي منفرد</p>
+                    <p class="small">كل المنفذين الخارجيين مرتبطون بمجموعة رصيد، أو لم يُنشأ منفّذ خارجي بعد.</p>
+                </div>
+            </section>
         </div>
     </div>
     <!-- قسم إنشاء حساب جديد -->
@@ -371,7 +385,7 @@
                     <select id="empRole" class="form-select">
                         <option value="operator">موظف تنفيذ (Operator)</option>
                         <option value="accountant">محاسب (Accountant)</option>
-                        <option value="external">موظف خارجي (External)</option>
+                        <option value="external">منفّذ خارجي</option>
                     </select>
                 </div>
             </div>
@@ -388,6 +402,12 @@
                     <label class="form-label"><i class="fa-solid fa-lock me-1"></i> كلمة المرور</label>
                     <input type="password" id="empPassword" class="form-control" placeholder="••••••••" autocomplete="new-password" minlength="6" dir="ltr" required>
                 </div>
+                <div class="col-md-4" id="externalPoolField" hidden>
+                    <label class="form-label"><i class="fa-solid fa-layer-group me-1"></i> مجموعة رصيد (اختياري)</label>
+                    <select id="empPoolId" class="form-select">
+                        <option value="">منفرد — بدون مجموعة رصيد</option>
+                    </select>
+                </div>
                 <div class="col-md-4 d-flex align-items-end">
                     <button type="submit" class="btn-create w-100"><i class="fa-solid fa-plus me-2"></i> إنشاء الحساب</button>
                 </div>
@@ -401,7 +421,7 @@
             <h5 class="section-title m-0"><i class="fa-solid fa-users"></i> فريق العمل (<span id="empCount">0</span>)</h5>
             <div class="d-flex gap-2 flex-grow-1 justify-content-end" style="max-width:520px">
                 <input type="search" id="employeeSearch" class="form-control" placeholder="بحث بالاسم أو الهاتف أو اسم المستخدم">
-                <select id="employeeRoleFilter" class="form-select" style="max-width:155px"><option value="">كل الوظائف</option><option value="operator">موظف تنفيذ</option><option value="accountant">محاسب</option><option value="external">خارجي</option><option value="manager">مدير</option></select>
+                <select id="employeeRoleFilter" class="form-select" style="max-width:170px"><option value="">كل الوظائف</option><option value="operator">موظف تنفيذ</option><option value="accountant">محاسب</option><option value="external">منفّذ خارجي</option><option value="manager">مدير</option></select>
             </div>
         </div>
         
@@ -413,7 +433,7 @@
                         <th>اسم المستخدم</th>
                         <th>الهاتف</th>
                         <th>الوظيفة</th>
-                        <th>الرصيد المتاح</th>
+                        <th>رصيد العمل</th>
                         <th>الحالة والتوفر</th>
                         <th>أداء اليوم</th>
                         <th>إجراءات</th>
@@ -459,6 +479,7 @@
         const role = document.getElementById('empRole').value;
         const username = document.getElementById('empUsername').value.trim();
         const password = document.getElementById('empPassword').value.trim();
+        const balancePoolId = role === 'external' ? (document.getElementById('empPoolId')?.value || '') : '';
 
         if (!name || !phone || !username || !password) {
             return Swal.fire('تنبيه', 'يرجى ملء جميع الحقول المطلوبة', 'warning');
@@ -470,20 +491,24 @@
             const res = await executorApiFetch('/executor-portal/api/employees/create', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ name, phone, role, webUsername: username, webPassword: password })
+                body: JSON.stringify({ name, phone, role, webUsername: username, webPassword: password, balancePoolId })
             });
             const data = await readExecutorApiResponse(res);
             if (data.success) {
+                const poolWarning = data.poolAttachError
+                    ? `<p class="small text-warning mt-3 mb-0">الحساب أُنشئ منفردًا: ${String(data.poolAttachError).replace(/[&<>]/g, '')} يمكنك ربطه بمجموعة رصيد من القسم أعلاه.</p>`
+                    : '';
                 Swal.fire({
-                    icon: 'success',
+                    icon: data.poolAttachError ? 'warning' : 'success',
                     title: 'تم إنشاء الحساب بنجاح!',
                     html: `<div class="text-start p-3 mt-2 rounded" style="background: rgba(0,0,0,0.1); border: 1px dashed var(--accent-green);">
                         <div class="mb-2"><span class="small d-block" style="color: var(--text-muted);">اسم المستخدم:</span><span class="fs-5 font-monospace fw-bold" dir="ltr">${data.username}</span></div>
                         <div><span class="small d-block" style="color: var(--text-muted);">كلمة المرور:</span><span class="fs-5 font-monospace fw-bold" dir="ltr">${password}</span></div>
-                    </div>`,
+                    </div>${poolWarning}`,
                     confirmButtonColor: '#10b981'
                 });
                 document.getElementById('createForm').reset();
+                document.getElementById('externalPoolField')?.setAttribute('hidden', 'hidden');
                 loadEmployees();
             } else {
                 Swal.fire('خطأ', data.error || 'حدث خطأ أثناء الإنشاء', 'error');
@@ -495,19 +520,47 @@
 
     let employeesCache = [];
     let poolsCache = [];
+    let solosCache = [];
+    let companyBalancesCache = {
+        totalBalance: Number(<%= Number(companyBalances?.totalBalance || 0) %>),
+        privateBalance: Number(<%= Number(companyBalances?.privateBalance || 0) %>)
+    };
+    const escapeEmployeeHtml = (value) => String(value ?? '').replace(/[&<>"']/g, (char) => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#039;' }[char]));
+
+    document.getElementById('empRole')?.addEventListener('change', () => {
+        const field = document.getElementById('externalPoolField');
+        if (!field) return;
+        field.toggleAttribute('hidden', document.getElementById('empRole').value !== 'external');
+    });
 
     function formatEgp(value) {
         return Number(value || 0).toLocaleString('en-US', { maximumFractionDigits: 2 });
     }
 
+    function setChipAmount(elementId, value) {
+        const strong = document.getElementById(elementId)?.querySelector('strong');
+        if (strong) strong.textContent = `${formatEgp(value)} ج.م`;
+    }
+
     function applyBalanceSummary(summary) {
         if (!summary) return;
+        if (summary.totalBalance != null) companyBalancesCache.totalBalance = Number(summary.totalBalance);
+        if (summary.privateBalance != null) companyBalancesCache.privateBalance = Number(summary.privateBalance);
         if (summary.totalBalance != null && document.getElementById('summaryTotalBalance')) {
             document.getElementById('summaryTotalBalance').textContent = formatEgp(summary.totalBalance);
         }
         if (summary.privateBalance != null && document.getElementById('summaryPrivateBalance')) {
             document.getElementById('summaryPrivateBalance').textContent = formatEgp(summary.privateBalance);
         }
+        if (summary.totalBalance != null) setChipAmount('executorTotalBalance', summary.totalBalance);
+        if (summary.privateBalance != null) setChipAmount('executorManagerBalance', summary.privateBalance);
+    }
+
+    function soloExternals() {
+        if (Array.isArray(solosCache) && solosCache.length) {
+            return solosCache.filter((employee) => employee.status !== 'suspended');
+        }
+        return employeesCache.filter((employee) => employee.role === 'external' && !employee.balancePool);
     }
 
     function eligibleExternalsForPool(poolId) {
@@ -518,37 +571,82 @@
         });
     }
 
+    function fillCreatePoolSelect() {
+        const select = document.getElementById('empPoolId');
+        if (!select) return;
+        const current = select.value;
+        select.innerHTML = '<option value="">منفرد — بدون مجموعة رصيد</option>' + poolsCache
+            .map((pool) => `<option value="${pool.id}">${escapeEmployeeHtml(pool.name)}</option>`)
+            .join('');
+        if (current && [...select.options].some((option) => option.value === current)) select.value = current;
+    }
+
     function renderPools() {
         const list = document.getElementById('poolList');
         const empty = document.getElementById('poolEmpty');
+        const soloList = document.getElementById('soloList');
+        const soloEmpty = document.getElementById('soloEmpty');
         if (!list) return;
         list.innerHTML = '';
-        empty.classList.toggle('d-none', poolsCache.length > 0);
+        empty?.classList.toggle('d-none', poolsCache.length > 0);
         poolsCache.forEach((pool) => {
-            const memberNames = (pool.members || []).map((member) => escapeEmployeeHtml(member.name)).join(' · ') || 'بدون أعضاء بعد';
-            const memberOptions = eligibleExternalsForPool(pool.id)
-                .filter((employee) => (employee.balancePool?.id || '') !== pool.id)
-                .map((employee) => `<option value="${employee.id || employee._id}">${escapeEmployeeHtml(employee.name)}</option>`)
-                .join('');
-            list.innerHTML += `<article class="mobile-emp-card">
-                <div class="mobile-emp-header">
+            const members = pool.members || [];
+            const canAttach = eligibleExternalsForPool(pool.id)
+                .some((employee) => (employee.balancePool?.id || '') !== pool.id);
+            const canArchive = members.length === 0 && Number(pool.balance || 0) <= 0;
+            const memberRows = members.length
+                ? `<ul class="pool-members">${members.map((member) => `<li class="pool-member">
+                    <span class="pool-member-name">${escapeEmployeeHtml(member.name)}</span>
+                    <button type="button" class="btn-action btn-delete" onclick="detachPoolMember('${pool.id}', '${member.id}', '${encodeURIComponent(member.name)}', ${members.length})"><i class="fa-solid fa-link-slash"></i> فصل</button>
+                </li>`).join('')}</ul>`
+                : '<p class="pool-empty-members">بدون أعضاء بعد — أضف منفّذًا خارجيًا منفردًا ليشارك هذا الرصيد.</p>';
+            list.innerHTML += `<article class="pool-card" data-pool-id="${pool.id}">
+                <div class="pool-card-head">
                     <div>
-                        <span class="emp-card-name">${escapeEmployeeHtml(pool.name)}</span>
-                        <div class="emp-card-username text-muted">${memberNames}</div>
+                        <span class="pool-kicker">مجموعة رصيد</span>
+                        <h3>${escapeEmployeeHtml(pool.name)}</h3>
                     </div>
-                    <strong class="balance-positive" dir="ltr">${formatEgp(pool.balance)} ج.م</strong>
+                    <div class="pool-balance">
+                        <small>رصيد المجموعة</small>
+                        <strong class="${Number(pool.balance || 0) < 0 ? 'balance-negative' : 'balance-positive'}" dir="ltr">${formatEgp(pool.balance)} ج.م</strong>
+                    </div>
                 </div>
-                <div class="d-flex flex-wrap gap-2">
-                    <button class="btn-action" onclick="renameBalancePool('${pool.id}', '${encodeURIComponent(pool.name)}')"><i class="fa-solid fa-pen"></i> إعادة تسمية</button>
-                    <button class="btn-action" onclick="attachPoolMember('${pool.id}')" ${memberOptions ? '' : 'disabled'}><i class="fa-solid fa-user-plus"></i> إضافة منفذ</button>
-                    ${(pool.members || []).map((member) => `<button class="btn-action btn-delete" onclick="detachPoolMember('${pool.id}', '${member.id}', '${encodeURIComponent(member.name)}')"><i class="fa-solid fa-link-slash"></i> فصل ${escapeEmployeeHtml(member.name)}</button>`).join('')}
-                    <button class="btn-action btn-delete" onclick="archiveBalancePool('${pool.id}', '${encodeURIComponent(pool.name)}')"><i class="fa-solid fa-box-archive"></i> أرشفة</button>
+                ${memberRows}
+                <div class="pool-card-actions">
+                    <button type="button" class="btn-action" onclick="attachPoolMember('${pool.id}')" ${canAttach ? '' : 'disabled'} title="${canAttach ? 'إضافة منفّذ خارجي منفرد' : 'لا يوجد منفّذ خارجي منفرد يمكن إضافته. افصل المنفّذ من مجموعته أولاً.'}"><i class="fa-solid fa-user-plus"></i> إضافة منفّذ خارجي</button>
+                    <button type="button" class="btn-action" onclick="renameBalancePool('${pool.id}', '${encodeURIComponent(pool.name)}')"><i class="fa-solid fa-pen"></i> إعادة تسمية</button>
+                    <button type="button" class="btn-action btn-delete" onclick="archiveBalancePool('${pool.id}', '${encodeURIComponent(pool.name)}')" ${canArchive ? '' : 'disabled'} title="${canArchive ? 'أرشفة المجموعة الفارغة' : 'ارشف فقط مجموعة بلا أعضاء وبلا رصيد. افصل آخر عضو لنقل الرصيد المتبقي إليه.'}"><i class="fa-solid fa-box-archive"></i> أرشفة</button>
                 </div>
-                <select id="attach-${pool.id}" class="d-none">${memberOptions}</select>
             </article>`;
         });
+        if (soloList) {
+            const solos = soloExternals();
+            soloList.innerHTML = '';
+            soloEmpty?.classList.toggle('d-none', solos.length > 0);
+            solos.forEach((employee) => {
+                const employeeId = employee.id || employee._id;
+                const encodedName = encodeURIComponent(employee.name || '');
+                const balanceValue = Number(employee.workingBalance != null ? employee.workingBalance : (employee.balance || 0));
+                soloList.innerHTML += `<article class="solo-card" data-solo-id="${employeeId}">
+                    <div class="solo-card-head">
+                        <div>
+                            <span class="solo-kicker">منفّذ خارجي · منفرد</span>
+                            <div class="solo-card-name">${escapeEmployeeHtml(employee.name)}</div>
+                        </div>
+                        <div class="solo-balance">
+                            <small>رصيده المنفرد</small>
+                            <strong class="${balanceValue < 0 ? 'balance-negative' : 'balance-positive'}" dir="ltr">${formatEgp(balanceValue)} ج.م</strong>
+                        </div>
+                    </div>
+                    <div class="solo-card-actions">
+                        <button type="button" class="btn-action" style="color:var(--executor-green)" onclick="externalTransaction('${employeeId}', '${encodedName}', 'deposit')"><i class="fa-solid fa-arrow-down"></i> تمويل</button>
+                        <button type="button" class="btn-action" style="color:var(--executor-red)" onclick="externalTransaction('${employeeId}', '${encodedName}', 'deduction')"><i class="fa-solid fa-arrow-up"></i> خصم</button>
+                    </div>
+                </article>`;
+            });
+        }
+        fillCreatePoolSelect();
     }
-    const escapeEmployeeHtml = (value) => String(value ?? '').replace(/[&<>"']/g, (char) => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#039;' }[char]));
     const employeeDuration = (seconds) => {
         if (!Number.isFinite(Number(seconds))) return '---';
         const value = Number(seconds);
@@ -575,7 +673,7 @@
 
         employees.forEach((employee) => {
             const employeeId = employee.id || employee._id;
-            const roleLabel = employee.role === 'operator' ? 'موظف تنفيذ' : (employee.role === 'accountant' ? 'محاسب' : (employee.role === 'external' ? 'موظف خارجي' : 'مدير'));
+            const roleLabel = employee.role === 'operator' ? 'موظف تنفيذ' : (employee.role === 'accountant' ? 'محاسب' : (employee.role === 'external' ? 'منفّذ خارجي' : 'مدير'));
             const roleClass = employee.role === 'operator' ? 'role-operator' : (employee.role === 'accountant' ? 'role-accountant' : (employee.role === 'external' ? 'role-external' : 'role-manager'));
             const statusIcon = employee.status === 'active' ? '<i class="fa-solid fa-circle-check status-active"></i> فعّال' : '<i class="fa-solid fa-circle-xmark status-suspended"></i> معلق';
             const toggleClass = employee.status === 'active' ? 'btn-toggle-active' : 'btn-toggle-suspended';
@@ -592,17 +690,20 @@
             const performanceHtml = `<div class="d-grid gap-1"><strong>${Number(metrics.completedCount || 0)} عملية</strong><small class="text-muted">${Number(metrics.totalEGP || 0).toLocaleString('en-US', { maximumFractionDigits: 2 })} ج.م · متوسط ${employeeDuration(metrics.averageDurationSeconds)}</small></div>`;
             const pool = employee.balancePool;
             const membershipLabel = employee.role === 'external'
-                ? (pool ? `مجموعة «${pool.name}»` : 'رصيد فردي')
+                ? (pool ? `مجموعة رصيد «${pool.name}»` : 'منفّذ خارجي منفرد')
                 : '';
             const balanceValue = Number(employee.workingBalance != null ? employee.workingBalance : (employee.balance || 0));
+            const membershipPill = employee.role === 'external'
+                ? `<span class="membership-pill ${pool ? 'is-pool' : 'is-solo'}">${escapeEmployeeHtml(membershipLabel)}</span>`
+                : '';
             const balanceHtml = employee.role === 'external'
-                ? `<span class="${balanceValue < 0 ? 'balance-negative' : 'balance-positive'}" dir="ltr">${balanceValue.toLocaleString('en-US', { maximumFractionDigits: 2 })} ج.م</span><div class="small text-muted mt-1">${escapeEmployeeHtml(membershipLabel)}</div>`
+                ? `<span class="${balanceValue < 0 ? 'balance-negative' : 'balance-positive'}" dir="ltr">${balanceValue.toLocaleString('en-US', { maximumFractionDigits: 2 })} ج.م</span><div class="small mt-1">${membershipPill}</div>`
                 : '<span class="balance-muted">—</span>';
             const encodedName = encodeURIComponent(employee.name || '');
             const encodedPhone = encodeURIComponent(employee.phone || '');
             const externalActions = employee.role === 'external' ? `
-                <button onclick="externalTransaction('${employeeId}', '${encodedName}', 'deposit')" class="btn-action" style="color:var(--executor-green)" title="إيداع للموظف الخارجي"><i class="fa-solid fa-arrow-down"></i></button>
-                <button onclick="externalTransaction('${employeeId}', '${encodedName}', 'deduction')" class="btn-action" style="color:var(--executor-red)" title="خصم من الموظف الخارجي"><i class="fa-solid fa-arrow-up"></i></button>` : '';
+                <button onclick="externalTransaction('${employeeId}', '${encodedName}', 'deposit')" class="btn-action" style="color:var(--executor-green)" title="تمويل منفّذ خارجي من الرصيد الخاص"><i class="fa-solid fa-arrow-down"></i></button>
+                <button onclick="externalTransaction('${employeeId}', '${encodedName}', 'deduction')" class="btn-action" style="color:var(--executor-red)" title="خصم من المنفّذ الخارجي"><i class="fa-solid fa-arrow-up"></i></button>` : '';
             const actions = employee.role !== 'manager' ? `
                 <button onclick="editEmployee('${employeeId}', '${encodedName}', '${encodedPhone}')" class="btn-action" title="تعديل البيانات"><i class="fa-solid fa-pen"></i></button>
                 <button onclick="toggleEmployee('${employeeId}')" class="btn-action ${toggleClass}" title="${toggleTitle}"><i class="fa-solid ${toggleIcon}"></i></button>
@@ -628,7 +729,7 @@
                     <div class="mobile-emp-header"><div><span class="emp-card-name">${escapeEmployeeHtml(employee.name)}</span><div class="emp-card-username text-muted">${escapeEmployeeHtml(employee.webUsername || '---')}</div></div><span class="role-badge ${roleClass}">${roleLabel}</span></div>
                     <div class="mobile-emp-body">
                         <div class="emp-info-item"><span class="info-label"><i class="fa-solid fa-phone"></i> الهاتف</span><span class="info-value" dir="ltr">${escapeEmployeeHtml(employee.phone || '---')}</span></div>
-                        ${employee.role === 'external' ? `<div class="emp-info-item"><span class="info-label"><i class="fa-solid fa-wallet"></i> الرصيد المتاح</span><span class="info-value">${balanceHtml}</span></div>` : ''}
+                        ${employee.role === 'external' ? `<div class="emp-info-item"><span class="info-label"><i class="fa-solid fa-wallet"></i> ${pool ? 'رصيد المجموعة' : 'رصيده المنفرد'}</span><span class="info-value">${balanceHtml}</span></div>` : ''}
                         <div class="emp-info-item"><span class="info-label"><i class="fa-solid fa-circle-info"></i> الحالة</span><span class="info-value">${statusIcon}</span></div>
                         <div class="emp-info-item"><span class="info-label"><i class="fa-solid fa-signal"></i> التوفر</span><span class="info-value">${presenceHtml}</span></div>
                         <div class="emp-info-item"><span class="info-label"><i class="fa-solid fa-list-check"></i> المهمة الحالية</span><span class="info-value">${currentTaskHtml}</span></div>
@@ -645,6 +746,7 @@
             const data = await readExecutorApiResponse(await executorApiFetch('/executor-portal/api/employees'));
             employeesCache = Array.isArray(data.employees) ? data.employees : [];
             poolsCache = Array.isArray(data.pools) ? data.pools : [];
+            solosCache = Array.isArray(data.soloExternals) ? data.soloExternals : [];
             document.getElementById('summaryTotal').textContent = data.summary?.totalEmployees || employeesCache.length;
             document.getElementById('summaryOnline').textContent = data.summary?.onlineEmployees || 0;
             document.getElementById('summaryBusy').textContent = data.summary?.busyEmployees || 0;
@@ -738,20 +840,42 @@
         }
     }
 
-    // إيداع / خصم موظف خارجي
     async function externalTransaction(id, encodedName, type) {
         const name = decodeURIComponent(encodedName);
-        const title = type === 'deposit' ? 'إيداع للموظف الخارجي' : 'خصم من الموظف الخارجي';
+        const employee = employeesCache.find((item) => String(item.id || item._id) === String(id));
+        const pool = employee?.balancePool || null;
+        const isDeposit = type === 'deposit';
+        const title = isDeposit ? 'تمويل منفّذ خارجي' : 'خصم من منفّذ خارجي';
+        const membershipLine = pool
+            ? `منفّذ خارجي في مجموعة رصيد «${escapeEmployeeHtml(pool.name)}»`
+            : 'منفّذ خارجي منفرد';
+        const creditLine = pool ? `رصيد مجموعة «${escapeEmployeeHtml(pool.name)}»` : 'رصيده المنفرد';
+        const privateNow = formatEgp(companyBalancesCache.privateBalance);
+        const workingNow = formatEgp(employee?.workingBalance != null ? employee.workingBalance : (employee?.balance || pool?.balance || 0));
+        const noteHtml = isDeposit
+            ? `<div class="pool-fund-note text-end">
+                <div>يُخصم من: <b>الرصيد الخاص</b> للشركة (المتاح الآن ${privateNow} ج.م)</div>
+                <div>يُضاف إلى: <b>${creditLine}</b> (الآن ${workingNow} ج.م)</div>
+                <div>الإيصال والتنبيه: <b>للمستلم فقط</b> (${escapeEmployeeHtml(name)}) — باقي أعضاء المجموعة لا يرونه.</div>
+            </div>`
+            : `<div class="pool-fund-note text-end">
+                <div>يُخصم من: <b>${creditLine}</b> (الآن ${workingNow} ج.م)</div>
+                <div>يُعاد إلى: <b>الرصيد الخاص</b> للشركة</div>
+                <div>الإيصال والتنبيه: <b>للمستلم فقط</b>.</div>
+            </div>`;
         const result = await Swal.fire({
             title,
-            html: `<p class="small text-muted mb-2">الموظف: <b>${escapeEmployeeHtml(name)}</b></p><label class="form-label w-100 text-end">المبلغ (ج.م)</label><input id="extAmount" type="number" class="swal2-input m-0 mb-3 w-100" placeholder="0.00"><label class="form-label w-100 text-end">ملاحظة (اختياري)</label><input id="extNote" class="swal2-input m-0 w-100">`,
+            html: `<p class="small mb-2 text-end">المستلم: <b>${escapeEmployeeHtml(name)}</b><br><span class="text-muted">${membershipLine}</span></p>${noteHtml}<label class="form-label w-100 text-end mt-3">المبلغ (ج.م)</label><input id="extAmount" type="number" class="swal2-input m-0 mb-3 w-100" placeholder="0.00"><label class="form-label w-100 text-end">ملاحظة (اختياري)</label><input id="extNote" class="swal2-input m-0 w-100">`,
             showCancelButton: true,
-            confirmButtonText: type === 'deposit' ? 'تسجيل إيداع' : 'تسجيل خصم',
+            confirmButtonText: isDeposit ? 'تأكيد التمويل من الرصيد الخاص' : 'تأكيد الخصم',
             cancelButtonText: 'إلغاء',
-            confirmButtonColor: type === 'deposit' ? '#10b981' : '#ef4444',
+            confirmButtonColor: isDeposit ? '#10b981' : '#ef4444',
             preConfirm: () => {
                 const amount = Number(document.getElementById('extAmount').value);
                 if (!amount || amount <= 0) return Swal.showValidationMessage('أدخل مبلغًا صحيحًا أكبر من صفر.');
+                if (isDeposit && amount > Number(companyBalancesCache.privateBalance || 0)) {
+                    return Swal.showValidationMessage('الرصيد الخاص غير كافٍ لهذا المبلغ.');
+                }
                 return { amount, note: document.getElementById('extNote').value.trim() };
             }
         });
@@ -763,21 +887,34 @@
                 body: JSON.stringify({ type, amount: result.value.amount, note: result.value.note })
             });
             const data = await readExecutorApiResponse(res);
-            if (data.success) Swal.fire({ icon: 'success', title: 'تم تسجيل العملية', text: `رقم العملية: ${data.customId}`, timer: 1500, showConfirmButton: false });
+            applyBalanceSummary({
+                totalBalance: data.companyTotalBalance,
+                privateBalance: data.companyPrivateBalance
+            });
+            if (data.success) {
+                const receiptNote = data.recipientOnly === false ? '' : ' الإيصال ظهر للمستلم فقط.';
+                Swal.fire({
+                    icon: 'success',
+                    title: 'تم تسجيل العملية',
+                    text: `رقم العملية: ${data.customId}.${receiptNote}`,
+                    timer: 2200,
+                    showConfirmButton: false
+                });
+            }
             loadEmployees();
         } catch (error) { Swal.fire('خطأ', error.message || 'تعذر تسجيل العملية', 'error'); }
     }
 
     async function createBalancePool() {
-        const externals = employeesCache.filter((employee) => employee.role === 'external' && employee.status === 'active' && !employee.balancePool);
+        const externals = soloExternals().filter((employee) => employee.status === 'active');
         const memberChecks = externals.map((employee) => `
             <label class="d-flex align-items-center justify-content-between gap-2 py-1">
-                <span>${escapeEmployeeHtml(employee.name)}</span>
+                <span>${escapeEmployeeHtml(employee.name)} <small class="text-muted">(منفرد)</small></span>
                 <input type="checkbox" class="pool-member-check" value="${employee.id || employee._id}">
-            </label>`).join('') || '<p class="small text-muted">لا يوجد منفذون خارجيون فرديون حالياً. يمكنك إنشاء المجموعة فارغة ثم إضافة الأعضاء لاحقاً.</p>';
+            </label>`).join('') || '<p class="small text-muted">لا يوجد منفّذون خارجيون منفردون حالياً. يمكنك إنشاء المجموعة فارغة ثم إضافة الأعضاء لاحقاً.</p>';
         const result = await Swal.fire({
-            title: 'مجموعة رصيد مشتركة',
-            html: `<label class="form-label w-100 text-end">اسم المجموعة</label><input id="poolName" class="swal2-input m-0 mb-3 w-100" placeholder="مثال: شركة النور"><div class="text-end small fw-bold mb-2">ربط منفذين خارجيين (اختياري)</div><div class="text-end">${memberChecks}</div>`,
+            title: 'مجموعة رصيد',
+            html: `<p class="small text-muted text-end">المنفّذ يرتبط بمجموعة واحدة أو يبقى منفردًا — ليس الاثنين.</p><label class="form-label w-100 text-end">اسم المجموعة</label><input id="poolName" class="swal2-input m-0 mb-3 w-100" placeholder="مثال: شركة النور"><div class="text-end small fw-bold mb-2">ربط منفذين خارجيين (اختياري)</div><div class="text-end">${memberChecks}</div>`,
             showCancelButton: true,
             confirmButtonText: 'إنشاء المجموعة',
             cancelButtonText: 'إلغاء',
@@ -825,13 +962,15 @@
     }
 
     async function attachPoolMember(poolId) {
-        const select = document.getElementById('attach-' + poolId);
-        const options = select ? [...select.options] : [];
-        if (!options.length) return Swal.fire('تنبيه', 'لا يوجد منفذ خارجي فردي يمكن إضافته. افصل المنفذ من مجموعته الحالية أولاً.', 'info');
+        const pool = poolsCache.find((item) => item.id === poolId);
+        const options = eligibleExternalsForPool(poolId)
+            .filter((employee) => (employee.balancePool?.id || '') !== poolId);
+        if (!options.length) return Swal.fire('تنبيه', 'لا يوجد منفّذ خارجي منفرد يمكن إضافته. افصل المنفّذ من مجموعته الحالية أولاً (عضوية واحدة فقط).', 'info');
         const result = await Swal.fire({
-            title: 'إضافة منفذ للمجموعة',
+            title: 'إضافة منفّذ خارجي للمجموعة',
+            html: `<p class="small text-end">رصيده المنفرد سيُضاف إلى رصيد مجموعة «${escapeEmployeeHtml(pool?.name || '')}».</p>`,
             input: 'select',
-            inputOptions: Object.fromEntries(options.map((option) => [option.value, option.text])),
+            inputOptions: Object.fromEntries(options.map((employee) => [employee.id || employee._id, employee.name])),
             showCancelButton: true,
             confirmButtonText: 'إضافة',
             cancelButtonText: 'إلغاء'
@@ -847,11 +986,14 @@
         } catch (error) { Swal.fire('تعذر الإضافة', error.message, 'error'); }
     }
 
-    async function detachPoolMember(poolId, employeeId, encodedName) {
+    async function detachPoolMember(poolId, employeeId, encodedName, memberCount) {
         const name = decodeURIComponent(encodedName);
+        const isLast = Number(memberCount) === 1;
         const result = await Swal.fire({
             title: 'فصل من مجموعة الرصيد',
-            html: `<p>فصل <b>${escapeEmployeeHtml(name)}</b> من المجموعة؟ إذا كان آخر عضو سيُنقل رصيد المجموعة إلى رصيده الفردي.</p>`,
+            html: isLast
+                ? `<p>فصل <b>${escapeEmployeeHtml(name)}</b> وهو آخر عضو؟ رصيد المجموعة المتبقي سيُنقل معه كرصيد منفرد.</p>`
+                : `<p>فصل <b>${escapeEmployeeHtml(name)}</b> من المجموعة؟ سيصبح منفّذًا خارجيًا منفردًا، ورصيد المجموعة يبقى للأعضاء الآخرين.</p>`,
             showCancelButton: true,
             confirmButtonText: 'فصل',
             cancelButtonText: 'إلغاء'
@@ -867,7 +1009,7 @@
         const name = decodeURIComponent(encodedName);
         const result = await Swal.fire({
             title: 'أرشفة المجموعة',
-            html: `<p>أرشفة مجموعة <b>${escapeEmployeeHtml(name)}</b>؟ يجب ألا يبقى فيها أعضاء أو رصيد.</p>`,
+            html: `<p>أرشفة مجموعة رصيد <b>${escapeEmployeeHtml(name)}</b>؟ يجب أن تكون فارغة: بلا أعضاء وبلا رصيد.</p>`,
             showCancelButton: true,
             confirmButtonText: 'أرشفة',
             cancelButtonText: 'إلغاء',

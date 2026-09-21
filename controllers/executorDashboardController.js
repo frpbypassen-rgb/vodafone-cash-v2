@@ -283,7 +283,25 @@ exports.postEmployeesCreate = async (req, res) => {
             }
         });
 
-        return res.json({ success: true, username: finalUsername });
+        let poolAttachError = null;
+        if (role === 'external' && String(req.body?.balancePoolId || '').trim()) {
+            try {
+                await attachMembers({
+                    manager: req.managerEmp,
+                    poolId: String(req.body.balancePoolId).trim(),
+                    memberIds: [createdEmp._id]
+                });
+            } catch (error) {
+                poolAttachError = error.message || 'تعذر ربط المنفّذ بمجموعة الرصيد.';
+            }
+        }
+
+        return res.json({
+            success: true,
+            username: finalUsername,
+            employeeId: String(createdEmp._id),
+            poolAttachError
+        });
     } catch (e) {
         console.error(e);
         const message = e instanceof ExecutorAccountError ? e.message : 'تعذر إنشاء حساب الموظف.';
@@ -366,7 +384,9 @@ exports.postExternalEmployeeTransaction = async (req, res) => {
             employeeBalance: result.employeeBalance,
             workingBalance: result.workingBalance,
             membership: result.membership,
-            pool: result.pool
+            pool: result.pool,
+            recipientOnly: true,
+            recipientId: result.recipientId
         });
     } catch (e) {
         return poolErrorResponse(res, e);

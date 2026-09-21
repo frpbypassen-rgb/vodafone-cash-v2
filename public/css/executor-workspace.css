@@ -972,7 +972,7 @@ body.executor-page-employees > .container-fluid {
     min-height: 96px;
     display: grid;
     grid-template-columns: 46px minmax(0, 1fr);
-    grid-template-rows: auto auto;
+    grid-template-rows: auto auto auto;
     align-content: center;
     column-gap: 12px;
     padding: 13px;
@@ -1007,6 +1007,14 @@ body.executor-page-employees > .container-fluid {
 
 .executor-summary-card small { align-self: end; }
 .executor-summary-card strong { align-self: start; margin-top: 1px; }
+.executor-summary-card .summary-help {
+    grid-column: 1 / -1;
+    margin-top: 8px;
+}
+.executor-summary-card:has(.summary-help) {
+    min-height: 122px;
+    overflow: visible;
+}
 
 body.executor-portal-v2 .page-card,
 body.executor-portal-v2 .card-glass,
@@ -1137,6 +1145,157 @@ body.executor-page-reports .mobile-tx-card {
     border-radius: 8px;
     background: var(--executor-surface);
     box-shadow: var(--executor-shadow);
+}
+
+.executor-summary-card .summary-help {
+    display: block;
+    margin-top: 6px;
+    color: var(--executor-muted);
+    font-size: 0.68rem;
+    font-weight: 700;
+    line-height: 1.45;
+}
+
+.pool-workspace {
+    display: grid;
+    grid-template-columns: minmax(0, 1.35fr) minmax(260px, 0.85fr);
+    gap: 16px;
+    align-items: start;
+}
+.pool-workspace-col h6 {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 0 0 12px;
+    font-size: 0.86rem;
+    font-weight: 900;
+}
+.pool-card,
+.solo-card {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    padding: 16px;
+    border: 1px solid var(--executor-line);
+    border-radius: 16px;
+    background: var(--executor-surface);
+    box-shadow: var(--executor-shadow);
+}
+.pool-card-head,
+.solo-card-head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+}
+.pool-kicker,
+.solo-kicker,
+.membership-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    min-height: 24px;
+    padding: 3px 9px;
+    border-radius: 999px;
+    font-size: 0.68rem;
+    font-weight: 800;
+}
+.pool-kicker {
+    color: #7c3aed;
+    background: rgba(124, 58, 237, 0.1);
+    border: 1px solid rgba(124, 58, 237, 0.22);
+}
+.solo-kicker,
+.membership-pill.is-solo {
+    color: var(--executor-gold);
+    background: color-mix(in srgb, var(--executor-gold) 12%, transparent);
+    border: 1px solid color-mix(in srgb, var(--executor-gold) 28%, transparent);
+}
+.membership-pill.is-pool {
+    color: #7c3aed;
+    background: rgba(124, 58, 237, 0.1);
+    border: 1px solid rgba(124, 58, 237, 0.22);
+}
+.pool-card h3,
+.solo-card-name {
+    margin: 6px 0 0;
+    font-size: 1.05rem;
+    font-weight: 900;
+}
+.pool-balance,
+.solo-balance {
+    text-align: start;
+    flex: 0 0 auto;
+}
+.pool-balance small,
+.solo-balance small {
+    display: block;
+    color: var(--executor-muted);
+    font-size: 0.68rem;
+    font-weight: 800;
+}
+.pool-balance strong,
+.solo-balance strong {
+    display: block;
+    margin-top: 2px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 1.05rem;
+}
+.pool-members {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin: 0;
+    padding: 10px;
+    border-radius: 12px;
+    background: color-mix(in srgb, var(--executor-ink) 3%, transparent);
+    list-style: none;
+}
+.pool-member {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+}
+.pool-member-name { font-weight: 800; }
+.pool-empty-members,
+.pool-empty-note {
+    margin: 0;
+    color: var(--executor-muted);
+    font-size: 0.78rem;
+    font-weight: 700;
+    line-height: 1.55;
+}
+.pool-card-actions,
+.solo-card-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+.pool-workspace .empty-state { padding: 24px 12px; }
+.pool-fund-note {
+    text-align: start;
+    margin: 0;
+    padding: 10px 12px;
+    border-radius: 12px;
+    background: rgba(14, 165, 233, 0.08);
+    border: 1px solid rgba(14, 165, 233, 0.18);
+    font-size: 0.78rem;
+    font-weight: 700;
+    line-height: 1.65;
+}
+.pool-fund-note div { margin-top: 4px; }
+
+@media (max-width: 900px) {
+    .pool-workspace { grid-template-columns: 1fr; }
+}
+@media (max-width: 768px) {
+    .pool-card,
+    .solo-card { padding: 14px; border-radius: 14px; }
+    .pool-card-head,
+    .solo-card-head { flex-direction: column; }
+    .pool-card-actions .btn-action,
+    .solo-card-actions .btn-action { flex: 1 1 calc(50% - 8px); min-height: 40px; }
 }
 
 /* Support */

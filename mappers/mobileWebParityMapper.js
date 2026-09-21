@@ -340,6 +340,7 @@ const toEmployeeDto = (emp) => {
             receivedAt: currentTask.receivedAt ? new Date(currentTask.receivedAt).toISOString() : null
         } : null,
         ...(emp.role === 'external' ? {
+            workingBalance: Number(emp.workingBalance != null ? emp.workingBalance : emp.balance || 0),
             balance: Number(emp.workingBalance != null ? emp.workingBalance : emp.balance || 0),
             soloBalance: Number(emp.soloBalance != null ? emp.soloBalance : emp.balance || 0),
             balanceMembership: emp.balanceMembership || (emp.balancePool ? 'pool' : 'solo'),
