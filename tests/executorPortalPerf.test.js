@@ -20,6 +20,9 @@ describe('executor portal performance contracts', () => {
         expect(dashboardSource).toContain('بدأ التنفيذ');
         expect(dashboardSource).toContain('اسحب المهمة الموجهة إليك');
         expect(dashboardSource).toContain('منفّذ خارجي');
+        expect(dashboardSource).toContain('تنفيذ سريع');
+        expect(dashboardSource).toContain('fa-phone-flip');
+        expect(dashboardSource).toContain('/executor-portal/api/quick-execute/dial/');
     });
 
     test('live-task notes drop the API terminal log before it is sent to the browser', () => {

@@ -44,10 +44,13 @@ describe('executor execution policy', () => {
         expect(inherited.maxConcurrentDevices).toBe(2);
         expect(inherited.sessionTtlEnabled).toBe(false);
         expect(inherited.inherited.proofRequired).toBe(true);
+        expect(inherited.quickExecuteEnabled).toBe(false);
+        expect(inherited.inherited.quickExecute).toBe(true);
 
         const overridden = readExecutorManualPolicy(group, {
             executionPolicyOverride: {
                 proofRequired: false,
+                quickExecuteEnabled: true,
                 allowedPhoneLengths: [3],
                 maxConcurrentDevices: 5,
                 sessionTtlEnabled: true,
@@ -60,6 +63,8 @@ describe('executor execution policy', () => {
         expect(overridden.sessionTtlEnabled).toBe(true);
         expect(overridden.sessionTtlSeconds).toBe(3600);
         expect(overridden.inherited.proofRequired).toBe(false);
+        expect(overridden.quickExecuteEnabled).toBe(true);
+        expect(overridden.inherited.quickExecute).toBe(false);
         expect(overridden.company.proofRequired).toBe(true);
     });
 
@@ -76,12 +81,14 @@ describe('executor execution policy', () => {
         const company = serializeCompanyExecutionPolicy({
             phoneLengthMode: '3',
             proofRequired: true,
+            quickExecuteEnabled: true,
             maxConcurrentDevices: 1,
             sessionTtlEnabled: true,
             sessionTtlHours: 2
         });
         expect(company.manualAllowedPhoneLengths).toEqual([3]);
         expect(company.manualProofRequired).toBe(true);
+        expect(company.manualQuickExecuteEnabled).toBe(true);
         expect(company.maxConcurrentDevices).toBe(1);
         expect(company.sessionTtlEnabled).toBe(true);
         expect(company.sessionTtlSeconds).toBe(7200);
@@ -90,11 +97,13 @@ describe('executor execution policy', () => {
         const override = serializeEmployeePolicyOverride({
             phoneLengthMode: '11',
             proofRequired: false,
+            quickExecuteEnabled: false,
             maxConcurrentDevices: 5,
             sessionTtlEnabled: false
         });
         expect(override.allowedPhoneLengths).toEqual([11]);
         expect(override.proofRequired).toBe(false);
+        expect(override.quickExecuteEnabled).toBe(false);
         expect(override.maxConcurrentDevices).toBe(5);
         expect(override.sessionTtlEnabled).toBe(false);
     });
@@ -105,5 +114,6 @@ describe('executor execution policy', () => {
         expect(policy.sessionTtlEnabled).toBe(false);
         expect(policy.sessionTtlSeconds).toBeNull();
         expect(policy.phoneLengthMode).toBe('all');
+        expect(policy.quickExecuteEnabled).toBe(false);
     });
 });

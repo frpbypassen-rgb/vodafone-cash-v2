@@ -245,6 +245,12 @@
                                         </div>
                                         <div class="col-md-4">
                                             <div class="form-check">
+                                                <input class="form-check-input" type="checkbox" id="manualQuickExecuteEnabled" name="manualQuickExecuteEnabled" <%= bot.manualQuickExecuteEnabled ? 'checked' : '' %>>
+                                                <label class="form-check-label fw-bold small" for="manualQuickExecuteEnabled">تنفيذ سريع (USSD)</label>
+                                            </div>
+                                        </div>
+                                        <div class="col-md-4">
+                                            <div class="form-check">
                                                 <input class="form-check-input" type="checkbox" id="manualSplitRequiresFullPhone" name="manualSplitRequiresFullPhone" <%= bot.manualSplitRequiresFullPhone !== false ? 'checked' : '' %>>
                                                 <label class="form-check-label fw-bold small" for="manualSplitRequiresFullPhone">عند تقسيم العملية: 11 رقم كاملة</label>
                                             </div>

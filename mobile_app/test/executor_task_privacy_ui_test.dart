@@ -8,6 +8,7 @@ Widget _shell(
   String currentExecutorId = 'employee-1',
   bool canRoute = false,
   bool isManager = false,
+  bool quickExecuteEnabled = false,
 }) {
   return MaterialApp(
     locale: const Locale('ar'),
@@ -27,6 +28,8 @@ Widget _shell(
             onCancel: () {},
             onComplete: () {},
             onShare: () async {},
+            quickExecuteEnabled: quickExecuteEnabled,
+            onQuickExecute: () {},
           ),
         ),
       ),
@@ -168,5 +171,19 @@ Future<void> main() async {
     expect(find.text('موجهة إليك'), findsWidgets);
     expect(find.text('اسحب المهمة الموجهة إليك'), findsOneWidget);
     expect(find.text('قبول العملية'), findsNothing);
+  });
+
+  testWidgets('owned cash task shows quick-execute handset when enabled', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      _shell(_task(accepted: true), quickExecuteEnabled: true),
+    );
+
+    expect(find.text('تم التنفيذ'), findsOneWidget);
+    expect(find.byIcon(Icons.phone_in_talk_outlined), findsOneWidget);
+
+    await tester.pumpWidget(_shell(_task(accepted: true)));
+    expect(find.byIcon(Icons.phone_in_talk_outlined), findsNothing);
   });
 }

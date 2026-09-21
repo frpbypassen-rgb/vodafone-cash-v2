@@ -11,6 +11,7 @@ void main() {
     expect(threeOnly.validateDigits('258', isSplit: false), isNull);
     expect(threeOnly.validateDigits('2258', isSplit: false), isNotNull);
     expect(threeOnly.proofRequired, isTrue);
+    expect(threeOnly.quickExecuteEnabled, isFalse);
     expect(threeOnly.maxDigitLength, 3);
 
     final allAllowed = ExecutorExecutionPolicy.fromJson(const <String, dynamic>{
@@ -30,6 +31,7 @@ void main() {
         'allowedPhoneLengths': true,
         'maxConcurrentDevices': true,
         'sessionTtl': true,
+        'quickExecute': true,
       },
     });
     expect(inherited.inheritsCompanyPolicy, isTrue);
@@ -42,6 +44,7 @@ void main() {
       'phoneLengthMode': '11',
       'allowedPhoneLengths': <int>[11],
       'proofRequired': false,
+      'quickExecuteEnabled': true,
       'maxConcurrentDevices': 5,
       'sessionTtlEnabled': false,
       'inherited': <String, dynamic>{'proofRequired': false},
@@ -49,6 +52,7 @@ void main() {
     expect(override.inheritsCompanyPolicy, isFalse);
     final payload = override.toSavePayload(inheritCompanyPolicy: false);
     expect(payload['phoneLengthMode'], '11');
+    expect(payload['quickExecuteEnabled'], isTrue);
     expect(payload['maxConcurrentDevices'], 5);
     expect(payload['sessionTtlEnabled'], isFalse);
   });

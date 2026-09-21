@@ -7,6 +7,7 @@ class ExecutorExecutionPolicy {
     this.maxConcurrentDevices = 1,
     this.sessionTtlEnabled = false,
     this.sessionTtlSeconds,
+    this.quickExecuteEnabled = false,
     this.inherited,
   });
 
@@ -36,6 +37,7 @@ class ExecutorExecutionPolicy {
       sessionTtlSeconds: source['sessionTtlEnabled'] == true
           ? _clampTtl(source['sessionTtlSeconds'])
           : null,
+      quickExecuteEnabled: source['quickExecuteEnabled'] == true,
       inherited: inherited is Map
           ? Map<String, dynamic>.from(inherited)
           : null,
@@ -49,6 +51,7 @@ class ExecutorExecutionPolicy {
   final int maxConcurrentDevices;
   final bool sessionTtlEnabled;
   final int? sessionTtlSeconds;
+  final bool quickExecuteEnabled;
   final Map<String, dynamic>? inherited;
 
   bool get inheritsCompanyPolicy {
@@ -57,7 +60,8 @@ class ExecutorExecutionPolicy {
     return flags['proofRequired'] != false &&
         flags['allowedPhoneLengths'] != false &&
         flags['maxConcurrentDevices'] != false &&
-        flags['sessionTtl'] != false;
+        flags['sessionTtl'] != false &&
+        flags['quickExecute'] != false;
   }
 
   int get maxDigitLength => allowedPhoneLengths.reduce(
@@ -103,8 +107,10 @@ class ExecutorExecutionPolicy {
       'inheritPhoneLengths': false,
       'inheritMaxConcurrentDevices': false,
       'inheritSessionTtl': false,
+      'inheritQuickExecute': false,
       'phoneLengthMode': phoneLengthMode,
       'proofRequired': proofRequired,
+      'quickExecuteEnabled': quickExecuteEnabled,
       'maxConcurrentDevices': maxConcurrentDevices,
       'sessionTtlEnabled': sessionTtlEnabled,
       if (sessionTtlEnabled) 'sessionTtlSeconds': sessionTtlSeconds,

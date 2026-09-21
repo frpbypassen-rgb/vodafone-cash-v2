@@ -537,6 +537,38 @@ body.executor-os .btn-cyber-main i {
     animation: exoIcoPulse 1.4s ease-in-out infinite;
 }
 
+body.executor-os .complete-actions-row {
+    display: flex;
+    align-items: stretch;
+    gap: 8px;
+    margin-bottom: 8px;
+}
+body.executor-os .complete-actions-row .btn-cyber-main {
+    flex: 1 1 auto;
+    margin-bottom: 0 !important;
+}
+body.executor-os .btn-quick-execute {
+    min-width: 52px;
+    min-height: 50px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 8px 12px;
+    border: 1px solid color-mix(in srgb, var(--exo-cyan) 40%, transparent);
+    border-radius: 16px;
+    background: color-mix(in srgb, var(--exo-cyan) 14%, transparent);
+    color: var(--exo-ink);
+    font-weight: 800;
+    font-family: inherit;
+    white-space: nowrap;
+}
+body.executor-os .btn-quick-execute:active { transform: translateY(1px); }
+@media (max-width: 640px) {
+    body.executor-os .btn-quick-execute { min-width: 52px; min-height: 52px; }
+    body.executor-os .btn-quick-execute span { display: none; }
+}
+
 .exo-empty {
     min-height: 420px;
     display: grid;

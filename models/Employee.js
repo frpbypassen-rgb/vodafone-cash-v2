@@ -31,8 +31,12 @@ const employeeSchema = new mongoose.Schema({
         allowedPhoneLengths: { type: [Number], default: undefined },
         maxConcurrentDevices: { type: Number, min: 1, max: 20, default: undefined },
         sessionTtlEnabled: { type: Boolean, default: undefined },
-        sessionTtlSeconds: { type: Number, min: 0, default: undefined }
+        sessionTtlSeconds: { type: Number, min: 0, default: undefined },
+        quickExecuteEnabled: { type: Boolean, default: undefined }
     },
+    ussdNetwork: { type: String, enum: ['vodafone', 'etisalat', 'orange', 'we'], default: 'vodafone' },
+    ussdWalletPinEncrypted: { type: String, select: false },
+    ussdWalletPinSetAt: { type: Date, default: null },
     sessionVersion: { type: Number, default: 0 },
     tenantId: { type: mongoose.Schema.Types.ObjectId, ref: 'Tenant' },
     archivedAt: { type: Date, default: null },

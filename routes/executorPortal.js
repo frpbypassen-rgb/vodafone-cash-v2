@@ -139,6 +139,9 @@ router.post('/api/balance-pools/:id/archive', requireExecutorManager, dashboardC
 router.post('/api/task-routing-mode', requireExecutorManager, dashboardController.postTaskRoutingMode);
 router.post('/api/execution-policy', requireExecutorManager, dashboardController.postExecutionPolicy);
 router.post('/api/employees/:id/execution-policy', requireExecutorManager, dashboardController.postEmployeeExecutionPolicy);
+router.get('/api/quick-execute', requireExecutorAuth, requireExecutorTaskAccess, dashboardController.getQuickExecute);
+router.put('/api/quick-execute', requireExecutorAuth, requireExecutorTaskAccess, dashboardController.putQuickExecute);
+router.post('/api/quick-execute/dial/:id', requireExecutorAuth, requireExecutorTaskAccess, dashboardController.postQuickExecuteDial);
 router.get('/api/route-candidates', requireExecutorManager, dashboardController.getRouteCandidates);
 router.post('/api/route-task/:id', requireExecutorManager, dashboardController.postRouteTask);
 

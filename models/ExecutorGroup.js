@@ -11,6 +11,7 @@ const executorGroupSchema = new mongoose.Schema({
     manualTaskRoutingEnabled: { type: Boolean, default: false },
     // Manual executor completion policies (admin/manager-controlled, overridable per employee).
     manualProofRequired: { type: Boolean, default: false },
+    manualQuickExecuteEnabled: { type: Boolean, default: false },
     manualAllowedPhoneLengths: { type: [Number], default: [3, 4, 11] },
     manualSplitRequiresFullPhone: { type: Boolean, default: true },
     maxConcurrentDevices: { type: Number, min: 1, max: 20, default: 1 },

@@ -791,6 +791,7 @@ router.post('/executor/:id/manual-policy', requireAuth, requireMaster, async (re
         bot.maxConcurrentDevices = serialized.maxConcurrentDevices;
         bot.sessionTtlEnabled = serialized.sessionTtlEnabled;
         bot.sessionTtlSeconds = serialized.sessionTtlSeconds;
+        bot.manualQuickExecuteEnabled = serialized.manualQuickExecuteEnabled;
         await bot.save();
 
         const members = await Employee.find({
@@ -814,7 +815,8 @@ router.post('/executor/:id/manual-policy', requireAuth, requireMaster, async (re
                 manualSplitRequiresFullPhone: bot.manualSplitRequiresFullPhone,
                 maxConcurrentDevices: bot.maxConcurrentDevices,
                 sessionTtlEnabled: bot.sessionTtlEnabled,
-                sessionTtlSeconds: bot.sessionTtlSeconds
+                sessionTtlSeconds: bot.sessionTtlSeconds,
+                manualQuickExecuteEnabled: bot.manualQuickExecuteEnabled
             },
             metadata: { executorName: bot.name }
         }).catch(() => {});
