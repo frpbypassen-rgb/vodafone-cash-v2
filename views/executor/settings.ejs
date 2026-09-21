@@ -160,7 +160,7 @@
                     </div>
                     <div>
                         <div class="executor-detail-row"><span>نوع الحساب</span><strong><span class="executor-role-pill"><%= roleLabel %></span></strong></div>
-                        <div class="executor-detail-row"><span>الخدمة</span><strong><span class="executor-role-pill service-chip"><%= overview.company?.serviceKey || emp.groupId?.serviceKey || 'غير محددة' %></span></strong></div>
+                        <div class="executor-detail-row"><span>الخدمة</span><strong><span class="executor-role-pill service-chip"><%= typeof serviceLabel !== 'undefined' && serviceLabel ? serviceLabel : 'غير محددة' %></span></strong></div>
                         <div class="executor-detail-row"><span>حالة الحساب</span><strong><span class="executor-status-pill" style="--pill-color: var(--executor-green)"><i class="fa-solid fa-circle-check"></i> نشط</span></strong></div>
                     </div>
                 </div>

@@ -334,6 +334,16 @@
 <script>
     const myExecutorId = '<%= emp._id %>';
     const isExecutorManager = <%= emp.role === 'manager' ? 'true' : 'false' %>;
+    const executorTaskTypeMeta = {
+        vodafone: { name: 'تحويل محفظة كاش', short: 'كاش', icon: 'fa-mobile-screen-button' },
+        post_account: { name: 'تحويل بريد حساب', short: 'بريد', icon: 'fa-envelope' },
+        post_card: { name: 'تحويل بريد بطاقة', short: 'بطاقة', icon: 'fa-id-card' },
+        bank_account: { name: 'تحويل بنكي', short: 'بنك', icon: 'fa-building-columns' },
+        sefa_niger: { name: 'سيفا النيجر', short: 'سيفا', icon: 'fa-globe' },
+        bankak_sudan: { name: 'بنكك السودان', short: 'بنكك', icon: 'fa-building' }
+    };
+    const taskTypeMeta = (transferType) => executorTaskTypeMeta[String(transferType || '').trim().toLowerCase()]
+        || { name: 'عملية تنفيذ', short: 'تنفيذ', icon: 'fa-bolt' };
     const executorManualPolicy = {
         proofRequired: <%= emp.groupId?.manualProofRequired ? 'true' : 'false' %>,
         allowedPhoneLengths: <%= JSON.stringify(Array.isArray(emp.groupId?.manualAllowedPhoneLengths) ? emp.groupId.manualAllowedPhoneLengths : [3, 4, 11]) %>,
@@ -408,7 +418,7 @@
                     </div>
                     <h4 class="fw-bold mb-1" style="color: var(--text-main);"><%= emp.name %></h4>
                     <span class="badge bg-warning bg-opacity-10 text-warning px-3 py-1.5 rounded-pill mb-4" style="font-size: 0.8rem; border: 1px solid rgba(251,191,36,0.2);">
-                        <%= emp.role === 'manager' ? 'مدير النظام' : 'منفذ العمليات' %>
+                        <%= emp.role === 'manager' ? 'مدير تنفيذي' : (emp.role === 'accountant' ? 'محاسب' : (emp.role === 'external' ? 'منفّذ خارجي' : 'موظف تنفيذ')) %>
                     </span>
                     
                     <div class="text-start border-top pt-3" style="border-top-style: dashed !important; border-color: var(--glass-border) !important; display: flex; flex-direction: column; gap: 12px;">
@@ -961,14 +971,8 @@
                     const txAmt = parseFloat(tx.amount) || 0;
                     if (!hasServerSummary) sum += txAmt;
                     
-                    let typeBadge = '';
-                    if (tx.transferType === 'post_account') {
-                        typeBadge = '<span class="badge bg-warning bg-opacity-10 text-warning border border-warning border-opacity-25" style="font-size: 0.72rem;"><i class="fa-solid fa-envelope me-1"></i> بريد</span>';
-                    } else if (tx.transferType === 'post_card') {
-                        typeBadge = '<span class="badge bg-info bg-opacity-10 text-info border border-info border-opacity-25" style="font-size: 0.72rem;"><i class="fa-solid fa-id-card me-1"></i> بطاقة</span>';
-                    } else {
-                        typeBadge = '<span class="badge bg-danger bg-opacity-10 text-danger border border-danger border-opacity-25" style="font-size: 0.72rem;"><i class="fa-solid fa-mobile-screen me-1"></i> كاش</span>';
-                    }
+                    const typeMeta = taskTypeMeta(tx.transferType);
+                    const typeBadge = `<span class="badge bg-warning bg-opacity-10 text-warning border border-warning border-opacity-25" style="font-size: 0.72rem;"><i class="fa-solid ${typeMeta.icon} me-1"></i> ${typeMeta.short}</span>`;
                     
                     const timeStr = tx.updatedAt ? new Date(tx.updatedAt).toLocaleTimeString('ar-LY', { timeZone: 'Africa/Tripoli', hour: '2-digit', minute: '2-digit', second: '2-digit' }) : '---';
                     
@@ -1117,10 +1121,9 @@
                     let badgeClass = isMine ? 'badge-mine' : (acceptedByOther ? 'badge-locked' : 'badge-pending');
                     let badgeText = isMine ? '<i class="fa-solid fa-bolt me-1"></i> معك' : (acceptedByOther ? '<i class="fa-solid fa-lock me-1"></i> لزميل' : '<i class="fa-solid fa-circle-dot fa-fade me-1"></i> متاح');
 
-                    const taskTypeName = t.transferType === 'post_account' ? 'تحويل بريد حساب' :
-                        (t.transferType === 'post_card' ? 'تحويل بريد بطاقة' : 'تحويل محفظة كاش');
-                    const taskTypeIcon = t.transferType === 'post_account' ? 'fa-envelope' :
-                        (t.transferType === 'post_card' ? 'fa-id-card' : 'fa-mobile-screen-button');
+                    const typeMeta = taskTypeMeta(t.transferType);
+                    const taskTypeName = typeMeta.name;
+                    const taskTypeIcon = typeMeta.icon;
 
                     let displayNote = t.notes || '';
                     displayNote = displayNote.split('--- سجل الـ API')[0].trim();
