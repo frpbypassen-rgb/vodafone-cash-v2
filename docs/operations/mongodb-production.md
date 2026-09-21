@@ -101,6 +101,18 @@ db.securitydevices.createIndex(
 )
 db.transactions.createIndex({ status: 1, createdAt: -1 }, { name: 'adminDashboard_status_createdAt' })
 db.transactions.createIndex({ status: 1, completedAt: -1 }, { name: 'adminDashboard_status_completedAt' })
+db.transactions.createIndex({ executorGroupId: 1, status: 1, completedAt: -1 }, { name: 'executorGroupId_1_status_1_completedAt_-1' })
+db.transactions.createIndex({ managerGroupId: 1, status: 1, completedAt: -1 }, { name: 'managerGroupId_1_status_1_completedAt_-1' })
+db.transactions.createIndex({ operatorId: 1, status: 1, completedAt: -1 }, { name: 'operatorId_1_status_1_completedAt_-1' })
+db.transactions.createIndex({ operatorId: 1, status: 1, updatedAt: -1 }, { name: 'operatorId_1_status_1_updatedAt_-1' })
+db.transactions.createIndex(
+  { executorGroupId: 1, updatedAt: -1 },
+  { name: 'executorPortal_webAlert_executorGroup', partialFilterExpression: { executorWebAlert: { $exists: true } } }
+)
+db.transactions.createIndex(
+  { managerGroupId: 1, updatedAt: -1 },
+  { name: 'executorPortal_webAlert_managerGroup', partialFilterExpression: { executorWebAlert: { $exists: true } } }
+)
 ```
 
 `connect-mongo` ينشئ فهرس TTL على `sessions.expires`. لا تحذف `uniq_active_security_device_per_account` عند كل إعادة تشغيل.
@@ -116,4 +128,5 @@ SESSION_TOUCH_AFTER_SECONDS=120
 SECURITY_STATE_CACHE_MS=15000
 SECURITY_DEVICE_LAST_SEEN_MS=60000
 SECURITY_DEVICE_RECHECK_MS=30000
+EXECUTOR_AUTH_CACHE_MS=15000
 ```

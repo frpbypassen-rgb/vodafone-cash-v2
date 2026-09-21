@@ -34,6 +34,17 @@ const buildExecutorTaskRecipient = (transaction = {}, executorId = null) => {
     };
 };
 
+const LIVE_TASK_NOTES_MAX = 400;
+
+const portalLiveTaskNotes = (notes) => {
+    let text = String(notes || '');
+    const apiLogAt = text.search(/--- سجل الـ API/);
+    if (apiLogAt >= 0) text = text.slice(0, apiLogAt);
+    text = text.trim();
+    if (text.length > LIVE_TASK_NOTES_MAX) text = `${text.slice(0, LIVE_TASK_NOTES_MAX)}…`;
+    return text;
+};
+
 const toExecutorPortalTaskDto = (transaction = {}, executorId = null) => {
     const recipient = buildExecutorTaskRecipient(transaction, executorId);
     const isCashWallet = transaction.transferType === 'vodafone';
@@ -49,7 +60,7 @@ const toExecutorPortalTaskDto = (transaction = {}, executorId = null) => {
         recipientPrefix: recipient.recipientPrefix,
         recipientRevealed: recipient.recipientRevealed,
         accountName: transaction.accountName || null,
-        notes: transaction.notes || '',
+        notes: portalLiveTaskNotes(transaction.notes),
         status: transaction.status || 'unknown',
         operatorId: transaction.operatorId ? stringId(transaction.operatorId) : null,
         executorName: transaction.executorName || null,
@@ -62,8 +73,10 @@ const toExecutorPortalTaskDto = (transaction = {}, executorId = null) => {
 };
 
 module.exports = {
+    LIVE_TASK_NOTES_MAX,
     buildExecutorTaskRecipient,
     isTaskOwnedByExecutor,
+    portalLiveTaskNotes,
     taskRecipientPrefix,
     taskRecipientValue,
     toExecutorPortalTaskDto

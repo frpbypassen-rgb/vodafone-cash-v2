@@ -8,9 +8,9 @@ const transactionController = require('../controllers/executorTransactionControl
 const reportsController = require('../controllers/executorReportsController');
 
 // Models
-const Employee = require('../models/Employee');
 const executorSupportService = require('../services/executorSupportService');
 const executorWebPushService = require('../services/executorWebPushService');
+const { invalidateExecutorAuth, loadExecutorEmployee } = require('../services/executorAuthCache');
 
 // Middlewares
 const rejectExecutorSession = (req, res) => {
@@ -20,14 +20,26 @@ const rejectExecutorSession = (req, res) => {
     return res.redirect('/login');
 };
 
+const isExecutorReadRequest = (req) => ['GET', 'HEAD', 'OPTIONS'].includes(req.method);
+
+const loadPortalExecutor = async (req) => {
+    const readRequest = isExecutorReadRequest(req);
+    if (!readRequest) invalidateExecutorAuth(req.session.executorId);
+    return loadExecutorEmployee(req.session.executorId, {
+        fresh: !readRequest,
+        lean: readRequest
+    });
+};
+
 const requireExecutorAuth = async (req, res, next) => {
     if (!req.session.isExecutorLoggedIn || !req.session.executorId) {
         return rejectExecutorSession(req, res);
     }
     if (req.session.mfaEnrollmentRequired) return res.redirect('/security/mfa-enroll');
     try {
-        const employee = await Employee.findById(req.session.executorId).populate('groupId');
+        const employee = await loadPortalExecutor(req);
         if (!employee || employee.status !== 'active' || !employee.groupId || employee.groupId.status !== 'active') {
+            invalidateExecutorAuth(req.session.executorId);
             delete req.session.isExecutorLoggedIn;
             delete req.session.executorId;
             delete req.session.executorGroupId;
@@ -43,8 +55,9 @@ const requireExecutorAuth = async (req, res, next) => {
 const requireExecutorManager = async (req, res, next) => {
     if (!req.session.isExecutorLoggedIn || !req.session.executorId) return rejectExecutorSession(req, res);
     try {
-        const emp = await Employee.findById(req.session.executorId).populate('groupId');
+        const emp = await loadPortalExecutor(req);
         if (!emp || emp.status !== 'active' || !emp.groupId || emp.groupId.status !== 'active') {
+            invalidateExecutorAuth(req.session.executorId);
             return rejectExecutorSession(req, res);
         }
         if (emp.role !== 'manager') {

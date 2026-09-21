@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const Employee = require('../models/Employee');
+const { invalidateExecutorAuth, loadExecutorEmployee } = require('../services/executorAuthCache');
 const mobileWebParityService = require('../services/mobileWebParityService');
 const mobileWebParityMapper = require('../mappers/mobileWebParityMapper');
 const { generateExecutorReportPdf } = require('../services/reportPdfService');
@@ -34,8 +34,14 @@ const requireExecutorAuth = async (req, res, next) => {
             : res.redirect('/login');
     }
     try {
-        const employee = await Employee.findById(req.session.executorId).populate('groupId');
+        const isRead = ['GET', 'HEAD', 'OPTIONS'].includes(req.method);
+        if (!isRead) invalidateExecutorAuth(req.session.executorId);
+        const employee = await loadExecutorEmployee(req.session.executorId, {
+            fresh: !isRead,
+            lean: isRead
+        });
         if (!employee || employee.status !== 'active' || !employee.groupId || employee.groupId.status !== 'active') {
+            invalidateExecutorAuth(req.session.executorId);
             return req.path.includes('/filter')
                 ? res.status(401).json({ success: false, error: 'حساب المنفذ غير مفعل.' })
                 : res.redirect('/login');
