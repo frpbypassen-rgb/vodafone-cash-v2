@@ -8,6 +8,13 @@ const eventBus = require('./eventBus');
 
 const stringId = (value) => String(value?._id || value || '');
 const ACCEPTABLE_TASK_STATUSES = ['processing', 'pending'];
+const ROUTABLE_EXECUTOR_ROLES = Object.freeze(['operator', 'external']);
+
+const isRoutableExecutorRole = (role) => ROUTABLE_EXECUTOR_ROLES.includes(String(role || ''));
+
+const executorRouteRoleLabel = (role) => (
+    String(role || '') === 'external' ? 'منفّذ خارجي' : 'موظف تنفيذ'
+);
 
 // Older task rows in production sometimes stored the executor's login name
 // instead of the Employee _id. Keep that compatibility narrowly scoped to
@@ -289,12 +296,20 @@ const acceptExecutorTask = async ({ transactionId, executor, tenantId = null }) 
 };
 
 const listRouteCandidates = async ({ groupId, tenantId = null }) => {
-    const query = { groupId, status: 'active', role: 'operator' };
+    const query = { groupId, status: 'active', role: { $in: [...ROUTABLE_EXECUTOR_ROLES] } };
     if (tenantId) query.tenantId = tenantId;
-    return Employee.find(query)
+    const employees = await Employee.find(query)
         .select('name phone webUsername role')
         .sort({ name: 1 })
         .lean();
+    return (Array.isArray(employees) ? employees : []).map((employee) => ({
+        _id: stringId(employee._id),
+        name: employee.name || '',
+        phone: employee.phone || '',
+        webUsername: employee.webUsername || '',
+        role: employee.role,
+        roleLabel: executorRouteRoleLabel(employee.role)
+    }));
 };
 
 const routeExecutorTask = async ({ transactionId, manager, employeeId, tenantId = null }) => {
@@ -303,10 +318,15 @@ const routeExecutorTask = async ({ transactionId, manager, employeeId, tenantId 
     if (!groupId || manager?.role !== 'manager') return { ok: false, code: 'FORBIDDEN' };
     if (!group.manualTaskRoutingEnabled) return { ok: false, code: 'ROUTING_DISABLED' };
 
-    const employeeQuery = { _id: employeeId, groupId, status: 'active', role: 'operator' };
+    const employeeQuery = {
+        _id: employeeId,
+        groupId,
+        status: 'active',
+        role: { $in: [...ROUTABLE_EXECUTOR_ROLES] }
+    };
     if (tenantId) employeeQuery.tenantId = tenantId;
     const employee = await Employee.findOne(employeeQuery);
-    if (!employee) return { ok: false, code: 'INVALID_OPERATOR' };
+    if (!employee || !isRoutableExecutorRole(employee.role)) return { ok: false, code: 'INVALID_OPERATOR' };
 
     let lock = null;
     try {
@@ -347,9 +367,9 @@ const routeExecutorTask = async ({ transactionId, manager, employeeId, tenantId 
 const routingErrorMessage = (code) => {
     const messages = {
         ACTIVE_TASK_EXISTS: 'أكمل أو ألغِ العملية الحالية قبل قبول أو توجيه عملية أخرى.',
-        ROUTING_REQUIRED: 'التوجيه اليدوي مفعل. وجّه العملية إلى موظف التنفيذ أولاً.',
+        ROUTING_REQUIRED: 'التوجيه اليدوي مفعل. وجّه العملية إلى موظف التنفيذ أو منفّذ خارجي أولاً.',
         ROUTING_DISABLED: 'فعّل التوجيه اليدوي من لوحة المدير أولاً.',
-        INVALID_OPERATOR: 'الموظف المختار غير متاح ضمن فريق التنفيذ.',
+        INVALID_OPERATOR: 'الموظف أو المنفّذ الخارجي المختار غير متاح ضمن فريق التنفيذ.',
         TASK_UNAVAILABLE: 'العملية لم تعد متاحة أو تم سحبها من القائمة.',
         TASK_NOT_FOUND: 'لم تعد العملية موجودة في النظام. حدّث قائمة المهام.',
         TASK_TENANT_MISMATCH: 'العملية لا تتبع حساب شركة التنفيذ الحالي.',
@@ -371,6 +391,9 @@ module.exports = {
     taskGroupFilter,
     taskOwnershipFilter,
     ACCEPTABLE_TASK_STATUSES,
+    ROUTABLE_EXECUTOR_ROLES,
+    isRoutableExecutorRole,
+    executorRouteRoleLabel,
     acceptExecutorTask,
     listRouteCandidates,
     routeExecutorTask,

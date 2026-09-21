@@ -125,6 +125,12 @@
         
         .task-locked { opacity: 0.55; filter: grayscale(35%); }
         .task-locked::before { background: var(--text-muted); }
+        .task-routed { border-color: rgba(14,165,233,0.35); }
+        .task-routed::before { background: var(--accent-blue); }
+        [data-theme="dark"] .task-routed { background: linear-gradient(145deg, rgba(14,165,233,0.08) 0%, var(--glass-bg) 100%); }
+        [data-theme="light"] .task-routed { background: linear-gradient(145deg, rgba(14,165,233,0.05) 0%, rgba(255,255,255,0.95) 100%); }
+        .task-waiting { border-color: rgba(245,158,11,0.35); }
+        .task-waiting::before { background: #d97706; }
 
         .task-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 14px; border-bottom: 1px dashed var(--glass-border); padding-bottom: 10px; }
         .task-id { font-size: 1rem; font-weight: 900; color: var(--text-muted); font-family: 'JetBrains Mono', monospace; }
@@ -133,6 +139,13 @@
         .badge-pending { background: rgba(212,175,55,0.1); color: var(--accent-gold); border: 1px solid rgba(212,175,55,0.2); }
         .badge-mine { background: rgba(16,185,129,0.1); color: var(--accent-green); border: 1px solid rgba(16,185,129,0.2); }
         .badge-locked { background: rgba(100,116,139,0.08); color: #7a8da6; border: 1px solid rgba(100,116,139,0.15); }
+        .badge-routed { background: rgba(14,165,233,0.12); color: var(--accent-blue); border: 1px solid rgba(14,165,233,0.25); }
+        .badge-waiting { background: rgba(245,158,11,0.12); color: #d97706; border: 1px solid rgba(245,158,11,0.28); }
+        .executor-assignee-strip { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 12px; margin: 0 0 12px; border: 1px solid rgba(14,165,233,0.22); background: rgba(14,165,233,0.08); }
+        .executor-assignee-strip.waiting { border-color: rgba(245,158,11,0.28); background: rgba(245,158,11,0.08); }
+        .executor-assignee-strip.in-progress { border-color: rgba(16,185,129,0.28); background: rgba(16,185,129,0.08); }
+        .executor-assignee-strip strong { display: block; font-size: 0.92rem; }
+        .executor-assignee-strip small { color: var(--text-muted); font-weight: 700; }
 
         .data-label { font-size: 0.78rem; color: var(--text-muted); font-weight: 700; margin-bottom: 5px; display: block; }
         
@@ -912,12 +925,15 @@
             const candidatesData = await readExecutorApiResponse(candidatesResponse);
             const candidates = Array.isArray(candidatesData.employees) ? candidatesData.employees : [];
             if (candidates.length === 0) {
-                throw new Error('لا يوجد موظف تنفيذ نشط يمكن توجيه العملية إليه.');
+                throw new Error('لا يوجد موظف تنفيذ أو منفّذ خارجي نشط يمكن توجيه العملية إليه.');
             }
-            const options = Object.fromEntries(candidates.map((employee) => [employee._id, `${employee.name} - ${employee.webUsername}`]));
+            const options = Object.fromEntries(candidates.map((employee) => {
+                const roleLabel = employee.roleLabel || (employee.role === 'external' ? 'منفّذ خارجي' : 'موظف تنفيذ');
+                return [employee._id, `${employee.name} — ${roleLabel}`];
+            }));
             const { value: employeeId } = await Swal.fire({
                 title: 'توجيه العملية',
-                text: 'اختر المنفذ الذي ستظهر له العملية ليقبلها وينفذها.',
+                text: 'اختر موظف التنفيذ أو المنفّذ الخارجي الذي ستظهر له العملية ليقبلها وينفذها.',
                 input: 'select',
                 inputOptions: options,
                 inputPlaceholder: 'اختر المنفذ',
@@ -1085,6 +1101,8 @@
                     task.amount,
                     task.operatorId || '',
                     task.assignedExecutorId || '',
+                    task.assignedExecutorName || '',
+                    task.routingState || '',
                     task.recipientNumber || '',
                     task.emergencyAlert || '',
                     task.notes || ''
@@ -1095,31 +1113,53 @@
                 
                 // 🚀 الفرز الذكي (Smart Sorting FIFO) - نظام الطابور المطور
                 let myTasks = [];
+                let routedToMeTasks = [];
                 let pendingTasks = [];
                 let othersTasks = [];
 
                 data.tasks.forEach(t => {
-                    if (t.operatorId === myExecutorId && t.status === 'accepted') myTasks.push(t);
-                    else if (t.status === 'processing') pendingTasks.push(t); 
-                    else othersTasks.push(t); 
+                    const ownedByMe = t.operatorId === myExecutorId && t.status === 'accepted';
+                    const routedToMe = t.isAssignedToCurrentExecutor === true || (
+                        String(t.assignedExecutorId || '') === myExecutorId && t.status !== 'accepted'
+                    );
+                    if (ownedByMe) myTasks.push(t);
+                    else if (routedToMe) routedToMeTasks.push(t);
+                    else if (t.status === 'processing' || t.status === 'pending') pendingTasks.push(t);
+                    else othersTasks.push(t);
                 });
                 
-                const smartSortedTasks = [...myTasks, ...pendingTasks, ...othersTasks];
+                const smartSortedTasks = [...myTasks, ...routedToMeTasks, ...pendingTasks, ...othersTasks];
                 let html = '';
                 
                 smartSortedTasks.forEach(t => {
-                    const isMine = t.operatorId === myExecutorId;
+                    const isMine = t.operatorId === myExecutorId && t.status === 'accepted';
+                    const routedToMe = !isMine && (
+                        t.isAssignedToCurrentExecutor === true
+                        || String(t.assignedExecutorId || '') === myExecutorId
+                    );
                     const acceptedByOther = t.status === 'accepted' && !isMine;
-                    const canRoute = isExecutorManager && manualTaskRoutingEnabled && t.status === 'processing';
+                    const canRoute = isExecutorManager && manualTaskRoutingEnabled && (t.status === 'processing' || t.status === 'pending');
+                    const routingState = t.routingState || (t.status === 'accepted' ? 'in_progress' : (t.assignedExecutorId ? 'pending_with_assignee' : 'unassigned'));
+                    const routingStateLabel = t.routingStateLabel
+                        || (routingState === 'in_progress' ? 'بدأ التنفيذ' : (routingState === 'pending_with_assignee' ? 'معلّقة عنده' : 'متاح'));
+                    const assigneeName = t.assignedExecutorName || t.executorName || '';
                     const recipientIsVisible = t.recipientRevealed === true && isMine;
                     const recipientDisplay = t.recipientNumber || t.recipientPrefix || '---';
                     const encodedRecipient = encodeURIComponent(recipientDisplay);
                     const recipientLabel = recipientIsVisible ? 'الرقم / الحساب:' : 'بادئة الرقم / الحساب:';
                     const formattedAmount = Number(t.amount || 0).toLocaleString('en-US', { maximumFractionDigits: 0 });
 
-                    let cardClass = isMine ? 'task-mine' : (acceptedByOther ? 'task-locked' : 'task-pending');
-                    let badgeClass = isMine ? 'badge-mine' : (acceptedByOther ? 'badge-locked' : 'badge-pending');
-                    let badgeText = isMine ? '<i class="fa-solid fa-bolt me-1"></i> معك' : (acceptedByOther ? '<i class="fa-solid fa-lock me-1"></i> لزميل' : '<i class="fa-solid fa-circle-dot fa-fade me-1"></i> متاح');
+                    let cardClass = isMine ? 'task-mine' : (routedToMe ? 'task-routed' : (acceptedByOther ? 'task-locked' : (routingState === 'pending_with_assignee' ? 'task-waiting' : 'task-pending')));
+                    let badgeClass = isMine ? 'badge-mine' : (routedToMe ? 'badge-routed' : (acceptedByOther ? 'badge-locked' : (routingState === 'pending_with_assignee' ? 'badge-waiting' : 'badge-pending')));
+                    let badgeText = isMine
+                        ? '<i class="fa-solid fa-bolt me-1"></i> بدأ التنفيذ'
+                        : (routedToMe
+                            ? '<i class="fa-solid fa-inbox me-1"></i> موجهة إليك'
+                            : (acceptedByOther
+                                ? '<i class="fa-solid fa-lock me-1"></i> بدأ التنفيذ'
+                                : (routingState === 'pending_with_assignee'
+                                    ? '<i class="fa-solid fa-hourglass-half me-1"></i> معلّقة عنده'
+                                    : '<i class="fa-solid fa-circle-dot fa-fade me-1"></i> متاح')));
 
                     const typeMeta = taskTypeMeta(t.transferType);
                     const taskTypeName = typeMeta.name;
@@ -1172,11 +1212,19 @@
                                     ${safeDisplayNote ? `<div class="tx-notes"><i class="fa-solid fa-comment-dots me-1 opacity-50"></i> ${safeDisplayNote}</div>` : ''}
                                     ${safeAccountName && t.transferType !== 'vodafone' ? `<div class="tx-beneficiary"><i class="fa-solid fa-user me-1 opacity-50"></i> ${safeAccountName}</div>` : ''}
                                     ${recipientIsVisible ? '' : '<div class="executor-task-privacy"><i class="fa-solid fa-shield-halved"></i><span>يظهر الرقم كاملًا بعد قبول المهمة للمنفذ الذي سحبها فقط.</span></div>'}
+                                    ${(isExecutorManager || routedToMe) && assigneeName ? `
+                                    <div class="executor-assignee-strip ${routingState === 'in_progress' ? 'in-progress' : (routingState === 'pending_with_assignee' ? 'waiting' : '')}">
+                                        <i class="fa-solid ${routingState === 'in_progress' ? 'fa-play' : 'fa-user-check'}"></i>
+                                        <div>
+                                            <small>${escapeTaskHtml(routingStateLabel)}</small>
+                                            <strong>${escapeTaskHtml(assigneeName)}</strong>
+                                        </div>
+                                    </div>` : ''}
                                 </div>
                                 
                                 <div class="action-zone border-0">
-                                    ${canRoute ? `<button onclick="routeTask('${t._id}')" class="btn-accept-start"><i class="fa-solid fa-route me-1"></i> توجيه إلى منفذ</button>` :
-                                      acceptedByOther ? `<div class="p-2 rounded-3 text-center fw-bold text-muted border w-100 small" style="background: rgba(0,0,0,0.05);"><i class="fa-solid fa-user-gear me-1"></i> يُنفذ بواسطة: ${escapeTaskHtml(t.executorName || t.assignedExecutorName || 'منفذ آخر')}</div>` :
+                                    ${canRoute ? `<button onclick="routeTask('${t._id}')" class="btn-accept-start"><i class="fa-solid fa-route me-1"></i> ${assigneeName ? 'إعادة التوجيه' : 'توجيه إلى منفذ'}</button>` :
+                                      acceptedByOther ? `<div class="p-2 rounded-3 text-center fw-bold text-muted border w-100 small" style="background: rgba(0,0,0,0.05);"><i class="fa-solid fa-user-gear me-1"></i> بدأ التنفيذ: ${escapeTaskHtml(assigneeName || 'منفذ آخر')}</div>` :
                                       isMine ? `
                                          <button onclick="openUpload('${t._id}', '${t.transferType || ''}', ${Number(t.amount || 0)})" class="btn-cyber-main mb-1"><i class="fa-solid fa-check-double"></i> إنهاء العملية</button>
                                          <div class="horizontal-actions">
@@ -1184,7 +1232,7 @@
                                             <button onclick="returnTask('${t._id}')" class="btn-cyber-sub btn-info-neon" title="إرجاع الطلب للإدارة"><i class="fa-solid fa-reply"></i> <span class="btn-text-hide ms-1">إرجاع</span></button>
                                             <button onclick="cancelTask('${t._id}')" class="btn-cyber-sub btn-danger-neon" title="إلغاء لخطأ في الرقم"><i class="fa-solid fa-xmark"></i> <span class="btn-text-hide ms-1">إلغاء</span></button>
                                          </div>
-                                        ` : `<button onclick="acceptTask('${t._id}')" class="btn-accept-start"><i class="fa-solid fa-bolt me-1"></i> اسحب ونفذ فوراً</button>`
+                                        ` : `<button onclick="acceptTask('${t._id}')" class="btn-accept-start"><i class="fa-solid fa-bolt me-1"></i> ${routedToMe ? 'اسحب المهمة الموجهة إليك' : 'اسحب ونفذ فوراً'}</button>`
                                     }
                                 </div>
                             </div>

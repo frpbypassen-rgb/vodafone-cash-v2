@@ -58,6 +58,40 @@ describe('executor task recipient privacy', () => {
         expect(JSON.stringify(dto)).not.toContain('123456789012345');
     });
 
+    test('maps routed vs accepted tasks to manager-facing Arabic routing states', () => {
+        const routed = toExecutorPortalTaskDto(task({
+            assignedExecutorId: 'external-1',
+            assignedExecutorName: 'أحمد الخارجي'
+        }), 'manager-1');
+        expect(routed).toEqual(expect.objectContaining({
+            routingState: 'pending_with_assignee',
+            routingStateLabel: 'معلّقة عنده',
+            assignedExecutorId: 'external-1',
+            assignedExecutorName: 'أحمد الخارجي',
+            isAssignedToCurrentExecutor: false
+        }));
+
+        const assignedToExternal = toExecutorPortalTaskDto(task({
+            assignedExecutorId: 'external-1',
+            assignedExecutorName: 'أحمد الخارجي'
+        }), 'external-1');
+        expect(assignedToExternal.isAssignedToCurrentExecutor).toBe(true);
+        expect(assignedToExternal.routingStateLabel).toBe('معلّقة عنده');
+
+        const inProgress = toExecutorPortalTaskDto(task({
+            status: 'accepted',
+            operatorId: 'external-1',
+            assignedExecutorId: 'external-1',
+            assignedExecutorName: 'أحمد الخارجي',
+            executorName: 'أحمد الخارجي'
+        }), 'manager-1');
+        expect(inProgress).toEqual(expect.objectContaining({
+            routingState: 'in_progress',
+            routingStateLabel: 'بدأ التنفيذ',
+            isAssignedToCurrentExecutor: false
+        }));
+    });
+
     test('raw execution number is private by default in the transaction schema', () => {
         expect(Transaction.schema.path('executorExecutionNumber').options.select).toBe(false);
     });

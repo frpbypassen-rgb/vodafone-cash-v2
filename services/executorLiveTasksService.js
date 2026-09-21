@@ -30,6 +30,7 @@ const LIVE_TASK_PROJECTION = [
     'executorName',
     'assignedExecutorId',
     'assignedExecutorName',
+    'assignedExecutorAt',
     'executorReceivedAt',
     'createdAt',
     'updatedAt',

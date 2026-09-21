@@ -2,6 +2,20 @@
 
 const stringId = (value) => String(value?._id || value || '');
 
+const ACCEPTABLE_TASK_STATUSES = Object.freeze(['processing', 'pending']);
+
+const ROUTING_STATES = Object.freeze({
+    UNASSIGNED: 'unassigned',
+    PENDING_WITH_ASSIGNEE: 'pending_with_assignee',
+    IN_PROGRESS: 'in_progress'
+});
+
+const ROUTING_STATE_LABELS = Object.freeze({
+    [ROUTING_STATES.UNASSIGNED]: 'متاح',
+    [ROUTING_STATES.PENDING_WITH_ASSIGNEE]: 'معلّقة عنده',
+    [ROUTING_STATES.IN_PROGRESS]: 'بدأ التنفيذ'
+});
+
 const taskRecipientValue = (transaction = {}) => String(
     transaction.serviceDetails?.recipientPhone
     || transaction.vodafoneNumber
@@ -34,6 +48,34 @@ const buildExecutorTaskRecipient = (transaction = {}, executorId = null) => {
     };
 };
 
+const routingStateForTask = (transaction = {}) => {
+    if (transaction.status === 'accepted') return ROUTING_STATES.IN_PROGRESS;
+    const assignedExecutorId = stringId(transaction.assignedExecutorId);
+    if (assignedExecutorId && ACCEPTABLE_TASK_STATUSES.includes(transaction.status)) {
+        return ROUTING_STATES.PENDING_WITH_ASSIGNEE;
+    }
+    return ROUTING_STATES.UNASSIGNED;
+};
+
+const buildTaskRoutingVisibility = (transaction = {}, executorId = null) => {
+    const routingState = routingStateForTask(transaction);
+    const assignedExecutorId = transaction.assignedExecutorId ? stringId(transaction.assignedExecutorId) : null;
+    const currentId = executorId ? stringId(executorId) : '';
+    return {
+        routingState,
+        routingStateLabel: ROUTING_STATE_LABELS[routingState],
+        assignedExecutorId,
+        assignedExecutorName: transaction.assignedExecutorName || null,
+        assignedExecutorAt: transaction.assignedExecutorAt || null,
+        isAssignedToCurrentExecutor: Boolean(
+            currentId
+            && assignedExecutorId
+            && assignedExecutorId === currentId
+            && routingState === ROUTING_STATES.PENDING_WITH_ASSIGNEE
+        )
+    };
+};
+
 const LIVE_TASK_NOTES_MAX = 400;
 
 const portalLiveTaskNotes = (notes) => {
@@ -47,6 +89,7 @@ const portalLiveTaskNotes = (notes) => {
 
 const toExecutorPortalTaskDto = (transaction = {}, executorId = null) => {
     const recipient = buildExecutorTaskRecipient(transaction, executorId);
+    const routing = buildTaskRoutingVisibility(transaction, executorId);
     const isCashWallet = transaction.transferType === 'vodafone';
 
     return {
@@ -64,8 +107,12 @@ const toExecutorPortalTaskDto = (transaction = {}, executorId = null) => {
         status: transaction.status || 'unknown',
         operatorId: transaction.operatorId ? stringId(transaction.operatorId) : null,
         executorName: transaction.executorName || null,
-        assignedExecutorId: transaction.assignedExecutorId ? stringId(transaction.assignedExecutorId) : null,
-        assignedExecutorName: transaction.assignedExecutorName || null,
+        assignedExecutorId: routing.assignedExecutorId,
+        assignedExecutorName: routing.assignedExecutorName,
+        assignedExecutorAt: routing.assignedExecutorAt,
+        routingState: routing.routingState,
+        routingStateLabel: routing.routingStateLabel,
+        isAssignedToCurrentExecutor: routing.isAssignedToCurrentExecutor,
         executorReceivedAt: transaction.executorReceivedAt || null,
         createdAt: transaction.createdAt || null,
         emergencyAlert: transaction.emergencyAlert || null
@@ -74,9 +121,13 @@ const toExecutorPortalTaskDto = (transaction = {}, executorId = null) => {
 
 module.exports = {
     LIVE_TASK_NOTES_MAX,
+    ROUTING_STATES,
+    ROUTING_STATE_LABELS,
     buildExecutorTaskRecipient,
+    buildTaskRoutingVisibility,
     isTaskOwnedByExecutor,
     portalLiveTaskNotes,
+    routingStateForTask,
     taskRecipientPrefix,
     taskRecipientValue,
     toExecutorPortalTaskDto

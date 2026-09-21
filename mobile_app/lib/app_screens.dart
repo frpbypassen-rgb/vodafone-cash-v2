@@ -16088,7 +16088,7 @@ class _ExecutorTasksScreenState extends State<ExecutorTasksScreen>
       if (candidates.isEmpty) {
         showSnack(
           context,
-          'لا يوجد موظف تنفيذ نشط يمكن توجيه العملية إليه.',
+          'لا يوجد موظف تنفيذ أو منفّذ خارجي نشط يمكن توجيه العملية إليه.',
           error: true,
         );
         return;
@@ -16105,14 +16105,17 @@ class _ExecutorTasksScreenState extends State<ExecutorTasksScreen>
                   'توجيه العملية',
                   style: TextStyle(fontWeight: FontWeight.w900),
                 ),
-                subtitle: Text('اختر المنفذ الذي ستظهر له العملية.'),
+                subtitle: Text('اختر موظف التنفيذ أو المنفّذ الخارجي.'),
               ),
               ...candidates.map(
                 (candidate) => ListTile(
                   leading: const Icon(Icons.person_outline),
                   title: Text('${candidate['name'] ?? 'منفذ'}'),
                   subtitle: Text(
-                    '${candidate['webUsername'] ?? candidate['phone'] ?? ''}',
+                    [
+                      '${candidate['roleLabel'] ?? (candidate['role'] == 'external' ? 'منفّذ خارجي' : 'موظف تنفيذ')}',
+                      '${candidate['webUsername'] ?? candidate['phone'] ?? ''}',
+                    ].where((line) => line.trim().isNotEmpty).join(' · '),
                   ),
                   onTap: () => Navigator.of(sheetContext).pop(candidate),
                 ),
@@ -24046,18 +24049,29 @@ class ExecutorTaskTile extends StatelessWidget {
         '${task['acceptedByName'] ?? task['executorName'] ?? ''}'.trim();
     final assignedExecutorName =
         '${task['assignedExecutorName'] ?? acceptedByName}'.trim();
+    final routingState = '${task['routingState'] ?? ''}'.trim();
+    final routingStateLabel = '${task['routingStateLabel'] ?? ''}'.trim();
     // An accepted task is actionable only by its owner. Treat missing ownership
     // data as locked so an older API response cannot expose unsafe actions.
     final acceptedByMe =
         accepted &&
         (task['isOwnedByCurrentExecutor'] == true ||
             (acceptedById.isNotEmpty && acceptedById == currentExecutorId));
+    final routedToMe =
+        !accepted &&
+        (task['isAssignedToCurrentExecutor'] == true ||
+            '${task['assignedExecutorId'] ?? ''}' == currentExecutorId);
     final takenByAnother = accepted && !acceptedByMe;
     final canRouteTask = canRoute && !accepted;
     final takenByLabel = acceptedByName.isEmpty ? 'منفذ آخر' : acceptedByName;
-    final assignmentStatus = accepted
-        ? 'قيد التنفيذ لدى الموظف'
-        : 'بانتظار قبول الموظف';
+    final assignmentStatus = routingStateLabel.isNotEmpty
+        ? routingStateLabel
+        : (routingState == 'in_progress' || accepted
+            ? 'بدأ التنفيذ'
+            : (routingState == 'pending_with_assignee' ||
+                    assignedExecutorName.isNotEmpty
+                ? 'معلّقة عنده'
+                : 'متاح'));
     final colors = Theme.of(context).colorScheme;
     final transferType = task['transferType']?.toString();
     final isCashWallet = transferType == 'vodafone';
@@ -24069,7 +24083,9 @@ class ExecutorTaskTile extends StatelessWidget {
     return ExecutorSurface(
       accent: acceptedByMe
           ? ExecutorUiColors.jade
-          : (takenByAnother ? ExecutorUiColors.amber : ExecutorUiColors.cobalt),
+          : (routedToMe
+              ? ExecutorUiColors.cobalt
+              : (takenByAnother ? ExecutorUiColors.amber : ExecutorUiColors.cobalt)),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -24107,8 +24123,16 @@ class ExecutorTaskTile extends StatelessWidget {
               StatusPill(
                 label: isManager && assignedExecutorName.isNotEmpty
                     ? assignmentStatus
-                    : statusLabel(task['status']?.toString()),
-                color: statusColor(task['status']?.toString()),
+                    : (routedToMe
+                        ? 'موجهة إليك'
+                        : (acceptedByMe
+                            ? 'بدأ التنفيذ'
+                            : statusLabel(task['status']?.toString()))),
+                color: routedToMe
+                    ? ExecutorUiColors.cobalt
+                    : statusColor(
+                        accepted ? 'accepted' : task['status']?.toString(),
+                      ),
               ),
             ],
           ),
@@ -24238,23 +24262,27 @@ class ExecutorTaskTile extends StatelessWidget {
               ],
             ),
           ],
-          if (isManager && assignedExecutorName.isNotEmpty) ...[
+          if ((isManager || routedToMe) && assignedExecutorName.isNotEmpty) ...[
             const Divider(height: 22),
             Container(
               width: double.infinity,
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
               decoration: BoxDecoration(
-                color: AhramColors.emeraldSoft.withValues(alpha: 0.72),
+                color: (accepted ? AhramColors.emeraldSoft : AhramColors.sky)
+                    .withValues(alpha: accepted ? 0.72 : 0.10),
                 borderRadius: BorderRadius.circular(8),
                 border: Border.all(
-                  color: AhramColors.emerald.withValues(alpha: 0.25),
+                  color: (accepted ? AhramColors.emerald : AhramColors.sky)
+                      .withValues(alpha: 0.25),
                 ),
               ),
               child: Row(
                 children: [
-                  const Icon(
-                    Icons.assignment_ind_outlined,
-                    color: AhramColors.emerald,
+                  Icon(
+                    routedToMe
+                        ? Icons.inbox_outlined
+                        : Icons.assignment_ind_outlined,
+                    color: accepted ? AhramColors.emerald : AhramColors.sky,
                   ),
                   const SizedBox(width: 10),
                   Expanded(
@@ -24262,7 +24290,7 @@ class ExecutorTaskTile extends StatelessWidget {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          assignmentStatus,
+                          routedToMe ? 'موجهة إليك' : assignmentStatus,
                           style: TextStyle(
                             color: colors.onSurfaceVariant,
                             fontSize: 12,
@@ -24333,7 +24361,11 @@ class ExecutorTaskTile extends StatelessWidget {
                 onPressed: busy || acceptBlocked ? null : onAccept,
                 icon: const Icon(Icons.task_alt_outlined),
                 label: Text(
-                  acceptBlocked ? 'أكمل العملية الحالية أولاً' : 'قبول العملية',
+                  acceptBlocked
+                      ? 'أكمل العملية الحالية أولاً'
+                      : (routedToMe
+                          ? 'اسحب المهمة الموجهة إليك'
+                          : 'قبول العملية'),
                 ),
               ),
             )

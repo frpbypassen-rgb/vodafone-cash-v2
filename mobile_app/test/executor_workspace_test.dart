@@ -86,6 +86,11 @@ void main() {
     expect(accountant.canCompleteExecutorProof, isFalse);
     expect(accountant.canRouteExecutorTasks, isFalse);
     expect(accountant.canCreateTransfer, isFalse);
+
+    final external = _controller(id: 'ext-1', role: 'external');
+    expect(external.canAcceptExecutorTasks, isTrue);
+    expect(external.canCompleteExecutorProof, isTrue);
+    expect(external.canRouteExecutorTasks, isFalse);
   });
 
   testWidgets('accountant sees a lock instead of accept or proof', (
