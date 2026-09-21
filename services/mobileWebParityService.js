@@ -48,6 +48,7 @@ const eventBus = require('./eventBus');
 const { findReportTransactions } = require('./unifiedReportService');
 const { systemDateKey, systemDayEnd, systemDayStart, systemDateRange } = require('../config/systemTime');
 const { buildExecutorOperationSearchQuery } = require('../utils/executorOperationSearch');
+const { completedTransferLedgerInc, servicePrivateBalance } = require('../utils/executorServiceLedger');
 
 const escapeRegex = (value) => String(value || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 // Report totals are computed in MongoDB, while this cap protects the API and
@@ -682,6 +683,9 @@ async function requestExecutorDeposit({ executorId, amount, req }) {
         assertExecutorTaskRole(emp);
 
         const customId = await nextDepositRequestId();
+        const { fundingFieldsForService } = require('../utils/executorServiceLedger');
+        const { getExecutorPrimaryServiceKey } = require('../utils/executorServiceCatalog');
+        const funding = fundingFieldsForService(getExecutorPrimaryServiceKey(emp.groupId));
         const tx = new Transaction({
             userId: 'admin',
             executorGroupId: emp.groupId._id,
@@ -695,7 +699,8 @@ async function requestExecutorDeposit({ executorId, amount, req }) {
             employeeName: emp.name,
             executorName: emp.name,
             idempotencyKey,
-            idempotencyFingerprint: fingerprint
+            idempotencyFingerprint: fingerprint,
+            ...funding
         });
 
         const successBody = {
@@ -988,10 +993,11 @@ async function executeZaynPayIdempotent({ executorId, taskId, req }) {
         const parentGroup = parentGroupId
             ? await ExecutorGroup.findById(parentGroupId)
             : null;
-        if (parentGroup && Number(parentGroup.balance || 0) < executorDebit) {
+        const ledgerInc = completedTransferLedgerInc(emp.groupId, tx, -executorDebit);
+        if (parentGroup && servicePrivateBalance(parentGroup, tx.transferType || tx.canonicalServiceKey) < executorDebit) {
             throw new Error('INSUFFICIENT_EXECUTOR_BALANCE');
         }
-        if (Number(emp.groupId.balance || 0) < executorDebit) {
+        if (servicePrivateBalance(emp.groupId, tx.transferType || tx.canonicalServiceKey) < executorDebit) {
             throw new Error('INSUFFICIENT_EXECUTOR_BALANCE');
         }
 
@@ -1039,7 +1045,7 @@ async function executeZaynPayIdempotent({ executorId, taskId, req }) {
             if (parentGroupId) {
                 const parentUpdated = await ExecutorGroup.findOneAndUpdate(
                     { _id: parentGroupId, balance: { $gte: executorDebit } },
-                    { $inc: { balance: -executorDebit } },
+                    { $inc: ledgerInc },
                     { new: true, session }
                 );
                 if (!parentUpdated) throw new Error('INSUFFICIENT_EXECUTOR_BALANCE');
@@ -1047,7 +1053,7 @@ async function executeZaynPayIdempotent({ executorId, taskId, req }) {
 
             const groupUpdated = await ExecutorGroup.findOneAndUpdate(
                 { _id: emp.groupId._id, balance: { $gte: executorDebit } },
-                { $inc: { balance: -executorDebit } },
+                { $inc: ledgerInc },
                 { new: true, session }
             );
             if (!groupUpdated) throw new Error('INSUFFICIENT_EXECUTOR_BALANCE');
@@ -1628,10 +1634,15 @@ async function getExecutorOverview({ executorId, tenantId }) {
             id: String(group._id),
             name: group.name,
             serviceKey: group.serviceKey || null,
+            serviceKeys: companyBalances?.byService
+                ? companyBalances.byService.map((row) => row.serviceKey)
+                : [group.serviceKey || 'vodafone'],
             balance: companyBalances ? companyBalances.privateBalance : (isManager || isAccountant ? Number(group.balance || 0) : null),
             privateBalance: companyBalances ? companyBalances.privateBalance : null,
             totalBalance: companyBalances ? companyBalances.totalBalance : null,
-            allocatedBalance: companyBalances ? companyBalances.allocatedBalance : null
+            allocatedBalance: companyBalances ? companyBalances.allocatedBalance : null,
+            multiService: Boolean(companyBalances?.multiService),
+            serviceBalances: companyBalances?.byService || null
         },
         executor: {
             id: String(emp._id),
@@ -2113,27 +2124,38 @@ async function updateCompanyExecutionPolicy({ executorId, body }) {
     return toPublicExecutionPolicy(readCompanyExecutionPolicy(group));
 }
 
-async function updateEmployeeExecutionPolicy({ executorId, targetId, body }) {
-    const manager = await checkManagerPermission(executorId);
-    const emp = await Employee.findById(targetId);
-    if (!emp || String(emp.groupId) !== String(manager.groupId)) throw new Error('NOT_FOUND');
-    if (emp.role === 'manager') throw new Error('FORBIDDEN');
+async function applyEmployeeExecutionPolicy({ employee, group, body }) {
+    if (!employee || !group) throw new Error('NOT_FOUND');
+    if (employee.role === 'manager') throw new Error('FORBIDDEN');
     const override = serializeEmployeePolicyOverride(body || {});
     if (Object.keys(override).length === 0) {
-        await Employee.updateOne({ _id: emp._id }, { $unset: { executionPolicyOverride: 1 } });
-        emp.executionPolicyOverride = undefined;
+        await Employee.updateOne({ _id: employee._id }, { $unset: { executionPolicyOverride: 1 } });
+        employee.executionPolicyOverride = undefined;
     } else {
-        emp.set('executionPolicyOverride', override);
-        await emp.save();
+        employee.set('executionPolicyOverride', override);
+        await employee.save();
     }
-    const group = await ExecutorGroup.findById(manager.groupId).lean();
-    await enforceExecutorDeviceLimit({ account: emp, group });
-    invalidateExecutorAuth(emp._id);
-    const fresh = await Employee.findById(emp._id).lean();
+    await enforceExecutorDeviceLimit({ account: employee, group });
+    invalidateExecutorAuth(employee._id);
+    const fresh = await Employee.findById(employee._id).lean();
     return {
         override: fresh?.executionPolicyOverride || {},
-        executionPolicy: toPublicExecutionPolicy(readExecutorManualPolicy(group, fresh || emp))
+        executionPolicy: toPublicExecutionPolicy(readExecutorManualPolicy(group, fresh || employee))
     };
+}
+
+async function updateEmployeeExecutionPolicy() {
+    const error = new Error('ADMIN_ONLY');
+    error.status = 403;
+    throw error;
+}
+
+async function updateEmployeeExecutionPolicyAsAdmin({ groupId, targetId, body }) {
+    const emp = await Employee.findById(targetId);
+    if (!emp || String(emp.groupId) !== String(groupId)) throw new Error('NOT_FOUND');
+    const group = await ExecutorGroup.findById(emp.groupId);
+    if (!group) throw new Error('NOT_FOUND');
+    return applyEmployeeExecutionPolicy({ employee: emp, group, body });
 }
 
 module.exports = {
@@ -2156,6 +2178,8 @@ module.exports = {
     updateEmployeeProfile,
     updateCompanyExecutionPolicy,
     updateEmployeeExecutionPolicy,
+    updateEmployeeExecutionPolicyAsAdmin,
+    applyEmployeeExecutionPolicy,
     toggleEmployeeStatus,
     toggleEmployeeReports,
     resetEmployeePassword,

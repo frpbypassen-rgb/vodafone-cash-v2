@@ -16,6 +16,8 @@ const {
     getErrorMessage
 } = require('../services/adminAccountManagementService');
 const { notifyAccountPhoneChanged } = require('../services/accountPhoneChangeNotificationService');
+const { phoneLengthModeFromLengths } = require('../utils/executorManualPolicy');
+const { getExecutorEnabledServiceKeys } = require('../utils/executorServiceCatalog');
 
 const verifyMultipartCsrf = (req, res, next) => {
     const expected = String(req.session?.csrfToken || '');
@@ -74,7 +76,10 @@ const BOOLEAN_FIELDS = Object.freeze([
     'canManageCompany',
     'canCreateCompanyStaff',
     'canManageAgent',
-    'canCreateAgentStaff'
+    'canCreateAgentStaff',
+    'inheritCompanyPolicy',
+    'proofRequired',
+    'sessionTtlEnabled'
 ]);
 
 const isChecked = (value) => ['1', 'true', 'on', 'yes'].includes(String(value || '').toLowerCase());
@@ -99,6 +104,7 @@ const accountToFormData = (account, submitted = null) => {
         groupId: String(account.groupId || ''),
         parentGroupId: String(account.parentGroupId || account.parentBotId || ''),
         serviceKey: account.serviceKey || 'vodafone',
+        serviceKeys: getExecutorEnabledServiceKeys(account),
         telegramId: account.telegramId || '',
         apiUrl: account.apiUrl || '',
         apiUsername: account.apiUsername || '',
@@ -116,6 +122,16 @@ const accountToFormData = (account, submitted = null) => {
         canCreateCompanyStaff: Boolean(account.canCreateCompanyStaff),
         canManageAgent: Boolean(account.canManageAgent),
         canCreateAgentStaff: Boolean(account.canCreateAgentStaff),
+        inheritCompanyPolicy: (() => {
+            const override = account.executionPolicyOverride || {};
+            const raw = override.toObject ? override.toObject() : override;
+            return !raw || Object.keys(raw).filter((key) => raw[key] !== undefined).length === 0;
+        })(),
+        proofRequired: Boolean(account.executionPolicyOverride?.proofRequired),
+        phoneLengthMode: phoneLengthModeFromLengths(account.executionPolicyOverride?.allowedPhoneLengths),
+        maxConcurrentDevices: account.executionPolicyOverride?.maxConcurrentDevices || 1,
+        sessionTtlEnabled: Boolean(account.executionPolicyOverride?.sessionTtlEnabled),
+        sessionTtlHours: Math.max(1, Math.round(Number(account.executionPolicyOverride?.sessionTtlSeconds || 28800) / 3600)),
         newPassword: '',
         apiPassword: '',
         apiToken: ''
@@ -124,6 +140,11 @@ const accountToFormData = (account, submitted = null) => {
     if (!submitted) return base;
     const merged = { ...base, ...submitted, newPassword: '', apiPassword: '', apiToken: '' };
     BOOLEAN_FIELDS.forEach((field) => { merged[field] = isChecked(submitted[field]); });
+    if (submitted.enabledServices) {
+        merged.serviceKeys = Array.isArray(submitted.enabledServices)
+            ? submitted.enabledServices
+            : [submitted.enabledServices];
+    }
     return merged;
 };
 

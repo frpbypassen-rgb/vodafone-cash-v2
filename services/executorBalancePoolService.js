@@ -6,6 +6,7 @@ const ExecutorBalancePool = require('../models/ExecutorBalancePool');
 const ExecutorGroup = require('../models/ExecutorGroup');
 const Notification = require('../models/Notification');
 const Transaction = require('../models/Transaction');
+const { primaryServiceBalanceInc, snapshotServiceLedgers } = require('../utils/executorServiceLedger');
 
 class ExecutorBalancePoolError extends Error {
     constructor(code, message, status = 400) {
@@ -67,14 +68,17 @@ const allocatedFromRows = ({ pools = [], employees = [] }) => {
 };
 
 const snapshotFromParts = ({ group, pools = [], employees = [] }) => {
-    const privateBalance = Number(group?.balance || 0);
     const allocatedBalance = allocatedFromRows({ pools, employees });
+    const ledgers = snapshotServiceLedgers({ group, allocatedBalance });
     return {
         groupId: objectIdString(group?._id),
         name: group?.name || '',
-        privateBalance,
-        allocatedBalance,
-        totalBalance: privateBalance + allocatedBalance
+        primaryServiceKey: ledgers.primaryServiceKey,
+        multiService: ledgers.multiService,
+        byService: ledgers.byService,
+        privateBalance: ledgers.privateBalance,
+        allocatedBalance: ledgers.allocatedBalance,
+        totalBalance: ledgers.totalBalance
     };
 };
 
@@ -120,7 +124,7 @@ async function loadAllocatedByGroupIds(groupIds = []) {
 }
 
 async function snapshotCompanyBalances(groupId) {
-    const group = await ExecutorGroup.findById(groupId).select('name balance').lean();
+    const group = await ExecutorGroup.findById(groupId).select('name balance serviceKey serviceKeys serviceBalances').lean();
     if (!group) fail('GROUP_NOT_FOUND', 'مجموعة التنفيذ غير موجودة.', 404);
     const ledger = await loadActiveExternalLedger(group._id);
     return snapshotFromParts({ group, ...ledger });
@@ -161,7 +165,7 @@ function serializePool(pool, members = []) {
 
 async function listExternalBalanceWorkspace({ manager }) {
     const groupId = managerGroupId(manager);
-    const group = await ExecutorGroup.findById(groupId).select('name balance').lean();
+    const group = await ExecutorGroup.findById(groupId).select('name balance serviceKey serviceKeys serviceBalances').lean();
     if (!group) fail('GROUP_NOT_FOUND', 'مجموعة التنفيذ غير موجودة.', 404);
     const { pools, employees } = await loadActiveExternalLedger(groupId);
     const poolsById = new Map(pools.map((pool) => [objectIdString(pool._id), pool]));
@@ -399,7 +403,7 @@ async function fundExternalExecutor({ manager, employeeId, type, amount, note = 
     if (type === 'deposit') {
         const updatedGroup = await ExecutorGroup.findOneAndUpdate(
             { _id: group._id, balance: { $gte: parsedAmount } },
-            { $inc: { balance: -parsedAmount } },
+            { $inc: primaryServiceBalanceInc(group, -parsedAmount) },
             { new: true }
         );
         if (!updatedGroup) fail('INSUFFICIENT_PRIVATE_BALANCE', 'الرصيد الخاص للشركة غير كافٍ لإتمام الإيداع.');
@@ -421,7 +425,7 @@ async function fundExternalExecutor({ manager, employeeId, type, amount, note = 
                 employee.balance = updatedEmployee.balance;
             }
         } catch (error) {
-            await ExecutorGroup.findByIdAndUpdate(group._id, { $inc: { balance: parsedAmount } }).catch(() => {});
+            await ExecutorGroup.findByIdAndUpdate(group._id, { $inc: primaryServiceBalanceInc(group, parsedAmount) }).catch(() => {});
             throw error;
         }
     } else {
@@ -448,7 +452,7 @@ async function fundExternalExecutor({ manager, employeeId, type, amount, note = 
         }
         const updatedGroup = await ExecutorGroup.findByIdAndUpdate(
             group._id,
-            { $inc: { balance: parsedAmount } },
+            { $inc: primaryServiceBalanceInc(group, parsedAmount) },
             { new: true }
         );
         group.balance = updatedGroup.balance;

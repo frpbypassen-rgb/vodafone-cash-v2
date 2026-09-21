@@ -17,7 +17,7 @@ const {
 } = require('../services/executorTaskRoutingService');
 const mobileWebParityService = require('../services/mobileWebParityService');
 const mobileWebParityMapper = require('../mappers/mobileWebParityMapper');
-const { clearExecutorAuthCache, invalidateExecutorAuth } = require('../services/executorAuthCache');
+const { clearExecutorAuthCache } = require('../services/executorAuthCache');
 const { readExecutorManualPolicy, toPublicExecutionPolicy } = require('../utils/executorManualPolicy');
 const executorDepositRequestService = require('../services/executorDepositRequestService');
 const { loadPortalLiveTasks } = require('../services/executorLiveTasksService');
@@ -123,7 +123,9 @@ exports.getSettings = async (req, res) => {
             ? {
                 privateBalance: Number(overview.company.privateBalance ?? overview.company.balance ?? 0),
                 totalBalance: Number(overview.company.totalBalance ?? overview.company.balance ?? 0),
-                allocatedBalance: Number(overview.company.allocatedBalance || 0)
+                allocatedBalance: Number(overview.company.allocatedBalance || 0),
+                multiService: Boolean(overview.company.multiService),
+                byService: Array.isArray(overview.company.serviceBalances) ? overview.company.serviceBalances : []
             }
             : null;
         return res.render('executor/settings', {
@@ -512,18 +514,11 @@ exports.postExecutionPolicy = async (req, res) => {
 };
 
 exports.postEmployeeExecutionPolicy = async (req, res) => {
-    try {
-        const result = await mobileWebParityService.updateEmployeeExecutionPolicy({
-            executorId: req.managerEmp._id,
-            targetId: req.params.id,
-            body: req.body
-        });
-        invalidateExecutorAuth(req.params.id);
-        return res.json({ success: true, ...result });
-    } catch (error) {
-        const status = error.message === 'NOT_FOUND' ? 404 : (error.message === 'FORBIDDEN' ? 403 : 400);
-        return res.status(status).json({ success: false, error: 'تعذر حفظ صلاحيات المنفذ.' });
-    }
+    return res.status(403).json({
+        success: false,
+        code: 'ADMIN_ONLY',
+        error: 'تعديل صلاحيات المنفذ متاح للإدارة المركزية فقط.'
+    });
 };
 
 exports.getRouteCandidates = async (req, res) => {

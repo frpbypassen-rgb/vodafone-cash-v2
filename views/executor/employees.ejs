@@ -301,7 +301,7 @@
 
 <%- include('partials/navigation', { emp, activePage: 'employees' }) %>
 <div class="exo-stage">
-    <%- include('partials/command-bar', { emp }) %>
+    <%- include('partials/command-bar', { emp, companyBalances: typeof companyBalances === 'undefined' ? null : companyBalances }) %>
 </div>
 
 <nav class="navbar-glass">
@@ -313,8 +313,15 @@
         </div>
     </div>
     <div class="nav-actions">
+        <% const employeeNavRows = Array.isArray(companyBalances?.byService) ? companyBalances.byService : []; %>
+        <% if (companyBalances?.multiService && employeeNavRows.length > 1) { %>
+            <% employeeNavRows.forEach((row) => { %>
+                <span class="nav-btn text-success border border-success border-opacity-25" style="cursor: default; font-weight: 800;" title="<%= row.appliesPoolModel ? row.totalLabel : row.singleLabel %>"><i class="fa-solid fa-wallet me-1"></i> <%= row.shortLabel %> <%= Number(row.appliesPoolModel ? row.totalBalance : row.privateBalance).toLocaleString('en-US', { maximumFractionDigits: 0 }) %> ج.م</span>
+            <% }); %>
+        <% } else { %>
         <span class="nav-btn text-success border border-success border-opacity-25" style="cursor: default; font-weight: 800;" title="إجمالي الرصيد: الخاص + مجموعات الرصيد + المنفردين"><i class="fa-solid fa-vault me-1"></i> إجمالي <%= Number(companyBalances?.totalBalance ?? emp.groupId?.balance ?? 0).toLocaleString('en-US', { maximumFractionDigits: 0 }) %> ج.م</span>
         <span class="nav-btn text-warning border border-warning border-opacity-25" style="cursor: default; font-weight: 800;" title="الرصيد الخاص المتاح للمدير"><i class="fa-solid fa-wallet me-1"></i> خاص <%= Number(companyBalances?.privateBalance ?? emp.groupId?.balance ?? 0).toLocaleString('en-US', { maximumFractionDigits: 0 }) %> ج.م</span>
+        <% } %>
         <button class="nav-btn btn-theme shadow-sm" onclick="toggleTheme()" title="المظهر"><i class="fa-solid fa-moon" id="themeIcon"></i></button>
         <a href="/executor-portal/logout" class="nav-btn btn-logout"><i class="fa-solid fa-power-off"></i></a>
     </div>
@@ -331,8 +338,7 @@
     </div>
 
     <section class="executor-summary-grid mb-4">
-        <article class="executor-summary-card" style="--summary-color: var(--executor-green)" data-company-balance="total"><span class="summary-icon"><i class="fa-solid fa-vault"></i></span><small>إجمالي الرصيد</small><strong id="summaryTotalBalance" dir="ltr"><%= Number(companyBalances?.totalBalance || 0).toLocaleString('en-US', { maximumFractionDigits: 2 }) %></strong><span class="summary-help">الخاص + مجموعات الرصيد + المنفردين. كما تراه الإدارة.</span></article>
-        <article class="executor-summary-card" style="--summary-color: var(--executor-gold)" data-company-balance="private"><span class="summary-icon"><i class="fa-solid fa-wallet"></i></span><small>الرصيد الخاص</small><strong id="summaryPrivateBalance" dir="ltr"><%= Number(companyBalances?.privateBalance || 0).toLocaleString('en-US', { maximumFractionDigits: 2 }) %></strong><span class="summary-help">رأس مال الشركة للمدير فقط. تمويل منفّذ خارجي يُخصم من هنا.</span></article>
+        <%- include('partials/service-balance-cards', { companyBalances }) %>
         <article class="executor-summary-card" style="--summary-color: var(--executor-blue)"><span class="summary-icon"><i class="fa-solid fa-users"></i></span><small>إجمالي الفريق</small><strong id="summaryTotal">0</strong></article>
         <article class="executor-summary-card" style="--summary-color: var(--executor-green)"><span class="summary-icon"><i class="fa-solid fa-signal"></i></span><small>متصلون الآن</small><strong id="summaryOnline">0</strong></article>
         <article class="executor-summary-card" style="--summary-color: var(--executor-gold)"><span class="summary-icon"><i class="fa-solid fa-bolt"></i></span><small>ينفذون الآن</small><strong id="summaryBusy">0</strong></article>
@@ -707,7 +713,6 @@
                 <button onclick="externalTransaction('${employeeId}', '${encodedName}', 'deduction')" class="btn-action" style="color:var(--executor-red)" title="خصم من المنفّذ الخارجي"><i class="fa-solid fa-arrow-up"></i></button>` : '';
             const actions = employee.role !== 'manager' ? `
                 <button onclick="editEmployee('${employeeId}', '${encodedName}', '${encodedPhone}')" class="btn-action" title="تعديل البيانات"><i class="fa-solid fa-pen"></i></button>
-                <button onclick="editExecutionPolicy('${employeeId}')" class="btn-action" title="صلاحيات التنفيذ"><i class="fa-solid fa-shield-halved"></i></button>
                 <button onclick="toggleEmployee('${employeeId}')" class="btn-action ${toggleClass}" title="${toggleTitle}"><i class="fa-solid ${toggleIcon}"></i></button>
                 <a href="/executor-portal/reports?employeeId=${employeeId}" class="btn-action" title="تقرير الموظف"><i class="fa-solid fa-chart-line"></i></a>
                 ${externalActions}
@@ -794,88 +799,6 @@
         return mode === value ? 'checked' : '';
     }
 
-    async function editExecutionPolicy(id) {
-        const employee = employeesCache.find((item) => String(item.id || item._id) === String(id));
-        if (!employee) return Swal.fire('تنبيه', 'تعذر العثور على الموظف.', 'warning');
-        const policy = employee.executionPolicy || {};
-        const inherited = policy.inherited || {};
-        const inheritAll = Boolean(
-            inherited.proofRequired !== false
-            && inherited.allowedPhoneLengths !== false
-            && inherited.maxConcurrentDevices !== false
-            && inherited.sessionTtl !== false
-        );
-        const mode = policy.phoneLengthMode || 'all';
-        const hours = Math.max(1, Math.round(Number(policy.sessionTtlSeconds || 28800) / 3600));
-        const result = await Swal.fire({
-            title: 'صلاحيات التنفيذ',
-            html: `<p class="small text-end mb-3">تجاوز افتراضي الشركة لـ <b>${escapeEmployeeHtml(employee.name)}</b></p>
-                <label class="d-flex align-items-center justify-content-between gap-2 mb-3">
-                    <span>استخدام إعداد الشركة</span>
-                    <input type="checkbox" id="policyInheritAll" ${inheritAll ? 'checked' : ''}>
-                </label>
-                <div id="policyOverrideFields" class="${inheritAll ? 'd-none' : ''}">
-                    <div class="text-end small fw-bold mb-2">أرقام إثبات المرسل</div>
-                    <div class="text-end d-flex flex-wrap gap-2 mb-3">
-                        <label class="form-check"><input class="form-check-input" type="radio" name="policyPhoneMode" value="3" ${policyModeChecked(mode, '3')}> 3 فقط</label>
-                        <label class="form-check"><input class="form-check-input" type="radio" name="policyPhoneMode" value="4" ${policyModeChecked(mode, '4')}> 4 فقط</label>
-                        <label class="form-check"><input class="form-check-input" type="radio" name="policyPhoneMode" value="11" ${policyModeChecked(mode, '11')}> 11 فقط</label>
-                        <label class="form-check"><input class="form-check-input" type="radio" name="policyPhoneMode" value="all" ${policyModeChecked(mode, 'all')}> الثلاثة</label>
-                    </div>
-                    <label class="d-flex align-items-center justify-content-between gap-2 mb-3">
-                        <span>صورة الإثبات إجبارية</span>
-                        <input type="checkbox" id="policyProofRequired" ${policy.proofRequired ? 'checked' : ''}>
-                    </label>
-                    <label class="form-label w-100 text-end">أقصى أجهزة متزامنة</label>
-                    <input id="policyDevices" type="number" min="1" max="20" class="swal2-input m-0 mb-3 w-100" value="${Number(policy.maxConcurrentDevices || 1)}">
-                    <label class="d-flex align-items-center justify-content-between gap-2 mb-2">
-                        <span>حد مدة الجلسة</span>
-                        <input type="checkbox" id="policySessionTtl" ${policy.sessionTtlEnabled ? 'checked' : ''}>
-                    </label>
-                    <label class="form-label w-100 text-end">مدة الجلسة (ساعات)</label>
-                    <input id="policySessionHours" type="number" min="1" max="720" class="swal2-input m-0 w-100" value="${hours}" ${policy.sessionTtlEnabled ? '' : 'disabled'}>
-                </div>`,
-            showCancelButton: true,
-            confirmButtonText: 'حفظ الصلاحيات',
-            cancelButtonText: 'إلغاء',
-            didOpen: () => {
-                const inherit = document.getElementById('policyInheritAll');
-                const fields = document.getElementById('policyOverrideFields');
-                const ttl = document.getElementById('policySessionTtl');
-                const hoursInput = document.getElementById('policySessionHours');
-                inherit?.addEventListener('change', () => fields?.classList.toggle('d-none', inherit.checked));
-                ttl?.addEventListener('change', () => { if (hoursInput) hoursInput.disabled = !ttl.checked; });
-            },
-            preConfirm: () => {
-                const inheritCompanyPolicy = document.getElementById('policyInheritAll')?.checked === true;
-                if (inheritCompanyPolicy) return { inheritCompanyPolicy: true };
-                return {
-                    inheritCompanyPolicy: false,
-                    inheritProofRequired: false,
-                    inheritPhoneLengths: false,
-                    inheritMaxConcurrentDevices: false,
-                    inheritSessionTtl: false,
-                    phoneLengthMode: document.querySelector('input[name="policyPhoneMode"]:checked')?.value || 'all',
-                    proofRequired: document.getElementById('policyProofRequired')?.checked === true,
-                    maxConcurrentDevices: Number(document.getElementById('policyDevices')?.value || 1),
-                    sessionTtlEnabled: document.getElementById('policySessionTtl')?.checked === true,
-                    sessionTtlHours: Number(document.getElementById('policySessionHours')?.value || 8)
-                };
-            }
-        });
-        if (!result.isConfirmed) return;
-        try {
-            await readExecutorApiResponse(await executorApiFetch('/executor-portal/api/employees/' + id + '/execution-policy', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(result.value)
-            }));
-            Swal.fire({ icon: 'success', title: 'تم حفظ صلاحيات المنفذ', timer: 1400, showConfirmButton: false });
-            loadEmployees();
-        } catch (error) { Swal.fire('تعذر الحفظ', error.message, 'error'); }
-    }
-
-    // تعليق / تفعيل موظف
     async function toggleEmployee(id) {
         const res = await executorApiFetch('/executor-portal/api/employees/toggle/' + id, { method: 'POST' });
         try {

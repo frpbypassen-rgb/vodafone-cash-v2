@@ -332,7 +332,7 @@
 
 <%- include('partials/navigation', { emp, activePage: 'tasks' }) %>
 <div class="exo-stage">
-    <%- include('partials/command-bar', { emp }) %>
+    <%- include('partials/command-bar', { emp, companyBalances: typeof companyBalances === 'undefined' ? null : companyBalances }) %>
 </div>
 
 <div id="emergencyOverlay">
@@ -374,8 +374,15 @@
     </div>
     <div class="nav-actions">
         <% if (emp.role === 'manager') { %>
+            <% const liveRows = Array.isArray(companyBalances?.byService) ? companyBalances.byService : []; %>
+            <% if (companyBalances?.multiService && liveRows.length > 1) { %>
+                <% liveRows.forEach((row) => { %>
+                    <span class="nav-btn text-success border border-success border-opacity-25" style="cursor: default; font-weight: 800;" title="<%= row.appliesPoolModel ? row.totalLabel : row.singleLabel %>"><i class="fa-solid fa-wallet me-1"></i> <%= row.shortLabel %> <%= Number(row.appliesPoolModel ? row.totalBalance : row.privateBalance).toLocaleString('en-US', { maximumFractionDigits: 0 }) %> ج.م</span>
+                <% }); %>
+            <% } else { %>
             <span class="nav-btn text-success border border-success border-opacity-25" style="cursor: default; font-weight: 800;" title="إجمالي الرصيد"><i class="fa-solid fa-vault me-1"></i> <%= Number(companyBalances?.totalBalance ?? emp.groupId?.balance ?? 0).toLocaleString('en-US', { maximumFractionDigits: 0 }) %> ج.م</span>
             <span class="nav-btn text-warning border border-warning border-opacity-25" style="cursor: default; font-weight: 800;" title="الرصيد الخاص"><i class="fa-solid fa-wallet me-1"></i> <%= Number(companyBalances?.privateBalance ?? emp.groupId?.balance ?? 0).toLocaleString('en-US', { maximumFractionDigits: 0 }) %> ج.م</span>
+            <% } %>
         <% } %>
         <button class="nav-btn btn-theme shadow-sm" onclick="toggleTheme()" title="المظهر"><i class="fa-solid fa-moon" id="themeIcon"></i></button>
         <a href="/executor-portal/logout" class="nav-btn btn-logout"><i class="fa-solid fa-power-off"></i></a>

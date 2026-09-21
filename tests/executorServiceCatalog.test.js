@@ -21,6 +21,13 @@ describe('executor service catalog', () => {
         expect(executorSupportsTransferType(executor, 'vodafone')).toBe(false);
     });
 
+    test('a cash company can also enable bank transfer without losing cash routing', () => {
+        const executor = { serviceKey: 'vodafone', serviceKeys: ['vodafone', 'bank_account'] };
+        expect(getExecutorSupportedTransferTypes(executor)).toEqual(expect.arrayContaining(['vodafone', 'bank_account']));
+        expect(executorSupportsTransferType(executor, 'bank_account')).toBe(true);
+        expect(executorSupportsTransferType(executor, 'post_account')).toBe(false);
+    });
+
     test('legacy executors without a service remain Vodafone-only', () => {
         expect(executorSupportsTransferType({}, 'vodafone')).toBe(true);
         expect(executorSupportsTransferType({}, 'bank_account')).toBe(false);

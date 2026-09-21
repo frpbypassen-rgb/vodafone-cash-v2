@@ -9,6 +9,8 @@ const Notification = require('../models/Notification');
 const SupportTicket = require('../models/SupportTicket');
 const Transaction = require('../models/Transaction');
 const { syncBotBalance } = require('../utils/helpers');
+const { getExecutorPrimaryServiceKey } = require('../utils/executorServiceCatalog');
+const { fundingFieldsForService } = require('../utils/executorServiceLedger');
 
 const MAX_RECEIPTS = 5;
 const MAX_RECEIPT_BYTES = 5 * 1024 * 1024;
@@ -56,7 +58,7 @@ async function notifyAdmins({ title, message, type = 'deposit_pending' }) {
     }).catch(() => null)));
 }
 
-async function createDepositRequest({ employee, group: requestedGroup, submittedBy, amount, note, receipts, submittedFromAdmin = false }) {
+async function createDepositRequest({ employee, group: requestedGroup, submittedBy, amount, note, receipts, submittedFromAdmin = false, serviceKey }) {
     if ((!employee?.groupId && !requestedGroup) || (employee && employee.role === 'accountant')) throw failure('هذا الحساب لا يملك صلاحية طلب إيداع للشركة.', 403);
     const parsedAmount = Number(amount);
     if (!Number.isFinite(parsedAmount) || parsedAmount <= 0 || parsedAmount > 1000000) throw failure('قيمة الإيداع غير صالحة.');
@@ -71,13 +73,15 @@ async function createDepositRequest({ employee, group: requestedGroup, submitted
     const receiptImages = saveReceipts(receipts, customId);
     const createdAt = new Date();
 
+    const funding = fundingFieldsForService(serviceKey || getExecutorPrimaryServiceKey(group));
     const tx = await Transaction.create({
         userId: 'admin', executorGroupId: group._id, managerGroupId: group.isManagerGroup ? group._id : undefined,
         operatorId: objectId(submitter.id), amount: parsedAmount, costLYD: 0, vodafoneNumber: 'طلب إيداع شركة تنفيذ',
         status: 'deposit_pending', customId, companyName: group.name || 'شركة التنفيذ', employeeName: submitter.name,
         executorName: submitter.name, notes: cleanNote, proofImage: receiptImages[0], proofImages: receiptImages,
         executorWebAlert: submittedFromAdmin ? { type: 'warning', text: `تم تسجيل طلب إيداع إداري ${customId} بقيمة ${parsedAmount} EGP وهو قيد المراجعة.` } : undefined,
-        depositRequest: { note: cleanNote, receiptImages, submittedById: submitter.id, submittedByName: submitter.name, submittedByRole: submittedFromAdmin ? 'admin' : 'executor' }
+        depositRequest: { note: cleanNote, receiptImages, submittedById: submitter.id, submittedByName: submitter.name, submittedByRole: submittedFromAdmin ? 'admin' : 'executor' },
+        ...funding
     });
 
     const messageActor = { name: submitter.name };

@@ -18,6 +18,10 @@ jest.mock('../models/ExecutorBalancePool', () => ({
     find: jest.fn()
 }));
 
+jest.mock('../models/ExecutorGroup', () => ({
+    findById: jest.fn()
+}));
+
 const mockLogAction = jest.fn();
 jest.mock('../services/auditService', () => ({
     logAction: (...args) => mockLogAction(...args)
@@ -27,6 +31,7 @@ const Employee = require('../models/Employee');
 const Transaction = require('../models/Transaction');
 const MobilePushDevice = require('../models/MobilePushDevice');
 const ExecutorBalancePool = require('../models/ExecutorBalancePool');
+const ExecutorGroup = require('../models/ExecutorGroup');
 const {
     getEmployeesWorkspace,
     deleteEmployee
@@ -45,6 +50,17 @@ describe('executor employee workspace', () => {
         ExecutorBalancePool.find.mockReturnValue({
             select: jest.fn().mockReturnValue({
                 lean: jest.fn().mockResolvedValue([])
+            })
+        });
+        ExecutorGroup.findById.mockReturnValue({
+            lean: jest.fn().mockResolvedValue({
+                _id: 'group-1',
+                serviceKey: 'vodafone',
+                serviceKeys: ['vodafone'],
+                manualProofRequired: false,
+                manualAllowedPhoneLengths: [3, 4, 11],
+                maxConcurrentDevices: 1,
+                sessionTtlEnabled: false
             })
         });
     });

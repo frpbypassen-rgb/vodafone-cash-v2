@@ -96,7 +96,7 @@
 <body class="executor-os executor-portal-v2 executor-page-support">
 <%- include('partials/navigation', { emp, activePage: 'support' }) %>
 <div class="exo-stage">
-    <%- include('partials/command-bar', { emp }) %>
+    <%- include('partials/command-bar', { emp, companyBalances: typeof companyBalances === 'undefined' ? null : companyBalances }) %>
 </div>
 
 <header class="support-topbar">

@@ -28,5 +28,6 @@ describe('syncBotBalance company ledger', () => {
         }));
         expect(balance).toBe(800);
         expect(bot.balance).toBe(800);
+        expect(bot.serviceBalances).toEqual({ vodafone: 800 });
     });
 });

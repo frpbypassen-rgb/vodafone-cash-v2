@@ -11,6 +11,7 @@ const User = require('../models/User');
 const ClientEmployee = require('../models/ClientEmployee');
 const SupportTicket = require('../models/SupportTicket');
 const { syncBotBalance } = require('../utils/helpers');
+const { completedTransferLedgerInc } = require('../utils/executorServiceLedger');
 const { logAction } = require('../services/auditService');
 const { acquireLock, releaseLock } = require('../services/lockService');
 const {
@@ -641,8 +642,9 @@ exports.executeViaZaynPay = async (req, res) => {
         localFileNames.push(fileName);
 
         const parentGroupId = emp.groupId.parentGroupId || emp.groupId.parentBotId;
-        if (parentGroupId) { await ExecutorGroup.findByIdAndUpdate(parentGroupId, { $inc: { balance: -tx.amount } }); }
-        await ExecutorGroup.findByIdAndUpdate(emp.groupId._id, { $inc: { balance: -tx.amount } });
+        const ledgerInc = completedTransferLedgerInc(emp.groupId, tx, -tx.amount);
+        if (parentGroupId) { await ExecutorGroup.findByIdAndUpdate(parentGroupId, { $inc: ledgerInc }); }
+        await ExecutorGroup.findByIdAndUpdate(emp.groupId._id, { $inc: ledgerInc });
 
         tx.status = 'completed'; 
         tx.proofImage = localFileNames[0]; 

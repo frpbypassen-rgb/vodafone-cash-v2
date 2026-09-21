@@ -209,6 +209,29 @@ const serializeCompanyExecutionPolicy = (body = {}) => {
     };
 };
 
+const normalizeAdminEmployeePolicyBody = (body = {}) => {
+    if (parseBooleanFlag(body.inheritCompanyPolicy) === true) {
+        return { inheritCompanyPolicy: true };
+    }
+    return {
+        inheritCompanyPolicy: false,
+        inheritProofRequired: false,
+        inheritPhoneLengths: false,
+        inheritMaxConcurrentDevices: false,
+        inheritSessionTtl: false,
+        phoneLengthMode: body.phoneLengthMode,
+        allowedPhoneLengths: body.allowedPhoneLengths,
+        allowPhone3: body.allowPhone3,
+        allowPhone4: body.allowPhone4,
+        allowPhone11: body.allowPhone11,
+        proofRequired: parseBooleanFlag(body.proofRequired) === true,
+        maxConcurrentDevices: body.maxConcurrentDevices,
+        sessionTtlEnabled: parseBooleanFlag(body.sessionTtlEnabled) === true,
+        sessionTtlHours: body.sessionTtlHours,
+        sessionTtlSeconds: body.sessionTtlSeconds
+    };
+};
+
 const serializeEmployeePolicyOverride = (body = {}) => {
     const inheritAll = parseBooleanFlag(body.inheritCompanyPolicy);
     if (inheritAll === true) return {};
@@ -269,6 +292,7 @@ module.exports = {
     serializeAllowedPhoneLengths,
     serializeCompanyExecutionPolicy,
     serializeEmployeePolicyOverride,
+    normalizeAdminEmployeePolicyBody,
     toPublicExecutionPolicy,
     validateSenderPhoneDigits,
     webSessionMaxAgeMsForPolicy
