@@ -20,7 +20,8 @@ jest.mock('../services/executorAccountService', () => ({
 }));
 jest.mock('../services/mobileWebParityService', () => ({
     deleteEmployee: jest.fn(),
-    getEmployeesWorkspace: jest.fn()
+    getEmployeesWorkspace: jest.fn(),
+    updateEmployeeExecutionPolicy: jest.fn()
 }));
 jest.mock('../services/executorBalancePoolService', () => ({
     ExecutorBalancePoolError: class ExecutorBalancePoolError extends Error {
@@ -321,6 +322,22 @@ describe('Executor dashboard group ownership', () => {
         expect(res.json).toHaveBeenCalledWith(expect.objectContaining({
             completedToday: [],
             completedTodaySummary: { count: 3, amount: 900 }
+        }));
+    });
+
+    test('refuses manager saves of per-executor execution policy overrides', async () => {
+        const req = {
+            params: { id: 'employee-2' },
+            managerEmp: { _id: 'manager-1', role: 'manager', groupId: 'group-1' },
+            body: { proofRequired: true }
+        };
+        const res = response();
+        await controller.postEmployeeExecutionPolicy(req, res);
+        expect(mobileWebParityService.updateEmployeeExecutionPolicy).not.toHaveBeenCalled();
+        expect(res.status).toHaveBeenCalledWith(403);
+        expect(res.json).toHaveBeenCalledWith(expect.objectContaining({
+            success: false,
+            code: 'ADMIN_ONLY'
         }));
     });
 });

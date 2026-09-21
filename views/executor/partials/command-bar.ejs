@@ -7,6 +7,8 @@
     const exoTotal = snapshot ? Number(snapshot.totalBalance || 0) : exoPrivate;
     const exoBalanceClass = exoPrivate > 0 ? 'is-positive' : (exoPrivate < 0 ? 'is-negative' : 'is-zero');
     const formatEgp = (value) => Number(value || 0).toLocaleString('en-US', { maximumFractionDigits: 2 });
+    const serviceRows = Array.isArray(snapshot?.byService) ? snapshot.byService : [];
+    const multiService = Boolean(snapshot?.multiService) && serviceRows.length > 1;
 %>
 <header class="exo-command">
     <div class="exo-who">
@@ -18,6 +20,31 @@
     </div>
     <div class="exo-command-actions">
         <% if (exoShowBalance) { %>
+            <% if (multiService) { %>
+                <% serviceRows.forEach((row) => { %>
+                    <% if (row.appliesPoolModel) { %>
+                        <span class="exo-chip exo-balance <%= Number(row.totalBalance) > 0 ? 'is-positive' : '' %>" data-company-balance="service-total" data-service-key="<%= row.serviceKey %>" title="<%= row.totalLabel %>">
+                            <i class="fa-solid fa-vault"></i>
+                            <span class="exo-balance-full"><%= row.totalLabel %></span>
+                            <span class="exo-balance-short"><%= row.shortLabel %></span>
+                            <strong dir="ltr"><%= formatEgp(row.totalBalance) %> ج.م</strong>
+                        </span>
+                        <span class="exo-chip exo-balance <%= Number(row.privateBalance) > 0 ? 'is-positive' : (Number(row.privateBalance) < 0 ? 'is-negative' : 'is-zero') %>" data-company-balance="service-private" data-service-key="<%= row.serviceKey %>" title="<%= row.privateLabel %>">
+                            <i class="fa-solid fa-wallet"></i>
+                            <span class="exo-balance-full"><%= row.privateLabel %></span>
+                            <span class="exo-balance-short">خاص <%= row.shortLabel %></span>
+                            <strong dir="ltr"><%= formatEgp(row.privateBalance) %> ج.م</strong>
+                        </span>
+                    <% } else { %>
+                        <span class="exo-chip exo-balance <%= Number(row.privateBalance) > 0 ? 'is-positive' : (Number(row.privateBalance) < 0 ? 'is-negative' : 'is-zero') %>" data-company-balance="service-private" data-service-key="<%= row.serviceKey %>" title="<%= row.singleLabel %>">
+                            <i class="fa-solid fa-building-columns"></i>
+                            <span class="exo-balance-full"><%= row.singleLabel %></span>
+                            <span class="exo-balance-short"><%= row.shortLabel %></span>
+                            <strong dir="ltr"><%= formatEgp(row.privateBalance) %> ج.م</strong>
+                        </span>
+                    <% } %>
+                <% }); %>
+            <% } else { %>
             <span id="executorTotalBalance" class="exo-chip exo-balance <%= exoTotal > 0 ? 'is-positive' : '' %>" data-company-balance="total" title="إجمالي الرصيد: الرصيد الخاص + مجموعات الرصيد + المنفذين المنفردين (كما تراه الإدارة).">
                 <i class="fa-solid fa-vault"></i>
                 <span class="exo-balance-full">إجمالي الرصيد</span>
@@ -30,6 +57,7 @@
                 <span class="exo-balance-short">خاص</span>
                 <strong dir="ltr"><%= formatEgp(exoPrivate) %> ج.م</strong>
             </span>
+            <% } %>
         <% } %>
         <%- typeof extras === 'string' ? extras : '' %>
         <button class="exo-icon-btn" type="button" onclick="typeof toggleTheme === 'function' ? toggleTheme() : toggleExecutorTheme()" data-executor-theme-toggle title="المظهر">

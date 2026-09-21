@@ -19246,25 +19246,39 @@ class _ExecutorSettingsScreenState extends State<ExecutorSettingsScreen> {
                 label: 'الخدمة',
                 value: serviceLabel(company['serviceKey']?.toString()),
               ),
-              if (company['totalBalance'] != null)
-                DetailLine(
-                  label: 'إجمالي الرصيد',
-                  value:
-                      '${formatEgpAmount(numberValue(company['totalBalance']))} ج.م',
-                ),
-              if (company['privateBalance'] != null)
-                DetailLine(
-                  label: 'الرصيد الخاص',
-                  value:
-                      '${formatEgpAmount(numberValue(company['privateBalance']))} ج.م',
-                ),
-              if (company['balance'] != null &&
-                  company['privateBalance'] == null)
-                DetailLine(
-                  label: 'رصيد الشركة',
-                  value:
-                      '${formatEgpAmount(numberValue(company['balance']))} ج.م',
-                ),
+              if (company['serviceBalances'] is List &&
+                  (company['serviceBalances'] as List).length > 1)
+                ...[
+                  for (final raw in company['serviceBalances'] as List)
+                    if (raw is Map)
+                      DetailLine(
+                        label:
+                            '${raw['appliesPoolModel'] == true ? (raw['totalLabel'] ?? raw['label'] ?? '') : (raw['singleLabel'] ?? raw['label'] ?? '')}',
+                        value:
+                            '${formatEgpAmount(numberValue(raw['appliesPoolModel'] == true ? raw['totalBalance'] : raw['privateBalance']))} ج.م',
+                      ),
+                ]
+              else ...[
+                if (company['totalBalance'] != null)
+                  DetailLine(
+                    label: 'إجمالي الرصيد',
+                    value:
+                        '${formatEgpAmount(numberValue(company['totalBalance']))} ج.م',
+                  ),
+                if (company['privateBalance'] != null)
+                  DetailLine(
+                    label: 'الرصيد الخاص',
+                    value:
+                        '${formatEgpAmount(numberValue(company['privateBalance']))} ج.م',
+                  ),
+                if (company['balance'] != null &&
+                    company['privateBalance'] == null)
+                  DetailLine(
+                    label: 'رصيد الشركة',
+                    value:
+                        '${formatEgpAmount(numberValue(company['balance']))} ج.م',
+                  ),
+              ],
               if (executor['workingBalance'] != null)
                 DetailLine(
                   label: () {
@@ -19987,9 +20001,7 @@ class _ExecutorEmployeesScreenState extends State<ExecutorEmployeesScreen>
           onResetPassword: () => _resetPassword(employee),
           onToggleStatus: () => _toggleStatus(employee),
           onToggleReports: () => _toggleReportsPermission(employee),
-          onExecutionPolicy: employee['role'] == 'manager'
-              ? null
-              : () => _editExecutionPolicy(employee),
+          onExecutionPolicy: null,
           onReport: () => _openReport(employee),
         ),
       ),
@@ -21124,6 +21136,14 @@ class ExecutorEmployeeDetailsScreen extends StatelessWidget {
                     onPressed: busy ? null : onExecutionPolicy,
                     icon: const Icon(Icons.shield_outlined),
                     label: const Text('صلاحيات التنفيذ'),
+                  ),
+                ] else ...[
+                  const SizedBox(height: 9),
+                  Text(
+                    'صلاحيات التنفيذ لهذا المنفذ تُدار من الإدارة المركزية فقط.',
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      fontWeight: FontWeight.w700,
+                    ),
                   ),
                 ],
                 const SizedBox(height: 9),

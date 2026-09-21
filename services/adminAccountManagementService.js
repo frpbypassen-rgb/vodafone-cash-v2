@@ -21,7 +21,10 @@ const {
 } = require('./accountCodeService');
 const {
     getExecutorServiceOptions,
-    normalizeExecutorServiceKey
+    normalizeExecutorServiceKey,
+    collectEnabledServiceKeysFromBody,
+    getExecutorEnabledServiceKeys,
+    getExecutorSupportedTransferTypes
 } = require('../utils/executorServiceCatalog');
 const { buildMarginStorage } = require('../utils/agencyPricing');
 const {
@@ -467,6 +470,23 @@ const updateExecutor = async ({ account, payload }) => {
         account.serviceKey = serviceKey;
     }
 
+    const nextServiceKeys = collectEnabledServiceKeysFromBody(payload, account.serviceKey);
+    const previousServiceKeys = getExecutorEnabledServiceKeys(account);
+    const removedServices = previousServiceKeys.filter((key) => !nextServiceKeys.includes(key));
+    if (removedServices.length) {
+        const removedTypes = [...new Set(removedServices.flatMap((key) => getExecutorSupportedTransferTypes(key)))];
+        const inFlightForRemoved = await Transaction.countDocuments({
+            $or: [{ executorGroupId: account._id }, { managerGroupId: account._id }],
+            status: { $in: ['processing', 'accepted'] },
+            $or: [
+                { canonicalServiceKey: { $in: removedServices } },
+                { transferType: { $in: removedTypes } }
+            ]
+        });
+        if (inFlightForRemoved > 0) throw new AdminAccountManagementError('ACTIVE_TASKS', 'serviceKeys');
+    }
+    account.serviceKeys = nextServiceKeys;
+
     if (!account.isManagerBot && payload.parentGroupId) {
         assertValidId(payload.parentGroupId);
         const manager = await ExecutorGroup.findOne({
@@ -554,9 +574,13 @@ const safeSnapshot = (type, account) => {
     if (type === 'executor-employee') {
         snapshot.groupId = String(account.groupId || '');
         snapshot.telegramId = account.telegramId || '';
+        snapshot.executionPolicyOverride = account.executionPolicyOverride || {};
+        snapshot.inheritCompanyPolicy = !account.executionPolicyOverride
+            || Object.keys(account.executionPolicyOverride.toObject ? account.executionPolicyOverride.toObject() : account.executionPolicyOverride).length === 0;
     }
     if (type === 'executor') {
         snapshot.serviceKey = normalizeExecutorServiceKey(account.serviceKey);
+        snapshot.serviceKeys = getExecutorEnabledServiceKeys(account);
         snapshot.parentGroupId = String(account.parentGroupId || account.parentBotId || '');
         snapshot.isApiBot = Boolean(account.isApiBot);
         if (account.isApiBot) {
@@ -599,6 +623,19 @@ const updateEditableAccount = async ({ type, id, payload, uploads = {} }) => {
         const uploadedDocumentKinds = applyUploadedDocuments(account, uploads);
         await account.save();
         if (accountCodeChange) await accountCodeChange.finalize();
+
+        if (definition.type === 'executor-employee') {
+            const { applyEmployeeExecutionPolicy } = require('./mobileWebParityService');
+            const { normalizeAdminEmployeePolicyBody } = require('../utils/executorManualPolicy');
+            const group = await ExecutorGroup.findById(account.groupId);
+            if (group && account.role !== 'manager') {
+                await applyEmployeeExecutionPolicy({
+                    employee: account,
+                    group,
+                    body: normalizeAdminEmployeePolicyBody(payload)
+                });
+            }
+        }
 
         if (updateMetadata.serviceChanged) {
             await Settings.updateMany({}, { $pull: { autoRouteRules: { executorGroupId: account._id } } }).catch(() => {});

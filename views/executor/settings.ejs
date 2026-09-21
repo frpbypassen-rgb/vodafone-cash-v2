@@ -24,7 +24,7 @@
 <body class="executor-os executor-portal-v2 executor-page-settings">
 <%- include('partials/navigation', { emp, activePage: 'settings' }) %>
 <div class="exo-stage">
-    <%- include('partials/command-bar', { emp }) %>
+    <%- include('partials/command-bar', { emp, companyBalances: typeof companyBalances === 'undefined' ? null : companyBalances }) %>
 </div>
 
 <header class="settings-topbar">
@@ -69,18 +69,7 @@
     <% const isManager = emp.role === 'manager'; const isOperator = emp.role === 'operator'; const isAccountant = emp.role === 'accountant'; const isExternal = emp.role === 'external'; %>
     <section class="executor-summary-grid settings-summary-grid <%= isAccountant || isExternal ? 'cols-2' : (isOperator ? 'cols-3' : '') %> mb-3">
         <% if (overview.permissions?.canViewCompanyBalance) { %>
-            <article class="executor-summary-card" style="--summary-color: var(--executor-green)" data-company-balance="total">
-                <span class="summary-icon"><i class="fa-solid fa-vault"></i></span>
-                <small>إجمالي الرصيد</small>
-                <strong dir="ltr"><%= Number(overview.company?.totalBalance ?? overview.company?.balance ?? 0).toLocaleString('en-US', { maximumFractionDigits: 2 }) %> ج.م</strong>
-                <span class="summary-help">الخاص + مجموعات الرصيد + المنفردين. كما تراه الإدارة.</span>
-            </article>
-            <article class="executor-summary-card" style="--summary-color: var(--executor-gold)" data-company-balance="private">
-                <span class="summary-icon"><i class="fa-solid fa-wallet"></i></span>
-                <small>الرصيد الخاص</small>
-                <strong dir="ltr"><%= Number(overview.company?.privateBalance ?? overview.company?.balance ?? 0).toLocaleString('en-US', { maximumFractionDigits: 2 }) %> ج.م</strong>
-                <span class="summary-help">رأس مال الشركة للمدير فقط. تمويل منفّذ خارجي يُخصم من هنا.</span>
-            </article>
+            <%- include('partials/service-balance-cards', { companyBalances }) %>
         <% } %>
         <% if (isExternal) { %>
             <article class="executor-summary-card" style="--summary-color: var(--executor-green)">

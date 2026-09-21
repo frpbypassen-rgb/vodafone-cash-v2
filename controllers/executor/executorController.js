@@ -11,6 +11,7 @@ const Admin = require('../../models/Admin');
 const transferService = require('../../services/transferService');
 const { logAction } = require('../../services/auditService');
 const { acquireLock, releaseLock } = require('../../services/lockService');
+const { completedTransferLedgerInc } = require('../../utils/executorServiceLedger');
 
 /**
  * GET /executor/live-tasks — المهام المتاحة
@@ -128,11 +129,12 @@ const completeTask = async (req, res) => {
             return res.json({ success: false, message: 'الطلب غير متاح للإنهاء' });
         }
 
-        // خصم العهدة
+        // خصم العهدة من رصيد الخدمة الصحيحة (الكاش أو البنك)، لا من إجمالي مختلط
+        const ledgerInc = completedTransferLedgerInc(emp.groupId, tx, -tx.amount);
         if (emp.groupId.parentGroupId) {
-            await ExecutorGroup.findByIdAndUpdate(emp.groupId.parentGroupId, { $inc: { balance: -tx.amount } });
+            await ExecutorGroup.findByIdAndUpdate(emp.groupId.parentGroupId, { $inc: ledgerInc });
         }
-        await ExecutorGroup.findByIdAndUpdate(emp.groupId._id, { $inc: { balance: -tx.amount } });
+        await ExecutorGroup.findByIdAndUpdate(emp.groupId._id, { $inc: ledgerInc });
 
         // إرسال الإثبات
         const buffer = Buffer.from(imageBase64.replace(/^data:image\/\w+;base64,/, ''), 'base64');

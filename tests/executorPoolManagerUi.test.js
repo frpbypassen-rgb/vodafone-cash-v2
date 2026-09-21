@@ -21,13 +21,14 @@ describe('executor pool manager UI contracts', () => {
         expect(commandBar).toContain('exo-balance-short">إجمالي');
         expect(commandBar).toContain('exo-balance-full">الرصيد الخاص');
         expect(commandBar).toContain('exo-balance-short">خاص');
+        expect(commandBar).toContain('data-company-balance="service-private"');
         expect(osCss).toContain('.exo-chip.exo-balance .exo-balance-short');
         expect(osCss).not.toMatch(/\.exo-chip span \{ display: none; \}/);
     });
 
     test('employees view uses consistent AR labels and a solo vs pool workspace', () => {
-        expect(employeesView).toContain('إجمالي الرصيد');
-        expect(employeesView).toContain('الرصيد الخاص');
+        expect(employeesView).not.toContain('editExecutionPolicy');
+        expect(employeesView).toContain("include('partials/service-balance-cards'");
         expect(employeesView).toContain('مجموعة رصيد');
         expect(employeesView).toContain('منفّذ خارجي');
         expect(employeesView).toContain('id="externalPoolWorkspace"');
@@ -44,13 +45,15 @@ describe('executor pool manager UI contracts', () => {
     });
 
     test('deposits and settings explain إجمالي vs خاص for managers', () => {
+        const balanceCards = read('views/executor/partials/service-balance-cards.ejs');
         expect(depositsView).toContain("include('partials/command-bar'");
-        expect(depositsView).toContain('data-company-balance="total"');
-        expect(depositsView).toContain('data-company-balance="private"');
+        expect(depositsView).toContain("include('partials/service-balance-cards'");
         expect(depositsView).toContain('قبول وإضافة للرصيد الخاص');
-        expect(settingsView).toContain('data-company-balance="total"');
-        expect(settingsView).toContain('data-company-balance="private"');
-        expect(settingsView).toContain('تمويل منفّذ خارجي يُخصم من هنا');
+        expect(settingsView).toContain("include('partials/service-balance-cards'");
+        expect(balanceCards).toContain('تمويل منفّذ خارجي يُخصم من هنا');
+        expect(balanceCards).toContain('إجمالي الرصيد');
+        expect(balanceCards).toContain('row.privateLabel');
+        expect(balanceCards).toContain('row.singleLabel');
     });
 
     test('portal pool mutations stay on manager CSRF-backed routes', () => {

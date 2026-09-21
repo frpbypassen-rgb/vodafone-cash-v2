@@ -98,7 +98,7 @@
 <body class="executor-os">
     <%- include('partials/navigation', { emp, activePage: 'deposits', showMfaNotice }) %>
     <div class="exo-stage">
-        <%- include('partials/command-bar', { emp }) %>
+        <%- include('partials/command-bar', { emp, companyBalances: typeof companyBalances === 'undefined' ? null : companyBalances }) %>
     </div>
     <% const isExternalDepositView = depositScope === 'external'; %>
     <main class="deposit-main">
@@ -119,16 +119,7 @@
                         <small class="deposit-balance-help"><%= workingBalance && workingBalance.pool ? 'تشارك هذا الرصيد مع باقي أعضاء المجموعة. إيصال التمويل يظهر لك وحدك.' : 'رصيدك الخاص كمنفّذ خارجي منفرد.' %></small>
                     </div>
                 <% } else { %>
-                    <div class="deposit-balance-card" data-company-balance="total">
-                        <span><i class="fa-solid fa-vault ms-1"></i> إجمالي الرصيد</span>
-                        <strong dir="ltr"><%= Number(companyBalances?.totalBalance ?? emp.groupId?.balance ?? 0).toLocaleString('en-US', { maximumFractionDigits: 2 }) %> EGP</strong>
-                        <small class="deposit-balance-help">الخاص + مجموعات الرصيد + المنفردين. كما تراه الإدارة.</small>
-                    </div>
-                    <div class="deposit-balance-card deposit-balance-private" data-company-balance="private">
-                        <span><i class="fa-solid fa-wallet ms-1"></i> الرصيد الخاص</span>
-                        <strong dir="ltr"><%= Number(companyBalances?.privateBalance ?? emp.groupId?.balance ?? 0).toLocaleString('en-US', { maximumFractionDigits: 2 }) %> EGP</strong>
-                        <small class="deposit-balance-help">رأس مال الشركة للمدير. قبول إيداع الإدارة يزيد الرصيد الخاص.</small>
-                    </div>
+                    <%- include('partials/service-balance-cards', { companyBalances, boxVariant: 'cards' }) %>
                 <% } %>
             </div>
         </header>

@@ -1,0 +1,45 @@
+<%
+    const snapshot = typeof companyBalances === 'object' && companyBalances ? companyBalances : null;
+    const formatEgp = (value) => Number(value || 0).toLocaleString('en-US', { maximumFractionDigits: typeof digits === 'number' ? digits : 2 });
+    const rows = Array.isArray(snapshot?.byService) ? snapshot.byService : [];
+    const multi = Boolean(snapshot?.multiService) && rows.length > 1;
+    const variant = typeof boxVariant === 'string' ? boxVariant : 'cards';
+%>
+<% if (multi) { %>
+    <% rows.forEach((row) => { %>
+        <% if (row.appliesPoolModel) { %>
+            <article class="executor-summary-card" style="--summary-color: var(--executor-green)" data-company-balance="service-total" data-service-key="<%= row.serviceKey %>">
+                <span class="summary-icon"><i class="fa-solid fa-vault"></i></span>
+                <small><%= row.totalLabel %></small>
+                <strong dir="ltr"><%= formatEgp(row.totalBalance) %></strong>
+                <span class="summary-help">الخاص + مجموعات الرصيد + المنفردين لهذه الخدمة.</span>
+            </article>
+            <article class="executor-summary-card" style="--summary-color: var(--executor-gold)" data-company-balance="service-private" data-service-key="<%= row.serviceKey %>">
+                <span class="summary-icon"><i class="fa-solid fa-wallet"></i></span>
+                <small><%= row.privateLabel %></small>
+                <strong dir="ltr"><%= formatEgp(row.privateBalance) %></strong>
+                <span class="summary-help">رأس مال هذه الخدمة للمدير. تمويل منفّذ خارجي يُخصم من الخدمة الأساسية.</span>
+            </article>
+        <% } else { %>
+            <article class="executor-summary-card" style="--summary-color: var(--executor-blue)" data-company-balance="service-private" data-service-key="<%= row.serviceKey %>">
+                <span class="summary-icon"><i class="fa-solid fa-building-columns"></i></span>
+                <small><%= row.singleLabel %></small>
+                <strong dir="ltr"><%= formatEgp(row.privateBalance) %></strong>
+                <span class="summary-help">رصيد هذه الخدمة منفصل ولا يُخلط مع الكاش.</span>
+            </article>
+        <% } %>
+    <% }); %>
+<% } else if (variant === 'cards') { %>
+    <article class="executor-summary-card" style="--summary-color: var(--executor-green)" data-company-balance="total">
+        <span class="summary-icon"><i class="fa-solid fa-vault"></i></span>
+        <small>إجمالي الرصيد</small>
+        <strong id="summaryTotalBalance" dir="ltr"><%= formatEgp(snapshot?.totalBalance ?? snapshot?.privateBalance ?? 0) %></strong>
+        <span class="summary-help">الخاص + مجموعات الرصيد + المنفردين. كما تراه الإدارة.</span>
+    </article>
+    <article class="executor-summary-card" style="--summary-color: var(--executor-gold)" data-company-balance="private">
+        <span class="summary-icon"><i class="fa-solid fa-wallet"></i></span>
+        <small>الرصيد الخاص</small>
+        <strong id="summaryPrivateBalance" dir="ltr"><%= formatEgp(snapshot?.privateBalance ?? 0) %></strong>
+        <span class="summary-help">رأس مال الشركة للمدير فقط. تمويل منفّذ خارجي يُخصم من هنا.</span>
+    </article>
+<% } %>

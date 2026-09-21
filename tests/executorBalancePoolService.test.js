@@ -98,13 +98,24 @@ describe('executor shared-balance pools', () => {
                 { role: 'external', balance: 800, balancePoolId: null }
             ]
         });
-        expect(snapshot).toEqual({
+        expect(snapshot).toMatchObject({
             groupId: 'group-1',
             name: 'شركة التنفيذ',
             privateBalance: 7000,
             allocatedBalance: 3300,
-            totalBalance: 10300
+            totalBalance: 10300,
+            primaryServiceKey: 'vodafone',
+            multiService: false
         });
+        expect(snapshot.byService).toEqual(expect.arrayContaining([
+            expect.objectContaining({
+                serviceKey: 'vodafone',
+                privateBalance: 7000,
+                allocatedBalance: 3300,
+                totalBalance: 10300,
+                appliesPoolModel: true
+            })
+        ]));
     });
 
     test('manager can name a pool and attach external executors; one membership only', async () => {

@@ -389,7 +389,11 @@
                 <i class="fa-solid fa-box-archive me-1"></i> تم نقل حساب المنفذ إلى الأرشيف وحفظ جميع عملياته.
             </div>
         <% } %>
-        <% if (typeof query !== 'undefined' && query.serviceUpdated) { %>
+        <% if (typeof query !== 'undefined' && query.servicesUpdated) { %>
+            <div class="alert alert-success fw-bold border-0 shadow-sm" style="border-radius:8px;">
+                <i class="fa-solid fa-circle-check me-1"></i> تم تحديث خدمات المنفذ. تظهر أرصدة الكاش والتحويل البنكي منفصلة عند تفعيل أكثر من خدمة.
+            </div>
+        <% } %>
             <div class="alert alert-success fw-bold border-0 shadow-sm" style="border-radius:8px;">
                 <i class="fa-solid fa-circle-check me-1"></i> تم تحديث خدمة المنفذ. أعد اختياره من إعدادات التوجيه التلقائي للخدمة الجديدة.
             </div>
@@ -460,11 +464,23 @@
 
                                         <div class="balance-box text-center">
                                             <% const hasLiveApiServiceCredit = bot.isApiBot && bot.liveApiServiceCredit !== null && bot.liveApiServiceCredit !== undefined; %>
-                                            <div class="text-muted small fw-bold mb-2"><i class="fa-solid <%= bot.isApiBot ? 'fa-satellite-dish' : 'fa-wallet' %> me-1 opacity-50"></i> <%= bot.isApiBot ? 'رصيد الخدمة المباشر' : 'الرصيد / المديونية الحالية' %></div>
+                                            <div class="text-muted small fw-bold mb-2"><i class="fa-solid <%= bot.isApiBot ? 'fa-satellite-dish' : 'fa-wallet' %> me-1 opacity-50"></i> <%= bot.isApiBot ? 'رصيد الخدمة المباشر' : 'الأرصدة حسب الخدمة' %></div>
                                             <% if (bot.isApiBot && !hasLiveApiServiceCredit) { %>
                                                 <div class="small text-danger fw-bold">تعذر الاستعلام عن رصيد المزود</div>
+                                            <% } else if (bot.isApiBot) { %>
+                                                <% const displayedBalance = Number(bot.liveApiServiceCredit); %>
+                                                <div class="mono-num <%= displayedBalance < 0 ? 'text-danger' : 'text-success' %>" dir="ltr"><%= displayedBalance.toFixed(2) %> <span class="fs-6 text-muted">EGP</span></div>
+                                            <% } else if (Array.isArray(bot.serviceBalances) && bot.multiService) { %>
+                                                <div class="d-grid gap-2 text-start">
+                                                    <% bot.serviceBalances.forEach((row) => { %>
+                                                        <div class="d-flex justify-content-between align-items-center">
+                                                            <span class="small fw-bold text-muted"><%= row.appliesPoolModel ? row.totalLabel : row.singleLabel %></span>
+                                                            <strong class="mono-num <%= Number(row.appliesPoolModel ? row.totalBalance : row.privateBalance) < 0 ? 'text-danger' : 'text-success' %>" dir="ltr"><%= Number(row.appliesPoolModel ? row.totalBalance : row.privateBalance).toFixed(2) %></strong>
+                                                        </div>
+                                                    <% }); %>
+                                                </div>
                                             <% } else { %>
-                                                <% const displayedBalance = hasLiveApiServiceCredit ? Number(bot.liveApiServiceCredit) : Number(bot.balance || 0); %>
+                                                <% const displayedBalance = Number(bot.balance || 0); %>
                                                 <div class="mono-num <%= displayedBalance < 0 ? 'text-danger' : 'text-success' %>" dir="ltr"><%= displayedBalance.toFixed(2) %> <span class="fs-6 text-muted">EGP</span></div>
                                             <% } %>
                                             <% if (hasLiveApiServiceCredit && bot.liveApiBalanceCheckedAt) { %>
@@ -483,6 +499,19 @@
                                                     <% }) %>
                                                 </select>
                                                 <button type="submit" class="btn btn-primary" title="حفظ خدمة المنفذ" aria-label="حفظ خدمة المنفذ"><i class="fa-solid fa-floppy-disk"></i></button>
+                                            </form>
+                                            <form action="/executor/<%= bot._id %>/enabled-services" method="POST" class="mb-2 p-2 rounded-3 border" style="background: rgba(0,0,0,0.02);">
+                                                <div class="small fw-bold text-muted mb-2">خدمات إضافية</div>
+                                                <input type="hidden" name="enabledServices" value="<%= bot.serviceKey %>">
+                                                <div class="d-flex flex-wrap gap-2">
+                                                    <% (executorServiceOptions || []).forEach((service) => { %>
+                                                        <label class="form-check small fw-bold m-0">
+                                                            <input class="form-check-input" type="checkbox" name="enabledServices" value="<%= service.key %>" <%= (bot.serviceKeys || [bot.serviceKey]).includes(service.key) ? 'checked' : '' %> <%= service.key === bot.serviceKey ? 'disabled' : '' %>>
+                                                            <%= service.shortLabel || service.label %>
+                                                        </label>
+                                                    <% }); %>
+                                                </div>
+                                                <button type="submit" class="btn btn-sm btn-outline-primary fw-bold mt-2 w-100">حفظ الخدمات</button>
                                             </form>
                                         <% } %>
                                         <div class="d-flex justify-content-between align-items-center p-3 rounded-4 mb-3 border" style="background: rgba(0,0,0,0.02);">

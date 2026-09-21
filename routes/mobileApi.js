@@ -24,6 +24,7 @@ const correlationId = require('../middlewares/correlationId');
 const requireIdempotencyKey = require('../middlewares/requireIdempotencyKey');
 const { logAction } = require('../services/auditService');
 const { verifyAndUpgradePassword } = require('../utils/helpers');
+const { completedTransferLedgerInc } = require('../utils/executorServiceLedger');
 const { proofSourceUrl, saveProofImage, streamProofImage } = require('../services/proofStorageService');
 const { createReceiptImageUrl } = require('../services/receiptShareService');
 const { getClientReceiptProofIds } = require('../services/clientReceiptService');
@@ -1616,19 +1617,14 @@ router.patch('/executor/employees/:id/execution-policy', authenticateJWT, async 
         if (req.user.accountType !== 'executor') {
             return sendMobileError(res, 403, 'FORBIDDEN', 'صلاحيات غير كافية', req.correlationId);
         }
-        const result = await mobileWebParityService.updateEmployeeExecutionPolicy({
-            executorId: req.user.userId,
-            targetId: req.params.id,
-            body: req.body
-        });
-        return res.json({ success: true, ...result });
+        return sendMobileError(
+            res,
+            403,
+            'ADMIN_ONLY',
+            'تعديل صلاحيات المنفذ متاح للإدارة المركزية فقط.',
+            req.correlationId
+        );
     } catch (error) {
-        if (error.message === 'FORBIDDEN' || error.message === 'UNAUTHORIZED') {
-            return sendMobileError(res, 403, 'FORBIDDEN', 'هذه العملية متاحة لمدير التنفيذ فقط.', req.correlationId);
-        }
-        if (error.message === 'NOT_FOUND') {
-            return sendMobileError(res, 404, 'NOT_FOUND', 'الموظف غير موجود.', req.correlationId);
-        }
         return sendServerError(res, req);
     }
 });
@@ -2449,11 +2445,12 @@ router.post('/executor/complete-task/:id', authenticateJWT, completeTaskValidato
         });
         const systemReceiptId = saveProofImage(receiptBase64, `${tx.customId || tx._id}_manual`);
 
+        const ledgerInc = completedTransferLedgerInc(emp.groupId, tx, -tx.amount);
         if (emp.groupId && emp.groupId.parentGroupId) {
-            await ExecutorGroup.findByIdAndUpdate(emp.groupId.parentGroupId, { $inc: { balance: -tx.amount } });
+            await ExecutorGroup.findByIdAndUpdate(emp.groupId.parentGroupId, { $inc: ledgerInc });
         }
         if (emp.groupId) {
-            await ExecutorGroup.findByIdAndUpdate(emp.groupId._id, { $inc: { balance: -tx.amount } });
+            await ExecutorGroup.findByIdAndUpdate(emp.groupId._id, { $inc: ledgerInc });
         }
 
         const savedFileIds = uploadedImages.map((image, index) => (

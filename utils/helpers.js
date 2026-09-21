@@ -5,6 +5,8 @@
 const ExecutorGroup = require('../models/ExecutorGroup');
 const Transaction = require('../models/Transaction');
 const bcrypt = require('bcryptjs');
+const { getExecutorPrimaryServiceKey } = require('./executorServiceCatalog');
+const { ledgerServiceKeyForTransaction } = require('./executorServiceLedger');
 
 // ────────────────────────────────────────────────────────────
 // 1️⃣ مزامنة رصيد البوت المنفذ من العمليات المالية
@@ -38,17 +40,22 @@ const syncBotBalance = async (botId) => {
         };
     }
 
+    const primary = getExecutorPrimaryServiceKey(bot);
     const txs = await Transaction.find(queryFilter);
-    let computedBalance = 0;
-    txs.forEach(t => {
-        if (t.status === 'completed') computedBalance -= t.amount; 
-        else if (t.status === 'deposit') computedBalance += t.amount; 
-        else if (t.status === 'deduction') computedBalance -= Math.abs(t.amount); 
+    const byService = {};
+    txs.forEach((t) => {
+        const serviceKey = ledgerServiceKeyForTransaction(t, primary);
+        if (!serviceKey) return;
+        const current = Number(byService[serviceKey] || 0);
+        if (t.status === 'completed') byService[serviceKey] = current - Number(t.amount || 0);
+        else if (t.status === 'deposit') byService[serviceKey] = current + Number(t.amount || 0);
+        else if (t.status === 'deduction') byService[serviceKey] = current - Math.abs(Number(t.amount || 0));
     });
 
-    bot.balance = computedBalance;
+    bot.serviceBalances = byService;
+    bot.balance = Number(byService[primary] || 0);
     await bot.save();
-    return computedBalance;
+    return bot.balance;
 };
 
 // ────────────────────────────────────────────────────────────
