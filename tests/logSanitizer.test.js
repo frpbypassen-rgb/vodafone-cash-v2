@@ -12,6 +12,8 @@ describe('structured log sanitizer', () => {
         const sanitized = sanitizeLogValue({
             password: 'DoNotLogThis',
             accessToken: 'token-value',
+            walletPin: '1234',
+            pin: '5678',
             tx: {
                 vodafoneNumber: '01108172258',
                 serviceDetails: { clientPhone: '0940719000' },
@@ -22,6 +24,8 @@ describe('structured log sanitizer', () => {
         expect(sanitized).toEqual({
             password: '[REDACTED]',
             accessToken: '[REDACTED]',
+            walletPin: '[REDACTED]',
+            pin: '[REDACTED]',
             tx: {
                 vodafoneNumber: '011******58',
                 serviceDetails: { clientPhone: '094*****00' },

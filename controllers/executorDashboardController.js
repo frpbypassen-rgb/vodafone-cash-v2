@@ -23,6 +23,12 @@ const executorDepositRequestService = require('../services/executorDepositReques
 const { loadPortalLiveTasks } = require('../services/executorLiveTasksService');
 const { getExecutorServiceLabel } = require('../utils/executorServiceCatalog');
 const {
+    QuickExecuteError,
+    buildQuickExecuteDial,
+    getQuickExecuteState,
+    saveQuickExecutePreferences
+} = require('../services/executorQuickExecuteService');
+const {
     ExecutorBalancePoolError,
     archivePool,
     attachMembers,
@@ -599,4 +605,66 @@ exports.postClearDepAlert = async (req, res) => {
         if (!result.matchedCount) return res.status(403).json({ success: false, error: 'لا تملك صلاحية تعديل هذا التنبيه.' });
         return res.json({ success: true });
     } catch (_) { return res.status(500).json({ success: false, error: 'تعذر إغلاق التنبيه.' }); }
+};
+
+const sendQuickExecuteError = (res, error) => {
+    const status = Number(error.status) || 500;
+    return res.status(status).json({
+        success: false,
+        code: error.code || 'QUICK_EXECUTE_FAILED',
+        error: error.message || 'تعذر تنفيذ الطلب السريع.'
+    });
+};
+
+const publicDialPayload = (dial) => ({
+    network: dial.network,
+    networkLabel: dial.networkLabel,
+    pinIncluded: Boolean(dial.pinIncluded),
+    pinSet: Boolean(dial.pinSet),
+    securityNote: dial.securityNote || '',
+    ussd: dial.ussd,
+    telUri: dial.telUri
+});
+
+exports.getQuickExecute = async (req, res) => {
+    try {
+        const emp = req.executorEmployee || await Employee.findById(req.session.executorId);
+        if (!emp) return res.status(401).json({ success: false, error: 'انتهت جلسة الدخول.' });
+        const quickExecute = await getQuickExecuteState({ executorId: emp._id });
+        return res.json({ success: true, quickExecute });
+    } catch (error) {
+        return sendQuickExecuteError(res, error);
+    }
+};
+
+exports.putQuickExecute = async (req, res) => {
+    try {
+        const emp = req.executorEmployee || await Employee.findById(req.session.executorId);
+        if (!emp) return res.status(401).json({ success: false, error: 'انتهت جلسة الدخول.' });
+        const quickExecute = await saveQuickExecutePreferences({
+            executorId: emp._id,
+            network: req.body?.network,
+            pin: req.body?.pin,
+            clearPin: req.body?.clearPin === true
+        });
+        return res.json({ success: true, quickExecute });
+    } catch (error) {
+        return sendQuickExecuteError(res, error);
+    }
+};
+
+exports.postQuickExecuteDial = async (req, res) => {
+    try {
+        const emp = req.executorEmployee || await Employee.findById(req.session.executorId).populate('groupId');
+        if (!emp) return res.status(401).json({ success: false, error: 'انتهت جلسة الدخول.' });
+        const dial = await buildQuickExecuteDial({
+            executorId: emp._id,
+            taskId: req.params.id,
+            pin: req.body?.pin,
+            tenantId: req.tenant ? req.tenant._id : null
+        });
+        return res.json({ success: true, ...publicDialPayload(dial) });
+    } catch (error) {
+        return sendQuickExecuteError(res, error);
+    }
 };

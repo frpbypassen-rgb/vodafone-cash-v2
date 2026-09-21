@@ -4,13 +4,14 @@ const Employee = require('../models/Employee');
 
 const DEFAULT_TTL_MS = 15 * 1000;
 const MAX_TTL_MS = 60 * 1000;
-const EMPLOYEE_FIELDS = 'name phone role status groupId webUsername telegramId canViewAllReports balance executionPolicyOverride sessionVersion';
+const EMPLOYEE_FIELDS = 'name phone role status groupId webUsername telegramId canViewAllReports balance executionPolicyOverride sessionVersion ussdNetwork ussdWalletPinSetAt';
 const GROUP_FIELDS = [
     'name',
     'status',
     'balance',
     'manualTaskRoutingEnabled',
     'manualProofRequired',
+    'manualQuickExecuteEnabled',
     'manualAllowedPhoneLengths',
     'manualSplitRequiresFullPhone',
     'maxConcurrentDevices',

@@ -30,6 +30,7 @@ import 'customer/portal/customer_shell.dart';
 import 'customer/transfer_step_bar.dart';
 import 'executor_alert_service.dart';
 import 'executor_execution_policy.dart';
+import 'executor_quick_execute.dart';
 import 'executor_notification_center.dart';
 import 'executor_ui.dart';
 import 'external_link.dart';
@@ -15796,6 +15797,7 @@ class _ExecutorTasksScreenState extends State<ExecutorTasksScreen>
   bool _urgentAlarmPlaying = false;
   bool _manualTaskRoutingEnabled = false;
   Map<String, dynamic>? _executionPolicy;
+  Map<String, dynamic>? _quickExecute;
   String? _syncError;
   Map<String, dynamic>? _overview;
   DateTime? _lastUpdated;
@@ -15962,6 +15964,11 @@ class _ExecutorTasksScreenState extends State<ExecutorTasksScreen>
           : (_overview?['executionPolicy'] is Map
                 ? Map<String, dynamic>.from(_overview!['executionPolicy'] as Map)
                 : _executionPolicy);
+      final quickExecute = response['quickExecute'] is Map
+          ? Map<String, dynamic>.from(response['quickExecute'] as Map)
+          : (_overview?['quickExecute'] is Map
+                ? Map<String, dynamic>.from(_overview!['quickExecute'] as Map)
+                : _quickExecute);
       final urgentAlerts = rawAlerts is List
           ? rawAlerts
                 .whereType<Map>()
@@ -15990,6 +15997,7 @@ class _ExecutorTasksScreenState extends State<ExecutorTasksScreen>
           _urgentAlerts = urgentAlerts;
           _manualTaskRoutingEnabled = manualTaskRoutingEnabled;
           _executionPolicy = executionPolicy;
+          _quickExecute = quickExecute;
           _lastUpdated = DateTime.now();
           _syncError = null;
         });
@@ -16210,6 +16218,63 @@ class _ExecutorTasksScreenState extends State<ExecutorTasksScreen>
     }
   }
 
+  Future<void> _dialQuickExecute(Map<String, dynamic> task) async {
+    final state = ExecutorQuickExecuteState.fromJson(_quickExecute);
+    if (!state.enabled) return;
+    final taskId = '${task['id'] ?? task['_id'] ?? ''}'.trim();
+    if (taskId.isEmpty) return;
+    var pin = '';
+    if (state.pinRequired && !state.pinSet) {
+      pin = await showDialog<String>(
+            context: context,
+            builder: (context) => const _QuickExecutePinDialog(),
+          ) ??
+          '';
+      if (pin.isEmpty) return;
+    } else if (state.pinRequired) {
+      final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('تنفيذ سريع'),
+          content: Text(state.securityNote),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('إلغاء'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('فتح الاتصال'),
+            ),
+          ],
+        ),
+      );
+      if (confirmed != true) return;
+    }
+    setState(() => _actionBusy = true);
+    try {
+      final response = await widget.controller.api.dialExecutorQuickExecute(
+        taskId: taskId,
+        pin: pin.isEmpty ? null : pin,
+      );
+      final telUri = '${response['telUri'] ?? ''}';
+      if (telUri.isEmpty) {
+        throw const ApiFailure('تعذر تجهيز كود الاتصال.');
+      }
+      final launched = await openExternalLink(Uri.parse(telUri));
+      if (!launched && mounted) {
+        await Clipboard.setData(
+          ClipboardData(text: '${response['ussd'] ?? telUri}'),
+        );
+        showSnack(context, 'تعذر فتح الاتصال؛ تم نسخ كود USSD.');
+      }
+    } on ApiFailure catch (error) {
+      if (mounted) showSnack(context, error.message, error: true);
+    } finally {
+      if (mounted) setState(() => _actionBusy = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     if (!widget.controller.canAcceptExecutorTasks) {
@@ -16305,6 +16370,11 @@ class _ExecutorTasksScreenState extends State<ExecutorTasksScreen>
                 onCancel: () => _cancel(task),
                 onComplete: () => _complete(task),
                 onShare: () => _shareToWhatsApp(task),
+                quickExecuteEnabled:
+                    ExecutorQuickExecuteState.fromJson(_quickExecute).enabled ||
+                    ExecutorExecutionPolicy.fromJson(_executionPolicy)
+                        .quickExecuteEnabled,
+                onQuickExecute: () => _dialQuickExecute(task),
               ),
             ),
           ),
@@ -18697,7 +18767,9 @@ class _ExecutorSettingsScreenState extends State<ExecutorSettingsScreen> {
   bool _previewBusy = false;
   Map<String, dynamic>? _mfaStatus;
   Map<String, dynamic>? _companyExecutionPolicy;
+  Map<String, dynamic>? _quickExecute;
   bool _policyBusy = false;
+  bool _quickExecuteBusy = false;
 
   @override
   void initState() {
@@ -18752,6 +18824,9 @@ class _ExecutorSettingsScreenState extends State<ExecutorSettingsScreen> {
               : (raw['executionPolicy'] is Map
                     ? Map<String, dynamic>.from(raw['executionPolicy'] as Map)
                     : _companyExecutionPolicy);
+          _quickExecute = raw['quickExecute'] is Map
+              ? Map<String, dynamic>.from(raw['quickExecute'] as Map)
+              : _quickExecute;
           _pushStatus = pushStatus;
           _pushStatusError = pushStatusError;
           _localPushDiagnostics = localPushDiagnostics;
@@ -18979,6 +19054,34 @@ class _ExecutorSettingsScreenState extends State<ExecutorSettingsScreen> {
     }
   }
 
+  Future<void> _editQuickExecute() async {
+    final current = ExecutorQuickExecuteState.fromJson(_quickExecute);
+    final result = await showDialog<Map<String, dynamic>>(
+      context: context,
+      builder: (context) => _QuickExecuteSettingsDialog(state: current),
+    );
+    if (result == null) return;
+    setState(() => _quickExecuteBusy = true);
+    try {
+      final response = await widget.controller.api.saveExecutorQuickExecute(
+        network: result['network'] as String?,
+        pin: result['pin'] as String?,
+        clearPin: result['clearPin'] == true,
+      );
+      if (!mounted) return;
+      setState(() {
+        _quickExecute = response['quickExecute'] is Map
+            ? Map<String, dynamic>.from(response['quickExecute'] as Map)
+            : _quickExecute;
+      });
+      showSnack(context, 'تم حفظ إعداد التنفيذ السريع.');
+    } on ApiFailure catch (error) {
+      if (mounted) showSnack(context, error.message, error: true);
+    } finally {
+      if (mounted) setState(() => _quickExecuteBusy = false);
+    }
+  }
+
   String _roleLabel(String role) {
     switch (role) {
       case 'manager':
@@ -19147,6 +19250,40 @@ class _ExecutorSettingsScreenState extends State<ExecutorSettingsScreen> {
             onTap: _manageAuthenticator,
           ),
         ),
+        if (widget.controller.canAcceptExecutorTasks) ...[
+          const SizedBox(height: 18),
+          ExecutorSurface(
+            accent: ExecutorUiColors.cobalt,
+            child: ListTile(
+              contentPadding: EdgeInsets.zero,
+              enabled: !_quickExecuteBusy,
+              onTap: _quickExecuteBusy ? null : _editQuickExecute,
+              leading: const ExecutorMetalIcon(
+                icon: Icons.phone_in_talk_outlined,
+                color: ExecutorUiColors.cobalt,
+                size: 42,
+                selected: true,
+              ),
+              title: const Text(
+                'تنفيذ سريع',
+                style: TextStyle(fontWeight: FontWeight.w900),
+              ),
+              subtitle: Text(() {
+                final state = ExecutorQuickExecuteState.fromJson(_quickExecute);
+                final pinHint = state.pinRequired
+                    ? (state.pinSet ? 'رقم السر محفوظ مشفراً' : 'يلزم رقم سر المحفظة')
+                    : 'بدون رقم سر في كود فودافون';
+                return '${state.networkLabel} · $pinHint';
+              }()),
+              trailing: _quickExecuteBusy
+                  ? const SizedBox.square(
+                      dimension: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.chevron_left),
+            ),
+          ),
+        ],
         const SizedBox(height: 18),
         ExecutorSurface(
           accent: ExecutorUiColors.cobalt,
@@ -21159,6 +21296,7 @@ class _ExecutorExecutionPolicyEditorDialogState
   late bool _inherit;
   late String _phoneMode;
   late bool _proofRequired;
+  late bool _quickExecuteEnabled;
   late final TextEditingController _devices;
   late bool _sessionTtlEnabled;
   late final TextEditingController _hours;
@@ -21169,6 +21307,7 @@ class _ExecutorExecutionPolicyEditorDialogState
     _inherit = widget.allowInherit && widget.policy.inheritsCompanyPolicy;
     _phoneMode = widget.policy.phoneLengthMode;
     _proofRequired = widget.policy.proofRequired;
+    _quickExecuteEnabled = widget.policy.quickExecuteEnabled;
     _devices = TextEditingController(
       text: '${widget.policy.maxConcurrentDevices}',
     );
@@ -21191,6 +21330,7 @@ class _ExecutorExecutionPolicyEditorDialogState
     final hours = int.tryParse(_hours.text.trim()) ?? 8;
     final policy = ExecutorExecutionPolicy(
       proofRequired: _proofRequired,
+      quickExecuteEnabled: _quickExecuteEnabled,
       allowedPhoneLengths: _phoneMode == 'all'
           ? const <int>[3, 4, 11]
           : <int>[int.tryParse(_phoneMode) ?? 11],
@@ -21262,6 +21402,16 @@ class _ExecutorExecutionPolicyEditorDialogState
                   value: _proofRequired,
                   onChanged: (value) => setState(() => _proofRequired = value),
                   title: const Text('صورة الإثبات إجبارية'),
+                ),
+                SwitchListTile.adaptive(
+                  contentPadding: EdgeInsets.zero,
+                  value: _quickExecuteEnabled,
+                  onChanged: (value) =>
+                      setState(() => _quickExecuteEnabled = value),
+                  title: const Text('تنفيذ سريع (USSD)'),
+                  subtitle: const Text(
+                    'يظهر زر الاتصال بجانب إنهاء بعد قبول المهمة.',
+                  ),
                 ),
                 TextField(
                   controller: _devices,
@@ -21359,6 +21509,186 @@ class _ExecutorResetPasswordDialogState
           child: const Text('إلغاء'),
         ),
         FilledButton(onPressed: _save, child: const Text('تغيير')),
+      ],
+    );
+  }
+}
+
+class _QuickExecutePinDialog extends StatefulWidget {
+  const _QuickExecutePinDialog();
+
+  @override
+  State<_QuickExecutePinDialog> createState() => _QuickExecutePinDialogState();
+}
+
+class _QuickExecutePinDialogState extends State<_QuickExecutePinDialog> {
+  final _pin = TextEditingController();
+
+  @override
+  void dispose() {
+    _pin.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('رقم سر المحفظة'),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const Text(kQuickExecutePinSecurityNote),
+          const SizedBox(height: 12),
+          TextField(
+            controller: _pin,
+            obscureText: true,
+            keyboardType: TextInputType.number,
+            textDirection: ui.TextDirection.ltr,
+            maxLength: 8,
+            decoration: const InputDecoration(
+              labelText: 'رقم السر',
+              counterText: '',
+            ),
+          ),
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('إلغاء'),
+        ),
+        FilledButton(
+          onPressed: () {
+            final digits = sanitizeQuickExecuteDigits(_pin.text);
+            if (digits.length < 4 || digits.length > 8) return;
+            Navigator.pop(context, digits);
+          },
+          child: const Text('فتح الاتصال'),
+        ),
+      ],
+    );
+  }
+}
+
+class _QuickExecuteSettingsDialog extends StatefulWidget {
+  const _QuickExecuteSettingsDialog({required this.state});
+
+  final ExecutorQuickExecuteState state;
+
+  @override
+  State<_QuickExecuteSettingsDialog> createState() =>
+      _QuickExecuteSettingsDialogState();
+}
+
+class _QuickExecuteSettingsDialogState
+    extends State<_QuickExecuteSettingsDialog> {
+  late String _network;
+  final _pin = TextEditingController();
+  bool _clearPin = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _network = widget.state.network;
+  }
+
+  @override
+  void dispose() {
+    _pin.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final needsPin = quickExecuteNetworkRequiresPin(_network);
+    return AlertDialog(
+      title: const Text('تنفيذ سريع'),
+      content: SizedBox(
+        width: 420,
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              const Text(
+                'الشبكة',
+                style: TextStyle(fontWeight: FontWeight.w900),
+              ),
+              RadioGroup<String>(
+                groupValue: _network,
+                onChanged: (value) =>
+                    setState(() => _network = value ?? 'vodafone'),
+                child: const Column(
+                  children: [
+                    RadioListTile<String>(
+                      contentPadding: EdgeInsets.zero,
+                      value: 'vodafone',
+                      title: Text('فودافون'),
+                    ),
+                    RadioListTile<String>(
+                      contentPadding: EdgeInsets.zero,
+                      value: 'etisalat',
+                      title: Text('اتصالات'),
+                    ),
+                    RadioListTile<String>(
+                      contentPadding: EdgeInsets.zero,
+                      value: 'orange',
+                      title: Text('أورنج'),
+                    ),
+                    RadioListTile<String>(
+                      contentPadding: EdgeInsets.zero,
+                      value: 'we',
+                      title: Text('وي'),
+                    ),
+                  ],
+                ),
+              ),
+              if (needsPin) ...[
+                TextField(
+                  controller: _pin,
+                  obscureText: true,
+                  keyboardType: TextInputType.number,
+                  textDirection: ui.TextDirection.ltr,
+                  maxLength: 8,
+                  decoration: InputDecoration(
+                    labelText: widget.state.pinSet
+                        ? 'رقم السر (اتركه فارغاً للإبقاء)'
+                        : 'رقم سر المحفظة',
+                    counterText: '',
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  kQuickExecutePinSecurityNote,
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
+                if (widget.state.pinSet)
+                  CheckboxListTile(
+                    contentPadding: EdgeInsets.zero,
+                    value: _clearPin,
+                    onChanged: (value) =>
+                        setState(() => _clearPin = value == true),
+                    title: const Text('حذف رقم السر المحفوظ'),
+                  ),
+              ],
+            ],
+          ),
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('إلغاء'),
+        ),
+        FilledButton(
+          onPressed: () => Navigator.pop(context, <String, dynamic>{
+            'network': _network,
+            'pin': _pin.text.trim(),
+            'clearPin': _clearPin,
+          }),
+          child: const Text('حفظ'),
+        ),
       ],
     );
   }
@@ -24344,6 +24674,8 @@ class ExecutorTaskTile extends StatelessWidget {
     required this.onCancel,
     required this.onComplete,
     required this.onShare,
+    this.quickExecuteEnabled = false,
+    this.onQuickExecute,
   });
 
   final Map<String, dynamic> task;
@@ -24357,6 +24689,8 @@ class ExecutorTaskTile extends StatelessWidget {
   final VoidCallback onCancel;
   final VoidCallback onComplete;
   final Future<void> Function() onShare;
+  final bool quickExecuteEnabled;
+  final VoidCallback? onQuickExecute;
 
   Future<void> _copyValue(
     BuildContext context,
@@ -24705,6 +25039,27 @@ class ExecutorTaskTile extends StatelessWidget {
                     label: const Text('تم التنفيذ'),
                   ),
                 ),
+                if (quickExecuteEnabled &&
+                    isCashWallet &&
+                    recipientRevealed &&
+                    onQuickExecute != null) ...[
+                  const SizedBox(width: 8),
+                  Tooltip(
+                    message: 'تنفيذ سريع',
+                    child: SizedBox(
+                      width: 52,
+                      height: 50,
+                      child: FilledButton(
+                        onPressed: busy ? null : onQuickExecute,
+                        style: FilledButton.styleFrom(
+                          padding: EdgeInsets.zero,
+                          backgroundColor: const Color(0xFF0EA5E9),
+                        ),
+                        child: const Icon(Icons.phone_in_talk_outlined),
+                      ),
+                    ),
+                  ),
+                ],
                 const SizedBox(width: 8),
                 Expanded(
                   child: OutlinedButton.icon(

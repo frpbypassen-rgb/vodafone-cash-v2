@@ -1465,6 +1465,39 @@ class MobileApi {
     );
   }
 
+  Future<Map<String, dynamic>> executorQuickExecute() {
+    return _request('GET', '/executor/quick-execute');
+  }
+
+  Future<Map<String, dynamic>> saveExecutorQuickExecute({
+    String? network,
+    String? pin,
+    bool clearPin = false,
+  }) {
+    return _request(
+      'PUT',
+      '/executor/quick-execute',
+      data: <String, dynamic>{
+        if (network != null) 'network': network,
+        if (pin != null && pin.isNotEmpty) 'pin': pin,
+        if (clearPin) 'clearPin': true,
+      },
+    );
+  }
+
+  Future<Map<String, dynamic>> dialExecutorQuickExecute({
+    required String taskId,
+    String? pin,
+  }) {
+    return _request(
+      'POST',
+      '/executor/quick-execute/dial/$taskId',
+      data: <String, dynamic>{
+        if (pin != null && pin.isNotEmpty) 'pin': pin,
+      },
+    );
+  }
+
   Future<List<Map<String, dynamic>>> executorRouteCandidates() async {
     final response = await _request('GET', '/executor/route-candidates');
     return _extractList(response, 'data');

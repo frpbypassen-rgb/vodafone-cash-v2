@@ -41,6 +41,7 @@ const {
     serializeEmployeePolicyOverride,
     toPublicExecutionPolicy
 } = require('../utils/executorManualPolicy');
+const { toPublicQuickExecuteState } = require('../utils/executorQuickExecuteUssd');
 const { enforceExecutorDeviceLimit } = require('./executorDeviceSessionService');
 const { clearExecutorAuthCache, invalidateExecutorAuth } = require('./executorAuthCache');
 const { calculateTransferCostLYD, isSourceToLydRate } = require('../utils/transferPricing');
@@ -1649,6 +1650,7 @@ async function getExecutorOverview({ executorId, tenantId }) {
         },
         executionPolicy: toPublicExecutionPolicy(readExecutorManualPolicy(group, emp)),
         companyExecutionPolicy: isManager ? toPublicExecutionPolicy(readCompanyExecutionPolicy(group)) : null,
+        quickExecute: toPublicQuickExecuteState(readExecutorManualPolicy(group, emp), emp),
         metrics: isManager ? {
             todayOperations: todayStats.count,
             monthOperations: monthStats.count

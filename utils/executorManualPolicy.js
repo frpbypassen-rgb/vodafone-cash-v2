@@ -100,6 +100,7 @@ const readCompanyExecutionPolicy = (group) => {
     const sessionTtlEnabled = Boolean(source.sessionTtlEnabled);
     return {
         proofRequired: Boolean(source.manualProofRequired),
+        quickExecuteEnabled: Boolean(source.manualQuickExecuteEnabled),
         allowedPhoneLengths,
         phoneLengthMode: phoneLengthModeFromLengths(allowedPhoneLengths),
         splitRequiresFullPhone: source.manualSplitRequiresFullPhone !== false,
@@ -133,6 +134,9 @@ const readExecutorManualPolicy = (group, employee = null) => {
 
     return {
         proofRequired: hasOwn(override, 'proofRequired') ? Boolean(override.proofRequired) : company.proofRequired,
+        quickExecuteEnabled: hasOwn(override, 'quickExecuteEnabled')
+            ? Boolean(override.quickExecuteEnabled)
+            : company.quickExecuteEnabled,
         allowedPhoneLengths,
         phoneLengthMode: phoneLengthModeFromLengths(allowedPhoneLengths),
         splitRequiresFullPhone: company.splitRequiresFullPhone,
@@ -144,6 +148,7 @@ const readExecutorManualPolicy = (group, employee = null) => {
         company,
         inherited: {
             proofRequired: !hasOwn(override, 'proofRequired'),
+            quickExecute: !hasOwn(override, 'quickExecuteEnabled'),
             allowedPhoneLengths: !(
                 hasOwn(override, 'allowedPhoneLengths')
                 && Array.isArray(override.allowedPhoneLengths)
@@ -157,6 +162,7 @@ const readExecutorManualPolicy = (group, employee = null) => {
 
 const toPublicExecutionPolicy = (policy) => ({
     proofRequired: Boolean(policy?.proofRequired),
+    quickExecuteEnabled: Boolean(policy?.quickExecuteEnabled),
     allowedPhoneLengths: normalizeAllowedPhoneLengths(policy?.allowedPhoneLengths),
     phoneLengthMode: phoneLengthModeFromLengths(policy?.allowedPhoneLengths),
     splitRequiresFullPhone: policy?.splitRequiresFullPhone !== false,
@@ -197,6 +203,9 @@ const serializeCompanyExecutionPolicy = (body = {}) => {
     );
     return {
         manualProofRequired: parseBooleanFlag(body.proofRequired ?? body.manualProofRequired) === true,
+        manualQuickExecuteEnabled: parseBooleanFlag(
+            body.quickExecuteEnabled ?? body.manualQuickExecuteEnabled
+        ) === true,
         manualAllowedPhoneLengths: serializeAllowedPhoneLengths(body),
         manualSplitRequiresFullPhone: parseBooleanFlag(
             body.splitRequiresFullPhone ?? body.manualSplitRequiresFullPhone
@@ -215,12 +224,16 @@ const serializeEmployeePolicyOverride = (body = {}) => {
 
     const override = {};
     const inheritProof = parseBooleanFlag(body.inheritProofRequired);
+    const inheritQuickExecute = parseBooleanFlag(body.inheritQuickExecute);
     const inheritPhone = parseBooleanFlag(body.inheritPhoneLengths);
     const inheritDevices = parseBooleanFlag(body.inheritMaxConcurrentDevices);
     const inheritSession = parseBooleanFlag(body.inheritSessionTtl);
 
     if (inheritProof !== true && parseBooleanFlag(body.proofRequired) !== null) {
         override.proofRequired = parseBooleanFlag(body.proofRequired);
+    }
+    if (inheritQuickExecute !== true && parseBooleanFlag(body.quickExecuteEnabled) !== null) {
+        override.quickExecuteEnabled = parseBooleanFlag(body.quickExecuteEnabled);
     }
     if (inheritPhone !== true && (body.phoneLengthMode || body.allowedPhoneLengths || body.allowPhone3 || body.allowPhone4 || body.allowPhone11)) {
         override.allowedPhoneLengths = serializeAllowedPhoneLengths(body);

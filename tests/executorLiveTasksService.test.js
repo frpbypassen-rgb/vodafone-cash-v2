@@ -79,6 +79,13 @@ describe('executor live-tasks hot path', () => {
         expect(payload.alerts[0]._id).toBe('task-1');
         expect(payload.completedTodaySummary).toEqual({ count: 2, amount: 250 });
         expect(payload.pollIntervalSeconds).toBe(BUSY_POLL_INTERVAL_SECONDS);
+        expect(payload.quickExecute).toEqual(expect.objectContaining({
+            enabled: false,
+            network: 'vodafone',
+            pinSet: false
+        }));
+        expect(payload.quickExecute).not.toHaveProperty('pin');
+        expect(payload.quickExecute).not.toHaveProperty('ussdWalletPinEncrypted');
         expect(depQuery.limit).toHaveBeenCalledWith(DEP_ALERT_LIMIT);
         expect(completedQuery.limit).toHaveBeenCalledWith(COMPLETED_TODAY_LIMIT);
     });

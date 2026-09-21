@@ -324,9 +324,9 @@
         [data-theme="dark"] .swal2-input, [data-theme="dark"] .swal2-textarea { background: rgba(255,255,255,0.04) !important; }
     </style>
     <link rel="stylesheet" href="/css/brand-ui.css?v=20260804-brand1">
-    <link rel="stylesheet" href="/css/executor-workspace.css?v=20260921-pool-ui">
+    <link rel="stylesheet" href="/css/executor-workspace.css?v=20260921-quick-exec">
     <link rel="stylesheet" href="/css/executor-2030-override.css?v=20260825-balance1">
-    <link rel="stylesheet" href="/css/executor-os.css?v=20260921-pool-ui">
+    <link rel="stylesheet" href="/css/executor-os.css?v=20260921-quick-exec">
 </head>
 <body class="executor-os executor-portal-v2 executor-page-dashboard">
 
@@ -357,10 +357,17 @@
     };
     const taskTypeMeta = (transferType) => executorTaskTypeMeta[String(transferType || '').trim().toLowerCase()]
         || { name: 'عملية تنفيذ', short: 'تنفيذ', icon: 'fa-bolt' };
-    const executorManualPolicy = {
+    let executorManualPolicy = {
         proofRequired: <%= (typeof executionPolicy !== 'undefined' ? executionPolicy.proofRequired : emp.groupId?.manualProofRequired) ? 'true' : 'false' %>,
+        quickExecuteEnabled: <%= (typeof executionPolicy !== 'undefined' ? executionPolicy.quickExecuteEnabled : emp.groupId?.manualQuickExecuteEnabled) ? 'true' : 'false' %>,
         allowedPhoneLengths: <%= JSON.stringify((typeof executionPolicy !== 'undefined' && Array.isArray(executionPolicy.allowedPhoneLengths)) ? executionPolicy.allowedPhoneLengths : (Array.isArray(emp.groupId?.manualAllowedPhoneLengths) ? emp.groupId.manualAllowedPhoneLengths : [3, 4, 11])) %>,
         splitRequiresFullPhone: <%= (typeof executionPolicy !== 'undefined' ? executionPolicy.splitRequiresFullPhone !== false : emp.groupId?.manualSplitRequiresFullPhone !== false) ? 'true' : 'false' %>
+    };
+    let executorQuickExecute = {
+        enabled: executorManualPolicy.quickExecuteEnabled,
+        network: 'vodafone',
+        pinRequired: false,
+        pinSet: false
     };
 </script>
 
@@ -977,12 +984,21 @@
             if (data.executionPolicy) {
                 executorManualPolicy = {
                     proofRequired: Boolean(data.executionPolicy.proofRequired),
+                    quickExecuteEnabled: Boolean(data.executionPolicy.quickExecuteEnabled),
                     allowedPhoneLengths: Array.isArray(data.executionPolicy.allowedPhoneLengths)
                         ? data.executionPolicy.allowedPhoneLengths
                         : (executorManualPolicy.allowedPhoneLengths || [3, 4, 11]),
                     splitRequiresFullPhone: data.executionPolicy.splitRequiresFullPhone !== false
                 };
                 if (typeof updateProofRequirement === 'function') updateProofRequirement();
+            }
+            if (data.quickExecute) {
+                executorQuickExecute = {
+                    enabled: data.quickExecute.enabled === true,
+                    network: data.quickExecute.network || 'vodafone',
+                    pinRequired: data.quickExecute.pinRequired === true,
+                    pinSet: data.quickExecute.pinSet === true
+                };
             }
             
             // 📊 تحديث إحصائيات المعاملات المنجزة اليوم في صفحة حسابي
@@ -1236,7 +1252,14 @@
                                     ${canRoute ? `<button onclick="routeTask('${t._id}')" class="btn-accept-start"><i class="fa-solid fa-route me-1"></i> ${assigneeName ? 'إعادة التوجيه' : 'توجيه إلى منفذ'}</button>` :
                                       acceptedByOther ? `<div class="p-2 rounded-3 text-center fw-bold text-muted border w-100 small" style="background: rgba(0,0,0,0.05);"><i class="fa-solid fa-user-gear me-1"></i> بدأ التنفيذ: ${escapeTaskHtml(assigneeName || 'منفذ آخر')}</div>` :
                                       isMine ? `
-                                         <button onclick="openUpload('${t._id}', '${t.transferType || ''}', ${Number(t.amount || 0)})" class="btn-cyber-main mb-1"><i class="fa-solid fa-check-double"></i> إنهاء العملية</button>
+                                         <div class="complete-actions-row">
+                                            <button onclick="openUpload('${t._id}', '${t.transferType || ''}', ${Number(t.amount || 0)})" class="btn-cyber-main mb-0"><i class="fa-solid fa-check-double"></i> إنهاء العملية</button>
+                                            ${(executorManualPolicy.quickExecuteEnabled || executorQuickExecute.enabled) && (t.transferType || '') === 'vodafone' ? `
+                                            <button type="button" onclick="quickExecuteDial('${t._id}')" class="btn-quick-execute" title="تنفيذ سريع" aria-label="تنفيذ سريع">
+                                                <i class="fa-solid fa-phone-flip"></i>
+                                                <span>تنفيذ سريع</span>
+                                            </button>` : ''}
+                                         </div>
                                          <div class="horizontal-actions">
                                             <button onclick="editAmount('${t._id}')" class="btn-cyber-sub btn-warning-neon" title="تعديل المبلغ"><i class="fa-solid fa-pen-to-square"></i> <span class="btn-text-hide ms-1">تعديل</span></button>
                                             <button onclick="returnTask('${t._id}')" class="btn-cyber-sub btn-info-neon" title="إرجاع الطلب للإدارة"><i class="fa-solid fa-reply"></i> <span class="btn-text-hide ms-1">إرجاع</span></button>
@@ -1289,6 +1312,65 @@
     }
 
 
+
+    async function quickExecuteDial(taskId) {
+        const needsPinPrompt = executorQuickExecute.pinRequired && !executorQuickExecute.pinSet;
+        let pin = '';
+        if (needsPinPrompt) {
+            const prompt = await Swal.fire({
+                title: 'رقم سر المحفظة',
+                html: '<p class="small text-end mb-2">هذه الشبكة تتطلب رقم السر. سيظهر في شاشة الاتصال ولن يُحفظ ما لم تحفظه من الإعدادات.</p>',
+                input: 'password',
+                inputAttributes: { maxlength: 8, inputmode: 'numeric', autocomplete: 'new-password', dir: 'ltr' },
+                showCancelButton: true,
+                confirmButtonText: 'فتح الاتصال',
+                cancelButtonText: 'إلغاء',
+                preConfirm: (value) => {
+                    const digits = String(value || '').replace(/\D/g, '');
+                    if (digits.length < 4 || digits.length > 8) {
+                        Swal.showValidationMessage('رقم السر من 4 إلى 8 أرقام.');
+                        return false;
+                    }
+                    return digits;
+                }
+            });
+            if (!prompt.isConfirmed) return;
+            pin = prompt.value;
+        } else if (executorQuickExecute.pinRequired) {
+            const confirmed = await Swal.fire({
+                icon: 'warning',
+                title: 'تنفيذ سريع',
+                text: 'سيظهر رقم سر المحفظة في شاشة الاتصال لهذه الشبكة. لا تشارك الشاشة أثناء الاتصال.',
+                showCancelButton: true,
+                confirmButtonText: 'فتح الاتصال',
+                cancelButtonText: 'إلغاء'
+            });
+            if (!confirmed.isConfirmed) return;
+        }
+
+        try {
+            const response = await executorApiFetch('/executor-portal/api/quick-execute/dial/' + taskId, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(pin ? { pin } : {})
+            });
+            const data = await readExecutorApiResponse(response);
+            if (!data.telUri) throw new Error('تعذر تجهيز كود الاتصال.');
+            window.location.href = data.telUri;
+        } catch (error) {
+            const goSettings = await Swal.fire({
+                icon: 'error',
+                title: 'تعذر التنفيذ السريع',
+                text: error.message || 'فشل تجهيز الاتصال.',
+                showCancelButton: true,
+                confirmButtonText: /رقم سر|PIN/i.test(error.message || '') ? 'الإعدادات' : 'حسناً',
+                cancelButtonText: 'إغلاق'
+            });
+            if (goSettings.isConfirmed && /رقم سر|PIN/i.test(error.message || '')) {
+                window.location.assign('/executor-portal/settings');
+            }
+        }
+    }
 
     async function acceptTask(id) {
         try {

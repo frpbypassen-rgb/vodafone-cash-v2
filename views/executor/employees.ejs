@@ -801,6 +801,7 @@
         const inherited = policy.inherited || {};
         const inheritAll = Boolean(
             inherited.proofRequired !== false
+            && inherited.quickExecute !== false
             && inherited.allowedPhoneLengths !== false
             && inherited.maxConcurrentDevices !== false
             && inherited.sessionTtl !== false
@@ -825,6 +826,10 @@
                     <label class="d-flex align-items-center justify-content-between gap-2 mb-3">
                         <span>صورة الإثبات إجبارية</span>
                         <input type="checkbox" id="policyProofRequired" ${policy.proofRequired ? 'checked' : ''}>
+                    </label>
+                    <label class="d-flex align-items-center justify-content-between gap-2 mb-3">
+                        <span>تنفيذ سريع (USSD)</span>
+                        <input type="checkbox" id="policyQuickExecute" ${policy.quickExecuteEnabled ? 'checked' : ''}>
                     </label>
                     <label class="form-label w-100 text-end">أقصى أجهزة متزامنة</label>
                     <input id="policyDevices" type="number" min="1" max="20" class="swal2-input m-0 mb-3 w-100" value="${Number(policy.maxConcurrentDevices || 1)}">
@@ -852,11 +857,13 @@
                 return {
                     inheritCompanyPolicy: false,
                     inheritProofRequired: false,
+                    inheritQuickExecute: false,
                     inheritPhoneLengths: false,
                     inheritMaxConcurrentDevices: false,
                     inheritSessionTtl: false,
                     phoneLengthMode: document.querySelector('input[name="policyPhoneMode"]:checked')?.value || 'all',
                     proofRequired: document.getElementById('policyProofRequired')?.checked === true,
+                    quickExecuteEnabled: document.getElementById('policyQuickExecute')?.checked === true,
                     maxConcurrentDevices: Number(document.getElementById('policyDevices')?.value || 1),
                     sessionTtlEnabled: document.getElementById('policySessionTtl')?.checked === true,
                     sessionTtlHours: Number(document.getElementById('policySessionHours')?.value || 8)

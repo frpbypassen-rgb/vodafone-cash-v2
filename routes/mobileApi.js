@@ -125,6 +125,12 @@ const {
     routingErrorMessage
 } = require('../services/executorTaskRoutingService');
 const { loadMobileLiveTasks } = require('../services/executorLiveTasksService');
+const {
+    QuickExecuteError,
+    buildQuickExecuteDial,
+    getQuickExecuteState,
+    saveQuickExecutePreferences
+} = require('../services/executorQuickExecuteService');
 const { buildExecutorTaskRecipient, buildTaskRoutingVisibility } = require('../utils/executorTaskPrivacy');
 const {
     findBrowserExecutable,
@@ -1461,7 +1467,7 @@ router.get('/executor/live-tasks', authenticateJWT, async (req, res) => {
             return sendMobileError(res, 409, 'EXECUTOR_GROUP_MISSING', 'حساب المنفذ غير مرتبط بشركة تنفيذ.', req.correlationId);
         }
 
-        const { tasks, alerts, pollIntervalSeconds, executionPolicy } = await loadMobileLiveTasks({
+        const { tasks, alerts, pollIntervalSeconds, executionPolicy, quickExecute } = await loadMobileLiveTasks({
             emp: effectiveEmployee,
             tenantId: req.tenant ? executorTenantScope(req) : null
         });
@@ -1473,6 +1479,7 @@ router.get('/executor/live-tasks', authenticateJWT, async (req, res) => {
             manualTaskRoutingEnabled: Boolean(effectiveEmployee.groupId?.manualTaskRoutingEnabled),
             canRouteTasks: effectiveEmployee.role === 'manager',
             executionPolicy,
+            quickExecute,
             pollIntervalSeconds,
             serverTime: new Date().toISOString()
         });
@@ -1614,6 +1621,70 @@ router.patch('/executor/employees/:id/execution-policy', authenticateJWT, async 
         }
         if (error.message === 'NOT_FOUND') {
             return sendMobileError(res, 404, 'NOT_FOUND', 'الموظف غير موجود.', req.correlationId);
+        }
+        return sendServerError(res, req);
+    }
+});
+
+router.get('/executor/quick-execute', authenticateJWT, async (req, res) => {
+    try {
+        if (req.user.accountType !== 'executor') {
+            return sendMobileError(res, 403, 'FORBIDDEN', 'صلاحيات غير كافية', req.correlationId);
+        }
+        const quickExecute = await getQuickExecuteState({ executorId: req.user.userId });
+        return res.json({ success: true, quickExecute });
+    } catch (error) {
+        if (error instanceof QuickExecuteError) {
+            return sendMobileError(res, error.status, error.code, error.message, req.correlationId);
+        }
+        return sendServerError(res, req);
+    }
+});
+
+router.put('/executor/quick-execute', authenticateJWT, async (req, res) => {
+    try {
+        if (req.user.accountType !== 'executor') {
+            return sendMobileError(res, 403, 'FORBIDDEN', 'صلاحيات غير كافية', req.correlationId);
+        }
+        const quickExecute = await saveQuickExecutePreferences({
+            executorId: req.user.userId,
+            network: req.body?.network,
+            pin: req.body?.pin,
+            clearPin: req.body?.clearPin === true
+        });
+        return res.json({ success: true, quickExecute });
+    } catch (error) {
+        if (error instanceof QuickExecuteError) {
+            return sendMobileError(res, error.status, error.code, error.message, req.correlationId);
+        }
+        return sendServerError(res, req);
+    }
+});
+
+router.post('/executor/quick-execute/dial/:id', authenticateJWT, async (req, res) => {
+    try {
+        if (req.user.accountType !== 'executor') {
+            return sendMobileError(res, 403, 'FORBIDDEN', 'صلاحيات غير كافية', req.correlationId);
+        }
+        const dial = await buildQuickExecuteDial({
+            executorId: req.user.userId,
+            taskId: req.params.id,
+            pin: req.body?.pin,
+            tenantId: req.tenant ? executorTenantScope(req) : null
+        });
+        return res.json({
+            success: true,
+            network: dial.network,
+            networkLabel: dial.networkLabel,
+            pinIncluded: Boolean(dial.pinIncluded),
+            pinSet: Boolean(dial.pinSet),
+            securityNote: dial.securityNote || '',
+            ussd: dial.ussd,
+            telUri: dial.telUri
+        });
+    } catch (error) {
+        if (error instanceof QuickExecuteError) {
+            return sendMobileError(res, error.status, error.code, error.message, req.correlationId);
         }
         return sendServerError(res, req);
     }

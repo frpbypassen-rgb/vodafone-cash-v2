@@ -12,10 +12,10 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.rtl.min.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800;900&family=JetBrains+Mono:wght@700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="/css/executor-workspace.css?v=20260921-pool-ui">
+    <link rel="stylesheet" href="/css/executor-workspace.css?v=20260921-quick-exec">
     <link rel="stylesheet" href="/css/executor-2030-override.css?v=20260825-settings1">
-    <link rel="stylesheet" href="/css/executor-os.css?v=20260921-pool-ui">
-    <link rel="stylesheet" href="/css/executor-settings.css?v=20260825-settings1">
+    <link rel="stylesheet" href="/css/executor-os.css?v=20260921-quick-exec">
+    <link rel="stylesheet" href="/css/executor-settings.css?v=20260921-quick-exec">
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     <script>window.executorCsrfToken = <%- JSON.stringify(typeof csrfToken !== 'undefined' ? csrfToken : '') %>;</script>
     <script src="/js/executor-api.js"></script>
@@ -164,6 +164,38 @@
                         <div class="executor-detail-row"><span>حالة الحساب</span><strong><span class="executor-status-pill" style="--pill-color: var(--executor-green)"><i class="fa-solid fa-circle-check"></i> نشط</span></strong></div>
                     </div>
                 </div>
+                <% if (!isAccountant) { %>
+                <% const quickExecute = overview.quickExecute || {}; %>
+                <div class="quick-execute-settings mt-4 pt-3 border-top">
+                    <h3 class="panel-title mb-1"><i class="fa-solid fa-phone-flip"></i> تنفيذ سريع</h3>
+                    <p class="panel-lead mb-3">اختر شبكة محفظتك. لشبكات اتصالات وأورنج ووي يُحفظ رقم السر مشفراً ويظهر في شاشة الاتصال فقط.</p>
+                    <form id="quickExecuteForm" class="row g-3">
+                        <div class="col-12">
+                            <label class="form-label fw-bold">الشبكة</label>
+                            <div class="d-flex flex-wrap gap-3" id="quickExecuteNetworks">
+                                <label class="form-check"><input class="form-check-input" type="radio" name="ussdNetwork" value="vodafone" <%= (quickExecute.network || 'vodafone') === 'vodafone' ? 'checked' : '' %>> فودافون</label>
+                                <label class="form-check"><input class="form-check-input" type="radio" name="ussdNetwork" value="etisalat" <%= quickExecute.network === 'etisalat' ? 'checked' : '' %>> اتصالات</label>
+                                <label class="form-check"><input class="form-check-input" type="radio" name="ussdNetwork" value="orange" <%= quickExecute.network === 'orange' ? 'checked' : '' %>> أورنج</label>
+                                <label class="form-check"><input class="form-check-input" type="radio" name="ussdNetwork" value="we" <%= quickExecute.network === 'we' ? 'checked' : '' %>> وي</label>
+                            </div>
+                        </div>
+                        <div class="col-md-6" id="quickExecutePinWrap">
+                            <label class="form-label fw-bold" for="quickExecutePin">رقم سر المحفظة</label>
+                            <input class="form-control" type="password" inputmode="numeric" autocomplete="new-password" maxlength="8" id="quickExecutePin" placeholder="<%= quickExecute.pinSet ? 'محفوظ مشفراً — اتركه فارغاً للإبقاء' : '4 إلى 8 أرقام' %>" dir="ltr">
+                            <small class="text-muted" id="quickExecutePinHint"><%= quickExecute.pinSet ? 'رقم السر محفوظ مشفراً.' : 'مطلوب لاتصالات وأورنج ووي.' %></small>
+                        </div>
+                        <div class="col-12">
+                            <div class="alert alert-warning py-2 px-3 mb-0 small" id="quickExecuteSecurityNote">
+                                تنبيه أمني: لشبكات اتصالات وأورنج ووي يظهر رقم سر المحفظة في شاشة الاتصال. لا تشارك الشاشة ولا تترك الهاتف دون مراقبة أثناء الاتصال.
+                            </div>
+                        </div>
+                        <div class="col-12 d-flex flex-wrap gap-2">
+                            <button type="submit" class="settings-btn-primary"><i class="fa-solid fa-floppy-disk"></i> حفظ شبكة التنفيذ</button>
+                            <button type="button" class="settings-btn-primary danger" id="quickExecuteClearPin" <%= quickExecute.pinSet ? '' : 'hidden' %>><i class="fa-solid fa-eraser"></i> حذف رقم السر</button>
+                        </div>
+                    </form>
+                </div>
+                <% } %>
             </section>
 
             <!-- الإشعارات -->
@@ -265,6 +297,13 @@
                                     <input class="form-check-input" type="checkbox" role="switch" id="proofRequiredSwitch" <%= emp.groupId?.manualProofRequired ? 'checked' : '' %>>
                                     <label class="form-check-label fw-bold" for="proofRequiredSwitch">صورة الإثبات إجبارية</label>
                                 </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="form-check form-switch">
+                                    <input class="form-check-input" type="checkbox" role="switch" id="quickExecuteSwitch" <%= emp.groupId?.manualQuickExecuteEnabled ? 'checked' : '' %>>
+                                    <label class="form-check-label fw-bold" for="quickExecuteSwitch">تنفيذ سريع (USSD)</label>
+                                </div>
+                                <small class="text-muted">يظهر زر الاتصال بجانب إنهاء للمنفّذ بعد قبول المهمة.</small>
                             </div>
                             <div class="col-md-6">
                                 <label class="form-label fw-bold" for="maxConcurrentDevices">أقصى أجهزة متزامنة</label>
@@ -410,6 +449,7 @@
                 body: JSON.stringify({
                     phoneLengthMode: form.querySelector('input[name="phoneLengthMode"]:checked')?.value || 'all',
                     proofRequired: document.getElementById('proofRequiredSwitch')?.checked === true,
+                    quickExecuteEnabled: document.getElementById('quickExecuteSwitch')?.checked === true,
                     maxConcurrentDevices: Number(document.getElementById('maxConcurrentDevices')?.value || 1),
                     sessionTtlEnabled: document.getElementById('sessionTtlSwitch')?.checked === true,
                     sessionTtlHours: hours
@@ -443,6 +483,67 @@
 
     document.querySelectorAll('[data-settings-tab]').forEach((button) => {
         button.addEventListener('click', () => activateSettingsTab(button.dataset.settingsTab));
+    });
+
+    const pinNetworks = new Set(['etisalat', 'orange', 'we']);
+    const selectedUssdNetwork = () => document.querySelector('input[name="ussdNetwork"]:checked')?.value || 'vodafone';
+    const syncQuickExecutePinVisibility = () => {
+        const wrap = document.getElementById('quickExecutePinWrap');
+        const note = document.getElementById('quickExecuteSecurityNote');
+        const needsPin = pinNetworks.has(selectedUssdNetwork());
+        if (wrap) wrap.hidden = !needsPin;
+        if (note) note.hidden = !needsPin;
+    };
+    document.querySelectorAll('input[name="ussdNetwork"]').forEach((input) => {
+        input.addEventListener('change', syncQuickExecutePinVisibility);
+    });
+    syncQuickExecutePinVisibility();
+
+    document.getElementById('quickExecuteForm')?.addEventListener('submit', async (event) => {
+        event.preventDefault();
+        const form = event.currentTarget;
+        const button = form.querySelector('button[type="submit"]');
+        if (button) button.disabled = true;
+        try {
+            const pin = document.getElementById('quickExecutePin')?.value || '';
+            const payload = { network: selectedUssdNetwork() };
+            if (pin.trim()) payload.pin = pin.trim();
+            await readExecutorApiResponse(await executorApiFetch('/executor-portal/api/quick-execute', {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            }));
+            const pinInput = document.getElementById('quickExecutePin');
+            if (pinInput) pinInput.value = '';
+            Swal.fire({ icon: 'success', title: 'تم حفظ إعداد التنفيذ السريع', timer: 1500, showConfirmButton: false });
+        } catch (error) {
+            Swal.fire({ icon: 'error', title: 'تعذر الحفظ', text: error.message });
+        } finally {
+            if (button) button.disabled = false;
+        }
+    });
+
+    document.getElementById('quickExecuteClearPin')?.addEventListener('click', async () => {
+        const confirmed = await Swal.fire({
+            icon: 'warning',
+            title: 'حذف رقم السر؟',
+            text: 'سيتم حذف رقم سر المحفظة المحفوظ مشفراً من الحساب.',
+            showCancelButton: true,
+            confirmButtonText: 'حذف',
+            cancelButtonText: 'إلغاء'
+        });
+        if (!confirmed.isConfirmed) return;
+        try {
+            await readExecutorApiResponse(await executorApiFetch('/executor-portal/api/quick-execute', {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ clearPin: true, network: selectedUssdNetwork() })
+            }));
+            document.getElementById('quickExecuteClearPin').hidden = true;
+            Swal.fire({ icon: 'success', title: 'تم حذف رقم السر', timer: 1400, showConfirmButton: false });
+        } catch (error) {
+            Swal.fire({ icon: 'error', title: 'تعذر الحذف', text: error.message });
+        }
     });
 
     refreshPushStatus();
