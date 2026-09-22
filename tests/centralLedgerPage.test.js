@@ -76,6 +76,10 @@ describe('central ledger page layout', () => {
         expect(html).toContain('المراقبة الحية');
         expect(html).not.toContain('لا توجد شركات نشطة حالياً');
         expect(html).not.toContain('لا توجد شركة منفذة برصيد متاح حالياً');
+        expect(html).not.toContain('data-ops-summary-strip');
+        expect(html).not.toContain('إجمالي الإيداعات اليوم');
+        expect(html).not.toContain('المنفذين النشطين');
+        expect(html).not.toContain('data-ops-micro');
     });
 
     test('shows the empty header copy only when company and executor lists are empty', () => {
@@ -90,9 +94,21 @@ describe('central ledger page layout', () => {
         expect(html).not.toContain('منفذ كاش');
     });
 
-    test('operations workspace shows the table without the header, filters, or status chips', () => {
+    test('operations workspace shows the compact summary strip and the table without the old header', () => {
         const html = renderTransactions({
             operationWorkspace: true,
+            operationsSummary: {
+                today: { egyptianEGP: 12400.5, libyanLYD: 2310.25 },
+                todayDepositsTotal: 900,
+                activeExecutors: [
+                    { id: 'e1', name: 'منفذ كاش', balance: 2500.5 },
+                    { id: 'e2', name: 'منفذ سريع', balance: 128450.75 }
+                ],
+                companies: [
+                    { id: 'c1', name: 'شركة النور', balance: 88.5, completedToday: 7, depositsToday: 900 },
+                    { id: 'c2', name: 'شركة الأمل', balance: -12, completedToday: 0, depositsToday: 1234567.89 }
+                ]
+            },
             transactions: [{
                 _id: { toString: () => '507f1f77bcf86cd799439011' },
                 customId: 'ATT-2609-11988',
@@ -129,7 +145,6 @@ describe('central ledger page layout', () => {
         expect(html).not.toContain('إجمالي إيداعات اليوم');
         expect(html).not.toContain('إجمالي خصومات اليوم');
         expect(html).not.toContain('تحويلات اليوم');
-        expect(html).not.toContain('إيداعات اليوم');
         expect(html).not.toContain('خصومات اليوم');
         expect(html).not.toContain('المنفذون الجاهزون');
         expect(html).not.toContain('executor-balance-panel');
@@ -137,6 +152,30 @@ describe('central ledger page layout', () => {
         expect(html).not.toContain('إجمالي العمليات الناجحة اليوم');
         expect(html).not.toContain('الشركات النشطة');
         expect(html).not.toContain('class="ledger-stats-bar');
+
+        expect(html).toContain('data-ops-summary-strip="operations"');
+        expect(html).toContain('مصري');
+        expect(html).toContain('ليبي');
+        expect(html).toContain('إجمالي الإيداعات اليوم');
+        expect(html).toContain('المنفذين النشطين');
+        expect(html).toContain('إجمالي الرصيد معهم');
+        expect(html).toContain('data-ops-egyptian="12400.5"');
+        expect(html).toContain('data-ops-libyan="2310.25"');
+        expect(html).toContain('data-ops-deposits="900"');
+        expect(html).toContain('منفذ كاش');
+        expect(html).toContain('2,500.50');
+        expect(html).toContain('128,450.75');
+        expect(html).toContain('data-ops-company="c1"');
+        expect(html).toContain('شركة النور');
+        expect(html).toContain('data-ops-micro="completed"');
+        expect(html).toContain('data-ops-completed="7"');
+        expect(html).toContain('data-ops-micro="deposit"');
+        expect(html).toContain('data-ops-company-deposit="1234567.89"');
+        expect(html).toContain('1,234,567.89');
+        expect(html).toMatch(/\.ops-micro\s*\{[^}]*width:\s*max-content/);
+        expect(html).not.toMatch(/\.ops-micro\s*\{[^}]*width:\s*\d+px/);
+        expect(html.indexOf('data-ops-summary-strip')).toBeLessThan(html.indexOf('id="transactionsTable"'));
+        expect(html.indexOf('ops-summary-left')).toBeLessThan(html.indexOf('ops-summary-right'));
     });
 
     test('rebuilds the comprehensive operation details modal with tabs and smart header chrome', () => {
@@ -171,6 +210,8 @@ describe('central ledger page layout', () => {
         const overviewSource = fs.readFileSync(path.join(__dirname, '..', 'services', 'centralLedgerOverviewService.js'), 'utf8');
         const appSource = fs.readFileSync(path.join(__dirname, '..', 'app.js'), 'utf8');
 
+        expect(routeSource).toMatch(/operationsWorkspace\s*\?\s*loadOperationsSummaryStrip\(\{ Transaction, ClientCompany, ExecutorGroup, source: req \}\)/);
+        expect(routeSource).toMatch(/operationsWorkspace\s*\?\s*Promise\.resolve\(null\)\s*:\s*loadCentralLedgerOverview/);
         expect(routeSource).toMatch(/const transactionLedgerBaseQuery = \(source = null\) => applyAdminTxPrivacy\(\{[\s\S]*\.\.\.adminAccountScope\(source\),/);
         expect(routeSource).not.toMatch(/isSubAccountTx: \{ \$ne: true \}/);
         expect(routeSource).toMatch(/adminVisibleTransactionQuery\(adminAccountScope\(req\)/);

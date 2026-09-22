@@ -37,6 +37,7 @@ const {
     emptyPeriodStats,
     loadCentralLedgerOverview
 } = require('../services/centralLedgerOverviewService');
+const { loadOperationsSummaryStrip } = require('../services/operationsSummaryStripService');
 const {
     sortTransactionsByStatusQueue,
     transactionStatusQueuePipelineStages
@@ -349,20 +350,22 @@ const renderTransactions = async (req, res, operationsWorkspace = false) => {
             ])
         );
 
-        // هذا الملخص مستقل عن فلاتر السجل: يعرض حركة اليوم دائماً.
-        // نستبعد الطرف المقابل لتحويل الرصيد حتى لا تُحسب العملية الداخلية مرتين.
-        // شاشة العمليات تعرض قائمة التوجيه فقط دون بطاقات الإجماليات/الأرصدة العلوية.
+        // ملخص السجل المركزي مستقل عن فلاتر الجدول. شاشة العمليات لا تحمّله؛
+        // تحمّل بدلًا منه شريطًا مضغوطًا (إجمالي اليوم، المنفذون، الشركات).
         const dailyTotals = { transfersEGP: 0, transfersLYD: 0, depositsEGP: 0, deductionsEGP: 0 };
         let periodStats = emptyPeriodStats();
         let activeClientCompanies = [];
         let fundedExecutorCompanies = [];
         const executorBalanceGroups = [];
 
-        const [ledgerOverview, executorGroups] = await Promise.all([
+        const [ledgerOverview, executorGroups, operationsSummary] = await Promise.all([
             operationsWorkspace
                 ? Promise.resolve(null)
                 : loadCentralLedgerOverview({ Transaction, ClientCompany, ExecutorGroup, source: req }),
-            ExecutorGroup.find({ ...adminAccountScope(req), status: 'active', isManagerBot: { $ne: true } })
+            ExecutorGroup.find({ ...adminAccountScope(req), status: 'active', isManagerBot: { $ne: true } }),
+            operationsWorkspace
+                ? loadOperationsSummaryStrip({ Transaction, ClientCompany, ExecutorGroup, source: req })
+                : Promise.resolve(null)
         ]);
         if (ledgerOverview) {
             periodStats = ledgerOverview.periodStats;
@@ -421,6 +424,7 @@ const renderTransactions = async (req, res, operationsWorkspace = false) => {
             executorBalanceGroups,
             executorId,
             operationWorkspace: operationsWorkspace,
+            operationsSummary,
             query: req.query
         });
     } catch (e) {
