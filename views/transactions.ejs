@@ -425,7 +425,6 @@
         const merged = [tx.adminNotes, tx.notes].filter(Boolean).join('\n');
         return merged.includes('--- سجل الـ API') ? merged : '';
     };
-    const transactionWorkspacePath = operationWorkspace ? '/transactions/operations' : '/transactions';
     const formatCount = (value) => Number(value || 0).toLocaleString('en-US');
     const formatMoney = (value) => Number(value || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
     const ledgerPeriodStats = (typeof periodStats !== 'undefined' && periodStats) ? periodStats : { today: { count: 0, amountEGP: 0 }, week: { count: 0, amountEGP: 0 }, month: { count: 0, amountEGP: 0 } };
@@ -451,8 +450,9 @@
 <div class="main-content">
     <div class="container-fluid">
         
+        <% if (!operationWorkspace) { %>
         <div class="d-flex justify-content-between align-items-center mb-4 tx-page-title">
-            <h3 class="fw-bold m-0" style="color: var(--text-main);"><i class="fa-solid fa-server text-primary me-2"></i> <%= operationWorkspace ? 'العمليات والتوجيه' : 'السجل المركزي والمراقبة' %> <span class="spinner-grow spinner-grow-sm text-success ms-2 opacity-50" title="تحديث تلقائي"></span></h3>
+            <h3 class="fw-bold m-0" style="color: var(--text-main);"><i class="fa-solid fa-server text-primary me-2"></i> السجل المركزي والمراقبة <span class="spinner-grow spinner-grow-sm text-success ms-2 opacity-50" title="تحديث تلقائي"></span></h3>
             <div class="d-flex flex-wrap gap-2">
                 <a href="/transactions/deposits?party=company" class="btn btn-sm btn-outline-primary fw-bold rounded-3 px-3">إيداعات الشركات</a>
                 <a href="/transactions/deposits?party=executor" class="btn btn-sm btn-outline-success fw-bold rounded-3 px-3">إيداعات التنفيذ</a>
@@ -461,6 +461,7 @@
                 </a>
             </div>
         </div>
+        <% } %>
 
         <% if (query && query.settlementVoided) { %>
             <div class="alert alert-info fw-bold rounded-3"><i class="fa-solid fa-rotate-left me-1"></i> تم حذف أثر التسوية من الرصيد، مع الاحتفاظ بالقيد الأصلي وحركة العكس في السجل المالي.</div>
@@ -552,112 +553,6 @@
                         <% } %>
                     </div>
                 </section>
-            </div>
-        </div>
-        <% } %>
-
-        <% if (operationWorkspace) { %>
-        <div class="mobile-filter-card d-lg-none mb-3">
-            <form method="GET" action="<%= transactionWorkspacePath %>" id="mobileTransactionsFilterForm">
-                <input type="hidden" name="filterType" id="mobileFilterTypeInput" value="<%= typeof filterType !== 'undefined' ? filterType : '' %>">
-                <div class="mb-3">
-                    <label class="form-label fw-bold small text-muted">البحث في السجل</label>
-                    <div class="input-group shadow-sm" style="border-radius: 14px; overflow: hidden; border: 1px solid var(--border-glass);">
-                        <span class="input-group-text border-0" style="background: var(--card-bg); color: var(--text-muted);"><i class="fa-solid fa-magnifying-glass"></i></span>
-                        <input type="text" id="mobileSearchInput" name="search" class="form-control border-0 ps-0 mono-num" placeholder="رقم عملية، عميل، هاتف..." value="<%= typeof search !== 'undefined' ? search : '' %>" oninput="searchMobileCards(this.value)" style="background: var(--card-bg); color: var(--text-main); font-weight: bold;">
-                    </div>
-                </div>
-                <div class="row g-2">
-                    <div class="col-12">
-                        <label class="form-label fw-bold small text-muted">حالة العملية</label>
-                        <select id="mobileStatusFilter" name="status" class="form-select fw-bold">
-                            <option value="">كل الحالات</option>
-                            <option value="pending" <%= typeof statusFilter !== 'undefined' && statusFilter === 'pending' ? 'selected' : '' %>>معلق</option>
-                            <option value="processing" <%= typeof statusFilter !== 'undefined' && statusFilter === 'processing' ? 'selected' : '' %>>توجيه للمنفذ</option>
-                            <option value="accepted" <%= typeof statusFilter !== 'undefined' && statusFilter === 'accepted' ? 'selected' : '' %>>قيد العمل</option>
-                            <option value="completed" <%= typeof statusFilter !== 'undefined' && statusFilter === 'completed' ? 'selected' : '' %>>مكتمل</option>
-                            <option value="deposit_pending" <%= typeof statusFilter !== 'undefined' && statusFilter === 'deposit_pending' ? 'selected' : '' %>>طلب إيداع</option>
-                            <option value="deposit" <%= typeof statusFilter !== 'undefined' && statusFilter === 'deposit' ? 'selected' : '' %>>إيداع</option>
-                            <option value="deduction" <%= typeof statusFilter !== 'undefined' && statusFilter === 'deduction' ? 'selected' : '' %>>خصم</option>
-                            <option value="rejected" <%= typeof statusFilter !== 'undefined' && statusFilter === 'rejected' ? 'selected' : '' %>>ملغي</option>
-                        </select>
-                    </div>
-                    <div class="col-6">
-                        <label class="form-label fw-bold small text-muted">من تاريخ</label>
-                        <input type="date" id="mobileFromDateInput" name="fromDate" class="form-control fw-bold" value="<%= typeof fromDate !== 'undefined' ? fromDate : '' %>">
-                    </div>
-                    <div class="col-6">
-                        <label class="form-label fw-bold small text-muted">إلى تاريخ</label>
-                        <input type="date" id="mobileToDateInput" name="toDate" class="form-control fw-bold" value="<%= typeof toDate !== 'undefined' ? toDate : '' %>">
-                    </div>
-                </div>
-
-                <div class="mobile-filter-pills mt-3">
-                    <button type="button" class="btn btn-light fw-bold mobile-filter-pill <%= !filterType ? 'active' : '' %>" onclick="setMobileFilterType('', this)">كل العمليات</button>
-                    <button type="button" class="btn btn-light fw-bold mobile-filter-pill <%= filterType === 'cash_transfer' ? 'active' : '' %>" onclick="setMobileFilterType('cash_transfer', this)">تحويلات الكاش</button>
-                    <a class="btn btn-light fw-bold mobile-filter-pill" href="/transactions/deposits">إيداع وخصم</a>
-                    <button type="button" class="btn btn-light fw-bold mobile-filter-pill <%= filterType === 'cancelled' ? 'active' : '' %>" onclick="setMobileFilterType('cancelled', this)">الملغية</button>
-                </div>
-
-                <div class="d-flex gap-2 mt-3">
-                    <button type="submit" class="btn btn-primary fw-bold flex-fill"><i class="fa-solid fa-filter me-1"></i> عرض السجل</button>
-                    <button type="button" class="btn fw-bold" style="background: var(--brand-gold); color: #000;" onclick="printReport()"><i class="fa-solid fa-print"></i></button>
-                    <a href="<%= transactionWorkspacePath %>" class="btn btn-light fw-bold"><i class="fa-solid fa-rotate-left"></i></a>
-                </div>
-            </form>
-        </div>
-        <% } %>
-
-        <% if (operationWorkspace) { %>
-        <div class="data-card border-0 mb-4 p-4 d-none d-lg-block">
-            <form method="GET" action="<%= transactionWorkspacePath %>" class="row g-3 align-items-end" id="transactionsFilterForm">
-                <input type="hidden" name="filterType" value="<%= typeof filterType !== 'undefined' ? filterType : '' %>">
-                <div class="col-md-3">
-                    <label class="form-label fw-bold small text-muted">البحث الشامل</label>
-                    <div class="input-group">
-                        <span class="input-group-text"><i class="fa-solid fa-magnifying-glass"></i></span>
-                        <input type="text" id="searchInput" name="search" class="form-control border-start-0 ps-0 mono-num fs-6" placeholder="الرقم، الحساب..." value="<%= typeof search !== 'undefined' ? search : '' %>">
-                    </div>
-                </div>
-                <div class="col-md-2">
-                    <label class="form-label fw-bold small text-muted">حالة العملية</label>
-                    <select id="statusFilter" name="status" class="form-select fw-bold">
-                        <option value="">الجميع</option>
-                        <option value="pending" <%= typeof statusFilter !== 'undefined' && statusFilter === 'pending' ? 'selected' : '' %>>⏳ معلق</option>
-                        <option value="processing" <%= typeof statusFilter !== 'undefined' && statusFilter === 'processing' ? 'selected' : '' %>>⚙️ توجيه للمنفذ</option>
-                        <option value="accepted" <%= typeof statusFilter !== 'undefined' && statusFilter === 'accepted' ? 'selected' : '' %>>👤 قيد العمل</option>
-                        <option value="completed" <%= typeof statusFilter !== 'undefined' && statusFilter === 'completed' ? 'selected' : '' %>>✅ مكتمل</option>
-                        <option value="deposit_pending" <%= typeof statusFilter !== 'undefined' && statusFilter === 'deposit_pending' ? 'selected' : '' %>>🖐️ طلب إيداع</option>
-                        <option value="deposit" <%= typeof statusFilter !== 'undefined' && statusFilter === 'deposit' ? 'selected' : '' %>>💰 إيداع (سداد)</option>
-                        <option value="deduction" <%= typeof statusFilter !== 'undefined' && statusFilter === 'deduction' ? 'selected' : '' %>>📉 خصم رصيد</option>
-                        <option value="rejected" <%= typeof statusFilter !== 'undefined' && statusFilter === 'rejected' ? 'selected' : '' %>>❌ ملغي</option>
-                    </select>
-                </div>
-                <div class="col-md-2">
-                    <label class="form-label fw-bold small text-muted">من تاريخ</label>
-                    <input type="date" id="fromDateInput" name="fromDate" class="form-control fw-bold" value="<%= typeof fromDate !== 'undefined' ? fromDate : '' %>">
-                </div>
-                <div class="col-md-2">
-                    <label class="form-label fw-bold small text-muted">إلى تاريخ</label>
-                    <input type="date" id="toDateInput" name="toDate" class="form-control fw-bold" value="<%= typeof toDate !== 'undefined' ? toDate : '' %>">
-                </div>
-                <div class="col-md-3 d-flex gap-2">
-                    <button type="submit" class="btn btn-primary fw-bold px-4 flex-fill"><i class="fa-solid fa-filter me-1"></i> عرض</button>
-                    <a href="<%= transactionWorkspacePath %>" class="btn btn-light fw-bold"><i class="fa-solid fa-rotate-left"></i></a>
-                    <button type="button" class="btn fw-bold" style="background: var(--brand-gold); color: #000;" onclick="printReport()"><i class="fa-solid fa-print"></i></button>
-                </div>
-            </form>
-        </div>
-        <% } %>
-
-        <% if (operationWorkspace) { %>
-        <div class="mb-4 d-none d-lg-block">
-            <div class="d-flex justify-content-start align-items-center gap-2 p-2 rounded-4 shadow-sm flex-wrap" style="background: var(--card-bg) !important; border: 1px solid var(--border-glass) !important;">
-                <span class="fw-bold me-3 text-muted small ms-2"><i class="fa-solid fa-filter text-primary"></i> حالات العمليات:</span>
-                <% const operationStatusChips = [{ value: '', label: 'الكل', icon: 'fa-list-check' }, { value: 'pending', label: 'معلقة', icon: 'fa-clock' }, { value: 'processing', label: 'موجهة', icon: 'fa-share' }, { value: 'accepted', label: 'قيد العمل', icon: 'fa-person-digging' }, { value: 'completed', label: 'مكتملة', icon: 'fa-circle-check' }, { value: 'rejected', label: 'ملغية', icon: 'fa-ban' }, { value: 'cancelled_by_admin', label: 'ملغية إداريًا', icon: 'fa-user-slash' }]; %>
-                <% operationStatusChips.forEach(chip => { %>
-                    <a href="?fromDate=<%= fromDate %>&toDate=<%= toDate %>&search=<%= encodeURIComponent(search) %>&status=<%= chip.value %><%= executorId ? `&executorId=${executorId}` : '' %>" class="btn fw-bold px-3 py-2 border-0 rounded-3 filter-btn <%= statusFilter === chip.value ? 'active' : '' %>" style="font-size:.85rem;"><i class="fa-solid <%= chip.icon %> me-1"></i><%= chip.label %></a>
-                <% }); %>
             </div>
         </div>
         <% } %>
@@ -1685,22 +1580,6 @@
         printWindow.document.close();
     }
 
-    function printReport() {
-        const preferMobile = window.innerWidth <= 991;
-        const readValue = (desktopId, mobileId) => {
-            const first = document.getElementById(preferMobile ? mobileId : desktopId);
-            const fallback = document.getElementById(preferMobile ? desktopId : mobileId);
-            return (first && first.value) || (fallback && fallback.value) || '';
-        };
-        const fromD = readValue('fromDateInput', 'mobileFromDateInput');
-        const toD = readValue('toDateInput', 'mobileToDateInput');
-        const status = readValue('statusFilter', 'mobileStatusFilter');
-        const search = readValue('searchInput', 'mobileSearchInput');
-        const mobileFilterType = document.getElementById('mobileFilterTypeInput');
-        const filterType = (preferMobile && mobileFilterType) ? mobileFilterType.value : '<%= typeof filterType !== "undefined" ? filterType : "" %>';
-        window.open(`/transactions/print?` + new URLSearchParams({ fromDate: fromD, toDate: toD, status: status, search: search, filterType: filterType }).toString(), '_blank');
-    }
-
     function confirmEmergencyAlert(form) {
         const msg = prompt("🚨 رسالة الإنذار للمنفذ:", "تنبيه عاجل! يرجى التنفيذ فوراً!");
         if (msg === null) return false; 
@@ -1750,37 +1629,10 @@
 
     let currentMobileTabGroup = 'all';
 
-    function setMobileFilterType(type, btn) {
-        const input = document.getElementById('mobileFilterTypeInput');
-        if (input) input.value = type;
-        document.querySelectorAll('.mobile-filter-pill').forEach(item => item.classList.remove('active'));
-        if (btn) btn.classList.add('active');
-    }
-
     const isOperationsWorkspace = <%= operationWorkspace ? 'true' : 'false' %>;
-    const operationFilterStorageKey = 'ahram_operations_last_filters';
-    const operationFilterNames = ['search', 'status', 'fromDate', 'toDate', 'executorId'];
-    if (isOperationsWorkspace) {
-        const currentParams = new URLSearchParams(window.location.search);
-        const hasExplicitFilter = operationFilterNames.some((name) => currentParams.has(name));
-        if (hasExplicitFilter) {
-            const remembered = new URLSearchParams();
-            operationFilterNames.forEach((name) => { if (currentParams.has(name)) remembered.set(name, currentParams.get(name)); });
-            localStorage.setItem(operationFilterStorageKey, remembered.toString());
-        } else {
-            const remembered = localStorage.getItem(operationFilterStorageKey);
-            if (remembered) window.location.replace(`/transactions/operations?${remembered}`);
-        }
-        document.querySelectorAll('a[href="/transactions/operations"]').forEach((link) => {
-            link.addEventListener('click', () => localStorage.removeItem(operationFilterStorageKey));
-        });
-    }
+    if (isOperationsWorkspace) localStorage.removeItem('ahram_operations_last_filters');
     document.addEventListener('keydown', (event) => {
         const editable = ['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement?.tagName);
-        if (event.key === '/' && !editable) {
-            event.preventDefault();
-            (document.getElementById('searchInput') || document.getElementById('mobileSearchInput'))?.focus();
-        }
         if (event.key.toLowerCase() === 'r' && !editable) {
             event.preventDefault();
             refreshTransactionsList();

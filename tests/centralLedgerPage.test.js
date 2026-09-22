@@ -49,6 +49,9 @@ describe('central ledger page layout', () => {
 
         expect(html).toContain('السجل المركزي والمراقبة');
         expect(html).toContain('كشوفات العملاء');
+        expect(html).toContain('إيداعات الشركات');
+        expect(html).toContain('إيداعات التنفيذ');
+        expect(html).toContain('mb-4 tx-page-title');
         expect(html).toContain('إجمالي العمليات الناجحة اليوم');
         expect(html).toContain('إجمالي الأسبوع');
         expect(html).toContain('إجمالي الشهر');
@@ -87,15 +90,40 @@ describe('central ledger page layout', () => {
         expect(html).not.toContain('منفذ كاش');
     });
 
-    test('operations workspace shows filters and table without top KPI/summary data blocks', () => {
-        const html = renderTransactions({ operationWorkspace: true });
+    test('operations workspace shows the table without the header, filters, or status chips', () => {
+        const html = renderTransactions({
+            operationWorkspace: true,
+            transactions: [{
+                _id: { toString: () => '507f1f77bcf86cd799439011' },
+                customId: 'ATT-2609-11988',
+                status: 'pending',
+                amount: 100,
+                createdAt: new Date('2026-09-21T14:14:00Z'),
+                companyName: 'شركة الأهرام للاتصالات وتقنية المعلومات',
+                employeeName: 'خالد الزواوي',
+                vodafoneNumber: '01000000000',
+                transferType: 'vodafone',
+                costLYD: 18.69,
+                exchangeRate: 5.35
+            }]
+        });
 
-        expect(html).toContain('العمليات والتوجيه');
-        expect(html).toContain('البحث الشامل');
-        expect(html).toContain('id="transactionsFilterForm"');
-        expect(html).toContain('id="mobileTransactionsFilterForm"');
-        expect(html).toContain('حالات العمليات');
         expect(html).toContain('id="transactionsTable"');
+        expect(html).toContain('رقم العملية');
+        expect(html).toContain('ATT-2609-11988');
+        expect(html).toContain('data-bs-toggle="dropdown">توجيه</button>');
+        expect(html).not.toContain('العمليات والتوجيه');
+        expect(html).not.toContain('كشوفات العملاء');
+        expect(html).not.toContain('حالات العمليات');
+        expect(html).not.toContain('ملغية إداريًا');
+        expect(html).not.toContain('mb-4 tx-page-title');
+        expect(html).not.toContain('id="transactionsFilterForm"');
+        expect(html).not.toContain('id="mobileTransactionsFilterForm"');
+        expect(html).not.toContain('id="searchInput"');
+        expect(html).not.toContain('id="mobileSearchInput"');
+        expect(html).not.toContain('id="statusFilter"');
+        expect(html).not.toContain('class="mobile-filter-card');
+        expect(html).not.toContain("window.location.replace(`/transactions/operations?");
 
         expect(html).not.toContain('إجمالي تحويلات اليوم (مكتملة)');
         expect(html).not.toContain('إجمالي إيداعات اليوم');
