@@ -394,6 +394,7 @@
                 <i class="fa-solid fa-circle-check me-1"></i> تم تحديث خدمات المنفذ. تظهر أرصدة الكاش والتحويل البنكي منفصلة عند تفعيل أكثر من خدمة.
             </div>
         <% } %>
+        <% if (typeof query !== 'undefined' && query.serviceUpdated) { %>
             <div class="alert alert-success fw-bold border-0 shadow-sm" style="border-radius:8px;">
                 <i class="fa-solid fa-circle-check me-1"></i> تم تحديث خدمة المنفذ. أعد اختياره من إعدادات التوجيه التلقائي للخدمة الجديدة.
             </div>

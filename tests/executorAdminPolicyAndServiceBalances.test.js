@@ -20,6 +20,7 @@ jest.mock('../services/executorAuthCache', () => ({
 
 const fs = require('fs');
 const path = require('path');
+const ejs = require('ejs');
 const Employee = require('../models/Employee');
 const ExecutorGroup = require('../models/ExecutorGroup');
 const Transaction = require('../models/Transaction');
@@ -38,6 +39,7 @@ const {
 
 const ROOT = path.join(__dirname, '..');
 const read = (relativePath) => fs.readFileSync(path.join(ROOT, relativePath), 'utf8');
+const EXECUTORS_VIEW = path.join(ROOT, 'views', 'executors.ejs');
 
 describe('admin-only per-executor policy and per-service balances', () => {
     beforeEach(() => {
@@ -217,5 +219,12 @@ describe('admin-only per-executor policy and per-service balances', () => {
             balance: -800,
             'serviceBalances.vodafone': -800
         });
+    });
+
+    test('admin executors list template compiles with serviceUpdated and servicesUpdated alerts', () => {
+        const template = fs.readFileSync(EXECUTORS_VIEW, 'utf8');
+        expect(template).toContain('query.servicesUpdated');
+        expect(template).toContain('query.serviceUpdated');
+        expect(() => ejs.compile(template, { filename: EXECUTORS_VIEW })).not.toThrow();
     });
 });
