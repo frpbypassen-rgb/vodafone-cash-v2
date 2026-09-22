@@ -472,14 +472,21 @@
             justify-content: flex-start;
         }
         .ops-company-row { direction: rtl; }
+        .ops-exec-label,
+        .ops-company-label {
+            font-size: .72rem;
+        }
         .ops-exec-card {
             display: flex;
             flex-direction: column;
-            gap: 1px;
+            justify-content: center;
+            gap: 3px;
             width: max-content;
-            max-width: 168px;
-            padding: 5px 8px;
-            border-radius: 10px;
+            min-width: 118px;
+            max-width: 200px;
+            min-height: 74px;
+            padding: 10px 13px;
+            border-radius: 12px;
             text-decoration: none;
         }
         .ops-exec-card:hover { border-color: rgba(16, 185, 129, .45); }
@@ -488,16 +495,16 @@
             overflow: hidden;
             text-overflow: ellipsis;
             white-space: nowrap;
-            font-size: .74rem;
+            font-size: .88rem;
             font-weight: 800;
             color: var(--text-main);
         }
-        .ops-exec-value { font-size: .74rem; color: #10b981; }
+        .ops-exec-value { font-size: .92rem; color: #10b981; }
         .ops-exec-value.is-zero { color: var(--text-muted); }
         .ops-company-cluster {
             display: inline-flex;
             align-items: stretch;
-            gap: 4px;
+            gap: 6px;
             width: max-content;
             max-width: 100%;
         }
@@ -505,16 +512,27 @@
             display: flex;
             flex-direction: column;
             justify-content: center;
-            gap: 1px;
+            gap: 3px;
             width: max-content;
-            max-width: 168px;
-            padding: 5px 8px;
-            border-radius: 10px;
+            min-width: 132px;
+            max-width: 210px;
+            min-height: 74px;
+            padding: 10px 13px;
+            border-radius: 12px;
             text-decoration: none;
         }
         .ops-company-card:hover { border-color: rgba(212, 175, 55, .55); }
-        .ops-company-balance { font-size: .74rem; color: #10b981; }
+        .ops-company-balance { font-size: .92rem; color: #10b981; }
         .ops-company-balance.is-negative { color: #ef4444; }
+        .ops-micro-stack {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start;
+            justify-content: center;
+            gap: 4px;
+            width: max-content;
+            flex: 0 0 auto;
+        }
         .ops-micro {
             display: inline-flex;
             flex: 0 0 auto;
@@ -791,14 +809,16 @@
                                 <span class="ops-company-label">الرصيد المتاح</span>
                                 <strong class="ops-company-balance <%= Number(company.balance) < 0 ? 'is-negative' : '' %>"><%= formatMoney(company.balance) %> <small>LYD</small></strong>
                             </a>
-                            <span class="ops-micro ops-micro-completed" data-ops-micro="completed" title="عمليات مكتملة اليوم">
-                                <span class="ops-micro-label">مكتمل</span>
-                                <strong class="ops-micro-value" data-ops-completed="<%= Number(company.completedToday) || 0 %>"><%= formatCount(company.completedToday) %></strong>
-                            </span>
-                            <span class="ops-micro ops-micro-deposit" data-ops-micro="deposit" title="إيداع الشركة اليوم">
-                                <span class="ops-micro-label">إيداع</span>
-                                <strong class="ops-micro-value" data-ops-company-deposit="<%= Number(company.depositsToday) || 0 %>"><%= formatMoney(company.depositsToday) %></strong>
-                            </span>
+                            <div class="ops-micro-stack">
+                                <span class="ops-micro ops-micro-completed" data-ops-micro="completed" title="عمليات مكتملة اليوم">
+                                    <span class="ops-micro-label">عمليات اليوم</span>
+                                    <strong class="ops-micro-value" data-ops-completed="<%= Number(company.completedToday) || 0 %>"><%= formatCount(company.completedToday) %></strong>
+                                </span>
+                                <span class="ops-micro ops-micro-deposit" data-ops-micro="deposit" title="إيداع الشركة اليوم">
+                                    <span class="ops-micro-label">إيداع اليوم</span>
+                                    <strong class="ops-micro-value" data-ops-company-deposit="<%= Number(company.depositsToday) || 0 %>"><%= formatMoney(company.depositsToday) %></strong>
+                                </span>
+                            </div>
                         </div>
                     <% }); %>
                 <% } else { %>
