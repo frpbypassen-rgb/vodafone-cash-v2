@@ -87,18 +87,28 @@ describe('central ledger page layout', () => {
         expect(html).not.toContain('منفذ كاش');
     });
 
-    test('keeps the operations workspace KPI cards unchanged', () => {
+    test('operations workspace shows filters and table without top KPI/summary data blocks', () => {
         const html = renderTransactions({ operationWorkspace: true });
 
         expect(html).toContain('العمليات والتوجيه');
-        expect(html).toContain('إجمالي تحويلات اليوم (مكتملة)');
-        expect(html).toContain('إجمالي إيداعات اليوم');
-        expect(html).toContain('إجمالي خصومات اليوم');
-        expect(html).not.toContain('إجمالي العمليات الناجحة اليوم');
-        expect(html).not.toContain('الشركات النشطة');
         expect(html).toContain('البحث الشامل');
         expect(html).toContain('id="transactionsFilterForm"');
+        expect(html).toContain('id="mobileTransactionsFilterForm"');
+        expect(html).toContain('حالات العمليات');
         expect(html).toContain('id="transactionsTable"');
+
+        expect(html).not.toContain('إجمالي تحويلات اليوم (مكتملة)');
+        expect(html).not.toContain('إجمالي إيداعات اليوم');
+        expect(html).not.toContain('إجمالي خصومات اليوم');
+        expect(html).not.toContain('تحويلات اليوم');
+        expect(html).not.toContain('إيداعات اليوم');
+        expect(html).not.toContain('خصومات اليوم');
+        expect(html).not.toContain('المنفذون الجاهزون');
+        expect(html).not.toContain('executor-balance-panel');
+        expect(html).not.toContain('mobile-summary-strip');
+        expect(html).not.toContain('إجمالي العمليات الناجحة اليوم');
+        expect(html).not.toContain('الشركات النشطة');
+        expect(html).not.toContain('class="ledger-stats-bar');
     });
 
     test('rebuilds the comprehensive operation details modal with tabs and smart header chrome', () => {

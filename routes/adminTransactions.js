@@ -32,7 +32,7 @@ const {
 } = require('../services/adminFinancialMutationService');
 const eventBus = require('../services/eventBus');
 const { adminVisibleTransactionQuery, applyAdminTxPrivacy } = require('../services/adminAccountVisibilityService');
-const { adminAccountScope, tenantScope } = require('../utils/tenantScope');
+const { adminAccountScope } = require('../utils/tenantScope');
 const {
     emptyPeriodStats,
     loadCentralLedgerOverview
@@ -43,7 +43,6 @@ const {
 } = require('../utils/transactionStatusQueue');
 
 // 🚀 استدعاء محرك الـ API 
-const { getApiProviderBalance } = require('../services/externalApiService');
 const { reversalService } = require('../src/Application/Services/ReversalService');
 
 router.use(requireAuth);
@@ -277,12 +276,6 @@ const redirectDepositLedger = (req, res) => {
 const renderTransactions = async (req, res, operationsWorkspace = false) => {
     try {
         if (redirectDepositLedger(req, res)) return;
-        const backgroundRefresh = req.get('X-Requested-With') === 'XMLHttpRequest';
-        // أرصدة الـ API لا تُستعلم إلا عند فتح شاشة العمليات أو بطلب يدوي صريح.
-        // التحديث الخلفي للجدول يعيد استخدام آخر رصيد محفوظ ولا يضغط على مزود الخدمة.
-        const shouldRefreshApiBalances = operationsWorkspace
-            && !backgroundRefresh
-            && req.query.refreshBalances !== '0';
         const page = parseInt(req.query.page) || 1;
         const limit = 100;
         const search = req.query.search || '';
@@ -358,107 +351,24 @@ const renderTransactions = async (req, res, operationsWorkspace = false) => {
 
         // هذا الملخص مستقل عن فلاتر السجل: يعرض حركة اليوم دائماً.
         // نستبعد الطرف المقابل لتحويل الرصيد حتى لا تُحسب العملية الداخلية مرتين.
+        // شاشة العمليات تعرض قائمة التوجيه فقط دون بطاقات الإجماليات/الأرصدة العلوية.
         const dailyTotals = { transfersEGP: 0, transfersLYD: 0, depositsEGP: 0, deductionsEGP: 0 };
         let periodStats = emptyPeriodStats();
         let activeClientCompanies = [];
         let fundedExecutorCompanies = [];
+        const executorBalanceGroups = [];
 
-        const todayKey = systemDateKey(new Date());
-        const todayRange = systemDateRange(todayKey, todayKey);
-        const executorBalanceQuery = {
-            ...adminAccountScope(req),
-            status: 'active',
-            isManagerBot: { $ne: true },
-            $or: [{ balance: { $gt: 0 } }, { isApiBot: true }]
-        };
-        const [ledgerOverview, dailyTotalsAgg, executorGroups, executorBalanceCandidates] = await Promise.all([
+        const [ledgerOverview, executorGroups] = await Promise.all([
             operationsWorkspace
                 ? Promise.resolve(null)
                 : loadCentralLedgerOverview({ Transaction, ClientCompany, ExecutorGroup, source: req }),
-            operationsWorkspace
-                ? Transaction.aggregate([
-                    { $match: {
-                        ...tenantScope(req),
-                        $and: [
-                            {
-                                $or: [
-                                    { transferType: { $ne: 'balance_transfer' } },
-                                    { customId: { $not: /-C$/ } }
-                                ]
-                            }
-                        ],
-                        ...(todayRange ? { createdAt: todayRange } : {})
-                    } },
-                    { $group: {
-                        _id: '$status',
-                        totalAmount: { $sum: '$amount' },
-                        totalCostLYD: { $sum: '$costLYD' }
-                    }}
-                ])
-                : Promise.resolve([]),
-            ExecutorGroup.find({ ...adminAccountScope(req), status: 'active', isManagerBot: { $ne: true } }),
-            operationsWorkspace
-                // منفذ API قد يكون رصيده الداخلي سالباً رغم وجود رصيد خدمة فعلي عند المزود.
-                ? ExecutorGroup.find(executorBalanceQuery).select('name balance isApiBot updatedAt lastApiBalanceCheckAt lastApiServiceCredit apiProviderKey apiUrl apiToken apiUsername apiPassword apiServiceId apiProviderId apiFieldId apiMachineSerial').lean()
-                : Promise.resolve([])
+            ExecutorGroup.find({ ...adminAccountScope(req), status: 'active', isManagerBot: { $ne: true } })
         ]);
         if (ledgerOverview) {
             periodStats = ledgerOverview.periodStats;
             activeClientCompanies = ledgerOverview.activeClientCompanies;
             fundedExecutorCompanies = ledgerOverview.fundedExecutorCompanies;
         }
-        dailyTotalsAgg.forEach(row => {
-            if (row._id === 'completed') { dailyTotals.transfersEGP = row.totalAmount; dailyTotals.transfersLYD = row.totalCostLYD; }
-            else if (row._id === 'deposit') { dailyTotals.depositsEGP = row.totalAmount; }
-            else if (row._id === 'deduction') { dailyTotals.deductionsEGP = row.totalAmount; }
-        });
-        const executorBalanceGroups = (await Promise.all(executorBalanceCandidates.map(async (group) => {
-            if (!group.isApiBot) {
-                return {
-                    id: String(group._id),
-                    name: group.name,
-                    balance: Number(group.balance),
-                    balanceSource: 'internal',
-                    checkedAt: group.updatedAt || null
-                };
-            }
-
-            if (!shouldRefreshApiBalances) {
-                if (Number(group.lastApiServiceCredit) <= 0) return null;
-                return {
-                    id: String(group._id),
-                    name: group.name,
-                    balance: Number(group.lastApiServiceCredit),
-                    balanceSource: 'api_service',
-                    checkedAt: group.lastApiBalanceCheckAt || group.updatedAt || null
-                };
-            }
-            try {
-                const providerBalance = await getApiProviderBalance(group);
-                if (!providerBalance.success || Number(providerBalance.serviceCredit) <= 0) return null;
-
-                const checkedAt = new Date();
-                await ExecutorGroup.updateOne({ _id: group._id }, {
-                    $set: {
-                        lastApiBalanceCheckAt: checkedAt,
-                        lastApiBalanceCheckStatus: 'matched',
-                        lastApiServiceCredit: providerBalance.serviceCredit,
-                        lastApiCashCredit: providerBalance.cashCredit,
-                        lastApiAvailableBalance: providerBalance.availableBalance
-                    }
-                });
-                return {
-                    id: String(group._id),
-                    name: group.name,
-                    balance: Number(providerBalance.serviceCredit),
-                    balanceSource: 'api_service',
-                    checkedAt
-                };
-            } catch (error) {
-                console.error('[adminTransactions/API balance] failed:', error.message);
-                return null;
-            }
-        }))).filter(Boolean).sort((left, right) => right.balance - left.balance || left.name.localeCompare(right.name, 'ar'));
         const executorGroupsForView = executorGroups.map((group) => ({
             ...(typeof group.toObject === 'function' ? group.toObject() : group),
             serviceKey: normalizeExecutorServiceKey(group.serviceKey),

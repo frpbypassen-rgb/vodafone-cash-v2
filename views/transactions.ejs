@@ -16,21 +16,6 @@
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 
     <style>
-        .summary-box { border-radius: 20px; padding: 20px; display: flex; justify-content: space-between; align-items: center; height: 100%; position: relative; overflow: hidden;}
-        .summary-box::after { content: ''; position: absolute; right: 0; top: 0; width: 6px; height: 100%; }
-        .box-success::after { background: #10b981; } .box-primary::after { background: #3b82f6; } .box-danger::after { background: #ef4444; }
-        .summary-val { font-family: 'JetBrains Mono', monospace; font-size: 1.8rem; font-weight: 900; line-height: 1;}
-        .summary-icon { font-size: 2.5rem; opacity: 0.15; }
-        .executor-balance-panel { border: 1px solid var(--border-glass); border-radius: 18px; background: var(--card-bg); box-shadow: var(--shadow-soft); overflow: hidden; }
-        .executor-balance-header { flex: 0 0 215px; padding: 12px 16px; border-left: 1px solid var(--border-glass); }
-        .executor-balance-list { display: flex; flex: 1 1 auto; max-height: 94px; overflow: auto; }
-        .executor-balance-row { display: flex; flex: 1 0 220px; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 14px; border-left: 1px dashed var(--border-glass); text-decoration: none; transition: background .18s ease, transform .18s ease; }
-        .executor-balance-row:hover { background: rgba(16, 185, 129, .07); transform: translateY(-1px); }
-        .executor-balance-row.is-selected { background: rgba(59, 130, 246, .10); box-shadow: inset 0 -2px 0 #3b82f6; }
-        .executor-balance-row:last-child { border-left: 0; }
-        .executor-balance-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 800; color: var(--text-main); }
-        .executor-balance-value { flex: 0 0 auto; font-family: 'JetBrains Mono', monospace; font-size: 0.8rem; font-weight: 900; color: #10b981; }
-        .executor-balance-meta { display: block; margin-top: 3px; color: var(--text-muted); font-size: .66rem; font-family: 'Tajawal', sans-serif; font-weight: 700; }
         .operation-age { display: block; margin-top: 7px; color: var(--text-muted); font-size: .7rem; font-weight: 800; white-space: nowrap; }
         .operation-age.is-late { color: #d97706; }
 
@@ -94,49 +79,10 @@
                 flex: 1 1 auto;
                 justify-content: center;
             }
-            .mobile-summary-strip {
-                display: grid;
-                grid-template-columns: repeat(3, minmax(0, 1fr));
-                gap: 8px;
-            }
-            .mobile-summary-item,
             .mobile-filter-card {
                 background: var(--card-bg);
                 border: 1px solid var(--border-glass);
                 box-shadow: var(--shadow-soft);
-            }
-            .mobile-summary-item {
-                border-radius: 14px;
-                padding: 12px 8px;
-                min-width: 0;
-            }
-            .mobile-summary-label {
-                display: block;
-                color: var(--text-muted);
-                font-size: 0.68rem;
-                font-weight: 800;
-                white-space: nowrap;
-                overflow: hidden;
-                text-overflow: ellipsis;
-            }
-            .mobile-summary-value {
-                display: block;
-                margin-top: 5px;
-                font-family: 'JetBrains Mono', monospace;
-                font-size: 0.88rem;
-                font-weight: 900;
-                white-space: nowrap;
-                overflow: hidden;
-                text-overflow: ellipsis;
-            }
-            .mobile-summary-secondary {
-                display: block;
-                margin-top: 2px;
-                font-family: 'JetBrains Mono', monospace;
-                font-size: 0.7rem;
-                font-weight: 800;
-            }
-            .mobile-filter-card {
                 border-radius: 16px;
                 padding: 12px;
             }
@@ -532,23 +478,7 @@
             <div class="alert alert-danger fw-bold rounded-3"><i class="fa-solid fa-triangle-exclamation me-1"></i> <%= transactionErrorMessages[query.routeError] || transactionErrorMessages.update_failed %></div>
         <% } %>
 
-        <% if (operationWorkspace) { %>
-        <div class="mobile-summary-strip d-lg-none mb-3">
-            <div class="mobile-summary-item">
-                <span class="mobile-summary-label">تحويلات اليوم</span>
-                <span class="mobile-summary-value text-success"><%= dailyTotals.transfersEGP.toFixed(2) %> EGP</span>
-                <span class="mobile-summary-secondary text-danger"><%= dailyTotals.transfersLYD.toFixed(2) %> LYD</span>
-            </div>
-            <div class="mobile-summary-item">
-                <span class="mobile-summary-label">إيداعات اليوم</span>
-                <span class="mobile-summary-value text-primary"><%= dailyTotals.depositsEGP.toFixed(2) %> EGP</span>
-            </div>
-            <div class="mobile-summary-item">
-                <span class="mobile-summary-label">خصومات اليوم</span>
-                <span class="mobile-summary-value text-danger"><%= dailyTotals.deductionsEGP.toFixed(2) %> EGP</span>
-            </div>
-        </div>
-        <% } else { %>
+        <% if (!operationWorkspace) { %>
         <div class="ledger-stats-bar mb-3" role="group" aria-label="إجماليات العمليات الناجحة">
             <div class="ledger-stat ledger-stat-today">
                 <div class="ledger-stat-copy">
@@ -679,39 +609,6 @@
         <% } %>
 
         <% if (operationWorkspace) { %>
-        <div class="row g-3 mb-4 d-none d-lg-flex">
-            <div class="col-md-4">
-                <div class="data-card summary-box box-success m-0">
-                    <div>
-                        <h6 class="fw-bold text-muted mb-2">إجمالي تحويلات اليوم (مكتملة)</h6>
-                        <div class="summary-val text-success mb-1"><%= dailyTotals.transfersEGP.toFixed(2) %> <small class="fs-6">EGP</small></div>
-                        <div class="text-danger fw-bold small mono-num"><%= dailyTotals.transfersLYD.toFixed(2) %> LYD</div>
-                    </div>
-                    <div class="summary-icon text-success"><i class="fa-solid fa-money-bill-transfer"></i></div>
-                </div>
-            </div>
-            <div class="col-md-4">
-                <div class="data-card summary-box box-primary m-0">
-                    <div>
-                        <h6 class="fw-bold text-muted mb-2">إجمالي إيداعات اليوم</h6>
-                        <div class="summary-val" style="color: #3b82f6;"><%= dailyTotals.depositsEGP.toFixed(2) %> <small class="fs-6">EGP</small></div>
-                    </div>
-                    <div class="summary-icon text-primary"><i class="fa-solid fa-hand-holding-dollar"></i></div>
-                </div>
-            </div>
-            <div class="col-md-4">
-                <div class="data-card summary-box box-danger m-0">
-                    <div>
-                        <h6 class="fw-bold text-muted mb-2">إجمالي خصومات اليوم</h6>
-                        <div class="summary-val text-danger"><%= dailyTotals.deductionsEGP.toFixed(2) %> <small class="fs-6">EGP</small></div>
-                    </div>
-                    <div class="summary-icon text-danger"><i class="fa-solid fa-arrow-trend-down"></i></div>
-                </div>
-            </div>
-        </div>
-        <% } %>
-
-        <% if (operationWorkspace) { %>
         <div class="data-card border-0 mb-4 p-4 d-none d-lg-block">
             <form method="GET" action="<%= transactionWorkspacePath %>" class="row g-3 align-items-end" id="transactionsFilterForm">
                 <input type="hidden" name="filterType" value="<%= typeof filterType !== 'undefined' ? filterType : '' %>">
@@ -763,27 +660,6 @@
                 <% }); %>
             </div>
         </div>
-        <% } %>
-
-        <% if (operationWorkspace) { %>
-        <section class="executor-balance-panel d-none d-xl-flex mb-3">
-            <div class="executor-balance-header">
-                <div class="d-flex justify-content-between gap-2 align-items-start"><div class="fw-bold" style="color: var(--text-main);"><i class="fa-solid fa-user-gear text-success ms-1"></i> المنفذون الجاهزون</div><a class="btn btn-sm btn-outline-success" title="استعلام رصيد API الآن" href="?refreshBalances=1&fromDate=<%= fromDate %>&toDate=<%= toDate %>&search=<%= encodeURIComponent(search) %>&status=<%= statusFilter %><%= executorId ? `&executorId=${executorId}` : '' %>"><i class="fa-solid fa-rotate"></i></a></div>
-                <div class="small text-muted fw-bold mt-1"><% if (executorId) { %><a class="text-decoration-none" href="?fromDate=<%= fromDate %>&toDate=<%= toDate %>&search=<%= encodeURIComponent(search) %>&status=<%= statusFilter %>"><i class="fa-solid fa-xmark ms-1"></i>إلغاء فلتر المنفذ</a><% } else { %>نشطون وبرصيد متاح للتوجيه<% } %></div>
-            </div>
-            <div class="executor-balance-list">
-                <% if (executorBalanceGroups && executorBalanceGroups.length) { %>
-                    <% executorBalanceGroups.forEach(group => { %>
-                        <a class="executor-balance-row <%= executorId === group.id ? 'is-selected' : '' %>" href="?executorId=<%= group.id %>&fromDate=<%= fromDate %>&toDate=<%= toDate %>&search=<%= encodeURIComponent(search) %>&status=<%= statusFilter %>" title="عرض عمليات <%= group.name %>">
-                            <span class="executor-balance-name"><%= group.name %><small class="executor-balance-meta"><%= group.balanceSource === 'api_service' ? 'API · رصيد خدمة مباشر' : 'يدوي · رصيد داخلي' %></small></span>
-                            <span class="executor-balance-value" dir="ltr"><%= Number(group.balance || 0).toFixed(2) %> EGP<small class="executor-balance-meta">تحديث <%= group.checkedAt ? new Date(group.checkedAt).toLocaleTimeString('en-GB', { timeZone: 'Africa/Tripoli', hour: '2-digit', minute: '2-digit' }) : '—' %></small></span>
-                        </a>
-                    <% }); %>
-                <% } else { %>
-                    <div class="text-center text-muted small fw-bold py-3 px-3 flex-grow-1"><i class="fa-solid fa-wallet ms-1 opacity-50"></i>لا يوجد منفذ نشط برصيد متاح حالياً.</div>
-                <% } %>
-            </div>
-        </section>
         <% } %>
 
         <div class="data-card border-0 p-0 overflow-hidden">
