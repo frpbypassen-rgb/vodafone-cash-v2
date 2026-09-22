@@ -11,6 +11,7 @@ jest.mock('../services/securityControlService', () => ({
     ensureDeviceId: jest.fn(() => 'device-id'),
     hashDeviceId: jest.fn(() => 'a'.repeat(64)),
     requestIp: jest.fn(() => '127.0.0.1'),
+    requestChannel: jest.fn(() => 'web'),
     activateDevice: jest.fn(),
     sessionDeviceRecentlyVerified: jest.fn(() => false),
     markSessionDeviceVerified: jest.fn(),
@@ -249,6 +250,12 @@ describe('security control middleware', () => {
         expect(res.redirect).not.toHaveBeenCalled();
         expect(securityControl.touchDeviceLastSeen).toHaveBeenCalled();
         expect(securityControl.markSessionDeviceVerified).toHaveBeenCalled();
+        expect(findOne).toHaveBeenCalledWith(expect.objectContaining({
+            principalType: 'client_company',
+            principalId: 'company-1',
+            channel: 'web',
+            status: 'active'
+        }));
         findOne.mockRestore();
     });
 
@@ -293,6 +300,12 @@ describe('security control middleware', () => {
         expect(destroy).toHaveBeenCalled();
         expect(res.redirect).toHaveBeenCalledWith('/login?security=DEVICE_BINDING_MISMATCH');
         expect(next).not.toHaveBeenCalled();
+        expect(findOne).toHaveBeenCalledWith(expect.objectContaining({
+            principalType: 'executor',
+            principalId: 'exec-1',
+            channel: 'web',
+            status: 'active'
+        }));
         findOne.mockRestore();
     });
 

@@ -23,11 +23,11 @@ describe('securityControlService', () => {
         expect(securityControl.requestChannel({ headers: { 'x-client-channel': 'app' }, originalUrl: '/login' })).toBe('web');
     });
 
-    test('defines one active device per principal across all channels', () => {
+    test('defines one active device per principal and channel', () => {
         const SecurityDevice = require('../models/SecurityDevice');
-        const uniqueIndex = SecurityDevice.schema.indexes().find(([, options]) => options.name === 'uniq_active_security_device_per_account');
+        const uniqueIndex = SecurityDevice.schema.indexes().find(([, options]) => options.name === 'uniq_active_security_device_per_channel');
         expect(uniqueIndex).toBeDefined();
-        expect(uniqueIndex[0]).toMatchObject({ principalType: 1, principalId: 1, status: 1 });
+        expect(uniqueIndex[0]).toMatchObject({ principalType: 1, principalId: 1, channel: 1, status: 1 });
         expect(uniqueIndex[1].unique).toBe(true);
         const lastSeen = SecurityDevice.schema.indexes().find(([, options]) => options.name === 'security_device_lastSeenAt');
         expect(lastSeen).toBeDefined();
@@ -295,6 +295,79 @@ describe('securityControlService', () => {
                 type: 'security_device_transfer',
                 audience: 'admin'
             }));
+        });
+
+        test('revokes only the same channel when activating a web device', async () => {
+            const updateMany = jest.spyOn(SecurityDevice, 'updateMany').mockResolvedValue({});
+            const create = jest.spyOn(SecurityDevice, 'create').mockResolvedValue({
+                _id: 'web-device',
+                status: 'active',
+                channel: 'web'
+            });
+
+            await securityControl.activateDevice({
+                req: {
+                    headers: { cookie: 'ahrampay_security_device=aaaaaaaa-bbbb-cccc-dddd-111111111111', 'user-agent': 'Chrome' },
+                    originalUrl: '/executor-portal/dashboard',
+                    session: {}
+                },
+                res: { cookie: jest.fn() },
+                principal: { principalType: 'executor', principalId: 'exec-42', principalName: 'منفذ' },
+                approvedBy: 'verified_login_rebind'
+            });
+
+            expect(updateMany).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    principalType: 'executor',
+                    principalId: 'exec-42',
+                    channel: 'web',
+                    status: 'active'
+                }),
+                expect.any(Object)
+            );
+            expect(create).toHaveBeenCalledWith(expect.objectContaining({
+                channel: 'web',
+                status: 'active'
+            }));
+        });
+
+        test('matches the active web device even when a separate app device exists', async () => {
+            mockState();
+            const deviceId = 'bbbbbbbb-cccc-dddd-eeee-ffffffffffff';
+            const webDevice = {
+                _id: 'web-1',
+                channel: 'web',
+                deviceIdHash: securityControl.hashDeviceId(deviceId),
+                credentialId: null
+            };
+            const findOne = jest.spyOn(SecurityDevice, 'findOne').mockReturnValue({
+                select: jest.fn().mockResolvedValue(webDevice)
+            });
+            jest.spyOn(SecurityDevice, 'updateOne').mockResolvedValue({});
+
+            const result = await securityControl.authorizeLogin({
+                req: {
+                    headers: { cookie: `ahrampay_security_device=${deviceId}`, 'user-agent': 'Chrome' },
+                    originalUrl: '/executor-portal/reports',
+                    body: {},
+                    session: {}
+                },
+                res: { cookie: jest.fn() },
+                principal: { principalType: 'executor', principalId: 'exec-7', principalName: 'منفذ' },
+                accountClass: 'account',
+                allowFirstDevice: true,
+                verifiedLogin: true
+            });
+
+            expect(findOne).toHaveBeenCalledWith(expect.objectContaining({
+                principalType: 'executor',
+                principalId: 'exec-7',
+                channel: 'web',
+                status: 'active'
+            }));
+            expect(result).toMatchObject({ allowed: true, enforcementEnabled: true });
+            expect(result.rebound).toBeUndefined();
+            expect(result.enrolled).toBeUndefined();
         });
 
         test('does not mint a new device identifier when minting is disabled', () => {

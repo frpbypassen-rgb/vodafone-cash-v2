@@ -410,8 +410,15 @@ const activateDevice = async ({ req, res, principal, credential = null, approved
     const location = parseLocation(req) || req.session?.securityLocation || null;
     const ipAddress = requestIp(req);
     const channel = requestChannel(req);
+    // One active device per channel: replacing the web browser must not
+    // revoke the mobile-app binding (and the reverse).
     await SecurityDevice.updateMany(
-        { principalType: principal.principalType, principalId: principal.principalId, status: 'active' },
+        {
+            principalType: principal.principalType,
+            principalId: principal.principalId,
+            channel,
+            status: 'active'
+        },
         { $set: { status: 'revoked', revokedAt: new Date(), revokedReason: 'replaced_by_new_device' } }
     );
     const record = await SecurityDevice.create({
@@ -486,6 +493,7 @@ const authorizeLogin = async ({
     const active = await SecurityDevice.findOne({
         principalType: principal.principalType,
         principalId: principal.principalId,
+        channel,
         status: 'active'
     }).select('+deviceIdHash');
     const canRebindMismatch = allowFirstDevice && (
@@ -675,10 +683,12 @@ const reviewPrincipalAccessRequest = async ({ principal, requestId, approve, rev
         return { request, device: null };
     }
 
+    const requestChannelName = request.channel || 'web';
     await SecurityDevice.updateMany(
         {
             principalType: principal.principalType,
             principalId: principal.principalId,
+            channel: requestChannelName,
             status: 'active'
         },
         {
@@ -694,7 +704,7 @@ const reviewPrincipalAccessRequest = async ({ principal, requestId, approve, rev
         principalId: principal.principalId,
         principalName: principal.principalName || request.principalName || '',
         tenantId: request.tenantId || null,
-        channel: request.channel || 'web',
+        channel: requestChannelName,
         deviceIdHash: request.deviceIdHash,
         displayName: request.displayName,
         deviceType: request.deviceType,
@@ -752,29 +762,40 @@ const ensureSecurityDeviceIndexes = async () => {
 
     const indexes = await SecurityDevice.collection.indexes();
     const indexNames = new Set(indexes.map((index) => index.name));
-    if (indexNames.has('uniq_active_security_device_per_channel')) {
-        await SecurityDevice.collection.dropIndex('uniq_active_security_device_per_channel');
+    // Restore channel-aware uniqueness. A prior emergency migration collapsed
+    // web+app into one active device per account and caused portal lockouts
+    // whenever the mobile app rebound the same principal.
+    if (indexNames.has('uniq_active_security_device_per_account')) {
+        await SecurityDevice.collection.dropIndex('uniq_active_security_device_per_account');
+        indexNames.delete('uniq_active_security_device_per_account');
     }
-    if (!indexNames.has('uniq_active_security_device_per_account')) {
-        // Existing accounts may have one web and one app record. Keep the most
-        // recently seen one and revoke the rest before adding the single-device
-        // unique index. Do not drop this unique index on every process boot.
+    if (!indexNames.has('uniq_active_security_device_per_channel')) {
         const duplicateGroups = await SecurityDevice.aggregate([
             { $match: { status: 'active' } },
             { $sort: { lastSeenAt: -1, updatedAt: -1 } },
-            { $group: { _id: { principalType: '$principalType', principalId: '$principalId' }, ids: { $push: '$_id' }, count: { $sum: 1 } } },
+            {
+                $group: {
+                    _id: {
+                        principalType: '$principalType',
+                        principalId: '$principalId',
+                        channel: '$channel'
+                    },
+                    ids: { $push: '$_id' },
+                    count: { $sum: 1 }
+                }
+            },
             { $match: { count: { $gt: 1 } } }
         ]);
         for (const group of duplicateGroups) {
             await SecurityDevice.updateMany(
                 { _id: { $in: group.ids.slice(1) } },
-                { $set: { status: 'revoked', revokedAt: new Date(), revokedReason: 'single_device_policy_migration' } }
+                { $set: { status: 'revoked', revokedAt: new Date(), revokedReason: 'per_channel_device_policy_migration' } }
             );
         }
         await SecurityDevice.collection.createIndex(
-            { principalType: 1, principalId: 1, status: 1 },
+            { principalType: 1, principalId: 1, channel: 1, status: 1 },
             {
-                name: 'uniq_active_security_device_per_account',
+                name: 'uniq_active_security_device_per_channel',
                 unique: true,
                 partialFilterExpression: { status: 'active' }
             }

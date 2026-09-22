@@ -85,6 +85,8 @@ The session policy is channel-aware:
 
 The server derives the authoritative channel from its own API route. Mobile clients send `X-Client-Channel: app` for diagnostics, but that client-controlled header cannot change a web request into an app session. The startup migration assigns legacy Flutter and Android records to `app` and remaining records to `web`, then creates a unique active-device index per channel.
 
+Do not collapse web and app into a single active device. A previous emergency migration that used `uniq_active_security_device_per_account` revoked the portal browser whenever the mobile app rebound the same principal and surfaced as `DEVICE_BINDING_MISMATCH` on executor reports while KPI cards from an earlier successful fetch remained visible.
+
 ## Device transfer
 
 When a correct account password is used on a different device, the old device is not immediately revoked. A 15-minute approval request is created with the device description, IP, geolocation, and trusted-edge risk signals. The main administration receives an in-app security notification. Approval revokes the old device in the same channel and activates the new device; rejection leaves the existing web or app session unchanged. The other channel remains active.

@@ -142,9 +142,11 @@ const enforceSecuritySession = async (req, res, next) => {
             }
             return next();
         }
+        const channel = securityControl.requestChannel(req);
         const active = await SecurityDevice.findOne({
             principalType: principal.principalType,
             principalId: principal.principalId,
+            channel,
             status: 'active'
         }).select('+deviceIdHash lastSeenAt lastIp credentialId').lean();
         const bound = Boolean(active && hashesEqual(active.deviceIdHash, deviceHash));

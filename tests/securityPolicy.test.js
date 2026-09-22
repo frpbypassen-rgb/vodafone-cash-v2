@@ -121,10 +121,12 @@ describe('Production security policy', () => {
     });
 
     test('accepts a time-limited device-binding bypass and rejects a window longer than 24h', () => {
-        const now = Date.parse('2026-09-20T12:00:00Z');
+        const now = Date.now();
+        const validExpiry = new Date(now + (12 * 60 * 60 * 1000)).toISOString();
+        const tooLongExpiry = new Date(now + (24 * 60 * 60 * 1000) + 1000).toISOString();
         const valid = productionEnv({
             EMERGENCY_DEVICE_BINDING_BYPASS: 'true',
-            EMERGENCY_DEVICE_BINDING_BYPASS_EXPIRES_AT: '2026-09-21T12:00:00Z',
+            EMERGENCY_DEVICE_BINDING_BYPASS_EXPIRES_AT: validExpiry,
             EMERGENCY_DEVICE_BINDING_BYPASS_REASON: 'DEVICE_BINDING_MISMATCH portal lockout'
         });
         expect(getEmergencyDeviceBindingBypassState(valid, now).active).toBe(true);
@@ -132,7 +134,7 @@ describe('Production security policy', () => {
 
         const tooLong = productionEnv({
             EMERGENCY_DEVICE_BINDING_BYPASS: 'true',
-            EMERGENCY_DEVICE_BINDING_BYPASS_EXPIRES_AT: '2026-09-22T12:00:01Z',
+            EMERGENCY_DEVICE_BINDING_BYPASS_EXPIRES_AT: tooLongExpiry,
             EMERGENCY_DEVICE_BINDING_BYPASS_REASON: 'too long'
         });
         const result = validateProductionSecurityEnv(tooLong);

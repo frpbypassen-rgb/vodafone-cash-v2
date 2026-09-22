@@ -101,8 +101,21 @@ enrolls the first device and rebinds the current browser when a stale device
 record would otherwise soft-lock the business. Suspicious transfers still
 create an admin notification in the security center.
 
-If a live session still bounces after pull/reload, use a **separate** 24h
-window. Leave these **out of PM2** `env_production`:
+Web and mobile bindings are **per channel**: logging into the executor app must
+not revoke the executor-portal browser device. If production still has the
+legacy `uniq_active_security_device_per_account` index, a normal deploy that
+runs `ensureSecurityDeviceIndexes` restores `uniq_active_security_device_per_channel`.
+
+### Immediate unblock without waiting on a full feature deploy
+
+1. Ask the user to sign out and sign in again with password + WhatsApp OTP from
+   the browser they need. Verified login rebinds that channel only.
+2. From `/admin/security`, revoke the stuck principal's web device (or both
+   channels if the account is compromised), then have them log in again.
+3. Disable **account device enforcement** temporarily from `/admin/security` if
+   many companies are locked (re-enable once devices are rebound).
+4. If a live session still bounces after pull/reload, use a **separate** 24h
+   window. Leave these **out of PM2** `env_production`:
 
 ```
 EMERGENCY_DEVICE_BINDING_BYPASS=true

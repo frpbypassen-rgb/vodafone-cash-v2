@@ -475,6 +475,12 @@
                     body: JSON.stringify(reportRequest)
                 });
                 const data = await res.json();
+                if (data.code === 'DEVICE_BINDING_MISMATCH'
+                    || data.code === 'SECURITY_SESSION_EXPIRED'
+                    || data.code === 'ADMIN_SESSION_REVOKED') {
+                    window.location.assign(`/login?security=${encodeURIComponent(data.code)}`);
+                    return;
+                }
                 if (!data.success) throw new Error(data.error);
 
                 isPersonalExecutorReport = data.data.scope === 'employee';
