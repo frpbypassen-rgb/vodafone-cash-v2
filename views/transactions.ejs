@@ -483,11 +483,16 @@
             overflow: hidden;
         }
         .ops-exec-card {
+            box-sizing: border-box;
             display: flex;
             flex-direction: column;
             justify-content: center;
-            gap: 4px;
-            padding: 10px 13px;
+            gap: 3px;
+            width: 160px;
+            height: 100px;
+            flex: 0 0 160px;
+            overflow: hidden;
+            padding: 8px 10px;
             border-radius: 12px;
             text-decoration: none;
         }
@@ -503,7 +508,9 @@
             font-weight: 800;
             color: var(--text-main);
         }
-        .ops-exec-value { font-size: .92rem; color: #10b981; }
+        .ops-exec-name { font-size: .8rem; }
+        .ops-exec-label { font-size: .66rem; }
+        .ops-exec-value { font-size: .84rem; color: #10b981; }
         .ops-exec-value.is-zero { color: var(--text-muted); }
         .ops-company-card {
             display: flex;
@@ -780,7 +787,7 @@
                     <div class="ops-exec-row">
                         <% if (opsExecutors.length) { %>
                             <% opsExecutors.forEach(function(executor) { %>
-                                <a class="ops-exec-card ops-uniform-card" data-ops-executor="<%= executor.id %>" href="/executor/<%= executor.id %>" title="<%= executor.name %>">
+                                <a class="ops-exec-card" data-ops-executor="<%= executor.id %>" href="/executor/<%= executor.id %>" title="<%= executor.name %>">
                                     <span class="ops-exec-name"><%= executor.name %></span>
                                     <span class="ops-exec-label">إجمالي الرصيد معهم</span>
                                     <strong class="ops-exec-value <%= Number(executor.balance) === 0 ? 'is-zero' : '' %>"><%= formatMoney(executor.balance) %> <small>EGP</small></strong>

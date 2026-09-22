@@ -175,10 +175,12 @@ describe('central ledger page layout', () => {
         expect(html).toContain('data-ops-company-deposit="1234567.89"');
         expect(html).toContain('1,234,567.89');
         expect(html).toMatch(/\.ops-uniform-card\s*\{[^}]*width:\s*210px[^}]*height:\s*152px/);
+        expect(html).toMatch(/\.ops-exec-card\s*\{[^}]*width:\s*160px[^}]*height:\s*100px/);
         expect(html).toMatch(/\.ops-micro-stack\s*\{[^}]*flex-direction:\s*column/);
         expect(html).toMatch(/\.ops-micro\s*\{[^}]*width:\s*100%/);
         expect(html).toMatch(/\.ops-mini-card\s*\{[^}]*padding:\s*7px 10px/);
-        expect(html).toContain('ops-exec-card ops-uniform-card');
+        expect(html).toContain('class="ops-exec-card"');
+        expect(html).not.toContain('ops-exec-card ops-uniform-card');
         expect(html).toContain('ops-company-card ops-uniform-card');
         expect(html).not.toContain('ops-company-cluster');
         const firstCompany = html.slice(html.indexOf('data-ops-company="c1"'), html.indexOf('data-ops-company="c2"'));
