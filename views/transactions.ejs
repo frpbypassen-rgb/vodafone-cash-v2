@@ -389,8 +389,7 @@
         }
         .ops-mini-card,
         .ops-exec-card,
-        .ops-company-card,
-        .ops-micro {
+        .ops-company-card {
             background: var(--card-bg);
             border: 1px solid var(--border-glass);
             box-shadow: var(--shadow-soft);
@@ -476,15 +475,18 @@
         .ops-company-label {
             font-size: .72rem;
         }
+        .ops-uniform-card {
+            box-sizing: border-box;
+            width: 210px;
+            height: 152px;
+            flex: 0 0 210px;
+            overflow: hidden;
+        }
         .ops-exec-card {
             display: flex;
             flex-direction: column;
             justify-content: center;
-            gap: 3px;
-            width: max-content;
-            min-width: 118px;
-            max-width: 200px;
-            min-height: 74px;
+            gap: 4px;
             padding: 10px 13px;
             border-radius: 12px;
             text-decoration: none;
@@ -492,6 +494,8 @@
         .ops-exec-card:hover { border-color: rgba(16, 185, 129, .45); }
         .ops-exec-name,
         .ops-company-name {
+            display: block;
+            max-width: 100%;
             overflow: hidden;
             text-overflow: ellipsis;
             white-space: nowrap;
@@ -501,52 +505,40 @@
         }
         .ops-exec-value { font-size: .92rem; color: #10b981; }
         .ops-exec-value.is-zero { color: var(--text-muted); }
-        .ops-company-cluster {
-            display: inline-flex;
-            align-items: stretch;
-            gap: 6px;
-            width: max-content;
-            max-width: 100%;
-        }
         .ops-company-card {
             display: flex;
             flex-direction: column;
-            justify-content: center;
-            gap: 3px;
-            width: max-content;
-            min-width: 132px;
-            max-width: 210px;
-            min-height: 74px;
+            justify-content: space-between;
+            gap: 6px;
             padding: 10px 13px;
             border-radius: 12px;
             text-decoration: none;
         }
         .ops-company-card:hover { border-color: rgba(212, 175, 55, .55); }
+        .ops-company-head { min-width: 0; }
         .ops-company-balance { font-size: .92rem; color: #10b981; }
         .ops-company-balance.is-negative { color: #ef4444; }
         .ops-micro-stack {
             display: flex;
             flex-direction: column;
-            align-items: flex-start;
-            justify-content: center;
             gap: 4px;
-            width: max-content;
-            flex: 0 0 auto;
+            width: 100%;
         }
         .ops-micro {
-            display: inline-flex;
-            flex: 0 0 auto;
-            flex-direction: column;
-            justify-content: center;
+            display: flex;
+            flex-direction: row;
             align-items: center;
-            width: max-content;
-            min-width: max-content;
-            max-width: none;
+            justify-content: space-between;
+            gap: 6px;
+            width: 100%;
+            box-sizing: border-box;
             padding: 4px 6px;
             border-radius: 8px;
-            text-align: center;
+            background: var(--input-bg);
+            border: 1px solid var(--border-glass);
+            box-shadow: none;
         }
-        .ops-micro-value { font-size: .78rem; color: var(--text-main); }
+        .ops-micro-value { font-size: .74rem; color: var(--text-main); }
         .ops-micro-deposit .ops-micro-value { color: #3b82f6; }
         .ops-summary-empty {
             color: var(--text-muted);
@@ -788,7 +780,7 @@
                     <div class="ops-exec-row">
                         <% if (opsExecutors.length) { %>
                             <% opsExecutors.forEach(function(executor) { %>
-                                <a class="ops-exec-card" data-ops-executor="<%= executor.id %>" href="/executor/<%= executor.id %>" title="<%= executor.name %>">
+                                <a class="ops-exec-card ops-uniform-card" data-ops-executor="<%= executor.id %>" href="/executor/<%= executor.id %>" title="<%= executor.name %>">
                                     <span class="ops-exec-name"><%= executor.name %></span>
                                     <span class="ops-exec-label">إجمالي الرصيد معهم</span>
                                     <strong class="ops-exec-value <%= Number(executor.balance) === 0 ? 'is-zero' : '' %>"><%= formatMoney(executor.balance) %> <small>EGP</small></strong>
@@ -803,12 +795,12 @@
             <div class="ops-company-row">
                 <% if (opsCompanies.length) { %>
                     <% opsCompanies.forEach(function(company) { %>
-                        <div class="ops-company-cluster" data-ops-company="<%= company.id %>">
-                            <a class="ops-company-card" href="/company/<%= company.id %>" title="<%= company.name %>">
+                        <a class="ops-company-card ops-uniform-card" data-ops-company="<%= company.id %>" href="/company/<%= company.id %>" title="<%= company.name %>">
+                            <span class="ops-company-head">
                                 <span class="ops-company-name"><%= company.name %></span>
                                 <span class="ops-company-label">الرصيد المتاح</span>
                                 <strong class="ops-company-balance <%= Number(company.balance) < 0 ? 'is-negative' : '' %>"><%= formatMoney(company.balance) %> <small>LYD</small></strong>
-                            </a>
+                            </span>
                             <div class="ops-micro-stack">
                                 <span class="ops-micro ops-micro-completed" data-ops-micro="completed" title="عمليات مكتملة اليوم">
                                     <span class="ops-micro-label">عمليات اليوم</span>
@@ -819,7 +811,7 @@
                                     <strong class="ops-micro-value" data-ops-company-deposit="<%= Number(company.depositsToday) || 0 %>"><%= formatMoney(company.depositsToday) %></strong>
                                 </span>
                             </div>
-                        </div>
+                        </a>
                     <% }); %>
                 <% } else { %>
                     <div class="ops-summary-empty">لا توجد شركات لعرضها.</div>
