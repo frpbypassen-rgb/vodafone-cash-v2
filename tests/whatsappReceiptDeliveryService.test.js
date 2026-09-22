@@ -33,6 +33,7 @@ const { createReceiptImageUrl } = require('../services/receiptShareService');
 const { getWhatChimpConfigurationStatus, normalizeWhatsAppPhone, sendReceipt } = require('../services/whatsappService');
 const {
     sendCompletedTransactionReceipt,
+    sendCancelledTransactionReceipt,
     updateReceiptDeliveryProviderStatus,
     normalizeProviderDeliveryStatus
 } = require('../services/whatsappReceiptDeliveryService');
@@ -179,6 +180,63 @@ describe('WhatsApp receipt delivery', () => {
         expect(WhatsAppDelivery.mock.instances[0].stages).toEqual(expect.arrayContaining([
             expect.objectContaining({ key: 'receipt_ready', status: 'failed' })
         ]));
+    });
+
+    test('sends the cancellation receipt through the same WhatsApp receipt channel', async () => {
+        const transaction = {
+            _id: 'tx-cancel',
+            customId: 'ATT-2608-0099',
+            status: 'cancelled_by_admin',
+            userId: '01108172258',
+            employeeName: 'أحمد',
+            transferType: 'vodafone',
+            amount: 500,
+            proofImage: 'proofs/CAN-2609-00001_cancellation_receipt.jpg',
+            cancelledAt: new Date('2026-09-21T10:00:00.000Z'),
+            cancellationNumber: 'CAN-2609-00001'
+        };
+        Transaction.findById.mockResolvedValue(transaction);
+        User.findOne.mockResolvedValue({ _id: 'user-1', name: 'أحمد', phone: '01108172258' });
+        WhatsAppDelivery.findOne.mockResolvedValue(null);
+
+        const result = await sendCancelledTransactionReceipt(transaction);
+
+        expect(result).toMatchObject({ success: true, reference: 'ATT-2608-0099', recipientPhone: '201108172258' });
+        expect(createReceiptImageUrl).toHaveBeenCalledWith({ transactionId: 'tx-cancel', index: 0 });
+        expect(sendReceipt).toHaveBeenCalledWith(expect.objectContaining({
+            phone: '201108172258',
+            reference: 'ATT-2608-0099',
+            amount: '500',
+            receiptUrl: 'https://pay.example.test/public/receipt/tx-1/image?signature=signed'
+        }));
+        expect(WhatsAppDelivery).toHaveBeenCalledWith(expect.objectContaining({
+            kind: 'cancellation_receipt',
+            transactionId: 'tx-cancel'
+        }));
+        expect(WhatsAppDelivery.findOne).toHaveBeenCalledWith(expect.objectContaining({
+            kind: 'cancellation_receipt'
+        }));
+    });
+
+    test('does not send a cancellation receipt for a completed operation or a missing cancel proof', async () => {
+        Transaction.findById.mockResolvedValueOnce({
+            _id: 'tx-open',
+            status: 'completed',
+            proofImage: 'proofs/CAN-1_cancellation_receipt.jpg'
+        });
+        const completed = await sendCancelledTransactionReceipt('tx-open');
+        expect(completed).toMatchObject({ success: false, code: 'RECEIPT_NOT_AVAILABLE' });
+
+        Transaction.findById.mockResolvedValueOnce({
+            _id: 'tx-rejected',
+            status: 'rejected',
+            userId: '01108172258',
+            proofImage: 'proofs/success.jpg'
+        });
+        WhatsAppDelivery.findOne.mockResolvedValue(null);
+        const missing = await sendCancelledTransactionReceipt('tx-rejected');
+        expect(missing).toMatchObject({ success: false, code: 'RECEIPT_PROOF_MISSING' });
+        expect(sendReceipt).not.toHaveBeenCalled();
     });
 
     test('records the final WhatsApp delivery status received by webhook', async () => {

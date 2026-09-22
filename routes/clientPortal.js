@@ -672,7 +672,8 @@ router.post('/api/support/messages', requireClientAuth, async (req, res) => {
         const { account, entityType } = await getSupportIdentity(req);
         if (!account) return res.status(401).json({ success: false, error: 'Unauthorized' });
 
-        if (businessPortalService.isCompanyDepositCreateIntent(text)) {
+        const companyDepositRequest = businessPortalService.isCompanyDepositCreateIntent(text);
+        if (companyDepositRequest) {
             const workspace = await businessPortalService.resolveWorkspace(req);
             if (!businessPortalService.canCreateCompanyDepositRequest(workspace)) {
                 return res.status(403).json({
@@ -712,6 +713,14 @@ router.post('/api/support/messages', requireClientAuth, async (req, res) => {
             createdAt: new Date()
         };
         ticket.messages.push(newMessage);
+        if (companyDepositRequest) {
+            ticket.category = 'deposit';
+            ticket.priority = ticket.priority === 'urgent' ? ticket.priority : 'high';
+            const metadata = ticket.metadata && typeof ticket.metadata === 'object' ? { ...ticket.metadata } : {};
+            if (!metadata.type) metadata.type = 'company_deposit';
+            ticket.metadata = metadata;
+            if (typeof ticket.markModified === 'function') ticket.markModified('metadata');
+        }
         setPortalSupportReplyChannel(ticket);
         ticket.status = 'open';
         ticket.unreadAdmin = (ticket.unreadAdmin || 0) + 1;

@@ -16,6 +16,8 @@ const REQUIRED_ADMIN_HREFS = [
     '/transactions/operations',
     '/transactions/movements',
     '/transactions/search',
+    '/transactions/deposits?party=company',
+    '/transactions/deposits?party=executor',
     '/reports',
     '/whatsapp-monitor',
     '/admin/webhooks',
@@ -76,7 +78,9 @@ describe('admin sidebar navigation', () => {
         const monitoringBlock = source.slice(menuStart, source.indexOf('إدارة الحسابات'));
         expect(monitoringBlock.indexOf('/financial-movements')).toBeGreaterThan(-1);
         expect(monitoringBlock.indexOf('/transactions/operations')).toBeLessThan(monitoringBlock.indexOf('/financial-movements'));
-        expect(monitoringBlock.indexOf('/financial-movements')).toBeLessThan(monitoringBlock.indexOf('/transactions/live'));
+        expect(monitoringBlock.indexOf('/financial-movements')).toBeLessThan(monitoringBlock.indexOf('/transactions/deposits?party=company'));
+        expect(monitoringBlock.indexOf('/transactions/deposits?party=company')).toBeLessThan(monitoringBlock.indexOf('/transactions/deposits?party=executor'));
+        expect(monitoringBlock.indexOf('/transactions/deposits?party=executor')).toBeLessThan(monitoringBlock.indexOf('/transactions/live'));
         expect(monitoringBlock).toMatch(/السجل المركزي \(الحركات المالية\)/);
         expect(monitoringBlock).toMatch(/المراقبة الحية/);
         expect(monitoringBlock).toMatch(/التقارير الشاملة/);
@@ -87,10 +91,12 @@ describe('admin sidebar navigation', () => {
         const menuStart = html.indexOf('class="sidebar-menu');
         const monitoringBlock = html.slice(menuStart, html.indexOf('إدارة الحسابات'));
         const anchors = [...monitoringBlock.matchAll(/<a\b[^>]*href="([^"]+)"[^>]*>/g)].map((match) => match[1]);
-        expect(anchors.slice(0, 4)).toEqual([
+        expect(anchors.slice(0, 6)).toEqual([
             '/',
             '/transactions/operations',
             '/financial-movements',
+            '/transactions/deposits?party=company',
+            '/transactions/deposits?party=executor',
             '/transactions/live'
         ]);
         const dashboardAt = monitoringBlock.indexOf('لوحة القيادة');
