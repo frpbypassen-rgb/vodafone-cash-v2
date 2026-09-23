@@ -402,6 +402,7 @@
         }
         .ops-mini-card.ops-today { border-color: rgba(212, 175, 55, .45); }
         .ops-mini-card.ops-deposits { border-color: rgba(59, 130, 246, .35); }
+        .ops-mini-card.ops-executor-deposits { border-color: rgba(16, 185, 129, .4); }
         .ops-mini-label,
         .ops-exec-label,
         .ops-micro-label,
@@ -650,7 +651,7 @@
     const ledgerExecutors = Array.isArray(typeof fundedExecutorCompanies !== 'undefined' ? fundedExecutorCompanies : null) ? fundedExecutorCompanies : [];
     const opsWorkspace = typeof operationWorkspace !== 'undefined' && Boolean(operationWorkspace);
     const opsSummary = opsWorkspace
-        ? ((typeof operationsSummary !== 'undefined' && operationsSummary) ? operationsSummary : { today: { egyptianEGP: 0, libyanLYD: 0 }, todayDepositsTotal: 0, activeExecutors: [], companies: [] })
+        ? ((typeof operationsSummary !== 'undefined' && operationsSummary) ? operationsSummary : { today: { egyptianEGP: 0, libyanLYD: 0 }, todayDepositsTotal: 0, todayExecutorDepositsTotal: 0, activeExecutors: [], companies: [] })
         : null;
     const opsToday = opsSummary && opsSummary.today ? opsSummary.today : { egyptianEGP: 0, libyanLYD: 0 };
     const opsExecutors = opsSummary && Array.isArray(opsSummary.activeExecutors) ? opsSummary.activeExecutors : [];
@@ -786,6 +787,10 @@
         <section class="ops-summary-strip" data-ops-summary-strip="operations" aria-label="ملخص العمليات">
             <div class="ops-summary-top">
                 <div class="ops-summary-left">
+                    <article class="ops-mini-card ops-executor-deposits" data-ops-executor-deposits-total>
+                        <span class="ops-mini-label">إيداعات المنفذين</span>
+                        <strong class="ops-mini-value" data-ops-executor-deposits="<%= Number(opsSummary.todayExecutorDepositsTotal) || 0 %>"><%= formatMoney(opsSummary.todayExecutorDepositsTotal) %> <small>EGP</small></strong>
+                    </article>
                     <article class="ops-mini-card ops-today" data-ops-today-totals>
                         <span class="ops-mini-label">إجمالي اليوم</span>
                         <div class="ops-currency-row">

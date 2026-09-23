@@ -138,6 +138,7 @@ describe('operations summary strip', () => {
         expect(Transaction.aggregate).toHaveBeenCalledTimes(1);
         expect(summary.today).toEqual({ egyptianEGP: 12400.5, libyanLYD: 2310.25 });
         expect(summary.todayDepositsTotal).toBe(170);
+        expect(summary.todayExecutorDepositsTotal).toBe(425);
         expect(summary.companies).toEqual([
             expect.objectContaining({ id: 'c1', balance: 12, completedToday: 3, depositsToday: 150 })
         ]);

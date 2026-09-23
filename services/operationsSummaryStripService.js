@@ -14,6 +14,7 @@ const DEPOSIT_STATUS = 'deposit';
 const emptyOperationsSummary = () => ({
     today: { egyptianEGP: 0, libyanLYD: 0 },
     todayDepositsTotal: 0,
+    todayExecutorDepositsTotal: 0,
     activeExecutors: [],
     companies: []
 });
@@ -205,6 +206,9 @@ const loadOperationsSummaryStrip = async ({
             libyanLYD: Number(totals.libyanLYD) || 0
         },
         todayDepositsTotal: sumValues(facet.depositsByCompany, 'total'),
+        // All executor-group deposit rows for today, including groups that
+        // are not on an active card. Company deposits stay in todayDepositsTotal.
+        todayExecutorDepositsTotal: sumValues(facet.depositsByExecutor, 'total'),
         activeExecutors: mapActiveExecutorStrip(executors, allocatedByGroup, completedByExecutor, depositsByExecutor),
         companies: mapCompanyStrip(companies, completedByCompany, depositsByCompany)
     };
