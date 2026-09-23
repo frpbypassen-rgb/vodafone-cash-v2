@@ -115,6 +115,16 @@ const respondTransactionAction = (req, res, status, payload, redirectUrl = '/tra
     return res.redirect(redirectUrl);
 };
 
+const operationsListReturnUrl = (req) => {
+    try {
+        const referer = new URL(String(req.get('referer') || ''), `${req.protocol}://${req.get('host')}`);
+        if (referer.host === req.get('host') && referer.pathname === '/transactions/operations') {
+            return `/transactions/operations${referer.search || ''}`;
+        }
+    } catch (_) {}
+    return '/transactions';
+};
+
 // Task delivery is an asynchronous side effect. A broken mobile push provider
 // must never roll back, or falsely report failure for, an already persisted
 // executor assignment.
@@ -340,14 +350,19 @@ const renderTransactions = async (req, res, operationsWorkspace = false) => {
 
         const totalTxs = await Transaction.countDocuments(query);
         const totalPages = Math.ceil(totalTxs / limit);
+        // Operations keeps cancelled rows in the completed timeline. The
+        // central ledger still groups failed/cancelled after successes.
+        const listSortMode = operationsWorkspace ? 'operations' : 'ledger';
         const transactions = sortTransactionsByStatusQueue(
             await Transaction.aggregate([
                 { $match: query },
                 ...transactionStatusQueuePipelineStages({
                     skip: (page - 1) * limit,
-                    limit
+                    limit,
+                    mode: listSortMode
                 })
-            ])
+            ]),
+            listSortMode
         );
 
         // ملخص السجل المركزي مستقل عن فلاتر الجدول. شاشة العمليات لا تحمّله؛
@@ -773,43 +788,55 @@ router.post('/transaction/:id/edit-data', async (req, res) => {
 });
 
 router.post('/transaction/:id/global-cancel', async (req, res) => {
+    const redirectUrl = operationsListReturnUrl(req);
     try {
         const reason = req.body.reason || 'إلغاء من الإدارة';
         const adminName = req.session.adminName || 'الإدارة';
         const originalTx = await Transaction.findOne(adminTxById(req, req.params.id)).lean();
-        if (!originalTx) return res.redirect('/transactions');
+        if (!originalTx) {
+            return respondTransactionAction(req, res, 404, { success: false, message: 'العملية غير موجودة' }, redirectUrl);
+        }
         
         // 🟢 استخدام خدمة الاسترجاع الموحدة لضمان الدبل إنتري والأحداث المتسلسلة
         const result = await reversalService.reverseTransaction(req.params.id, reason, adminName, { status: 'cancelled_by_admin' });
-        if (result.success) {
-            const tx = await Transaction.findOne(adminTxById(req, req.params.id));
-            if (tx) {
-                const groupId = tx.executorGroupId; 
-                const managerGroupId = tx.managerGroupId;
-                if (groupId) await syncBotBalance(groupId); 
-                if (managerGroupId) await syncBotBalance(managerGroupId);
-                await logAdminFinancialChange(
-                    req,
-                    'TRANSACTION_CANCELLED_BY_ADMIN',
-                    tx,
-                    {
-                        status: originalTx?.status,
-                        amount: originalTx?.amount,
-                        costLYD: originalTx?.costLYD,
-                        createdAt: originalTx?.createdAt
-                    },
-                    {
-                        status: tx.status,
-                        amount: tx.amount,
-                        costLYD: tx.costLYD,
-                        createdAt: tx.createdAt
-                    },
-                    { reason, originalCreatedAt: originalTx?.createdAt }
-                );
-            }
+        if (!result.success) {
+            return respondTransactionAction(req, res, result.statusCode || 400, {
+                success: false,
+                message: result.message || 'تعذر إلغاء العملية.'
+            }, redirectUrl);
         }
-        res.redirect('/transactions');
-    } catch (e) { res.redirect('/transactions'); }
+        const tx = await Transaction.findOne(adminTxById(req, req.params.id));
+        if (tx) {
+            const groupId = tx.executorGroupId; 
+            const managerGroupId = tx.managerGroupId;
+            if (groupId) await syncBotBalance(groupId); 
+            if (managerGroupId) await syncBotBalance(managerGroupId);
+            await logAdminFinancialChange(
+                req,
+                'TRANSACTION_CANCELLED_BY_ADMIN',
+                tx,
+                {
+                    status: originalTx?.status,
+                    amount: originalTx?.amount,
+                    costLYD: originalTx?.costLYD,
+                    createdAt: originalTx?.createdAt
+                },
+                {
+                    status: tx.status,
+                    amount: tx.amount,
+                    costLYD: tx.costLYD,
+                    createdAt: tx.createdAt
+                },
+                { reason, originalCreatedAt: originalTx?.createdAt }
+            );
+        }
+        return respondTransactionAction(req, res, 200, {
+            success: true,
+            message: result.message || 'تم إلغاء العملية.'
+        }, redirectUrl);
+    } catch (e) {
+        return respondTransactionAction(req, res, 500, { success: false, message: 'تعذر إلغاء العملية.' }, redirectUrl);
+    }
 });
 
 router.post('/transaction/:id/change-bot', async (req, res) => {

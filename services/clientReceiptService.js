@@ -2,16 +2,38 @@
 
 const { sanitizeStatementTransaction } = require('../utils/accountStatementPrivacy');
 
+const CANCELLATION_RECEIPT_PATTERN = /_cancellation_receipt\.(?:svg|jpe?g)$/i;
+const CANCELLED_RECEIPT_STATUSES = new Set(['rejected', 'cancelled_by_admin', 'cancelled', 'canceled']);
+
+const orderedProofIds = (transaction = {}) => {
+    const values = [
+        transaction.proofImage,
+        ...(Array.isArray(transaction.proofImages) ? transaction.proofImages : [])
+    ];
+    const seen = new Set();
+    const ids = [];
+    values.forEach((value) => {
+        const proofId = String(value || '').trim();
+        if (!proofId || proofId === 'protected' || seen.has(proofId)) return;
+        seen.add(proofId);
+        ids.push(proofId);
+    });
+    return ids;
+};
+
 const getClientReceiptProofIds = (transaction = {}) => {
     // The first proof is the official system receipt. Executor attachments are
-    // deliberately kept out of every customer-facing response.
-    const proofId = String(
-        transaction.proofImage
-        || (Array.isArray(transaction.proofImages) ? transaction.proofImages[0] : '')
-        || ''
-    ).trim();
-    if (!proofId || proofId === 'protected') return [];
-    return [proofId];
+    // deliberately kept out of every customer-facing response. A cancelled
+    // operation prefers its cancellation receipt even if an older success
+    // image is still stored beside it.
+    const ids = orderedProofIds(transaction);
+    if (!ids.length) return [];
+    const cancelled = CANCELLED_RECEIPT_STATUSES.has(String(transaction.status || '').toLowerCase());
+    if (cancelled) {
+        const cancellationId = ids.find((proofId) => CANCELLATION_RECEIPT_PATTERN.test(proofId));
+        if (cancellationId) return [cancellationId];
+    }
+    return [ids[0]];
 };
 
 const buildClientReceiptImages = (transaction = {}) => {
@@ -42,6 +64,7 @@ const presentClientPortalTransaction = (transaction = {}) => ({
 });
 
 module.exports = {
+    CANCELLATION_RECEIPT_PATTERN,
     buildClientReceiptImages,
     getClientReceiptProofIds,
     presentClientPortalTransaction,
