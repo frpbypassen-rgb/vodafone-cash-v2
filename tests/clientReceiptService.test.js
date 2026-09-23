@@ -40,6 +40,14 @@ describe('clientReceiptService', () => {
         expect(buildClientReceiptImages({ proofImage: 'proofs/receipt.svg' })).toEqual([]);
     });
 
+    test('serves the cancellation receipt for a cancelled operation even when an older success image remains', () => {
+        expect(getClientReceiptProofIds({
+            status: 'cancelled_by_admin',
+            proofImage: 'proofs/ATT-1.jpg',
+            proofImages: ['proofs/ATT-1.jpg', 'proofs/CAN-1_cancellation_receipt.jpg']
+        })).toEqual(['proofs/CAN-1_cancellation_receipt.jpg']);
+    });
+
     test('does not treat the protected placeholder as a stored proof id', () => {
         expect(getClientReceiptProofIds({ proofImage: 'protected', proofImages: ['protected'] })).toEqual([]);
         expect(presentClientVisibleReceipts({

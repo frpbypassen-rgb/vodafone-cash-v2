@@ -54,15 +54,23 @@ const createCancellationReceiptProof = ({
     return proofId;
 };
 
+const persistableId = (value) => {
+    const raw = String(value || '').trim();
+    return /^[a-f\d]{24}$/i.test(raw) ? raw : '';
+};
+
 const attachCancellationReceipt = async (txInput, metadata = {}) => {
     if (!txInput) return null;
     const hasSaveMethod = typeof txInput.save === 'function';
-    const transactionId = hasSaveMethod
-        ? null
-        : (typeof txInput === 'string' || typeof txInput?.toHexString === 'function'
-            ? txInput
-            : (txInput._id || txInput.id));
-    const tx = hasSaveMethod ? txInput : await Transaction.findById(transactionId);
+    const rawId = typeof txInput === 'string' || typeof txInput?.toHexString === 'function'
+        ? txInput
+        : (txInput._id || txInput.id);
+    const transactionId = persistableId(rawId);
+    // Reload the saved row so a stale in-memory document cannot overwrite
+    // the cancellation proof that WhatsApp is about to send.
+    const tx = transactionId
+        ? ((await Transaction.findById(transactionId)) || (hasSaveMethod ? txInput : null))
+        : (hasSaveMethod ? txInput : null);
     if (!tx) return null;
 
     const cancellationNumber = metadata.cancellationNumber || tx.cancellationNumber || await nextCancellationNumber();
@@ -72,7 +80,9 @@ const attachCancellationReceipt = async (txInput, metadata = {}) => {
     tx.cancelledAt = tx.cancelledAt || metadata.cancelledAt || new Date();
 
     const existingImages = Array.isArray(tx.proofImages) ? tx.proofImages.filter(Boolean) : [];
-    const existingCancellationReceipt = existingImages.find((item) => /_cancellation_receipt\.(?:svg|jpe?g)$/i.test(String(item)));
+    const existingCancellationReceipt = [...existingImages, tx.proofImage]
+        .filter(Boolean)
+        .find((item) => /_cancellation_receipt\.(?:svg|jpe?g)$/i.test(String(item)));
     if (existingCancellationReceipt) {
         tx.resolutionImage = existingCancellationReceipt;
         tx.proofImage = existingCancellationReceipt;

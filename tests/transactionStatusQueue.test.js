@@ -120,4 +120,27 @@ describe('transaction status queue order', () => {
             { $project: { operationQueueOrder: 0 } }
         ]);
     });
+
+    test('keeps cancelled operations in the operations timeline beside successes', () => {
+        const sorted = sortTransactionsByStatusQueue([
+            row('completed', '2026-09-19T12:00:00.000Z', 'done-mid'),
+            row('cancelled_by_admin', '2026-09-19T12:05:00.000Z', 'cancel-new'),
+            row('pending', '2026-09-19T10:00:00.000Z', 'wait-old'),
+            row('completed', '2026-09-19T12:10:00.000Z', 'done-new'),
+            row('rejected', '2026-09-19T11:30:00.000Z', 'reject-mid'),
+            row('accepted', '2026-09-19T09:00:00.000Z', 'work-old')
+        ], 'operations');
+
+        expect(sorted.map((tx) => tx._id)).toEqual([
+            'wait-old',
+            'work-old',
+            'done-new',
+            'cancel-new',
+            'done-mid',
+            'reject-mid'
+        ]);
+        expect(transactionStatusQueueOrder('cancelled_by_admin', 'operations'))
+            .toBe(transactionStatusQueueOrder('completed', 'operations'));
+        expect(transactionStatusQueueOrder('cancelled_by_admin')).toBe(3);
+    });
 });

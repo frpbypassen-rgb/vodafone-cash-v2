@@ -972,7 +972,7 @@
                                 <% } else if(tx.status === 'deposit_pending') { %> <span class="badge-st st-wait"><i class="fa-solid fa-hand"></i> طلب إيداع</span>
                                 <% } else if(tx.status === 'deposit') { %> <span class="badge-st st-done"><i class="fa-solid fa-arrow-down"></i> إيداع</span>
                                 <% } else if(tx.status === 'deduction') { %> <span class="badge-st" style="background: rgba(108,117,125,0.1); color:#6c757d;"><i class="fa-solid fa-arrow-up"></i> خصم</span>
-                                <% } else { %> <span class="badge-st st-fail"><i class="fa-solid fa-ban"></i> ملغي</span> <% } %>
+                                <% } else { %> <span class="badge-st st-fail"><i class="fa-solid fa-ban"></i> ملغاة</span> <% } %>
                                 <% if (operationWorkspace) { %><span class="operation-age <%= operationAge.isLate ? 'is-late' : '' %>"><i class="fa-regular fa-clock ms-1"></i><%= operationAge.label %></span><% } %>
                             </td>
 
@@ -1039,7 +1039,7 @@
                                         <% } %>
 
                                         <% if(['pending', 'processing', 'accepted', 'completed'].includes(tx.status) && tx.transferType !== 'balance_transfer') { %>
-                                            <form action="/transaction/<%= tx._id %>/global-cancel" method="POST" class="m-0" onsubmit="return promptGlobalCancel(this)">
+                                            <form action="/transaction/<%= tx._id %>/global-cancel" method="POST" class="m-0 js-transaction-action">
                                                 <input type="hidden" name="reason" class="cancel-reason-input">
                                                 <button class="btn-action-sm undo" title="تراجع"><i class="fa-solid fa-rotate-left"></i></button>
                                             </form>
@@ -1104,7 +1104,7 @@
                                 </div>
                                 <% if(tx.transferType === 'balance_transfer') { %> <span class="badge bg-success opacity-75 mt-1 rounded-pill"><i class="fa-solid fa-check"></i> مكتمل</span>
                                 <% } else if(tx.status === 'completed') { %> <span class="badge bg-success opacity-75 mt-1 rounded-pill"><i class="fa-solid fa-check"></i> مكتملة</span>
-                                <% } else if(tx.status === 'rejected' || tx.status === 'cancelled_by_admin') { %> <span class="badge bg-danger opacity-75 mt-1 rounded-pill"><i class="fa-solid fa-xmark"></i> ملغية</span>
+                                <% } else if(tx.status === 'rejected' || tx.status === 'cancelled_by_admin') { %> <span class="badge bg-danger opacity-75 mt-1 rounded-pill"><i class="fa-solid fa-xmark"></i> ملغاة</span>
                                 <% } else if(tx.status === 'pending') { %> <span class="badge bg-warning text-dark opacity-75 mt-1 rounded-pill"><i class="fa-solid fa-pause"></i> معلقة</span>
                                 <% } else if(tx.status === 'processing') { %> <span class="badge bg-info text-dark opacity-75 mt-1 rounded-pill"><i class="fa-solid fa-spinner fa-spin"></i> توجيه</span>
                                 <% } else if(tx.status === 'accepted') { %> <span class="badge bg-primary opacity-75 mt-1 rounded-pill"><i class="fa-solid fa-user-gear"></i> قيد العمل</span>
@@ -1177,7 +1177,7 @@
                                 <% } %>
                                 
                                 <% if(canGlobalCancel) { %>
-                                    <form action="/transaction/<%= tx._id %>/global-cancel" method="POST" class="m-0" onsubmit="return promptGlobalCancel(this)">
+                                    <form action="/transaction/<%= tx._id %>/global-cancel" method="POST" class="m-0 js-transaction-action">
                                         <input type="hidden" name="reason" class="cancel-reason-input">
                                         <button type="submit" class="btn btn-sm fw-bold rounded-3 px-3" style="background: rgba(239, 68, 68, 0.1); color: #ef4444; border: 1px solid rgba(239, 68, 68, 0.2);" title="إلغاء العملية"><i class="fa-solid fa-ban"></i></button>
                                     </form>
@@ -1954,6 +1954,7 @@
 
         const confirmation = String(form.dataset.confirm || '').trim();
         if (confirmation && !window.confirm(confirmation)) return;
+        if (form.querySelector('.cancel-reason-input') && !promptGlobalCancel(form)) return;
 
         const submitter = event.submitter || form.querySelector('button[type="submit"], button:not([type])');
         if (submitter?.disabled) return;

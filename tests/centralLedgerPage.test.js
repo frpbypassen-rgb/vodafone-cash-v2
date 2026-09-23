@@ -219,6 +219,48 @@ describe('central ledger page layout', () => {
         expect(html.indexOf('ops-summary-left')).toBeLessThan(html.indexOf('ops-summary-right'));
     });
 
+    test('renders a cancelled operation in the same operations table with a red ملغاة badge', () => {
+        const html = renderTransactions({
+            operationWorkspace: true,
+            transactions: [
+                {
+                    _id: { toString: () => '507f1f77bcf86cd799439011' },
+                    customId: 'ATT-DONE',
+                    status: 'completed',
+                    amount: 100,
+                    createdAt: new Date('2026-09-21T12:00:00Z'),
+                    companyName: 'شركة النور',
+                    employeeName: 'خالد',
+                    vodafoneNumber: '01000000001',
+                    transferType: 'vodafone',
+                    costLYD: 18,
+                    exchangeRate: 5
+                },
+                {
+                    _id: { toString: () => '507f1f77bcf86cd799439012' },
+                    customId: 'ATT-CANCEL',
+                    status: 'cancelled_by_admin',
+                    amount: 80,
+                    createdAt: new Date('2026-09-21T11:00:00Z'),
+                    companyName: 'شركة الأمل',
+                    employeeName: 'سالم',
+                    vodafoneNumber: '01000000002',
+                    transferType: 'vodafone',
+                    costLYD: 15,
+                    exchangeRate: 5
+                }
+            ]
+        });
+
+        const table = html.slice(html.indexOf('id="transactionsTable"'), html.indexOf('id="mobileCardsContainer"'));
+        expect(table.indexOf('ATT-DONE')).toBeGreaterThan(-1);
+        expect(table.indexOf('ATT-CANCEL')).toBeGreaterThan(table.indexOf('ATT-DONE'));
+        expect(table).toContain('ملغاة');
+        expect(table).toContain('st-fail');
+        expect(table).not.toContain('العمليات الملغاة');
+        expect(html).toContain('class="m-0 js-transaction-action"');
+    });
+
     test('rebuilds the comprehensive operation details modal with tabs and smart header chrome', () => {
         const html = renderTransactions();
 
@@ -251,6 +293,7 @@ describe('central ledger page layout', () => {
         const overviewSource = fs.readFileSync(path.join(__dirname, '..', 'services', 'centralLedgerOverviewService.js'), 'utf8');
         const appSource = fs.readFileSync(path.join(__dirname, '..', 'app.js'), 'utf8');
 
+        expect(routeSource).toMatch(/const listSortMode = operationsWorkspace \? 'operations' : 'ledger'/);
         expect(routeSource).toMatch(/operationsWorkspace\s*\?\s*loadOperationsSummaryStrip\(\{ Transaction, ClientCompany, ExecutorGroup, source: req \}\)/);
         expect(routeSource).toMatch(/operationsWorkspace\s*\?\s*Promise\.resolve\(null\)\s*:\s*loadCentralLedgerOverview/);
         expect(routeSource).toMatch(/const transactionLedgerBaseQuery = \(source = null\) => applyAdminTxPrivacy\(\{[\s\S]*\.\.\.adminAccountScope\(source\),/);

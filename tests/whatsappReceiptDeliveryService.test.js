@@ -218,6 +218,42 @@ describe('WhatsApp receipt delivery', () => {
         }));
     });
 
+    test('sends the cancellation receipt to the client phone, not the account that created the transfer', async () => {
+        const transaction = {
+            _id: 'tx-cancel-client',
+            customId: 'ATT-2608-0100',
+            status: 'cancelled_by_admin',
+            userId: '01108172258',
+            accountName: 'عميل العملية',
+            transferType: 'vodafone',
+            amount: 750,
+            proofImage: 'proofs/success.jpg',
+            proofImages: ['proofs/success.jpg', 'proofs/CAN-2609-00002_cancellation_receipt.jpg'],
+            serviceDetails: { clientPhone: '0940719000' },
+            cancelledAt: new Date('2026-09-21T11:00:00.000Z')
+        };
+        Transaction.findById.mockResolvedValue(transaction);
+        normalizeWhatsAppPhone.mockReturnValue('218940719000');
+        WhatsAppDelivery.findOne.mockResolvedValue(null);
+
+        const result = await sendCancelledTransactionReceipt(transaction);
+
+        expect(User.findOne).not.toHaveBeenCalled();
+        expect(normalizeWhatsAppPhone).toHaveBeenCalledWith('0940719000');
+        expect(createReceiptImageUrl).toHaveBeenCalledWith({ transactionId: 'tx-cancel-client', index: 0 });
+        expect(sendReceipt).toHaveBeenCalledWith(expect.objectContaining({
+            phone: '218940719000',
+            accountName: 'عميل العملية',
+            reference: 'ATT-2608-0100',
+            amount: '750'
+        }));
+        expect(result).toMatchObject({ success: true, recipientPhone: '218940719000' });
+        expect(WhatsAppDelivery).toHaveBeenCalledWith(expect.objectContaining({
+            kind: 'cancellation_receipt',
+            recipientPhone: '218940719000'
+        }));
+    });
+
     test('does not send a cancellation receipt for a completed operation or a missing cancel proof', async () => {
         Transaction.findById.mockResolvedValueOnce({
             _id: 'tx-open',

@@ -1,7 +1,9 @@
 'use strict';
 
-// Admin central ledger and operations lists keep active work at the top:
-// pending → in progress → successful/completed → failed/cancelled.
+// The central ledger keeps active work at the top, then successes, then
+// failed/cancelled rows. The operations page uses the same active groups,
+// but cancelled rows stay in the success timeline and sort by createdAt
+// with completed operations instead of a separate cancelled bucket.
 // Newest first is the secondary sort inside each group.
 const PENDING_STATUSES = Object.freeze(['pending', 'deposit_pending']);
 const IN_PROGRESS_STATUSES = Object.freeze(['processing', 'accepted']);
@@ -23,11 +25,20 @@ const TRANSACTION_STATUS_QUEUE_ORDER = Object.freeze(
     )
 );
 
-const transactionStatusQueueOrder = (status) => {
+const OPERATIONS_TIMELINE_GROUPS = Object.freeze([
+    { order: 0, statuses: PENDING_STATUSES },
+    { order: 1, statuses: IN_PROGRESS_STATUSES },
+    { order: 2, statuses: Object.freeze([...SUCCESS_STATUSES, ...FAILED_STATUSES]) }
+]);
+
+const queueGroupsForMode = (mode) => (
+    mode === 'operations' ? OPERATIONS_TIMELINE_GROUPS : TRANSACTION_STATUS_QUEUE_GROUPS
+);
+
+const transactionStatusQueueOrder = (status, mode = 'ledger') => {
     const key = String(status || '').trim().toLowerCase();
-    return Object.prototype.hasOwnProperty.call(TRANSACTION_STATUS_QUEUE_ORDER, key)
-        ? TRANSACTION_STATUS_QUEUE_ORDER[key]
-        : TRANSACTION_STATUS_QUEUE_DEFAULT_ORDER;
+    const match = queueGroupsForMode(mode).find((group) => group.statuses.includes(key));
+    return match ? match.order : TRANSACTION_STATUS_QUEUE_DEFAULT_ORDER;
 };
 
 const createdAtMs = (value) => {
@@ -35,8 +46,8 @@ const createdAtMs = (value) => {
     return Number.isFinite(time) ? time : 0;
 };
 
-const compareTransactionsByStatusQueue = (left, right) => {
-    const orderDiff = transactionStatusQueueOrder(left?.status) - transactionStatusQueueOrder(right?.status);
+const compareTransactionsByStatusQueue = (left, right, mode = 'ledger') => {
+    const orderDiff = transactionStatusQueueOrder(left?.status, mode) - transactionStatusQueueOrder(right?.status, mode);
     if (orderDiff !== 0) return orderDiff;
 
     const timeDiff = createdAtMs(right?.createdAt) - createdAtMs(left?.createdAt);
@@ -45,13 +56,15 @@ const compareTransactionsByStatusQueue = (left, right) => {
     return String(right?._id || '').localeCompare(String(left?._id || ''));
 };
 
-const sortTransactionsByStatusQueue = (transactions) => [...(transactions || [])].sort(compareTransactionsByStatusQueue);
+const sortTransactionsByStatusQueue = (transactions, mode = 'ledger') => (
+    [...(transactions || [])].sort((left, right) => compareTransactionsByStatusQueue(left, right, mode))
+);
 
-const transactionStatusQueueAddFieldsStage = () => ({
+const transactionStatusQueueAddFieldsStage = (mode = 'ledger') => ({
     $addFields: {
         operationQueueOrder: {
             $switch: {
-                branches: TRANSACTION_STATUS_QUEUE_GROUPS.map((group) => ({
+                branches: queueGroupsForMode(mode).map((group) => ({
                     case: { $in: ['$status', [...group.statuses]] },
                     then: group.order
                 })),
@@ -65,9 +78,9 @@ const transactionStatusQueueSortStage = () => ({
     $sort: { operationQueueOrder: 1, createdAt: -1, _id: -1 }
 });
 
-const transactionStatusQueuePipelineStages = ({ skip = 0, limit } = {}) => {
+const transactionStatusQueuePipelineStages = ({ skip = 0, limit, mode = 'ledger' } = {}) => {
     const stages = [
-        transactionStatusQueueAddFieldsStage(),
+        transactionStatusQueueAddFieldsStage(mode),
         transactionStatusQueueSortStage()
     ];
     const skipCount = Number(skip);
@@ -83,6 +96,7 @@ module.exports = {
     IN_PROGRESS_STATUSES,
     SUCCESS_STATUSES,
     FAILED_STATUSES,
+    OPERATIONS_TIMELINE_GROUPS,
     TRANSACTION_STATUS_QUEUE_GROUPS,
     TRANSACTION_STATUS_QUEUE_ORDER,
     TRANSACTION_STATUS_QUEUE_DEFAULT_ORDER,

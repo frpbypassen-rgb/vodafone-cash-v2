@@ -11,6 +11,10 @@ const { acquireLock, releaseLock } = require('./lockService');
 const { logAction } = require('./auditService');
 const { createReceiptImageUrl } = require('./receiptShareService');
 const {
+    CANCELLATION_RECEIPT_PATTERN,
+    getClientReceiptProofIds
+} = require('./clientReceiptService');
+const {
     getWhatChimpConfigurationStatus,
     normalizeWhatsAppPhone,
     sendReceipt
@@ -246,7 +250,6 @@ const logReceiptDelivery = async ({ success, transaction, recipient, result }) =
     });
 };
 
-const CANCELLATION_RECEIPT_PATTERN = /_cancellation_receipt\.(?:svg|jpe?g)$/i;
 const CANCELLED_RECEIPT_STATUSES = new Set(['rejected', 'cancelled_by_admin', 'cancelled', 'canceled']);
 
 const completedProofIndex = (transaction) => {
@@ -257,9 +260,11 @@ const completedProofIndex = (transaction) => {
     return receiptProofs.length ? 0 : null;
 };
 
-const cancellationProofIndex = (transaction) => (
-    CANCELLATION_RECEIPT_PATTERN.test(String(transaction.proofImage || '')) ? 0 : null
-);
+const cancellationProofIndex = (transaction) => {
+    const ids = getClientReceiptProofIds(transaction);
+    const index = ids.findIndex((proofId) => CANCELLATION_RECEIPT_PATTERN.test(String(proofId)));
+    return index >= 0 ? index : null;
+};
 
 const sendTransactionReceipt = async (transactionInput, {
     allowedStatuses,
