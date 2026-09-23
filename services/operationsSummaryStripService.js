@@ -78,6 +78,30 @@ const buildOperationsDayFacetPipeline = (source, now = new Date()) => {
                         }
                     },
                     { $group: { _id: '$companyId', total: { $sum: { $ifNull: ['$amount', 0] } } } }
+                ],
+                // Same day window, completed definition, and deposit sum as
+                // the company facets. Executor rows are keyed by
+                // executorGroupId. A deposit that also carries companyId
+                // stays a company deposit, matching the admin deposits ledger.
+                completedByExecutor: [
+                    {
+                        $match: {
+                            status: COMPLETED_STATUS,
+                            executorGroupId: { $exists: true, $ne: null },
+                            ...balanceTransferCounterpartExclusion()
+                        }
+                    },
+                    { $group: { _id: '$executorGroupId', count: { $sum: 1 } } }
+                ],
+                depositsByExecutor: [
+                    {
+                        $match: {
+                            status: DEPOSIT_STATUS,
+                            executorGroupId: { $exists: true, $ne: null },
+                            companyId: null
+                        }
+                    },
+                    { $group: { _id: '$executorGroupId', total: { $sum: { $ifNull: ['$amount', 0] } } } }
                 ]
             }
         }
@@ -105,7 +129,12 @@ const manualTotalBalance = (group, allocatedBalance) => {
 // Active routing executors, each with the balance currently held with
 // them: private service wallets plus allocated pools. API executors use
 // the last cached provider credit instead of a live provider call.
-const mapActiveExecutorStrip = (groups = [], allocatedByGroup = new Map()) => groups
+const mapActiveExecutorStrip = (
+    groups = [],
+    allocatedByGroup = new Map(),
+    completedByExecutor = new Map(),
+    depositsByExecutor = new Map()
+) => groups
     .map((group) => {
         const id = String(group._id);
         const isApi = Boolean(group.isApiBot || group.isApiGroup);
@@ -120,7 +149,9 @@ const mapActiveExecutorStrip = (groups = [], allocatedByGroup = new Map()) => gr
             id,
             name: group.name || 'منفذ بدون اسم',
             balance,
-            balanceSource: hasCachedCredit ? 'api_service' : 'internal'
+            balanceSource: hasCachedCredit ? 'api_service' : 'internal',
+            completedToday: completedByExecutor.get(id) || 0,
+            depositsToday: depositsByExecutor.get(id) || 0
         };
     })
     .sort((left, right) => right.balance - left.balance || String(left.name).localeCompare(String(right.name), 'ar'));
@@ -166,13 +197,15 @@ const loadOperationsSummaryStrip = async ({
     const allocatedByGroup = await loadAllocatedBalances((executors || []).map((group) => group._id));
     const completedByCompany = indexAggregation(facet.completedByCompany, 'count');
     const depositsByCompany = indexAggregation(facet.depositsByCompany, 'total');
+    const completedByExecutor = indexAggregation(facet.completedByExecutor, 'count');
+    const depositsByExecutor = indexAggregation(facet.depositsByExecutor, 'total');
     return {
         today: {
             egyptianEGP: Number(totals.egyptianEGP) || 0,
             libyanLYD: Number(totals.libyanLYD) || 0
         },
         todayDepositsTotal: sumValues(facet.depositsByCompany, 'total'),
-        activeExecutors: mapActiveExecutorStrip(executors, allocatedByGroup),
+        activeExecutors: mapActiveExecutorStrip(executors, allocatedByGroup, completedByExecutor, depositsByExecutor),
         companies: mapCompanyStrip(companies, completedByCompany, depositsByCompany)
     };
 };

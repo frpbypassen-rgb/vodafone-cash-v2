@@ -101,8 +101,8 @@ describe('central ledger page layout', () => {
                 today: { egyptianEGP: 12400.5, libyanLYD: 2310.25 },
                 todayDepositsTotal: 900,
                 activeExecutors: [
-                    { id: 'e1', name: 'منفذ كاش', balance: 2500.5 },
-                    { id: 'e2', name: 'منفذ سريع', balance: 128450.75 }
+                    { id: 'e1', name: 'منفذ كاش', balance: 2500.5, completedToday: 4, depositsToday: 320.5 },
+                    { id: 'e2', name: 'منفذ سريع', balance: 128450.75, completedToday: 0, depositsToday: 0 }
                 ],
                 companies: [
                     { id: 'c1', name: 'شركة النور', balance: 88.5, completedToday: 7, depositsToday: 900 },
@@ -182,6 +182,18 @@ describe('central ledger page layout', () => {
         expect(html).toContain('class="ops-exec-card"');
         expect(html).not.toContain('ops-exec-card ops-uniform-card');
         expect(html).toContain('ops-company-card ops-uniform-card');
+        const firstExecutor = html.slice(html.indexOf('data-ops-executor="e1"'), html.indexOf('data-ops-executor="e2"'));
+        expect(firstExecutor).toContain('ops-micro-stack');
+        expect(firstExecutor).toContain('عمليات اليوم');
+        expect(firstExecutor).toContain('إيداع اليوم');
+        expect(firstExecutor).toContain('data-ops-completed="4"');
+        expect(firstExecutor).toContain('data-ops-executor-deposit="320.5"');
+        expect(firstExecutor).toContain('320.50');
+        expect(firstExecutor.indexOf('ops-exec-value')).toBeLessThan(firstExecutor.indexOf('data-ops-micro="completed"'));
+        expect(firstExecutor.indexOf('data-ops-micro="completed"')).toBeLessThan(firstExecutor.indexOf('data-ops-micro="deposit"'));
+        const secondExecutor = html.slice(html.indexOf('data-ops-executor="e2"'), html.indexOf('data-ops-company="c1"'));
+        expect(secondExecutor).toContain('data-ops-completed="0"');
+        expect(secondExecutor).toContain('data-ops-executor-deposit="0"');
         expect(html).not.toContain('ops-company-cluster');
         const firstCompany = html.slice(html.indexOf('data-ops-company="c1"'), html.indexOf('data-ops-company="c2"'));
         expect(firstCompany).toContain('ops-micro-stack');

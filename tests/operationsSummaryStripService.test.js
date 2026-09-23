@@ -34,6 +34,21 @@ describe('operations summary strip', () => {
             companyId: { $exists: true, $ne: null }
         });
         expect(facet.depositsByCompany[1].$group.total).toEqual({ $sum: { $ifNull: ['$amount', 0] } });
+        expect(facet.completedByExecutor[0].$match).toEqual({
+            status: 'completed',
+            executorGroupId: { $exists: true, $ne: null },
+            $or: [
+                { transferType: { $ne: 'balance_transfer' } },
+                { customId: { $not: /-C$/ } }
+            ]
+        });
+        expect(facet.completedByExecutor[1].$group).toEqual({ _id: '$executorGroupId', count: { $sum: 1 } });
+        expect(facet.depositsByExecutor[0].$match).toEqual({
+            status: 'deposit',
+            executorGroupId: { $exists: true, $ne: null },
+            companyId: null
+        });
+        expect(facet.depositsByExecutor[1].$group.total).toEqual({ $sum: { $ifNull: ['$amount', 0] } });
     });
 
     test('keeps every active executor and uses pool total or cached API credit', () => {
@@ -49,9 +64,25 @@ describe('operations summary strip', () => {
         expect(mapped.find((row) => row.id === 'e2')).toMatchObject({ balance: 90, balanceSource: 'api_service' });
         expect(mapped.find((row) => row.id === 'e3').balance).toBe(0);
         expect(mapped.find((row) => row.id === 'e4')).toMatchObject({ balance: 40, balanceSource: 'internal' });
+        expect(mapped.every((row) => row.completedToday === 0 && row.depositsToday === 0)).toBe(true);
         expect(activeExecutorStripQuery({}).status).toBe('active');
         expect(activeExecutorStripQuery({}).isManagerBot).toEqual({ $ne: true });
         expect(activeExecutorStripQuery({}).isManagerGroup).toEqual({ $ne: true });
+    });
+
+    test('attaches today completed counts and deposit totals onto executor balances', () => {
+        const mapped = mapActiveExecutorStrip(
+            [
+                { _id: 'e1', name: 'منفذ كاش', balance: 10, serviceKey: 'vodafone' },
+                { _id: 'e2', name: 'منفذ هادئ', balance: 0, serviceKey: 'vodafone' }
+            ],
+            new Map(),
+            new Map([['e1', 4]]),
+            new Map([['e1', 750.5]])
+        );
+
+        expect(mapped.find((row) => row.id === 'e1')).toMatchObject({ completedToday: 4, depositsToday: 750.5 });
+        expect(mapped.find((row) => row.id === 'e2')).toMatchObject({ completedToday: 0, depositsToday: 0 });
     });
 
     test('attaches today completed counts and deposit totals onto company balances', () => {
@@ -75,7 +106,9 @@ describe('operations summary strip', () => {
             aggregate: jest.fn().mockResolvedValue([{
                 totals: [{ egyptianEGP: 12400.5, libyanLYD: 2310.25 }],
                 completedByCompany: [{ _id: 'c1', count: 3 }],
-                depositsByCompany: [{ _id: 'c1', total: 150 }, { _id: 'archived-co', total: 20 }]
+                depositsByCompany: [{ _id: 'c1', total: 150 }, { _id: 'archived-co', total: 20 }],
+                completedByExecutor: [{ _id: 'e1', count: 5 }],
+                depositsByExecutor: [{ _id: 'e1', total: 400 }, { _id: 'other-executor', total: 25 }]
             }])
         };
         const ClientCompany = {
@@ -109,7 +142,7 @@ describe('operations summary strip', () => {
             expect.objectContaining({ id: 'c1', balance: 12, completedToday: 3, depositsToday: 150 })
         ]);
         expect(summary.activeExecutors).toEqual([
-            expect.objectContaining({ id: 'e1', name: 'منفذ أ', balance: 50 })
+            expect.objectContaining({ id: 'e1', name: 'منفذ أ', balance: 50, completedToday: 5, depositsToday: 400 })
         ]);
         expect(ExecutorGroup.find).toHaveBeenCalledWith(expect.objectContaining({ status: 'active' }));
     });
