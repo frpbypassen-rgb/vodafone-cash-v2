@@ -20,6 +20,24 @@ describe('clientReceiptService', () => {
         ]);
     });
 
+    test('sends the attached bank-transfer proof and keeps extra executor images private', () => {
+        const transaction = {
+            _id: '64f123456789012345678901',
+            transferType: 'bank_account',
+            proofImage: 'proofs/bank-proof.jpg',
+            proofImages: ['proofs/bank-proof.jpg'],
+            executorProofImages: ['proofs/extra-bank-page.jpg']
+        };
+
+        expect(getClientReceiptProofIds(transaction)).toEqual(['proofs/bank-proof.jpg']);
+        expect(buildClientReceiptImages(transaction)).toEqual([{
+            index: 0,
+            label: 'إثبات التحويل البنكي',
+            url: '/client/proxy/image/64f123456789012345678901/0'
+        }]);
+        expect(JSON.stringify(buildClientReceiptImages(transaction))).not.toContain('extra-bank-page');
+    });
+
     test('builds authenticated client proxy links without exposing proof identifiers', () => {
         const images = buildClientReceiptImages({
             _id: '64f123456789012345678901',

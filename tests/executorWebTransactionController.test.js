@@ -252,4 +252,73 @@ describe('Executor web transaction completion', () => {
         expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ success: true }));
         expect(releaseLock).toHaveBeenCalled();
     });
+
+    test('completes a bank transfer from the attached proof without a phone or generated receipt', async () => {
+        tx.transferType = 'bank_account';
+        tx.accountNumber = 'EG380019000500000000263180002';
+        tx.amount = 1500;
+        req.body = {
+            imageBase64: 'data:image/png;base64,iVBORw0KGgo=',
+            imagesBase64: [
+                'data:image/png;base64,iVBORw0KGgo=',
+                'data:image/png;base64,iVBORw0KGg0='
+            ],
+            executionNumber: '01108172258'
+        };
+
+        await controller.postCompleteTask(req, res);
+
+        expect(reserveManualExecutorReceiptReference).not.toHaveBeenCalled();
+        expect(generateManualExecutorReceiptBase64).not.toHaveBeenCalled();
+        expect(maskManualExecutionNumber).not.toHaveBeenCalled();
+        expect(tx.status).toBe('completed');
+        expect(tx.proofImage).toMatch(/^EXEC-TEST-001_[a-z0-9]+_1\.png$/);
+        expect(tx.proofImages).toEqual([tx.proofImage]);
+        expect(tx.executorProofImages).toHaveLength(1);
+        expect(tx.executorProofImages[0]).toMatch(/_2\.png$/);
+        expect(tx.executorSenderEntries).toEqual([]);
+        expect(tx.executorExecutionNumber).toBeUndefined();
+        expect(tx.executorSenderPhone).toBeUndefined();
+        expect(tx.manualExecutorReceiptReference).toBeUndefined();
+        expect(tx.adminNotes).toContain('إثبات التحويل البنكي');
+        expect(tx.adminNotes || '').not.toContain('تم توليد إيصال');
+        expect(eventBus.publish).toHaveBeenCalledWith('transfer:completed', { tx, emp: req.executorEmployee });
+        expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ success: true }));
+    });
+
+    test('rejects a bank transfer that has no proof image', async () => {
+        tx.transferType = 'bank_account';
+
+        await controller.postCompleteTask(req, res);
+
+        expect(res.status).toHaveBeenCalledWith(400);
+        expect(res.json).toHaveBeenCalledWith({
+            success: false,
+            error: 'إرفاق صورة إثبات التحويل البنكي إجباري.'
+        });
+        expect(generateManualExecutorReceiptBase64).not.toHaveBeenCalled();
+        expect(tx.save).not.toHaveBeenCalled();
+    });
+
+    test('rejects splitting a bank transfer into more than one payment', async () => {
+        tx.transferType = 'bank_transfer';
+        tx.amount = 250;
+        req.body = {
+            imagesBase64: ['data:image/png;base64,iVBORw0KGgo='],
+            senderEntries: [
+                { phone: '01108172258', amount: 100, proofImageBase64: 'data:image/png;base64,iVBORw0KGgo=' },
+                { phone: '01095433913', amount: 150, proofImageBase64: 'data:image/png;base64,iVBORw0KGgo=' }
+            ]
+        };
+
+        await controller.postCompleteTask(req, res);
+
+        expect(res.status).toHaveBeenCalledWith(400);
+        expect(res.json).toHaveBeenCalledWith({
+            success: false,
+            error: 'التحويل البنكي يُنفَّذ دفعة واحدة ولا يقبل التقسيم.'
+        });
+        expect(tx.save).not.toHaveBeenCalled();
+        expect(generateManualExecutorReceiptBase64).not.toHaveBeenCalled();
+    });
 });

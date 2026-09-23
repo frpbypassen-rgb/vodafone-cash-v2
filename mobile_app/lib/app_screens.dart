@@ -22392,6 +22392,8 @@ class _CompleteTaskDialogState extends State<CompleteTaskDialog> {
   ExecutorExecutionPolicy get _policy =>
       ExecutorExecutionPolicy.fromJson(widget.executionPolicy);
 
+  bool get _bankTransfer => isBankTransferService(widget.task['transferType']);
+
   @override
   void dispose() {
     _execution.dispose();
@@ -22464,6 +22466,35 @@ class _CompleteTaskDialogState extends State<CompleteTaskDialog> {
   }
 
   Future<void> _complete() async {
+    if (_bankTransfer) {
+      if (_images.isEmpty) {
+        setState(() => _error = 'إرفاق صورة إثبات التحويل البنكي إجباري.');
+        return;
+      }
+      setState(() {
+        _busy = true;
+        _error = null;
+      });
+      try {
+        final proofImages = _images
+            .map((image) => 'data:image/jpeg;base64,${base64Encode(image)}')
+            .toList();
+        await widget.api.completeTask(
+          id: '${widget.task['id']}',
+          imageBase64: proofImages.first,
+          imagesBase64: proofImages,
+        );
+        if (mounted) {
+          showSnack(context, 'تم إرسال إثبات التحويل البنكي للعميل.');
+          Navigator.pop(context, true);
+        }
+      } on ApiFailure catch (error) {
+        if (mounted) setState(() => _error = error.message);
+      } finally {
+        if (mounted) setState(() => _busy = false);
+      }
+      return;
+    }
     final executionNumber = _execution.text.trim();
     final executionError = _policy.validateDigits(
       executionNumber,
@@ -22573,17 +22604,26 @@ class _CompleteTaskDialogState extends State<CompleteTaskDialog> {
                 value: '${widget.task['recipientNumber'] ?? '-'}',
               ),
               const SizedBox(height: 14),
-              TextField(
-                controller: _execution,
-                textDirection: ui.TextDirection.ltr,
-                keyboardType: TextInputType.number,
-                maxLength: _policy.maxDigitLength,
-                inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                decoration: InputDecoration(
-                  labelText: _policy.executionNumberLabel,
-                  prefixIcon: const Icon(Icons.tag_outlined),
+              if (_bankTransfer)
+                Text(
+                  'تحويل بنكي: أرفق صورة الإثبات فقط. تُرسل الصورة نفسها للعميل، دون رقم هاتف ودون تقسيم.',
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    fontWeight: FontWeight.w800,
+                  ),
+                )
+              else
+                TextField(
+                  controller: _execution,
+                  textDirection: ui.TextDirection.ltr,
+                  keyboardType: TextInputType.number,
+                  maxLength: _policy.maxDigitLength,
+                  inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                  decoration: InputDecoration(
+                    labelText: _policy.executionNumberLabel,
+                    prefixIcon: const Icon(Icons.tag_outlined),
+                  ),
                 ),
-              ),
+              if (!_bankTransfer) ...[
               const SizedBox(height: 12),
               Text(
                 'رقم المرسل (اختياري)',
@@ -22664,10 +22704,14 @@ class _CompleteTaskDialogState extends State<CompleteTaskDialog> {
                   label: const Text('إضافة رقم مرسل'),
                 ),
               ),
+              ],
               const SizedBox(height: 4),
               ExecutorProofAttachments(
                 images: _images,
-                requiredProof: _policy.proofRequired,
+                requiredProof: _bankTransfer || _policy.proofRequired,
+                caption: _bankTransfer
+                    ? 'أرفق صورة إثبات التحويل البنكي. تُرسل هذه الصورة للعميل دون إنشاء إيصال تلقائي.'
+                    : null,
                 onPick: _pick,
                 onRemove: (index) => setState(() => _images.removeAt(index)),
               ),
@@ -22700,12 +22744,14 @@ class ExecutorProofAttachments extends StatelessWidget {
     required this.onPick,
     required this.onRemove,
     this.requiredProof = false,
+    this.caption,
   });
 
   final List<Uint8List> images;
   final VoidCallback onPick;
   final ValueChanged<int> onRemove;
   final bool requiredProof;
+  final String? caption;
 
   @override
   Widget build(BuildContext context) {
@@ -22769,9 +22815,10 @@ class ExecutorProofAttachments extends StatelessWidget {
         ],
         const SizedBox(height: 6),
         Text(
-          requiredProof
-              ? 'يجب إرفاق صورة إثبات واحدة على الأقل قبل إتمام العملية.'
-              : 'يمكن إنهاء العملية دون صورة؛ سيُنشأ إيصال المنظومة تلقائياً.',
+          caption ??
+              (requiredProof
+                  ? 'يجب إرفاق صورة إثبات واحدة على الأقل قبل إتمام العملية.'
+                  : 'يمكن إنهاء العملية دون صورة؛ سيُنشأ إيصال المنظومة تلقائياً.'),
           style: Theme.of(context).textTheme.bodySmall,
         ),
       ],

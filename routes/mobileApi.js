@@ -100,6 +100,12 @@ const {
 const { reserveManualExecutorReceiptReference } = require('../services/manualExecutorReceiptReferenceService');
 const { readExecutorManualPolicy, toPublicExecutionPolicy, validateSenderPhoneDigits } = require('../utils/executorManualPolicy');
 const {
+    BankTransferExecutionError,
+    BANK_TRANSFER_PROOF_NOTE,
+    isBankTransferOperation,
+    prepareBankTransferCompletion
+} = require('../utils/bankTransferExecution');
+const {
     acknowledgeMobilePushTask,
     getMobilePushDeviceStatus,
     listMobileNotificationInbox,
@@ -2377,7 +2383,30 @@ router.post('/executor/complete-task/:id', authenticateJWT, completeTaskValidato
         }
 
         const manualPolicy = readExecutorManualPolicy(emp.groupId, emp);
-        if (executionNumber) {
+        const tx = await findOwnedAcceptedExecutorTask({
+            transactionId: req.params.id,
+            executor: emp,
+            tenantId: req.tenant ? executorTenantScope(req) : null
+        });
+        if (!tx) {
+            return sendMobileError(res, 409, 'INVALID_STATE', 'الطلب غير متاح للإنهاء', req.correlationId);
+        }
+        const bankTransfer = isBankTransferOperation(tx);
+        let bankProofPayloads = null;
+        if (bankTransfer) {
+            try {
+                bankProofPayloads = prepareBankTransferCompletion({
+                    imageBase64,
+                    imagesBase64,
+                    senderEntries: requestedSenderEntries
+                }).proofs;
+            } catch (error) {
+                if (error instanceof BankTransferExecutionError) {
+                    return sendMobileError(res, error.statusCode, error.code, error.message, req.correlationId);
+                }
+                throw error;
+            }
+        } else if (executionNumber) {
             const executionCheck = validateSenderPhoneDigits(executionNumber, {
                 allowedPhoneLengths: manualPolicy.allowedPhoneLengths,
                 splitRequiresFullPhone: false,
@@ -2389,61 +2418,61 @@ router.post('/executor/complete-task/:id', authenticateJWT, completeTaskValidato
         }
 
         let maskedExecutionNumber = '';
-        try {
-            maskedExecutionNumber = maskManualExecutionNumber(executionNumber);
-        } catch (error) {
-            if (error instanceof ManualExecutionNumberError) {
-                return sendMobileError(res, 400, error.code, error.message, req.correlationId);
+        if (!bankTransfer) {
+            try {
+                maskedExecutionNumber = maskManualExecutionNumber(executionNumber);
+            } catch (error) {
+                if (error instanceof ManualExecutionNumberError) {
+                    return sendMobileError(res, 400, error.code, error.message, req.correlationId);
+                }
+                throw error;
             }
-            throw error;
         }
-
-        const tx = await findOwnedAcceptedExecutorTask({
-            transactionId: req.params.id,
-            executor: emp,
-            tenantId: req.tenant ? executorTenantScope(req) : null
-        });
-        if (!tx) {
-            return sendMobileError(res, 409, 'INVALID_STATE', 'الطلب غير متاح للإنهاء', req.correlationId);
-        }
-        let senderEntries;
-        try {
-            senderEntries = normalizeExecutorSenderEntries({
-                requestedSenderEntries,
-                senderPhone: senderPhone || executionNumber,
-                operationAmount: tx.amount,
-                group: emp.groupId,
-                policy: manualPolicy
-            });
-        } catch (error) {
-            if (error instanceof ExecutorSenderEntriesError) {
-                return sendMobileError(res, error.statusCode, error.code, error.message, req.correlationId);
+        let senderEntries = [];
+        if (!bankTransfer) {
+            try {
+                senderEntries = normalizeExecutorSenderEntries({
+                    requestedSenderEntries,
+                    senderPhone: senderPhone || executionNumber,
+                    operationAmount: tx.amount,
+                    group: emp.groupId,
+                    policy: manualPolicy
+                });
+            } catch (error) {
+                if (error instanceof ExecutorSenderEntriesError) {
+                    return sendMobileError(res, error.statusCode, error.code, error.message, req.correlationId);
+                }
+                throw error;
             }
-            throw error;
         }
-        const uploadedImages = Array.isArray(imagesBase64) && imagesBase64.length
-            ? imagesBase64
-            : (imageBase64 ? [imageBase64] : []);
+        const uploadedImages = bankTransfer
+            ? bankProofPayloads
+            : (Array.isArray(imagesBase64) && imagesBase64.length
+                ? imagesBase64
+                : (imageBase64 ? [imageBase64] : []));
         if (uploadedImages.length > 5 || uploadedImages.some((image) => typeof image !== 'string')) {
             return sendMobileError(res, 400, 'INVALID_PROOF_IMAGES', 'يمكن إرفاق خمس صور إثبات كحد أقصى', req.correlationId);
         }
-        if (manualPolicy.proofRequired && uploadedImages.length === 0 && senderEntries.every((entry) => !entry.proofImage)) {
+        if (!bankTransfer && manualPolicy.proofRequired && uploadedImages.length === 0 && senderEntries.every((entry) => !entry.proofImage)) {
             return sendMobileError(res, 400, 'PROOF_REQUIRED', 'إرفاق صورة الإثبات إجباري لهذا المنفذ.', req.correlationId);
         }
-        const executorReceipt = await reserveManualExecutorReceiptReference({ group: emp.groupId });
+        const executorReceipt = bankTransfer
+            ? null
+            : await reserveManualExecutorReceiptReference({ group: emp.groupId });
         const completedAt = new Date();
-        const receiptBase64 = await generateManualExecutorReceiptBase64({
-            amount: tx.amount,
-            customerPhone: tx.vodafoneNumber || tx.accountNumber || tx.serviceDetails?.clientPhone || '---',
-            executionNumber: maskedExecutionNumber,
-            customId: tx.customId || tx._id.toString(),
-            executorReference: executorReceipt.reference,
-            serviceName: tx.transferType === 'sefa_niger' ? 'سيفا النيجر' : 'محافظ كاش',
-            amountCurrencyLabel: tx.transferType === 'sefa_niger' ? 'سيفا' : 'ج.م',
-            transferType: tx.transferType,
-            completedAt
-        });
-        const systemReceiptId = saveProofImage(receiptBase64, `${tx.customId || tx._id}_manual`);
+        const systemReceiptId = bankTransfer
+            ? null
+            : saveProofImage(await generateManualExecutorReceiptBase64({
+                amount: tx.amount,
+                customerPhone: tx.vodafoneNumber || tx.accountNumber || tx.serviceDetails?.clientPhone || '---',
+                executionNumber: maskedExecutionNumber,
+                customId: tx.customId || tx._id.toString(),
+                executorReference: executorReceipt.reference,
+                serviceName: tx.transferType === 'sefa_niger' ? 'سيفا النيجر' : 'محافظ كاش',
+                amountCurrencyLabel: tx.transferType === 'sefa_niger' ? 'سيفا' : 'ج.م',
+                transferType: tx.transferType,
+                completedAt
+            }), `${tx.customId || tx._id}_manual`);
 
         const ledgerInc = completedTransferLedgerInc(emp.groupId, tx, -tx.amount);
         if (emp.groupId && emp.groupId.parentGroupId) {
@@ -2454,20 +2483,27 @@ router.post('/executor/complete-task/:id', authenticateJWT, completeTaskValidato
         }
 
         const savedFileIds = uploadedImages.map((image, index) => (
-            saveProofImage(image, `${tx.customId || tx._id}_executor_${index + 1}`)
+            saveProofImage(image, `${tx.customId || tx._id}_${bankTransfer ? 'bank_proof' : 'executor'}_${index + 1}`)
         ));
+        const clientProofId = bankTransfer ? savedFileIds[0] : systemReceiptId;
+        const privateProofIds = bankTransfer ? savedFileIds.slice(1) : savedFileIds;
 
         tx.status = 'completed';
-        tx.proofImages = systemReceiptId ? [systemReceiptId] : [];
-        tx.proofImage = systemReceiptId || undefined;
-        tx.executorProofImages = savedFileIds;
-        tx.executorExecutionNumber = executionNumber || undefined;
-        tx.executorSenderPhone = senderEntries[0]?.phone || undefined;
-        tx.executorSenderEntries = senderEntries;
-        tx.executorExecutionNumberMasked = maskedExecutionNumber || undefined;
-        tx.manualExecutorReceiptReference = executorReceipt.reference;
+        tx.proofImages = clientProofId ? [clientProofId] : [];
+        tx.proofImage = clientProofId || undefined;
+        tx.executorProofImages = privateProofIds;
+        tx.executorExecutionNumber = bankTransfer ? undefined : (executionNumber || undefined);
+        tx.executorSenderPhone = bankTransfer ? undefined : (senderEntries[0]?.phone || undefined);
+        tx.executorSenderEntries = bankTransfer ? [] : senderEntries;
+        tx.executorExecutionNumberMasked = bankTransfer ? undefined : (maskedExecutionNumber || undefined);
+        tx.manualExecutorReceiptReference = bankTransfer ? undefined : executorReceipt.reference;
         tx.completedAt = completedAt;
-        tx.adminNotes = appendAdminNoteText(tx.adminNotes, `[تم توليد إيصال تنفيذ يدوي | مرجع المنفذ: ${executorReceipt.reference}]`);
+        tx.adminNotes = appendAdminNoteText(
+            tx.adminNotes,
+            bankTransfer
+                ? BANK_TRANSFER_PROOF_NOTE
+                : `[تم توليد إيصال تنفيذ يدوي | مرجع المنفذ: ${executorReceipt.reference}]`
+        );
         await tx.save();
 
         await logAction({
@@ -2481,11 +2517,12 @@ router.post('/executor/complete-task/:id', authenticateJWT, completeTaskValidato
             oldData: { status: 'accepted' },
             newData: {
                 status: 'completed',
-                hasProofImage: savedFileIds.length > 0,
+                hasProofImage: bankTransfer ? Boolean(clientProofId) : savedFileIds.length > 0,
                 proofCount: tx.proofImages.length,
-                executorProofCount: savedFileIds.length,
-                manualExecutorReceiptReference: executorReceipt.reference,
-                executorExecutionNumberMasked: maskedExecutionNumber || null
+                executorProofCount: privateProofIds.length,
+                proofSource: bankTransfer ? 'bank-transfer-executor-upload' : 'system-generated',
+                manualExecutorReceiptReference: bankTransfer ? null : executorReceipt.reference,
+                executorExecutionNumberMasked: bankTransfer ? null : (maskedExecutionNumber || null)
             },
             metadata: { customId: tx.customId, amount: tx.amount, transferType: tx.transferType }
         });
@@ -2494,7 +2531,12 @@ router.post('/executor/complete-task/:id', authenticateJWT, completeTaskValidato
         // idempotency protection, exactly like the web and API executor channels.
         eventBus.publish('transfer:completed', { tx, emp });
 
-        return res.json({ success: true, message: 'تم إرسال الإثبات بنجاح' });
+        return res.json({
+            success: true,
+            message: bankTransfer
+                ? 'تم إرسال إثبات التحويل البنكي للعميل.'
+                : 'تم إرسال الإثبات بنجاح'
+        });
     } catch (e) {
         return sendServerError(res, req, 'خطأ في السيرفر');
     }

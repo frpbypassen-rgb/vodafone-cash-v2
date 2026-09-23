@@ -596,6 +596,11 @@
         /^سحب رصيد من نقطة بيع/,
         /^\[طلب وارد عبر API/
     ];
+    const isBankTransferOperation = (tx = {}) => {
+        const type = String(tx.transferType || '').trim().toLowerCase();
+        const canonical = String(tx.canonicalServiceKey || '').trim().toLowerCase();
+        return type === 'bank_account' || type === 'bank_transfer' || canonical === 'bank_account' || canonical === 'bank_transfer';
+    };
     const splitTxNotesForView = (tx = {}) => {
         const rawNotes = String(tx.notes || '').trim();
         const explicitCustomerNotes = String(tx.customerNotes || '').trim();
@@ -920,7 +925,8 @@
                                 <div class="mono-num text-dark fw-bold fs-6" dir="ltr"><%= tx.vodafoneNumber || tx.accountNumber || '---' %></div>
                                 <div class="mt-1">
                                     <% let numStr = tx.vodafoneNumber || tx.accountNumber || ''; %>
-                                    <% if(tx.transferType === 'post_account') { %> <span class="badge bg-warning text-dark opacity-75"><i class="fa-solid fa-envelope"></i> بريد</span>
+                                    <% if (isBankTransferOperation(tx)) { %> <div class="fw-bold small mt-1">تحويل بنكي</div>
+                                    <% } else if(tx.transferType === 'post_account') { %> <span class="badge bg-warning text-dark opacity-75"><i class="fa-solid fa-envelope"></i> بريد</span>
                                     <% } else if(tx.transferType === 'post_card') { %> <span class="badge bg-info text-dark opacity-75"><i class="fa-solid fa-id-card"></i> بطاقة</span>
                                     <% } else if(tx.status === 'deposit' || tx.status === 'deduction') { %> <span class="badge bg-secondary opacity-75"><i class="fa-solid fa-money-bill-wave"></i> تسوية</span>
                                     <% } else { %> 
@@ -1125,7 +1131,10 @@
                                     <div class="text-muted mt-1" style="font-size: 0.75rem;"><i class="fa-solid fa-user-check opacity-50 me-1"></i> عميل مباشر</div>
                                 <% } %>
                             </div>
-                            <div class="mono-num small fw-bold text-end" dir="ltr" style="color: var(--brand-primary);"><%= tx.vodafoneNumber || tx.accountNumber || '---' %></div>
+                            <div class="text-end">
+                                <div class="mono-num small fw-bold" dir="ltr" style="color: var(--brand-primary);"><%= tx.vodafoneNumber || tx.accountNumber || '---' %></div>
+                                <% if (isBankTransferOperation(tx)) { %><div class="fw-bold small">تحويل بنكي</div><% } %>
+                            </div>
                         </div>
                         <% if (mobileNoteView.customerText) { %>
                             <div class="small fw-bold mt-2 pt-2" style="border-top: 1px dashed var(--border-glass); white-space: pre-line; color: var(--text-muted);">
@@ -1864,7 +1873,9 @@
         const entityName = (tx.companyName && tx.companyName !== 'عميل فردي') ? tx.companyName : (tx.employeeName || 'عميل فردي');
         let typeLabel = 'محفظة كاش'; 
         let numStrP = tx.vodafoneNumber || tx.accountNumber || '';
-        if(tx.transferType === 'post_account') typeLabel = 'حساب بريد';
+        const transferKey = String(tx.transferType || tx.canonicalServiceKey || '').toLowerCase();
+        if (transferKey === 'bank_account' || transferKey === 'bank_transfer') typeLabel = 'تحويل بنكي';
+        else if(tx.transferType === 'post_account') typeLabel = 'حساب بريد';
         else if(tx.transferType === 'post_card') typeLabel = 'بطاقة عميل'; 
         else if(tx.status === 'deposit' || tx.status === 'deduction') typeLabel = 'تسوية مالية';
         else if(numStrP.startsWith('010')) typeLabel = 'فودافون كاش';

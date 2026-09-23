@@ -2,6 +2,13 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:mobile_app/executor_execution_policy.dart';
 
 void main() {
+  test('bank transfer is distinct from cash sender-phone completion', () {
+    expect(isBankTransferService('bank_account'), isTrue);
+    expect(isBankTransferService(' bank_transfer '), isTrue);
+    expect(isBankTransferService('vodafone'), isFalse);
+    expect(isBankTransferService('instapay'), isFalse);
+  });
+
   test('parses company policy and validates allowed sender digit lengths', () {
     final threeOnly = ExecutorExecutionPolicy.fromJson(const <String, dynamic>{
       'phoneLengthMode': '3',

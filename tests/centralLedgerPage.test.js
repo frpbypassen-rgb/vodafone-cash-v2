@@ -261,6 +261,57 @@ describe('central ledger page layout', () => {
         expect(html).toContain('class="m-0 js-transaction-action"');
     });
 
+    test('shows تحويل بنكي under the account number for bank transfers only', () => {
+        const html = renderTransactions({
+            operationWorkspace: true,
+            transactions: [
+                {
+                    _id: { toString: () => '507f1f77bcf86cd799439021' },
+                    customId: 'ATT-BANK',
+                    status: 'pending',
+                    amount: 2500,
+                    createdAt: new Date('2026-09-21T12:00:00Z'),
+                    companyName: 'شركة النور',
+                    employeeName: 'خالد',
+                    accountNumber: 'EG380019000500000000263180002',
+                    transferType: 'bank_account',
+                    costLYD: 400,
+                    exchangeRate: 6.25
+                },
+                {
+                    _id: { toString: () => '507f1f77bcf86cd799439022' },
+                    customId: 'ATT-CASH',
+                    status: 'pending',
+                    amount: 300,
+                    createdAt: new Date('2026-09-21T11:00:00Z'),
+                    companyName: 'شركة الأمل',
+                    employeeName: 'سالم',
+                    vodafoneNumber: '01011111111',
+                    transferType: 'vodafone',
+                    costLYD: 48,
+                    exchangeRate: 6.25
+                }
+            ]
+        });
+
+        const table = html.slice(html.indexOf('id="transactionsTable"'), html.indexOf('id="mobileCardsContainer"'));
+        const bankRow = table.slice(table.indexOf('ATT-BANK'), table.indexOf('ATT-CASH'));
+        const cashRow = table.slice(table.indexOf('ATT-CASH'));
+        expect(bankRow).toContain('EG380019000500000000263180002');
+        expect(bankRow).toContain('تحويل بنكي');
+        expect(bankRow).not.toContain('فودافون');
+        expect(bankRow).not.toContain('كاش');
+        expect(cashRow).toContain('01011111111');
+        expect(cashRow).toContain('فودافون');
+        expect(cashRow).not.toContain('تحويل بنكي');
+
+        const cards = html.slice(html.indexOf('id="mobileCardsContainer"'), html.indexOf('id="txModal"'));
+        const mobileBank = cards.slice(cards.indexOf('ATT-BANK'), cards.indexOf('ATT-CASH'));
+        const mobileCash = cards.slice(cards.indexOf('ATT-CASH'));
+        expect(mobileBank).toContain('تحويل بنكي');
+        expect(mobileCash).not.toContain('تحويل بنكي');
+    });
+
     test('rebuilds the comprehensive operation details modal with tabs and smart header chrome', () => {
         const html = renderTransactions();
 
