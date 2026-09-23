@@ -486,13 +486,13 @@
             box-sizing: border-box;
             display: flex;
             flex-direction: column;
-            justify-content: center;
-            gap: 3px;
+            justify-content: space-between;
+            gap: 4px;
             width: 160px;
             height: 100px;
             flex: 0 0 160px;
             overflow: hidden;
-            padding: 8px 10px;
+            padding: 5px 8px;
             border-radius: 12px;
             text-decoration: none;
         }
@@ -508,9 +508,15 @@
             font-weight: 800;
             color: var(--text-main);
         }
-        .ops-exec-name { font-size: .8rem; }
-        .ops-exec-label { font-size: .66rem; }
-        .ops-exec-value { font-size: .84rem; color: #10b981; }
+        .ops-exec-main {
+            display: flex;
+            flex-direction: column;
+            gap: 1px;
+            min-width: 0;
+        }
+        .ops-exec-name { font-size: .74rem; line-height: 1.15; }
+        .ops-exec-label { font-size: .58rem; line-height: 1.15; }
+        .ops-exec-value { font-size: .78rem; line-height: 1.1; color: #10b981; }
         .ops-exec-value.is-zero { color: var(--text-muted); }
         .ops-company-card {
             display: flex;
@@ -547,6 +553,20 @@
         }
         .ops-micro-value { font-size: .74rem; color: var(--text-main); }
         .ops-micro-deposit .ops-micro-value { color: #3b82f6; }
+        .ops-exec-card .ops-micro-stack { gap: 3px; }
+        .ops-exec-card .ops-micro {
+            padding: 2px 5px;
+            border-radius: 7px;
+            gap: 4px;
+        }
+        .ops-exec-card .ops-micro-label {
+            font-size: .56rem;
+            line-height: 1.1;
+        }
+        .ops-exec-card .ops-micro-value {
+            font-size: .66rem;
+            line-height: 1.1;
+        }
         .ops-summary-empty {
             color: var(--text-muted);
             font-size: .68rem;
@@ -788,9 +808,21 @@
                         <% if (opsExecutors.length) { %>
                             <% opsExecutors.forEach(function(executor) { %>
                                 <a class="ops-exec-card" data-ops-executor="<%= executor.id %>" href="/executor/<%= executor.id %>" title="<%= executor.name %>">
-                                    <span class="ops-exec-name"><%= executor.name %></span>
-                                    <span class="ops-exec-label">إجمالي الرصيد معهم</span>
-                                    <strong class="ops-exec-value <%= Number(executor.balance) === 0 ? 'is-zero' : '' %>"><%= formatMoney(executor.balance) %> <small>EGP</small></strong>
+                                    <span class="ops-exec-main">
+                                        <span class="ops-exec-name"><%= executor.name %></span>
+                                        <span class="ops-exec-label">إجمالي الرصيد معهم</span>
+                                        <strong class="ops-exec-value <%= Number(executor.balance) === 0 ? 'is-zero' : '' %>"><%= formatMoney(executor.balance) %> <small>EGP</small></strong>
+                                    </span>
+                                    <div class="ops-micro-stack">
+                                        <span class="ops-micro ops-micro-completed" data-ops-micro="completed" title="عمليات مكتملة اليوم">
+                                            <span class="ops-micro-label">عمليات اليوم</span>
+                                            <strong class="ops-micro-value" data-ops-completed="<%= Number(executor.completedToday) || 0 %>"><%= formatCount(executor.completedToday) %></strong>
+                                        </span>
+                                        <span class="ops-micro ops-micro-deposit" data-ops-micro="deposit" title="إيداع المنفذ اليوم">
+                                            <span class="ops-micro-label">إيداع اليوم</span>
+                                            <strong class="ops-micro-value" data-ops-executor-deposit="<%= Number(executor.depositsToday) || 0 %>"><%= formatMoney(executor.depositsToday) %></strong>
+                                        </span>
+                                    </div>
                                 </a>
                             <% }); %>
                         <% } else { %>
