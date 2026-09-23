@@ -1,9 +1,9 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="ar" dir="rtl">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>ط¥ط¯ط§ط±ط© ط§ظ„ظ…ظˆط¸ظپظٹظ† | ط§ظ„ط£ظ‡ط±ط§ظ…</title>
+    <title>إدارة الموظفين | الأهرام</title>
     
     <script>
         const savedTheme = localStorage.getItem('ahram_theme') || 'light';
@@ -110,7 +110,7 @@
         .swal2-popup { background: var(--glass-bg) !important; backdrop-filter: blur(15px); color: var(--text-main) !important; border: 1px solid var(--glass-border); border-radius: 20px !important; }
         .swal2-title, .swal2-html-container { color: var(--text-main) !important; }
 
-        /* ًں“± ط´ط§ط´ط§طھ ط§ظ„ظ‡ظˆط§طھظپ ط§ظ„ط°ظƒظٹط© (Native App Layout) */
+        /* 📱 شاشات الهواتف الذكية (Native App Layout) */
         @media (max-width: 768px) {
             body {
                 padding-top: 75px !important;
@@ -160,7 +160,7 @@
                 flex: none !important;
             }
             .nav-btn span {
-                display: none; /* ط¥ط®ظپط§ط، ط§ظ„ظ†طµ ظ„طھظˆظپظٹط± ظ…ط³ط§ط­ط© */
+                display: none; /* إخفاء النص لتوفير مساحة */
             }
             
             .page-card { padding: 15px; border-radius: 16px; }
@@ -169,7 +169,7 @@
             .table-responsive { border-radius: 12px; }
         }
 
-        /* ًں“± ط´ط±ظٹط· ط§ظ„طھظ†ظ‚ظ„ ط§ظ„ط³ظپظ„ظٹ ظ„ظ„ظ‡ظˆط§طھظپ */
+        /* 📱 شريط التنقل السفلي للهواتف */
         .bottom-nav-mobile {
             position: fixed;
             bottom: 0;
@@ -215,7 +215,7 @@
             transform: translateY(-2px);
         }
 
-        /* ط¨ط·ط§ظ‚ط§طھ ط§ظ„ظ…ظˆط¸ظپظٹظ† ظ„ظ„ظ‡ط§طھظپ */
+        /* بطاقات الموظفين للهاتف */
         .mobile-emp-card {
             background: var(--glass-bg);
             border: 1px solid var(--glass-border);
@@ -285,7 +285,7 @@
         }
     </style>
     <link rel="stylesheet" href="/css/brand-ui.css?v=20260804-brand1">
-    <link rel="stylesheet" href="/css/executor-workspace.css?v=20260921-pool-ui">
+    <link rel="stylesheet" href="/css/executor-workspace.css?v=20260923-team-rtl">
     <link rel="stylesheet" href="/css/executor-2030-override.css?v=20260825-balance1">
     <link rel="stylesheet" href="/css/executor-os.css?v=20260921-pool-ui">
 
@@ -309,20 +309,20 @@
         <div class="executor-avatar"><i class="fa-solid fa-user-astronaut"></i></div>
         <div>
             <h4 class="executor-name"><%= emp.name %></h4>
-            <span class="executor-role"><i class="fa-solid fa-network-wired me-1"></i> ط؛ط±ظپط© ط§ظ„ط¹ظ…ظ„ظٹط§طھ: <%= emp.groupId ? emp.groupId.name : 'ط؛ظٹط± ظ…ط­ط¯ط¯' %></span>
+            <span class="executor-role"><i class="fa-solid fa-network-wired me-1"></i> غرفة العمليات: <%= emp.groupId ? emp.groupId.name : 'غير محدد' %></span>
         </div>
     </div>
     <div class="nav-actions">
         <% const employeeNavRows = Array.isArray(companyBalances?.byService) ? companyBalances.byService : []; %>
         <% if (companyBalances?.multiService && employeeNavRows.length > 1) { %>
             <% employeeNavRows.forEach((row) => { %>
-                <span class="nav-btn text-success border border-success border-opacity-25" style="cursor: default; font-weight: 800;" title="<%= row.appliesPoolModel ? row.totalLabel : row.singleLabel %>"><i class="fa-solid fa-wallet me-1"></i> <%= row.shortLabel %> <%= Number(row.appliesPoolModel ? row.totalBalance : row.privateBalance).toLocaleString('en-US', { maximumFractionDigits: 0 }) %> ط¬.ظ…</span>
+                <span class="nav-btn text-success border border-success border-opacity-25" style="cursor: default; font-weight: 800;" title="<%= row.appliesPoolModel ? row.totalLabel : row.singleLabel %>"><i class="fa-solid fa-wallet me-1"></i> <%= row.shortLabel %> <%= Number(row.appliesPoolModel ? row.totalBalance : row.privateBalance).toLocaleString('en-US', { maximumFractionDigits: 0 }) %> ج.م</span>
             <% }); %>
         <% } else { %>
-        <span class="nav-btn text-success border border-success border-opacity-25" style="cursor: default; font-weight: 800;" title="ط¥ط¬ظ…ط§ظ„ظٹ ط§ظ„ط±طµظٹط¯: ط§ظ„ط®ط§طµ + ظ…ط¬ظ…ظˆط¹ط§طھ ط§ظ„ط±طµظٹط¯ + ط§ظ„ظ…ظ†ظپط±ط¯ظٹظ†"><i class="fa-solid fa-vault me-1"></i> ط¥ط¬ظ…ط§ظ„ظٹ <%= Number(companyBalances?.totalBalance ?? emp.groupId?.balance ?? 0).toLocaleString('en-US', { maximumFractionDigits: 0 }) %> ط¬.ظ…</span>
-        <span class="nav-btn text-warning border border-warning border-opacity-25" style="cursor: default; font-weight: 800;" title="ط§ظ„ط±طµظٹط¯ ط§ظ„ط®ط§طµ ط§ظ„ظ…طھط§ط­ ظ„ظ„ظ…ط¯ظٹط±"><i class="fa-solid fa-wallet me-1"></i> ط®ط§طµ <%= Number(companyBalances?.privateBalance ?? emp.groupId?.balance ?? 0).toLocaleString('en-US', { maximumFractionDigits: 0 }) %> ط¬.ظ…</span>
+        <span class="nav-btn text-success border border-success border-opacity-25" style="cursor: default; font-weight: 800;" title="إجمالي الرصيد: الخاص + مجموعات الرصيد + المنفردين"><i class="fa-solid fa-vault me-1"></i> إجمالي <%= Number(companyBalances?.totalBalance ?? emp.groupId?.balance ?? 0).toLocaleString('en-US', { maximumFractionDigits: 0 }) %> ج.م</span>
+        <span class="nav-btn text-warning border border-warning border-opacity-25" style="cursor: default; font-weight: 800;" title="الرصيد الخاص المتاح للمدير"><i class="fa-solid fa-wallet me-1"></i> خاص <%= Number(companyBalances?.privateBalance ?? emp.groupId?.balance ?? 0).toLocaleString('en-US', { maximumFractionDigits: 0 }) %> ج.م</span>
         <% } %>
-        <button class="nav-btn btn-theme shadow-sm" onclick="toggleTheme()" title="ط§ظ„ظ…ط¸ظ‡ط±"><i class="fa-solid fa-moon" id="themeIcon"></i></button>
+        <button class="nav-btn btn-theme shadow-sm" onclick="toggleTheme()" title="المظهر"><i class="fa-solid fa-moon" id="themeIcon"></i></button>
         <a href="/executor-portal/logout" class="nav-btn btn-logout"><i class="fa-solid fa-power-off"></i></a>
     </div>
 </nav>
@@ -330,104 +330,104 @@
 <div class="container-fluid px-3 px-md-4">
     <div class="executor-page-heading">
         <div>
-            <span class="executor-kicker"><i class="fa-solid fa-users-gear"></i> ط¥ط¯ط§ط±ط© ط§ظ„ظپط±ظٹظ‚</span>
-            <h1>ط§ظ„ظ…ظˆط¸ظپظˆظ† ظˆط­ط§ظ„ط© ط§ظ„طھط´ط؛ظٹظ„</h1>
-            <p>ظ…طھط§ط¨ط¹ط© ط§ظ„طھظˆظپط± ظˆط§ظ„ظ…ظ‡ط§ظ… ط§ظ„ط­ط§ظ„ظٹط©طŒ ظˆط¥ط¯ط§ط±ط© ط­ط³ط§ط¨ط§طھ ط§ظ„ظپط±ظٹظ‚ ظˆظ…ط¬ظ…ظˆط¹ط§طھ ط±طµظٹط¯ ط§ظ„ظ…ظ†ظپط°ظٹظ† ط§ظ„ط®ط§ط±ط¬ظٹظٹظ† ظ…ظ† ظ…ظƒط§ظ† ظˆط§ط­ط¯.</p>
+            <span class="executor-kicker"><i class="fa-solid fa-users-gear"></i> إدارة الفريق</span>
+            <h1>الموظفون وحالة التشغيل</h1>
+            <p>متابعة التوفر والمهام الحالية، وإدارة حسابات الفريق ومجموعات رصيد المنفذين الخارجيين من مكان واحد.</p>
         </div>
-        <button type="button" class="nav-btn" onclick="loadEmployees()" title="طھط­ط¯ظٹط«"><i class="fa-solid fa-rotate"></i></button>
+        <button type="button" class="nav-btn" onclick="loadEmployees()" title="تحديث"><i class="fa-solid fa-rotate"></i></button>
     </div>
 
     <section class="executor-summary-grid mb-4">
         <%- include('partials/service-balance-cards', { companyBalances }) %>
-        <article class="executor-summary-card" style="--summary-color: var(--executor-blue)"><span class="summary-icon"><i class="fa-solid fa-users"></i></span><small>ط¥ط¬ظ…ط§ظ„ظٹ ط§ظ„ظپط±ظٹظ‚</small><strong id="summaryTotal">0</strong></article>
-        <article class="executor-summary-card" style="--summary-color: var(--executor-green)"><span class="summary-icon"><i class="fa-solid fa-signal"></i></span><small>ظ…طھطµظ„ظˆظ† ط§ظ„ط¢ظ†</small><strong id="summaryOnline">0</strong></article>
-        <article class="executor-summary-card" style="--summary-color: var(--executor-gold)"><span class="summary-icon"><i class="fa-solid fa-bolt"></i></span><small>ظٹظ†ظپط°ظˆظ† ط§ظ„ط¢ظ†</small><strong id="summaryBusy">0</strong></article>
-        <article class="executor-summary-card" style="--summary-color: #7a57d1"><span class="summary-icon"><i class="fa-solid fa-check-double"></i></span><small>ط¹ظ…ظ„ظٹط§طھ ط§ظ„ظٹظˆظ…</small><strong id="summaryCompleted">0</strong></article>
+        <article class="executor-summary-card" style="--summary-color: var(--executor-blue)"><span class="summary-icon"><i class="fa-solid fa-users"></i></span><small>إجمالي الفريق</small><strong id="summaryTotal">0</strong></article>
+        <article class="executor-summary-card" style="--summary-color: var(--executor-green)"><span class="summary-icon"><i class="fa-solid fa-signal"></i></span><small>متصلون الآن</small><strong id="summaryOnline">0</strong></article>
+        <article class="executor-summary-card" style="--summary-color: var(--executor-gold)"><span class="summary-icon"><i class="fa-solid fa-bolt"></i></span><small>ينفذون الآن</small><strong id="summaryBusy">0</strong></article>
+        <article class="executor-summary-card" style="--summary-color: #7a57d1"><span class="summary-icon"><i class="fa-solid fa-check-double"></i></span><small>عمليات اليوم</small><strong id="summaryCompleted">0</strong></article>
     </section>
 
     <div class="page-card mb-4" id="externalPoolWorkspace">
         <div class="d-flex flex-wrap align-items-center justify-content-between gap-3 mb-3">
-            <h5 class="section-title m-0"><i class="fa-solid fa-link"></i> ظ…ط¬ظ…ظˆط¹ط§طھ ط§ظ„ط±طµظٹط¯ ظ„ظ„ظ…ظ†ظپط°ظٹظ† ط§ظ„ط®ط§ط±ط¬ظٹظٹظ†</h5>
-            <button type="button" class="btn-create" style="padding:10px 18px;font-size:0.9rem" onclick="createBalancePool()"><i class="fa-solid fa-plus me-1"></i> ظ…ط¬ظ…ظˆط¹ط© ط±طµظٹط¯ ط¬ط¯ظٹط¯ط©</button>
+            <h5 class="section-title m-0"><i class="fa-solid fa-link"></i> مجموعات الرصيد للمنفذين الخارجيين</h5>
+            <button type="button" class="btn-create" style="padding:10px 18px;font-size:0.9rem" onclick="createBalancePool()"><i class="fa-solid fa-plus me-1"></i> مجموعة رصيد جديدة</button>
         </div>
-        <p class="text-muted small mb-3">ط£ظ†ط´ط¦ <b>ظ…ط¬ظ…ظˆط¹ط© ط±طµظٹط¯</b> ط¨ط§ط³ظ… ظˆط§ط¶ط­ (ظ…ط«ظ„ آ«ط´ط±ظƒط© ط§ظ„ظ†ظˆط±آ») ظˆط§ط±ط¨ط· ط¨ظ‡ط§ ط§ظ„ظ…ظ†ظپط°ظٹظ† ط§ظ„ط®ط§ط±ط¬ظٹظٹظ†طŒ ط£ظˆ ط§طھط±ظƒ ط§ظ„ظ…ظ†ظپظ‘ط° <b>ظ…ظ†ظپط±ط¯ظ‹ط§</b>. ط§ظ„ط¹ط¶ظˆظٹط© ط­طµط±ظٹط©: ظ…ط¬ظ…ظˆط¹ط© ظˆط§ط­ط¯ط© ط£ظˆ ظ…ظ†ظپط±ط¯ â€” ظ„ظٹط³ ط§ظ„ط§ط«ظ†ظٹظ†. طھظ…ظˆظٹظ„ ظ…ظ†ظپظ‘ط° ط®ط§ط±ط¬ظٹ ظٹظڈط®طµظ… ظ…ظ† <b>ط§ظ„ط±طµظٹط¯ ط§ظ„ط®ط§طµ</b>طŒ ظˆط§ظ„ط¥ظٹطµط§ظ„ ظٹط¸ظ‡ط± <b>ظ„ظ„ظ…ط³طھظ„ظ… ظپظ‚ط·</b>.</p>
+        <p class="text-muted small mb-3">أنشئ <b>مجموعة رصيد</b> باسم واضح (مثل «شركة النور») واربط بها المنفذين الخارجيين، أو اترك المنفّذ <b>منفردًا</b>. العضوية حصرية: مجموعة واحدة أو منفرد — ليس الاثنين. تمويل منفّذ خارجي يُخصم من <b>الرصيد الخاص</b>، والإيصال يظهر <b>للمستلم فقط</b>.</p>
         <div class="pool-workspace">
-            <section class="pool-workspace-col" aria-label="ظ…ط¬ظ…ظˆط¹ط§طھ ط§ظ„ط±طµظٹط¯">
-                <h6><i class="fa-solid fa-layer-group"></i> ظ…ط¬ظ…ظˆط¹ط§طھ ط§ظ„ط±طµظٹط¯</h6>
+            <section class="pool-workspace-col" aria-label="مجموعات الرصيد">
+                <h6><i class="fa-solid fa-layer-group"></i> مجموعات الرصيد</h6>
                 <div id="poolList" class="d-flex flex-column gap-3"></div>
                 <div id="poolEmpty" class="empty-state d-none">
                     <i class="fa-solid fa-layer-group d-block"></i>
-                    <p class="fw-bold">ظ„ط§ طھظˆط¬ط¯ ظ…ط¬ظ…ظˆط¹ط§طھ ط±طµظٹط¯ ط­ط§ظ„ظٹط§ظ‹</p>
-                    <p class="small">ط£ظ†ط´ط¦ ظ…ط¬ظ…ظˆط¹ط© ط¨ط§ط³ظ… ط«ظ… ط£ط¶ظپ ط¥ظ„ظٹظ‡ط§ ط§ظ„ظ…ظ†ظپط°ظٹظ† ط§ظ„ط®ط§ط±ط¬ظٹظٹظ† ط§ظ„ط°ظٹظ† طھط±ظٹط¯ ط£ظ† ظٹط´ط§ط±ظƒظˆط§ ظ†ظپط³ ط§ظ„ط±طµظٹط¯.</p>
+                    <p class="fw-bold">لا توجد مجموعات رصيد حالياً</p>
+                    <p class="small">أنشئ مجموعة باسم ثم أضف إليها المنفذين الخارجيين الذين تريد أن يشاركوا نفس الرصيد.</p>
                 </div>
             </section>
-            <section class="pool-workspace-col" aria-label="ظ…ظ†ظپظ‘ط°ظˆظ† ط®ط§ط±ط¬ظٹظˆظ† ظ…ظ†ظپط±ط¯ظˆظ†">
-                <h6><i class="fa-solid fa-user"></i> ظ…ظ†ظپظ‘ط°ظˆظ† ط®ط§ط±ط¬ظٹظˆظ† ظ…ظ†ظپط±ط¯ظˆظ†</h6>
+            <section class="pool-workspace-col" aria-label="منفّذون خارجيون منفردون">
+                <h6><i class="fa-solid fa-user"></i> منفّذون خارجيون منفردون</h6>
                 <div id="soloList" class="d-flex flex-column gap-3"></div>
                 <div id="soloEmpty" class="empty-state d-none">
                     <i class="fa-solid fa-user-slash d-block"></i>
-                    <p class="fw-bold">ظ„ط§ ظٹظˆط¬ط¯ ظ…ظ†ظپظ‘ط° ط®ط§ط±ط¬ظٹ ظ…ظ†ظپط±ط¯</p>
-                    <p class="small">ظƒظ„ ط§ظ„ظ…ظ†ظپط°ظٹظ† ط§ظ„ط®ط§ط±ط¬ظٹظٹظ† ظ…ط±طھط¨ط·ظˆظ† ط¨ظ…ط¬ظ…ظˆط¹ط© ط±طµظٹط¯طŒ ط£ظˆ ظ„ظ… ظٹظڈظ†ط´ط£ ظ…ظ†ظپظ‘ط° ط®ط§ط±ط¬ظٹ ط¨ط¹ط¯.</p>
+                    <p class="fw-bold">لا يوجد منفّذ خارجي منفرد</p>
+                    <p class="small">كل المنفذين الخارجيين مرتبطون بمجموعة رصيد، أو لم يُنشأ منفّذ خارجي بعد.</p>
                 </div>
             </section>
         </div>
     </div>
-    <!-- ظ‚ط³ظ… ط¥ظ†ط´ط§ط، ط­ط³ط§ط¨ ط¬ط¯ظٹط¯ -->
+    <!-- قسم إنشاء حساب جديد -->
     <div class="page-card mb-4">
-        <h5 class="section-title"><i class="fa-solid fa-user-plus"></i> ط¥ظ†ط´ط§ط، ط­ط³ط§ط¨ ظ…ظˆط¸ظپ ط¬ط¯ظٹط¯</h5>
+        <h5 class="section-title"><i class="fa-solid fa-user-plus"></i> إنشاء حساب موظف جديد</h5>
         
         <form id="createForm">
             <div class="row g-3">
                 <div class="col-md-4">
-                    <label class="form-label"><i class="fa-solid fa-user me-1"></i> ط§ظ„ط§ط³ظ… ط§ظ„ظƒط§ظ…ظ„</label>
-                    <input type="text" id="empName" class="form-control" placeholder="ط§ط³ظ… ط§ظ„ظ…ظˆط¸ظپ" required>
+                    <label class="form-label"><i class="fa-solid fa-user me-1"></i> الاسم الكامل</label>
+                    <input type="text" id="empName" class="form-control" placeholder="اسم الموظف" required>
                 </div>
                 <div class="col-md-4">
-                    <label class="form-label"><i class="fa-solid fa-phone me-1"></i> ط±ظ‚ظ… ط§ظ„ظ‡ط§طھظپ</label>
+                    <label class="form-label"><i class="fa-solid fa-phone me-1"></i> رقم الهاتف</label>
                     <input type="tel" id="empPhone" class="form-control" placeholder="01xxxxxxxxx" autocomplete="tel" inputmode="tel" dir="ltr" required>
                 </div>
                 <div class="col-md-4">
-                    <label class="form-label"><i class="fa-solid fa-briefcase me-1"></i> ط§ظ„ظˆط¸ظٹظپط©</label>
+                    <label class="form-label"><i class="fa-solid fa-briefcase me-1"></i> الوظيفة</label>
                     <select id="empRole" class="form-select">
-                        <option value="operator">ظ…ظˆط¸ظپ طھظ†ظپظٹط° (Operator)</option>
-                        <option value="accountant">ظ…ط­ط§ط³ط¨ (Accountant)</option>
-                        <option value="external">ظ…ظ†ظپظ‘ط° ط®ط§ط±ط¬ظٹ</option>
+                        <option value="operator">موظف تنفيذ (Operator)</option>
+                        <option value="accountant">محاسب (Accountant)</option>
+                        <option value="external">منفّذ خارجي</option>
                     </select>
                 </div>
             </div>
             <hr style="border-color: var(--glass-border);">
             <div class="row g-3">
                 <div class="col-md-4">
-                    <label class="form-label"><i class="fa-solid fa-at me-1"></i> ط§ط³ظ… ط§ظ„ظ…ط³طھط®ط¯ظ…</label>
+                    <label class="form-label"><i class="fa-solid fa-at me-1"></i> اسم المستخدم</label>
                     <div class="input-group" dir="ltr">
                         <input type="text" id="empUsername" class="form-control text-end border-end-0" placeholder="username" autocomplete="username" pattern="[A-Za-z0-9_]+" minlength="3" required>
                         <span class="input-group-text border-start-0">@ahram.com</span>
                     </div>
                 </div>
                 <div class="col-md-4">
-                    <label class="form-label"><i class="fa-solid fa-lock me-1"></i> ظƒظ„ظ…ط© ط§ظ„ظ…ط±ظˆط±</label>
-                    <input type="password" id="empPassword" class="form-control" placeholder="â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢" autocomplete="new-password" minlength="6" dir="ltr" required>
+                    <label class="form-label"><i class="fa-solid fa-lock me-1"></i> كلمة المرور</label>
+                    <input type="password" id="empPassword" class="form-control" placeholder="••••••••" autocomplete="new-password" minlength="6" dir="ltr" required>
                 </div>
                 <div class="col-md-4" id="externalPoolField" hidden>
-                    <label class="form-label"><i class="fa-solid fa-layer-group me-1"></i> ظ…ط¬ظ…ظˆط¹ط© ط±طµظٹط¯ (ط§ط®طھظٹط§ط±ظٹ)</label>
+                    <label class="form-label"><i class="fa-solid fa-layer-group me-1"></i> مجموعة رصيد (اختياري)</label>
                     <select id="empPoolId" class="form-select">
-                        <option value="">ظ…ظ†ظپط±ط¯ â€” ط¨ط¯ظˆظ† ظ…ط¬ظ…ظˆط¹ط© ط±طµظٹط¯</option>
+                        <option value="">منفرد — بدون مجموعة رصيد</option>
                     </select>
                 </div>
                 <div class="col-md-4 d-flex align-items-end">
-                    <button type="submit" class="btn-create w-100"><i class="fa-solid fa-plus me-2"></i> ط¥ظ†ط´ط§ط، ط§ظ„ط­ط³ط§ط¨</button>
+                    <button type="submit" class="btn-create w-100"><i class="fa-solid fa-plus me-2"></i> إنشاء الحساب</button>
                 </div>
             </div>
         </form>
     </div>
 
-    <!-- ظ‚ط³ظ… ظ‚ط§ط¦ظ…ط© ط§ظ„ظ…ظˆط¸ظپظٹظ† -->
+    <!-- قسم قائمة الموظفين -->
     <div class="page-card">
         <div class="d-flex flex-wrap align-items-center justify-content-between gap-3 mb-3">
-            <h5 class="section-title m-0"><i class="fa-solid fa-users"></i> ظپط±ظٹظ‚ ط§ظ„ط¹ظ…ظ„ (<span id="empCount">0</span>)</h5>
-            <div class="d-flex gap-2 flex-grow-1 justify-content-end" style="max-width:520px">
-                <input type="search" id="employeeSearch" class="form-control" placeholder="ط¨ط­ط« ط¨ط§ظ„ط§ط³ظ… ط£ظˆ ط§ظ„ظ‡ط§طھظپ ط£ظˆ ط§ط³ظ… ط§ظ„ظ…ط³طھط®ط¯ظ…">
-                <select id="employeeRoleFilter" class="form-select" style="max-width:170px"><option value="">ظƒظ„ ط§ظ„ظˆط¸ط§ط¦ظپ</option><option value="operator">ظ…ظˆط¸ظپ طھظ†ظپظٹط°</option><option value="accountant">ظ…ط­ط§ط³ط¨</option><option value="external">ظ…ظ†ظپظ‘ط° ط®ط§ط±ط¬ظٹ</option><option value="manager">ظ…ط¯ظٹط±</option></select>
+            <h5 class="section-title m-0"><i class="fa-solid fa-users"></i> فريق العمل (<span id="empCount">0</span>)</h5>
+            <div class="team-toolbar">
+                <input type="search" id="employeeSearch" class="form-control" placeholder="بحث بالاسم أو الهاتف أو اسم المستخدم">
+                <select id="employeeRoleFilter" class="form-select" style="max-width:170px"><option value="">كل الوظائف</option><option value="operator">موظف تنفيذ</option><option value="accountant">محاسب</option><option value="external">منفّذ خارجي</option><option value="manager">مدير</option></select>
             </div>
         </div>
         
@@ -435,26 +435,26 @@
             <table class="emp-table">
                 <thead>
                     <tr>
-                        <th>ط§ظ„ط§ط³ظ…</th>
-                        <th>ط§ط³ظ… ط§ظ„ظ…ط³طھط®ط¯ظ…</th>
-                        <th>ط§ظ„ظ‡ط§طھظپ</th>
-                        <th>ط§ظ„ظˆط¸ظٹظپط©</th>
-                        <th>ط±طµظٹط¯ ط§ظ„ط¹ظ…ظ„</th>
-                        <th>ط§ظ„ط­ط§ظ„ط© ظˆط§ظ„طھظˆظپط±</th>
-                        <th>ط£ط¯ط§ط، ط§ظ„ظٹظˆظ…</th>
-                        <th>ط¥ط¬ط±ط§ط،ط§طھ</th>
+                        <th>الاسم</th>
+                        <th>اسم المستخدم</th>
+                        <th>الهاتف</th>
+                        <th>الوظيفة</th>
+                        <th>رصيد العمل</th>
+                        <th>الحالة والتوفر</th>
+                        <th>أداء اليوم</th>
+                        <th>إجراءات</th>
                     </tr>
                 </thead>
                 <tbody id="empTableBody">
                 </tbody>
             </table>
         </div>
-        <!-- ظ‚ط§ط¦ظ…ط© ط§ظ„ظ…ظˆط¸ظپظٹظ† ظ„ظ„ظ…ظˆط¨ط§ظٹظ„ (طھط¸ظ‡ط± ظƒط¨ط·ط§ظ‚ط§طھ طھط·ط¨ظٹظ‚) -->
+        <!-- قائمة الموظفين للموبايل (تظهر كبطاقات تطبيق) -->
         <div class="mobile-emp-list d-flex flex-column gap-3 d-md-none" id="mobileEmpList"></div>
         <div id="emptyState" class="empty-state d-none">
             <i class="fa-solid fa-users-slash d-block"></i>
-            <p class="fw-bold">ظ„ط§ ظٹظˆط¬ط¯ ظ…ظˆط¸ظپظٹظ† ط­ط§ظ„ظٹط§ظ‹</p>
-            <p class="small">ظ‚ظ… ط¨ط¥ظ†ط´ط§ط، ط­ط³ط§ط¨ط§طھ ظ„ظپط±ظٹظ‚ ط¹ظ…ظ„ظƒ ظ…ظ† ط§ظ„ظ†ظ…ظˆط°ط¬ ط£ط¹ظ„ط§ظ‡</p>
+            <p class="fw-bold">لا يوجد موظفين حالياً</p>
+            <p class="small">قم بإنشاء حسابات لفريق عملك من النموذج أعلاه</p>
         </div>
     </div>
 </div>
@@ -477,7 +477,7 @@
         loadEmployees();
     });
 
-    // ط¥ظ†ط´ط§ط، ظ…ظˆط¸ظپ ط¬ط¯ظٹط¯
+    // إنشاء موظف جديد
     document.getElementById('createForm').addEventListener('submit', async function(e) {
         e.preventDefault();
         const name = document.getElementById('empName').value.trim();
@@ -488,10 +488,10 @@
         const balancePoolId = role === 'external' ? (document.getElementById('empPoolId')?.value || '') : '';
 
         if (!name || !phone || !username || !password) {
-            return Swal.fire('طھظ†ط¨ظٹظ‡', 'ظٹط±ط¬ظ‰ ظ…ظ„ط، ط¬ظ…ظٹط¹ ط§ظ„ط­ظ‚ظˆظ„ ط§ظ„ظ…ط·ظ„ظˆط¨ط©', 'warning');
+            return Swal.fire('تنبيه', 'يرجى ملء جميع الحقول المطلوبة', 'warning');
         }
 
-        Swal.fire({ title: 'ط¬ط§ط±ظٹ ط§ظ„ط¥ظ†ط´ط§ط،...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+        Swal.fire({ title: 'جاري الإنشاء...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
 
         try {
             const res = await executorApiFetch('/executor-portal/api/employees/create', {
@@ -502,14 +502,14 @@
             const data = await readExecutorApiResponse(res);
             if (data.success) {
                 const poolWarning = data.poolAttachError
-                    ? `<p class="small text-warning mt-3 mb-0">ط§ظ„ط­ط³ط§ط¨ ط£ظڈظ†ط´ط¦ ظ…ظ†ظپط±ط¯ظ‹ط§: ${String(data.poolAttachError).replace(/[&<>]/g, '')} ظٹظ…ظƒظ†ظƒ ط±ط¨ط·ظ‡ ط¨ظ…ط¬ظ…ظˆط¹ط© ط±طµظٹط¯ ظ…ظ† ط§ظ„ظ‚ط³ظ… ط£ط¹ظ„ط§ظ‡.</p>`
+                    ? `<p class="small text-warning mt-3 mb-0">الحساب أُنشئ منفردًا: ${String(data.poolAttachError).replace(/[&<>]/g, '')} يمكنك ربطه بمجموعة رصيد من القسم أعلاه.</p>`
                     : '';
                 Swal.fire({
                     icon: data.poolAttachError ? 'warning' : 'success',
-                    title: 'طھظ… ط¥ظ†ط´ط§ط، ط§ظ„ط­ط³ط§ط¨ ط¨ظ†ط¬ط§ط­!',
+                    title: 'تم إنشاء الحساب بنجاح!',
                     html: `<div class="text-start p-3 mt-2 rounded" style="background: rgba(0,0,0,0.1); border: 1px dashed var(--accent-green);">
-                        <div class="mb-2"><span class="small d-block" style="color: var(--text-muted);">ط§ط³ظ… ط§ظ„ظ…ط³طھط®ط¯ظ…:</span><span class="fs-5 font-monospace fw-bold" dir="ltr">${data.username}</span></div>
-                        <div><span class="small d-block" style="color: var(--text-muted);">ظƒظ„ظ…ط© ط§ظ„ظ…ط±ظˆط±:</span><span class="fs-5 font-monospace fw-bold" dir="ltr">${password}</span></div>
+                        <div class="mb-2"><span class="small d-block" style="color: var(--text-muted);">اسم المستخدم:</span><span class="fs-5 font-monospace fw-bold" dir="ltr">${data.username}</span></div>
+                        <div><span class="small d-block" style="color: var(--text-muted);">كلمة المرور:</span><span class="fs-5 font-monospace fw-bold" dir="ltr">${password}</span></div>
                     </div>${poolWarning}`,
                     confirmButtonColor: '#10b981'
                 });
@@ -517,10 +517,10 @@
                 document.getElementById('externalPoolField')?.setAttribute('hidden', 'hidden');
                 loadEmployees();
             } else {
-                Swal.fire('ط®ط·ط£', data.error || 'ط­ط¯ط« ط®ط·ط£ ط£ط«ظ†ط§ط، ط§ظ„ط¥ظ†ط´ط§ط،', 'error');
+                Swal.fire('خطأ', data.error || 'حدث خطأ أثناء الإنشاء', 'error');
             }
         } catch (e) {
-            Swal.fire('ط®ط·ط£', e.message || 'طھط¹ط°ط± ط§ظ„ط§طھطµط§ظ„ ط¨ط§ظ„ط®ط§ط¯ظ…', 'error');
+            Swal.fire('خطأ', e.message || 'تعذر الاتصال بالخادم', 'error');
         }
     });
 
@@ -546,7 +546,7 @@
 
     function setChipAmount(elementId, value) {
         const strong = document.getElementById(elementId)?.querySelector('strong');
-        if (strong) strong.textContent = `${formatEgp(value)} ط¬.ظ…`;
+        if (strong) strong.textContent = `${formatEgp(value)} ج.م`;
     }
 
     function applyBalanceSummary(summary) {
@@ -582,7 +582,7 @@
         const select = document.getElementById('empPoolId');
         if (!select) return;
         const current = select.value;
-        select.innerHTML = '<option value="">ظ…ظ†ظپط±ط¯ â€” ط¨ط¯ظˆظ† ظ…ط¬ظ…ظˆط¹ط© ط±طµظٹط¯</option>' + poolsCache
+        select.innerHTML = '<option value="">منفرد — بدون مجموعة رصيد</option>' + poolsCache
             .map((pool) => `<option value="${pool.id}">${escapeEmployeeHtml(pool.name)}</option>`)
             .join('');
         if (current && [...select.options].some((option) => option.value === current)) select.value = current;
@@ -604,25 +604,25 @@
             const memberRows = members.length
                 ? `<ul class="pool-members">${members.map((member) => `<li class="pool-member">
                     <span class="pool-member-name">${escapeEmployeeHtml(member.name)}</span>
-                    <button type="button" class="btn-action btn-delete" onclick="detachPoolMember('${pool.id}', '${member.id}', '${encodeURIComponent(member.name)}', ${members.length})"><i class="fa-solid fa-link-slash"></i> ظپطµظ„</button>
+                    <button type="button" class="btn-action btn-delete" onclick="detachPoolMember('${pool.id}', '${member.id}', '${encodeURIComponent(member.name)}', ${members.length})"><i class="fa-solid fa-link-slash"></i> فصل</button>
                 </li>`).join('')}</ul>`
-                : '<p class="pool-empty-members">ط¨ط¯ظˆظ† ط£ط¹ط¶ط§ط، ط¨ط¹ط¯ â€” ط£ط¶ظپ ظ…ظ†ظپظ‘ط°ظ‹ط§ ط®ط§ط±ط¬ظٹظ‹ط§ ظ…ظ†ظپط±ط¯ظ‹ط§ ظ„ظٹط´ط§ط±ظƒ ظ‡ط°ط§ ط§ظ„ط±طµظٹط¯.</p>';
+                : '<p class="pool-empty-members">بدون أعضاء بعد — أضف منفّذًا خارجيًا منفردًا ليشارك هذا الرصيد.</p>';
             list.innerHTML += `<article class="pool-card" data-pool-id="${pool.id}">
                 <div class="pool-card-head">
                     <div>
-                        <span class="pool-kicker">ظ…ط¬ظ…ظˆط¹ط© ط±طµظٹط¯</span>
+                        <span class="pool-kicker">مجموعة رصيد</span>
                         <h3>${escapeEmployeeHtml(pool.name)}</h3>
                     </div>
                     <div class="pool-balance">
-                        <small>ط±طµظٹط¯ ط§ظ„ظ…ط¬ظ…ظˆط¹ط©</small>
-                        <strong class="${Number(pool.balance || 0) < 0 ? 'balance-negative' : 'balance-positive'}" dir="ltr">${formatEgp(pool.balance)} ط¬.ظ…</strong>
+                        <small>رصيد المجموعة</small>
+                        <strong class="${Number(pool.balance || 0) < 0 ? 'balance-negative' : 'balance-positive'}" dir="ltr">${formatEgp(pool.balance)} ج.م</strong>
                     </div>
                 </div>
                 ${memberRows}
                 <div class="pool-card-actions">
-                    <button type="button" class="btn-action" onclick="attachPoolMember('${pool.id}')" ${canAttach ? '' : 'disabled'} title="${canAttach ? 'ط¥ط¶ط§ظپط© ظ…ظ†ظپظ‘ط° ط®ط§ط±ط¬ظٹ ظ…ظ†ظپط±ط¯' : 'ظ„ط§ ظٹظˆط¬ط¯ ظ…ظ†ظپظ‘ط° ط®ط§ط±ط¬ظٹ ظ…ظ†ظپط±ط¯ ظٹظ…ظƒظ† ط¥ط¶ط§ظپطھظ‡. ط§ظپطµظ„ ط§ظ„ظ…ظ†ظپظ‘ط° ظ…ظ† ظ…ط¬ظ…ظˆط¹طھظ‡ ط£ظˆظ„ط§ظ‹.'}"><i class="fa-solid fa-user-plus"></i> ط¥ط¶ط§ظپط© ظ…ظ†ظپظ‘ط° ط®ط§ط±ط¬ظٹ</button>
-                    <button type="button" class="btn-action" onclick="renameBalancePool('${pool.id}', '${encodeURIComponent(pool.name)}')"><i class="fa-solid fa-pen"></i> ط¥ط¹ط§ط¯ط© طھط³ظ…ظٹط©</button>
-                    <button type="button" class="btn-action btn-delete" onclick="archiveBalancePool('${pool.id}', '${encodeURIComponent(pool.name)}')" ${canArchive ? '' : 'disabled'} title="${canArchive ? 'ط£ط±ط´ظپط© ط§ظ„ظ…ط¬ظ…ظˆط¹ط© ط§ظ„ظپط§ط±ط؛ط©' : 'ط§ط±ط´ظپ ظپظ‚ط· ظ…ط¬ظ…ظˆط¹ط© ط¨ظ„ط§ ط£ط¹ط¶ط§ط، ظˆط¨ظ„ط§ ط±طµظٹط¯. ط§ظپطµظ„ ط¢ط®ط± ط¹ط¶ظˆ ظ„ظ†ظ‚ظ„ ط§ظ„ط±طµظٹط¯ ط§ظ„ظ…طھط¨ظ‚ظٹ ط¥ظ„ظٹظ‡.'}"><i class="fa-solid fa-box-archive"></i> ط£ط±ط´ظپط©</button>
+                    <button type="button" class="btn-action" onclick="attachPoolMember('${pool.id}')" ${canAttach ? '' : 'disabled'} title="${canAttach ? 'إضافة منفّذ خارجي منفرد' : 'لا يوجد منفّذ خارجي منفرد يمكن إضافته. افصل المنفّذ من مجموعته أولاً.'}"><i class="fa-solid fa-user-plus"></i> إضافة منفّذ خارجي</button>
+                    <button type="button" class="btn-action" onclick="renameBalancePool('${pool.id}', '${encodeURIComponent(pool.name)}')"><i class="fa-solid fa-pen"></i> إعادة تسمية</button>
+                    <button type="button" class="btn-action btn-delete" onclick="archiveBalancePool('${pool.id}', '${encodeURIComponent(pool.name)}')" ${canArchive ? '' : 'disabled'} title="${canArchive ? 'أرشفة المجموعة الفارغة' : 'ارشف فقط مجموعة بلا أعضاء وبلا رصيد. افصل آخر عضو لنقل الرصيد المتبقي إليه.'}"><i class="fa-solid fa-box-archive"></i> أرشفة</button>
                 </div>
             </article>`;
         });
@@ -637,17 +637,17 @@
                 soloList.innerHTML += `<article class="solo-card" data-solo-id="${employeeId}">
                     <div class="solo-card-head">
                         <div>
-                            <span class="solo-kicker">ظ…ظ†ظپظ‘ط° ط®ط§ط±ط¬ظٹ آ· ظ…ظ†ظپط±ط¯</span>
+                            <span class="solo-kicker">منفّذ خارجي · منفرد</span>
                             <div class="solo-card-name">${escapeEmployeeHtml(employee.name)}</div>
                         </div>
                         <div class="solo-balance">
-                            <small>ط±طµظٹط¯ظ‡ ط§ظ„ظ…ظ†ظپط±ط¯</small>
-                            <strong class="${balanceValue < 0 ? 'balance-negative' : 'balance-positive'}" dir="ltr">${formatEgp(balanceValue)} ط¬.ظ…</strong>
+                            <small>رصيده المنفرد</small>
+                            <strong class="${balanceValue < 0 ? 'balance-negative' : 'balance-positive'}" dir="ltr">${formatEgp(balanceValue)} ج.م</strong>
                         </div>
                     </div>
                     <div class="solo-card-actions">
-                        <button type="button" class="btn-action" style="color:var(--executor-green)" onclick="externalTransaction('${employeeId}', '${encodedName}', 'deposit')"><i class="fa-solid fa-arrow-down"></i> طھظ…ظˆظٹظ„</button>
-                        <button type="button" class="btn-action" style="color:var(--executor-red)" onclick="externalTransaction('${employeeId}', '${encodedName}', 'deduction')"><i class="fa-solid fa-arrow-up"></i> ط®طµظ…</button>
+                        <button type="button" class="btn-action" style="color:var(--executor-green)" onclick="externalTransaction('${employeeId}', '${encodedName}', 'deposit')"><i class="fa-solid fa-arrow-down"></i> تمويل</button>
+                        <button type="button" class="btn-action" style="color:var(--executor-red)" onclick="externalTransaction('${employeeId}', '${encodedName}', 'deduction')"><i class="fa-solid fa-arrow-up"></i> خصم</button>
                     </div>
                 </article>`;
             });
@@ -657,11 +657,11 @@
     const employeeDuration = (seconds) => {
         if (!Number.isFinite(Number(seconds))) return '---';
         const value = Number(seconds);
-        return value >= 60 ? `${Math.floor(value / 60)}ط¯ ${value % 60}ط«` : `${value}ط«`;
+        return value >= 60 ? `${Math.floor(value / 60)}د ${value % 60}ث` : `${value}ث`;
     };
     const employeeLastSeen = (value) => value
         ? new Date(value).toLocaleString('ar-LY', { timeZone:'Africa/Tripoli', month:'short', day:'numeric', hour:'2-digit', minute:'2-digit' })
-        : 'ظ„ظ… ظٹط³ط¬ظ„ ط­ط¶ظˆط±ظ‹ط§';
+        : 'لم يسجل حضورًا';
 
     function renderEmployees() {
         const query = document.getElementById('employeeSearch').value.trim().toLowerCase();
@@ -680,45 +680,45 @@
 
         employees.forEach((employee) => {
             const employeeId = employee.id || employee._id;
-            const roleLabel = employee.role === 'operator' ? 'ظ…ظˆط¸ظپ طھظ†ظپظٹط°' : (employee.role === 'accountant' ? 'ظ…ط­ط§ط³ط¨' : (employee.role === 'external' ? 'ظ…ظ†ظپظ‘ط° ط®ط§ط±ط¬ظٹ' : 'ظ…ط¯ظٹط±'));
+            const roleLabel = employee.role === 'operator' ? 'موظف تنفيذ' : (employee.role === 'accountant' ? 'محاسب' : (employee.role === 'external' ? 'منفّذ خارجي' : 'مدير'));
             const roleClass = employee.role === 'operator' ? 'role-operator' : (employee.role === 'accountant' ? 'role-accountant' : (employee.role === 'external' ? 'role-external' : 'role-manager'));
-            const statusIcon = employee.status === 'active' ? '<i class="fa-solid fa-circle-check status-active"></i> ظپط¹ظ‘ط§ظ„' : '<i class="fa-solid fa-circle-xmark status-suspended"></i> ظ…ط¹ظ„ظ‚';
+            const statusIcon = employee.status === 'active' ? '<i class="fa-solid fa-circle-check status-active"></i> فعّال' : '<i class="fa-solid fa-circle-xmark status-suspended"></i> معلق';
             const toggleClass = employee.status === 'active' ? 'btn-toggle-active' : 'btn-toggle-suspended';
             const toggleIcon = employee.status === 'active' ? 'fa-ban' : 'fa-check';
-            const toggleTitle = employee.status === 'active' ? 'طھط¹ظ„ظٹظ‚' : 'طھظپط¹ظٹظ„';
+            const toggleTitle = employee.status === 'active' ? 'تعليق' : 'تفعيل';
             const presence = employee.presence || {};
             const metrics = employee.metrics || {};
             const presenceHtml = presence.isOnline
-                ? '<span class="executor-status-pill" style="--pill-color:var(--executor-green)"><i class="fa-solid fa-circle"></i> ظ…طھطµظ„</span>'
+                ? '<span class="executor-status-pill" style="--pill-color:var(--executor-green)"><i class="fa-solid fa-circle"></i> متصل</span>'
                 : `<span class="small text-muted">${employeeLastSeen(presence.lastSeenAt)}</span>`;
             const currentTaskHtml = employee.currentTask
-                ? `<span class="executor-status-pill" style="--pill-color:var(--executor-gold)"><i class="fa-solid fa-bolt"></i> ${escapeEmployeeHtml(employee.currentTask.customId || 'ظ…ظ‡ظ…ط© ط¬ط§ط±ظٹط©')}</span>`
-                : '<span class="small text-muted">ظ…طھط§ط­</span>';
-            const performanceHtml = `<div class="d-grid gap-1"><strong>${Number(metrics.completedCount || 0)} ط¹ظ…ظ„ظٹط©</strong><small class="text-muted">${Number(metrics.totalEGP || 0).toLocaleString('en-US', { maximumFractionDigits: 2 })} ط¬.ظ… آ· ظ…طھظˆط³ط· ${employeeDuration(metrics.averageDurationSeconds)}</small></div>`;
+                ? `<span class="executor-status-pill" style="--pill-color:var(--executor-gold)"><i class="fa-solid fa-bolt"></i> ${escapeEmployeeHtml(employee.currentTask.customId || 'مهمة جارية')}</span>`
+                : '<span class="small text-muted">متاح</span>';
+            const performanceHtml = `<div class="d-grid gap-1"><strong>${Number(metrics.completedCount || 0)} عملية</strong><small class="text-muted">${Number(metrics.totalEGP || 0).toLocaleString('en-US', { maximumFractionDigits: 2 })} ج.م · متوسط ${employeeDuration(metrics.averageDurationSeconds)}</small></div>`;
             const pool = employee.balancePool;
             const membershipLabel = employee.role === 'external'
-                ? (pool ? `ظ…ط¬ظ…ظˆط¹ط© ط±طµظٹط¯ آ«${pool.name}آ»` : 'ظ…ظ†ظپظ‘ط° ط®ط§ط±ط¬ظٹ ظ…ظ†ظپط±ط¯')
+                ? (pool ? `مجموعة رصيد «${pool.name}»` : 'منفّذ خارجي منفرد')
                 : '';
             const balanceValue = Number(employee.workingBalance != null ? employee.workingBalance : (employee.balance || 0));
             const membershipPill = employee.role === 'external'
                 ? `<span class="membership-pill ${pool ? 'is-pool' : 'is-solo'}">${escapeEmployeeHtml(membershipLabel)}</span>`
                 : '';
             const balanceHtml = employee.role === 'external'
-                ? `<span class="${balanceValue < 0 ? 'balance-negative' : 'balance-positive'}" dir="ltr">${balanceValue.toLocaleString('en-US', { maximumFractionDigits: 2 })} ط¬.ظ…</span><div class="small mt-1">${membershipPill}</div>`
-                : '<span class="balance-muted">â€”</span>';
+                ? `<span class="${balanceValue < 0 ? 'balance-negative' : 'balance-positive'}" dir="ltr">${balanceValue.toLocaleString('en-US', { maximumFractionDigits: 2 })} ج.م</span><div class="small mt-1">${membershipPill}</div>`
+                : '<span class="balance-muted">—</span>';
             const encodedName = encodeURIComponent(employee.name || '');
             const encodedPhone = encodeURIComponent(employee.phone || '');
             const externalActions = employee.role === 'external' ? `
-                <button onclick="externalTransaction('${employeeId}', '${encodedName}', 'deposit')" class="btn-action" style="color:var(--executor-green)" title="طھظ…ظˆظٹظ„ ظ…ظ†ظپظ‘ط° ط®ط§ط±ط¬ظٹ ظ…ظ† ط§ظ„ط±طµظٹط¯ ط§ظ„ط®ط§طµ"><i class="fa-solid fa-arrow-down"></i></button>
-                <button onclick="externalTransaction('${employeeId}', '${encodedName}', 'deduction')" class="btn-action" style="color:var(--executor-red)" title="ط®طµظ… ظ…ظ† ط§ظ„ظ…ظ†ظپظ‘ط° ط§ظ„ط®ط§ط±ط¬ظٹ"><i class="fa-solid fa-arrow-up"></i></button>` : '';
+                <button onclick="externalTransaction('${employeeId}', '${encodedName}', 'deposit')" class="btn-action" style="color:var(--executor-green)" title="تمويل منفّذ خارجي من الرصيد الخاص"><i class="fa-solid fa-arrow-down"></i></button>
+                <button onclick="externalTransaction('${employeeId}', '${encodedName}', 'deduction')" class="btn-action" style="color:var(--executor-red)" title="خصم من المنفّذ الخارجي"><i class="fa-solid fa-arrow-up"></i></button>` : '';
             const actions = employee.role !== 'manager' ? `
-                <button onclick="editEmployee('${employeeId}', '${encodedName}', '${encodedPhone}')" class="btn-action" title="طھط¹ط¯ظٹظ„ ط§ظ„ط¨ظٹط§ظ†ط§طھ"><i class="fa-solid fa-pen"></i></button>
+                <button onclick="editEmployee('${employeeId}', '${encodedName}', '${encodedPhone}')" class="btn-action" title="تعديل البيانات"><i class="fa-solid fa-pen"></i></button>
                 <button onclick="toggleEmployee('${employeeId}')" class="btn-action ${toggleClass}" title="${toggleTitle}"><i class="fa-solid ${toggleIcon}"></i></button>
-                <a href="/executor-portal/reports?employeeId=${employeeId}" class="btn-action" title="طھظ‚ط±ظٹط± ط§ظ„ظ…ظˆط¸ظپ"><i class="fa-solid fa-chart-line"></i></a>
+                <a href="/executor-portal/reports?employeeId=${employeeId}" class="btn-action" title="تقرير الموظف"><i class="fa-solid fa-chart-line"></i></a>
                 ${externalActions}
-                <button onclick="resetPassword('${employeeId}', '${encodedName}')" class="btn-action btn-reset" title="ط¥ط¹ط§ط¯ط© طھط¹ظٹظٹظ† ظƒظ„ظ…ط© ط§ظ„ظ…ط±ظˆط±"><i class="fa-solid fa-key"></i></button>
-                <button onclick="deleteEmployee('${employeeId}', '${encodedName}')" class="btn-action btn-delete" title="ط£ط±ط´ظپط©"><i class="fa-solid fa-box-archive"></i></button>`
-                : '<span class="small text-muted">ط­ط³ط§ط¨ ط§ظ„ظ…ط¯ظٹط±</span>';
+                <button onclick="resetPassword('${employeeId}', '${encodedName}')" class="btn-action btn-reset" title="إعادة تعيين كلمة المرور"><i class="fa-solid fa-key"></i></button>
+                <button onclick="deleteEmployee('${employeeId}', '${encodedName}')" class="btn-action btn-delete" title="أرشفة"><i class="fa-solid fa-box-archive"></i></button>`
+                : '<span class="small text-muted">حساب المدير</span>';
 
             tbody.innerHTML += `<tr>
                 <td class="fw-bold">${escapeEmployeeHtml(employee.name)}</td>
@@ -728,19 +728,19 @@
                 <td>${balanceHtml}</td>
                 <td><div class="d-grid gap-1">${statusIcon}${presenceHtml}${currentTaskHtml}</div></td>
                 <td>${performanceHtml}</td>
-                <td><div class="d-flex gap-1 flex-wrap">${actions}</div></td>
+                <td><div class="emp-actions">${actions}</div></td>
             </tr>`;
 
             if (mobileList) {
                 mobileList.innerHTML += `<article class="mobile-emp-card">
                     <div class="mobile-emp-header"><div><span class="emp-card-name">${escapeEmployeeHtml(employee.name)}</span><div class="emp-card-username text-muted">${escapeEmployeeHtml(employee.webUsername || '---')}</div></div><span class="role-badge ${roleClass}">${roleLabel}</span></div>
                     <div class="mobile-emp-body">
-                        <div class="emp-info-item"><span class="info-label"><i class="fa-solid fa-phone"></i> ط§ظ„ظ‡ط§طھظپ</span><span class="info-value" dir="ltr">${escapeEmployeeHtml(employee.phone || '---')}</span></div>
-                        ${employee.role === 'external' ? `<div class="emp-info-item"><span class="info-label"><i class="fa-solid fa-wallet"></i> ${pool ? 'ط±طµظٹط¯ ط§ظ„ظ…ط¬ظ…ظˆط¹ط©' : 'ط±طµظٹط¯ظ‡ ط§ظ„ظ…ظ†ظپط±ط¯'}</span><span class="info-value">${balanceHtml}</span></div>` : ''}
-                        <div class="emp-info-item"><span class="info-label"><i class="fa-solid fa-circle-info"></i> ط§ظ„ط­ط§ظ„ط©</span><span class="info-value">${statusIcon}</span></div>
-                        <div class="emp-info-item"><span class="info-label"><i class="fa-solid fa-signal"></i> ط§ظ„طھظˆظپط±</span><span class="info-value">${presenceHtml}</span></div>
-                        <div class="emp-info-item"><span class="info-label"><i class="fa-solid fa-list-check"></i> ط§ظ„ظ…ظ‡ظ…ط© ط§ظ„ط­ط§ظ„ظٹط©</span><span class="info-value">${currentTaskHtml}</span></div>
-                        <div class="emp-info-item"><span class="info-label"><i class="fa-solid fa-chart-simple"></i> ط£ط¯ط§ط، ط§ظ„ظٹظˆظ…</span><span class="info-value">${performanceHtml}</span></div>
+                        <div class="emp-info-item"><span class="info-label"><i class="fa-solid fa-phone"></i> الهاتف</span><span class="info-value" dir="ltr">${escapeEmployeeHtml(employee.phone || '---')}</span></div>
+                        ${employee.role === 'external' ? `<div class="emp-info-item"><span class="info-label"><i class="fa-solid fa-wallet"></i> ${pool ? 'رصيد المجموعة' : 'رصيده المنفرد'}</span><span class="info-value">${balanceHtml}</span></div>` : ''}
+                        <div class="emp-info-item"><span class="info-label"><i class="fa-solid fa-circle-info"></i> الحالة</span><span class="info-value">${statusIcon}</span></div>
+                        <div class="emp-info-item"><span class="info-label"><i class="fa-solid fa-signal"></i> التوفر</span><span class="info-value">${presenceHtml}</span></div>
+                        <div class="emp-info-item"><span class="info-label"><i class="fa-solid fa-list-check"></i> المهمة الحالية</span><span class="info-value">${currentTaskHtml}</span></div>
+                        <div class="emp-info-item"><span class="info-label"><i class="fa-solid fa-chart-simple"></i> أداء اليوم</span><span class="info-value">${performanceHtml}</span></div>
                     </div>
                     <div class="mobile-emp-actions mt-3 pt-2">${actions}</div>
                 </article>`;
@@ -764,7 +764,7 @@
             renderPools();
         } catch (error) {
             console.error(error);
-            Swal.fire('طھط¹ط°ط± طھط­ظ…ظٹظ„ ط§ظ„ظپط±ظٹظ‚', error.message || 'ط­ط¯ط« ط®ط·ط£ ط£ط«ظ†ط§ط، ط¬ظ„ط¨ ط¨ظٹط§ظ†ط§طھ ط§ظ„ظ…ظˆط¸ظپظٹظ†.', 'error');
+            Swal.fire('تعذر تحميل الفريق', error.message || 'حدث خطأ أثناء جلب بيانات الموظفين.', 'error');
         }
     }
 
@@ -775,24 +775,24 @@
         const currentName = decodeURIComponent(encodedName);
         const currentPhone = decodeURIComponent(encodedPhone);
         const result = await Swal.fire({
-            title: 'طھط¹ط¯ظٹظ„ ط¨ظٹط§ظ†ط§طھ ط§ظ„ظ…ظˆط¸ظپ',
-            html: `<label class="form-label w-100 text-end">ط§ظ„ط§ط³ظ…</label><input id="editEmpName" class="swal2-input m-0 mb-3 w-100" value="${escapeEmployeeHtml(currentName)}"><label class="form-label w-100 text-end">ط±ظ‚ظ… ط§ظ„ظ‡ط§طھظپ</label><input id="editEmpPhone" class="swal2-input m-0 w-100" dir="ltr" value="${escapeEmployeeHtml(currentPhone)}">`,
+            title: 'تعديل بيانات الموظف',
+            html: `<label class="form-label w-100 text-end">الاسم</label><input id="editEmpName" class="swal2-input m-0 mb-3 w-100" value="${escapeEmployeeHtml(currentName)}"><label class="form-label w-100 text-end">رقم الهاتف</label><input id="editEmpPhone" class="swal2-input m-0 w-100" dir="ltr" value="${escapeEmployeeHtml(currentPhone)}">`,
             showCancelButton: true,
-            confirmButtonText: 'ط­ظپط¸ ط§ظ„طھط¹ط¯ظٹظ„',
-            cancelButtonText: 'ط¥ظ„ط؛ط§ط،',
+            confirmButtonText: 'حفظ التعديل',
+            cancelButtonText: 'إلغاء',
             preConfirm: () => {
                 const name = document.getElementById('editEmpName').value.trim();
                 const phone = document.getElementById('editEmpPhone').value.trim();
-                if (name.length < 3) return Swal.showValidationMessage('ط§ظ„ط§ط³ظ… ظٹط¬ط¨ ط£ظ„ط§ ظٹظ‚ظ„ ط¹ظ† 3 ط£ط­ط±ظپ.');
+                if (name.length < 3) return Swal.showValidationMessage('الاسم يجب ألا يقل عن 3 أحرف.');
                 return { name, phone };
             }
         });
         if (!result.isConfirmed) return;
         try {
             await readExecutorApiResponse(await executorApiFetch('/executor-portal/api/employees/' + id, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(result.value) }));
-            Swal.fire({ icon:'success', title:'طھظ… طھط¹ط¯ظٹظ„ ط¨ظٹط§ظ†ط§طھ ط§ظ„ظ…ظˆط¸ظپ', timer:1300, showConfirmButton:false });
+            Swal.fire({ icon:'success', title:'تم تعديل بيانات الموظف', timer:1300, showConfirmButton:false });
             loadEmployees();
-        } catch (error) { Swal.fire('طھط¹ط°ط± ط§ظ„طھط¹ط¯ظٹظ„', error.message, 'error'); }
+        } catch (error) { Swal.fire('تعذر التعديل', error.message, 'error'); }
     }
 
     function policyModeChecked(mode, value) {
@@ -804,41 +804,41 @@
         try {
             const data = await readExecutorApiResponse(res);
             if (data.success) {
-                Swal.fire({ icon: 'success', title: 'طھظ… ط§ظ„طھط­ط¯ظٹط«', timer: 1200, showConfirmButton: false });
+                Swal.fire({ icon: 'success', title: 'تم التحديث', timer: 1200, showConfirmButton: false });
                 loadEmployees();
             }
-        } catch (error) { Swal.fire('طھط¹ط°ط± طھط­ط¯ظٹط« ط§ظ„ظ…ظˆط¸ظپ', error.message, 'error'); }
+        } catch (error) { Swal.fire('تعذر تحديث الموظف', error.message, 'error'); }
     }
 
-    // طھظپط¹ظٹظ„ / طھط¹ط·ظٹظ„ ط§ظ„طھظ‚ط§ط±ظٹط± ط§ظ„ط´ط§ظ…ظ„ط©
+    // تفعيل / تعطيل التقارير الشاملة
     async function toggleReports(id) {
         try {
             const res = await executorApiFetch('/executor-portal/api/employees/toggle-reports/' + id, { method: 'POST' });
             const data = await readExecutorApiResponse(res);
             if (data.success) {
-                Swal.fire({ icon: 'success', title: 'طھظ… طھط­ط¯ظٹط« طµظ„ط§ط­ظٹط© ط§ظ„طھظ‚ط§ط±ظٹط±', timer: 1200, showConfirmButton: false });
+                Swal.fire({ icon: 'success', title: 'تم تحديث صلاحية التقارير', timer: 1200, showConfirmButton: false });
                 loadEmployees();
             } else {
-                Swal.fire('ط®ط·ط£', data.error || 'ط­ط¯ط« ط®ط·ط£', 'error');
+                Swal.fire('خطأ', data.error || 'حدث خطأ', 'error');
             }
         } catch (e) {
-            Swal.fire('ط®ط·ط£', e.message || 'طھط¹ط°ط± ط§ظ„ط§طھطµط§ظ„ ط¨ط§ظ„ط®ط§ط¯ظ…', 'error');
+            Swal.fire('خطأ', e.message || 'تعذر الاتصال بالخادم', 'error');
         }
     }
 
-    // ط¥ط¹ط§ط¯ط© طھط¹ظٹظٹظ† ظƒظ„ظ…ط© ط§ظ„ظ…ط±ظˆط±
+    // إعادة تعيين كلمة المرور
     async function resetPassword(id, encodedName) {
         const name = decodeURIComponent(encodedName);
         const { value: newPass } = await Swal.fire({
-            title: 'ط¥ط¹ط§ط¯ط© طھط¹ظٹظٹظ† ظƒظ„ظ…ط© ط§ظ„ظ…ط±ظˆط±',
-            html: `<p class="small text-muted">ط§ظ„ظ…ظˆط¸ظپ: <b>${name}</b></p>`,
+            title: 'إعادة تعيين كلمة المرور',
+            html: `<p class="small text-muted">الموظف: <b>${name}</b></p>`,
             input: 'password',
-            inputPlaceholder: 'ظƒظ„ظ…ط© ط§ظ„ظ…ط±ظˆط± ط§ظ„ط¬ط¯ظٹط¯ط©',
+            inputPlaceholder: 'كلمة المرور الجديدة',
             showCancelButton: true,
-            confirmButtonText: 'طھط؛ظٹظٹط±',
-            cancelButtonText: 'ط¥ظ„ط؛ط§ط،',
+            confirmButtonText: 'تغيير',
+            cancelButtonText: 'إلغاء',
             confirmButtonColor: '#0ea5e9',
-            inputValidator: (val) => { if (!val || val.length < 6) return 'ظƒظ„ظ…ط© ط§ظ„ظ…ط±ظˆط± ظٹط¬ط¨ ط£ظ† طھظƒظˆظ† 6 ط£ط­ط±ظپ ط¹ظ„ظ‰ ط§ظ„ط£ظ‚ظ„'; }
+            inputValidator: (val) => { if (!val || val.length < 6) return 'كلمة المرور يجب أن تكون 6 أحرف على الأقل'; }
         });
         if (newPass) {
             const res = await executorApiFetch('/executor-portal/api/employees/reset-password/' + id, {
@@ -847,7 +847,7 @@
                 body: JSON.stringify({ newPassword: newPass })
             });
             const data = await readExecutorApiResponse(res);
-            if (data.success) Swal.fire({ icon: 'success', title: 'طھظ… طھط؛ظٹظٹط± ظƒظ„ظ…ط© ط§ظ„ظ…ط±ظˆط±', timer: 1500, showConfirmButton: false });
+            if (data.success) Swal.fire({ icon: 'success', title: 'تم تغيير كلمة المرور', timer: 1500, showConfirmButton: false });
         }
     }
 
@@ -856,36 +856,36 @@
         const employee = employeesCache.find((item) => String(item.id || item._id) === String(id));
         const pool = employee?.balancePool || null;
         const isDeposit = type === 'deposit';
-        const title = isDeposit ? 'طھظ…ظˆظٹظ„ ظ…ظ†ظپظ‘ط° ط®ط§ط±ط¬ظٹ' : 'ط®طµظ… ظ…ظ† ظ…ظ†ظپظ‘ط° ط®ط§ط±ط¬ظٹ';
+        const title = isDeposit ? 'تمويل منفّذ خارجي' : 'خصم من منفّذ خارجي';
         const membershipLine = pool
-            ? `ظ…ظ†ظپظ‘ط° ط®ط§ط±ط¬ظٹ ظپظٹ ظ…ط¬ظ…ظˆط¹ط© ط±طµظٹط¯ آ«${escapeEmployeeHtml(pool.name)}آ»`
-            : 'ظ…ظ†ظپظ‘ط° ط®ط§ط±ط¬ظٹ ظ…ظ†ظپط±ط¯';
-        const creditLine = pool ? `ط±طµظٹط¯ ظ…ط¬ظ…ظˆط¹ط© آ«${escapeEmployeeHtml(pool.name)}آ»` : 'ط±طµظٹط¯ظ‡ ط§ظ„ظ…ظ†ظپط±ط¯';
+            ? `منفّذ خارجي في مجموعة رصيد «${escapeEmployeeHtml(pool.name)}»`
+            : 'منفّذ خارجي منفرد';
+        const creditLine = pool ? `رصيد مجموعة «${escapeEmployeeHtml(pool.name)}»` : 'رصيده المنفرد';
         const privateNow = formatEgp(companyBalancesCache.privateBalance);
         const workingNow = formatEgp(employee?.workingBalance != null ? employee.workingBalance : (employee?.balance || pool?.balance || 0));
         const noteHtml = isDeposit
             ? `<div class="pool-fund-note text-end">
-                <div>ظٹظڈط®طµظ… ظ…ظ†: <b>ط§ظ„ط±طµظٹط¯ ط§ظ„ط®ط§طµ</b> ظ„ظ„ط´ط±ظƒط© (ط§ظ„ظ…طھط§ط­ ط§ظ„ط¢ظ† ${privateNow} ط¬.ظ…)</div>
-                <div>ظٹظڈط¶ط§ظپ ط¥ظ„ظ‰: <b>${creditLine}</b> (ط§ظ„ط¢ظ† ${workingNow} ط¬.ظ…)</div>
-                <div>ط§ظ„ط¥ظٹطµط§ظ„ ظˆط§ظ„طھظ†ط¨ظٹظ‡: <b>ظ„ظ„ظ…ط³طھظ„ظ… ظپظ‚ط·</b> (${escapeEmployeeHtml(name)}) â€” ط¨ط§ظ‚ظٹ ط£ط¹ط¶ط§ط، ط§ظ„ظ…ط¬ظ…ظˆط¹ط© ظ„ط§ ظٹط±ظˆظ†ظ‡.</div>
+                <div>يُخصم من: <b>الرصيد الخاص</b> للشركة (المتاح الآن ${privateNow} ج.م)</div>
+                <div>يُضاف إلى: <b>${creditLine}</b> (الآن ${workingNow} ج.م)</div>
+                <div>الإيصال والتنبيه: <b>للمستلم فقط</b> (${escapeEmployeeHtml(name)}) — باقي أعضاء المجموعة لا يرونه.</div>
             </div>`
             : `<div class="pool-fund-note text-end">
-                <div>ظٹظڈط®طµظ… ظ…ظ†: <b>${creditLine}</b> (ط§ظ„ط¢ظ† ${workingNow} ط¬.ظ…)</div>
-                <div>ظٹظڈط¹ط§ط¯ ط¥ظ„ظ‰: <b>ط§ظ„ط±طµظٹط¯ ط§ظ„ط®ط§طµ</b> ظ„ظ„ط´ط±ظƒط©</div>
-                <div>ط§ظ„ط¥ظٹطµط§ظ„ ظˆط§ظ„طھظ†ط¨ظٹظ‡: <b>ظ„ظ„ظ…ط³طھظ„ظ… ظپظ‚ط·</b>.</div>
+                <div>يُخصم من: <b>${creditLine}</b> (الآن ${workingNow} ج.م)</div>
+                <div>يُعاد إلى: <b>الرصيد الخاص</b> للشركة</div>
+                <div>الإيصال والتنبيه: <b>للمستلم فقط</b>.</div>
             </div>`;
         const result = await Swal.fire({
             title,
-            html: `<p class="small mb-2 text-end">ط§ظ„ظ…ط³طھظ„ظ…: <b>${escapeEmployeeHtml(name)}</b><br><span class="text-muted">${membershipLine}</span></p>${noteHtml}<label class="form-label w-100 text-end mt-3">ط§ظ„ظ…ط¨ظ„ط؛ (ط¬.ظ…)</label><input id="extAmount" type="number" class="swal2-input m-0 mb-3 w-100" placeholder="0.00"><label class="form-label w-100 text-end">ظ…ظ„ط§ط­ط¸ط© (ط§ط®طھظٹط§ط±ظٹ)</label><input id="extNote" class="swal2-input m-0 w-100">`,
+            html: `<p class="small mb-2 text-end">المستلم: <b>${escapeEmployeeHtml(name)}</b><br><span class="text-muted">${membershipLine}</span></p>${noteHtml}<label class="form-label w-100 text-end mt-3">المبلغ (ج.م)</label><input id="extAmount" type="number" class="swal2-input m-0 mb-3 w-100" placeholder="0.00"><label class="form-label w-100 text-end">ملاحظة (اختياري)</label><input id="extNote" class="swal2-input m-0 w-100">`,
             showCancelButton: true,
-            confirmButtonText: isDeposit ? 'طھط£ظƒظٹط¯ ط§ظ„طھظ…ظˆظٹظ„ ظ…ظ† ط§ظ„ط±طµظٹط¯ ط§ظ„ط®ط§طµ' : 'طھط£ظƒظٹط¯ ط§ظ„ط®طµظ…',
-            cancelButtonText: 'ط¥ظ„ط؛ط§ط،',
+            confirmButtonText: isDeposit ? 'تأكيد التمويل من الرصيد الخاص' : 'تأكيد الخصم',
+            cancelButtonText: 'إلغاء',
             confirmButtonColor: isDeposit ? '#10b981' : '#ef4444',
             preConfirm: () => {
                 const amount = Number(document.getElementById('extAmount').value);
-                if (!amount || amount <= 0) return Swal.showValidationMessage('ط£ط¯ط®ظ„ ظ…ط¨ظ„ط؛ظ‹ط§ طµط­ظٹط­ظ‹ط§ ط£ظƒط¨ط± ظ…ظ† طµظپط±.');
+                if (!amount || amount <= 0) return Swal.showValidationMessage('أدخل مبلغًا صحيحًا أكبر من صفر.');
                 if (isDeposit && amount > Number(companyBalancesCache.privateBalance || 0)) {
-                    return Swal.showValidationMessage('ط§ظ„ط±طµظٹط¯ ط§ظ„ط®ط§طµ ط؛ظٹط± ظƒط§ظپظچ ظ„ظ‡ط°ط§ ط§ظ„ظ…ط¨ظ„ط؛.');
+                    return Swal.showValidationMessage('الرصيد الخاص غير كافٍ لهذا المبلغ.');
                 }
                 return { amount, note: document.getElementById('extNote').value.trim() };
             }
@@ -903,35 +903,35 @@
                 privateBalance: data.companyPrivateBalance
             });
             if (data.success) {
-                const receiptNote = data.recipientOnly === false ? '' : ' ط§ظ„ط¥ظٹطµط§ظ„ ط¸ظ‡ط± ظ„ظ„ظ…ط³طھظ„ظ… ظپظ‚ط·.';
+                const receiptNote = data.recipientOnly === false ? '' : ' الإيصال ظهر للمستلم فقط.';
                 Swal.fire({
                     icon: 'success',
-                    title: 'طھظ… طھط³ط¬ظٹظ„ ط§ظ„ط¹ظ…ظ„ظٹط©',
-                    text: `ط±ظ‚ظ… ط§ظ„ط¹ظ…ظ„ظٹط©: ${data.customId}.${receiptNote}`,
+                    title: 'تم تسجيل العملية',
+                    text: `رقم العملية: ${data.customId}.${receiptNote}`,
                     timer: 2200,
                     showConfirmButton: false
                 });
             }
             loadEmployees();
-        } catch (error) { Swal.fire('ط®ط·ط£', error.message || 'طھط¹ط°ط± طھط³ط¬ظٹظ„ ط§ظ„ط¹ظ…ظ„ظٹط©', 'error'); }
+        } catch (error) { Swal.fire('خطأ', error.message || 'تعذر تسجيل العملية', 'error'); }
     }
 
     async function createBalancePool() {
         const externals = soloExternals().filter((employee) => employee.status === 'active');
         const memberChecks = externals.map((employee) => `
             <label class="d-flex align-items-center justify-content-between gap-2 py-1">
-                <span>${escapeEmployeeHtml(employee.name)} <small class="text-muted">(ظ…ظ†ظپط±ط¯)</small></span>
+                <span>${escapeEmployeeHtml(employee.name)} <small class="text-muted">(منفرد)</small></span>
                 <input type="checkbox" class="pool-member-check" value="${employee.id || employee._id}">
-            </label>`).join('') || '<p class="small text-muted">ظ„ط§ ظٹظˆط¬ط¯ ظ…ظ†ظپظ‘ط°ظˆظ† ط®ط§ط±ط¬ظٹظˆظ† ظ…ظ†ظپط±ط¯ظˆظ† ط­ط§ظ„ظٹط§ظ‹. ظٹظ…ظƒظ†ظƒ ط¥ظ†ط´ط§ط، ط§ظ„ظ…ط¬ظ…ظˆط¹ط© ظپط§ط±ط؛ط© ط«ظ… ط¥ط¶ط§ظپط© ط§ظ„ط£ط¹ط¶ط§ط، ظ„ط§ط­ظ‚ط§ظ‹.</p>';
+            </label>`).join('') || '<p class="small text-muted">لا يوجد منفّذون خارجيون منفردون حالياً. يمكنك إنشاء المجموعة فارغة ثم إضافة الأعضاء لاحقاً.</p>';
         const result = await Swal.fire({
-            title: 'ظ…ط¬ظ…ظˆط¹ط© ط±طµظٹط¯',
-            html: `<p class="small text-muted text-end">ط§ظ„ظ…ظ†ظپظ‘ط° ظٹط±طھط¨ط· ط¨ظ…ط¬ظ…ظˆط¹ط© ظˆط§ط­ط¯ط© ط£ظˆ ظٹط¨ظ‚ظ‰ ظ…ظ†ظپط±ط¯ظ‹ط§ â€” ظ„ظٹط³ ط§ظ„ط§ط«ظ†ظٹظ†.</p><label class="form-label w-100 text-end">ط§ط³ظ… ط§ظ„ظ…ط¬ظ…ظˆط¹ط©</label><input id="poolName" class="swal2-input m-0 mb-3 w-100" placeholder="ظ…ط«ط§ظ„: ط´ط±ظƒط© ط§ظ„ظ†ظˆط±"><div class="text-end small fw-bold mb-2">ط±ط¨ط· ظ…ظ†ظپط°ظٹظ† ط®ط§ط±ط¬ظٹظٹظ† (ط§ط®طھظٹط§ط±ظٹ)</div><div class="text-end">${memberChecks}</div>`,
+            title: 'مجموعة رصيد',
+            html: `<p class="small text-muted text-end">المنفّذ يرتبط بمجموعة واحدة أو يبقى منفردًا — ليس الاثنين.</p><label class="form-label w-100 text-end">اسم المجموعة</label><input id="poolName" class="swal2-input m-0 mb-3 w-100" placeholder="مثال: شركة النور"><div class="text-end small fw-bold mb-2">ربط منفذين خارجيين (اختياري)</div><div class="text-end">${memberChecks}</div>`,
             showCancelButton: true,
-            confirmButtonText: 'ط¥ظ†ط´ط§ط، ط§ظ„ظ…ط¬ظ…ظˆط¹ط©',
-            cancelButtonText: 'ط¥ظ„ط؛ط§ط،',
+            confirmButtonText: 'إنشاء المجموعة',
+            cancelButtonText: 'إلغاء',
             preConfirm: () => {
                 const name = document.getElementById('poolName').value.trim();
-                if (name.length < 2) return Swal.showValidationMessage('ط£ط¯ط®ظ„ ط§ط³ظ…ط§ظ‹ ظˆط§ط¶ط­ط§ظ‹ ظ„ظ„ظ…ط¬ظ…ظˆط¹ط©.');
+                if (name.length < 2) return Swal.showValidationMessage('أدخل اسماً واضحاً للمجموعة.');
                 return {
                     name,
                     memberIds: [...document.querySelectorAll('.pool-member-check:checked')].map((input) => input.value)
@@ -945,21 +945,21 @@
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(result.value)
             }));
-            Swal.fire({ icon: 'success', title: 'طھظ… ط¥ظ†ط´ط§ط، ظ…ط¬ظ…ظˆط¹ط© ط§ظ„ط±طµظٹط¯', timer: 1300, showConfirmButton: false });
+            Swal.fire({ icon: 'success', title: 'تم إنشاء مجموعة الرصيد', timer: 1300, showConfirmButton: false });
             loadEmployees();
-        } catch (error) { Swal.fire('طھط¹ط°ط± ط§ظ„ط¥ظ†ط´ط§ط،', error.message, 'error'); }
+        } catch (error) { Swal.fire('تعذر الإنشاء', error.message, 'error'); }
     }
 
     async function renameBalancePool(id, encodedName) {
         const currentName = decodeURIComponent(encodedName);
         const result = await Swal.fire({
-            title: 'ط¥ط¹ط§ط¯ط© طھط³ظ…ظٹط© ط§ظ„ظ…ط¬ظ…ظˆط¹ط©',
+            title: 'إعادة تسمية المجموعة',
             input: 'text',
             inputValue: currentName,
             showCancelButton: true,
-            confirmButtonText: 'ط­ظپط¸',
-            cancelButtonText: 'ط¥ظ„ط؛ط§ط،',
-            inputValidator: (value) => { if (!value || value.trim().length < 2) return 'ط£ط¯ط®ظ„ ط§ط³ظ…ط§ظ‹ ظˆط§ط¶ط­ط§ظ‹.'; }
+            confirmButtonText: 'حفظ',
+            cancelButtonText: 'إلغاء',
+            inputValidator: (value) => { if (!value || value.trim().length < 2) return 'أدخل اسماً واضحاً.'; }
         });
         if (!result.isConfirmed) return;
         try {
@@ -969,22 +969,22 @@
                 body: JSON.stringify({ name: result.value.trim() })
             }));
             loadEmployees();
-        } catch (error) { Swal.fire('طھط¹ط°ط± ط§ظ„طھط¹ط¯ظٹظ„', error.message, 'error'); }
+        } catch (error) { Swal.fire('تعذر التعديل', error.message, 'error'); }
     }
 
     async function attachPoolMember(poolId) {
         const pool = poolsCache.find((item) => item.id === poolId);
         const options = eligibleExternalsForPool(poolId)
             .filter((employee) => (employee.balancePool?.id || '') !== poolId);
-        if (!options.length) return Swal.fire('طھظ†ط¨ظٹظ‡', 'ظ„ط§ ظٹظˆط¬ط¯ ظ…ظ†ظپظ‘ط° ط®ط§ط±ط¬ظٹ ظ…ظ†ظپط±ط¯ ظٹظ…ظƒظ† ط¥ط¶ط§ظپطھظ‡. ط§ظپطµظ„ ط§ظ„ظ…ظ†ظپظ‘ط° ظ…ظ† ظ…ط¬ظ…ظˆط¹طھظ‡ ط§ظ„ط­ط§ظ„ظٹط© ط£ظˆظ„ط§ظ‹ (ط¹ط¶ظˆظٹط© ظˆط§ط­ط¯ط© ظپظ‚ط·).', 'info');
+        if (!options.length) return Swal.fire('تنبيه', 'لا يوجد منفّذ خارجي منفرد يمكن إضافته. افصل المنفّذ من مجموعته الحالية أولاً (عضوية واحدة فقط).', 'info');
         const result = await Swal.fire({
-            title: 'ط¥ط¶ط§ظپط© ظ…ظ†ظپظ‘ط° ط®ط§ط±ط¬ظٹ ظ„ظ„ظ…ط¬ظ…ظˆط¹ط©',
-            html: `<p class="small text-end">ط±طµظٹط¯ظ‡ ط§ظ„ظ…ظ†ظپط±ط¯ ط³ظٹظڈط¶ط§ظپ ط¥ظ„ظ‰ ط±طµظٹط¯ ظ…ط¬ظ…ظˆط¹ط© آ«${escapeEmployeeHtml(pool?.name || '')}آ».</p>`,
+            title: 'إضافة منفّذ خارجي للمجموعة',
+            html: `<p class="small text-end">رصيده المنفرد سيُضاف إلى رصيد مجموعة «${escapeEmployeeHtml(pool?.name || '')}».</p>`,
             input: 'select',
             inputOptions: Object.fromEntries(options.map((employee) => [employee.id || employee._id, employee.name])),
             showCancelButton: true,
-            confirmButtonText: 'ط¥ط¶ط§ظپط©',
-            cancelButtonText: 'ط¥ظ„ط؛ط§ط،'
+            confirmButtonText: 'إضافة',
+            cancelButtonText: 'إلغاء'
         });
         if (!result.isConfirmed) return;
         try {
@@ -994,91 +994,91 @@
                 body: JSON.stringify({ memberIds: [result.value] })
             }));
             loadEmployees();
-        } catch (error) { Swal.fire('طھط¹ط°ط± ط§ظ„ط¥ط¶ط§ظپط©', error.message, 'error'); }
+        } catch (error) { Swal.fire('تعذر الإضافة', error.message, 'error'); }
     }
 
     async function detachPoolMember(poolId, employeeId, encodedName, memberCount) {
         const name = decodeURIComponent(encodedName);
         const isLast = Number(memberCount) === 1;
         const result = await Swal.fire({
-            title: 'ظپطµظ„ ظ…ظ† ظ…ط¬ظ…ظˆط¹ط© ط§ظ„ط±طµظٹط¯',
+            title: 'فصل من مجموعة الرصيد',
             html: isLast
-                ? `<p>ظپطµظ„ <b>${escapeEmployeeHtml(name)}</b> ظˆظ‡ظˆ ط¢ط®ط± ط¹ط¶ظˆطں ط±طµظٹط¯ ط§ظ„ظ…ط¬ظ…ظˆط¹ط© ط§ظ„ظ…طھط¨ظ‚ظٹ ط³ظٹظڈظ†ظ‚ظ„ ظ…ط¹ظ‡ ظƒط±طµظٹط¯ ظ…ظ†ظپط±ط¯.</p>`
-                : `<p>ظپطµظ„ <b>${escapeEmployeeHtml(name)}</b> ظ…ظ† ط§ظ„ظ…ط¬ظ…ظˆط¹ط©طں ط³ظٹطµط¨ط­ ظ…ظ†ظپظ‘ط°ظ‹ط§ ط®ط§ط±ط¬ظٹظ‹ط§ ظ…ظ†ظپط±ط¯ظ‹ط§طŒ ظˆط±طµظٹط¯ ط§ظ„ظ…ط¬ظ…ظˆط¹ط© ظٹط¨ظ‚ظ‰ ظ„ظ„ط£ط¹ط¶ط§ط، ط§ظ„ط¢ط®ط±ظٹظ†.</p>`,
+                ? `<p>فصل <b>${escapeEmployeeHtml(name)}</b> وهو آخر عضو؟ رصيد المجموعة المتبقي سيُنقل معه كرصيد منفرد.</p>`
+                : `<p>فصل <b>${escapeEmployeeHtml(name)}</b> من المجموعة؟ سيصبح منفّذًا خارجيًا منفردًا، ورصيد المجموعة يبقى للأعضاء الآخرين.</p>`,
             showCancelButton: true,
-            confirmButtonText: 'ظپطµظ„',
-            cancelButtonText: 'ط¥ظ„ط؛ط§ط،'
+            confirmButtonText: 'فصل',
+            cancelButtonText: 'إلغاء'
         });
         if (!result.isConfirmed) return;
         try {
             await readExecutorApiResponse(await executorApiFetch(`/executor-portal/api/balance-pools/${poolId}/members/${employeeId}/detach`, { method: 'POST' }));
             loadEmployees();
-        } catch (error) { Swal.fire('طھط¹ط°ط± ط§ظ„ظپطµظ„', error.message, 'error'); }
+        } catch (error) { Swal.fire('تعذر الفصل', error.message, 'error'); }
     }
 
     async function archiveBalancePool(id, encodedName) {
         const name = decodeURIComponent(encodedName);
         const result = await Swal.fire({
-            title: 'ط£ط±ط´ظپط© ط§ظ„ظ…ط¬ظ…ظˆط¹ط©',
-            html: `<p>ط£ط±ط´ظپط© ظ…ط¬ظ…ظˆط¹ط© ط±طµظٹط¯ <b>${escapeEmployeeHtml(name)}</b>طں ظٹط¬ط¨ ط£ظ† طھظƒظˆظ† ظپط§ط±ط؛ط©: ط¨ظ„ط§ ط£ط¹ط¶ط§ط، ظˆط¨ظ„ط§ ط±طµظٹط¯.</p>`,
+            title: 'أرشفة المجموعة',
+            html: `<p>أرشفة مجموعة رصيد <b>${escapeEmployeeHtml(name)}</b>؟ يجب أن تكون فارغة: بلا أعضاء وبلا رصيد.</p>`,
             showCancelButton: true,
-            confirmButtonText: 'ط£ط±ط´ظپط©',
-            cancelButtonText: 'ط¥ظ„ط؛ط§ط،',
+            confirmButtonText: 'أرشفة',
+            cancelButtonText: 'إلغاء',
             confirmButtonColor: '#ef4444'
         });
         if (!result.isConfirmed) return;
         try {
             await readExecutorApiResponse(await executorApiFetch('/executor-portal/api/balance-pools/' + id + '/archive', { method: 'POST' }));
             loadEmployees();
-        } catch (error) { Swal.fire('طھط¹ط°ط± ط§ظ„ط£ط±ط´ظپط©', error.message, 'error'); }
+        } catch (error) { Swal.fire('تعذر الأرشفة', error.message, 'error'); }
     }
 
-    // ط­ط°ظپ ظ…ظˆط¸ظپ
+    // حذف موظف
     async function deleteEmployee(id, encodedName) {
         const name = decodeURIComponent(encodedName);
         const result = await Swal.fire({
-            title: 'ط£ط±ط´ظپط© ط­ط³ط§ط¨ ط§ظ„ظ…ظˆط¸ظپ',
-            html: `<p>ظ‡ظ„ طھط±ظٹط¯ ط¥ظٹظ‚ط§ظپ ظˆط£ط±ط´ظپط© ط­ط³ط§ط¨ <b>${escapeEmployeeHtml(name)}</b>طں</p><p class="small text-muted">طھط¸ظ„ ط§ظ„ط¹ظ…ظ„ظٹط§طھ ظˆط§ظ„طھظ‚ط§ط±ظٹط± ط§ظ„ط³ط§ط¨ظ‚ط© ظ…ط­ظپظˆط¸ط© ظ„ظ„ظ…ط±ط§ط¬ط¹ط©.</p>`,
+            title: 'أرشفة حساب الموظف',
+            html: `<p>هل تريد إيقاف وأرشفة حساب <b>${escapeEmployeeHtml(name)}</b>؟</p><p class="small text-muted">تظل العمليات والتقارير السابقة محفوظة للمراجعة.</p>`,
             icon: 'warning',
             showCancelButton: true,
-            confirmButtonText: 'ط£ط±ط´ظپط© ط§ظ„ط­ط³ط§ط¨',
-            cancelButtonText: 'ط¥ظ„ط؛ط§ط،',
+            confirmButtonText: 'أرشفة الحساب',
+            cancelButtonText: 'إلغاء',
             confirmButtonColor: '#ef4444'
         });
         if (result.isConfirmed) {
             const res = await executorApiFetch('/executor-portal/api/employees/delete/' + id, { method: 'POST' });
             const data = await readExecutorApiResponse(res);
             if (data.success) {
-                Swal.fire({ icon: 'success', title: 'طھظ…طھ ط£ط±ط´ظپط© ط§ظ„ط­ط³ط§ط¨', timer: 1200, showConfirmButton: false });
+                Swal.fire({ icon: 'success', title: 'تمت أرشفة الحساب', timer: 1200, showConfirmButton: false });
                 loadEmployees();
             }
         }
     }
         </script>
         
-        <!-- ط´ط±ظٹط· ط§ظ„طھظ†ظ‚ظ„ ط§ظ„ط³ظپظ„ظٹ ظ„ظ„ظ‡ظˆط§طھظپ (App-like Bottom Navigation) -->
-        <!-- ط´ط±ظٹط· ط§ظ„طھظ†ظ‚ظ„ ط§ظ„ط³ظپظ„ظٹ ظ„ظ„ظ‡ظˆط§طھظپ (App-like Bottom Navigation) -->
+        <!-- شريط التنقل السفلي للهواتف (App-like Bottom Navigation) -->
+        <!-- شريط التنقل السفلي للهواتف (App-like Bottom Navigation) -->
         <div class="bottom-nav-mobile d-md-none">
-            <!-- ط­ط³ط§ط¨ظٹ (ط§ظ„ظ…ظ„ظپ ط§ظ„ط´ط®طµظٹ ظˆط§ظ„ظ…ظ†ط¬ط²ط§طھ) -->
+            <!-- حسابي (الملف الشخصي والمنجزات) -->
             <a href="/executor-portal/dashboard#profile" class="bottom-nav-item" id="nav-profile">
                 <i class="fa-solid fa-circle-user"></i>
-                <span>ط­ط³ط§ط¨ظٹ</span>
+                <span>حسابي</span>
             </a>
-            <!-- ط§ظ„ط±ط§ط¯ط§ط± -->
+            <!-- الرادار -->
             <a href="/executor-portal/dashboard#radar" class="bottom-nav-item" id="nav-dash">
                 <i class="fa-solid fa-satellite-dish"></i>
-                <span>ط§ظ„ط±ط§ط¯ط§ط±</span>
+                <span>الرادار</span>
             </a>
-            <!-- ط§ظ„طھظ‚ط§ط±ظٹط± -->
+            <!-- التقارير -->
             <a href="/executor-portal/reports" class="bottom-nav-item" id="nav-rep">
                 <i class="fa-solid fa-chart-line"></i>
-                <span>ط§ظ„طھظ‚ط§ط±ظٹط±</span>
+                <span>التقارير</span>
             </a>
             <% if (emp.role === 'manager') { %>
-            <!-- ط§ظ„ظ…ظˆط¸ظپظٹظ† -->
+            <!-- الموظفين -->
             <a href="/executor-portal/employees" class="bottom-nav-item" id="nav-emp">
                 <i class="fa-solid fa-users"></i>
-                <span>ط§ظ„ظ…ظˆط¸ظپظٹظ†</span>
+                <span>الموظفين</span>
             </a>
             <% } %>
         </div>
