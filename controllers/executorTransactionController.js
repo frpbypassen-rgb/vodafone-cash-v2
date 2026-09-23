@@ -32,6 +32,12 @@ const {
     normalizeExecutorSenderEntries
 } = require('../utils/executorSenderEntries');
 const { readExecutorManualPolicy } = require('../utils/executorManualPolicy');
+const {
+    BankTransferExecutionError,
+    BANK_TRANSFER_PROOF_NOTE,
+    isBankTransferOperation,
+    prepareBankTransferCompletion
+} = require('../utils/bankTransferExecution');
 
 const MAX_PROOF_IMAGES = 5;
 const MAX_PROOF_BYTES = 8 * 1024 * 1024;
@@ -372,64 +378,89 @@ exports.postCompleteTask = async (req, res) => {
             return res.status(409).json({ success: false, error: 'العملية غير متاحة للإنهاء أو تم إنهاؤها مسبقاً.' });
         }
 
-        const requestedSenderEntries = Array.isArray(req.body.senderEntries)
-            ? req.body.senderEntries.map((entry, index) => ({
-                phone: entry?.phone,
-                amount: entry?.amount,
-                proofImage: entry?.proofImageBase64 || entry?.proofImage || null
-            }))
-            : null;
-        let senderEntries;
-        try {
-            senderEntries = normalizeExecutorSenderEntries({
-                requestedSenderEntries,
-                senderPhone: req.body.executionNumber ?? req.body.senderPhone,
-                operationAmount: tx.amount,
-                group: emp.groupId,
-                policy: manualPolicy
-            });
-        } catch (error) {
-            if (error instanceof ExecutorSenderEntriesError) {
-                return res.status(error.statusCode).json({ success: false, error: error.message });
+        const bankTransfer = isBankTransferOperation(tx);
+        let bankProofPayloads = null;
+        if (bankTransfer) {
+            try {
+                bankProofPayloads = prepareBankTransferCompletion(req.body).proofs;
+            } catch (error) {
+                if (error instanceof BankTransferExecutionError) {
+                    return res.status(error.statusCode).json({ success: false, error: error.message });
+                }
+                throw error;
             }
-            throw error;
         }
 
-        const executionNumber = String(
-            req.body.executionNumber
-            ?? req.body.senderPhone
-            ?? senderEntries[0]?.phone
-            ?? ''
-        ).trim();
+        const requestedSenderEntries = bankTransfer
+            ? null
+            : (Array.isArray(req.body.senderEntries)
+                ? req.body.senderEntries.map((entry) => ({
+                    phone: entry?.phone,
+                    amount: entry?.amount,
+                    proofImage: entry?.proofImageBase64 || entry?.proofImage || null
+                }))
+                : null);
+        let senderEntries = [];
+        if (!bankTransfer) {
+            try {
+                senderEntries = normalizeExecutorSenderEntries({
+                    requestedSenderEntries,
+                    senderPhone: req.body.executionNumber ?? req.body.senderPhone,
+                    operationAmount: tx.amount,
+                    group: emp.groupId,
+                    policy: manualPolicy
+                });
+            } catch (error) {
+                if (error instanceof ExecutorSenderEntriesError) {
+                    return res.status(error.statusCode).json({ success: false, error: error.message });
+                }
+                throw error;
+            }
+        }
+
+        const executionNumber = bankTransfer
+            ? ''
+            : String(
+                req.body.executionNumber
+                ?? req.body.senderPhone
+                ?? senderEntries[0]?.phone
+                ?? ''
+            ).trim();
         let maskedExecutionNumber = '';
-        try {
-            maskedExecutionNumber = maskManualExecutionNumber(executionNumber || senderEntries[0]?.phone || '');
-        } catch (error) {
-            if (error instanceof ManualExecutionNumberError) {
-                return res.status(400).json({ success: false, error: error.message });
+        if (!bankTransfer) {
+            try {
+                maskedExecutionNumber = maskManualExecutionNumber(executionNumber || senderEntries[0]?.phone || '');
+            } catch (error) {
+                if (error instanceof ManualExecutionNumberError) {
+                    return res.status(400).json({ success: false, error: error.message });
+                }
+                throw error;
             }
-            throw error;
         }
 
-        const proofs = getProofImages(req.body);
-        if (manualPolicy.proofRequired && proofs.length === 0 && senderEntries.every((entry) => !entry.proofImage)) {
+        const proofs = getProofImages(bankTransfer ? { imagesBase64: bankProofPayloads } : req.body);
+        if (!bankTransfer && manualPolicy.proofRequired && proofs.length === 0 && senderEntries.every((entry) => !entry.proofImage)) {
             return res.status(400).json({ success: false, error: 'إرفاق صورة الإثبات إجباري لهذا المنفذ.' });
         }
 
-        const executorReceipt = await reserveManualExecutorReceiptReference({ group: emp.groupId });
+        const executorReceipt = bankTransfer
+            ? null
+            : await reserveManualExecutorReceiptReference({ group: emp.groupId });
         const completedAt = new Date();
         tx.completedAt = completedAt;
 
         const localFileNames = [];
         const proofsDir = path.join(process.cwd(), 'uploads', 'proofs');
         if (!fs.existsSync(proofsDir)) { fs.mkdirSync(proofsDir, { recursive: true }); }
-        localFileNames.push(await generateManualExecutorReceiptProof({
-            tx,
-            executionNumber: maskedExecutionNumber,
-            executorReference: executorReceipt.reference,
-            proofsDir,
-            savedPaths
-        }));
+        if (!bankTransfer) {
+            localFileNames.push(await generateManualExecutorReceiptProof({
+                tx,
+                executionNumber: maskedExecutionNumber,
+                executorReference: executorReceipt.reference,
+                proofsDir,
+                savedPaths
+            }));
+        }
 
         const persistedSenderEntries = senderEntries.map((entry, index) => {
             const proofImage = saveProofImageBase64({
@@ -457,22 +488,28 @@ exports.postCompleteTask = async (req, res) => {
             }));
         }
 
-        const proofSource = proofs.length || persistedSenderEntries.some((entry) => entry.proofImage)
-            ? 'system-generated-with-executor-upload'
-            : 'system-generated';
+        const proofSource = bankTransfer
+            ? 'bank-transfer-executor-upload'
+            : (proofs.length || persistedSenderEntries.some((entry) => entry.proofImage)
+                ? 'system-generated-with-executor-upload'
+                : 'system-generated');
         const systemReceiptId = localFileNames[0];
         const executorProofImages = localFileNames.slice(1);
-        appendAdminNote(tx, `[تم توليد إيصال تنفيذ يدوي | مرجع المنفذ: ${executorReceipt.reference}]`);
+        if (bankTransfer) {
+            appendAdminNote(tx, BANK_TRANSFER_PROOF_NOTE);
+        } else {
+            appendAdminNote(tx, `[تم توليد إيصال تنفيذ يدوي | مرجع المنفذ: ${executorReceipt.reference}]`);
+        }
 
         tx.status = 'completed';
         tx.proofImage = systemReceiptId;
         tx.proofImages = systemReceiptId ? [systemReceiptId] : [];
         tx.executorProofImages = executorProofImages;
-        tx.executorExecutionNumber = executionNumber || senderEntries[0]?.phone || undefined;
-        tx.executorSenderPhone = maskedExecutionNumber || undefined;
-        tx.executorExecutionNumberMasked = maskedExecutionNumber || undefined;
-        tx.executorSenderEntries = persistedSenderEntries;
-        tx.manualExecutorReceiptReference = executorReceipt.reference;
+        tx.executorExecutionNumber = bankTransfer ? undefined : (executionNumber || senderEntries[0]?.phone || undefined);
+        tx.executorSenderPhone = bankTransfer ? undefined : (maskedExecutionNumber || undefined);
+        tx.executorExecutionNumberMasked = bankTransfer ? undefined : (maskedExecutionNumber || undefined);
+        tx.executorSenderEntries = bankTransfer ? [] : persistedSenderEntries;
+        tx.manualExecutorReceiptReference = bankTransfer ? undefined : executorReceipt.reference;
         tx.completedAt = completedAt;
         tx.completedBy = emp._id;
         tx.broadcastMessages = [];
@@ -500,9 +537,9 @@ exports.postCompleteTask = async (req, res) => {
                 executorProofCount: executorProofImages.length,
                 proofSource,
                 proofRequired: manualPolicy.proofRequired,
-                senderEntryCount: persistedSenderEntries.length,
-                manualExecutorReceiptReference: executorReceipt.reference,
-                executorExecutionNumberMasked: maskedExecutionNumber || null
+                senderEntryCount: bankTransfer ? 0 : persistedSenderEntries.length,
+                manualExecutorReceiptReference: bankTransfer ? null : executorReceipt.reference,
+                executorExecutionNumberMasked: bankTransfer ? null : (maskedExecutionNumber || null)
             },
             metadata: { customId: tx.customId, amount: tx.amount, transferType: tx.transferType }
         }).catch(() => {});
@@ -511,7 +548,12 @@ exports.postCompleteTask = async (req, res) => {
             require('../services/eventBus').publish('transfer:completed', { tx, emp });
         } catch (_) {}
 
-        return res.json({ success: true, message: 'تم إنهاء العملية وحفظ الإيصال بنجاح.' });
+        return res.json({
+            success: true,
+            message: bankTransfer
+                ? 'تم إنهاء التحويل البنكي وإرسال إثبات التحويل للعميل.'
+                : 'تم إنهاء العملية وحفظ الإيصال بنجاح.'
+        });
     } catch (e) {
         if (!transactionCompleted) {
             savedPaths.forEach((filePath) => {

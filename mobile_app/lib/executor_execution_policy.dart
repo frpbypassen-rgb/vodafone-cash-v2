@@ -1,3 +1,8 @@
+bool isBankTransferService(Object? transferType) {
+  final value = '$transferType'.trim().toLowerCase();
+  return value == 'bank_account' || value == 'bank_transfer';
+}
+
 class ExecutorExecutionPolicy {
   const ExecutorExecutionPolicy({
     this.proofRequired = false,

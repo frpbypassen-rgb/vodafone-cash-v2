@@ -67,6 +67,20 @@
         return 'محفظة كاش';
     }
 
+    function isBankTransfer(tx) {
+        if (!tx) return false;
+        const type = String(tx.transferType || '').trim().toLowerCase();
+        const canonical = String(tx.canonicalServiceKey || '').trim().toLowerCase();
+        return type === 'bank_account' || type === 'bank_transfer'
+            || canonical === 'bank_account' || canonical === 'bank_transfer';
+    }
+
+    function accountNumberMarkup(tx) {
+        const number = displayValue(tx && (tx.vodafoneNumber || tx.accountNumber));
+        const bankLabel = isBankTransfer(tx) ? '<div class="fw-bold small mt-1">تحويل بنكي</div>' : '';
+        return `<div><span class="mono-num" dir="ltr">${escapeHtml(number)}</span>${bankLabel}</div>`;
+    }
+
     function typeLabel(tx) {
         if (!tx) return 'عملية';
         if (tx.transferType === 'balance_transfer') return 'تحويل داخلي';
@@ -74,7 +88,7 @@
         if (tx.status === 'deduction') return 'خصم';
         if (tx.transferType === 'post_account') return 'حساب بريد';
         if (tx.transferType === 'post_card') return 'بطاقة بريد';
-        if (tx.transferType === 'bank_transfer') return 'تحويل بنكي';
+        if (isBankTransfer(tx)) return 'تحويل بنكي';
         if (tx.transferType === 'nita_transfer') return 'سفا للنيجر';
         if (tx.transferType === 'bankak_transfer') return 'بنكك للسودان';
         return cashNetworkLabel(tx.vodafoneNumber || tx.accountNumber);
@@ -150,7 +164,7 @@
         if (officialReceipt) {
             items.push({
                 kind: 'official',
-                label: 'الإيصال النظامي المرسل للعميل',
+                label: isBankTransfer(tx) ? 'إثبات التحويل البنكي المرسل للعميل' : 'الإيصال النظامي المرسل للعميل',
                 audience: 'عام للعميل',
                 url: `/proxy/image/${tx._id}/0`,
                 uploader: hasAssignedExecutor(tx) ? String(tx.executorName || tx.assignedExecutorName).trim() : '',
@@ -576,7 +590,7 @@
                     ${metricCard('المبلغ', escapeHtml(model.amount), 'pos')}
                     ${metricCard('التكلفة', escapeHtml(model.costLYD), 'neg')}
                     ${metricCard('سعر الصرف', escapeHtml(model.rate), 'rate')}
-                    ${metricCard('الرقم / الحساب', `<span class="mono-num" dir="ltr">${escapeHtml(displayValue(tx.vodafoneNumber || tx.accountNumber))}</span>`)}
+                    ${metricCard('الرقم / الحساب', accountNumberMarkup(tx))}
                     ${metricCard('المنفّذ', escapeHtml(model.executor), 'od-executor-chip')}
                 </div>
                 ${recipient}
@@ -587,7 +601,6 @@
 
     function renderPartiesPane(model) {
         const tx = model.tx;
-        const numberValue = displayValue(tx.vodafoneNumber || tx.accountNumber);
         const executionNumber = tx.executorExecutionNumber || tx.executorSenderPhone || tx.executorExecutionNumberMasked;
         return `
             <div class="od-stack">
@@ -597,7 +610,7 @@
                 ${kvRow('مجموعة التنفيذ', escapeHtml(displayValue(tx.executorGroupName, 'unassigned')))}
                 ${kvRow('بوت التنفيذ', renderBotEditor(model) || escapeHtml(EMPTY_UNASSIGNED))}
                 ${kvRow('نوع التحويل', escapeHtml(model.type))}
-                ${kvRow('الرقم / الحساب', `<span class="mono-num d-inline-flex align-items-center gap-2" dir="ltr">${escapeHtml(numberValue)}${copyButton(tx.vodafoneNumber || tx.accountNumber)}</span>`)}
+                ${kvRow('الرقم / الحساب', `<div class="d-inline-flex flex-column align-items-start">${accountNumberMarkup(tx)}${copyButton(tx.vodafoneNumber || tx.accountNumber)}</div>`)}
                 ${tx.accountName ? kvRow('اسم المستلم / الحساب', escapeHtml(tx.accountName)) : kvRow('اسم المستلم / الحساب', escapeHtml(EMPTY_NONE))}
                 ${executionNumber ? kvRow('رقم التنفيذ', `<span class="mono-num d-inline-flex align-items-center gap-2" dir="ltr">${escapeHtml(executionNumber)}${copyButton(executionNumber)}</span>`) : kvRow('رقم التنفيذ', escapeHtml(EMPTY_NONE))}
             </div>

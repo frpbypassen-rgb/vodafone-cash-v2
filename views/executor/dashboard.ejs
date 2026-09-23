@@ -527,12 +527,16 @@
                 
                 <div id="previewsGrid" class="row g-2 mb-3"></div>
 
-                <div class="mb-3">
+                <div class="mb-3" id="splitOperationBlock">
                     <div class="form-check form-switch">
                         <input class="form-check-input" type="checkbox" id="splitOperationToggle" onchange="toggleSplitOperationMode()">
                         <label class="form-check-label fw-bold" for="splitOperationToggle">تقسيم العملية على أكثر من رقم مرسل</label>
                     </div>
                     <small class="text-muted d-block mt-1" id="splitOperationHint">عند التفعيل، أدخل رقم الهاتف والمبلغ وصورة الإثبات لكل جزء حتى يساوي مجموع العملية.</small>
+                </div>
+
+                <div id="bankTransferCompletionNote" class="alert alert-info py-2 small fw-bold d-none" role="status">
+                    تحويل بنكي: أرفق صورة الإثبات فقط. تُرسل الصورة نفسها للعميل، دون رقم هاتف ودون تقسيم.
                 </div>
 
                 <div id="singleSenderBlock" class="mb-4">
@@ -827,9 +831,30 @@
         return '';
     }
 
+    function isBankTransferCompletion() {
+        const type = String(currentCompletingTransferType || '').trim().toLowerCase();
+        return type === 'bank_account' || type === 'bank_transfer';
+    }
+
     function updateProofRequirement() {
         const title = document.getElementById('proofRequirementTitle');
         const hint = document.getElementById('proofRequirementHint');
+        const bankTransfer = isBankTransferCompletion();
+        const splitBlock = document.getElementById('splitOperationBlock');
+        const phoneBlock = document.getElementById('singleSenderBlock');
+        const bankNote = document.getElementById('bankTransferCompletionNote');
+        if (splitBlock) splitBlock.classList.toggle('d-none', bankTransfer);
+        if (phoneBlock) phoneBlock.classList.toggle('d-none', bankTransfer);
+        if (bankNote) bankNote.classList.toggle('d-none', !bankTransfer);
+        if (bankTransfer) {
+            const splitToggle = document.getElementById('splitOperationToggle');
+            if (splitToggle) splitToggle.checked = false;
+            document.getElementById('splitSenderBlock')?.classList.add('d-none');
+            if (title) title.textContent = 'إرفاق صورة الإثبات إجباري';
+            if (hint) hint.textContent = 'تُرسل صورة الإثبات نفسها للعميل. لا يُنشأ إيصال تلقائي للتحويل البنكي.';
+            dropZone.classList.add('border-danger');
+            return;
+        }
         if (executorManualPolicy.proofRequired) {
             if (title) title.textContent = 'إرفاق الصورة إجباري';
             if (hint) hint.textContent = 'يجب إرفاق صورة إثبات لكل رقم مرسل عند تقسيم العملية، أو صورة واحدة على الأقل عند رقم واحد.';
@@ -1508,7 +1533,8 @@
     }
 
     document.getElementById('btnFinish').onclick = async function() {
-        const splitEnabled = document.getElementById('splitOperationToggle').checked;
+        const bankTransfer = isBankTransferCompletion();
+        const splitEnabled = !bankTransfer && document.getElementById('splitOperationToggle').checked;
         const btn = this;
         btn.disabled = true;
         btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> ضغط وإرسال...';
@@ -1543,9 +1569,9 @@
                     senderEntries
                 };
             } else {
-                const executionNumber = document.getElementById('senderPhoneInput').value.trim();
+                const executionNumber = bankTransfer ? '' : document.getElementById('senderPhoneInput').value.trim();
                 const executionDigits = executionNumber.replace(/\D/g, '');
-                if (executionDigits) {
+                if (!bankTransfer && executionDigits) {
                     const phoneError = validateSenderPhoneInput(executionDigits, false);
                     if (phoneError) throw new Error(phoneError);
                 }
@@ -1553,14 +1579,16 @@
                 for (let i = 0; i < selectedFilesArray.length; i++) {
                     compressedImagesBase64.push(await compressSingleImagePromise(selectedFilesArray[i]));
                 }
-                if (executorManualPolicy.proofRequired && compressedImagesBase64.length === 0) {
-                    throw new Error('إرفاق صورة الإثبات إجباري لهذا المنفذ.');
+                if ((bankTransfer || executorManualPolicy.proofRequired) && compressedImagesBase64.length === 0) {
+                    throw new Error(bankTransfer
+                        ? 'إرفاق صورة إثبات التحويل البنكي إجباري.'
+                        : 'إرفاق صورة الإثبات إجباري لهذا المنفذ.');
                 }
                 payload = {
                     imageBase64: compressedImagesBase64[0],
-                    imagesBase64: compressedImagesBase64,
-                    executionNumber: executionNumber
+                    imagesBase64: compressedImagesBase64
                 };
+                if (!bankTransfer) payload.executionNumber = executionNumber;
             }
 
             const res = await executorApiFetch('/executor-portal/api/complete-task/' + currentCompletingId, {

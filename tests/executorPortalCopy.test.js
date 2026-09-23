@@ -15,6 +15,10 @@ const dashboardController = read('controllers/executorDashboardController.js');
 describe('executor portal copy contracts', () => {
     test('live-queue cards name bank / sefa / bankak instead of defaulting to cash', () => {
         expect(dashboardView).toContain("bank_account: { name: 'تحويل بنكي'");
+        expect(dashboardView).toContain('function isBankTransferCompletion()');
+        expect(dashboardView).toContain('id="bankTransferCompletionNote"');
+        expect(dashboardView).toContain('تُرسل صورة الإثبات نفسها للعميل');
+        expect(dashboardView).toContain('id="splitOperationBlock"');
         expect(dashboardView).toContain("sefa_niger: { name: 'سيفا النيجر'");
         expect(dashboardView).toContain("bankak_sudan: { name: 'بنكك السودان'");
         expect(dashboardView).toContain("|| { name: 'عملية تنفيذ'");
