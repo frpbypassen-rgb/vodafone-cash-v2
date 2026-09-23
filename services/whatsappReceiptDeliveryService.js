@@ -19,6 +19,7 @@ const {
     normalizeWhatsAppPhone,
     sendReceipt
 } = require('./whatsappService');
+const { formatClientReceiptAccountName, bankLabelForTransaction } = require('../utils/egyptianBanks');
 
 const RECEIPT_DELIVERY_STATUSES = new Set(['sent', 'delivered', 'read']);
 
@@ -368,6 +369,7 @@ const sendTransactionReceipt = async (transactionInput, {
         delivery.metadata = {
             ...(delivery.metadata || {}),
             service: serviceLabel(transaction.transferType),
+            bankName: bankLabelForTransaction(transaction) || '',
             receiptUrl,
             proofIndex,
             recipientSource: recipient.source || 'account'
@@ -383,7 +385,10 @@ const sendTransactionReceipt = async (transactionInput, {
 
         const result = await sendReceipt({
             phone: normalizedPhone,
-            accountName: recipient.name || transaction.employeeName || transaction.companyName || '',
+            accountName: formatClientReceiptAccountName(
+                transaction,
+                recipient.name || transaction.employeeName || transaction.companyName || ''
+            ),
             reference: transaction.customId || String(transaction._id),
             amount: formatReceiptAmount(transaction.amount),
             currency: receiptCurrency(transaction),

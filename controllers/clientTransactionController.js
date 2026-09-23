@@ -27,6 +27,7 @@ const {
 } = require('../utils/rateHelper');
 const { getTransferServiceDefinition } = require('../utils/mobileTransferServiceCatalog');
 const { validateTransferInput } = require('../utils/transferServiceRules');
+const { resolveEgyptianBank } = require('../utils/egyptianBanks');
 const { resolveClientProofImage } = require('../services/clientProofAccessService');
 const { normalizeCustomerNoteInput } = require('../utils/transactionNotes');
 const { normalizeWhatsAppPhone } = require('../services/whatsappService');
@@ -265,6 +266,10 @@ exports.postTransfer = async (req, res) => {
             dataEntryAcknowledgedAt: serviceKey === 'sefa_niger' && dataEntryAcknowledged ? new Date() : undefined
         };
 
+        const bankInput = {
+            bankCode: req.body.bankCode,
+            bankName: req.body.bankName
+        };
         const validationError = validateTransferInput({
             serviceKey,
             amount,
@@ -276,9 +281,15 @@ exports.postTransfer = async (req, res) => {
             governorate,
             hasIdentityImage: Boolean(req.file),
             enforceDataEntryAcknowledgement: true,
-            dataEntryAcknowledged
+            dataEntryAcknowledged,
+            ...bankInput
         });
         if (validationError) throw createClientError(validationError, 400);
+        if (serviceKey === 'bank_account' || serviceKey === 'bank_transfer') {
+            const bank = resolveEgyptianBank(bankInput.bankCode || bankInput.bankName);
+            serviceDetails.bankCode = bank.code;
+            serviceDetails.bankName = bank.nameAr;
+        }
 
         let settings = await withSess(Settings.findOne({}));
         if (!settings) settings = await Settings.create({}, sessionOpts);

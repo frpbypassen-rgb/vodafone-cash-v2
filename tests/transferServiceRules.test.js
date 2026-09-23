@@ -80,4 +80,21 @@ describe('Transfer service rules', () => {
         })).toBeNull();
         expect(getTransferServiceRules('sefa_niger').destinationMaxLength).toBe(11);
     });
+
+    test('requires an allowlisted bank for bank transfers and not for cash', () => {
+        const bank = {
+            ...validInput,
+            serviceKey: 'bank_account',
+            amount: 500,
+            destination: 'EG380019000500000000263180002',
+            beneficiaryName: 'محمد أحمد علي',
+            bankCode: 'nbe'
+        };
+        expect(validateTransferInput(bank)).toBeNull();
+        expect(validateTransferInput({ ...bank, bankCode: '', bankName: 'بنك مصر' })).toBeNull();
+        expect(validateTransferInput({ ...bank, serviceKey: 'bank_transfer', bankCode: 'hsbc' })).toBeNull();
+        expect(validateTransferInput({ ...bank, bankCode: '' })).toContain('اختر البنك');
+        expect(validateTransferInput({ ...bank, bankCode: 'cbe', bankName: 'البنك المركزي المصري' })).toContain('غير مدرج');
+        expect(validateTransferInput({ ...validInput, serviceKey: 'vodafone' })).toBeNull();
+    });
 });

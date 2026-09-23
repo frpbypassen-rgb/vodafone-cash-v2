@@ -75,10 +75,18 @@
             || canonical === 'bank_account' || canonical === 'bank_transfer';
     }
 
+    function bankLabel(tx) {
+        const details = tx && tx.serviceDetails ? tx.serviceDetails : {};
+        return String((details && details.bankName) || (tx && tx.bankName) || '').trim();
+    }
+
     function accountNumberMarkup(tx) {
         const number = displayValue(tx && (tx.vodafoneNumber || tx.accountNumber));
-        const bankLabel = isBankTransfer(tx) ? '<div class="fw-bold small mt-1">تحويل بنكي</div>' : '';
-        return `<div><span class="mono-num" dir="ltr">${escapeHtml(number)}</span>${bankLabel}</div>`;
+        const bank = bankLabel(tx);
+        const bankLabelHtml = isBankTransfer(tx)
+            ? `<div class="fw-bold small mt-1">تحويل بنكي</div>${bank ? `<div class="small text-muted">${escapeHtml(bank)}</div>` : ''}`
+            : '';
+        return `<div><span class="mono-num" dir="ltr">${escapeHtml(number)}</span>${bankLabelHtml}</div>`;
     }
 
     function typeLabel(tx) {
@@ -581,9 +589,12 @@
                 </div>
             `;
         } else {
+            const bank = bankLabel(tx);
             const recipient = tx.accountName && tx.transferType !== 'vodafone'
-                ? `<div class="od-note-card"><div class="od-section-title"><i class="fa-solid fa-address-card"></i> بيانات مستلم البريد</div><div>${escapeHtml(tx.accountName)}</div></div>`
-                : '';
+                ? `<div class="od-note-card"><div class="od-section-title"><i class="fa-solid fa-address-card"></i> ${isBankTransfer(tx) ? 'بيانات المستفيد' : 'بيانات مستلم البريد'}</div><div>${escapeHtml(tx.accountName)}</div>${bank ? `<div class="small text-muted mt-1">البنك: ${escapeHtml(bank)}</div>` : ''}</div>`
+                : (isBankTransfer(tx) && bank
+                    ? `<div class="od-note-card"><div class="od-section-title"><i class="fa-solid fa-building-columns"></i> البنك</div><div>${escapeHtml(bank)}</div></div>`
+                    : '');
             body = `
                 <div class="od-summary-grid">
                     ${metricCard('رقم العملية', `<span class="mono-num">${escapeHtml(model.opNumber)}</span>${copyButton(tx.customId || tx._id)}`)}
@@ -612,6 +623,7 @@
                 ${kvRow('نوع التحويل', escapeHtml(model.type))}
                 ${kvRow('الرقم / الحساب', `<div class="d-inline-flex flex-column align-items-start">${accountNumberMarkup(tx)}${copyButton(tx.vodafoneNumber || tx.accountNumber)}</div>`)}
                 ${tx.accountName ? kvRow('اسم المستلم / الحساب', escapeHtml(tx.accountName)) : kvRow('اسم المستلم / الحساب', escapeHtml(EMPTY_NONE))}
+                ${isBankTransfer(tx) ? kvRow('البنك', escapeHtml(bankLabel(tx) || EMPTY_NONE)) : ''}
                 ${executionNumber ? kvRow('رقم التنفيذ', `<span class="mono-num d-inline-flex align-items-center gap-2" dir="ltr">${escapeHtml(executionNumber)}${copyButton(executionNumber)}</span>`) : kvRow('رقم التنفيذ', escapeHtml(EMPTY_NONE))}
             </div>
         `;
@@ -865,6 +877,7 @@
         buildViewModel,
         renderHeaderMeta,
         renderSummaryPane,
+        renderPartiesPane,
         renderProofsPane,
         activateTab,
         openLightbox,

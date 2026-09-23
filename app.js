@@ -421,7 +421,10 @@ app.use(enforceSecuritySession);
 app.use(enforceEmergencyLockdown);
 
 const { adminHrefVisible } = require('./config/adminRoles');
+const { EGYPTIAN_BANKS, bankLabelForTransaction } = require('./utils/egyptianBanks');
 app.use((req, res, next) => {
+    res.locals.egyptianBanks = EGYPTIAN_BANKS;
+    res.locals.bankLabelForTransaction = bankLabelForTransaction;
     res.locals.adminName = req.session.adminName || 'مدير';
     // ✅ إصلاح: استخدام adminRole (وليس role) بما يتوافق مع auth middleware
     res.locals.role = req.session.adminRole || null;

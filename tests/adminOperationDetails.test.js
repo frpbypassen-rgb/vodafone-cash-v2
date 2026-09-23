@@ -61,6 +61,20 @@ describe('admin comprehensive operation details', () => {
         }, { noteView: { customerText: '', systemText: '' } });
         expect(details.renderSummaryPane(bankModel)).toContain('تحويل بنكي');
         expect(details.renderSummaryPane(bankModel)).toContain('EG380019000500000000263180002');
+        const namedBankModel = details.buildViewModel({
+            ...pendingCash,
+            transferType: 'bank_account',
+            accountName: 'محمد أحمد علي',
+            vodafoneNumber: '',
+            accountNumber: 'EG380019000500000000263180002',
+            serviceDetails: { bankName: 'بنك مصر', bankCode: 'bmisr' }
+        }, { noteView: { customerText: '', systemText: '' } });
+        const summaryHtml = details.renderSummaryPane(namedBankModel);
+        const partiesHtml = details.renderPartiesPane(namedBankModel);
+        expect(summaryHtml).toContain('تحويل بنكي');
+        expect(summaryHtml).toContain('بنك مصر');
+        expect(partiesHtml).toContain('البنك');
+        expect(partiesHtml).toContain('بنك مصر');
         expect(summary).toContain('شركة النور للصرافة (تجريبي)');
         expect(summary).toContain('بانتظار التنفيذ');
         expect(summary).not.toContain('---');

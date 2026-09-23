@@ -58,6 +58,7 @@ const toClientTransactionDto = (transaction, { canViewBalance = true } = {}) => 
         serviceDetails: {
             subtype: details.subtype || '',
             city: details.city || '',
+            bankCode: details.bankCode || '',
             bankName: details.bankName || '',
             destinationLabel: details.destinationLabel || '',
             amountCurrency: details.amountCurrency || '',

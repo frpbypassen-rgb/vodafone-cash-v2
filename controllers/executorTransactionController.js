@@ -38,6 +38,7 @@ const {
     isBankTransferOperation,
     prepareBankTransferCompletion
 } = require('../utils/bankTransferExecution');
+const { bankLabelForTransaction } = require('../utils/egyptianBanks');
 
 const MAX_PROOF_IMAGES = 5;
 const MAX_PROOF_BYTES = 8 * 1024 * 1024;
@@ -716,6 +717,8 @@ exports.executeViaZaynPay = async (req, res) => {
         let clientNoteDisplay = tx.notes ? `\n📝 <b>ملاحظة:</b> ${tx.notes}` : '';
         let accDetails = `📞 <b>الرقم/الحساب:</b> <code>${walletNumber}</code>\n`;
         if (tx.accountName) accDetails += `👤 <b>الاسم:</b> ${tx.accountName}\n`;
+        const bankLabel = bankLabelForTransaction(tx);
+        if (bankLabel) accDetails += `🏦 <b>البنك:</b> ${bankLabel}\n`;
 
         const clientMsg = `✅ <b>تـم تـنـفـيـذ طـلـبـك بـنـجـاح! (${typeLabel})</b> 🎉\n\n` +
                           `🧾 <b>رقم الطلب:</b> <code>${tx.customId || tx._id}</code>\n` + accDetails +

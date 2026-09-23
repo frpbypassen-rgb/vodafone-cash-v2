@@ -403,6 +403,62 @@ describe('💸 Contract Tests: Transfer (Mobile API)', () => {
         });
     });
 
+    test('rejects a bank transfer when the bank is missing, unknown, or omitted for Instapay', async () => {
+        const base = {
+            amount: 500,
+            number: 'EG123456789012345678901234567',
+            transferType: 'bank_account',
+            name: 'Bank Test Recipient'
+        };
+        const missing = await request(app)
+            .post('/client/new-transfer')
+            .set('Idempotency-Key', '550e8400-e29b-41d4-a716-446655440021')
+            .send(base);
+        expect(missing.status).toBe(400);
+        expect(missing.body.message).toContain('اختر البنك');
+
+        const invalid = await request(app)
+            .post('/client/new-transfer')
+            .set('Idempotency-Key', '550e8400-e29b-41d4-a716-446655440022')
+            .send({ ...base, bankName: 'البنك المركزي المصري' });
+        expect(invalid.status).toBe(400);
+        expect(invalid.body.message).toContain('غير مدرج');
+
+        const instapay = await request(app)
+            .post('/client/new-transfer')
+            .set('Idempotency-Key', '550e8400-e29b-41d4-a716-446655440023')
+            .send({
+                amount: 500,
+                number: '01012345678',
+                transferType: 'bank_account',
+                serviceSubtype: 'instapay',
+                name: 'محمد أحمد علي'
+            });
+        expect(instapay.status).toBe(400);
+        expect(instapay.body.message).toContain('اختر البنك');
+        expect(Transaction).not.toHaveBeenCalled();
+    });
+
+    test('stores the canonical bank code and Arabic name for a bank transfer', async () => {
+        const payload = {
+            amount: 500,
+            number: 'EG123456789012345678901234567',
+            transferType: 'bank_account',
+            name: 'Bank Test Recipient',
+            bankCode: 'nbe'
+        };
+        const res = await request(app)
+            .post('/client/new-transfer')
+            .set('Idempotency-Key', '550e8400-e29b-41d4-a716-446655440024')
+            .send(payload);
+
+        expect(res.status).toBe(200);
+        expect(Transaction.mock.calls[0][0].serviceDetails).toMatchObject({
+            bankCode: 'nbe',
+            bankName: 'البنك الأهلي المصري'
+        });
+    });
+
     test('T024: rejects Arabic legacy transferType values', async () => {
         const res = await request(app)
             .post('/client/new-transfer')

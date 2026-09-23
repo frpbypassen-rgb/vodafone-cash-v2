@@ -65,6 +65,9 @@
         return [
             ['الخدمة', esc(global.currentTransferType)],
             ['المستفيد', esc(document.getElementById('tf_beneficiary')?.value || '—')],
+            ...(document.getElementById('bank_div')?.style.display === 'block'
+                ? [['البنك', esc(document.getElementById('tf_bank')?.selectedOptions?.[0]?.text || '—')]]
+                : []),
             ['الحساب / الهاتف', esc(document.getElementById('tf_phone')?.value || document.getElementById('tf_governorate')?.value || '—')],
             ['القيمة', `${esc(document.getElementById('tf_amount')?.value || '0')} EGP`],
             ['التكلفة', `${esc(document.getElementById('tf_amount_lyd')?.value || '0')} LYD`],

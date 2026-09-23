@@ -19,6 +19,13 @@
                 <span id="beneficiaryFieldLabel">اسم المستفيد</span>
                 <input type="text" name="name" id="transferBeneficiary" autocomplete="off" maxlength="160" placeholder="أدخل اسم المستفيد">
             </label>
+            <label class="bw-field span-2" data-bank-field hidden>
+                <span>البنك</span>
+                <select name="bankCode" id="transferBank" autocomplete="off">
+                    <%- include('../../partials/egyptian_bank_options') %>
+                </select>
+                <small>اختر البنك المصري الذي يُحوَّل إليه الحساب.</small>
+            </label>
             <label class="bw-field" data-subtype-field hidden>
                 <span>نوع خدمة سيفا</span>
                 <select name="serviceSubtype" id="transferSubtype">

@@ -9,6 +9,7 @@ const {
 } = require('../utils/executorTaskPrivacy');
 const { createReceiptImageUrl } = require('../services/receiptShareService');
 const { readExecutorManualPolicy, toPublicExecutionPolicy } = require('../utils/executorManualPolicy');
+const { bankLabelForTransaction } = require('../utils/egyptianBanks');
 
 const receiptFields = (tx) => {
     const hasProofImage = Boolean(tx.receiptUrl || tx.proofImage || (tx.proofImages && tx.proofImages.length > 0));
@@ -275,6 +276,7 @@ const toExecutorTaskDto = (tx, currentExecutorId = null) => {
         amount: Number(tx.amount || 0),
         ...recipient,
         recipientName: tx.accountName || null,
+        bankName: bankLabelForTransaction(tx) || null,
         status: tx.status || 'unknown',
         operatorId: tx.operatorId ? String(tx.operatorId) : null,
         acceptedByName: tx.status === 'accepted' ? (tx.executorName || null) : null,

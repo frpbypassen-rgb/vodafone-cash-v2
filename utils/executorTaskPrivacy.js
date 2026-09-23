@@ -1,5 +1,7 @@
 'use strict';
 
+const { bankLabelForTransaction } = require('./egyptianBanks');
+
 const stringId = (value) => String(value?._id || value || '');
 
 const ACCEPTABLE_TASK_STATUSES = Object.freeze(['processing', 'pending']);
@@ -147,6 +149,7 @@ const toExecutorPortalTaskDto = (transaction = {}, executorId = null) => {
         recipientPrefix: recipient.recipientPrefix,
         recipientRevealed: recipient.recipientRevealed,
         accountName: transaction.accountName || null,
+        bankName: bankLabelForTransaction(transaction) || null,
         notes: portalLiveTaskNotes(transaction.notes),
         status: transaction.status || 'unknown',
         operatorId: transaction.operatorId ? stringId(transaction.operatorId) : null,

@@ -1,0 +1,4 @@
+<option value="">اختر البنك</option>
+<% (typeof egyptianBanks !== 'undefined' ? egyptianBanks : []).forEach((bank) => { %>
+<option value="<%= bank.code %>"><%= bank.nameAr %></option>
+<% }) %>
